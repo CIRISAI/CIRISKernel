@@ -1,17 +1,59 @@
 # CIRISKernel
 
-The kernel of the CIRIS constitution, extracted for review: its normative text, its Lean proofs, its running
-models and the data they run on.
+**What a group of people needs in order to talk, share and govern itself with nobody in the middle, stated as
+one function and proved.**
+
+A network with no operator has no company to keep the files, order the messages, confirm a vote, decide who is
+in a room, or remove someone who abuses it. Each of those jobs is why a platform sits in the middle today. This
+repository is the part of the CIRIS constitution that does those jobs with nothing but the signed statements
+people's own devices hold.
+
+## What it is for
+
+- **Your things on your devices.** Your files live on the devices you own and copy between them. A family's
+  files live on the family's devices. Nothing is kept by a provider, because no provider is needed to say which
+  copy is right.
+- **Rooms without a host.** A room's members, its keys and its moderators are signed rows the members hold. A
+  live video call or a group chat runs between the members' devices; no service in the middle admits people,
+  holds the key or keeps the recording.
+- **Decisions that are the group's.** A vote no single voice can carry, a moderator the members can recall, a
+  removal that takes a count: each is a row signed by enough of the people it binds, and anyone holding it can
+  check it.
+- **AI agents that answer to people.** An agent acts under a named person's consent. What it cannot undo, it
+  does only with the acknowledgement of those who could have stopped it. A halt reaches every node that
+  receives it, and nothing an agent holds can disarm one in advance.
+
+The kernel does not carry the bytes. It decides what the bytes mean: who is in the room, who holds the key,
+what counts, what is still in force. The network that runs on it is described in the parent specification.
+
+## Four constraints, and how each is met
+
+For people to socialise and govern themselves with no operator, four things have to be true. Each is a reason
+platforms exist; each is met here without one. That the four are needed is argued below. That the kernel meets
+them is proved or run, with the limits stated.
+
+| | The constraint | Without it | How the kernel meets it | Status |
+|---|---|---|---|---|
+| 1 | **Everyone holding the same statements reaches the same answer**, whatever order they arrived in. | Someone has to put events in order for everyone, and that someone is the middle. | The only order is what rows name. Admission reaches one kept set in every arrival order. | PROVED: [`Causal.lean`](proofs/Causal.lean), [`Order.lean`](proofs/Order.lean). RUN: [`check.py`](models/causal_kernel/check.py) |
+| 2 | **A decision can become final without asking a central party, and without everyone online.** | Every admission, grant and vote waits on a confirming service, or can be undone for ever. | An act is final once n − t + 1 of the n members who could undo it have acknowledged it, where t can cut it. The number is exact, and it is the least coordination that works. | PROVED: [`Settled.lean`](proofs/Settled.lean) |
+| 3 | **Nobody gains by saying two things, holding an office, or arriving later.** | Whoever equivocates fastest, or holds the admin seat, owns the group. | A seat is two consents. One signature never removes. A voice that both acknowledged and cut has no say there. A later officer acts forward and never rewrites what counted. | PROVED: [`Consent.lean`](proofs/Consent.lean), [`RosterHead.lean`](proofs/RosterHead.lean), [`Settled.lean`](proofs/Settled.lean). RUN: [`check_attacks.py`](models/causal_kernel/check_attacks.py) |
+| 4 | **A phone can forget what is settled and still be right.** | Only a data centre can hold the whole history, and the data centre is the middle. | A node may cache, checkpoint and drop the bytes of settled acts. Dropping an unsettled act's rows is proved unsafe, with the case exhibited. | PROVED for a sufficient set: [`Settled.lean`](proofs/Settled.lean). RUN: [`check_purge.py`](models/causal_kernel/check_purge.py). OPEN: the least set to keep |
+
+What is not shown: that these four are enough. That is a wager, stated with what would settle it in
+[`OBJECT.md`](OBJECT.md) (move 8): an independent implementation that agrees with these models, and a deployment
+under partition, delay, equivocation and crash. The implications for governing people and AI agents are in
+[`GOVERNANCE.md`](GOVERNANCE.md), each with its evidence and what it does not give.
 
 ## What the kernel is
 
 A function from a set of signed rows, a clock and a key to what every row means to the holder of that key. The
 only order it uses is what rows name: a row names other rows by digest, and two rows where neither names the
-other are concurrent. Standing comes only from signed consent, walked from the reader's own key.
+other are concurrent. Standing comes only from signed consent, walked from the reader's own key. No node agrees
+an order with another, and no coordinator is used.
 
 The page: [`kernel/KERNEL.md`](kernel/KERNEL.md). The normative text: [`kernel/TEXT.md`](kernel/TEXT.md).
 
-## The result
+## The result, exactly
 
 For any set of signed rows a node holds, and every later set containing them, every answer the kernel gives is
 one of three kinds:
@@ -62,15 +104,16 @@ Some checks use three worker processes.
 
 ## Lineage
 
-The arithmetic is not new. Quorum intersection is Gifford, "Weighted Voting for Replicated Data" (SOSP '79);
+The arithmetic is classical. Quorum intersection is Gifford, "Weighted Voting for Replicated Data" (SOSP '79);
 the same argument where some voices sign both ways is Malkhi and Reiter, "Byzantine Quorum Systems"
 (*Distributed Computing* 11(4), 1998). Finality from a locally checkable set of signed acknowledgements, with no
 total order, is the approach of Guerraoui, Kuznetsov, Monti, Pavlovič and Seredinschi, "The Consensus Number of
 a Cryptocurrency" (PODC '19). The split between answers that only grow and answers a later row can change is
 Hellerstein and Alvaro, "Keeping CALM" (*CACM* 63(9), 2020). The closure normal form behind the checkpoint, that
 a view is closed under adding rows exactly when no witness pair exists, is a standard factorisation argument
-restated in `Settled.lean`. What is here is the application to a governance grammar of signed rows, and the
-rules that application forces, checked.
+restated in `Settled.lean`. None of the pieces is new. What is here is the four constraints met together, for the acts by which people
+share, admit, decide and remove, in one function with its proofs: the application of those results to a
+governance grammar of signed rows, and the rules that application forces.
 
 ## What this is not
 
