@@ -53,12 +53,12 @@ done it by synchronising two things: a model of the state and a view of it. Here
 is a function of the rows a node holds, the viewer's key and the clock, the same inputs as the kernel, so what
 a person is offered, what an act would change, and whether the door admits it are one answer.
 
-- **Proved, over one abstract family** (parent, [`formal/event_lifecycle`](https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/event_lifecycle)):
+- **Proved, over one abstract family** (parent, [`formal/event_lifecycle`](https://github.com/CIRISAI/CIRISConstitution/tree/v1.0-rc19/formal/event_lifecycle)):
   every item a person is offered is a transition the door admits, and every transition it admits is offered
   (`queue_sound`, `queue_complete`, `door_is_queue`); the view an item previews is the view its execution gives
   (`preview_is_execution`).
 - **Run, over the specification's own tables and the kernel's own rows** (parent,
-  [`formal/screen`](https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/screen)): six properties, each
+  [`formal/screen`](https://github.com/CIRISAI/CIRISConstitution/tree/v1.0-rc19/formal/screen)): six properties, each
   with planted breaks that are caught. Nothing is drawn that the door refuses. Nothing admitted goes undrawn.
   Every arrival order draws the same screen. A fact that was not sent is never drawn as sent. Waiting is drawn
   as waiting, with what it waits on, never as refused or done. A confirmation appears exactly when an act
@@ -92,9 +92,9 @@ voters cannot check it. Here nobody runs it.
 - **Ranked choice** runs as one count that gives the same winner from the same ballots in any order.
 
 What backs it, in the parent: the secret tally's invariants model-checked with a twin for each defence switched
-off ([`formal/census_ballot`](https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/census_ballot)); ranked choice as an order-free count
-([`formal/ranked_choice`](https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/ranked_choice)); an election's count proved, with a tie seating nobody
-([`formal/moderator_election`](https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/moderator_election)). The kernel's part is the roll at a named head, the one
+off ([`formal/census_ballot`](https://github.com/CIRISAI/CIRISConstitution/tree/v1.0-rc19/formal/census_ballot)); ranked choice as an order-free count
+([`formal/ranked_choice`](https://github.com/CIRISAI/CIRISConstitution/tree/v1.0-rc19/formal/ranked_choice)); an election's count proved, with a tie seating nobody
+([`formal/moderator_election`](https://github.com/CIRISAI/CIRISConstitution/tree/v1.0-rc19/formal/moderator_election)). The kernel's part is the roll at a named head, the one
 say, and the finality of a count.
 
 **Its reach, stated exactly.** This is a solution for a body that admits its own members: a family, a co-op, a
@@ -118,7 +118,7 @@ Standing is then consent between those it binds, authority is never a list, and 
 relations is the kernel. The ethics came first; the mechanism is what it required.
 
 The full formal record, of which this repository carries the kernel's part, is the parent's
-[`formal/`](https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal): the life of a mesh as one model
+[`formal/`](https://github.com/CIRISAI/CIRISConstitution/tree/v1.0-rc19/formal): the life of a mesh as one model
 that closes, the halt's fire path, consent, retirement, the census and the rest, each with its checks.
 
 ## What the kernel is
@@ -208,6 +208,6 @@ its implications for governing people and AI agents, each with its evidence.
 
 ## Where it comes from
 
-The kernel of the CIRIS constitution, edition 1.0-rc19, commit `60c741e` of
+The kernel of the CIRIS constitution, edition 1.0-rc19 (tag `v1.0-rc19`, carried from commit `60c741e`) of
 <https://github.com/CIRISAI/CIRISConstitution>. The parent specification is the normative home; this is an
 extract for review ([`PROVENANCE.md`](PROVENANCE.md)). Licence AGPL-3.0. Maintained by the CIRIS project.
