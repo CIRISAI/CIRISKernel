@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en-GB" class="no-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CIRIS Kernel</title>
+<meta name="description" content="The kernel of the CIRIS constitution: one function, with its proofs, by which a group can talk, share and govern itself with nobody in the middle.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="CIRIS Kernel">
+<meta property="og:description" content="How a group can talk, share and govern itself with nobody in the middle: one function, with its proofs.">
+<meta property="og:url" content="https://cirisai.github.io/CIRISKernel/">
+<meta name="color-scheme" content="light dark">
+<script>document.documentElement.className = "js";</script>
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --surface-2: #f2f0ea; --text: #1c1d1f; --muted: #4c5059;
+  --line: #d9d5cb; --link: #1b4fa8; --power: #a0460c; --power-fill: #e9a066; --ballot: #1b5fd0;
+  --dev: #ffffff; --dev-stroke: #5b5f68; --path: #b9b4a8; --ok: #1e6b3a; --run: #1b4fa8; --open: #8a4b00;
+  --badge-bg-ok: #e3f1e7; --badge-bg-run: #e4ebf8; --badge-bg-open: #f7ead8;
+  --focus: #1b4fa8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131518; --surface: #1b1e22; --surface-2: #22262b; --text: #e9e7e2; --muted: #b0b4bc;
+    --line: #363b42; --link: #8db6ff; --power: #f2a865; --power-fill: #9a5a22; --ballot: #7fb0ff;
+    --dev: #23272d; --dev-stroke: #9aa0aa; --path: #4a5058; --ok: #8fd6a6; --run: #9cbcff; --open: #f0c07a;
+    --badge-bg-ok: #1d3326; --badge-bg-run: #1e2a42; --badge-bg-open: #3a2c17;
+    --focus: #8db6ff;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+a { color: var(--link); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; overflow-wrap: anywhere; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+header.top { padding: 56px 0 28px; }
+h1 { font-size: clamp(1.9rem, 5vw, 2.8rem); line-height: 1.15; margin: 0 0 14px; letter-spacing: -.01em; }
+h2 { font-size: 1.55rem; line-height: 1.25; margin: 0 0 12px; }
+h3 { font-size: 1.15rem; margin: 0 0 6px; }
+.lede { font-size: 1.15rem; color: var(--muted); max-width: 46rem; margin: 0 0 18px; }
+.links { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 0; margin: 0; list-style: none; }
+.links a { font-weight: 600; }
+section { padding: 36px 0; border-top: 1px solid var(--line); }
+.intro { max-width: 46rem; }
+.muted { color: var(--muted); }
+
+/* tabs */
+.tabs { display: none; }
+.js .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin: 18px 0 0;
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+.tabs button {
+  font: inherit; font-weight: 600; color: var(--text); background: transparent; border: 0;
+  padding: 12px 6px; cursor: pointer; border-right: 1px solid var(--line); min-height: 48px;
+}
+.tabs button:last-child { border-right: 0; }
+.tabs button[aria-selected="true"] { background: var(--text); color: var(--bg); }
+.panel { margin-top: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.panel + .panel { margin-top: 18px; }
+.js .panel[hidden] { display: none; }
+.panel .grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.panel h3.ptitle { font-size: 1.3rem; margin-bottom: 10px; }
+.facts h4 { font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 14px 0 2px; }
+.facts h4:first-child { margin-top: 0; }
+.facts p { margin: 0 0 4px; }
+.facts .proof { font-size: .92rem; color: var(--muted); }
+svg.diagram { width: 100%; height: auto; display: block; max-width: 380px; margin: 0 auto; }
+.diagram text { font: 11px system-ui, sans-serif; fill: var(--text); text-anchor: middle; }
+.diagram .num { font-size: 10px; font-weight: 700; fill: var(--text); }
+.diagram .small { font-size: 10px; fill: var(--muted); }
+.diagram .lbl { font-size: 11px; fill: var(--muted); }
+.diagram .grp { fill: none; stroke: var(--dev-stroke); stroke-width: 1.2; stroke-dasharray: 4 4; }
+.diagram .path { stroke: var(--path); stroke-width: 1.4; }
+.diagram .path.faint { stroke-width: .8; }
+.diagram .dev rect { fill: var(--dev); stroke: var(--dev-stroke); stroke-width: 1.6; }
+.diagram .dev.power rect { fill: var(--power-fill); stroke: var(--power); stroke-width: 2.2; }
+.diagram .hub { fill: var(--power-fill); stroke: var(--power); stroke-width: 2.4; }
+.diagram .hubtxt { font-size: 12px; font-weight: 700; fill: var(--text); }
+.diagram .band { fill: none; stroke: var(--power-fill); stroke-width: 22; opacity: .55; }
+.diagram .blk { fill: var(--power-fill); stroke: var(--power); stroke-width: 1.6; }
+.diagram .val { fill: var(--power); }
+.diagram .ballot { fill: var(--ballot); stroke: var(--surface); stroke-width: 1.2; opacity: 0;
+  animation-name: fly; animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
+.diagram .ballot.two { animation-name: fly2; }
+@keyframes fly {
+  0%   { transform: translate(calc(var(--x0) * 1px), calc(var(--y0) * 1px)); opacity: 0; }
+  10%  { opacity: 1; }
+  70%  { transform: translate(calc(var(--x1) * 1px), calc(var(--y1) * 1px)); opacity: 1; }
+  85%, 100% { transform: translate(calc(var(--x1) * 1px), calc(var(--y1) * 1px)); opacity: 0; }
+}
+@keyframes fly2 {
+  0%   { transform: translate(calc(var(--x0) * 1px), calc(var(--y0) * 1px)); opacity: 0; }
+  10%  { opacity: 1; }
+  50%  { transform: translate(calc(var(--x1) * 1px), calc(var(--y1) * 1px)); opacity: 1; }
+  80%  { transform: translate(calc(var(--x2) * 1px), calc(var(--y2) * 1px)); opacity: 1; }
+  92%, 100% { transform: translate(calc(var(--x2) * 1px), calc(var(--y2) * 1px)); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagram .ballot { animation: none; display: none; }
+}
+.legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; font-size: .85rem; color: var(--muted); margin: 8px 0 0; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1.5px solid var(--dev-stroke); background: var(--dev); }
+.sw-ballot { background: var(--ballot); border-color: var(--ballot); border-radius: 50%; }
+.sw-power { background: var(--power-fill); border-color: var(--power); }
+
+.strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 22px 0 0; padding: 0; list-style: none; }
+.strip li { background: var(--surface-2); border-radius: 10px; padding: 12px 14px; }
+.strip li.k { background: var(--text); color: var(--bg); }
+.strip b { display: block; }
+.notdo { margin-top: 18px; font-size: .93rem; color: var(--muted); border-left: 3px solid var(--line); padding: 2px 0 2px 14px; }
+.notdo h3 { font-size: .98rem; color: var(--text); margin-bottom: 4px; }
+.notdo ul { margin: 4px 0 6px; padding-left: 20px; }
+
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.card p { margin: 0; }
+
+table.cons { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: .95rem; }
+table.cons th, table.cons td { text-align: left; vertical-align: top; padding: 10px 10px; border-bottom: 1px solid var(--line); }
+table.cons thead th { font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+table.cons td:first-child { font-weight: 600; }
+.badge { display: inline-block; font-size: .74rem; font-weight: 700; letter-spacing: .05em; padding: 1px 7px; border-radius: 999px; margin: 0 4px 4px 0; }
+.b-proved { color: var(--ok); background: var(--badge-bg-ok); }
+.b-run { color: var(--run); background: var(--badge-bg-run); }
+.b-open { color: var(--open); background: var(--badge-bg-open); }
+.status a { display: inline-block; margin-right: 6px; }
+
+blockquote.line { margin: 16px 0; padding: 12px 16px; background: var(--surface-2); border-radius: 10px; font-size: 1.08rem; font-weight: 600; }
+
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 0 18px; }
+details > summary { cursor: pointer; font-weight: 700; font-size: 1.1rem; padding: 14px 0; }
+details[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+details dl { margin: 0 0 14px; }
+details dt { font-weight: 700; margin-top: 12px; }
+details dd { margin: 2px 0 0; }
+
+footer { border-top: 1px solid var(--line); padding: 28px 0 48px; font-size: .93rem; color: var(--muted); }
+footer pre { background: var(--surface-2); color: var(--text); padding: 10px 12px; border-radius: 8px; overflow-x: auto; font-size: .85rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+  .panel .grid { grid-template-columns: minmax(0, 1fr); }
+  .strip { grid-template-columns: minmax(0, 1fr); }
+  .cards { grid-template-columns: minmax(0, 1fr); }
+  table.cons thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table.cons, table.cons tbody, table.cons tr, table.cons td { display: block; width: 100%; }
+  table.cons tr { border: 1px solid var(--line); border-radius: 10px; padding: 6px 4px; margin-bottom: 12px; background: var(--surface); }
+  table.cons td { border-bottom: 0; padding: 6px 10px; }
+  table.cons td[data-label]::before { content: attr(data-label); display: block; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .tabs button { font-size: .92rem; padding: 10px 4px; }
+  .panel { padding: 16px 14px; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1>People talking, sharing and governing themselves, with nobody in the middle.</h1>
+    <p class="lede">This is the kernel of the CIRIS constitution: the one function a group’s own devices run to decide what their signed statements mean, published with its proofs.</p>
+    <ul class="links">
+      <li><a href="https://github.com/CIRISAI/CIRISKernel">The repository</a></li>
+      <li><a href="https://github.com/CIRISAI/CIRISKernel/blob/main/README.md">README</a></li>
+      <li><a href="https://github.com/CIRISAI/CIRISKernel/blob/main/OBJECT.md">OBJECT.md</a></li>
+      <li><a href="https://github.com/CIRISAI/CIRISKernel/blob/main/REVIEW.md">REVIEW.md</a></li>
+    </ul>
+  </div>
+</header>
+
+<main>
+<section id="vote" aria-labelledby="vote-h">
+  <div class="wrap">
+    <h2 id="vote-h">One ten-person vote, three ways</h2>
+    <p class="intro">A neighbourhood club of ten, a co-op board or an open-source team has a shared budget and has to choose how to spend it. Here is where the ballots travel, and who holds the power, in each of three ways of running that vote.</p>
+
+    <div class="tabs" role="tablist" aria-label="Ways to run the vote">
+      <button role="tab" id="t-hosted" aria-controls="p-hosted" aria-selected="true" tabindex="0">Hosted app</button>
+      <button role="tab" id="t-chain" aria-controls="p-chain" aria-selected="false" tabindex="-1">Blockchain</button>
+      <button role="tab" id="t-kernel" aria-controls="p-kernel" aria-selected="false" tabindex="-1">CIRIS kernel</button>
+    </div>
+
+    <div class="panel" role="tabpanel" id="p-hosted" aria-labelledby="t-hosted" tabindex="0">
+      <h3 class="ptitle">Hosted app</h3>
+      <div class="grid">
+        <figure style="margin:0"><svg viewBox="0 0 360 360" role="img" aria-labelledby="d-hosted-t d-hosted-d" class="diagram"><title id="d-hosted-t">Hosted app: every ballot goes to one server</title><desc id="d-hosted-d">Ten member devices in a ring. Each ballot travels from a device to one server in the middle, run by an operator. The server is highlighted: it holds the power.</desc><circle class="grp" cx="180" cy="180" r="128"/><text class="lbl small" x="180" y="300">the group</text><line class="path" x1="210.9" y1="84.9" x2="180" y2="180"/><line class="path" x1="260.9" y1="121.2" x2="180" y2="180"/><line class="path" x1="280" y1="180" x2="180" y2="180"/><line class="path" x1="260.9" y1="238.8" x2="180" y2="180"/><line class="path" x1="210.9" y1="275.1" x2="180" y2="180"/><line class="path" x1="149.1" y1="275.1" x2="180" y2="180"/><line class="path" x1="99.1" y1="238.8" x2="180" y2="180"/><line class="path" x1="80" y1="180" x2="180" y2="180"/><line class="path" x1="99.1" y1="121.2" x2="180" y2="180"/><line class="path" x1="149.1" y1="84.9" x2="180" y2="180"/><g class="power"><rect class="hub" x="142" y="156" width="76" height="48" rx="6"/><text class="hubtxt" x="180" y="177">operator’s</text><text class="hubtxt" x="180" y="192">server</text></g><g class="dev"><rect x="201.9" y="70.9" width="18" height="28" rx="4"/><text x="210.9" y="88.9" class="num">1</text></g><g class="dev"><rect x="251.9" y="107.2" width="18" height="28" rx="4"/><text x="260.9" y="125.2" class="num">2</text></g><g class="dev"><rect x="271" y="166" width="18" height="28" rx="4"/><text x="280" y="184" class="num">3</text></g><g class="dev"><rect x="251.9" y="224.8" width="18" height="28" rx="4"/><text x="260.9" y="242.8" class="num">4</text></g><g class="dev"><rect x="201.9" y="261.1" width="18" height="28" rx="4"/><text x="210.9" y="279.1" class="num">5</text></g><g class="dev"><rect x="140.1" y="261.1" width="18" height="28" rx="4"/><text x="149.1" y="279.1" class="num">6</text></g><g class="dev"><rect x="90.1" y="224.8" width="18" height="28" rx="4"/><text x="99.1" y="242.8" class="num">7</text></g><g class="dev"><rect x="71" y="166" width="18" height="28" rx="4"/><text x="80" y="184" class="num">8</text></g><g class="dev"><rect x="90.1" y="107.2" width="18" height="28" rx="4"/><text x="99.1" y="125.2" class="num">9</text></g><g class="dev"><rect x="140.1" y="70.9" width="18" height="28" rx="4"/><text x="149.1" y="88.9" class="num">10</text></g><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:210.9;--y0:84.9;--x1:180;--y1:180;animation-delay:0.00s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:260.9;--y0:121.2;--x1:180;--y1:180;animation-delay:0.30s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:280;--y0:180;--x1:180;--y1:180;animation-delay:0.60s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:260.9;--y0:238.8;--x1:180;--y1:180;animation-delay:0.90s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:210.9;--y0:275.1;--x1:180;--y1:180;animation-delay:1.20s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:149.1;--y0:275.1;--x1:180;--y1:180;animation-delay:1.50s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:99.1;--y0:238.8;--x1:180;--y1:180;animation-delay:1.80s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:80;--y0:180;--x1:180;--y1:180;animation-delay:2.10s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:99.1;--y0:121.2;--x1:180;--y1:180;animation-delay:2.40s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:149.1;--y0:84.9;--x1:180;--y1:180;animation-delay:2.70s;animation-duration:3.2s"/></svg> <p class="legend" aria-hidden="true"><span><i class="sw sw-ballot"></i>a ballot</span><span><i class="sw sw-power"></i>holds the power: the server</span><span><i class="sw sw-dev"></i>a member’s device</span></p></figure>
+        <div class="facts">
+          <h4>How you vote</h4>
+          <p>You tap an option in a poll in a hosted chat or forms service. Your ballot goes to that company’s server, which keeps the list of who may vote and does the count.</p>
+          <h4>Where the power sits</h4>
+          <p>With whoever runs the server. They can change the roll, close the poll, read answers that were meant to be private, or lose everything if the service goes away or bans the group.</p>
+          <h4>How it settles</h4>
+          <p>The server announces the result. Members see what it shows them and have nothing of their own to recount.</p>
+          <h4>What it costs you</h4>
+          <p>It is convenient, and often costs nothing in money. The group’s record and its privacy sit with the operator.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" role="tabpanel" id="p-chain" aria-labelledby="t-chain" tabindex="0">
+      <h3 class="ptitle">Blockchain</h3>
+      <div class="grid">
+        <figure style="margin:0"><svg viewBox="0 0 360 360" role="img" aria-labelledby="d-chain-t d-chain-d" class="diagram"><title id="d-chain-t">Blockchain: every ballot goes to a public ledger outside the group</title><desc id="d-chain-d">Ten member devices in a ring inside a larger band of blocks and many small validator dots. Each ballot travels outward from a device to the shared ledger, which validators outside the group order. The band is highlighted: the ordering power sits there.</desc><circle class="band" cx="180" cy="180" r="160"/><rect class="blk" x="194.9" y="15.4" width="12" height="12" rx="2"/><rect class="blk" x="235.2" y="26.2" width="12" height="12" rx="2"/><rect class="blk" x="271.4" y="47.1" width="12" height="12" rx="2"/><rect class="blk" x="300.9" y="76.6" width="12" height="12" rx="2"/><rect class="blk" x="321.8" y="112.8" width="12" height="12" rx="2"/><rect class="blk" x="332.6" y="153.1" width="12" height="12" rx="2"/><rect class="blk" x="332.6" y="194.9" width="12" height="12" rx="2"/><rect class="blk" x="321.8" y="235.2" width="12" height="12" rx="2"/><rect class="blk" x="300.9" y="271.4" width="12" height="12" rx="2"/><rect class="blk" x="271.4" y="300.9" width="12" height="12" rx="2"/><rect class="blk" x="235.2" y="321.8" width="12" height="12" rx="2"/><rect class="blk" x="194.9" y="332.6" width="12" height="12" rx="2"/><rect class="blk" x="153.1" y="332.6" width="12" height="12" rx="2"/><rect class="blk" x="112.8" y="321.8" width="12" height="12" rx="2"/><rect class="blk" x="76.6" y="300.9" width="12" height="12" rx="2"/><rect class="blk" x="47.1" y="271.4" width="12" height="12" rx="2"/><rect class="blk" x="26.2" y="235.2" width="12" height="12" rx="2"/><rect class="blk" x="15.4" y="194.9" width="12" height="12" rx="2"/><rect class="blk" x="15.4" y="153.1" width="12" height="12" rx="2"/><rect class="blk" x="26.2" y="112.8" width="12" height="12" rx="2"/><rect class="blk" x="47.1" y="76.6" width="12" height="12" rx="2"/><rect class="blk" x="76.6" y="47.1" width="12" height="12" rx="2"/><rect class="blk" x="112.8" y="26.2" width="12" height="12" rx="2"/><rect class="blk" x="153.1" y="15.4" width="12" height="12" rx="2"/><circle class="val" cx="185.7" cy="7.1" r="2.6"/><circle class="val" cx="208.2" cy="9.3" r="2.6"/><circle class="val" cx="230.2" cy="14.4" r="2.6"/><circle class="val" cx="251.4" cy="22.4" r="2.6"/><circle class="val" cx="271.4" cy="33.1" r="2.6"/><circle class="val" cx="289.8" cy="46.3" r="2.6"/><circle class="val" cx="306.3" cy="61.7" r="2.6"/><circle class="val" cx="320.6" cy="79.2" r="2.6"/><circle class="val" cx="332.6" cy="98.4" r="2.6"/><circle class="val" cx="341.9" cy="119.1" r="2.6"/><circle class="val" cx="348.5" cy="140.7" r="2.6"/><circle class="val" cx="352.2" cy="163" r="2.6"/><circle class="val" cx="352.9" cy="185.7" r="2.6"/><circle class="val" cx="350.7" cy="208.2" r="2.6"/><circle class="val" cx="345.6" cy="230.2" r="2.6"/><circle class="val" cx="337.6" cy="251.4" r="2.6"/><circle class="val" cx="326.9" cy="271.4" r="2.6"/><circle class="val" cx="313.7" cy="289.8" r="2.6"/><circle class="val" cx="298.3" cy="306.3" r="2.6"/><circle class="val" cx="280.8" cy="320.6" r="2.6"/><circle class="val" cx="261.6" cy="332.6" r="2.6"/><circle class="val" cx="240.9" cy="341.9" r="2.6"/><circle class="val" cx="219.3" cy="348.5" r="2.6"/><circle class="val" cx="197" cy="352.2" r="2.6"/><circle class="val" cx="174.3" cy="352.9" r="2.6"/><circle class="val" cx="151.8" cy="350.7" r="2.6"/><circle class="val" cx="129.8" cy="345.6" r="2.6"/><circle class="val" cx="108.6" cy="337.6" r="2.6"/><circle class="val" cx="88.6" cy="326.9" r="2.6"/><circle class="val" cx="70.2" cy="313.7" r="2.6"/><circle class="val" cx="53.7" cy="298.3" r="2.6"/><circle class="val" cx="39.4" cy="280.8" r="2.6"/><circle class="val" cx="27.4" cy="261.6" r="2.6"/><circle class="val" cx="18.1" cy="240.9" r="2.6"/><circle class="val" cx="11.5" cy="219.3" r="2.6"/><circle class="val" cx="7.8" cy="197" r="2.6"/><circle class="val" cx="7.1" cy="174.3" r="2.6"/><circle class="val" cx="9.3" cy="151.8" r="2.6"/><circle class="val" cx="14.4" cy="129.8" r="2.6"/><circle class="val" cx="22.4" cy="108.6" r="2.6"/><circle class="val" cx="33.1" cy="88.6" r="2.6"/><circle class="val" cx="46.3" cy="70.2" r="2.6"/><circle class="val" cx="61.7" cy="53.7" r="2.6"/><circle class="val" cx="79.2" cy="39.4" r="2.6"/><circle class="val" cx="98.4" cy="27.4" r="2.6"/><circle class="val" cx="119.1" cy="18.1" r="2.6"/><circle class="val" cx="140.7" cy="11.5" r="2.6"/><circle class="val" cx="163" cy="7.8" r="2.6"/><circle class="grp" cx="180" cy="180" r="128"/><text class="lbl small" x="180" y="300">the group</text><line class="path" x1="210.9" y1="84.9" x2="227" y2="35.4"/><line class="path" x1="260.9" y1="121.2" x2="303" y2="90.7"/><line class="path" x1="280" y1="180" x2="332" y2="180"/><line class="path" x1="260.9" y1="238.8" x2="303" y2="269.3"/><line class="path" x1="210.9" y1="275.1" x2="227" y2="324.6"/><line class="path" x1="149.1" y1="275.1" x2="133" y2="324.6"/><line class="path" x1="99.1" y1="238.8" x2="57" y2="269.3"/><line class="path" x1="80" y1="180" x2="28" y2="180"/><line class="path" x1="99.1" y1="121.2" x2="57" y2="90.7"/><line class="path" x1="149.1" y1="84.9" x2="133" y2="35.4"/><text class="lbl" x="180" y="174">public ledger,</text><text class="lbl" x="180" y="190">ordered by validators</text><text class="lbl small" x="180" y="206">(the outer band)</text><g class="dev"><rect x="201.9" y="70.9" width="18" height="28" rx="4"/><text x="210.9" y="88.9" class="num">1</text></g><g class="dev"><rect x="251.9" y="107.2" width="18" height="28" rx="4"/><text x="260.9" y="125.2" class="num">2</text></g><g class="dev"><rect x="271" y="166" width="18" height="28" rx="4"/><text x="280" y="184" class="num">3</text></g><g class="dev"><rect x="251.9" y="224.8" width="18" height="28" rx="4"/><text x="260.9" y="242.8" class="num">4</text></g><g class="dev"><rect x="201.9" y="261.1" width="18" height="28" rx="4"/><text x="210.9" y="279.1" class="num">5</text></g><g class="dev"><rect x="140.1" y="261.1" width="18" height="28" rx="4"/><text x="149.1" y="279.1" class="num">6</text></g><g class="dev"><rect x="90.1" y="224.8" width="18" height="28" rx="4"/><text x="99.1" y="242.8" class="num">7</text></g><g class="dev"><rect x="71" y="166" width="18" height="28" rx="4"/><text x="80" y="184" class="num">8</text></g><g class="dev"><rect x="90.1" y="107.2" width="18" height="28" rx="4"/><text x="99.1" y="125.2" class="num">9</text></g><g class="dev"><rect x="140.1" y="70.9" width="18" height="28" rx="4"/><text x="149.1" y="88.9" class="num">10</text></g><circle class="ballot two" r="4.5" cx="0" cy="0" style="--x0:210.9;--y0:84.9;--x1:228.2;--y1:31.6;--x2:271.7;--y2:53.8;animation-delay:0.00s;animation-duration:3.6s"/><circle class="ballot two" r="4.5" cx="0" cy="0" style="--x0:260.9;--y0:121.2;--x1:306.2;--y1:88.3;--x2:328.4;--y2:131.8;animation-delay:0.30s;animation-duration:3.6s"/><circle class="ballot two" r="4.5" cx="0" cy="0" style="--x0:280;--y0:180;--x1:336;--y1:180;--x2:328.4;--y2:228.2;animation-delay:0.60s;animation-duration:3.6s"/><circle class="ballot two" r="4.5" cx="0" cy="0" style="--x0:260.9;--y0:238.8;--x1:306.2;--y1:271.7;--x2:271.7;--y2:306.2;animation-delay:0.90s;animation-duration:3.6s"/><circle class="ballot two" r="4.5" cx="0" cy="0" style="--x0:210.9;--y0:275.1;--x1:228.2;--y1:328.4;--x2:180;--y2:336;animation-delay:1.20s;animation-duration:3.6s"/><circle class="ballot two" r="4.5" cx="0" cy="0" style="--x0:149.1;--y0:275.1;--x1:131.8;--y1:328.4;--x2:88.3;--y2:306.2;animation-delay:1.50s;animation-duration:3.6s"/><circle class="ballot two" r="4.5" cx="0" cy="0" style="--x0:99.1;--y0:238.8;--x1:53.8;--y1:271.7;--x2:31.6;--y2:228.2;animation-delay:1.80s;animation-duration:3.6s"/><circle class="ballot two" r="4.5" cx="0" cy="0" style="--x0:80;--y0:180;--x1:24;--y1:180;--x2:31.6;--y2:131.8;animation-delay:2.10s;animation-duration:3.6s"/><circle class="ballot two" r="4.5" cx="0" cy="0" style="--x0:99.1;--y0:121.2;--x1:53.8;--y1:88.3;--x2:88.3;--y2:53.8;animation-delay:2.40s;animation-duration:3.6s"/><circle class="ballot two" r="4.5" cx="0" cy="0" style="--x0:149.1;--y0:84.9;--x1:131.8;--y1:31.6;--x2:180;--y2:24;animation-delay:2.70s;animation-duration:3.6s"/></svg> <p class="legend" aria-hidden="true"><span><i class="sw sw-ballot"></i>a ballot</span><span><i class="sw sw-power"></i>holds the power: the ledger and its validators</span><span><i class="sw sw-dev"></i>a member’s device</span></p></figure>
+        <div class="facts">
+          <h4>How you vote</h4>
+          <p>Your ballot is a transaction sent to a public blockchain. Many unrelated validators order transactions into one shared ledger, and the vote is counted from what the ledger holds.</p>
+          <h4>Where the power sits</h4>
+          <p>No single server holds it. The ordering is done by validators the group does not choose, and the group depends on infrastructure far larger than itself.</p>
+          <h4>How it settles</h4>
+          <p>When the network has ordered the transactions and treats them as final, by that chain’s own rule. Anyone can then read the result from the ledger.</p>
+          <h4>What it costs you</h4>
+          <p>Each voter needs tokens and pays a fee for each transaction. On most public chains who voted, and often how, is public and permanent.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" role="tabpanel" id="p-kernel" aria-labelledby="t-kernel" tabindex="0">
+      <h3 class="ptitle">CIRIS kernel</h3>
+      <div class="grid">
+        <figure style="margin:0"><svg viewBox="0 0 360 360" role="img" aria-labelledby="d-kernel-t d-kernel-d" class="diagram"><title id="d-kernel-t">CIRIS kernel: ballots pass between the members' own devices</title><desc id="d-kernel-d">Ten member devices in a ring with no server and no ledger. Each device signs its ballot and passes it to the other members' devices along the lines between them. Every device is highlighted: the power sits with the ten members.</desc><circle class="grp" cx="180" cy="180" r="128"/><text class="lbl small" x="180" y="300">the group</text><line class="path faint" x1="210.9" y1="84.9" x2="260.9" y2="121.2"/><line class="path faint" x1="210.9" y1="84.9" x2="280" y2="180"/><line class="path faint" x1="210.9" y1="84.9" x2="260.9" y2="238.8"/><line class="path faint" x1="210.9" y1="84.9" x2="210.9" y2="275.1"/><line class="path faint" x1="210.9" y1="84.9" x2="149.1" y2="275.1"/><line class="path faint" x1="210.9" y1="84.9" x2="99.1" y2="238.8"/><line class="path faint" x1="210.9" y1="84.9" x2="80" y2="180"/><line class="path faint" x1="210.9" y1="84.9" x2="99.1" y2="121.2"/><line class="path faint" x1="210.9" y1="84.9" x2="149.1" y2="84.9"/><line class="path faint" x1="260.9" y1="121.2" x2="280" y2="180"/><line class="path faint" x1="260.9" y1="121.2" x2="260.9" y2="238.8"/><line class="path faint" x1="260.9" y1="121.2" x2="210.9" y2="275.1"/><line class="path faint" x1="260.9" y1="121.2" x2="149.1" y2="275.1"/><line class="path faint" x1="260.9" y1="121.2" x2="99.1" y2="238.8"/><line class="path faint" x1="260.9" y1="121.2" x2="80" y2="180"/><line class="path faint" x1="260.9" y1="121.2" x2="99.1" y2="121.2"/><line class="path faint" x1="260.9" y1="121.2" x2="149.1" y2="84.9"/><line class="path faint" x1="280" y1="180" x2="260.9" y2="238.8"/><line class="path faint" x1="280" y1="180" x2="210.9" y2="275.1"/><line class="path faint" x1="280" y1="180" x2="149.1" y2="275.1"/><line class="path faint" x1="280" y1="180" x2="99.1" y2="238.8"/><line class="path faint" x1="280" y1="180" x2="80" y2="180"/><line class="path faint" x1="280" y1="180" x2="99.1" y2="121.2"/><line class="path faint" x1="280" y1="180" x2="149.1" y2="84.9"/><line class="path faint" x1="260.9" y1="238.8" x2="210.9" y2="275.1"/><line class="path faint" x1="260.9" y1="238.8" x2="149.1" y2="275.1"/><line class="path faint" x1="260.9" y1="238.8" x2="99.1" y2="238.8"/><line class="path faint" x1="260.9" y1="238.8" x2="80" y2="180"/><line class="path faint" x1="260.9" y1="238.8" x2="99.1" y2="121.2"/><line class="path faint" x1="260.9" y1="238.8" x2="149.1" y2="84.9"/><line class="path faint" x1="210.9" y1="275.1" x2="149.1" y2="275.1"/><line class="path faint" x1="210.9" y1="275.1" x2="99.1" y2="238.8"/><line class="path faint" x1="210.9" y1="275.1" x2="80" y2="180"/><line class="path faint" x1="210.9" y1="275.1" x2="99.1" y2="121.2"/><line class="path faint" x1="210.9" y1="275.1" x2="149.1" y2="84.9"/><line class="path faint" x1="149.1" y1="275.1" x2="99.1" y2="238.8"/><line class="path faint" x1="149.1" y1="275.1" x2="80" y2="180"/><line class="path faint" x1="149.1" y1="275.1" x2="99.1" y2="121.2"/><line class="path faint" x1="149.1" y1="275.1" x2="149.1" y2="84.9"/><line class="path faint" x1="99.1" y1="238.8" x2="80" y2="180"/><line class="path faint" x1="99.1" y1="238.8" x2="99.1" y2="121.2"/><line class="path faint" x1="99.1" y1="238.8" x2="149.1" y2="84.9"/><line class="path faint" x1="80" y1="180" x2="99.1" y2="121.2"/><line class="path faint" x1="80" y1="180" x2="149.1" y2="84.9"/><line class="path faint" x1="99.1" y1="121.2" x2="149.1" y2="84.9"/><text class="lbl small" x="180" y="184">nothing in the middle</text><g class="dev power"><rect x="201.9" y="70.9" width="18" height="28" rx="4"/><text x="210.9" y="88.9" class="num">1</text></g><g class="dev power"><rect x="251.9" y="107.2" width="18" height="28" rx="4"/><text x="260.9" y="125.2" class="num">2</text></g><g class="dev power"><rect x="271" y="166" width="18" height="28" rx="4"/><text x="280" y="184" class="num">3</text></g><g class="dev power"><rect x="251.9" y="224.8" width="18" height="28" rx="4"/><text x="260.9" y="242.8" class="num">4</text></g><g class="dev power"><rect x="201.9" y="261.1" width="18" height="28" rx="4"/><text x="210.9" y="279.1" class="num">5</text></g><g class="dev power"><rect x="140.1" y="261.1" width="18" height="28" rx="4"/><text x="149.1" y="279.1" class="num">6</text></g><g class="dev power"><rect x="90.1" y="224.8" width="18" height="28" rx="4"/><text x="99.1" y="242.8" class="num">7</text></g><g class="dev power"><rect x="71" y="166" width="18" height="28" rx="4"/><text x="80" y="184" class="num">8</text></g><g class="dev power"><rect x="90.1" y="107.2" width="18" height="28" rx="4"/><text x="99.1" y="125.2" class="num">9</text></g><g class="dev power"><rect x="140.1" y="70.9" width="18" height="28" rx="4"/><text x="149.1" y="88.9" class="num">10</text></g><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:210.9;--y0:84.9;--x1:260.9;--y1:121.2;animation-delay:0.45s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:260.9;--y0:121.2;--x1:280;--y1:180;animation-delay:0.75s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:280;--y0:180;--x1:260.9;--y1:238.8;animation-delay:1.05s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:260.9;--y0:238.8;--x1:210.9;--y1:275.1;animation-delay:1.35s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:210.9;--y0:275.1;--x1:149.1;--y1:275.1;animation-delay:1.65s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:149.1;--y0:275.1;--x1:99.1;--y1:238.8;animation-delay:1.95s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:99.1;--y0:238.8;--x1:80;--y1:180;animation-delay:2.25s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:80;--y0:180;--x1:99.1;--y1:121.2;animation-delay:2.55s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:99.1;--y0:121.2;--x1:149.1;--y1:84.9;animation-delay:2.85s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:149.1;--y0:84.9;--x1:210.9;--y1:84.9;animation-delay:3.15s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:210.9;--y0:84.9;--x1:210.9;--y1:275.1;animation-delay:1.80s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:260.9;--y0:121.2;--x1:149.1;--y1:275.1;animation-delay:2.10s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:280;--y0:180;--x1:99.1;--y1:238.8;animation-delay:2.40s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:260.9;--y0:238.8;--x1:80;--y1:180;animation-delay:2.70s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:210.9;--y0:275.1;--x1:99.1;--y1:121.2;animation-delay:3.00s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:149.1;--y0:275.1;--x1:149.1;--y1:84.9;animation-delay:0.10s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:99.1;--y0:238.8;--x1:210.9;--y1:84.9;animation-delay:0.40s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:80;--y0:180;--x1:260.9;--y1:121.2;animation-delay:0.70s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:99.1;--y0:121.2;--x1:280;--y1:180;animation-delay:1.00s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:149.1;--y0:84.9;--x1:260.9;--y1:238.8;animation-delay:1.30s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:210.9;--y0:84.9;--x1:80;--y1:180;animation-delay:3.15s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:260.9;--y0:121.2;--x1:99.1;--y1:121.2;animation-delay:0.25s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:280;--y0:180;--x1:149.1;--y1:84.9;animation-delay:0.55s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:260.9;--y0:238.8;--x1:210.9;--y1:84.9;animation-delay:0.85s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:210.9;--y0:275.1;--x1:260.9;--y1:121.2;animation-delay:1.15s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:149.1;--y0:275.1;--x1:280;--y1:180;animation-delay:1.45s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:99.1;--y0:238.8;--x1:260.9;--y1:238.8;animation-delay:1.75s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:80;--y0:180;--x1:210.9;--y1:275.1;animation-delay:2.05s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:99.1;--y0:121.2;--x1:149.1;--y1:275.1;animation-delay:2.35s;animation-duration:3.2s"/><circle class="ballot" r="4.5" cx="0" cy="0" style="--x0:149.1;--y0:84.9;--x1:99.1;--y1:238.8;animation-delay:2.65s;animation-duration:3.2s"/></svg> <p class="legend" aria-hidden="true"><span><i class="sw sw-ballot"></i>a ballot</span><span><i class="sw sw-power"></i>holds the power: every member</span><span><i class="sw sw-dev"></i>a member’s device</span></p></figure>
+        <div class="facts">
+          <h4>How you vote</h4>
+          <p>Your phone signs a ballot row and passes it to the other members’ devices. Ballots can arrive late or out of order, and every phone computes the same result from the same ballots.</p>
+          <p class="proof">Proved in <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Causal.lean"><code>Causal.lean</code></a>; run over every arrival order by <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/models/causal_kernel/check.py"><code>check.py</code></a>.</p>
+          <h4>Where the power sits</h4>
+          <p>Only with the ten members: there is no server in the middle and no global ledger. The roll is the group’s own roster at the head the vote names, readable by every member, and no one admitted later changes who was eligible. One person is one voice however many devices they have, and a person whose ballots disagree has none.</p>
+          <p class="proof">Members at a head: <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/RosterHead.lean"><code>RosterHead.lean</code></a>.</p>
+          <h4>How it settles</h4>
+          <p><strong>An open vote</strong> is final once its count is met: a count once met is final, and anyone holding the rows can recount it.</p>
+          <p><strong>A secret vote</strong>: each member’s choice is split between two members drawn from the roster, each adds up what it received, and only the total is published, above a minimum number of voters. A member sends the same amount of data whether or not a vote is open, so an outsider cannot tell that one is being held.</p>
+          <p class="proof">A count once met is final: <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Consent.lean"><code>Consent.lean</code></a>. The secret tally is model-checked in the parent specification: <a href="https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/census_ballot"><code>formal/census_ballot</code></a>.</p>
+          <h4>What it costs you</h4>
+          <p>No fees, no tokens, no servers to rent: the devices and connections people already have.</p>
+        </div>
+      </div>
+    </div>
+
+    <ul class="strip" aria-label="The difference in one line each">
+      <li><b>Hosted app</b>Trust the company’s server.</li>
+      <li><b>Blockchain</b>Pay the validators.</li>
+      <li class="k"><b>CIRIS</b>Run the count on your own phone.</li>
+    </ul>
+
+    <div class="notdo">
+      <h3>What this does not do</h3>
+      <ul>
+        <li>That each key is one living person is the group’s own admission; the kernel does not establish it.</li>
+        <li>A secret ballot’s secrecy assumes the two members who tally it do not both collude.</li>
+        <li>Nothing stops a voter who is watched or paid from voting as told, and nothing protects a vote cast from a device someone else controls.</li>
+        <li>Members who withhold can stop a count from being met, though not falsify one.</li>
+      </ul>
+      <p>It is a solution for a body that admits its own members: a family, a co-op, a union, a board, a neighbourhood, an online community. It is not shown for a public election. The full statement is in the README, <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/README.md#voting-over-the-internet">Voting over the internet</a>.</p>
+    </div>
+  </div>
+</section>
+
+<section id="for" aria-labelledby="for-h">
+  <div class="wrap">
+    <h2 id="for-h">What it is for</h2>
+    <div class="cards">
+      <div class="card"><h3>Your things on your devices</h3><p>Your files live on the devices you own and copy between them. A family’s files live on the family’s devices. No provider is needed to say which copy is right.</p></div>
+      <div class="card"><h3>Rooms without a host</h3><p>A room’s members, its keys and its moderators are signed rows the members hold. A live video call or a group chat runs between the members’ devices; no service in the middle admits people, holds the key or keeps the recording.</p></div>
+      <div class="card"><h3>Decisions that are the group’s</h3><p>A vote no single voice can carry, a moderator the members can recall, a removal that takes a count: each is a row signed by enough of the people it binds, and anyone holding it can check it.</p></div>
+      <div class="card"><h3>AI agents that answer to people</h3><p>An agent acts under a named person’s consent. What it cannot undo, it does only with the acknowledgement of those who could have stopped it. A halt reaches every node that receives it, and nothing an agent holds can disarm one in advance: the parent text calls the halt the condition of symmetry between makers and what they make (<a href="https://github.com/CIRISAI/CIRISKernel/blob/main/GOVERNANCE.md#b-the-halt">GOVERNANCE.md</a>).</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="constraints" aria-labelledby="con-h">
+  <div class="wrap">
+    <h2 id="con-h">The four constraints</h2>
+    <p class="intro">For people to govern themselves with no operator, four things have to be true. Each is a reason platforms exist. That the kernel meets them is proved or run, with the limits stated; that the four are enough is a wager, stated with what would settle it in <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/OBJECT.md">OBJECT.md</a>.</p>
+    <table class="cons">
+      <thead><tr><th scope="col">The constraint</th><th scope="col">Without it</th><th scope="col">How it is met</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+        <tr>
+          <td data-label="The constraint">Everyone holding the same statements reaches the same answer, whatever order they arrived in.</td>
+          <td data-label="Without it">Someone has to put events in order for everyone, and that someone is the middle.</td>
+          <td data-label="How it is met">The only order is what rows name. Admission reaches one kept set in every arrival order.</td>
+          <td data-label="Status" class="status"><span class="badge b-proved">PROVED</span><a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Causal.lean"><code>Causal.lean</code></a> <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Order.lean"><code>Order.lean</code></a><br><span class="badge b-run">RUN</span><a href="https://github.com/CIRISAI/CIRISKernel/blob/main/models/causal_kernel/check.py"><code>check.py</code></a></td>
+        </tr>
+        <tr>
+          <td data-label="The constraint">A decision can become final without asking a central party, and without everyone online.</td>
+          <td data-label="Without it">Every admission, grant and vote waits on a confirming service, or can be undone for ever.</td>
+          <td data-label="How it is met">An act is final once n − t + 1 of the n members who could undo it have acknowledged it, where t can cut it. The number is exact.</td>
+          <td data-label="Status" class="status"><span class="badge b-proved">PROVED</span><a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Settled.lean"><code>Settled.lean</code></a></td>
+        </tr>
+        <tr>
+          <td data-label="The constraint">Nobody gains by saying two things, holding an office, or arriving later.</td>
+          <td data-label="Without it">Whoever equivocates fastest, or holds the admin seat, owns the group.</td>
+          <td data-label="How it is met">A seat is two consents. One signature never removes. A voice that both acknowledged and cut has no say there. A later officer acts forward and never rewrites what counted.</td>
+          <td data-label="Status" class="status"><span class="badge b-proved">PROVED</span><a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Consent.lean"><code>Consent.lean</code></a> <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/RosterHead.lean"><code>RosterHead.lean</code></a> <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Settled.lean"><code>Settled.lean</code></a><br><span class="badge b-run">RUN</span><a href="https://github.com/CIRISAI/CIRISKernel/blob/main/models/causal_kernel/check_attacks.py"><code>check_attacks.py</code></a></td>
+        </tr>
+        <tr>
+          <td data-label="The constraint">A phone can forget what is settled and still be right.</td>
+          <td data-label="Without it">Only a data centre can hold the whole history, and the data centre is the middle.</td>
+          <td data-label="How it is met">A node may cache, checkpoint and drop the bytes of settled acts. Dropping an unsettled act’s rows is proved unsafe, with the case exhibited.</td>
+          <td data-label="Status" class="status"><span class="badge b-proved">PROVED</span>for a sufficient set: <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Settled.lean"><code>Settled.lean</code></a><br><span class="badge b-run">RUN</span><a href="https://github.com/CIRISAI/CIRISKernel/blob/main/models/causal_kernel/check_purge.py"><code>check_purge.py</code></a><br><span class="badge b-open">OPEN</span>the least set to keep (<a href="https://github.com/CIRISAI/CIRISKernel/blob/main/REVIEW.md">REVIEW.md</a>)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="screen" aria-labelledby="screen-h">
+  <div class="wrap">
+    <h2 id="screen-h">The screen is the same function</h2>
+    <p class="intro">A screen is a function of the rows a node holds, the viewer’s key and the clock: the same inputs as the kernel. So what a person is offered, what an act would change, and whether the network admits it are one answer, not a view kept in step with a model.</p>
+    <blockquote class="line">A person is never shown a button the network would refuse, or a state that only their own device believes.</blockquote>
+    <p class="intro">Proved over one abstract family (<a href="https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/event_lifecycle"><code>formal/event_lifecycle</code></a>, in the parent specification), and run over the specification’s own tables and the kernel’s own rows, with planted breaks caught (<a href="https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/screen"><code>formal/screen</code></a>). The vocabulary is 24 screen primitives, a draft standard: <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/data/ui_primitives.json"><code>ui_primitives.json</code></a>. The limit is measured too: twenty-five ways back that the text states have no transition in the table, so no screen built from the table can offer them.</p>
+  </div>
+</section>
+
+<section id="hood" aria-labelledby="hood-h">
+  <div class="wrap">
+    <h2 id="hood-h" class="muted" style="font-size:1rem;text-transform:uppercase;letter-spacing:.05em">Under the hood</h2>
+    <details>
+      <summary>Three kinds of finality, the say rule, checkpoint and purge</summary>
+      <p>For any set of signed rows a node holds, and every later set containing them, every answer the kernel gives is one of three kinds.</p>
+      <dl>
+        <dt>Final by form</dt>
+        <dd>Whether a row is kept; its conclusion over its own causal past; a row that names a blocking set of receipts. (<a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Causal.lean"><code>Causal.lean</code></a>, <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Settled.lean"><code>Settled.lean</code></a>)</dd>
+        <dt>Final by acknowledgement</dt>
+        <dd>Whether an act counts at the head it names, once n − t + 1 of the n members at that head have given clean receipts, where t can cut it. The threshold is exact in both directions. This is finality of an act against later cuts, a different thing from a vote’s count being met. (<a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Settled.lean"><code>Settled.lean</code></a>)</dd>
+        <dt>Provisional</dt>
+        <dd>Everything else, including whether an act is still in force at a later head. A voice seated later acts forward, never backwards. (<a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Settled.lean"><code>Settled.lean</code></a>)</dd>
+        <dt>The say rule</dt>
+        <dd>A voice that has both acknowledged an act and voted to cut it, in rows neither of which names the other, has no say there. It is forced by symmetry and closure. (<a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Settled.lean"><code>Settled.lean</code></a>)</dd>
+        <dt>Checkpoint and purge</dt>
+        <dd>A node may keep its folded state, sign a checkpoint under its own key, and drop the bytes of settled acts beneath it; it keeps each dropped row’s digest, what it names and its conclusion. None of this is a duty. Dropping an unsettled act’s rows is proved unsafe by an exhibited witness pair (<a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Settled.lean"><code>Settled.lean</code></a>), and purging is run against keeping everything, with eight planted breaks caught (<a href="https://github.com/CIRISAI/CIRISKernel/blob/main/models/causal_kernel/check_purge.py"><code>check_purge.py</code></a>). The least set of rows a node must keep is open.</dd>
+      </dl>
+      <p>The normative text: <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/kernel/TEXT.md"><code>TEXT.md</code></a>. Every theorem in plain words: <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/README.md"><code>README.md</code></a>.</p>
+    </details>
+  </div>
+</section>
+
+<section id="origin" aria-labelledby="origin-h">
+  <div class="wrap">
+    <h2 id="origin-h">Where it comes from</h2>
+    <p class="intro">The kernel is what results when a relational ontology is applied to ethics. The parent text’s first commitment is that a person is a person through other persons. Taken as engineering, nothing in the system has a state of its own: every fact about a person, a device, a group or an authority is a signed relation between keys. Standing is then consent between those it binds, authority is never a list, and the function over those relations is the kernel. The ethics came first; the mechanism is what it required.</p>
+    <p class="intro">The arithmetic is classical. Quorum intersection is Gifford, “Weighted Voting for Replicated Data” (SOSP ’79); the same argument where some voices sign both ways is Malkhi and Reiter, “Byzantine Quorum Systems” (<i>Distributed Computing</i> 11(4), 1998). Finality from a locally checkable set of signed acknowledgements, with no total order, is the approach of Guerraoui, Kuznetsov, Monti, Pavlovič and Seredinschi, “The Consensus Number of a Cryptocurrency” (PODC ’19). The split between answers that only grow and answers a later row can change is Hellerstein and Alvaro, “Keeping CALM” (<i>CACM</i> 63(9), 2020). The closure normal form behind the checkpoint, that a view is closed under adding rows exactly when no witness pair exists, is a standard factorisation argument restated in <code>Settled.lean</code>. None of the pieces is new. What is here is the four constraints met together, for the acts by which people share, admit, decide and remove, in one function with its proofs: the application of those results to a governance grammar of signed rows, and the rules that application forces.</p>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Licence AGPL-3.0. Maintained by the CIRIS project.</p>
+    <ul class="links">
+      <li><a href="https://github.com/CIRISAI/CIRISKernel">The repository</a></li>
+      <li><a href="https://github.com/CIRISAI/CIRISConstitution">The parent specification</a></li>
+      <li><a href="https://ciris.ai">ciris.ai</a></li>
+    </ul>
+    <p><strong>Build status.</strong> From the repository root, with Lean 4.14.0 and Python 3.12, <code>./check.sh</code> compiles the nineteen proof files, runs ten model checks one after another and counts the divergence list, one line per step. At the commit it was carried at, it prints:</p>
+    <pre>proofs: 19 files, 548 theorems reported, rc=0
+...
+all 12 steps passed</pre>
+    <p>Not validated by an independent implementation or a deployment under partition. To attack it, see <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/REVIEW.md">REVIEW.md</a>.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  if (!tabs.length) return;
+  function select(tab, focus) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      var p = document.getElementById(t.getAttribute('aria-controls'));
+      if (p) { if (on) p.removeAttribute('hidden'); else p.setAttribute('hidden', ''); }
+    });
+    if (focus) tab.focus();
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { select(t, false); });
+    t.addEventListener('keydown', function (e) {
+      var k = e.key, n = null;
+      if (k === 'ArrowRight' || k === 'ArrowDown') n = tabs[(i + 1) % tabs.length];
+      else if (k === 'ArrowLeft' || k === 'ArrowUp') n = tabs[(i - 1 + tabs.length) % tabs.length];
+      else if (k === 'Home') n = tabs[0];
+      else if (k === 'End') n = tabs[tabs.length - 1];
+      if (n) { e.preventDefault(); select(n, true); }
+    });
+  });
+  select(tabs[0], false);
+})();
+</script>
+</body>
+</html>

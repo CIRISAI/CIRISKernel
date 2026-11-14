@@ -8,6 +8,8 @@ in a room, or remove someone who abuses it. Each of those jobs is why a platform
 repository is the part of the CIRIS constitution that does those jobs with nothing but the signed statements
 people's own devices hold.
 
+On one page, with a ten-person vote run three ways: <https://cirisai.github.io/CIRISKernel/>.
+
 ## What it is for
 
 - **Your things on your devices.** Your files live on the devices you own and copy between them. A family's
