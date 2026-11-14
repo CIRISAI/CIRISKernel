@@ -110,3 +110,5 @@ source strings in the models still name the parent's paths.
 | `formal/KERNEL.md` | `kernel/KERNEL.md` | file pointers rewritten; a header added |
 | constitution/part_2_the_grammar.md, lines 1066–1253 (CC 2.7) | `kernel/TEXT.md` | verbatim, below a header |
 | `LICENSE` | `LICENSE` | unchanged |
+
+- `manifests/ui_primitives.json` → `data/ui_primitives.json` (unchanged).

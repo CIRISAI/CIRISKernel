@@ -32,3 +32,10 @@ wrong returns the entry there with its own case. A counterexample from a reviewe
 way [`../REVIEW.md`](../REVIEW.md) describes.
 
 Nothing from the parent's vendored evidence (`constitution/vendor/`) is carried.
+
+## `ui_primitives.json`
+
+The screen standard as the parent carries it (a draft): twenty-four primitives, the states they are drawn in,
+and the laws a screen keeps. A screen is a function of the rows a node holds, the viewer's key and the clock;
+the checks that hold a screen to the kernel run in the parent repository (`formal/screen`,
+`tools/check_ui_primitives.py`).

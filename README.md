@@ -44,6 +44,45 @@ What is not shown: that these four are enough. That is a wager, stated with what
 under partition, delay, equivocation and crash. The implications for governing people and AI agents are in
 [`GOVERNANCE.md`](GOVERNANCE.md), each with its evidence and what it does not give.
 
+## The screen is the same function
+
+Software has long tried to keep what a screen offers in step with what the system will accept, and has mostly
+done it by synchronising two things: a model of the state and a view of it. Here there is one thing. A screen
+is a function of the rows a node holds, the viewer's key and the clock, the same inputs as the kernel, so what
+a person is offered, what an act would change, and whether the door admits it are one answer.
+
+- **Proved, over one abstract family** (parent, [`formal/event_lifecycle`](https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/event_lifecycle)):
+  every item a person is offered is a transition the door admits, and every transition it admits is offered
+  (`queue_sound`, `queue_complete`, `door_is_queue`); the view an item previews is the view its execution gives
+  (`preview_is_execution`).
+- **Run, over the specification's own tables and the kernel's own rows** (parent,
+  [`formal/screen`](https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/screen)): six properties, each
+  with planted breaks that are caught. Nothing is drawn that the door refuses. Nothing admitted goes undrawn.
+  Every arrival order draws the same screen. A fact that was not sent is never drawn as sent. Waiting is drawn
+  as waiting, with what it waits on, never as refused or done. A confirmation appears exactly when an act
+  widens who can see something or has no way back.
+- **The vocabulary** is twenty-four screen primitives ([`data/ui_primitives.json`](data/ui_primitives.json),
+  a draft standard: card, field row, item row, scope pill, action, confirm sheet, receipt sheet, and the rest),
+  drawn in states the kernel names. A client builds its screens from these and checks them against the file.
+- **The limit, measured:** twenty-five ways back that the text states have no transition in the table, so no
+  screen built from the table can offer them. The screen checks run in the parent repository; they need its
+  rule tables.
+
+So a person is never shown a button the network would refuse, or a state that only their own device believes.
+
+## Where this comes from
+
+The kernel is what results when a relational ontology is applied to ethics. The parent text's first commitment
+is that a person is a person through other persons (the Ubuntu commitment, CC 1.13.1 of the parent, with the
+same structure read from other traditions). Taken as engineering, that means nothing in the system has a state
+of its own: every fact about a person, a device, a group or an authority is a signed relation between keys.
+Standing is then consent between those it binds, authority is never a list, and the function over those
+relations is the kernel. The ethics came first; the mechanism is what it required.
+
+The full formal record, of which this repository carries the kernel's part, is the parent's
+[`formal/`](https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal): the life of a mesh as one model
+that closes, the halt's fire path, consent, retirement, the census and the rest, each with its checks.
+
 ## What the kernel is
 
 A function from a set of signed rows, a clock and a key to what every row means to the holder of that key. The
