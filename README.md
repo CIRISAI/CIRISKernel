@@ -70,6 +70,42 @@ a person is offered, what an act would change, and whether the door admits it ar
 
 So a person is never shown a button the network would refuse, or a state that only their own device believes.
 
+## Voting over the internet
+
+The standing objection to voting over the internet is that somebody has to run the election: keep the roll,
+collect the ballots, count them and announce the result. That party can be bought, blocked or broken, and the
+voters cannot check it. Here nobody runs it.
+
+- **The roll** is the group's own roster at the head the vote names. It is fixed by that head, every member can
+  read it, and no one admitted later changes who was eligible.
+- **One member, one say.** A person is one voice however many devices sign. A person whose ballots disagree has
+  none.
+- **An open vote** is signatures on a row. Anyone holding the rows recounts it, in any order of arrival, to the
+  same result, and it is final once the count is met.
+- **A secret vote** is counted without anyone seeing a ballot: each member's choice is split between two
+  members drawn from the roster for that period, each adds up what it received, and only the total is
+  published, above a minimum number of voters. Each accepted ballot adds exactly one to exactly one option. A
+  member sends the same amount of data whether or not a vote is open, so an outsider cannot tell that one is
+  being held.
+- **Ranked choice** runs as one count that gives the same winner from the same ballots in any order.
+
+What backs it, in the parent: the secret tally's invariants model-checked with a twin for each defence switched
+off ([`formal/census_ballot`](https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/census_ballot)); ranked choice as an order-free count
+([`formal/ranked_choice`](https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/ranked_choice)); an election's count proved, with a tie seating nobody
+([`formal/moderator_election`](https://github.com/CIRISAI/CIRISConstitution/tree/60c741e/formal/moderator_election)). The kernel's part is the roll at a named head, the one
+say, and the finality of a count.
+
+**Its reach, stated exactly.** This is a solution for a body that admits its own members: a family, a co-op, a
+union, a board, a neighbourhood, an online community, a federation of them. The members are the roll, and the
+count needs no official. It is not shown for a public election, and four things stand between it and one:
+
+- that each key is one living person is the group's own admission, and the kernel does not establish it;
+- a ballot's secrecy assumes the two members who tally do not both collude, and the validity proof is assumed
+  sound;
+- nothing here stops a voter who is watched or paid from voting as told, and nothing protects a vote cast from
+  a device someone else controls;
+- members who withhold can stop a count from being met, though not falsify one.
+
 ## Where this comes from
 
 The kernel is what results when a relational ontology is applied to ethics. The parent text's first commitment
