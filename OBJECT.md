@@ -1,5 +1,30 @@
 # The steelmanned maximal object
 
+## The purpose the object is judged by
+
+A mechanism has no importance apart from what it is for. This one is for people who want to talk, share files,
+keep rooms, decide things together and direct AI agents, with no company in the middle: nobody who can be bought,
+blocked or broken, and nobody whose servers hold the group's life.
+
+Whoever runs a platform does four jobs for its users, and a group with no platform has to do them itself:
+
+1. say what order things happened in, so everyone sees the same state;
+2. say when a decision is made and will stay made;
+3. stop a member from winning by saying two things, by holding an office, or by arriving later;
+4. keep the history, which no phone can hold whole.
+
+The object is the claim that all four can be done by a function of the signed statements people's own devices
+hold. The moves below are that claim taken apart. Moves 1 and 2 answer the first job, moves 3 and 4 the second,
+moves 5 and 7 the third, move 6 the fourth, and move 8 is the wager that the four together are enough. Read
+each move's importance against the job it does; judged as distributed-systems results alone, most of the
+arithmetic is classical, as the README's lineage says.
+
+That the four jobs are the necessary ones is argued, not proved: each is a function platforms perform today,
+and a network that leaves any one undone needs someone to do it. A reviewer who finds a fifth job a group with
+no operator cannot do without, and which this function cannot do, has found a kill for move 8.
+
+## The moves
+
 The strongest statement of what this repository is that its record supports, built as eight moves. Each move has
 its claim in one sentence, its status, the reasoning, and its **kill**: the observation that would falsify it and
 where to push. Statuses:
