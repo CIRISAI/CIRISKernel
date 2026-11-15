@@ -4,88 +4,11 @@
 
 mod common;
 use ciris_kernel::cut::{Cut, Status};
-use ciris_kernel::layers::{conclude, kept, Concluded, Past};
-use ciris_kernel::seat::{self, members_at, seat_rule, Obj, Over, Policy, Root, SeatLaw, Seats};
-use ciris_kernel::window::{self, Base, Clause, How, Outcome, WindowSpec};
+use ciris_kernel::layers::{conclude, kept, Past};
+use ciris_kernel::seat::{self, members_at, seat_rule, Obj, Policy, Root, SeatLaw, Seats};
+use ciris_kernel::window::{self, Outcome, WindowSpec};
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
-
-fn law_of(j: &J) -> SeatLaw {
-    let mut law = SeatLaw {
-        duties: j.at("duties").strs(),
-        final_scopes: j.at("final").strs(),
-        roster_seats: j.at("roster_seats").strs(),
-        depth: j.at("depth").i() as usize,
-        ..Default::default()
-    };
-    for (k, v) in j.at("holds").obj() {
-        law.holds.insert(k.clone(), v.strs());
-    }
-    for (k, v) in j.at("ends").obj() {
-        law.ends.insert(k.clone(), v.strs());
-    }
-    for (k, v) in j.at("confers").obj() {
-        let a = v.arr();
-        let over = if a[1].s() == "same" { Over::Same } else { Over::Holder };
-        law.confers.insert(k.clone(), (a[0].strs(), over));
-    }
-    for (k, v) in j.at("policy").obj() {
-        let a = v.arr();
-        let (num, den) = (a[1].i() as u64, a[2].i() as u64);
-        let p = match a[0].s() {
-            "atleast" => Policy::AtLeast(num, den),
-            "strict" => Policy::Strict(num, den),
-            "one" => Policy::One,
-            "declared" => Policy::Declared,
-            "ranked" => Policy::Ranked,
-            "duty" if k == "duty_confer" => Policy::DutyConfer,
-            "duty" if k == "duty_withdraw" => Policy::DutyWithdraw,
-            _ => Policy::NotACount,
-        };
-        law.policy.insert(k.clone(), p);
-    }
-    law
-}
-
-fn windows_of(j: &J) -> BTreeMap<String, WindowSpec<i64>> {
-    let clauses = |a: &J| -> Vec<Clause> {
-        a.arr()
-            .iter()
-            .map(|c| {
-                let c = c.arr();
-                Clause {
-                    value: c[0].s().into(),
-                    how: if c[1].s() == "one" { How::One } else { How::Strict },
-                    over: match c[2].s() {
-                        "all" => Base::All,
-                        "others" => Base::Others,
-                        s => Base::Scope(s.into()),
-                    },
-                    out: c[3].s().into(),
-                }
-            })
-            .collect()
-    };
-    j.obj()
-        .iter()
-        .map(|(k, w)| {
-            (
-                k.clone(),
-                WindowSpec {
-                    counted: w.at("counted").s().into(),
-                    concluder: w.at("concluder").s().into(),
-                    opener_says: w.at("opener_says").opt_s(),
-                    at_once: clauses(w.at("at_once")),
-                    silent: w.at("silent").opt_s(),
-                    at_close: clauses(w.at("at_close")),
-                    default: w.at("default").s().into(),
-                    target_votes: w.get("target_votes").map_or(false, |x| x.b()),
-                    secs: w.at("secs").i(),
-                },
-            )
-        })
-        .collect()
-}
 
 struct World {
     law: SeatLaw,
@@ -142,12 +65,12 @@ fn outcome_word(o: &Outcome) -> String {
     }
 }
 
-fn obj_named(c: &Concluded<'_, TRow>, s: &str) -> Obj<String, String> {
-    if c.g.idx(&s.to_string()).is_some() {
-        Obj::Row(s.into())
-    } else {
-        Obj::Key(s.into())
-    }
+/// The object the model names `s`, as the rows' own references typed it.
+fn obj_named(rows: &[TRow], s: &str) -> Obj<String, String> {
+    rows.iter()
+        .filter_map(|r| r.obj.clone())
+        .find(|o| matches!(o, Obj::Row(x) | Obj::Key(x) if x == s))
+        .expect("an object some row names")
 }
 
 #[test]
@@ -159,7 +82,9 @@ fn seat_scenarios() {
     let mut by_rule: BTreeMap<String, (usize, usize)> = BTreeMap::new();
     for (si, sc) in fx.at("scenarios").arr().iter().enumerate() {
         let name = sc.at("rule").s().to_string();
-        let rows = rows_of(sc.at("rows").arr());
+        let refs: BTreeMap<String, String> =
+            sc.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rows = rows_with_refs(sc.at("rows").arr(), &refs);
         let a = sc.at("a");
         let c = conclude(kept(&rows, |_| true), |p| w.rule(&name, p), None);
         let mut cmp = |ok: bool, what: String| {
@@ -175,8 +100,8 @@ fn seat_scenarios() {
         let kept_ids: Vec<String> = c.g.rows().iter().map(|r| r.id.clone()).collect();
         cmp(kept_ids == a.at("kept").strs(), "kept".into());
         let want_c: Vec<bool> = a.at("c").arr().iter().map(|x| x.b()).collect();
-        for i in 0..c.g.len() {
-            cmp(c.concluded(i) == want_c[i], format!("concluded {}", c.g.row(i).id));
+        for (i, w) in want_c.iter().enumerate() {
+            cmp(c.concluded(i) == *w, format!("concluded {}", c.g.row(i).id));
         }
         let spec = DictCut;
         let cut = Cut::new(&c, &spec);
@@ -208,7 +133,7 @@ fn seat_scenarios() {
             let stale = sorted_ids(q.stale.iter().map(|&i| &c.g.row(i).id));
             cmp(stale == rd.at("stale").strs(), format!("stale for reader {reader}"));
             for (o, h) in rd.at("holders").obj() {
-                let ob = obj_named(&c, o);
+                let ob = obj_named(&rows, o);
                 cmp(sorted_ids(&q.holders("member", &ob, None)) == h.strs(), format!("members of {o} for {reader}"));
                 cmp(
                     sorted_ids(&q.holders("duty", &ob, None)) == rd.at("duty").at(o).strs(),
@@ -227,7 +152,11 @@ fn seat_scenarios() {
     for (k, (n, b)) in &by_rule {
         eprintln!("  rule {k}: {n} answers, {b} differ");
     }
-    eprintln!("  scenarios: {}; concluded under rules the fixture does not carry: {}", fx.at("scenarios").arr().len(), fx.at("skipped_other_rules").i());
+    eprintln!(
+        "  scenarios: {}; concluded under rules the fixture does not carry: {}",
+        fx.at("scenarios").arr().len(),
+        fx.at("skipped_other_rules").i()
+    );
     report("seat, line, tips, window (attacks.py and window.py scenarios)", cases, bad);
     assert_eq!(bad, 0);
 }
@@ -240,4 +169,20 @@ fn covers_and_met() {
     assert!(!seat::met(Some(Policy::Strict(1, 2)), 1, 2, None));
     assert!(seat::met(Some(Policy::AtLeast(2, 3)), 2, 3, None));
     assert!(!seat::met(Some(Policy::AtLeast(2, 3)), 0, 0, None));
+}
+
+#[test]
+fn a_reference_is_typed_by_its_form() {
+    use ciris_kernel::seat::Reference;
+    let d = [7u8; 32];
+    let row = |b: &[u8]| b.len();
+    let key = |t: &str| t.len();
+    let ok_key = "urn:ietf:params:oauth:ckt:sha-256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    assert_eq!(Obj::from_reference(Reference::Digest { alg: -16, digest: &d }, row, key), Some(Obj::Row(32)));
+    assert_eq!(Obj::from_reference(Reference::Text(ok_key), row, key), Some(Obj::Key(ok_key.len())));
+    assert_eq!(Obj::<usize, usize>::from_reference(Reference::Digest { alg: -44, digest: &d }, row, key), None);
+    assert_eq!(Obj::<usize, usize>::from_reference(Reference::Digest { alg: -16, digest: &d[..31] }, row, key), None);
+    assert_eq!(Obj::<usize, usize>::from_reference(Reference::Text("g"), row, key), None);
+    assert_eq!(Obj::<usize, usize>::from_reference(Reference::Text(&ok_key[..ok_key.len() - 1]), row, key), None);
+    assert_eq!(Obj::<usize, usize>::from_reference(Reference::Text(&ok_key.replace('A', "+")), row, key), None);
 }

@@ -25,7 +25,7 @@ fn key_end_worlds() {
         for r in rows.iter_mut() {
             if r.kind == "rec" {
                 let typ = r.fs("typ").unwrap_or("").to_string();
-                let room = r.f("room").map_or(false, |x| x.b());
+                let room = r.f("room").is_some_and(|x| x.b());
                 r.end = if forbidden.contains(&typ) {
                     EndRule::Forbidden
                 } else if required.contains(&typ) && !room {

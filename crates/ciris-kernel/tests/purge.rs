@@ -28,7 +28,7 @@ fn entry(j: &J) -> E {
     e.sigs = j.get("sigs").map(|m| m.strs()).unwrap_or_default();
     e.length = j.get("length").map(|x| x.i());
     e.receipt = j.get("receipt").map(|x| x.i());
-    e.delete = j.get("delete").map_or(false, |x| x.b());
+    e.delete = j.get("delete").is_some_and(|x| x.b());
     e.duty = j
         .get("duty")
         .map(|d| d.strs())
@@ -107,7 +107,8 @@ fn purge_replays() {
         let own = h.at("own").s().to_string();
         let now0 = h.at("now").i();
         let name = format!("{} [{}]", h.at("name").s(), h.at("reading").s());
-        let base: BTreeMap<String, E> = h.at("rows").arr().iter().map(|r| (r.at("id").s().to_string(), entry(r))).collect();
+        let base: BTreeMap<String, E> =
+            h.at("rows").arr().iter().map(|r| (r.at("id").s().to_string(), entry(r))).collect();
         let pool: Vec<E> = h.at("pool").arr().iter().map(entry).collect();
         let (first, tips) = purge(&base, own.clone(), now0, reading);
         // the first purge, row by row
@@ -153,8 +154,14 @@ fn purge_replays() {
                         );
                         let want = View::new(&base, &x, own.clone(), reading, true).answers(now);
                         let got = View::new(store, &rest, own.clone(), reading, true).answers(now);
-                        cmp(to_j(&want) == *r.at("want"), format!("{name}: answers with nothing purged, {:?} now {now}", ids(&x)));
-                        cmp(to_j(&got) == *r.at("got"), format!("{name}: answers after purge, {:?} / {:?} now {now}", ids(&x), ids(x1)));
+                        cmp(
+                            to_j(&want) == *r.at("want"),
+                            format!("{name}: answers with nothing purged, {:?} now {now}", ids(&x)),
+                        );
+                        cmp(
+                            to_j(&got) == *r.at("got"),
+                            format!("{name}: answers after purge, {:?} / {:?} now {now}", ids(&x), ids(x1)),
+                        );
                         cmp(want == got, format!("{name}: purge changed an answer"));
                     }
                 }

@@ -15,7 +15,7 @@ role, scope, policy, window and constant is data the caller passes in ([`SeatLaw
 ```
 cargo build --offline --release -p ciris-kernel
 bash tools/kernel_conformance.sh          # the differential tests, one line per run and a total
-bash tools/kernel_crate_plants.sh         # eight planted breaks, each must be caught
+bash tools/kernel_crate_plants.sh         # twelve planted breaks, each must be caught
 python3 -I tools/kernel_fixtures.py       # regenerate the fixtures from the Python models
 ```
 
@@ -38,6 +38,9 @@ python3 -I tools/kernel_fixtures.py       # regenerate the fixtures from the Pyt
 | [`trust`](src/trust.rs) | 5 (**stands**), CC 4.4.3.34 | the reader's trust walk over acceptance edges |
 | [`ranked`](src/ranked.rs) | 5 (the door's parameters) | the ranked count, with a declared order and without |
 
+Which functions are proved in Lean, checked only by cases, or neither, and what would close each, is in
+[`FORMAL_GAPS.md`](FORMAL_GAPS.md).
+
 ## Each public function, its clause and its proof
 
 "Model" is the Python function the differential tests compare against. Lean files are in [`proofs/`](../../proofs)
@@ -57,7 +60,7 @@ unless marked as the parent's.
 | `derived::tally` | 5, **tally**; "a voice that says two things says nothing" | `counted_over_named_head` (RosterHead) | `causal_kernel.tally` |
 | `cut::Cut` (`status`, `counts`, `holder`) | 6 rules 4 and 5 | `later_head_changes_nothing`, `Rows.later_seat_is_forward` (Settled); the fixed point is run, not proved | `cut.Cut` |
 | `line::settle`, `void`, `own_line`, `counted_acts` | 7, "a reader that has acknowledged a head holds void …"; 8a, "a counted row counts only if every counted row it is built on counts" | `line_voids_old_fork`, `old_fork_void_for_ever` (Reader, Harden3) | `checkpoint.settle`, `void` (group checkpoint off) |
-| `line::versions` | 7, two versions of one head wait | `membersAt_function` | `checkpoint.versions` (group off). Not in the fixtures; see below |
+| `line::versions` | 7, two versions of one head wait | none; run in `roster_fork` | `checkpoint.versions` (group off) |
 | `seat::Seats` (`stands`, `holders`, `one`, `tips`, `tips_common`) | 5, **stands**: the seat, the bounded walk; 7, tips wait | `seat_is_two_consents`, `holder_first_stands`, `only_bound_voices_end` (Consent); `means_is_seat_walk`, `no_acceptance_no_seat`, `third_key_cannot_end` (Seat); `Duty.lean` | `seat.Seats` |
 | `seat::seat_rule` | 5, who may place a duty; 8a, the hardening rules | `count_is_final_against_members` (Consent), `one_signature_never_removes`, `readmission_needed` (RosterHead), `Harden*.lean`, `Duty.lean` | `seat.seat_rule` |
 | `seat::members_at`, `members_in`, `left_in_past`, `voices`, `met` | 5 and 7, "the members are those at the head the row names" | `membersAt_function`, `counted_over_named_head`, `leaving_binds_by_past` (RosterHead) | `seat.members_at`, `left_in_past`, `voices`, `met` |
@@ -77,23 +80,45 @@ unless marked as the parent's.
 |---|---|---|---|
 | operators | every reducer over every set of up to three rows of a pool of 18; every interval over four values | 7,968 | 0 |
 | re-expressed decisions | `reexpress.py`'s six decisions over small input spaces, written again with `ops` | 17,886 | 0 |
-| causal | `check.py` section 1: 6,606 sets of up to six rows of its two pools; kept, concluded, slots, kinds, counts, reach, meaning, tally; and each set in two further arrival orders | 60,016 | 0 |
-| cut | `check_cut.py` section 1 at its own bounds: status of every row, both slot holders, landings, tallies | 20,985 | 0 |
-| seat, line, tips, window | 134 scenarios: every scenario `attacks.py`'s 34 tests conclude under the seat, window and route rules, and the 27 rows of the window adversary table; conclusions, cut, live seats for every reader, stale acts, members, duty holders, tips, window outcomes under recount | 3,556 | 0 |
-| checkpoint and purge | `check_purge.py`: 400 replays (200 under each reading) over the nine histories, the first purge row by row, and that purging changes no answer | 1,768 | 0 |
-| a key's own end | `check_key_end.py`: 5,670 worlds at six instants; kept, concluded, live, ended, successor, reach, score, retained | 215,460 | 0 |
+| causal | `check.py` section 1: 6,606 sets of up to six rows of its two pools, and each set in two further arrival orders | 60,016 | 0 |
+| cut | `check_cut.py` section 1 at its own bounds | 20,985 | 0 |
+| seat, line, tips, window | 134 scenarios: every scenario `attacks.py`'s 34 tests conclude under the seat, window and route rules, and the 27 rows of the window adversary table | 3,556 | 0 |
+| recorded rules: witnesses | the 17 witnesses of `witnesses.py` with their variants and adversaries, 103 worlds: the kept set and conclusions, as one set and in three arrival orders | 484 | 0 |
+| recorded rules: other rules | the 18 attack scenarios concluded under a rule of their own: as above, and the cut, holders and windows | 848 | 0 |
+| recorded rules: rosters | 1,991 worlds that `check_rosters.py`'s unmutated properties conclude: as above, over `roster.py`'s settled conclusions | 52,132 | 0 |
+| `line::versions` | every set of up to three versions of `roster_fork`'s three settings, for every reader, and the attack tests' own calls | 77,402 | 0 |
+| checkpoint and purge | `check_purge.py`: 400 replays (200 under each reading) over the nine histories | 1,768 | 0 |
+| a key's own end | `check_key_end.py`: 5,670 worlds at six instants | 215,460 | 0 |
+| lazy closure | against the eager closure the crate first shipped, over generated graphs | 301,219 | 0 |
 | trust walk | the `TrustSet.lean` worked world, and the Lean `walk` over generated graphs | 127,015 | 0 |
-| **total** | | **454,654** | **0** |
+| the cycle reading | a walk that passes no key twice, against the Lean `walk` | 46,800 | 0 |
+| **total** | | **933,539** | **0** |
 
-Eight planted breaks, one in each of `derived`, `cut`, `seat`, `head`, `key_end`, `line`, `window` and `ranked`,
-are each caught (`tools/kernel_crate_plants.sh`, run on a copy).
+A **recorded rule** is how a world whose conclusion rule belongs to the instance is brought in. The rule of
+a witness or a roster instance is table data and the model's own code, not the kernel. So the model's verdict
+for every (row, concluded ancestors) is recorded. The crate's own layers then run over that table and must
+ask no question the table lacks. What these runs check is the kernel's door, recursion and arrival, and the
+derived answers over the model's conclusions. The answers the witnesses compute are per-case functions of
+the model and are not ported.
+
+Twelve planted breaks are each caught (`tools/kernel_crate_plants.sh`, run on a copy): one in each of `derived`,
+`cut`, `seat` (two), `head`, `key_end`, `line` (two), `window`, `ranked`, `graph` and `layers`.
+
+**The cycle reading.** "A cycle is visited once" (CC 2.7.5) has two readings. Under the first, a walk never
+passes the same key twice. It equals the Lean `walk` on every case, since a key reached again has no more
+budget than before (`reaches_mono_budget`). Under the second, each key is expanded once in the whole walk,
+with the budget it was first reached with. That reading differs from the Lean `walk` on 48 of 46,800 cases. The witness has no cycle:
+the reader reaches A first by an edge allowing no further hop, then through B with budget to spare, and
+only the second path reaches C. The crate implements the first reading: a key is expanded again only with
+more budget.
 
 ## What this crate leaves out, and why
 
 - **The rejected rules.** The group checkpoint (`checkpoint.py` with `group=True`) and the window's `void` and
-  `contest` rules are kept in the models only to show why they are refused (KERNEL.md 5, 8a). They are not here.
-- **The models' plants.** The `MUT` switches in `seat.py` and `key_end.py` are deliberate breaks for the
-  Python checks; the crate implements the rule only.
+  `contest` rules are kept in the models only to show why they are refused. KERNEL.md 5 and 8a, and
+  `Recount.ruleI_concluder_decides` and `ruleII_never_final`, state them as rejected. So they are not here.
+- **The models' plants.** The `MUT` switches in `seat.py`, `key_end.py` and `roster.py` are deliberate breaks
+  for the Python checks; the crate implements the rule only.
 - **Copying and audience** (`route.py`, the **missing** answer as routing, the copy rule of KERNEL.md 5). The
   differential tests conclude `route.py`'s message and acknowledgement rows with the crate's `members_at`,
   but routing itself is not stated here. It reads placement data that KERNEL.md 9 lists as not yet table data.
@@ -101,8 +126,6 @@ are each caught (`tools/kernel_crate_plants.sh`, run on a copy).
   changed by a room key, and the binding is cryptography. The key plane is a fold the caller can write with `ops`.
 - **The fold default** (CC 3.5.1: one signer's own chain, the later signed instant, the lower id on a tie). It is
   a cell of the expression language, which is not carried here.
-- **The roster versions rule** `line::versions` is stated and compiles, but its cases live in
-  `models/roster_fork`, whose rows are not the kernel's; it has no fixture yet.
 - **What KERNEL.md marks open**: a roster version naming several heads on the wire, how a second consent
   travels, the cosignature attached against a node's clock, the least set a node must keep, whether a withdrawn
   receipt still blocks (treated as blocking, as the models do), and the eight folds a reaction calls that no
@@ -111,6 +134,36 @@ are each caught (`tools/kernel_crate_plants.sh`, run on a copy).
 
 ## Costs a caller should know
 
-`graph::Graph` holds each row's past as a bitset, so it is quadratic in the number of rows it is built over.
-The seat and window build nested graphs over a row's past to read the members at a head. A store should call
-the kernel over the rows an answer reads (its light cone), not over everything it holds.
+Building a `graph::Graph` is linear in the rows and the names: it records each row's held names and its level.
+A row's past is computed when first asked, from the pasts already known, and kept. A question of concurrency
+between two rows first compares levels, then searches at most 256 rows above the lower one, and only then
+computes the past. `examples/closure_bench.rs` runs it at the sizes persist's own benches use
+(`benches/scores_read.rs`: 256 to 16,000 rows) and at 64,000, against the eager closure the crate first shipped.
+On this machine (release build; ms):
+
+| Shape | Rows | Eager: build | Eager: 10,000 queries | Lazy: build | Lazy: 10,000 queries | Lazy: one head's past | Lazy: every past |
+|---|---|---|---|---|---|---|---|
+| narrow (each row names up to two of the last eight) | 16,000 | 19.4 | 0.22 | 3.9 | 16.1 | 4.6 | 19.3 |
+| narrow | 64,000 | 169.4 | 0.32 | 12.5 | 33.6 | 15.1 | 203.6 |
+| wide (up to three of the last 4,096) | 16,000 | 12.3 | 0.12 | 3.8 | 20.0 | 4.1 | 16.5 |
+| wide | 64,000 | 205.9 | 0.33 | 16.3 | 1,410.6 | 20.2 | 241.7 |
+
+One run with every column at every size peaked at 553 MB. The same run, with the eager closure and "every past" left out at
+64,000 rows, peaked at 52 MB. So the build is linear and memory follows what is asked. Asking every past (a
+whole-set `conclude`) is still quadratic in time and memory, as its output is. Eager queries are faster once
+built, since every past is held; lazy point queries on a wide graph cost up to 0.14 ms each. The seat and the window build nested
+graphs over a row's past to read the members at a head. `head::View` keeps each row's past as a set and is
+quadratic too. So a store should still call the kernel over the rows an answer reads.
+
+## Objects: a row or a key, by the form of the reference
+
+`seat::Obj::from_reference` reads the form the signed object gives a reference. A SHA-256 `hash-digest`,
+`[-16, digest]` of 32 bytes, names a row. An identity reference, `urn:ietf:params:oauth:ckt:sha-256:` and 43
+base64url characters, names a key. Anything else names nothing. The seat fixtures write every object in
+those forms, and the tests type each one from its form alone.
+
+## Building
+
+`rust-version = "1.89"` is the minimum supported Rust version, built and tested in CI (`crate.yml`, job
+`msrv`). `deny.toml` at the repository root holds CIRISPersist's licence allow-list, and `cargo deny check`
+passes under it.

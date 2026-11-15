@@ -2,9 +2,11 @@
 //! and a row that reads its fields the way the Python models read their dicts.
 #![allow(dead_code)]
 
+pub mod eager;
+
 use ciris_kernel::cut::CutSpec;
 use ciris_kernel::key_end::{EndRule, KeyEndRow, Record};
-use ciris_kernel::seat::{Conf, Obj, SeatKind, SeatRow};
+use ciris_kernel::seat::{Conf, Obj, Reference, SeatKind, SeatRow};
 use ciris_kernel::window::{WinKind, WindowRow};
 use ciris_kernel::Row;
 use std::collections::{BTreeMap, BTreeSet};
@@ -276,11 +278,32 @@ fn strs(m: &BTreeMap<String, J>, k: &str) -> Vec<String> {
 }
 
 impl TRow {
-    /// `ids`: the row ids of the scenario, which tells an object that is a row from one that is a key.
-    pub fn new(j: &J, ids: &BTreeSet<String>) -> TRow {
+    /// `refs`: what each reference of the fixture stands for in the model's own names. Whether an object is a
+    /// row or a key is read from the form of its reference alone (`Obj::from_reference`).
+    pub fn new(j: &J, refs: &BTreeMap<String, String>) -> TRow {
         let m = j.obj().clone();
-        let o = |k: &str| {
-            opt(&m, k).map(|s| if ids.contains(&s) { Obj::Row(s) } else { Obj::Key(s) })
+        let o = |k: &str| -> Option<Obj<String, String>> {
+            let v = m.get(k)?;
+            match v {
+                J::Null => None,
+                J::Arr(a) => {
+                    let hex = a[1].s();
+                    let bytes: Vec<u8> =
+                        (0..hex.len() / 2).map(|i| u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).unwrap()).collect();
+                    let r = Reference::Digest { alg: a[0].i(), digest: &bytes };
+                    let name = refs[&format!("{}|{}", a[0].i(), hex)].clone();
+                    Some(
+                        Obj::from_reference(r, |_| name.clone(), |t| t.to_string())
+                            .expect("a reference of a known form"),
+                    )
+                }
+                J::Str(t) => Some(
+                    Obj::from_reference(Reference::Text(t), |_| String::new(), |t| refs[t].clone())
+                        .unwrap_or_else(|| panic!("{k}: {t:?} is not a reference")),
+                ),
+                J::Bool(_) => None,
+                x => panic!("{k}: {x:?}"),
+            }
         };
         TRow {
             id: m["id"].s().to_string(),
@@ -297,16 +320,16 @@ impl TRow {
             sigs: strs(&m, "sigs"),
             obj: o("obj"),
             over: o("over"),
-            room: if matches!(m.get("room"), Some(J::Str(_))) { o("room") } else { None },
+            room: o("room"),
             scope: opt(&m, "scope"),
             policy: opt(&m, "policy"),
             counted: opt(&m, "counted"),
             of: opt(&m, "of"),
-            target: if m.get("target").map_or(false, |t| matches!(t, J::Str(_))) { opt(&m, "target") } else { None },
+            target: if m.get("target").is_some_and(|t| matches!(t, J::Str(_))) { opt(&m, "target") } else { None },
             content: opt(&m, "content"),
             under: opt(&m, "under"),
             window: opt(&m, "window"),
-            says: if m.get("says").map_or(false, |t| matches!(t, J::Str(_))) { opt(&m, "says") } else { None },
+            says: if m.get("says").is_some_and(|t| matches!(t, J::Str(_))) { opt(&m, "says") } else { None },
             receipt: opt(&m, "receipt"),
             end: EndRule::Optional,
             m,
@@ -327,8 +350,11 @@ impl TRow {
 }
 
 pub fn rows_of(js: &[J]) -> Vec<TRow> {
-    let ids: BTreeSet<String> = js.iter().map(|j| j.at("id").s().to_string()).collect();
-    js.iter().map(|j| TRow::new(j, &ids)).collect()
+    rows_with_refs(js, &BTreeMap::new())
+}
+
+pub fn rows_with_refs(js: &[J], refs: &BTreeMap<String, String>) -> Vec<TRow> {
+    js.iter().map(|j| TRow::new(j, refs)).collect()
 }
 
 impl Row for TRow {
@@ -389,7 +415,7 @@ impl SeatRow for TRow {
         self.fs("consent") == Some("one")
     }
     fn sub(&self) -> bool {
-        self.f("sub").map_or(false, |x| x.b())
+        self.f("sub").is_some_and(|x| x.b())
     }
     fn head(&self) -> &[String] {
         &self.head
@@ -575,4 +601,93 @@ pub fn sorted_ids<'a>(it: impl IntoIterator<Item = &'a String>) -> Vec<String> {
     let mut v: Vec<String> = it.into_iter().cloned().collect();
     v.sort();
     v
+}
+
+// ---- the tables a fixture carries ---------------------------------------------------------------------
+use ciris_kernel::seat::{Over, Policy, SeatLaw};
+use ciris_kernel::window::{Base, Clause, How, WindowSpec};
+
+pub fn law_of(j: &J) -> SeatLaw {
+    let mut law = SeatLaw {
+        duties: j.at("duties").strs(),
+        final_scopes: j.at("final").strs(),
+        roster_seats: j.at("roster_seats").strs(),
+        depth: j.at("depth").i() as usize,
+        ..Default::default()
+    };
+    for (k, v) in j.at("holds").obj() {
+        law.holds.insert(k.clone(), v.strs());
+    }
+    for (k, v) in j.at("ends").obj() {
+        law.ends.insert(k.clone(), v.strs());
+    }
+    for (k, v) in j.at("confers").obj() {
+        let a = v.arr();
+        let over = if a[1].s() == "same" { Over::Same } else { Over::Holder };
+        law.confers.insert(k.clone(), (a[0].strs(), over));
+    }
+    for (k, v) in j.at("policy").obj() {
+        let a = v.arr();
+        let (num, den) = (a[1].i() as u64, a[2].i() as u64);
+        let p = match a[0].s() {
+            "atleast" => Policy::AtLeast(num, den),
+            "strict" => Policy::Strict(num, den),
+            "one" => Policy::One,
+            "declared" => Policy::Declared,
+            "ranked" => Policy::Ranked,
+            "duty" if k == "duty_confer" => Policy::DutyConfer,
+            "duty" if k == "duty_withdraw" => Policy::DutyWithdraw,
+            _ => Policy::NotACount,
+        };
+        law.policy.insert(k.clone(), p);
+    }
+    law
+}
+
+pub fn windows_of(j: &J) -> BTreeMap<String, WindowSpec<i64>> {
+    let clauses = |a: &J| -> Vec<Clause> {
+        a.arr()
+            .iter()
+            .map(|c| {
+                let c = c.arr();
+                Clause {
+                    value: c[0].s().into(),
+                    how: match &c[1] {
+                        J::Str(h) if h == "one" => How::One,
+                        J::Str(_) => How::Strict,
+                        J::Arr(t) if t[0].s() == "atleast" => {
+                            How::AtLeast(t[1].i() as u64, t[2].i() as u64, t[3].i() as u64)
+                        }
+                        J::Arr(t) => How::More(t[1].i() as u64, t[2].i() as u64),
+                        x => panic!("clause {x:?}"),
+                    },
+                    over: match c[2].s() {
+                        "all" => Base::All,
+                        "others" => Base::Others,
+                        s => Base::Scope(s.into()),
+                    },
+                    out: c[3].s().into(),
+                }
+            })
+            .collect()
+    };
+    j.obj()
+        .iter()
+        .map(|(k, w)| {
+            (
+                k.clone(),
+                WindowSpec {
+                    counted: w.at("counted").s().into(),
+                    concluder: w.at("concluder").s().into(),
+                    opener_says: w.at("opener_says").opt_s(),
+                    at_once: clauses(w.at("at_once")),
+                    silent: w.at("silent").opt_s(),
+                    at_close: clauses(w.at("at_close")),
+                    default: w.at("default").s().into(),
+                    target_votes: w.get("target_votes").is_some_and(|x| x.b()),
+                    secs: w.at("secs").i(),
+                },
+            )
+        })
+        .collect()
 }

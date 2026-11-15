@@ -133,7 +133,7 @@ pub fn conclude<'a, R: Row>(
     let g = Graph::new(kept_rows);
     let n = g.len();
     let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by_key(|&i| g.depth(i)); // a row reads only rows with strictly fewer ancestors
+    order.sort_by_key(|&i| g.level(i)); // a row reads only rows of lower level
     let mut c = vec![false; n];
     for &i in &order {
         let live = match root {

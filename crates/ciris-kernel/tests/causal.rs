@@ -20,7 +20,7 @@ fn world_rule(p: &Past<'_, '_, TRow>) -> bool {
         return true;
     }
     let g: Vec<&TRow> = p.rows().filter(|q| q.kind == "genesis").collect();
-    if g.is_empty() || !g[0].f("members").map_or(false, |m| m.str_set().contains(&r.signer)) {
+    if g.is_empty() || !g[0].f("members").is_some_and(|m| m.str_set().contains(&r.signer)) {
         return false;
     }
     if p.rows().any(|q| q.kind == "removal" && q.fs("removes") == Some(r.signer.as_str())) {
@@ -53,7 +53,13 @@ fn strs(j: &J) -> Vec<String> {
 }
 
 /// `check.answers`, compared field by field. Returns the number of answers compared and those that differ.
-fn causal_answers(c: &Concluded<'_, TRow>, want: &J, members: &BTreeSet<String>, readers: &[String], depth: usize) -> (usize, usize) {
+fn causal_answers(
+    c: &Concluded<'_, TRow>,
+    want: &J,
+    members: &BTreeSet<String>,
+    readers: &[String],
+    depth: usize,
+) -> (usize, usize) {
     let (mut n, mut bad) = (0, 0);
     let mut cmp = |ok: bool, what: &str| {
         n += 1;
@@ -62,7 +68,8 @@ fn causal_answers(c: &Concluded<'_, TRow>, want: &J, members: &BTreeSet<String>,
             eprintln!("  differs: {what}");
         }
     };
-    let cl: Vec<usize> = c.cs().iter().copied().filter(|&i| matches!(c.g.row(i).kind.as_str(), "claim" | "decider")).collect();
+    let cl: Vec<usize> =
+        c.cs().iter().copied().filter(|&i| matches!(c.g.row(i).kind.as_str(), "claim" | "decider")).collect();
     for s in ["s", "s2"] {
         let on: Vec<usize> = cl.iter().copied().filter(|&i| c.g.row(i).fs("slot") == Some(s)).collect();
         let (h, k) = derived::slot(c, &on, |r| r.fs("picks").map(String::from), |r| r.id.clone());
@@ -71,7 +78,8 @@ fn causal_answers(c: &Concluded<'_, TRow>, want: &J, members: &BTreeSet<String>,
     }
     let wins = derived::wins(c, c.cs(), |r| r.fs("target").map(String::from), |r| r.fi("level").unwrap_or(0));
     cmp(ids(c, wins) == strs(want.at("wins")), "wins");
-    let counting: Vec<usize> = (0..c.g.len()).filter(|&i| derived::counts(c, i, |r| Some(r.signer.clone()), removes)).collect();
+    let counting: Vec<usize> =
+        (0..c.g.len()).filter(|&i| derived::counts(c, i, |r| Some(r.signer.clone()), removes)).collect();
     cmp(ids(c, counting.iter().copied()) == strs(want.at("counts")), "counts");
     let edges = derived::live_edges(c, |r| r.fs("to").map(String::from), |r| r.kind == "withdraw");
     for own in readers {
@@ -136,8 +144,10 @@ fn causal_kernel_worlds() {
                     order.rotate_left(shift % n);
                 }
                 let a = arrive(&order, world_rule, Some(&root), |_| true);
-                let mut held: Vec<(String, bool)> = (0..a.g.len()).map(|i| (a.g.row(i).id.clone(), a.concluded(i))).collect();
-                let mut want: Vec<(String, bool)> = (0..c.g.len()).map(|i| (c.g.row(i).id.clone(), c.concluded(i))).collect();
+                let mut held: Vec<(String, bool)> =
+                    (0..a.g.len()).map(|i| (a.g.row(i).id.clone(), a.concluded(i))).collect();
+                let mut want: Vec<(String, bool)> =
+                    (0..c.g.len()).map(|i| (c.g.row(i).id.clone(), c.concluded(i))).collect();
                 held.sort();
                 want.sort();
                 if held != want {
@@ -200,7 +210,7 @@ fn cut_worlds() {
                 let h = cut.holder(
                     |r| {
                         r.f("slot") == Some(&slot)
-                            || r.f("on").map_or(false, |o| o.arr().contains(&slot))
+                            || r.f("on").is_some_and(|o| o.arr().contains(&slot))
                             || spec_cuts(r).contains(&slot)
                     },
                     |r| r.fs("picks").map(String::from),

@@ -59,18 +59,17 @@ pub fn slot<R: Row, V: Ord + Clone>(
             Some(p) => c.g.id_in_past(&p, i) && c.concluded_id(&p),
         })
         .collect();
-    let spoken: Vec<V> = c
-        .g
-        .frontier(&ok)
-        .into_iter()
-        .map(|i| {
-            let r = c.g.row(i);
-            match picks(r).and_then(|p| c.g.idx(&p)) {
-                Some(p) => value(c.g.row(p)),
-                None => value(r),
-            }
-        })
-        .collect();
+    let spoken: Vec<V> =
+        c.g.frontier(&ok)
+            .into_iter()
+            .map(|i| {
+                let r = c.g.row(i);
+                match picks(r).and_then(|p| c.g.idx(&p)) {
+                    Some(p) => value(c.g.row(p)),
+                    None => value(r),
+                }
+            })
+            .collect();
     (ops::one(spoken.iter().cloned()), ops::count(spoken))
 }
 

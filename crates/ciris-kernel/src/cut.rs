@@ -99,8 +99,7 @@ impl<'c, 'a, R: Row, S: CutSpec<R>> Cut<'c, 'a, R, S> {
             let xr = g.row(x);
             let xs = self.spec.cuts_of(xr);
             if self.spec.rejects(xr).iter().any(|i| i == rr.id()) && g.in_past(r, x) {
-                let mine: BTreeSet<S::Slot> =
-                    self.spec.on_slots(rr).union(&self.spec.cuts_of(rr)).cloned().collect();
+                let mine: BTreeSet<S::Slot> = self.spec.on_slots(rr).union(&self.spec.cuts_of(rr)).cloned().collect();
                 if xs.intersection(&mine).next().is_some() {
                     return true;
                 }
@@ -205,15 +204,9 @@ impl<'c, 'a, R: Row, S: CutSpec<R>> Cut<'c, 'a, R, S> {
     ) -> Holder<V> {
         let g = &self.c.g;
         let rows: Vec<usize> = self.c.cs().iter().copied().filter(|&i| on(g.row(i))).collect();
-        let settled: Vec<usize> = rows
-            .iter()
-            .copied()
-            .filter(|&x| !self.spec.cuts_of(g.row(x)).is_empty() && self.counts(x))
-            .collect();
-        if rows
-            .iter()
-            .any(|&r| self.status(r) == Status::Contested && !settled.iter().any(|&x| g.in_past(r, x)))
-        {
+        let settled: Vec<usize> =
+            rows.iter().copied().filter(|&x| !self.spec.cuts_of(g.row(x)).is_empty() && self.counts(x)).collect();
+        if rows.iter().any(|&r| self.status(r) == Status::Contested && !settled.iter().any(|&x| g.in_past(r, x))) {
             return Holder::Conflict;
         }
         let counting: Vec<usize> = rows.iter().copied().filter(|&r| self.counts(r)).collect();

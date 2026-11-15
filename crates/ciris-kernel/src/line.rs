@@ -29,17 +29,12 @@ pub trait LineSpec<R: Row> {
 }
 
 fn older<R: Row>(c: &Concluded<'_, R>, heads: &[R::Id], than: &[R::Id]) -> bool {
-    !heads.is_empty()
-        && heads.iter().all(|h| than.iter().any(|t| c.g.idx(t).is_some_and(|t| c.g.id_in_past(h, t))))
+    !heads.is_empty() && heads.iter().all(|h| than.iter().any(|t| c.g.idx(t).is_some_and(|t| c.g.id_in_past(h, t))))
 }
 
 /// The counted acts on `obj`, concluded, in index order.
 pub fn counted_acts<R: Row, L: LineSpec<R>>(c: &Concluded<'_, R>, spec: &L, obj: &L::Obj) -> Vec<usize> {
-    c.cs()
-        .iter()
-        .copied()
-        .filter(|&i| spec.counted_act(c.g.row(i)).is_some_and(|(o, _)| o == *obj))
-        .collect()
+    c.cs().iter().copied().filter(|&i| spec.counted_act(c.g.row(i)).is_some_and(|(o, _)| o == *obj)).collect()
 }
 
 /// The counted acts on `obj` this reader has acknowledged, with the counted acts in their past.
@@ -78,9 +73,8 @@ pub fn settle<R: Row, L: LineSpec<R>>(
     let acts = counted_acts(c, spec, obj);
     let line: BTreeSet<&R::Id> = acts.iter().map(|&i| c.g.row(i).id()).collect();
     let mut live: Vec<usize> = acts.iter().copied().filter(|&i| cut_counts(i)).collect();
-    live.sort_by_key(|&i| c.g.depth(i)); // ancestors first
-    let mine: BTreeSet<usize> =
-        own_line(c, spec, own, obj).into_iter().filter(|i| live.contains(i)).collect();
+    live.sort_by_key(|&i| c.g.level(i)); // ancestors first
+    let mine: BTreeSet<usize> = own_line(c, spec, own, obj).into_iter().filter(|i| live.contains(i)).collect();
     let heads = |i: usize| spec.counted_act(c.g.row(i)).map(|(_, h)| h).unwrap_or(&[]);
     let behind = |r: usize, m: usize| m != r && c.g.concurrent(r, m) && older(c, heads(r), heads(m));
     let mut out: BTreeSet<usize> = BTreeSet::new();

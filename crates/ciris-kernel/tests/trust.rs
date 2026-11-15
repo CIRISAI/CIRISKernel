@@ -14,7 +14,9 @@ fn lean_walk(edges: &[E], fuel: u32, k: u8, c: u8, b: u32, a: u8) -> bool {
         return false;
     }
     edges.iter().any(|e| {
-        e.src == k && e.admits(&c) && (e.dst == a || lean_walk(edges, fuel - 1, e.dst, c, core::cmp::min(b - 1, e.depth), a))
+        e.src == k
+            && e.admits(&c)
+            && (e.dst == a || lean_walk(edges, fuel - 1, e.dst, c, core::cmp::min(b - 1, e.depth), a))
     })
 }
 
@@ -115,4 +117,84 @@ fn trust_walk_equals_the_lean_walk() {
     }
     report("trust walk against the Lean walk", cases, bad);
     assert_eq!(bad, 0);
+}
+
+/// Reading 1 of "a cycle is visited once": a walk never passes the same key twice (simple paths only).
+fn simple_paths(edges: &[E], k: u8, c: u8, b: u32, a: u8, on: &mut Vec<u8>) -> bool {
+    if b == 0 {
+        return false;
+    }
+    on.push(k);
+    let hit = edges.iter().any(|e| {
+        e.src == k
+            && e.admits(&c)
+            && (e.dst == a
+                || (!on.contains(&e.dst) && simple_paths(edges, e.dst, c, core::cmp::min(b - 1, e.depth), a, on)))
+    });
+    on.pop();
+    hit
+}
+
+/// Reading 2: each key is expanded at most once in the whole walk, breadth first, with the budget it was
+/// first reached with.
+fn visit_once(edges: &[E], k: u8, c: u8, b: u32, a: u8) -> bool {
+    let mut seen = vec![k];
+    let mut q = std::collections::VecDeque::from([(k, b)]);
+    while let Some((x, bx)) = q.pop_front() {
+        if bx == 0 {
+            continue;
+        }
+        for e in edges.iter().filter(|e| e.src == x && e.admits(&c)) {
+            if e.dst == a {
+                return true;
+            }
+            if !seen.contains(&e.dst) {
+                seen.push(e.dst);
+                q.push_back((e.dst, core::cmp::min(bx - 1, e.depth)));
+            }
+        }
+    }
+    false
+}
+
+#[test]
+fn the_cycle_reading() {
+    // reading 1 equals the Lean walk on every graph of the pool above; reading 2 does not
+    let mut pool: Vec<E> = Vec::new();
+    for src in 0..4u8 {
+        for dst in 0..4u8 {
+            if src != dst {
+                for depth in [0, 2] {
+                    pool.push(e(src, dst, &[], depth));
+                }
+            }
+        }
+    }
+    let (mut cases, mut r1, mut r2) = (0, 0, 0);
+    let m = pool.len();
+    for i in 0..m {
+        for j in i..m {
+            for k in j..m {
+                let g = vec![pool[i].clone(), pool[j].clone(), pool[k].clone()];
+                for a in 1..4u8 {
+                    for budget in 0..=HOP_CAP {
+                        cases += 1;
+                        let lean = lean_reaches(&g, READER, 1, budget, a);
+                        r1 += (simple_paths(&g, READER, 1, budget, a, &mut vec![]) != lean) as usize;
+                        r2 += (visit_once(&g, READER, 1, budget, a) != lean) as usize;
+                    }
+                }
+            }
+        }
+    }
+    // the witness for reading 2: the reader reaches A first by an edge that allows no further hop, and again
+    // through B with budget to spare; the Lean walk reaches C through B and A, a walk that visits each key once
+    let w = vec![e(READER, 1, &[], 0), e(READER, 2, &[], 5), e(2, 1, &[], 5), e(1, 3, &[], 5)];
+    assert!(lean_reaches(&w, READER, 1, HOP_CAP, 3));
+    assert!(reaches(&w, &READER, &1, HOP_CAP, &3));
+    assert!(!visit_once(&w, READER, 1, HOP_CAP, 3));
+    eprintln!("  simple paths against Lean: {r1} differ; each key expanded once (breadth first) against Lean: {r2} differ, of {cases}");
+    report("the cycle reading: a walk that passes no key twice, against the Lean walk", cases, r1);
+    assert_eq!(r1, 0);
+    assert!(r2 > 0);
 }

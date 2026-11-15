@@ -201,7 +201,9 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         let keys = x.base(&cl.over);
         let yes = said
             .iter()
-            .filter(|(s, v)| **v == cl.value && (keys.contains(*s) || (floor && tv.contains(*s) && cl.value == "approve")))
+            .filter(|(s, v)| {
+                **v == cl.value && (keys.contains(*s) || (floor && tv.contains(*s) && cl.value == "approve"))
+            })
             .count() as u64;
         let n = keys.len() as u64;
         match cl.how {
@@ -276,7 +278,8 @@ pub fn rule<R: WindowRow, S: CutSpec<R>>(
     if rec.win_kind() != Some(WinKind::Receipt) || rec.signer() != r.signer() || rec.of() != Some(o.id()) {
         return Some(false);
     }
-    let answers: Vec<&R> = rows.iter().copied().filter(|q| q.win_kind() == Some(WinKind::Answer) && q.of() == Some(o.id())).collect();
+    let answers: Vec<&R> =
+        rows.iter().copied().filter(|q| q.win_kind() == Some(WinKind::Answer) && q.of() == Some(o.id())).collect();
     let inside: Vec<&R> = rows.iter().copied().filter(|q| q.id() != rec.id() && !p.past(q.id(), rec.id())).collect();
     let elapsed = match (r.at(), rec.at()) {
         (Some(a), Some(b)) => a >= b && a - b >= w.secs,
@@ -374,7 +377,8 @@ pub fn outcome<R: WindowRow, S: CutSpec<R>>(
             continue;
         };
         let mine: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, l)).collect();
-        let mut inside: Vec<&R> = mine.iter().copied().filter(|&q| q != rec && !g.in_past(q, rec)).map(|q| g.row(q)).collect();
+        let mut inside: Vec<&R> =
+            mine.iter().copied().filter(|&q| q != rec && !g.in_past(q, rec)).map(|q| g.row(q)).collect();
         inside.extend(tgt.iter().copied());
         let mut answers: Vec<&R> = mine
             .iter()

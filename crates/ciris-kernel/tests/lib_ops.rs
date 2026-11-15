@@ -75,7 +75,10 @@ struct H {
 }
 
 fn hs(j: &J) -> Vec<H> {
-    j.arr().iter().map(|r| H { k: r.at("k").s().into(), t: r.get("t").map_or(0, |x| x.i()), m: r.obj().clone() }).collect()
+    j.arr()
+        .iter()
+        .map(|r| H { k: r.at("k").s().into(), t: r.get("t").map_or(0, |x| x.i()), m: r.obj().clone() })
+        .collect()
 }
 
 /// `reexpress.takedown`
@@ -146,7 +149,8 @@ fn guardianship(h: &[H], band: Option<&str>) -> J {
         .into_iter()
         .filter(|v| !has(ops::rule(&unless, &v.k.as_str()).copied().unwrap_or("-")))
         .collect();
-    let order = has("order_named") && ops::in_range(Some(&ops::count(voices.iter().map(|v| v.k.clone()))), Some(&1), None);
+    let order =
+        has("order_named") && ops::in_range(Some(&ops::count(voices.iter().map(|v| v.k.clone()))), Some(&1), None);
     let (stepped, bound) = (has("step_down"), has("bind_named"));
     let guardian = if (order || stepped) && bound {
         "named"
@@ -161,7 +165,8 @@ fn guardianship(h: &[H], band: Option<&str>) -> J {
         "named" => "act_named",
         _ => "-",
     };
-    let acts: BTreeSet<String> = if contested { BTreeSet::new() } else { ops::sel(h, |r| r.k == act).iter().map(|a| a.k.clone()).collect() };
+    let acts: BTreeSet<String> =
+        if contested { BTreeSet::new() } else { ops::sel(h, |r| r.k == act).iter().map(|a| a.k.clone()).collect() };
     let mode = if guardian == "none" {
         "stopped"
     } else if contested {
@@ -192,10 +197,14 @@ fn set_item(h: &[H], leaf: &str, a: i64, w: i64) -> bool {
         .collect();
     for l in ops::sel(h, |r| r.k == "leaf" && f(r, "n").as_deref() == Some(leaf)) {
         let mut parts: Vec<&H> = vec![l];
-        parts.extend(ops::sel(h, |r| r.k == "header" && f(r, "item") == f(l, "item") && f(r, "digest") == f(l, "digest")));
+        parts.extend(ops::sel(h, |r| {
+            r.k == "header" && f(r, "item") == f(l, "item") && f(r, "digest") == f(l, "digest")
+        }));
         let latest = ops::max_of(parts.iter().map(|r| r.t));
         // `ALWAYS` is an interval opened at the beginning: every instant lies above it
-        if ops::rule(&header, &f(l, "item").unwrap()) == f(l, "digest").as_ref() && latest.map_or(false, |t| t < a + w + 1) {
+        if ops::rule(&header, &f(l, "item").unwrap()) == f(l, "digest").as_ref()
+            && latest.is_some_and(|t| t < a + w + 1)
+        {
             return true;
         }
     }

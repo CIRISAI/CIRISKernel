@@ -29,5 +29,9 @@ plant "a key's end read inclusively"                   src/key_end.rs 'x.until.m
 plant "the reader's line ignored"                      src/line.rs '(built_ok && !mine.iter().any(|&m| behind(r, m)))' 'built_ok'
 plant "concurrent answers not recounted"               src/window.rs 'answers.extend(ans);' ''
 plant "an election's tie broken by list order"         src/ranked.rs 'back: if declared { -(index(o) as i64) } else { 0 }' 'back: -(index(o) as i64)'
+plant "a version counts though what it builds on does not" src/line.rs 'if builds_on(i).iter().all(|e| out.contains(e)) {' 'if true {'
+plant "the lazy closure skips a past it already knows"  src/graph.rs 'Some(pa) => b.union(pa),' 'Some(_) => {}'
+plant "a row is concluded before what it names"         src/layers.rs 'order.sort_by_key(|&i| g.level(i));' 'order.sort_by_key(|&i| core::cmp::Reverse(g.level(i)));'
+plant "an identity reference of any length"             src/seat.rs 't.len() == 43 &&' ''
 echo "ciris-kernel plants: $caught of $total caught"
 [ $caught -eq $total ]

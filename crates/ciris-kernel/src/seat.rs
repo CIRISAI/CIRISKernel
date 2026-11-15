@@ -35,6 +35,47 @@ pub enum Obj<I, K> {
     Key(K),
 }
 
+/// A reference as the signed object writes it (CC 2.6.1.7; `manifests/signed_object_v2.cddl`, parent
+/// repository): a row is named by its row id, a `hash-digest` `[-16, digest]` (inside a `row-ref` the
+/// caller has read the edition); a key is named by its identity reference, the text
+/// `urn:ietf:params:oauth:ckt:sha-256:` and 43 base64url characters.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reference<'r> {
+    /// A `hash-digest`: the algorithm and the digest.
+    Digest {
+        /// The COSE algorithm; -16 is SHA-256.
+        alg: i64,
+        /// The digest bytes.
+        digest: &'r [u8],
+    },
+    /// A text reference.
+    Text(&'r str),
+}
+
+/// The COSE algorithm of SHA-256, the one a row id uses.
+pub const SHA_256: i64 = -16;
+/// The prefix of an identity reference (RFC 9278 JWK thumbprint URI, SHA-256).
+pub const IDENTITY_PREFIX: &str = "urn:ietf:params:oauth:ckt:sha-256:";
+
+/// Whether a text is an identity reference: the prefix and exactly 43 base64url characters.
+pub fn is_identity_reference(s: &str) -> bool {
+    s.strip_prefix(IDENTITY_PREFIX)
+        .is_some_and(|t| t.len() == 43 && t.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_'))
+}
+
+impl<I, K> Obj<I, K> {
+    /// The object a reference names, read from its form alone: a SHA-256 `hash-digest` of 32 bytes is a row,
+    /// an identity reference is a key, and anything else names nothing. `row` and `key` turn the reference
+    /// into the caller's own id types.
+    pub fn from_reference(r: Reference<'_>, row: impl FnOnce(&[u8]) -> I, key: impl FnOnce(&str) -> K) -> Option<Self> {
+        match r {
+            Reference::Digest { alg, digest } if alg == SHA_256 && digest.len() == 32 => Some(Obj::Row(row(digest))),
+            Reference::Text(t) if is_identity_reference(t) => Some(Obj::Key(key(t))),
+            _ => None,
+        }
+    }
+}
+
 /// Who confers a seat.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Conf {
@@ -483,10 +524,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     /// Whether key `k` stands in scope `s` over `o` (rooted at `root`, when given). While tips wait, a key
     /// stands only if every tip seats it.
     pub fn stands(&self, k: &R::Key, s: &str, o: &ObjOf<R>, root: Option<&Root<R::Id, R::Key>>) -> bool {
-        let any = self
-            .recs
-            .iter()
-            .any(|r| r.k == *k && r.obj == *o && self.has(r, s) && root.map_or(true, |x| r.root == *x));
+        let any =
+            self.recs.iter().any(|r| r.k == *k && r.obj == *o && self.has(r, s) && root.map_or(true, |x| r.root == *x));
         any && self.tips_common(s, o).map_or(true, |c| c.contains(k))
     }
 
@@ -542,7 +581,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 self.c.cs().iter().copied().filter(|&q| q == t || g.in_past(q, t)).map(|q| g.row(q)).collect();
             let sc = Concluded::with(Graph::new(sub), None);
             let q = Seats::new(&sc, self.law, self.spec, None);
-            let m: BTreeSet<R::Key> = q.recs.iter().filter(|r| r.obj == *o && q.has(r, s)).map(|r| r.k.clone()).collect();
+            let m: BTreeSet<R::Key> =
+                q.recs.iter().filter(|r| r.obj == *o && q.has(r, s)).map(|r| r.k.clone()).collect();
             out = Some(match out {
                 None => m,
                 Some(x) => x.intersection(&m).cloned().collect(),
@@ -681,7 +721,11 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
             if is_offer && revoked_before(law, r, p) {
                 return false; // a revoked key does not re-seat itself
             }
-            if is_offer && matches!(conf, Some(Conf::Own) | Some(Conf::Seat)) && duty_seat(law, &by, r) && !lone(law, spec, r, p) {
+            if is_offer
+                && matches!(conf, Some(Conf::Own) | Some(Conf::Seat))
+                && duty_seat(law, &by, r)
+                && !lone(law, spec, r, p)
+            {
                 return false;
             }
             let Some(obj) = r.obj() else { return false };
@@ -712,7 +756,11 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
                     if pol == Some(Policy::Ranked) {
                         let ballots: Vec<(R::Key, Vec<R::Key>)> = p
                             .rows()
-                            .filter(|b| b.seat_kind() == SeatKind::Ballot && r.names().contains(b.id()) && mem.contains(b.signer()))
+                            .filter(|b| {
+                                b.seat_kind() == SeatKind::Ballot
+                                    && r.names().contains(b.id())
+                                    && mem.contains(b.signer())
+                            })
                             .map(|b| (b.signer().clone(), b.ranking().to_vec()))
                             .collect();
                         // the one ranked row is the election, which declares no order: a tie for weakest seats nobody
@@ -735,7 +783,9 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
             Some(o) => by.get(o).is_some_and(|o| o.to().contains(r.signer())),
         },
         SeatKind::Withdraw => match r.target().and_then(|t| by.get(t)) {
-            Some(t) => signers(*t).contains(r.signer()) || (t.seat_kind() == SeatKind::Offer && t.to().contains(r.signer())),
+            Some(t) => {
+                signers(*t).contains(r.signer()) || (t.seat_kind() == SeatKind::Offer && t.to().contains(r.signer()))
+            }
             None => false,
         },
         SeatKind::Cosign => true,
@@ -768,7 +818,13 @@ fn lone<R: SeatRow, S: CutSpec<R>>(law: &SeatLaw, spec: &S, r: &R, p: &Past<'_, 
     held.len() == 1 && held.contains(r.signer())
 }
 
-fn ender<R: SeatRow, S: CutSpec<R>>(law: &SeatLaw, spec: &S, r: &R, p: &Past<'_, '_, R>, by: &BTreeMap<&R::Id, &R>) -> bool {
+fn ender<R: SeatRow, S: CutSpec<R>>(
+    law: &SeatLaw,
+    spec: &S,
+    r: &R,
+    p: &Past<'_, '_, R>,
+    by: &BTreeMap<&R::Id, &R>,
+) -> bool {
     let Some(up) = r.under().and_then(|u| by.get(u)) else { return false };
     if up.seat_kind() != SeatKind::Offer || up.obj() != r.obj() || !up.to().contains(r.signer()) {
         return false;

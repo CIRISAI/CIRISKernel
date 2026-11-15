@@ -75,8 +75,10 @@ migrations, and the local operational store.
   picks "the lowest key" among them. The kernel counts distinct signers and never picks by key id. Under
   KERNEL.md 7b the person's devices are one voice; persist's adapter must present that voice as the signer,
   or a count will count devices.
-- **Objects that are rows and objects that are keys.** `seat::Obj` tells a founding row from a key. Persist's
-  object id must say which it is; the tests decide by whether the string is a row id of the scenario.
+- **Objects that are rows and objects that are keys.** `seat::Obj::from_reference` types an object from the
+  form of its reference in the signed object: a `[-16, digest]` row id is a row, an identity reference
+  `urn:ietf:params:oauth:ckt:sha-256:…` is a key. Persist's adapter passes the reference as written. Today's
+  `attested_key_id` and `references_attestation_id` are bare strings, so this holds from the rc20 wire on.
 - **Instants.** `window::WindowRow::T` and `key_end::KeyEndRow::T` are any ordered type with subtraction.
   Persist's `Micros` (`i64`) fits. The crate never compares two signers' instants.
 
@@ -93,5 +95,6 @@ ciris-kernel = { git = "https://github.com/CIRISAI/CIRISKernel", tag = "<tag>", 
 `allow-git`. A path dependency through `[patch]` serves local work across the two trees. crates.io can wait
 until the API settles; the crate is `publish = false`.
 
-The crate builds with cargo 1.95 and declares `rust-version = "1.75"`; persist pins 1.97.0
-(`rust-toolchain.toml`), which is newer.
+The crate declares `rust-version = "1.89"`, and CI builds and tests it on that toolchain. Persist pins
+1.97.0 (`rust-toolchain.toml`), which is newer. The kernel repository's `deny.toml` holds persist's licence
+allow-list, and `cargo deny check` passes under it.

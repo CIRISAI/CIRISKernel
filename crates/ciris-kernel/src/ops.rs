@@ -34,9 +34,7 @@ where
     H: Fn(&T) -> V,
     P: Fn(&T) -> bool,
 {
-    rows.iter()
-        .filter(|r| before.map_or(true, |b| held(r) < *b) && pat(r))
-        .collect()
+    rows.iter().filter(|r| before.map_or(true, |b| held(r) < *b) && pat(r)).collect()
 }
 
 /// group: the elements by a key, each group in input order.
@@ -117,10 +115,7 @@ pub fn sum_per<P: Ord, V: Ord + Copy + Into<i128>>(pairs: impl IntoIterator<Item
     for (p, v) in pairs {
         said.entry(p).or_default().insert(v);
     }
-    said.values()
-        .filter(|s| s.len() == 1)
-        .map(|s| (*s.iter().next().unwrap()).into())
-        .sum()
+    said.values().filter(|s| s.len() == 1).map(|s| (*s.iter().next().unwrap()).into()).sum()
 }
 
 /// interval: `lo <= x < hi`. An absent `lo` is an interval never opened (false); an absent `hi` one not yet

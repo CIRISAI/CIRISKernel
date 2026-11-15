@@ -20,6 +20,8 @@ Sources (all under models/):
     purge     causal_kernel/purge.py: every replay check_purge.py runs, under both readings
     key_end   causal_kernel/check_key_end.py: every generated world at every instant
 """
+import base64
+import hashlib
 import itertools
 import json
 import os
@@ -232,6 +234,37 @@ def seat_answers(S, ST, WN, CUT, CP):
     return out
 
 
+REF_FIELDS = ("obj", "over", "room")
+
+
+def row_ref(i):
+    """A row id in the signed object's form: [-16, digest], the digest written as hex here."""
+    return [-16, hashlib.sha256(("row:" + i).encode()).hexdigest()]
+
+
+def key_ref(k):
+    """An identity reference: the thumbprint URN of a key, 43 base64url characters."""
+    d = base64.urlsafe_b64encode(hashlib.sha256(("key:" + k).encode()).digest()).decode().rstrip("=")
+    return "urn:ietf:params:oauth:ckt:sha-256:" + d
+
+
+def with_refs(rows, table):
+    """The rows with every object written as a reference, row or key by its form; `table` collects the names
+    the references stand for, so the Rust side can turn a reference back into the model's own name."""
+    ids = {r["id"] for r in rows}
+    out = []
+    for r in rows:
+        e = row_enc(r)
+        for f in REF_FIELDS:
+            v = r.get(f)
+            if isinstance(v, str):
+                ref = row_ref(v) if v in ids else key_ref(v)
+                table["|".join(map(str, ref)) if isinstance(ref, list) else ref] = v
+                e[f] = ref
+        out.append(e)
+    return out
+
+
 def K_sel(rows, kind):
     return [r for r in rows if r["kind"] == kind]
 
@@ -277,7 +310,8 @@ def seat_cases():
     for i, (name, rows) in enumerate(scen):
         check_rows(rows, problems, "scenario %d" % i)
         S = CK.concluded(CK.kept(list(rows)), rulefn[name])
-        out.append({"rule": name, "rows": [row_enc(r) for r in rows], "a": enc(seat_answers(S, ST, WN, CUT, CP))})
+        refs = {}
+        out.append({"rule": name, "rows": with_refs(rows, refs), "refs": refs, "a": enc(seat_answers(S, ST, WN, CUT, CP))})
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
            "policy": {k: list(v) for k, v in ST.POLICY.items()}}
@@ -288,6 +322,183 @@ def seat_cases():
                           "landing_concluded": t["landing_concluded"]})
     return {"law": law, "windows": windows, "scenarios": out, "adversary": adversary,
             "skipped_other_rules": skipped["rules"], "problems": problems}
+
+
+# ---- tables: worlds whose conclusion rule is the instance's own --------------------------------------------------
+def orders_of(rows):
+    """The orders the Rust side replays: as written, reversed, and rotated by one."""
+    rows = list(rows)
+    out = [rows, list(reversed(rows))]
+    if len(rows) > 2:
+        out.append(rows[1:] + rows[:1])
+    return out
+
+
+def recorded(rows, rule):
+    """The rule's verdict for every (row, concluded ancestors) the batch and the replayed orders ask, the kept
+    set and the conclusions of the batch, and those of each replayed order."""
+    table = {}
+
+    def rec(r, P, past, *a):
+        key = (r["id"], tuple(sorted(q["id"] for q in P)))
+        if key not in table:
+            table[key] = bool(rule(r, P, past))
+        return table[key]
+    S = CK.concluded(CK.kept(list(rows)), rec)
+    arrivals = []
+    for o in orders_of(rows):
+        A = CK.arrive(o, rec)
+        arrivals.append({"held": [r["id"] for r in A.rows], "c": [A.C[r["id"]] for r in A.rows]})
+    return S, [[k[0], list(k[1]), v] for k, v in sorted(table.items())], arrivals
+
+
+def derived_of(S, ST, WN, CUT):
+    """The seat, the cut and the windows over a concluded set, as seat_answers reads them (reader none)."""
+    C = CUT.Cut(S)
+    Q = ST.Seats(S)
+    objs = sorted({r["obj"] for r in S.rows if r["kind"] in ("offer", "unseat") and isinstance(r.get("obj"), str)})
+    scopes = sorted({r["scope"] for r in S.rows if r["kind"] in ("offer", "unseat") and isinstance(r.get("scope"), str)} | {"member", "duty"})
+    out = {"cut": [C.status(r) for r in S.rows], "holders": {}, "windows": {}}
+    for o in objs:
+        out["holders"][o] = {sc: sorted(Q.holders(sc, o)) for sc in scopes}
+    for p in K_sel(S.Cs, "open"):
+        if p.get("window") in WN.WINDOWS:
+            out["windows"][p["id"]] = WN.outcome(S, p["id"], "recount")
+    return out
+
+
+def table_cases():
+    import witnesses as WIT
+    import seat as ST
+    import window as WN
+    import cut as CUT
+    out = {"witnesses": [], "rosters": [], "other_rules": []}
+    for c in WIT.CASES:
+        worlds = [("main", c["rows"])] + [("variant " + v[0], v[1]) for v in c["variants"]] + \
+                 [(f"adversary {a[0]} {w}", rows) for a in c["adversaries"] for w, rows in (("base", a[1]), ("attacked", a[2]))]
+        for name, rows in worlds:
+            S, table, arr = recorded(rows, c["rule"])
+            refs = {}
+            out["witnesses"].append({"case": c["id"], "world": name, "rows": with_refs(rows, refs), "refs": refs, "table": table,
+                                     "kept": [r["id"] for r in S.rows], "c": [S.C[r["id"]] for r in S.rows], "arrivals": arr})
+    # the 34 attack tests: scenarios concluded under a rule other than the seat, window and route rules
+    import attacks as A
+    known = {id(A.SEAT), id(A.WIN), id(A.ROUTE)}
+    seen, scen = set(), []
+    orig_conc = A.conc
+
+    def conc(rows, rule):
+        if id(rule) not in known:
+            key = json.dumps([row_enc(r) for r in rows], sort_keys=True)
+            if key not in seen:
+                seen.add(key); scen.append((rows, rule))
+        return orig_conc(rows, rule)
+    orig_free = A.free
+    A.conc, A.free = conc, (lambda rows, rule, answer, cap=1000: (answer(conc(rows, rule)), 0))
+    for n in sorted(x[0] for x in A.TESTS):
+        A.run_one(n)
+    A.conc, A.free = orig_conc, orig_free
+    for rows, rule in scen:
+        S, table, arr = recorded(rows, rule)
+        refs = {}
+        out["other_rules"].append({"rows": with_refs(rows, refs), "refs": refs, "table": table, "kept": [r["id"] for r in S.rows],
+                                   "c": [S.C[r["id"]] for r in S.rows], "arrivals": arr, "d": enc(derived_of(S, ST, WN, CUT))})
+    # check_rosters: every world its unmutated properties conclude (roster.py's rule, then its settle stage)
+    import check_rosters as CR
+    RS = CR.RS
+    depth = {"n": 0}
+    orig_mut = CR.mutated
+
+    @__import__("contextlib").contextmanager
+    def mutated(*a, **kw):
+        depth["n"] += 1
+        try:
+            with orig_mut(*a, **kw):
+                yield
+        finally:
+            depth["n"] -= 1
+    worlds, wseen = [], set()
+    orig_state = RS.state
+
+    def state(rows):
+        if depth["n"] == 0 and not RS.MUT and not RS.PARAMS:
+            key = json.dumps([row_enc(r) for r in rows], sort_keys=True)
+            if key not in wseen:
+                wseen.add(key); worlds.append(list(rows))
+        return orig_state(rows)
+    orig_run = CR.run
+    CR.mutated, RS.state = mutated, state
+    CR.run = lambda spec, worlds_, pred, orders=True, windows=lambda rows: (): orig_run(spec, worlds_, pred, False, windows)
+    for name in CR.TASKS:
+        if name.startswith("fork_"):
+            continue
+        RS.MUT.clear(); RS.PARAMS.clear()
+        CR.TASKS[name](RS.instances())
+    CR.mutated, RS.state, CR.run = orig_mut, orig_state, orig_run
+    RS.MUT.clear(); RS.PARAMS.clear()
+    RS.instances()
+    for rows in worlds:
+        S, table, arr = recorded(rows, RS.rule)
+        P = RS.settle(S)
+        refs = {}
+        out["rosters"].append({"rows": with_refs(rows, refs), "refs": refs, "table": table, "kept": [r["id"] for r in S.rows],
+                               "c": [S.C[r["id"]] for r in S.rows], "c_settled": [P.C[r["id"]] for r in P.rows],
+                               "arrivals": arr, "d": enc(derived_of(P, ST, WN, CUT))})
+    out["law"] = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+                  "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+                  "policy": {k: list(v) for k, v in ST.POLICY.items()}}
+    out["windows"] = windows_now(WN)
+    return out
+
+
+def windows_now(WN):
+    out = {}
+    for k, v in WN.WINDOWS.items():
+        try:
+            secs = WN.secs(k)
+        except KeyError:
+            secs = v.get("secs")
+        e = enc(v)
+        e["secs"] = secs
+        out[k] = e
+    return out
+
+
+# ---- versions: the roster versions rule over roster_fork's worlds --------------------------------------------------
+def versions_cases():
+    sys.path.insert(0, os.path.join(ROOT, "models", "roster_fork"))
+    import fork as FK
+    import fork_check as FC
+    import checkpoint as CP
+    out = []
+    for name, proto, n, r0, f, fo in FC.SETTINGS:
+        W = FK.world("M0", n, FC.m(r0), FC.m(f), proto, FC.m(fo))
+        cases = []
+        for k, level in FK.enumerate_sets(W, 3):
+            for S in sorted(level, key=sorted):
+                for ack in [None] + sorted(S):
+                    T, _ = CP.versions(sorted(S), {i: W.vs[i]["E"] for i in S}, {i: W.vs[i]["past"] for i in S}, W.valid, ack, False)
+                    cases.append([sorted(S), ack, sorted(T)])
+        vs = [{"E": list(v["E"]), "past": sorted(v["past"]), "valid": bool(W.valid(v["id"]))} for v in W.vs]
+        out.append({"setting": name, "versions": vs, "cases": cases})
+    # every call the attack tests make (their forged lines, the reader's acknowledged head), each with its world
+    import attacks as A
+    calls = []
+    orig = A.cp_versions
+
+    def cp_versions(W, S, ack=None, group=False):
+        if not group:
+            T, _ = CP.versions(sorted(S), {i: W.vs[i]["E"] for i in S}, {i: W.vs[i]["past"] for i in S}, W.valid, ack, False)
+            calls.append({"setting": "attacks.py", "versions": [{"E": list(v["E"]), "past": sorted(v["past"]), "valid": bool(W.valid(v["id"]))} for v in W.vs],
+                          "cases": [[sorted(S), ack, sorted(T)]]})
+        return orig(W, S, ack, group)
+    orig_free, orig_conc = A.free, A.conc
+    A.cp_versions = cp_versions
+    A.free = lambda rows, rule, answer, cap=1000: (answer(orig_conc(rows, rule)), 0)
+    for n in sorted(x[0] for x in A.TESTS):
+        A.run_one(n)
+    A.cp_versions, A.free = orig, orig_free
+    return out + calls
 
 
 # ---- purge: every replay check_purge.py runs ----------------------------------------------------------------------
@@ -365,6 +576,8 @@ def main():
         return 1
     dump("seat.json", seat, out)
     dump("purge.json", purge_cases(), out)
+    dump("tables.json", table_cases(), out)
+    dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
     if "--check" in sys.argv:
         bad = 0

@@ -254,8 +254,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         // iterative: the rows a row names are held (the door)
         let mut stack = alloc::vec![i.clone()];
         while let Some(x) = stack.last().cloned() {
-            let pending: Vec<I> =
-                self.rec[&x].names.iter().filter(|n| !self.depth.contains_key(*n)).cloned().collect();
+            let pending: Vec<I> = self.rec[&x].names.iter().filter(|n| !self.depth.contains_key(*n)).cloned().collect();
             if pending.is_empty() {
                 let d = 1 + self.rec[&x].names.iter().map(|n| self.depth[n]).max().unwrap_or(0);
                 self.depth.insert(x, d);
@@ -286,7 +285,9 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         match r.kind {
             Kind::Act => self.members(&r.head).contains(&r.signer),
             Kind::Ack => match r.of.as_ref().and_then(|o| self.rec.get(o)) {
-                Some(act) => self.anc[&r.id].contains(r.of.as_ref().unwrap()) && self.members(&act.head).contains(&r.signer),
+                Some(act) => {
+                    self.anc[&r.id].contains(r.of.as_ref().unwrap()) && self.members(&act.head).contains(&r.signer)
+                }
                 None => false,
             },
             Kind::ReaderAck => r.signer == self.own,
@@ -313,10 +314,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
     fn behind(&self, r: &Entry<I, K, T>, acked: &BTreeSet<I>) -> bool {
         let hs = self.heads_of(r);
         acked.iter().any(|h| {
-            !hs.is_empty()
-                && hs.iter().all(|x| self.anc[h].contains(x))
-                && !self.anc[h].contains(&r.id)
-                && r.id != *h
+            !hs.is_empty() && hs.iter().all(|x| self.anc[h].contains(x)) && !self.anc[h].contains(&r.id) && r.id != *h
         })
     }
 
@@ -341,7 +339,13 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
     fn cuts(&self, a: &I) -> Vec<&Entry<I, K, T>> {
         self.rec
             .values()
-            .filter(|c| c.kind == Kind::Cut && c.of.as_ref() == Some(a) && !c.dropped && self.c[&c.id] && !self.v.contains(&c.id))
+            .filter(|c| {
+                c.kind == Kind::Cut
+                    && c.of.as_ref() == Some(a)
+                    && !c.dropped
+                    && self.c[&c.id]
+                    && !self.v.contains(&c.id)
+            })
             .collect()
     }
 
@@ -478,7 +482,11 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             settled: acts.iter().map(|a| (a.clone(), self.settled(a))).collect(),
             missing: acts.iter().map(|a| (a.clone(), self.missing(a))).collect(),
             void: self.v.iter().cloned().collect(),
-            window: ids.iter().filter(|o| self.rec[*o].kind == Kind::Open).map(|o| (o.clone(), self.window(o, now))).collect(),
+            window: ids
+                .iter()
+                .filter(|o| self.rec[*o].kind == Kind::Open)
+                .map(|o| (o.clone(), self.window(o, now)))
+                .collect(),
         }
     }
 

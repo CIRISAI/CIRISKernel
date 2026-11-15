@@ -64,11 +64,8 @@ pub fn ranked<P: Ord + Clone, O: Ord + Clone>(
             n: usize,
             back: i64,
         }
-        let table: Vec<T<'_, O>> = s
-            .standing
-            .iter()
-            .map(|o| T { o, n: n(o), back: if declared { -(index(o) as i64) } else { 0 } })
-            .collect();
+        let table: Vec<T<'_, O>> =
+            s.standing.iter().map(|o| T { o, n: n(o), back: if declared { -(index(o) as i64) } else { 0 } }).collect();
         let refs: Vec<&T<'_, O>> = table.iter().collect();
         match ops::least(&refs, |t| (t.n, t.back)) {
             Ok(Some(w)) => {

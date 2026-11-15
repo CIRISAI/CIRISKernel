@@ -1,0 +1,88 @@
+name: crate
+
+# crates/ciris-kernel on its own: formatting, lints, tests, fixtures current, no_std and wasm builds, the
+# minimum supported Rust version, and cargo-deny under persist's licence policy.
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  MSRV: '1.89'
+
+jobs:
+  lint:
+    name: fmt and clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt -p ciris-kernel --check
+      - run: cargo clippy --offline -p ciris-kernel --all-targets -- -D warnings
+
+  test:
+    name: cargo test --release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --offline --release -p ciris-kernel
+      - run: bash tools/kernel_conformance.sh
+      - run: bash tools/kernel_crate_plants.sh
+
+  fixtures:
+    name: fixtures current (regenerate, then git diff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py312-${{ hashFiles('tools/kernel_fixtures.py') }}
+      - run: python3 -I tools/kernel_fixtures.py
+      - run: git diff --exit-code -- crates/ciris-kernel/tests/fixtures
+
+  nostd:
+    name: no_std and wasm builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf, wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --offline --release -p ciris-kernel --target thumbv7em-none-eabihf
+      - run: cargo build --offline --release -p ciris-kernel --target wasm32-unknown-unknown
+
+  msrv:
+    name: minimum supported Rust version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.89
+      - uses: Swatinem/rust-cache@v2
+      - name: The MSRV stated in Cargo.toml is the one built here
+        run: grep -qx "rust-version = \"$MSRV\"" crates/ciris-kernel/Cargo.toml
+      - run: cargo build --offline -p ciris-kernel
+      - run: cargo test --offline --release -p ciris-kernel
+
+  deny:
+    name: cargo deny (persist's licence policy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories bans licenses sources
