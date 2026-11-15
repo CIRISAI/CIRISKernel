@@ -7,7 +7,7 @@ description = "The CIRIS causal kernel as pure functions over an abstract row gr
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/CIRISAI/CIRISKernel"
 readme = "README.md"
-include = ["src/**", "Cargo.toml", "README.md", "ADOPTING.md", "FORMAL_GAPS.md", "LICENSE"]
+include = ["src/**", "Cargo.toml", "README.md", "ADOPTING.md", "FORMAL_GAPS.md", "DIFFERENCES.md", "LICENSE"]
 publish = false
 
 [dependencies]

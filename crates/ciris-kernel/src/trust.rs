@@ -50,7 +50,7 @@ pub fn reaches<K: Ord + Clone, C: PartialEq>(edges: &[Accepts<K, C>], from: &K, 
                 return true;
             }
             let nb = core::cmp::min(b - 1, e.depth);
-            if best.get(&e.dst).map_or(true, |&o| nb > o) {
+            if best.get(&e.dst).is_none_or(|&o| nb > o) {
                 best.insert(e.dst.clone(), nb);
                 todo.push(e.dst.clone());
             }

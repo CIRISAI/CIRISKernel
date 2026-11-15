@@ -1,104 +1,129 @@
 # What closes the model: the crate's formal gaps
 
-Each public function of the crate falls in one of three classes:
+Each public function of the crate is checked by some of:
 
-- **(a)** its behaviour is stated and proved in Lean, with the theorem named. The proof is over the Lean
-  definition. The Rust is tied to that definition only through the Python model's cases, which is the gap
-  the last section addresses.
-- **(b)** it is checked only by cases: the Python models' own, or a reference in the tests.
-- **(c)** neither: unit tests only.
+- **Lean**: its behaviour is stated and proved in Lean, with the theorem named. Every file is built by
+  `proofs/build.sh` with no `sorry` and no axiom beyond core's three. The proof is over a Lean definition of
+  the same shape; the Rust is tied to it by cases, not by extraction (last section).
+- **TLA+**: a spec in [`models/tla/`](../../models/tla) model-checks it under every interleaving TLC
+  reaches, with a planted break TLC must catch (`tools/tla_check.sh`).
+- **cases**: the Python models' own cases, or a reference in the tests (`tools/kernel_conformance.sh`).
 
-Lean files are in [`proofs/`](../../proofs) unless marked "parent".
+A function with none of the three is **neither**. Every function in the table is also run against cases.
+The lists give the stronger checks.
 
 ## The classification
 
-| Function | Class | Lean theorem, or what checks it |
-|---|---|---|
-| `layers::kept` | a | `kept_is_least`, `door_any_order`, `close_saturated`, `door_spec`, `door_perm` (Causal) |
-| `layers::conclude` | a | `conclOf_unique`, `concl_final`, `concl_new_row` (Causal) |
-| `layers::arrive` | a | `door_any_order`, `door_perm` (Causal) |
-| `derived::wins` | a | `wins_unique` (Causal) |
-| `derived::slot` | a | `holder_both_or_neither`, `Slot.descendant_decides` (Causal) |
-| `derived::counts` | a | `only_removals_stop_counting`, `sign_after_removal_never_counts` (Causal) |
-| `derived::live_edges`, `reach`, `means` | a | `two_readers`, `no_own_edge_no_reach` (Causal) |
-| `line::settle`, `void`, `own_line` | a | `line_voids_old_fork`, `old_fork_void_for_ever` (Reader); built on: `Harden3` |
-| `seat::Seats::new`, `stands` | a | `seat_is_two_consents`, `holder_first_stands`, `only_bound_voices_end` (Consent); `means_is_seat_walk`, `no_acceptance_no_seat`, `third_key_cannot_end` (Seat); `Duty.lean` |
-| `seat::members_at`, `members_in` | a | `membersAt_function`, `counted_over_named_head` (RosterHead) |
-| `seat::left_in_past` | a | `leaving_binds_by_past` (RosterHead) |
-| `seat::voices` | a | the cosignature rule of `Harden.lean`; `countedE_sub`, `seen_counted` |
-| `window::rule`, `outcome` | a | `dishonest_never_stands`, `stands_is_table_over_all_not_late`, `quorum_closed_final` (Recount) |
-| `head::View::counts_at`, `settled`, `missing`, `receipts`, `carried` | a | `ack_blocking_quorum`, `say_settled_final`, `countsAt_final`, `countsAt_local`, `symmetric_say_forced`, `say4_closed`, `later_head_changes_nothing` (Settled) |
-| `head::purge` | a | `checkpoint_conclusions`, `checkpoint_resume`, `pruned_view_closed`, `pruned_view_answers` (Settled), for a sufficient set |
-| `key_end::live`, `ended` | a | `live_own_rows`, `live_perm`, `ended_not_live`, `ended_stays_ended` (KeyEnd) |
-| `key_end::well_formed` | a | `bound_reads_row`, `live_le_ceiling` (KeyEnd) |
-| `trust::reaches`, `honours` | a | `reaches_mono_budget`, `verdict_is_the_capped_walk` (TrustSet, parent); the crate's walk equals the Lean `walk` on 127,008 generated cases |
-| `ranked::ranked` (no declared order) | a | `Election.free_perm`, `free_agrees` (parent) |
-| `ops::sel`, `sel_before`, `group_by`, `least`, `greatest`, `min_of`, `max_of`, `one`, `count`, `sum_per`, `in_range`, `fix` | b | `kernel_lib.py` over 7,968 inputs; the six `reexpress.py` decisions over 17,886 |
-| `graph::Graph` (`in_past`, `concurrent`, `frontier`, `past`, `ancestors`, `depth`, `level`) | b | the eager closure as oracle, 301,219 cases; every conformance run uses it |
-| `graph::ancestor_ids` | b | `kernel_lib.ancestors` through the causal worlds |
-| `derived::tally` | b | `check.py` and `check_cut.py` worlds |
-| `cut::Cut` (`status`, `counts`, `holder`) | b | `check_cut.py`, 20,985 cases; 3,556 seat scenarios; 2,009 recorded-rule worlds. The fixed point is run, not proved |
-| `line::versions` | b | `roster_fork` worlds and the attack tests' calls, 77,402 cases |
-| `line::counted_acts` | b | through `settle` |
-| `seat::Seats::holders`, `one`, `tips`, `tips_common` | b | 134 seat scenarios and 2,009 recorded-rule worlds; tips wait is run in `fork_check.py`, not proved over this function |
-| `seat::seat_rule` (with the tables) | b | the 134 scenarios; parts proved (`count_is_final_against_members`, `one_signature_never_removes`, `Duty.lean`), the composite with `SeatLaw` not |
-| `seat::met` | b | through `seat_rule`; `Duty.majority_iff` proves one threshold |
-| `window` table reading (`at_once`, `at_close`, the target's silence) | b | the 27 adversary rows and the window scenarios |
-| `head::View::window`, `answers`, `tips` | b | `check_purge.py`, 400 replays |
-| `key_end::conclude_rule`, `retained`, `successor` | b | `check_key_end.py`, 5,670 worlds at six instants |
-| `ranked::ranked` (declared order) | b | `reexpress.py` cases |
-| `trust::Accepts::admits` | b | through `reaches` |
-| `ops::rule` | c | a map lookup |
-| `seat::covers` | c | unit tests |
-| `seat::Obj::from_reference`, `is_identity_reference` | c | unit tests and the reference forms of the seat fixtures |
-| `SeatLaw`, `WindowSpec` tables as data | c | no check that a table states what the text says, beyond the rows the models carry |
-
-**Counts.** 19 entries in (a), 15 in (b), 4 in (c).
-
-## The smallest statement that closes each, ranked by risk
-
-The rank weighs how much depends on the function and how far its cases are from covering it.
-
-| Rank | Gap | Proposed statement | Meaning |
+| Function | Lean | TLA+ | Class |
 |---|---|---|---|
-| 1 | `cut::Cut` | `theorem cut_wfs (S : Rows) : let L := lfp (T S ∘ T S); L ⊆ T S L ∧ ∀ A, L ⊆ A → A ⊆ T S L → ∀ c ∈ L, c ∈ T S A` | what counts, counts whatever the undecided cuts do; together with `cut_perm : S ≃ S' → status S = status S'` it is order-free |
-| 2 | `seat::Seats` with `tips_common` and the table | `theorem stands_iff_chain (law : SeatLaw) (S) (k s o) : stands S k s o ↔ ∃ ch : Chain S, ch.root ∈ roots o ∧ ch.last = (k, s) ∧ ch.len ≤ law.depth ∧ ∀ t ∈ tips S o, holds (S.past t) k s o` | a key stands iff a bounded chain of live seats leads to it and every tip seats it |
-| 3 | `seat::seat_rule` composite | `theorem seat_rule_reads_past (r P P') (h : P ≈ P') : seatRule r P = seatRule r P'` and `theorem group_offer_needs_count : seatRule r P → r.conf = group → met r.policy (voices r P ∩ membersAt P r.head) (membersAt P r.head)` | the rule reads the row's past only, and a counted offer concludes only on its count |
-| 4 | `window` table reading | `theorem table_outcome_monotone_close : ¬elapsed → tableOutcome .. = .open ∨ ∃ c ∈ atOnce, met c` | before its close a window gives only an at-once outcome; with `recount_reads_landing_past` it fixes what the landing may state |
-| 5 | `key_end::retained` | `theorem retained_down_closed : x ∈ retained S now → y ∈ S.past x → y ∈ retained S now` and `theorem compact_answers (S now) : answers (compact S now) now' = answers S now'` for `now' ≥ now` | dropping lapsed rows changes no answer then or later (property P3a, run today) |
-| 6 | `graph::Graph` | `theorem in_past_iff (G) (a b) : G.in_past a b = true ↔ TransGen G.parent a b` | the lazy, budgeted search computes the closure the Lean files reason about |
-| 7 | `line::versions` | `theorem versions_perm (h : ids.Perm ids') : versions ids = versions ids'` and G3 below | a function of the set, and built on |
-| 8 | `head::View::window` and the purge of an open window | `theorem purge_keeps_open (now) : window S o now = .open → whole (purge S now) o` | a window open at the checkpoint keeps its bytes, so nothing that reads now is frozen |
-| 9 | `ops::least` / `greatest` | G1, G2 below | a tie is refused, and refusal means a real tie |
-| 10 | `ranked::ranked` with a declared order | `theorem ranked_declared_function (h : opts fixed) : ballots.Perm b' → ranked ballots opts = ranked b' opts` | the count is a function of the ballots as a set |
-| 11 | `derived::tally` | `theorem tally_two_say_nothing : (∃ v w ∈ votes k, v.choice ≠ w.choice) → k ∉ counted` | a voice that says two things says nothing |
-| 12 | `seat::met` | `theorem met_atleast_iff : met (atLeast n d) y m ↔ 0 < m ∧ n * m ≤ d * y` (and one each for the others) | the integer threshold is the fraction the table states, with no rounding |
-| 13 | `key_end::successor` | `theorem successor_both_or_neither : two concurrent rotations name different keys → successor = none` | property P5a, run today |
-| 14 | `Obj::from_reference` | a model, not a theorem: test vectors generated from `signed_object_v2.cddl` (parent), every `hash-digest` and identity reference form, valid and not | the row-or-key reading is the CDDL's |
-| 15 | tables as data | a model: a check that every `SeatLaw` and `WindowSpec` cell traces to a table cell or a quoted sentence (the parent's `family_shapes.tsv` method) | the data the kernel reads is the text's |
+| `layers::kept` | `kept_is_least`, `door_any_order`, `close_saturated`, `door_spec`, `door_perm` (Causal) | `Door` | Lean, TLA+ |
+| `layers::arrive` | `door_any_order`, `door_perm` (Causal) | `Door` (states replayed through the crate) | Lean, TLA+ |
+| `layers::conclude` | `conclOf_unique`, `concl_final`, `concl_new_row` (Causal) | | Lean |
+| `derived::wins` | `wins_unique` (Causal) | | Lean |
+| `derived::slot` | `holder_both_or_neither`, `Slot.descendant_decides` (Causal) | | Lean |
+| `derived::counts` | `only_removals_stop_counting`, `sign_after_removal_never_counts` (Causal) | `Cut` | Lean, TLA+ |
+| `derived::live_edges`, `reach`, `means` | `two_readers`, `no_own_edge_no_reach` (Causal) | | Lean |
+| `derived::tally` | | | cases (`check.py`, `check_cut.py` worlds) |
+| `derived::fold_default` | | | neither (CC 3.5.1's four rules as tests, and every order of six rows) |
+| `cut::Cut::new`, `status`, `counts` | `CutFix.cut_wfs`, `cut_counts_not_void`, `step_antitone`, `stopped_counts`, `total_between` | `Cut` (the removal half) | Lean, TLA+ |
+| `cut::Cut::holder` | `Causal.holder_both_or_neither` over the counting rows | | Lean |
+| `line::settle`, `void`, `own_line`, `counted_acts` | `line_voids_old_fork`, `old_fork_void_for_ever`, `sibling_waits`, `merge_accepted` (Reader, Harden3) | `ReaderLine` | Lean, TLA+ |
+| `line::versions` | `Versions.counts_built_on`, `counts_fuel_mono`, `void_down_the_line` | | Lean |
+| `seat::Seats::new`, `stands` | `SeatWalk.walk_iff_chain`, `unlive_never_reached`, `falls_with_upstream`; `Consent`, `Seat`, `Duty` | | Lean |
+| `seat::Seats::holders`, `tips`, `tips_common`, `one` | `SeatWalk.holder_every_tip`, `another_tip_adds_nobody`, `tips_list_no_one_new` | | Lean |
+| `seat::seat_rule` (the counts) | `SeatCount.no_key_admits_itself`, `yes_mono`, `met_mono`, `unanimous_two_removes_nobody`, `unanimous_others_remove`, `self_admit_one_never_removes`, `duty_withdrawal_needs_two`, `weighted_mono`; `count_is_final_against_members`, `one_signature_never_removes` | | Lean |
+| `seat::met` | `SeatCount.met_mono`, `strict_one_voice`; `Duty.majority_iff` | | Lean |
+| `seat::members_at`, `members_in` | `membersAt_function`, `counted_over_named_head` (RosterHead) | | Lean |
+| `seat::left_in_past` | `leaving_binds_by_past` (RosterHead) | | Lean |
+| `seat::voices` | the cosignature rule of `Harden.lean` | | Lean |
+| `window::rule`, `outcome` | `dishonest_never_stands`, `stands_is_table_over_all_not_late`, `quorum_closed_final` (Recount); `WindowTable.before_close`, `at_once_ignores_close`, `default_needs_close`, `landings_agree` | | Lean |
+| `head::View::counts_at`, `settled`, `missing`, `receipts`, `carried` | `ack_blocking_quorum`, `say_settled_final`, `countsAt_final`, `countsAt_local`, `symmetric_say_forced`, `say4_closed`, `later_head_changes_nothing` (Settled) | `Purge` | Lean, TLA+ |
+| `head::purge` | `checkpoint_conclusions`, `checkpoint_resume`, `pruned_view_closed`, `pruned_view_answers` (Settled) | `Purge` | Lean, TLA+ |
+| `head::View::window`, `answers`, `tips` | | | cases (`check_purge.py`, 400 replays) |
+| `key_end::live`, `ended`, `well_formed` | `live_own_rows`, `live_perm`, `ended_not_live`, `ended_stays_ended`, `bound_reads_row` (KeyEnd) | | Lean |
+| `key_end::retained` | `Retained.retained_down_closed`, `named_retained`, `revocations_kept`, `dropped_unnamed`, `retained_mono` | | Lean |
+| `key_end::conclude_rule`, `successor` | | | cases (`check_key_end.py`, 5,670 worlds) |
+| `trust::reaches`, `honours` | `TrustSet.reaches_mono_budget`, `verdict_is_the_capped_walk` (parent) | `TrustWalk` (termination with cycles, and agreement with the Lean walk) | Lean, TLA+ |
+| `ranked::ranked` | `Election.free_perm`, `free_agrees` (parent), without a declared order | | Lean (no declared order); cases (declared) |
+| `ops::least`, `greatest` | `Ops.leastNoTie_perm` (G1), `leastNoTie_none_iff` (G2), `leastNoTie_some_iff` | | Lean |
+| `ops::sel`, `sel_before`, `group_by`, `min_of`, `max_of`, `one`, `count`, `sum_per`, `in_range`, `fix` | | | cases (`kernel_lib.py`, 7,968 inputs; `reexpress.py`, 17,886) |
+| `graph::Graph` (`in_past`, `concurrent`, `frontier`, `past`, `ancestors`) | | | cases (the eager closure as oracle, 301,219) |
+| `ops::rule`, `seat::covers`, `seat::Obj::from_reference`, `is_identity_reference` | | | neither (unit tests) |
 
-**Stated in Lean with `sorry`.** [`proofs/proposed/Proposed.lean`](../../proofs/proposed/Proposed.lean) holds three
-statements. Lean 4.14 accepts the file, with a warning for each `sorry`. `proofs/build.sh` compiles a fixed
-list of files and does not build it.
+**Counts**, by row of the table:
 
-- G1 `leastNoTie_perm`: the least element does not depend on the order of the list.
-- G2 `leastNoTie_none_iff`: a refused tie is a real tie.
-- G3 `counts_built_on`: a version that counts has every version it extends counting.
+| Class | Rows |
+|---|---|
+| proved in Lean | 26 |
+| of which also model-checked in TLA+ | 8 |
+| model-checked in TLA+ only | 0 |
+| cases only | 5 |
+| neither | 2 |
+
+The three statements proposed earlier (G1, G2, G3) are proved: `Ops.leastNoTie_perm`, `Ops.leastNoTie_none_iff`
+and `Versions.counts_built_on`. None was false. Core Lean 4.14 has no lemmas for `List.eraseDups`, so
+`Ops.lean` proves the ones G1 and G2 need. `proofs/proposed/` is gone.
+
+## What the new proofs and specs state
+
+| File | What it proves or checks |
+|---|---|
+| `proofs/CutFix.lean` | For any antitone step, the iteration from the empty set climbs and stays below its image, and where it stops it is a fixed point of the step applied twice. What it reports as counting counts whatever the undecided cuts do. The cut's step (not voided, and enough voices not voided) is antitone. |
+| `proofs/SeatWalk.lean` | Within `n` passes the walk reaches a pair at depth `d` iff a chain of `d` links leads to it from a root and `d < n`. A pair not live by the two consents is never reached, and a conferred seat falls with its upstream. With several tips, a holder is held at every tip, and a further tip adds nobody. |
+| `proofs/SeatCount.lean` | No key admits itself, and a further signature never lowers a count. Every non-exact policy is met by more voices whenever fewer met it. Under `unanimous` two members remove nobody, while every other member of three or more does. Under `open:self_admit` one voice never removes, and a duty withdrawal never stands on one voice. |
+| `proofs/WindowTable.lean` | Before the close the outcome is "open" or an at-once clause's, and an at-once outcome ignores the close. The default needs the close, and landings over one past agree. |
+| `proofs/Retained.lean` | The retained rows are closed downwards, so compaction leaves a kept set. Every revocation is kept, a dropped row is in no seed's past, and fewer seeds retain fewer rows. |
+| `proofs/Versions.lean` | Built on, with the recursion's fuel not mattering once it suffices, and void down the line. |
+| `proofs/Ops.lean` | The least element does not depend on the list's order, and a refused tie is a real tie. |
+| `models/tla/Door.tla` | Under any arrival order, with repeats and a row naming one never offered, the held set is the least closed set over what was offered. Rows wait and are never refused, held only grows, and everything eventually kept is kept. |
+| `models/tla/Cut.tla` | Under any arrival order, an incremental verdict kept as rows arrive equals removal by causal past. Another key's rows are untouched, and a row signed after the removal it names never counts. A row stops counting only when a removal lacking it arrives, and then for good. |
+| `models/tla/ReaderLine.tla` | Per reader, the void set is a function of what that reader holds and acknowledged. A fork on an old head is void for the reader that acknowledged the newer head, while a sibling of that head waits and a version naming both is accepted. A reader with no acknowledgement voids nothing, and void lasts for ever. |
+| `models/tla/Purge.tla` | Under any order of three receipts and two cuts, purging once the act is settled changes no answer. A settled act counts, the threshold is exact, and settled is final. |
+| `models/tla/TrustWalk.tla` | Over a graph with two cycles and a short path with no budget, the walk always terminates, takes keys in any order, and agrees with the Lean `walk` when it stops. Budgets only rise. |
+
+TLC state counts at this commit, and the plant each run catches: Door 128 (the door drops a row not yet
+placeable); Cut 256 (judged once, on arrival); ReaderLine 532 (one reader's acknowledgement voids for
+all); Purge 60 (purging before settled); TrustWalk 17 (each key expanded once). Each finishes in seconds. The
+bounds are small on purpose; widening any constant is one line of its spec.
+
+**Tied to the Rust by trace.** `tools/tla_door_fixture.py` dumps every reachable state of `Door.tla` with TLC.
+`tests/tla_door.rs` then replays each state through `layers::kept` and `layers::arrive` in two orders, 384
+comparisons with no disagreement. `tools/tla_check.sh` fails if the dump no longer matches the committed fixture.
+
+## A disagreement found while writing the specs
+
+`models/causal_kernel/checkpoint.py` (and `line.rs`, `Reader.lean`) and `models/causal_kernel/purge.py` (and
+`head.rs`) read the reader's line differently. Take a sibling u of the acknowledged version v1, both naming v0.
+`checkpoint.py` compares u's heads with the heads of the versions on the line. Both name v0, so u is not
+older, waits as a tip, and a version naming both is accepted (`Harden3.sibling_waits`, `merge_accepted`).
+`purge.py` compares u's heads with the acknowledged head itself. v0 is in v1's past, so u is void. KERNEL.md 7
+says "names an older head", which fits `purge.py`. KERNEL.md 8a says "a sibling of the acknowledged head waits
+as a tip", which fits `checkpoint.py`. `ReaderLine.tla` checks the proved reading. The crate carries both, each
+matching its model. The owner should rule which reading is the kernel's.
+
+## What is still open, ranked by risk
+
+| Rank | Gap | Smallest statement or model that closes it |
+|---|---|---|
+| 1 | the two readings of the reader's line above | a ruling, then one definition in `line.rs` and `head.rs`, with `ReaderLine.tla` and `Settled.lean` on the same reading |
+| 2 | `graph::Graph`, the lazy, budgeted closure | `theorem in_past_iff (G a b) : G.in_past a b = true ↔ TransGen G.parent a b`, through Kani harnesses on the Rust (it is the crate's own algorithm, not the model's) |
+| 3 | `key_end::successor` | `theorem successor_both_or_neither : two concurrent rotations name different keys → successor = none` (P5a, run today) |
+| 4 | `head::View::window` and the purge of an open window | `theorem purge_keeps_open : window S o now = .open → whole (purge S now) o`, or a `Purge.tla` variant with a window and a clock |
+| 5 | `derived::fold_default` | `theorem fold_default_perm` and `theorem fold_default_per_signer` (no row of one signer moves another's winner) |
+| 6 | `ranked::ranked` with a declared order | `theorem ranked_declared_function : ballots.Perm b' → ranked ballots opts = ranked b' opts` |
+| 7 | `Obj::from_reference` | test vectors generated from `signed_object_v2.cddl` (parent), every form, valid and not |
+| 8 | tables as data (`SeatLaw`, `WindowSpec`) | a check that every cell traces to a table cell or a quoted sentence |
 
 ## Tying the Rust to the Lean
 
 | Way | What it gives | Cost | Fit to this crate |
 |---|---|---|---|
-| Differential tests generated from the Lean definitions | the Rust agrees with the definitions the theorems are about, case by case, to a bound | days per module: the definitions are already `Bool`-valued and many are `decide`d; a Lean `main` prints the same JSON the Python generator prints | good: the test side exists, so only a second generator is new |
-| Aeneas (Charon to Lean) | a proof that the Rust is a Lean function, so the theorems transfer | months: closures, `dyn Fn`, `OnceCell`, `BTreeMap` and associated types are outside or at the edge of its subset; the crate would be rewritten to a restricted style | poor today |
-| hax (to F* or Lean) | as Aeneas, with a different subset | months; its Lean back end is young | poor today |
-| Verus | proofs about the Rust itself, in Rust syntax | months: every theorem proved again in a second system, not linked to the Lean | poor: two proof bases |
-| Kani | bounded model checking of the Rust | days: harnesses for equivalences inside the crate (the lazy closure against the eager one, the fixed point of `fix`, `from_reference`) | good for the (b) items internal to the Rust; says nothing about the Lean |
+| Differential tests generated from the Lean definitions | the Rust agrees with the definitions the theorems are about, case by case, to a bound | days per module; a Lean `main` prints the fixtures' JSON | good: the test side exists |
+| Traces from TLC (this round, `Door`) | the Rust agrees with every reachable state of a spec | hours per spec, as `tla_door_fixture.py` shows | good, for specs with state |
+| Aeneas or hax | a proof that the Rust is a Lean function | months; closures, `dyn Fn`, `OnceCell` and `BTreeMap` are outside their comfortable subset | poor today |
+| Verus | proofs about the Rust itself | months, with the proofs done again in a second system | poor |
+| Kani | bounded model checking of the Rust | days; harnesses for the closure and `from_reference` | good for gaps 2 and 7 |
 
-**Recommendation: differential tests generated from the Lean definitions.** Today the Rust is compared with
-the Python, and the Python is a third implementation beside the Lean. A Lean generator removes that third
-party: the theorems and the cases are about one definition. It reuses the fixtures' format and the Rust
-tests unchanged. The cost is one executable Lean reference per module. `Causal`, `Settled`, `Recount`,
-`KeyEnd` and `TrustSet` are closest, at a few days each. The seat and the cut, ranks 1 and 2 above, need their
-Lean definitions written first. Kani is worth adding beside it for gap 6, at a day or two. Aeneas is the way
-to a proof, and is not worth its cost until the crate's interface settles.
+**Recommendation, unchanged:** differential tests generated from the Lean definitions. TLC traces give the
+same tie for each spec at little cost, so the two together cover the Lean files and the specs. Kani is worth a
+day or two for the closure.

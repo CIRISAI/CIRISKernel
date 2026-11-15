@@ -66,7 +66,7 @@ pub struct Record<'r, K, T> {
 }
 
 fn end_le<T: Ord>(x: &T, until: &Option<T>) -> bool {
-    until.as_ref().map_or(true, |u| x <= u)
+    until.as_ref().is_none_or(|u| x <= u)
 }
 
 /// The door for a key record, read from the row alone: the end it must or must not state, `from <= until`,
@@ -142,7 +142,7 @@ pub fn live<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, now: R::T) -> bool {
     if revoked_from(c, k).is_some_and(|a| now >= a) {
         return false;
     }
-    records(c, k).any(|x| x.from <= now && x.until.map_or(true, |u| now < u))
+    records(c, k).any(|x| x.from <= now && x.until.is_none_or(|u| now < u))
 }
 
 /// Whether key `k` has ended at `now`: no record of it states an end after now, or it revoked itself by now.
@@ -182,7 +182,7 @@ pub fn successor<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, ret: Option<&BT
         .iter()
         .copied()
         .filter(|&i| c.g.row(i).record().is_some_and(|x| x.succ_of == Some(k)))
-        .filter(|i| ret.map_or(true, |s| s.contains(i)))
+        .filter(|i| ret.is_none_or(|s| s.contains(i)))
         .collect();
     let keys: BTreeSet<R::Key> =
         c.g.frontier(&rots).into_iter().map(|i| c.g.row(i).record().unwrap().key.clone()).collect();

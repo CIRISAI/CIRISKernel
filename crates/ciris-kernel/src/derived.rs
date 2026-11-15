@@ -86,7 +86,7 @@ pub fn counts<R: Row, K: Ord>(
         return false;
     }
     let Some(k) = key(c.g.row(i)) else { return true };
-    c.cs().iter().all(|&x| removes(c.g.row(x)).map_or(true, |rk| rk != k) || c.g.in_past(i, x))
+    c.cs().iter().all(|&x| removes(c.g.row(x)).is_none_or(|rk| rk != k) || c.g.in_past(i, x))
 }
 
 /// The live edges: concluded rows that carry an edge (signer to key), with no concluded withdrawal that
@@ -155,4 +155,35 @@ pub fn tally<R: Row, C: Ord>(
         .collect();
     let by = ops::group_by(votes.iter().map(|&v| c.g.row(v)), |r| r.signer().clone());
     by.values().filter(|rs| ops::one(rs.iter().map(|r| choice(r))).as_ref() == Some(want)).count()
+}
+
+/// The fold default of CC 3.5.1 (KERNEL.md section 4: one voice may order its own rows). Among the rows of
+/// `rows` that name a target, grouped by signer and target, the winner is the row of the highest kind
+/// (`recants` over `withdraws` over `supersedes`, as `rank` gives it), then the latest of that signer's own
+/// signed instants, then the lowest row id. Each signer's chain is read on its own: rows of different signers
+/// are never ranked against each other. Returns the winner for each (signer, target).
+pub fn fold_default<R: Row, N: Ord + Clone, T: Ord>(
+    c: &Concluded<'_, R>,
+    rows: &[usize],
+    target: impl Fn(&R) -> Option<N>,
+    rank: impl Fn(&R) -> u8,
+    at: impl Fn(&R) -> T,
+) -> BTreeMap<(R::Key, N), usize> {
+    let mut out: BTreeMap<(R::Key, N), usize> = BTreeMap::new();
+    for &i in rows {
+        let r = c.g.row(i);
+        let Some(t) = target(r) else { continue };
+        let key = (r.signer().clone(), t);
+        let better = match out.get(&key) {
+            None => true,
+            Some(&j) => {
+                let q = c.g.row(j);
+                (rank(r), at(r), core::cmp::Reverse(r.id())) > (rank(q), at(q), core::cmp::Reverse(q.id()))
+            }
+        };
+        if better {
+            out.insert(key, i);
+        }
+    }
+    out
 }

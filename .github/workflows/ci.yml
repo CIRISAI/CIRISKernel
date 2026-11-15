@@ -1,6 +1,7 @@
 name: check
 
-# The one command a reviewer runs: every proof in proofs/, every model check in models/, and the Rust crate
+# The one command a reviewer runs: every proof in proofs/, every model check in models/ (TLC for models/tla/),
+# and the Rust crate
 # crates/ciris-kernel built for a target with no standard library and checked against the models' own cases.
 on:
   workflow_dispatch:
@@ -42,7 +43,16 @@ jobs:
         with:
           targets: thumbv7em-none-eabihf, wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - name: Build the proofs, run the checks, build and test the crate
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Cache tla2tools v1.7.4 (the pinned TLC)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ciris-kernel
+          key: tla2tools-1.7.4-936a262061c9
+      - name: Build the proofs, run the checks, model-check the specs, build and test the crate
         run: ./check.sh
       - name: The working tree is unchanged by the run
         run: git diff --exit-code

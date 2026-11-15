@@ -15,7 +15,7 @@ role, scope, policy, window and constant is data the caller passes in ([`SeatLaw
 ```
 cargo build --offline --release -p ciris-kernel
 bash tools/kernel_conformance.sh          # the differential tests, one line per run and a total
-bash tools/kernel_crate_plants.sh         # twelve planted breaks, each must be caught
+bash tools/kernel_crate_plants.sh         # fifteen planted breaks, each must be caught
 python3 -I tools/kernel_fixtures.py       # regenerate the fixtures from the Python models
 ```
 
@@ -28,7 +28,7 @@ python3 -I tools/kernel_fixtures.py       # regenerate the fixtures from the Pyt
 | [`ops`](src/ops.rs) | 4 | select, group and reduce (least, greatest, min, max, one, count, sum), interval, table cell, bounded repeat |
 | [`graph`](src/graph.rs) | 2, 4 | the closure over what rows name: a row's past, concurrency, the frontier |
 | [`layers`](src/layers.rs) | 3 | **kept** (the monotone door), **concluded**, and the same two run as rows arrive |
-| [`derived`](src/derived.rs) | 5, 6 | the order on kinds, the slot, removal by causal past, the walk over live edges, the tally |
+| [`derived`](src/derived.rs) | 4, 5, 6 | the order on kinds, the slot, removal by causal past, the walk over live edges, the tally, the fold default of CC 3.5.1 |
 | [`cut`](src/cut.rs) | 6 rule 4, 5 | the cut, solved by the well-founded fixed point; who holds a slot under it |
 | [`line`](src/line.rs) | 7, 8a | built on; the reader's own acknowledged line; roster versions |
 | [`seat`](src/seat.rs) | 5 (**stands**), 7 | the seat as two consents, the bounded walk, members at the head a row names, tips wait, the duty law as data |
@@ -38,8 +38,9 @@ python3 -I tools/kernel_fixtures.py       # regenerate the fixtures from the Pyt
 | [`trust`](src/trust.rs) | 5 (**stands**), CC 4.4.3.34 | the reader's trust walk over acceptance edges |
 | [`ranked`](src/ranked.rs) | 5 (the door's parameters) | the ranked count, with a declared order and without |
 
-Which functions are proved in Lean, checked only by cases, or neither, and what would close each, is in
-[`FORMAL_GAPS.md`](FORMAL_GAPS.md).
+Which functions are proved in Lean, model-checked in TLA+, checked only by cases, or neither, is in
+[`FORMAL_GAPS.md`](FORMAL_GAPS.md). How the crate and persist differ, and what each difference means, is in
+[`DIFFERENCES.md`](DIFFERENCES.md).
 
 ## Each public function, its clause and its proof
 
@@ -92,7 +93,10 @@ unless marked as the parent's.
 | lazy closure | against the eager closure the crate first shipped, over generated graphs | 301,219 | 0 |
 | trust walk | the `TrustSet.lean` worked world, and the Lean `walk` over generated graphs | 127,015 | 0 |
 | the cycle reading | a walk that passes no key twice, against the Lean `walk` | 46,800 | 0 |
-| **total** | | **933,539** | **0** |
+| fold default | CC 3.5.1's four rules, and every order of six rows | 724 | 0 |
+| the counts CC states | `unanimous`, `open:self_admit`, `weighted`, `founder_only`, no key admits itself: 20 cases from CC 3.3.4, 4.4.3.6 and 2.7.5 | 20 | 0 |
+| TLC's states | every reachable state of `models/tla/Door.tla`, replayed through the door | 384 | 0 |
+| **total** | | **934,667** | **0** |
 
 A **recorded rule** is how a world whose conclusion rule belongs to the instance is brought in. The rule of
 a witness or a roster instance is table data and the model's own code, not the kernel. So the model's verdict
@@ -101,8 +105,8 @@ ask no question the table lacks. What these runs check is the kernel's door, rec
 derived answers over the model's conclusions. The answers the witnesses compute are per-case functions of
 the model and are not ported.
 
-Twelve planted breaks are each caught (`tools/kernel_crate_plants.sh`, run on a copy): one in each of `derived`,
-`cut`, `seat` (two), `head`, `key_end`, `line` (two), `window`, `ranked`, `graph` and `layers`.
+Fifteen planted breaks are each caught (`tools/kernel_crate_plants.sh`, run on a copy), in `derived` (two),
+`cut`, `seat` (four), `head`, `key_end`, `line` (two), `window`, `ranked`, `graph` and `layers`.
 
 **The cycle reading.** "A cycle is visited once" (CC 2.7.5) has two readings. Under the first, a walk never
 passes the same key twice. It equals the Lean `walk` on every case, since a key reached again has no more

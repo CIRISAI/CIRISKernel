@@ -34,7 +34,7 @@ where
     H: Fn(&T) -> V,
     P: Fn(&T) -> bool,
 {
-    rows.iter().filter(|r| before.map_or(true, |b| held(r) < *b) && pat(r)).collect()
+    rows.iter().filter(|r| before.is_none_or(|b| held(r) < *b) && pat(r)).collect()
 }
 
 /// group: the elements by a key, each group in input order.
@@ -122,7 +122,7 @@ pub fn sum_per<P: Ord, V: Ord + Copy + Into<i128>>(pairs: impl IntoIterator<Item
 /// closed. An absent `x` lies in nothing.
 pub fn in_range<V: Ord>(x: Option<&V>, lo: Option<&V>, hi: Option<&V>) -> bool {
     match (x, lo) {
-        (Some(x), Some(lo)) => lo <= x && hi.map_or(true, |h| x < h),
+        (Some(x), Some(lo)) => lo <= x && hi.is_none_or(|h| x < h),
         _ => false,
     }
 }

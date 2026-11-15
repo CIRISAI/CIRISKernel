@@ -187,6 +187,10 @@ pub trait SeatRow: Row {
     fn duties(&self) -> &[Self::Word] {
         &[]
     }
+    /// The whole-number weights a `weighted` count reads, from the group's signed record.
+    fn weights(&self) -> &[(Self::Key, u64)] {
+        &[]
+    }
     /// A ranked offer's options.
     fn options(&self) -> &[Self::Key] {
         &[]
@@ -218,6 +222,17 @@ pub enum Policy {
     DutyConfer,
     /// CC 4.5.4 (iv): withdrawal by a strict majority of the other duty holders.
     DutyWithdraw,
+    /// CC 3.3.4 `unanimous`: every member at the head signs an admission; a removal is signed by every
+    /// member but the one it names, and those signers are a strict majority of the roster.
+    Unanimous,
+    /// CC 4.4.3.6 `open:self_admit`: the group's side of a widening naming one NEW key is that key's own
+    /// signature; a removal, or a widening naming a key already seated (a change of role), takes the floor
+    /// of two voices besides the member named (CC 4.5.13).
+    SelfAdmit,
+    /// CC 3.3.4 `weighted:{rubric}`: the sum of the signing members' whole-number weights reaches the
+    /// whole-number threshold, both carried on the group's signed record (here: the row's `weights` and
+    /// `need`).
+    Weighted,
     /// Not a count (a seat, not a threshold).
     NotACount,
 }
@@ -344,7 +359,7 @@ fn duty_seat<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, o: &R) -> boo
     {
         return false;
     }
-    o.scope().map_or(true, |s| !law.roster_seats.iter().any(|x| x == s.as_ref()))
+    o.scope().is_none_or(|s| !law.roster_seats.iter().any(|x| x == s.as_ref()))
 }
 
 fn founding_many<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, obj: &ObjOf<R>) -> bool {
@@ -436,7 +451,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     || (ar.of().is_none()
                         && o.names().contains(ar.id())
                         && ar.scope() == o.scope()
-                        && ar.obj().map_or(true, |x| Some(x) == o.obj()));
+                        && ar.obj().is_none_or(|x| Some(x) == o.obj()));
                 paired && !ended(ar) && cut.counts(a)
             })
         };
@@ -525,8 +540,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     /// stands only if every tip seats it.
     pub fn stands(&self, k: &R::Key, s: &str, o: &ObjOf<R>, root: Option<&Root<R::Id, R::Key>>) -> bool {
         let any =
-            self.recs.iter().any(|r| r.k == *k && r.obj == *o && self.has(r, s) && root.map_or(true, |x| r.root == *x));
-        any && self.tips_common(s, o).map_or(true, |c| c.contains(k))
+            self.recs.iter().any(|r| r.k == *k && r.obj == *o && self.has(r, s) && root.is_none_or(|x| r.root == *x));
+        any && self.tips_common(s, o).is_none_or(|c| c.contains(k))
     }
 
     /// The keys holding scope `s` over `o`.
@@ -534,7 +549,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let got: BTreeSet<R::Key> = self
             .recs
             .iter()
-            .filter(|r| r.obj == *o && self.has(r, s) && root.map_or(true, |x| r.root == *x))
+            .filter(|r| r.obj == *o && self.has(r, s) && root.is_none_or(|x| r.root == *x))
             .map(|r| r.k.clone())
             .collect();
         match self.tips_common(s, o) {
@@ -659,7 +674,7 @@ pub fn left_in_past<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>, scope: &str
             continue;
         }
         let Some(t) = w.target().and_then(|t| p.get(t)) else { continue };
-        if !t.obj().map_or(true, |x| x == *obj) || !t.scope().map_or(true, |s| s.as_ref() == scope) {
+        if t.obj().is_some_and(|x| x != *obj) || t.scope().is_some_and(|s| s.as_ref() != scope) {
             continue;
         }
         let own = match t.seat_kind() {
@@ -769,9 +784,35 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
                             && ranked(&ballots, r.options(), 2, false).0.as_ref() == r.to().first();
                     }
                     let v = voices(r, p);
-                    let yes: BTreeSet<&R::Key> = v.iter().filter(|k| mem.contains(*k)).collect();
+                    if pol == Some(Policy::SelfAdmit) {
+                        // the joiner's own signature is the group's side; a removal takes two voices besides
+                        // the member it names
+                        return if is_offer && r.to().len() == 1 && !mem.contains(&r.to()[0]) {
+                            v.contains(&r.to()[0])
+                        } else {
+                            v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).count() >= 2
+                        };
+                    }
                     if matches!(pol, Some(Policy::DutyConfer) | Some(Policy::DutyWithdraw)) {
+                        let yes: BTreeSet<&R::Key> = v.iter().filter(|k| mem.contains(*k)).collect();
                         return duty_count_keys(pol == Some(Policy::DutyWithdraw), r.to(), &yes, &mem);
+                    }
+                    // no key admits itself (CC 2.7.5): a key the row seats or removes is no voice of the count
+                    let yes: BTreeSet<&R::Key> = v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).collect();
+                    if pol == Some(Policy::Weighted) {
+                        let sum: u64 =
+                            yes.iter().map(|k| r.weights().iter().find(|(w, _)| w == *k).map_or(0, |(_, x)| *x)).sum();
+                        return r.need().is_some_and(|t| t > 0 && sum >= t as u64);
+                    }
+                    if pol == Some(Policy::Unanimous) {
+                        let others = mem.iter().filter(|k| !r.to().contains(k)).count();
+                        return if is_offer {
+                            !mem.is_empty()
+                                && yes.len() == others
+                                && r.to().iter().all(|k| !mem.contains(k) || v.contains(k))
+                        } else {
+                            yes.len() == others && 2 * yes.len() > mem.len()
+                        };
                     }
                     met(pol, yes.len(), mem.len(), r.need())
                 }

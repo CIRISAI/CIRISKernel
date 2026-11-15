@@ -352,10 +352,10 @@ footer pre { background: var(--surface-2); color: var(--text); padding: 10px 12p
       <li><a href="https://github.com/CIRISAI/CIRISConstitution">The parent specification</a></li>
       <li><a href="https://ciris.ai">ciris.ai</a></li>
     </ul>
-    <p><strong>Build status.</strong> From the repository root, with Lean 4.14.0, Python 3.12 and cargo, <code>./check.sh</code> compiles the nineteen proof files, runs ten model checks one after another, counts the divergence list, and builds and tests the Rust crate <code>crates/ciris-kernel</code> against the models’ own cases, one line per step. It prints:</p>
-    <pre>proofs: 19 files, 548 theorems reported, rc=0
+    <p><strong>Build status.</strong> From the repository root, with Lean 4.14.0, Python 3.12 and cargo, <code>./check.sh</code> compiles the twenty-six proof files, runs ten model checks one after another, counts the divergence list, builds and tests the Rust crate <code>crates/ciris-kernel</code> against the models’ own cases, and model-checks five TLA+ specs with TLC, one line per step. It prints:</p>
+    <pre>proofs: 26 files, 600 theorems reported, rc=0
 ...
-all 16 steps passed</pre>
+all 17 steps passed</pre>
     <p>Not validated by an independent implementation or a deployment under partition. To attack it, see <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/REVIEW.md">REVIEW.md</a>.</p>
   </div>
 </footer>

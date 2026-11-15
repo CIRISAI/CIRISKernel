@@ -71,10 +71,8 @@ migrations, and the local operational store.
 
 ## Points to settle before adoption
 
-- **Persons and voices.** `eligible` collapses keys to one seat per person (`federation/consensus.rs:161`) and
-  picks "the lowest key" among them. The kernel counts distinct signers and never picks by key id. Under
-  KERNEL.md 7b the person's devices are one voice; persist's adapter must present that voice as the signer,
-  or a count will count devices.
+- **Persons and voices.** The adapter presents each signing key as its person's voice (`PersonsAt::voice`) and
+  each seat as its person (`seat_person`), as KERNEL.md 7b requires; with that, the per-person count agrees.
 - **Objects that are rows and objects that are keys.** `seat::Obj::from_reference` types an object from the
   form of its reference in the signed object: a `[-16, digest]` row id is a row, an identity reference
   `urn:ietf:params:oauth:ckt:sha-256:…` is a key. Persist's adapter passes the reference as written. Today's
@@ -84,18 +82,16 @@ migrations, and the local operational store.
 
 ## Side by side with persist's own tests
 
-The crate was run beside persist on persist's own test cases. A throwaway clone of persist at `8c011511` took
-the crate as a path dev-dependency and a thin `Row` adapter. In test builds, it logged each call of the four
-functions with the kernel's answer. The full lib suite ran with `--features sqlite`: 3,394 passed and 3 failed.
-The three fail only because of the hooks (one counts directory reads, two scan the wrapped function's
-source), and all three pass on the unhooked tree. The clone was then deleted.
+[`DIFFERENCES.md`](DIFFERENCES.md) settles every class of difference found running the crate beside persist's
+own lib suite. Each class ends as a named persist change backed by a cited CC sentence, or as zero. The
+final run gives:
 
-| Function | Distinct calls | Agree | Differ | Why they differ |
-|---|---|---|---|---|
-| `consensus::evaluate` | 428 ballots | 283 | 20 | removals under `unanimous` exclude the member named, and the adapter's count does not (6); an `infrastructure` group counts founders only, and the kernel reads no role (8); persist counts persons, so two devices of one person are one voice (5); a seated member's self-signed re-admission is refused by persist and counted by the kernel (1). 125 ballots use a protocol with no kernel cell (`founder_only`, `open:self_admit`, `reverse_quorum`, `custom:`) |
-| `owner_of` | 1,922 | 1,722 | 198 | in every one, persist names an owner from a binding the node's own key did not sign; under the seat as two consents the kernel names none. Of the agreements, 1,721 are "no owner" on both sides and only 1 names the same owner, so this mapping is barely exercised until bindings carry the node's signature. 2 more are persist's ambiguity error, where the kernel also names none |
-| `trust_root_valid` (its edge leg) | 199 | 191 | 8 | 6: the edge carries no `trust:accepts` label, or no head, and persist refuses it; the adapter passed every `delegates_to`, so this is the adapter's filter, not the kernel's. 2: a superseded edge, which the fold default decides (CC 3.5.1); the crate does not carry that fold |
-| `held_head_verdict` | 8 | by design | | persist refuses a version that does not name the held head; the kernel holds it, as a tip beside the head or waiting for the head it names. Where persist admits, the version names the held head and the kernel has one head, except a second founding version, where the kernel has two tips. Persist also refuses a supersede whose proof names another prior, which the kernel does not read |
+| Function | Agree | Persist departs |
+|---|---|---|
+| `consensus::evaluate` | 394 of 429 | 22 (`custom:`, `reverse_quorum`) |
+| `owner_of` | 1,723 of 1,924, of which 3 name the same owner | 199 (a binding the node's key never cosigned) |
+| `trust_root_valid`, edge leg | 199 of 199 | 0 |
+| `held_head_verdict` | 2 of 8 | 5 (persist refuses a fork; CC 2.7.8 holds it as a tip) |
 
 ## How persist would depend on it
 
