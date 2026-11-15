@@ -1,0 +1,14 @@
+[package]
+name = "ciris-kernel"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "The CIRIS causal kernel as pure functions over an abstract row graph (no I/O, no clock, no crypto)"
+license = "AGPL-3.0"
+repository = "https://github.com/CIRISAI/CIRISKernel"
+readme = "README.md"
+publish = false
+
+[dependencies]
+
+[dev-dependencies]
