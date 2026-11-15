@@ -82,6 +82,21 @@ migrations, and the local operational store.
 - **Instants.** `window::WindowRow::T` and `key_end::KeyEndRow::T` are any ordered type with subtraction.
   Persist's `Micros` (`i64`) fits. The crate never compares two signers' instants.
 
+## Side by side with persist's own tests
+
+The crate was run beside persist on persist's own test cases. A throwaway clone of persist at `8c011511` took
+the crate as a path dev-dependency and a thin `Row` adapter. In test builds, it logged each call of the four
+functions with the kernel's answer. The full lib suite ran with `--features sqlite`: 3,394 passed and 3 failed.
+The three fail only because of the hooks (one counts directory reads, two scan the wrapped function's
+source), and all three pass on the unhooked tree. The clone was then deleted.
+
+| Function | Distinct calls | Agree | Differ | Why they differ |
+|---|---|---|---|---|
+| `consensus::evaluate` | 428 ballots | 283 | 20 | removals under `unanimous` exclude the member named, and the adapter's count does not (6); an `infrastructure` group counts founders only, and the kernel reads no role (8); persist counts persons, so two devices of one person are one voice (5); a seated member's self-signed re-admission is refused by persist and counted by the kernel (1). 125 ballots use a protocol with no kernel cell (`founder_only`, `open:self_admit`, `reverse_quorum`, `custom:`) |
+| `owner_of` | 1,922 | 1,722 | 198 | in every one, persist names an owner from a binding the node's own key did not sign; under the seat as two consents the kernel names none. Of the agreements, 1,721 are "no owner" on both sides and only 1 names the same owner, so this mapping is barely exercised until bindings carry the node's signature. 2 more are persist's ambiguity error, where the kernel also names none |
+| `trust_root_valid` (its edge leg) | 199 | 191 | 8 | 6: the edge carries no `trust:accepts` label, or no head, and persist refuses it; the adapter passed every `delegates_to`, so this is the adapter's filter, not the kernel's. 2: a superseded edge, which the fold default decides (CC 3.5.1); the crate does not carry that fold |
+| `held_head_verdict` | 8 | by design | | persist refuses a version that does not name the held head; the kernel holds it, as a tip beside the head or waiting for the head it names. Where persist admits, the version names the held head and the kernel has one head, except a second founding version, where the kernel has two tips. Persist also refuses a supersede whose proof names another prior, which the kernel does not read |
+
 ## How persist would depend on it
 
 Recommended: a git dependency on the kernel repository at a tag, the way persist already takes
