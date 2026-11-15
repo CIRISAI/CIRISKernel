@@ -174,10 +174,16 @@ curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_
 ./elan-init -y --default-toolchain leanprover/lean4:v4.14.0
 ```
 
-Then, from the repository root, `./check.sh`. It compiles the nineteen proof files, runs ten model checks one
-after another and counts the divergence list, one line per step. At the commit it was carried at it prints
-`proofs: 19 files, 548 theorems reported, rc=0` and ends `all 12 steps passed`, in about two minutes.
-Some checks use three worker processes.
+Then, from the repository root, `./check.sh`. It compiles the twenty-six proof files, runs ten model checks
+one after another and counts the divergence list, one line per step. It prints
+`proofs: 26 files, 600 theorems reported, rc=0`, in about two minutes. Some checks use three worker processes.
+The nineteen files carried from the parent are unchanged; the seven added here prove the crate's gaps
+([`crates/ciris-kernel/FORMAL_GAPS.md`](crates/ciris-kernel/FORMAL_GAPS.md)).
+
+Four steps build and test the Rust crate [`crates/ciris-kernel`](crates/ciris-kernel/README.md), the kernel as
+pure functions with no dependencies, against the Python models' own cases; they need cargo. The last step
+model-checks the five TLA+ specs of [`models/tla/`](models/tla) with TLC, each with a planted break it must
+catch, and needs Java. The run ends `all 17 steps passed`.
 
 ## Lineage
 
@@ -210,4 +216,4 @@ its implications for governing people and AI agents, each with its evidence.
 
 The kernel of the CIRIS constitution, edition 1.0-rc19 (tag `v1.0-rc19`, carried from commit `60c741e`) of
 <https://github.com/CIRISAI/CIRISConstitution>. The parent specification is the normative home; this is an
-extract for review ([`PROVENANCE.md`](PROVENANCE.md)). Licence AGPL-3.0. Maintained by the CIRIS project.
+extract for review ([`PROVENANCE.md`](PROVENANCE.md)). Licence AGPL-3.0-or-later. Maintained by the CIRIS project.

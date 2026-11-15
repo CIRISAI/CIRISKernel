@@ -1,0 +1,35 @@
+name: release
+
+# On a tag kernel-v*, package the crate and attach the .crate file and its SHA-256 to the tag's release.
+# Nothing is published to crates.io (the crate is publish = false).
+on:
+  push:
+    tags:
+      - 'kernel-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: package ciris-kernel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: The tag names the crate's version
+        run: |
+          v="$(sed -n 's/^version = "\(.*\)"/\1/p' crates/ciris-kernel/Cargo.toml | head -n 1)"
+          test "${GITHUB_REF_NAME}" = "kernel-v${v}"
+      - run: cargo test --offline --release -p ciris-kernel
+      - run: cargo package --offline -p ciris-kernel
+      - name: Checksum
+        run: |
+          cd target/package
+          sha256sum ciris-kernel-*.crate > SHA256SUMS
+          cat SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            target/package/ciris-kernel-*.crate
+            target/package/SHA256SUMS

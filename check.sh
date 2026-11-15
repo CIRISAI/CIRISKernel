@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# One command: compile every proof in proofs/ and run every model check in models/.
+# One command: compile every proof in proofs/, run every model check in models/, and build and test the Rust
+# crate crates/ciris-kernel against the models' own cases.
 # Prints one line per step and a summary. Exits 1 if any step fails. Full logs go to a temporary
-# directory, kept and named on failure. Needs Lean 4.14.0 on PATH (see README.md) and Python 3.12.
+# directory, kept and named on failure. Needs Lean 4.14.0 on PATH (see README.md), Python 3.12 and cargo
+# (the crate has no dependencies, so cargo runs with --offline), and Java 11 or later for TLC (tools/tla_check.sh
+# fetches the pinned tla2tools v1.7.4 once, or reads $TLA2TOOLS_JAR).
 # The checks run one after another; some use three worker processes and the calling one.
 set -u
 root="$(cd "$(dirname "$0")" && pwd)"
@@ -47,6 +50,11 @@ step "check_roomkey (private rooms)"      roomkey   python3 -I models/causal_ker
 step "fork_check (roster tips)"           fork      python3 -I models/roster_fork/fork_check.py --check
 step "key_plane_model (writer's keys)"    keyplane  python3 -I models/key_plane/key_plane_model.py --check
 step "divergence list (counts)"           diverge   python3 -I tools/divergence_counts.py
+step "kernel_fixtures (fixtures current)"   fixtures  python3 -I tools/kernel_fixtures.py --check
+step "ciris-kernel build (no_std)"         crate     bash tools/kernel_crate_build.sh
+step "ciris-kernel conformance"            conform   bash tools/kernel_conformance.sh
+step "ciris-kernel plants"                 plants    bash tools/kernel_crate_plants.sh
+step "tla (TLC, five specs, plants)"       tla       bash tools/tla_check.sh
 
 echo "---"
 if [ $rc -eq 0 ]; then

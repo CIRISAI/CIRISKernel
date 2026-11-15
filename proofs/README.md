@@ -188,7 +188,22 @@ An edge is withdrawn only by its own signer.
 - The rule tables are not read. `formal/derivation/order/` (parent repository; its `witnesses.tsv` is [`data/witnesses.tsv`](../data/witnesses.tsv) here) holds the measure of the tables against this form:
   seventeen cases run through the guard cells in every arrival order, and each family's verdict.
 
-Run: `bash proofs/build.sh`, with Lean 4.14.0 on the path (installed as the top-level README says). It compiles the nineteen files in order and exits on a compile error,
+Run: `bash proofs/build.sh`, with Lean 4.14.0 on the path (installed as the top-level README says). It compiles the twenty-six files in order and exits on a compile error,
 a `sorry`, or an axiom beyond the three of core Lean.
 
-Output of the run in this repository at the commit it was carried at: `proofs: 19 files, 548 theorems reported, rc=0`. The count is of lines reporting the axioms a declaration depends on (`#print axioms`), one per theorem the files print, not of every lemma.
+Output of the run in this repository: `proofs: 26 files, 600 theorems reported, rc=0`. The nineteen files carried from the parent printed 548; the seven added for the crate (`CutFix`, `SeatWalk`, `SeatCount`, `WindowTable`, `Retained`, `Versions`, `Ops`) print 52 more. The count is of lines reporting the axioms a declaration depends on (`#print axioms`), one per theorem the files print, not of every lemma.
+
+## Added for the crate
+
+Seven files prove the gaps that `crates/ciris-kernel/FORMAL_GAPS.md` ranked. They state the crate's functions
+over Lean definitions of the same shape, and are built by `build.sh` like the rest.
+
+| File | What it proves |
+|---|---|
+| `CutFix.lean` | the cut's well-founded fixed point: for any antitone step, what it reports as counting counts whatever the undecided cuts do; the cut's step is antitone |
+| `SeatWalk.lean` | the bounded walk of live seats is exactly the chains of at most `depth` links from a root; tips wait |
+| `SeatCount.lean` | no key admits itself; counts never fall; each policy's arithmetic, `unanimous` at two, `open:self_admit`, the duty floor, `weighted` |
+| `WindowTable.lean` | a window's table before and at its close |
+| `Retained.lean` | the rows that have not lapsed are closed downwards; revocations are kept |
+| `Versions.lean` | built on, for roster versions |
+| `Ops.lean` | the reducer that refuses a tie is a function of the set, and refuses only a real tie |
