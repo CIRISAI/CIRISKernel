@@ -15,12 +15,15 @@ OUT = os.path.join(ROOT, "crates", "ciris-kernel", "tests", "fixtures", "tla_doo
 
 
 def spec_rows():
+    """Door.tla's rows at the N of Door.cfg: row r names r - 1 and r // 2 (below r), every fifth row also N + 1,
+    which is never offered, and every seventh row is malformed. Checked against the spec's text."""
     text = open(os.path.join(SPEC, "Door.tla"), encoding="utf-8").read()
-    names = {int(r): sorted(int(x) for x in body.replace(" ", "").split(",") if x)
-             for r, body in re.findall(r"r = (\d+) -> \{([^}]*)\}", text)}
-    rows = int(re.search(r"Rows == 1\.\.(\d+)", text).group(1))
-    malformed = [int(x) for x in re.findall(r"WF\(r\) == r # (\d+)", text)]
-    assert sorted(names) == list(range(1, rows + 1)), names
+    assert "({r - 1, r \\div 2} \\cap 1..(r - 1)) \\cup (IF r % 5 = 0 THEN {N + 1} ELSE {})" in text
+    assert "WF(r) == r % 7 # 0" in text
+    n = int(re.search(r"N = (\d+)", open(os.path.join(SPEC, "Door.cfg"), encoding="utf-8").read()).group(1))
+    names = {r: sorted({x for x in (r - 1, r // 2) if 1 <= x < r} | ({n + 1} if r % 5 == 0 else set()))
+             for r in range(1, n + 1)}
+    malformed = [r for r in range(1, n + 1) if r % 7 == 0]
     return names, malformed
 
 

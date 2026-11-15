@@ -9,13 +9,12 @@
    not offered; and every offered row whose past is offered and well formed is eventually held.
    MUT = TRUE plants the break: the door drops a row whose named rows are not held on arrival. *)
 EXTENDS Naturals, FiniteSets
-CONSTANTS MUT
-Rows == 1..7
-\* what each row names: a diamond (2,3 on 1; 4 on 2,3), a chain (5 on 4), a row naming 8, which is never
-\* offered (6), and a malformed row (7 on 1)
-Names == [r \in Rows |-> CASE r = 1 -> {} [] r = 2 -> {1} [] r = 3 -> {1} [] r = 4 -> {2, 3}
-                              [] r = 5 -> {4} [] r = 6 -> {8} [] r = 7 -> {1}]
-WF(r) == r # 7
+CONSTANTS MUT, N
+Rows == 1..N
+\* what each row names: row r names r - 1 and r \div 2 (a chain with long jumps, so diamonds everywhere);
+\* every fifth row also names N + 1, which is never offered; every seventh row is malformed
+Names == [r \in Rows |-> ({r - 1, r \div 2} \cap 1..(r - 1)) \cup (IF r % 5 = 0 THEN {N + 1} ELSE {})]
+WF(r) == r % 7 # 0
 
 VARIABLES offered, held, waiting
 vars == <<offered, held, waiting>>

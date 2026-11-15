@@ -27,7 +27,7 @@ The lists give the stronger checks.
 | `derived::fold_default` | | | neither (CC 3.5.1's four rules as tests, and every order of six rows) |
 | `cut::Cut::new`, `status`, `counts` | `CutFix.cut_wfs`, `cut_counts_not_void`, `step_antitone`, `stopped_counts`, `total_between` | `Cut` (the removal half) | Lean, TLA+ |
 | `cut::Cut::holder` | `Causal.holder_both_or_neither` over the counting rows | | Lean |
-| `line::settle`, `void`, `own_line`, `counted_acts` | `line_voids_old_fork`, `old_fork_void_for_ever`, `sibling_waits`, `merge_accepted` (Reader, Harden3) | `ReaderLine` | Lean, TLA+ |
+| `line::settle`, `void`, `own_line`, `counted_acts` | `line_voids_old_fork`, `old_fork_void_for_ever`, `sibling_by_acknowledgement`, `sibling_void`, `sibling_waits`, `merge_accepted` (Reader) | `ReaderLine` | Lean, TLA+ |
 | `line::versions` | `Versions.counts_built_on`, `counts_fuel_mono`, `void_down_the_line` | | Lean |
 | `seat::Seats::new`, `stands` | `SeatWalk.walk_iff_chain`, `unlive_never_reached`, `falls_with_upstream`; `Consent`, `Seat`, `Duty` | | Lean |
 | `seat::Seats::holders`, `tips`, `tips_common`, `one` | `SeatWalk.holder_every_tip`, `another_tip_adds_nobody`, `tips_list_no_one_new` | | Lean |
@@ -77,41 +77,63 @@ and `Versions.counts_built_on`. None was false. Core Lean 4.14 has no lemmas for
 | `proofs/Ops.lean` | The least element does not depend on the list's order, and a refused tie is a real tie. |
 | `models/tla/Door.tla` | Under any arrival order, with repeats and a row naming one never offered, the held set is the least closed set over what was offered. Rows wait and are never refused, held only grows, and everything eventually kept is kept. |
 | `models/tla/Cut.tla` | Under any arrival order, an incremental verdict kept as rows arrive equals removal by causal past. Another key's rows are untouched, and a row signed after the removal it names never counts. A row stops counting only when a removal lacking it arrives, and then for good. |
-| `models/tla/ReaderLine.tla` | Per reader, the void set is a function of what that reader holds and acknowledged. A fork on an old head is void for the reader that acknowledged the newer head, while a sibling of that head waits and a version naming both is accepted. A reader with no acknowledgement voids nothing, and void lasts for ever. |
+| `models/tla/ReaderLine.tla` | Per reader, the void set is a function of what that reader holds and acknowledged. With no acknowledgement nothing is void, so two versions of one head wait as tips. With one, every version that names only heads in the acknowledged act's past is void for that reader, the fork and a sibling of the acknowledged act included. The reader's own line is never void, and void lasts for ever. |
 | `models/tla/Purge.tla` | Under any order of three receipts and two cuts, purging once the act is settled changes no answer. A settled act counts, the threshold is exact, and settled is final. |
 | `models/tla/TrustWalk.tla` | Over a graph with two cycles and a short path with no budget, the walk always terminates, takes keys in any order, and agrees with the Lean `walk` when it stops. Budgets only rise. |
 
-TLC state counts at this commit, and the plant each run catches: Door 128 (the door drops a row not yet
-placeable); Cut 256 (judged once, on arrival); ReaderLine 532 (one reader's acknowledgement voids for
-all); Purge 60 (purging before settled); TrustWalk 17 (each key expanded once). Each finishes in seconds. The
-bounds are small on purpose; widening any constant is one line of its spec.
+TLC at this commit. The small configuration (`<Spec>.cfg`) runs in `./check.sh` and CI. The large one
+(`<Spec>_large.cfg`) is run locally with `bash tools/tla_check.sh --large`. Both are on a 32-core machine, with
+`-workers auto`, and every plant is caught at both bounds.
+
+| Spec | Small: constants | Distinct states, diameter, time | Large: constants | Distinct states, diameter, time | Plant |
+|---|---|---|---|---|---|
+| `Door` | 10 rows | 1,024, 11, 1 s | 17 rows | 131,072, 18, 104 s | the door drops a row not yet placeable |
+| `Cut` | 2 keys, chains of 3 | 2,048, 12, 1 s | 3 keys, chains of 4 (19 rows) | 524,288, 20, 31 s | judged once, on arrival |
+| `ReaderLine` | 2 readers, lineage of 4 | 13,924, 19, 1 s | 3 readers, lineage of 5, SYMMETRY over readers | 551,300, 31, 21 s | one reader's acknowledgement voids for all |
+| `Purge` | 2 acts, 3 members, 2 cuts each | 2,304, 13, 1 s | 2 acts, 5 members, t = 3, 3 cuts each | 147,456, 19, 2 s | purging before settled |
+| `TrustWalk` | every subgraph of 9 edges over 4 keys | 2,480, 5, 2 s | every subgraph of 16 edges over 7 keys (65,536 graphs) | 454,016, 8, 8 s | each key expanded once |
+
+Each space is exhausted at its bound: TLC ends with no state left on the queue. In Door and Cut the state is
+the set of rows offered, so the count is 2^rows exactly. A GitHub-hosted runner, with fewer cores, takes about
+a minute for the small set; the large set takes about three minutes here.
 
 **Tied to the Rust by trace.** `tools/tla_door_fixture.py` dumps every reachable state of `Door.tla` with TLC.
 `tests/tla_door.rs` then replays each state through `layers::kept` and `layers::arrive` in two orders, 384
 comparisons with no disagreement. `tools/tla_check.sh` fails if the dump no longer matches the committed fixture.
 
-## A disagreement found while writing the specs
+## The sibling of the acknowledged head: one reading
 
-`models/causal_kernel/checkpoint.py` (and `line.rs`, `Reader.lean`) and `models/causal_kernel/purge.py` (and
-`head.rs`) read the reader's line differently. Take a sibling u of the acknowledged version v1, both naming v0.
-`checkpoint.py` compares u's heads with the heads of the versions on the line. Both name v0, so u is not
-older, waits as a tip, and a version naming both is accepted (`Harden3.sibling_waits`, `merge_accepted`).
-`purge.py` compares u's heads with the acknowledged head itself. v0 is in v1's past, so u is void. KERNEL.md 7
-says "names an older head", which fits `purge.py`. KERNEL.md 8a says "a sibling of the acknowledged head waits
-as a tip", which fits `checkpoint.py`. `ReaderLine.tla` checks the proved reading. The crate carries both, each
-matching its model. The owner should rule which reading is the kernel's.
+Two models once read the reader's line differently. `checkpoint.py` (and `line.rs`, `Reader.lean`) let a
+sibling of the acknowledged version wait as a tip. `purge.py` (and `head.rs`) held it void. CC 2.7.8 settles
+it with two sentences, each for one reader state:
+
+- "Two versions of one head wait as tips." This is for a reader with no acknowledgement on that line.
+- "A reader that has acknowledged a head holds void every counted act that names an older head and is not in
+  that head's past … That voiding is the reader's own and binds nobody else."
+
+A sibling S of the acknowledged act H names their common predecessor, which is older than H, and S is not in
+H's past. So S is void for the reader that acknowledged H, and waits as a tip for a reader that did not. A
+version built on S is void for the first reader too (CC 2.7.7, built on). KERNEL.md 7 states the same.
+KERNEL.md 8a's "a sibling of the acknowledged head waits as a tip" is now read as the case of a reader with no
+acknowledgement.
+
+The crate now carries one reading. `line.rs` compares a version's heads with the acknowledged act itself, so
+`checkpoint.py` (`line_behind`, `versions`), `Reader.lean` (`olderThan`, `behind`) and `purge.py` agree.
+`Reader.sibling_by_acknowledgement` states both cases; `sibling_void` and `sibling_waits` state each.
+`ReaderLine.tla` checks `Inv_TipsWaitWithoutAck`, `Inv_OlderVoidWithAck` and `Inv_SiblingVoid`.
+`attacks.py` test 4 now records that a reader who acknowledged the newest honest row is not moved even by a
+fork from the head that row is counted over.
 
 ## What is still open, ranked by risk
 
 | Rank | Gap | Smallest statement or model that closes it |
 |---|---|---|
-| 1 | the two readings of the reader's line above | a ruling, then one definition in `line.rs` and `head.rs`, with `ReaderLine.tla` and `Settled.lean` on the same reading |
-| 2 | `graph::Graph`, the lazy, budgeted closure | `theorem in_past_iff (G a b) : G.in_past a b = true ↔ TransGen G.parent a b`, through Kani harnesses on the Rust (it is the crate's own algorithm, not the model's) |
-| 3 | `key_end::successor` | `theorem successor_both_or_neither : two concurrent rotations name different keys → successor = none` (P5a, run today) |
-| 4 | `head::View::window` and the purge of an open window | `theorem purge_keeps_open : window S o now = .open → whole (purge S now) o`, or a `Purge.tla` variant with a window and a clock |
-| 5 | `derived::fold_default` | `theorem fold_default_perm` and `theorem fold_default_per_signer` (no row of one signer moves another's winner) |
-| 6 | `ranked::ranked` with a declared order | `theorem ranked_declared_function : ballots.Perm b' → ranked ballots opts = ranked b' opts` |
-| 7 | `Obj::from_reference` | test vectors generated from `signed_object_v2.cddl` (parent), every form, valid and not |
+| 1 | `graph::Graph`, the lazy, budgeted closure | `theorem in_past_iff (G a b) : G.in_past a b = true ↔ TransGen G.parent a b`, through Kani harnesses on the Rust (it is the crate's own algorithm, not the model's) |
+| 2 | `key_end::successor` | `theorem successor_both_or_neither : two concurrent rotations name different keys → successor = none` (P5a, run today) |
+| 3 | `head::View::window` and the purge of an open window | `theorem purge_keeps_open : window S o now = .open → whole (purge S now) o`, or a `Purge.tla` variant with a window and a clock |
+| 4 | `derived::fold_default` | `theorem fold_default_perm` and `theorem fold_default_per_signer` (no row of one signer moves another's winner) |
+| 5 | `ranked::ranked` with a declared order | `theorem ranked_declared_function : ballots.Perm b' → ranked ballots opts = ranked b' opts` |
+| 6 | `Obj::from_reference` | test vectors generated from `signed_object_v2.cddl` (parent), every form, valid and not |
 | 8 | tables as data (`SeatLaw`, `WindowSpec`) | a check that every cell traces to a table cell or a quoted sentence |
 
 ## Tying the Rust to the Lean

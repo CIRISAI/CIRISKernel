@@ -44,6 +44,16 @@ round 2 and pass there.
 | 7 | trust root, the edge leg (8) | user U, root R; a `delegates_to(U → R)` with no `trust:accepts` label, written after the bundle-only migration | no edge | an edge → no edge | CC 3.2 T4a: a row with no job label "is not an acceptance edge at all"; CC 3.5.1 for a superseded edge | **adapter artefact**, in three parts: the adapter now passes only the family's rows (labelled, or held as acceptance from before the label, as the directory reports); it reads `supersedes` and retractions by the fold default (CC 3.5.1, now `derived::fold_default`); and an edge whose own signer's composer wins its chain is ended. 0 left |
 | 8 | the fork (by design) | lineage head H held; a supersede naming H's predecessor, or a second founding version | refuses (`group_amendment.rs:600`, `check_prev_head_names_held`) | holds it: a tip beside H, or a row waiting for the head it names | CC 2.7.8: "Two versions of one head wait as tips. The roster is then the members common to all tips, until a version naming the tips makes one head again"; CC 3.3.4 for the head a removal is counted over; `SeatWalk.holder_every_tip`, `ReaderLine.tla` | **persist departs**: hold both versions and read the roster as the members common to the tips. KERNEL_SEAMS §2.2 row 27 already names this change. A supersede whose `supersede_proof` names another prior is a contradiction inside one row, a matter of its shape, refused before the kernel; that one case is outside the kernel |
 
+## The sibling of the acknowledged head
+
+The crate reads CC 2.7.8 one way for both of its line modules. A sibling of the act a reader acknowledged is
+void for that reader ("holds void every counted act that names an older head and is not in that head's
+past"). For a reader with no acknowledgement the two wait as tips ("Two versions of one head wait as tips").
+See FORMAL_GAPS.md, *The sibling of the acknowledged head*, and `Reader.sibling_by_acknowledgement`. Persist's
+reader line is not among the four functions run side by side. CC 3.3.4 (`part_3_the_namespace.md:1589`)
+still reads "A sibling of the acknowledged head waits as a tip" without the reader's state, and so does
+KERNEL.md 8a.
+
 ## The persist changes, each with its CC sentence
 
 1. `consensus.rs:280`: refuse `reverse_quorum:*` as a membership protocol. CC 3.2: "Not a membership rule:

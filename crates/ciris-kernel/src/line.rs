@@ -5,9 +5,11 @@
 //!   built on a counted act that does not count is void, down the whole line.
 //! * **The reader's line.** A reader's own acknowledgement of a head makes the acknowledged act, and every
 //!   counted act in its past, that reader's line. For that reader the line counts, and a counted act
-//!   concurrent with an act of the line and counted over heads all strictly older than the heads that act
-//!   names does not count (`Reader.line_voids_old_fork`). An act counted over the same head waits as a tip.
-//!   This binds nobody else, and it ranks no line for anyone else.
+//!   concurrent with an act of the line that names only heads strictly in that act's past does not count
+//!   (CC 2.7.8: "holds void every counted act that names an older head and is not in that head's past";
+//!   `Reader.line_voids_old_fork`). So a sibling of the acknowledged act is void for this reader, and so is
+//!   a row built on it. For a reader with no acknowledgement on that line, two versions of one head wait as
+//!   tips (CC 2.7.8; `Reader.sibling_by_acknowledgement`). This binds nobody else, and it ranks no line.
 //!
 //! The group checkpoint (every counting act a checkpoint for everyone) is not part of the kernel: it ranks
 //! lines by depth, and KERNEL.md section 8a runs it only as the reason. It is not implemented here.
@@ -76,7 +78,9 @@ pub fn settle<R: Row, L: LineSpec<R>>(
     live.sort_by_key(|&i| c.g.level(i)); // ancestors first
     let mine: BTreeSet<usize> = own_line(c, spec, own, obj).into_iter().filter(|i| live.contains(i)).collect();
     let heads = |i: usize| spec.counted_act(c.g.row(i)).map(|(_, h)| h).unwrap_or(&[]);
-    let behind = |r: usize, m: usize| m != r && c.g.concurrent(r, m) && older(c, heads(r), heads(m));
+    let behind = |r: usize, m: usize| {
+        m != r && c.g.concurrent(r, m) && older(c, heads(r), core::slice::from_ref(c.g.row(m).id()))
+    };
     let mut out: BTreeSet<usize> = BTreeSet::new();
     let mut out_ids: BTreeSet<&R::Id> = BTreeSet::new();
     for &r in &live {
@@ -121,9 +125,10 @@ pub fn versions(
     ack: Option<usize>,
 ) -> BTreeSet<usize> {
     let conc = |i: usize, j: usize| i != j && !past(j).contains(&i) && !past(i).contains(&j);
+    // i extends only versions strictly in the past of j, an act of the reader's line (CC 2.7.8)
     let stale = |i: usize, j: usize| {
-        let (bi, bj) = (builds_on(i), builds_on(j));
-        conc(i, j) && !bj.is_empty() && !bi.is_empty() && bi.iter().all(|e| bj.iter().any(|h| past(*h).contains(e)))
+        let bi = builds_on(i);
+        conc(i, j) && !bi.is_empty() && bi.iter().all(|e| past(j).contains(e))
     };
     let mine: BTreeSet<usize> = match ack {
         None => BTreeSet::new(),
