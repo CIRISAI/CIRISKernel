@@ -213,4 +213,4 @@ its implications for governing people and AI agents, each with its evidence.
 
 The kernel of the CIRIS constitution, edition 1.0-rc19 (tag `v1.0-rc19`, carried from commit `60c741e`) of
 <https://github.com/CIRISAI/CIRISConstitution>. The parent specification is the normative home; this is an
-extract for review ([`PROVENANCE.md`](PROVENANCE.md)). Licence AGPL-3.0. Maintained by the CIRIS project.
+extract for review ([`PROVENANCE.md`](PROVENANCE.md)). Licence AGPL-3.0-or-later. Maintained by the CIRIS project.
