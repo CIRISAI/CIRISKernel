@@ -185,3 +185,92 @@ impl GetBool for J {
         }
     }
 }
+
+/// Every history, store and offered subset of `purge_replays`, read again with 80 unrelated entries added: a
+/// store that large is read through `View`'s indexes (receipts and cuts by act, answers, names), a small one
+/// by scanning. The answers on the history's own entries, its checkpoint names and its purge must not move.
+#[test]
+fn indexed_view_answers_as_the_scanned_one() {
+    let fx = fixture("purge.json");
+    let (mut cases, mut bad) = (0usize, 0usize);
+    let pad = |s: &BTreeMap<String, E>| -> BTreeMap<String, E> {
+        let mut p = s.clone();
+        for i in 0..80 {
+            let id = format!("zz-pad-{i:02}");
+            p.insert(id.clone(), Entry::new(id, Kind::Other, "zz-pad".to_string(), Vec::new()));
+        }
+        p
+    };
+    let mine = |a: &Answers<String, String>| -> Answers<String, String> {
+        let k = |i: &String| !i.starts_with("zz-pad-");
+        Answers {
+            kept: a.kept.iter().filter(|i| k(i)).cloned().collect(),
+            concluded: a.concluded.iter().filter(|(i, _)| k(i)).cloned().collect(),
+            counts_at: a.counts_at.clone(),
+            carried: a.carried.clone(),
+            settled: a.settled.clone(),
+            missing: a.missing.clone(),
+            void: a.void.clone(),
+            window: a.window.clone(),
+        }
+    };
+    for h in fx.arr() {
+        let reading = if h.at("reading").s() == "broad" { Reading::Broad } else { Reading::Narrow };
+        let own = h.at("own").s().to_string();
+        let now0 = h.at("now").i();
+        let base: BTreeMap<String, E> =
+            h.at("rows").arr().iter().map(|r| (r.at("id").s().to_string(), entry(r))).collect();
+        let pool: Vec<E> = h.at("pool").arr().iter().map(entry).collect();
+        let first = purge(&base, own.clone(), now0, reading).0;
+        for store in [&base, &first] {
+            let big = pad(store);
+            assert!(store.len() <= 64 && big.len() > 64, "the padded store is read through the indexes");
+            for n in 0..=pool.len() {
+                for x in subsets(&pool, n) {
+                    for say in [true, false] {
+                        let small = View::new(store, &x, own.clone(), reading, say);
+                        let large = View::new(&big, &x, own.clone(), reading, say);
+                        for now in h.at("nows").arr() {
+                            cases += 1;
+                            bad += (small.answers(now.i()) != mine(&large.answers(now.i()))) as usize;
+                        }
+                        let tips: Vec<String> =
+                            large.tips().into_iter().filter(|i| !i.starts_with("zz-pad-")).collect();
+                        cases += 1;
+                        bad += (small.tips() != tips) as usize;
+                        for a in small.c.keys() {
+                            cases += 1;
+                            bad += (small.receipts(a) != large.receipts(a)) as usize;
+                        }
+                    }
+                }
+            }
+            let (p_small, t_small) = purge(store, own.clone(), now0, reading);
+            let (p_large, t_large) = purge(&big, own.clone(), now0, reading);
+            for (id, e) in &p_small {
+                cases += 1;
+                bad += (p_large.get(id) != Some(e)) as usize;
+            }
+            cases += 1;
+            bad += (t_small != t_large.into_iter().filter(|i| !i.starts_with("zz-pad-")).collect::<Vec<_>>()) as usize;
+        }
+    }
+    // a roster version of more than 32 members is read as a set
+    let mut s: BTreeMap<String, E> = BTreeMap::new();
+    let mut v = Entry::new("v".to_string(), Kind::Seat, "g".to_string(), Vec::new());
+    v.members = (0..40).map(|i| format!("m{i:02}")).collect();
+    v.q = 14;
+    s.insert("v".into(), v);
+    for (id, by) in [("a1", "m05"), ("a2", "m39"), ("a3", "x"), ("a4", "m40")] {
+        let mut e = Entry::new(id.to_string(), Kind::Act, by.to_string(), vec!["v".to_string()]);
+        e.head = Some("v".into());
+        s.insert(id.into(), e);
+    }
+    let view = View::new(&s, &[], "me".to_string(), Reading::Broad, true);
+    for (id, want) in [("a1", true), ("a2", true), ("a3", false), ("a4", false)] {
+        cases += 1;
+        bad += (view.c[id] != want) as usize;
+    }
+    report("head::View read through its indexes against the scanned one (purge.json histories)", cases, bad);
+    assert_eq!(bad, 0);
+}

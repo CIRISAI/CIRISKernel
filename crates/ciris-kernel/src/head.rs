@@ -23,6 +23,9 @@ use core::cell::OnceCell;
 
 /// Up to how many members [`View`] scans a roster version's list for a key before it keeps them as a set.
 const MEMBERS_SCANNED: usize = 32;
+/// Up to how many held entries [`View`] scans them all for an act's receipts and cuts, an answer or a name,
+/// before it builds an index (built once, when first read).
+const SCANNED: usize = 64;
 
 /// The kind of a stored row, as these answers read it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -280,9 +283,12 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         }
     }
 
-    /// The held entries that name act `a` as theirs, ascending.
+    /// The held entries that may name act `a` as theirs, ascending.
+    /// A small store gives every entry (each caller reads `of`); a larger one gives the act's own, by index.
     fn of_entries<'s>(&'s self, a: &I) -> impl Iterator<Item = &'s Entry<I, K, T>> + 's {
-        let by_of = self.by_of.get_or_init(|| {
+        let small = self.rec.len() <= SCANNED;
+        let scan = small.then(|| self.rec.values());
+        let by_of = (!small).then(|| self.by_of.get_or_init(|| {
             let mut m: BTreeMap<I, Vec<I>> = BTreeMap::new();
             for (i, r) in &self.rec {
                 if let Some(o) = &r.of {
@@ -290,8 +296,9 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
                 }
             }
             m
-        });
-        by_of.get(a).into_iter().flatten().map(move |i| &self.rec[i])
+        }));
+        let indexed = by_of.and_then(|m| m.get(a)).into_iter().flatten().map(move |i| &self.rec[i]);
+        scan.into_iter().flatten().chain(indexed)
     }
 
     fn depth_of(&mut self, i: &I) -> usize {
@@ -506,10 +513,16 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
 
     /// A window's state at `now`, read from the instant this node first held the opener.
     pub fn window(&self, o: &I, now: T) -> WindowState {
-        let answered = self.answered.get_or_init(|| {
-            self.rec.values().filter(|x| x.kind == Kind::Answer).flat_map(|x| x.names.iter().cloned()).collect()
-        });
-        if answered.contains(o) {
+        let answered = if self.rec.len() <= SCANNED {
+            self.rec.values().any(|x| x.kind == Kind::Answer && x.names.contains(o))
+        } else {
+            self.answered
+                .get_or_init(|| {
+                    self.rec.values().filter(|x| x.kind == Kind::Answer).flat_map(|x| x.names.iter().cloned()).collect()
+                })
+                .contains(o)
+        };
+        if answered {
             return WindowState::Answered;
         }
         let r = &self.rec[o];
@@ -541,6 +554,9 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
 
     /// The held ids no held row names: what a checkpoint names.
     pub fn tips(&self) -> Vec<I> {
+        if self.rec.len() <= SCANNED {
+            return self.rec.keys().filter(|i| !self.rec.values().any(|r| r.names.contains(i))).cloned().collect();
+        }
         let named = self.named.get_or_init(|| self.rec.values().flat_map(|r| r.names.iter().cloned()).collect());
         self.rec.keys().filter(|i| !named.contains(*i)).cloned().collect()
     }

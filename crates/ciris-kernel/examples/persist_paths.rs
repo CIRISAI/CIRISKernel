@@ -2,7 +2,10 @@
 //! dependency (the crate has none, and CI runs `--offline`). The rows are shaped as persist's adapter
 //! presents them (`src/kernel/` in CIRISPersist: a 32-byte row id, a `String` key, the seat fields).
 //!
-//!     cargo run --release --example persist_paths [filter] [--sizes 3,16,128]
+//!     cargo run --release --example persist_paths [filter | =name] [--sizes 3,16,128] [--list]
+//!
+//! A filter runs the benches whose names contain it; `=name` runs that one bench alone, and only its own
+//! section's setup (`tools/kernel_bench_ab.py` runs each bench so, in a process of its own).
 //!
 //! Prints one TSV line per bench: name, size, median nanoseconds per call, samples, iterations per sample,
 //! and allocations per call (a counting global allocator). A bench whose next size, read quadratically from
@@ -450,11 +453,32 @@ struct H {
     /// The last median of each bench, by name, with its size: a bench whose next size would take more
     /// than the budget, read quadratically from the last, is skipped and printed as such.
     last: std::cell::RefCell<BTreeMap<String, (usize, f64)>>,
+    /// Print each bench's name instead of running it (`--list`).
+    list: bool,
 }
 
 impl H {
+    /// Whether a section holds a bench the filter names: its setup is skipped otherwise, so a bench run alone
+    /// (`=name`, in a process of its own) has the same heap before it in every binary.
+    fn wants(&self, prefixes: &[&str]) -> bool {
+        self.filter.as_ref().is_none_or(|f| match f.strip_prefix('=') {
+            Some(x) => prefixes.iter().any(|p| x.starts_with(p)),
+            None => prefixes.iter().any(|p| p.contains(f.as_str()) || f.starts_with(p)),
+        })
+    }
+
+    fn named(&self, name: &str) -> bool {
+        self.filter.as_ref().is_none_or(|f| match f.strip_prefix('=') {
+            Some(x) => name == x,
+            None => name.contains(f.as_str()),
+        })
+    }
     fn run<T: PartialEq + std::fmt::Debug>(&self, name: &str, n: usize, mut f: impl FnMut() -> T) {
-        if self.filter.as_ref().is_some_and(|x| !name.contains(x.as_str())) {
+        if !self.named(name) {
+            return;
+        }
+        if self.list {
+            println!("{name}");
             return;
         }
         if let Some(&(m, ns)) = self.last.borrow().get(name) {
@@ -497,9 +521,14 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut sizes = vec![3usize, 16, 128, 1_024, 16_384];
     let mut filter = None;
+    let mut list = false;
     let mut i = 0;
     while i < args.len() {
-        if args[i] == "--sizes" {
+        if args[i] == "--list" {
+            list = true;
+            sizes = vec![3];
+            i += 1;
+        } else if args[i] == "--sizes" {
             sizes = args[i + 1].split(',').map(|s| s.parse().unwrap()).collect();
             i += 2;
         } else {
@@ -507,125 +536,142 @@ fn main() {
             i += 1;
         }
     }
-    let h = H { filter, last: Default::default() };
+    let h = H { filter, last: Default::default(), list };
     let law = law();
-    println!("bench\tsize\tns_per_call\tsamples\titers\tallocs_per_call");
+    if !h.list {
+        println!("bench\tsize\tns_per_call\tsamples\titers\tallocs_per_call");
+    }
     for &n in &sizes {
-        // the graph
-        let d = dag::dag(n as u32, 3, 64, 7);
-        h.run("graph::Graph::new", n, || Graph::new(d.iter()).len());
-        h.run("graph::Graph::new+ancestors(last)", n, || Graph::new(d.iter()).depth(n - 1));
-
-        // the seat rule over a ballot, as persist first called it, and its parts
-        for (pol, v) in [("majority", n / 2 + 1), ("founder_only", 1), ("unanimous", n)] {
-            let rows = ballot(n, v, pol);
-            h.run(&format!("seat::seat_rule/ballot/{pol}"), n, || {
-                let c = concluded(&rows, &law);
-                c.concluded(c.g.len() - 1)
-            });
+        let gobj = Obj::Row(rid(0, 0));
+        if h.wants(&["graph::"]) {
+            // the graph
+            let d = dag::dag(n as u32, 3, 64, 7);
+            h.run("graph::Graph::new", n, || Graph::new(d.iter()).len());
+            h.run("graph::Graph::new+ancestors(last)", n, || Graph::new(d.iter()).depth(n - 1));
         }
-        // the same counts over the roster already resolved (persist's `consensus::count` shape): the sets given,
-        // and the sets built from the roster's keys on every call, as persist's adapter builds them
-        let keys: Vec<String> = (0..n).map(key).collect();
-        for (pol, v) in [("majority", n / 2 + 1), ("founder_only", 1), ("unanimous", n)] {
-            let policy = law.policy.get(pol).copied();
-            let to = [key(n + 7)];
-            let mem: BTreeSet<&str> = keys.iter().map(String::as_str).collect();
-            let vs: BTreeSet<&str> = keys[..v.max(1)].iter().map(String::as_str).collect();
-            let to_s: Vec<&str> = to.iter().map(String::as_str).collect();
-            h.run(&format!("seat::group_count/{pol}"), n, || {
-                let c = GroupCount { policy, offer: true, to: &to_s, members: &mem, voices: &vs, need: None };
-                group_count(&c, |_| 1)
-            });
-            h.run(&format!("seat::group_count+sets/{pol}"), n, || {
+        if h.wants(&["seat::seat_rule/"]) {
+            // the seat rule over a ballot, as persist first called it, and its parts
+            for (pol, v) in [("majority", n / 2 + 1), ("founder_only", 1), ("unanimous", n)] {
+                let rows = ballot(n, v, pol);
+                h.run(&format!("seat::seat_rule/ballot/{pol}"), n, || {
+                    let c = concluded(&rows, &law);
+                    c.concluded(c.g.len() - 1)
+                });
+            }
+        }
+        // <group_count>
+        if h.wants(&["seat::group_count"]) {
+            // the same counts over the roster already resolved (persist's `consensus::count` shape): the sets given,
+            // and the sets built from the roster's keys on every call, as persist's adapter builds them
+            let keys: Vec<String> = (0..n).map(key).collect();
+            for (pol, v) in [("majority", n / 2 + 1), ("founder_only", 1), ("unanimous", n)] {
+                let policy = law.policy.get(pol).copied();
+                let to = [key(n + 7)];
                 let mem: BTreeSet<&str> = keys.iter().map(String::as_str).collect();
                 let vs: BTreeSet<&str> = keys[..v.max(1)].iter().map(String::as_str).collect();
-                let c = GroupCount { policy, offer: true, to: &to_s, members: &mem, voices: &vs, need: None };
-                group_count(&c, |_| 1)
-            });
-            let rows = ballot(n, v, pol);
-            h.run(&format!("seat::group_count=seat_rule/{pol}"), n, || {
-                let c = concluded(&rows, &law);
-                let direct = GroupCount { policy, offer: true, to: &to_s, members: &mem, voices: &vs, need: None };
-                assert_eq!(c.concluded(c.g.len() - 1), group_count(&direct, |_| 1), "{pol}/{n}");
-                0u8
-            });
+                let to_s: Vec<&str> = to.iter().map(String::as_str).collect();
+                h.run(&format!("seat::group_count/{pol}"), n, || {
+                    let c = GroupCount { policy, offer: true, to: &to_s, members: &mem, voices: &vs, need: None };
+                    group_count(&c, |_| 1)
+                });
+                h.run(&format!("seat::group_count+sets/{pol}"), n, || {
+                    let mem: BTreeSet<&str> = keys.iter().map(String::as_str).collect();
+                    let vs: BTreeSet<&str> = keys[..v.max(1)].iter().map(String::as_str).collect();
+                    let c = GroupCount { policy, offer: true, to: &to_s, members: &mem, voices: &vs, need: None };
+                    group_count(&c, |_| 1)
+                });
+                let rows = ballot(n, v, pol);
+                h.run(&format!("seat::group_count=seat_rule/{pol}"), n, || {
+                    let c = concluded(&rows, &law);
+                    let direct = GroupCount { policy, offer: true, to: &to_s, members: &mem, voices: &vs, need: None };
+                    assert_eq!(c.concluded(c.g.len() - 1), group_count(&direct, |_| 1), "{pol}/{n}");
+                    0u8
+                });
+            }
         }
-        let rows = ballot(n, n / 2 + 1, "majority");
-        let c = concluded(&rows, &law);
-        let last = c.g.len() - 1;
-        let anc: Vec<usize> = c.g.ancestors(last).iter().filter(|&q| c.concluded(q)).collect();
-        let p = Past { g: &c.g, i: last, p: &anc };
-        let gobj = Obj::Row(rid(0, 0));
-        let head = [rid(2, 0)];
-        h.run("seat::members_at", n, || seat::members_at(&p, &law, &NoCut, &gobj, &head, "member").len());
-        h.run("seat::voices", n, || seat::voices(p.row(), &p).len());
-        h.run("seat::left_in_past", n, || seat::left_in_past(&p, &gobj, "member").len());
-        h.run("seat::met", n, || seat::met(Some(Policy::Strict(1, 2)), black_box(n / 2 + 1), black_box(n), None));
-        h.run("seat::Seats::new", n, || Seats::new(&c, &law, &NoCut, None).recs.len());
-        let s = Seats::new(&c, &law, &NoCut, None);
-        h.run("seat::Seats::holders", n, || s.holders("member", &gobj, None).len());
-        h.run("seat::Seats::one", n, || s.one("member", &gobj));
-
-        // the owner seat
-        let rows = owner(n);
-        let node = Obj::Key(key(1_000_000));
-        h.run("owner/conclude+Seats::holders", n, || {
+        // </group_count>
+        if h.wants(&["seat::members_at", "seat::voices", "seat::left_in_past", "seat::met", "seat::Seats::new", "seat::Seats::holders", "seat::Seats::one"]) {
+            let rows = ballot(n, n / 2 + 1, "majority");
             let c = concluded(&rows, &law);
-            Seats::new(&c, &law, &NoCut, None).holders("owner", &node, None).len()
-        });
-        let c = concluded(&rows, &law);
-        h.run("owner/Seats::new+one", n, || Seats::new(&c, &law, &NoCut, None).one("owner", &node));
-
-        // the trust walk
-        let e = chain_edges(n, n);
-        let last_key = key(n);
-        let near = key(3.min(n));
-        h.run("trust::reaches/hit", n, || trust::reaches(&e, &key(0), &(), trust::HOP_CAP, &near));
-        h.run("trust::reaches/miss", n, || trust::reaches(&e, &key(0), &(), trust::HOP_CAP, &key(n + 9)));
-        h.run("trust::honours", n, || trust::honours(&e, &key(0), |_, _| true, &last_key, &()));
-        let pairs: Vec<(String, String)> = e.iter().map(|x| (x.src.clone(), x.dst.clone())).collect();
-        h.run("derived::reach/5", n, || derived::reach(&key(0), 5, &pairs).len());
-
-        // the reader's line
-        let rows = ledger(n);
-        let c = concluded(&rows, &law);
-        let own = key(0);
-        h.run("line::settle", n, || line::settle(&c, &SeatLine, &gobj, Some(&own), |_| true).len());
-        h.run("line::void", n, || line::void(&c, &SeatLine, Some(&own), |_| true).len());
-        let s = Seats::new(&c, &law, &NoCut, None);
-        h.run("seat::Seats::tips", n, || s.tips(&gobj).len());
-
-        // head
-        let store = head_store(n);
-        h.run("head::View::new", n, || head::View::new(&store, &[], 0u32, Reading::Broad, true).c.len());
-        let v = head::View::new(&store, &[], 0u32, Reading::Broad, true);
-        h.run("head::View::answers", n, || v.answers(10).counts_at.len());
-        h.run("head::View::settled(one act)", n, || v.settled(&1));
-        h.run("head::purge", n, || head::purge(&store, 0u32, 10, Reading::Broad).0.len());
-
-        // window
-        let rows = window_rows(n);
-        let spec = window_spec();
-        let tables = |w: &String| if w == "w" { Some(spec.clone()) } else { None };
-        let rule = |p: &Past<'_, '_, B>| {
-            window::rule(p, &tables, &law, &NoCut).unwrap_or_else(|| seat::seat_rule(p, &law, &NoCut, &|_| true))
-        };
-        h.run("window::rule/conclude", n, || {
+            let last = c.g.len() - 1;
+            let anc: Vec<usize> = c.g.ancestors(last).iter().filter(|&q| c.concluded(q)).collect();
+            let p = Past { g: &c.g, i: last, p: &anc };
+            let head = [rid(2, 0)];
+            h.run("seat::members_at", n, || seat::members_at(&p, &law, &NoCut, &gobj, &head, "member").len());
+            h.run("seat::voices", n, || seat::voices(p.row(), &p).len());
+            h.run("seat::left_in_past", n, || seat::left_in_past(&p, &gobj, "member").len());
+            h.run("seat::met", n, || seat::met(Some(Policy::Strict(1, 2)), black_box(n / 2 + 1), black_box(n), None));
+            h.run("seat::Seats::new", n, || Seats::new(&c, &law, &NoCut, None).recs.len());
+            let s = Seats::new(&c, &law, &NoCut, None);
+            h.run("seat::Seats::holders", n, || s.holders("member", &gobj, None).len());
+            h.run("seat::Seats::one", n, || s.one("member", &gobj));
+        }
+        if h.wants(&["owner/"]) {
+            // the owner seat
+            let rows = owner(n);
+            let node = Obj::Key(key(1_000_000));
+            h.run("owner/conclude+Seats::holders", n, || {
+                let c = concluded(&rows, &law);
+                Seats::new(&c, &law, &NoCut, None).holders("owner", &node, None).len()
+            });
+            let c = concluded(&rows, &law);
+            h.run("owner/Seats::new+one", n, || Seats::new(&c, &law, &NoCut, None).one("owner", &node));
+        }
+        if h.wants(&["trust::", "derived::"]) {
+            // the trust walk
+            let e = chain_edges(n, n);
+            let last_key = key(n);
+            let near = key(3.min(n));
+            h.run("trust::reaches/hit", n, || trust::reaches(&e, &key(0), &(), trust::HOP_CAP, &near));
+            h.run("trust::reaches/miss", n, || trust::reaches(&e, &key(0), &(), trust::HOP_CAP, &key(n + 9)));
+            h.run("trust::honours", n, || trust::honours(&e, &key(0), |_, _| true, &last_key, &()));
+            let pairs: Vec<(String, String)> = e.iter().map(|x| (x.src.clone(), x.dst.clone())).collect();
+            h.run("derived::reach/5", n, || derived::reach(&key(0), 5, &pairs).len());
+        }
+        if h.wants(&["line::", "seat::Seats::tips"]) {
+            // the reader's line
+            let rows = ledger(n);
+            let c = concluded(&rows, &law);
+            let own = key(0);
+            h.run("line::settle", n, || line::settle(&c, &SeatLine, &gobj, Some(&own), |_| true).len());
+            h.run("line::void", n, || line::void(&c, &SeatLine, Some(&own), |_| true).len());
+            let s = Seats::new(&c, &law, &NoCut, None);
+            h.run("seat::Seats::tips", n, || s.tips(&gobj).len());
+        }
+        if h.wants(&["head::"]) {
+            // head
+            let store = head_store(n);
+            h.run("head::View::new", n, || head::View::new(&store, &[], 0u32, Reading::Broad, true).c.len());
+            let v = head::View::new(&store, &[], 0u32, Reading::Broad, true);
+            h.run("head::View::answers", n, || v.answers(10).counts_at.len());
+            h.run("head::View::settled(one act)", n, || v.settled(&1));
+            h.run("head::purge", n, || head::purge(&store, 0u32, 10, Reading::Broad).0.len());
+        }
+        if h.wants(&["window::"]) {
+            // window
+            let rows = window_rows(n);
+            let spec = window_spec();
+            let tables = |w: &String| if w == "w" { Some(spec.clone()) } else { None };
+            let rule = |p: &Past<'_, '_, B>| {
+                window::rule(p, &tables, &law, &NoCut).unwrap_or_else(|| seat::seat_rule(p, &law, &NoCut, &|_| true))
+            };
+            h.run("window::rule/conclude", n, || {
+                let c = layers::conclude(rows.iter(), rule, None);
+                c.concluded(c.g.len() - 1)
+            });
             let c = layers::conclude(rows.iter(), rule, None);
-            c.concluded(c.g.len() - 1)
-        });
-        let c = layers::conclude(rows.iter(), rule, None);
-        let op = c.g.idx(&rid(8, 0)).unwrap();
-        h.run("window::outcome", n, || window::outcome(&c, op, &tables, &law, &NoCut, &|_| true));
-
-        // key end
-        let rows = key_rows(n);
-        let c = layers::conclude(rows.iter(), key_end::conclude_rule, None);
-        let k0 = key(1);
-        h.run("key_end::live", n, || key_end::live(&c, &k0, 20));
-        h.run("key_end::ended", n, || key_end::ended(&c, &k0, 60));
-        h.run("key_end::retained", n, || key_end::retained(&c, 60).len());
-        h.run("key_end::conclude", n, || layers::conclude(rows.iter(), key_end::conclude_rule, None).cs().len());
+            let op = c.g.idx(&rid(8, 0)).unwrap();
+            h.run("window::outcome", n, || window::outcome(&c, op, &tables, &law, &NoCut, &|_| true));
+        }
+        if h.wants(&["key_end::"]) {
+            // key end
+            let rows = key_rows(n);
+            let c = layers::conclude(rows.iter(), key_end::conclude_rule, None);
+            let k0 = key(1);
+            h.run("key_end::live", n, || key_end::live(&c, &k0, 20));
+            h.run("key_end::ended", n, || key_end::ended(&c, &k0, 60));
+            h.run("key_end::retained", n, || key_end::retained(&c, 60).len());
+            h.run("key_end::conclude", n, || layers::conclude(rows.iter(), key_end::conclude_rule, None).cs().len());
+        }
     }
 }

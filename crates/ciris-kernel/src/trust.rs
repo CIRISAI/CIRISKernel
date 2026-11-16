@@ -56,13 +56,18 @@ pub fn reaches<K: Ord + Clone, C: PartialEq>(edges: &[Accepts<K, C>], from: &K, 
             by_src = (0..edges.len()).collect();
             by_src.sort_by(|&x, &y| edges[x].src.cmp(&edges[y].src));
         }
-        let hits: &mut dyn Iterator<Item = &Accepts<K, C>> = if expanded < index_at {
-            &mut edges.iter().filter(|e| e.src == *k)
+        // the edges from k: a scan of all of them, or their run in the index
+        let (lo, hi) = if expanded < index_at {
+            (0, edges.len())
         } else {
             let lo = by_src.partition_point(|&x| edges[x].src < *k);
-            &mut by_src[lo..].iter().map(|&x| &edges[x]).take_while(|e| e.src == *k)
+            (lo, by_src.partition_point(|&x| edges[x].src <= *k))
         };
-        for e in hits.filter(|e| e.admits(c)) {
+        for j in lo..hi {
+            let e = if expanded < index_at { &edges[j] } else { &edges[by_src[j]] };
+            if e.src != *k || !e.admits(c) {
+                continue;
+            }
             if e.dst == *a {
                 return true;
             }
