@@ -176,15 +176,24 @@ Kept as it was, after the A/B showed the change slower: `trust::reaches` (borrow
 comparison, more than the copies saved; sorting the edges inside one walk cost more than a short walk's
 scans), and `key_end::live`/`ended` (one pass lost the early exit of `records().any`).
 
-**Correctness.** After each change: `cargo test --release`, 24 conformance runs. That is the 18 the crate
-carried (937,355 cases against the Python models, the Lean worked worlds and TLC's states) and six new ones in
-`tests/fast_paths.rs` and `tests/purge.rs`, each a faster path against the definition it replaced, kept
-there as the oracle. Final: 6,385,142 cases, 0 disagreements. `tools/kernel_crate_plants.sh` has 36 plants:
-the 17 it had (the two count plants follow the code into `group_count`, and the `open:self_admit` removal the
-first of them used to hit is planted on its own) and 19 for the new paths (a cache that answers for another
-object or scope, an index filed under one key, the frontier's walk cut short, the no-cut shortcut taken with
-cuts, ...). No proof or model changed. `FORMAL_GAPS.md` lists `group_count` under the theorems of the counts it
-is the code of, `members_in_scopes` under `members_at`'s, and the frontier's walk under the closure's cases.
+**Correctness.** After each change: `cargo test --release`, now 25 conformance runs. That is the 18 the
+crate carried (937,355 cases against the Python models, the Lean worked worlds and TLC's states) and seven new
+ones in `tests/fast_paths.rs` and `tests/purge.rs`, each a faster path against the definition it replaced,
+kept there as the oracle. Final: 6,397,142 cases, 0 disagreements. `check.sh` on `ffc1e0a` passed 16 of its 17 steps: 602 Lean
+theorems, the model checks, the no_std and wasm builds (0 dependencies), conformance, and TLC (5 specs,
+each with its plant caught). Plants read 34 of 35 (below). After `e5b412a` (a test only) the plants and
+conformance steps were rerun: 35 of 35 caught, and 25 runs, 6,397,142 cases, 0 disagreements. The crate also builds on MSRV 1.89, and `fmt --check` and `clippy
+--all-targets -D warnings` are clean.
+
+`tools/kernel_crate_plants.sh` has 35 plants. Fifteen are the plants it had; the two count plants follow the
+code into `group_count`. The `open:self_admit` removal line, which the first of them used to hit, is planted on
+its own. Nineteen are new, one per faster path: a cache that answers for another object or scope, an index
+filed under one key, the frontier's walk cut short, the no-cut shortcut taken with cuts, and so on. The first
+full run caught 34 of 35. Dropping the reader's line's live filter changed no answer the corpus reads,
+so `fast_paths` gained `line::settle` against the base's code (12,000 cases; 317 disagree under the plant).
+
+No proof or model changed. `FORMAL_GAPS.md` lists `group_count` under the theorems of the counts it is the
+code of, `members_in_scopes` under `members_at`'s, and the frontier's walk under the closure's cases.
 
 ## 5. What persist's adapter should call
 
