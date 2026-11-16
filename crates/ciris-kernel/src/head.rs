@@ -292,14 +292,17 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         };
         // depths first: an entry on a cycle of names, or naming one, waits; no kept store holds it, so the
         // view leaves it out
-        let all: Vec<I> = me.rec.keys().cloned().collect();
-        for i in &all {
+        let mut ids: Vec<I> = me.rec.keys().cloned().collect();
+        for i in &ids {
             me.depth_of(i);
         }
         let gone: Vec<I> = me.depth.iter().filter(|(_, d)| **d == WAIT).map(|(i, _)| i.clone()).collect();
-        for i in &gone {
-            me.rec.remove(i);
-            me.depth.remove(i);
+        if !gone.is_empty() {
+            for i in &gone {
+                me.rec.remove(i);
+                me.depth.remove(i);
+            }
+            ids.retain(|i| me.rec.contains_key(i));
         }
         let index = me.rec.len() > scanned;
         for (i, r) in &me.rec {
@@ -319,7 +322,6 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         me.by_of.sort();
         me.answered.sort();
         me.answered.dedup();
-        let ids: Vec<I> = me.rec.keys().cloned().collect();
         let mut by_depth = ids.clone();
         by_depth.sort_by_key(|i| me.depth[i]);
         for i in &by_depth {
@@ -371,15 +373,15 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         while let Some(x) = stack.last().cloned() {
             match self.depth.get(&x).copied() {
                 None => {
-                    // ON before what it names is read: a name of its own then reads as a cycle
+                    // never pushed onto itself: a name of its own is read as a cycle when it is finished
                     let pending: Vec<I> = self.rec[&x]
                         .names
                         .iter()
                         .filter(|n| **n != x && !self.depth.contains_key(*n))
                         .cloned()
                         .collect();
-                    self.depth.insert(x.clone(), ON);
                     if !pending.is_empty() {
+                        self.depth.insert(x, ON);
                         stack.extend(pending);
                         continue;
                     }
@@ -392,6 +394,10 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             }
             let (mut top, mut waits) = (0, false);
             for n in &self.rec[&x].names {
+                if *n == x {
+                    waits = true; // a name of its own: a cycle of one
+                    continue;
+                }
                 let d = self.depth[n];
                 if d >= WAIT {
                     waits = true; // a named entry on the stack (a cycle), or waiting
