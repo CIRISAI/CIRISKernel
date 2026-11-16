@@ -928,21 +928,23 @@ pub fn group_count<K: Ord>(c: &GroupCount<'_, K>, weight: impl Fn(&K) -> u64) ->
         let yes: BTreeSet<&K> = v.iter().filter(|k| mem.contains(*k)).collect();
         return duty_count_keys(pol == Some(Policy::DutyWithdraw), to, &yes, mem);
     }
-    // no key admits itself (CC 2.7.5): a key the row seats or removes is no voice of the count
-    let yes: BTreeSet<&K> = v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).collect();
+    // no key admits itself (CC 2.7.5): a key the row seats or removes is no voice of the count. The voices
+    // that are members, ascending and each once, read off the two sorted sets with no set built.
+    let yes = || v.intersection(mem).filter(|k| !to.contains(k));
     if pol == Some(Policy::Weighted) {
-        let sum: u64 = yes.iter().map(|k| weight(k)).sum();
+        let sum: u64 = yes().map(&weight).sum();
         return need.is_some_and(|t| t > 0 && sum >= t as u64);
     }
+    let n_yes = yes().count();
     if pol == Some(Policy::Unanimous) {
         let others = mem.iter().filter(|k| !to.contains(k)).count();
         return if is_offer {
-            !mem.is_empty() && yes.len() == others && to.iter().all(|k| !mem.contains(k) || v.contains(k))
+            !mem.is_empty() && n_yes == others && to.iter().all(|k| !mem.contains(k) || v.contains(k))
         } else {
-            yes.len() == others && 2 * yes.len() > mem.len()
+            n_yes == others && 2 * n_yes > mem.len()
         };
     }
-    met(pol, yes.len(), mem.len(), need)
+    met(pol, n_yes, mem.len(), need)
 }
 
 fn duty_count_keys<K: Ord>(withdraw: bool, to: &[K], yes: &BTreeSet<&K>, mem: &BTreeSet<K>) -> bool {

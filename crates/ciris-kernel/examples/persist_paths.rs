@@ -18,7 +18,7 @@ use ciris_kernel::head::{self, Entry, Kind, Reading};
 use ciris_kernel::key_end::{self, EndRule, KeyEndRow, Record};
 use ciris_kernel::layers::{self, Concluded, Past};
 use ciris_kernel::line;
-use ciris_kernel::seat::{self, Conf, Obj, Policy, SeatKind, SeatLaw, SeatLine, SeatRow, Seats};
+use ciris_kernel::seat::{self, group_count, Conf, GroupCount, Obj, Policy, SeatKind, SeatLaw, SeatLine, SeatRow, Seats};
 use ciris_kernel::trust::{self, Accepts};
 use ciris_kernel::window::{self, Base, Clause, How, WinKind, WindowRow, WindowSpec};
 use ciris_kernel::{derived, Row};
@@ -522,6 +522,33 @@ fn main() {
             h.run(&format!("seat::seat_rule/ballot/{pol}"), n, || {
                 let c = concluded(&rows, &law);
                 c.concluded(c.g.len() - 1)
+            });
+        }
+        // the same counts over the roster already resolved (persist's `consensus::count` shape): the sets given,
+        // and the sets built from the roster's keys on every call, as persist's adapter builds them
+        let keys: Vec<String> = (0..n).map(key).collect();
+        for (pol, v) in [("majority", n / 2 + 1), ("founder_only", 1), ("unanimous", n)] {
+            let policy = law.policy.get(pol).copied();
+            let to = [key(n + 7)];
+            let mem: BTreeSet<&str> = keys.iter().map(String::as_str).collect();
+            let vs: BTreeSet<&str> = keys[..v.max(1)].iter().map(String::as_str).collect();
+            let to_s: Vec<&str> = to.iter().map(String::as_str).collect();
+            h.run(&format!("seat::group_count/{pol}"), n, || {
+                let c = GroupCount { policy, offer: true, to: &to_s, members: &mem, voices: &vs, need: None };
+                group_count(&c, |_| 1)
+            });
+            h.run(&format!("seat::group_count+sets/{pol}"), n, || {
+                let mem: BTreeSet<&str> = keys.iter().map(String::as_str).collect();
+                let vs: BTreeSet<&str> = keys[..v.max(1)].iter().map(String::as_str).collect();
+                let c = GroupCount { policy, offer: true, to: &to_s, members: &mem, voices: &vs, need: None };
+                group_count(&c, |_| 1)
+            });
+            let rows = ballot(n, v, pol);
+            h.run(&format!("seat::group_count=seat_rule/{pol}"), n, || {
+                let c = concluded(&rows, &law);
+                let direct = GroupCount { policy, offer: true, to: &to_s, members: &mem, voices: &vs, need: None };
+                assert_eq!(c.concluded(c.g.len() - 1), group_count(&direct, |_| 1), "{pol}/{n}");
+                0u8
             });
         }
         let rows = ballot(n, n / 2 + 1, "majority");
