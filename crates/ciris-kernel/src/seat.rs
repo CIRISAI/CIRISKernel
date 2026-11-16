@@ -25,6 +25,7 @@ use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
 use alloc::vec::Vec;
+use core::cell::RefCell;
 
 /// What a seat is over: a row (a group is the row that founded it) or a key.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -311,6 +312,11 @@ pub struct Live<I, K, W> {
     pub root: Root<I, K>,
 }
 
+/// Whether `k` signed row `r`: its signer or one of its cosigners (`signers(r).contains(k)`, with no set).
+fn signed_by<R: SeatRow>(r: &R, k: &R::Key) -> bool {
+    r.signer() == k || r.cosigners().contains(k)
+}
+
 fn signers<R: SeatRow>(r: &R) -> BTreeSet<R::Key> {
     let mut s: BTreeSet<R::Key> = r.cosigners().iter().cloned().collect();
     s.insert(r.signer().clone());
@@ -400,6 +406,10 @@ pub struct Seats<'c, 'a, R: SeatRow, S: CutSpec<R>> {
     pub stale: BTreeSet<usize>,
     /// Every live seat.
     pub recs: Vec<Live<R::Id, R::Key, R::Word>>,
+    /// [`Seats::tips`] and [`Seats::tips_common`] by object (and scope), kept once asked: the seats are fixed
+    /// when built, and no reader enters either (the reader's line is in `stale`).
+    tips_memo: RefCell<BTreeMap<ObjOf<R>, Vec<usize>>>,
+    common_memo: RefCell<BTreeMap<(String, ObjOf<R>), Option<BTreeSet<R::Key>>>>,
 }
 
 impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
@@ -409,40 +419,62 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let g = &c.g;
         let by: BTreeMap<&'a R::Id, &'a R> = g.rows().iter().map(|r| (r.id(), *r)).collect();
         let cs = c.cs();
-        let wd: Vec<&R> = cs.iter().map(|&i| g.row(i)).filter(|r| r.seat_kind() == SeatKind::Withdraw).collect();
-        let ended = |row: &R| wd.iter().any(|w| w.target() == Some(row.id()));
+        // the concluded withdrawals by the row they withdraw, and the concluded acceptances by their signer
+        let mut wd: BTreeMap<&R::Id, Vec<&R>> = BTreeMap::new();
+        let mut acc: BTreeMap<&R::Key, Vec<usize>> = BTreeMap::new();
+        for &i in cs {
+            let r = g.row(i);
+            match r.seat_kind() {
+                SeatKind::Withdraw => {
+                    if let Some(t) = r.target() {
+                        wd.entry(t).or_default().push(r);
+                    }
+                }
+                SeatKind::Accept => acc.entry(r.signer()).or_default().push(i),
+                _ => {}
+            }
+        }
+        let none: Vec<&R> = Vec::new();
+        let wd_of = |id: &R::Id| wd.get(id).unwrap_or(&none);
+        let ended = |row: &R| !wd_of(row.id()).is_empty();
         let eq = |o: &R| duty_seat(law, &by, o);
         let off_ended = |o: &R, k: &R::Key| {
-            wd.iter().any(|w| {
+            wd_of(o.id()).iter().any(|w| {
                 w.target() == Some(o.id())
                     && (w.signer() == k || (!o.to().contains(w.signer()) && o.conf() != Some(Conf::Group) && !eq(o)))
             })
         };
         let stale = line::void(c, &SeatLine, own, |i| cut.counts(i));
-        let unseats: Vec<usize> = cs
+        // each unseat that counts, with its object read once
+        let unseats: Vec<(usize, Option<ObjOf<R>>)> = cs
             .iter()
             .copied()
             .filter(|&i| g.row(i).seat_kind() == SeatKind::Unseat && cut.counts(i) && !stale.contains(&i))
+            .map(|i| (i, g.row(i).obj()))
             .collect();
         let member = |s: Option<&R::Word>| s.map(|x| x.as_ref()) == Some("member");
         let unseated = |oi: usize, k: &R::Key| {
+            if unseats.is_empty() {
+                return false;
+            }
             let o = g.row(oi);
             let dutyish = o.scope().is_some_and(|s| law.is_duty(s.as_ref(), &[])) || duty_seat(law, &by, o);
-            unseats.iter().any(|&u| {
-                let ur = g.row(u);
-                let same = ur.to().contains(k) && ur.obj() == o.obj();
+            let oo = o.obj();
+            unseats.iter().any(|(u, uo)| {
+                let (u, ur) = (*u, g.row(*u));
+                let same = ur.to().contains(k) && *uo == oo;
                 let held = same && (ur.scope() == o.scope() || (dutyish && member(ur.scope())));
                 held && g.in_past(oi, u)
             })
         };
         let accepted = |o: &R, k: &R::Key| {
-            if signers(o).contains(k) {
+            if signed_by(o, k) {
                 return true;
             }
             if o.consent_one() {
                 return o.conf() != Some(Conf::Seat);
             }
-            cs.iter().any(|&a| {
+            acc.get(k).is_some_and(|accs| accs.iter().any(|&a| {
                 let ar = g.row(a);
                 if ar.seat_kind() != SeatKind::Accept || ar.signer() != k {
                     return false;
@@ -453,7 +485,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                         && ar.scope() == o.scope()
                         && ar.obj().is_none_or(|x| Some(x) == o.obj()));
                 paired && !ended(ar) && cut.counts(a)
-            })
+            }))
         };
         let mut base: Vec<(usize, R::Key)> = Vec::new();
         for &oi in cs {
@@ -525,7 +557,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 Some(Live { offer: oid, k, scope: o.scope()?.clone(), obj: o.obj()?, depth, root })
             })
             .collect();
-        Seats { c, cut, law, spec, by, stale, recs }
+        Seats { c, cut, law, spec, by, stale, recs, tips_memo: RefCell::default(), common_memo: RefCell::default() }
     }
 
     fn has(&self, rec: &Live<R::Id, R::Key, R::Word>, s: &str) -> bool {
@@ -565,6 +597,15 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
 
     /// The frontier of the counted acts on `o` that count, with its founding row.
     pub fn tips(&self, o: &ObjOf<R>) -> Vec<usize> {
+        if let Some(t) = self.tips_memo.borrow().get(o) {
+            return t.clone();
+        }
+        let t = self.tips_of(o);
+        self.tips_memo.borrow_mut().insert(o.clone(), t.clone());
+        t
+    }
+
+    fn tips_of(&self, o: &ObjOf<R>) -> Vec<usize> {
         let g = &self.c.g;
         let acts: Vec<usize> = self
             .c
@@ -585,6 +626,16 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
 
     /// With several tips, the keys holding `s` over `o` common to all of them; `None` with one tip or none.
     pub fn tips_common(&self, s: &str, o: &ObjOf<R>) -> Option<BTreeSet<R::Key>> {
+        let key = (String::from(s), o.clone());
+        if let Some(t) = self.common_memo.borrow().get(&key) {
+            return t.clone();
+        }
+        let t = self.common_of(s, o);
+        self.common_memo.borrow_mut().insert(key, t.clone());
+        t
+    }
+
+    fn common_of(&self, s: &str, o: &ObjOf<R>) -> Option<BTreeSet<R::Key>> {
         let tp = self.tips(o);
         if tp.len() <= 1 {
             return None;
@@ -634,8 +685,20 @@ pub fn members_at<R: SeatRow, S: CutSpec<R>>(
     heads: &[R::Id],
     scope: &str,
 ) -> BTreeSet<R::Key> {
-    let rows: Vec<&R> = p.rows().collect();
-    members_in(&rows, &|a, b| p.past(a, b), law, spec, obj, heads, scope)
+    // as members_in over p's rows with p's closure, read by index: a head's past is taken whole once
+    let g = p.g;
+    let mut out: Option<BTreeSet<R::Key>> = None;
+    for h in heads {
+        let Some(hi) = g.idx(h).filter(|hi| p.p.contains(hi)) else { return BTreeSet::new() };
+        let past = g.ancestors(hi);
+        let sc = concluded_over(p.p.iter().filter(|&&q| q == hi || past.has(q)).map(|&q| g.row(q)));
+        let m = Seats::new(&sc, law, spec, None).holders(scope, obj, None);
+        out = Some(match out {
+            None => m,
+            Some(x) => x.intersection(&m).cloned().collect(),
+        });
+    }
+    out.unwrap_or_default()
 }
 
 /// [`members_at`] over any concluded rows, with the closure given as `past(a, b)`: a in the past of b.
@@ -784,37 +847,9 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
                             && ranked(&ballots, r.options(), 2, false).0.as_ref() == r.to().first();
                     }
                     let v = voices(r, p);
-                    if pol == Some(Policy::SelfAdmit) {
-                        // the joiner's own signature is the group's side; a removal takes two voices besides
-                        // the member it names
-                        return if is_offer && r.to().len() == 1 && !mem.contains(&r.to()[0]) {
-                            v.contains(&r.to()[0])
-                        } else {
-                            v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).count() >= 2
-                        };
-                    }
-                    if matches!(pol, Some(Policy::DutyConfer) | Some(Policy::DutyWithdraw)) {
-                        let yes: BTreeSet<&R::Key> = v.iter().filter(|k| mem.contains(*k)).collect();
-                        return duty_count_keys(pol == Some(Policy::DutyWithdraw), r.to(), &yes, &mem);
-                    }
-                    // no key admits itself (CC 2.7.5): a key the row seats or removes is no voice of the count
-                    let yes: BTreeSet<&R::Key> = v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).collect();
-                    if pol == Some(Policy::Weighted) {
-                        let sum: u64 =
-                            yes.iter().map(|k| r.weights().iter().find(|(w, _)| w == *k).map_or(0, |(_, x)| *x)).sum();
-                        return r.need().is_some_and(|t| t > 0 && sum >= t as u64);
-                    }
-                    if pol == Some(Policy::Unanimous) {
-                        let others = mem.iter().filter(|k| !r.to().contains(k)).count();
-                        return if is_offer {
-                            !mem.is_empty()
-                                && yes.len() == others
-                                && r.to().iter().all(|k| !mem.contains(k) || v.contains(k))
-                        } else {
-                            yes.len() == others && 2 * yes.len() > mem.len()
-                        };
-                    }
-                    met(pol, yes.len(), mem.len(), r.need())
+                    let count =
+                        GroupCount { policy: pol, offer: is_offer, to: r.to(), members: &mem, voices: &v, need: r.need() };
+                    group_count(&count, |k| r.weights().iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x))
                 }
                 None => false,
             }
@@ -825,13 +860,71 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
         },
         SeatKind::Withdraw => match r.target().and_then(|t| by.get(t)) {
             Some(t) => {
-                signers(*t).contains(r.signer()) || (t.seat_kind() == SeatKind::Offer && t.to().contains(r.signer()))
+                signed_by(*t, r.signer()) || (t.seat_kind() == SeatKind::Offer && t.to().contains(r.signer()))
             }
             None => false,
         },
         SeatKind::Cosign => true,
         _ => other(p),
     }
+}
+
+/// What a group's count reads, once the caller has resolved it: the count the policy row names, whether the
+/// row is an offer (else an unseat), the keys it seats or removes, the members of the counted scope at the head
+/// it names less those whose own leaving is in its past ([`members_at`], [`left_in_past`]), and its voices
+/// ([`voices`]). Keys are whatever the caller counts by (KERNEL.md 7b: persist counts persons).
+#[derive(Clone, Copy, Debug)]
+pub struct GroupCount<'a, K> {
+    /// The count, from the policy table.
+    pub policy: Option<Policy>,
+    /// An offer (true) or an unseat (false).
+    pub offer: bool,
+    /// The keys the row seats or removes (`SeatRow::to`).
+    pub to: &'a [K],
+    /// The members at the head, less those whose own leaving is in the row's past.
+    pub members: &'a BTreeSet<K>,
+    /// The keys that signed the row (`voices`).
+    pub voices: &'a BTreeSet<K>,
+    /// The threshold the row declares (`SeatRow::need`).
+    pub need: Option<usize>,
+}
+
+/// Whether a group's count is met: [`seat_rule`]'s `Conf::Group` arm after the members and voices are read,
+/// and the very code that arm runs. `weight` is a key's whole-number weight (a `weighted` count). Every policy
+/// but [`Policy::Ranked`], which is a tally of the ballots the row names (`ranked::ranked`), not a count of
+/// voices: here, as in [`met`], it is false.
+///
+/// A caller that already holds the roster at the head (persist resolves a ballot's) answers here directly,
+/// without presenting the roster as rows: the same answer as the seat rule over those rows, with no graph.
+pub fn group_count<K: Ord>(c: &GroupCount<'_, K>, weight: impl Fn(&K) -> u64) -> bool {
+    let GroupCount { policy: pol, offer: is_offer, to, members: mem, voices: v, need } = *c;
+    if pol == Some(Policy::SelfAdmit) {
+        // the joiner's own signature is the group's side; a removal takes two voices besides the member it names
+        return if is_offer && to.len() == 1 && !mem.contains(&to[0]) {
+            v.contains(&to[0])
+        } else {
+            v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).count() >= 2
+        };
+    }
+    if matches!(pol, Some(Policy::DutyConfer) | Some(Policy::DutyWithdraw)) {
+        let yes: BTreeSet<&K> = v.iter().filter(|k| mem.contains(*k)).collect();
+        return duty_count_keys(pol == Some(Policy::DutyWithdraw), to, &yes, mem);
+    }
+    // no key admits itself (CC 2.7.5): a key the row seats or removes is no voice of the count
+    let yes: BTreeSet<&K> = v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).collect();
+    if pol == Some(Policy::Weighted) {
+        let sum: u64 = yes.iter().map(|k| weight(k)).sum();
+        return need.is_some_and(|t| t > 0 && sum >= t as u64);
+    }
+    if pol == Some(Policy::Unanimous) {
+        let others = mem.iter().filter(|k| !to.contains(k)).count();
+        return if is_offer {
+            !mem.is_empty() && yes.len() == others && to.iter().all(|k| !mem.contains(k) || v.contains(k))
+        } else {
+            yes.len() == others && 2 * yes.len() > mem.len()
+        };
+    }
+    met(pol, yes.len(), mem.len(), need)
 }
 
 fn duty_count_keys<K: Ord>(withdraw: bool, to: &[K], yes: &BTreeSet<&K>, mem: &BTreeSet<K>) -> bool {

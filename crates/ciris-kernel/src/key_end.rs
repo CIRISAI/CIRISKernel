@@ -11,7 +11,7 @@
 use crate::graph::Bits;
 use crate::layers::{Concluded, Past};
 use crate::Row;
-use alloc::collections::BTreeSet;
+use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
 
 /// Whether a record must, must not, or may state an end. The caller reads it from the record alone: CC
@@ -157,18 +157,40 @@ pub fn ended<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, now: R::T) -> bool 
 /// The rows that have not lapsed at `now`: every concluded row of a key that has not ended, every
 /// revocation, and everything in their past.
 pub fn retained<R: KeyEndRow>(c: &Concluded<'_, R>, now: R::T) -> BTreeSet<usize> {
-    let mut b = Bits::new(c.g.len());
+    // `ended` for every key at once: its earliest self-revocation, and whether every record of it ends by now
+    let mut rev: BTreeMap<&R::Key, R::T> = BTreeMap::new();
+    let mut open: BTreeSet<&R::Key> = BTreeSet::new();
     for &i in c.cs() {
         let r = c.g.row(i);
-        let seed = if r.revocation().is_some() {
-            true
-        } else {
-            let k = r.record().map(|x| x.key).unwrap_or(r.signer());
-            !ended(c, k, now)
-        };
-        if seed {
+        if let Some((rk, a)) = r.revocation() {
+            if rk == r.signer() {
+                rev.entry(rk).and_modify(|x| *x = core::cmp::min(*x, a)).or_insert(a);
+            }
+        }
+        if let Some(x) = r.record() {
+            if !x.until.is_some_and(|u| u <= now) {
+                open.insert(x.key);
+            }
+        }
+    }
+    let ended = |k: &R::Key| rev.get(k).is_some_and(|a| now >= *a) || !open.contains(k);
+    // the seeds and everything in their past, by one walk down what rows name
+    let mut b = Bits::new(c.g.len());
+    let mut todo: Vec<usize> = Vec::new();
+    for &i in c.cs() {
+        let r = c.g.row(i);
+        let seed = r.revocation().is_some() || !ended(r.record().map(|x| x.key).unwrap_or(r.signer()));
+        if seed && !b.has(i) {
             b.set(i);
-            b.union(c.g.ancestors(i));
+            todo.push(i);
+            while let Some(x) = todo.pop() {
+                for &p in c.g.named(x) {
+                    if !b.has(p) {
+                        b.set(p);
+                        todo.push(p);
+                    }
+                }
+            }
         }
     }
     b.iter().collect()

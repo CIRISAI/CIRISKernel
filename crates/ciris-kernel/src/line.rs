@@ -76,7 +76,8 @@ pub fn settle<R: Row, L: LineSpec<R>>(
     let line: BTreeSet<&R::Id> = acts.iter().map(|&i| c.g.row(i).id()).collect();
     let mut live: Vec<usize> = acts.iter().copied().filter(|&i| cut_counts(i)).collect();
     live.sort_by_key(|&i| c.g.level(i)); // ancestors first
-    let mine: BTreeSet<usize> = own_line(c, spec, own, obj).into_iter().filter(|i| live.contains(i)).collect();
+    let live_set: BTreeSet<usize> = live.iter().copied().collect();
+    let mine: BTreeSet<usize> = own_line(c, spec, own, obj).into_iter().filter(|i| live_set.contains(i)).collect();
     let heads = |i: usize| spec.counted_act(c.g.row(i)).map(|(_, h)| h).unwrap_or(&[]);
     let behind = |r: usize, m: usize| {
         m != r && c.g.concurrent(r, m) && older(c, heads(r), core::slice::from_ref(c.g.row(m).id()))

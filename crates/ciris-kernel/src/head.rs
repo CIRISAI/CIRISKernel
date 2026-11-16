@@ -167,6 +167,16 @@ pub struct View<I, K, T> {
     pub c: BTreeMap<I, bool>,
     /// The counted rows the reader's line holds void.
     pub v: BTreeSet<I>,
+    /// The held entries that name each act as theirs (`of`), by ascending id: its receipts and cuts.
+    by_of: BTreeMap<I, Vec<I>>,
+    /// The ids an answer names.
+    answered: BTreeSet<I>,
+    /// The ids any held entry names.
+    named: BTreeSet<I>,
+    /// Each roster version's members, as a set.
+    mem: BTreeMap<I, BTreeSet<K>>,
+    /// The heads this node has acknowledged.
+    acked: BTreeSet<I>,
 }
 
 /// The answers compared before and after a purge.
@@ -224,7 +234,25 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             depth: BTreeMap::new(),
             c: BTreeMap::new(),
             v: BTreeSet::new(),
+            by_of: BTreeMap::new(),
+            answered: BTreeSet::new(),
+            named: BTreeSet::new(),
+            mem: BTreeMap::new(),
+            acked: BTreeSet::new(),
         };
+        // the indexes every answer below reads, built once over the held entries
+        for (i, r) in &me.rec {
+            if let Some(o) = &r.of {
+                me.by_of.entry(o.clone()).or_default().push(i.clone());
+            }
+            if r.kind == Kind::Answer {
+                me.answered.extend(r.names.iter().cloned());
+            }
+            me.named.extend(r.names.iter().cloned());
+            if !r.members.is_empty() {
+                me.mem.insert(i.clone(), r.members.iter().cloned().collect());
+            }
+        }
         let ids: Vec<I> = me.rec.keys().cloned().collect();
         for i in &ids {
             me.depth_of(i);
@@ -243,8 +271,18 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             let c = me.concl(&me.rec[i]);
             me.c.insert(i.clone(), c);
         }
+        me.acked = me.acked_of();
         me.v = me.void_set(&by_depth);
         me
+    }
+
+    fn is_member(&self, head: &Option<I>, k: &K) -> bool {
+        head.as_ref().and_then(|h| self.mem.get(h)).is_some_and(|m| m.contains(k))
+    }
+
+    /// The held entries that name act `a` as theirs, ascending.
+    fn of_entries<'s>(&'s self, a: &I) -> impl Iterator<Item = &'s Entry<I, K, T>> + 's {
+        self.by_of.get(a).into_iter().flatten().map(move |i| &self.rec[i])
     }
 
     fn depth_of(&mut self, i: &I) -> usize {
@@ -283,11 +321,9 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             return r.concl; // Settled.checkpoint_conclusions: the stored conclusion
         }
         match r.kind {
-            Kind::Act => self.members(&r.head).contains(&r.signer),
+            Kind::Act => self.is_member(&r.head, &r.signer),
             Kind::Ack => match r.of.as_ref().and_then(|o| self.rec.get(o)) {
-                Some(act) => {
-                    self.anc[&r.id].contains(r.of.as_ref().unwrap()) && self.members(&act.head).contains(&r.signer)
-                }
+                Some(act) => self.anc[&r.id].contains(r.of.as_ref().unwrap()) && self.is_member(&act.head, &r.signer),
                 None => false,
             },
             Kind::ReaderAck => r.signer == self.own,
@@ -297,6 +333,10 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
 
     /// The heads this node has acknowledged.
     pub fn acked(&self) -> BTreeSet<I> {
+        self.acked.clone()
+    }
+
+    fn acked_of(&self) -> BTreeSet<I> {
         self.rec
             .values()
             .filter(|r| r.kind == Kind::ReaderAck && self.c[&r.id])
@@ -319,7 +359,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
     }
 
     fn void_set(&self, by_depth: &[I]) -> BTreeSet<I> {
-        let acked = self.acked();
+        let acked = &self.acked;
         let mut out = BTreeSet::new();
         for i in by_depth {
             let r = &self.rec[i];
@@ -329,7 +369,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             if self.reading == Reading::Narrow && r.kind != Kind::Seat {
                 continue;
             }
-            if self.behind(r, &acked) || self.heads_of(r).iter().any(|h| out.contains(h)) {
+            if self.behind(r, acked) || self.heads_of(r).iter().any(|h| out.contains(h)) {
                 out.insert(i.clone());
             }
         }
@@ -337,8 +377,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
     }
 
     fn cuts(&self, a: &I) -> Vec<&Entry<I, K, T>> {
-        self.rec
-            .values()
+        self.of_entries(a)
             .filter(|c| {
                 c.kind == Kind::Cut
                     && c.of.as_ref() == Some(a)
@@ -354,7 +393,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
     pub fn receipts(&self, a: &I) -> BTreeMap<K, Vec<I>> {
         let cuts = self.cuts(a);
         let mut out: BTreeMap<K, Vec<I>> = BTreeMap::new();
-        for x in self.rec.values() {
+        for x in self.of_entries(a) {
             if x.kind != Kind::Ack || x.of.as_ref() != Some(a) || x.dropped || !self.c[&x.id] {
                 continue;
             }
@@ -371,11 +410,10 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         if c.head != act.head || !self.conc(&c.id, a) {
             return false;
         }
-        let m = self.members(&act.head);
         let voice: BTreeSet<&K> = c
             .sigs
             .iter()
-            .filter(|k| m.contains(k))
+            .filter(|k| self.is_member(&act.head, k))
             .filter(|k| !(self.say && rcpts.get(*k).is_some_and(|xs| xs.iter().any(|x| self.conc(x, &c.id)))))
             .collect();
         voice.len() >= self.q(&act.head)
@@ -408,8 +446,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
                     _ => false,
                 };
             if later {
-                let m = self.members(&c.head);
-                let n: BTreeSet<&K> = c.sigs.iter().filter(|k| m.contains(k)).collect();
+                let n: BTreeSet<&K> = c.sigs.iter().filter(|k| self.is_member(&c.head, k)).collect();
                 if n.len() >= self.q(&c.head) {
                     return false;
                 }
@@ -443,7 +480,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             return false;
         }
         match &self.rec[a].head {
-            Some(h) => self.acked().iter().any(|x| self.anc[x].contains(h)),
+            Some(h) => self.acked.iter().any(|x| self.anc[x].contains(h)),
             None => false,
         }
     }
@@ -460,7 +497,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
 
     /// A window's state at `now`, read from the instant this node first held the opener.
     pub fn window(&self, o: &I, now: T) -> WindowState {
-        if self.rec.values().any(|x| x.kind == Kind::Answer && x.names.contains(o)) {
+        if self.answered.contains(o) {
             return WindowState::Answered;
         }
         let r = &self.rec[o];
@@ -492,7 +529,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
 
     /// The held ids no held row names: what a checkpoint names.
     pub fn tips(&self) -> Vec<I> {
-        self.rec.keys().filter(|i| !self.rec.values().any(|r| r.names.contains(i))).cloned().collect()
+        self.rec.keys().filter(|i| !self.named.contains(*i)).cloned().collect()
     }
 }
 

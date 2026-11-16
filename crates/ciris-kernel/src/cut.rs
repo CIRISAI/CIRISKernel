@@ -14,6 +14,7 @@ use crate::ops;
 use crate::Row;
 use alloc::collections::BTreeSet;
 use alloc::vec::Vec;
+use core::cell::OnceCell;
 
 /// What the cut reads of a row. The slots are the caller's (a key, a seat, a window, a contest).
 pub trait CutSpec<R: Row> {
@@ -75,13 +76,16 @@ pub struct Cut<'c, 'a, R: Row, S: CutSpec<R>> {
     cuts: Vec<usize>,
     lo: BTreeSet<usize>,
     hi: BTreeSet<usize>,
+    /// Each row's status, kept once asked: the cut is solved when built, so a status never changes.
+    memo: Vec<OnceCell<Status>>,
 }
 
 impl<'c, 'a, R: Row, S: CutSpec<R>> Cut<'c, 'a, R, S> {
     /// Solve the cut by the well-founded fixed point.
     pub fn new(c: &'c Concluded<'a, R>, spec: &'c S) -> Self {
         let cuts: Vec<usize> = c.cs().iter().copied().filter(|&i| !spec.cuts_of(c.g.row(i)).is_empty()).collect();
-        let mut me = Cut { c, spec, cuts, lo: BTreeSet::new(), hi: BTreeSet::new() };
+        let memo = (0..c.g.len()).map(|_| OnceCell::new()).collect();
+        let mut me = Cut { c, spec, cuts, lo: BTreeSet::new(), hi: BTreeSet::new(), memo };
         let bound = me.cuts.len() + 2;
         let lo = ops::fix(BTreeSet::new(), bound, |l| me.t(&me.t(l)));
         me.hi = me.t(&lo);
@@ -164,8 +168,16 @@ impl<'c, 'a, R: Row, S: CutSpec<R>> Cut<'c, 'a, R, S> {
 
     /// The status of row `i`.
     pub fn status(&self, i: usize) -> Status {
+        *self.memo[i].get_or_init(|| self.solve(i))
+    }
+
+    fn solve(&self, i: usize) -> Status {
         if !self.c.concluded(i) {
             return Status::ConcludesNothing;
+        }
+        if self.cuts.is_empty() {
+            // a concluded row that cuts a slot is among the cuts, so with none every concluded row counts
+            return Status::Counts;
         }
         let r = self.c.g.row(i);
         if !self.spec.cuts_of(r).is_empty() {

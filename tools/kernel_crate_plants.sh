@@ -32,8 +32,9 @@ plant "an election's tie broken by list order"         src/ranked.rs 'back: if d
 plant "a version counts though what it builds on does not" src/line.rs 'if builds_on(i).iter().all(|e| out.contains(e)) {' 'if true {'
 plant "the lazy closure skips a past it already knows"  src/graph.rs 'Some(pa) => b.union(pa),' 'Some(_) => {}'
 plant "a row is concluded before what it names"         src/layers.rs 'order.sort_by_key(|&i| g.level(i));' 'order.sort_by_key(|&i| core::cmp::Reverse(g.level(i)));'
-plant "a key admits itself"                           src/seat.rs '.filter(|k| mem.contains(*k) && !r.to().contains(k))' '.filter(|k| mem.contains(*k))'
-plant "a unanimous removal counts the member named"    src/seat.rs 'let others = mem.iter().filter(|k| !r.to().contains(k)).count();' 'let others = mem.len();'
+plant "a key admits itself"                           src/seat.rs 'let yes: BTreeSet<&K> = v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).collect();' 'let yes: BTreeSet<&K> = v.iter().filter(|k| mem.contains(*k)).collect();'
+plant "a self-admit removal counts the member named"   src/seat.rs 'v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).count() >= 2' 'v.iter().filter(|k| mem.contains(*k)).count() >= 2'
+plant "a unanimous removal counts the member named"    src/seat.rs 'let others = mem.iter().filter(|k| !to.contains(k)).count();' 'let others = mem.len();'
 plant "the fold default ranks across signers"          src/derived.rs 'let key = (r.signer().clone(), t);' 'let key = (c.g.row(rows[0]).signer().clone(), t);'
 plant "an identity reference of any length"             src/seat.rs 't.len() == 43 &&' ''
 echo "ciris-kernel plants: $caught of $total caught"

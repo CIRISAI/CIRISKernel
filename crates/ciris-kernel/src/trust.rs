@@ -37,22 +37,37 @@ pub const HOP_CAP: u32 = 5;
 /// Whether the walk from `from`, with `budget` hops, reaches authority `a` for class `c`
 /// (`TrustSet.reaches`). Each key is expanded only with the greatest budget it has been reached with.
 pub fn reaches<K: Ord + Clone, C: PartialEq>(edges: &[Accepts<K, C>], from: &K, c: &C, budget: u32, a: &K) -> bool {
-    let mut best: BTreeMap<K, u32> = BTreeMap::new();
-    best.insert(from.clone(), budget);
-    let mut todo: Vec<K> = alloc::vec![from.clone()];
+    // keys are borrowed, never copied; the edges are read by source through one sorted index of positions
+    let mut by_src: Vec<usize> = Vec::new();
+    let mut best: BTreeMap<&K, u32> = BTreeMap::new();
+    best.insert(from, budget);
+    let mut todo: Vec<&K> = alloc::vec![from];
+    let mut expanded = 0usize;
     while let Some(k) = todo.pop() {
-        let b = best[&k];
+        let b = best[k];
         if b == 0 {
             continue;
         }
-        for e in edges.iter().filter(|e| e.src == k && e.admits(c)) {
+        expanded += 1;
+        if expanded == 2 {
+            // a walk past its first key reads the edges again and again: index them once
+            by_src = (0..edges.len()).collect();
+            by_src.sort_by(|&x, &y| edges[x].src.cmp(&edges[y].src));
+        }
+        let hits: &mut dyn Iterator<Item = &Accepts<K, C>> = if expanded < 2 {
+            &mut edges.iter().filter(|e| e.src == *k)
+        } else {
+            let lo = by_src.partition_point(|&x| edges[x].src < *k);
+            &mut by_src[lo..].iter().map(|&x| &edges[x]).take_while(|e| e.src == *k)
+        };
+        for e in hits.filter(|e| e.admits(c)) {
             if e.dst == *a {
                 return true;
             }
             let nb = core::cmp::min(b - 1, e.depth);
             if best.get(&e.dst).is_none_or(|&o| nb > o) {
-                best.insert(e.dst.clone(), nb);
-                todo.push(e.dst.clone());
+                best.insert(&e.dst, nb);
+                todo.push(&e.dst);
             }
         }
     }

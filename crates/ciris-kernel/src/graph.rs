@@ -12,6 +12,8 @@ use core::cell::OnceCell;
 
 /// How many rows a point question of the past searches before it computes and keeps the whole past.
 const SEARCH_BUDGET: usize = 256;
+/// Up to how many rows [`Graph::frontier`] compares pairwise before it walks down from all of them at once.
+const FRONTIER_PAIRWISE: usize = 16;
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -52,9 +54,17 @@ impl Bits {
     }
     /// The indices, ascending.
     pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
+        // one step per index held (lowest set bit first), not one per bit of the word
         self.w.iter().enumerate().flat_map(|(k, x)| {
-            let x = *x;
-            (0..64).filter(move |b| (x >> b) & 1 == 1).map(move |b| k * 64 + b)
+            let mut x = *x;
+            core::iter::from_fn(move || {
+                if x == 0 {
+                    return None;
+                }
+                let b = x.trailing_zeros() as usize;
+                x &= x - 1;
+                Some(k * 64 + b)
+            })
         })
     }
 }
@@ -67,8 +77,11 @@ impl Bits {
 /// its level is lower, so most questions of concurrency are answered without a past at all.
 pub struct Graph<'a, R: Row> {
     rows: Vec<&'a R>,
-    index: BTreeMap<R::Id, usize>,
-    names: Vec<Vec<usize>>,
+    /// The row indices, sorted by row id: the index of an id is a binary search, and no id is copied.
+    index: Vec<usize>,
+    /// What each row names, as one buffer: row i names `names[off[i]..off[i + 1]]`, ascending.
+    off: Vec<usize>,
+    names: Vec<usize>,
     level: Vec<u32>,
     anc: Vec<OnceCell<Bits>>,
 }
@@ -76,26 +89,42 @@ pub struct Graph<'a, R: Row> {
 impl<'a, R: Row> Graph<'a, R> {
     /// Build the index. A later row with an id already present is ignored.
     pub fn new(rows: impl IntoIterator<Item = &'a R>) -> Self {
-        let mut v: Vec<&'a R> = Vec::new();
-        let mut index = BTreeMap::new();
-        for r in rows {
-            if !index.contains_key(r.id()) {
-                index.insert(r.id().clone(), v.len());
-                v.push(r);
+        let all: Vec<&'a R> = rows.into_iter().collect();
+        // the first row given with each id, found by sorting positions by (id, position)
+        let mut ord: Vec<usize> = (0..all.len()).collect();
+        ord.sort_unstable_by(|&a, &b| all[a].id().cmp(all[b].id()).then(a.cmp(&b)));
+        let mut first = vec![false; all.len()];
+        for (k, &p) in ord.iter().enumerate() {
+            first[p] = k == 0 || all[ord[k - 1]].id() != all[p].id();
+        }
+        let mut at = vec![usize::MAX; all.len()];
+        let mut v: Vec<&'a R> = Vec::with_capacity(all.len());
+        for (p, r) in all.iter().enumerate() {
+            if first[p] {
+                at[p] = v.len();
+                v.push(*r);
             }
         }
+        let index: Vec<usize> = ord.iter().filter(|&&p| first[p]).map(|&p| at[p]).collect();
         let n = v.len();
-        let names: Vec<Vec<usize>> = v
-            .iter()
-            .enumerate()
-            .map(|(i, r)| {
-                let mut ns: Vec<usize> =
-                    r.names().iter().filter_map(|x| index.get(x).copied()).filter(|&p| p != i).collect();
-                ns.sort_unstable();
-                ns.dedup();
-                ns
-            })
-            .collect();
+        let find = |id: &R::Id| index.binary_search_by(|&i| v[i].id().cmp(id)).ok().map(|k| index[k]);
+        let mut off: Vec<usize> = Vec::with_capacity(n + 1);
+        let mut names: Vec<usize> = Vec::new();
+        off.push(0);
+        for (i, r) in v.iter().enumerate() {
+            let s = names.len();
+            names.extend(r.names().iter().filter_map(find).filter(|&p| p != i));
+            names[s..].sort_unstable();
+            let mut w = s;
+            for k in s..names.len() {
+                if w == s || names[k] != names[w - 1] {
+                    names[w] = names[k];
+                    w += 1;
+                }
+            }
+            names.truncate(w);
+            off.push(names.len());
+        }
         // levels, iteratively: a row's level is known once those of the rows it names are
         const UNSET: u32 = u32::MAX;
         let mut level = vec![UNSET; n];
@@ -111,19 +140,19 @@ impl<'a, R: Row> Graph<'a, R> {
                     continue;
                 }
                 let before = stack.len();
-                for &p in &names[i] {
+                for &p in &names[off[i]..off[i + 1]] {
                     if level[p] == UNSET {
                         stack.push(p);
                     }
                 }
                 if stack.len() == before {
-                    level[i] = 1 + names[i].iter().map(|&p| level[p]).max().unwrap_or(0);
+                    level[i] = 1 + names[off[i]..off[i + 1]].iter().map(|&p| level[p]).max().unwrap_or(0);
                     stack.pop();
                 }
             }
         }
         let anc = (0..n).map(|_| OnceCell::new()).collect();
-        Graph { rows: v, index, names, level, anc }
+        Graph { rows: v, index, off, names, level, anc }
     }
 
     /// The number of rows.
@@ -144,11 +173,12 @@ impl<'a, R: Row> Graph<'a, R> {
     }
     /// The index of a row id, when the row is in the set.
     pub fn idx(&self, id: &R::Id) -> Option<usize> {
-        self.index.get(id).copied()
+        self.index.binary_search_by(|&i| self.rows[i].id().cmp(id)).ok().map(|k| self.index[k])
     }
     /// The held rows row `i` names directly.
+    #[inline]
     pub fn named(&self, i: usize) -> &[usize] {
-        &self.names[i]
+        &self.names[self.off[i]..self.off[i + 1]]
     }
     /// One more than the greatest level among the rows `i` names: a row's past holds only lower levels.
     pub fn level(&self, i: usize) -> u32 {
@@ -162,7 +192,7 @@ impl<'a, R: Row> Graph<'a, R> {
         }
         // a walk down what rows name, taking whole any past already known; only i's past is kept
         let mut b = Bits::new(self.len());
-        let mut todo: Vec<usize> = self.names[i].clone();
+        let mut todo: Vec<usize> = self.named(i).to_vec();
         while let Some(p) = todo.pop() {
             if b.has(p) {
                 continue;
@@ -170,7 +200,7 @@ impl<'a, R: Row> Graph<'a, R> {
             b.set(p);
             match self.anc[p].get() {
                 Some(pa) => b.union(pa),
-                None => todo.extend(self.names[p].iter().copied().filter(|&q| !b.has(q))),
+                None => todo.extend(self.named(p).iter().copied().filter(|&q| !b.has(q))),
             }
         }
         let _ = self.anc[i].set(b);
@@ -182,7 +212,7 @@ impl<'a, R: Row> Graph<'a, R> {
         if self.level[a] >= self.level[b] {
             return false;
         }
-        if self.names[b].binary_search(&a).is_ok() {
+        if self.named(b).binary_search(&a).is_ok() {
             return true;
         }
         if let Some(pb) = self.anc[b].get() {
@@ -195,7 +225,7 @@ impl<'a, R: Row> Graph<'a, R> {
         let mut seen = Bits::new(self.len());
         let mut todo: Vec<usize> = alloc::vec![b];
         while let Some(x) = todo.pop() {
-            for &p in &self.names[x] {
+            for &p in self.named(x) {
                 if p == a {
                     return true;
                 }
@@ -226,8 +256,33 @@ impl<'a, R: Row> Graph<'a, R> {
         a != b && !self.in_past(a, b) && !self.in_past(b, a)
     }
     /// The rows of `of` that no other row of `of` has in its past, in the order given.
+    ///
+    /// A few rows are compared pairwise. For more, one walk goes down from all of them at once, through rows
+    /// no lower than the lowest of them (a row's past holds only lower levels), and a row of `of` the walk
+    /// reaches is in the past of another: linear in the rows walked, not quadratic in `of`.
     pub fn frontier(&self, of: &[usize]) -> Vec<usize> {
-        of.iter().copied().filter(|&r| !of.iter().any(|&q| self.in_past(r, q))).collect()
+        if of.len() <= FRONTIER_PAIRWISE {
+            return of.iter().copied().filter(|&r| !of.iter().any(|&q| self.in_past(r, q))).collect();
+        }
+        let low = of.iter().map(|&i| self.level[i]).min().unwrap_or(0);
+        let mut below = Bits::new(self.len());
+        let mut todo: Vec<usize> = Vec::new();
+        for &q in of {
+            todo.push(q);
+            while let Some(x) = todo.pop() {
+                for &p in self.named(x) {
+                    if self.level[p] < low || below.has(p) {
+                        continue;
+                    }
+                    below.set(p);
+                    match self.anc[p].get() {
+                        Some(pa) => below.union(pa), // the whole past of p, already known
+                        None => todo.push(p),
+                    }
+                }
+            }
+        }
+        of.iter().copied().filter(|&r| !below.has(r)).collect()
     }
     /// The rows in the past of `i` (and `i` itself when `inclusive`), in index order.
     pub fn past(&self, i: usize, inclusive: bool) -> Vec<usize> {

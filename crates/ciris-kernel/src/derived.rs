@@ -114,17 +114,31 @@ pub fn live_edges<R: Row>(
 
 /// The keys a walk of at most `depth` live edges from the reader's own key arrives at. There is no trust
 /// set among the inputs: it is a fold over the rows the reader's key signed (`no_own_edge_no_reach`).
+///
+/// The bounded repeat of `ops::fix` (each step adds every key an edge from the set reaches), walked one layer
+/// at a time: a key enters at the first step that reaches it, and only the keys new at a step are read at the
+/// next, so each edge is read once.
 pub fn reach<K: Ord + Clone>(own: &K, depth: usize, edges: &[(K, K)]) -> BTreeSet<K> {
-    let start: BTreeSet<K> = core::iter::once(own.clone()).collect();
-    ops::fix(start, depth, |ks| {
-        let mut n = ks.clone();
-        for (s, t) in edges {
-            if ks.contains(s) {
-                n.insert(t.clone());
+    let mut by_src: Vec<usize> = (0..edges.len()).collect();
+    by_src.sort_by(|&x, &y| edges[x].0.cmp(&edges[y].0));
+    let mut seen: BTreeSet<&K> = core::iter::once(own).collect();
+    let mut layer: Vec<&K> = alloc::vec![own];
+    for _ in 0..depth {
+        let mut next: Vec<&K> = Vec::new();
+        for s in layer {
+            let lo = by_src.partition_point(|&x| edges[x].0 < *s);
+            for &x in by_src[lo..].iter().take_while(|&&x| edges[x].0 == *s) {
+                if seen.insert(&edges[x].1) {
+                    next.push(&edges[x].1);
+                }
             }
         }
-        n
-    })
+        if next.is_empty() {
+            break;
+        }
+        layer = next;
+    }
+    seen.into_iter().cloned().collect()
 }
 
 /// Whether row `i` means something to the reader: it concluded and its signer is in the reader's reach.
