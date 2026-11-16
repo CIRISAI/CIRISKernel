@@ -5,7 +5,9 @@ call. The host's load average is printed before and after. A bench only one bina
 other side empty.
 
     python3 -I tools/kernel_bench_ab.py BEFORE AFTER [--rounds 3] [--sizes 3,16,128,1024] [--only substr]
-        [--timeout 120] > table.tsv
+        [--names a,b,c] [--timeout 120] > table.tsv
+
+`--names` runs those benches only (exact names); a run that exceeds the timeout prints empty.
 """
 import os
 import statistics
@@ -36,7 +38,7 @@ def run(binary, name, size, timeout):
 def main():
     a = sys.argv[1:]
     before, after = a[0], a[1]
-    opt = {"--rounds": "3", "--sizes": "3,16,128,1024", "--only": "", "--timeout": "120"}
+    opt = {"--rounds": "3", "--sizes": "3,16,128,1024", "--only": "", "--timeout": "120", "--names": ""}
     for i in range(2, len(a), 2):
         opt[a[i]] = a[i + 1]
     rounds, timeout = int(opt["--rounds"]), float(opt["--timeout"])
@@ -45,6 +47,9 @@ def main():
     every = [n for n in na if n not in nb] + nb
     every = sorted(set(every), key=lambda n: (na + nb).index(n))
     every = [n for n in every if opt["--only"] in n]
+    if opt["--names"]:
+        want = opt["--names"].split(",")
+        every = [n for n in every if n in want]
     print("# load before:", os.getloadavg(), file=sys.stderr)
     print("bench\tsize\tbefore_ns\tafter_ns\tbefore/after\tallocs_before\tallocs_after")
     for size in sizes:

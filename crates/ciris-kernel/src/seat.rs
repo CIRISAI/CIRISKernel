@@ -284,6 +284,7 @@ pub fn covers(have: &str, want: &str) -> bool {
 }
 
 type ObjOf<R> = Obj<<R as Row>::Id, <R as Row>::Key>;
+type CommonMemo<R> = RefCell<BTreeMap<(String, ObjOf<R>), Option<BTreeSet<<R as Row>::Key>>>>;
 type Step<'r, R> = ((&'r <R as Row>::Id, &'r <R as Row>::Key), (usize, Root<<R as Row>::Id, <R as Row>::Key>));
 
 /// The root a live seat is walked from.
@@ -412,7 +413,7 @@ pub struct Seats<'c, 'a, R: SeatRow, S: CutSpec<R>> {
     /// [`Seats::tips`] and [`Seats::tips_common`] by object (and scope), kept once asked: the seats are fixed
     /// when built, and no reader enters either (the reader's line is in `stale`).
     tips_memo: RefCell<BTreeMap<ObjOf<R>, Vec<usize>>>,
-    common_memo: RefCell<BTreeMap<(String, ObjOf<R>), Option<BTreeSet<R::Key>>>>,
+    common_memo: CommonMemo<R>,
 }
 
 impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
@@ -478,18 +479,20 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             if o.consent_one() {
                 return o.conf() != Some(Conf::Seat);
             }
-            acc.get(k).is_some_and(|accs| accs.iter().any(|&a| {
-                let ar = g.row(a);
-                if ar.seat_kind() != SeatKind::Accept || ar.signer() != k {
-                    return false;
-                }
-                let paired = ar.of() == Some(o.id())
-                    || (ar.of().is_none()
-                        && o.names().contains(ar.id())
-                        && ar.scope() == o.scope()
-                        && ar.obj().is_none_or(|x| Some(x) == o.obj()));
-                paired && !ended(ar) && cut.counts(a)
-            }))
+            acc.get(k).is_some_and(|accs| {
+                accs.iter().any(|&a| {
+                    let ar = g.row(a);
+                    if ar.seat_kind() != SeatKind::Accept || ar.signer() != k {
+                        return false;
+                    }
+                    let paired = ar.of() == Some(o.id())
+                        || (ar.of().is_none()
+                            && o.names().contains(ar.id())
+                            && ar.scope() == o.scope()
+                            && ar.obj().is_none_or(|x| Some(x) == o.obj()));
+                    paired && !ended(ar) && cut.counts(a)
+                })
+            })
         };
         // keys are borrowed from the rows through the walk, and copied once into each live seat
         let mut base: Vec<(usize, &'a R::Key)> = Vec::new();
@@ -874,8 +877,14 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
                             && ranked(&ballots, r.options(), 2, false).0.as_ref() == r.to().first();
                     }
                     let v = voices(r, p);
-                    let count =
-                        GroupCount { policy: pol, offer: is_offer, to: r.to(), members: &mem, voices: &v, need: r.need() };
+                    let count = GroupCount {
+                        policy: pol,
+                        offer: is_offer,
+                        to: r.to(),
+                        members: &mem,
+                        voices: &v,
+                        need: r.need(),
+                    };
                     group_count(&count, |k| r.weights().iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x))
                 }
                 None => false,
@@ -886,9 +895,7 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
             Some(o) => by.get(o).is_some_and(|o| o.to().contains(r.signer())),
         },
         SeatKind::Withdraw => match r.target().and_then(|t| by.get(t)) {
-            Some(t) => {
-                signed_by(*t, r.signer()) || (t.seat_kind() == SeatKind::Offer && t.to().contains(r.signer()))
-            }
+            Some(t) => signed_by(*t, r.signer()) || (t.seat_kind() == SeatKind::Offer && t.to().contains(r.signer())),
             None => false,
         },
         SeatKind::Cosign => true,

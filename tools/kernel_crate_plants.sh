@@ -53,8 +53,8 @@ plant "the trust walk's index skips a key's own edges" src/trust.rs 'let lo = by
 plant "reach walks one layer too many"                  src/derived.rs '    for _ in 0..depth {' '    for _ in 0..=depth {'
 plant "a key's end read from any key"                   src/key_end.rs 'let ended = |k: &R::Key| rev.get(k).is_some_and(|a| now >= *a) || !open.contains(k);' 'let ended = |k: &R::Key| rev.get(k).is_some_and(|a| now >= *a) || open.is_empty();'
 plant "retained marks no past below a row"              src/key_end.rs 'todo.push(p);' ''
-plant "a view reads another act's receipts"             src/head.rs 'by_of.and_then(|m| m.get(a))' 'by_of.and_then(|m| m.values().next())'
-plant "a view's member set read as its complement"      src/head.rs 'Some(m) => m.contains(k),' 'Some(m) => !m.contains(k),'
+plant "a view reads another act's receipts"             src/head.rs 'OfEntries::Index(&self.rec, by_of.get(a)' 'OfEntries::Index(&self.rec, by_of.values().next()'
+plant "a view's member set read as its complement"      src/head.rs 'Members::Set(m) => m.contains(k),' 'Members::Set(m) => !m.contains(k),'
 plant "the reader's line forgets what is live"          src/line.rs '.into_iter().filter(|&i| cut_counts(i)).collect();' '.into_iter().collect();'
 echo "ciris-kernel plants: $caught of $total caught"
 [ $caught -eq $total ]

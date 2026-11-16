@@ -21,7 +21,9 @@ use ciris_kernel::head::{self, Entry, Kind, Reading};
 use ciris_kernel::key_end::{self, EndRule, KeyEndRow, Record};
 use ciris_kernel::layers::{self, Concluded, Past};
 use ciris_kernel::line;
-use ciris_kernel::seat::{self, group_count, Conf, GroupCount, Obj, Policy, SeatKind, SeatLaw, SeatLine, SeatRow, Seats};
+use ciris_kernel::seat::{
+    self, group_count, Conf, GroupCount, Obj, Policy, SeatKind, SeatLaw, SeatLine, SeatRow, Seats,
+};
 use ciris_kernel::trust::{self, Accepts};
 use ciris_kernel::window::{self, Base, Clause, How, WinKind, WindowRow, WindowSpec};
 use ciris_kernel::{derived, Row};
@@ -398,7 +400,12 @@ fn window_spec() -> WindowSpec<i64> {
         counted: "member".into(),
         concluder: "member".into(),
         opener_says: Some("approve".into()),
-        at_once: vec![Clause { value: "approve".into(), how: How::AtLeast(2, 3, 1), over: Base::All, out: "enact".into() }],
+        at_once: vec![Clause {
+            value: "approve".into(),
+            how: How::AtLeast(2, 3, 1),
+            over: Base::All,
+            out: "enact".into(),
+        }],
         silent: None,
         at_close: vec![Clause { value: "approve".into(), how: How::Strict, over: Base::All, out: "enact".into() }],
         default: "cancel".into(),
@@ -590,7 +597,16 @@ fn main() {
             }
         }
         // </group_count>
-        if h.wants(&["seat::members_at", "seat::voices", "seat::left_in_past", "seat::met", "seat::Seats::new", "seat::Seats::holders", "seat::Seats::one", "seat::Seats::new/one_offer_seats_all"]) {
+        if h.wants(&[
+            "seat::members_at",
+            "seat::voices",
+            "seat::left_in_past",
+            "seat::met",
+            "seat::Seats::new",
+            "seat::Seats::holders",
+            "seat::Seats::one",
+            "seat::Seats::new/one_offer_seats_all",
+        ]) {
             let rows = ballot(n, n / 2 + 1, "majority");
             let c = concluded(&rows, &law);
             let last = c.g.len() - 1;

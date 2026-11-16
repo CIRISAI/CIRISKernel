@@ -147,6 +147,22 @@ impl<I, K, T> Entry<I, K, T> {
     }
 }
 
+/// The members at a head, as [`View`] reads them.
+enum Members<'s, K> {
+    Set(&'s BTreeSet<K>),
+    List(&'s [K]),
+}
+
+impl<K: Ord> Members<'_, K> {
+    #[inline]
+    fn contains(&self, k: &K) -> bool {
+        match self {
+            Members::Set(m) => m.contains(k),
+            Members::List(m) => m.contains(k),
+        }
+    }
+}
+
 /// What [`View::of_entries`] walks: every entry, or one act's by index.
 enum OfEntries<'s, I, K, T> {
     Scan(alloc::collections::btree_map::Values<'s, I, Entry<I, K, T>>),
@@ -294,9 +310,14 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
     }
 
     fn is_member(&self, head: &Option<I>, k: &K) -> bool {
+        self.member_of(head).contains(k)
+    }
+
+    /// The members at a head, read once for several keys: a set for a long list, else the list.
+    fn member_of(&self, head: &Option<I>) -> Members<'_, K> {
         match head.as_ref().and_then(|h| self.mem.get(h)) {
-            Some(m) => m.contains(k),
-            None => self.members(head).contains(k),
+            Some(m) => Members::Set(m),
+            None => Members::List(self.members(head)),
         }
     }
 
@@ -443,10 +464,11 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         if c.head != act.head || !self.conc(&c.id, a) {
             return false;
         }
+        let m = self.member_of(&act.head);
         let voice: BTreeSet<&K> = c
             .sigs
             .iter()
-            .filter(|k| self.is_member(&act.head, k))
+            .filter(|k| m.contains(k))
             .filter(|k| !(self.say && rcpts.get(*k).is_some_and(|xs| xs.iter().any(|x| self.conc(x, &c.id)))))
             .collect();
         voice.len() >= self.q(&act.head)
@@ -479,7 +501,8 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
                     _ => false,
                 };
             if later {
-                let n: BTreeSet<&K> = c.sigs.iter().filter(|k| self.is_member(&c.head, k)).collect();
+                let m = self.member_of(&c.head);
+                let n: BTreeSet<&K> = c.sigs.iter().filter(|k| m.contains(k)).collect();
                 if n.len() >= self.q(&c.head) {
                     return false;
                 }

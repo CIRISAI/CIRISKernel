@@ -289,7 +289,8 @@ fn ballot(g: &mut Lcg) -> Ballot {
         }
     }
     let offer = pick(g, 3) != 0;
-    let mut c = S::new(2000, [vec![1000], in_c].concat(), signer, if offer { SeatKind::Offer } else { SeatKind::Unseat });
+    let mut c =
+        S::new(2000, [vec![1000], in_c].concat(), signer, if offer { SeatKind::Offer } else { SeatKind::Unseat });
     c.to = to.clone();
     c.scope = Some("member".into());
     c.obj = Some(Obj::Row(0));
@@ -451,7 +452,7 @@ fn frontier_equals_the_pairwise_frontier() {
         bad += (lazy.idx(&r.id) != eager.idx(&r.id)) as usize;
     }
     cases += 1;
-    bad += (lazy.idx(&9999) != None) as usize;
+    bad += lazy.idx(&9999).is_some() as usize;
     report("the frontier's walk against the pairwise frontier; duplicate ids", cases, bad);
     assert_eq!(bad, 0);
 }

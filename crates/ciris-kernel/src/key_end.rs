@@ -168,7 +168,7 @@ pub fn retained<R: KeyEndRow>(c: &Concluded<'_, R>, now: R::T) -> BTreeSet<usize
             }
         }
         if let Some(x) = r.record() {
-            if !x.until.is_some_and(|u| u <= now) {
+            if x.until.is_none_or(|u| u > now) {
                 open.insert(x.key);
             }
         }
