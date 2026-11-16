@@ -48,7 +48,7 @@ The lists give the stronger checks.
 | `ranked::ranked` | `Election.free_perm`, `free_agrees` (parent), without a declared order | | Lean (no declared order); cases (declared) |
 | `ops::least`, `greatest` | `Ops.leastNoTie_perm` (G1), `leastNoTie_none_iff` (G2), `leastNoTie_some_iff` | | Lean |
 | `ops::sel`, `sel_before`, `group_by`, `min_of`, `max_of`, `one`, `count`, `sum_per`, `in_range`, `fix` | | | cases (`kernel_lib.py`, 7,968 inputs; `reexpress.py`, 17,886) |
-| `graph::Graph` (`in_past`, `concurrent`, `frontier`, `past`, `ancestors`) | | | cases (the eager closure as oracle, 301,219; the frontier's walk against the pairwise frontier and duplicate ids, `tests/fast_paths.rs`, 24,373) |
+| `graph::Graph` (`in_past`, `concurrent`, `frontier`, `past`, `ancestors`) | | | cases (the eager closure as oracle, 301,219; the frontier's walk against the pairwise frontier and duplicate ids, `tests/fast_paths.rs`, 24,373; rows with cycles of names wait exactly when `kept` leaves them out, `tests/cycle.rs`, 54,160) |
 | `ops::rule`, `seat::covers`, `seat::Obj::from_reference`, `is_identity_reference` | | | neither (unit tests) |
 
 **Counts**, by row of the table:

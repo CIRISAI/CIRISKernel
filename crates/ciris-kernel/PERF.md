@@ -193,14 +193,14 @@ unit tests. The 18 runs the crate carried hold 937,355 cases against the Python 
 and TLC's states. The nine new ones are in `tests/fast_paths.rs` and `tests/purge.rs`: each tests a faster path
 against the definition it replaced, kept there as the oracle. Final: 7,084,046 cases, 0 disagreements.
 
-`check.sh` on `e3e2fa0`: all 17 steps passed. That covers 602 Lean theorems, the model checks, the
-no_std and wasm builds (0 dependencies), conformance (27 runs, 7,091,573 cases, 0 disagreements), 46 of 46
+`check.sh` on `ef6ea06`: all 17 steps passed. That covers 602 Lean theorems, the model checks, the
+no_std and wasm builds (0 dependencies), conformance (28 runs, 7,145,733 cases, 0 disagreements), 47 of 47
 plants caught, and TLC (5 specs, each with its plant caught). The crate builds on MSRV 1.89, and `fmt --check`
 and `clippy --all-targets -D warnings` are clean.
 
-`tools/kernel_crate_plants.sh` has 46 plants. Fifteen are the plants it had; the two count plants follow the
+`tools/kernel_crate_plants.sh` has 47 plants. Fifteen are the plants it had; the two count plants follow the
 code into `group_count`. The `open:self_admit` removal line, which the first of them used to hit, is planted
-on its own. Thirty are new, one per faster path: a cache that answers for another object, scope or head;
+on its own. Thirty-one are new: one per faster path, and one for the cycle walk below. Those paths include: a cache that answers for another object, scope or head;
 an index filed under one key or never built; the frontier's walk cut short; the no-cut shortcut taken with
 cuts; `members_at` reading unconcluded rows; a prefilled window scope that keeps the opener in `others` or lets
 a scope named `all` take `Base::All`'s name; a weighted sum that wraps; a ranked count answered as a count; `voices` counting a cosignature the row does
@@ -304,5 +304,24 @@ case's answers and refuses a mismatch.
 
 Still open:
 
-- The review's "not this PR": `Graph::new`'s level loop does not terminate on a cycle of names. Content-addressed
-  ids make a cycle impossible, but `Row` does not promise it.
+- None from the review. Its "not this PR" (`Graph::new` not ending on a cycle of names) is fixed on this
+  branch at the delta review's request; see below.
+
+## 8. A cycle of names (delta review)
+
+Rows 1→2→1 made `Graph::new`'s level walk push without end until the allocator aborted. That is unchanged
+from `kernel-v0.1.0`. Rows with digests for ids cannot form a cycle, but `Row` does not promise it.
+
+- The walk now keeps its marks in the level array: `ON` while a row is on its stack, `WAITING` for a row on a
+  cycle or naming one. A row naming its own id is a cycle of one.
+- A row that pushes nothing is finished at once, as before, so on a kept set the walk is the old one step for
+  step.
+- `layers::conclude` concludes nothing for a waiting row, which is what `layers::kept` says: it never keeps
+  such a row. `Graph::new` documents its precondition, rows closed under `kept`; `Graph::waiting` is new.
+- `tests/cycle.rs` covers a 2-cycle, a 3-cycle with a row naming into it, a self-name, and the closure's other
+  questions on them. Over 4,000 generated row sets naming any row, `conclude` over all of them equals
+  `conclude` over what `kept` keeps, and a row waits exactly when `kept` leaves it out (54,160 cases).
+- The plant reads only `WAITING`, not `ON`. Both tests fail under it; it cannot hang the suite.
+- A/B against `e3e2fa0`, pinned, three rounds, load 15–20: `Graph::new` reads 0.94–1.04×, `conclude` and the
+  seat rule 0.97–1.03×. The mean over all 176 cells is 1.01×, and byte-identical code swings up to 1.46× in
+  the same run. A first version with two flag vectors read 0.72–0.85× and was replaced.
