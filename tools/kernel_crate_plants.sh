@@ -49,7 +49,7 @@ plant "kept tips answer for another object"             src/seat.rs 'if let Some
 plant "kept common holders answer for another scope"    src/seat.rs 'let key = (String::from(s), o.clone());' 'let key = (String::new(), o.clone());'
 plant "the members at a head leave out the head"        src/seat.rs 'p.p.iter().filter(|&&q| q == hi || past.has(q))' 'p.p.iter().filter(|&&q| past.has(q))'
 plant "a window's counted scope read as moderate"       src/window.rs 'cache.insert("all".into(), sets[0].clone());' 'cache.insert("all".into(), sets[1].clone());'
-plant "the trust walk's index skips a key's own edges" src/trust.rs 'let lo = by_src.partition_point(|&x| edges[x].src < *k);' 'let lo = by_src.partition_point(|&x| edges[x].src <= *k);'
+plant "the trust walk's index skips a key's own edges" src/trust.rs 'let lo = by_src.partition_point(|&x| edges[x].src < k);' 'let lo = by_src.partition_point(|&x| edges[x].src <= k);'
 plant "reach walks one layer too many"                  src/derived.rs '    for _ in 0..depth {' '    for _ in 0..=depth {'
 plant "a key's end read from any key"                   src/key_end.rs 'let ended = |k: &R::Key| rev.get(k).is_some_and(|a| now >= *a) || !open.contains(k);' 'let ended = |k: &R::Key| rev.get(k).is_some_and(|a| now >= *a) || open.is_empty();'
 plant "retained marks no past below a row"              src/key_end.rs 'todo.push(p);' ''
