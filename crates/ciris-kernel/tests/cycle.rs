@@ -91,3 +91,62 @@ fn conclude_over_cycles_is_conclude_over_what_kept_keeps() {
     report("conclude over rows with cycles of names, against conclude over what kept keeps", cases, bad);
     assert_eq!(bad, 0);
 }
+
+type E = ciris_kernel::head::Entry<u32, u32, i64>;
+
+fn store(rows: &[N]) -> std::collections::BTreeMap<u32, E> {
+    rows.iter()
+        .map(|r| {
+            let kind = if r.signer == 0 { ciris_kernel::head::Kind::Other } else { ciris_kernel::head::Kind::Seat };
+            (r.id, E::new(r.id, kind, r.signer, r.names.clone()))
+        })
+        .collect()
+}
+
+fn viewed(rows: &[N]) -> BTreeSet<u32> {
+    use ciris_kernel::head::{purge, Reading, View};
+    let s = store(rows);
+    let v = View::new(&s, &[], 0, Reading::Broad, true);
+    let _ = v.answers(10);
+    let _ = v.tips();
+    let (p, _) = purge(&s, 0, 10, Reading::Broad);
+    let held: BTreeSet<u32> = v.rec().keys().copied().collect();
+    assert_eq!(p.keys().copied().collect::<BTreeSet<u32>>(), held, "the purge keeps what the view holds");
+    held
+}
+
+#[test]
+fn a_view_of_a_store_with_a_cycle_ends_and_leaves_it_out() {
+    assert!(viewed(&[n(1, &[2]), n(2, &[1])]).is_empty());
+    let three = [n(1, &[2]), n(2, &[3]), n(3, &[1, 5]), n(4, &[2]), n(5, &[]), n(6, &[5])];
+    assert_eq!(viewed(&three), [5, 6].into());
+    assert_eq!(viewed(&[n(1, &[1]), n(2, &[1]), n(3, &[])]), [3].into());
+}
+
+/// Over generated stores whose entries name any entry: the view holds exactly the entries `kept` keeps.
+#[test]
+fn a_view_holds_what_kept_keeps() {
+    let (mut cases, mut bad) = (0usize, 0usize);
+    let mut g = Lcg(23);
+    for _ in 0..3_000 {
+        let m = 1 + (g.next() % 20) as u32;
+        let mut rows: Vec<N> = Vec::new();
+        for i in 0..m {
+            let mut names = Vec::new();
+            for _ in 0..g.next() % 3 {
+                let x = if g.next().is_multiple_of(4) { g.next() % m as u64 } else { g.next() % (i as u64 + 1) } as u32;
+                if x != i || g.next().is_multiple_of(2) {
+                    names.push(x);
+                }
+            }
+            names.sort_unstable();
+            names.dedup();
+            rows.push(N { id: i, names, signer: (g.next() % 2) as u32 });
+        }
+        let want: BTreeSet<u32> = kept(&rows, |_| true).iter().map(|r| r.id).collect();
+        cases += 1;
+        bad += (viewed(&rows) != want) as usize;
+    }
+    report("a view of a store with cycles of names, against what kept keeps", cases, bad);
+    assert_eq!(bad, 0);
+}

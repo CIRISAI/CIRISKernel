@@ -129,6 +129,8 @@ impl<'a, R: Row> Graph<'a, R> {
             }
         }
         let n = v.len();
+        // a level is below WAITING; so is the number of rows
+        assert!(n < WAITING as usize, "more rows than a level can count");
         let find = |id: &R::Id| index.binary_search_by(|e| e.0.cmp(id)).ok().map(|k| index[k].1);
         let mut off: Vec<usize> = Vec::with_capacity(n + 1);
         let mut names: Vec<usize> = Vec::with_capacity(v.iter().map(|r| r.names().len()).sum());

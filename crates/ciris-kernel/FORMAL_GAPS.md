@@ -49,6 +49,7 @@ The lists give the stronger checks.
 | `ops::least`, `greatest` | `Ops.leastNoTie_perm` (G1), `leastNoTie_none_iff` (G2), `leastNoTie_some_iff` | | Lean |
 | `ops::sel`, `sel_before`, `group_by`, `min_of`, `max_of`, `one`, `count`, `sum_per`, `in_range`, `fix` | | | cases (`kernel_lib.py`, 7,968 inputs; `reexpress.py`, 17,886) |
 | `graph::Graph` (`in_past`, `concurrent`, `frontier`, `past`, `ancestors`) | | | cases (the eager closure as oracle, 301,219; the frontier's walk against the pairwise frontier and duplicate ids, `tests/fast_paths.rs`, 24,373; rows with cycles of names wait exactly when `kept` leaves them out, `tests/cycle.rs`, 54,160) |
+| `graph::Graph::waiting`; the waiting rule of `layers::conclude`, `Concluded::with` and `head::View::new` (a row on a cycle of names, or naming one, concludes nothing and a view leaves it out) | no theorem: the proofs assume a kept set, which has no cycle | | cases only (`tests/cycle.rs`: rows wait, and views hold, exactly what `kept` keeps; 54,160 and 3,000 cases) |
 | `ops::rule`, `seat::covers`, `seat::Obj::from_reference`, `is_identity_reference` | | | neither (unit tests) |
 
 **Counts**, by row of the table:

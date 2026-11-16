@@ -20,6 +20,10 @@
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
 
+/// The depth of an entry on the walk's stack in [`View::new`].
+const ON: usize = usize::MAX;
+/// The depth of an entry on a cycle of names or naming one: no kept store holds it, and the view leaves it out.
+const WAIT: usize = usize::MAX - 1;
 /// Up to how many members [`View`] scans a roster version's list for a key before it keeps them as a set.
 const MEMBERS_SCANNED: usize = 32;
 /// Up to how many held entries [`View`] scans them all for an act's receipts and cuts, an answer or a name;
@@ -177,7 +181,8 @@ pub enum WindowState {
 }
 
 /// Every answer, over a store plus newly offered rows, for the node signing under `own`. An immutable
-/// snapshot, built whole by [`View::new`]: its fields are read through methods.
+/// snapshot, built whole by [`View::new`]: its fields are read through methods. A store is closed under the
+/// door; an entry of one on a cycle of names, or naming one, which no door keeps, is left out of the view.
 pub struct View<I, K, T> {
     own: K,
     reading: Reading,
@@ -285,6 +290,17 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             mem: BTreeMap::new(),
             acked: BTreeSet::new(),
         };
+        // depths first: an entry on a cycle of names, or naming one, waits; no kept store holds it, so the
+        // view leaves it out
+        let all: Vec<I> = me.rec.keys().cloned().collect();
+        for i in &all {
+            me.depth_of(i);
+        }
+        let gone: Vec<I> = me.depth.iter().filter(|(_, d)| **d == WAIT).map(|(i, _)| i.clone()).collect();
+        for i in &gone {
+            me.rec.remove(i);
+            me.depth.remove(i);
+        }
         let index = me.rec.len() > scanned;
         for (i, r) in &me.rec {
             if r.members.len() > MEMBERS_SCANNED {
@@ -304,9 +320,6 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         me.answered.sort();
         me.answered.dedup();
         let ids: Vec<I> = me.rec.keys().cloned().collect();
-        for i in &ids {
-            me.depth_of(i);
-        }
         let mut by_depth = ids.clone();
         by_depth.sort_by_key(|i| me.depth[i]);
         for i in &by_depth {
@@ -346,23 +359,49 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         ids.iter().map(move |(_, i)| &self.rec[i])
     }
 
-    fn depth_of(&mut self, i: &I) -> usize {
-        if let Some(d) = self.depth.get(i) {
-            return *d;
+    /// The depth of entry `i`, by a walk down what entries name. An entry is ON the walk's stack while it
+    /// waits for the depths of what it names; one still ON when an entry naming it is finished closes a cycle,
+    /// and that entry, and every entry naming one that waits, gets [`WAIT`].
+    fn depth_of(&mut self, i: &I) {
+        if self.depth.contains_key(i) {
+            return;
         }
         // iterative: the rows a row names are held (the door)
         let mut stack = alloc::vec![i.clone()];
         while let Some(x) = stack.last().cloned() {
-            let pending: Vec<I> = self.rec[&x].names.iter().filter(|n| !self.depth.contains_key(*n)).cloned().collect();
-            if pending.is_empty() {
-                let d = 1 + self.rec[&x].names.iter().map(|n| self.depth[n]).max().unwrap_or(0);
-                self.depth.insert(x, d);
-                stack.pop();
-            } else {
-                stack.extend(pending);
+            match self.depth.get(&x).copied() {
+                None => {
+                    // ON before what it names is read: a name of its own then reads as a cycle
+                    let pending: Vec<I> = self.rec[&x]
+                        .names
+                        .iter()
+                        .filter(|n| **n != x && !self.depth.contains_key(*n))
+                        .cloned()
+                        .collect();
+                    self.depth.insert(x.clone(), ON);
+                    if !pending.is_empty() {
+                        stack.extend(pending);
+                        continue;
+                    }
+                }
+                Some(ON) => {}
+                Some(_) => {
+                    stack.pop(); // done already (pushed twice)
+                    continue;
+                }
             }
+            let (mut top, mut waits) = (0, false);
+            for n in &self.rec[&x].names {
+                let d = self.depth[n];
+                if d >= WAIT {
+                    waits = true; // a named entry on the stack (a cycle), or waiting
+                } else if d > top {
+                    top = d;
+                }
+            }
+            self.depth.insert(x, if waits { WAIT } else { 1 + top });
+            stack.pop();
         }
-        self.depth[i]
     }
 
     fn conc(&self, a: &I, b: &I) -> bool {

@@ -61,9 +61,13 @@ pub struct Concluded<'a, R: Row> {
 }
 
 impl<'a, R: Row> Concluded<'a, R> {
-    /// A graph with the conclusions given (every row concluded when `c` is `None`).
+    /// A graph with the conclusions given (every row concluded when `c` is `None`). A row that
+    /// [waits](Graph::waiting) on a cycle of names concludes nothing, whatever `c` says.
     pub fn with(g: Graph<'a, R>, c: Option<Vec<bool>>) -> Self {
-        let c = c.unwrap_or_else(|| vec![true; g.len()]);
+        let mut c = c.unwrap_or_else(|| vec![true; g.len()]);
+        for (i, ci) in c.iter_mut().enumerate() {
+            *ci &= !g.waiting(i); // on a cycle of names, or naming one: no kept set holds it
+        }
         let cs = (0..g.len()).filter(|&i| c[i]).collect();
         Concluded { g, c, cs }
     }
