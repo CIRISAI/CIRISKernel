@@ -590,7 +590,7 @@ fn main() {
             }
         }
         // </group_count>
-        if h.wants(&["seat::members_at", "seat::voices", "seat::left_in_past", "seat::met", "seat::Seats::new", "seat::Seats::holders", "seat::Seats::one"]) {
+        if h.wants(&["seat::members_at", "seat::voices", "seat::left_in_past", "seat::met", "seat::Seats::new", "seat::Seats::holders", "seat::Seats::one", "seat::Seats::new/one_offer_seats_all"]) {
             let rows = ballot(n, n / 2 + 1, "majority");
             let c = concluded(&rows, &law);
             let last = c.g.len() - 1;
@@ -602,6 +602,17 @@ fn main() {
             h.run("seat::left_in_past", n, || seat::left_in_past(&p, &gobj, "member").len());
             h.run("seat::met", n, || seat::met(Some(Policy::Strict(1, 2)), black_box(n / 2 + 1), black_box(n), None));
             h.run("seat::Seats::new", n, || Seats::new(&c, &law, &NoCut, None).recs.len());
+            // one founding offer seating every member, each its cosigner (the first shape of persist's ballot)
+            let mut one = B::new(rid(0, 0), Vec::new(), key(0));
+            one.kind = SeatKind::Offer;
+            one.to = (0..n).map(key).collect();
+            one.cosigners = (1..n).map(key).collect();
+            one.scope = Some("member".into());
+            one.obj = Some(Obj::Row(rid(0, 0)));
+            one.conf = Some(Conf::Own);
+            let one_rows = vec![one];
+            let one_c = concluded(&one_rows, &law);
+            h.run("seat::Seats::new/one_offer_seats_all", n, || Seats::new(&one_c, &law, &NoCut, None).recs.len());
             let s = Seats::new(&c, &law, &NoCut, None);
             h.run("seat::Seats::holders", n, || s.holders("member", &gobj, None).len());
             h.run("seat::Seats::one", n, || s.one("member", &gobj));
@@ -627,6 +638,13 @@ fn main() {
             h.run("trust::honours", n, || trust::honours(&e, &key(0), |_, _| true, &last_key, &()));
             let pairs: Vec<(String, String)> = e.iter().map(|x| (x.src.clone(), x.dst.clone())).collect();
             h.run("derived::reach/5", n, || derived::reach(&key(0), 5, &pairs).len());
+            // <index>
+            // the edges indexed once, for a caller that walks them again and again
+            let ix = trust::Index::new(&e);
+            h.run("trust::Index::reaches/hit", n, || ix.reaches(&key(0), &(), trust::HOP_CAP, &near));
+            h.run("trust::Index::reaches/miss", n, || ix.reaches(&key(0), &(), trust::HOP_CAP, &key(n + 9)));
+            h.run("trust::Index::new", n, || trust::Index::new(&e).reaches(&key(0), &(), 0, &near));
+            // </index>
         }
         if h.wants(&["line::", "seat::Seats::tips"]) {
             // the reader's line

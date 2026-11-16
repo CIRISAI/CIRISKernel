@@ -312,6 +312,9 @@ pub struct Live<I, K, W> {
     pub root: Root<I, K>,
 }
 
+/// Up to how many keys an offer seats before [`Seats::new`] reads its signers as a set.
+const SIGNERS_SCANNED: usize = 8;
+
 /// Whether `k` signed row `r`: its signer or one of its cosigners (`signers(r).contains(k)`, with no set).
 fn signed_by<R: SeatRow>(r: &R, k: &R::Key) -> bool {
     r.signer() == k || r.cosigners().contains(k)
@@ -467,8 +470,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 held && g.in_past(oi, u)
             })
         };
-        let accepted = |o: &R, k: &R::Key| {
-            if signed_by(o, k) {
+        // `signed`: whether k signed the offer, read by the caller once per offer's signer set
+        let accepted = |o: &R, k: &R::Key, signed: bool| {
+            if signed {
                 return true;
             }
             if o.consent_one() {
@@ -494,8 +498,13 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             if o.seat_kind() != SeatKind::Offer || !cut.counts(oi) || stale.contains(&oi) {
                 continue;
             }
+            // an offer seating many keys reads its signers as a set, built once (not once per key)
+            let many = o.to().len() > SIGNERS_SCANNED;
+            let sig: BTreeSet<&R::Key> =
+                if many { o.cosigners().iter().chain(core::iter::once(o.signer())).collect() } else { BTreeSet::new() };
             for k in o.to() {
-                if !off_ended(o, k) && accepted(o, k) && !unseated(oi, k) {
+                let signed = if many { sig.contains(k) } else { signed_by(o, k) };
+                if !off_ended(o, k) && accepted(o, k, signed) && !unseated(oi, k) {
                     base.push((oi, k));
                 }
             }

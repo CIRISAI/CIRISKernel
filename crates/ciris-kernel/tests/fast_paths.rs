@@ -584,3 +584,37 @@ fn retained_equals_the_per_row_reading() {
     report("key_end::retained against the per-row reading of ended", cases, bad);
     assert_eq!(bad, 0);
 }
+
+/// One founding offer seating many keys (more than `Seats::new` scans its signers for): a key is seated iff it
+/// signed the offer or accepted it by a row of its own.
+#[test]
+fn an_offer_seating_many_seats_exactly_its_consenting_keys() {
+    let law = law();
+    let mut g = Lcg(41);
+    let (mut cases, mut bad) = (0usize, 0usize);
+    for _ in 0..2_000 {
+        let n = 1 + pick(&mut g, 20) as u32;
+        let mut o = S::new(0, Vec::new(), 1, SeatKind::Offer);
+        o.to = (1..=n).collect();
+        o.scope = Some("member".into());
+        o.obj = Some(Obj::Row(0));
+        o.conf = Some(Conf::Own);
+        o.cosigners = (2..=n).filter(|_| pick(&mut g, 2) == 0).collect();
+        let mut rows = vec![o.clone()];
+        let mut want: BTreeSet<u32> = o.cosigners.iter().copied().chain([1]).collect();
+        for k in 2..=n {
+            if pick(&mut g, 3) == 0 {
+                let mut a = S::new(100 + k, vec![0], k, SeatKind::Accept);
+                a.of = Some(0);
+                rows.push(a);
+                want.insert(k);
+            }
+        }
+        let c = conclude(rows.iter(), |p| seat_rule(p, &law, &NoCut, &|_| true), None);
+        let got = ciris_kernel::seat::Seats::new(&c, &law, &NoCut, None).holders("member", &Obj::Row(0), None);
+        cases += 1;
+        bad += (got != want) as usize;
+    }
+    report("one offer seating many: its consenting keys", cases, bad);
+    assert_eq!(bad, 0);
+}
