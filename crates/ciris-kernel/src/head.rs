@@ -191,9 +191,9 @@ pub struct View<I, K, T> {
     /// built in [`View::new`] ([`SCANNED`], except in this module's tests).
     scanned: usize,
     /// The held entries that name each act as theirs (`of`), by ascending id: its receipts and cuts.
-    by_of: BTreeMap<I, Vec<I>>,
+    by_of: Vec<(I, I)>,
     /// The ids an answer names.
-    answered: BTreeSet<I>,
+    answered: Vec<I>,
     /// The members of each entry listing more than [`MEMBERS_SCANNED`], as a set.
     mem: BTreeMap<I, BTreeSet<K>>,
     /// The heads this node has acknowledged.
@@ -280,8 +280,8 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             c: BTreeMap::new(),
             v: BTreeSet::new(),
             scanned,
-            by_of: BTreeMap::new(),
-            answered: BTreeSet::new(),
+            by_of: Vec::new(),
+            answered: Vec::new(),
             mem: BTreeMap::new(),
             acked: BTreeSet::new(),
         };
@@ -292,13 +292,17 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             }
             if index {
                 if let Some(o) = &r.of {
-                    me.by_of.entry(o.clone()).or_default().push(i.clone());
+                    me.by_of.push((o.clone(), i.clone()));
                 }
                 if r.kind == Kind::Answer {
                     me.answered.extend(r.names.iter().cloned());
                 }
             }
         }
+        // each index one sorted buffer: (act, entry) pairs, and the ids answers name
+        me.by_of.sort();
+        me.answered.sort();
+        me.answered.dedup();
         let ids: Vec<I> = me.rec.keys().cloned().collect();
         for i in &ids {
             me.depth_of(i);
@@ -337,8 +341,9 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
     /// The held entries that name act `a` as theirs, ascending, read through the index (a store of more than
     /// `scanned` entries; a smaller one is scanned by the caller).
     fn of_entries<'s>(&'s self, a: &I) -> impl Iterator<Item = &'s Entry<I, K, T>> + 's {
-        let ids: &'s [I] = self.by_of.get(a).map_or(&[][..], |v| &v[..]);
-        ids.iter().map(move |i| &self.rec[i])
+        let lo = self.by_of.partition_point(|(o, _)| o < a);
+        let ids: &'s [(I, I)] = &self.by_of[lo..self.by_of.partition_point(|(o, _)| o <= a)];
+        ids.iter().map(move |(_, i)| &self.rec[i])
     }
 
     fn depth_of(&mut self, i: &I) -> usize {
@@ -561,7 +566,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         let answered = if self.rec.len() <= self.scanned {
             self.rec.values().any(|x| x.kind == Kind::Answer && x.names.contains(o))
         } else {
-            self.answered.contains(o)
+            self.answered.binary_search(o).is_ok()
         };
         if answered {
             return WindowState::Answered;
