@@ -1146,3 +1146,160 @@ fn ender<R: SeatRow, S: CutSpec<R>>(
     let sole = Seats::new(&sc, law, spec, None);
     sole.one(us.as_ref(), &obj).as_ref() == Some(r.signer())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self, n: u64) -> u64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (self.0 >> 33) % n.max(1)
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct T {
+        id: u32,
+        names: Vec<u32>,
+        signer: u32,
+        kind: SeatKind,
+        to: Vec<u32>,
+        cosigners: Vec<u32>,
+        scope: Option<String>,
+        target: Option<u32>,
+    }
+
+    impl Row for T {
+        type Id = u32;
+        type Key = u32;
+        fn id(&self) -> &u32 {
+            &self.id
+        }
+        fn names(&self) -> &[u32] {
+            &self.names
+        }
+        fn signer(&self) -> &u32 {
+            &self.signer
+        }
+    }
+
+    impl SeatRow for T {
+        type Word = String;
+        fn seat_kind(&self) -> SeatKind {
+            self.kind
+        }
+        fn to(&self) -> &[u32] {
+            &self.to
+        }
+        fn cosigners(&self) -> &[u32] {
+            &self.cosigners
+        }
+        fn scope(&self) -> Option<&String> {
+            self.scope.as_ref()
+        }
+        fn obj(&self) -> Option<Obj<u32, u32>> {
+            (self.kind == SeatKind::Offer).then_some(Obj::Row(0))
+        }
+        fn conf(&self) -> Option<Conf> {
+            (self.kind == SeatKind::Offer).then_some(Conf::Own)
+        }
+        fn target(&self) -> Option<&u32> {
+            self.target.as_ref()
+        }
+    }
+
+    struct NoCut;
+    impl CutSpec<T> for NoCut {
+        type Slot = u32;
+        type Say = ();
+        fn key_slot(&self, k: &u32) -> u32 {
+            *k
+        }
+        fn on_slots(&self, r: &T) -> BTreeSet<u32> {
+            core::iter::once(r.signer).collect()
+        }
+        fn cuts_of(&self, _r: &T) -> BTreeSet<u32> {
+            BTreeSet::new()
+        }
+        fn says(&self, _r: &T) {}
+    }
+
+    fn row(id: u32, names: Vec<u32>, signer: u32, kind: SeatKind) -> T {
+        T { id, names, signer, kind, to: vec![], cosigners: vec![], scope: None, target: None }
+    }
+
+    /// Two versions that seat different keys (the second ends some seats the first holds, and seats others),
+    /// read at every set of heads in a random order through one pass's cache: each answer is the members at
+    /// those heads, as read with no cache.
+    #[test]
+    fn the_members_cache_answers_per_set_of_heads_and_scope() {
+        let law = SeatLaw::default();
+        let mut g = Lcg(5);
+        let (mut cases, mut bad, mut differ) = (0usize, 0usize, 0usize);
+        for _ in 0..2_000 {
+            let n = 2 + g.next(6) as u32;
+            let mut f = row(0, vec![], 1, SeatKind::Offer);
+            f.to = vec![1];
+            f.scope = Some("member".into());
+            let mut rows = vec![f];
+            let (mut v1, mut v2) = (vec![0u32], vec![]);
+            for k in 2..=n {
+                for (j, sc) in ["member", "founder"].iter().enumerate() {
+                    if g.next(3) == 0 {
+                        continue;
+                    }
+                    let id = 100 * (j as u32 + 1) + k;
+                    let mut o = row(id, vec![0], 1, SeatKind::Offer);
+                    o.to = vec![k];
+                    o.cosigners = vec![k];
+                    o.scope = Some((*sc).into());
+                    rows.push(o);
+                    if g.next(3) == 0 {
+                        v2.push(id);
+                    } else {
+                        v1.push(id);
+                        if g.next(2) == 0 {
+                            // the key leaves at the second version
+                            let mut w = row(300 + id, vec![id], k, SeatKind::Withdraw);
+                            w.target = Some(id);
+                            rows.push(w);
+                            v2.push(300 + id);
+                        }
+                    }
+                }
+            }
+            rows.push(row(1000, v1, 1, SeatKind::Other));
+            v2.push(1000);
+            rows.push(row(1001, v2, 1, SeatKind::Other));
+            for j in 0..3 {
+                rows.push(row(2000 + j, vec![1001], 1, SeatKind::Other));
+            }
+            let cache = MembersAt::<T>::default();
+            let sets: [&[u32]; 6] = [&[1000], &[1001], &[1000, 1001], &[1001, 1000], &[1000, 1000], &[1001, 1001]];
+            crate::layers::conclude(
+                rows.iter(),
+                |p| {
+                    if p.row().id >= 2000 {
+                        for _ in 0..8 {
+                            let heads = sets[g.next(6) as usize];
+                            let scope = ["member", "founder"][g.next(2) as usize];
+                            let want = members_at(p, &law, &NoCut, &Obj::Row(0), heads, scope);
+                            let got = members_at_with(p, &law, &NoCut, &Obj::Row(0), heads, scope, Some(&cache));
+                            cases += 1;
+                            bad += (got != want) as usize;
+                            let first = members_at(p, &law, &NoCut, &Obj::Row(0), &heads[..1], scope);
+                            differ += (want != first) as usize;
+                        }
+                    }
+                    seat_rule(p, &law, &NoCut, &|_| true)
+                },
+                None,
+            );
+        }
+        assert!(differ > 1_000, "only {differ} reads where a later head changes the members");
+        assert_eq!(bad, 0, "{bad} of {cases} cached reads differ");
+    }
+}
