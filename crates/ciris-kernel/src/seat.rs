@@ -804,11 +804,10 @@ pub fn voices<R: SeatRow>(r: &R, p: &Past<'_, '_, R>) -> BTreeSet<R::Key> {
     let heads: BTreeSet<&R::Id> = r.head().iter().collect();
     let content = r.content().unwrap_or(r.id());
     let mut v = signers(r);
-    for c in p.rows() {
-        if c.seat_kind() == SeatKind::Cosign
-            && c.of() == Some(content)
-            && r.names().contains(c.id())
-            && heads.iter().all(|h| c.names().contains(*h))
+    // a cosignature that is a voice is a row the counted row names: read those, not every row of its past
+    for n in r.names() {
+        let Some(c) = p.get(n) else { continue };
+        if c.seat_kind() == SeatKind::Cosign && c.of() == Some(content) && heads.iter().all(|h| c.names().contains(*h))
         {
             v.insert(c.signer().clone());
         }

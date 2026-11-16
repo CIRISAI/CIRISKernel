@@ -762,6 +762,26 @@ fn seat_world(g: &mut Lcg) -> Vec<S> {
     rows.push(S::new(1000, v1, 1, SeatKind::Other));
     v2.push(1000);
     rows.push(S::new(1001, v2, 1, SeatKind::Other));
+    // cosignatures for the counted rows: at one version, both, or none; some for another row
+    let mut cosigs: Vec<u32> = Vec::new();
+    for i in 0..pick(g, 6) as u32 {
+        let names = match pick(g, 3) {
+            0 => vec![1000],
+            1 => vec![1001],
+            _ => vec![1000, 1001],
+        };
+        let mut c = S::new(1500 + i, names, 1 + pick(g, n as u64 + 1) as u32, SeatKind::Cosign);
+        c.of = Some(2000 + pick(g, 5) as u32);
+        rows.push(c);
+        cosigs.push(1500 + i);
+    }
+    // a further row naming some cosignatures, so they are in a counted row's past without being named by it
+    rows.push(S::new(
+        1002,
+        [vec![1001], cosigs.iter().copied().filter(|_| pick(g, 2) == 0).collect()].concat(),
+        1,
+        SeatKind::Other,
+    ));
     for j in 0..1 + pick(g, 4) as u32 {
         let heads: Vec<u32> = match pick(g, 4) {
             0 => vec![1000],
@@ -769,7 +789,15 @@ fn seat_world(g: &mut Lcg) -> Vec<S> {
             2 => vec![1000, 1001],
             _ => vec![1001, 1000],
         };
-        let names: Vec<u32> = heads.iter().copied().chain(late.iter().copied().filter(|_| pick(g, 2) == 0)).collect();
+        let mut names: Vec<u32> = heads.clone();
+        for &x in late.iter().chain(&cosigs) {
+            if pick(g, 2) == 0 {
+                names.push(x);
+            }
+        }
+        if pick(g, 2) == 0 {
+            names.push(1002);
+        }
         let voices: Vec<u32> = (1..=n + 1).filter(|_| pick(g, 2) == 0).collect();
         let signer = voices.first().copied().unwrap_or(99);
         let mut c = S::new(2000 + j, names, signer, if pick(g, 3) == 0 { SeatKind::Unseat } else { SeatKind::Offer });
@@ -824,6 +852,7 @@ fn members_at_a_head_as_the_rows_give_them() {
                         want.remove(&k);
                     }
                     cmp(count_members(p, &law, &NoCut) == want);
+                    cmp(seat::voices(r, p) == voices_before(r, p));
                 }
                 seat_rule(p, &law, &NoCut, &|_| true)
             },
@@ -883,4 +912,22 @@ fn group_count_is_none_for_ranked_only() {
     for (_, p) in POLICIES {
         assert!(group_count(&c(Some(*p)), |_| 1).is_some());
     }
+}
+
+/// `seat::voices` as first written: every row of the past read for a cosignature the row names.
+fn voices_before(r: &S, p: &ciris_kernel::layers::Past<'_, '_, S>) -> BTreeSet<u32> {
+    let heads: BTreeSet<&u32> = r.head().iter().collect();
+    let content = r.content().unwrap_or(r.id());
+    let mut v: BTreeSet<u32> = r.cosigners().iter().copied().collect();
+    v.insert(r.signer);
+    for c in p.rows() {
+        if c.seat_kind() == SeatKind::Cosign
+            && c.of() == Some(content)
+            && r.names().contains(c.id())
+            && heads.iter().all(|h| c.names().contains(*h))
+        {
+            v.insert(c.signer);
+        }
+    }
+    v
 }

@@ -158,6 +158,10 @@ row walked the head's seats once per scope it read (concluder, counted, `moderat
 |---|---|---|---|
 | `seat::group_count` (new; `seat_rule`'s `Conf::Group` arm calls it) | the count inline in `seat_rule`, reachable only through rows | the count over a roster the caller resolved: `GroupCount { policy, offer, to, members, voices, need }` and a weight | it is the code of that arm, moved; the arm calls it. Tested against the seat rule over the ballot's rows and against the count as first written, 40,000 ballots, every policy met and missed |
 | `group_count`'s member voices | a `BTreeSet` built of the voices that are members | `BTreeSet::intersection` of the two sets, counted (weighted: summed, ascending as before) | the same keys, each once, in the same order |
+| `group_count`'s answer type and weighted sum (after review) | `bool`; the weights summed in `u64` | `Option<bool>`, `None` for `Policy::Ranked` only; the sum in `u128` | `seat_rule` answers a ranked count before it reaches the count, so it never reads `None`. The `u64` sum wrapped in a release build (before this branch too), so a further heavy voice could unmeet a count, against `SeatCount.weighted_mono`. A sum of 2^64 or more is the one input whose answer changes, now as the theorem states |
+| `seat::count_members` (new; `seat_rule` reads it) | inline in `seat_rule` | the set `seat_rule` counts over: `members_at` at every head less `left_in_past` of the row | the code of that step, moved; tested against `members_at` minus `left_in_past` |
+| `seat::conclude` (new) | | the seat rule over one pass, `members_at` kept per (sorted heads, object, scope) for that pass; a head outside the row's concluded past is answered, not kept | within one pass the concluded rows in a head's past are fixed before any row naming it is read; tested against `layers::conclude` with `seat_rule` over generated graphs, with plants for a key that drops the scope or a head |
+| `layers::Past::get`; `members_at`'s head test | `contains` over `p` | binary search | `p` is in index order, ascending, as `conclude` builds it (its documented contract) |
 | `Cut::status` | the slots read on every call | each row's status kept once asked (`OnceCell`); no cut among the concluded rows: every concluded row counts, slots unread | the cut is solved when built, so a status never changes; a concluded row that cuts a slot is among the cuts, so with none, `voided` finds nothing |
 | `Seats::new` | every concluded row read per (offer, key); a signer set per key; each unseat's object copied per check; keys copied through the walk | acceptances indexed by signer, withdrawals by target; `signed_by` (or one signer set per offer seating more than 8); each unseat's object read once; keys borrowed until they enter a live seat | the indexes hold exactly the rows the scans filtered for; `any` over them is order-free |
 | `Seats::tips`, `tips_common` | recomputed per call | kept per object (and scope) once asked | the seats are fixed when built; no reader enters either (the reader's line is in `stale`) |
@@ -167,7 +171,7 @@ row walked the head's seats once per scope it read (concluder, counted, `moderat
 | `Graph::frontier` | every pair | up to 16 rows pairwise; more by one walk down from all of them, through rows no lower than the lowest, taking a known past whole | a row of `of` is in another's past iff that walk reaches it; tested against the pairwise frontier, before and after pasts are known |
 | `Bits::iter` | 64 tests per word | one step per set bit | |
 | `key_end::retained` | `ended` per row (all rows each) and a whole past per seed | each key's end read in one pass; one walk marks every seed's past | `ended(k)` is "revoked by now, or no record of k open past now"; the union of pasts is what one walk reaches |
-| `head::View` | every entry scanned per act and answer | above 64 entries: entries by the act they name, the ids answers and rows name, built when first read; member sets above 32 members; `acked` kept | the indexes hold the entries the scans filtered for, in the same (id) order; tested by every purge history padded past 64 entries against itself unpadded |
+| `head::View` | every entry scanned per act and answer | above 64 entries: entries by the act they name, the ids answers and rows name, built in `new` (so `View` stays `Send + Sync`); member sets above 32 members; `acked` kept. Its fields, and `Seats`', are read through methods: both are snapshots whose answers are kept once asked | the indexes hold the entries the scans filtered for, in the same (id) order; tested by every purge history padded past 64 entries against itself unpadded, and by generated stores of every kind read through the indexes against the same view scanning (a unit test) |
 | `trust::EdgeIndex` (new) | | the edges sorted by source once, for repeated walks | the walk of `reaches`, each key's edges read as their run in the index, in edge order |
 | `derived::reach` | the set copied and every edge read at every step | a layered walk over the edges sorted by source | a key enters at the first step that reaches it; only new keys are read at the next |
 | `line::settle` | `live.contains` per act of the reader's line | `cut_counts(i)` | `own_line` returns counted acts on the object only |
@@ -176,24 +180,31 @@ Kept as it was, after the A/B showed the change slower: `trust::reaches` (borrow
 comparison, more than the copies saved; sorting the edges inside one walk cost more than a short walk's
 scans), and `key_end::live`/`ended` (one pass lost the early exit of `records().any`).
 
-**Correctness.** After each change: `cargo test --release`, now 25 conformance runs. That is the 18 the
-crate carried (937,355 cases against the Python models, the Lean worked worlds and TLC's states) and seven new
-ones in `tests/fast_paths.rs` and `tests/purge.rs`, each a faster path against the definition it replaced,
-kept there as the oracle. Final: 6,397,142 cases, 0 disagreements. `check.sh` on `ffc1e0a` passed 16 of its 17 steps: 602 Lean
-theorems, the model checks, the no_std and wasm builds (0 dependencies), conformance, and TLC (5 specs,
-each with its plant caught). Plants read 34 of 35 (below). After `e5b412a` (a test only) the plants and
-conformance steps were rerun: 35 of 35 caught, and 25 runs, 6,397,142 cases, 0 disagreements. The crate also builds on MSRV 1.89, and `fmt --check` and `clippy
---all-targets -D warnings` are clean.
+**Correctness.** After each change: `cargo test --release`. It now runs 27 conformance runs and the lib's
+unit tests. The 18 runs the crate carried hold 937,355 cases against the Python models, the Lean worked worlds
+and TLC's states. The nine new ones are in `tests/fast_paths.rs` and `tests/purge.rs`: each tests a faster path
+against the definition it replaced, kept there as the oracle. Final: 7,084,046 cases, 0 disagreements.
 
-`tools/kernel_crate_plants.sh` has 35 plants. Fifteen are the plants it had; the two count plants follow the
-code into `group_count`. The `open:self_admit` removal line, which the first of them used to hit, is planted on
-its own. Nineteen are new, one per faster path: a cache that answers for another object or scope, an index
-filed under one key, the frontier's walk cut short, the no-cut shortcut taken with cuts, and so on. The first
-full run caught 34 of 35. Dropping the reader's line's live filter changed no answer the corpus reads,
-so `fast_paths` gained `line::settle` against the base's code (12,000 cases; 317 disagree under the plant).
+<<CHECK>>
+
+`tools/kernel_crate_plants.sh` has 45 plants. Fifteen are the plants it had; the two count plants follow the
+code into `group_count`. The `open:self_admit` removal line, which the first of them used to hit, is planted
+on its own. Twenty-nine are new, one per faster path: a cache that answers for another object, scope or head;
+an index filed under one key or never built; the frontier's walk cut short; the no-cut shortcut taken with
+cuts; `members_at` reading unconcluded rows; a prefilled window scope that keeps the opener in `others` or lets
+a scope named `all` take `Base::All`'s name; a weighted sum that wraps; a ranked count answered as a count.
+
+The review found four of these unplanted or uncaught (the view's answer index, the two window prefill
+guards, and `members_at` over unconcluded rows). Each now has a plant and a test that catches it. The view
+and window tests are unit tests: they compare the indexed or prefilled path with the scanning or lazy one in
+the same build, over generated stores and windows.
 
 No proof or model changed. `FORMAL_GAPS.md` lists `group_count` under the theorems of the counts it is the
-code of, `members_in_scopes` under `members_at`'s, and the frontier's walk under the closure's cases.
+code of, correct given members equal to `count_members` and voices equal to `voices`. `SeatCount`'s `yes`
+counts over a list, which equals the Rust's set count when the list has no duplicates and holds every voice.
+`wsum` is over `Nat`; the Rust sums in `u128`. The file also lists `count_members` and `seat::conclude` under
+`members_at`'s theorems, `trust::EdgeIndex` under `reaches`', and the frontier's walk under the closure's
+cases.
 
 ## 5. What persist's adapter should call
 
@@ -204,23 +215,42 @@ code of, `members_in_scopes` under `members_at`'s, and the frontier's walk under
   let c = GroupCount { policy: seat_law().policy.get(arm.word).copied(), offer: is_offer,
                        to: to.as_slice(), members: &mem, voices: &v, need: arm.need };
   group_count(&c, |k| arm.weights.iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x))
+      .expect("persist's six arms have no ranked count")
   ```
 
-  with `mem` and `v` the `BTreeSet<&str>` of persons `count` already builds, and `to` the subject's person.
-  The member's own leaving (a removal its subject alone signs) is a withdrawal, not a count, and stays the
-  adapter's shortcut as now. `group_count` is the code `seat_rule` runs for the `Conf::Group` arm, so the
-  I1844 witness (`admits_by_rows`) keeps comparing it with the rows. At 1,024 members: 8.9 µs with the sets
-  given (0 allocations), 32 µs building them per call from the roster's key slices, against the seat rule
-  over the rows at 2.5 ms before and 1.3 ms after. At three members: 62 ns, against 4.8 µs → 3.5 µs.
+  `group_count` answers as the seat rule only for input read as the seat rule reads it (its `# Contract`):
+  - `mem` is the members at **every** head the counted row names (from concluded rows only), **less every
+    key whose own leaving is in the counted row's past**. That is a function of the head and the row, not of
+    the head alone.
+  - `v` is the row's signer, its cosigners, and the cosignatures it names that name every head.
+  - `to`, `mem`, `v` and the weights are in one key space: if persons are counted, each in `to` once.
+
+  An adapter that holds the rows takes `mem` from `seat::count_members(p, law, spec)` and `v` from
+  `seat::voices(r, p)`. Persist's `count` builds `mem` from the roster it resolved for the ballot. That is
+  right only while that roster already leaves out every member whose own leaving is in the counted row's past.
+  The member's own leaving by a removal its subject alone signs stays the adapter's shortcut, as now.
+
+  `group_count` is the code `seat_rule` runs for the `Conf::Group` arm, so the I1844 witness (`admits_by_rows`)
+  keeps comparing it with the rows. At 1,024 members it takes 8.9 µs with the sets given (0 allocations), or
+  32 µs building them per call from the roster's key slices. The seat rule over the rows took 2.5 ms before
+  and 1.3 ms after. At three members: 62 ns, against 4.8 µs → 3.5 µs.
 - **The floor beyond that is the adapter's.** Building `mem` from the eligible seats per ballot costs more than
-  the count (`group_count+sets`). Keep the members set per roster version: it is a function of the head
-  (CC 2.7.8), so it never goes stale. Counting by interned person ids (`u32`) instead of 76-byte strings
-  would take the comparison cost out of the intersection.
+  the count (`group_count+sets`). A cache may hold the members at a head (`members_at`), which is a function
+  of the head alone (CC 2.7.8). It must still subtract the leavings in each counted row's past on every count.
+  A cache of `mem` per roster version gives a different answer: the review's case is a member who withdraws
+  after the version, with a unanimous offer signed by the others. `seat::conclude`, for a caller that
+  concludes rows, keeps `members_at` per head within one pass and subtracts per row. Counting by interned
+  person ids (`u32`) instead of 76-byte strings would take the comparison cost out of the intersection.
 - **Owner and edge leg.** Unchanged calls (`conclude`, `Seats::new`, `holders`, `fold_default`, `reaches`); they
   are faster here at every size (section 2). The remaining regressions in those benches are adapter work
   (section 3).
 - **Repeated trust walks over one reader's edges** (`check_federation`, a licence check per row): build
   `trust::EdgeIndex::new(&edges)` once and call `index.honours(...)`.
+- **Rows concluded by the seat rule**: `seat::conclude(kept, law, spec, other, root)` in place of
+  `layers::conclude(kept, |p| seat_rule(p, ...), root)`. It gives the same conclusions, with each head's
+  members read once per pass.
+- **Renamed or made private by this branch**: `Seats`' `recs`, `stale`, `c` and `cut`, and `View`'s `rec`, `c`
+  and `v`, are now methods of the same names. Persist's `owner_holders` reads `seats.recs()`.
 - **Several scopes at one head**: `seat::members_in_scopes`, one walk for all.
 
 ## 6. Cells below 1.0, and what they are
@@ -238,37 +268,25 @@ about ±4% is the host's noise. Three cells of changed code sit at that edge:
 Found by the A/B and taken back: `trust::reaches` with borrowed keys or a sort inside the walk (0.56–0.85×),
 and `key_end::live`/`ended` in one pass (0.07–0.21×). Both are the base code again (section 4).
 
-## 7. Open questions
+## 7. Questions, and how the review answered them
 
-For the constitution session (the rules, proofs and `DIFFERENCES.md`):
+The constitution session's review of PR #3 answered the six questions put to it:
 
-1. **New public items**: `seat::GroupCount`, `seat::group_count`, `seat::members_in_scopes`, `trust::EdgeIndex`.
-   No existing signature changed. Are the names and shapes acceptable?
-2. `group_count` answers false for `Policy::Ranked`, as `met` does. A ranked count is a tally of ballots,
-   which `seat_rule` reads before it reaches the count. Would you rather the type exclude `Ranked` (or return
-   `Option<bool>`)?
-3. `SeatCount.lean`'s `yes`: is it the voices that are members, less the keys the row names, as a set? The
-   code now counts it as `voices ∩ members` minus `to`, without building the set. `FORMAL_GAPS.md` lists
-   `group_count` under those theorems on that reading.
-4. Plants: the two count plants now target `group_count`. The `open:self_admit` removal line, which
-   the first of them used to hit (it matched that line first), is planted on its own. Nineteen plants are
-   added for the new paths. Agreed?
-5. `layers::conclude` is still quadratic in a long chain: each row's `Past::p` is materialised as its
-   concluded ancestors, and `Past::get` is a linear `contains` over it. A lazy `Past` (or `p` documented as
-   sorted, so `get` can binary-search) would change a public struct's contract. Do you want either?
-6. A per-`conclude` cache of `members_at` keyed by (heads, object, scope): it reads no reader and is a function
-   of the head's past, so it would not go stale. It would let a window's rows and several counted rows at
-   one head share one walk. Kernel API, or the adapter's?
+1. Names: `GroupCount`, `group_count` and `members_in_scopes` stand. `trust::Index` is now `trust::EdgeIndex`.
+2. `group_count` returns `Option<bool>`, `None` for `Ranked` only. Done.
+3. `SeatCount`'s `yes` is the set count under the list condition now stated in `FORMAL_GAPS.md`.
+4. The plants are agreed, plus the four the review found uncaught and one for the weighted sum. Done; ten in
+   all.
+5. `Past::get` binary-searches now: `p` is already documented as in index order. Done. A lazy `Past` is
+   left for a separate, versioned change.
+6. The members-at-head cache belongs in the kernel, scoped to one `conclude`, keyed by (sorted heads, object,
+   scope), with a plant. Done as `seat::conclude`.
 
-For the holon session (fast folds, incremental evaluation):
+The holon session answered its three on the PR. They are left for a later change: incremental seat state per
+offer with grow-only sets, keys interned once in the kernel's index layer, and an A/B tool that hashes each
+case's answers and refuses a mismatch.
 
-1. Your R(obj, scope, h) memo and the incremental R(h) = apply(R(prev), Δ). The seat walk is not a
-   per-row fold as written: an unseat voids by causal past, withdrawals end offers, tips intersect, and
-   conferred seats chain to depth. What is the closed summary you would keep per head, so that a delta of
-   seat rows updates it without re-walking? Concurrent "taken and ended" is the case to settle.
-2. Persist's vote count is now a sorted-set intersection over 76-byte key strings: 6.5 µs at 1,024
-   members, with the sets given. Would interning persons to dense `u32` per roster version (your rule 1:
-   never by position) belong in persist's adapter, the kernel's API, or neither?
-3. `kernel_bench_ab.py` gates speed but not answers: the bit-identical gate is the tests and the
-   `group_count=seat_rule` bench. Should the A/B also hash each bench's answers per process and refuse a
-   mismatch, as your one-binary A/B does?
+Still open:
+
+- The review's "not this PR": `Graph::new`'s level loop does not terminate on a cycle of names. Content-addressed
+  ids make a cycle impossible, but `Row` does not promise it.
