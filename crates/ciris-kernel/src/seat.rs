@@ -25,6 +25,7 @@ use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
 use alloc::vec::Vec;
+use core::cell::RefCell;
 
 /// What a seat is over: a row (a group is the row that founded it) or a key.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -283,7 +284,9 @@ pub fn covers(have: &str, want: &str) -> bool {
 }
 
 type ObjOf<R> = Obj<<R as Row>::Id, <R as Row>::Key>;
-type Step<R> = ((<R as Row>::Id, <R as Row>::Key), (usize, Root<<R as Row>::Id, <R as Row>::Key>));
+type MembersMemo<R> = BTreeMap<(Vec<<R as Row>::Id>, ObjOf<R>, String), BTreeSet<<R as Row>::Key>>;
+type CommonMemo<R> = RefCell<BTreeMap<(String, ObjOf<R>), Option<BTreeSet<<R as Row>::Key>>>>;
+type Step<'r, R> = ((&'r <R as Row>::Id, &'r <R as Row>::Key), (usize, Root<<R as Row>::Id, <R as Row>::Key>));
 
 /// The root a live seat is walked from.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -309,6 +312,14 @@ pub struct Live<I, K, W> {
     pub depth: usize,
     /// Its root.
     pub root: Root<I, K>,
+}
+
+/// Up to how many keys an offer seats before [`Seats::new`] reads its signers as a set.
+const SIGNERS_SCANNED: usize = 8;
+
+/// Whether `k` signed row `r`: its signer or one of its cosigners (`signers(r).contains(k)`, with no set).
+fn signed_by<R: SeatRow>(r: &R, k: &R::Key) -> bool {
+    r.signer() == k || r.cosigners().contains(k)
 }
 
 fn signers<R: SeatRow>(r: &R) -> BTreeSet<R::Key> {
@@ -387,19 +398,20 @@ fn declared<'a, R: SeatRow>(by: &BTreeMap<&R::Id, &'a R>, obj: &ObjOf<R>) -> Vec
 }
 
 /// The live seats over a concluded set, for reader `own` (the reader's line), with the cut the caller's
-/// [`CutSpec`] states.
+/// [`CutSpec`] states. An immutable snapshot: what it reads is fixed when built, and its answers are kept
+/// once asked, so its fields are read through methods.
 pub struct Seats<'c, 'a, R: SeatRow, S: CutSpec<R>> {
-    /// The concluded set.
-    pub c: &'c Concluded<'a, R>,
-    /// The cut over it.
-    pub cut: Cut<'c, 'a, R, S>,
+    c: &'c Concluded<'a, R>,
+    cut: Cut<'c, 'a, R, S>,
     law: &'c SeatLaw,
     spec: &'c S,
     by: BTreeMap<&'a R::Id, &'a R>,
-    /// The counted acts that do not count for this reader.
-    pub stale: BTreeSet<usize>,
-    /// Every live seat.
-    pub recs: Vec<Live<R::Id, R::Key, R::Word>>,
+    stale: BTreeSet<usize>,
+    recs: Vec<Live<R::Id, R::Key, R::Word>>,
+    /// [`Seats::tips`] and [`Seats::tips_common`] by object (and scope), kept once asked: the seats are fixed
+    /// when built, and no reader enters either (the reader's line is in `stale`).
+    tips_memo: RefCell<BTreeMap<ObjOf<R>, Vec<usize>>>,
+    common_memo: CommonMemo<R>,
 }
 
 impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
@@ -409,72 +421,103 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let g = &c.g;
         let by: BTreeMap<&'a R::Id, &'a R> = g.rows().iter().map(|r| (r.id(), *r)).collect();
         let cs = c.cs();
-        let wd: Vec<&R> = cs.iter().map(|&i| g.row(i)).filter(|r| r.seat_kind() == SeatKind::Withdraw).collect();
-        let ended = |row: &R| wd.iter().any(|w| w.target() == Some(row.id()));
+        // the concluded withdrawals by the row they withdraw, and the concluded acceptances by their signer
+        let mut wd: BTreeMap<&R::Id, Vec<&R>> = BTreeMap::new();
+        let mut acc: BTreeMap<&R::Key, Vec<usize>> = BTreeMap::new();
+        for &i in cs {
+            let r = g.row(i);
+            match r.seat_kind() {
+                SeatKind::Withdraw => {
+                    if let Some(t) = r.target() {
+                        wd.entry(t).or_default().push(r);
+                    }
+                }
+                SeatKind::Accept => acc.entry(r.signer()).or_default().push(i),
+                _ => {}
+            }
+        }
+        let none: Vec<&R> = Vec::new();
+        let wd_of = |id: &R::Id| wd.get(id).unwrap_or(&none);
+        let ended = |row: &R| !wd_of(row.id()).is_empty();
         let eq = |o: &R| duty_seat(law, &by, o);
         let off_ended = |o: &R, k: &R::Key| {
-            wd.iter().any(|w| {
+            wd_of(o.id()).iter().any(|w| {
                 w.target() == Some(o.id())
                     && (w.signer() == k || (!o.to().contains(w.signer()) && o.conf() != Some(Conf::Group) && !eq(o)))
             })
         };
         let stale = line::void(c, &SeatLine, own, |i| cut.counts(i));
-        let unseats: Vec<usize> = cs
+        // each unseat that counts, with its object read once
+        let unseats: Vec<(usize, Option<ObjOf<R>>)> = cs
             .iter()
             .copied()
             .filter(|&i| g.row(i).seat_kind() == SeatKind::Unseat && cut.counts(i) && !stale.contains(&i))
+            .map(|i| (i, g.row(i).obj()))
             .collect();
         let member = |s: Option<&R::Word>| s.map(|x| x.as_ref()) == Some("member");
         let unseated = |oi: usize, k: &R::Key| {
+            if unseats.is_empty() {
+                return false;
+            }
             let o = g.row(oi);
             let dutyish = o.scope().is_some_and(|s| law.is_duty(s.as_ref(), &[])) || duty_seat(law, &by, o);
-            unseats.iter().any(|&u| {
-                let ur = g.row(u);
-                let same = ur.to().contains(k) && ur.obj() == o.obj();
+            let oo = o.obj();
+            unseats.iter().any(|(u, uo)| {
+                let (u, ur) = (*u, g.row(*u));
+                let same = ur.to().contains(k) && *uo == oo;
                 let held = same && (ur.scope() == o.scope() || (dutyish && member(ur.scope())));
                 held && g.in_past(oi, u)
             })
         };
-        let accepted = |o: &R, k: &R::Key| {
-            if signers(o).contains(k) {
+        // `signed`: whether k signed the offer, read by the caller once per offer's signer set
+        let accepted = |o: &R, k: &R::Key, signed: bool| {
+            if signed {
                 return true;
             }
             if o.consent_one() {
                 return o.conf() != Some(Conf::Seat);
             }
-            cs.iter().any(|&a| {
-                let ar = g.row(a);
-                if ar.seat_kind() != SeatKind::Accept || ar.signer() != k {
-                    return false;
-                }
-                let paired = ar.of() == Some(o.id())
-                    || (ar.of().is_none()
-                        && o.names().contains(ar.id())
-                        && ar.scope() == o.scope()
-                        && ar.obj().is_none_or(|x| Some(x) == o.obj()));
-                paired && !ended(ar) && cut.counts(a)
+            acc.get(k).is_some_and(|accs| {
+                accs.iter().any(|&a| {
+                    let ar = g.row(a);
+                    if ar.seat_kind() != SeatKind::Accept || ar.signer() != k {
+                        return false;
+                    }
+                    let paired = ar.of() == Some(o.id())
+                        || (ar.of().is_none()
+                            && o.names().contains(ar.id())
+                            && ar.scope() == o.scope()
+                            && ar.obj().is_none_or(|x| Some(x) == o.obj()));
+                    paired && !ended(ar) && cut.counts(a)
+                })
             })
         };
-        let mut base: Vec<(usize, R::Key)> = Vec::new();
+        // keys are borrowed from the rows through the walk, and copied once into each live seat
+        let mut base: Vec<(usize, &'a R::Key)> = Vec::new();
         for &oi in cs {
             let o = g.row(oi);
             if o.seat_kind() != SeatKind::Offer || !cut.counts(oi) || stale.contains(&oi) {
                 continue;
             }
+            // an offer seating many keys reads its signers as a set, built once (not once per key)
+            let many = o.to().len() > SIGNERS_SCANNED;
+            let sig: BTreeSet<&R::Key> =
+                if many { o.cosigners().iter().chain(core::iter::once(o.signer())).collect() } else { BTreeSet::new() };
             for k in o.to() {
-                if !off_ended(o, k) && accepted(o, k) && !unseated(oi, k) {
-                    base.push((oi, k.clone()));
+                let signed = if many { sig.contains(k) } else { signed_by(o, k) };
+                if !off_ended(o, k) && accepted(o, k, signed) && !unseated(oi, k) {
+                    base.push((oi, k));
                 }
             }
         }
         // one link per pass: at most `depth` links below a root
-        type At<I, K> = BTreeMap<(I, K), (usize, Root<I, K>)>;
-        let mut at: At<R::Id, R::Key> = BTreeMap::new();
+        type At<'r, I, K> = BTreeMap<(&'r I, &'r K), (usize, Root<I, K>)>;
+        let mut at: At<'a, R::Id, R::Key> = BTreeMap::new();
         for _ in 0..(law.depth + 1) {
-            let mut add: Vec<Step<R>> = Vec::new();
-            for (oi, k) in &base {
-                let o = g.row(*oi);
-                let key = (o.id().clone(), k.clone());
+            let mut add: Vec<Step<'a, R>> = Vec::new();
+            for &(oi, k) in &base {
+                let o = g.row(oi);
+                let key = (o.id(), k);
                 if at.contains_key(&key) {
                     continue;
                 }
@@ -484,7 +527,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                         let founding = obj == Some(Obj::Row(o.id().clone()));
                         let ok = founding
                             || !obj.as_ref().is_some_and(|x| founding_many(&by, x))
-                            || matches!(&obj, Some(Obj::Row(f)) if at.contains_key(&(f.clone(), o.signer().clone())));
+                            || matches!(&obj, Some(Obj::Row(f)) if at.contains_key(&(f, o.signer())));
                         if ok {
                             add.push((key, (0, Root::Key(o.signer().clone()))));
                         }
@@ -501,7 +544,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     }
                     Some(Conf::Seat) => {
                         if let Some(u) = o.under() {
-                            if let (Some(up), Some(hit)) = (by.get(u), at.get(&(u.clone(), o.signer().clone()))) {
+                            if let (Some(up), Some(hit)) = (by.get(u), at.get(&(u, o.signer()))) {
                                 if may_confer(law, *up, o) {
                                     add.push((key, (hit.0 + 1, hit.1.clone())));
                                 }
@@ -521,11 +564,28 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let recs = at
             .into_iter()
             .filter_map(|((oid, k), (depth, root))| {
-                let o = by[&oid];
-                Some(Live { offer: oid, k, scope: o.scope()?.clone(), obj: o.obj()?, depth, root })
+                let o = by[oid];
+                Some(Live { offer: oid.clone(), k: k.clone(), scope: o.scope()?.clone(), obj: o.obj()?, depth, root })
             })
             .collect();
-        Seats { c, cut, law, spec, by, stale, recs }
+        Seats { c, cut, law, spec, by, stale, recs, tips_memo: RefCell::default(), common_memo: RefCell::default() }
+    }
+
+    /// The concluded set.
+    pub fn c(&self) -> &'c Concluded<'a, R> {
+        self.c
+    }
+    /// The cut over it.
+    pub fn cut(&self) -> &Cut<'c, 'a, R, S> {
+        &self.cut
+    }
+    /// The counted acts that do not count for this reader.
+    pub fn stale(&self) -> &BTreeSet<usize> {
+        &self.stale
+    }
+    /// Every live seat.
+    pub fn recs(&self) -> &[Live<R::Id, R::Key, R::Word>] {
+        &self.recs
     }
 
     fn has(&self, rec: &Live<R::Id, R::Key, R::Word>, s: &str) -> bool {
@@ -560,11 +620,21 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
 
     /// The single holder, where the seat is single-valued (an owner): two live holders is none.
     pub fn one(&self, s: &str, o: &ObjOf<R>) -> Option<R::Key> {
-        crate::ops::one(self.recs.iter().filter(|r| r.obj == *o && self.has(r, s)).map(|r| r.k.clone()))
+        // the one distinct key, found by reference; only the answer is copied
+        crate::ops::one(self.recs.iter().filter(|r| r.obj == *o && self.has(r, s)).map(|r| &r.k)).cloned()
     }
 
     /// The frontier of the counted acts on `o` that count, with its founding row.
     pub fn tips(&self, o: &ObjOf<R>) -> Vec<usize> {
+        if let Some(t) = self.tips_memo.borrow().get(o) {
+            return t.clone();
+        }
+        let t = self.tips_of(o);
+        self.tips_memo.borrow_mut().insert(o.clone(), t.clone());
+        t
+    }
+
+    fn tips_of(&self, o: &ObjOf<R>) -> Vec<usize> {
         let g = &self.c.g;
         let acts: Vec<usize> = self
             .c
@@ -585,6 +655,16 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
 
     /// With several tips, the keys holding `s` over `o` common to all of them; `None` with one tip or none.
     pub fn tips_common(&self, s: &str, o: &ObjOf<R>) -> Option<BTreeSet<R::Key>> {
+        let key = (String::from(s), o.clone());
+        if let Some(t) = self.common_memo.borrow().get(&key) {
+            return t.clone();
+        }
+        let t = self.common_of(s, o);
+        self.common_memo.borrow_mut().insert(key, t.clone());
+        t
+    }
+
+    fn common_of(&self, s: &str, o: &ObjOf<R>) -> Option<BTreeSet<R::Key>> {
         let tp = self.tips(o);
         if tp.len() <= 1 {
             return None;
@@ -634,8 +714,20 @@ pub fn members_at<R: SeatRow, S: CutSpec<R>>(
     heads: &[R::Id],
     scope: &str,
 ) -> BTreeSet<R::Key> {
-    let rows: Vec<&R> = p.rows().collect();
-    members_in(&rows, &|a, b| p.past(a, b), law, spec, obj, heads, scope)
+    // as members_in over p's rows with p's closure, read by index: a head's past is taken whole once
+    let g = p.g;
+    let mut out: Option<BTreeSet<R::Key>> = None;
+    for h in heads {
+        let Some(hi) = g.idx(h).filter(|hi| p.p.binary_search(hi).is_ok()) else { return BTreeSet::new() };
+        let past = g.ancestors(hi);
+        let sc = concluded_over(p.p.iter().filter(|&&q| q == hi || past.has(q)).map(|&q| g.row(q)));
+        let m = Seats::new(&sc, law, spec, None).holders(scope, obj, None);
+        out = Some(match out {
+            None => m,
+            Some(x) => x.intersection(&m).cloned().collect(),
+        });
+    }
+    out.unwrap_or_default()
 }
 
 /// [`members_at`] over any concluded rows, with the closure given as `past(a, b)`: a in the past of b.
@@ -648,20 +740,37 @@ pub fn members_in<R: SeatRow, S: CutSpec<R>>(
     heads: &[R::Id],
     scope: &str,
 ) -> BTreeSet<R::Key> {
-    let mut out: Option<BTreeSet<R::Key>> = None;
+    members_in_scopes(rows, past, law, spec, obj, heads, &[scope]).pop().unwrap_or_default()
+}
+
+/// [`members_in`] for several scopes at once, in the order given: the seats at each head are walked once and
+/// read for every scope.
+pub fn members_in_scopes<R: SeatRow, S: CutSpec<R>>(
+    rows: &[&R],
+    past: &dyn Fn(&R::Id, &R::Id) -> bool,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+    heads: &[R::Id],
+    scopes: &[&str],
+) -> Vec<BTreeSet<R::Key>> {
+    let mut out: Vec<Option<BTreeSet<R::Key>>> = scopes.iter().map(|_| None).collect();
     for h in heads {
         let sub: Vec<&R> = rows.iter().copied().filter(|q| q.id() == h || past(q.id(), h)).collect();
         if !sub.iter().any(|q| q.id() == h) {
-            return BTreeSet::new();
+            return scopes.iter().map(|_| BTreeSet::new()).collect();
         }
         let sc = concluded_over(sub);
-        let m = Seats::new(&sc, law, spec, None).holders(scope, obj, None);
-        out = Some(match out {
-            None => m,
-            Some(x) => x.intersection(&m).cloned().collect(),
-        });
+        let seats = Seats::new(&sc, law, spec, None);
+        for (o, scope) in out.iter_mut().zip(scopes) {
+            let m = seats.holders(scope, obj, None);
+            *o = Some(match o.take() {
+                None => m,
+                Some(x) => x.intersection(&m).cloned().collect(),
+            });
+        }
     }
-    out.unwrap_or_default()
+    out.into_iter().map(Option::unwrap_or_default).collect()
 }
 
 /// The keys whose own leaving is among `p`: a concluded withdrawal, signed by the key, of the acceptance or
@@ -695,11 +804,10 @@ pub fn voices<R: SeatRow>(r: &R, p: &Past<'_, '_, R>) -> BTreeSet<R::Key> {
     let heads: BTreeSet<&R::Id> = r.head().iter().collect();
     let content = r.content().unwrap_or(r.id());
     let mut v = signers(r);
-    for c in p.rows() {
-        if c.seat_kind() == SeatKind::Cosign
-            && c.of() == Some(content)
-            && r.names().contains(c.id())
-            && heads.iter().all(|h| c.names().contains(*h))
+    // a cosignature that is a voice is a row the counted row names: read those, not every row of its past
+    for n in r.names() {
+        let Some(c) = p.get(n) else { continue };
+        if c.seat_kind() == SeatKind::Cosign && c.of() == Some(content) && heads.iter().all(|h| c.names().contains(*h))
         {
             v.insert(c.signer().clone());
         }
@@ -726,6 +834,98 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
     law: &SeatLaw,
     spec: &S,
     other: &dyn Fn(&Past<'_, '_, R>) -> bool,
+) -> bool {
+    seat_rule_with(p, law, spec, other, None)
+}
+
+/// Conclude every kept row by [`seat_rule`] (`other` for a row the seat does not read; `root` as in
+/// [`layers::conclude`](crate::layers::conclude)): the same conclusions, with the members at a head read once
+/// per (heads, object, scope) over the whole pass.
+///
+/// Within one pass that is sound: a row concludes on its ancestors alone, so the concluded rows in a head's
+/// past are fixed before any row naming the head is read, and `law` and `spec` are fixed. The cache lives and
+/// dies with the call; it is not kept across calls, nor shared between readers (it reads none).
+pub fn conclude<'a, R: SeatRow, S: CutSpec<R>>(
+    kept_rows: impl IntoIterator<Item = &'a R>,
+    law: &SeatLaw,
+    spec: &S,
+    other: &dyn Fn(&Past<'_, '_, R>) -> bool,
+    root: Option<&dyn Fn(&R) -> bool>,
+) -> Concluded<'a, R> {
+    let cache = MembersAt::<R>::default();
+    crate::layers::conclude(kept_rows, |p| seat_rule_with(p, law, spec, other, Some(&cache)), root)
+}
+
+/// The members at a head, kept per (sorted heads, object, scope) for one [`conclude`].
+struct MembersAt<R: SeatRow> {
+    memo: RefCell<MembersMemo<R>>,
+}
+
+impl<R: SeatRow> Default for MembersAt<R> {
+    fn default() -> Self {
+        MembersAt { memo: RefCell::default() }
+    }
+}
+
+/// [`members_at`], through the pass's cache when there is one. A head that is not among the row's concluded
+/// ancestors makes the set empty for that row alone, so such a call is answered and not kept.
+fn members_at_with<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+    heads: &[R::Id],
+    scope: &str,
+    cache: Option<&MembersAt<R>>,
+) -> BTreeSet<R::Key> {
+    let Some(cache) = cache else { return members_at(p, law, spec, obj, heads, scope) };
+    if !heads.iter().all(|h| p.g.idx(h).is_some_and(|hi| p.p.binary_search(&hi).is_ok())) {
+        return BTreeSet::new();
+    }
+    let mut hs = heads.to_vec();
+    hs.sort();
+    hs.dedup();
+    let key = (hs, obj.clone(), String::from(scope));
+    if let Some(m) = cache.memo.borrow().get(&key) {
+        return m.clone();
+    }
+    let m = members_at(p, law, spec, obj, heads, scope);
+    cache.memo.borrow_mut().insert(key, m.clone());
+    m
+}
+
+/// The members a group-conferred offer or unseat `p.row()` is counted over, exactly as [`seat_rule`] reads
+/// them: the live seats of its counted scope (default `member`) over its object (or `over`), at every head it
+/// names ([`members_at`]: read from the concluded rows in each head's past, intersected over the heads), less
+/// the keys whose own leaving is in the row's past ([`left_in_past`]). With [`voices`], what
+/// [`GroupCount`] needs. Empty for a row with no object.
+pub fn count_members<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> BTreeSet<R::Key> {
+    count_members_with(p, law, spec, None)
+}
+
+fn count_members_with<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    cache: Option<&MembersAt<R>>,
+) -> BTreeSet<R::Key> {
+    let r = p.row();
+    let Some(obj) = r.obj() else { return BTreeSet::new() };
+    let over = r.over().unwrap_or(obj);
+    let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
+    let mut mem = members_at_with(p, law, spec, &over, r.head(), counted, cache);
+    for k in left_in_past(p, &over, counted) {
+        mem.remove(&k);
+    }
+    mem
+}
+
+fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    other: &dyn Fn(&Past<'_, '_, R>) -> bool,
+    cache: Option<&MembersAt<R>>,
 ) -> bool {
     let r = p.row();
     let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
@@ -761,12 +961,7 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
                     r.under().and_then(|u| by.get(u)).is_some_and(|u| u.to().contains(r.signer()))
                 }
                 Some(Conf::Group) => {
-                    let over = r.over().unwrap_or(obj.clone());
-                    let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
-                    let mut mem = members_at(p, law, spec, &over, r.head(), counted);
-                    for k in left_in_past(p, &over, counted) {
-                        mem.remove(&k);
-                    }
+                    let mem = count_members_with(p, law, spec, cache);
                     let pol = law.policy_of(r.policy().map(|x| x.as_ref()));
                     if pol == Some(Policy::Ranked) {
                         let ballots: Vec<(R::Key, Vec<R::Key>)> = p
@@ -784,37 +979,17 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
                             && ranked(&ballots, r.options(), 2, false).0.as_ref() == r.to().first();
                     }
                     let v = voices(r, p);
-                    if pol == Some(Policy::SelfAdmit) {
-                        // the joiner's own signature is the group's side; a removal takes two voices besides
-                        // the member it names
-                        return if is_offer && r.to().len() == 1 && !mem.contains(&r.to()[0]) {
-                            v.contains(&r.to()[0])
-                        } else {
-                            v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).count() >= 2
-                        };
-                    }
-                    if matches!(pol, Some(Policy::DutyConfer) | Some(Policy::DutyWithdraw)) {
-                        let yes: BTreeSet<&R::Key> = v.iter().filter(|k| mem.contains(*k)).collect();
-                        return duty_count_keys(pol == Some(Policy::DutyWithdraw), r.to(), &yes, &mem);
-                    }
-                    // no key admits itself (CC 2.7.5): a key the row seats or removes is no voice of the count
-                    let yes: BTreeSet<&R::Key> = v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).collect();
-                    if pol == Some(Policy::Weighted) {
-                        let sum: u64 =
-                            yes.iter().map(|k| r.weights().iter().find(|(w, _)| w == *k).map_or(0, |(_, x)| *x)).sum();
-                        return r.need().is_some_and(|t| t > 0 && sum >= t as u64);
-                    }
-                    if pol == Some(Policy::Unanimous) {
-                        let others = mem.iter().filter(|k| !r.to().contains(k)).count();
-                        return if is_offer {
-                            !mem.is_empty()
-                                && yes.len() == others
-                                && r.to().iter().all(|k| !mem.contains(k) || v.contains(k))
-                        } else {
-                            yes.len() == others && 2 * yes.len() > mem.len()
-                        };
-                    }
-                    met(pol, yes.len(), mem.len(), r.need())
+                    let count = GroupCount {
+                        policy: pol,
+                        offer: is_offer,
+                        to: r.to(),
+                        members: &mem,
+                        voices: &v,
+                        need: r.need(),
+                    };
+                    // a ranked count was answered above, so the count answers
+                    group_count(&count, |k| r.weights().iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x))
+                        .unwrap_or(false)
                 }
                 None => false,
             }
@@ -824,14 +999,103 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
             Some(o) => by.get(o).is_some_and(|o| o.to().contains(r.signer())),
         },
         SeatKind::Withdraw => match r.target().and_then(|t| by.get(t)) {
-            Some(t) => {
-                signers(*t).contains(r.signer()) || (t.seat_kind() == SeatKind::Offer && t.to().contains(r.signer()))
-            }
+            Some(t) => signed_by(*t, r.signer()) || (t.seat_kind() == SeatKind::Offer && t.to().contains(r.signer())),
             None => false,
         },
         SeatKind::Cosign => true,
         _ => other(p),
     }
+}
+
+/// What a group's count reads, once the caller has resolved it: the count the policy row names, whether the
+/// row is an offer (else an unseat), the keys it seats or removes, the members it is counted over and its
+/// voices.
+///
+/// # Contract
+///
+/// [`group_count`] gives the seat rule's answer only for input read as the seat rule reads it. Nothing here
+/// can check that without the rows, and a stale or partial roster is answered, not refused.
+///
+/// - `members` is [`count_members`]: the live seats of the counted scope read from the **concluded** rows in
+///   each head's past, **intersected over every head** the row names (so tips wait and a waiting row counts
+///   for nothing), **less the keys whose own leaving is in the counted row's past** ([`left_in_past`]). It is
+///   a function of the head *and the row*: cache [`members_at`] per head if you will, and subtract
+///   `left_in_past` on every count.
+/// - `voices` is [`voices`]: the row's signer, its cosigners, and the signers of the cosignatures it names
+///   that name every head it is counted over.
+/// - `to`, `members`, `voices` and the weights are in **one** key space. A caller counting persons (KERNEL.md
+///   7b) collapses `to` the same way, once each: two devices of one person in `to` are one key.
+#[derive(Clone, Copy, Debug)]
+pub struct GroupCount<'a, K> {
+    /// The count, from the policy table.
+    pub policy: Option<Policy>,
+    /// An offer (true) or an unseat (false).
+    pub offer: bool,
+    /// The keys the row seats or removes (`SeatRow::to`).
+    pub to: &'a [K],
+    /// The members at the head, less those whose own leaving is in the row's past.
+    pub members: &'a BTreeSet<K>,
+    /// The keys that signed the row (`voices`).
+    pub voices: &'a BTreeSet<K>,
+    /// The threshold the row declares (`SeatRow::need`).
+    pub need: Option<usize>,
+}
+
+/// Whether a group's count is met: [`seat_rule`]'s `Conf::Group` arm after the members and voices are read,
+/// and the very code that arm runs (see the contract on [`GroupCount`]). `weight` is a key's whole-number
+/// weight (a `weighted` count), summed exactly. `None` for [`Policy::Ranked`] only: a ranked count is a tally
+/// of the ballots the row names (`ranked::ranked`), which the seat rule reads before any count of voices. Any
+/// other policy, a policy the table does not name included, is `Some`.
+///
+/// A caller that already holds the roster at the head (persist resolves a ballot's) answers here directly,
+/// without presenting the roster as rows: the same answer as the seat rule over those rows, with no graph.
+pub fn group_count<K: Ord>(c: &GroupCount<'_, K>, weight: impl Fn(&K) -> u64) -> Option<bool> {
+    let GroupCount { policy: pol, offer: is_offer, to, members: mem, voices: v, need } = *c;
+    if matches!(pol, Some(Policy::Ranked)) {
+        return None;
+    }
+    Some(count_of(pol, is_offer, to, mem, v, need, weight))
+}
+
+fn count_of<K: Ord>(
+    pol: Option<Policy>,
+    is_offer: bool,
+    to: &[K],
+    mem: &BTreeSet<K>,
+    v: &BTreeSet<K>,
+    need: Option<usize>,
+    weight: impl Fn(&K) -> u64,
+) -> bool {
+    if pol == Some(Policy::SelfAdmit) {
+        // the joiner's own signature is the group's side; a removal takes two voices besides the member it names
+        return if is_offer && to.len() == 1 && !mem.contains(&to[0]) {
+            v.contains(&to[0])
+        } else {
+            v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).count() >= 2
+        };
+    }
+    if matches!(pol, Some(Policy::DutyConfer) | Some(Policy::DutyWithdraw)) {
+        let yes: BTreeSet<&K> = v.iter().filter(|k| mem.contains(*k)).collect();
+        return duty_count_keys(pol == Some(Policy::DutyWithdraw), to, &yes, mem);
+    }
+    // no key admits itself (CC 2.7.5): a key the row seats or removes is no voice of the count. The voices
+    // that are members, ascending and each once, read off the two sorted sets with no set built.
+    let yes = || v.intersection(mem).filter(|k| !to.contains(k));
+    if pol == Some(Policy::Weighted) {
+        // in u128, so no further voice can lower the sum (`SeatCount.weighted_mono`, over Nat)
+        let sum: u128 = yes().map(|k| weight(k) as u128).sum();
+        return need.is_some_and(|t| t > 0 && sum >= t as u128);
+    }
+    let n_yes = yes().count();
+    if pol == Some(Policy::Unanimous) {
+        let others = mem.iter().filter(|k| !to.contains(k)).count();
+        return if is_offer {
+            !mem.is_empty() && n_yes == others && to.iter().all(|k| !mem.contains(k) || v.contains(k))
+        } else {
+            n_yes == others && 2 * n_yes > mem.len()
+        };
+    }
+    met(pol, n_yes, mem.len(), need)
 }
 
 fn duty_count_keys<K: Ord>(withdraw: bool, to: &[K], yes: &BTreeSet<&K>, mem: &BTreeSet<K>) -> bool {
@@ -880,4 +1144,161 @@ fn ender<R: SeatRow, S: CutSpec<R>>(
     let sc = concluded_over(p.rows());
     let sole = Seats::new(&sc, law, spec, None);
     sole.one(us.as_ref(), &obj).as_ref() == Some(r.signer())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self, n: u64) -> u64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (self.0 >> 33) % n.max(1)
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct T {
+        id: u32,
+        names: Vec<u32>,
+        signer: u32,
+        kind: SeatKind,
+        to: Vec<u32>,
+        cosigners: Vec<u32>,
+        scope: Option<String>,
+        target: Option<u32>,
+    }
+
+    impl Row for T {
+        type Id = u32;
+        type Key = u32;
+        fn id(&self) -> &u32 {
+            &self.id
+        }
+        fn names(&self) -> &[u32] {
+            &self.names
+        }
+        fn signer(&self) -> &u32 {
+            &self.signer
+        }
+    }
+
+    impl SeatRow for T {
+        type Word = String;
+        fn seat_kind(&self) -> SeatKind {
+            self.kind
+        }
+        fn to(&self) -> &[u32] {
+            &self.to
+        }
+        fn cosigners(&self) -> &[u32] {
+            &self.cosigners
+        }
+        fn scope(&self) -> Option<&String> {
+            self.scope.as_ref()
+        }
+        fn obj(&self) -> Option<Obj<u32, u32>> {
+            (self.kind == SeatKind::Offer).then_some(Obj::Row(0))
+        }
+        fn conf(&self) -> Option<Conf> {
+            (self.kind == SeatKind::Offer).then_some(Conf::Own)
+        }
+        fn target(&self) -> Option<&u32> {
+            self.target.as_ref()
+        }
+    }
+
+    struct NoCut;
+    impl CutSpec<T> for NoCut {
+        type Slot = u32;
+        type Say = ();
+        fn key_slot(&self, k: &u32) -> u32 {
+            *k
+        }
+        fn on_slots(&self, r: &T) -> BTreeSet<u32> {
+            core::iter::once(r.signer).collect()
+        }
+        fn cuts_of(&self, _r: &T) -> BTreeSet<u32> {
+            BTreeSet::new()
+        }
+        fn says(&self, _r: &T) {}
+    }
+
+    fn row(id: u32, names: Vec<u32>, signer: u32, kind: SeatKind) -> T {
+        T { id, names, signer, kind, to: vec![], cosigners: vec![], scope: None, target: None }
+    }
+
+    /// Two versions that seat different keys (the second ends some seats the first holds, and seats others),
+    /// read at every set of heads in a random order through one pass's cache: each answer is the members at
+    /// those heads, as read with no cache.
+    #[test]
+    fn the_members_cache_answers_per_set_of_heads_and_scope() {
+        let law = SeatLaw::default();
+        let mut g = Lcg(5);
+        let (mut cases, mut bad, mut differ) = (0usize, 0usize, 0usize);
+        for _ in 0..2_000 {
+            let n = 2 + g.next(6) as u32;
+            let mut f = row(0, vec![], 1, SeatKind::Offer);
+            f.to = vec![1];
+            f.scope = Some("member".into());
+            let mut rows = vec![f];
+            let (mut v1, mut v2) = (vec![0u32], vec![]);
+            for k in 2..=n {
+                for (j, sc) in ["member", "founder"].iter().enumerate() {
+                    if g.next(3) == 0 {
+                        continue;
+                    }
+                    let id = 100 * (j as u32 + 1) + k;
+                    let mut o = row(id, vec![0], 1, SeatKind::Offer);
+                    o.to = vec![k];
+                    o.cosigners = vec![k];
+                    o.scope = Some((*sc).into());
+                    rows.push(o);
+                    if g.next(3) == 0 {
+                        v2.push(id);
+                    } else {
+                        v1.push(id);
+                        if g.next(2) == 0 {
+                            // the key leaves at the second version
+                            let mut w = row(300 + id, vec![id], k, SeatKind::Withdraw);
+                            w.target = Some(id);
+                            rows.push(w);
+                            v2.push(300 + id);
+                        }
+                    }
+                }
+            }
+            rows.push(row(1000, v1, 1, SeatKind::Other));
+            v2.push(1000);
+            rows.push(row(1001, v2, 1, SeatKind::Other));
+            for j in 0..3 {
+                rows.push(row(2000 + j, vec![1001], 1, SeatKind::Other));
+            }
+            let cache = MembersAt::<T>::default();
+            let sets: [&[u32]; 6] = [&[1000], &[1001], &[1000, 1001], &[1001, 1000], &[1000, 1000], &[1001, 1001]];
+            crate::layers::conclude(
+                rows.iter(),
+                |p| {
+                    if p.row().id >= 2000 {
+                        for _ in 0..8 {
+                            let heads = sets[g.next(6) as usize];
+                            let scope = ["member", "founder"][g.next(2) as usize];
+                            let want = members_at(p, &law, &NoCut, &Obj::Row(0), heads, scope);
+                            let got = members_at_with(p, &law, &NoCut, &Obj::Row(0), heads, scope, Some(&cache));
+                            cases += 1;
+                            bad += (got != want) as usize;
+                            let first = members_at(p, &law, &NoCut, &Obj::Row(0), &heads[..1], scope);
+                            differ += (want != first) as usize;
+                        }
+                    }
+                    seat_rule(p, &law, &NoCut, &|_| true)
+                },
+                None,
+            );
+        }
+        assert!(differ > 1_000, "only {differ} reads where a later head changes the members");
+        assert_eq!(bad, 0, "{bad} of {cases} cached reads differ");
+    }
 }

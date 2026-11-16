@@ -59,6 +59,63 @@ pub fn reaches<K: Ord + Clone, C: PartialEq>(edges: &[Accepts<K, C>], from: &K, 
     false
 }
 
+/// The edges sorted by source, built once for a caller that walks the same edges again and again (each walk of
+/// [`reaches`] reads every edge at every key it expands; one over an index reads only that key's run).
+pub struct EdgeIndex<'e, K, C> {
+    edges: &'e [Accepts<K, C>],
+    by_src: Vec<usize>,
+}
+
+impl<'e, K: Ord + Clone, C: PartialEq> EdgeIndex<'e, K, C> {
+    /// Index the edges by source (stable: one key's edges keep their order).
+    pub fn new(edges: &'e [Accepts<K, C>]) -> Self {
+        let mut by_src: Vec<usize> = (0..edges.len()).collect();
+        by_src.sort_by(|&x, &y| edges[x].src.cmp(&edges[y].src));
+        EdgeIndex { edges, by_src }
+    }
+    /// [`reaches`] over the indexed edges: the same answer.
+    pub fn reaches(&self, from: &K, c: &C, budget: u32, a: &K) -> bool {
+        walk(self.edges, &self.by_src, from, c, budget, a)
+    }
+    /// [`honours`] over the indexed edges: the same answer.
+    pub fn honours(&self, reader: &K, charter_declares: impl Fn(&K, &C) -> bool, auth: &K, cls: &C) -> bool {
+        charter_declares(auth, cls) && self.reaches(reader, cls, HOP_CAP, auth)
+    }
+}
+
+/// [`reaches`] with the edges from a key read as their run in `by_src` (the edges' positions sorted by source),
+/// not by a scan: the same walk, in the same order.
+fn walk<K: Ord + Clone, C: PartialEq>(
+    edges: &[Accepts<K, C>],
+    by_src: &[usize],
+    from: &K,
+    c: &C,
+    budget: u32,
+    a: &K,
+) -> bool {
+    let mut best: BTreeMap<K, u32> = BTreeMap::new();
+    best.insert(from.clone(), budget);
+    let mut todo: Vec<K> = alloc::vec![from.clone()];
+    while let Some(k) = todo.pop() {
+        let b = best[&k];
+        if b == 0 {
+            continue;
+        }
+        let lo = by_src.partition_point(|&x| edges[x].src < k);
+        for e in by_src[lo..].iter().map(|&x| &edges[x]).take_while(|e| e.src == k).filter(|e| e.admits(c)) {
+            if e.dst == *a {
+                return true;
+            }
+            let nb = core::cmp::min(b - 1, e.depth);
+            if best.get(&e.dst).is_none_or(|&o| nb > o) {
+                best.insert(e.dst.clone(), nb);
+                todo.push(e.dst.clone());
+            }
+        }
+    }
+    false
+}
+
 /// Whether the reader honours a licence of class `cls` issued by `auth`: its own walk, within the cap,
 /// reaches the authority for that class, and the authority's charter declares the class (`TrustSet.honours`).
 pub fn honours<K: Ord + Clone, C: PartialEq>(

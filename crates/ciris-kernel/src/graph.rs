@@ -12,6 +12,15 @@ use core::cell::OnceCell;
 
 /// How many rows a point question of the past searches before it computes and keeps the whole past.
 const SEARCH_BUDGET: usize = 256;
+/// A level not yet known, while the walk in [`Graph::new`] runs.
+const UNSET: u32 = u32::MAX;
+/// A row on the walk's stack in [`Graph::new`]: expanded, its level not yet known.
+const ON: u32 = u32::MAX - 1;
+/// The level of a row that waits on a cycle of names (and never concludes); below [`ON`] and [`UNSET`], and
+/// above every level a row of a kept set can have.
+const WAITING: u32 = u32::MAX - 2;
+/// Up to how many rows [`Graph::frontier`] compares pairwise before it walks down from all of them at once.
+const FRONTIER_PAIRWISE: usize = 16;
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -52,9 +61,17 @@ impl Bits {
     }
     /// The indices, ascending.
     pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
+        // one step per index held (lowest set bit first), not one per bit of the word
         self.w.iter().enumerate().flat_map(|(k, x)| {
-            let x = *x;
-            (0..64).filter(move |b| (x >> b) & 1 == 1).map(move |b| k * 64 + b)
+            let mut x = *x;
+            core::iter::from_fn(move || {
+                if x == 0 {
+                    return None;
+                }
+                let b = x.trailing_zeros() as usize;
+                x &= x - 1;
+                Some(k * 64 + b)
+            })
         })
     }
 }
@@ -67,38 +84,82 @@ impl Bits {
 /// its level is lower, so most questions of concurrency are answered without a past at all.
 pub struct Graph<'a, R: Row> {
     rows: Vec<&'a R>,
-    index: BTreeMap<R::Id, usize>,
-    names: Vec<Vec<usize>>,
+    /// Each id with its row's index, sorted by id: the index of an id is a binary search in one buffer.
+    index: Vec<(R::Id, usize)>,
+    /// What each row names, as one buffer: row i names `names[off[i]..off[i + 1]]`, ascending.
+    off: Vec<usize>,
+    names: Vec<usize>,
+    /// Each row's level; [`WAITING`] for a row on a cycle of names or naming one (no kept set holds it).
     level: Vec<u32>,
     anc: Vec<OnceCell<Bits>>,
 }
 
 impl<'a, R: Row> Graph<'a, R> {
     /// Build the index. A later row with an id already present is ignored.
+    ///
+    /// Precondition: the rows are closed under [`kept`](crate::layers::kept): every row names only rows of
+    /// the set (a named id with no row is followed no further), and no chain of names returns to a row. Rows
+    /// with digests for ids cannot form such a cycle. If some do, building still ends: a row on a cycle, and
+    /// every row naming one, is [`waiting`](Graph::waiting), as `kept` would never have kept it, and
+    /// [`conclude`](crate::layers::conclude) concludes nothing for it.
     pub fn new(rows: impl IntoIterator<Item = &'a R>) -> Self {
-        let mut v: Vec<&'a R> = Vec::new();
-        let mut index = BTreeMap::new();
-        for r in rows {
-            if !index.contains_key(r.id()) {
-                index.insert(r.id().clone(), v.len());
-                v.push(r);
+        let mut v: Vec<&'a R> = rows.into_iter().collect();
+        // the ids sorted, each with the first position it was given at
+        let mut index: Vec<(R::Id, usize)> = v.iter().enumerate().map(|(p, r)| (r.id().clone(), p)).collect();
+        index.sort_unstable();
+        index.dedup_by(|b, a| a.0 == b.0);
+        if index.len() < v.len() {
+            // a later row with an id already present is ignored: keep each first, in the order given
+            let mut first = vec![false; v.len()];
+            for (_, p) in &index {
+                first[*p] = true;
+            }
+            let mut at = vec![0usize; v.len()];
+            let mut k = 0;
+            for p in 0..v.len() {
+                at[p] = k;
+                if first[p] {
+                    v[k] = v[p];
+                    k += 1;
+                }
+            }
+            v.truncate(k);
+            for e in index.iter_mut() {
+                e.1 = at[e.1];
             }
         }
         let n = v.len();
-        let names: Vec<Vec<usize>> = v
-            .iter()
-            .enumerate()
-            .map(|(i, r)| {
-                let mut ns: Vec<usize> =
-                    r.names().iter().filter_map(|x| index.get(x).copied()).filter(|&p| p != i).collect();
-                ns.sort_unstable();
-                ns.dedup();
-                ns
-            })
-            .collect();
-        // levels, iteratively: a row's level is known once those of the rows it names are
-        const UNSET: u32 = u32::MAX;
+        // a level is below WAITING; so is the number of rows
+        assert!(n < WAITING as usize, "more rows than a level can count");
+        let find = |id: &R::Id| index.binary_search_by(|e| e.0.cmp(id)).ok().map(|k| index[k].1);
+        let mut off: Vec<usize> = Vec::with_capacity(n + 1);
+        let mut names: Vec<usize> = Vec::with_capacity(v.iter().map(|r| r.names().len()).sum());
+        // a row naming its own id is a cycle of one: it waits, as `kept` would never keep it
         let mut level = vec![UNSET; n];
+        off.push(0);
+        for (i, r) in v.iter().enumerate() {
+            let s = names.len();
+            names.extend(r.names().iter().filter_map(find).filter(|&p| {
+                if p == i {
+                    level[i] = WAITING;
+                }
+                p != i
+            }));
+            names[s..].sort_unstable();
+            let mut w = s;
+            for k in s..names.len() {
+                if w == s || names[k] != names[w - 1] {
+                    names[w] = names[k];
+                    w += 1;
+                }
+            }
+            names.truncate(w);
+            off.push(names.len());
+        }
+        // levels, by a walk down what rows name: a row's level is known once those of the rows it names are.
+        // A row is ON the walk's stack from when it is first expanded until its level is known. When its turn
+        // comes again, every row it named and pushed is done, so a named row still ON is below it on the stack:
+        // a cycle of names. Such a row, and every row naming a row that waits, WAITS.
         let mut stack: Vec<usize> = Vec::new();
         for s in 0..n {
             if level[s] != UNSET {
@@ -106,24 +167,38 @@ impl<'a, R: Row> Graph<'a, R> {
             }
             stack.push(s);
             while let Some(&i) = stack.last() {
-                if level[i] != UNSET {
-                    stack.pop();
+                let named = &names[off[i]..off[i + 1]];
+                if level[i] == UNSET {
+                    let before = stack.len();
+                    for &p in named {
+                        if level[p] == UNSET {
+                            stack.push(p);
+                        }
+                    }
+                    if stack.len() > before {
+                        level[i] = ON; // its turn comes again once what it pushed is done
+                        continue;
+                    }
+                } else if level[i] != ON {
+                    stack.pop(); // done already (pushed twice)
                     continue;
                 }
-                let before = stack.len();
-                for &p in &names[i] {
-                    if level[p] == UNSET {
-                        stack.push(p);
+                // every row i names is done, or ON below it on the stack: a cycle of names
+                let (mut top, mut waits) = (0, false);
+                for &p in named {
+                    let l = level[p];
+                    if l >= WAITING {
+                        waits = true; // a named row on the stack (a back edge), or waiting
+                    } else if l > top {
+                        top = l;
                     }
                 }
-                if stack.len() == before {
-                    level[i] = 1 + names[i].iter().map(|&p| level[p]).max().unwrap_or(0);
-                    stack.pop();
-                }
+                level[i] = if waits { WAITING } else { 1 + top };
+                stack.pop();
             }
         }
         let anc = (0..n).map(|_| OnceCell::new()).collect();
-        Graph { rows: v, index, names, level, anc }
+        Graph { rows: v, index, off, names, level, anc }
     }
 
     /// The number of rows.
@@ -144,11 +219,17 @@ impl<'a, R: Row> Graph<'a, R> {
     }
     /// The index of a row id, when the row is in the set.
     pub fn idx(&self, id: &R::Id) -> Option<usize> {
-        self.index.get(id).copied()
+        self.index.binary_search_by(|e| e.0.cmp(id)).ok().map(|k| self.index[k].1)
     }
     /// The held rows row `i` names directly.
+    #[inline]
     pub fn named(&self, i: usize) -> &[usize] {
-        &self.names[i]
+        &self.names[self.off[i]..self.off[i + 1]]
+    }
+    /// Whether row `i` is on a cycle of names, or names a row that is: a row no kept set holds, which
+    /// concludes nothing. Its level and the questions of its past answer nothing meaningful.
+    pub fn waiting(&self, i: usize) -> bool {
+        self.level[i] == WAITING
     }
     /// One more than the greatest level among the rows `i` names: a row's past holds only lower levels.
     pub fn level(&self, i: usize) -> u32 {
@@ -162,7 +243,7 @@ impl<'a, R: Row> Graph<'a, R> {
         }
         // a walk down what rows name, taking whole any past already known; only i's past is kept
         let mut b = Bits::new(self.len());
-        let mut todo: Vec<usize> = self.names[i].clone();
+        let mut todo: Vec<usize> = self.named(i).to_vec();
         while let Some(p) = todo.pop() {
             if b.has(p) {
                 continue;
@@ -170,7 +251,7 @@ impl<'a, R: Row> Graph<'a, R> {
             b.set(p);
             match self.anc[p].get() {
                 Some(pa) => b.union(pa),
-                None => todo.extend(self.names[p].iter().copied().filter(|&q| !b.has(q))),
+                None => todo.extend(self.named(p).iter().copied().filter(|&q| !b.has(q))),
             }
         }
         let _ = self.anc[i].set(b);
@@ -182,7 +263,7 @@ impl<'a, R: Row> Graph<'a, R> {
         if self.level[a] >= self.level[b] {
             return false;
         }
-        if self.names[b].binary_search(&a).is_ok() {
+        if self.named(b).binary_search(&a).is_ok() {
             return true;
         }
         if let Some(pb) = self.anc[b].get() {
@@ -195,7 +276,7 @@ impl<'a, R: Row> Graph<'a, R> {
         let mut seen = Bits::new(self.len());
         let mut todo: Vec<usize> = alloc::vec![b];
         while let Some(x) = todo.pop() {
-            for &p in &self.names[x] {
+            for &p in self.named(x) {
                 if p == a {
                     return true;
                 }
@@ -226,8 +307,33 @@ impl<'a, R: Row> Graph<'a, R> {
         a != b && !self.in_past(a, b) && !self.in_past(b, a)
     }
     /// The rows of `of` that no other row of `of` has in its past, in the order given.
+    ///
+    /// A few rows are compared pairwise. For more, one walk goes down from all of them at once, through rows
+    /// no lower than the lowest of them (a row's past holds only lower levels), and a row of `of` the walk
+    /// reaches is in the past of another: linear in the rows walked, not quadratic in `of`.
     pub fn frontier(&self, of: &[usize]) -> Vec<usize> {
-        of.iter().copied().filter(|&r| !of.iter().any(|&q| self.in_past(r, q))).collect()
+        if of.len() <= FRONTIER_PAIRWISE {
+            return of.iter().copied().filter(|&r| !of.iter().any(|&q| self.in_past(r, q))).collect();
+        }
+        let low = of.iter().map(|&i| self.level[i]).min().unwrap_or(0);
+        let mut below = Bits::new(self.len());
+        let mut todo: Vec<usize> = Vec::new();
+        for &q in of {
+            todo.push(q);
+            while let Some(x) = todo.pop() {
+                for &p in self.named(x) {
+                    if self.level[p] < low || below.has(p) {
+                        continue;
+                    }
+                    below.set(p);
+                    match self.anc[p].get() {
+                        Some(pa) => below.union(pa), // the whole past of p, already known
+                        None => todo.push(p),
+                    }
+                }
+            }
+        }
+        of.iter().copied().filter(|&r| !below.has(r)).collect()
     }
     /// The rows in the past of `i` (and `i` itself when `inclusive`), in index order.
     pub fn past(&self, i: usize, inclusive: bool) -> Vec<usize> {

@@ -18,7 +18,7 @@
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
 use crate::ops;
-use crate::seat::{members_in, Obj, SeatKind, SeatLaw, SeatRow};
+use crate::seat::{members_in, members_in_scopes, Obj, SeatKind, SeatLaw, SeatRow};
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
@@ -172,6 +172,40 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
         self.cache.borrow_mut().insert(name.into(), m.clone());
         m
     }
+
+    /// Read every scope the table reads (and `extra`, returned) in one walk of the seats at the head, and keep
+    /// them as [`Ctx::base`] would. A clause over a scope named `all` or `others` shares a name with
+    /// [`Base::All`] or [`Base::Others`] in the cache, so then each is left to be read when first asked.
+    fn prefill(&self, extra: Option<&str>) -> Option<BTreeSet<R::Key>> {
+        let w = self.w;
+        let named: Vec<&str> = w
+            .at_once
+            .iter()
+            .chain(&w.at_close)
+            .filter_map(|c| match &c.over {
+                Base::Scope(s) => Some(s.as_str()),
+                _ => None,
+            })
+            .collect();
+        let read = |scope: &str| members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, scope);
+        if named.iter().any(|s| *s == "all" || *s == "others") {
+            return extra.map(read);
+        }
+        let mut scopes: Vec<&str> = alloc::vec![w.counted.as_str(), "moderate"];
+        scopes.extend(named.iter().copied());
+        scopes.extend(extra);
+        let mut sets = members_in_scopes(self.rows, self.past, self.law, self.spec, &self.obj, self.head, &scopes);
+        let got = extra.and_then(|_| sets.pop());
+        let mut cache = self.cache.borrow_mut();
+        let mut others = sets[0].clone();
+        others.remove(&self.opener_signer);
+        cache.insert("others".into(), others);
+        cache.insert("all".into(), sets[0].clone());
+        for (scope, set) in scopes.iter().zip(sets).skip(1) {
+            cache.insert((*scope).into(), set);
+        }
+        got
+    }
 }
 
 fn table_outcome<R: WindowRow, S: CutSpec<R>>(
@@ -241,6 +275,18 @@ pub fn rule<R: WindowRow, S: CutSpec<R>>(
     law: &SeatLaw,
     spec: &S,
 ) -> Option<bool> {
+    rule_with(p, windows, law, spec, true)
+}
+
+/// [`rule`], with every scope the table reads walked at once (`prefill`) or each read when first asked (the
+/// two must agree; this module's tests compare them).
+fn rule_with<R: WindowRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    windows: &Tables<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    prefill: bool,
+) -> Option<bool> {
     let r = p.row();
     let k = r.win_kind()?;
     let rows: Vec<&R> = p.rows().collect();
@@ -268,7 +314,12 @@ pub fn rule<R: WindowRow, S: CutSpec<R>>(
         w: &w,
         cache: Default::default(),
     };
-    if !members_in(&rows, &past, law, spec, &obj, o.head(), &w.concluder).contains(r.signer()) {
+    let concluders = if prefill {
+        x.prefill(Some(&w.concluder)).unwrap_or_default()
+    } else {
+        members_in(&rows, &past, law, spec, &obj, o.head(), &w.concluder)
+    };
+    if !concluders.contains(r.signer()) {
         return Some(false);
     }
     if k == WinKind::Receipt {
@@ -297,6 +348,18 @@ pub fn outcome<R: WindowRow, S: CutSpec<R>>(
     law: &SeatLaw,
     spec: &S,
     cut_counts: &dyn Fn(usize) -> bool,
+) -> Outcome {
+    outcome_with(c, pid, windows, law, spec, cut_counts, true)
+}
+
+fn outcome_with<R: WindowRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    pid: usize,
+    windows: &Tables<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    cut_counts: &dyn Fn(usize) -> bool,
+    prefill: bool,
 ) -> Outcome {
     let g = &c.g;
     if !c.concluded(pid) {
@@ -329,6 +392,9 @@ pub fn outcome<R: WindowRow, S: CutSpec<R>>(
         w: &w,
         cache: Default::default(),
     };
+    if prefill {
+        x.prefill(None);
+    }
     // the rows that ended a seat over the object, with the keys each ended
     let mut gone: Vec<(BTreeSet<R::Key>, usize)> = Vec::new();
     for &u in c.cs() {
@@ -399,5 +465,272 @@ pub fn outcome<R: WindowRow, S: CutSpec<R>>(
     match ops::one(standing) {
         Some(v) => Outcome::Landed(v),
         None => Outcome::Contested,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::layers::conclude;
+    use crate::seat::{seat_rule, Conf};
+    use alloc::vec;
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self, n: u64) -> u64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (self.0 >> 33) % n.max(1)
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct W {
+        id: u32,
+        names: Vec<u32>,
+        signer: u32,
+        kind: SeatKind,
+        to: Vec<u32>,
+        cosigners: Vec<u32>,
+        scope: Option<String>,
+        obj: Option<Obj<u32, u32>>,
+        conf: Option<Conf>,
+        head: Vec<u32>,
+        of: Option<u32>,
+        win: Option<WinKind>,
+        window: Option<String>,
+        says: Option<String>,
+        receipt: Option<u32>,
+        at: Option<i64>,
+    }
+
+    impl W {
+        fn new(id: u32, names: Vec<u32>, signer: u32) -> W {
+            W {
+                id,
+                names,
+                signer,
+                kind: SeatKind::Other,
+                to: vec![],
+                cosigners: vec![],
+                scope: None,
+                obj: None,
+                conf: None,
+                head: vec![],
+                of: None,
+                win: None,
+                window: None,
+                says: None,
+                receipt: None,
+                at: None,
+            }
+        }
+    }
+
+    impl Row for W {
+        type Id = u32;
+        type Key = u32;
+        fn id(&self) -> &u32 {
+            &self.id
+        }
+        fn names(&self) -> &[u32] {
+            &self.names
+        }
+        fn signer(&self) -> &u32 {
+            &self.signer
+        }
+    }
+
+    impl SeatRow for W {
+        type Word = String;
+        fn seat_kind(&self) -> SeatKind {
+            self.kind
+        }
+        fn to(&self) -> &[u32] {
+            &self.to
+        }
+        fn cosigners(&self) -> &[u32] {
+            &self.cosigners
+        }
+        fn scope(&self) -> Option<&String> {
+            self.scope.as_ref()
+        }
+        fn obj(&self) -> Option<Obj<u32, u32>> {
+            self.obj.clone()
+        }
+        fn conf(&self) -> Option<Conf> {
+            self.conf
+        }
+        fn head(&self) -> &[u32] {
+            &self.head
+        }
+        fn of(&self) -> Option<&u32> {
+            self.of.as_ref()
+        }
+    }
+
+    impl WindowRow for W {
+        type T = i64;
+        fn win_kind(&self) -> Option<WinKind> {
+            self.win
+        }
+        fn window(&self) -> Option<&String> {
+            self.window.as_ref()
+        }
+        fn says(&self) -> Option<&String> {
+            self.says.as_ref()
+        }
+        fn receipt(&self) -> Option<&u32> {
+            self.receipt.as_ref()
+        }
+        fn at(&self) -> Option<i64> {
+            self.at
+        }
+    }
+
+    struct NoCut;
+    impl CutSpec<W> for NoCut {
+        type Slot = u32;
+        type Say = ();
+        fn key_slot(&self, k: &u32) -> u32 {
+            *k
+        }
+        fn on_slots(&self, r: &W) -> BTreeSet<u32> {
+            core::iter::once(r.signer).collect()
+        }
+        fn cuts_of(&self, _r: &W) -> BTreeSet<u32> {
+            BTreeSet::new()
+        }
+        fn says(&self, _r: &W) {}
+    }
+
+    const SCOPES: [&str; 5] = ["member", "moderate", "all", "others", "concl"];
+    const OUTS: [&str; 3] = ["enact", "cancel", "open"];
+
+    fn clauses(g: &mut Lcg) -> Vec<Clause> {
+        (0..g.next(3))
+            .map(|_| Clause {
+                value: if g.next(3) == 0 { "no".into() } else { "approve".into() },
+                how: match g.next(4) {
+                    0 => How::Strict,
+                    1 => How::One,
+                    2 => How::AtLeast(2, 3, 1),
+                    _ => How::More(1, 2),
+                },
+                over: match g.next(6) {
+                    0 => Base::All,
+                    1 => Base::Others,
+                    2 => Base::Scope("moderate".into()),
+                    3 if g.next(3) == 0 => Base::Scope("all".into()),
+                    4 if g.next(3) == 0 => Base::Scope("others".into()),
+                    _ => Base::Scope("concl".into()),
+                },
+                out: OUTS[g.next(2) as usize].into(),
+            })
+            .collect()
+    }
+
+    /// A group with seats in five scopes (two named `all` and `others`), an opener at its version, answers,
+    /// the concluder's receipt and landings, under a generated table: every conclusion and the outcome are
+    /// the same whether the scopes the table reads are walked at once or each when first asked.
+    #[test]
+    fn prefilled_scopes_answer_as_scopes_read_when_asked() {
+        let law = SeatLaw::default();
+        let mut g = Lcg(3);
+        let (mut cases, mut bad, mut landed) = (0usize, 0usize, 0usize);
+        for _ in 0..3_000 {
+            let n = 2 + g.next(6) as u32;
+            let mut f = W::new(0, vec![], 1);
+            f.kind = SeatKind::Offer;
+            f.to = vec![1];
+            f.scope = Some("member".into());
+            f.obj = Some(Obj::Row(0));
+            f.conf = Some(Conf::Own);
+            let mut rows = vec![f];
+            let mut id = 10;
+            for k in 1..=n {
+                for sc in SCOPES {
+                    if (sc == "member" && k == 1) || g.next(3) == 0 {
+                        continue;
+                    }
+                    let mut o = W::new(id, vec![0], 1);
+                    o.kind = SeatKind::Offer;
+                    o.to = vec![k];
+                    if k != 1 {
+                        o.cosigners = vec![k];
+                    }
+                    o.scope = Some(sc.into());
+                    o.obj = Some(Obj::Row(0));
+                    o.conf = Some(Conf::Own);
+                    rows.push(o);
+                    id += 1;
+                }
+            }
+            let v = W::new(100, rows.iter().map(|r| r.id).collect(), 1);
+            rows.push(v);
+            let mut op = W::new(200, vec![100], 1 + g.next(n as u64) as u32);
+            op.win = Some(WinKind::Open);
+            op.window = Some("w".into());
+            op.obj = Some(Obj::Row(0));
+            op.head = vec![100];
+            rows.push(op);
+            let mut answers = vec![];
+            for j in 0..g.next(2 * n as u64) as u32 {
+                let mut a = W::new(300 + j, vec![200], 1 + g.next(n as u64 + 1) as u32);
+                a.win = Some(WinKind::Answer);
+                a.of = Some(200);
+                a.says = Some(if g.next(3) == 0 { "no".into() } else { "approve".into() });
+                answers.push(a.id);
+                rows.push(a);
+            }
+            let c_key = 1 + g.next(n as u64) as u32;
+            let mut rc = W::new(400, vec![200], c_key);
+            rc.win = Some(WinKind::Receipt);
+            rc.of = Some(200);
+            rc.at = Some(0);
+            rows.push(rc);
+            for l in 0..1 + g.next(2) as u32 {
+                let named: Vec<u32> = answers.iter().copied().filter(|_| g.next(2) == 0).collect();
+                let mut ld = W::new(500 + l, [vec![400], named].concat(), c_key);
+                ld.win = Some(WinKind::Landing);
+                ld.of = Some(200);
+                ld.receipt = Some(400);
+                ld.at = Some(g.next(100) as i64);
+                ld.says = Some(OUTS[g.next(3) as usize].into());
+                rows.push(ld);
+            }
+            let spec = WindowSpec {
+                counted: "member".into(),
+                concluder: if g.next(2) == 0 { "concl".into() } else { "member".into() },
+                opener_says: if g.next(2) == 0 { Some("approve".into()) } else { None },
+                at_once: clauses(&mut g),
+                silent: None,
+                at_close: clauses(&mut g),
+                default: "cancel".into(),
+                target_votes: false,
+                secs: 50,
+            };
+            let tables = |w: &String| if w == "w" { Some(spec.clone()) } else { None };
+            let concl = |prefill: bool| {
+                conclude(
+                    rows.iter(),
+                    |p| match rule_with(p, &tables, &law, &NoCut, prefill) {
+                        Some(v) => v,
+                        None => seat_rule(p, &law, &NoCut, &|_| true),
+                    },
+                    None,
+                )
+            };
+            let (a, b) = (concl(true), concl(false));
+            cases += 1;
+            bad += (a.all() != b.all()) as usize;
+            let op = a.g.idx(&200).unwrap();
+            let oa = outcome_with(&a, op, &tables, &law, &NoCut, &|_| true, true);
+            let ob = outcome_with(&a, op, &tables, &law, &NoCut, &|_| true, false);
+            landed += matches!(oa, Outcome::Landed(_)) as usize;
+            cases += 1;
+            bad += (oa != ob) as usize;
+        }
+        assert!(landed > 300, "only {landed} windows landed");
+        assert_eq!(bad, 0, "{bad} of {cases} differ");
     }
 }

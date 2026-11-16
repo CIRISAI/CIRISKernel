@@ -221,9 +221,13 @@ pub fn fixture(name: &str) -> J {
     parse(&std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}")))
 }
 
-/// One line per conformance run, read by check.sh.
+/// One line per conformance run, read by check.sh (`tools/kernel_conformance.sh`). The line is one write under
+/// the stderr lock, and starts on a line of its own: libtest's "test ... " prefix, written to stdout without a
+/// newline, can then neither split it nor stand in front of it.
 pub fn report(name: &str, cases: usize, bad: usize) {
-    eprintln!("conformance {name}: {cases} cases, {bad} disagreements");
+    use std::io::Write;
+    let line = format!("\nconformance {name}: {cases} cases, {bad} disagreements\n");
+    let _ = std::io::stderr().lock().write_all(line.as_bytes());
 }
 
 // ---- a row read as the Python models read their dicts -----------------------------------------------------

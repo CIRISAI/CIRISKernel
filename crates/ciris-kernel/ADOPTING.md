@@ -99,7 +99,7 @@ Recommended: a git dependency on the kernel repository at a tag, the way persist
 `ciris-verify-core` (`Cargo.toml:581`):
 
 ```toml
-ciris-kernel = { git = "https://github.com/CIRISAI/CIRISKernel", tag = "<tag>", version = "0.1" }
+ciris-kernel = { git = "https://github.com/CIRISAI/CIRISKernel", tag = "kernel-v0.2.0", version = "0.2" }
 ```
 
 `deny.toml` has `[sources] allow-git = []` with `unknown-git = "warn"`, so the repository would be added to

@@ -31,9 +31,9 @@ The lists give the stronger checks.
 | `line::versions` | `Versions.counts_built_on`, `counts_fuel_mono`, `void_down_the_line` | | Lean |
 | `seat::Seats::new`, `stands` | `SeatWalk.walk_iff_chain`, `unlive_never_reached`, `falls_with_upstream`; `Consent`, `Seat`, `Duty` | | Lean |
 | `seat::Seats::holders`, `tips`, `tips_common`, `one` | `SeatWalk.holder_every_tip`, `another_tip_adds_nobody`, `tips_list_no_one_new` | | Lean |
-| `seat::seat_rule` (the counts) | `SeatCount.no_key_admits_itself`, `yes_mono`, `met_mono`, `unanimous_two_removes_nobody`, `unanimous_others_remove`, `self_admit_one_never_removes`, `duty_withdrawal_needs_two`, `weighted_mono`; `count_is_final_against_members`, `one_signature_never_removes` | | Lean |
+| `seat::seat_rule` (the counts), and `seat::group_count`, the code of those counts, which `seat_rule` calls. `group_count` is correct given members equal to `seat::count_members` and voices equal to `seat::voices` (its `# Contract`); `SeatCount`'s `yes U signed mem named` counts over a list, which equals the Rust's set count when the list has no duplicates and holds every voice; `wsum` is over `Nat`, and the Rust sums in `u128` | `SeatCount.no_key_admits_itself`, `yes_mono`, `met_mono`, `unanimous_two_removes_nobody`, `unanimous_others_remove`, `self_admit_one_never_removes`, `duty_withdrawal_needs_two`, `weighted_mono`; `count_is_final_against_members`, `one_signature_never_removes` | | Lean |
 | `seat::met` | `SeatCount.met_mono`, `strict_one_voice`; `Duty.majority_iff` | | Lean |
-| `seat::members_at`, `members_in` | `membersAt_function`, `counted_over_named_head` (RosterHead) | | Lean |
+| `seat::members_at`, `members_in`, `members_in_scopes`, `count_members`, `seat::conclude` (`members_at` read once per heads, object and scope within one pass) | `membersAt_function`, `counted_over_named_head` (RosterHead) | | Lean |
 | `seat::left_in_past` | `leaving_binds_by_past` (RosterHead) | | Lean |
 | `seat::voices` | the cosignature rule of `Harden.lean` | | Lean |
 | `window::rule`, `outcome` | `dishonest_never_stands`, `stands_is_table_over_all_not_late`, `quorum_closed_final` (Recount); `WindowTable.before_close`, `at_once_ignores_close`, `default_needs_close`, `landings_agree` | | Lean |
@@ -44,10 +44,12 @@ The lists give the stronger checks.
 | `key_end::retained` | `Retained.retained_down_closed`, `named_retained`, `revocations_kept`, `dropped_unnamed`, `retained_mono` | | Lean |
 | `key_end::conclude_rule`, `successor` | | | cases (`check_key_end.py`, 5,670 worlds) |
 | `trust::reaches`, `honours` | `TrustSet.reaches_mono_budget`, `verdict_is_the_capped_walk` (parent) | `TrustWalk` (termination with cycles, and agreement with the Lean walk) | Lean, TLA+ |
+| `trust::EdgeIndex` (`new`, `reaches`, `honours`) | the theorems of `trust::reaches` and `honours`: the same walk, each key's edges read as their run in the index | | cases (against the walk as first written, `tests/fast_paths.rs`) |
 | `ranked::ranked` | `Election.free_perm`, `free_agrees` (parent), without a declared order | | Lean (no declared order); cases (declared) |
 | `ops::least`, `greatest` | `Ops.leastNoTie_perm` (G1), `leastNoTie_none_iff` (G2), `leastNoTie_some_iff` | | Lean |
 | `ops::sel`, `sel_before`, `group_by`, `min_of`, `max_of`, `one`, `count`, `sum_per`, `in_range`, `fix` | | | cases (`kernel_lib.py`, 7,968 inputs; `reexpress.py`, 17,886) |
-| `graph::Graph` (`in_past`, `concurrent`, `frontier`, `past`, `ancestors`) | | | cases (the eager closure as oracle, 301,219) |
+| `graph::Graph` (`in_past`, `concurrent`, `frontier`, `past`, `ancestors`) | | | cases (the eager closure as oracle, 301,219; the frontier's walk against the pairwise frontier and duplicate ids, `tests/fast_paths.rs`, 24,373; rows with cycles of names wait exactly when `kept` leaves them out, `tests/cycle.rs`, 54,160) |
+| `graph::Graph::waiting`; the waiting rule of `layers::conclude`, `Concluded::with` and `head::View::new` (a row on a cycle of names, or naming one, concludes nothing and a view leaves it out) | no theorem: the proofs assume a kept set, which has no cycle | | cases only (`tests/cycle.rs`: rows wait, and views hold, exactly what `kept` keeps; 54,160 and 3,000 cases) |
 | `ops::rule`, `seat::covers`, `seat::Obj::from_reference`, `is_identity_reference` | | | neither (unit tests) |
 
 **Counts**, by row of the table:

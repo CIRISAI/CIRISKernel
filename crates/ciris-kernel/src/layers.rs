@@ -61,9 +61,13 @@ pub struct Concluded<'a, R: Row> {
 }
 
 impl<'a, R: Row> Concluded<'a, R> {
-    /// A graph with the conclusions given (every row concluded when `c` is `None`).
+    /// A graph with the conclusions given (every row concluded when `c` is `None`). A row that
+    /// [waits](Graph::waiting) on a cycle of names concludes nothing, whatever `c` says.
     pub fn with(g: Graph<'a, R>, c: Option<Vec<bool>>) -> Self {
-        let c = c.unwrap_or_else(|| vec![true; g.len()]);
+        let mut c = c.unwrap_or_else(|| vec![true; g.len()]);
+        for (i, ci) in c.iter_mut().enumerate() {
+            *ci &= !g.waiting(i); // on a cycle of names, or naming one: no kept set holds it
+        }
         let cs = (0..g.len()).filter(|&i| c[i]).collect();
         Concluded { g, c, cs }
     }
@@ -108,7 +112,8 @@ impl<'g, 'a, R: Row> Past<'g, 'a, R> {
     /// The concluded ancestor with this id.
     pub fn get(&self, id: &R::Id) -> Option<&'a R> {
         let q = self.g.idx(id)?;
-        if self.p.contains(&q) {
+        // `p` is in index order (ascending), as `conclude` builds it
+        if self.p.binary_search(&q).is_ok() {
             Some(self.g.row(q))
         } else {
             None
@@ -136,6 +141,9 @@ pub fn conclude<'a, R: Row>(
     order.sort_by_key(|&i| g.level(i)); // a row reads only rows of lower level
     let mut c = vec![false; n];
     for &i in &order {
+        if g.waiting(i) {
+            continue; // on a cycle of names, or naming one: no kept set holds it
+        }
         let live = match root {
             None => true,
             Some(f) => f(g.row(i)) || g.ancestors(i).iter().any(|a| f(g.row(a))),
