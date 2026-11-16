@@ -12,6 +12,8 @@ use core::cell::OnceCell;
 
 /// How many rows a point question of the past searches before it computes and keeps the whole past.
 const SEARCH_BUDGET: usize = 256;
+/// The level of a row that waits on a cycle of names (and never concludes).
+const WAITING: u32 = u32::MAX - 1;
 /// Up to how many rows [`Graph::frontier`] compares pairwise before it walks down from all of them at once.
 const FRONTIER_PAIRWISE: usize = 16;
 use alloc::vec;
@@ -83,11 +85,19 @@ pub struct Graph<'a, R: Row> {
     off: Vec<usize>,
     names: Vec<usize>,
     level: Vec<u32>,
+    /// The rows on a cycle of names, or naming one: no kept set holds them.
+    waiting: Vec<bool>,
     anc: Vec<OnceCell<Bits>>,
 }
 
 impl<'a, R: Row> Graph<'a, R> {
     /// Build the index. A later row with an id already present is ignored.
+    ///
+    /// Precondition: the rows are closed under [`kept`](crate::layers::kept): every row names only rows of
+    /// the set (a named id with no row is followed no further), and no chain of names returns to a row. Rows
+    /// with digests for ids cannot form such a cycle. If some do, building still ends: a row on a cycle, and
+    /// every row naming one, is [`waiting`](Graph::waiting), as `kept` would never have kept it, and
+    /// [`conclude`](crate::layers::conclude) concludes nothing for it.
     pub fn new(rows: impl IntoIterator<Item = &'a R>) -> Self {
         let mut v: Vec<&'a R> = rows.into_iter().collect();
         // the ids sorted, each with the first position it was given at
@@ -118,10 +128,15 @@ impl<'a, R: Row> Graph<'a, R> {
         let find = |id: &R::Id| index.binary_search_by(|e| e.0.cmp(id)).ok().map(|k| index[k].1);
         let mut off: Vec<usize> = Vec::with_capacity(n + 1);
         let mut names: Vec<usize> = Vec::with_capacity(v.iter().map(|r| r.names().len()).sum());
+        // a row naming its own id is a cycle of one: it waits, as `kept` would never keep it
+        let mut waiting = vec![false; n];
         off.push(0);
         for (i, r) in v.iter().enumerate() {
             let s = names.len();
-            names.extend(r.names().iter().filter_map(find).filter(|&p| p != i));
+            names.extend(r.names().iter().filter_map(find).filter(|&p| {
+                waiting[i] |= p == i;
+                p != i
+            }));
             names[s..].sort_unstable();
             let mut w = s;
             for k in s..names.len() {
@@ -133,9 +148,12 @@ impl<'a, R: Row> Graph<'a, R> {
             names.truncate(w);
             off.push(names.len());
         }
-        // levels, iteratively: a row's level is known once those of the rows it names are
+        // levels, by a walk down what rows name: a row's level is known once those of the rows it names are.
+        // A row is on the walk's stack (`on`) from when it is first expanded until its level is known; a row
+        // that names one on the stack closes a cycle of names. Such a row, and every row naming one, waits.
         const UNSET: u32 = u32::MAX;
         let mut level = vec![UNSET; n];
+        let mut on = vec![false; n];
         let mut stack: Vec<usize> = Vec::new();
         for s in 0..n {
             if level[s] != UNSET {
@@ -147,20 +165,27 @@ impl<'a, R: Row> Graph<'a, R> {
                     stack.pop();
                     continue;
                 }
-                let before = stack.len();
-                for &p in &names[off[i]..off[i + 1]] {
-                    if level[p] == UNSET {
-                        stack.push(p);
+                let named = &names[off[i]..off[i + 1]];
+                if !on[i] {
+                    on[i] = true;
+                    for &p in named {
+                        if on[p] {
+                            waiting[i] = true; // a back edge: i is on a cycle of names
+                        } else if level[p] == UNSET {
+                            stack.push(p);
+                        }
                     }
+                    continue;
                 }
-                if stack.len() == before {
-                    level[i] = 1 + names[off[i]..off[i + 1]].iter().map(|&p| level[p]).max().unwrap_or(0);
-                    stack.pop();
-                }
+                // every row i names is done, or on the stack below it (then i already waits)
+                waiting[i] |= named.iter().any(|&p| waiting[p]);
+                level[i] = if waiting[i] { WAITING } else { 1 + named.iter().map(|&p| level[p]).max().unwrap_or(0) };
+                on[i] = false;
+                stack.pop();
             }
         }
         let anc = (0..n).map(|_| OnceCell::new()).collect();
-        Graph { rows: v, index, off, names, level, anc }
+        Graph { rows: v, index, off, names, level, waiting, anc }
     }
 
     /// The number of rows.
@@ -187,6 +212,11 @@ impl<'a, R: Row> Graph<'a, R> {
     #[inline]
     pub fn named(&self, i: usize) -> &[usize] {
         &self.names[self.off[i]..self.off[i + 1]]
+    }
+    /// Whether row `i` is on a cycle of names, or names a row that is: a row no kept set holds, which
+    /// concludes nothing. Its level and the questions of its past answer nothing meaningful.
+    pub fn waiting(&self, i: usize) -> bool {
+        self.waiting[i]
     }
     /// One more than the greatest level among the rows `i` names: a row's past holds only lower levels.
     pub fn level(&self, i: usize) -> u32 {

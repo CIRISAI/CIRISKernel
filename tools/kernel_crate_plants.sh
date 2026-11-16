@@ -67,5 +67,6 @@ plant 'a weighted sum wraps'                             src/seat.rs 'let sum: u
 plant 'a ranked count answered as a count'               src/seat.rs 'if matches!(pol, Some(Policy::Ranked)) {' 'if false {'
 plant 'a row'"'"'s concluded past read as its first row' src/layers.rs 'self.p.binary_search(&q).is_ok()' 'self.p.first() == Some(&q)'
 plant "voices counts a cosignature the row does not name"  src/seat.rs 'for n in r.names() {' 'for n in p.rows().map(|q| q.id()) {'
+plant "a cycle of names walked without its stack"       src/graph.rs '                        if on[p] {' '                        if false {'
 echo "ciris-kernel plants: $caught of $total caught"
 [ $caught -eq $total ]

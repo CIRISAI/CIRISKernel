@@ -137,6 +137,9 @@ pub fn conclude<'a, R: Row>(
     order.sort_by_key(|&i| g.level(i)); // a row reads only rows of lower level
     let mut c = vec![false; n];
     for &i in &order {
+        if g.waiting(i) {
+            continue; // on a cycle of names, or naming one: no kept set holds it
+        }
         let live = match root {
             None => true,
             Some(f) => f(g.row(i)) || g.ancestors(i).iter().any(|a| f(g.row(a))),
