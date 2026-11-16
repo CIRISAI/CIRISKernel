@@ -20,6 +20,18 @@ plant() {  # plant <name> <file> <old> <new>
   fi
   mv "$f.orig" "$f"
 }
+plant_run() {  # plant_run <name> <file> <old> <new>: the conformance step must fail on the copy
+  local name="$1" f="$work/ciris-kernel/$2"
+  cp "$f" "$f.orig"
+  python3 -I -c 'import sys; p,a,b=sys.argv[1:4]; s=open(p).read(); assert a in s, a; open(p,"w").write(s.replace(a,b,1))' "$f" "$3" "$4" || { echo "plant $name: text not found"; exit 1; }
+  total=$((total + 1))
+  if KERNEL_CRATE_DIR="$work/ciris-kernel" bash "$root/tools/kernel_conformance.sh" > "$work/log" 2>&1; then
+    echo "NOT CAUGHT  $name"
+  else
+    caught=$((caught + 1)); echo "caught      $name"
+  fi
+  mv "$f.orig" "$f"
+}
 (cd "$work/ciris-kernel" && cargo test --offline --release -q > "$work/log" 2>&1) || { echo "the unbroken copy fails"; exit 1; }
 plant "a removal voids rows in its own past"          src/derived.rs '|| c.g.in_past(i, x))' ')'
 plant "two cuts saying the same thing contest"         src/cut.rs 'if as_cut && self.spec.says(xr) == self.spec.says(rr) {' 'if false {'
@@ -69,5 +81,6 @@ plant 'a row'"'"'s concluded past read as its first row' src/layers.rs 'self.p.b
 plant "voices counts a cosignature the row does not name"  src/seat.rs 'for n in r.names() {' 'for n in p.rows().map(|q| q.id()) {'
 plant "a cycle of names walked without its stack"       src/graph.rs '                    if l >= WAITING {' '                    if l == WAITING {'
 plant "a view walks a cycle of names without its stack"  src/head.rs '                if d >= WAIT {' '                if d == WAIT {'
+plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 echo "ciris-kernel plants: $caught of $total caught"
 [ $caught -eq $total ]

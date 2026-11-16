@@ -1,0 +1,32 @@
+# The conformance runs crates/ciris-kernel/tests/ must report, one name per line (the text between
+# "conformance " and the ": N cases" of each report line). tools/kernel_conformance.sh fails if a run on this
+# list did not report, or a run reported that is not on it: a new run is added here in the commit that adds it.
+TLC's reachable states of Door.tla, replayed through the crate's door
+a key's own end (check_key_end.py worlds)
+a view of a store with cycles of names, against what kept keeps
+a weighted count with a further voice
+causal (check.py worlds)
+checkpoint and purge (check_purge.py replays)
+conclude over rows with cycles of names, against conclude over what kept keeps
+cut (check_cut.py worlds)
+fold default (CC 3.5.1 rules and every order of six rows)
+group_count against the seat rule over the ballot's rows and the count it replaced
+head::View read through its indexes against the scanned one (purge.json histories)
+kernel_lib operators
+key_end::retained against the per-row reading of ended
+lazy closure against the eager closure
+line::settle against the settle it replaced
+line::versions (roster_fork worlds, every set to three versions, every reader)
+members at a head, count_members and seat::conclude against the rows
+one offer seating many: its consenting keys
+recorded rules: other_rules
+recorded rules: rosters
+recorded rules: witnesses
+reexpress.py decisions over the operators
+seat, line, tips, window (attacks.py and window.py scenarios)
+the counts CC 3.3.4 and CC 4.4.3.6 state, on their own cases
+the cycle reading: a walk that passes no key twice, against the Lean walk
+the frontier's walk against the pairwise frontier; duplicate ids
+trust walk against the Lean walk
+trust walk, TrustSet.lean worked world
+trust::reaches and derived::reach against the walks they replaced
