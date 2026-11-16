@@ -166,27 +166,33 @@ impl<'a, R: Row> Graph<'a, R> {
             stack.push(s);
             while let Some(&i) = stack.last() {
                 let named = &names[off[i]..off[i + 1]];
-                match level[i] {
-                    UNSET => {
-                        level[i] = ON;
-                        for &p in named {
-                            if level[p] == UNSET {
-                                stack.push(p);
-                            }
+                if level[i] == UNSET {
+                    let before = stack.len();
+                    for &p in named {
+                        if level[p] == UNSET {
+                            stack.push(p);
                         }
                     }
-                    ON => {
-                        level[i] = if named.iter().any(|&p| level[p] >= WAITING) {
-                            WAITING // a named row on the stack (a back edge) or waiting
-                        } else {
-                            1 + named.iter().map(|&p| level[p]).max().unwrap_or(0)
-                        };
-                        stack.pop();
+                    if stack.len() > before {
+                        level[i] = ON; // its turn comes again once what it pushed is done
+                        continue;
                     }
-                    _ => {
-                        stack.pop();
+                } else if level[i] != ON {
+                    stack.pop(); // done already (pushed twice)
+                    continue;
+                }
+                // every row i names is done, or ON below it on the stack: a cycle of names
+                let (mut top, mut waits) = (0, false);
+                for &p in named {
+                    let l = level[p];
+                    if l >= WAITING {
+                        waits = true; // a named row on the stack (a back edge), or waiting
+                    } else if l > top {
+                        top = l;
                     }
                 }
+                level[i] = if waits { WAITING } else { 1 + top };
+                stack.pop();
             }
         }
         let anc = (0..n).map(|_| OnceCell::new()).collect();
