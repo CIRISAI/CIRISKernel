@@ -147,6 +147,23 @@ impl<I, K, T> Entry<I, K, T> {
     }
 }
 
+/// What [`View::of_entries`] walks: every entry, or one act's by index.
+enum OfEntries<'s, I, K, T> {
+    Scan(alloc::collections::btree_map::Values<'s, I, Entry<I, K, T>>),
+    Index(&'s BTreeMap<I, Entry<I, K, T>>, core::slice::Iter<'s, I>),
+}
+
+impl<'s, I: Ord, K, T> Iterator for OfEntries<'s, I, K, T> {
+    type Item = &'s Entry<I, K, T>;
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            OfEntries::Scan(v) => v.next(),
+            OfEntries::Index(rec, ids) => ids.next().map(|i| &rec[i]),
+        }
+    }
+}
+
 /// A node's store: every kept row, whole or as a stub, by digest.
 pub type Store<I, K, T> = BTreeMap<I, Entry<I, K, T>>;
 
@@ -283,12 +300,13 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         }
     }
 
-    /// The held entries that may name act `a` as theirs, ascending.
-    /// A small store gives every entry (each caller reads `of`); a larger one gives the act's own, by index.
-    fn of_entries<'s>(&'s self, a: &I) -> impl Iterator<Item = &'s Entry<I, K, T>> + 's {
-        let small = self.rec.len() <= SCANNED;
-        let scan = small.then(|| self.rec.values());
-        let by_of = (!small).then(|| self.by_of.get_or_init(|| {
+    /// The held entries that may name act `a` as theirs, ascending. A small store gives every entry (each caller
+    /// reads `of`); a larger one gives the act's own, by index.
+    fn of_entries<'s>(&'s self, a: &I) -> OfEntries<'s, I, K, T> {
+        if self.rec.len() <= SCANNED {
+            return OfEntries::Scan(self.rec.values());
+        }
+        let by_of = self.by_of.get_or_init(|| {
             let mut m: BTreeMap<I, Vec<I>> = BTreeMap::new();
             for (i, r) in &self.rec {
                 if let Some(o) = &r.of {
@@ -296,9 +314,8 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
                 }
             }
             m
-        }));
-        let indexed = by_of.and_then(|m| m.get(a)).into_iter().flatten().map(move |i| &self.rec[i]);
-        scan.into_iter().flatten().chain(indexed)
+        });
+        OfEntries::Index(&self.rec, by_of.get(a).map_or(&[][..], |v| &v[..]).iter())
     }
 
     fn depth_of(&mut self, i: &I) -> usize {

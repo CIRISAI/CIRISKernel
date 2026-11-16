@@ -37,34 +37,63 @@ pub const HOP_CAP: u32 = 5;
 /// Whether the walk from `from`, with `budget` hops, reaches authority `a` for class `c`
 /// (`TrustSet.reaches`). Each key is expanded only with the greatest budget it has been reached with.
 pub fn reaches<K: Ord + Clone, C: PartialEq>(edges: &[Accepts<K, C>], from: &K, c: &C, budget: u32, a: &K) -> bool {
-    // keys are borrowed, never copied; the edges are read by source through one sorted index of positions
-    let mut by_src: Vec<usize> = Vec::new();
+    walk(edges, None, from, c, budget, a)
+}
+
+/// The edges sorted by source, built once for a caller that walks the same edges again and again (each walk of
+/// [`reaches`] reads every edge at every key it expands; one over an index reads only that key's run).
+pub struct Index<'e, K, C> {
+    edges: &'e [Accepts<K, C>],
+    by_src: Vec<usize>,
+}
+
+impl<'e, K: Ord + Clone, C: PartialEq> Index<'e, K, C> {
+    /// Index the edges by source (stable: one key's edges keep their order).
+    pub fn new(edges: &'e [Accepts<K, C>]) -> Self {
+        let mut by_src: Vec<usize> = (0..edges.len()).collect();
+        by_src.sort_by(|&x, &y| edges[x].src.cmp(&edges[y].src));
+        Index { edges, by_src }
+    }
+    /// [`reaches`] over the indexed edges: the same answer.
+    pub fn reaches(&self, from: &K, c: &C, budget: u32, a: &K) -> bool {
+        walk(self.edges, Some(&self.by_src), from, c, budget, a)
+    }
+    /// [`honours`] over the indexed edges: the same answer.
+    pub fn honours(&self, reader: &K, charter_declares: impl Fn(&K, &C) -> bool, auth: &K, cls: &C) -> bool {
+        charter_declares(auth, cls) && self.reaches(reader, cls, HOP_CAP, auth)
+    }
+}
+
+fn walk<K: Ord + Clone, C: PartialEq>(
+    edges: &[Accepts<K, C>],
+    by_src: Option<&[usize]>,
+    from: &K,
+    c: &C,
+    budget: u32,
+    a: &K,
+) -> bool {
+    // keys are borrowed from the edges, never copied
     let mut best: BTreeMap<&K, u32> = BTreeMap::new();
     best.insert(from, budget);
     let mut todo: Vec<&K> = alloc::vec![from];
-    let mut expanded = 0usize;
-    let index_at = 2 + edges.len().max(1).ilog2() as usize;
     while let Some(k) = todo.pop() {
         let b = best[k];
         if b == 0 {
             continue;
         }
-        expanded += 1;
-        if expanded == index_at {
-            // a walk that keeps going reads the edges again and again: index them once, when the scans so far
-            // have cost about what the sort will
-            by_src = (0..edges.len()).collect();
-            by_src.sort_by(|&x, &y| edges[x].src.cmp(&edges[y].src));
-        }
         // the edges from k: a scan of all of them, or their run in the index
-        let (lo, hi) = if expanded < index_at {
-            (0, edges.len())
-        } else {
-            let lo = by_src.partition_point(|&x| edges[x].src < *k);
-            (lo, by_src.partition_point(|&x| edges[x].src <= *k))
+        let (lo, hi) = match by_src {
+            None => (0, edges.len()),
+            Some(by_src) => {
+                let lo = by_src.partition_point(|&x| edges[x].src < *k);
+                (lo, by_src.partition_point(|&x| edges[x].src <= *k))
+            }
         };
         for j in lo..hi {
-            let e = if expanded < index_at { &edges[j] } else { &edges[by_src[j]] };
+            let e = match by_src {
+                None => &edges[j],
+                Some(by_src) => &edges[by_src[j]],
+            };
             if e.src != *k || !e.admits(c) {
                 continue;
             }

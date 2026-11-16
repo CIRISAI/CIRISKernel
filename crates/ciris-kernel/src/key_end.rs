@@ -118,40 +118,42 @@ pub fn conclude_rule<R: KeyEndRow>(p: &Past<'_, '_, R>) -> bool {
     }
 }
 
-fn records<'c, R: KeyEndRow>(c: &'c Concluded<'_, R>, k: &R::Key) -> impl Iterator<Item = Record<'c, R::Key, R::T>> + 'c
-where
-    R::Key: 'c,
-{
-    let k = k.clone();
-    c.cs().iter().filter_map(move |&i| c.g.row(i).record()).filter(move |x| *x.key == k)
-}
-
-fn revoked_from<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key) -> Option<R::T> {
-    c.cs()
-        .iter()
-        .filter_map(|&i| {
-            let r = c.g.row(i);
-            r.revocation().filter(|(rk, _)| *rk == k && r.signer() == k).map(|(_, a)| a)
-        })
-        .min()
-}
-
 /// Whether key `k` is live at `now`: one of its own concluded records covers now, and it has not revoked
 /// itself by now.
 pub fn live<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, now: R::T) -> bool {
-    if revoked_from(c, k).is_some_and(|a| now >= a) {
-        return false;
+    // one pass: its earliest self-revocation, and whether a record covers now
+    let (mut rev, mut covers) = (None, false);
+    for &i in c.cs() {
+        let r = c.g.row(i);
+        if let Some((rk, a)) = r.revocation() {
+            if rk == k && r.signer() == k {
+                rev = Some(rev.map_or(a, |x: R::T| core::cmp::min(x, a)));
+            }
+        }
+        if let Some(x) = r.record() {
+            covers |= *x.key == *k && x.from <= now && x.until.is_none_or(|u| now < u);
+        }
     }
-    records(c, k).any(|x| x.from <= now && x.until.is_none_or(|u| now < u))
+    !rev.is_some_and(|a| now >= a) && covers
 }
 
 /// Whether key `k` has ended at `now`: no record of it states an end after now, or it revoked itself by now.
 /// A record not yet begun is not ended.
 pub fn ended<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, now: R::T) -> bool {
-    if revoked_from(c, k).is_some_and(|a| now >= a) {
-        return true;
+    // one pass: its earliest self-revocation, and whether some record of it does not end by now
+    let (mut rev, mut open) = (None, false);
+    for &i in c.cs() {
+        let r = c.g.row(i);
+        if let Some((rk, a)) = r.revocation() {
+            if rk == k && r.signer() == k {
+                rev = Some(rev.map_or(a, |x: R::T| core::cmp::min(x, a)));
+            }
+        }
+        if let Some(x) = r.record() {
+            open |= *x.key == *k && !x.until.is_some_and(|u| u <= now);
+        }
     }
-    records(c, k).all(|x| x.until.is_some_and(|u| u <= now))
+    rev.is_some_and(|a| now >= a) || !open
 }
 
 /// The rows that have not lapsed at `now`: every concluded row of a key that has not ended, every

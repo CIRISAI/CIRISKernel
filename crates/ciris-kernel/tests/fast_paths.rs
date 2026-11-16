@@ -5,7 +5,7 @@
 //!   path persist's adapter first took: a founding row, one offer per seat, the version, the counted row);
 //! * `graph::Graph::frontier` against the pairwise frontier, before and after pasts are known, and a graph
 //!   given duplicate ids against the eager closure;
-//! * `trust::reaches` and `derived::reach` against the walks they replaced;
+//! * `trust::reaches`, `trust::Index::reaches` and `derived::reach` against the walks they replaced;
 //! * `key_end::retained` against the per-row reading of `key_end::ended`.
 
 mod common;
@@ -510,6 +510,7 @@ fn the_walks_equal_the_walks_they_replaced() {
             })
             .collect();
         let pairs: Vec<(u32, u32)> = edges.iter().map(|e| (e.src, e.dst)).collect();
+        let index = trust::Index::new(&edges);
         for from in 0..keys {
             for depth in 0..5 {
                 cases += 1;
@@ -518,9 +519,10 @@ fn the_walks_equal_the_walks_they_replaced() {
             for a in 0..keys {
                 for c in 0..3u8 {
                     for budget in [0, 1, 2, trust::HOP_CAP] {
-                        cases += 1;
-                        bad += (trust::reaches(&edges, &from, &c, budget, &a)
-                            != reaches_before(&edges, &from, &c, budget, &a)) as usize;
+                        let want = reaches_before(&edges, &from, &c, budget, &a);
+                        cases += 2;
+                        bad += (trust::reaches(&edges, &from, &c, budget, &a) != want) as usize;
+                        bad += (index.reaches(&from, &c, budget, &a) != want) as usize;
                     }
                 }
             }
