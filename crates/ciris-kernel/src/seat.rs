@@ -605,7 +605,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
 
     /// The single holder, where the seat is single-valued (an owner): two live holders is none.
     pub fn one(&self, s: &str, o: &ObjOf<R>) -> Option<R::Key> {
-        crate::ops::one(self.recs.iter().filter(|r| r.obj == *o && self.has(r, s)).map(|r| r.k.clone()))
+        // the one distinct key, found by reference; only the answer is copied
+        crate::ops::one(self.recs.iter().filter(|r| r.obj == *o && self.has(r, s)).map(|r| &r.k)).cloned()
     }
 
     /// The frontier of the counted acts on `o` that count, with its founding row.

@@ -163,23 +163,6 @@ impl<K: Ord> Members<'_, K> {
     }
 }
 
-/// What [`View::of_entries`] walks: every entry, or one act's by index.
-enum OfEntries<'s, I, K, T> {
-    Scan(alloc::collections::btree_map::Values<'s, I, Entry<I, K, T>>),
-    Index(&'s BTreeMap<I, Entry<I, K, T>>, core::slice::Iter<'s, I>),
-}
-
-impl<'s, I: Ord, K, T> Iterator for OfEntries<'s, I, K, T> {
-    type Item = &'s Entry<I, K, T>;
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            OfEntries::Scan(v) => v.next(),
-            OfEntries::Index(rec, ids) => ids.next().map(|i| &rec[i]),
-        }
-    }
-}
-
 /// A node's store: every kept row, whole or as a stub, by digest.
 pub type Store<I, K, T> = BTreeMap<I, Entry<I, K, T>>;
 
@@ -321,12 +304,9 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         }
     }
 
-    /// The held entries that may name act `a` as theirs, ascending. A small store gives every entry (each caller
-    /// reads `of`); a larger one gives the act's own, by index.
-    fn of_entries<'s>(&'s self, a: &I) -> OfEntries<'s, I, K, T> {
-        if self.rec.len() <= SCANNED {
-            return OfEntries::Scan(self.rec.values());
-        }
+    /// The held entries that name act `a` as theirs, ascending, read through the index (a store of more than
+    /// [`SCANNED`] entries; a smaller one is scanned by the caller).
+    fn of_entries<'s>(&'s self, a: &I) -> impl Iterator<Item = &'s Entry<I, K, T>> + 's {
         let by_of = self.by_of.get_or_init(|| {
             let mut m: BTreeMap<I, Vec<I>> = BTreeMap::new();
             for (i, r) in &self.rec {
@@ -336,7 +316,8 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             }
             m
         });
-        OfEntries::Index(&self.rec, by_of.get(a).map_or(&[][..], |v| &v[..]).iter())
+        let ids: &'s [I] = by_of.get(a).map_or(&[][..], |v| &v[..]);
+        ids.iter().map(move |i| &self.rec[i])
     }
 
     fn depth_of(&mut self, i: &I) -> usize {
@@ -431,15 +412,13 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
     }
 
     fn cuts(&self, a: &I) -> Vec<&Entry<I, K, T>> {
-        self.of_entries(a)
-            .filter(|c| {
-                c.kind == Kind::Cut
-                    && c.of.as_ref() == Some(a)
-                    && !c.dropped
-                    && self.c[&c.id]
-                    && !self.v.contains(&c.id)
-            })
-            .collect()
+        let is = |c: &&Entry<I, K, T>| {
+            c.kind == Kind::Cut && c.of.as_ref() == Some(a) && !c.dropped && self.c[&c.id] && !self.v.contains(&c.id)
+        };
+        if self.rec.len() <= SCANNED {
+            return self.rec.values().filter(is).collect();
+        }
+        self.of_entries(a).filter(is).collect()
     }
 
     /// The keys holding a clean receipt of act `a`, each with its receipt rows: a receipt with no cut of
@@ -447,14 +426,19 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
     pub fn receipts(&self, a: &I) -> BTreeMap<K, Vec<I>> {
         let cuts = self.cuts(a);
         let mut out: BTreeMap<K, Vec<I>> = BTreeMap::new();
-        for x in self.of_entries(a) {
+        let mut visit = |x: &Entry<I, K, T>| {
             if x.kind != Kind::Ack || x.of.as_ref() != Some(a) || x.dropped || !self.c[&x.id] {
-                continue;
+                return;
             }
             let k = &x.signer;
             if !cuts.iter().any(|c| self.anc[&x.id].contains(&c.id) && c.sigs.contains(k)) {
                 out.entry(k.clone()).or_default().push(x.id.clone());
             }
+        };
+        if self.rec.len() <= SCANNED {
+            self.rec.values().for_each(&mut visit);
+        } else {
+            self.of_entries(a).for_each(visit);
         }
         out
     }
