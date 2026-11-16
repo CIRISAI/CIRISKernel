@@ -43,6 +43,7 @@ struct S {
     weights: Vec<(u32, u64)>,
     rec: Option<(u32, i64, Option<i64>)>,
     revokes: Option<(u32, i64)>,
+    room: Option<Obj<u32, u32>>,
 }
 
 impl S {
@@ -66,6 +67,7 @@ impl S {
             weights: Vec::new(),
             rec: None,
             revokes: None,
+            room: None,
         }
     }
 }
@@ -124,6 +126,9 @@ impl SeatRow for S {
     }
     fn weights(&self) -> &[(u32, u64)] {
         &self.weights
+    }
+    fn room(&self) -> Option<Obj<u32, u32>> {
+        self.room.clone()
     }
 }
 
@@ -617,5 +622,84 @@ fn an_offer_seating_many_seats_exactly_its_consenting_keys() {
         bad += (got != want) as usize;
     }
     report("one offer seating many: its consenting keys", cases, bad);
+    assert_eq!(bad, 0);
+}
+
+/// `line::settle` as first written: an act of the reader's line is live when the live list contains it.
+fn settle_before<L: ciris_kernel::line::LineSpec<S>>(
+    c: &Concluded<'_, S>,
+    spec: &L,
+    obj: &L::Obj,
+    own: Option<&u32>,
+    cut_counts: impl Fn(usize) -> bool,
+) -> BTreeSet<usize> {
+    use ciris_kernel::line::{counted_acts, own_line};
+    let older = |heads: &[u32], than: &[u32]| {
+        !heads.is_empty()
+            && heads.iter().all(|h| than.iter().any(|t| c.g.idx(t).is_some_and(|t| c.g.id_in_past(h, t))))
+    };
+    let acts = counted_acts(c, spec, obj);
+    let line: BTreeSet<&u32> = acts.iter().map(|&i| c.g.row(i).id()).collect();
+    let mut live: Vec<usize> = acts.iter().copied().filter(|&i| cut_counts(i)).collect();
+    live.sort_by_key(|&i| c.g.level(i));
+    let mine: BTreeSet<usize> = own_line(c, spec, own, obj).into_iter().filter(|i| live.contains(i)).collect();
+    let heads = |i: usize| spec.counted_act(c.g.row(i)).map(|(_, h)| h).unwrap_or(&[]);
+    let behind = |r: usize, m: usize| {
+        m != r && c.g.concurrent(r, m) && older(heads(r), std::slice::from_ref(c.g.row(m).id()))
+    };
+    let mut out: BTreeSet<usize> = BTreeSet::new();
+    let mut out_ids: BTreeSet<&u32> = BTreeSet::new();
+    for &r in &live {
+        let built_ok = heads(r).iter().filter(|h| line.contains(h)).all(|h| out_ids.contains(h));
+        if mine.contains(&r) || (built_ok && !mine.iter().any(|&m| behind(r, m))) {
+            out.insert(r);
+            out_ids.insert(c.g.row(r).id());
+        }
+    }
+    out
+}
+
+/// A group's ledger with forks, a reader's acknowledgements of some acts, and the cut letting a random subset
+/// count: `line::settle` answers as first written, for that reader and for none.
+#[test]
+fn settle_equals_the_settle_it_replaced() {
+    use ciris_kernel::seat::SeatLine;
+    let mut g = Lcg(51);
+    let (mut cases, mut bad) = (0usize, 0usize);
+    for _ in 0..6_000 {
+        let mut f = S::new(0, Vec::new(), 1, SeatKind::Offer);
+        f.to = vec![1];
+        f.obj = Some(Obj::Row(0));
+        f.conf = Some(Conf::Own);
+        let mut rows = vec![f];
+        let m = 1 + pick(&mut g, 9) as u32;
+        for i in 1..=m {
+            // each act at the head of one or two earlier rows: a chain with forks
+            let mut heads: Vec<u32> = (0..1 + pick(&mut g, 2)).map(|_| pick(&mut g, i as u64) as u32).collect();
+            heads.sort_unstable();
+            heads.dedup();
+            let mut a = S::new(i, heads.clone(), 1 + pick(&mut g, 3) as u32, SeatKind::Offer);
+            a.obj = Some(Obj::Row(0));
+            a.conf = Some(Conf::Group);
+            a.head = heads;
+            rows.push(a);
+        }
+        for j in 0..pick(&mut g, 3) as u32 {
+            let h = 1 + pick(&mut g, m as u64) as u32;
+            let mut k = S::new(100 + j, vec![h], if pick(&mut g, 4) == 0 { 8 } else { 7 }, SeatKind::Ack);
+            k.room = Some(Obj::Row(0));
+            k.head = vec![h];
+            rows.push(k);
+        }
+        let c = conclude(rows.iter(), |_| true, None);
+        let counts: Vec<bool> = (0..c.g.len()).map(|_| pick(&mut g, 4) != 0).collect();
+        for own in [None, Some(7u32)] {
+            let cut = |i: usize| counts[i];
+            cases += 1;
+            bad += (ciris_kernel::line::settle(&c, &SeatLine, &Obj::Row(0), own.as_ref(), cut)
+                != settle_before(&c, &SeatLine, &Obj::Row(0), own.as_ref(), cut)) as usize;
+        }
+    }
+    report("line::settle against the settle it replaced", cases, bad);
     assert_eq!(bad, 0);
 }
