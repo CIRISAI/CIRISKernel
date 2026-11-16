@@ -193,14 +193,14 @@ unit tests. The 18 runs the crate carried hold 937,355 cases against the Python 
 and TLC's states. The nine new ones are in `tests/fast_paths.rs` and `tests/purge.rs`: each tests a faster path
 against the definition it replaced, kept there as the oracle. Final: 7,084,046 cases, 0 disagreements.
 
-`check.sh` on `ef6ea06`: all 17 steps passed. That covers 602 Lean theorems, the model checks, the
-no_std and wasm builds (0 dependencies), conformance (28 runs, 7,145,733 cases, 0 disagreements), 47 of 47
-plants caught, and TLC (5 specs, each with its plant caught). The crate builds on MSRV 1.89, and `fmt --check`
+`check.sh` on `22c4027`, run on a clean tree: all 17 steps passed. That covers 602 Lean theorems, the model
+checks, the no_std and wasm builds (0 dependencies), conformance (29 runs, 7,148,733 cases, 0 disagreements),
+48 of 48 plants caught, and TLC (5 specs, each with its plant caught). The crate builds on MSRV 1.89, and `fmt --check`
 and `clippy --all-targets -D warnings` are clean.
 
-`tools/kernel_crate_plants.sh` has 47 plants. Fifteen are the plants it had; the two count plants follow the
+`tools/kernel_crate_plants.sh` has 48 plants. Fifteen are the plants it had; the two count plants follow the
 code into `group_count`. The `open:self_admit` removal line, which the first of them used to hit, is planted
-on its own. Thirty-one are new: one per faster path, and one for the cycle walk below. Those paths include: a cache that answers for another object, scope or head;
+on its own. Thirty-two are new: one per faster path, and one each for the graph's and the view's cycle walks below. Those paths include: a cache that answers for another object, scope or head;
 an index filed under one key or never built; the frontier's walk cut short; the no-cut shortcut taken with
 cuts; `members_at` reading unconcluded rows; a prefilled window scope that keeps the opener in `others` or lets
 a scope named `all` take `Base::All`'s name; a weighted sum that wraps; a ranked count answered as a count; `voices` counting a cosignature the row does
@@ -322,6 +322,14 @@ from `kernel-v0.1.0`. Rows with digests for ids cannot form a cycle, but `Row` d
   questions on them. Over 4,000 generated row sets naming any row, `conclude` over all of them equals
   `conclude` over what `kept` keeps, and a row waits exactly when `kept` leaves it out (54,160 cases).
 - The plant reads only `WAITING`, not `ON`. Both tests fail under it; it cannot hang the suite.
+- `head::View::new` had the same hole (its depth walk). It now uses the same guard: an entry on a cycle of
+  names, or naming one, waits, and the view (and so `purge`) leaves it out, holding what `kept` would.
+  `tests/cycle.rs` runs the same shapes as stores, and 3,000 generated stores naming any entry: the view holds
+  exactly what `kept` keeps. Its plant reads only `WAIT`, not `ON`. Against `ef6ea06`, five pinned rounds:
+  `View::new` 0.96–1.00× with the same allocations, the other `View` cells 1.00–1.02×. A first version marked
+  every entry twice and read 0.92–0.95×.
+- `Concluded::with` concludes nothing for a waiting row, whatever conclusions it is given, and `Graph::new`
+  asserts it has fewer rows than a level can count.
 - A/B against `e3e2fa0`, pinned, three rounds, load 15–20: `Graph::new` reads 0.94–1.04×, `conclude` and the
   seat rule 0.97–1.03×. The mean over all 176 cells is 1.01×, and byte-identical code swings up to 1.46× in
   the same run. A first version with two flag vectors read 0.72–0.85× and was replaced.
