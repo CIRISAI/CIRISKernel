@@ -43,18 +43,20 @@ pub fn reaches<K: Ord + Clone, C: PartialEq>(edges: &[Accepts<K, C>], from: &K, 
     best.insert(from, budget);
     let mut todo: Vec<&K> = alloc::vec![from];
     let mut expanded = 0usize;
+    let index_at = 2 + edges.len().max(1).ilog2() as usize;
     while let Some(k) = todo.pop() {
         let b = best[k];
         if b == 0 {
             continue;
         }
         expanded += 1;
-        if expanded == 2 {
-            // a walk past its first key reads the edges again and again: index them once
+        if expanded == index_at {
+            // a walk that keeps going reads the edges again and again: index them once, when the scans so far
+            // have cost about what the sort will
             by_src = (0..edges.len()).collect();
             by_src.sort_by(|&x, &y| edges[x].src.cmp(&edges[y].src));
         }
-        let hits: &mut dyn Iterator<Item = &Accepts<K, C>> = if expanded < 2 {
+        let hits: &mut dyn Iterator<Item = &Accepts<K, C>> = if expanded < index_at {
             &mut edges.iter().filter(|e| e.src == *k)
         } else {
             let lo = by_src.partition_point(|&x| edges[x].src < *k);

@@ -19,6 +19,10 @@
 
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
+use core::cell::OnceCell;
+
+/// Up to how many members [`View`] scans a roster version's list for a key before it keeps them as a set.
+const MEMBERS_SCANNED: usize = 32;
 
 /// The kind of a stored row, as these answers read it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -167,13 +171,14 @@ pub struct View<I, K, T> {
     pub c: BTreeMap<I, bool>,
     /// The counted rows the reader's line holds void.
     pub v: BTreeSet<I>,
-    /// The held entries that name each act as theirs (`of`), by ascending id: its receipts and cuts.
-    by_of: BTreeMap<I, Vec<I>>,
+    /// The held entries that name each act as theirs (`of`), by ascending id: its receipts and cuts. Built
+    /// when an answer first reads it, as are the next two.
+    by_of: OnceCell<BTreeMap<I, Vec<I>>>,
     /// The ids an answer names.
-    answered: BTreeSet<I>,
+    answered: OnceCell<BTreeSet<I>>,
     /// The ids any held entry names.
-    named: BTreeSet<I>,
-    /// Each roster version's members, as a set.
+    named: OnceCell<BTreeSet<I>>,
+    /// The members of each entry listing more than [`MEMBERS_SCANNED`], as a set.
     mem: BTreeMap<I, BTreeSet<K>>,
     /// The heads this node has acknowledged.
     acked: BTreeSet<I>,
@@ -234,22 +239,14 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             depth: BTreeMap::new(),
             c: BTreeMap::new(),
             v: BTreeSet::new(),
-            by_of: BTreeMap::new(),
-            answered: BTreeSet::new(),
-            named: BTreeSet::new(),
+            by_of: OnceCell::new(),
+            answered: OnceCell::new(),
+            named: OnceCell::new(),
             mem: BTreeMap::new(),
             acked: BTreeSet::new(),
         };
-        // the indexes every answer below reads, built once over the held entries
         for (i, r) in &me.rec {
-            if let Some(o) = &r.of {
-                me.by_of.entry(o.clone()).or_default().push(i.clone());
-            }
-            if r.kind == Kind::Answer {
-                me.answered.extend(r.names.iter().cloned());
-            }
-            me.named.extend(r.names.iter().cloned());
-            if !r.members.is_empty() {
+            if r.members.len() > MEMBERS_SCANNED {
                 me.mem.insert(i.clone(), r.members.iter().cloned().collect());
             }
         }
@@ -277,12 +274,24 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
     }
 
     fn is_member(&self, head: &Option<I>, k: &K) -> bool {
-        head.as_ref().and_then(|h| self.mem.get(h)).is_some_and(|m| m.contains(k))
+        match head.as_ref().and_then(|h| self.mem.get(h)) {
+            Some(m) => m.contains(k),
+            None => self.members(head).contains(k),
+        }
     }
 
     /// The held entries that name act `a` as theirs, ascending.
     fn of_entries<'s>(&'s self, a: &I) -> impl Iterator<Item = &'s Entry<I, K, T>> + 's {
-        self.by_of.get(a).into_iter().flatten().map(move |i| &self.rec[i])
+        let by_of = self.by_of.get_or_init(|| {
+            let mut m: BTreeMap<I, Vec<I>> = BTreeMap::new();
+            for (i, r) in &self.rec {
+                if let Some(o) = &r.of {
+                    m.entry(o.clone()).or_default().push(i.clone());
+                }
+            }
+            m
+        });
+        by_of.get(a).into_iter().flatten().map(move |i| &self.rec[i])
     }
 
     fn depth_of(&mut self, i: &I) -> usize {
@@ -497,7 +506,10 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
 
     /// A window's state at `now`, read from the instant this node first held the opener.
     pub fn window(&self, o: &I, now: T) -> WindowState {
-        if self.answered.contains(o) {
+        let answered = self.answered.get_or_init(|| {
+            self.rec.values().filter(|x| x.kind == Kind::Answer).flat_map(|x| x.names.iter().cloned()).collect()
+        });
+        if answered.contains(o) {
             return WindowState::Answered;
         }
         let r = &self.rec[o];
@@ -529,7 +541,8 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
 
     /// The held ids no held row names: what a checkpoint names.
     pub fn tips(&self) -> Vec<I> {
-        self.rec.keys().filter(|i| !self.named.contains(*i)).cloned().collect()
+        let named = self.named.get_or_init(|| self.rec.values().flat_map(|r| r.names.iter().cloned()).collect());
+        self.rec.keys().filter(|i| !named.contains(*i)).cloned().collect()
     }
 }
 

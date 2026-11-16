@@ -77,8 +77,8 @@ impl Bits {
 /// its level is lower, so most questions of concurrency are answered without a past at all.
 pub struct Graph<'a, R: Row> {
     rows: Vec<&'a R>,
-    /// The row indices, sorted by row id: the index of an id is a binary search, and no id is copied.
-    index: Vec<usize>,
+    /// Each id with its row's index, sorted by id: the index of an id is a binary search in one buffer.
+    index: Vec<(R::Id, usize)>,
     /// What each row names, as one buffer: row i names `names[off[i]..off[i + 1]]`, ascending.
     off: Vec<usize>,
     names: Vec<usize>,
@@ -89,25 +89,33 @@ pub struct Graph<'a, R: Row> {
 impl<'a, R: Row> Graph<'a, R> {
     /// Build the index. A later row with an id already present is ignored.
     pub fn new(rows: impl IntoIterator<Item = &'a R>) -> Self {
-        let all: Vec<&'a R> = rows.into_iter().collect();
-        // the first row given with each id, found by sorting positions by (id, position)
-        let mut ord: Vec<usize> = (0..all.len()).collect();
-        ord.sort_unstable_by(|&a, &b| all[a].id().cmp(all[b].id()).then(a.cmp(&b)));
-        let mut first = vec![false; all.len()];
-        for (k, &p) in ord.iter().enumerate() {
-            first[p] = k == 0 || all[ord[k - 1]].id() != all[p].id();
-        }
-        let mut at = vec![usize::MAX; all.len()];
-        let mut v: Vec<&'a R> = Vec::with_capacity(all.len());
-        for (p, r) in all.iter().enumerate() {
-            if first[p] {
-                at[p] = v.len();
-                v.push(*r);
+        let mut v: Vec<&'a R> = rows.into_iter().collect();
+        // the ids sorted, each with the first position it was given at
+        let mut index: Vec<(R::Id, usize)> = v.iter().enumerate().map(|(p, r)| (r.id().clone(), p)).collect();
+        index.sort_unstable();
+        index.dedup_by(|b, a| a.0 == b.0);
+        if index.len() < v.len() {
+            // a later row with an id already present is ignored: keep each first, in the order given
+            let mut first = vec![false; v.len()];
+            for (_, p) in &index {
+                first[*p] = true;
+            }
+            let mut at = vec![0usize; v.len()];
+            let mut k = 0;
+            for p in 0..v.len() {
+                at[p] = k;
+                if first[p] {
+                    v[k] = v[p];
+                    k += 1;
+                }
+            }
+            v.truncate(k);
+            for e in index.iter_mut() {
+                e.1 = at[e.1];
             }
         }
-        let index: Vec<usize> = ord.iter().filter(|&&p| first[p]).map(|&p| at[p]).collect();
         let n = v.len();
-        let find = |id: &R::Id| index.binary_search_by(|&i| v[i].id().cmp(id)).ok().map(|k| index[k]);
+        let find = |id: &R::Id| index.binary_search_by(|e| e.0.cmp(id)).ok().map(|k| index[k].1);
         let mut off: Vec<usize> = Vec::with_capacity(n + 1);
         let mut names: Vec<usize> = Vec::new();
         off.push(0);
@@ -173,7 +181,7 @@ impl<'a, R: Row> Graph<'a, R> {
     }
     /// The index of a row id, when the row is in the set.
     pub fn idx(&self, id: &R::Id) -> Option<usize> {
-        self.index.binary_search_by(|&i| self.rows[i].id().cmp(id)).ok().map(|k| self.index[k])
+        self.index.binary_search_by(|e| e.0.cmp(id)).ok().map(|k| self.index[k].1)
     }
     /// The held rows row `i` names directly.
     #[inline]

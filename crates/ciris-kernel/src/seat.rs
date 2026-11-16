@@ -284,7 +284,7 @@ pub fn covers(have: &str, want: &str) -> bool {
 }
 
 type ObjOf<R> = Obj<<R as Row>::Id, <R as Row>::Key>;
-type Step<R> = ((<R as Row>::Id, <R as Row>::Key), (usize, Root<<R as Row>::Id, <R as Row>::Key>));
+type Step<'r, R> = ((&'r <R as Row>::Id, &'r <R as Row>::Key), (usize, Root<<R as Row>::Id, <R as Row>::Key>));
 
 /// The root a live seat is walked from.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -487,7 +487,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 paired && !ended(ar) && cut.counts(a)
             }))
         };
-        let mut base: Vec<(usize, R::Key)> = Vec::new();
+        // keys are borrowed from the rows through the walk, and copied once into each live seat
+        let mut base: Vec<(usize, &'a R::Key)> = Vec::new();
         for &oi in cs {
             let o = g.row(oi);
             if o.seat_kind() != SeatKind::Offer || !cut.counts(oi) || stale.contains(&oi) {
@@ -495,18 +496,18 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             }
             for k in o.to() {
                 if !off_ended(o, k) && accepted(o, k) && !unseated(oi, k) {
-                    base.push((oi, k.clone()));
+                    base.push((oi, k));
                 }
             }
         }
         // one link per pass: at most `depth` links below a root
-        type At<I, K> = BTreeMap<(I, K), (usize, Root<I, K>)>;
-        let mut at: At<R::Id, R::Key> = BTreeMap::new();
+        type At<'r, I, K> = BTreeMap<(&'r I, &'r K), (usize, Root<I, K>)>;
+        let mut at: At<'a, R::Id, R::Key> = BTreeMap::new();
         for _ in 0..(law.depth + 1) {
-            let mut add: Vec<Step<R>> = Vec::new();
-            for (oi, k) in &base {
-                let o = g.row(*oi);
-                let key = (o.id().clone(), k.clone());
+            let mut add: Vec<Step<'a, R>> = Vec::new();
+            for &(oi, k) in &base {
+                let o = g.row(oi);
+                let key = (o.id(), k);
                 if at.contains_key(&key) {
                     continue;
                 }
@@ -516,7 +517,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                         let founding = obj == Some(Obj::Row(o.id().clone()));
                         let ok = founding
                             || !obj.as_ref().is_some_and(|x| founding_many(&by, x))
-                            || matches!(&obj, Some(Obj::Row(f)) if at.contains_key(&(f.clone(), o.signer().clone())));
+                            || matches!(&obj, Some(Obj::Row(f)) if at.contains_key(&(f, o.signer())));
                         if ok {
                             add.push((key, (0, Root::Key(o.signer().clone()))));
                         }
@@ -533,7 +534,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     }
                     Some(Conf::Seat) => {
                         if let Some(u) = o.under() {
-                            if let (Some(up), Some(hit)) = (by.get(u), at.get(&(u.clone(), o.signer().clone()))) {
+                            if let (Some(up), Some(hit)) = (by.get(u), at.get(&(u, o.signer()))) {
                                 if may_confer(law, *up, o) {
                                     add.push((key, (hit.0 + 1, hit.1.clone())));
                                 }
@@ -553,8 +554,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let recs = at
             .into_iter()
             .filter_map(|((oid, k), (depth, root))| {
-                let o = by[&oid];
-                Some(Live { offer: oid, k, scope: o.scope()?.clone(), obj: o.obj()?, depth, root })
+                let o = by[oid];
+                Some(Live { offer: oid.clone(), k: k.clone(), scope: o.scope()?.clone(), obj: o.obj()?, depth, root })
             })
             .collect();
         Seats { c, cut, law, spec, by, stale, recs, tips_memo: RefCell::default(), common_memo: RefCell::default() }
@@ -711,20 +712,37 @@ pub fn members_in<R: SeatRow, S: CutSpec<R>>(
     heads: &[R::Id],
     scope: &str,
 ) -> BTreeSet<R::Key> {
-    let mut out: Option<BTreeSet<R::Key>> = None;
+    members_in_scopes(rows, past, law, spec, obj, heads, &[scope]).pop().unwrap_or_default()
+}
+
+/// [`members_in`] for several scopes at once, in the order given: the seats at each head are walked once and
+/// read for every scope.
+pub fn members_in_scopes<R: SeatRow, S: CutSpec<R>>(
+    rows: &[&R],
+    past: &dyn Fn(&R::Id, &R::Id) -> bool,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+    heads: &[R::Id],
+    scopes: &[&str],
+) -> Vec<BTreeSet<R::Key>> {
+    let mut out: Vec<Option<BTreeSet<R::Key>>> = scopes.iter().map(|_| None).collect();
     for h in heads {
         let sub: Vec<&R> = rows.iter().copied().filter(|q| q.id() == h || past(q.id(), h)).collect();
         if !sub.iter().any(|q| q.id() == h) {
-            return BTreeSet::new();
+            return scopes.iter().map(|_| BTreeSet::new()).collect();
         }
         let sc = concluded_over(sub);
-        let m = Seats::new(&sc, law, spec, None).holders(scope, obj, None);
-        out = Some(match out {
-            None => m,
-            Some(x) => x.intersection(&m).cloned().collect(),
-        });
+        let seats = Seats::new(&sc, law, spec, None);
+        for (o, scope) in out.iter_mut().zip(scopes) {
+            let m = seats.holders(scope, obj, None);
+            *o = Some(match o.take() {
+                None => m,
+                Some(x) => x.intersection(&m).cloned().collect(),
+            });
+        }
     }
-    out.unwrap_or_default()
+    out.into_iter().map(Option::unwrap_or_default).collect()
 }
 
 /// The keys whose own leaving is among `p`: a concluded withdrawal, signed by the key, of the acceptance or

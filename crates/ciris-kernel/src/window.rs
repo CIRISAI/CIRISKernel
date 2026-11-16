@@ -18,7 +18,7 @@
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
 use crate::ops;
-use crate::seat::{members_in, Obj, SeatKind, SeatLaw, SeatRow};
+use crate::seat::{members_in, members_in_scopes, Obj, SeatKind, SeatLaw, SeatRow};
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
@@ -172,6 +172,40 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
         self.cache.borrow_mut().insert(name.into(), m.clone());
         m
     }
+
+    /// Read every scope the table reads (and `extra`, returned) in one walk of the seats at the head, and keep
+    /// them as [`Ctx::base`] would. A clause over a scope named `all` or `others` shares a name with
+    /// [`Base::All`] or [`Base::Others`] in the cache, so then each is left to be read when first asked.
+    fn prefill(&self, extra: Option<&str>) -> Option<BTreeSet<R::Key>> {
+        let w = self.w;
+        let named: Vec<&str> = w
+            .at_once
+            .iter()
+            .chain(&w.at_close)
+            .filter_map(|c| match &c.over {
+                Base::Scope(s) => Some(s.as_str()),
+                _ => None,
+            })
+            .collect();
+        let read = |scope: &str| members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, scope);
+        if named.iter().any(|s| *s == "all" || *s == "others") {
+            return extra.map(read);
+        }
+        let mut scopes: Vec<&str> = alloc::vec![w.counted.as_str(), "moderate"];
+        scopes.extend(named.iter().copied());
+        scopes.extend(extra);
+        let mut sets = members_in_scopes(self.rows, self.past, self.law, self.spec, &self.obj, self.head, &scopes);
+        let got = extra.and_then(|_| sets.pop());
+        let mut cache = self.cache.borrow_mut();
+        let mut others = sets[0].clone();
+        others.remove(&self.opener_signer);
+        cache.insert("others".into(), others);
+        cache.insert("all".into(), sets[0].clone());
+        for (scope, set) in scopes.iter().zip(sets).skip(1) {
+            cache.insert((*scope).into(), set);
+        }
+        got
+    }
 }
 
 fn table_outcome<R: WindowRow, S: CutSpec<R>>(
@@ -268,7 +302,7 @@ pub fn rule<R: WindowRow, S: CutSpec<R>>(
         w: &w,
         cache: Default::default(),
     };
-    if !members_in(&rows, &past, law, spec, &obj, o.head(), &w.concluder).contains(r.signer()) {
+    if !x.prefill(Some(&w.concluder)).unwrap_or_default().contains(r.signer()) {
         return Some(false);
     }
     if k == WinKind::Receipt {
@@ -329,6 +363,7 @@ pub fn outcome<R: WindowRow, S: CutSpec<R>>(
         w: &w,
         cache: Default::default(),
     };
+    x.prefill(None);
     // the rows that ended a seat over the object, with the keys each ended
     let mut gone: Vec<(BTreeSet<R::Key>, usize)> = Vec::new();
     for &u in c.cs() {
