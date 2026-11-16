@@ -187,15 +187,13 @@ pub struct View<I, K, T> {
     depth: BTreeMap<I, usize>,
     c: BTreeMap<I, bool>,
     v: BTreeSet<I>,
-    /// Up to how many held entries the answers scan them all; above it they read the next three indexes,
+    /// Up to how many held entries the answers scan them all; above it they read the next two indexes,
     /// built in [`View::new`] ([`SCANNED`], except in this module's tests).
     scanned: usize,
     /// The held entries that name each act as theirs (`of`), by ascending id: its receipts and cuts.
     by_of: BTreeMap<I, Vec<I>>,
     /// The ids an answer names.
     answered: BTreeSet<I>,
-    /// The ids any held entry names.
-    named: BTreeSet<I>,
     /// The members of each entry listing more than [`MEMBERS_SCANNED`], as a set.
     mem: BTreeMap<I, BTreeSet<K>>,
     /// The heads this node has acknowledged.
@@ -284,7 +282,6 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             scanned,
             by_of: BTreeMap::new(),
             answered: BTreeSet::new(),
-            named: BTreeSet::new(),
             mem: BTreeMap::new(),
             acked: BTreeSet::new(),
         };
@@ -300,7 +297,6 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
                 if r.kind == Kind::Answer {
                     me.answered.extend(r.names.iter().cloned());
                 }
-                me.named.extend(r.names.iter().cloned());
             }
         }
         let ids: Vec<I> = me.rec.keys().cloned().collect();
@@ -602,7 +598,9 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         if self.rec.len() <= self.scanned {
             return self.rec.keys().filter(|i| !self.rec.values().any(|r| r.names.contains(i))).cloned().collect();
         }
-        self.rec.keys().filter(|i| !self.named.contains(*i)).cloned().collect()
+        // the ids named, read once for this call (a checkpoint asks once)
+        let named: BTreeSet<&I> = self.rec.values().flat_map(|r| r.names.iter()).collect();
+        self.rec.keys().filter(|i| !named.contains(i)).cloned().collect()
     }
 }
 
