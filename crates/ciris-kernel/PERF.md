@@ -32,85 +32,92 @@ function persist calls, at sizes 3 to 16,384. No answer changed (section 4).
 
 ## 2. Before and after
 
+AFTER is `e3e2fa0`, the branch after the review's changes.
+
 | bench | 3 | 16 | 128 | 1024 |
 |---|---|---|---|---|
-| `graph::Graph::new` | 206 ns → 170 ns (**1.21×**) | 1.1 µs → 525 ns (**2.17×**) | 14.2 µs → 5.0 µs (**2.87×**) | 231.1 µs → 62.9 µs (**3.67×**) |
-| `graph::Graph::new+ancestors(last)` | 251 ns → 214 ns (**1.17×**) | 1.4 µs → 649 ns (**2.09×**) | 14.7 µs → 5.4 µs (**2.73×**) | 232.1 µs → 64.8 µs (**3.58×**) |
-| `seat::seat_rule/ballot/majority` | 4.8 µs → 3.5 µs (**1.36×**) | 22.8 µs → 15.2 µs (**1.50×**) | 249.0 µs → 140.7 µs (**1.77×**) | 2.5 ms → 1.3 ms (**1.96×**) |
-| `seat::seat_rule/ballot/founder_only` | 4.6 µs → 3.3 µs (**1.41×**) | 22.0 µs → 14.7 µs (**1.50×**) | 239.4 µs → 136.1 µs (**1.76×**) | 2.5 ms → 1.2 ms (**2.10×**) |
-| `seat::seat_rule/ballot/unanimous` | 5.0 µs → 3.6 µs (**1.38×**) | 24.0 µs → 16.0 µs (**1.50×**) | 262.1 µs → 147.2 µs (**1.78×**) | 2.7 ms → 1.3 ms (**2.05×**) |
-| `seat::group_count/majority` | — → 62 ns | — → 180 ns | — → 1.1 µs | — → 8.9 µs |
-| `seat::group_count+sets/majority` | — → 171 ns | — → 539 ns | — → 3.9 µs | — → 32.2 µs |
-| `seat::group_count=seat_rule/majority` | — → 3.8 µs | — → 15.9 µs | — → 142.1 µs | — → 1.3 ms |
-| `seat::group_count/founder_only` | — → 33 ns | — → 34 ns | — → 34 ns | — → 37 ns |
-| `seat::group_count+sets/founder_only` | — → 126 ns | — → 302 ns | — → 1.9 µs | — → 15.7 µs |
-| `seat::group_count=seat_rule/founder_only` | — → 3.5 µs | — → 14.9 µs | — → 136.4 µs | — → 1.2 ms |
-| `seat::group_count/unanimous` | — → 115 ns | — → 426 ns | — → 3.1 µs | — → 25.3 µs |
-| `seat::group_count+sets/unanimous` | — → 238 ns | — → 891 ns | — → 6.8 µs | — → 58.4 µs |
-| `seat::group_count=seat_rule/unanimous` | — → 4.0 µs | — → 16.7 µs | — → 151.8 µs | — → 1.4 ms |
-| `seat::members_at` | 2.6 µs → 1.6 µs (**1.60×**) | 13.8 µs → 8.0 µs (**1.73×**) | 152.7 µs → 80.5 µs (**1.90×**) | 1.5 ms → 786.0 µs (**1.87×**) |
-| `seat::voices` | 164 ns → 164 ns (**1.00×**) | 462 ns → 471 ns (0.98×) | 3.9 µs → 3.9 µs (**1.01×**) | 32.2 µs → 31.9 µs (**1.01×**) |
-| `seat::left_in_past` | 10 ns → 10 ns (**1.00×**) | 16 ns → 16 ns (**1.00×**) | 97 ns → 97 ns (**1.00×**) | 1.2 µs → 1.2 µs (**1.05×**) |
-| `seat::met` | 3 ns → 1 ns (**3.25×**) | 2 ns → 1 ns (**3.00×**) | 2 ns → 1 ns (**3.12×**) | 3 ns → 1 ns (**3.38×**) |
-| `seat::Seats::new` | 2.3 µs → 1.1 µs (**2.16×**) | 10.6 µs → 4.9 µs (**2.16×**) | 93.9 µs → 51.4 µs (**1.83×**) | 917.7 µs → 515.9 µs (**1.78×**) |
-| `seat::Seats::new/one_offer_seats_all` | 1.6 µs → 699 ns (**2.34×**) | 19.7 µs → 5.1 µs (**3.90×**) | 1.2 ms → 63.7 µs (**18.43×**) | 88.4 ms → 690.9 µs (**128.00×**) |
-| `seat::Seats::holders` | 462 ns → 218 ns (**2.12×**) | 1.5 µs → 913 ns (**1.60×**) | 10.3 µs → 8.1 µs (**1.27×**) | 93.9 µs → 69.2 µs (**1.36×**) |
-| `seat::Seats::one` | 177 ns → 110 ns (**1.60×**) | 981 ns → 454 ns (**2.16×**) | 6.7 µs → 3.2 µs (**2.09×**) | 69.5 µs → 29.5 µs (**2.36×**) |
-| `owner/conclude+Seats::holders` | 3.0 µs → 2.4 µs (**1.26×**) | 15.7 µs → 11.4 µs (**1.38×**) | 174.7 µs → 100.3 µs (**1.74×**) | 3.0 ms → 973.9 µs (**3.12×**) |
-| `owner/Seats::new+one` | 1.0 µs → 687 ns (**1.48×**) | 6.7 µs → 3.7 µs (**1.79×**) | 70.1 µs → 45.7 µs (**1.53×**) | 1.4 ms → 503.6 µs (**2.77×**) |
-| `trust::reaches/hit` | 532 ns → 530 ns (**1.00×**) | 734 ns → 729 ns (**1.01×**) | 2.8 µs → 2.8 µs (**1.01×**) | 304.2 µs → 304.9 µs (**1.00×**) |
-| `trust::reaches/miss` | 918 ns → 915 ns (**1.00×**) | 2.3 µs → 2.3 µs (0.98×) | 14.4 µs → 14.6 µs (0.98×) | 374.7 µs → 375.2 µs (**1.00×**) |
-| `trust::honours` | 544 ns → 530 ns (**1.03×**) | 1.9 µs → 1.9 µs (**1.00×**) | 13.9 µs → 13.8 µs (**1.00×**) | 361.2 µs → 362.1 µs (**1.00×**) |
-| `derived::reach/5` | 1.4 µs → 975 ns (**1.46×**) | 5.7 µs → 3.5 µs (**1.63×**) | 28.7 µs → 15.2 µs (**1.88×**) | 433.6 µs → 226.5 µs (**1.91×**) |
-| `trust::EdgeIndex::reaches/hit` | — → 659 ns | — → 741 ns | — → 857 ns | — → 23.4 µs |
-| `trust::EdgeIndex::reaches/miss` | — → 1.1 µs | — → 1.9 µs | — → 4.0 µs | — → 27.9 µs |
-| `trust::EdgeIndex::new` | — → 328 ns | — → 1.3 µs | — → 12.5 µs | — → 166.5 µs |
-| `line::settle` | 411 ns → 409 ns (**1.01×**) | 2.5 µs → 2.6 µs (0.97×) | 33.8 µs → 33.6 µs (**1.01×**) | 367.1 µs → 374.3 µs (0.98×) |
-| `line::void` | 653 ns → 671 ns (0.97×) | 3.5 µs → 3.7 µs (0.96×) | 41.6 µs → 41.7 µs (**1.00×**) | 467.9 µs → 470.2 µs (**1.00×**) |
-| `seat::Seats::tips` | 636 ns → 23 ns (**28.00×**) | 2.7 µs → 22 ns (**121.40×**) | 37.6 µs → 23 ns (**1635.71×**) | 1.6 ms → 24 ns (**66008.90×**) |
-| `head::View::new` | 1.6 µs → 1.6 µs (0.99×) | 11.2 µs → 11.2 µs (**1.00×**) | 198.6 µs → 208.9 µs (0.95×) | 2.2 ms → 2.2 ms (**1.01×**) |
-| `head::View::answers` | 3.5 µs → 3.6 µs (0.96×) | 47.6 µs → 50.1 µs (0.95×) | 2.4 ms → 699.7 µs (**3.37×**) | 170.1 ms → 44.1 ms (**3.86×**) |
-| `head::View::settled(one act)` | 218 ns → 224 ns (0.97×) | 531 ns → 553 ns (0.96×) | 3.3 µs → 1.4 µs (**2.40×**) | 28.8 µs → 11.2 µs (**2.57×**) |
-| `head::purge` | 4.4 µs → 4.4 µs (**1.01×**) | 42.7 µs → 41.6 µs (**1.03×**) | 1.5 ms → 746.6 µs (**2.04×**) | 83.6 ms → 26.0 ms (**3.21×**) |
-| `window::rule/conclude` | 22.3 µs → 15.6 µs (**1.43×**) | 107.8 µs → 68.3 µs (**1.58×**) | 1.2 ms → 760.1 µs (**1.63×**) | 14.5 ms → 9.8 ms (**1.48×**) |
-| `window::outcome` | 8.0 µs → 5.6 µs (**1.44×**) | 43.3 µs → 25.6 µs (**1.70×**) | 467.0 µs → 261.8 µs (**1.78×**) | 4.1 ms → 2.4 ms (**1.72×**) |
-| `key_end::live` | 33 ns → 34 ns (0.98×) | 66 ns → 42 ns (**1.57×**) | 183 ns → 140 ns (**1.31×**) | 1.2 µs → 816 ns (**1.45×**) |
-| `key_end::ended` | 33 ns → 34 ns (0.96×) | 66 ns → 42 ns (**1.58×**) | 183 ns → 138 ns (**1.32×**) | 1.2 µs → 815 ns (**1.46×**) |
-| `key_end::retained` | 364 ns → 218 ns (**1.67×**) | 9.0 µs → 1.9 µs (**4.64×**) | 341.9 µs → 36.7 µs (**9.32×**) | 22.2 ms → 449.3 µs (**49.37×**) |
-| `key_end::conclude` | 1.0 µs → 785 ns (**1.33×**) | 7.5 µs → 5.0 µs (**1.48×**) | 109.8 µs → 52.6 µs (**2.09×**) | 2.5 ms → 621.0 µs (**3.98×**) |
+| `graph::Graph::new` | 196 ns → 160 ns (**1.22×**) | 1.2 µs → 552 ns (**2.19×**) | 16.8 µs → 5.9 µs (**2.87×**) | 244.9 µs → 66.2 µs (**3.70×**) |
+| `graph::Graph::new+ancestors(last)` | 242 ns → 207 ns (**1.17×**) | 1.4 µs → 695 ns (**2.07×**) | 17.1 µs → 6.2 µs (**2.75×**) | 259.8 µs → 71.4 µs (**3.64×**) |
+| `seat::seat_rule/ballot/majority` | 4.5 µs → 3.4 µs (**1.32×**) | 24.3 µs → 16.1 µs (**1.51×**) | 290.2 µs → 164.6 µs (**1.76×**) | 2.9 ms → 1.5 ms (**1.97×**) |
+| `seat::seat_rule/ballot/founder_only` | 4.5 µs → 3.2 µs (**1.38×**) | 23.2 µs → 15.4 µs (**1.51×**) | 273.6 µs → 164.0 µs (**1.67×**) | 2.6 ms → 1.3 ms (**2.05×**) |
+| `seat::seat_rule/ballot/unanimous` | 4.8 µs → 3.5 µs (**1.35×**) | 25.2 µs → 16.9 µs (**1.49×**) | 302.3 µs → 170.9 µs (**1.77×**) | 2.9 ms → 1.4 ms (**2.06×**) |
+| `seat::group_count/majority` | — → 60 ns | — → 183 ns | — → 1.3 µs | — → 9.6 µs |
+| `seat::group_count+sets/majority` | — → 163 ns | — → 548 ns | — → 4.4 µs | — → 34.9 µs |
+| `seat::group_count=seat_rule/majority` | — → 3.6 µs | — → 16.4 µs | — → 161.1 µs | — → 1.4 ms |
+| `seat::group_count/founder_only` | — → 32 ns | — → 37 ns | — → 39 ns | — → 39 ns |
+| `seat::group_count+sets/founder_only` | — → 123 ns | — → 325 ns | — → 2.1 µs | — → 17.1 µs |
+| `seat::group_count=seat_rule/founder_only` | — → 3.3 µs | — → 16.7 µs | — → 156.1 µs | — → 1.3 ms |
+| `seat::group_count/unanimous` | — → 110 ns | — → 436 ns | — → 3.6 µs | — → 26.9 µs |
+| `seat::group_count+sets/unanimous` | — → 227 ns | — → 882 ns | — → 7.8 µs | — → 59.6 µs |
+| `seat::group_count=seat_rule/unanimous` | — → 3.8 µs | — → 16.6 µs | — → 172.1 µs | — → 1.5 ms |
+| `seat::members_at` | 2.5 µs → 1.5 µs (**1.65×**) | 13.7 µs → 8.2 µs (**1.68×**) | 172.5 µs → 94.7 µs (**1.82×**) | 1.5 ms → 826.4 µs (**1.80×**) |
+| `seat::voices` | 169 ns → 177 ns (0.96×) | 467 ns → 562 ns (0.83×) | 4.4 µs → 5.2 µs (0.85×) | 35.0 µs → 37.2 µs (0.94×) |
+| `seat::left_in_past` | 10 ns → 12 ns (0.87×) | 16 ns → 17 ns (0.93×) | 111 ns → 115 ns (0.96×) | 1.3 µs → 1.2 µs (**1.05×**) |
+| `seat::met` | 3 ns → 1 ns (**3.50×**) | 2 ns → 1 ns (**3.57×**) | 3 ns → 1 ns (**3.75×**) | 3 ns → 1 ns (**3.50×**) |
+| `seat::Seats::new` | 2.4 µs → 1.1 µs (**2.15×**) | 10.6 µs → 4.9 µs (**2.17×**) | 109.4 µs → 60.2 µs (**1.82×**) | 953.3 µs → 538.5 µs (**1.77×**) |
+| `seat::Seats::new/one_offer_seats_all` | 1.7 µs → 684 ns (**2.49×**) | 19.6 µs → 5.1 µs (**3.84×**) | 1.4 ms → 76.1 µs (**18.17×**) | 88.4 ms → 779.8 µs (**113.42×**) |
+| `seat::Seats::holders` | 436 ns → 221 ns (**1.98×**) | 1.5 µs → 1.1 µs (**1.38×**) | 15.3 µs → 12.7 µs (**1.20×**) | 104.5 µs → 87.9 µs (**1.19×**) |
+| `seat::Seats::one` | 168 ns → 106 ns (**1.59×**) | 877 ns → 455 ns (**1.93×**) | 8.9 µs → 3.9 µs (**2.30×**) | 77.9 µs → 33.2 µs (**2.35×**) |
+| `owner/conclude+Seats::holders` | 2.9 µs → 2.4 µs (**1.21×**) | 15.4 µs → 11.5 µs (**1.34×**) | 197.7 µs → 115.6 µs (**1.71×**) | 3.2 ms → 1.0 ms (**3.12×**) |
+| `owner/Seats::new+one` | 962 ns → 666 ns (**1.44×**) | 6.6 µs → 3.7 µs (**1.81×**) | 80.3 µs → 52.1 µs (**1.54×**) | 1.5 ms → 535.7 µs (**2.77×**) |
+| `trust::reaches/hit` | 516 ns → 513 ns (**1.01×**) | 742 ns → 728 ns (**1.02×**) | 3.2 µs → 3.3 µs (0.97×) | 321.9 µs → 322.8 µs (**1.00×**) |
+| `trust::reaches/miss` | 887 ns → 880 ns (**1.01×**) | 2.3 µs → 2.2 µs (**1.05×**) | 16.9 µs → 16.8 µs (**1.01×**) | 396.1 µs → 392.6 µs (**1.01×**) |
+| `trust::honours` | 541 ns → 530 ns (**1.02×**) | 1.9 µs → 1.8 µs (**1.02×**) | 16.5 µs → 16.4 µs (**1.00×**) | 368.3 µs → 361.4 µs (**1.02×**) |
+| `derived::reach/5` | 1.4 µs → 964 ns (**1.47×**) | 5.5 µs → 3.4 µs (**1.60×**) | 33.3 µs → 17.6 µs (**1.89×**) | 437.3 µs → 226.2 µs (**1.93×**) |
+| `trust::EdgeIndex::reaches/hit` | — → 661 ns | — → 756 ns | — → 1.0 µs | — → 23.4 µs |
+| `trust::EdgeIndex::reaches/miss` | — → 1.1 µs | — → 2.1 µs | — → 4.6 µs | — → 28.4 µs |
+| `trust::EdgeIndex::new` | — → 333 ns | — → 1.4 µs | — → 14.2 µs | — → 188.4 µs |
+| `line::settle` | 410 ns → 428 ns (0.96×) | 2.6 µs → 2.8 µs (0.94×) | 39.0 µs → 39.9 µs (0.98×) | 433.8 µs → 436.6 µs (0.99×) |
+| `line::void` | 696 ns → 714 ns (0.98×) | 3.9 µs → 4.1 µs (0.96×) | 48.8 µs → 48.5 µs (**1.01×**) | 517.7 µs → 522.0 µs (0.99×) |
+| `seat::Seats::tips` | 671 ns → 24 ns (**27.85×**) | 3.0 µs → 25 ns (**119.87×**) | 42.0 µs → 26 ns (**1647.60×**) | 1.6 ms → 26 ns (**62391.42×**) |
+| `head::View::new` | 1.6 µs → 1.6 µs (0.98×) | 12.6 µs → 12.5 µs (**1.00×**) | 229.0 µs → 235.1 µs (0.97×) | 2.3 ms → 2.3 ms (**1.02×**) |
+| `head::View::answers` | 3.5 µs → 3.6 µs (0.97×) | 52.5 µs → 54.4 µs (0.97×) | 2.7 ms → 792.0 µs (**3.36×**) | 164.2 ms → 42.1 ms (**3.90×**) |
+| `head::View::settled(one act)` | 219 ns → 223 ns (0.98×) | 615 ns → 634 ns (0.97×) | 3.7 µs → 1.6 µs (**2.31×**) | 29.3 µs → 11.8 µs (**2.48×**) |
+| `head::purge` | 4.4 µs → 4.4 µs (**1.01×**) | 48.1 µs → 47.0 µs (**1.02×**) | 1.7 ms → 814.2 µs (**2.07×**) | 91.8 ms → 30.7 ms (**2.99×**) |
+| `window::rule/conclude` | 21.1 µs → 14.9 µs (**1.42×**) | 122.3 µs → 78.5 µs (**1.56×**) | 1.4 ms → 834.9 µs (**1.67×**) | 15.5 ms → 10.3 ms (**1.51×**) |
+| `window::outcome` | 8.3 µs → 5.6 µs (**1.48×**) | 48.7 µs → 28.8 µs (**1.69×**) | 525.6 µs → 294.2 µs (**1.79×**) | 4.2 ms → 2.5 ms (**1.72×**) |
+| `key_end::live` | 35 ns → 36 ns (0.97×) | 74 ns → 56 ns (**1.32×**) | 206 ns → 205 ns (**1.00×**) | 1.2 µs → 1.2 µs (**1.00×**) |
+| `key_end::ended` | 35 ns → 36 ns (0.98×) | 76 ns → 57 ns (**1.33×**) | 189 ns → 191 ns (0.99×) | 1.2 µs → 1.2 µs (**1.00×**) |
+| `key_end::retained` | 383 ns → 226 ns (**1.69×**) | 10.1 µs → 2.2 µs (**4.60×**) | 354.5 µs → 37.8 µs (**9.38×**) | 22.5 ms → 457.2 µs (**49.22×**) |
+| `key_end::conclude` | 1.1 µs → 800 ns (**1.35×**) | 8.7 µs → 5.8 µs (**1.51×**) | 117.5 µs → 55.7 µs (**2.11×**) | 2.5 ms → 627.7 µs (**3.97×**) |
 
-Load average during the run 3.9–6.1 on 32 cores; both binaries pinned to core 31; three rounds, each bench in a
-process of its own.
+Three rounds, each bench in a process of its own, both binaries pinned to core 31. The load average was 12–16
+at the start and 7–13 at the end, on 32 cores, with `check.sh` running alongside on other cores. Both binaries
+alternate within each round, so the load falls on both.
 
-A cell is before → after (before / after). A bench only AFTER has (a new entry point) shows "—" before. At
-16,384:
+A cell is before → after (before / after). A bench only AFTER has (a new entry point) shows "—" before.
+
+At 16,384:
 
 | bench | 16384 |
 |---|---|
-| `graph::Graph::new` | 5.1 ms → 1.8 ms (**2.84×**) |
-| `graph::Graph::new+ancestors(last)` | 5.3 ms → 2.1 ms (**2.55×**) |
-| `seat::seat_rule/ballot/majority` | 196.3 ms → 53.3 ms (**3.68×**) |
-| `seat::group_count/majority` | — → 164.4 µs |
-| `seat::group_count+sets/majority` | — → 691.5 µs |
-| `seat::members_at` | 37.8 ms → 22.6 ms (**1.67×**) |
-| `seat::voices` | 551.2 µs → 544.8 µs (**1.01×**) |
-| `seat::Seats::new` | 23.4 ms → 17.6 ms (**1.33×**) |
-| `seat::Seats::new/one_offer_seats_all` | 21.59 s → 17.1 ms (**1262.62×**) |
-| `seat::Seats::one` | 1.3 ms → 484.2 µs (**2.62×**) |
-| `owner/conclude+Seats::holders` | 462.7 ms → 51.6 ms (**8.96×**) |
-| `owner/Seats::new+one` | 207.3 ms → 14.7 ms (**14.12×**) |
-| `trust::reaches/miss` | 2.8 ms → 2.8 ms (0.99×) |
-| `derived::reach/5` | 4.6 ms → 4.5 ms (**1.02×**) |
-| `trust::EdgeIndex::reaches/miss` | — → 6.3 µs |
-| `line::settle` | base not run (setup over 150 s) → 8.8 ms |
+| `graph::Graph::new` | 4.5 ms → 1.7 ms (**2.70×**) |
+| `graph::Graph::new+ancestors(last)` | 4.9 ms → 1.9 ms (**2.53×**) |
+| `seat::seat_rule/ballot/majority` | 182.6 ms → 44.7 ms (**4.08×**) |
+| `seat::group_count/majority` | — → 149.4 µs |
+| `seat::group_count+sets/majority` | — → 613.4 µs |
+| `seat::members_at` | 34.2 ms → 21.6 ms (**1.59×**) |
+| `seat::voices` | 521.2 µs → 562.2 µs (0.93×) |
+| `seat::Seats::new` | 23.2 ms → 16.0 ms (**1.45×**) |
+| `seat::Seats::new/one_offer_seats_all` | 21.59 s → 16.5 ms (**1305.23×**) |
+| `seat::Seats::one` | 1.1 ms → 503.0 µs (**2.23×**) |
+| `owner/conclude+Seats::holders` | 791.6 ms → 78.7 ms (**10.06×**) |
+| `owner/Seats::new+one` | 373.3 ms → 24.0 ms (**15.58×**) |
+| `trust::reaches/miss` | 4.2 ms → 3.8 ms (**1.10×**) |
+| `derived::reach/5` | 6.8 ms → 7.0 ms (0.98×) |
+| `trust::EdgeIndex::reaches/miss` | — → 7.8 µs |
+| `line::settle` | base not run (setup over 150 s) → 12.7 ms |
 | `seat::Seats::tips` | base not run (setup over 150 s) → 21 ns |
-| `window::outcome` | 97.5 ms → 56.5 ms (**1.72×**) |
-| `key_end::retained` | 9.78 s → 13.1 ms (**746.48×**) |
-| `key_end::conclude` | 437.6 ms → 111.2 ms (**3.94×**) |
+| `window::outcome` | 98.0 ms → 56.0 ms (**1.75×**) |
+| `key_end::retained` | 11.71 s → 16.2 ms (**722.98×**) |
+| `key_end::conclude` | 513.8 ms → 129.0 ms (**3.98×**) |
 
-One round, pinned as above. In the two cells marked "base not run", the base binary did not finish the
-section's setup within the 150 s process limit: `conclude` over a ledger of 16,384 counted acts runs
-`members_at` once per act. Neither `settle` nor `tips` was measured on the base.
+One round, pinned as above. Notes on three cells:
+- `one_offer_seats_all`: the base did not finish within the 150 s process limit in this run. The cell shows
+  its 21.6 s per call from an earlier run of the same base binary.
+- `line::settle` and `tips`: the section's setup, `conclude` over a ledger of 16,384 counted acts, takes
+  about 2.5 minutes in the after binary. The base was not run past 150 s, so neither function was measured on
+  it. The after binary's `settle` was measured alone: 12.7 ms per call.
 
 The sub-microsecond cells (`seat::met`, `seat::left_in_past`, `key_end::live`, `key_end::ended`) are code
 this branch leaves byte for byte as it was. Their ratios at that scale are timer and host noise of ±30%. Where
@@ -123,7 +130,7 @@ row, one offer per member, the roster version and the counted row. It then concl
 counted row, `seat_rule` ran `members_at`. That function builds a fresh `Graph` over the head's past, a fresh
 `Seats` walk (with a `Cut` solved over it and the reader's line voided), then `holders` and `tips`. After it
 come `left_in_past` and `voices`, each a scan of every row. At a roster of 1,024 that was 24,189 allocations
-and 2.5 ms here (persist measured 2.6 ms); at a roster of three, 111 allocations and 4.8 µs (persist's 8 µs
+and 2.5–2.9 ms here (persist measured 2.6 ms); at a roster of three, 111 allocations and 4.5 µs (persist's 8 µs
 floor). The count itself is a set intersection and a comparison. Inside the walk:
 
 - `Seats::new` read every concluded row for an acceptance of each (offer, key) it seated: offers × rows.
@@ -162,6 +169,7 @@ row walked the head's seats once per scope it read (concluder, counted, `moderat
 | `seat::count_members` (new; `seat_rule` reads it) | inline in `seat_rule` | the set `seat_rule` counts over: `members_at` at every head less `left_in_past` of the row | the code of that step, moved; tested against `members_at` minus `left_in_past` |
 | `seat::conclude` (new) | | the seat rule over one pass, `members_at` kept per (sorted heads, object, scope) for that pass; a head outside the row's concluded past is answered, not kept | within one pass the concluded rows in a head's past are fixed before any row naming it is read; tested against `layers::conclude` with `seat_rule` over generated graphs, with plants for a key that drops the scope or a head |
 | `layers::Past::get`; `members_at`'s head test | `contains` over `p` | binary search | `p` is in index order, ascending, as `conclude` builds it (its documented contract) |
+| `seat::voices` (after review) | every row of the past read for a cosignature the row names | only the rows the counted row names, each by `Past::get` | a voice from a cosignature must be a row the counted row names, and `get` gives exactly the concluded ancestor with that id; tested against the voices as first written, over generated cosignatures named or only in the past |
 | `Cut::status` | the slots read on every call | each row's status kept once asked (`OnceCell`); no cut among the concluded rows: every concluded row counts, slots unread | the cut is solved when built, so a status never changes; a concluded row that cuts a slot is among the cuts, so with none, `voided` finds nothing |
 | `Seats::new` | every concluded row read per (offer, key); a signer set per key; each unseat's object copied per check; keys copied through the walk | acceptances indexed by signer, withdrawals by target; `signed_by` (or one signer set per offer seating more than 8); each unseat's object read once; keys borrowed until they enter a live seat | the indexes hold exactly the rows the scans filtered for; `any` over them is order-free |
 | `Seats::tips`, `tips_common` | recomputed per call | kept per object (and scope) once asked | the seats are fixed when built; no reader enters either (the reader's line is in `stale`) |
@@ -171,7 +179,7 @@ row walked the head's seats once per scope it read (concluder, counted, `moderat
 | `Graph::frontier` | every pair | up to 16 rows pairwise; more by one walk down from all of them, through rows no lower than the lowest, taking a known past whole | a row of `of` is in another's past iff that walk reaches it; tested against the pairwise frontier, before and after pasts are known |
 | `Bits::iter` | 64 tests per word | one step per set bit | |
 | `key_end::retained` | `ended` per row (all rows each) and a whole past per seed | each key's end read in one pass; one walk marks every seed's past | `ended(k)` is "revoked by now, or no record of k open past now"; the union of pasts is what one walk reaches |
-| `head::View` | every entry scanned per act and answer | above 64 entries: entries by the act they name, the ids answers and rows name, built in `new` (so `View` stays `Send + Sync`); member sets above 32 members; `acked` kept. Its fields, and `Seats`', are read through methods: both are snapshots whose answers are kept once asked | the indexes hold the entries the scans filtered for, in the same (id) order; tested by every purge history padded past 64 entries against itself unpadded, and by generated stores of every kind read through the indexes against the same view scanning (a unit test) |
+| `head::View` | every entry scanned per act and answer | above 64 entries: the entries by the act they name and the ids answers name, each one sorted buffer built in `new` (so `View` stays `Send + Sync`), and `tips` reads the named ids per call; member sets above 32 members; `acked` kept. Its fields, and `Seats`', are read through methods: both are snapshots whose answers are kept once asked | the indexes hold the entries the scans filtered for, in the same (id) order; tested by every purge history padded past 64 entries against itself unpadded, and by generated stores of every kind read through the indexes against the same view scanning (a unit test) |
 | `trust::EdgeIndex` (new) | | the edges sorted by source once, for repeated walks | the walk of `reaches`, each key's edges read as their run in the index, in edge order |
 | `derived::reach` | the set copied and every edge read at every step | a layered walk over the edges sorted by source | a key enters at the first step that reaches it; only new keys are read at the next |
 | `line::settle` | `live.contains` per act of the reader's line | `cut_counts(i)` | `own_line` returns counted acts on the object only |
@@ -185,17 +193,24 @@ unit tests. The 18 runs the crate carried hold 937,355 cases against the Python 
 and TLC's states. The nine new ones are in `tests/fast_paths.rs` and `tests/purge.rs`: each tests a faster path
 against the definition it replaced, kept there as the oracle. Final: 7,084,046 cases, 0 disagreements.
 
-<<CHECK>>
+`check.sh` on `e3e2fa0`: all 17 steps passed. That covers 602 Lean theorems, the model checks, the
+no_std and wasm builds (0 dependencies), conformance (27 runs, 7,091,573 cases, 0 disagreements), 46 of 46
+plants caught, and TLC (5 specs, each with its plant caught). The crate builds on MSRV 1.89, and `fmt --check`
+and `clippy --all-targets -D warnings` are clean.
 
-`tools/kernel_crate_plants.sh` has 45 plants. Fifteen are the plants it had; the two count plants follow the
+`tools/kernel_crate_plants.sh` has 46 plants. Fifteen are the plants it had; the two count plants follow the
 code into `group_count`. The `open:self_admit` removal line, which the first of them used to hit, is planted
-on its own. Twenty-nine are new, one per faster path: a cache that answers for another object, scope or head;
+on its own. Thirty are new, one per faster path: a cache that answers for another object, scope or head;
 an index filed under one key or never built; the frontier's walk cut short; the no-cut shortcut taken with
 cuts; `members_at` reading unconcluded rows; a prefilled window scope that keeps the opener in `others` or lets
-a scope named `all` take `Base::All`'s name; a weighted sum that wraps; a ranked count answered as a count.
+a scope named `all` take `Base::All`'s name; a weighted sum that wraps; a ranked count answered as a count; `voices` counting a cosignature the row does
+not name.
 
 The review found four of these unplanted or uncaught (the view's answer index, the two window prefill
-guards, and `members_at` over unconcluded rows). Each now has a plant and a test that catches it. The view
+guards, and `members_at` over unconcluded rows). Each now has a plant and a test that catches it. The first
+full run after the review caught 44 of 45: a members cache keyed by its first head alone changed no
+conclusion the generated worlds read. A lib unit test now reads the cache at every set of heads, in random
+order, against the uncached reads, and catches it. The view
 and window tests are unit tests: they compare the indexed or prefilled path with the scanning or lazy one in
 the same build, over generated stores and windows.
 
@@ -231,9 +246,9 @@ cases.
   The member's own leaving by a removal its subject alone signs stays the adapter's shortcut, as now.
 
   `group_count` is the code `seat_rule` runs for the `Conf::Group` arm, so the I1844 witness (`admits_by_rows`)
-  keeps comparing it with the rows. At 1,024 members it takes 8.9 µs with the sets given (0 allocations), or
-  32 µs building them per call from the roster's key slices. The seat rule over the rows took 2.5 ms before
-  and 1.3 ms after. At three members: 62 ns, against 4.8 µs → 3.5 µs.
+  keeps comparing it with the rows. At 1,024 members it takes 9.6 µs with the sets given (0 allocations), or
+  35 µs building them per call from the roster's key slices. The seat rule over the rows took 2.9 ms before
+  and 1.5 ms after (both under this run's load). At three members: 60 ns, against 4.5 µs → 3.4 µs.
 - **The floor beyond that is the adapter's.** Building `mem` from the eligible seats per ballot costs more than
   the count (`group_count+sets`). A cache may hold the members at a head (`members_at`), which is a function
   of the head alone (CC 2.7.8). It must still subtract the leavings in each counted row's past on every count.
@@ -255,15 +270,16 @@ cases.
 
 ## 6. Cells below 1.0, and what they are
 
-After the last change, no cell of section 2 reads below 0.95×. Code this branch leaves byte for byte as it was
-reads 0.96–0.98× in the same run (`trust::reaches`, `key_end::live`, `key_end::ended`, `seat::voices`), so
-about ±4% is the host's noise. Three cells of changed code sit at that edge:
+In the final run, the only cells of changed code below 0.97× are these:
 
 | Cell | Ratio | What it is |
 |---|---|---|
-| `head::View::answers` at 16 (49 entries) | 0.95× | a small store is scanned as before; what remains is the view's larger struct and member lookup. At 128 it is 3.4× faster, at 1,024 3.9×. Persist calls no `head::View` in production yet |
-| `head::View::new` at 128 | 0.95× | the member set built once for a roster of 128 (a list of more than 32); 1.00× at 16, 1.01× at 1,024 |
-| `line::settle`, `line::void` | 0.96–0.98× | `settle` now reads `cut_counts(i)` for the reader's line, no more work than before; inside the noise band |
+| `seat::voices`, every size | 0.83–0.96× | `voices` now does strictly less work: it no longer reads the whole past. Its whole remaining cost is `signers(r)`, byte for byte as before: one copy per signer (513 at 1,024) into a set, with the same allocation count. The gap held at about 10% under two different glibc malloc settings. It is not in `voices`'s instructions. **Not proven:** that it comes from the heap the bench's setup leaves, whose `conclude` now allocates about half as much. The seat rule over a ballot, which calls `voices`, is 1.3–4.1× faster |
+| `line::settle` at 16, `line::void` at 16 | 0.94–0.96× | `settle` reads `cut_counts(i)` for the reader's line, no more work than before |
+
+Byte-identical code sits at 0.87–0.96× in the same run (`seat::left_in_past` at 10–17 ns), so
+about ±5% is the host's noise under that load. Every `head::View` cell is now 0.97× or better: the eager
+indexes cost 0.92× at 128 entries until they became one sorted buffer each.
 
 Found by the A/B and taken back: `trust::reaches` with borrowed keys or a sort inside the walk (0.56–0.85×),
 and `key_end::live`/`ended` in one pass (0.07–0.21×). Both are the base code again (section 4).
