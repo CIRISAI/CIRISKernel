@@ -112,7 +112,7 @@ fn seat_scenarios() {
             let own = if reader == "-" { None } else { Some(reader.clone()) };
             let q = Seats::new(&c, &w.law, &spec, own.as_ref());
             let got: BTreeSet<J> = q
-                .recs
+                .recs()
                 .iter()
                 .map(|r| {
                     J::Arr(vec![
@@ -130,7 +130,7 @@ fn seat_scenarios() {
                 .collect();
             let want: BTreeSet<J> = rd.at("recs").arr().iter().cloned().collect();
             cmp(got == want, format!("live seats for reader {reader}"));
-            let stale = sorted_ids(q.stale.iter().map(|&i| &c.g.row(i).id));
+            let stale = sorted_ids(q.stale().iter().map(|&i| &c.g.row(i).id));
             cmp(stale == rd.at("stale").strs(), format!("stale for reader {reader}"));
             for (o, h) in rd.at("holders").obj() {
                 let ob = obj_named(&rows, o);

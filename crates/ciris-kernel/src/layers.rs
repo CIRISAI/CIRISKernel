@@ -108,7 +108,8 @@ impl<'g, 'a, R: Row> Past<'g, 'a, R> {
     /// The concluded ancestor with this id.
     pub fn get(&self, id: &R::Id) -> Option<&'a R> {
         let q = self.g.idx(id)?;
-        if self.p.contains(&q) {
+        // `p` is in index order (ascending), as `conclude` builds it
+        if self.p.binary_search(&q).is_ok() {
             Some(self.g.row(q))
         } else {
             None

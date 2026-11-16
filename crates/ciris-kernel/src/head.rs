@@ -19,12 +19,11 @@
 
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
-use core::cell::OnceCell;
 
 /// Up to how many members [`View`] scans a roster version's list for a key before it keeps them as a set.
 const MEMBERS_SCANNED: usize = 32;
-/// Up to how many held entries [`View`] scans them all for an act's receipts and cuts, an answer or a name,
-/// before it builds an index (built once, when first read).
+/// Up to how many held entries [`View`] scans them all for an act's receipts and cuts, an answer or a name;
+/// above it, [`View::new`] builds the indexes.
 const SCANNED: usize = 64;
 
 /// The kind of a stored row, as these answers read it.
@@ -177,26 +176,26 @@ pub enum WindowState {
     Lapsed,
 }
 
-/// Every answer, over a store plus newly offered rows, for the node signing under `own`.
+/// Every answer, over a store plus newly offered rows, for the node signing under `own`. An immutable
+/// snapshot, built whole by [`View::new`]: its fields are read through methods.
 pub struct View<I, K, T> {
     own: K,
     reading: Reading,
     say: bool,
-    /// The held entries by id.
-    pub rec: BTreeMap<I, Entry<I, K, T>>,
+    rec: BTreeMap<I, Entry<I, K, T>>,
     anc: BTreeMap<I, BTreeSet<I>>,
     depth: BTreeMap<I, usize>,
-    /// The conclusion of every held entry.
-    pub c: BTreeMap<I, bool>,
-    /// The counted rows the reader's line holds void.
-    pub v: BTreeSet<I>,
-    /// The held entries that name each act as theirs (`of`), by ascending id: its receipts and cuts. Built
-    /// when an answer first reads it, as are the next two.
-    by_of: OnceCell<BTreeMap<I, Vec<I>>>,
+    c: BTreeMap<I, bool>,
+    v: BTreeSet<I>,
+    /// Up to how many held entries the answers scan them all; above it they read the next three indexes,
+    /// built in [`View::new`] ([`SCANNED`], except in this module's tests).
+    scanned: usize,
+    /// The held entries that name each act as theirs (`of`), by ascending id: its receipts and cuts.
+    by_of: BTreeMap<I, Vec<I>>,
     /// The ids an answer names.
-    answered: OnceCell<BTreeSet<I>>,
+    answered: BTreeSet<I>,
     /// The ids any held entry names.
-    named: OnceCell<BTreeSet<I>>,
+    named: BTreeSet<I>,
     /// The members of each entry listing more than [`MEMBERS_SCANNED`], as a set.
     mem: BTreeMap<I, BTreeSet<K>>,
     /// The heads this node has acknowledged.
@@ -233,6 +232,30 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         reading: Reading,
         say: bool,
     ) -> Self {
+        Self::build(store, extra, own, reading, say, SCANNED)
+    }
+
+    /// The held entries by id.
+    pub fn rec(&self) -> &BTreeMap<I, Entry<I, K, T>> {
+        &self.rec
+    }
+    /// The conclusion of every held entry.
+    pub fn c(&self) -> &BTreeMap<I, bool> {
+        &self.c
+    }
+    /// The counted rows the reader's line holds void.
+    pub fn v(&self) -> &BTreeSet<I> {
+        &self.v
+    }
+
+    fn build(
+        store: &BTreeMap<I, Entry<I, K, T>>,
+        extra: &[Entry<I, K, T>],
+        own: K,
+        reading: Reading,
+        say: bool,
+        scanned: usize,
+    ) -> Self {
         let mut rec = store.clone();
         let mut pending: Vec<Entry<I, K, T>> = extra.iter().filter(|r| !rec.contains_key(&r.id)).cloned().collect();
         let mut moved = true;
@@ -258,15 +281,26 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             depth: BTreeMap::new(),
             c: BTreeMap::new(),
             v: BTreeSet::new(),
-            by_of: OnceCell::new(),
-            answered: OnceCell::new(),
-            named: OnceCell::new(),
+            scanned,
+            by_of: BTreeMap::new(),
+            answered: BTreeSet::new(),
+            named: BTreeSet::new(),
             mem: BTreeMap::new(),
             acked: BTreeSet::new(),
         };
+        let index = me.rec.len() > scanned;
         for (i, r) in &me.rec {
             if r.members.len() > MEMBERS_SCANNED {
                 me.mem.insert(i.clone(), r.members.iter().cloned().collect());
+            }
+            if index {
+                if let Some(o) = &r.of {
+                    me.by_of.entry(o.clone()).or_default().push(i.clone());
+                }
+                if r.kind == Kind::Answer {
+                    me.answered.extend(r.names.iter().cloned());
+                }
+                me.named.extend(r.names.iter().cloned());
             }
         }
         let ids: Vec<I> = me.rec.keys().cloned().collect();
@@ -305,18 +339,9 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
     }
 
     /// The held entries that name act `a` as theirs, ascending, read through the index (a store of more than
-    /// [`SCANNED`] entries; a smaller one is scanned by the caller).
+    /// `scanned` entries; a smaller one is scanned by the caller).
     fn of_entries<'s>(&'s self, a: &I) -> impl Iterator<Item = &'s Entry<I, K, T>> + 's {
-        let by_of = self.by_of.get_or_init(|| {
-            let mut m: BTreeMap<I, Vec<I>> = BTreeMap::new();
-            for (i, r) in &self.rec {
-                if let Some(o) = &r.of {
-                    m.entry(o.clone()).or_default().push(i.clone());
-                }
-            }
-            m
-        });
-        let ids: &'s [I] = by_of.get(a).map_or(&[][..], |v| &v[..]);
+        let ids: &'s [I] = self.by_of.get(a).map_or(&[][..], |v| &v[..]);
         ids.iter().map(move |i| &self.rec[i])
     }
 
@@ -415,7 +440,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         let is = |c: &&Entry<I, K, T>| {
             c.kind == Kind::Cut && c.of.as_ref() == Some(a) && !c.dropped && self.c[&c.id] && !self.v.contains(&c.id)
         };
-        if self.rec.len() <= SCANNED {
+        if self.rec.len() <= self.scanned {
             return self.rec.values().filter(is).collect();
         }
         self.of_entries(a).filter(is).collect()
@@ -435,7 +460,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
                 out.entry(k.clone()).or_default().push(x.id.clone());
             }
         };
-        if self.rec.len() <= SCANNED {
+        if self.rec.len() <= self.scanned {
             self.rec.values().for_each(&mut visit);
         } else {
             self.of_entries(a).for_each(visit);
@@ -537,14 +562,10 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
 
     /// A window's state at `now`, read from the instant this node first held the opener.
     pub fn window(&self, o: &I, now: T) -> WindowState {
-        let answered = if self.rec.len() <= SCANNED {
+        let answered = if self.rec.len() <= self.scanned {
             self.rec.values().any(|x| x.kind == Kind::Answer && x.names.contains(o))
         } else {
-            self.answered
-                .get_or_init(|| {
-                    self.rec.values().filter(|x| x.kind == Kind::Answer).flat_map(|x| x.names.iter().cloned()).collect()
-                })
-                .contains(o)
+            self.answered.contains(o)
         };
         if answered {
             return WindowState::Answered;
@@ -578,11 +599,10 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
 
     /// The held ids no held row names: what a checkpoint names.
     pub fn tips(&self) -> Vec<I> {
-        if self.rec.len() <= SCANNED {
+        if self.rec.len() <= self.scanned {
             return self.rec.keys().filter(|i| !self.rec.values().any(|r| r.names.contains(i))).cloned().collect();
         }
-        let named = self.named.get_or_init(|| self.rec.values().flat_map(|r| r.names.iter().cloned()).collect());
-        self.rec.keys().filter(|i| !named.contains(*i)).cloned().collect()
+        self.rec.keys().filter(|i| !self.named.contains(*i)).cloned().collect()
     }
 }
 
@@ -667,4 +687,126 @@ pub fn purge<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Outp
         out.insert(i.clone(), e);
     }
     (out, tips)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self, n: u64) -> u64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (self.0 >> 33) % n.max(1)
+        }
+    }
+
+    /// A closed store of every kind, each entry naming only earlier ones: roster versions (some with more
+    /// than 32 members), acts at them, receipts and cuts of the acts, the reader's acknowledgements, windows
+    /// and answers, and entries of other kinds that name windows and acts too.
+    fn store(g: &mut Lcg, n: u32) -> Store<u32, u32, i64> {
+        let mut s: Store<u32, u32, i64> = BTreeMap::new();
+        let (mut seats, mut acts, mut opens): (Vec<u32>, Vec<u32>, Vec<u32>) = (vec![], vec![], vec![]);
+        for i in 0..n {
+            let pick = |g: &mut Lcg, v: &Vec<u32>| v[g.next(v.len() as u64) as usize];
+            let mut names: Vec<u32> = (0..g.next(3)).filter(|_| i > 0).map(|_| g.next(i as u64) as u32).collect();
+            let kind = match g.next(10) {
+                _ if seats.is_empty() => Kind::Seat,
+                0 | 1 => Kind::Seat,
+                2 | 3 => Kind::Act,
+                4 if !acts.is_empty() => Kind::Ack,
+                5 if !acts.is_empty() => Kind::Cut,
+                6 => Kind::ReaderAck,
+                7 => Kind::Open,
+                8 if !opens.is_empty() => Kind::Answer,
+                _ => Kind::Other,
+            };
+            let mut e = Entry::new(i, kind, g.next(40) as u32, vec![]);
+            match kind {
+                Kind::Seat => {
+                    let m = if g.next(3) == 0 { 33 + g.next(8) } else { g.next(8) };
+                    e.members = (0..m as u32).collect();
+                    e.q = 1 + g.next(1 + m / 2) as usize;
+                    seats.push(i);
+                }
+                Kind::Act | Kind::ReaderAck => {
+                    let h = pick(g, &seats);
+                    e.head = Some(h);
+                    names.push(h);
+                    if kind == Kind::Act {
+                        acts.push(i);
+                    }
+                }
+                Kind::Ack | Kind::Cut => {
+                    let a = pick(g, &acts);
+                    e.of = Some(a);
+                    if g.next(4) != 0 {
+                        names.push(a);
+                    }
+                    if kind == Kind::Cut {
+                        let h = pick(g, &seats);
+                        e.head = Some(if g.next(2) == 0 { s[&a].head.unwrap() } else { h });
+                        names.push(e.head.unwrap());
+                        e.sigs = (0..g.next(6)).map(|_| g.next(40) as u32).collect();
+                    }
+                }
+                Kind::Open => {
+                    e.length = Some(10 + g.next(40) as i64);
+                    e.receipt = Some(g.next(30) as i64);
+                    opens.push(i);
+                }
+                Kind::Answer => names.push(pick(g, &opens)),
+                _ => {
+                    if !opens.is_empty() && g.next(2) == 0 {
+                        names.push(pick(g, &opens)); // a row that names a window and is no answer
+                    }
+                    if !acts.is_empty() && g.next(2) == 0 {
+                        e.of = Some(pick(g, &acts)); // a row that names an act as its own and is no receipt
+                    }
+                }
+            }
+            names.sort_unstable();
+            names.dedup();
+            e.names = names;
+            s.insert(i, e);
+        }
+        s
+    }
+
+    /// The view read through its indexes answers as the view that scans, on every store, reader and now.
+    #[test]
+    fn indexed_view_answers_as_the_scanning_one() {
+        let mut g = Lcg(7);
+        let (mut cases, mut bad) = (0usize, 0usize);
+        for _ in 0..400 {
+            let n = 70 + g.next(80) as u32;
+            let s = store(&mut g, n);
+            for (reading, say, own) in
+                [(Reading::Broad, true, 0u32), (Reading::Narrow, false, 3), (Reading::Broad, false, 5)]
+            {
+                let scan = View::build(&s, &[], own, reading, say, usize::MAX);
+                let index = View::build(&s, &[], own, reading, say, 0);
+                for now in [0i64, 25, 80] {
+                    cases += 1;
+                    bad += (scan.answers(now) != index.answers(now)) as usize;
+                }
+                cases += 2;
+                bad += (scan.tips() != index.tips()) as usize;
+                bad += (scan.acked() != index.acked()) as usize;
+                for a in s.keys() {
+                    cases += 1;
+                    bad += (scan.receipts(a) != index.receipts(a)) as usize;
+                }
+            }
+        }
+        assert!(cases > 100_000);
+        assert_eq!(bad, 0, "{bad} of {cases} answers differ");
+    }
+
+    #[test]
+    fn a_view_is_send_and_sync() {
+        fn both<X: Send + Sync>() {}
+        both::<View<u32, u32, i64>>();
+    }
 }

@@ -62,9 +62,9 @@ function persist calls, at sizes 3 to 16,384. No answer changed (section 4).
 | `trust::reaches/miss` | 918 ns → 915 ns (**1.00×**) | 2.3 µs → 2.3 µs (0.98×) | 14.4 µs → 14.6 µs (0.98×) | 374.7 µs → 375.2 µs (**1.00×**) |
 | `trust::honours` | 544 ns → 530 ns (**1.03×**) | 1.9 µs → 1.9 µs (**1.00×**) | 13.9 µs → 13.8 µs (**1.00×**) | 361.2 µs → 362.1 µs (**1.00×**) |
 | `derived::reach/5` | 1.4 µs → 975 ns (**1.46×**) | 5.7 µs → 3.5 µs (**1.63×**) | 28.7 µs → 15.2 µs (**1.88×**) | 433.6 µs → 226.5 µs (**1.91×**) |
-| `trust::Index::reaches/hit` | — → 659 ns | — → 741 ns | — → 857 ns | — → 23.4 µs |
-| `trust::Index::reaches/miss` | — → 1.1 µs | — → 1.9 µs | — → 4.0 µs | — → 27.9 µs |
-| `trust::Index::new` | — → 328 ns | — → 1.3 µs | — → 12.5 µs | — → 166.5 µs |
+| `trust::EdgeIndex::reaches/hit` | — → 659 ns | — → 741 ns | — → 857 ns | — → 23.4 µs |
+| `trust::EdgeIndex::reaches/miss` | — → 1.1 µs | — → 1.9 µs | — → 4.0 µs | — → 27.9 µs |
+| `trust::EdgeIndex::new` | — → 328 ns | — → 1.3 µs | — → 12.5 µs | — → 166.5 µs |
 | `line::settle` | 411 ns → 409 ns (**1.01×**) | 2.5 µs → 2.6 µs (0.97×) | 33.8 µs → 33.6 µs (**1.01×**) | 367.1 µs → 374.3 µs (0.98×) |
 | `line::void` | 653 ns → 671 ns (0.97×) | 3.5 µs → 3.7 µs (0.96×) | 41.6 µs → 41.7 µs (**1.00×**) | 467.9 µs → 470.2 µs (**1.00×**) |
 | `seat::Seats::tips` | 636 ns → 23 ns (**28.00×**) | 2.7 µs → 22 ns (**121.40×**) | 37.6 µs → 23 ns (**1635.71×**) | 1.6 ms → 24 ns (**66008.90×**) |
@@ -101,7 +101,7 @@ A cell is before → after (before / after). A bench only AFTER has (a new entry
 | `owner/Seats::new+one` | 207.3 ms → 14.7 ms (**14.12×**) |
 | `trust::reaches/miss` | 2.8 ms → 2.8 ms (0.99×) |
 | `derived::reach/5` | 4.6 ms → 4.5 ms (**1.02×**) |
-| `trust::Index::reaches/miss` | — → 6.3 µs |
+| `trust::EdgeIndex::reaches/miss` | — → 6.3 µs |
 | `line::settle` | base not run (setup over 150 s) → 8.8 ms |
 | `seat::Seats::tips` | base not run (setup over 150 s) → 21 ns |
 | `window::outcome` | 97.5 ms → 56.5 ms (**1.72×**) |
@@ -168,7 +168,7 @@ row walked the head's seats once per scope it read (concluder, counted, `moderat
 | `Bits::iter` | 64 tests per word | one step per set bit | |
 | `key_end::retained` | `ended` per row (all rows each) and a whole past per seed | each key's end read in one pass; one walk marks every seed's past | `ended(k)` is "revoked by now, or no record of k open past now"; the union of pasts is what one walk reaches |
 | `head::View` | every entry scanned per act and answer | above 64 entries: entries by the act they name, the ids answers and rows name, built when first read; member sets above 32 members; `acked` kept | the indexes hold the entries the scans filtered for, in the same (id) order; tested by every purge history padded past 64 entries against itself unpadded |
-| `trust::Index` (new) | | the edges sorted by source once, for repeated walks | the walk of `reaches`, each key's edges read as their run in the index, in edge order |
+| `trust::EdgeIndex` (new) | | the edges sorted by source once, for repeated walks | the walk of `reaches`, each key's edges read as their run in the index, in edge order |
 | `derived::reach` | the set copied and every edge read at every step | a layered walk over the edges sorted by source | a key enters at the first step that reaches it; only new keys are read at the next |
 | `line::settle` | `live.contains` per act of the reader's line | `cut_counts(i)` | `own_line` returns counted acts on the object only |
 
@@ -220,7 +220,7 @@ code of, `members_in_scopes` under `members_at`'s, and the frontier's walk under
   are faster here at every size (section 2). The remaining regressions in those benches are adapter work
   (section 3).
 - **Repeated trust walks over one reader's edges** (`check_federation`, a licence check per row): build
-  `trust::Index::new(&edges)` once and call `index.honours(...)`.
+  `trust::EdgeIndex::new(&edges)` once and call `index.honours(...)`.
 - **Several scopes at one head**: `seat::members_in_scopes`, one walk for all.
 
 ## 6. Cells below 1.0, and what they are
@@ -242,7 +242,7 @@ and `key_end::live`/`ended` in one pass (0.07–0.21×). Both are the base code 
 
 For the constitution session (the rules, proofs and `DIFFERENCES.md`):
 
-1. **New public items**: `seat::GroupCount`, `seat::group_count`, `seat::members_in_scopes`, `trust::Index`.
+1. **New public items**: `seat::GroupCount`, `seat::group_count`, `seat::members_in_scopes`, `trust::EdgeIndex`.
    No existing signature changed. Are the names and shapes acceptable?
 2. `group_count` answers false for `Policy::Ranked`, as `met` does. A ranked count is a tally of ballots,
    which `seat_rule` reads before it reaches the count. Would you rather the type exclude `Ranked` (or return

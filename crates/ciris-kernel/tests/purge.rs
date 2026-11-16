@@ -138,7 +138,7 @@ fn purge_replays() {
                 for k1 in 1..x.len() {
                     for x1 in subsets(&x, k1) {
                         let v = View::new(&first, &x1, own.clone(), reading, true);
-                        cases_x.push((x1, purge(&v.rec, own.clone(), now0, reading).0));
+                        cases_x.push((x1, purge(v.rec(), own.clone(), now0, reading).0));
                     }
                 }
                 for (x1, store) in &cases_x {
@@ -238,7 +238,7 @@ fn indexed_view_answers_as_the_scanned_one() {
                             large.tips().into_iter().filter(|i| !i.starts_with("zz-pad-")).collect();
                         cases += 1;
                         bad += (small.tips() != tips) as usize;
-                        for a in small.c.keys() {
+                        for a in small.c().keys() {
                             cases += 1;
                             bad += (small.receipts(a) != large.receipts(a)) as usize;
                         }
@@ -269,7 +269,7 @@ fn indexed_view_answers_as_the_scanned_one() {
     let view = View::new(&s, &[], "me".to_string(), Reading::Broad, true);
     for (id, want) in [("a1", true), ("a2", true), ("a3", false), ("a4", false)] {
         cases += 1;
-        bad += (view.c[id] != want) as usize;
+        bad += (view.c()[id] != want) as usize;
     }
     report("head::View read through its indexes against the scanned one (purge.json histories)", cases, bad);
     assert_eq!(bad, 0);

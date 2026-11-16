@@ -5,7 +5,8 @@
 //!   path persist's adapter first took: a founding row, one offer per seat, the version, the counted row);
 //! * `graph::Graph::frontier` against the pairwise frontier, before and after pasts are known, and a graph
 //!   given duplicate ids against the eager closure;
-//! * `trust::reaches`, `trust::Index::reaches` and `derived::reach` against the walks they replaced;
+//! * `trust::reaches`, `trust::EdgeIndex::reaches` and `honours`, and `derived::reach`, against the walks they
+//!   replaced;
 //! * `key_end::retained` against the per-row reading of `key_end::ended`.
 
 mod common;
@@ -375,7 +376,8 @@ fn group_count_equals_the_seat_rule_over_the_rows() {
             voices: &b.voices,
             need: b.need,
         };
-        let direct = group_count(&count, |k| b.weights.iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x));
+        let direct = group_count(&count, |k| b.weights.iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x))
+            .expect("no generated ballot is ranked");
         let before = count_before(b.rows.last().unwrap(), b.offer, b.policy, &b.members, &b.voices);
         cases += 1;
         bad += (before != direct) as usize;
@@ -516,7 +518,7 @@ fn the_walks_equal_the_walks_they_replaced() {
             })
             .collect();
         let pairs: Vec<(u32, u32)> = edges.iter().map(|e| (e.src, e.dst)).collect();
-        let index = trust::Index::new(&edges);
+        let index = trust::EdgeIndex::new(&edges);
         for from in 0..keys {
             for depth in 0..5 {
                 cases += 1;
@@ -530,6 +532,10 @@ fn the_walks_equal_the_walks_they_replaced() {
                         bad += (trust::reaches(&edges, &from, &c, budget, &a) != want) as usize;
                         bad += (index.reaches(&from, &c, budget, &a) != want) as usize;
                     }
+                    let charter = |k: &u32, c: &u8| !(*k + *c as u32).is_multiple_of(3);
+                    cases += 1;
+                    bad += (index.honours(&from, charter, &a, &c) != trust::honours(&edges, &from, charter, &a, &c))
+                        as usize;
                 }
             }
         }
@@ -635,8 +641,7 @@ fn settle_before<L: ciris_kernel::line::LineSpec<S>>(
 ) -> BTreeSet<usize> {
     use ciris_kernel::line::{counted_acts, own_line};
     let older = |heads: &[u32], than: &[u32]| {
-        !heads.is_empty()
-            && heads.iter().all(|h| than.iter().any(|t| c.g.idx(t).is_some_and(|t| c.g.id_in_past(h, t))))
+        !heads.is_empty() && heads.iter().all(|h| than.iter().any(|t| c.g.idx(t).is_some_and(|t| c.g.id_in_past(h, t))))
     };
     let acts = counted_acts(c, spec, obj);
     let line: BTreeSet<&u32> = acts.iter().map(|&i| c.g.row(i).id()).collect();
@@ -644,9 +649,8 @@ fn settle_before<L: ciris_kernel::line::LineSpec<S>>(
     live.sort_by_key(|&i| c.g.level(i));
     let mine: BTreeSet<usize> = own_line(c, spec, own, obj).into_iter().filter(|i| live.contains(i)).collect();
     let heads = |i: usize| spec.counted_act(c.g.row(i)).map(|(_, h)| h).unwrap_or(&[]);
-    let behind = |r: usize, m: usize| {
-        m != r && c.g.concurrent(r, m) && older(heads(r), std::slice::from_ref(c.g.row(m).id()))
-    };
+    let behind =
+        |r: usize, m: usize| m != r && c.g.concurrent(r, m) && older(heads(r), std::slice::from_ref(c.g.row(m).id()));
     let mut out: BTreeSet<usize> = BTreeSet::new();
     let mut out_ids: BTreeSet<&u32> = BTreeSet::new();
     for &r in &live {
@@ -702,4 +706,181 @@ fn settle_equals_the_settle_it_replaced() {
     }
     report("line::settle against the settle it replaced", cases, bad);
     assert_eq!(bad, 0);
+}
+
+/// A group with member and founder seats (some offers by a key that is no own key of the group, which do not
+/// conclude), two versions, leavings in a version's past or only in a counted row's, and up to four counted
+/// rows over one or both versions in either order, counting either scope.
+fn seat_world(g: &mut Lcg) -> Vec<S> {
+    let n = 2 + pick(g, 7) as u32;
+    let mut f = S::new(0, Vec::new(), 1, SeatKind::Offer);
+    f.to = vec![1];
+    f.scope = Some("member".into());
+    f.obj = Some(Obj::Row(0));
+    f.conf = Some(Conf::Own);
+    let mut rows = vec![f];
+    let seat = |id: u32, k: u32, scope: &str, by: u32| {
+        let mut o = S::new(id, vec![0], by, SeatKind::Offer);
+        o.to = vec![k];
+        o.scope = Some(scope.into());
+        o.obj = Some(Obj::Row(0));
+        o.conf = Some(Conf::Own);
+        if k != by {
+            o.cosigners = vec![k];
+        }
+        o
+    };
+    for k in 2..=n {
+        // by 1, the group's own key; or by 7, no own key of it: that offer does not conclude
+        rows.push(seat(100 + k, k, "member", if pick(g, 5) == 0 { 7 } else { 1 }));
+        if pick(g, 2) == 0 {
+            rows.push(seat(200 + k, k, "founder", if pick(g, 6) == 0 { 7 } else { 1 }));
+        }
+    }
+    let (mut v1, mut v2, mut late): (Vec<u32>, Vec<u32>, Vec<u32>) = (vec![0], vec![], vec![]);
+    for r in rows.iter().skip(1) {
+        if pick(g, 3) == 0 {
+            v2.push(r.id)
+        } else {
+            v1.push(r.id)
+        }
+    }
+    for k in 2..=n {
+        if pick(g, 4) != 0 {
+            continue;
+        }
+        let t = if rows.iter().any(|r| r.id == 200 + k) && pick(g, 2) == 0 { 200 + k } else { 100 + k };
+        let mut w = S::new(300 + k, vec![t], k, SeatKind::Withdraw);
+        w.target = Some(t);
+        rows.push(w);
+        match pick(g, 3) {
+            0 => v1.push(300 + k),
+            1 => v2.push(300 + k),
+            _ => late.push(300 + k),
+        }
+    }
+    rows.push(S::new(1000, v1, 1, SeatKind::Other));
+    v2.push(1000);
+    rows.push(S::new(1001, v2, 1, SeatKind::Other));
+    for j in 0..1 + pick(g, 4) as u32 {
+        let heads: Vec<u32> = match pick(g, 4) {
+            0 => vec![1000],
+            1 => vec![1001],
+            2 => vec![1000, 1001],
+            _ => vec![1001, 1000],
+        };
+        let names: Vec<u32> = heads.iter().copied().chain(late.iter().copied().filter(|_| pick(g, 2) == 0)).collect();
+        let voices: Vec<u32> = (1..=n + 1).filter(|_| pick(g, 2) == 0).collect();
+        let signer = voices.first().copied().unwrap_or(99);
+        let mut c = S::new(2000 + j, names, signer, if pick(g, 3) == 0 { SeatKind::Unseat } else { SeatKind::Offer });
+        c.to = vec![1 + pick(g, n as u64 + 1) as u32];
+        c.scope = Some("member".into());
+        c.obj = Some(Obj::Row(0));
+        c.conf = Some(Conf::Group);
+        c.cosigners = voices.iter().copied().skip(1).collect();
+        c.head = heads;
+        c.policy = Some(POLICIES[pick(g, POLICIES.len() as u64) as usize].0.into());
+        c.counted = Some(if pick(g, 2) == 0 { "founder".into() } else { "member".into() });
+        c.need = Some(pick(g, n as u64 + 1) as usize);
+        rows.push(c);
+    }
+    rows
+}
+
+/// members_at reads only the concluded rows of the row's past (as members_in over them does), for every
+/// scope at once as for each alone; count_members is members_at less the leavings in the row's past; and
+/// seat::conclude, which reads the members at a head once per pass, concludes as the seat rule does.
+#[test]
+fn members_at_a_head_as_the_rows_give_them() {
+    use ciris_kernel::seat::{self, count_members, left_in_past, members_at, members_in, members_in_scopes};
+    let law = law();
+    let mut g = Lcg(61);
+    let (cases, bad) = (std::cell::Cell::new(0usize), std::cell::Cell::new(0usize));
+    let cmp = |ok: bool| {
+        cases.set(cases.get() + 1);
+        bad.set(bad.get() + (!ok) as usize);
+    };
+    let mut unconcluded = 0usize;
+    for _ in 0..3_000 {
+        let rows = seat_world(&mut g);
+        let obj = Obj::Row(0);
+        let plain = conclude(
+            rows.iter(),
+            |p| {
+                let r = p.row();
+                if r.conf == Some(Conf::Group) {
+                    let mine: Vec<&S> = p.rows().collect();
+                    let past = |a: &u32, b: &u32| p.past(a, b);
+                    let scopes = ["member", "founder"];
+                    let each: Vec<BTreeSet<u32>> =
+                        scopes.iter().map(|s| members_at(p, &law, &NoCut, &obj, &r.head, s)).collect();
+                    for (s, m) in scopes.iter().zip(&each) {
+                        cmp(*m == members_in(&mine, &past, &law, &NoCut, &obj, &r.head, s));
+                    }
+                    cmp(members_in_scopes(&mine, &past, &law, &NoCut, &obj, &r.head, &scopes) == each);
+                    let counted = r.counted.as_deref().unwrap_or("member");
+                    let mut want = members_at(p, &law, &NoCut, &obj, &r.head, counted);
+                    for k in left_in_past(p, &obj, counted) {
+                        want.remove(&k);
+                    }
+                    cmp(count_members(p, &law, &NoCut) == want);
+                }
+                seat_rule(p, &law, &NoCut, &|_| true)
+            },
+            None,
+        );
+        let cached = seat::conclude(rows.iter(), &law, &NoCut, &|_| true, None);
+        cmp(plain.all() == cached.all());
+        unconcluded += plain.all().iter().filter(|c| !**c).count();
+    }
+    assert!(unconcluded > 1_000, "the worlds hold rows that do not conclude");
+    report("members at a head, count_members and seat::conclude against the rows", cases.get(), bad.get());
+    assert_eq!(bad.get(), 0);
+}
+
+/// A further voice never lowers a weighted count (`SeatCount.weighted_mono`), however large the weights.
+#[test]
+fn a_further_voice_never_unmeets_a_weighted_count() {
+    let mem: BTreeSet<u32> = [1, 2, 3].into_iter().collect();
+    let w = |k: &u32| match k {
+        1 => u64::MAX,
+        2 => 1,
+        _ => u64::MAX / 2,
+    };
+    let (mut cases, mut bad) = (0usize, 0usize);
+    for need in [1, usize::MAX / 2, usize::MAX] {
+        let mut voices: BTreeSet<u32> = BTreeSet::new();
+        let mut was = false;
+        for k in [1, 2, 3] {
+            voices.insert(k);
+            let c = GroupCount {
+                policy: Some(Policy::Weighted),
+                offer: true,
+                to: &[],
+                members: &mem,
+                voices: &voices,
+                need: Some(need),
+            };
+            let now = group_count(&c, w).expect("weighted is a count");
+            cases += 1;
+            bad += (was && !now) as usize;
+            was = now;
+        }
+        cases += 1;
+        bad += !was as usize; // every weight together meets any threshold
+    }
+    report("a weighted count with a further voice", cases, bad);
+    assert_eq!(bad, 0);
+}
+
+/// `group_count` is `None` for a ranked count only; any other policy, or none, is a count.
+#[test]
+fn group_count_is_none_for_ranked_only() {
+    let mem: BTreeSet<u32> = [1, 2].into_iter().collect();
+    let c = |policy| GroupCount { policy, offer: true, to: &[], members: &mem, voices: &mem, need: Some(1) };
+    assert_eq!(group_count(&c(Some(Policy::Ranked)), |_| 1), None);
+    assert_eq!(group_count(&c(None), |_| 1), Some(false));
+    for (_, p) in POLICIES {
+        assert!(group_count(&c(Some(*p)), |_| 1).is_some());
+    }
 }

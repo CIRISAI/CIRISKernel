@@ -591,7 +591,7 @@ fn main() {
                 h.run(&format!("seat::group_count=seat_rule/{pol}"), n, || {
                     let c = concluded(&rows, &law);
                     let direct = GroupCount { policy, offer: true, to: &to_s, members: &mem, voices: &vs, need: None };
-                    assert_eq!(c.concluded(c.g.len() - 1), group_count(&direct, |_| 1), "{pol}/{n}");
+                    assert_eq!(Some(c.concluded(c.g.len() - 1)), group_count(&direct, |_| 1), "{pol}/{n}");
                     0u8
                 });
             }
@@ -617,7 +617,7 @@ fn main() {
             h.run("seat::voices", n, || seat::voices(p.row(), &p).len());
             h.run("seat::left_in_past", n, || seat::left_in_past(&p, &gobj, "member").len());
             h.run("seat::met", n, || seat::met(Some(Policy::Strict(1, 2)), black_box(n / 2 + 1), black_box(n), None));
-            h.run("seat::Seats::new", n, || Seats::new(&c, &law, &NoCut, None).recs.len());
+            h.run("seat::Seats::new", n, || Seats::new(&c, &law, &NoCut, None).recs().len());
             // one founding offer seating every member, each its cosigner (the first shape of persist's ballot)
             let mut one = B::new(rid(0, 0), Vec::new(), key(0));
             one.kind = SeatKind::Offer;
@@ -628,7 +628,7 @@ fn main() {
             one.conf = Some(Conf::Own);
             let one_rows = vec![one];
             let one_c = concluded(&one_rows, &law);
-            h.run("seat::Seats::new/one_offer_seats_all", n, || Seats::new(&one_c, &law, &NoCut, None).recs.len());
+            h.run("seat::Seats::new/one_offer_seats_all", n, || Seats::new(&one_c, &law, &NoCut, None).recs().len());
             let s = Seats::new(&c, &law, &NoCut, None);
             h.run("seat::Seats::holders", n, || s.holders("member", &gobj, None).len());
             h.run("seat::Seats::one", n, || s.one("member", &gobj));
@@ -656,10 +656,10 @@ fn main() {
             h.run("derived::reach/5", n, || derived::reach(&key(0), 5, &pairs).len());
             // <index>
             // the edges indexed once, for a caller that walks them again and again
-            let ix = trust::Index::new(&e);
-            h.run("trust::Index::reaches/hit", n, || ix.reaches(&key(0), &(), trust::HOP_CAP, &near));
-            h.run("trust::Index::reaches/miss", n, || ix.reaches(&key(0), &(), trust::HOP_CAP, &key(n + 9)));
-            h.run("trust::Index::new", n, || trust::Index::new(&e).reaches(&key(0), &(), 0, &near));
+            let ix = trust::EdgeIndex::new(&e);
+            h.run("trust::EdgeIndex::reaches/hit", n, || ix.reaches(&key(0), &(), trust::HOP_CAP, &near));
+            h.run("trust::EdgeIndex::reaches/miss", n, || ix.reaches(&key(0), &(), trust::HOP_CAP, &key(n + 9)));
+            h.run("trust::EdgeIndex::new", n, || trust::EdgeIndex::new(&e).reaches(&key(0), &(), 0, &near));
             // </index>
         }
         if h.wants(&["line::", "seat::Seats::tips"]) {
@@ -675,7 +675,7 @@ fn main() {
         if h.wants(&["head::"]) {
             // head
             let store = head_store(n);
-            h.run("head::View::new", n, || head::View::new(&store, &[], 0u32, Reading::Broad, true).c.len());
+            h.run("head::View::new", n, || head::View::new(&store, &[], 0u32, Reading::Broad, true).c().len());
             let v = head::View::new(&store, &[], 0u32, Reading::Broad, true);
             h.run("head::View::answers", n, || v.answers(10).counts_at.len());
             h.run("head::View::settled(one act)", n, || v.settled(&1));

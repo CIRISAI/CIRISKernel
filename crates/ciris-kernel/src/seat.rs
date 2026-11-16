@@ -284,6 +284,7 @@ pub fn covers(have: &str, want: &str) -> bool {
 }
 
 type ObjOf<R> = Obj<<R as Row>::Id, <R as Row>::Key>;
+type MembersMemo<R> = BTreeMap<(Vec<<R as Row>::Id>, ObjOf<R>, String), BTreeSet<<R as Row>::Key>>;
 type CommonMemo<R> = RefCell<BTreeMap<(String, ObjOf<R>), Option<BTreeSet<<R as Row>::Key>>>>;
 type Step<'r, R> = ((&'r <R as Row>::Id, &'r <R as Row>::Key), (usize, Root<<R as Row>::Id, <R as Row>::Key>));
 
@@ -397,19 +398,16 @@ fn declared<'a, R: SeatRow>(by: &BTreeMap<&R::Id, &'a R>, obj: &ObjOf<R>) -> Vec
 }
 
 /// The live seats over a concluded set, for reader `own` (the reader's line), with the cut the caller's
-/// [`CutSpec`] states.
+/// [`CutSpec`] states. An immutable snapshot: what it reads is fixed when built, and its answers are kept
+/// once asked, so its fields are read through methods.
 pub struct Seats<'c, 'a, R: SeatRow, S: CutSpec<R>> {
-    /// The concluded set.
-    pub c: &'c Concluded<'a, R>,
-    /// The cut over it.
-    pub cut: Cut<'c, 'a, R, S>,
+    c: &'c Concluded<'a, R>,
+    cut: Cut<'c, 'a, R, S>,
     law: &'c SeatLaw,
     spec: &'c S,
     by: BTreeMap<&'a R::Id, &'a R>,
-    /// The counted acts that do not count for this reader.
-    pub stale: BTreeSet<usize>,
-    /// Every live seat.
-    pub recs: Vec<Live<R::Id, R::Key, R::Word>>,
+    stale: BTreeSet<usize>,
+    recs: Vec<Live<R::Id, R::Key, R::Word>>,
     /// [`Seats::tips`] and [`Seats::tips_common`] by object (and scope), kept once asked: the seats are fixed
     /// when built, and no reader enters either (the reader's line is in `stale`).
     tips_memo: RefCell<BTreeMap<ObjOf<R>, Vec<usize>>>,
@@ -573,6 +571,23 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         Seats { c, cut, law, spec, by, stale, recs, tips_memo: RefCell::default(), common_memo: RefCell::default() }
     }
 
+    /// The concluded set.
+    pub fn c(&self) -> &'c Concluded<'a, R> {
+        self.c
+    }
+    /// The cut over it.
+    pub fn cut(&self) -> &Cut<'c, 'a, R, S> {
+        &self.cut
+    }
+    /// The counted acts that do not count for this reader.
+    pub fn stale(&self) -> &BTreeSet<usize> {
+        &self.stale
+    }
+    /// Every live seat.
+    pub fn recs(&self) -> &[Live<R::Id, R::Key, R::Word>] {
+        &self.recs
+    }
+
     fn has(&self, rec: &Live<R::Id, R::Key, R::Word>, s: &str) -> bool {
         let sc = rec.scope.as_ref();
         if s == "duty" && self.law.is_duty(sc, &declared(&self.by, &rec.obj)) {
@@ -703,7 +718,7 @@ pub fn members_at<R: SeatRow, S: CutSpec<R>>(
     let g = p.g;
     let mut out: Option<BTreeSet<R::Key>> = None;
     for h in heads {
-        let Some(hi) = g.idx(h).filter(|hi| p.p.contains(hi)) else { return BTreeSet::new() };
+        let Some(hi) = g.idx(h).filter(|hi| p.p.binary_search(hi).is_ok()) else { return BTreeSet::new() };
         let past = g.ancestors(hi);
         let sc = concluded_over(p.p.iter().filter(|&&q| q == hi || past.has(q)).map(|&q| g.row(q)));
         let m = Seats::new(&sc, law, spec, None).holders(scope, obj, None);
@@ -821,6 +836,98 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
     spec: &S,
     other: &dyn Fn(&Past<'_, '_, R>) -> bool,
 ) -> bool {
+    seat_rule_with(p, law, spec, other, None)
+}
+
+/// Conclude every kept row by [`seat_rule`] (`other` for a row the seat does not read; `root` as in
+/// [`layers::conclude`](crate::layers::conclude)): the same conclusions, with the members at a head read once
+/// per (heads, object, scope) over the whole pass.
+///
+/// Within one pass that is sound: a row concludes on its ancestors alone, so the concluded rows in a head's
+/// past are fixed before any row naming the head is read, and `law` and `spec` are fixed. The cache lives and
+/// dies with the call; it is not kept across calls, nor shared between readers (it reads none).
+pub fn conclude<'a, R: SeatRow, S: CutSpec<R>>(
+    kept_rows: impl IntoIterator<Item = &'a R>,
+    law: &SeatLaw,
+    spec: &S,
+    other: &dyn Fn(&Past<'_, '_, R>) -> bool,
+    root: Option<&dyn Fn(&R) -> bool>,
+) -> Concluded<'a, R> {
+    let cache = MembersAt::<R>::default();
+    crate::layers::conclude(kept_rows, |p| seat_rule_with(p, law, spec, other, Some(&cache)), root)
+}
+
+/// The members at a head, kept per (sorted heads, object, scope) for one [`conclude`].
+struct MembersAt<R: SeatRow> {
+    memo: RefCell<MembersMemo<R>>,
+}
+
+impl<R: SeatRow> Default for MembersAt<R> {
+    fn default() -> Self {
+        MembersAt { memo: RefCell::default() }
+    }
+}
+
+/// [`members_at`], through the pass's cache when there is one. A head that is not among the row's concluded
+/// ancestors makes the set empty for that row alone, so such a call is answered and not kept.
+fn members_at_with<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+    heads: &[R::Id],
+    scope: &str,
+    cache: Option<&MembersAt<R>>,
+) -> BTreeSet<R::Key> {
+    let Some(cache) = cache else { return members_at(p, law, spec, obj, heads, scope) };
+    if !heads.iter().all(|h| p.g.idx(h).is_some_and(|hi| p.p.binary_search(&hi).is_ok())) {
+        return BTreeSet::new();
+    }
+    let mut hs = heads.to_vec();
+    hs.sort();
+    hs.dedup();
+    let key = (hs, obj.clone(), String::from(scope));
+    if let Some(m) = cache.memo.borrow().get(&key) {
+        return m.clone();
+    }
+    let m = members_at(p, law, spec, obj, heads, scope);
+    cache.memo.borrow_mut().insert(key, m.clone());
+    m
+}
+
+/// The members a group-conferred offer or unseat `p.row()` is counted over, exactly as [`seat_rule`] reads
+/// them: the live seats of its counted scope (default `member`) over its object (or `over`), at every head it
+/// names ([`members_at`]: read from the concluded rows in each head's past, intersected over the heads), less
+/// the keys whose own leaving is in the row's past ([`left_in_past`]). With [`voices`], what
+/// [`GroupCount`] needs. Empty for a row with no object.
+pub fn count_members<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> BTreeSet<R::Key> {
+    count_members_with(p, law, spec, None)
+}
+
+fn count_members_with<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    cache: Option<&MembersAt<R>>,
+) -> BTreeSet<R::Key> {
+    let r = p.row();
+    let Some(obj) = r.obj() else { return BTreeSet::new() };
+    let over = r.over().unwrap_or(obj);
+    let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
+    let mut mem = members_at_with(p, law, spec, &over, r.head(), counted, cache);
+    for k in left_in_past(p, &over, counted) {
+        mem.remove(&k);
+    }
+    mem
+}
+
+fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    other: &dyn Fn(&Past<'_, '_, R>) -> bool,
+    cache: Option<&MembersAt<R>>,
+) -> bool {
     let r = p.row();
     let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
     match r.seat_kind() {
@@ -855,12 +962,7 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
                     r.under().and_then(|u| by.get(u)).is_some_and(|u| u.to().contains(r.signer()))
                 }
                 Some(Conf::Group) => {
-                    let over = r.over().unwrap_or(obj.clone());
-                    let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
-                    let mut mem = members_at(p, law, spec, &over, r.head(), counted);
-                    for k in left_in_past(p, &over, counted) {
-                        mem.remove(&k);
-                    }
+                    let mem = count_members_with(p, law, spec, cache);
                     let pol = law.policy_of(r.policy().map(|x| x.as_ref()));
                     if pol == Some(Policy::Ranked) {
                         let ballots: Vec<(R::Key, Vec<R::Key>)> = p
@@ -886,7 +988,9 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
                         voices: &v,
                         need: r.need(),
                     };
+                    // a ranked count was answered above, so the count answers
                     group_count(&count, |k| r.weights().iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x))
+                        .unwrap_or(false)
                 }
                 None => false,
             }
@@ -905,9 +1009,23 @@ pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
 }
 
 /// What a group's count reads, once the caller has resolved it: the count the policy row names, whether the
-/// row is an offer (else an unseat), the keys it seats or removes, the members of the counted scope at the head
-/// it names less those whose own leaving is in its past ([`members_at`], [`left_in_past`]), and its voices
-/// ([`voices`]). Keys are whatever the caller counts by (KERNEL.md 7b: persist counts persons).
+/// row is an offer (else an unseat), the keys it seats or removes, the members it is counted over and its
+/// voices.
+///
+/// # Contract
+///
+/// [`group_count`] gives the seat rule's answer only for input read as the seat rule reads it. Nothing here
+/// can check that without the rows, and a stale or partial roster is answered, not refused.
+///
+/// - `members` is [`count_members`]: the live seats of the counted scope read from the **concluded** rows in
+///   each head's past, **intersected over every head** the row names (so tips wait and a waiting row counts
+///   for nothing), **less the keys whose own leaving is in the counted row's past** ([`left_in_past`]). It is
+///   a function of the head *and the row*: cache [`members_at`] per head if you will, and subtract
+///   `left_in_past` on every count.
+/// - `voices` is [`voices`]: the row's signer, its cosigners, and the signers of the cosignatures it names
+///   that name every head it is counted over.
+/// - `to`, `members`, `voices` and the weights are in **one** key space. A caller counting persons (KERNEL.md
+///   7b) collapses `to` the same way, once each: two devices of one person in `to` are one key.
 #[derive(Clone, Copy, Debug)]
 pub struct GroupCount<'a, K> {
     /// The count, from the policy table.
@@ -925,14 +1043,30 @@ pub struct GroupCount<'a, K> {
 }
 
 /// Whether a group's count is met: [`seat_rule`]'s `Conf::Group` arm after the members and voices are read,
-/// and the very code that arm runs. `weight` is a key's whole-number weight (a `weighted` count). Every policy
-/// but [`Policy::Ranked`], which is a tally of the ballots the row names (`ranked::ranked`), not a count of
-/// voices: here, as in [`met`], it is false.
+/// and the very code that arm runs (see the contract on [`GroupCount`]). `weight` is a key's whole-number
+/// weight (a `weighted` count), summed exactly. `None` for [`Policy::Ranked`] only: a ranked count is a tally
+/// of the ballots the row names (`ranked::ranked`), which the seat rule reads before any count of voices. Any
+/// other policy, a policy the table does not name included, is `Some`.
 ///
 /// A caller that already holds the roster at the head (persist resolves a ballot's) answers here directly,
 /// without presenting the roster as rows: the same answer as the seat rule over those rows, with no graph.
-pub fn group_count<K: Ord>(c: &GroupCount<'_, K>, weight: impl Fn(&K) -> u64) -> bool {
+pub fn group_count<K: Ord>(c: &GroupCount<'_, K>, weight: impl Fn(&K) -> u64) -> Option<bool> {
     let GroupCount { policy: pol, offer: is_offer, to, members: mem, voices: v, need } = *c;
+    if matches!(pol, Some(Policy::Ranked)) {
+        return None;
+    }
+    Some(count_of(pol, is_offer, to, mem, v, need, weight))
+}
+
+fn count_of<K: Ord>(
+    pol: Option<Policy>,
+    is_offer: bool,
+    to: &[K],
+    mem: &BTreeSet<K>,
+    v: &BTreeSet<K>,
+    need: Option<usize>,
+    weight: impl Fn(&K) -> u64,
+) -> bool {
     if pol == Some(Policy::SelfAdmit) {
         // the joiner's own signature is the group's side; a removal takes two voices besides the member it names
         return if is_offer && to.len() == 1 && !mem.contains(&to[0]) {
@@ -949,8 +1083,9 @@ pub fn group_count<K: Ord>(c: &GroupCount<'_, K>, weight: impl Fn(&K) -> u64) ->
     // that are members, ascending and each once, read off the two sorted sets with no set built.
     let yes = || v.intersection(mem).filter(|k| !to.contains(k));
     if pol == Some(Policy::Weighted) {
-        let sum: u64 = yes().map(&weight).sum();
-        return need.is_some_and(|t| t > 0 && sum >= t as u64);
+        // in u128, so no further voice can lower the sum (`SeatCount.weighted_mono`, over Nat)
+        let sum: u128 = yes().map(|k| weight(k) as u128).sum();
+        return need.is_some_and(|t| t > 0 && sum >= t as u128);
     }
     let n_yes = yes().count();
     if pol == Some(Policy::Unanimous) {

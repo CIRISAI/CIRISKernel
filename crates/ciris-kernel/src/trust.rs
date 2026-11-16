@@ -61,17 +61,17 @@ pub fn reaches<K: Ord + Clone, C: PartialEq>(edges: &[Accepts<K, C>], from: &K, 
 
 /// The edges sorted by source, built once for a caller that walks the same edges again and again (each walk of
 /// [`reaches`] reads every edge at every key it expands; one over an index reads only that key's run).
-pub struct Index<'e, K, C> {
+pub struct EdgeIndex<'e, K, C> {
     edges: &'e [Accepts<K, C>],
     by_src: Vec<usize>,
 }
 
-impl<'e, K: Ord + Clone, C: PartialEq> Index<'e, K, C> {
+impl<'e, K: Ord + Clone, C: PartialEq> EdgeIndex<'e, K, C> {
     /// Index the edges by source (stable: one key's edges keep their order).
     pub fn new(edges: &'e [Accepts<K, C>]) -> Self {
         let mut by_src: Vec<usize> = (0..edges.len()).collect();
         by_src.sort_by(|&x, &y| edges[x].src.cmp(&edges[y].src));
-        Index { edges, by_src }
+        EdgeIndex { edges, by_src }
     }
     /// [`reaches`] over the indexed edges: the same answer.
     pub fn reaches(&self, from: &K, c: &C, budget: u32, a: &K) -> bool {
