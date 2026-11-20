@@ -15,6 +15,32 @@ for f in $files; do
     echo "sorry or an axiom beyond the three of core: $f"; rc=1
   fi
 done
+# a sorry the compiler reports, whether or not a printed theorem depends on it
+if grep -l "declaration uses 'sorry'" "$out"/*.log >/dev/null 2>&1; then
+  echo "sorry in: $(grep -l "declaration uses 'sorry'" "$out"/*.log | xargs -n1 basename | sed 's/\.log$//' | tr '\n' ' ')"; rc=1
+fi
 n=$(cat "$out"/*.log | grep -c "depend")
-echo "proofs: $(echo $files | wc -w) files, $n theorems reported, rc=$rc"
+# the semantic audit: every declaration of the stack, printed or not, on core axioms only (Audit.lean, with the
+# imports and module list filled in from $files)
+imports="$(for f in $files; do printf 'import %s\\n' "$f"; done)"
+mods="$(for f in $files; do printf '`%s, ' "$f"; done | sed 's/, $//')"
+sed -e "s/^-- IMPORTS:.*$/$imports/" -e "s/:= \[\] -- MODULES:.*$/:= [$mods]/" "$here/Audit.lean" > "$out/Audit.lean"
+if LEAN_PATH="$out" lean -M 6000 -T 200000 --root="$out" "$out/Audit.lean" > "$out/audit.out" 2>&1; then
+  audited="$(grep -o "audit: [0-9]* declarations" "$out/audit.out" | grep -o "[0-9]*")"
+else
+  echo "audit failed:"; grep "audit:" "$out/audit.out" | head -20; rc=1; audited=0
+fi
+# the audit's plant: a module with an unused sorry and a minted axiom, which the audit must refuse
+cat > "$out/AuditPlant.lean" <<'PLANT'
+theorem audit_plant_gap : 1 = 2 := sorry
+axiom audit_plant_axiom : False
+PLANT
+sed -e 's/^import Lean$/import Lean\nimport AuditPlant/' -e 's/^def stackModules : List Lean.Name := \[/def stackModules : List Lean.Name := [`AuditPlant, /' \
+  "$out/Audit.lean" > "$out/AuditPlanted.lean"
+LEAN_PATH="$out" lean --root="$out" -o "$out/AuditPlant.olean" "$out/AuditPlant.lean" > /dev/null 2>&1
+if LEAN_PATH="$out" lean -M 6000 -T 200000 --root="$out" "$out/AuditPlanted.lean" > "$out/plant.out" 2>&1 \
+  || [ "$(grep -c "audit: audit_plant" "$out/plant.out")" -ne 2 ]; then
+  echo "the audit's plant was not caught (a sorry and an axiom in an unprinted declaration)"; rc=1
+fi
+echo "proofs: $(echo $files | wc -w) files, $n theorems reported, $audited declarations audited, plant caught, rc=$rc"
 exit $rc
