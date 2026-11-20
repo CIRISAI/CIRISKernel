@@ -174,13 +174,14 @@ curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_
 ./elan-init -y --default-toolchain leanprover/lean4:v4.14.0
 ```
 
-Then, from the repository root, `./check.sh`. It compiles the twenty-seven proof files, runs ten model checks
+Then, from the repository root, `./check.sh`. It compiles the twenty-eight proof files, runs ten model checks
 one after another and counts the divergence list, one line per step. It prints
-`proofs: 27 files, 615 theorems reported, 3897 declarations audited, plant caught, rc=0`, in about two minutes. Some checks use three worker processes.
+`proofs: 28 files, 677 theorems reported, 4334 declarations audited, plant caught, rc=0`, in about two minutes. Some checks use three worker processes.
 Nineteen files are carried from the parent, `Reader.lean` among them with the sibling of the acknowledged head
 read as CC 2.7.8 reads it; seven added here prove the crate's gaps
 ([`crates/ciris-kernel/FORMAL_GAPS.md`](crates/ciris-kernel/FORMAL_GAPS.md)); `Repurge.lean` is native to this
-repository and proves repeated purges by composition.
+repository and proves repeated purges by composition; and `Admission.lean` proves that the Constitution's code,
+profile and action admission (CC 2.7.11) are one seat walk with different voice counts.
 
 Four steps build and test the Rust crate [`crates/ciris-kernel`](crates/ciris-kernel/README.md), the kernel as
 pure functions with no dependencies, against the Python models' own cases; they need cargo. The last step
