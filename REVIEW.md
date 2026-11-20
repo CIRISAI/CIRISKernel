@@ -10,10 +10,10 @@ bash proofs/build.sh                                         # the proofs alone 
 python3 -I models/causal_kernel/check_purge.py               # one model check; see models/README.md for each
 ```
 
-`proofs/build.sh` compiles the nineteen files in dependency order and fails on a compile error, a `sorry`, or an
-axiom beyond `propext`, `Quot.sound` and `Classical.choice`. It prints `proofs: 19 files, 548 theorems reported,
-rc=0`: 548 is the number of `#print axioms` lines the files contain, one for each theorem they print, not every
-lemma. `proofs/Audit.lean` then checks every declaration of the stack the same way, printed or not, and `build.sh` fails unless its planted `sorry` and axiom are caught. Each model check compares its verdicts with a recorded file and fails on any difference, any plant not
+`proofs/build.sh` compiles the twenty-seven files in dependency order and fails on a compile error, a `sorry`, or an
+axiom beyond `propext`, `Quot.sound` and `Classical.choice`. It prints `proofs: 27 files, 615 theorems reported,
+rc=0`: 615 is the number of `#print axioms` lines the files contain, one for each theorem they print, not every
+lemma. `proofs/Audit.lean` then checks every declaration of the stack the same way, printed or not (3,897), and `build.sh` fails unless its planted `sorry` and axiom are caught. Each model check compares its verdicts with a recorded file and fails on any difference, any plant not
 caught, or any set that gives two answers in two arrival orders. [`models/README.md`](models/README.md) lists the
 ten checks and their last lines.
 
@@ -64,8 +64,11 @@ The full table, theorem by theorem, is [`proofs/README.md`](proofs/README.md). B
 - **The least retained set.** The pruned view is sufficient; the smallest set of rows a node must keep is not
   found.
 - **A withdrawn receipt.** Whether it still blocks a cut.
-- **Many acts purged at once, and repeated purges.** Run (`check_purge.py` purges once and again part way), not
-  proved.
+- **Many acts purged at once, and repeated purges.** Repeated purges of one act under any schedule, and two
+  acts purged one after the other, are proved by composition (`Repurge.lean`), the second under a stated
+  condition: each act's answer reads no row the other's purge drops. The condition is shown needed
+  (`shared_drop_misreads`); whether the rule tables meet it is not checked, and three or more acts are not
+  mechanized. Push on a receipt row that names two acts.
 - **Stubs as the store.** The proof is over views of a full store; a store holding only stubs is not modelled.
   Own end, key end and `revoked_after` over stubs are not checked.
 - **`settled` in the rule language.** The parent's expression language writes eight of the nine named answers;

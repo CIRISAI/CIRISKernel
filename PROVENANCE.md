@@ -9,7 +9,7 @@ run without the parent's toolchain. Where this repository and the parent differ,
 
 **What is new here** (written for this repository, not carried): `README.md`, `OBJECT.md`, `CHARACTERISTICS.md`,
 `GOVERNANCE.md`, `REVIEW.md`, `PROVENANCE.md`, `check.sh`, `tools/divergence_counts.py`, `.github/workflows/ci.yml`,
-`.gitignore`, `models/README.md`, `data/README.md`, the headers of `kernel/KERNEL.md` and `kernel/TEXT.md`, and
+`.gitignore`, `proofs/Repurge.lean` (and its line in `proofs/build.sh`), `models/README.md`, `data/README.md`, the headers of `kernel/KERNEL.md` and `kernel/TEXT.md`, and
 the notes added to the carried READMEs.
 
 ## Changes to carried code
