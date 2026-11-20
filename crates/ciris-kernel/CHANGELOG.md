@@ -1,5 +1,16 @@
 # Changelog — ciris-kernel
 
+## Unreleased
+
+### Added (additive; no answer or signature changes)
+
+- `held`: the kept and concluded layers held across admissions (issue #4, `HELD.md`). `Held::admit` keeps one row
+  and whatever it releases, and concludes only those. `Admitted { kept, waiting, dirty, visited }`. A refusal
+  (`Refused::Duplicate`, `NotWellFormed`) changes nothing. `Held` is `Clone`. `held::differential` checks a
+  held view against `conclude(kept(..))` after every admission.
+- `Graph::push`, `Graph::reserve`; `Clone` for `Graph` and `Concluded`.
+- Benches `held::*` in `examples/persist_paths.rs`.
+
 ## [0.2.0]
 
 Performance for CIRISPersist's adoption (PR #3). See `PERF.md` for the measurements and method.

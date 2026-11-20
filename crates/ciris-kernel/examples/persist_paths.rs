@@ -18,6 +18,7 @@ mod dag;
 use ciris_kernel::cut::CutSpec;
 use ciris_kernel::graph::Graph;
 use ciris_kernel::head::{self, Entry, Kind, Reading};
+use ciris_kernel::held::{Held, HeldSpec, Rules};
 use ciris_kernel::key_end::{self, EndRule, KeyEndRow, Record};
 use ciris_kernel::layers::{self, Concluded, Past};
 use ciris_kernel::line;
@@ -520,6 +521,60 @@ impl H {
     }
 }
 
+impl H {
+    /// A bench of a call that changes its state (`Held::admit`): each sample gets a fresh state from `setup`,
+    /// built outside the timing, and times one call on it. Prints the median of 31 samples; the answer of
+    /// every call must be the first one's.
+    fn run_mut<S, T: PartialEq + std::fmt::Debug>(
+        &self,
+        name: &str,
+        n: usize,
+        setup: impl Fn() -> S,
+        mut f: impl FnMut(&mut S) -> T,
+    ) {
+        if !self.named(name) {
+            return;
+        }
+        if self.list {
+            println!("{name}");
+            return;
+        }
+        let mut st = setup();
+        let a0 = allocs();
+        let want = f(&mut st);
+        let per = allocs() - a0;
+        drop(st);
+        let samples = 31;
+        let mut ts = Vec::with_capacity(samples);
+        for _ in 0..samples {
+            let mut st = setup();
+            let t = Instant::now();
+            let got = black_box(f(&mut st));
+            ts.push(t.elapsed().as_nanos() as f64);
+            assert_eq!(got, want, "{name}/{n}: a later call answered differently");
+            drop(st);
+        }
+        ts.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        println!("{name}\t{n}\t{:.1}\t{samples}\t1\t{per}", ts[samples / 2]);
+    }
+}
+
+/// `n` rows shaped as persist's `KRow`, each naming up to three of the 64 before it (`dag::dag(n, 3, 64, 7)`).
+fn held_rows(n: usize) -> Vec<B> {
+    dag::dag(n as u32, 3, 64, 7)
+        .into_iter()
+        .map(|d| B::new(rid(9, d.id), d.names.iter().map(|&q| rid(9, q)).collect(), key(d.signer as usize)))
+        .collect()
+}
+
+/// A copy of a held view with room for the next admissions: a clone has none, and its first push would
+/// copy every buffer, which no caller holding one view pays.
+fn fresh<'a, S: Clone + HeldSpec<B>>(b: &Held<'a, B, S>) -> Held<'a, B, S> {
+    let mut c = b.clone();
+    c.reserve(512, 1024);
+    c
+}
+
 fn concluded<'a>(rows: &'a [B], law: &SeatLaw) -> Concluded<'a, B> {
     layers::conclude(rows.iter(), |p| seat::seat_rule(p, law, &NoCut, &|_| true), None)
 }
@@ -680,6 +735,67 @@ fn main() {
             h.run("head::View::answers", n, || v.answers(10).counts_at.len());
             h.run("head::View::settled(one act)", n, || v.settled(&1));
             h.run("head::purge", n, || head::purge(&store, 0u32, 10, Reading::Broad).0.len());
+        }
+        if h.wants(&["held::"]) {
+            // issue #4: one row admitted against a held view, against the whole fold over the same rows
+            let rows = held_rows(n);
+            let spec =
+                Rules { wf: |_: &B| true, rule: |p: &Past<'_, '_, B>| seat::seat_rule(p, &law, &NoCut, &|_| true) };
+            let m = n as u32;
+            let tips = [rid(9, m - 1), rid(9, m - 2), rid(9, m / 2)];
+            let x = B::new(rid(9, m), tips.to_vec(), key(3));
+            let base = Held::new(spec, rows.iter());
+            assert_eq!(base.len(), n);
+            h.run_mut("held::admit(one)", n, || fresh(&base), |hv| hv.admit(&x).unwrap().visited);
+            // the kernel's own work, with a rule that reads nothing: what is left is the rule's
+            let free = Rules { wf: |_: &B| true, rule: |_: &Past<'_, '_, B>| true };
+            let base_free = Held::new(free, rows.iter());
+            h.run_mut(
+                "held::admit(one)/rule_reads_nothing",
+                n,
+                || fresh(&base_free),
+                |hv| hv.admit(&x).unwrap().visited,
+            );
+            h.run("held::past_of_x(depth)", n, || base.concluded().g.depth(m as usize - 1));
+            let mut with_x = rows.clone();
+            with_x.push(x.clone());
+            h.run("held::refold(one)", n, || concluded(&with_x, &law).cs().len());
+            let mut shuffled = rows.clone();
+            let mut g = dag::Lcg(5);
+            for i in (1..shuffled.len()).rev() {
+                shuffled.swap(i, (g.next() as usize) % (i + 1));
+            }
+            h.run("held::new/in_order", n, || Held::new(spec, rows.iter()).len());
+            h.run("held::new/shuffled", n, || Held::new(spec, shuffled.iter()).len());
+            // one new row with `d` dependents already waiting on it: the re-fold persist runs today
+            for d in [1usize, 16, 256] {
+                let deps: Vec<B> = (0..d as u32)
+                    .map(|j| B::new(rid(10, j), vec![rid(9, m), rid(9, (j * 7) % m)], key(j as usize % 16)))
+                    .collect();
+                let waiting = {
+                    let mut hv = fresh(&base);
+                    for r in &deps {
+                        assert!(hv.admit(r).unwrap().waiting);
+                    }
+                    hv
+                };
+                h.run_mut(
+                    &format!("held::admit_dependents/{d}"),
+                    n,
+                    || fresh(&waiting),
+                    |hv| {
+                        let a = hv.admit(&x).unwrap();
+                        assert_eq!(a.kept.len(), d + 1);
+                        // the bound: the rows kept and what they name, never the store
+                        assert_eq!(a.visited, (d + 1) + 3 + 2 * d);
+                        a.dirty.len()
+                    },
+                );
+                let mut all = with_x.clone();
+                all.extend(deps.iter().cloned());
+                h.run(&format!("held::refold_dependents/{d}"), n, || concluded(&all, &law).cs().len());
+            }
+            h.run("held::clone", n, || base.clone().len());
         }
         if h.wants(&["window::"]) {
             // window

@@ -92,6 +92,22 @@ pub struct Graph<'a, R: Row> {
     /// Each row's level; [`WAITING`] for a row on a cycle of names or naming one (no kept set holds it).
     level: Vec<u32>,
     anc: Vec<OnceCell<Bits>>,
+    /// Rows added by [`Graph::push`] after building, by id. Empty for a graph built whole by [`Graph::new`].
+    pushed: BTreeMap<R::Id, usize>,
+}
+
+impl<R: Row> Clone for Graph<'_, R> {
+    fn clone(&self) -> Self {
+        Graph {
+            rows: self.rows.clone(),
+            index: self.index.clone(),
+            off: self.off.clone(),
+            names: self.names.clone(),
+            level: self.level.clone(),
+            anc: self.anc.clone(),
+            pushed: self.pushed.clone(),
+        }
+    }
 }
 
 impl<'a, R: Row> Graph<'a, R> {
@@ -198,7 +214,52 @@ impl<'a, R: Row> Graph<'a, R> {
             }
         }
         let anc = (0..n).map(|_| OnceCell::new()).collect();
-        Graph { rows: v, index, off, names, level, anc }
+        Graph { rows: v, index, off, names, level, anc, pushed: BTreeMap::new() }
+    }
+
+    /// Room for `rows` more rows naming `names` ids in all, so the next [`push`](Graph::push)es do not grow
+    /// a buffer.
+    pub fn reserve(&mut self, rows: usize, names: usize) {
+        self.rows.reserve(rows);
+        self.off.reserve(rows);
+        self.level.reserve(rows);
+        self.anc.reserve(rows);
+        self.names.reserve(names);
+    }
+
+    /// Add one row whose every named id is already a row here (the door's order: a row is held only once
+    /// what it names is held). Returns its index, or `None`, changing nothing, when the id is already present
+    /// or a named id is not. No past, level or answer about an earlier row changes: an earlier row cannot name
+    /// it. Linear in what the row names, plus the log of the rows for each.
+    pub fn push(&mut self, r: &'a R) -> Option<usize> {
+        if self.idx(r.id()).is_some() {
+            return None;
+        }
+        let mut named: Vec<usize> = Vec::with_capacity(r.names().len());
+        for n in r.names() {
+            named.push(self.idx(n)?);
+        }
+        named.sort_unstable();
+        named.dedup();
+        let i = self.rows.len();
+        assert!(i + 1 < WAITING as usize, "more rows than a level can count");
+        let mut top = 0;
+        let mut waits = false;
+        for &p in &named {
+            let l = self.level[p];
+            if l >= WAITING {
+                waits = true;
+            } else if l > top {
+                top = l;
+            }
+        }
+        self.names.extend_from_slice(&named);
+        self.off.push(self.names.len());
+        self.level.push(if waits { WAITING } else { 1 + top });
+        self.anc.push(OnceCell::new());
+        self.rows.push(r);
+        self.pushed.insert(r.id().clone(), i);
+        Some(i)
     }
 
     /// The number of rows.
@@ -219,7 +280,11 @@ impl<'a, R: Row> Graph<'a, R> {
     }
     /// The index of a row id, when the row is in the set.
     pub fn idx(&self, id: &R::Id) -> Option<usize> {
-        self.index.binary_search_by(|e| e.0.cmp(id)).ok().map(|k| self.index[k].1)
+        match self.index.binary_search_by(|e| e.0.cmp(id)) {
+            Ok(k) => Some(self.index[k].1),
+            Err(_) if self.pushed.is_empty() => None,
+            Err(_) => self.pushed.get(id).copied(),
+        }
     }
     /// The held rows row `i` names directly.
     #[inline]
