@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Model-check every spec in models/tla/ with TLC: each <Spec>.cfg must pass, and each <Spec>_plant.cfg (the same
-# spec with its planted break switched on) must be caught. With --large, the <Spec>_large.cfg and
-# <Spec>_large_plant.cfg configurations instead (minutes, run locally; FORMAL_GAPS.md records them). Prints one
+# spec with its planted break switched on) must be caught, and so must each further plant <Spec>_plant_<name>.cfg.
+# With --large, the <Spec>_large.cfg, <Spec>_large_plant.cfg and <Spec>_large_plant_<name>.cfg configurations
+# instead (minutes, run locally; FORMAL_GAPS.md records them). Prints one
 # line per spec with the distinct states, the diameter and the time, and a summary; exits 1 on any failure. Needs Java 11 or later. The TLC jar is the pinned
 # tla2tools v1.7.4: $TLA2TOOLS_JAR, or a copy cached under ${XDG_CACHE_HOME:-$HOME/.cache}/ciris-kernel,
 # fetched once and checked against its SHA-256.
@@ -32,8 +33,17 @@ for spec in $(ls *.tla | sed 's/\.tla$//' | sort); do
   secs=$((SECONDS - t0))
   java -XX:+UseParallelGC -cp "$jar" tlc2.TLC -workers auto -metadir "$work/$spec-plant" -config "$spec${suffix}_plant.cfg" "$spec.tla" > "$work/$spec-plant.log" 2>&1
   caught=$(grep -m1 -oE "(Invariant|Temporal properties|Action property|Property) [A-Za-z_]* (is|was) violated|Temporal properties were violated" "$work/$spec-plant.log")
+  # further plants of the same spec: each must be caught too
+  more=""
+  for extra in $(ls "$spec${suffix}"_plant_*.cfg 2>/dev/null | sort); do
+    name="${extra%.cfg}"
+    java -XX:+UseParallelGC -cp "$jar" tlc2.TLC -workers auto -metadir "$work/$name" -config "$extra" "$spec.tla" > "$work/$name.log" 2>&1
+    got=$(grep -m1 -oE "(Invariant|Temporal properties|Action property|Property) [A-Za-z_]* (is|was) violated|Temporal properties were violated" "$work/$name.log")
+    if [ -z "$got" ]; then caught=""; fi
+    more="$more; ${name#"$spec${suffix}"_plant_}: ${got:-not caught}"
+  done
   if [ "$ok" = 1 ] && [ -n "$caught" ]; then
-    printf 'ok    %-12s %8s distinct states, diameter %3s, %4ss   plant caught: %s\n' "$spec" "$states" "$depth" "$secs" "$caught"
+    printf 'ok    %-12s %8s distinct states, diameter %3s, %4ss   plant caught: %s%s\n' "$spec" "$states" "$depth" "$secs" "$caught" "$more"
   else
     printf 'FAIL  %-12s passes: %s; plant caught: %s\n' "$spec" "$ok" "${caught:-no}"; bad=$((bad + 1))
     tail -n 5 "$work/$spec.log"

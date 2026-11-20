@@ -18,6 +18,12 @@
    and the retraction of witness 3's adult at 8. Two nodes each take the rows in ANY order, a retraction
    possibly before its row, with their own clocks ticking 1..3. Each keeps a running summary (the binding, each
    signer's rows, the retractions seen) and re-reads its announcement on every arrival and every tick.
+   The same read decides two more standing relations, held from the start: K's owner-binding at self scope,
+   which counts for nothing at EVERY scope while the band reads minor and counts again when it reads adult (CC
+   3.2 line 961 at b016df4, "A binding whose owner a row on record places in a minor band counts for nothing";
+   no carve-out by scope, as ruled), so the federation-scope binding B counts exactly when it does; and a
+   guardian's steward-binding over K (CC 3.2, the guardianship rule), a standing relation on the current band
+   that ends when the band reads adult, which needs an assured row, since a self-declaration never raises.
    MUT = TRUE plants the break: the announcement is judged once, when the binding arrives, at the binding's
    instant, and never read again. *)
 EXTENDS Naturals, FiniteSets
@@ -44,17 +50,23 @@ HeldBand(H, c) == MS!BandAt(RowsOf(H), RetsOf(H), MS!Forever, c)
 SB(H, s, c) == MS!SignerBandAt(RowsOf(H)[s], RetsOf(H), MS!Forever, c)
 Announced(H, c) == Bind \in H /\ HeldBand(H, c) # "minor"
 Retracted(H, r) == \E x \in H \cap RetractRows : x.tgt = r.id
-\* the void (MinorVoid.tla, today's reading) of a duty appointment dated t: any minor row ever held counts,
-\* superseded, outranked or retracted, and no assured adult proof is dated before t
-VoidAt(H, t) == (\E r \in H : IsMinor(r)) /\ ~\E r \in H \cap AgeRows : r.k = "assured" /\ r.band = "adult" /\ r.at < t
+\* the self-scope owner-binding counts while the band does not read minor; the guardianship stands while it
+\* does not read adult
+OwnerCounts(H, c) == HeldBand(H, c) # "minor"
+GuardLive(H, c) == HeldBand(H, c) # "adult"
+\* the void (MinorVoid.tla, as ruled) of a duty appointment dated t: any minor row ever held counts,
+\* superseded, outranked or retracted, and no un-retracted assured adult proof is dated before t
+LiveProofBefore(H, t) == \E r \in H \cap AgeRows : r.k = "assured" /\ r.band = "adult" /\ r.at < t /\ ~Retracted(H, r)
+VoidAt(H, t) == (\E r \in H : IsMinor(r)) /\ ~LiveProofBefore(H, t)
 
-VARIABLES held, rows, rets, clk, ann
-vars == <<held, rows, rets, clk, ann>>
+VARIABLES held, rows, rets, clk, ann, own, guard
+vars == <<held, rows, rets, clk, ann, own, guard>>
 
 Read(rs, rt, n, c) == Bind \in held'[n] /\ MS!BandAt(rs, rt, MS!Forever, c) # "minor"
 
 Init == /\ held = [n \in Nodes |-> {}] /\ rows = [n \in Nodes |-> [s \in Signers |-> {}]]
         /\ rets = [n \in Nodes |-> {}] /\ clk = [n \in Nodes |-> 1] /\ ann = [n \in Nodes |-> FALSE]
+        /\ own = [n \in Nodes |-> TRUE] /\ guard = [n \in Nodes |-> TRUE]
 
 Offer(n, r) ==
   /\ r \notin held[n]
@@ -64,24 +76,29 @@ Offer(n, r) ==
   /\ ann' = [ann EXCEPT ![n] = IF ~MUT THEN Read(rows'[n], rets'[n], n, clk[n])
                                ELSE IF r = Bind THEN Read(rows'[n], rets'[n], n, Bind.at)
                                ELSE @]
+  /\ own' = [own EXCEPT ![n] = MS!BandAt(rows'[n], rets'[n], MS!Forever, clk[n]) # "minor"]
+  /\ guard' = [guard EXCEPT ![n] = MS!BandAt(rows'[n], rets'[n], MS!Forever, clk[n]) # "adult"]
   /\ UNCHANGED clk
 Tick(n) == /\ clk[n] < 3
            /\ clk' = [clk EXCEPT ![n] = @ + 1]
            /\ ann' = [ann EXCEPT ![n] = IF MUT THEN @ ELSE Bind \in held[n] /\ MS!BandAt(rows[n], rets[n], MS!Forever, clk'[n]) # "minor"]
+           /\ own' = [own EXCEPT ![n] = MS!BandAt(rows[n], rets[n], MS!Forever, clk'[n]) # "minor"]
+           /\ guard' = [guard EXCEPT ![n] = MS!BandAt(rows[n], rets[n], MS!Forever, clk'[n]) # "adult"]
            /\ UNCHANGED <<held, rows, rets>>
 Done == (\A n \in Nodes : held[n] = Rows /\ clk[n] = 3) /\ UNCHANGED vars
 Next == (\E n \in Nodes, r \in Rows : Offer(n, r)) \/ (\E n \in Nodes : Tick(n)) \/ Done
 Spec == Init /\ [][Next]_vars
 
 \* P1 two nodes holding the same rows at the same clock agree, whatever order each took them in
-Inv_NodesAgree == (held[1] = held[2] /\ clk[1] = clk[2]) => ann[1] = ann[2]
+Inv_NodesAgree == (held[1] = held[2] /\ clk[1] = clk[2]) => (ann[1] = ann[2] /\ own[1] = own[2] /\ guard[1] = guard[2])
 \* P2 at different clocks they differ only across some held age row's expires_at
 Inv_ClockOnlyAtExpiry ==
-  (held[1] = held[2] /\ ann[1] # ann[2]) =>
+  (held[1] = held[2] /\ (ann[1] # ann[2] \/ own[1] # own[2] \/ guard[1] # guard[2])) =>
     \E r \in held[1] \cap AgeRows : r.exp # 0 /\ ((clk[1] < r.exp /\ r.exp <= clk[2]) \/ (clk[2] < r.exp /\ r.exp <= clk[1]))
 \* P3 the announcement kept as rows arrived and clocks ticked is the set function of the rows held now, at
 \* the node's clock
-Inv_Fold == \A n \in Nodes : ann[n] = Announced(held[n], clk[n])
+Inv_Fold == \A n \in Nodes : ann[n] = Announced(held[n], clk[n]) /\ own[n] = OwnerCounts(held[n], clk[n])
+                                /\ guard[n] = GuardLive(held[n], clk[n])
 \* P4 no order leaves a person announced whose current band reads minor
 Inv_NoMinorAnnounced == \A n \in Nodes : ann[n] => HeldBand(held[n], clk[n]) # "minor"
 \* P5 supersession lifts: a minor row whose signer holds a newer, unretracted row is no longer standing, so
@@ -107,8 +124,7 @@ Inv_EqualLevelBlocks ==
 \* dated at its instant. MinorVoid's clause 1 counts the row; the current band does not.
 Inv_VoidKeepsWhatStandingLifts ==
   \A n \in Nodes : \A m \in held[n] :
-    (ann[n] /\ IsMinor(m) /\ ~\E r \in held[n] \cap AgeRows : r.k = "assured" /\ r.band = "adult" /\ r.at < m.at)
-      => VoidAt(held[n], m.at)
+    (ann[n] /\ IsMinor(m) /\ ~LiveProofBefore(held[n], m.at)) => VoidAt(held[n], m.at)
 \* Witness for P9 (MinorVoid's difference made visible): StandingProtection_void_witness.cfg checks this and
 \* TLC reports a state where a node is announced while a minor row is held
 NoMinorRowWhileAnnounced == \A n \in Nodes : ann[n] => ~\E m \in held[n] : IsMinor(m)
@@ -119,4 +135,14 @@ Prop_MinorPullsBack ==
 Prop_WithdrawalRestores ==
   [][\A n \in Nodes : ((held'[n] \ held[n]) \cap RetractRows # {} /\ Bind \in held'[n]
                          /\ HeldBand(held'[n], clk'[n]) # "minor") => ann'[n]]_vars
+\* P12 no carve-out by scope (CC 3.2 l.961): the federation-scope binding counts exactly when the self-scope
+\* binding does, and the self-scope binding counts for nothing while the band reads minor
+Inv_NoScopeCarveOut == \A n \in Nodes : (Bind \in held[n] => ann[n] = own[n]) /\ (HeldBand(held[n], clk[n]) = "minor" => ~own[n])
+\* P13 the guardianship ends only when the band reads adult, which needs an assured (witness) current row
+Inv_GuardEndsOnlyByAssurance == \A n \in Nodes : ~guard[n] => \E w \in MS!Witnesses : SB(held[n], w, clk[n]) = "adult"
+\* P14 a self-declaration never ends the guardianship: the subject's own rows alone keep it standing
+Inv_SelfDeclarationKeepsGuardian ==
+  \A n \in Nodes : GuardLive({r \in held[n] : r \in RetractRows \/ (r \in AgeRows /\ r.s = 0)}, clk[n])
+\* P15 the person is always under a guardian or counted as an owner, never neither; both while no band is read
+Inv_GuardOrOwner == \A n \in Nodes : guard[n] \/ own[n]
 ==========================================================================
