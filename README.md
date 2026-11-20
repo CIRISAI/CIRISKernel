@@ -186,7 +186,7 @@ one rule of the Constitution (CC 3.2, the void of a duty appointment made to a m
 
 Four steps build and test the Rust crate [`crates/ciris-kernel`](crates/ciris-kernel/README.md), the kernel as
 pure functions with no dependencies, against the Python models' own cases; they need cargo. The last step
-model-checks the six TLA+ specs of [`models/tla/`](models/tla) with TLC, each with a planted break it must
+model-checks the seven TLA+ specs of [`models/tla/`](models/tla) with TLC, each with a planted break it must
 catch, and needs Java. The run ends `all 17 steps passed`.
 
 ## Lineage

@@ -9,7 +9,7 @@
    One target T. Its age rows: T's own age_self_declared minor at 1 and adult at 2 (the adult replaces the
    minor in T's own series), and for each witness w in 1..W an age_assurance minor at w (expiring at w + 1)
    and an age_assurance adult at w + 1 (expiring at w + 3), the adult replacing the minor in w's series. The
-   retractions: of every minor row, and of witness 1's adult row; a retraction waits for the row it names.
+   retractions: of every minor row, and of witness 1's adult row.
    The duty edge D is offered dated at each instant 1..N: one row per date, the same appointment backdated
    or not. Rows arrive in ANY order, and the node's clock ticks between arrivals.
    The node keeps its verdict INCREMENTALLY, as a store does: a running "a minor row was seen" and the set of
@@ -21,10 +21,14 @@
    still voids; a later adult proof never revives a void D.
    EXPIRY = TRUE adds the reading "and unexpired at D's asserted_at" to clause 2 (persist's K2-fix14); the
    rc21 text has no such clause, and with it Inv_BackdateOnlyVoids fails (MinorVoid_expiry.cfg).
+   RETRACTED_ADULT_LIFTS (an open question): TRUE, today's reading, a retracted assured adult proof dated
+   before D still lifts the void, as the rc21 text has no word on it; FALSE, the proposed variant, a retracted
+   adult proof is no proof, and only retractions of minor rows are irrelevant (MinorVoid_retracted_adult.cfg).
+   A retraction may arrive before the row it names.
    MUT = TRUE plants the break of persist's K2-fix11: the adult proof is judged unexpired at the node's own
    clock, now, instead of at D's asserted_at. *)
 EXTENDS Naturals, FiniteSets
-CONSTANTS MUT, EXPIRY, W, N
+CONSTANTS MUT, EXPIRY, RETRACTED_ADULT_LIFTS, W, N
 TMax == N + 2
 Times == 0..TMax
 \* a row: k is "self" | "assured" | "retract" | "D"; s the signer (0 is T itself); at its asserted_at;
@@ -42,7 +46,10 @@ SelfAdultRows == {r \in SelfRows : r.band = "adult"}
 Unexpired(exp, t) == exp = 0 \/ exp > t
 
 \* The rule, read from the held set H (CC 3.2 clauses 1 and 2)
-ProofAt(H, t) == \E r \in H : r.k = "assured" /\ r.band = "adult" /\ r.at < t /\ (EXPIRY => Unexpired(r.exp, t))
+Retracted(H, r) == \E x \in H : x.k = "retract" /\ x.tgt = r.id
+\* the assured adult rows of H that can stand as a proof
+Proofs(H) == {r \in H : r.k = "assured" /\ r.band = "adult" /\ (RETRACTED_ADULT_LIFTS \/ ~Retracted(H, r))}
+ProofAt(H, t) == \E r \in Proofs(H) : r.at < t /\ (EXPIRY => Unexpired(r.exp, t))
 Void(H, d) == (\E r \in H : IsMinor(r)) /\ ~ProofAt(H, d.at)
 
 \* The node's judgement over its running summary, at its clock t
@@ -50,21 +57,22 @@ Counts(p, d, t) == p[1] < d.at /\ (IF MUT THEN Unexpired(p[2], t) ELSE (EXPIRY =
 Judge(minor, proofs, d, t) == minor /\ ~\E p \in proofs : Counts(p, d, t)
 \* another node holding H that folds it all at its instant t
 JudgeAll(H, d, t) == Judge(\E r \in H : IsMinor(r),
-                           {<<r.at, r.exp>> : r \in {q \in H : q.k = "assured" /\ q.band = "adult"}}, d, t)
+                           {<<r.at, r.exp, r.id>> : r \in Proofs(H)}, d, t)
 
-VARIABLES held, minorSeen, proofs, void, now
-vars == <<held, minorSeen, proofs, void, now>>
+VARIABLES held, minorSeen, proofs, retired, void, now
+vars == <<held, minorSeen, proofs, retired, void, now>>
 
-Init == held = {} /\ minorSeen = FALSE /\ proofs = {} /\ void = [d \in DRows |-> FALSE] /\ now = 0
+Init == held = {} /\ minorSeen = FALSE /\ proofs = {} /\ retired = {} /\ void = [d \in DRows |-> FALSE] /\ now = 0
 
 Offer(r) == /\ r \notin held
-            /\ r.k = "retract" => \E m \in held : m.id = r.tgt
             /\ held' = held \cup {r}
             /\ minorSeen' = (minorSeen \/ IsMinor(r))
-            /\ proofs' = proofs \cup (IF r.k = "assured" /\ r.band = "adult" THEN {<<r.at, r.exp>>} ELSE {})
+            /\ retired' = IF r.k = "retract" THEN retired \cup {r.tgt} ELSE retired
+            /\ proofs' = {p \in proofs \cup (IF r.k = "assured" /\ r.band = "adult" THEN {<<r.at, r.exp, r.id>>} ELSE {}) :
+                           RETRACTED_ADULT_LIFTS \/ p[3] \notin retired'}
             /\ void' = [d \in DRows |-> d \in held' /\ Judge(minorSeen', proofs', d, now)]
             /\ UNCHANGED now
-Tick == now < TMax /\ now' = now + 1 /\ UNCHANGED <<held, minorSeen, proofs, void>>
+Tick == now < TMax /\ now' = now + 1 /\ UNCHANGED <<held, minorSeen, proofs, retired, void>>
 Done == held = Rows /\ now = TMax /\ UNCHANGED vars
 Next == (\E r \in Rows : Offer(r)) \/ Tick \/ Done
 Spec == Init /\ [][Next]_vars
@@ -77,9 +85,11 @@ Inv_NodesAgree == \A d \in HeldD, t \in Times : void[d] = JudgeAll(held, d, t)
 Inv_Fold == \A d \in HeldD : void[d] = Void(held, d)
 \* V3 backdating D can only void it, never lift a void
 Inv_BackdateOnlyVoids == \A d1, d2 \in HeldD : d1.at < d2.at /\ void[d2] => void[d1]
-\* V4 a retracted minor row still counts: no retraction changes any verdict, and a minor row whose
-\* retraction is held voids D when no assured adult proof precedes it
-Inv_RetractionChangesNothing == \A d \in HeldD : void[d] = JudgeAll(held \ RetractRows, d, now)
+\* V4 a retracted minor row still counts: no retraction (under the variant, no retraction of a minor row)
+\* changes any verdict, and a minor row whose retraction is held voids D when no assured adult proof precedes it
+Irrelevant == IF RETRACTED_ADULT_LIFTS THEN RetractRows
+              ELSE {x \in RetractRows : \E m \in AgeRows : IsMinor(m) /\ m.id = x.tgt}
+Inv_RetractionChangesNothing == \A d \in HeldD : void[d] = JudgeAll(held \ Irrelevant, d, now)
 Inv_RetractedMinorCounts == \A d \in HeldD : \A m \in held :
                               (IsMinor(m) /\ \E x \in held : x.tgt = m.id /\ ~ProofAt(held, d.at)) => void[d]
 \* V5 a self-declared adult row never lifts the void

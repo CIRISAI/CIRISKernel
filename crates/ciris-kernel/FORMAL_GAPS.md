@@ -83,6 +83,7 @@ and `Versions.counts_built_on`. None was false. Core Lean 4.14 has no lemmas for
 | `models/tla/Purge.tla` | Under any order of three receipts and two cuts, purging once the act is settled changes no answer. A settled act counts, the threshold is exact, and settled is final. |
 | `models/tla/TrustWalk.tla` | Over a graph with two cycles and a short path with no budget, the walk always terminates, takes keys in any order, and agrees with the Lean `walk` when it stops. Budgets only rise. |
 | `models/tla/MinorVoid.tla` | A rule of the Constitution, not of the crate: CC 3.2 at v1.0-rc21, the void of a duty appointment made to a minor. A store keeps a running summary as rows arrive in any order with its clock ticking; its verdict is the fold over the held rows, and a node folding the same rows at any other instant agrees. Backdating D only voids it, a retraction changes nothing, a minor row superseded by its signer's newer adult row still voids, a self-declared adult lifts nothing, and a later adult proof never revives a void. `proofs/MinorVoid.lean` proves the same over lists. |
+| `models/tla/MinorSuspend.tla` | A rule of the Constitution, not of the crate: the current age band about a person, which holds a duty seat suspended while it reads minor (CC 3.4.11 read-union at v1.0-rc21, with the per-signer series and the act's own instant as ruled on 2026-11-20). A store keeps each signer's series as rows arrive in any order, a retraction before its row included; its reading at an act's `asserted_at` is the set function, a node reading at any reader clock agrees, a row dated later or retracted changes nothing, the self rung never raises, and a suspension needs a minor row held. |
 
 TLC at this commit. The small configuration (`<Spec>.cfg`) runs in `./check.sh` and CI. The large one
 (`<Spec>_large.cfg`) is run locally with `bash tools/tla_check.sh --large`. Both are on a 32-core machine, with
@@ -95,7 +96,8 @@ TLC at this commit. The small configuration (`<Spec>.cfg`) runs in `./check.sh` 
 | `ReaderLine` | 2 readers, lineage of 4 | 13,924, 19, 1 s | 3 readers, lineage of 5, SYMMETRY over readers | 551,300, 31, 21 s | one reader's acknowledgement voids for all |
 | `Purge` | 2 acts, 3 members, 2 cuts each | 2,304, 13, 1 s | 2 acts, 5 members, t = 3, 3 cuts each | 147,456, 19, 2 s | purging before settled |
 | `TrustWalk` | every subgraph of 9 edges over 4 keys | 2,480, 5, 2 s | every subgraph of 16 edges over 7 keys (65,536 graphs) | 454,016, 8, 8 s | each key expanded once |
-| `MinorVoid` | 1 witness, D dated 1..4 (11 rows), clock 0..6 | 6,048, 18, 1 s | 2 witnesses, D dated 1..6 (16 rows), clock 0..8 | 186,624, 25, 5 s | the adult proof judged at the node's clock |
+| `MinorVoid` | 1 witness, D dated 1..4 (11 rows), clock 0..6 | 14,336, 18, 2 s | 2 witnesses, D dated 1..6 (16 rows), clock 0..8 | 589,824, 25, 7 s | the adult proof judged at the node's clock |
+| `MinorSuspend` | 2 provider witnesses, X dated 1..4 (11 rows), clock 0..5 | 12,288, 17, 2 s | and a government witness, X dated 1..6 (16 rows), clock 0..7 | 524,288, 24, 23 s | the band read at the reader's clock |
 
 Each space is exhausted at its bound: TLC ends with no state left on the queue. In Door and Cut the state is
 the set of rows offered, so the count is 2^rows exactly. A GitHub-hosted runner, with fewer cores, takes about
