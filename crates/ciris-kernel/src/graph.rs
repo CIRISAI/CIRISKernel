@@ -8,7 +8,7 @@
 
 use crate::Row;
 use alloc::collections::BTreeMap;
-use core::cell::OnceCell;
+use core::cell::{Cell, OnceCell};
 
 /// How many rows a point question of the past searches before it computes and keeps the whole past.
 const SEARCH_BUDGET: usize = 256;
@@ -267,6 +267,20 @@ impl Bits {
     }
 }
 
+/// What computing pasts has cost a graph so far: the price of a held view's window, measured on the caller's own
+/// rows ([`Held::set_past_window`](crate::held::Held::set_past_window)).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PastCounts {
+    /// Pasts computed.
+    pub computed: u64,
+    /// Of those, pasts computed again after the window dropped them.
+    pub recomputed: u64,
+    /// Rows a walk expanded one at a time because their own past was not kept. With every past kept, a walk takes
+    /// each named row's past whole and this stays near zero; a window too narrow for the rows admitted shows here
+    /// first, because a new row naming an old one walks the old row's past.
+    pub walked: u64,
+}
+
 /// A set of rows with the closure over what they name. Indices follow the order the rows were given in.
 ///
 /// Building it is linear in the rows and the names: it records each row's held names and its level (one
@@ -288,6 +302,13 @@ pub struct Graph<'a, R: Row> {
     /// Keep each computed past compact ([`Bits::compact`]). Off for a graph built by [`Graph::new`], so every
     /// existing caller keeps dense pasts as before; a [`Held`](crate::held::Held) view turns it on.
     compact: bool,
+    /// Rows whose past was dropped by [`forget_past`](Graph::forget_past) and not computed since.
+    forgotten: Vec<bool>,
+    /// Pasts computed, and of those, pasts computed again after being dropped.
+    computed: Cell<u64>,
+    recomputed: Cell<u64>,
+    /// Rows a past's walk expanded one by one because their own past was not kept.
+    walked: Cell<u64>,
 }
 
 impl<R: Row> Clone for Graph<'_, R> {
@@ -301,6 +322,10 @@ impl<R: Row> Clone for Graph<'_, R> {
             anc: self.anc.clone(),
             pushed: self.pushed.clone(),
             compact: self.compact,
+            forgotten: self.forgotten.clone(),
+            computed: self.computed.clone(),
+            recomputed: self.recomputed.clone(),
+            walked: self.walked.clone(),
         }
     }
 }
@@ -409,7 +434,20 @@ impl<'a, R: Row> Graph<'a, R> {
             }
         }
         let anc = (0..n).map(|_| OnceCell::new()).collect();
-        Graph { rows: v, index, off, names, level, anc, pushed: BTreeMap::new(), compact: false }
+        Graph {
+            rows: v,
+            index,
+            off,
+            names,
+            level,
+            anc,
+            pushed: BTreeMap::new(),
+            compact: false,
+            forgotten: Vec::new(),
+            computed: Cell::new(0),
+            recomputed: Cell::new(0),
+            walked: Cell::new(0),
+        }
     }
 
     /// Room for `rows` more rows naming `names` ids in all, so the next [`push`](Graph::push)es do not grow
@@ -511,8 +549,16 @@ impl<'a, R: Row> Graph<'a, R> {
             b.set(p);
             match self.anc[p].get() {
                 Some(pa) => b.union(pa),
-                None => todo.extend(self.named(p).iter().copied().filter(|&q| !b.has(q))),
+                None => {
+                    self.walked.set(self.walked.get() + 1);
+                    todo.extend(self.named(p).iter().copied().filter(|&q| !b.has(q)))
+                }
             }
+        }
+        self.computed.set(self.computed.get() + 1);
+        if self.forgotten.get(i).copied().unwrap_or(false) {
+            // counted once per drop: the flag clears when the window drops it again (forget_past sets it)
+            self.recomputed.set(self.recomputed.get() + 1);
         }
         let _ = self.anc[i].set(if self.compact { b.compact() } else { b });
         self.anc[i].get().expect("computed above")
@@ -524,7 +570,16 @@ impl<'a, R: Row> Graph<'a, R> {
     }
     /// Drop the kept past of row `i`; the next question that needs it computes it again. No answer changes.
     pub(crate) fn forget_past(&mut self, i: usize) {
-        self.anc[i] = OnceCell::new();
+        if self.anc[i].take().is_some() {
+            if self.forgotten.len() <= i {
+                self.forgotten.resize(i + 1, false);
+            }
+            self.forgotten[i] = true;
+        }
+    }
+    /// What computing pasts has cost so far ([`PastCounts`]).
+    pub fn past_counts(&self) -> PastCounts {
+        PastCounts { computed: self.computed.get(), recomputed: self.recomputed.get(), walked: self.walked.get() }
     }
     /// The bytes the pasts computed so far hold on the heap (each past is kept compact; see [`Bits`]).
     pub fn past_bytes(&self) -> usize {

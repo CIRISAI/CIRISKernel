@@ -157,6 +157,11 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
         self.window = w;
         self.trim();
     }
+    /// What computing pasts has cost this view ([`PastCounts`](crate::graph::PastCounts)): `walked` against the
+    /// rows admitted, measured on a caller's own rows, says whether the window is wide enough.
+    pub fn past_counts(&self) -> crate::graph::PastCounts {
+        self.con.g.past_counts()
+    }
     /// How many recent rows keep their pasts.
     pub fn past_window(&self) -> usize {
         self.window

@@ -226,7 +226,14 @@ What bounds the memory is to stop keeping every row's past:
    (`Graph::set_compact`, crate-private). `Graph::new`, `conclude` and every existing caller keep dense pasts
    exactly as before.
 
-**The cost.** A row that names an old row whose past was dropped walks that past again.
+**The cost, and when it is paid.** A new row's past is built by a walk that takes each named row's past whole
+when it is kept. Naming an old row that is in a recent row's past costs nothing: the recent row's past already
+holds it. The walk pays only when the old row is outside every kept past, on a side branch (a statement or
+receipt no later row named). Then it walks that row's past one row at a time. `Held::past_counts()` returns
+`PastCounts { computed, recomputed, walked }`, so a caller can measure the price on its own rows and set the
+window from it (`tests/held.rs`, `the_window_s_price_is_counted`). Persist expects its latency bursts to name old
+rows (a withdrawal, an age row re-folding old duty edges, a receipt merge). It will set the window per store and
+measure `walked` on a production-shaped store.
 `held::admit_dependents/256` (each dependent also names an old row) is 25–30% slower at 16,384 rows: about
 110 ms against 85 ms, on a host with load average about 40, so the figure is rough. One admission, and one row
 with 1 or 16 dependents, did not move. A caller that admits many rows naming old ones can widen the window; the

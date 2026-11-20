@@ -182,3 +182,38 @@ fn the_past_window_changes_no_answer() {
         assert!(h.concluded().g.past_bytes() <= 7 * h.len().div_ceil(64) * 8 + 7 * 64);
     }
 }
+
+#[test]
+fn the_window_s_price_is_counted() {
+    // a new row naming a recent row and an OLD row outside the recent row's past (a side branch, such as a receipt
+    // no later row named): with every past kept the walk takes the old row's past whole; with a small window it
+    // walks it. An old row inside the recent row's past costs nothing either way.
+    let rows = dag(2000, 3, 20, 3);
+    let all = |w: usize| {
+        let mut h = Held::empty(Rules { wf: |_: &N| true, rule: parity });
+        h.set_past_window(w);
+        for r in &rows {
+            let _ = h.admit(r);
+        }
+        assert_eq!(h.len(), rows.len());
+        h
+    };
+    let probe = all(usize::MAX);
+    let g = &probe.concluded().g;
+    let tip = g.idx(&1999).unwrap();
+    let side = (500..1500u32)
+        .rev()
+        .find(|&o| !g.in_past(g.idx(&o).unwrap(), tip) && g.depth(g.idx(&o).unwrap()) > 100)
+        .expect("a side branch with a deep past");
+    let x = N { id: 2000, names: vec![1999, side], signer: 0 };
+    let walked = |w: usize| {
+        let mut h = all(w);
+        let before = h.past_counts();
+        h.admit(&x).unwrap();
+        let after = h.past_counts();
+        assert_eq!(after.computed, before.computed + 1);
+        after.walked - before.walked
+    };
+    let (every, small) = (walked(usize::MAX), walked(4));
+    assert!(every < small, "every past kept walks {every}, a window of 4 walks {small} (side branch {side})");
+}
