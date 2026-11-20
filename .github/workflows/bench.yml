@@ -3,6 +3,9 @@ name: bench
 # The crate's benches on a runner with no other load, so their numbers can be quoted (a shared host moved one
 # bench by 15%; PERF.md). Manual only: a benchmark run is a decision, not a side effect of a push
 # (CIRISHolon's bakeoff.yml). The TSV is kept as an artifact, with the runner's CPU for the record.
+# Two runs of this workflow are not an A/B: they land on different CPUs (an EPYC 9V45 and a 7763 measured every
+# bench ~1.7x apart, code untouched included). For a comparison set `before` (and `after`): both builds then run in
+# this one job, alternating.
 on:
   workflow_dispatch:
     inputs:
@@ -14,6 +17,18 @@ on:
         description: 'Comma-separated sizes'
         required: false
         default: '3,16,128,1024'
+      before:
+        description: 'A/B: a ref to compare against (empty: no A/B, just run this ref). Both builds run in this one job, alternating (tools/kernel_bench_ab.py), because two runs land on different CPUs'
+        required: false
+        default: ''
+      after:
+        description: 'A/B: the ref compared (empty: the ref this workflow runs on)'
+        required: false
+        default: ''
+      rounds:
+        description: 'A/B rounds'
+        required: false
+        default: '3'
 
 permissions:
   contents: read
@@ -22,15 +37,18 @@ jobs:
   persist_paths:
     name: examples/persist_paths
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: The runner, for the record
         run: |
           { echo "commit ${GITHUB_SHA}"; nproc; grep -m1 'model name' /proc/cpuinfo; rustc --version; } | tee runner.txt
       - name: Run the benches
+        if: inputs.before == ''
         env:
           FILTER: ${{ inputs.filter }}
           SIZES: ${{ inputs.sizes }}
@@ -38,6 +56,26 @@ jobs:
           cargo build --offline --release -p ciris-kernel --example persist_paths
           bin=target/release/examples/persist_paths
           if [ -n "$FILTER" ]; then "$bin" "$FILTER" --sizes "$SIZES"; else "$bin" --sizes "$SIZES"; fi | tee bench.tsv
+      - name: A/B, both builds on this one runner
+        if: inputs.before != ''
+        env:
+          BEFORE: ${{ inputs.before }}
+          AFTER: ${{ inputs.after }}
+          FILTER: ${{ inputs.filter }}
+          SIZES: ${{ inputs.sizes }}
+          ROUNDS: ${{ inputs.rounds }}
+        run: |
+          set -eu
+          build() {  # build() REF DIR: the example at REF, in a worktree of its own
+            git worktree add --detach "$2" "$1"
+            (cd "$2" && cargo build --offline --release -p ciris-kernel --example persist_paths)
+          }
+          build "$BEFORE" ../before
+          build "${AFTER:-HEAD}" ../after
+          { echo "before $(git -C ../before rev-parse HEAD)"; echo "after $(git -C ../after rev-parse HEAD)"; } | tee -a runner.txt
+          only=""; [ -n "$FILTER" ] && only="--only $FILTER"
+          python3 -I tools/kernel_bench_ab.py ../before/target/release/examples/persist_paths \
+            ../after/target/release/examples/persist_paths --rounds "$ROUNDS" --sizes "$SIZES" $only | tee bench.tsv
       - uses: actions/upload-artifact@v4
         with:
           name: persist_paths-${{ github.sha }}
