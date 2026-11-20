@@ -54,7 +54,7 @@ step "kernel_fixtures (fixtures current)"   fixtures  python3 -I tools/kernel_fi
 step "ciris-kernel build (no_std)"         crate     bash tools/kernel_crate_build.sh
 step "ciris-kernel conformance"            conform   bash tools/kernel_conformance.sh
 step "ciris-kernel plants"                 plants    bash tools/kernel_crate_plants.sh
-step "tla (TLC, five specs, plants)"       tla       bash tools/tla_check.sh
+step "tla (TLC, seven specs, plants)"      tla       bash tools/tla_check.sh
 
 echo "---"
 if [ $rc -eq 0 ]; then

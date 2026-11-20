@@ -192,18 +192,19 @@ An edge is withdrawn only by its own signer.
 - The rule tables are not read. `formal/derivation/order/` (parent repository; its `witnesses.tsv` is [`data/witnesses.tsv`](../data/witnesses.tsv) here) holds the measure of the tables against this form:
   seventeen cases run through the guard cells in every arrival order, and each family's verdict.
 
-Run: `bash proofs/build.sh`, with Lean 4.14.0 on the path (installed as the top-level README says). It compiles the twenty-eight files in order and exits on a compile error,
+Run: `bash proofs/build.sh`, with Lean 4.14.0 on the path (installed as the top-level README says). It compiles the twenty-nine files in order and exits on a compile error,
 a `sorry`, or an axiom beyond the three of core Lean.
 
 Then it runs `Audit.lean`, the semantic audit. That file imports the whole stack and asks Lean which axioms every declaration depends on (`collectAxioms`). This covers every declaration, not only the theorems a `#print axioms` line reports. A `sorry` leaves `sorryAx` behind, and an `axiom` declared here names itself, so either fails the build, even in a lemma no printed theorem uses. The audit has a plant every run. `build.sh` writes a module with an unused `sorry` and a minted axiom, audits it with the stack, and fails unless both are refused. `build.sh` also fails on any "declaration uses 'sorry'" the compiler reports. The run line adds `N declarations audited, plant caught`.
 
-Output of the run in this repository: `proofs: 28 files, 677 theorems reported, 4334 declarations audited, plant caught, rc=0`. The nineteen files carried from the parent print 550 (548 at the commit they were carried at, and two more since `Reader.lean` states `sibling_by_acknowledgement`); the seven added for the crate (`CutFix`, `SeatWalk`, `SeatCount`, `WindowTable`, `Retained`, `Versions`, `Ops`) print 52; `Repurge.lean` prints 13; `Admission.lean` prints 62. The count is of lines reporting the axioms a declaration depends on (`#print axioms`), one per theorem the files print, not of every lemma.
+Output of the run in this repository: `proofs: 29 files, 687 theorems reported, 4415 declarations audited, plant caught, rc=0`. The nineteen files carried from the parent print 550 (548 at the commit they were carried at, and two more since `Reader.lean` states `sibling_by_acknowledgement`); the seven added for the crate (`CutFix`, `SeatWalk`, `SeatCount`, `WindowTable`, `Retained`, `Versions`, `Ops`) print 52; `Repurge.lean` prints 13; `Admission.lean` prints 62; `MinorVoid.lean` prints 10. The count is of lines reporting the axioms a declaration depends on (`#print axioms`), one per theorem the files print, not of every lemma.
 
 `Repurge.lean` is written for this repository and has no counterpart in the parent or in the crate's gaps.
 
 ## Added for the crate
 
-Seven files prove the gaps that `crates/ciris-kernel/FORMAL_GAPS.md` ranked. They state the crate's functions
+Seven files prove the gaps that `crates/ciris-kernel/FORMAL_GAPS.md` ranked, and an eighth, `MinorVoid.lean`, a rule of
+the Constitution that `models/tla/MinorVoid.tla` also model-checks. They state the crate's functions
 over Lean definitions of the same shape, and are built by `build.sh` like the rest.
 
 | File | What it proves |
