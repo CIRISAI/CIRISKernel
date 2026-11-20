@@ -192,12 +192,12 @@ An edge is withdrawn only by its own signer.
 - The rule tables are not read. `formal/derivation/order/` (parent repository; its `witnesses.tsv` is [`data/witnesses.tsv`](../data/witnesses.tsv) here) holds the measure of the tables against this form:
   seventeen cases run through the guard cells in every arrival order, and each family's verdict.
 
-Run: `bash proofs/build.sh`, with Lean 4.14.0 on the path (installed as the top-level README says). It compiles the twenty-seven files in order and exits on a compile error,
+Run: `bash proofs/build.sh`, with Lean 4.14.0 on the path (installed as the top-level README says). It compiles the twenty-eight files in order and exits on a compile error,
 a `sorry`, or an axiom beyond the three of core Lean.
 
 Then it runs `Audit.lean`, the semantic audit. That file imports the whole stack and asks Lean which axioms every declaration depends on (`collectAxioms`). This covers every declaration, not only the theorems a `#print axioms` line reports. A `sorry` leaves `sorryAx` behind, and an `axiom` declared here names itself, so either fails the build, even in a lemma no printed theorem uses. The audit has a plant every run. `build.sh` writes a module with an unused `sorry` and a minted axiom, audits it with the stack, and fails unless both are refused. `build.sh` also fails on any "declaration uses 'sorry'" the compiler reports. The run line adds `N declarations audited, plant caught`.
 
-Output of the run in this repository: `proofs: 27 files, 615 theorems reported, 3897 declarations audited, plant caught, rc=0`. The nineteen files carried from the parent print 550 (548 at the commit they were carried at, and two more since `Reader.lean` states `sibling_by_acknowledgement`); the seven added for the crate (`CutFix`, `SeatWalk`, `SeatCount`, `WindowTable`, `Retained`, `Versions`, `Ops`) print 52; `Repurge.lean` prints 13. The count is of lines reporting the axioms a declaration depends on (`#print axioms`), one per theorem the files print, not of every lemma.
+Output of the run in this repository: `proofs: 28 files, 677 theorems reported, 4334 declarations audited, plant caught, rc=0`. The nineteen files carried from the parent print 550 (548 at the commit they were carried at, and two more since `Reader.lean` states `sibling_by_acknowledgement`); the seven added for the crate (`CutFix`, `SeatWalk`, `SeatCount`, `WindowTable`, `Retained`, `Versions`, `Ops`) print 52; `Repurge.lean` prints 13; `Admission.lean` prints 62. The count is of lines reporting the axioms a declaration depends on (`#print axioms`), one per theorem the files print, not of every lemma.
 
 `Repurge.lean` is written for this repository and has no counterpart in the parent or in the crate's gaps.
 
@@ -215,3 +215,25 @@ over Lean definitions of the same shape, and are built by `build.sh` like the re
 | `Retained.lean` | the rows that have not lapsed are closed downwards; revocations are kept |
 | `Versions.lean` | built on, for roster versions |
 | `Ops.lean` | the reducer that refuses a tie is a function of the set, and refuses only a real tie |
+| `Admission.lean` | CC 2.7.11 (Constitution v1.0-rc21, commit b016df4): code, profile and action admission, transcribed from `formal/admission/admission.py`, are each one walk (`Causal.reaches` to the stander, `Consent.bodyConsents` on the row) and differ in the body: one voice for profile and one person's code row, a count of two or more for a counted code row, the four faculties at four for an action (`three_admissions_one_walk`); the fourteen properties of `admission_expected.tsv` as theorems over every world |
+
+### `Admission.lean`: what the claim needs
+
+The Constitution's `formal/admission/README.md` (v1.0-rc21) says that code and profile admission are the kernel's
+seat walk at one voice and action admission the same walk at a count, "argued here and run, not proved in Lean".
+`Admission.lean` proves it with two qualifications, each a theorem:
+
+- Code admission is at one voice only for a unit that names no effect, or for the host owner's own row on its own
+  host, whose walk has depth 0 (`code_effect_body`). Any other unit that names an effect is the walk at a count of
+  at least two persons (`p4_effect_needs_count_or_owner`), as CC 2.7.11's own table says.
+- The action scope differs in more than the count. Its root and stander are the agent's own key at depth 0, and its
+  voices are the four faculties, which are not persons. A dispatch can pass in a world with no person in it
+  (`action_needs_no_person`). CC 2.7.11's "rooted in a person" holds for an action only where an objection is
+  discharged or authority is claimed (`p9_discharge_by_person`).
+
+All fourteen properties are stated and proved for every world (P1–P14, theorem names in the file header). P2 and P9
+assume the unit digest and the call fingerprint are injective, and P10 reads the profile digest as the list of link
+digests, which is the same assumption. That is SHA-256's collision resistance, which a Lean proof cannot give, so it
+is a hypothesis of those theorems. P12 is proved for every permutation, where the model runs twelve. In seven places
+`admission.py` takes the first matching row in the list. The Lean reads any held row instead, so it agrees with the
+model wherever one such row is held (every case of `check_admission.py`) and is independent of order where two are.
