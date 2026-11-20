@@ -198,6 +198,17 @@ time is not cone-sized, for two reasons that the numbers separate:
 why `held::clone` is 30 ms at 64,000. This is the quadratic term issue #4 names, and the sparse past is now the
 first thing to measure.
 
+### Next, in persist's order (cirispersist-e7, 2026-11-20)
+
+1. **A sparse past.** The dense past (~n² / 128 words) must go before a node can hold a 64,000-row view in
+   memory.
+2. **A cheap `resume`.** Persist rebuilds its rows per transaction, so a borrowing `Held` lives only as long as
+   that row arena. The checkpoint is how a held view crosses transactions: `resume` plus rows re-attached by id
+   from persist's store. Its cost against a fold is the number persist cares about most, and the bench reports
+   it first.
+3. Persist accepts `&'a R` in place of a handle type. It runs `held::differential` on its own row mixes after
+   v62.0 is tagged.
+
 ### Not yet
 
 `HeldView` (the head layer and its conflict cone), the checkpoint (`checkpoint` / `resume`, ids only), foreign
