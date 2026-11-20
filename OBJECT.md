@@ -168,10 +168,15 @@ pair.
 **Status.** PROVED for a sufficient set ([`Settled.lean`](proofs/Settled.lean)): `closed_iff_no_witness_pair`,
 `full_view_closed`, `pruned_view_closed`, `pruned_view_answers`, `concl_ext_local`, `checkpoint_resume`,
 `checkpoint_conclusions`; the unsafe case, `count_view_not_closed`, `Rows2.unsettled_drop_has_witness_pair`.
-RUN: `check_purge.py` prints `broad reading: 200 replays over 9 histories; 12 rows kept whole, 36 reduced to a
+PROVED for repeated purges, by composition ([`Repurge.lean`](proofs/Repurge.lean)): `closedBy_comp`,
+`any_schedule` (the same purge again under any schedule of arrivals equals one purge of the full store),
+`two_purges_closedBy`, `two_purges_read`, `two_purges_commute` (two acts, one purge after the other, in either order,
+when each act's answer reads no row the other's purge drops); the condition is needed, `shared_drop_misreads` (a
+receipt two acts share). RUN: `check_purge.py` prints `broad reading: 200 replays over 9 histories; 12 rows kept whole, 36 reduced to a
 stub` and `narrow reading: 200 replays over 9 histories; 16 rows kept whole, 32 reduced to a stub`, every answer
-equal to keeping everything, no duty breached, eight plants caught. OPEN: the least set that suffices; many acts
-purged at once and repeated purges (run part way, not proved); stubs as the store; own end, key end and
+equal to keeping everything, no duty breached, eight plants caught. OPEN: the least set that suffices; three or
+more acts (one more composition each, not mechanized); whether the rule tables' `blocked` answers meet the
+separation condition (a receipt row naming two acts breaks it); stubs as the store; own end, key end and
 `revoked_after` over stubs.
 
 **Reasoning.** A view of the store is safe to keep in place of the rows exactly when its next value is a function
