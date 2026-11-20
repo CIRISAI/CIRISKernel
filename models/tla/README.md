@@ -14,16 +14,18 @@ One spec per concern. Each states its invariants and temporal properties, and it
 | `TrustWalk.tla` | the trust walk's termination with cycles, on every subgraph of a candidate set, against the Lean `walk` | 2,480 | 454,016 | each key is expanded once, with its first budget |
 | `MinorVoid.tla` | CC 3.2 (v1.0-rc21): a duty appointment made to a minor is void, as a fold over the held rows; in every arrival order (a retraction before its row included) and at every clock the verdict is the same, backdating only voids, a retracted or superseded minor row still counts, a self-declared adult lifts nothing | 14,336 | 589,824 | the adult proof is judged unexpired at the node's clock, not at D's `asserted_at` (persist's K2-fix11); caught as two instants disagreeing (`Inv_NodesAgree`) |
 | `MinorSuspend.tla` | the current age band about a person at an act's own `asserted_at` (CC 3.4.11 read-union, CC 3.5.1 rules 2 and 3, CC 2.4.1.1): per signer the newest row stands, the lowest id at one instant, a retraction counts from its own instant, and the row counts only if it covers the instant; the seat is held but not counted while it reads minor. Every order, a retraction before its row included, and every reader clock give the same reading; a minor graduates by its signer's newer adult row and the void is untouched; the cross-signer rules hold | 24,576 | 1,048,576 | the band read at the reader's clock, not the act's `asserted_at`; caught as `Inv_NodesAgree` |
-| `StandingProtection.tla` | CC 5.4.6: a federation-scope owner-binding concludes nothing while a minor row about the person stands, read on the rows held now; two nodes take the rows in any order each | 1,024 | 65,536 | the announcement judged once, when the binding arrives; caught as `Inv_Fold` (and, alone, as `Inv_NodesAgree`, `Inv_NoMinorAnnounced` and `Prop_MinorPullsBack`) |
+| `StandingProtection.tla` | CC 5.4.6 as ruled: a federation-scope owner-binding concludes nothing while the person's CURRENT band reads minor, read from the rows held now with `MinorSuspend`'s band function (a superseded or outranked minor row stops blocking, the subject's minor and an equal-level minor still block), expiry on the reading node's own clock; two nodes with their own clocks take the rows in any order; they agree at equal clocks and differ only across a held row's expiry, and the void still counts what the protection lets go | 147,456 | 2,359,296 | the announcement judged once, at the binding's instant; caught as `Inv_Fold` |
 
 The constants, diameters and times are in `crates/ciris-kernel/FORMAL_GAPS.md`. `bash tools/tla_check.sh`
-runs the small set, and `bash tools/tla_check.sh --large` runs the large one (about three minutes on 32 cores).
+runs the small set, and `bash tools/tla_check.sh --large` runs the large one (about five minutes on 32 cores).
 `MinorVoid_expiry.cfg` is not part of either run: it adds "and unexpired at D's `asserted_at`" to clause 2, a reading
 the rc21 text does not have, and TLC finds `Inv_BackdateOnlyVoids` violated (a minor row, an assured adult proof
 dated 2 expiring at 4: D dated 4 is void, the same D dated 3 is not). The Constitution withdrew that clause
 because of it, and the configuration is kept as a regression plant. `MinorVoid_retracted_adult.cfg` and
 `MinorVoid_retracted_adult_large.cfg` run an open question's other answer, a retracted adult proof proving
 nothing (`RETRACTED_ADULT_LIFTS = FALSE`); both pass, and they are not part of either run either.
+`StandingProtection_void_witness.cfg`, also outside both runs, is meant to fail: TLC shows a node announced while
+it holds a witness's minor row that the same witness's newer adult row superseded, a row the void still counts.
 `tools/tla_door_fixture.py` dumps every reachable state of
 `Door.tla`, and `crates/ciris-kernel/tests/tla_door.rs` replays each through the crate's door.
 These are runs to a bound over models written by the authors of the rules, as the Python checks are.

@@ -46,24 +46,31 @@ IsMinor(r) == r \in AgeRows /\ r.band = "minor"
 
 \* rows: [Signers -> set of that signer's age rows]; rets: set of <<target id, retraction's asserted_at>>
 Counted(rets, r, t) == r.at <= t /\ ~\E p \in rets : p[1] = r.id /\ p[2] <= t
-Covers(r, t) == r.at <= t /\ (r.exp = 0 \/ t < r.exp)
 Max(S) == CHOOSE a \in S : \A b \in S : b <= a
 Min(S) == CHOOSE a \in S : \A b \in S : a <= b
-\* the signer's current row at t, as a set of at most one row
-Current(S, rets, t) ==
+\* The band function, shared with StandingProtection.tla. A signer's current row: its newest row among
+\* those counted at t (dated <= t, no retraction dated <= t naming it), the lowest id at one instant, if it
+\* is unexpired at the clock c. An act's reading takes c = t; a standing protection reads the held set
+\* (t = Forever) at the reading node's own clock c.
+Forever == 1000
+CurrentAt(S, rets, t, c) ==
   LET C == {r \in S : Counted(rets, r, t)}
   IN IF C = {} THEN {}
      ELSE LET m == Max({r.at : r \in C})
               win == CHOOSE r \in C : r.at = m /\ r.id = Min({q.id : q \in {q2 \in C : q2.at = m}})
-          IN IF Covers(win, t) THEN {win} ELSE {}
-SignerBand(S, rets, t) == LET c == Current(S, rets, t) IN IF c = {} THEN "none" ELSE (CHOOSE r \in c : TRUE).band
-Band(rows, rets, t) ==
-  LET sb == [s \in Signers |-> SignerBand(rows[s], rets, t)]
+          IN IF win.exp = 0 \/ c < win.exp THEN {win} ELSE {}
+SignerBandAt(S, rets, t, c) == LET cur == CurrentAt(S, rets, t, c) IN
+                                 IF cur = {} THEN "none" ELSE (CHOOSE r \in cur : TRUE).band
+\* across signers: the subject's minor lowers; else the highest witness level, and at it minor wins
+BandAt(rows, rets, t, c) ==
+  LET sb == [s \in Signers |-> SignerBandAt(rows[s], rets, t, c)]
       present == {w \in Witnesses : sb[w] # "none"}
       top == IF present = {} THEN 0 ELSE Max({Level(w) : w \in present})
       wit == IF present = {} THEN "none"
              ELSE IF \E w \in present : Level(w) = top /\ sb[w] = "minor" THEN "minor" ELSE "adult"
   IN IF sb[0] = "minor" THEN "minor" ELSE wit
+SignerBand(S, rets, t) == SignerBandAt(S, rets, t, t)
+Band(rows, rets, t) == BandAt(rows, rets, t, t)
 
 \* The set function, read straight from the held set H
 RowsOf(H) == [s \in Signers |-> {r \in H \cap AgeRows : r.s = s}]
