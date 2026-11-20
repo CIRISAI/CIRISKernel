@@ -12,9 +12,13 @@ One spec per concern. Each states its invariants and temporal properties, and it
 | `ReaderLine.tla` | the roster head and the acknowledged-head voiding, per reader, as CC 2.7.8 reads it | 13,924 | 551,300 (SYMMETRY over readers) | one reader's acknowledgement voids for every reader |
 | `Purge.tla` | finality by receipts, one say, checkpoint and purge | 2,304 | 147,456 | the node purges before the act is settled |
 | `TrustWalk.tla` | the trust walk's termination with cycles, on every subgraph of a candidate set, against the Lean `walk` | 2,480 | 454,016 | each key is expanded once, with its first budget |
+| `MinorVoid.tla` | CC 3.2 (v1.0-rc21): a duty appointment made to a minor is void, as a fold over the held rows; in every arrival order and at every clock the verdict is the same, backdating only voids, a retracted or superseded minor row still counts, a self-declared adult lifts nothing | 6,048 | 186,624 | the adult proof is judged unexpired at the node's clock, not at D's `asserted_at` (persist's K2-fix11); caught as two instants disagreeing (`Inv_NodesAgree`) |
 
 The constants, diameters and times are in `crates/ciris-kernel/FORMAL_GAPS.md`. `bash tools/tla_check.sh`
 runs the small set, and `bash tools/tla_check.sh --large` runs the large one (about three minutes on 32 cores).
+`MinorVoid_expiry.cfg` is not part of either run: it adds "and unexpired at D's `asserted_at`" to clause 2, a reading
+the rc21 text does not have, and TLC finds `Inv_BackdateOnlyVoids` violated (a minor row, an assured adult proof
+dated 2 expiring at 4: D dated 4 is void, the same D dated 3 is not).
 `tools/tla_door_fixture.py` dumps every reachable state of
 `Door.tla`, and `crates/ciris-kernel/tests/tla_door.rs` replays each through the crate's door.
 These are runs to a bound over models written by the authors of the rules, as the Python checks are.
