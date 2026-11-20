@@ -60,6 +60,12 @@ pub struct Concluded<'a, R: Row> {
     cs: Vec<usize>,
 }
 
+impl<R: Row> Clone for Concluded<'_, R> {
+    fn clone(&self) -> Self {
+        Concluded { g: self.g.clone(), c: self.c.clone(), cs: self.cs.clone() }
+    }
+}
+
 impl<'a, R: Row> Concluded<'a, R> {
     /// A graph with the conclusions given (every row concluded when `c` is `None`). A row that
     /// [waits](Graph::waiting) on a cycle of names concludes nothing, whatever `c` says.
@@ -70,6 +76,22 @@ impl<'a, R: Row> Concluded<'a, R> {
         }
         let cs = (0..g.len()).filter(|&i| c[i]).collect();
         Concluded { g, c, cs }
+    }
+    /// Room for `rows` more rows naming `names` ids in all.
+    pub(crate) fn reserve(&mut self, rows: usize, names: usize) {
+        self.g.reserve(rows, names);
+        self.c.reserve(rows);
+        self.cs.reserve(rows);
+    }
+    /// Record the conclusion of the row last added to `g` by [`Graph::push`] (none for a row that waits).
+    pub(crate) fn conclude_pushed(&mut self, c: bool) {
+        let i = self.c.len();
+        debug_assert_eq!(i + 1, self.g.len(), "one conclusion per pushed row");
+        let c = c && !self.g.waiting(i);
+        self.c.push(c);
+        if c {
+            self.cs.push(i);
+        }
     }
     /// Whether row `i` concluded.
     #[inline]

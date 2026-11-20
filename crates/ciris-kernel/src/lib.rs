@@ -20,6 +20,7 @@
 //! | [`seat`] | 5 (stands), 7 | the seat: two consents, the bounded walk, members at a head, tips wait |
 //! | [`window`] | 5 (window) | a window as rows: receipt, landing and recount |
 //! | [`head`] | 3, 3a | answers by head: receipts, one say, settled, missing; checkpoint and purge |
+//! | [`held`] | 3 | the two layers held across admissions: one row admitted at a time, only what it releases recomputed |
 //! | [`key_end`] | 5 (two notions of time) | a key's own end and the rows that lapse |
 //! | [`trust`] | 5 (stands), CC 4.4.3.34 | the reader's trust walk over acceptance edges |
 //! | [`ranked`] | 5 (the door's parameters) | the ranked count, with and without a declared order |
@@ -33,6 +34,7 @@ pub mod cut;
 pub mod derived;
 pub mod graph;
 pub mod head;
+pub mod held;
 pub mod key_end;
 pub mod layers;
 pub mod line;
