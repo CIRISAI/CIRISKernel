@@ -1,0 +1,46 @@
+name: bench
+
+# The crate's benches on a runner with no other load, so their numbers can be quoted (a shared host moved one
+# bench by 15%; PERF.md). Manual only: a benchmark run is a decision, not a side effect of a push
+# (CIRISHolon's bakeoff.yml). The TSV is kept as an artifact, with the runner's CPU for the record.
+on:
+  workflow_dispatch:
+    inputs:
+      filter:
+        description: 'Benches whose names contain this (empty: all). For example held:: or =held::admit(one)'
+        required: false
+        default: ''
+      sizes:
+        description: 'Comma-separated sizes'
+        required: false
+        default: '3,16,128,1024'
+
+permissions:
+  contents: read
+
+jobs:
+  persist_paths:
+    name: examples/persist_paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: The runner, for the record
+        run: |
+          { echo "commit ${GITHUB_SHA}"; nproc; grep -m1 'model name' /proc/cpuinfo; rustc --version; } | tee runner.txt
+      - name: Run the benches
+        env:
+          FILTER: ${{ inputs.filter }}
+          SIZES: ${{ inputs.sizes }}
+        run: |
+          cargo build --offline --release -p ciris-kernel --example persist_paths
+          bin=target/release/examples/persist_paths
+          if [ -n "$FILTER" ]; then "$bin" "$FILTER" --sizes "$SIZES"; else "$bin" --sizes "$SIZES"; fi | tee bench.tsv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: persist_paths-${{ github.sha }}
+          path: |
+            bench.tsv
+            runner.txt

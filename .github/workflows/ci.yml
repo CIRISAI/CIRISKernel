@@ -6,7 +6,15 @@ name: check
 on:
   workflow_dispatch:
   push:
+    branches: [main]
   pull_request:
+
+# One run per branch or PR: a newer push cancels the run of an older one, whose tree the newer one holds.
+# A push runs on main only; a branch is checked through its pull request, so a PR's commit runs once, not twice
+# (CIRISHolon's verify.yml, added after 29 queued runs held the organisation's shared runners).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

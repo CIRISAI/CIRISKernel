@@ -191,6 +191,8 @@ An edge is withdrawn only by its own signer.
 Run: `bash proofs/build.sh`, with Lean 4.14.0 on the path (installed as the top-level README says). It compiles the twenty-six files in order and exits on a compile error,
 a `sorry`, or an axiom beyond the three of core Lean.
 
+Then it runs `Audit.lean`, the semantic audit. That file imports the whole stack and asks Lean which axioms every declaration depends on (`collectAxioms`). This covers every declaration, not only the theorems a `#print axioms` line reports. A `sorry` leaves `sorryAx` behind, and an `axiom` declared here names itself, so either fails the build, even in a lemma no printed theorem uses. The audit has a plant every run. `build.sh` writes a module with an unused `sorry` and a minted axiom, audits it with the stack, and fails unless both are refused. `build.sh` also fails on any "declaration uses 'sorry'" the compiler reports. The run line adds `N declarations audited, plant caught`.
+
 Output of the run in this repository: `proofs: 26 files, 600 theorems reported, rc=0`. The nineteen files carried from the parent printed 548; the seven added for the crate (`CutFix`, `SeatWalk`, `SeatCount`, `WindowTable`, `Retained`, `Versions`, `Ops`) print 52 more. The count is of lines reporting the axioms a declaration depends on (`#print axioms`), one per theorem the files print, not of every lemma.
 
 ## Added for the crate
