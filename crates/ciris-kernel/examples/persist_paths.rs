@@ -746,6 +746,21 @@ fn main() {
             let x = B::new(rid(9, m), tips.to_vec(), key(3));
             let base = Held::new(spec, rows.iter());
             assert_eq!(base.len(), n);
+            if !h.list && h.named("held::past_bytes") {
+                // memory, not time: the bytes the held view's pasts hold, with the default window and with every
+                // past kept (what a held view held before the window)
+                let mut all = Held::empty(spec);
+                all.set_past_window(usize::MAX);
+                for r in &rows {
+                    let _ = all.admit(r);
+                }
+                println!(
+                    "held::past_bytes(window={})\t{n}\t{}\t-\t-\t-",
+                    base.past_window(),
+                    base.concluded().g.past_bytes()
+                );
+                println!("held::past_bytes(every past)\t{n}\t{}\t-\t-\t-", all.concluded().g.past_bytes());
+            }
             h.run_mut("held::admit(one)", n, || fresh(&base), |hv| hv.admit(&x).unwrap().visited);
             // the kernel's own work, with a rule that reads nothing: what is left is the rule's
             let free = Rules { wf: |_: &B| true, rule: |_: &Past<'_, '_, B>| true };

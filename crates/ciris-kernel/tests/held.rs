@@ -146,3 +146,39 @@ fn one_admission_visits_its_cone_not_the_store() {
     assert_eq!(a.kept, vec![n]);
     assert_eq!(a.visited, 1 + 3);
 }
+
+#[test]
+fn the_past_window_changes_no_answer() {
+    let rows = dag(600, 3, 40, 21);
+    for o in orders(&rows) {
+        let views: Vec<Held<'_, N, _>> = [0usize, 1, 7, 64, usize::MAX]
+            .into_iter()
+            .map(|w| {
+                let mut h = Held::empty(Rules { wf, rule: parity });
+                h.set_past_window(w);
+                for r in &o {
+                    let _ = h.admit(r);
+                }
+                h
+            })
+            .collect();
+        let base = &views[4];
+        for h in &views[..4] {
+            assert_eq!(h.len(), base.len());
+            for r in &rows {
+                assert_eq!(h.concluded_id(r.id()), base.concluded_id(r.id()));
+                let (Some(a), Some(b)) = (h.concluded().g.idx(r.id()), base.concluded().g.idx(r.id())) else {
+                    continue;
+                };
+                assert_eq!(h.concluded().g.depth(a), base.concluded().g.depth(b));
+            }
+        }
+        // a window of w keeps at most w pasts computed after admission
+        let mut h = Held::empty(Rules { wf, rule: parity });
+        h.set_past_window(7);
+        for r in &o {
+            let _ = h.admit(r);
+        }
+        assert!(h.concluded().g.past_bytes() <= 7 * h.len().div_ceil(64) * 8 + 7 * 64);
+    }
+}

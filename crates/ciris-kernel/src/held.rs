@@ -18,6 +18,9 @@
 //! everything. A refused admission changes nothing, and a `Held` is `Clone`, so a caller inside a transaction
 //! that may roll back can keep the value it had.
 //!
+//! **Memory.** A held row's past is kept only while the row is among the [`PAST_WINDOW`] kept most recently
+//! ([`Held::set_past_window`]). The pasts kept are compact where that is smaller ([`Bits`](crate::graph::Bits)).
+//!
 //! **Cost of one admission** (`Admitted::visited` counts it): for each row kept, one entry per id it names
 //! (a binary search, or a map lookup for a row admitted here), its past as one bit-set walk over what it names
 //! (`n / 64` words for `n` held rows), and the conclusion rule over its concluded past. Nothing is
@@ -26,7 +29,7 @@
 
 use crate::layers::{Concluded, Past};
 use crate::Row;
-use alloc::collections::BTreeMap;
+use alloc::collections::{BTreeMap, VecDeque};
 use alloc::vec::Vec;
 
 /// The rules of one layered fold, as a value a [`Held`] owns (so a `Held` can live across calls).
@@ -103,7 +106,14 @@ pub struct Held<'a, R: Row, S> {
     waiting: BTreeMap<R::Id, Wait<'a, R>>,
     /// For each id not held that a waiting row names, the waiting rows that name it.
     waiting_on: BTreeMap<R::Id, Vec<R::Id>>,
+    /// The rows kept most recently, whose pasts stay computed; older rows' pasts are dropped.
+    recent: VecDeque<usize>,
+    /// How many rows' pasts stay computed ([`Held::set_past_window`]).
+    window: usize,
 }
+
+/// How many of the rows kept most recently keep their pasts computed, unless [`Held::set_past_window`] says.
+pub const PAST_WINDOW: usize = 64;
 
 impl<'a, R: Row, S: Clone> Clone for Held<'a, R, S> {
     fn clone(&self) -> Self {
@@ -113,6 +123,8 @@ impl<'a, R: Row, S: Clone> Clone for Held<'a, R, S> {
             rooted: self.rooted.clone(),
             waiting: self.waiting.iter().map(|(k, w)| (k.clone(), Wait { row: w.row, left: w.left })).collect(),
             waiting_on: self.waiting_on.clone(),
+            recent: self.recent.clone(),
+            window: self.window,
         }
     }
 }
@@ -120,12 +132,39 @@ impl<'a, R: Row, S: Clone> Clone for Held<'a, R, S> {
 impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
     /// Nothing held.
     pub fn empty(spec: S) -> Self {
+        let mut g = crate::graph::Graph::new(core::iter::empty());
+        g.set_compact(true);
         Held {
             spec,
-            con: Concluded::with(crate::graph::Graph::new(core::iter::empty()), None),
+            con: Concluded::with(g, None),
             rooted: Vec::new(),
             waiting: BTreeMap::new(),
             waiting_on: BTreeMap::new(),
+            recent: VecDeque::new(),
+            window: PAST_WINDOW,
+        }
+    }
+
+    /// Keep the pasts of the `w` rows kept most recently, and drop the rest as rows are kept (`usize::MAX`
+    /// keeps every past, as [`layers::conclude`](crate::layers::conclude) does while it runs).
+    ///
+    /// A past is read in full once, when its row is concluded. After that it serves only as a shortcut for the
+    /// rows kept later that name it: a walk down from a new row takes a known past whole. New rows mostly name
+    /// recent ones, so a window of recent pasts keeps that shortcut while the memory stays about
+    /// `w × n / 64` words, not `n² / 128`. A dropped past is computed again when a question needs it. No
+    /// answer depends on the window, only time and memory do.
+    pub fn set_past_window(&mut self, w: usize) {
+        self.window = w;
+        self.trim();
+    }
+    /// How many recent rows keep their pasts.
+    pub fn past_window(&self) -> usize {
+        self.window
+    }
+    fn trim(&mut self) {
+        while self.recent.len() > self.window {
+            let j = self.recent.pop_front().expect("longer than the window");
+            self.con.g.forget_past(j);
         }
     }
 
@@ -216,6 +255,8 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
             self.spec.conclude(&Past { g, i, p: &p })
         };
         self.con.conclude_pushed(c);
+        self.recent.push_back(i);
+        self.trim();
     }
 
     /// Room for `rows` more rows naming `names` ids in all, so the next admissions do not grow a buffer. A
