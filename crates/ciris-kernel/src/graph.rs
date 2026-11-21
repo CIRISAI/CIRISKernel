@@ -8,7 +8,7 @@
 
 use crate::Row;
 use alloc::collections::BTreeMap;
-use core::cell::OnceCell;
+use core::cell::{Cell, OnceCell};
 
 /// How many rows a point question of the past searches before it computes and keeps the whole past.
 const SEARCH_BUDGET: usize = 256;
@@ -24,46 +24,182 @@ const FRONTIER_PAIRWISE: usize = 16;
 use alloc::vec;
 use alloc::vec::Vec;
 
-/// A fixed-size set of row indices.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// A set of row indices.
+///
+/// Two forms, one set: **dense**, a bit per index, for the sets a walk builds and reads at once; and
+/// **compact**, the sorted segments of a dense set (runs of whole 64-index words all present, and single words
+/// holding some), for a set that is kept. A [`Held`](crate::held::Held) view keeps its rows' pasts compact: rows are
+/// indexed in the order the door admitted them, so a past is mostly a run of whole words below the row and a few
+/// words near it, and held compact it costs about its number of distinct words rather than `n / 64` words.
+/// Equality and hashing read the set, not its form.
+#[derive(Clone, Debug)]
 pub struct Bits {
-    w: Vec<u64>,
+    r: Repr,
+}
+
+#[derive(Clone, Debug)]
+enum Repr {
+    /// One bit per index; word `k` holds indices `64 k .. 64 k + 64`.
+    Dense(Vec<u64>),
+    /// Ascending, disjoint, non-adjacent runs and words; no word is zero or all ones.
+    Compact(Vec<Seg>),
+}
+
+/// A segment of a compact set, by word index.
+#[derive(Clone, Copy, Debug)]
+enum Seg {
+    /// Words `at .. at + len`, every bit set.
+    Ones { at: u32, len: u32 },
+    /// Word `at`, these bits.
+    Word { at: u32, w: u64 },
+}
+
+impl Seg {
+    #[inline]
+    fn at(self) -> usize {
+        match self {
+            Seg::Ones { at, .. } | Seg::Word { at, .. } => at as usize,
+        }
+    }
+    #[inline]
+    fn end(self) -> usize {
+        match self {
+            Seg::Ones { at, len } => (at + len) as usize,
+            Seg::Word { at, .. } => at as usize + 1,
+        }
+    }
+}
+
+/// The non-zero words of a set, ascending, with their indices.
+enum Words<'b> {
+    Dense(core::iter::Enumerate<core::slice::Iter<'b, u64>>),
+    Compact { segs: core::slice::Iter<'b, Seg>, run: core::ops::Range<usize> },
+}
+
+impl Iterator for Words<'_> {
+    type Item = (usize, u64);
+    fn next(&mut self) -> Option<(usize, u64)> {
+        match self {
+            Words::Dense(it) => it.find(|(_, w)| **w != 0).map(|(k, w)| (k, *w)),
+            Words::Compact { segs, run } => {
+                if let Some(k) = run.next() {
+                    return Some((k, !0));
+                }
+                match segs.next()? {
+                    Seg::Word { at, w } => Some((*at as usize, *w)),
+                    Seg::Ones { at, len } => {
+                        *run = (*at as usize + 1)..(*at + *len) as usize;
+                        Some((*at as usize, !0))
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl PartialEq for Bits {
+    fn eq(&self, o: &Bits) -> bool {
+        self.words().eq(o.words())
+    }
+}
+impl Eq for Bits {}
+impl core::hash::Hash for Bits {
+    fn hash<H: core::hash::Hasher>(&self, h: &mut H) {
+        for (k, w) in self.words() {
+            k.hash(h);
+            w.hash(h);
+        }
+    }
 }
 
 impl Bits {
-    /// The empty set over `n` indices.
+    /// The empty set over `n` indices (dense).
     pub fn new(n: usize) -> Self {
-        Bits { w: vec![0; n.div_ceil(64)] }
+        Bits { r: Repr::Dense(vec![0; n.div_ceil(64)]) }
     }
     /// Whether `i` is in the set.
     #[inline]
     pub fn has(&self, i: usize) -> bool {
-        self.w.get(i / 64).is_some_and(|x| (x >> (i % 64)) & 1 == 1)
+        let k = i / 64;
+        let w = match &self.r {
+            Repr::Dense(w) => w.get(k).copied().unwrap_or(0),
+            Repr::Compact(s) => {
+                let at = s.partition_point(|x| x.at() <= k);
+                match at.checked_sub(1).map(|j| s[j]) {
+                    Some(Seg::Ones { at, len }) if k < (at + len) as usize => !0,
+                    Some(Seg::Word { at, w }) if k == at as usize => w,
+                    _ => 0,
+                }
+            }
+        };
+        (w >> (i % 64)) & 1 == 1
     }
-    /// Add `i`.
+    /// Add `i`. A dense set panics on an index at or past the `n` it was made for, as it always has; a compact
+    /// set becomes dense first.
     #[inline]
     pub fn set(&mut self, i: usize) {
-        self.w[i / 64] |= 1 << (i % 64);
+        if let Repr::Compact(_) = self.r {
+            self.densify(i / 64 + 1);
+        }
+        let Repr::Dense(w) = &mut self.r else { unreachable!("made dense above") };
+        w[i / 64] |= 1 << (i % 64);
     }
-    /// Add every index of `o`.
+    /// Add every index of `o` below this set's size (a dense set's `n`; a compact one grows to hold `o`).
     pub fn union(&mut self, o: &Bits) {
-        for (a, b) in self.w.iter_mut().zip(o.w.iter()) {
-            *a |= *b;
+        if let Repr::Compact(_) = self.r {
+            let need = self.words_len().max(o.words_len());
+            self.densify(need);
+        }
+        let Repr::Dense(w) = &mut self.r else { unreachable!("made dense above") };
+        match &o.r {
+            Repr::Dense(ow) => {
+                for (a, b) in w.iter_mut().zip(ow.iter()) {
+                    *a |= *b;
+                }
+            }
+            Repr::Compact(segs) => {
+                let n = w.len();
+                for s in segs {
+                    match *s {
+                        Seg::Word { at, w: x } => {
+                            if let Some(a) = w.get_mut(at as usize) {
+                                *a |= x;
+                            }
+                        }
+                        Seg::Ones { at, len } => {
+                            let (a, e) = ((at as usize).min(n), ((at + len) as usize).min(n));
+                            w[a..e].iter_mut().for_each(|x| *x = !0);
+                        }
+                    }
+                }
+            }
         }
     }
     /// The number of indices in the set.
     pub fn len(&self) -> usize {
-        self.w.iter().map(|x| x.count_ones() as usize).sum()
+        match &self.r {
+            Repr::Dense(w) => w.iter().map(|x| x.count_ones() as usize).sum(),
+            Repr::Compact(s) => s
+                .iter()
+                .map(|x| match *x {
+                    Seg::Ones { len, .. } => 64 * len as usize,
+                    Seg::Word { w, .. } => w.count_ones() as usize,
+                })
+                .sum(),
+        }
     }
     /// Whether the set is empty.
     pub fn is_empty(&self) -> bool {
-        self.w.iter().all(|x| *x == 0)
+        match &self.r {
+            Repr::Dense(w) => w.iter().all(|x| *x == 0),
+            Repr::Compact(s) => s.is_empty(),
+        }
     }
     /// The indices, ascending.
     pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
         // one step per index held (lowest set bit first), not one per bit of the word
-        self.w.iter().enumerate().flat_map(|(k, x)| {
-            let mut x = *x;
+        self.words().flat_map(|(k, x)| {
+            let mut x = x;
             core::iter::from_fn(move || {
                 if x == 0 {
                     return None;
@@ -74,6 +210,75 @@ impl Bits {
             })
         })
     }
+    /// The same set, held compact when that is smaller than dense.
+    pub fn compact(self) -> Bits {
+        let Repr::Dense(w) = &self.r else { return self };
+        let mut segs: Vec<Seg> = Vec::new();
+        for (k, &x) in w.iter().enumerate() {
+            if x == 0 {
+                continue;
+            }
+            if x == !0 {
+                if let Some(Seg::Ones { at, len }) = segs.last_mut() {
+                    if (*at + *len) as usize == k {
+                        *len += 1;
+                        continue;
+                    }
+                }
+                segs.push(Seg::Ones { at: k as u32, len: 1 });
+            } else {
+                segs.push(Seg::Word { at: k as u32, w: x });
+            }
+        }
+        // a segment is two words' worth of bytes: compact only when that is fewer
+        if segs.len() * core::mem::size_of::<Seg>() < w.len() * 8 {
+            segs.shrink_to_fit();
+            Bits { r: Repr::Compact(segs) }
+        } else {
+            self
+        }
+    }
+    /// The bytes this set holds on the heap.
+    pub fn heap_bytes(&self) -> usize {
+        match &self.r {
+            Repr::Dense(w) => w.capacity() * 8,
+            Repr::Compact(s) => s.capacity() * core::mem::size_of::<Seg>(),
+        }
+    }
+    fn words(&self) -> Words<'_> {
+        match &self.r {
+            Repr::Dense(w) => Words::Dense(w.iter().enumerate()),
+            Repr::Compact(s) => Words::Compact { segs: s.iter(), run: 0..0 },
+        }
+    }
+    /// The number of words a dense form of this set needs.
+    fn words_len(&self) -> usize {
+        match &self.r {
+            Repr::Dense(w) => w.len(),
+            Repr::Compact(s) => s.last().map_or(0, |x| x.end()),
+        }
+    }
+    fn densify(&mut self, at_least: usize) {
+        let mut w = vec![0u64; self.words_len().max(at_least)];
+        for (k, x) in self.words() {
+            w[k] = x;
+        }
+        self.r = Repr::Dense(w);
+    }
+}
+
+/// What computing pasts has cost a graph so far: the price of a held view's window, measured on the caller's own
+/// rows ([`Held::set_past_window`](crate::held::Held::set_past_window)).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PastCounts {
+    /// Pasts computed.
+    pub computed: u64,
+    /// Of those, pasts computed again after the window dropped them.
+    pub recomputed: u64,
+    /// Rows a walk expanded one at a time because their own past was not kept. With every past kept, a walk takes
+    /// each named row's past whole and this stays near zero; a window too narrow for the rows admitted shows here
+    /// first, because a new row naming an old one walks the old row's past.
+    pub walked: u64,
 }
 
 /// A set of rows with the closure over what they name. Indices follow the order the rows were given in.
@@ -94,6 +299,16 @@ pub struct Graph<'a, R: Row> {
     anc: Vec<OnceCell<Bits>>,
     /// Rows added by [`Graph::push`] after building, by id. Empty for a graph built whole by [`Graph::new`].
     pushed: BTreeMap<R::Id, usize>,
+    /// Keep each computed past compact ([`Bits::compact`]). Off for a graph built by [`Graph::new`], so every
+    /// existing caller keeps dense pasts as before; a [`Held`](crate::held::Held) view turns it on.
+    compact: bool,
+    /// Rows whose past was dropped by [`forget_past`](Graph::forget_past) and not computed since.
+    forgotten: Vec<bool>,
+    /// Pasts computed, and of those, pasts computed again after being dropped.
+    computed: Cell<u64>,
+    recomputed: Cell<u64>,
+    /// Rows a past's walk expanded one by one because their own past was not kept.
+    walked: Cell<u64>,
 }
 
 impl<R: Row> Clone for Graph<'_, R> {
@@ -106,6 +321,11 @@ impl<R: Row> Clone for Graph<'_, R> {
             level: self.level.clone(),
             anc: self.anc.clone(),
             pushed: self.pushed.clone(),
+            compact: self.compact,
+            forgotten: self.forgotten.clone(),
+            computed: self.computed.clone(),
+            recomputed: self.recomputed.clone(),
+            walked: self.walked.clone(),
         }
     }
 }
@@ -214,7 +434,20 @@ impl<'a, R: Row> Graph<'a, R> {
             }
         }
         let anc = (0..n).map(|_| OnceCell::new()).collect();
-        Graph { rows: v, index, off, names, level, anc, pushed: BTreeMap::new() }
+        Graph {
+            rows: v,
+            index,
+            off,
+            names,
+            level,
+            anc,
+            pushed: BTreeMap::new(),
+            compact: false,
+            forgotten: Vec::new(),
+            computed: Cell::new(0),
+            recomputed: Cell::new(0),
+            walked: Cell::new(0),
+        }
     }
 
     /// Room for `rows` more rows naming `names` ids in all, so the next [`push`](Graph::push)es do not grow
@@ -316,11 +549,45 @@ impl<'a, R: Row> Graph<'a, R> {
             b.set(p);
             match self.anc[p].get() {
                 Some(pa) => b.union(pa),
-                None => todo.extend(self.named(p).iter().copied().filter(|&q| !b.has(q))),
+                None => {
+                    self.walked.set(self.walked.get() + 1);
+                    todo.extend(self.named(p).iter().copied().filter(|&q| !b.has(q)))
+                }
             }
         }
-        let _ = self.anc[i].set(b);
+        self.computed.set(self.computed.get() + 1);
+        if self.forgotten.get(i).copied().unwrap_or(false) {
+            // counted once per drop: the flag clears when the window drops it again (forget_past sets it)
+            self.recomputed.set(self.recomputed.get() + 1);
+        }
+        let _ = self.anc[i].set(if self.compact { b.compact() } else { b });
         self.anc[i].get().expect("computed above")
+    }
+    /// Keep the pasts computed from now on compact where that is smaller (a [`Held`](crate::held::Held) view's
+    /// graph). Answers do not change.
+    pub(crate) fn set_compact(&mut self, on: bool) {
+        self.compact = on;
+    }
+    /// Whether row `i`'s past is computed and kept.
+    pub(crate) fn has_past(&self, i: usize) -> bool {
+        self.anc[i].get().is_some()
+    }
+    /// Drop the kept past of row `i`; the next question that needs it computes it again. No answer changes.
+    pub(crate) fn forget_past(&mut self, i: usize) {
+        if self.anc[i].take().is_some() {
+            if self.forgotten.len() <= i {
+                self.forgotten.resize(i + 1, false);
+            }
+            self.forgotten[i] = true;
+        }
+    }
+    /// What computing pasts has cost so far ([`PastCounts`]).
+    pub fn past_counts(&self) -> PastCounts {
+        PastCounts { computed: self.computed.get(), recomputed: self.recomputed.get(), walked: self.walked.get() }
+    }
+    /// The bytes the pasts computed so far hold on the heap (each past is kept compact; see [`Bits`]).
+    pub fn past_bytes(&self) -> usize {
+        self.anc.iter().filter_map(|c| c.get()).map(Bits::heap_bytes).sum()
     }
     /// Whether row `a` is in the past of row `b`.
     #[inline]

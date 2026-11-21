@@ -1,7 +1,7 @@
 # ciris-kernel 0.3: held views (issue #4)
 
 The design agreed with CIRISPersist, then what has landed and what it measured. Status, 2026-11-20: slice 1
-(the concluded layer, `src/held.rs`) is in; `HeldView`, the checkpoint and `Held.lean` are not yet.
+(the concluded layer, `src/held.rs`) and slice 2 (its pasts bounded) are in; `HeldView`, the checkpoint and `Held.lean` are not yet.
 
 ## Proposal
 
@@ -198,10 +198,63 @@ time is not cone-sized, for two reasons that the numbers separate:
 why `held::clone` is 30 ms at 64,000. This is the quadratic term issue #4 names, and the sparse past is now the
 first thing to measure.
 
+## Slice 2: the held view's pasts, bounded
+
+**Memory, measured** (`held::past_bytes`; the same graph as slice 1, `dag(n, 3, 64, 7)`):
+
+| rows held | every past kept (slice 1) | window of 64 (now) |
+|---|---|---|
+| 1,024 | 70 KB | 8 KB |
+| 16,384 | 16.8 MB | 131 KB |
+| 64,000 | 256 MB | 512 KB |
+
+Copying a held view (`held::clone`) at 64,000 rows takes 1.2 ms, against 30 ms before.
+
+**A "sparse past" alone would not have done it.** In this graph the past of a recent row holds about 80% of the
+rows before it. The 20% it lacks (rows no later row names, like receipts) are scattered through every 64-index
+word, so no word is full. A sorted list of indices would cost 32 bits per row in the past, against 1 bit dense.
+What bounds the memory is to stop keeping every row's past:
+
+1. **A window of recently used pasts** (`Held::set_past_window`, default `held::PAST_WINDOW` = 64; LRU, see below). The conclusion rule
+   reads a row's past once, when the row is concluded. After that the past serves only as a shortcut for later
+   rows that name it, and new rows mostly name recent ones. A dropped past is computed again if a question needs
+   it. No answer depends on the window (`tests/held.rs`, `the_past_window_changes_no_answer`: windows 0, 1, 7, 64
+   and unbounded agree in five orders). Memory is about `w × n / 64` words.
+2. **Compact `Bits`.** A kept past is stored as sorted segments (runs of whole words, and single mixed words)
+   when that is smaller than dense. That is never larger than dense, and 16× smaller for a chain
+   (`tests/bits.rs`). Equality and hashing read the set, not its form. Only a held view turns compaction on
+   (`Graph::set_compact`, crate-private). `Graph::new`, `conclude` and every existing caller keep dense pasts
+   exactly as before.
+
+**The window is least recently used, not least recently admitted.** A row is *used* when it is kept, and whenever a
+row kept later names it. A row many later rows name, such as a new head with hundreds of dependents, therefore
+keeps its past however old it is. The first version evicted by admission order. On one same-runner CI A/B
+(Intel Xeon 6975P-C, `bench.yml` A/B mode), a new row with 256 dependents was 2.4× slower than keeping every past at
+16,384 rows (44 ms → 107 ms). After 64 dependents, the head's own past had been dropped, and each later dependent
+walked it again.
+
+**Measured, LRU window of 64 against `main`'s every-past view** (same machine, alternating, three rounds,
+`tools/kernel_bench_ab.py`; host load about 7):
+
+| 16,384 rows | every past (`main`) | LRU window 64 |
+|---|---|---|
+| admit one row | 405 µs | 331 µs |
+| one row, 256 dependents naming old rows | 44.1 ms | 43.1 ms |
+| clone | 3.46 ms | 0.24 ms |
+| pasts held | 16.8 MB | 131 KB |
+| build a whole view (`Held::new`, in order) | 1.14 s | 1.45 s |
+
+Building a whole view from nothing is about 21% slower, from the per-row bookkeeping. That is the cold path, and the
+checkpoint's `resume` is meant to replace it.
+
+**When the window still costs.** A walk takes each named row's kept past whole. A row outside the window that a new
+row names (a side branch, such as a receipt no later row named) has its past walked. `Held::past_counts()` returns
+`PastCounts { computed, recomputed, walked }`, so a caller can measure that on its own rows and set the window per
+store (`tests/held.rs`, `the_window_s_price_is_counted`). Persist will measure `walked` on a production-shaped store.
+
 ### Next, in persist's order (cirispersist-e7, 2026-11-20)
 
-1. **A sparse past.** The dense past (~n² / 128 words) must go before a node can hold a 64,000-row view in
-   memory.
+1. **A sparse past.** Done in slice 2: a window of recent pasts, kept compact.
 2. **A cheap `resume`.** Persist rebuilds its rows per transaction, so a borrowing `Held` lives only as long as
    that row arena. The checkpoint is how a held view crosses transactions: `resume` plus rows re-attached by id
    from persist's store. Its cost against a fold is the number persist cares about most, and the bench reports
