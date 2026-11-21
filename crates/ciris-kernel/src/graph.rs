@@ -568,6 +568,10 @@ impl<'a, R: Row> Graph<'a, R> {
     pub(crate) fn set_compact(&mut self, on: bool) {
         self.compact = on;
     }
+    /// Whether row `i`'s past is computed and kept.
+    pub(crate) fn has_past(&self, i: usize) -> bool {
+        self.anc[i].get().is_some()
+    }
     /// Drop the kept past of row `i`; the next question that needs it computes it again. No answer changes.
     pub(crate) fn forget_past(&mut self, i: usize) {
         if self.anc[i].take().is_some() {

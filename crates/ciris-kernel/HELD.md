@@ -215,7 +215,7 @@ rows before it. The 20% it lacks (rows no later row names, like receipts) are sc
 word, so no word is full. A sorted list of indices would cost 32 bits per row in the past, against 1 bit dense.
 What bounds the memory is to stop keeping every row's past:
 
-1. **A window of recent pasts** (`Held::set_past_window`, default `held::PAST_WINDOW` = 64). The conclusion rule
+1. **A window of recently used pasts** (`Held::set_past_window`, default `held::PAST_WINDOW` = 64; LRU, see below). The conclusion rule
    reads a row's past once, when the row is concluded. After that the past serves only as a shortcut for later
    rows that name it, and new rows mostly name recent ones. A dropped past is computed again if a question needs
    it. No answer depends on the window (`tests/held.rs`, `the_past_window_changes_no_answer`: windows 0, 1, 7, 64
@@ -226,18 +226,31 @@ What bounds the memory is to stop keeping every row's past:
    (`Graph::set_compact`, crate-private). `Graph::new`, `conclude` and every existing caller keep dense pasts
    exactly as before.
 
-**The cost, and when it is paid.** A new row's past is built by a walk that takes each named row's past whole
-when it is kept. Naming an old row that is in a recent row's past costs nothing: the recent row's past already
-holds it. The walk pays only when the old row is outside every kept past, on a side branch (a statement or
-receipt no later row named). Then it walks that row's past one row at a time. `Held::past_counts()` returns
-`PastCounts { computed, recomputed, walked }`, so a caller can measure the price on its own rows and set the
-window from it (`tests/held.rs`, `the_window_s_price_is_counted`). Persist expects its latency bursts to name old
-rows (a withdrawal, an age row re-folding old duty edges, a receipt merge). It will set the window per store and
-measure `walked` on a production-shaped store.
-`held::admit_dependents/256` (each dependent also names an old row) is 25–30% slower at 16,384 rows: about
-110 ms against 85 ms, on a host with load average about 40, so the figure is rough. One admission, and one row
-with 1 or 16 dependents, did not move. A caller that admits many rows naming old ones can widen the window; the
-trade is stated in `set_past_window`. Quotable numbers come from `bench.yml` on a quiet runner.
+**The window is least recently used, not least recently admitted.** A row is *used* when it is kept, and whenever a
+row kept later names it. A row many later rows name, such as a new head with hundreds of dependents, therefore
+keeps its past however old it is. The first version evicted by admission order. On one same-runner CI A/B
+(Intel Xeon 6975P-C, `bench.yml` A/B mode), a new row with 256 dependents was 2.4× slower than keeping every past at
+16,384 rows (44 ms → 107 ms). After 64 dependents, the head's own past had been dropped, and each later dependent
+walked it again.
+
+**Measured, LRU window of 64 against `main`'s every-past view** (same machine, alternating, three rounds,
+`tools/kernel_bench_ab.py`; host load about 7):
+
+| 16,384 rows | every past (`main`) | LRU window 64 |
+|---|---|---|
+| admit one row | 405 µs | 331 µs |
+| one row, 256 dependents naming old rows | 44.1 ms | 43.1 ms |
+| clone | 3.46 ms | 0.24 ms |
+| pasts held | 16.8 MB | 131 KB |
+| build a whole view (`Held::new`, in order) | 1.14 s | 1.45 s |
+
+Building a whole view from nothing is about 21% slower, from the per-row bookkeeping. That is the cold path, and the
+checkpoint's `resume` is meant to replace it.
+
+**When the window still costs.** A walk takes each named row's kept past whole. A row outside the window that a new
+row names (a side branch, such as a receipt no later row named) has its past walked. `Held::past_counts()` returns
+`PastCounts { computed, recomputed, walked }`, so a caller can measure that on its own rows and set the window per
+store (`tests/held.rs`, `the_window_s_price_is_counted`). Persist will measure `walked` on a production-shaped store.
 
 ### Next, in persist's order (cirispersist-e7, 2026-11-20)
 

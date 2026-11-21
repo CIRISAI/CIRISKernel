@@ -11,7 +11,7 @@
 - `Graph::push`, `Graph::reserve`; `Clone` for `Graph` and `Concluded`.
 - Benches `held::*` in `examples/persist_paths.rs`.
 - `Held::set_past_window` / `past_window` and `held::PAST_WINDOW` (64): a held view keeps the pasts of its most
-  recent rows only, so its memory is about `w × n / 64` words, not `n² / 128` (256 MB → 512 KB at 64,000 rows). No
+  recently used rows only (kept, or named by a row kept since), so its memory is about `w × n / 64` words, not `n² / 128` (256 MB → 512 KB at 64,000 rows). No
   answer depends on the window.
 - `Held::past_counts` / `Graph::past_counts` → `graph::PastCounts { computed, recomputed, walked }`: the window's
   price, measured on the caller's rows.

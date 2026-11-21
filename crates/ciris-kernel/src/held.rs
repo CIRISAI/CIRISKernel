@@ -18,7 +18,8 @@
 //! everything. A refused admission changes nothing, and a `Held` is `Clone`, so a caller inside a transaction
 //! that may roll back can keep the value it had.
 //!
-//! **Memory.** A held row's past is kept only while the row is among the [`PAST_WINDOW`] kept most recently
+//! **Memory.** A held row's past is kept only while the row is among the [`PAST_WINDOW`] used most recently
+//! (kept, or named by a row kept since)
 //! ([`Held::set_past_window`]). The pasts kept are compact where that is smaller ([`Bits`](crate::graph::Bits)).
 //!
 //! **Cost of one admission** (`Admitted::visited` counts it): for each row kept, one entry per id it names
@@ -106,13 +107,20 @@ pub struct Held<'a, R: Row, S> {
     waiting: BTreeMap<R::Id, Wait<'a, R>>,
     /// For each id not held that a waiting row names, the waiting rows that name it.
     waiting_on: BTreeMap<R::Id, Vec<R::Id>>,
-    /// The rows kept most recently, whose pasts stay computed; older rows' pasts are dropped.
-    recent: VecDeque<usize>,
+    /// The rows whose pasts stay computed, least recently used first, as (use, row). A row is used when it
+    /// is kept and whenever a row kept later names it. An entry whose use is older than the row's last use is
+    /// stale and skipped.
+    recent: VecDeque<(u64, usize)>,
+    /// Each row's last use; 0 for a row not in the window.
+    last_use: Vec<u64>,
+    /// The uses so far, and how many rows are in the window.
+    uses: u64,
+    live: usize,
     /// How many rows' pasts stay computed ([`Held::set_past_window`]).
     window: usize,
 }
 
-/// How many of the rows kept most recently keep their pasts computed, unless [`Held::set_past_window`] says.
+/// How many rows keep their pasts computed (the most recently used), unless [`Held::set_past_window`] says.
 pub const PAST_WINDOW: usize = 64;
 
 impl<'a, R: Row, S: Clone> Clone for Held<'a, R, S> {
@@ -124,6 +132,9 @@ impl<'a, R: Row, S: Clone> Clone for Held<'a, R, S> {
             waiting: self.waiting.iter().map(|(k, w)| (k.clone(), Wait { row: w.row, left: w.left })).collect(),
             waiting_on: self.waiting_on.clone(),
             recent: self.recent.clone(),
+            last_use: self.last_use.clone(),
+            uses: self.uses,
+            live: self.live,
             window: self.window,
         }
     }
@@ -141,12 +152,17 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
             waiting: BTreeMap::new(),
             waiting_on: BTreeMap::new(),
             recent: VecDeque::new(),
+            last_use: Vec::new(),
+            uses: 0,
+            live: 0,
             window: PAST_WINDOW,
         }
     }
 
-    /// Keep the pasts of the `w` rows kept most recently, and drop the rest as rows are kept (`usize::MAX`
-    /// keeps every past, as [`layers::conclude`](crate::layers::conclude) does while it runs).
+    /// Keep the pasts of the `w` rows used most recently, and drop the rest as rows are kept (`usize::MAX`
+    /// keeps every past, as [`layers::conclude`](crate::layers::conclude) does while it runs). A row is used
+    /// when it is kept and whenever a row kept later names it, so a row many later rows name stays in the
+    /// window however old it is.
     ///
     /// A past is read in full once, when its row is concluded. After that it serves only as a shortcut for the
     /// rows kept later that name it: a walk down from a new row takes a known past whole. New rows mostly name
@@ -166,10 +182,33 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
     pub fn past_window(&self) -> usize {
         self.window
     }
+    /// Mark row `i` used now: it moves to the newest end of the window.
+    fn touch(&mut self, i: usize) {
+        if self.last_use.len() <= i {
+            self.last_use.resize(i + 1, 0);
+        }
+        self.uses += 1;
+        if self.last_use[i] == 0 {
+            self.live += 1;
+        }
+        self.last_use[i] = self.uses;
+        self.recent.push_back((self.uses, i));
+    }
+    /// Drop the pasts of the least recently used rows until at most `window` remain, and the stale entries.
     fn trim(&mut self) {
-        while self.recent.len() > self.window {
-            let j = self.recent.pop_front().expect("longer than the window");
+        while self.live > self.window {
+            let (u, j) = self.recent.pop_front().expect("live rows have entries");
+            if self.last_use[j] != u {
+                continue; // stale: used again since
+            }
+            self.last_use[j] = 0;
+            self.live -= 1;
             self.con.g.forget_past(j);
+        }
+        // a hot row leaves one stale entry per use: keep the deque within a constant of the rows in the window
+        if self.recent.len() > 4 * self.live + 64 {
+            let last = &self.last_use;
+            self.recent.retain(|&(u, j)| last[j] == u);
         }
     }
 
@@ -260,7 +299,14 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
             self.spec.conclude(&Past { g, i, p: &p })
         };
         self.con.conclude_pushed(c);
-        self.recent.push_back(i);
+        // the rows it names were just used as shortcuts: they stay in the window, then so does it
+        let named: Vec<usize> = self.con.g.named(i).to_vec();
+        for p in named {
+            if self.con.g.has_past(p) {
+                self.touch(p);
+            }
+        }
+        self.touch(i);
         self.trim();
     }
 
@@ -269,6 +315,8 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
     pub fn reserve(&mut self, rows: usize, names: usize) {
         self.con.reserve(rows, names);
         self.rooted.reserve(rows);
+        self.last_use.reserve(rows);
+        self.recent.reserve(rows + names);
     }
 
     /// The held rows, their closure and every conclusion.
