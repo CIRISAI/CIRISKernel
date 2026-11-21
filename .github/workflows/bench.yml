@@ -66,12 +66,14 @@ jobs:
           ROUNDS: ${{ inputs.rounds }}
         run: |
           set -eu
+          # a branch name is only a remote ref on the runner (origin/NAME); a SHA or tag is taken as given
+          resolve() { git rev-parse --verify --quiet "origin/$1^{commit}" || git rev-parse --verify "$1^{commit}"; }
           build() {  # build() REF DIR: the example at REF, in a worktree of its own
-            git worktree add --detach "$2" "$1"
+            git worktree add --detach "$2" "$(resolve "$1")"
             (cd "$2" && cargo build --offline --release -p ciris-kernel --example persist_paths)
           }
           build "$BEFORE" ../before
-          build "${AFTER:-HEAD}" ../after
+          if [ -n "$AFTER" ]; then build "$AFTER" ../after; else git worktree add --detach ../after HEAD; (cd ../after && cargo build --offline --release -p ciris-kernel --example persist_paths); fi
           { echo "before $(git -C ../before rev-parse HEAD)"; echo "after $(git -C ../after rev-parse HEAD)"; } | tee -a runner.txt
           only=""; [ -n "$FILTER" ] && only="--only $FILTER"
           python3 -I tools/kernel_bench_ab.py ../before/target/release/examples/persist_paths \
