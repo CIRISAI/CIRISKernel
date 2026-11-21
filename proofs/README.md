@@ -197,7 +197,7 @@ a `sorry`, or an axiom beyond the three of core Lean.
 
 Then it runs `Audit.lean`, the semantic audit. That file imports the whole stack and asks Lean which axioms every declaration depends on (`collectAxioms`). This covers every declaration, not only the theorems a `#print axioms` line reports. A `sorry` leaves `sorryAx` behind, and an `axiom` declared here names itself, so either fails the build, even in a lemma no printed theorem uses. The audit has a plant every run. `build.sh` writes a module with an unused `sorry` and a minted axiom, audits it with the stack, and fails unless both are refused. `build.sh` also fails on any "declaration uses 'sorry'" the compiler reports. The run line adds `N declarations audited, plant caught`.
 
-Output of the run in this repository: `proofs: 30 files, 703 theorems reported, 4650 declarations audited, plant caught, rc=0`. The nineteen files carried from the parent print 550 (548 at the commit they were carried at, and two more since `Reader.lean` states `sibling_by_acknowledgement`); the seven added for the crate (`CutFix`, `SeatWalk`, `SeatCount`, `WindowTable`, `Retained`, `Versions`, `Ops`) print 52; `Repurge.lean` prints 13; `Admission.lean` prints 62; `MinorVoid.lean` prints 10; `KeyOfIssuer.lean` prints 16. The count is of lines reporting the axioms a declaration depends on (`#print axioms`), one per theorem the files print, not of every lemma.
+Output of the run in this repository: `proofs: 30 files, 715 theorems reported, 4711 declarations audited, plant caught, rc=0`. The nineteen files carried from the parent print 550 (548 at the commit they were carried at, and two more since `Reader.lean` states `sibling_by_acknowledgement`); the seven added for the crate (`CutFix`, `SeatWalk`, `SeatCount`, `WindowTable`, `Retained`, `Versions`, `Ops`) print 52; `Repurge.lean` prints 13; `Admission.lean` prints 74; `MinorVoid.lean` prints 10; `KeyOfIssuer.lean` prints 16. The count is of lines reporting the axioms a declaration depends on (`#print axioms`), one per theorem the files print, not of every lemma.
 
 `Repurge.lean` is written for this repository and has no counterpart in the parent or in the crate's gaps.
 
@@ -224,7 +224,7 @@ CC section at v1.0-rc21 (commit `b016df4`).
 
 | File | What it proves |
 |---|---|
-| `Admission.lean` | CC 2.7.11 (Constitution v1.0-rc21, commit b016df4): code, profile and action admission, transcribed from `formal/admission/admission.py`, are each one walk (`Causal.reaches` to the stander, `Consent.bodyConsents` on the row) and differ in the body: one voice for profile and one person's code row, a count of two or more for a counted code row, the four faculties at four for an action (`three_admissions_one_walk`); the fourteen properties of `admission_expected.tsv` as theorems over every world |
+| `Admission.lean` | CC 2.7.11 (Constitution v1.0-rc21, commit b016df4): code, profile and action admission, transcribed from `formal/admission/admission.py`, are each one walk (`Causal.reaches` to the stander, `Consent.bodyConsents` on the row) and differ in the body: one voice for profile and one person's code row, a count of two or more for a counted code row, the four faculties at four for an action (`three_admissions_one_walk`); the fourteen properties of `admission_expected.tsv` as theorems over every world; and, by the Constitution's rc22 (commit `4040d0b`, CC 2.7.11 "Derived trust", CC 4.5.5 (b)), the effect gate's two arms: an act that needs a role is licensed by a live delegation onto this agent, signed by a person seated over it, whose scope names the duty, with no approval of the act (`p11_delegation_needs_no_approval`, `p11_delegation_licenses`); a scope that does not name the duty licenses nothing, refuting the plant `delegation_any_scope` (`p11_scope_must_name_duty`, `delegation_any_scope_differs`); a withdrawn delegation, a program's and one onto another agent license nothing; only an act no delegation covers needs the approving row |
 | `MinorVoid.lean` | CC 3.2 (Constitution v1.0-rc21, commit b016df4): the void of a duty appointment `D` made to a minor is a function of the held rows (`any_order`, `incremental_is_void`); backdating `D` only voids it; a retraction changes nothing; a self-declared adult lifts nothing; a minor row superseded by its own signer's newer row still voids; `expiry_backdate_lifts`, kept as a regression plant, shows that an expiry clause would let backdating lift a void. Model-checked with plants in `models/tla/MinorVoid.tla` and `MinorSuspend.tla` |
 | `KeyOfIssuer.lean` | step 8 of CC 2.6.1.8, the rule of CC 2.6.1.7 (Constitution v1.0-rc21, commit `b016df4`): a statement is Valid exactly when its key is a key of its `iss` by one of the four ways, genesis, a held rotation chain, the seat of the bundle in force, or a live occurrence (`verdict_valid_iff`); a missing link, voice or bundle answers Waiting, never Invalid; Waiting turns Valid only by a way the earlier rows did not give, and with the link still missing and no other way offered never does (`stays_waiting_without_link`; the literal form without that proviso is false, `other_way_counterexample`); the verdict is a function of the set held (`verdict_perm`) |
 
@@ -239,8 +239,14 @@ seat walk at one voice and action admission the same walk at a count, "argued he
   at least two persons (`p4_effect_needs_count_or_owner`), as CC 2.7.11's own table says.
 - The action scope differs in more than the count. Its root and stander are the agent's own key at depth 0, and its
   voices are the four faculties, which are not persons. A dispatch can pass in a world with no person in it
-  (`action_needs_no_person`). CC 2.7.11's "rooted in a person" holds for an action only where an objection is
-  discharged or authority is claimed (`p9_discharge_by_person`).
+  (`action_needs_no_person`), and so can an effect that needs no role (`effect_needs_no_person`). An action is
+  rooted in a person only where an objection is discharged (`p9_discharge_by_person`) or the act claims authority.
+  Since the Constitution's rc22 (commit `4040d0b`) it claims authority by one of two arms
+  (`p11_authority_rooted_in_person`). One is a live delegation whose scope names the act's duty, signed by a person
+  seated over this agent, who approves no single act under it (`p11_delegation_needs_no_approval`). The other, for
+  an act no delegation covers, is an approving row naming the fingerprint, signed by a person seated over the agent
+  that row names; the model does not check that this is the acting agent. The ruling leaves `action_needs_no_person`
+  as it was: the same dispatches need no person. It moves a role act's person from each act to the grant.
 
 All fourteen properties are stated and proved for every world (P1–P14, theorem names in the file header). P2 and P9
 assume the unit digest and the call fingerprint are injective, and P10 reads the profile digest as the list of link
