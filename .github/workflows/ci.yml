@@ -23,7 +23,11 @@ jobs:
   check:
     name: proofs, models and crate (./check.sh)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Raised 45 -> 75 on 2026-11-21, from the clock. The plants step alone took 1,730 s (29 min) on 2026-11-20
+    # (49 plants, each a release rebuild and the whole test suite); with eight TLA specs and 31 proof files the job
+    # then ran past 45 minutes twice, cancelled, with no step failed. This is a budget, not a fix: the plants are
+    # independent and want running in parallel, each with a target directory of its own.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
