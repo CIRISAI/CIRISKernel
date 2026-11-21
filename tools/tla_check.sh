@@ -32,13 +32,13 @@ for spec in $(ls *.tla | sed 's/\.tla$//' | sort); do
   depth=$(grep -o "depth of the complete state graph search is [0-9]*" "$work/$spec.log" | grep -o "[0-9]*$")
   secs=$((SECONDS - t0))
   java -XX:+UseParallelGC -cp "$jar" tlc2.TLC -workers auto -metadir "$work/$spec-plant" -config "$spec${suffix}_plant.cfg" "$spec.tla" > "$work/$spec-plant.log" 2>&1
-  caught=$(grep -m1 -oE "(Invariant|Temporal properties|Action property|Property) [A-Za-z_]* (is|was) violated|Temporal properties were violated" "$work/$spec-plant.log")
+  caught=$(grep -m1 -oE "(Invariant|Temporal properties|Action property|Property) [A-Za-z0-9_]* (is|was) violated|Temporal properties were violated" "$work/$spec-plant.log")
   # further plants of the same spec: each must be caught too
   more=""
   for extra in $(ls "$spec${suffix}"_plant_*.cfg 2>/dev/null | sort); do
     name="${extra%.cfg}"
     java -XX:+UseParallelGC -cp "$jar" tlc2.TLC -workers auto -metadir "$work/$name" -config "$extra" "$spec.tla" > "$work/$name.log" 2>&1
-    got=$(grep -m1 -oE "(Invariant|Temporal properties|Action property|Property) [A-Za-z_]* (is|was) violated|Temporal properties were violated" "$work/$name.log")
+    got=$(grep -m1 -oE "(Invariant|Temporal properties|Action property|Property) [A-Za-z0-9_]* (is|was) violated|Temporal properties were violated" "$work/$name.log")
     if [ -z "$got" ]; then caught=""; fi
     more="$more; ${name#"$spec${suffix}"_plant_}: ${got:-not caught}"
   done

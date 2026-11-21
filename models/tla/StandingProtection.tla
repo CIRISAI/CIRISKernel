@@ -15,16 +15,18 @@
      the band reads adult, which needs an assured row, since a self-declaration never raises.
    No expiry: an age row stands until its own signer supersedes or retracts it, or a row that outranks it
    lands; expires_at changes nothing, and no node clock is read. So nodes holding the same rows agree.
-   Rows about one person K: the owner-binding B at federation scope; witness 1 (provider) minor at 15;
+   Bands are MinorSuspend's ladder (under_13 < 13_15 < 16_17 < adult); every relation here reads the coarse
+   band, minor for the first three.
+   Rows about one person K: the owner-binding B at federation scope; witness 1 (provider) 13_15 at 15;
    witness 2 (provider) adult at 15 and at 19; witness 3 (government) adult at 4; K's own self-declared minor
-   at 5, retracted at 6; and with LARGE, witness 1's adult at 20, K's self-declared adult at 21, and the
+   at 5 (under_13), retracted at 6; and with LARGE, witness 1's adult at 20, K's self-declared adult at 21, and the
    retraction of witness 3's adult at 22. K's self-scope owner-binding and a guardian's steward-binding over K
    are held throughout. Two nodes each take the rows in ANY order, a retraction possibly before its row, keep a
    running summary (each signer's rows, the retractions seen), and re-read all three relations on every
    arrival.
    MUT = TRUE plants the break: the announcement is judged once, when the binding arrives, and never read
    again. EQ_PLANT = TRUE plants the earlier equal-level rule, "at an equal level minor wins whatever the
-   dates" (StandingProtection_plant_equal_level_minor_wins.cfg): the minor at 15 by one provider then the
+   dates" (StandingProtection_plant_equal_level_minor_wins.cfg): the 13_15 at 15 by one provider then the
    adult at 19 by another must read adult. *)
 EXTENDS Naturals, FiniteSets
 CONSTANTS MUT, EQ_PLANT, LARGE
@@ -34,19 +36,20 @@ MS == INSTANCE MinorSuspend WITH MUT <- FALSE, EQ_PLANT <- EQ_PLANT, W <- 3, N <
 Signers == MS!Signers
 Row(k, b, s, at, id, tgt) == MS!Row(k, b, s, at, id, tgt)
 Bind == Row("binding", "-", 9, 2, 500, 0)
-AgeRows == {Row("assured", "minor", 1, 15, 11, 0), Row("assured", "adult", 2, 15, 21, 0),
+AgeRows == {Row("assured", "13_15", 1, 15, 11, 0), Row("assured", "adult", 2, 15, 21, 0),
             Row("assured", "adult", 2, 19, 22, 0), Row("assured", "adult", 3, 4, 32, 0),
-            Row("self", "minor", 0, 5, 1, 0)}
+            Row("self", "under_13", 0, 5, 1, 0)}
            \cup (IF LARGE THEN {Row("assured", "adult", 1, 20, 12, 0), Row("self", "adult", 0, 21, 2, 0)} ELSE {})
 RetractRows == {Row("retract", "-", 9, 6, 101, 1)} \cup (IF LARGE THEN {Row("retract", "-", 9, 22, 132, 32)} ELSE {})
 Rows == {Bind} \cup AgeRows \cup RetractRows
-IsMinor(r) == r \in AgeRows /\ r.band = "minor"
+IsMinor(r) == r \in AgeRows /\ r.band \in MS!MinorBands
 
 \* the set function: the person's current band from the rows held now
 RowsOf(H) == [s \in Signers |-> {r \in H \cap AgeRows : r.s = s}]
 RetsOf(H) == {<<x.tgt, x.at>> : x \in H \cap RetractRows}
-HeldBand(H) == MS!BandAt(RowsOf(H), RetsOf(H), MS!Forever)
-SB(H, s) == MS!SignerBandAt(RowsOf(H)[s], RetsOf(H), MS!Forever)
+\* the coarse reading (minor for any band below adult) of the ladder band
+HeldBand(H) == MS!CoarseBandAt(RowsOf(H), RetsOf(H), MS!Forever)
+SB(H, s) == MS!Coarse(MS!SignerBandAt(RowsOf(H)[s], RetsOf(H), MS!Forever))
 Top(H) == MS!TopRows(RowsOf(H), RetsOf(H), MS!Forever)
 Announced(H) == Bind \in H /\ HeldBand(H) # "minor"
 \* the self-scope owner-binding counts while the band does not read minor; the guardianship stands while it
@@ -71,7 +74,7 @@ Offer(n, r) ==
   /\ held' = [held EXCEPT ![n] = @ \cup {r}]
   /\ rows' = [rows EXCEPT ![n] = [s \in Signers |-> IF r \in AgeRows /\ r.s = s THEN @[s] \cup {r} ELSE @[s]]]
   /\ rets' = [rets EXCEPT ![n] = IF r \in RetractRows THEN @ \cup {<<r.tgt, r.at>>} ELSE @]
-  /\ LET band == MS!BandAt(rows'[n], rets'[n], MS!Forever)
+  /\ LET band == MS!CoarseBandAt(rows'[n], rets'[n], MS!Forever)
      IN /\ ann' = [ann EXCEPT ![n] = IF ~MUT \/ r = Bind THEN Bind \in held'[n] /\ band # "minor" ELSE @]
         /\ own' = [own EXCEPT ![n] = band # "minor"]
         /\ guard' = [guard EXCEPT ![n] = band # "adult"]
@@ -102,15 +105,15 @@ Inv_SelfLowerBlocks == \A n \in Nodes : SB(held[n], 0) = "minor" => ~ann[n]
 \* current minor row lets the bound node announce (the 15-then-19 case)
 Inv_LaterAssuredAdultLifts ==
   \A n \in Nodes : (Bind \in held[n] /\ SB(held[n], 0) # "minor"
-                      /\ \E a \in Top(held[n]) : a.band = "adult" /\ \A m \in Top(held[n]) : m.band = "minor" => m.at < a.at)
+                      /\ \E a \in Top(held[n]) : a.band = "adult" /\ \A m \in Top(held[n]) : m.band \in MS!MinorBands => m.at < a.at)
                      => ann[n]
 \* P8 a contradiction blocks: a top current minor row dated at or after every top current adult row, the
 \* same instant from different signers included
 Inv_ContradictionBlocks ==
-  \A n \in Nodes : (\E m \in Top(held[n]) : m.band = "minor" /\ \A a \in Top(held[n]) : a.band = "adult" => a.at <= m.at)
+  \A n \in Nodes : (\E m \in Top(held[n]) : m.band \in MS!MinorBands /\ \A a \in Top(held[n]) : a.band = "adult" => a.at <= m.at)
                      => ~ann[n]
 Inv_SameInstantBlocks ==
-  \A n \in Nodes : (\E m, a \in Top(held[n]) : m.band = "minor" /\ a.band = "adult" /\ m.s # a.s /\ m.at = a.at
+  \A n \in Nodes : (\E m, a \in Top(held[n]) : m.band \in MS!MinorBands /\ a.band = "adult" /\ m.s # a.s /\ m.at = a.at
                        /\ \A b \in Top(held[n]) : b.band = "adult" => b.at <= m.at) => ~ann[n]
 \* P9 the void reads what the standing protection lets go: while the person is announced, any held minor row
 \* (superseded, outranked or retracted) with no un-retracted proof before it still voids a duty appointment
