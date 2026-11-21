@@ -262,6 +262,36 @@ store (`tests/held.rs`, `the_window_s_price_is_counted`). Persist will measure `
 3. Persist accepts `&'a R` in place of a handle type. It runs `held::differential` on its own row mixes after
    v62.0 is tagged.
 
+## Slice 3 design: what HeldView owes persist's verdict choke point (2026-11-21)
+
+Persist v62 adds its own choke point, a View that is the only thing a verdict function may take: no clock, no store
+handle, a record of the keys it reads, and one write path that wakes from them. An audit of persist's verdict code
+found two defect classes that HeldView could remove by construction. One is 47 wall-clock reads inside verdicts. The
+other is 205 hold reasons with 210 hand-written read declarations, only six wake paths, and two missing wakes found
+in one week. So that the two designs meet:
+
+- **(a) No clock.** The kernel reads none. The conclusion rule receives a `Past` and no instant, and answers that
+  depend on the present take `now` as a parameter. 0.3 adds *at-a-held-row* forms (`live_at`, `window_at`,
+  `answers_at`) that take the instant from a held row, so "any instant comes from a held row" holds at the type
+  level for verdicts. The `now` forms stay, documented as node-local reads (CC 2.7.9) for serving and display. A
+  caller's own `HeldSpec` impl can still capture a clock; Rust cannot forbid that, so it stays the caller's lint.
+- **(b) Read sets.** For the concluded layer the complete read set is proved, not inferred: the row and its concluded
+  ancestors (`concl_final`, `conclOf_local`). HeldView returns it as that sound over-approximation. A precise subset
+  needs an instrumented `Past` that logs `get`, `past` and `rows`. That is complete only if `Past`'s fields become
+  private, which is a breaking change, hence 0.3. Open-world reads by key ("any row matching K", 206 of persist's
+  reads) are never in the concluded layer, because a conclusion cannot see outside its past. They are derived
+  answers, and each must declare its reads: a kernel `Reads` value (ids and keys, sorted and deduplicated) returned
+  by every derived answer on HeldView, of the same shape persist's gates record.
+- **(c) Derived wake-ups.** Concluded layer: already derived and proved. `Admitted.kept` releases the rows waiting on
+  an arriving id, and `Admitted.dirty` is exactly the rows newly kept. Derived layer: HeldView keeps two indexes, by
+  name (which held rows name an id) and by key (which recorded `Reads` include a key a row carries, from a
+  `HeldSpec::keys(&R)` the spec supplies). On admit, `dirty` is the new row's descendants, plus the rows in concurrent
+  conflict (`conflict_key`), plus every answer whose `Reads` names an id or key the new row carries. A missing wake
+  then becomes impossible for anything recorded through `Reads`. A read no row kind can satisfy (a key no spec'd row
+  carries) becomes testable.
+- **Persist's own:** the durable read table, the gates written in persist (they fill `Reads`; the kernel cannot see
+  inside them), which instant a gate passes, and scheduling. The kernel returns `dirty` and runs nothing.
+
 ### Not yet
 
 `HeldView` (the head layer and its conflict cone), the checkpoint (`checkpoint` / `resume`, ids only), foreign
