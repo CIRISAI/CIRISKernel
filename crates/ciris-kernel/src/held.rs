@@ -30,7 +30,7 @@
 
 use crate::layers::{Concluded, Past};
 use crate::Row;
-use alloc::collections::{BTreeMap, VecDeque};
+use alloc::collections::{BTreeMap, BTreeSet, VecDeque};
 use alloc::vec::Vec;
 
 /// The rules of one layered fold, as a value a [`Held`] owns (so a `Held` can live across calls).
@@ -48,7 +48,103 @@ pub trait HeldSpec<R: Row> {
     fn root(&self, _r: &R) -> bool {
         false
     }
+    /// The keys a row carries, for answers that read by key ("any row matching K"): a row that carries a key
+    /// wakes every registered answer whose [`Reads`] names it ([`Held::register`]). None by default (0.3).
+    fn keys(&self, _r: &R) -> Vec<R::Key> {
+        Vec::new()
+    }
+    /// Whether any row this spec admits can carry key `k`. A registered read of a key no row can carry is a
+    /// read with no possible writer: an answer that can never be woken ([`Held::unwritable`]). Every key by
+    /// default (0.3).
+    fn can_carry(&self, _k: &R::Key) -> bool {
+        true
+    }
 }
+
+/// What an answer read: row ids, and keys read by key ("any row matching K"). Sorted and each once, so two
+/// recorders of the same reads agree byte for byte (0.3).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Reads<I, K> {
+    ids: Vec<I>,
+    keys: Vec<K>,
+}
+
+impl<I, K> Default for Reads<I, K> {
+    fn default() -> Self {
+        Reads { ids: Vec::new(), keys: Vec::new() }
+    }
+}
+
+impl<I: Ord, K: Ord> Reads<I, K> {
+    /// Nothing read.
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// These ids and keys, sorted and each once.
+    pub fn of(ids: impl IntoIterator<Item = I>, keys: impl IntoIterator<Item = K>) -> Self {
+        let mut ids: Vec<I> = ids.into_iter().collect();
+        let mut keys: Vec<K> = keys.into_iter().collect();
+        ids.sort_unstable();
+        ids.dedup();
+        keys.sort_unstable();
+        keys.dedup();
+        Reads { ids, keys }
+    }
+    /// The ids read, ascending.
+    pub fn ids(&self) -> &[I] {
+        &self.ids
+    }
+    /// The keys read, ascending.
+    pub fn keys(&self) -> &[K] {
+        &self.keys
+    }
+    /// Record an id read.
+    pub fn add_id(&mut self, id: I) {
+        if let Err(k) = self.ids.binary_search(&id) {
+            self.ids.insert(k, id);
+        }
+    }
+    /// Record a key read.
+    pub fn add_key(&mut self, k: K) {
+        if let Err(at) = self.keys.binary_search(&k) {
+            self.keys.insert(at, k);
+        }
+    }
+    /// Record everything `o` read.
+    pub fn extend(&mut self, o: Reads<I, K>) {
+        for i in o.ids {
+            self.add_id(i);
+        }
+        for k in o.keys {
+            self.add_key(k);
+        }
+    }
+    /// Whether id `i` was read.
+    pub fn reads_id(&self, i: &I) -> bool {
+        self.ids.binary_search(i).is_ok()
+    }
+    /// Whether key `k` was read.
+    pub fn reads_key(&self, k: &K) -> bool {
+        self.keys.binary_search(k).is_ok()
+    }
+    /// Nothing was read.
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty() && self.keys.is_empty()
+    }
+}
+
+/// What a recording [`Past`] logged of one conclusion ([`Held::recorded_reads`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Logged<I, K> {
+    /// The rows the rule read through the past's methods.
+    pub reads: Reads<I, K>,
+    /// Whether that is all it read: `false` when it read the whole closure or the whole concluded past.
+    pub complete: bool,
+}
+
+/// A registered answer ([`Held::register`]): the handle the caller re-runs when [`Admitted::wake`] names it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AnswerId(pub u64);
 
 /// A [`HeldSpec`] from two closures, with no seed.
 #[derive(Clone, Copy)]
@@ -90,6 +186,9 @@ pub struct Admitted<I> {
     pub dirty: Vec<I>,
     /// Work done: the rows kept plus the ids they and the row itself name. The bound the benches assert.
     pub visited: usize,
+    /// The registered answers to run again (0.3): every answer whose [`Reads`] names a newly kept row's id, an
+    /// id it names, or a key it carries ([`HeldSpec::keys`]). Ascending, each once.
+    pub wake: Vec<AnswerId>,
 }
 
 struct Wait<'a, R> {
@@ -118,6 +217,13 @@ pub struct Held<'a, R: Row, S> {
     live: usize,
     /// How many rows' pasts stay computed ([`Held::set_past_window`]).
     window: usize,
+    /// For each held id, the held rows that name it (0.3).
+    named_by: BTreeMap<R::Id, Vec<usize>>,
+    /// The registered answers, with what each read, and the indexes over them (0.3).
+    answers: BTreeMap<AnswerId, Reads<R::Id, R::Key>>,
+    by_id: BTreeMap<R::Id, BTreeSet<AnswerId>>,
+    by_key: BTreeMap<R::Key, BTreeSet<AnswerId>>,
+    next_answer: u64,
 }
 
 /// How many rows keep their pasts computed (the most recently used), unless [`Held::set_past_window`] says.
@@ -136,6 +242,11 @@ impl<'a, R: Row, S: Clone> Clone for Held<'a, R, S> {
             uses: self.uses,
             live: self.live,
             window: self.window,
+            named_by: self.named_by.clone(),
+            answers: self.answers.clone(),
+            by_id: self.by_id.clone(),
+            by_key: self.by_key.clone(),
+            next_answer: self.next_answer,
         }
     }
 }
@@ -156,6 +267,11 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
             uses: 0,
             live: 0,
             window: PAST_WINDOW,
+            named_by: BTreeMap::new(),
+            answers: BTreeMap::new(),
+            by_id: BTreeMap::new(),
+            by_key: BTreeMap::new(),
+            next_answer: 0,
         }
     }
 
@@ -242,7 +358,7 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
                 self.waiting_on.entry((*n).clone()).or_default().push(id.clone());
             }
             self.waiting.insert(id.clone(), Wait { row: r, left: lacks.len() });
-            return Ok(Admitted { kept: Vec::new(), waiting: true, dirty: Vec::new(), visited });
+            return Ok(Admitted { kept: Vec::new(), waiting: true, dirty: Vec::new(), visited, wake: Vec::new() });
         }
         // every id it names is held: keep it, then whatever it releases
         let mut kept: Vec<R::Id> = Vec::new();
@@ -270,20 +386,29 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
         }
         let mut dirty = kept.clone();
         dirty.sort_unstable();
-        Ok(Admitted { kept, waiting: false, dirty, visited })
+        let mut wake: BTreeSet<AnswerId> = BTreeSet::new();
+        for id in &kept {
+            if let Some(i) = self.con.g.idx(id) {
+                wake.extend(self.wakes_for(self.con.g.row(i)));
+            }
+        }
+        Ok(Admitted { kept, waiting: false, dirty, visited, wake: wake.into_iter().collect() })
     }
 
     /// Admit rows in order; refusals are skipped. Returns every row kept, in order, and the dirty set.
     pub fn admit_all(&mut self, rows: impl IntoIterator<Item = &'a R>) -> Admitted<R::Id> {
-        let mut all = Admitted { kept: Vec::new(), waiting: false, dirty: Vec::new(), visited: 0 };
+        let mut all = Admitted { kept: Vec::new(), waiting: false, dirty: Vec::new(), visited: 0, wake: Vec::new() };
+        let mut wake: BTreeSet<AnswerId> = BTreeSet::new();
         for r in rows {
             if let Ok(a) = self.admit(r) {
                 all.kept.extend(a.kept);
                 all.visited += a.visited;
+                wake.extend(a.wake);
             }
         }
         all.dirty = all.kept.clone();
         all.dirty.sort_unstable();
+        all.wake = wake.into_iter().collect();
         all
     }
 
@@ -296,9 +421,12 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
         let c = !g.waiting(i) && rooted && {
             let all = self.con.all();
             let p: Vec<usize> = g.ancestors(i).iter().filter(|&q| all[q]).collect();
-            self.spec.conclude(&Past { g, i, p: &p })
+            self.spec.conclude(&Past::new(g, i, &p))
         };
         self.con.conclude_pushed(c);
+        for &p in self.con.g.named(i) {
+            self.named_by.entry(self.con.g.row(p).id().clone()).or_default().push(i);
+        }
         // the rows it names were just used as shortcuts: they stay in the window, then so does it
         let named: Vec<usize> = self.con.g.named(i).to_vec();
         for p in named {
@@ -308,6 +436,129 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
         }
         self.touch(i);
         self.trim();
+    }
+
+    /// The held rows that name `id`, ascending by id (0.3): the by-name index, so the rows a new row of a given
+    /// id answers are a lookup.
+    pub fn named_by(&self, id: &R::Id) -> Vec<&'a R::Id> {
+        let g = &self.con.g;
+        let mut v: Vec<&'a R::Id> = self.named_by.get(id).into_iter().flatten().map(|&q| g.row(q).id()).collect();
+        v.sort_unstable();
+        v
+    }
+
+    /// The sound read set of row `id`'s conclusion (0.3): the row and its concluded ancestors, by id. A
+    /// conclusion reads nothing else (`Causal.concl_final`, `conclOf_local`), so this is complete for any rule.
+    /// `None` when `id` is not held.
+    pub fn reads_of(&self, id: &R::Id) -> Option<Reads<R::Id, R::Key>> {
+        let g = &self.con.g;
+        let i = g.idx(id)?;
+        let all = self.con.all();
+        let p: Vec<usize> = g.ancestors(i).iter().filter(|&q| all[q]).collect();
+        let past = Past::new(g, i, &p);
+        Some(Reads::of(past.reads().into_iter().map(|q| g.row(q).id().clone()), core::iter::empty()))
+    }
+
+    /// The rows row `id`'s conclusion rule actually read, by running it again through a recording [`Past`]
+    /// (0.3), and whether that log is complete: `false` when the rule read the whole closure or the whole
+    /// concluded past ([`Past::graph`], [`Past::ancestors`]), in which case [`Held::reads_of`] is the read set.
+    /// `None` when `id` is not held, waits on a cycle, or has no root.
+    pub fn recorded_reads(&self, id: &R::Id) -> Option<Logged<R::Id, R::Key>> {
+        let g = &self.con.g;
+        let i = g.idx(id)?;
+        if g.waiting(i) || !self.rooted[i] {
+            return None;
+        }
+        let all = self.con.all();
+        let p: Vec<usize> = g.ancestors(i).iter().filter(|&q| all[q]).collect();
+        let log = core::cell::RefCell::new(crate::layers::Recorded::default());
+        let _ = self.spec.conclude(&Past::recording(g, i, &p, &log));
+        let log = log.into_inner();
+        Some(Logged {
+            reads: Reads::of(log.read.into_iter().map(|q| g.row(q).id().clone()), core::iter::empty()),
+            complete: !log.escaped,
+        })
+    }
+
+    /// Register an answer's reads; the returned handle is named in [`Admitted::wake`] whenever a newly kept row
+    /// carries an id or key it read (0.3).
+    pub fn register(&mut self, reads: Reads<R::Id, R::Key>) -> AnswerId {
+        let h = AnswerId(self.next_answer);
+        self.next_answer += 1;
+        self.index(h, &reads);
+        self.answers.insert(h, reads);
+        h
+    }
+    /// Replace what answer `h` read (after it ran again). `false`, changing nothing, when `h` is not registered.
+    pub fn update(&mut self, h: AnswerId, reads: Reads<R::Id, R::Key>) -> bool {
+        if !self.answers.contains_key(&h) {
+            return false;
+        }
+        self.unregister(h);
+        self.index(h, &reads);
+        self.answers.insert(h, reads);
+        true
+    }
+    /// Forget answer `h`; returns what it read.
+    pub fn unregister(&mut self, h: AnswerId) -> Option<Reads<R::Id, R::Key>> {
+        let r = self.answers.remove(&h)?;
+        for i in r.ids() {
+            if let Some(s) = self.by_id.get_mut(i) {
+                s.remove(&h);
+                if s.is_empty() {
+                    self.by_id.remove(i);
+                }
+            }
+        }
+        for k in r.keys() {
+            if let Some(s) = self.by_key.get_mut(k) {
+                s.remove(&h);
+                if s.is_empty() {
+                    self.by_key.remove(k);
+                }
+            }
+        }
+        Some(r)
+    }
+    /// What answer `h` read.
+    pub fn registered(&self, h: AnswerId) -> Option<&Reads<R::Id, R::Key>> {
+        self.answers.get(&h)
+    }
+    fn index(&mut self, h: AnswerId, r: &Reads<R::Id, R::Key>) {
+        for i in r.ids() {
+            self.by_id.entry(i.clone()).or_default().insert(h);
+        }
+        for k in r.keys() {
+            self.by_key.entry(k.clone()).or_default().insert(h);
+        }
+    }
+    /// The registered answers row `r` would wake if kept: those whose reads name its id, an id it names, or a
+    /// key it carries ([`HeldSpec::keys`]). Ascending (0.3).
+    pub fn wakes_for(&self, r: &R) -> Vec<AnswerId> {
+        let mut w: BTreeSet<AnswerId> = BTreeSet::new();
+        for id in core::iter::once(r.id()).chain(r.names().iter()) {
+            if let Some(s) = self.by_id.get(id) {
+                w.extend(s.iter().copied());
+            }
+        }
+        for k in self.spec.keys(r) {
+            if let Some(s) = self.by_key.get(&k) {
+                w.extend(s.iter().copied());
+            }
+        }
+        w.into_iter().collect()
+    }
+    /// Every registered key no row this spec admits can carry ([`HeldSpec::can_carry`]): a read with no possible
+    /// writer, so an answer that can never be woken by key. Ascending (0.3).
+    pub fn unwritable(&self) -> Vec<(AnswerId, R::Key)> {
+        let mut v: Vec<(AnswerId, R::Key)> = self
+            .by_key
+            .iter()
+            .filter(|(k, _)| !self.spec.can_carry(k))
+            .flat_map(|(k, hs)| hs.iter().map(move |h| (*h, k.clone())))
+            .collect();
+        v.sort_unstable();
+        v
     }
 
     /// Room for `rows` more rows naming `names` ids in all, so the next admissions do not grow a buffer. A

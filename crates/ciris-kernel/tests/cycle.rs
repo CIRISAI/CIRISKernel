@@ -71,7 +71,7 @@ fn conclude_over_cycles_is_conclude_over_what_kept_keeps() {
             }
             rows.push(N { id: i, names, signer: (g.next() % 4) as u32 });
         }
-        let rule = |p: &ciris_kernel::layers::Past<'_, '_, N>| (p.p.len() + p.row().signer as usize) % 3 != 1;
+        let rule = |p: &ciris_kernel::layers::Past<'_, '_, N>| (p.ancestors().len() + p.row().signer as usize) % 3 != 1;
         let all = conclude(rows.iter(), rule, None);
         let held = kept(&rows, |_| true);
         let some = conclude(held.iter().copied(), rule, None);

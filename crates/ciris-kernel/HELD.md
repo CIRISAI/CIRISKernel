@@ -1,7 +1,7 @@
 # ciris-kernel 0.3: held views (issue #4)
 
-The design agreed with CIRISPersist, then what has landed and what it measured. Status, 2026-11-20: slice 1
-(the concluded layer, `src/held.rs`) and slice 2 (its pasts bounded) are in; `HeldView`, the checkpoint and `Held.lean` are not yet.
+The design agreed with CIRISPersist, then what has landed and what it measured. Status, 2026-11-21: slices 1 to 3
+(the concluded layer, its pasts bounded, and answers at a held row with read sets and wake-ups; 0.3.0) are in; `HeldView`, the checkpoint and `Held.lean` are not yet.
 
 ## Proposal
 
@@ -291,6 +291,59 @@ in one week. So that the two designs meet:
   carries) becomes testable.
 - **Persist's own:** the durable read table, the gates written in persist (they fill `Reads`; the kernel cannot see
   inside them), which instant a gate passes, and scheduling. The kernel returns `dirty` and runs nothing.
+
+## Slice 3: what landed (0.3.0)
+
+**At a held row.** `Dated` gives a row's signed instants (`asserted_at`, `valid_until`). Every `_at` answer
+takes its instant from a held row by id, never from a clock:
+- `Seats::holders_at` and `stands_at`. A seat counts at row `at`'s instant only while the offer that seats it
+  covers that instant: `asserted_at <= t < valid_until` (`covers_at`).
+- `key_end::live_at`, `ended_at` and `retained_at`.
+- `head::View::window_at` and `answers_at`.
+
+Each is tested equal to its `now` form at that row's instant (`tests/slice3.rs`). For seats the equivalent is
+persist's present reading: drop every binding not standing at `t`, then read.
+
+**Seat expiry, and why this way.** Persist dropped expired owner bindings before calling the kernel
+(`kernel::owner::owner_rows`: `expires_at > now`), so the kernel never saw an instant. The least invasive kernel
+side is a row-level trait, `Dated`, which the caller's row type implements beside `SeatRow` and `KeyEndRow`. It
+needs no change to `SeatRow`, no clock in any signature, and the instant comes from the admitted row's own
+signed field.
+
+Only the seating offer's own instants are read. A seat conferred under an offer that has ended is not ended by it
+here, unless the caller states the same end on the conferred offer. Propagating ends down a chain is not done.
+The tip reading (`tips_common`) is unchanged: while tips wait, a key stands only if every tip seats it.
+
+**Node bearing.** Persist's `NodeBearingSeats::at(key, now)` wraps no kernel function. It is persist data
+(intervals per key), resolved to a bool before `seat::group_count` runs. The at-row form is persist's own:
+`NodeBearingSeats::at(key, graph.instant_of(&change_row))`, or `covers_at(start, end, &t)` per interval with `t`
+the change row's instant.
+
+**Read sets.** `Past`'s fields are private (breaking).
+- `Past::reads()` and `Held::reads_of` give the sound set: the row and its concluded past, complete for any rule.
+- `Past::recording` and `Held::recorded_reads` log what a rule read through `row`, `rows`, `get` and `past`.
+  `complete` is false when the rule took `graph()` or `ancestors()`. The kernel's own seat rule does, for speed,
+  so its precise log is incomplete and `reads_of` is its read set.
+- Tested: a conclusion is the same when every row outside its read set is removed.
+
+**Derived wake-ups.**
+- `Held::named_by` is the by-name index.
+- `Held::register(Reads) -> AnswerId` indexes an answer's reads by id and by key.
+- `Admitted::wake` lists the registered answers whose reads a newly kept row touches: its id, an id it names, or a
+  key it carries (`HeldSpec::keys`).
+- `Admitted::dirty` is unchanged, and the differential still passes.
+- `Held::unwritable` reports a registered key that `HeldSpec::can_carry` says no row can carry: a read with no
+  possible writer.
+
+**What persist changes to adopt it.**
+- Implement `Dated` for `KRow`: `asserted_at` from its `at` field, and `valid_until` from `expires_at` /
+  `valid_until`.
+- Present owner bindings unfiltered, and call `holders_at(owner, node, None, admitted_row)` in place of the
+  `expires_at > now` filter.
+- Read `p.graph()` and `p.ancestors()` in any rule that touched `p.g` or `p.p`.
+- Set `Entry::at` where `head::View` answers are read at a row.
+- Register each gate's `(ids, keys)` read record with `Held::register` and re-run the handles in
+  `Admitted::wake`, with `HeldSpec::keys` naming the keys a row carries.
 
 ### Not yet
 

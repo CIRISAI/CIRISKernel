@@ -196,6 +196,34 @@ pub fn retained<R: KeyEndRow>(c: &Concluded<'_, R>, now: R::T) -> BTreeSet<usize
     b.iter().collect()
 }
 
+/// [`live`] **at a held row** (0.3): at the instant row `at` states ([`crate::Dated`]), never a clock. `None`
+/// when `at` is not held or states no instant. The `now` form is a node-local reading (CC 2.7.9): for serving
+/// and display, not for a verdict.
+pub fn live_at<R: KeyEndRow + crate::Dated<Instant = <R as KeyEndRow>::T>>(
+    c: &Concluded<'_, R>,
+    k: &R::Key,
+    at: &R::Id,
+) -> Option<bool> {
+    Some(live(c, k, c.g.instant_of(at)?))
+}
+
+/// [`ended`] at the instant row `at` states; `None` when `at` is not held or states no instant.
+pub fn ended_at<R: KeyEndRow + crate::Dated<Instant = <R as KeyEndRow>::T>>(
+    c: &Concluded<'_, R>,
+    k: &R::Key,
+    at: &R::Id,
+) -> Option<bool> {
+    Some(ended(c, k, c.g.instant_of(at)?))
+}
+
+/// [`retained`] at the instant row `at` states; `None` when `at` is not held or states no instant.
+pub fn retained_at<R: KeyEndRow + crate::Dated<Instant = <R as KeyEndRow>::T>>(
+    c: &Concluded<'_, R>,
+    at: &R::Id,
+) -> Option<BTreeSet<usize>> {
+    Some(retained(c, c.g.instant_of(at)?))
+}
+
 /// The successor of key `k`: the one key the frontier of its concluded rotations (among `ret`, when given)
 /// names. Two keys spoken leave it empty.
 pub fn successor<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, ret: Option<&BTreeSet<usize>>) -> Option<R::Key> {

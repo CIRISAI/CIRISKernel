@@ -311,6 +311,14 @@ pub struct Graph<'a, R: Row> {
     walked: Cell<u64>,
 }
 
+impl<R: crate::Dated> Graph<'_, R> {
+    /// The instant row `id` states ([`Dated::asserted_at`](crate::Dated::asserted_at)), when it is held and
+    /// states one: the instant every `_at` answer reads at.
+    pub fn instant_of(&self, id: &R::Id) -> Option<R::Instant> {
+        self.idx(id).and_then(|i| self.row(i).asserted_at())
+    }
+}
+
 impl<R: Row> Clone for Graph<'_, R> {
     fn clone(&self) -> Self {
         Graph {
