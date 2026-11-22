@@ -1,7 +1,8 @@
 # ciris-kernel 0.3: held views (issue #4)
 
 The design agreed with CIRISPersist, then what has landed and what it measured. Status, 2026-11-21: slices 1 to 3
-(the concluded layer, its pasts bounded, and answers at a held row with read sets and wake-ups; 0.3.0) are in; `HeldView`, the checkpoint and `Held.lean` are not yet.
+(the concluded layer, its pasts bounded, and answers at a held row with read sets and wake-ups; 0.3.0) are in, and
+slice 4 (`HeldView`, the checkpoint, foreign rows and `Held.lean`; unreleased) has landed.
 
 ## Proposal
 
@@ -345,7 +346,142 @@ the change row's instant.
 - Register each gate's `(ids, keys)` read record with `Held::register` and re-run the handles in
   `Admitted::wake`, with `HeldSpec::keys` naming the keys a row carries.
 
-### Not yet
+### Not yet (after slice 3)
 
 `HeldView` (the head layer and its conflict cone), the checkpoint (`checkpoint` / `resume`, ids only), foreign
-rows, and `Held.lean`.
+rows, and `Held.lean`: slice 4, below.
+
+## Slice 4: what landed (unreleased)
+
+`src/held_view.rs`: `HeldView<I, K, T>`, the checkpoint (`CHECKPOINT_VERSION`, `Encode`, `checkpoint`, `resume`,
+`CheckpointError`), `conflict_key` and `held_view::differential`. In `src/held.rs`: `Held::admit_foreign`,
+`Held::is_foreign`, `Admitted::foreign`, `Admitted::none` and `differential_foreign`. `proofs/Held.lean`. The one
+breaking change is `Admitted`'s new field (`CHANGELOG.md`).
+
+**The head layer, held.** `HeldView` owns a `head::View` and keeps its indexes across admissions:
+`admit(Entry) -> Result<Admitted, Refused>`, and `view()` gives every `View` answer unchanged. It owns its
+entries, so unlike the borrowing `Held` it can live across persist's transactions without a checkpoint. Admit is
+transactional: the only refusal is a duplicate id, checked before anything changes, and nothing after it can
+panic. A `HeldView` is `Clone`. One departure from Revision 1 item 3: an entry naming itself, or on a longer
+cycle of names, waits for good rather than being refused, as `Held` already does. `View::new` leaves it out too.
+
+**What an admission recomputes.** A view's answers about act `a` read `a`, the entries whose `of` is `a` (its
+receipts and cuts: the conflict set, `conflict_key`), the members at the heads they name, and the reader's
+acknowledged heads. So a new entry `x` whose names are held marks dirty itself, its conflict key's act, and the
+windows it answers. Its past is one union over what it names (the past term, `HeldView::past_len`). It is void
+or not by its own heads, read once in the fold's (depth, id) order. No other answer moves, because no held entry
+has `x` in its past. That is `conclOf_local` at this layer. Conflicts are found through the index by key
+(`by_of`, now a map in a held view; `View::new` keeps its sorted buffer, so its cost does not move), never by a
+pairwise scan.
+
+Two cases reach outside that cone. Each reads the void set again whole (`O(n)`), and the work is counted in
+`visited`:
+- `x` is a head that held entries name as theirs (`head`) without naming it. They read its members by id, so
+  their conclusions are read again, and so are their receipts'.
+- `x` makes a head acknowledged by this node that was not, or is such a head arriving after its
+  acknowledgement. Acts at heads in its past close, and entries at older heads may become void.
+
+Neither case occurs when every entry names the head it is at, as every `purge.json` history does. Making the
+second incremental needs the void set as a fixed point per head. It is rare (once per acknowledged head), so it
+is left whole.
+
+**Equality.** `held_view::differential` checks, after every admission, that the view equals `View::new` over the
+store and the prefix. It compares the entries, conclusions, void set, acknowledged heads, tips, `answers(now)` at
+each instant given, and, for every held act, its receipts, `counts_at`, `carried`, `settled`, `missing` and
+`closed_for_me`. It also checks that a refusal changes nothing (`HeldView: PartialEq`) and that every entry whose
+answers changed is in `dirty`. `tests/held_view.rs` runs it in order, reversed and shuffled over:
+- every `purge.json` history, over the base store, the purged store and from nothing (a conformance run);
+- generated stores of every kind built on `tests/common/dag.rs`, under three readers, from nothing and from half
+  of each store, including entries at heads they do not name;
+- a constructed late void head.
+
+Eight planted faults were each caught: a receipt not dirtying its act, the late-head void pass skipped, the
+acknowledged-head pass skipped, the readers' conclusions not re-read, windows not dirtied, the fold's order
+ignored for a new entry's heads, closed acts not dirtied, a resumed stub keeping its signatures. Five of them,
+and one for foreign rows, are in `tools/kernel_crate_plants.sh`.
+
+**The checkpoint carries ids, not rows** (Revision 1 item 1). The bytes hold:
+- the reader (`own`, `reading`, `say`);
+- the held ids in fold order (depth, then id), each with its stub fields (stub, stored conclusion, final count,
+  settled stub, dropped, ackers, acks) and the view's conclusion;
+- the acknowledged heads, and the ids that wait.
+
+The layout is in the module documentation. Ids and keys go through `Encode`. `[u8; N]` is provided at fixed
+width, so 32-byte digests need no code, and so are `u8`..`u64`, `i64` and length-prefixed `String`.
+
+`resume(bytes, rows)` re-attaches each row by id from the caller's store and lays the checkpoint's stub fields
+over it. A stub's signatures are dropped, as `head::purge` drops them. It refuses, and never gives a partial
+view, on:
+- an unknown version, or bytes that end early (every strict prefix is `Truncated`);
+- bytes other than those the resumed view writes (`NotCanonical`: it re-encodes and compares);
+- a named id the closure does not supply (`Missing(id)`);
+- a supplied row that concludes otherwise than the checkpoint states (`Differs(id)`, a fifth variant beyond the
+  four agreed: the store and the checkpoint disagree about that row).
+
+Canonical: two views holding the same entries give the same bytes, whatever order the entries came in (tested).
+`resume(checkpoint())` equals the view at every prefix tried, over a purged store resumed with its whole rows.
+
+**Foreign rows** (Revision 1 item 2). `Held::admit_foreign` holds a row for reads: it is kept, concluded and
+named exactly as a member is, so the fold's answers do not move, but it is never in `dirty`. `Admitted::foreign`
+lists the concluded foreign rows in the read sets of the dirty rows, sorted and each once. An id neither held nor
+supplied leaves its namers waiting. `differential_foreign` checks it in five orders under three choices of
+foreign rows.
+
+**Lean.** `proofs/Held.lean`:
+- `admit_eq`: the admission as the dirty-cone update is the full fold over `S'`, from `concl_ext_local` and so
+  `conclOf_local`;
+- `admits_eq`: so is every prefix of a chain of admissions;
+- `admit_derived`: a derived answer over parties outside the cone is unchanged;
+- `resume_eq`, `resume_concl`: from `checkpoint_resume`;
+- `resume_admits_eq`: resume, then admit.
+
+Core only, no `sorry`, no axiom beyond the three.
+
+### Measured
+
+`examples/persist_paths.rs held_view::`. Rows are shaped as persist's: a 32-byte id and a 76-byte `String` key.
+The store is a head store of n acts at one roster version of n members, each act with one receipt (2n + 1
+entries), purged by `head::purge`. The rows since the checkpoint are one new act and 16 receipts of it. Host
+load was about 40 on 32 cores (other jobs), so treat these as ±30%. The 1,024 column is the second of two runs;
+64,000 was run alone, because the harness's quadratic projection skips it after 1,024.
+
+**Persist's question first: resume against a cold fold.**
+
+| bench | 1,024 | 64,000 |
+|---|---|---|
+| cold: `View::new` over the purged store and the rows since | 6.7 ms | 720 ms |
+| `resume(checkpoint)` + `admit` the rows since | 6.3 ms (0.94×) | 566 ms (0.79×) |
+| `resume` alone | 6.2 ms | 583 ms |
+| `checkpoint` (encode) | 99 µs | 16.8 ms |
+| checkpoint size | 100,510 B | 6,272,158 B (49 B per entry) |
+
+So resume is a fold's cost less the depth walk and the sort: 0.8 to 0.95 of cold, not orders of magnitude less.
+It rebuilds every entry's past, as `View::new` does, plus one closure call per id and one re-encode to check
+canonicity. The saving that matters to persist is a different one. A `HeldView` owns its entries, so it can stay
+alive across transactions and admit, and then nothing is rebuilt:
+
+| bench | 1,024 | 64,000 |
+|---|---|---|
+| `HeldView::admit(one receipt)` (`visited` = 2, asserted) | 5.8 µs | 32 µs |
+| `View::new` over the store plus that receipt (today's refold) | 7.7 ms | 814 ms |
+| `admit(one act)`, releasing 16 waiting receipts (`visited` = 34, asserted) | 54 µs | 0.11 to 0.41 ms |
+| `HeldView::new` | 7.2 ms | 796 ms |
+| `HeldView::clone` | 1.1 ms | 134 ms |
+
+`visited` is the same at both sizes: the entry and what it names, never the store. Wall time grows from 5.8 µs
+to 32 µs, which is the `log n` of the B-tree inserts (rec, past, depth, conclusion, the `by_of` index) at
+64,000 keys of 32 bytes, plus cache misses. The past term is `past_len`: 2 for a receipt here.
+
+`clone` is the price of rolling back by keeping the prior value. At 64,000 it is about 1/6 of a fold: every
+entry's past is its own `BTreeSet`. A persistent (shared) map would make it `O(1)`, at a dependency or a
+hand-written map; not done.
+
+### Not yet
+
+- A TLA+ spec of admit against the full fold (the design's line under Equality). The Lean theorem and the
+  differential cover it; no TLA spec was added in this slice.
+- `HeldSpec::conflict_key` for the row layer. Its conclusions read no concurrency, so nothing uses a key there
+  yet. The head layer's key is fixed: `Entry::of`.
+- A cheaper `resume`. It rebuilds every entry's past (as `View::new` does), so its cost is a fold's, without the
+  depth walk and the sort. Making it cheaper needs pasts that are not rebuilt: a compact or lazy past in `View`.
+

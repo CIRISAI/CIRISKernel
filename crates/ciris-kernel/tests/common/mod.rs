@@ -5,6 +5,7 @@
 pub mod eager;
 
 use ciris_kernel::cut::CutSpec;
+use ciris_kernel::head::{Duty, Entry, Kind};
 use ciris_kernel::key_end::{EndRule, KeyEndRow, Record};
 use ciris_kernel::seat::{Conf, Obj, Reference, SeatKind, SeatRow};
 use ciris_kernel::window::{WinKind, WindowRow};
@@ -214,6 +215,45 @@ fn value(b: &[u8], i: &mut usize) -> J {
             J::Int(std::str::from_utf8(&b[start..*i]).unwrap().parse().unwrap())
         }
     }
+}
+
+/// An entry of `purge.json` (`purge.py`'s row dicts) as a `head::Entry`.
+pub fn head_entry(j: &J) -> Entry<String, String, i64> {
+    let kind = match j.at("kind").s() {
+        "seat" => Kind::Seat,
+        "act" => Kind::Act,
+        "ack" => Kind::Ack,
+        "rack" => Kind::ReaderAck,
+        "cut" => Kind::Cut,
+        "open" => Kind::Open,
+        "answer" => Kind::Answer,
+        _ => Kind::Other,
+    };
+    let mut e = Entry::new(j.at("id").s().to_string(), kind, j.at("signer").s().to_string(), j.at("names").strs());
+    e.head = j.get("head").and_then(|h| h.opt_s());
+    e.of = j.get("of").and_then(|h| h.opt_s());
+    e.members = j.get("members").map(|m| m.strs()).unwrap_or_default();
+    e.q = j.get("q").map_or(0, |q| q.i() as usize);
+    e.sigs = j.get("sigs").map(|m| m.strs()).unwrap_or_default();
+    e.length = j.get("length").map(|x| x.i());
+    e.receipt = j.get("receipt").map(|x| x.i());
+    e.delete = j.get("delete").is_some_and(|x| x.b());
+    e.duty = j
+        .get("duty")
+        .map(|d| d.strs())
+        .unwrap_or_default()
+        .iter()
+        .map(|d| match d.as_str() {
+            "accountability" => Duty::Accountability,
+            "pinned" => Duty::Pinned,
+            "hold" => Duty::Hold,
+            "floor" => Duty::Floor,
+            "owed" => Duty::Owed,
+            "preserve" => Duty::Preserve,
+            x => panic!("duty {x}"),
+        })
+        .collect();
+    e
 }
 
 pub fn fixture(name: &str) -> J {

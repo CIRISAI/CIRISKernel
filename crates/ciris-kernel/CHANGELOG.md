@@ -1,5 +1,54 @@
 # Changelog — ciris-kernel
 
+## Unreleased
+
+Held views, slice 4 (issue #4, `HELD.md`): the head layer held (`held_view::HeldView`), its checkpoint (ids
+only, rows re-attached by id), foreign rows on `Held`, and `proofs/Held.lean`. No existing answer changes.
+
+### Adopting (from 0.3.0)
+
+Checked against `git diff` of `src/` from 0.3.0. No public enum gained or lost a variant (`held::Refused` is
+unchanged), so no exhaustive `match` changes. One public struct changed its fields:
+
+| Type | Change | An adopter's code must become |
+|---|---|---|
+| `held::Admitted` | new public field `foreign: Vec<I>` | a literal adds `foreign: Vec::new()`, or is built with the new `Admitted::none(waiting, visited)`; a destructure adds `foreign` or `..` |
+
+Behaviour, not signature:
+- `head::View::new`, `void`, `answers` and `closed_for_me` no longer panic when the reader acknowledges a head
+  the store does not hold (a reader's acknowledgement not naming its head). Such a head now has no past, so it
+  makes nothing behind it or closed. Every store that did not panic answers as before.
+- `head::View` is `Clone`. Its private indexes changed form (a sorted buffer, or a map in a held view); its
+  answers and `View::new`'s cost did not (same allocations per call in `examples/persist_paths.rs head::`).
+
+### Breaking (0.x)
+
+- `held::Admitted` gains `foreign: Vec<I>`, so a struct literal of it no longer compiles.
+
+### Added (slice 4)
+
+- `held_view::HeldView<I, K, T>`, `Clone + PartialEq`: `new(store, own, reading, say)` (equal to
+  `View::new(store, &[], ..)`), `empty`, `admit(Entry) -> Result<Admitted<I>, Refused>` (transactional: a
+  refusal changes nothing), `admit_all`, `view() -> &View` (every `View` answer, unchanged), `len`, `is_empty`,
+  `holds`, `waits`, `waiting`, `past_len`. `Admitted::dirty` is every held entry whose answers may have changed,
+  ascending, each once; `Admitted::visited` counts the work.
+- `held_view::conflict_key(&Entry) -> Option<&I>`: an entry's conflict key (its `of`); conflicts are found through
+  the view's index by key, not by a scan of pairs.
+- The checkpoint: `CHECKPOINT_VERSION = 1`; `HeldView::checkpoint() -> Vec<u8>` (canonical; ids, stub fields,
+  conclusions, acknowledged heads, waiting ids; no row content); `HeldView::resume(bytes, rows: impl Fn(&I) ->
+  Option<Entry>) -> Result<HeldView, CheckpointError<I>>`. `CheckpointError { Version(u16), NotCanonical,
+  Truncated, Missing(I), Differs(I) }`: `Differs` is a supplied row that concludes otherwise than the checkpoint
+  states. `Encode` (`encode`, `decode`), with `DecodeError { Truncated, Invalid }`, implemented for `[u8; N]`
+  (fixed width), `u8`, `u16`, `u32`, `u64`, `i64` (big-endian) and `String` (`u32` length prefix).
+- `held_view::differential(store, own, reading, say, order, nows) -> Result<(), Mismatch<I>>`: after every
+  admission, the held view's answers equal `View::new` over the prefix, a refusal changes nothing, and every
+  entry whose answers changed is dirty.
+- Foreign rows: `Held::admit_foreign(&R)`, `Held::is_foreign(id)`; `Admitted::foreign`, the concluded foreign
+  rows in the read sets of the dirty rows, ascending, each once. A foreign row is held and concluded as a
+  member is, and is never in `dirty`. `held::differential_foreign(spec, order, pick)`.
+- `proofs/Held.lean`: `admit_eq`, `admits_eq`, `admit_dirty_new`, `admit_derived`, `resume_eq`,
+  `resume_concl`, `resume_admits_eq`.
+
 ## [0.3.0]
 
 Held views, slices 1 to 3 (issue #4, `HELD.md`): the concluded layer held across admissions, its memory bounded,

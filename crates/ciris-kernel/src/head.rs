@@ -25,10 +25,10 @@ const ON: usize = usize::MAX;
 /// The depth of an entry on a cycle of names or naming one: no kept store holds it, and the view leaves it out.
 const WAIT: usize = usize::MAX - 1;
 /// Up to how many members [`View`] scans a roster version's list for a key before it keeps them as a set.
-const MEMBERS_SCANNED: usize = 32;
+pub(crate) const MEMBERS_SCANNED: usize = 32;
 /// Up to how many held entries [`View`] scans them all for an act's receipts and cuts, an answer or a name;
 /// above it, [`View::new`] builds the indexes.
-const SCANNED: usize = 64;
+pub(crate) const SCANNED: usize = 64;
 
 /// The kind of a stored row, as these answers read it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -175,6 +175,69 @@ impl<K: Ord> Members<'_, K> {
     }
 }
 
+/// The entries naming each act as theirs: one sorted buffer of (act, entry) pairs, as [`View::new`] builds it,
+/// or by act, as a held view keeps it, so that one insertion is
+/// `O(log n)`. Both answer the same entries in the same (id) order.
+#[derive(Clone)]
+pub(crate) enum ByOf<I> {
+    Sorted(Vec<(I, I)>),
+    Map(BTreeMap<I, Vec<I>>),
+}
+
+impl<I: Ord + Clone> ByOf<I> {
+    /// The entries naming act `a` as theirs, ascending.
+    pub(crate) fn of<'s>(&'s self, a: &I) -> impl Iterator<Item = &'s I> + 's {
+        let (sorted, map): (&'s [(I, I)], &'s [I]) = match self {
+            ByOf::Sorted(v) => {
+                let lo = v.partition_point(|(o, _)| o < a);
+                (&v[lo..v.partition_point(|(o, _)| o <= a)], &[])
+            }
+            ByOf::Map(m) => (&[], m.get(a).map_or(&[][..], |x| &x[..])),
+        };
+        sorted.iter().map(|(_, i)| i).chain(map.iter())
+    }
+    /// As a map, for insertion.
+    pub(crate) fn map(&mut self) -> &mut BTreeMap<I, Vec<I>> {
+        if let ByOf::Sorted(v) = self {
+            let mut m: BTreeMap<I, Vec<I>> = BTreeMap::new();
+            for (o, i) in core::mem::take(v) {
+                m.entry(o).or_default().push(i);
+            }
+            *self = ByOf::Map(m);
+        }
+        match self {
+            ByOf::Map(m) => m,
+            ByOf::Sorted(_) => unreachable!("made a map above"),
+        }
+    }
+}
+
+/// The ids answers name: one sorted buffer ([`View::new`]) or a set (a held view).
+#[derive(Clone)]
+pub(crate) enum Answered<I> {
+    Sorted(Vec<I>),
+    Set(BTreeSet<I>),
+}
+
+impl<I: Ord + Clone> Answered<I> {
+    fn contains(&self, o: &I) -> bool {
+        match self {
+            Answered::Sorted(v) => v.binary_search(o).is_ok(),
+            Answered::Set(s) => s.contains(o),
+        }
+    }
+    /// As a set, for insertion.
+    pub(crate) fn set(&mut self) -> &mut BTreeSet<I> {
+        if let Answered::Sorted(v) = self {
+            *self = Answered::Set(core::mem::take(v).into_iter().collect());
+        }
+        match self {
+            Answered::Set(s) => s,
+            Answered::Sorted(_) => unreachable!("made a set above"),
+        }
+    }
+}
+
 /// A node's store: every kept row, whole or as a stub, by digest.
 pub type Store<I, K, T> = BTreeMap<I, Entry<I, K, T>>;
 
@@ -192,26 +255,28 @@ pub enum WindowState {
 /// Every answer, over a store plus newly offered rows, for the node signing under `own`. An immutable
 /// snapshot, built whole by [`View::new`]: its fields are read through methods. A store is closed under the
 /// door; an entry of one on a cycle of names, or naming one, which no door keeps, is left out of the view.
+/// `Clone` (0.3.x), so a held view is.
+#[derive(Clone)]
 pub struct View<I, K, T> {
-    own: K,
-    reading: Reading,
-    say: bool,
-    rec: BTreeMap<I, Entry<I, K, T>>,
-    anc: BTreeMap<I, BTreeSet<I>>,
-    depth: BTreeMap<I, usize>,
-    c: BTreeMap<I, bool>,
-    v: BTreeSet<I>,
+    pub(crate) own: K,
+    pub(crate) reading: Reading,
+    pub(crate) say: bool,
+    pub(crate) rec: BTreeMap<I, Entry<I, K, T>>,
+    pub(crate) anc: BTreeMap<I, BTreeSet<I>>,
+    pub(crate) depth: BTreeMap<I, usize>,
+    pub(crate) c: BTreeMap<I, bool>,
+    pub(crate) v: BTreeSet<I>,
     /// Up to how many held entries the answers scan them all; above it they read the next two indexes,
     /// built in [`View::new`] ([`SCANNED`], except in this module's tests).
-    scanned: usize,
+    pub(crate) scanned: usize,
     /// The held entries that name each act as theirs (`of`), by ascending id: its receipts and cuts.
-    by_of: Vec<(I, I)>,
+    pub(crate) by_of: ByOf<I>,
     /// The ids an answer names.
-    answered: Vec<I>,
+    pub(crate) answered: Answered<I>,
     /// The members of each entry listing more than [`MEMBERS_SCANNED`], as a set.
-    mem: BTreeMap<I, BTreeSet<K>>,
+    pub(crate) mem: BTreeMap<I, BTreeSet<K>>,
     /// The heads this node has acknowledged.
-    acked: BTreeSet<I>,
+    pub(crate) acked: BTreeSet<I>,
 }
 
 /// The answers compared before and after a purge.
@@ -260,7 +325,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         &self.v
     }
 
-    fn build(
+    pub(crate) fn build(
         store: &BTreeMap<I, Entry<I, K, T>>,
         extra: &[Entry<I, K, T>],
         own: K,
@@ -294,8 +359,8 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             c: BTreeMap::new(),
             v: BTreeSet::new(),
             scanned,
-            by_of: Vec::new(),
-            answered: Vec::new(),
+            by_of: ByOf::Sorted(Vec::new()),
+            answered: Answered::Sorted(Vec::new()),
             mem: BTreeMap::new(),
             acked: BTreeSet::new(),
         };
@@ -314,23 +379,26 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             ids.retain(|i| me.rec.contains_key(i));
         }
         let index = me.rec.len() > scanned;
+        let (mut by_of, mut answered): (Vec<(I, I)>, Vec<I>) = (Vec::new(), Vec::new());
         for (i, r) in &me.rec {
             if r.members.len() > MEMBERS_SCANNED {
                 me.mem.insert(i.clone(), r.members.iter().cloned().collect());
             }
             if index {
                 if let Some(o) = &r.of {
-                    me.by_of.push((o.clone(), i.clone()));
+                    by_of.push((o.clone(), i.clone()));
                 }
                 if r.kind == Kind::Answer {
-                    me.answered.extend(r.names.iter().cloned());
+                    answered.extend(r.names.iter().cloned());
                 }
             }
         }
         // each index one sorted buffer: (act, entry) pairs, and the ids answers name
-        me.by_of.sort();
-        me.answered.sort();
-        me.answered.dedup();
+        by_of.sort();
+        me.by_of = ByOf::Sorted(by_of);
+        answered.sort();
+        answered.dedup();
+        me.answered = Answered::Sorted(answered);
         let mut by_depth = ids.clone();
         by_depth.sort_by_key(|i| me.depth[i]);
         for i in &by_depth {
@@ -365,9 +433,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
     /// The held entries that name act `a` as theirs, ascending, read through the index (a store of more than
     /// `scanned` entries; a smaller one is scanned by the caller).
     fn of_entries<'s>(&'s self, a: &I) -> impl Iterator<Item = &'s Entry<I, K, T>> + 's {
-        let lo = self.by_of.partition_point(|(o, _)| o < a);
-        let ids: &'s [(I, I)] = &self.by_of[lo..self.by_of.partition_point(|(o, _)| o <= a)];
-        ids.iter().map(move |(_, i)| &self.rec[i])
+        self.by_of.of(a).map(move |i| &self.rec[i])
     }
 
     /// The depth of entry `i`, by a walk down what entries name. An entry is ON the walk's stack while it
@@ -431,7 +497,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         head.as_ref().and_then(|h| self.rec.get(h)).map_or(0, |r| r.q)
     }
 
-    fn concl(&self, r: &Entry<I, K, T>) -> bool {
+    pub(crate) fn concl(&self, r: &Entry<I, K, T>) -> bool {
         if r.stub {
             return r.concl; // Settled.checkpoint_conclusions: the stored conclusion
         }
@@ -451,7 +517,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         self.acked.clone()
     }
 
-    fn acked_of(&self) -> BTreeSet<I> {
+    pub(crate) fn acked_of(&self) -> BTreeSet<I> {
         self.rec
             .values()
             .filter(|r| r.kind == Kind::ReaderAck && self.c[&r.id])
@@ -459,21 +525,23 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             .collect()
     }
 
-    fn heads_of(&self, r: &Entry<I, K, T>) -> Vec<I> {
+    pub(crate) fn heads_of(&self, r: &Entry<I, K, T>) -> Vec<I> {
         if r.kind == Kind::Seat {
             return r.names.iter().filter(|n| self.rec[*n].kind == Kind::Seat).cloned().collect();
         }
         r.head.iter().cloned().collect()
     }
 
-    fn behind(&self, r: &Entry<I, K, T>, acked: &BTreeSet<I>) -> bool {
+    pub(crate) fn behind(&self, r: &Entry<I, K, T>, acked: &BTreeSet<I>) -> bool {
         let hs = self.heads_of(r);
         acked.iter().any(|h| {
-            !hs.is_empty() && hs.iter().all(|x| self.anc[h].contains(x)) && !self.anc[h].contains(&r.id) && r.id != *h
+            // an acknowledged head not held (a reader's acknowledgement not naming its head) has no past here
+            let Some(ah) = self.anc.get(h) else { return false };
+            !hs.is_empty() && hs.iter().all(|x| ah.contains(x)) && !ah.contains(&r.id) && r.id != *h
         })
     }
 
-    fn void_set(&self, by_depth: &[I]) -> BTreeSet<I> {
+    pub(crate) fn void_set(&self, by_depth: &[I]) -> BTreeSet<I> {
         let acked = &self.acked;
         let mut out = BTreeSet::new();
         for i in by_depth {
@@ -600,7 +668,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
             return false;
         }
         match &self.rec[a].head {
-            Some(h) => self.acked.iter().any(|x| self.anc[x].contains(h)),
+            Some(h) => self.acked.iter().any(|x| self.anc.get(x).is_some_and(|s| s.contains(h))),
             None => false,
         }
     }
@@ -635,7 +703,7 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         let answered = if self.rec.len() <= self.scanned {
             self.rec.values().any(|x| x.kind == Kind::Answer && x.names.contains(o))
         } else {
-            self.answered.binary_search(o).is_ok()
+            self.answered.contains(o)
         };
         if answered {
             return WindowState::Answered;
