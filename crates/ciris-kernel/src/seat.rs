@@ -687,6 +687,70 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     }
 }
 
+/// Seats read **at a held row** (0.3): the instant is the one row `at` states ([`crate::Dated`]), never a
+/// clock. A seat counts at that instant only when the offer that seats it covers it: stated at or before it,
+/// and not ended by it (`asserted_at <= t < valid_until`, [`crate::covers_at`]). An owner's standing judged at
+/// the row being admitted is `holders_at(owner, node, None, admitted)`. The tip reading is unchanged: while
+/// tips wait, a key stands only if every tip seats it.
+///
+/// Only the seating offer's own instants are read. A seat conferred under an offer whose own standing ended is
+/// not ended by it here; that chain is the conferring offer's `valid_until`, which the caller states on the
+/// conferred offer when it applies.
+impl<'c, 'a, R: SeatRow + crate::Dated, S: CutSpec<R>> Seats<'c, 'a, R, S> {
+    fn offer_covers(&self, offer: &R::Id, t: &R::Instant) -> bool {
+        let g = &self.c.g;
+        g.idx(offer).is_some_and(|i| {
+            let r = g.row(i);
+            crate::covers_at(r.asserted_at(), r.valid_until(), t)
+        })
+    }
+
+    /// The keys holding scope `s` over `o` at the instant row `at` states; `None` when `at` is not held or
+    /// states no instant.
+    pub fn holders_at(
+        &self,
+        s: &str,
+        o: &ObjOf<R>,
+        root: Option<&Root<R::Id, R::Key>>,
+        at: &R::Id,
+    ) -> Option<BTreeSet<R::Key>> {
+        let t = self.c.g.instant_of(at)?;
+        let got: BTreeSet<R::Key> = self
+            .recs
+            .iter()
+            .filter(|r| {
+                r.obj == *o && self.has(r, s) && root.is_none_or(|x| r.root == *x) && self.offer_covers(&r.offer, &t)
+            })
+            .map(|r| r.k.clone())
+            .collect();
+        Some(match self.tips_common(s, o) {
+            None => got,
+            Some(c) => got.intersection(&c).cloned().collect(),
+        })
+    }
+
+    /// Whether key `k` stands in scope `s` over `o` at the instant row `at` states; `None` when `at` is not
+    /// held or states no instant.
+    pub fn stands_at(
+        &self,
+        k: &R::Key,
+        s: &str,
+        o: &ObjOf<R>,
+        root: Option<&Root<R::Id, R::Key>>,
+        at: &R::Id,
+    ) -> Option<bool> {
+        let t = self.c.g.instant_of(at)?;
+        let any = self.recs.iter().any(|r| {
+            r.k == *k
+                && r.obj == *o
+                && self.has(r, s)
+                && root.is_none_or(|x| r.root == *x)
+                && self.offer_covers(&r.offer, &t)
+        });
+        Some(any && self.tips_common(s, o).is_none_or(|c| c.contains(k)))
+    }
+}
+
 fn may_confer<R: SeatRow>(law: &SeatLaw, up: &R, o: &R) -> bool {
     let (Some(us), Some(os)) = (up.scope(), o.scope()) else { return false };
     if up.sub() && covers(us.as_ref(), os.as_ref()) && o.obj() == up.obj() {
@@ -715,12 +779,13 @@ pub fn members_at<R: SeatRow, S: CutSpec<R>>(
     scope: &str,
 ) -> BTreeSet<R::Key> {
     // as members_in over p's rows with p's closure, read by index: a head's past is taken whole once
-    let g = p.g;
+    let g = p.graph();
+    let anc = p.ancestors();
     let mut out: Option<BTreeSet<R::Key>> = None;
     for h in heads {
-        let Some(hi) = g.idx(h).filter(|hi| p.p.binary_search(hi).is_ok()) else { return BTreeSet::new() };
+        let Some(hi) = g.idx(h).filter(|hi| anc.binary_search(hi).is_ok()) else { return BTreeSet::new() };
         let past = g.ancestors(hi);
-        let sc = concluded_over(p.p.iter().filter(|&&q| q == hi || past.has(q)).map(|&q| g.row(q)));
+        let sc = concluded_over(anc.iter().filter(|&&q| q == hi || past.has(q)).map(|&q| g.row(q)));
         let m = Seats::new(&sc, law, spec, None).holders(scope, obj, None);
         out = Some(match out {
             None => m,
@@ -879,7 +944,7 @@ fn members_at_with<R: SeatRow, S: CutSpec<R>>(
     cache: Option<&MembersAt<R>>,
 ) -> BTreeSet<R::Key> {
     let Some(cache) = cache else { return members_at(p, law, spec, obj, heads, scope) };
-    if !heads.iter().all(|h| p.g.idx(h).is_some_and(|hi| p.p.binary_search(&hi).is_ok())) {
+    if !heads.iter().all(|h| p.graph().idx(h).is_some_and(|hi| p.ancestors().binary_search(&hi).is_ok())) {
         return BTreeSet::new();
     }
     let mut hs = heads.to_vec();

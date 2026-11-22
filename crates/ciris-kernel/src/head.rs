@@ -120,6 +120,9 @@ pub struct Entry<I, K, T> {
     pub acks: Vec<I>,
     /// A receipt or cut of a final act, dropped: the cut and receipt rules no longer read it.
     pub dropped: bool,
+    /// The instant its signer states for it (persist: `asserted_at`), when it states one: what the `_at`
+    /// answers read at ([`View::window_at`], [`View::answers_at`]). 0.3.
+    pub at: Option<T>,
 }
 
 impl<I, K, T> Entry<I, K, T> {
@@ -146,7 +149,13 @@ impl<I, K, T> Entry<I, K, T> {
             ackers: Vec::new(),
             acks: Vec::new(),
             dropped: false,
+            at: None,
         }
+    }
+    /// The same entry, stating the instant `t` (0.3).
+    pub fn with_at(mut self, t: T) -> Self {
+        self.at = Some(t);
+        self
     }
 }
 
@@ -606,7 +615,22 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         m.into_iter().filter(|k| !have.contains(k)).collect()
     }
 
-    /// A window's state at `now`, read from the instant this node first held the opener.
+    /// A window's state at the instant row `at` states ([`Entry::at`]), never a clock; `None` when `at` is
+    /// not held or states no instant (0.3). The window still runs from the instant this node first held the
+    /// opener, which CC rules node-local; only the reader's clock is replaced.
+    pub fn window_at(&self, o: &I, at: &I) -> Option<WindowState> {
+        let t = self.rec.get(at)?.at?;
+        Some(self.window(o, t))
+    }
+
+    /// Every answer at the instant row `at` states; `None` when `at` is not held or states no instant (0.3).
+    pub fn answers_at(&self, at: &I) -> Option<Answers<I, K>> {
+        let t = self.rec.get(at)?.at?;
+        Some(self.answers(t))
+    }
+
+    /// A window's state at `now`, read from the instant this node first held the opener. A reading at a
+    /// node's own present (CC 2.7.9): for serving and display; a verdict reads [`View::window_at`].
     pub fn window(&self, o: &I, now: T) -> WindowState {
         let answered = if self.rec.len() <= self.scanned {
             self.rec.values().any(|x| x.kind == Kind::Answer && x.names.contains(o))

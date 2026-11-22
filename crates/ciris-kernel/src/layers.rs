@@ -113,29 +113,91 @@ impl<'a, R: Row> Concluded<'a, R> {
 }
 
 /// What a conclusion rule is given: the row, its concluded ancestors (in index order) and the closure.
+///
+/// Its fields are private (0.3): a rule reads through the methods below, so a [`Past::recording`] past can
+/// log every row a rule reads. [`Past::graph`] and [`Past::ancestors`] hand the rule the whole closure or the
+/// whole concluded past; a recording past then logs that the rule read beyond its log ([`Recorded::escaped`]).
 pub struct Past<'g, 'a, R: Row> {
-    /// The closure over the kept set.
-    pub g: &'g Graph<'a, R>,
-    /// The row being concluded.
-    pub i: usize,
-    /// Its concluded ancestors, in index order.
-    pub p: &'g [usize],
+    g: &'g Graph<'a, R>,
+    i: usize,
+    p: &'g [usize],
+    log: Option<&'g core::cell::RefCell<Recorded>>,
+}
+
+/// The rows a conclusion rule read through a recording [`Past`], by index. `escaped` is set when the rule
+/// asked for the whole closure or the whole concluded past ([`Past::graph`], [`Past::ancestors`]); the log
+/// is then not the whole read set, and the sound read set is [`Past::reads`].
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Recorded {
+    /// The row indices read, in the order read (repeats allowed).
+    pub read: Vec<usize>,
+    /// The rule read beyond what the log records.
+    pub escaped: bool,
 }
 
 impl<'g, 'a, R: Row> Past<'g, 'a, R> {
+    /// The past of row `i` in `g`, with `p` its concluded ancestors in ascending index order.
+    pub fn new(g: &'g Graph<'a, R>, i: usize, p: &'g [usize]) -> Self {
+        Past { g, i, p, log: None }
+    }
+    /// The same past, logging every row read through its methods into `log`.
+    pub fn recording(g: &'g Graph<'a, R>, i: usize, p: &'g [usize], log: &'g core::cell::RefCell<Recorded>) -> Self {
+        Past { g, i, p, log: Some(log) }
+    }
+    #[inline]
+    fn note(&self, q: usize) {
+        if let Some(l) = self.log {
+            l.borrow_mut().read.push(q);
+        }
+    }
+    #[inline]
+    fn escape(&self) {
+        if let Some(l) = self.log {
+            l.borrow_mut().escaped = true;
+        }
+    }
+    /// The index of the row being concluded.
+    pub fn index(&self) -> usize {
+        self.i
+    }
+    /// The closure over the kept set. A recording past marks the read as escaped: through the graph a rule
+    /// can read any row.
+    pub fn graph(&self) -> &'g Graph<'a, R> {
+        self.escape();
+        self.g
+    }
+    /// Its concluded ancestors, by index, ascending. A recording past marks the read as escaped.
+    pub fn ancestors(&self) -> &'g [usize] {
+        self.escape();
+        self.p
+    }
+    /// The sound read set, whatever the rule does: the row and its concluded ancestors, by index, ascending.
+    /// A conclusion reads nothing else (`Causal.concl_final`, `conclOf_local`).
+    pub fn reads(&self) -> Vec<usize> {
+        let mut v: Vec<usize> = self.p.to_vec();
+        if let Err(k) = v.binary_search(&self.i) {
+            v.insert(k, self.i);
+        }
+        v
+    }
     /// The row being concluded.
     pub fn row(&self) -> &'a R {
+        self.note(self.i);
         self.g.row(self.i)
     }
     /// Its concluded ancestors, as rows.
     pub fn rows(&self) -> impl Iterator<Item = &'a R> + '_ {
-        self.p.iter().map(move |&q| self.g.row(q))
+        self.p.iter().map(move |&q| {
+            self.note(q);
+            self.g.row(q)
+        })
     }
     /// The concluded ancestor with this id.
     pub fn get(&self, id: &R::Id) -> Option<&'a R> {
         let q = self.g.idx(id)?;
         // `p` is in index order (ascending), as `conclude` builds it
         if self.p.binary_search(&q).is_ok() {
+            self.note(q);
             Some(self.g.row(q))
         } else {
             None
@@ -144,7 +206,11 @@ impl<'g, 'a, R: Row> Past<'g, 'a, R> {
     /// Whether row `a` is in the past of row `b` (both by id; an id not held is in no past).
     pub fn past(&self, a: &R::Id, b: &R::Id) -> bool {
         match (self.g.idx(a), self.g.idx(b)) {
-            (Some(a), Some(b)) => self.g.in_past(a, b),
+            (Some(a), Some(b)) => {
+                self.note(a);
+                self.note(b);
+                self.g.in_past(a, b)
+            }
             _ => false,
         }
     }
@@ -174,7 +240,7 @@ pub fn conclude<'a, R: Row>(
             continue;
         }
         let p: Vec<usize> = g.ancestors(i).iter().filter(|&q| c[q]).collect();
-        c[i] = rule(&Past { g: &g, i, p: &p });
+        c[i] = rule(&Past::new(&g, i, &p));
     }
     Concluded::with(g, Some(c))
 }

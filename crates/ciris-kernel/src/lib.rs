@@ -58,3 +58,24 @@ pub trait Row {
     /// The key that signed it.
     fn signer(&self) -> &Self::Key;
 }
+
+/// A row's signed instants, for the answers read **at a held row** (the `_at` forms: [`seat::Seats::holders_at`],
+/// [`key_end::live_at`], [`head::View::window_at`], ...). An answer read at a row takes its instant from that
+/// row, never from a clock, so two nodes holding the same rows give the same answer (CC 2.7.9: a reading at a
+/// node's own present binds only that node).
+pub trait Dated: Row {
+    /// An instant (persist: `Micros`).
+    type Instant: Ord + Copy;
+    /// The instant the row's signer states for it (persist: `asserted_at`), when it states one.
+    fn asserted_at(&self) -> Option<Self::Instant>;
+    /// The instant the row's standing ends, when it states one (persist: `expires_at`, `valid_until`).
+    fn valid_until(&self) -> Option<Self::Instant> {
+        None
+    }
+}
+
+/// Whether a row stated from `from` until `until` covers `t`: `from <= t < until`, half-open; a missing bound
+/// does not limit.
+pub fn covers_at<T: Ord>(from: Option<T>, until: Option<T>, t: &T) -> bool {
+    from.is_none_or(|f| f <= *t) && until.is_none_or(|u| *t < u)
+}

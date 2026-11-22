@@ -666,7 +666,7 @@ fn main() {
             let c = concluded(&rows, &law);
             let last = c.g.len() - 1;
             let anc: Vec<usize> = c.g.ancestors(last).iter().filter(|&q| c.concluded(q)).collect();
-            let p = Past { g: &c.g, i: last, p: &anc };
+            let p = Past::new(&c.g, last, &anc);
             let head = [rid(2, 0)];
             h.run("seat::members_at", n, || seat::members_at(&p, &law, &NoCut, &gobj, &head, "member").len());
             h.run("seat::voices", n, || seat::voices(p.row(), &p).len());

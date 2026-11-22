@@ -1,8 +1,62 @@
 # Changelog — ciris-kernel
 
-## Unreleased
+## [0.3.0]
 
-### Added (additive; no answer or signature changes)
+Held views, slices 1 to 3 (issue #4, `HELD.md`): the concluded layer held across admissions, its memory bounded,
+and what persist's verdict choke point needs: answers read at a held row, read sets, and derived wake-ups. No
+answer changes. The `now` forms remain; they are node-local readings (CC 2.7.9).
+
+### Adopting 0.3.0 (from 0.2.0)
+
+Checked against `git diff kernel-v0.2.0 -- crates/ciris-kernel/src`, not from memory. No public enum gained or
+lost a variant, so no exhaustive `match` changes. Every public struct whose fields changed, and what a struct
+literal or field access must change to:
+
+| Type | Change | An adopter's code must become |
+|---|---|---|
+| `layers::Past` | fields `g`, `i`, `p` private; a private `log` added | `Past { g, i, p }` → `Past::new(g, i, p)`; `p.g` → `p.graph()`; `p.i` → `p.index()`; `p.p` → `p.ancestors()` (or `p.rows()` / `p.get(id)`, which a recording past logs) |
+| `head::Entry` | new public field `at: Option<T>` | build with `Entry::new(..)` (sets `at: None`) and `.with_at(t)`; a struct literal must add `at: None` or `at: Some(t)`. Set it wherever `View::window_at` / `answers_at` read at that row |
+| `held::Admitted` | new public field `wake: Vec<AnswerId>` (the type is new since 0.2.0) | a literal adds `wake: Vec::new()`; a destructure adds `wake` or `..` |
+| `graph::Bits` | private field replaced (dense or compact form); `PartialEq` and `Hash` read the set, not the storage | no literal is possible from outside (the field was and is private). Code that compared two `Bits` made for different `n` now gets `true` when they hold the same indices |
+
+Traits:
+- `held::HeldSpec` gains `keys` and `can_carry`, both with defaults. Existing impls compile unchanged; an impl
+  that declares a method of the same name must match the new signature.
+- `Dated` is new. Implement it for a row type to use any `_at` answer.
+
+Additions with no adopter change: `Graph::push`, `reserve`, `instant_of`, `past_bytes`, `past_counts`; `Clone`
+for `Graph`, `Concluded` and `Held`; the `held` module (slices 1 to 3); the `_at` answers; `covers_at`.
+
+### Breaking (0.x minor bump)
+
+- `layers::Past`'s fields `g`, `i`, `p` are private. Build one with `Past::new(g, i, p)`; read through `row()`,
+  `rows()`, `get(id)`, `past(a, b)`, `index()`, `graph()`, `ancestors()` and `reads()`. A rule that read `p.g`
+  reads `p.graph()`, and `p.p` reads `p.ancestors()`.
+- `held::Admitted` gains `wake: Vec<AnswerId>`, so a struct literal of it no longer compiles.
+- `head::Entry` gains `at: Option<T>`, the instant its signer states. `Entry::new` sets `None`; `with_at(t)` sets
+  it. A struct literal of it no longer compiles.
+- `HeldSpec` gains `keys(&R) -> Vec<R::Key>` and `can_carry(&R::Key) -> bool`, both with defaults, so an
+  existing impl compiles unchanged.
+
+### Added (slice 3)
+
+- `Dated: Row { type Instant; fn asserted_at(); fn valid_until() }` and `covers_at(from, until, t)`, half-open:
+  a row's signed instants. `Graph::instant_of(id)`.
+- Answers read at a held row, taking their instant from row `at`, never a clock. Each returns `None` when `at` is
+  not held or states no instant:
+  `Seats::holders_at(scope, obj, root, at)`, `Seats::stands_at(k, scope, obj, root, at)` (a seat counts only
+  while its seating offer covers the instant); `key_end::live_at`, `ended_at`, `retained_at`;
+  `head::View::window_at`, `answers_at`.
+- `Past::recording(g, i, p, &RefCell<Recorded>)`: logs every row a rule reads through its methods. `Recorded {
+  read, escaped }`.
+- `held::Reads<I, K>`: ids and keys, sorted and each once. `Held::reads_of(id)`: the sound read set (the row and
+  its concluded past). `Held::recorded_reads(id) -> Logged { reads, complete }`: what the rule actually read.
+- `Held::register(reads) -> AnswerId`, `update`, `unregister`, `registered`, `wakes_for(&R)`; `Admitted::wake`:
+  the registered answers whose reads a newly kept row touches (its id, an id it names, a key it carries).
+- `Held::named_by(id)`: the by-name index. `Held::unwritable()`: registered keys no row can carry (a read with no
+  possible writer).
+
+### Added (slices 1 and 2)
 
 - `held`: the kept and concluded layers held across admissions (issue #4, `HELD.md`). `Held::admit` keeps one row
   and whatever it releases, and concludes only those. `Admitted { kept, waiting, dirty, visited }`. A refusal
