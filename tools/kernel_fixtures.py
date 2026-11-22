@@ -19,6 +19,9 @@ Sources (all under models/):
               line, holders, tips and window outcomes
     purge     causal_kernel/purge.py: every replay check_purge.py runs, under both readings
     key_end   causal_kernel/check_key_end.py: every generated world at every instant
+    conferral_end causal_kernel/conferral_end.py: the case table of the end of a conferral (CC 2.4.1.1, CC 4.5.5)
+              as recommended for persist v62.0, with every act's `counted`, `in_force` and deciding `rule`. No
+              Rust test reads it: it is the conformance fixture for persist, which writes its own adapter.
 """
 import base64
 import hashlib
@@ -579,6 +582,9 @@ def main():
     dump("tables.json", table_cases(), out)
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
+    import conferral_end as CE
+    dump("conferral_end.json", CE.fixture(), out)
+    out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():

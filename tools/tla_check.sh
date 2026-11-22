@@ -54,6 +54,11 @@ done
 if [ -z "$suffix" ] && ! python3 -I "$root/tools/tla_door_fixture.py" --jar "$jar" --check > "$work/fixture.log" 2>&1; then
   cat "$work/fixture.log"; bad=$((bad + 1))
 fi
-tail=""; [ -z "$suffix" ] && tail="; Door states fixture current"
+# the reachable states of ConferralEnd.tla's cross-check configurations, each with the spec's own answers, must
+# get the same answers from models/causal_kernel/conferral_end.py (the reference the persist fixture comes from)
+if [ -z "$suffix" ] && ! python3 -I "$root/tools/conferral_xcheck.py" --jar "$jar" > "$work/xcheck.log" 2>&1; then
+  cat "$work/xcheck.log"; bad=$((bad + 1))
+fi
+tail=""; [ -z "$suffix" ] && tail="; Door states fixture current; $(tail -n 1 "$work/xcheck.log" | sed 's/^conferral_xcheck: //')"
 echo "tla${suffix}: $n specs, $total distinct states, $((n - bad)) pass with their plant caught$tail"
 [ $bad -eq 0 ]

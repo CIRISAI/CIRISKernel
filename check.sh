@@ -42,6 +42,7 @@ step "proofs/build.sh"                    lean      bash proofs/build.sh
 step "check_purge (checkpoint, purge)"    purge     python3 -I models/causal_kernel/check_purge.py
 step "check_time (two notions of time)"   time      python3 -I models/causal_kernel/check_time.py
 step "check_key_end (a key's own end)"    key_end   python3 -I models/causal_kernel/check_key_end.py
+step "check_conferral_end (an end)"      conferral python3 -I models/causal_kernel/check_conferral_end.py
 step "check_rosters (one roster)"         rosters   python3 -I models/causal_kernel/check_rosters.py
 step "check_attacks (34 attacks)"         attacks   python3 -I models/causal_kernel/check_attacks.py
 step "check (order-freeness)"             check     python3 -I models/causal_kernel/check.py
