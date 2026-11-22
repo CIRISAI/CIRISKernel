@@ -17,6 +17,8 @@ Sources (all under models/):
     seat      causal_kernel/attacks.py (every scenario its 34 tests conclude, with the seat, window and route rules)
               and causal_kernel/window.py (the adversary table): conclusions, the cut, live seats, the reader's
               line, holders, tips and window outcomes
+    seat_cut  causal_kernel/check_seat_cut.py: its named cases and every kept set of its two pools, every act's
+              exercised_stands and the members at every concluded row as a head
     purge     causal_kernel/purge.py: every replay check_purge.py runs, under both readings
     key_end   causal_kernel/check_key_end.py: every generated world at every instant
 """
@@ -324,6 +326,31 @@ def seat_cases():
             "skipped_other_rules": skipped["rules"], "problems": problems}
 
 
+# ---- seat_cut: check_seat_cut.py's cases and worlds -------------------------------------------------------------
+def seat_cut_cases():
+    import check_seat_cut as SC
+    import seat as ST
+    problems, worlds = [], []
+
+    def one(name, rows, k, scope, obj):
+        check_rows(rows, problems, name)
+        S, acts, heads = SC.world_answers(rows, k, scope, obj)
+        refs = {}
+        worlds.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "k": k, "scope": scope, "obj": obj,
+                       "kept": [r["id"] for r in S.rows], "c": [S.C[r["id"]] for r in S.rows],
+                       "acts": acts, "heads": heads})
+    for name, pool, ids, x, (k, scope, obj), want, mem in SC.CASES:
+        one("case: " + name, SC.pick(pool, ids.split()), k, scope, obj)
+    for pname in SC.POOLS:
+        _, (k, scope, obj), _ = SC.POOLS[pname]
+        for i, w in enumerate(SC.worlds(pname)):
+            one("%s world %d" % (pname, i), w, k, scope, obj)
+    law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+           "policy": {k: list(v) for k, v in ST.POLICY.items()}}
+    return {"law": law, "worlds": worlds, "problems": problems}
+
+
 # ---- tables: worlds whose conclusion rule is the instance's own --------------------------------------------------
 def orders_of(rows):
     """The orders the Rust side replays: as written, reversed, and rotated by one."""
@@ -575,6 +602,12 @@ def main():
             print("problem:", p)
         return 1
     dump("seat.json", seat, out)
+    sc = seat_cut_cases()
+    if sc["problems"]:
+        for p in sc["problems"]:
+            print("problem:", p)
+        return 1
+    dump("seat_cut.json", sc, out)
     dump("purge.json", purge_cases(), out)
     dump("tables.json", table_cases(), out)
     dump("versions.json", versions_cases(), out)

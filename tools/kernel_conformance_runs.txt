@@ -30,3 +30,4 @@ the frontier's walk against the pairwise frontier; duplicate ids
 trust walk against the Lean walk
 trust walk, TrustSet.lean worked world
 trust::reaches and derived::reach against the walks they replaced
+exercised_stands and the members at a head (check_seat_cut.py cases and worlds)

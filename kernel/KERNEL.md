@@ -390,6 +390,33 @@ own parameters are; most door rows still rest on parameters the tables do not st
 A row of a removed key counts when the removal has it among its ancestors: something the removal can see had
 already named it. **proved**: `only_removals_stop_counting`, `sign_after_removal_never_counts`.
 
+**An act under a seat follows the cut** (CC 2.4.1.1, ruled 2026-11-21: "A withdraws row retires its target as a cut
+does (CC 2.7.7)"). An act that k exercises under its seat stands iff (a) the seat walk over the act's own past seats
+k, and (b) no counting ending cut on the seat is concurrent with the act. Every way a seat ends is an ending cut:
+k's own withdrawal of its acceptance or of the offer that seats it (a resignation is this row), the conferrer's
+withdrawal of the offer where the walk honours it, and a counting unseat. They are judged under rule 4's fixed point,
+so a withdrawal that a concurrent counting removal of k voids does not cut. An act in the withdrawal's past stands;
+one concurrent with it counted at its own head but is not in force from the head the withdrawal names; one naming it
+is not seated by the walk. A contested ending cut (rule 5) leaves the act not standing. The members at a head do not
+follow it: who is counted at a head, n and a version's voters stay by past (section 7). Acts follow the walk, so a
+re-acceptance re-seats k for its acts; counts follow `left_in_past` and `readmission_needed`, so a re-acceptance alone
+does not count k again. This is `seat::exercised_stands`; before 2026-11-21 an act was judged by the walk over its
+own past alone, and an act concurrent with the withdrawal still found the seat standing. **proved**
+(`SeatCut.lean`): `in_past_stands`, `concurrent_does_not_stand`, `cut_acts_members_hold`. **run**
+(`check_seat_cut.py`; conformance against the crate; crate plants for (b) skipped and for a voided withdrawal that
+still cuts).
+
+**A precondition.** The answer reads ancestry that rows as persist signs them today do not carry: an authored
+withdrawal cites only its target, and an act under a grant cites nothing. The pending wire change is that a
+withdrawal names a head and that an act names the standing it is exercised under (an act re-seated on a second
+device would then name the re-acceptance as its `under`, which fits the walk). Until it lands, persist uses CC
+2.6.7's freshness window as an interim instant rule; the kernel does not model it.
+
+**open** (accepted by the Constitution, to be written into the text; on the wire): (i) the cut reaches only an act
+under the target, never the members at a head or n (the kernel reads it so); (ii) a withdrawal names the head it
+acts from and is subject to the reader's line (CC 2.7.8, `Reader.lean` `line_voids_old_fork`), against backdating
+(not implemented). **open**: one say (rule 6) is not read for seats under a cut.
+
 ## 7. The roster is the one ledger
 
 A group's roster is a lineage: each version names the heads it extends and is counted over their members.
@@ -413,6 +440,9 @@ not at the old head. A member's own leaving binds the same way, by causal past (
 more, one key's rows remove nobody: a member leaves only by its own withdrawal or by the signatures of two
 distinct members (`one_signature_never_removes`). A removed key counts again only after a version lists it
 again (`readmission_needed`). Two concurrent versions of one head are not decided there; they wait as tips.
+The members at a head stay by past under CC 2.4.1.1 as ruled on 2026-11-21: a withdrawal, unseat or resignation
+cuts the acts exercised under the seat that are concurrent with it (section 6), never the members at a head or n
+(`SeatCut.cut_acts_members_hold`, over `rows_outside_change_nothing`).
 
 An adversary holding the count of an old head signs a valid version alone. A witnessed lineage answers that
 (CC 3.2 T6), and it is each reader's own trust that decides whose witnesses count.

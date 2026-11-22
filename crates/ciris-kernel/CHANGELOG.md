@@ -1,5 +1,32 @@
 # Changelog — ciris-kernel
 
+## [Unreleased]
+
+Additive. No existing answer changes meaning, and the crate version is unchanged.
+
+- `seat::exercised_stands(c, law, spec, x, k, scope, obj) -> Exercised`: whether act `x`, which `k` exercises
+  under its seat (`k`, `scope`, `obj`), stands, as CC 2.4.1.1 was ruled on 2026-11-21 (a withdrawal retires its
+  target as a cut does, CC 2.7.7). It stands iff (a) the seat walk over x's own concluded past seats `k`
+  (`Seats::holders`; `left_in_past` is not read, so a re-acceptance re-seats `k` for its acts) and (b) no counting
+  ending cut on the seat is concurrent with `x`. The ending cuts are every way the seat ends: `k`'s own withdrawal of
+  the acceptance or offer that seats it (a resignation), the conferrer's withdrawal where the walk honours it, and an
+  unseat of the seat that is not stale. (b) runs under the rule-4 fixed point over the caller's `spec`, with each
+  ending withdrawal made a cut on one slot the kernel adds and no row is on: a withdrawal that a concurrent counting
+  removal of `k` voids does not cut, and no other row's status changes. `Exercised` is `ConcludesNothing`,
+  `NotSeated`, `Cut`, `Contested` (rule 5; does not stand) or `Stands`; `Exercised::stands()`.
+- What changed is a reading, not an answer: before this, an act under a seat could only be judged by the walk over
+  its own past (`Seats`, `members_at`), which still answers exactly as it did, and an act concurrent with the
+  withdrawal found the seat standing. A caller that wants CC 2.4.1.1 as ruled calls `exercised_stands`.
+  `Seats`, `members_at`, `count_members`, `left_in_past`, `seat_rule` and `Cut` are unchanged; the members at a head
+  and n stay by past (`RosterHead.leaving_binds_by_past`; `SeatCut.cut_acts_members_hold`).
+- Precondition: the answer reads ancestry rows must carry (an act names the standing it is exercised under; a
+  withdrawal names its head). Persist's rows as signed today do not, and persist does not call this before v62.0;
+  until the wire carries it, persist uses CC 2.6.7's freshness window, which the kernel does not model.
+- Open: a withdrawal naming its head under the reader's line (CC 2.7.8), against backdating; one say (rule 6) for
+  seats under a cut.
+- Checked: `check_seat_cut.py` (17 cases, every kept set of two pools, two model plants), conformance run
+  `exercised_stands and the members at a head` (fixture `seat_cut.json`), two crate plants, `proofs/SeatCut.lean`.
+
 ## [0.3.0]
 
 Held views, slices 1 to 3 (issue #4, `HELD.md`): the concluded layer held across admissions, its memory bounded,

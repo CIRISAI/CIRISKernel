@@ -47,6 +47,7 @@ step "check_attacks (34 attacks)"         attacks   python3 -I models/causal_ker
 step "check (order-freeness)"             check     python3 -I models/causal_kernel/check.py
 step "check_cut (the cut)"                cut       python3 -I models/causal_kernel/check_cut.py
 step "check_roomkey (private rooms)"      roomkey   python3 -I models/causal_kernel/check_roomkey.py
+step "check_seat_cut (acts under a cut)"  seatcut   python3 -I models/causal_kernel/check_seat_cut.py
 step "fork_check (roster tips)"           fork      python3 -I models/roster_fork/fork_check.py --check
 step "key_plane_model (writer's keys)"    keyplane  python3 -I models/key_plane/key_plane_model.py --check
 step "divergence list (counts)"           diverge   python3 -I tools/divergence_counts.py

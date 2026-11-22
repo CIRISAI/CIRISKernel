@@ -59,6 +59,12 @@ counts and a reader's own acknowledged line, and one that is not: a counted row 
 only older heads. That one is off unless asked for, and the attacks run it both ways to show why. It makes the
 longer line win.
 
+**An act under a seat follows the cut** (`seat.py` `exercised_stands`, `check_seat_cut.py`). CC 2.4.1.1 as ruled on
+2026-11-21: a withdrawal, an unseat or a resignation retires the seat as a cut does. An act under the seat stands iff
+the seat walk over its own past seats the key and no counting ending cut is concurrent with it, judged under the
+cut's fixed point. The members at a head stay by past. The check runs 17 named cases and every kept set of two pools,
+and catches two plants.
+
 **A private room seats voices** (`roomkey.py`, `check_roomkey.py`). A community declares its membership private
 or public. A private room's roster seats a voice, a small counted roster of room keys made for that room, and
 every row of the room is signed under a room key. That a voice is a given person's is a binding: never a row,
@@ -158,4 +164,4 @@ older head that is not a roster version. This is a run over a model the authors 
 Run: `python3 -I formal/causal_kernel/check.py` (add `--bound 5` for a short run),
 `python3 -I formal/causal_kernel/check_cut.py`, `python3 -I formal/causal_kernel/check_lock.py`,
 `python3 -I formal/causal_kernel/check_attacks.py`, `python3 -I formal/causal_kernel/check_roomkey.py` and
-`python3 -I formal/causal_kernel/check_rosters.py`, `python3 -I formal/causal_kernel/check_door.py` , `python3 -I formal/causal_kernel/check_time.py` `python3 -I formal/causal_kernel/check_shapes.py` `python3 -I formal/causal_kernel/check_key_end.py` and `python3 -I formal/causal_kernel/check_purge.py`
+`python3 -I formal/causal_kernel/check_rosters.py`, `python3 -I formal/causal_kernel/check_door.py` , `python3 -I formal/causal_kernel/check_time.py` `python3 -I formal/causal_kernel/check_shapes.py` `python3 -I formal/causal_kernel/check_key_end.py` `python3 -I formal/causal_kernel/check_purge.py` and `python3 -I formal/causal_kernel/check_seat_cut.py`

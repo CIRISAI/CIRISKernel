@@ -81,6 +81,8 @@ plant 'a row'"'"'s concluded past read as its first row' src/layers.rs 'self.p.b
 plant "voices counts a cosignature the row does not name"  src/seat.rs 'for n in r.names() {' 'for n in p.rows().map(|q| q.id()) {'
 plant "a cycle of names walked without its stack"       src/graph.rs '                    if l >= WAITING {' '                    if l == WAITING {'
 plant "a view walks a cycle of names without its stack"  src/head.rs '                if d >= WAIT {' '                if d == WAIT {'
+plant "an act under a seat ignores a concurrent ending cut" src/seat.rs 'if !g.concurrent(i, x) {' 'if true {'
+plant "a withdrawal voided by a removal still cuts"     src/seat.rs 'crate::cut::Status::Counts => return Exercised::Cut,' 'crate::cut::Status::Counts | crate::cut::Status::Void => return Exercised::Cut,'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 echo "ciris-kernel plants: $caught of $total caught"
 [ $caught -eq $total ]
