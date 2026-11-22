@@ -30,3 +30,4 @@ the frontier's walk against the pairwise frontier; duplicate ids
 trust walk against the Lean walk
 trust walk, TrustSet.lean worked world
 trust::reaches and derived::reach against the walks they replaced
+held_view::differential over purge.json histories (in order, reversed, shuffled; resumed)

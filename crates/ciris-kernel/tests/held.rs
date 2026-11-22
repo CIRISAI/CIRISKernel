@@ -4,7 +4,7 @@ mod common;
 #[path = "common/dag.rs"]
 mod dag;
 
-use ciris_kernel::held::{differential, Held, HeldSpec, Refused, Rules};
+use ciris_kernel::held::{differential, differential_foreign, Held, HeldSpec, Refused, Rules};
 use ciris_kernel::layers::{self, Past};
 use ciris_kernel::Row;
 use dag::{dag, Lcg, N};
@@ -216,4 +216,40 @@ fn the_window_s_price_is_counted() {
     };
     let (every, small) = (walked(usize::MAX), walked(4));
     assert!(every < small, "every past kept walks {every}, a window of 4 walks {small} (side branch {side})");
+}
+
+/// Foreign rows (0.3.x): held for reads, never dirty. The answers still equal the whole fold in every order,
+/// `dirty` is the members newly kept, and `foreign` the concluded foreign rows in their read sets.
+#[test]
+fn foreign_rows_are_read_and_never_dirty() {
+    let picks: [fn(&N) -> bool; 3] = [|r| r.id % 3 == 0, |r| r.signer < 5, |r| r.id < 10];
+    for (n, k, w, seed) in [(60, 3, 8, 2), (120, 2, 16, 4), (90, 4, 40, 6)] {
+        let rows = dag(n, k, w, seed);
+        for o in orders(&rows) {
+            for pick in picks {
+                differential_foreign(Rules { wf, rule: parity }, &o, pick).unwrap();
+                differential_foreign(Seeded, &o, pick).unwrap();
+            }
+        }
+    }
+    // by hand: 0 foreign, 1 a member naming it, 2 a foreign row waiting on 3, 3 a member releasing it
+    let rows = [
+        N { id: 0, names: vec![], signer: 1 },
+        N { id: 1, names: vec![0], signer: 1 },
+        N { id: 2, names: vec![3], signer: 2 },
+        N { id: 3, names: vec![1], signer: 2 },
+        N { id: 4, names: vec![2, 3], signer: 2 },
+    ];
+    let mut h = Held::empty(Rules { wf: |_: &N| true, rule: |_: &Past<'_, '_, N>| true });
+    let a = h.admit_foreign(&rows[0]).unwrap();
+    assert_eq!((a.kept, a.dirty, a.foreign), (vec![0], vec![], vec![]));
+    let a = h.admit(&rows[1]).unwrap();
+    assert_eq!((a.dirty, a.foreign), (vec![1], vec![0]));
+    assert!(h.admit_foreign(&rows[2]).unwrap().waiting && h.is_foreign(&2));
+    assert_eq!(h.admit(&rows[1]), Err(Refused::Duplicate));
+    let a = h.admit(&rows[3]).unwrap();
+    assert_eq!((a.kept, a.dirty, a.foreign), (vec![3, 2], vec![3], vec![0]));
+    let a = h.admit(&rows[4]).unwrap();
+    assert_eq!((a.dirty, a.foreign), (vec![4], vec![0, 2]), "sorted, each once");
+    assert!(h.is_foreign(&0) && !h.is_foreign(&1));
 }

@@ -21,6 +21,7 @@
 //! | [`window`] | 5 (window) | a window as rows: receipt, landing and recount |
 //! | [`head`] | 3, 3a | answers by head: receipts, one say, settled, missing; checkpoint and purge |
 //! | [`held`] | 3 | the two layers held across admissions: one row admitted at a time, only what it releases recomputed |
+//! | [`held_view`] | 3, 3a | the head layer held: `head::View` across admissions, only its dirty set recomputed; its checkpoint |
 //! | [`key_end`] | 5 (two notions of time) | a key's own end and the rows that lapse |
 //! | [`trust`] | 5 (stands), CC 4.4.3.34 | the reader's trust walk over acceptance edges |
 //! | [`ranked`] | 5 (the door's parameters) | the ranked count, with and without a declared order |
@@ -35,6 +36,7 @@ pub mod derived;
 pub mod graph;
 pub mod head;
 pub mod held;
+pub mod held_view;
 pub mod key_end;
 pub mod layers;
 pub mod line;

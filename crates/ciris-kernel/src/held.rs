@@ -189,11 +189,23 @@ pub struct Admitted<I> {
     /// The registered answers to run again (0.3): every answer whose [`Reads`] names a newly kept row's id, an
     /// id it names, or a key it carries ([`HeldSpec::keys`]). Ascending, each once.
     pub wake: Vec<AnswerId>,
+    /// The foreign rows the dirty rows' answers read ([`Held::admit_foreign`]): every foreign row in the read
+    /// set (the concluded past) of a row in `dirty`. Ascending, each once; empty when no foreign row is held
+    /// (0.3.x).
+    pub foreign: Vec<I>,
+}
+
+impl<I> Admitted<I> {
+    /// Nothing kept, nothing dirty.
+    pub fn none(waiting: bool, visited: usize) -> Self {
+        Admitted { kept: Vec::new(), waiting, dirty: Vec::new(), visited, wake: Vec::new(), foreign: Vec::new() }
+    }
 }
 
 struct Wait<'a, R> {
     row: &'a R,
     left: usize,
+    foreign: bool,
 }
 
 /// The kept and concluded layers, held. Rows are borrowed for `'a`; the caller owns the rows and the `Held`.
@@ -202,6 +214,10 @@ pub struct Held<'a, R: Row, S> {
     con: Concluded<'a, R>,
     /// Whether each held row has a root at or above it (all `true` when the spec has no seed).
     rooted: Vec<bool>,
+    /// Whether each held row is foreign: held for reads, not a member of the scope ([`Held::admit_foreign`]).
+    foreign: Vec<bool>,
+    /// How many held rows are foreign.
+    foreigners: usize,
     /// The rows offered whose names are not all held, by id.
     waiting: BTreeMap<R::Id, Wait<'a, R>>,
     /// For each id not held that a waiting row names, the waiting rows that name it.
@@ -235,7 +251,13 @@ impl<'a, R: Row, S: Clone> Clone for Held<'a, R, S> {
             spec: self.spec.clone(),
             con: self.con.clone(),
             rooted: self.rooted.clone(),
-            waiting: self.waiting.iter().map(|(k, w)| (k.clone(), Wait { row: w.row, left: w.left })).collect(),
+            foreign: self.foreign.clone(),
+            foreigners: self.foreigners,
+            waiting: self
+                .waiting
+                .iter()
+                .map(|(k, w)| (k.clone(), Wait { row: w.row, left: w.left, foreign: w.foreign }))
+                .collect(),
             waiting_on: self.waiting_on.clone(),
             recent: self.recent.clone(),
             last_use: self.last_use.clone(),
@@ -260,6 +282,8 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
             spec,
             con: Concluded::with(g, None),
             rooted: Vec::new(),
+            foreign: Vec::new(),
+            foreigners: 0,
             waiting: BTreeMap::new(),
             waiting_on: BTreeMap::new(),
             recent: VecDeque::new(),
@@ -342,6 +366,28 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
     /// Otherwise it is kept when every id it names is held, and then so is every waiting row this releases;
     /// else it waits.
     pub fn admit(&mut self, r: &'a R) -> Result<Admitted<R::Id>, Refused> {
+        self.admit_as(r, false)
+    }
+
+    /// Admit a foreign row (0.3.x): a row outside the view's scope that a rule or gate reads (an owner seat
+    /// read from a group's gate, a trust root read from anywhere). It is held, concluded and named exactly as a
+    /// member is, so the answers over it equal the whole fold, but it is never in [`Admitted::dirty`]: the
+    /// caller runs no door of the scope for it. A member whose read set holds it lists it in
+    /// [`Admitted::foreign`]. The view never assumes the world closed: an id neither held nor supplied leaves
+    /// the rows naming it waiting, as any admission does. Refused, changing nothing, as [`Held::admit`].
+    pub fn admit_foreign(&mut self, r: &'a R) -> Result<Admitted<R::Id>, Refused> {
+        self.admit_as(r, true)
+    }
+
+    /// Whether the held or waiting row with this id is foreign ([`Held::admit_foreign`]).
+    pub fn is_foreign(&self, id: &R::Id) -> bool {
+        match self.con.g.idx(id) {
+            Some(i) => self.foreign[i],
+            None => self.waiting.get(id).is_some_and(|w| w.foreign),
+        }
+    }
+
+    fn admit_as(&mut self, r: &'a R, foreign: bool) -> Result<Admitted<R::Id>, Refused> {
         let id = r.id();
         if self.con.g.idx(id).is_some() || self.waiting.contains_key(id) {
             return Err(Refused::Duplicate);
@@ -357,16 +403,20 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
             for n in &lacks {
                 self.waiting_on.entry((*n).clone()).or_default().push(id.clone());
             }
-            self.waiting.insert(id.clone(), Wait { row: r, left: lacks.len() });
-            return Ok(Admitted { kept: Vec::new(), waiting: true, dirty: Vec::new(), visited, wake: Vec::new() });
+            self.waiting.insert(id.clone(), Wait { row: r, left: lacks.len(), foreign });
+            return Ok(Admitted::none(true, visited));
         }
         // every id it names is held: keep it, then whatever it releases
         let mut kept: Vec<R::Id> = Vec::new();
-        let mut ready: Vec<&'a R> = alloc::vec![r];
-        while let Some(x) = ready.pop() {
-            self.keep(x);
+        let mut dirty: Vec<R::Id> = Vec::new();
+        let mut ready: Vec<(&'a R, bool)> = alloc::vec![(r, foreign)];
+        while let Some((x, fx)) = ready.pop() {
+            self.keep(x, fx);
             visited += 1;
             kept.push(x.id().clone());
+            if !fx {
+                dirty.push(x.id().clone());
+            }
             if let Some(ws) = self.waiting_on.remove(x.id()) {
                 for w in ws {
                     let done = match self.waiting.get_mut(&w) {
@@ -379,12 +429,11 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
                     if done {
                         let e = self.waiting.remove(&w).expect("present above");
                         visited += e.row.names().len();
-                        ready.push(e.row);
+                        ready.push((e.row, e.foreign));
                     }
                 }
             }
         }
-        let mut dirty = kept.clone();
         dirty.sort_unstable();
         let mut wake: BTreeSet<AnswerId> = BTreeSet::new();
         for id in &kept {
@@ -392,29 +441,48 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
                 wake.extend(self.wakes_for(self.con.g.row(i)));
             }
         }
-        Ok(Admitted { kept, waiting: false, dirty, visited, wake: wake.into_iter().collect() })
+        let foreign = self.foreign_read(&dirty);
+        Ok(Admitted { kept, waiting: false, dirty, visited, wake: wake.into_iter().collect(), foreign })
+    }
+
+    /// The foreign rows in the read sets of rows `ids`: their concluded foreign ancestors, ascending, each once.
+    fn foreign_read(&self, ids: &[R::Id]) -> Vec<R::Id> {
+        if self.foreigners == 0 {
+            return Vec::new();
+        }
+        let g = &self.con.g;
+        let all = self.con.all();
+        let mut out: BTreeSet<&R::Id> = BTreeSet::new();
+        for id in ids {
+            let Some(i) = g.idx(id) else { continue };
+            out.extend(g.ancestors(i).iter().filter(|&q| self.foreign[q] && all[q]).map(|q| g.row(q).id()));
+        }
+        out.into_iter().cloned().collect()
     }
 
     /// Admit rows in order; refusals are skipped. Returns every row kept, in order, and the dirty set.
     pub fn admit_all(&mut self, rows: impl IntoIterator<Item = &'a R>) -> Admitted<R::Id> {
-        let mut all = Admitted { kept: Vec::new(), waiting: false, dirty: Vec::new(), visited: 0, wake: Vec::new() };
+        let mut all = Admitted::none(false, 0);
         let mut wake: BTreeSet<AnswerId> = BTreeSet::new();
         for r in rows {
             if let Ok(a) = self.admit(r) {
                 all.kept.extend(a.kept);
+                all.dirty.extend(a.dirty);
                 all.visited += a.visited;
                 wake.extend(a.wake);
             }
         }
-        all.dirty = all.kept.clone();
         all.dirty.sort_unstable();
         all.wake = wake.into_iter().collect();
+        all.foreign = self.foreign_read(&all.dirty);
         all
     }
 
     /// Keep a row whose every named id is held, and conclude it.
-    fn keep(&mut self, r: &'a R) {
+    fn keep(&mut self, r: &'a R, foreign: bool) {
         let i = self.con.g.push(r).expect("not held, and every name held");
+        self.foreign.push(foreign);
+        self.foreigners += foreign as usize;
         let g = &self.con.g;
         let rooted = !self.spec.seeded() || self.spec.root(r) || g.named(i).iter().any(|&p| self.rooted[p]);
         self.rooted.push(rooted);
@@ -566,6 +634,7 @@ impl<'a, R: Row, S: HeldSpec<R>> Held<'a, R, S> {
     pub fn reserve(&mut self, rows: usize, names: usize) {
         self.con.reserve(rows, names);
         self.rooted.reserve(rows);
+        self.foreign.reserve(rows);
         self.last_use.reserve(rows);
         self.recent.reserve(rows + names);
     }
@@ -622,24 +691,43 @@ pub struct Mismatch<I> {
 /// set must be exactly the rows newly kept. Quadratic or worse; for tests, including the caller's own over
 /// its own rows. Precondition: rows with the same id are the same row (ids are digests).
 pub fn differential<R: Row, S: HeldSpec<R>>(spec: S, order: &[R]) -> Result<(), Mismatch<R::Id>> {
+    differential_foreign(spec, order, |_| false)
+}
+
+/// [`differential`], with the rows `foreign` picks admitted as foreign rows ([`Held::admit_foreign`]) and the
+/// rest as members (0.3.x). The answers must still equal the whole fold over every row offered; `dirty` must be
+/// the members newly kept, and [`Admitted::foreign`] exactly the concluded foreign ancestors of those, by the
+/// fold's own closure.
+pub fn differential_foreign<R: Row, S: HeldSpec<R>>(
+    spec: S,
+    order: &[R],
+    foreign: impl Fn(&R) -> bool,
+) -> Result<(), Mismatch<R::Id>> {
     let mut h = Held::empty(spec);
     let fail = |prefix: usize, id: Option<&R::Id>, what: &'static str| Mismatch { prefix, id: id.cloned(), what };
     for k in 0..order.len() {
         let before: Vec<R::Id> = h.con.g.rows().iter().map(|r| r.id().clone()).collect();
         let waiting_before = h.waiting.len();
-        match h.admit(&order[k]) {
+        let foreign_before = h.foreigners;
+        let mut admitted: Option<Admitted<R::Id>> = None;
+        match h.admit_as(&order[k], foreign(&order[k])) {
             Err(_) => {
                 let after: Vec<R::Id> = h.con.g.rows().iter().map(|r| r.id().clone()).collect();
-                if after != before || h.waiting.len() != waiting_before {
+                if after != before || h.waiting.len() != waiting_before || h.foreigners != foreign_before {
                     return Err(fail(k + 1, Some(order[k].id()), "refused but changed"));
                 }
             }
             Ok(a) => {
-                let mut fresh: Vec<R::Id> = h.con.g.rows()[before.len()..].iter().map(|r| r.id().clone()).collect();
+                let mut fresh: Vec<R::Id> = h.con.g.rows()[before.len()..]
+                    .iter()
+                    .filter(|r| !h.is_foreign(r.id()))
+                    .map(|r| r.id().clone())
+                    .collect();
                 fresh.sort_unstable();
                 if a.dirty != fresh {
-                    return Err(fail(k + 1, Some(order[k].id()), "dirty is not the rows newly kept"));
+                    return Err(fail(k + 1, Some(order[k].id()), "dirty is not the members newly kept"));
                 }
+                admitted = Some(a);
             }
         }
         let prefix = &order[..=k];
@@ -675,6 +763,23 @@ pub fn differential<R: Row, S: HeldSpec<R>>(spec: S, order: &[R]) -> Result<(), 
             }
             if hg.depth(hi) != fg.depth(fi) {
                 return Err(fail(k + 1, Some(id), "past"));
+            }
+        }
+        if let Some(a) = &admitted {
+            let mut want: Vec<R::Id> = Vec::new();
+            for d in &a.dirty {
+                let Some(fi) = fg.idx(d) else { continue };
+                want.extend(
+                    fg.ancestors(fi)
+                        .iter()
+                        .filter(|&q| full.concluded(q) && foreign(fg.row(q)))
+                        .map(|q| fg.row(q).id().clone()),
+                );
+            }
+            want.sort_unstable();
+            want.dedup();
+            if a.foreign != want {
+                return Err(fail(k + 1, Some(order[k].id()), "foreign is not the foreign rows the dirty rows read"));
             }
         }
         if fg.len() <= 64 {

@@ -19,6 +19,7 @@ use ciris_kernel::cut::CutSpec;
 use ciris_kernel::graph::Graph;
 use ciris_kernel::head::{self, Entry, Kind, Reading};
 use ciris_kernel::held::{Held, HeldSpec, Rules};
+use ciris_kernel::held_view::HeldView;
 use ciris_kernel::key_end::{self, EndRule, KeyEndRow, Record};
 use ciris_kernel::layers::{self, Concluded, Past};
 use ciris_kernel::line;
@@ -454,6 +455,27 @@ fn head_store(n: usize) -> HStore {
     s
 }
 
+type PEntry = Entry<Id, String, i64>;
+
+/// `head_store` shaped as persist's rows: 32-byte ids, 76-byte keys.
+fn head_store_p(n: usize) -> BTreeMap<Id, PEntry> {
+    let mut s = BTreeMap::new();
+    let mut v = Entry::new(rid(5, 0), Kind::Seat, key(0), Vec::new());
+    v.members = (0..n).map(key).collect();
+    v.q = n / 3 + 1;
+    s.insert(v.id, v);
+    for i in 0..n as u32 {
+        let a = 1 + 2 * i;
+        let mut e = Entry::new(rid(5, a), Kind::Act, key(i as usize), vec![rid(5, 0)]);
+        e.head = Some(rid(5, 0));
+        s.insert(e.id, e);
+        let mut k = Entry::new(rid(5, a + 1), Kind::Ack, key((i as usize + 1) % n), vec![rid(5, a)]);
+        k.of = Some(rid(5, a));
+        s.insert(k.id, k);
+    }
+    s
+}
+
 // ---- the harness ------------------------------------------------------------------------------------------
 
 struct H {
@@ -735,6 +757,84 @@ fn main() {
             h.run("head::View::answers", n, || v.answers(10).counts_at.len());
             h.run("head::View::settled(one act)", n, || v.settled(&1));
             h.run("head::purge", n, || head::purge(&store, 0u32, 10, Reading::Broad).0.len());
+        }
+        if h.wants(&["held_view::"]) {
+            // issue #4, slice 4: the head layer held. Rows shaped as persist's: a 32-byte id, a 76-byte key. A
+            // head store of n acts with a receipt each, purged at a checkpoint; then `since` rows arrive (one
+            // new act and 16 receipts of it). Persist's question first: resume + admit against a cold fold.
+            let store = head_store_p(n);
+            let own = key(0);
+            let (cut, _) = head::purge(&store, own.clone(), 10, Reading::Broad);
+            let m = n as u32;
+            let mut since: Vec<PEntry> = Vec::new();
+            let mut x = Entry::new(rid(5, 2 * m + 1), Kind::Act, key(3), vec![rid(5, 0)]);
+            x.head = Some(rid(5, 0));
+            since.push(x);
+            for j in 0..16u32 {
+                let mut k = Entry::new(rid(6, j), Kind::Ack, key(j as usize + 4), vec![rid(5, 2 * m + 1)]);
+                k.of = Some(rid(5, 2 * m + 1));
+                since.push(k);
+            }
+            let base = HeldView::new(&cut, own.clone(), Reading::Broad, true);
+            let cp = base.checkpoint();
+            // the caller's store: whole rows by id
+            let rows: BTreeMap<Id, PEntry> = store.iter().map(|(i, e)| (*i, e.clone())).collect();
+            let fetch = |i: &Id| rows.get(i).cloned();
+            let mut all = cut.clone();
+            for e in &since {
+                all.insert(e.id, e.clone());
+            }
+            h.run("held_view::cold(View::new over the store and the rows since)", n, || {
+                head::View::new(&all, &[], own.clone(), Reading::Broad, true).c().len()
+            });
+            h.run("held_view::resume+admit(rows since)", n, || {
+                let mut v = HeldView::resume(&cp, fetch).expect("resumes");
+                v.admit_all(since.iter().cloned()).kept.len() + v.len()
+            });
+            h.run("held_view::resume", n, || HeldView::resume(&cp, fetch).expect("resumes").len());
+            h.run("held_view::checkpoint", n, || base.checkpoint().len());
+            if !h.list && h.named("held_view::checkpoint_bytes") {
+                println!("held_view::checkpoint_bytes\t{n}\t{}\t-\t-\t-", cp.len());
+            }
+            h.run("held_view::new", n, || HeldView::new(&cut, own.clone(), Reading::Broad, true).len());
+            // one row admitted against the held view, against View::new over the store plus it
+            let mut rk = Entry::new(rid(7, 0), Kind::Ack, key(9), vec![rid(5, 1)]);
+            rk.of = Some(rid(5, 1));
+            h.run_mut(
+                "held_view::admit(one receipt)",
+                n,
+                || base.clone(),
+                |v| {
+                    let a = v.admit(rk.clone()).unwrap();
+                    // the bound, by count: the entry and what it names, never the store
+                    assert_eq!(a.visited, 1 + 1);
+                    assert_eq!(a.dirty, vec![rid(5, 1), rid(7, 0)]);
+                    a.visited
+                },
+            );
+            h.run_mut(
+                "held_view::admit(one act, 16 receipts waiting)",
+                n,
+                || {
+                    let mut v = base.clone();
+                    for e in &since[1..] {
+                        assert!(v.admit(e.clone()).unwrap().waiting);
+                    }
+                    v
+                },
+                |v| {
+                    let a = v.admit(since[0].clone()).unwrap();
+                    assert_eq!(a.kept.len(), 17);
+                    assert_eq!(a.visited, 17 + 17);
+                    a.dirty.len()
+                },
+            );
+            let mut with = cut.clone();
+            with.insert(rk.id, rk.clone());
+            h.run("held_view::refold(one receipt)", n, || {
+                head::View::new(&with, &[], own.clone(), Reading::Broad, true).c().len()
+            });
+            h.run("held_view::clone", n, || base.clone().len());
         }
         if h.wants(&["held::"]) {
             // issue #4: one row admitted against a held view, against the whole fold over the same rows
