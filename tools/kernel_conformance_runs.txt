@@ -31,3 +31,4 @@ trust walk against the Lean walk
 trust walk, TrustSet.lean worked world
 trust::reaches and derived::reach against the walks they replaced
 held_view::differential over purge.json histories (in order, reversed, shuffled; resumed)
+exercised_stands and the members at a head (check_seat_cut.py cases and worlds)

@@ -43,6 +43,27 @@ What ends a seat.
                ended by a removal from the roster. A seat so conferred is rooted in the group: its conferrer's
                withdrawal or departure does not end it.
 
+An act under a seat follows the cut (CC 2.4.1.1, ruled 2026-11-21: "A withdraws row retires its target as a cut
+does (CC 2.7.7)"). exercised_stands(S, x, k, s, o): act x that k exercises under its seat stands iff (a) the seat
+walk over x's own concluded past seats k, and (b) no counting ending cut on the seat is concurrent with x. The ending
+cuts are every way the seat ends: k's own withdrawal of the acceptance or the offer that seats it (a resignation is
+this row), the conferrer's withdrawal of the offer where the walk honours it, and a counting unseat. They are judged
+under the rule-4 fixed point, so a withdrawal whose voice a concurrent counting removal of k voids does not cut. An act
+in the withdrawal's past stands; one concurrent with it does not; one naming it is not seated by the walk. A contested
+ending cut (rule 5) leaves the act not standing, reported "contested".
+    The walk, not the count: (a) does not read left_in_past, so a re-acceptance re-seats k for its acts, while a count
+    over a head still leaves k out until a version lists it again (left_in_past, RosterHead readmission_needed).
+    The members at a head are NOT read through the cut: who is counted at a head, n and a version's voters, stay by
+    past (members_at, left_in_past; RosterHead leaving_binds_by_past, and the rejected Retro reading).
+    Precondition: rows must carry the ancestry this reads (an act names the standing it is exercised under; a
+    withdrawal names the head it acts from). Rows as persist signs them today do not; until the wire carries it,
+    persist uses CC 2.6.7's freshness window as an interim instant rule, which is not modelled here.
+    OPEN (accepted by the Constitution, still to be written into the text and onto the wire): (i) the cut reaches only
+    an act under the target, never the members at a head or n (the kernel already reads it so); (ii) a withdrawal
+    names the head it acts from and is subject to the reader's line (CC 2.7.8, Reader.lean line_voids_old_fork),
+    against backdating (not implemented).
+    OPEN: one say (KERNEL.md 6, rule 6) on seats under a cut is not read here.
+
 Tips wait (KERNEL.md section 7). When several counted acts on one object are concurrent, the holders of a scope
 over it are the keys common to the tips, until a counted act names them all.
 
@@ -379,6 +400,89 @@ def left_in_past(P, obj, scope="member"):
         if (t["kind"] == "accept" and t["signer"] == w["signer"]) or (t["kind"] == "offer" and w["signer"] in t["to"]):
             out.add(w["signer"])
     return frozenset(out)
+
+
+# ---- derived: does an act exercised under a seat stand (CC 2.4.1.1, as a cut, CC 2.7.7) ------------------------
+TARGET = ("seat-cut", "target")      # the one slot the ending cuts of exercised_stands cut; no row is on it
+OUT = ("seat-cut", "out")            # what every ending withdrawal says, so two of them never contest each other
+
+
+def _on_target(o, k, scope, obj):
+    return o["kind"] == "offer" and k in o.get("to", ()) and o.get("scope") == scope and o.get("obj") == obj
+
+
+def ending_withdrawals(S, k, scope, obj):
+    """The concluded withdrawals that end k's seat (k, scope, obj), as the walk honours them: k's own withdrawal of
+    an acceptance that seats it there or of an offer that seats it there (a resignation is this row), and the
+    conferrer's withdrawal of such an offer where the walk lets it end the offer for all it seats."""
+    out = set()
+    for w in K.sel(S.Cs, kind="withdraw"):
+        t = S.by.get(w["target"])
+        if t is None: continue
+        if t["kind"] == "accept":
+            o = S.by.get(t["of"]) if t["of"] is not None else None
+            pairs = _on_target(o, k, scope, obj) if o is not None else (t["of"] is None and t.get("scope") == scope and t.get("obj") in (None, obj))
+            if pairs and t["signer"] == k and w["signer"] == k: out.add(w["id"])
+        elif _on_target(t, k, scope, obj):
+            if w["signer"] == k or (w["signer"] not in t["to"] and t["conf"] != "group" and not duty_seat(S.by, t)):
+                out.add(w["id"])
+    return frozenset(out)
+
+
+def _duty_slot(by, scope, obj):
+    """A removal from the roster ends this seat too (Seats.unseated): a duty, or a seat the duty holders place."""
+    if is_duty(scope): return True
+    g = by.get(obj)
+    return g is not None and g["kind"] == "offer" and g["obj"] == g["id"] and g["scope"] == "duty" and scope not in ROSTER_SEATS
+
+
+def walk_holders(P, scope, obj):
+    """The holders of (scope, obj) by the seat walk over the concluded rows P: Seats(P).holders, nothing else."""
+    return Seats(CK.State(P, {q["id"]: True for q in P})).holders(scope, obj)
+
+
+def exercised_stands(S, x, k, scope, obj):
+    """Does act x, which k exercises under its seat (k, scope, obj), stand? CC 2.4.1.1 (2026-11-21): a withdrawal
+    retires its target as a cut does (CC 2.7.7). One of:
+        "concludes nothing"   x did not conclude
+        "not seated"          (a) fails: the seat walk over x's own concluded past (Seats(P).holders) does not
+                              seat k. An act naming the withdrawal falls here. This is the walk, not the count:
+                              left_in_past is not read, so a re-acceptance re-seats k for its acts (each
+                              acceptance's withdrawal is read on its own), while a count over a head still leaves
+                              k out until a version lists it again (left_in_past, readmission_needed).
+        "cut"                 (b) fails: a counting ending cut on the seat is concurrent with x
+        "contested"           (b) only a contested one is (rule 5): x does not stand, reported as contested
+        "stands"              both hold
+    The ending cuts are the ending withdrawals (ending_withdrawals) and the counting unseats of the slot ("seat", k,
+    scope, obj), or of k's membership where the seat is a duty one (as Seats.unseated reads them), not left behind as
+    stale. They are judged under the rule-4 fixed point over S with every ending withdrawal made a cut on one fresh
+    slot TARGET that no row is on: a withdrawal whose voice a concurrent counting removal of k voids does not cut,
+    and no other row's status changes. The members at a head are not read through this: they stay by past."""
+    if not S.C.get(x): return "concludes nothing"
+    P = [q for q in S.Cs if q["id"] in S.anc[x]]
+    if "seat_cut_retro" in MUT: P = [q for q in S.Cs if q["id"] != x]       # MUTATION: the walk reads every held row
+    if k not in walk_holders(P, scope, obj): return "not seated"
+    if "seat_cut_unread" in MUT: return "stands"                              # MUTATION: (b) skipped
+    ending = ending_withdrawals(S, k, scope, obj)
+    tagged = [dict(q, cuts=tuple(q.get("cuts", ())) + (TARGET,), says=OUT) if q["id"] in ending else q for q in S.rows]
+    S2 = CK.State(tagged, S.C)
+    C2 = CUT.Cut(S2)
+    stale = CP.void(S2, C2, None, False)
+    dutyish = _duty_slot(S.by, scope, obj)
+    contested = False
+    for q in S2.Cs:
+        if not S.concurrent(q["id"], x): continue
+        if q["kind"] == "withdraw":
+            ends = q["id"] in ending
+        elif q["kind"] == "unseat":
+            ends = q["id"] not in stale and (("seat", k, scope, obj) in q["cuts"] or (dutyish and ("seat", k, "member", obj) in q["cuts"]))
+        else:
+            ends = False
+        if not ends: continue
+        st = C2.status(q)
+        if st == "counts": return "cut"
+        contested = contested or st == "contested"
+    return "contested" if contested else "stands"
 
 
 def voices(r, P):

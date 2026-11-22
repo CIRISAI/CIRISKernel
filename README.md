@@ -161,6 +161,7 @@ by an independent implementation or a deployment under partition.
 | one kept set in every arrival order: [`Causal.lean`](proofs/Causal.lean), [`Order.lean`](proofs/Order.lean) | one answer in every arrival order: [`check.py`](models/causal_kernel/check.py), [`check_cut.py`](models/causal_kernel/check_cut.py) | withdrawn receipt |
 | a seat is two consents; one signature never removes: [`Consent.lean`](proofs/Consent.lean), [`RosterHead.lean`](proofs/RosterHead.lean) | thirty-four attacks, classed: [`check_attacks.py`](models/causal_kernel/check_attacks.py) | many acts purged at once |
 | a reader's own line: [`Reader.lean`](proofs/Reader.lean) | one roster, five instances: [`check_rosters.py`](models/causal_kernel/check_rosters.py) | independent implementation; deployment |
+| an act under a seat follows the cut, the members at a head stay by past (CC 2.4.1.1): [`SeatCut.lean`](proofs/SeatCut.lean) | acts under a withdrawal, unseat or resignation, two plants caught: [`check_seat_cut.py`](models/causal_kernel/check_seat_cut.py) | a withdrawal naming its head under the reader's line; one say under a cut |
 
 Every theorem in plain words: [`proofs/README.md`](proofs/README.md). Every open item: [`REVIEW.md`](REVIEW.md).
 
@@ -174,9 +175,9 @@ curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_
 ./elan-init -y --default-toolchain leanprover/lean4:v4.14.0
 ```
 
-Then, from the repository root, `./check.sh`. It compiles the thirty-two proof files, runs ten model checks
+Then, from the repository root, `./check.sh`. It compiles the thirty-three proof files, runs eleven model checks
 one after another and counts the divergence list, one line per step. It prints
-`proofs: 32 files, 741 theorems reported, 4999 declarations audited, plant caught, rc=0`, in about two minutes. Some checks use three worker processes.
+`proofs: 33 files, 749 theorems reported, 5022 declarations audited, plant caught, rc=0`, in about two minutes. Some checks use three worker processes.
 Nineteen files are carried from the parent, `Reader.lean` among them with the sibling of the acknowledged head
 read as CC 2.7.8 reads it; seven added here prove the crate's gaps
 ([`crates/ciris-kernel/FORMAL_GAPS.md`](crates/ciris-kernel/FORMAL_GAPS.md)); `Repurge.lean` is native to this
@@ -184,13 +185,15 @@ repository and proves repeated purges by composition; and `Admission.lean` prove
 profile and action admission (CC 2.7.11) are one seat walk with different voice counts, `MinorVoid.lean`
 one rule of the Constitution (CC 3.2, the void of a duty appointment made to a minor), `KeyOfIssuer.lean` that
 a statement is Valid only when its key is a key of its issuer (CC 2.6.1.7), and `DerivedCircle.lean` that what an
-agent derives is shown only to those who may see every piece of it (CC 1.13.3.4), and `Held.lean` that the crate's
-held view, admitting a row by its dirty cone or resuming a checkpoint, answers as the full fold.
+agent derives is shown only to those who may see every piece of it (CC 1.13.3.4), `Held.lean` that the crate's
+held view, admitting a row by its dirty cone or resuming a checkpoint, answers as the full fold, and
+`SeatCut.lean` that an act under a seat follows the cut of a withdrawal, unseat or resignation while the members
+at a head stay by past (CC 2.4.1.1).
 
 Four steps build and test the Rust crate [`crates/ciris-kernel`](crates/ciris-kernel/README.md), the kernel as
 pure functions with no dependencies, against the Python models' own cases; they need cargo. The last step
 model-checks the eight TLA+ specs of [`models/tla/`](models/tla) with TLC, each with a planted break it must
-catch, and needs Java. The run ends `all 17 steps passed`.
+catch, and needs Java. The run ends `all 18 steps passed`.
 
 ## Lineage
 

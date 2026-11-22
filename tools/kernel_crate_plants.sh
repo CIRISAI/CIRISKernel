@@ -86,6 +86,8 @@ plant "a late head leaves the void set as it was"       src/held_view.rs '      
 plant "a new entry voided by a head after it"           src/held_view.rs 'v.v.contains(h) && (v.depth[h], h) < me)' 'v.v.contains(h) && me == me)'
 plant "a resumed stub keeps its signatures"             src/held_view.rs '            if e.stub {' '            if false {'
 plant "a foreign row made dirty"                        src/held.rs '            if !fx {' '            if true {'
+plant "an act under a seat ignores a concurrent ending cut" src/seat.rs 'if !g.concurrent(i, x) {' 'if true {'
+plant "a withdrawal voided by a removal still cuts"     src/seat.rs 'crate::cut::Status::Counts => return Exercised::Cut,' 'crate::cut::Status::Counts | crate::cut::Status::Void => return Exercised::Cut,'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 echo "ciris-kernel plants: $caught of $total caught"
 [ $caught -eq $total ]

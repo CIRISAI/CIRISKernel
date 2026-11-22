@@ -6,7 +6,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
 rc=0
-files="Order Causal Seat Window Recount Harden Harden2 Harden3 SeatG Terms Reader Merge Consent Carry RosterHead TwoMechanisms KeyEnd Duty Settled CutFix SeatWalk SeatCount WindowTable Retained Versions Ops Repurge Admission MinorVoid KeyOfIssuer DerivedCircle Held"
+files="Order Causal Seat Window Recount Harden Harden2 Harden3 SeatG Terms Reader Merge Consent Carry RosterHead TwoMechanisms KeyEnd Duty Settled CutFix SeatWalk SeatCount WindowTable Retained Versions Ops Repurge Admission MinorVoid KeyOfIssuer DerivedCircle Held SeatCut"
 for f in $files; do
   if ! LEAN_PATH="$out" lean -M 6000 -T 200000 --root="$here" -o "$out/$f.olean" "$here/$f.lean" > "$out/$f.log" 2>&1; then
     echo "does not compile: $f"; grep -m5 "error" "$out/$f.log"; rc=1

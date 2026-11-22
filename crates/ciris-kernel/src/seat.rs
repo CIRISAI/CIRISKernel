@@ -1211,6 +1211,216 @@ fn ender<R: SeatRow, S: CutSpec<R>>(
     sole.one(us.as_ref(), &obj).as_ref() == Some(r.signer())
 }
 
+/// Whether an act exercised under a seat stands ([`exercised_stands`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Exercised {
+    /// The act did not conclude.
+    ConcludesNothing,
+    /// (a) fails: the seat walk over the act's own concluded past does not seat the key. An act naming the
+    /// withdrawal or the unseat is here.
+    NotSeated,
+    /// (b) fails: a counting ending cut on the seat is concurrent with the act.
+    Cut,
+    /// (b): no counting ending cut is concurrent with the act, but a contested one is (rule 5). The act does
+    /// not stand.
+    Contested,
+    /// Both hold.
+    Stands,
+}
+
+impl Exercised {
+    /// Whether the act stands: [`Exercised::Stands`] only.
+    pub fn stands(self) -> bool {
+        self == Exercised::Stands
+    }
+}
+
+/// A slot of the cut [`exercised_stands`] runs: the caller's own, or the one target seat.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum EndSlot<S> {
+    Base(S),
+    Target,
+}
+
+/// What a row says under that cut: the caller's own, or "out" (every ending withdrawal).
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum EndSay<S> {
+    Base(S),
+    Out,
+}
+
+/// The caller's cut, with every ending withdrawal also a cut on [`EndSlot::Target`]. No row is on that slot,
+/// so these cuts void nothing; they count, or not, by their own voices under the caller's cuts (a concurrent
+/// counting removal of the key voids the withdrawal's one voice).
+struct EndingCut<'s, I, S> {
+    spec: &'s S,
+    ending: BTreeSet<I>,
+}
+
+impl<R: Row, S: CutSpec<R>> CutSpec<R> for EndingCut<'_, R::Id, S> {
+    type Slot = EndSlot<S::Slot>;
+    type Say = EndSay<S::Say>;
+    fn key_slot(&self, k: &R::Key) -> Self::Slot {
+        EndSlot::Base(self.spec.key_slot(k))
+    }
+    fn on_slots(&self, r: &R) -> BTreeSet<Self::Slot> {
+        self.spec.on_slots(r).into_iter().map(EndSlot::Base).collect()
+    }
+    fn cuts_of(&self, r: &R) -> BTreeSet<Self::Slot> {
+        let mut s: BTreeSet<Self::Slot> = self.spec.cuts_of(r).into_iter().map(EndSlot::Base).collect();
+        if self.ending.contains(r.id()) {
+            s.insert(EndSlot::Target);
+        }
+        s
+    }
+    fn says(&self, r: &R) -> Self::Say {
+        if self.ending.contains(r.id()) {
+            EndSay::Out
+        } else {
+            EndSay::Base(self.spec.says(r))
+        }
+    }
+    fn need(&self, r: &R) -> usize {
+        self.spec.need(r)
+    }
+    fn rejects(&self, r: &R) -> Vec<R::Id> {
+        self.spec.rejects(r)
+    }
+    fn is_voice_for(&self, cosign: &R, cut: &R) -> bool {
+        self.spec.is_voice_for(cosign, cut)
+    }
+}
+
+/// Whether act `x` (a row index of `c`), which `k` exercises under its seat (`k`, `scope`, `obj`), stands
+/// (CC 2.4.1.1, ruled 2026-11-21: a withdrawal retires its target as a cut does, CC 2.7.7). `seat.py`
+/// `exercised_stands`. It stands iff both:
+///
+/// - **(a)** the seat walk over x's own concluded past seats k: `k` is among
+///   `Seats::new(x's concluded past).holders(scope, obj)`. This is the walk, not the count: [`left_in_past`]
+///   is not read, so a re-acceptance re-seats k for its acts (each acceptance's withdrawal is read on its own),
+///   while a count over a head still leaves k out until a version lists it again (`readmission_needed`).
+/// - **(b)** no counting **ending cut** on the seat is concurrent with x. The ending cuts are the concluded
+///   withdrawals the walk honours for this seat (k's own withdrawal of an acceptance or of an offer that seats
+///   it here, which is how a resignation is written; the conferrer's withdrawal of such an offer where the
+///   walk lets it end the offer for all it seats) and the unseats of the seat (or of k's membership, where the
+///   seat is a duty one), as [`Seats::new`] reads them, that are not stale (built on a counted act that does
+///   not count; no reader's line is read).
+///
+/// (b) runs under the rule-4 fixed point ([`Cut`]). The kernel builds that cut itself, over the caller's
+/// `spec`: every ending withdrawal becomes a cut on one fresh slot that no row is on, saying "out" (two such
+/// withdrawals never contest each other). So the caller's key slots, removals, unseats, voices and `need` are
+/// read unchanged; a withdrawal whose voice a concurrent counting removal of k voids does not cut; and no other
+/// row's status changes. A caller's [`CutSpec`] cannot name a seat slot itself (it is over [`Row`], and its
+/// slots are its own type), which is why the kernel adds the slot rather than taking it from `spec`. Unseats
+/// are recognised by their [`SeatRow`] fields, as the walk recognises them.
+///
+/// The members at a head do not read this: they stay by past ([`members_at`], [`count_members`];
+/// `RosterHead.leaving_binds_by_past`). Only acts exercised under the seat follow the cut.
+///
+/// x's own status under the cut (its key removed concurrently, say) is the caller's [`Cut::status`], not read
+/// here. No instant is read.
+///
+/// **Precondition.** The answer is meaningful only when rows carry the ancestry it reads: the act names the
+/// standing it is exercised under, and a withdrawal names the head it acts from. Rows as persist signs them
+/// today do not (an authored withdrawal cites only its target; an act under a grant cites nothing): that wire
+/// change is pending, and until it lands persist uses CC 2.6.7's freshness window as an interim instant rule,
+/// which the kernel does not model.
+pub fn exercised_stands<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    x: usize,
+    k: &R::Key,
+    scope: &str,
+    obj: &ObjOf<R>,
+) -> Exercised {
+    if !c.concluded(x) {
+        return Exercised::ConcludesNothing;
+    }
+    let g = &c.g;
+    // (a) the seat walk over x's own concluded past
+    let sc = concluded_over(c.cs().iter().copied().filter(|&q| g.in_past(q, x)).map(|q| g.row(q)));
+    if !Seats::new(&sc, law, spec, None).holders(scope, obj, None).contains(k) {
+        return Exercised::NotSeated;
+    }
+    // (b) the ending cuts on the seat, concurrent with x
+    let by: BTreeMap<&R::Id, &R> = g.rows().iter().map(|r| (r.id(), *r)).collect();
+    let on_target = |o: &R| {
+        o.seat_kind() == SeatKind::Offer
+            && o.to().contains(k)
+            && o.scope().map(|s| s.as_ref()) == Some(scope)
+            && o.obj().as_ref() == Some(obj)
+    };
+    let ending: BTreeSet<R::Id> = c
+        .cs()
+        .iter()
+        .map(|&i| g.row(i))
+        .filter(|w| w.seat_kind() == SeatKind::Withdraw)
+        .filter(|w| {
+            let Some(t) = w.target().and_then(|t| by.get(t)) else { return false };
+            match t.seat_kind() {
+                SeatKind::Accept => {
+                    let pairs = match t.of() {
+                        Some(o) => by.get(o).is_some_and(|o| on_target(o)),
+                        None => t.scope().map(|s| s.as_ref()) == Some(scope) && t.obj().is_none_or(|x| x == *obj),
+                    };
+                    pairs && t.signer() == k && w.signer() == k
+                }
+                SeatKind::Offer => {
+                    on_target(t)
+                        && (w.signer() == k
+                            || (!t.to().contains(w.signer())
+                                && t.conf() != Some(Conf::Group)
+                                && !duty_seat(law, &by, t)))
+                }
+                _ => false,
+            }
+        })
+        .map(|w| w.id().clone())
+        .collect();
+    let wrap = EndingCut { spec, ending };
+    let cut = Cut::new(c, &wrap);
+    let stale = line::void(c, &SeatLine, None, |i| cut.counts(i));
+    let member = |s: Option<&R::Word>| s.map(|x| x.as_ref()) == Some("member");
+    let dutyish = law.is_duty(scope, &[])
+        || row_of(&by, obj).is_some_and(|f| {
+            f.seat_kind() == SeatKind::Offer
+                && f.obj() == Some(Obj::Row(f.id().clone()))
+                && f.scope().map(|s| s.as_ref()) == Some("duty")
+                && !law.roster_seats.iter().any(|x| x == scope)
+        });
+    let mut contested = false;
+    for &i in c.cs() {
+        if !g.concurrent(i, x) {
+            continue;
+        }
+        let r = g.row(i);
+        let ends = match r.seat_kind() {
+            SeatKind::Withdraw => wrap.ending.contains(r.id()),
+            SeatKind::Unseat => {
+                !stale.contains(&i)
+                    && r.to().contains(k)
+                    && r.obj().as_ref() == Some(obj)
+                    && (r.scope().map(|s| s.as_ref()) == Some(scope) || (dutyish && member(r.scope())))
+            }
+            _ => false,
+        };
+        if !ends {
+            continue;
+        }
+        match cut.status(i) {
+            crate::cut::Status::Counts => return Exercised::Cut,
+            crate::cut::Status::Contested => contested = true,
+            _ => {}
+        }
+    }
+    if contested {
+        Exercised::Contested
+    } else {
+        Exercised::Stands
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
