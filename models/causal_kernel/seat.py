@@ -48,9 +48,12 @@ does (CC 2.7.7)"). exercised_stands(S, x, k, s, o): act x that k exercises under
 walk over x's own concluded past seats k, and (b) no counting ending cut on the seat is concurrent with x. The ending
 cuts are every way the seat ends: k's own withdrawal of the acceptance or the offer that seats it (a resignation is
 this row), the conferrer's withdrawal of the offer where the walk honours it, and a counting unseat. They are judged
-under the rule-4 fixed point, so a withdrawal whose voice a concurrent counting removal of k voids does not cut. An act
-in the withdrawal's past stands; one concurrent with it does not; one naming it is not seated by the walk. A contested
-ending cut (rule 5) leaves the act not standing, reported "contested".
+under the rule-4 fixed point, so a withdrawal whose voice a concurrent counting removal of k voids does not cut. The
+answer is two (CONFERRAL_END.md E2 to E4, 2026-11-22): whether x counts at its own head, and whether it is in force
+from the end's head on. An act in the end's past stands (both); one concurrent with it, at the end's head, an older
+one, a concurrent one or none, counts and is out of force (E2: the end is forward); one concurrent with it at a later
+head does not count (E3); one naming it is not seated by the walk (E4). A contested ending cut (rule 5) leaves the act
+out of force, and uncounted where it is at a later head.
     The walk, not the count: (a) does not read left_in_past, so a re-acceptance re-seats k for its acts, while a count
     over a head still leaves k out until a version lists it again (left_in_past, RosterHead readmission_needed).
     The members at a head are NOT read through the cut: who is counted at a head, n and a version's voters, stay by
@@ -186,8 +189,8 @@ def accept(id, signer, of, names=(), scope=None, obj=None):
     return R(id, "accept", signer, names, of=of, scope=scope, obj=obj, **kw)
 
 
-def withdraw(id, signer, target, names=()):
-    return R(id, "withdraw", signer, tuple(names) + ((target,) if target not in names else ()), target=target)
+def withdraw(id, signer, target, names=(), **kw):
+    return R(id, "withdraw", signer, tuple(names) + ((target,) if target not in names else ()), target=target, **kw)
 
 
 def unseat(id, signer, k, scope, obj, conf, names=(), **kw):
@@ -441,23 +444,57 @@ def walk_holders(P, scope, obj):
     return Seats(CK.State(P, {q["id"]: True for q in P})).holders(scope, obj)
 
 
+def head_past(S, hs):
+    """The heads hs and their past: what a row naming hs sees of the ledger."""
+    out = set(hs)
+    for h in hs:
+        out |= set(S.anc.get(h, ()))
+    return out
+
+
+def later_head(S, hx, he):
+    """The heads hx are later than the end's heads he: they have every head of he in their past, and more
+    (CONFERRAL_END.md E3). A row naming no head is never at a later head."""
+    if not hx or not he:
+        return False
+    return head_past(S, he) < head_past(S, hx)
+
+
+# The answers of exercised_stands, each with (counted at its own head, in force from the end's head on).
+ANSWERS = {"concludes nothing": (False, False), "not seated": (False, False), "stands": (True, True),
+           "out of force": (True, False), "does not count": (False, False),
+           "contested": (True, False), "contested, not counted": (False, False)}
+
+
 def exercised_stands(S, x, k, scope, obj):
-    """Does act x, which k exercises under its seat (k, scope, obj), stand? CC 2.4.1.1 (2026-11-21): a withdrawal
-    retires its target as a cut does (CC 2.7.7). One of:
+    """What act x, which k exercises under its seat (k, scope, obj), is: counted at its own head, and in force.
+    CC 2.4.1.1 as ruled 2026-11-21 (a withdrawal retires its target as a cut does, CC 2.7.7), read FORWARD as
+    CONFERRAL_END.md E2 to E4 state it (approved for persist v62.0). One of (ANSWERS gives the two answers):
         "concludes nothing"   x did not conclude
         "not seated"          (a) fails: the seat walk over x's own concluded past (Seats(P).holders) does not
-                              seat k. An act naming the withdrawal falls here. This is the walk, not the count:
-                              left_in_past is not read, so a re-acceptance re-seats k for its acts (each
-                              acceptance's withdrawal is read on its own), while a count over a head still leaves
-                              k out until a version lists it again (left_in_past, readmission_needed).
-        "cut"                 (b) fails: a counting ending cut on the seat is concurrent with x
-        "contested"           (b) only a contested one is (rule 5): x does not stand, reported as contested
-        "stands"              both hold
+                              seat k. An act naming the end falls here: it does not count (E4). This is the walk,
+                              not the count: left_in_past is not read, so a re-acceptance re-seats k for its acts
+                              (each acceptance's withdrawal is read on its own), while a count over a head still
+                              leaves k out until a version lists it again (left_in_past, readmission_needed).
+        "stands"              (a) holds and no counting ending cut is concurrent with x: counted and in force
+        "out of force"        a counting ending cut is concurrent with x, and x's head is the end's, older, or
+                              concurrent with it (or x names no head): x counts at its own head and is not in
+                              force from the end's head on (E2). The end never voids an act at its own head
+        "does not count"      a counting ending cut is concurrent with x, and x's head is later than the end's
+                              (has it in its past): x finds the standing ended and does not count (E3)
+        "contested"           only a contested ending cut (rule 5) is concurrent with x, at a head x's is not
+                              later than: counted, not in force
+        "contested, not counted"  a contested ending cut is concurrent with x at a head x's is later than, and no
+                              counting one is: not counted, not in force
+    The heads are the rows' own `head` (persist: refs.head): the end's names h_e, the act's the head it is at.
     The ending cuts are the ending withdrawals (ending_withdrawals) and the counting unseats of the slot ("seat", k,
     scope, obj), or of k's membership where the seat is a duty one (as Seats.unseated reads them), not left behind as
     stale. They are judged under the rule-4 fixed point over S with every ending withdrawal made a cut on one fresh
     slot TARGET that no row is on: a withdrawal whose voice a concurrent counting removal of k voids does not cut,
-    and no other row's status changes. The members at a head are not read through this: they stay by past."""
+    and no other row's status changes. The members at a head are not read through this: they stay by past.
+    Not read here (follow-up): one say (E3's exception, a clean receipt by the ender concurrent with the end) and
+    receipts that keep an act in force (E8, section G), which need a receipt row the seat rows do not carry; E1 (an
+    end with a newer head in its own past concludes nothing) and the reader's line on the end."""
     if not S.C.get(x): return "concludes nothing"
     P = [q for q in S.Cs if q["id"] in S.anc[x]]
     if "seat_cut_retro" in MUT: P = [q for q in S.Cs if q["id"] != x]       # MUTATION: the walk reads every held row
@@ -469,7 +506,8 @@ def exercised_stands(S, x, k, scope, obj):
     C2 = CUT.Cut(S2)
     stale = CP.void(S2, C2, None, False)
     dutyish = _duty_slot(S.by, scope, obj)
-    contested = False
+    hx = tuple(S.by[x].get("head", ()))
+    out_of_force = contested = contested_count = False
     for q in S2.Cs:
         if not S.concurrent(q["id"], x): continue
         if q["kind"] == "withdraw":
@@ -480,8 +518,15 @@ def exercised_stands(S, x, k, scope, obj):
             ends = False
         if not ends: continue
         st = C2.status(q)
-        if st == "counts": return "cut"
-        contested = contested or st == "contested"
+        later = later_head(S, hx, tuple(q.get("head", ()))) and "seat_cut_own_head" not in MUT  # MUTATION: E3 unread
+        if st == "counts":
+            if later: return "does not count"
+            out_of_force = True
+        elif st == "contested":
+            if later: contested_count = True
+            else: contested = True
+    if contested_count: return "contested, not counted"
+    if out_of_force: return "out of force"
     return "contested" if contested else "stands"
 
 

@@ -58,15 +58,20 @@ Every answer about a row is of one of three kinds.
 
 - **Final by form**: whether the row is kept, its conclusion for a rule that reads no concurrent row, and a row
   that names a blocking set of receipts. **proved**: `Settled.kept_ext`, `concl_ext`, `effect_row_settled`.
-- **Final by acknowledgement**: whether an act counts at the head it names, once n − t + 1 of the n members there
-  have given receipts, where t can cut it. A receipt is a row by a voice at that head with the act in its past and
+- **Final by acknowledgement**: whether an act counts at the head it names against the cuts naming that head,
+  once n − t + 1 of the n members there have given receipts, where t can cut it. A receipt is a row by a voice at that head with the act in its past and
   no cut of the act by that key in its own past. **proved**: `ack_blocking_quorum` (the threshold is exact, both
   ways), `say_settled_final`, `countsAt_final`, `ack_finality_future_stable`.
 - **Provisional**: everything else, including whether an act is still in force at a later head. **proved**:
   `Rows.count_not_monotone`; a voice seated later acts forward (`Rows.later_seat_is_forward`).
 
-Whether an act counts is read at the head it names and reads only rows naming that head (`countsAt_local`,
-`later_head_changes_nothing`). Finality by acknowledgement rests on one rule of section 6 (rule 6, one say).
+Whether an act counts is read at the head it names and reads only rows naming that head or a head in its past
+(`countsFrom_local`, `later_head_changes_nothing_from`; `countsAt_local` and `later_head_changes_nothing` for the
+head alone). Finality by acknowledgement rests on one rule of section 6 (rule 6, one say). It is final against the
+cuts at the act's head; a cut at an older head concurrent with the act (rule 4) is read again, because receipts at
+the act's head do not block a count over another head's members. A reader that acknowledged the act's head holds
+that cut void (section 7, the line), so for it the count is final as before. **run** (`check_purge.py`, history "a
+settled act and cuts at an earlier head").
 
 This is finality of authorisation against cuts. A key revoked back to a bound, a row's own end and a reader's
 own trust are outside it, and it says nothing about execution. **open**: whether a withdrawn receipt still
@@ -85,14 +90,17 @@ ancestor (**proved**: `checkpoint_conclusions`, `checkpoint_resume`, `concl_ext_
 
 A dropped row keeps its digest, the digests it names, the fields a rule reads and its conclusion. Where an act's
 count at its head is final, by receipts or for this node by its own acknowledged head, that answer is kept and its
-receipts and same-head cuts are dropped; any other act keeps them whole (**proved**: sufficient,
+receipts and same-head cuts are dropped, and the digests of its clean receipts are recorded (one say on a cut at an
+older head reads them); any other act keeps them whole, and a cut at another head than its act's is kept whole
+(**proved**: sufficient,
 `pruned_view_closed`, `pruned_view_answers`; the bare answer is not enough, `count_view_not_closed`). Whether an
 act is still in force at a later head, every window, own end, key end and `revoked_after` are read again.
 A purge never drops what CC 2.7.10 lists, and a deletion duty outranks a kept copy.
 
-**run** (`models/causal_kernel/check_purge.py`): nine histories, every extension of each to four late rows,
-purged once and again part way, at each `now`: 200 replays under each reading of the reader's line, every answer
-equal to keeping everything, no duty breached; eight plants caught. **open**: the least set that suffices, many
+**run** (`models/causal_kernel/check_purge.py`): eleven histories, every extension of each to four late rows,
+purged once and again part way, at each `now`: 240 replays under each reading of the reader's line, every answer
+equal to keeping everything, no duty breached; nine plants caught, `final_blocks_earlier` (a stored answer read as
+final against a cut at an older head) among them. **open**: the least set that suffices, many
 acts purged at once, stubs as the store, and own end, key end and `revoked_after` over stubs.
 
 ## 4. Operators
@@ -375,7 +383,14 @@ own parameters are; most door rows still rest on parameters the tables do not st
    they name. A removal is a cut on a key and a deciding row is a cut on a contest. **run**: 4,898 sets in
    440,291 orders. A cut by a voice seated at a later head acts forward and never changes what counted at an
    earlier head; takedown, moderation and the halt act forward too (**proved**: `later_head_changes_nothing`,
-   `Rows.later_seat_is_forward`).
+   `later_head_changes_nothing_from`, `Rows.later_seat_is_forward`).
+   "From the head the cut names" reaches forward: a counted cut naming head h voids a concurrent act at h and at
+   every head with h in its past, counted over the members at h, one say (rule 6) excepted; an act at a head
+   concurrent with h, or older, is not reached at its own head (CONFERRAL_END.md E2, E3). **proved**
+   (`Settled.lean`): `older_cut_voids`, `older_cut_unblocked_voids`, `ack_never_yes_from`, `countsFrom_countsAt`.
+   **run** (`check_purge.py`, plant `own_head_only`: 9 answers differ; conformance against the crate; crate plant).
+   The crate's `head::View::counts_at` read only a cut at the act's own head through 0.3.0, so a cut at an older
+   head left a later-head act counting: that answer changed on 2026-11-22 (CHANGELOG, Unreleased).
 5. **Equal standing.** Two cuts by keys of equal standing that undo each other stay contested. What settles it
    is a voice the other cannot remove. **run**. So no slot that matters may be held on one signature: that is a
    requirement on the tables, and nothing yet checks them for it. **open**.
@@ -391,20 +406,35 @@ A row of a removed key counts when the removal has it among its ancestors: somet
 already named it. **proved**: `only_removals_stop_counting`, `sign_after_removal_never_counts`.
 
 **An act under a seat follows the cut** (CC 2.4.1.1, ruled 2026-11-21: "A withdraws row retires its target as a cut
-does (CC 2.7.7)"). An act that k exercises under its seat stands iff (a) the seat walk over the act's own past seats
-k, and (b) no counting ending cut on the seat is concurrent with the act. Every way a seat ends is an ending cut:
+does (CC 2.7.7)"; read forward as `models/tla/CONFERRAL_END.md` E2 to E4 state it, approved for persist v62.0). The
+answer is two: whether the act counts at its own head, and whether it is in force from the end's head on. An act that
+k exercises under its seat is in force iff (a) the seat walk over the act's own past seats k, and (b) no counting
+ending cut on the seat is concurrent with the act. Every way a seat ends is an ending cut:
 k's own withdrawal of its acceptance or of the offer that seats it (a resignation is this row), the conferrer's
 withdrawal of the offer where the walk honours it, and a counting unseat. They are judged under rule 4's fixed point,
-so a withdrawal that a concurrent counting removal of k voids does not cut. An act in the withdrawal's past stands;
-one concurrent with it counted at its own head but is not in force from the head the withdrawal names; one naming it
-is not seated by the walk. A contested ending cut (rule 5) leaves the act not standing. The members at a head do not
+so a withdrawal that a concurrent counting removal of k voids does not cut. With the heads the rows name (the end's
+`h_e`, the act's own head):
+
+| The act | Counted at its own head | In force from `h_e` on | `Exercised` |
+|---|---|---|---|
+| in the end's past | yes | yes | `Stands` |
+| concurrent with it, at `h_e`, an older head, a concurrent head or none (E2) | yes | no | `OutOfForce` |
+| concurrent with it, at a head with `h_e` in its past (E3) | no | no | `NotCounted` |
+| naming it (E4) | no | no | `NotSeated`, by the walk |
+| concurrent with a contested end only (rule 5) | yes, or no at a later head | no | `Contested { counted }` |
+
+The end never voids an act at its own head. Until 2026-11-22 the crate's answer was one verdict, `Cut` for every
+concurrent act whatever its head. The members at a head do not
 follow it: who is counted at a head, n and a version's voters stay by past (section 7). Acts follow the walk, so a
 re-acceptance re-seats k for its acts; counts follow `left_in_past` and `readmission_needed`, so a re-acceptance alone
 does not count k again. This is `seat::exercised_stands`; before 2026-11-21 an act was judged by the walk over its
 own past alone, and an act concurrent with the withdrawal still found the seat standing. **proved**
-(`SeatCut.lean`): `in_past_stands`, `concurrent_does_not_stand`, `cut_acts_members_hold`. **run**
-(`check_seat_cut.py`; conformance against the crate; crate plants for (b) skipped and for a voided withdrawal that
-still cuts).
+(`SeatCut.lean`): `in_past_stands`, `concurrent_does_not_stand`, `cut_acts_members_hold`, `in_force_counted`,
+`forward_counts_out_of_force` (E2), `later_head_not_counted` (E3), `named_cut_not_counted` (E4). **run**
+(`check_seat_cut.py`: 25 cases written to E2 to E4 and every kept set of three pools, one with heads; three model
+plants; conformance against the crate; crate plants for (b) skipped, a voided withdrawal that still cuts, E3 unread,
+and E2 read as E3). CONFERRAL_END.md's Python reference (`conferral_end.py`) and its fixtures are not yet on its
+branch; a conformance run over them is still to come.
 
 **A precondition.** The answer reads ancestry that rows as persist signs them today do not carry: an authored
 withdrawal cites only its target, and an act under a grant cites nothing. The pending wire change is that a
@@ -414,8 +444,12 @@ device would then name the re-acceptance as its `under`, which fits the walk). U
 
 **open** (accepted by the Constitution, to be written into the text; on the wire): (i) the cut reaches only an act
 under the target, never the members at a head or n (the kernel reads it so); (ii) a withdrawal names the head it
-acts from and is subject to the reader's line (CC 2.7.8, `Reader.lean` `line_voids_old_fork`), against backdating
-(not implemented). **open**: one say (rule 6) is not read for seats under a cut.
+acts from (read: E2, E3) and is subject to the reader's line (CC 2.7.8, `Reader.lean` `line_voids_old_fork`), against
+backdating (the line on the end is not implemented), and E1 (an end with a newer head in its own past concludes
+nothing) is not read. **open**, follow-up: one say (rule 6, E3's exception) is not read for seats under a cut, and
+neither are receipts that keep an act in force (E8, CONFERRAL_END.md section G: the ender's side, a count end's
+`lifts`, a receipter the grant names): seat rows carry no receipt of an act. **open**: `head::View::carried` reads
+only cuts at later heads; a cut at a head concurrent with the act's does not take it out of force there.
 
 ## 7. The roster is the one ledger
 
@@ -431,8 +465,10 @@ protocols were run once at the same bound and are not in the check.
 A reader that has acknowledged a head holds void every counted act that names an older head and is not in that
 head's past; its signer acts again, forward, at the newer head. This binds nobody else, and anything that binds
 others rests on receipts. **proved** (`Reader.lean`): `line_voids_old_fork`, `old_fork_void_for_ever`. **run**
-(`check_purge.py`): under this reading a checkpointing node keeps 12 rows whole and 36 as stubs over nine
-histories; under the narrower reading (roster versions only) 16 and 32; plant `narrow_eval` differs on 20 answers.
+(`check_purge.py`): under this reading a checkpointing node keeps 14 rows whole and 43 as stubs over eleven
+histories; under the narrower reading (roster versions only) 18 and 39; plant `narrow_eval` differs on 43 answers.
+The line is what keeps a cut at an older head (section 6, rule 4) from reaching a reader's acts at the head it
+acknowledged: such a cut names a head older than the acknowledged one and is not in its past.
 
 **proved** (`RosterHead.lean`): the members at a head are a function of the head, its signatures and its past
 (`membersAt_function`, `standing_final`). A removal is a later counted version and changes the members there,
@@ -441,7 +477,8 @@ more, one key's rows remove nobody: a member leaves only by its own withdrawal o
 distinct members (`one_signature_never_removes`). A removed key counts again only after a version lists it
 again (`readmission_needed`). Two concurrent versions of one head are not decided there; they wait as tips.
 The members at a head stay by past under CC 2.4.1.1 as ruled on 2026-11-21: a withdrawal, unseat or resignation
-cuts the acts exercised under the seat that are concurrent with it (section 6), never the members at a head or n
+takes out of force, or at a later head uncounts, the acts exercised under the seat that are concurrent with it
+(section 6), never the members at a head or n
 (`SeatCut.cut_acts_members_hold`, over `rows_outside_change_nothing`).
 
 An adversary holding the count of an old head signs a valid version alone. A witnessed lineage answers that

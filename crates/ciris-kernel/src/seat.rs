@@ -1211,26 +1211,42 @@ fn ender<R: SeatRow, S: CutSpec<R>>(
     sole.one(us.as_ref(), &obj).as_ref() == Some(r.signer())
 }
 
-/// Whether an act exercised under a seat stands ([`exercised_stands`]).
+/// What an act exercised under a seat is ([`exercised_stands`]): two answers, whether it counts at its own head
+/// ([`Exercised::counted`]) and whether it is in force from the end's head on ([`Exercised::in_force`]), as
+/// `models/tla/CONFERRAL_END.md` E2 to E4 state them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Exercised {
-    /// The act did not conclude.
+    /// The act did not conclude. Not counted, not in force.
     ConcludesNothing,
     /// (a) fails: the seat walk over the act's own concluded past does not seat the key. An act naming the
-    /// withdrawal or the unseat is here.
+    /// withdrawal or the unseat is here: it does not count (E4). Not counted, not in force.
     NotSeated,
-    /// (b) fails: a counting ending cut on the seat is concurrent with the act.
-    Cut,
-    /// (b): no counting ending cut is concurrent with the act, but a contested one is (rule 5). The act does
-    /// not stand.
-    Contested,
-    /// Both hold.
+    /// (a) holds and no counting ending cut on the seat is concurrent with the act (an act in the end's past
+    /// is here). Counted and in force.
     Stands,
+    /// A counting ending cut is concurrent with the act, and the act's head is the end's, older than it,
+    /// concurrent with it, or none: the act counts at its own head and is not in force from the end's head on
+    /// (E2). The end never voids an act at its own head.
+    OutOfForce,
+    /// A counting ending cut is concurrent with the act, and the act's head is later than the end's (has it in
+    /// its past): the act finds the standing ended and does not count (E3). Not counted, not in force.
+    NotCounted,
+    /// No counting ending cut is concurrent with the act, but a contested one is (rule 5). Not in force;
+    /// `counted` is false when a contested end is at a head the act's is later than, true otherwise.
+    Contested {
+        /// Whether the act counts at its own head.
+        counted: bool,
+    },
 }
 
 impl Exercised {
-    /// Whether the act stands: [`Exercised::Stands`] only.
-    pub fn stands(self) -> bool {
+    /// Whether the act counts at its own head: [`Exercised::Stands`], [`Exercised::OutOfForce`], or
+    /// [`Exercised::Contested`] with `counted`.
+    pub fn counted(self) -> bool {
+        matches!(self, Exercised::Stands | Exercised::OutOfForce | Exercised::Contested { counted: true })
+    }
+    /// Whether the act is in force from the end's head on: [`Exercised::Stands`] only.
+    pub fn in_force(self) -> bool {
         self == Exercised::Stands
     }
 }
@@ -1291,9 +1307,10 @@ impl<R: Row, S: CutSpec<R>> CutSpec<R> for EndingCut<'_, R::Id, S> {
     }
 }
 
-/// Whether act `x` (a row index of `c`), which `k` exercises under its seat (`k`, `scope`, `obj`), stands
-/// (CC 2.4.1.1, ruled 2026-11-21: a withdrawal retires its target as a cut does, CC 2.7.7). `seat.py`
-/// `exercised_stands`. It stands iff both:
+/// What act `x` (a row index of `c`), which `k` exercises under its seat (`k`, `scope`, `obj`), is: counted at
+/// its own head, and in force from the end's head on (CC 2.4.1.1, ruled 2026-11-21: a withdrawal retires its
+/// target as a cut does, CC 2.7.7; read forward as `models/tla/CONFERRAL_END.md` E2 to E4 state it, approved
+/// for persist v62.0). `seat.py` `exercised_stands`. It is [`Exercised::Stands`] iff both:
 ///
 /// - **(a)** the seat walk over x's own concluded past seats k: `k` is among
 ///   `Seats::new(x's concluded past).holders(scope, obj)`. This is the walk, not the count: [`left_in_past`]
@@ -1316,6 +1333,18 @@ impl<R: Row, S: CutSpec<R>> CutSpec<R> for EndingCut<'_, R::Id, S> {
 ///
 /// The members at a head do not read this: they stay by past ([`members_at`], [`count_members`];
 /// `RosterHead.leaving_binds_by_past`). Only acts exercised under the seat follow the cut.
+///
+/// When (b) fails, the heads decide between the two answers. Each row's [`SeatRow::head`] is the head it names
+/// (persist: `refs.head`): the end's is `h_e`, the act's the head it is at. The act's heads are **later** than
+/// the end's when the heads with their past that the act names strictly contain those the end names. Then the
+/// act does not count ([`Exercised::NotCounted`], E3); otherwise (the same head, an older one, a concurrent one,
+/// or either naming none) it counts at its own head and is out of force ([`Exercised::OutOfForce`], E2). An act
+/// naming the end is [`Exercised::NotSeated`] by (a) (E4).
+///
+/// Not read here, and left to follow-up work: E3's one say (the ender's clean receipt of the act concurrent
+/// with the end) and E8's receipts that keep an act in force (CONFERRAL_END.md section G: the ender's side,
+/// `lifts`, a named receipter), since seat rows carry no receipt of an act; E1 (an end with a newer head in its
+/// own past concludes nothing); and the reader's line (CC 2.7.8) on the end.
 ///
 /// x's own status under the cut (its key removed concurrently, say) is the caller's [`Cut::status`], not read
 /// here. No instant is read.
@@ -1389,7 +1418,27 @@ pub fn exercised_stands<R: SeatRow, S: CutSpec<R>>(
                 && f.scope().map(|s| s.as_ref()) == Some("duty")
                 && !law.roster_seats.iter().any(|x| x == scope)
         });
-    let mut contested = false;
+    // the heads a row names, with their past
+    let head_past = |hs: &[R::Id]| -> BTreeSet<R::Id> {
+        let mut out: BTreeSet<R::Id> = hs.iter().cloned().collect();
+        for h in hs {
+            if let Some(hi) = g.idx(h) {
+                out.extend(g.past(hi, false).into_iter().map(|q| g.row(q).id().clone()));
+            }
+        }
+        out
+    };
+    let hx = g.row(x).head();
+    let px = head_past(hx);
+    let later = |e: &R| {
+        let he = e.head();
+        if hx.is_empty() || he.is_empty() {
+            return false;
+        }
+        let pe = head_past(he);
+        pe.len() < px.len() && pe.is_subset(&px)
+    };
+    let (mut out_of_force, mut contested, mut contested_count) = (false, false, false);
     for &i in c.cs() {
         if !g.concurrent(i, x) {
             continue;
@@ -1409,13 +1458,19 @@ pub fn exercised_stands<R: SeatRow, S: CutSpec<R>>(
             continue;
         }
         match cut.status(i) {
-            crate::cut::Status::Counts => return Exercised::Cut,
+            crate::cut::Status::Counts if later(r) => return Exercised::NotCounted,
+            crate::cut::Status::Counts => out_of_force = true,
+            crate::cut::Status::Contested if later(r) => contested_count = true,
             crate::cut::Status::Contested => contested = true,
             _ => {}
         }
     }
-    if contested {
-        Exercised::Contested
+    if contested_count {
+        Exercised::Contested { counted: false }
+    } else if out_of_force {
+        Exercised::OutOfForce
+    } else if contested {
+        Exercised::Contested { counted: true }
     } else {
         Exercised::Stands
     }

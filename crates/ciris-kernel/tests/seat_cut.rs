@@ -1,4 +1,5 @@
-//! Differential: `seat::exercised_stands` (an act under a seat follows the cut, CC 2.4.1.1) and the members at
+//! Differential: `seat::exercised_stands` (an act under a seat follows the cut, CC 2.4.1.1, read forward as
+//! CONFERRAL_END.md E2 to E4: counted at its own head, and in force from the end's head on) and the members at
 //! every concluded row as a head, against `models/causal_kernel/check_seat_cut.py`'s named cases and every kept
 //! set of its two pools (fixture `seat_cut.json`).
 
@@ -12,9 +13,11 @@ fn word(e: Exercised) -> &'static str {
     match e {
         Exercised::ConcludesNothing => "concludes nothing",
         Exercised::NotSeated => "not seated",
-        Exercised::Cut => "cut",
-        Exercised::Contested => "contested",
         Exercised::Stands => "stands",
+        Exercised::OutOfForce => "out of force",
+        Exercised::NotCounted => "does not count",
+        Exercised::Contested { counted: true } => "contested",
+        Exercised::Contested { counted: false } => "contested, not counted",
     }
 }
 
@@ -58,6 +61,13 @@ fn seat_cut_worlds() {
             let got = exercised_stands(&c, &law, &spec, i, &k, scope, &obj);
             *tally.entry(word(got)).or_default() += 1;
             cmp(word(got) == want.s(), format!("act {x}: {} (model {})", word(got), want.s()));
+            // the two answers, as seat.ANSWERS gives them for the model's word
+            let two = match want.s() {
+                "stands" => (true, true),
+                "out of force" | "contested" => (true, false),
+                _ => (false, false),
+            };
+            cmp((got.counted(), got.in_force()) == two, format!("act {x}: counted, in force"));
         }
         // the members at every concluded row as a head: by past, untouched by the cut
         for (h, want) in w.at("heads").obj() {

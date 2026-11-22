@@ -65,9 +65,9 @@ unless marked as the parent's.
 | `seat::Seats` (`stands`, `holders`, `one`, `tips`, `tips_common`) | 5, **stands**: the seat, the bounded walk; 7, tips wait | `seat_is_two_consents`, `holder_first_stands`, `only_bound_voices_end` (Consent); `means_is_seat_walk`, `no_acceptance_no_seat`, `third_key_cannot_end` (Seat); `Duty.lean` | `seat.Seats` |
 | `seat::seat_rule` | 5, who may place a duty; 8a, the hardening rules | `count_is_final_against_members` (Consent), `one_signature_never_removes`, `readmission_needed` (RosterHead), `Harden*.lean`, `Duty.lean` | `seat.seat_rule` |
 | `seat::members_at`, `members_in`, `left_in_past`, `voices`, `met` | 5 and 7, "the members are those at the head the row names" | `membersAt_function`, `counted_over_named_head`, `leaving_binds_by_past` (RosterHead) | `seat.members_at`, `left_in_past`, `voices`, `met` |
-| `seat::exercised_stands`, `Exercised` | 6, an act under a seat follows the cut (CC 2.4.1.1); 7, the members at a head stay by past | `in_past_stands`, `concurrent_does_not_stand`, `cut_acts_members_hold` (SeatCut) | `seat.exercised_stands` |
+| `seat::exercised_stands`, `Exercised` (`counted`, `in_force`) | 6, an act under a seat follows the cut (CC 2.4.1.1), read forward (CONFERRAL_END.md E2 to E4): counted at its own head, in force from the end's head on; 7, the members at a head stay by past | `in_past_stands`, `concurrent_does_not_stand`, `cut_acts_members_hold`, `forward_counts_out_of_force`, `later_head_not_counted`, `named_cut_not_counted` (SeatCut) | `seat.exercised_stands` |
 | `window::rule`, `outcome` | 5, **window**, recount | `dishonest_never_stands`, `stands_is_table_over_all_not_late`, `quorum_closed_final` (Recount) | `window.rule`, `window.outcome(…, "recount")` |
-| `head::View` (`counts_at`, `carried`, `settled`, `missing`, `receipts`, `window`, `answers`) | 3, final by acknowledgement; 6 rule 6, one say | `ack_blocking_quorum`, `say_settled_final`, `countsAt_final`, `countsAt_local`, `symmetric_say_forced`, `say4_closed` (Settled) | `purge.View` |
+| `head::View` (`counts_at`, `carried`, `settled`, `missing`, `receipts`, `window`, `answers`) | 3, final by acknowledgement; 6 rule 4, a cut reaches forward from the head it names; 6 rule 6, one say | `ack_blocking_quorum`, `say_settled_final`, `countsAt_final`, `countsAt_local`, `countsFrom_local`, `later_head_changes_nothing_from`, `older_cut_voids`, `symmetric_say_forced`, `say4_closed` (Settled) | `purge.View` |
 | `head::purge` | 3a, checkpoint and purge | `checkpoint_conclusions`, `checkpoint_resume`, `pruned_view_closed`, `pruned_view_answers` (sufficient); `count_view_not_closed` (the bare answer is not enough) | `purge.purge` |
 | `key_end::well_formed`, `conclude_rule`, `live`, `ended`, `retained`, `successor` | 5, two notions of time; a key's own end | `live_own_rows`, `live_perm`, `ended_not_live`, `ended_stays_ended` (KeyEnd) | `key_end.WF`, `RULE`, `live`, `ended`, `retained`, `successor` |
 | `trust::reaches`, `honours` | 5, **stands**: "the remaining depth is the lesser …, the classes intersect, and a cycle is visited once" (TEXT.md; CC 2.7.5) | `TrustSet.lean` (parent repository): `reaches_mono_budget`, `verdict_is_the_capped_walk`, the worked world | none in Python; compared with the Lean `walk` transcribed |
@@ -89,7 +89,7 @@ unless marked as the parent's.
 | recorded rules: other rules | the 18 attack scenarios concluded under a rule of their own: as above, and the cut, holders and windows | 848 | 0 |
 | recorded rules: rosters | 1,991 worlds that `check_rosters.py`'s unmutated properties conclude: as above, over `roster.py`'s settled conclusions | 52,132 | 0 |
 | `line::versions` | every set of up to three versions of `roster_fork`'s three settings, for every reader, and the attack tests' own calls | 77,402 | 0 |
-| checkpoint and purge | `check_purge.py`: 400 replays (200 under each reading) over the nine histories | 1,768 | 0 |
+| checkpoint and purge | `check_purge.py`: 480 replays (240 under each reading) over the eleven histories | 2,122 | 0 |
 | a key's own end | `check_key_end.py`: 5,670 worlds at six instants | 215,460 | 0 |
 | lazy closure | against the eager closure the crate first shipped, over generated graphs | 301,219 | 0 |
 | trust walk | the `TrustSet.lean` worked world, and the Lean `walk` over generated graphs | 127,015 | 0 |
@@ -106,8 +106,9 @@ ask no question the table lacks. What these runs check is the kernel's door, rec
 derived answers over the model's conclusions. The answers the witnesses compute are per-case functions of
 the model and are not ported.
 
-Fifteen planted breaks are each caught (`tools/kernel_crate_plants.sh`, run on a copy), in `derived` (two),
-`cut`, `seat` (four), `head`, `key_end`, `line` (two), `window`, `ranked`, `graph` and `layers`.
+Fifty-eight planted breaks are each caught (`tools/kernel_crate_plants.sh`, run on a copy), among them a cut at an
+older head not read (rule 4 as it was through 0.3.0), one say on such a cut ignoring the receipts a purge recorded,
+E3 unread in `exercised_stands`, and E2 read as E3 there.
 
 **The cycle reading.** "A cycle is visited once" (CC 2.7.5) has two readings. Under the first, a walk never
 passes the same key twice. It equals the Lean `walk` on every case, since a key reached again has no more

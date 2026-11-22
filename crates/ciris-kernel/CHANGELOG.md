@@ -3,7 +3,39 @@
 ## Unreleased
 
 Held views, slice 4 (issue #4, `HELD.md`): the head layer held (`held_view::HeldView`), its checkpoint (ids
-only, rows re-attached by id), foreign rows on `Held`, and `proofs/Held.lean`. No existing answer changes.
+only, rows re-attached by id), foreign rows on `Held`, and `proofs/Held.lean`; and the conferral end
+(`models/tla/CONFERRAL_END.md`, approved for persist v62.0). One existing answer changes:
+`head::View::counts_at` (below, "Behaviour change: a cut at an older head").
+
+### Behaviour change: a cut at an older head (2026-11-22)
+
+KERNEL.md section 6 rule 4: once a cut counts, rows on its slot concurrent with it do not count **from the head
+the cut names**. Through 0.3.0, `head::View::counts_at` (and so `Answers::counts_at`, `carried`, which reads it, and
+`HeldView`) read a cut only when it named the act's own head (`c.head == act.head`). It now also reads a cut naming
+a head **older** than the act's (one in the past of the act's head), concurrent with the act: counted over the
+members at the cut's head against that head's count, with one say (rule 6) as at the act's own head (a signer
+holding a clean receipt of the act concurrent with the cut has no say). This is CONFERRAL_END.md E3. `purge.py`
+had the same gap and was fixed first (`check_purge.py`, plant `own_head_only`).
+
+- What changed, an example: roster versions v0 and v1 (v1 names v0), members A, B, C and count 2 at both; act E
+  by A at v1; a cut of E by B and C naming v0, concurrent with E. Through 0.3.0 `counts_at(E)` was `true`; now it
+  is `false` (and `carried(E)` with it). With a clean receipt of E by B concurrent with the cut, B has no say, and
+  E counts. For a reader that acknowledged v1, the cut is void (the line, CC 2.7.8), and E counts, as before.
+  (`head::tests::a_cut_reaches_forward_from_the_head_it_names`; `purge.py` histories "a cut at an earlier head
+  reaches a later head", "a settled act and cuts at an earlier head".)
+- What did not change: a cut at the act's own head; a cut at a later head (it acts forward: the act still counts
+  at its own head and is out of force, `carried`); a cut at a head concurrent with the act's, or one the act has
+  in its past; and every store with no cut at an older head than its act's. `Settled.later_head_changes_nothing`
+  and the one-say theorems hold as they were, and `Settled.later_head_changes_nothing_from` states the forward
+  property for the new reading (`countsFrom`).
+- Settled acts: n − t + 1 receipts at the act's head make its count final against cuts at that head, not against
+  a cut at an older head, whose members may differ. So `purge` stores in `Entry::final_counts` the answer against
+  same-head cuts only (`counts_own`), records `Entry::acks` (the clean receipt digests) for every final act, not
+  only a settled one, and keeps every cut at another head than its act's whole; `counts_at` reads cuts at older
+  heads again over a stub. A checkpoint from an earlier purge resumes as before (its `final_counts` was the same
+  answer for every store without such a cut).
+
+### Adopting (from 0.3.0)
 
 ### Adopting (from 0.3.0)
 
@@ -24,6 +56,7 @@ Behaviour, not signature:
 ### Breaking (0.x)
 
 - `held::Admitted` gains `foreign: Vec<I>`, so a struct literal of it no longer compiles.
+- `head::View::counts_at` answers differently for an act with a counted, concurrent cut at an older head (above).
 
 ### Added (slice 4)
 
@@ -51,16 +84,25 @@ Behaviour, not signature:
 
 ### Added (seat cut, unreleased)
 
-- `seat::exercised_stands(c, law, spec, x, k, scope, obj) -> Exercised`: whether act `x`, which `k` exercises
-  under its seat (`k`, `scope`, `obj`), stands, as CC 2.4.1.1 was ruled on 2026-11-21 (a withdrawal retires its
-  target as a cut does, CC 2.7.7). It stands iff (a) the seat walk over x's own concluded past seats `k`
+- `seat::exercised_stands(c, law, spec, x, k, scope, obj) -> Exercised`: what act `x`, which `k` exercises
+  under its seat (`k`, `scope`, `obj`), is, as CC 2.4.1.1 was ruled on 2026-11-21 (a withdrawal retires its
+  target as a cut does, CC 2.7.7), read forward as CONFERRAL_END.md E2 to E4 state it (2026-11-22). Two answers,
+  `Exercised::counted()` (at its own head) and `Exercised::in_force()` (from the end's head on). It is in force
+  (`Stands`) iff (a) the seat walk over x's own concluded past seats `k`
   (`Seats::holders`; `left_in_past` is not read, so a re-acceptance re-seats `k` for its acts) and (b) no counting
   ending cut on the seat is concurrent with `x`. The ending cuts are every way the seat ends: `k`'s own withdrawal of
   the acceptance or offer that seats it (a resignation), the conferrer's withdrawal where the walk honours it, and an
   unseat of the seat that is not stale. (b) runs under the rule-4 fixed point over the caller's `spec`, with each
   ending withdrawal made a cut on one slot the kernel adds and no row is on: a withdrawal that a concurrent counting
-  removal of `k` voids does not cut, and no other row's status changes. `Exercised` is `ConcludesNothing`,
-  `NotSeated`, `Cut`, `Contested` (rule 5; does not stand) or `Stands`; `Exercised::stands()`.
+  removal of `k` voids does not cut, and no other row's status changes. When (b) fails, the heads the rows name
+  (`SeatRow::head`; persist: `refs.head`) decide: the act's heads with their past strictly containing the end's
+  (a later head) give `NotCounted` (E3); otherwise (the end's head, an older or a concurrent one, or none)
+  `OutOfForce`, counted at its own head (E2). An act naming the end is `NotSeated` by (a) (E4). `Exercised` is
+  `ConcludesNothing`, `NotSeated`, `Stands`, `OutOfForce`, `NotCounted` or `Contested { counted }` (rule 5: not
+  in force; not counted where the contested end is at a head the act's is later than).
+- Changed since the seat-cut branch (unmerged, so no release had it): `Exercised::Cut` is split into
+  `OutOfForce` and `NotCounted`; `Contested` gains `counted`; `Exercised::stands()` is replaced by `counted()` and
+  `in_force()` (`in_force()` is what `stands()` answered).
 - What changed is a reading, not an answer: before this, an act under a seat could only be judged by the walk over
   its own past (`Seats`, `members_at`), which still answers exactly as it did, and an act concurrent with the
   withdrawal found the seat standing. A caller that wants CC 2.4.1.1 as ruled calls `exercised_stands`.
@@ -69,10 +111,15 @@ Behaviour, not signature:
 - Precondition: the answer reads ancestry rows must carry (an act names the standing it is exercised under; a
   withdrawal names its head). Persist's rows as signed today do not, and persist does not call this before v62.0;
   until the wire carries it, persist uses CC 2.6.7's freshness window, which the kernel does not model.
-- Open: a withdrawal naming its head under the reader's line (CC 2.7.8), against backdating; one say (rule 6) for
-  seats under a cut.
-- Checked: `check_seat_cut.py` (17 cases, every kept set of two pools, two model plants), conformance run
-  `exercised_stands and the members at a head` (fixture `seat_cut.json`), two crate plants, `proofs/SeatCut.lean`.
+- Open, follow-up: a withdrawal naming its head under the reader's line (CC 2.7.8), against backdating, and E1
+  (an end with a newer head in its own past concludes nothing); one say (rule 6, E3's exception) for seats under a
+  cut; receipts that keep an act in force (E8, CONFERRAL_END.md section G: the ender's side, `lifts`, a named
+  receipter), which need a receipt row the seat rows do not carry. A conformance run over `conferral_end.py`'s
+  fixtures, once they are on `conferral-wire-model`.
+- Checked: `check_seat_cut.py` (25 cases, every kept set of three pools, one with named heads, three model
+  plants), conformance run `exercised_stands and the members at a head` (fixture `seat_cut.json`, both answers),
+  four crate plants, `proofs/SeatCut.lean` (`forward_counts_out_of_force`, `later_head_not_counted`,
+  `named_cut_not_counted`, `in_force_counted`).
 
 ## [0.3.0]
 

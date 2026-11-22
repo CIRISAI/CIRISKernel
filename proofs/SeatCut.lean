@@ -26,6 +26,15 @@
    (4) `named_cut_does_not_stand`: an act naming an ending cut does not stand when the walk honours the
        cuts in its past (`honours`, a hypothesis on the walk: the kernel's walk reads the withdrawal).
 
+  Two answers (2026-11-22, models/tla/CONFERRAL_END.md E2 to E4, approved for persist v62.0). "Stands" above
+  is "in force from the end's head on"; `counted` is whether the act counts at its own head, read with
+  `later x w` (the head x names is later than the head w names, abstract here, the rows' `head` in the crate):
+   (5) `in_force_counted`: in force implies counted.
+   (6) `forward_counts_out_of_force` (E2): concurrent with an end at a head x's is not later than, x counts
+       and is not in force. The end never voids an act at its own head.
+   (7) `later_head_not_counted` (E3): concurrent with an end at a head x's is later than, x does not count.
+   (8) `named_cut_not_counted` (E4): naming the end, x does not count where the walk honours it.
+
   Core Lean 4.14, no Mathlib, no `sorry`, no axioms beyond core. Imports RosterHead.lean.
 -/
 
@@ -50,12 +59,21 @@ structure Ending (L : Lineage Row Key) where
   walk_local : ∀ P P' x k, (∀ r, TransGen L.parent r x → (P r ↔ P' r)) → (seated P x k ↔ seated P' x k)
   /-- Row `w` is a counting ending cut on `k`'s seat (a withdrawal, an unseat, a resignation). -/
   ends : (Row → Prop) → Row → Key → Prop
+  /-- The head act `x` names is later than the head end `w` names (has it in its past; CONFERRAL_END.md E3).
+      Read from the rows' named heads; left abstract here. -/
+  later : Row → Row → Prop
 
 variable (E : Ending L)
 
 /-- Act `x`, exercised by `k` under its seat, stands: (a) and (b). -/
 def exercised (P : Row → Prop) (x : Row) (k : Key) : Prop :=
   E.seated P x k ∧ ∀ w, P w → E.ends P w k → ¬ conc L w x
+
+/-- Act `x` COUNTS at its own head (2026-11-22, CONFERRAL_END.md E2 to E4): the walk seats `k`, and no
+    counting ending cut concurrent with `x` names a head `x`'s is later than. `exercised` is the second
+    answer, in force from the end's head on. -/
+def counted (P : Row → Prop) (x : Row) (k : Key) : Prop :=
+  E.seated P x k ∧ ∀ w, P w → E.ends P w k → conc L w x → ¬ E.later x w
 
 /-- What rows name has no cycle. -/
 theorem no_cycle (a : Row) : ¬ TransGen L.parent a a := by
@@ -125,6 +143,34 @@ theorem cut_acts_members_hold (P : Row → Prop) (x W h : Row) (k : Key) (hW : P
     | inl e => exact Or.inr (e ▸ t)
     | inr t' => exact Or.inr (TransGen.trans t' t)
 
+/-- (5) IN FORCE IMPLIES COUNTED. -/
+theorem in_force_counted (P : Row → Prop) (x : Row) (k : Key) (h : exercised L E P x k) :
+    counted L E P x k :=
+  ⟨h.1, fun w hw he hc => absurd hc (h.2 w hw he)⟩
+
+/-- (6) E2, THE END IS FORWARD. An act the walk seats, whose every concurrent counting ending cut names a head
+    the act's is not later than (the same, an older or a concurrent head), counts at its own head; with one
+    such cut held it is not in force. -/
+theorem forward_counts_out_of_force (P : Row → Prop) (x W : Row) (k : Key) (hs : E.seated P x k)
+    (hnot : ∀ w, P w → E.ends P w k → conc L w x → ¬ E.later x w)
+    (hW : P W) (he : E.ends P W k) (hc : conc L W x) :
+    counted L E P x k ∧ ¬ exercised L E P x k :=
+  ⟨⟨hs, hnot⟩, concurrent_does_not_stand L E P x W k hW he hc⟩
+
+/-- (7) E3, A LATER HEAD. An act concurrent with a counting ending cut whose head the act's is later than does
+    not count. -/
+theorem later_head_not_counted (P : Row → Prop) (x W : Row) (k : Key) (hW : P W)
+    (he : E.ends P W k) (hc : conc L W x) (hl : E.later x W) : ¬ counted L E P x k :=
+  fun h => h.2 W hW he hc hl
+
+/-- (8) E4, NAMING THE END. An act naming a counting ending cut does not count, where the walk honours the
+    ending cuts in its past. -/
+theorem named_cut_not_counted (P : Row → Prop) (x W : Row) (k : Key) (hW : P W)
+    (he : E.ends P W k) (hn : TransGen L.parent W x)
+    (honours : ∀ w, P w → E.ends P w k → TransGen L.parent w x → ¬ E.seated P x k) :
+    ¬ counted L E P x k :=
+  fun h => honours W hW he hn h.1
+
 end SeatCut
 
 #print axioms SeatCut.no_cycle
@@ -135,5 +181,9 @@ end SeatCut
 #print axioms SeatCut.named_cut_does_not_stand
 #print axioms SeatCut.members_ignore_outside
 #print axioms SeatCut.cut_acts_members_hold
+#print axioms SeatCut.in_force_counted
+#print axioms SeatCut.forward_counts_out_of_force
+#print axioms SeatCut.later_head_not_counted
+#print axioms SeatCut.named_cut_not_counted
 
 end Kernel

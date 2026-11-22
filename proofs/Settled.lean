@@ -60,7 +60,10 @@
             carried to its head, not the act's own (`later_head_changes_nothing`,
             `Rows.later_seat_is_forward`). Within a head each voice has one say; one that has
             said both has none (`symmetric_say_forced`: forced by treating its two rows alike;
-            `say3_not_closed`: "both" must be kept apart from "nothing"). Acknowledgements by
+            `say3_not_closed`: "both" must be kept apart from "nothing"). Rule 4 read from the
+            head the cut names (`countsFrom`): a counted cut naming an older head voids `E` at
+            `x` too (`older_cut_voids`), and a later or concurrent head still changes nothing
+            (`later_head_changes_nothing_from`). Acknowledgements by
             n - t + 1 members at the head then block every cut there in every extension
             (`say_settled_final`); a sole cutter that forks has no say (`Rows.fork_has_no_say`),
             and a deciding row with the act in its past is no vote (`Rows.overrule_is_no_vote`).
@@ -1285,9 +1288,11 @@ end Rows2
   to cut (a cut row concurrent with `E`), it acknowledges `E`, both, or neither. A voice that
   has said both has no say there, as CC 3.1.3.2 states for replies; it stays among the members
   the count is over. A row with `E` in its past is not a vote against `E` ("rows in its past
-  stand"). Cuts naming a head older than `x` are not read: for a reader that acknowledged `x`
-  they are void (`Reader.line_voids_old_fork`), and otherwise they are the fork on a past head
-  that KERNEL.md 8a lists. -/
+  stand"). `countsAt` does not read cuts naming a head older than `x`: for a reader that
+  acknowledged `x` they are void (`Reader.line_voids_old_fork`). Rule 4 read from the head the
+  cut names does read them for every other reader (`countsFrom`, below; 2026-11-22), and an
+  adversary with an old head's count signing such a cut is the fork on a past head that KERNEL.md
+  8a lists. -/
 
 section Heads
 
@@ -1410,6 +1415,113 @@ theorem sole_cutter_fork_stands (S : Row → Prop) (x : Row) (v : K) (hE : S E)
       subst hk
       exact ⟨by rw [hmem]; exact List.mem_singleton_self _, ha⟩)
     (by rw [hmem, ht]; simp)
+
+/-! ### Rule 4 from the head the cut names
+
+  `countsAt` reads only cuts naming `x`. Rule 4 (KERNEL.md section 6) says more: once a cut counts, rows on
+  the slot concurrent with it do not count from the head the cut names. So a counted cut naming a head `y`
+  older than `x` (in `x`'s past), concurrent with `E`, voids `E` at `x` as well (CONFERRAL_END.md E3,
+  2026-11-22). It is counted over the members at its own head `y`; one say reads the acknowledgements at `x`,
+  where `E`'s receipts are. `countsFrom` is the crate's `head::View::counts_at` from 2026-11-22.
+
+  The new reading only removes counts (`countsFrom_countsAt`), it still reads only rows naming `x` or a head
+  in `x`'s past (`countsFrom_local`), and so rows naming a later head, or a head concurrent with `x`, change
+  nothing at `x` (`later_head_changes_nothing_from`): a voice seated later still acts forward. A voice that
+  acknowledged at `x` has no say from an older head either (`ack_never_yes_from`). Acknowledgements at `x`
+  do not settle `E` against an older head's cut, whose members may differ (`check_purge.py`, history "a
+  settled act and cuts at an earlier head"); a reader that acknowledged `x` holds such a cut void
+  (`Reader.line_voids_old_fork`). -/
+
+/-- `k` says cut on `E` from head `y`, read at `x`: it signed a cut naming `y` concurrent with `E` and did not
+    acknowledge `E` at `x`. -/
+def yesFrom (S : Row → Prop) (y x : Row) (k : K) : Prop :=
+  cutVotedAt parent headOf sig isCutOf E S y k ∧ ¬ ackedAt headOf sig isAck S x k
+
+/-- The cut count at head `y`, over the members at `y`, with the say read at `x`. -/
+def cutMetFrom (S : Row → Prop) (y x : Row) : Prop :=
+  ∃ V : List K, V.Nodup ∧
+    (∀ k, k ∈ V → k ∈ mem y ∧ yesFrom parent headOf sig isCutOf isAck E S y x k) ∧ t ≤ V.length
+
+/-- `E` counts at `x` against the cuts naming `x` and every head in `x`'s past. -/
+def countsFrom (S : Row → Prop) (x : Row) : Prop :=
+  countsAt parent headOf sig isCutOf isAck E mem t S x ∧
+    ∀ y, TransGen parent y x → ¬ cutMetFrom parent headOf sig isCutOf isAck E mem t S y x
+
+omit [DecidableEq K] in
+/-- The reading from the head the cut names only removes counts. -/
+theorem countsFrom_countsAt (S : Row → Prop) (x : Row)
+    (h : countsFrom parent headOf sig isCutOf isAck E mem t S x) :
+    countsAt parent headOf sig isCutOf isAck E mem t S x :=
+  h.1
+
+omit [DecidableEq K] in
+/-- A counted cut naming a head older than `x` voids `E` at `x`. -/
+theorem older_cut_voids (S : Row → Prop) (x y : Row) (hy : TransGen parent y x)
+    (h : cutMetFrom parent headOf sig isCutOf isAck E mem t S y x) :
+    ¬ countsFrom parent headOf sig isCutOf isAck E mem t S x :=
+  fun hc => hc.2 y hy h
+
+omit [DecidableEq K] in
+/-- Whether `E` counts at `x` from the heads cuts name reads only the rows naming `x` or a head in `x`'s
+    past (and `E` itself). -/
+theorem countsFrom_local (S S' : Row → Prop) (x : Row)
+    (hagree : ∀ r, (headOf r = x ∨ TransGen parent (headOf r) x) → (S r ↔ S' r)) (hE : S E ↔ S' E) :
+    countsFrom parent headOf sig isCutOf isAck E mem t S x ↔
+      countsFrom parent headOf sig isCutOf isAck E mem t S' x := by
+  have h0 := countsAt_local parent headOf sig isCutOf isAck E mem t S S' x
+    (fun r hr => hagree r (Or.inl hr)) hE
+  have hack : ∀ k, ackedAt headOf sig isAck S x k ↔ ackedAt headOf sig isAck S' x k :=
+    fun k => ⟨fun ⟨A, h1, h2, h3, h4⟩ => ⟨A, (hagree A (Or.inl h4)).1 h1, h2, h3, h4⟩,
+      fun ⟨A, h1, h2, h3, h4⟩ => ⟨A, (hagree A (Or.inl h4)).2 h1, h2, h3, h4⟩⟩
+  have hmet : ∀ y, TransGen parent y x →
+      (cutMetFrom parent headOf sig isCutOf isAck E mem t S y x ↔
+        cutMetFrom parent headOf sig isCutOf isAck E mem t S' y x) := by
+    intro y hy
+    have hag : ∀ c, headOf c = y → (S c ↔ S' c) := fun c h4 => hagree c (Or.inr (by rw [h4]; exact hy))
+    have hcut : ∀ k, cutVotedAt parent headOf sig isCutOf E S y k ↔
+        cutVotedAt parent headOf sig isCutOf E S' y k :=
+      fun k => ⟨fun ⟨c, h1, h2, h3, h4, h5⟩ => ⟨c, (hag c h4).1 h1, h2, h3, h4, h5⟩,
+        fun ⟨c, h1, h2, h3, h4, h5⟩ => ⟨c, (hag c h4).2 h1, h2, h3, h4, h5⟩⟩
+    have hyes : ∀ k, yesFrom parent headOf sig isCutOf isAck E S y x k ↔
+        yesFrom parent headOf sig isCutOf isAck E S' y x k :=
+      fun k => ⟨fun ⟨a, b⟩ => ⟨(hcut k).1 a, fun h => b ((hack k).2 h)⟩,
+        fun ⟨a, b⟩ => ⟨(hcut k).2 a, fun h => b ((hack k).1 h)⟩⟩
+    exact ⟨fun ⟨V, a, b, c⟩ => ⟨V, a, fun k hk => ⟨(b k hk).1, (hyes k).1 (b k hk).2⟩, c⟩,
+      fun ⟨V, a, b, c⟩ => ⟨V, a, fun k hk => ⟨(b k hk).1, (hyes k).2 (b k hk).2⟩, c⟩⟩
+  exact ⟨fun ⟨a, b⟩ => ⟨h0.1 a, fun y hy h => b y hy ((hmet y hy).2 h)⟩,
+    fun ⟨a, b⟩ => ⟨h0.2 a, fun y hy h => b y hy ((hmet y hy).1 h)⟩⟩
+
+omit [DecidableEq K] in
+/-- Rows naming a head that is neither `x` nor in `x`'s past (a later head, or one concurrent with `x`) never
+    change whether `E` counts at `x` under rule 4 read from the head the cut names: a voice seated later acts
+    forward, as `later_head_changes_nothing` states for `countsAt`. -/
+theorem later_head_changes_nothing_from (S X : Row → Prop) (x : Row)
+    (hX : ∀ r, X r → headOf r ≠ x ∧ ¬ TransGen parent (headOf r) x) (hE : ¬ X E ∨ S E) :
+    countsFrom parent headOf sig isCutOf isAck E mem t S x ↔
+      countsFrom parent headOf sig isCutOf isAck E mem t (addRows X S) x :=
+  countsFrom_local parent headOf sig isCutOf isAck E mem t _ _ x
+    (fun r hr => ⟨Or.inl, fun h => h.elim id
+      (fun hx => absurd hr (fun h' => h'.elim (hX r hx).1 (hX r hx).2))⟩)
+    ⟨Or.inl, fun h => h.elim id (fun hx => hE.elim (fun n => absurd hx n) id)⟩
+
+omit [DecidableEq K] in
+/-- One say from an older head: a voice that has acknowledged `E` at `x` never says cut on it from any head,
+    whatever it signs. -/
+theorem ack_never_yes_from (S S' : Row → Prop) (h : Extends S S') (y x : Row) (k : K)
+    (ha : ackedAt headOf sig isAck S x k) :
+    ¬ yesFrom parent headOf sig isCutOf isAck E S' y x k :=
+  fun ⟨_, hn⟩ => let ⟨A, h1, h2, h3, h4⟩ := ha; hn ⟨A, h A h1, h2, h3, h4⟩
+
+omit [DecidableEq K] in
+/-- Necessity: members at the older head `y` that voted to cut there and did not acknowledge at `x` meet the
+    count when they are `t` or more, and `E` does not count at `x`. -/
+theorem older_cut_unblocked_voids (S : Row → Prop) (x y : Row) (hy : TransGen parent y x)
+    (V : List K) (hV : V.Nodup)
+    (hVs : ∀ k, k ∈ V → k ∈ mem y ∧ cutVotedAt parent headOf sig isCutOf E S y k ∧
+      ¬ ackedAt headOf sig isAck S x k) (ht : t ≤ V.length) :
+    ¬ countsFrom parent headOf sig isCutOf isAck E mem t S x :=
+  older_cut_voids parent headOf sig isCutOf isAck E mem t S x y hy
+    ⟨V, hV, fun k hk => ⟨(hVs k hk).1, (hVs k hk).2.1, (hVs k hk).2.2⟩, ht⟩
 
 end Heads
 
@@ -1617,6 +1729,12 @@ end Rows
 #print axioms countsAt_final
 #print axioms say_unblocked_can_cut
 #print axioms sole_cutter_fork_stands
+#print axioms countsFrom_countsAt
+#print axioms older_cut_voids
+#print axioms countsFrom_local
+#print axioms later_head_changes_nothing_from
+#print axioms ack_never_yes_from
+#print axioms older_cut_unblocked_voids
 #print axioms say4_closed
 #print axioms say3_witness
 #print axioms say3_not_closed

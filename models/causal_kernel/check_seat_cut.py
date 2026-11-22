@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """
-check_seat_cut.py: an act under a seat follows the cut (CC 2.4.1.1, ruled 2026-11-21; CC 2.7.7), while the members
-at a head stay by past (RosterHead.lean leaving_binds_by_past). Runs seat.exercised_stands.
+check_seat_cut.py: an act under a seat follows the cut (CC 2.4.1.1, ruled 2026-11-21; CC 2.7.7), read forward as
+models/tla/CONFERRAL_END.md E2 to E4 state it (2026-11-22: counted at its own head, and in force from the end's head
+on, are two answers), while the members at a head stay by past (RosterHead.lean leaving_binds_by_past). Runs
+seat.exercised_stands.
+
+    The named cases are this file's own, written to E2 to E4. CONFERRAL_END.md's Python reference
+    (conferral_end.py) and its fixtures are not yet on its branch; a conformance run over them is still to come.
 
     cases     the named cases, each with its expected answer and the members expected at the act's head
-    worlds    every kept set of two pools (a seat over a key; a seat over a group) up to a bound, every act in it:
+    worlds    every kept set of three pools (a seat over a key; a seat over a group; a seat over a key with roster
+              heads named by the acts and the ends) up to a bound, every act in it:
               the answer is recorded for the crate's differential test (tools/kernel_fixtures.py, seat_cut.json),
               and at every concluded row as a head the members are the same with every ending cut outside that
               head's past taken out of the world, and the cut exercised_stands runs changes no other row's status
-    plants    seat_cut_unread ((b) skipped) and seat_cut_retro (the walk reads every held row, the reading
-              RosterHead.Retro rejects) must each change a case
+    plants    seat_cut_unread ((b) skipped), seat_cut_retro (the walk reads every held row, the reading
+              RosterHead.Retro rejects) and seat_cut_own_head (E3 unread: an act at a later head than the end's
+              read as one at its head) must each change a case
 
     python3 -I check_seat_cut.py     exit 1 on any case that differs, any members that move, or a plant not caught
 """
@@ -64,36 +71,65 @@ def group_pool():
     ]
 
 
+# ---- the pool with heads: the act names the head it is at, the end names h_e (CONFERRAL_END.md E1 to E4) -------
+def heads_pool():
+    return [
+        ST.offer("o1", "O", KEY, SCOPE_K, OBJ_K, "self"),
+        ST.accept("a1", KEY, "o1"),
+        R("h0", "version", "O", ("a1",)),                          # a head
+        R("h1", "version", "O", ("h0",)),                          # a later head
+        R("hc", "version", "O", ("a1",)),                          # a head concurrent with h0
+        ST.withdraw("Wh", KEY, "a1", ("h0",), head=("h0",)),       # k's own end, naming h_e = h0
+        ST.withdraw("Wh1", KEY, "a1", ("h1",), head=("h1",)),      # k's own end, naming h_e = h1
+        R("xh0", "act", KEY, ("h0",), head=("h0",)),               # an act at h0
+        R("xh1", "act", KEY, ("h1",), head=("h1",)),               # an act at h1
+        R("xhc", "act", KEY, ("hc",), head=("hc",)),               # an act at hc
+        R("xWh", "act", KEY, ("Wh", "h1"), head=("h1",)),          # an act at h1 naming the end
+        R("rmh", "remove", "O", ("a1",), removes=KEY),             # a removal of k's key, concurrent with the ends
+        R("rmOh", "remove", KEY, ("a1",), removes="O"),            # k removes O: with rmh, equal standing (rule 5)
+    ]
+
+
 def pick(pool, ids):
     by = {r["id"]: r for r in pool}
     return [by[i] for i in ids]
 
 
-KP, GP = key_pool(), group_pool()
+KP, GP, HP = key_pool(), group_pool(), heads_pool()
 # name, pool, row ids, the act, (k, scope, obj), expected, the holders of the pool's seat by the walk over the act's past
 CASES = [
     ("x in the withdrawal's past", KP, "o1 a1 x1 Wx", "x1", (KEY, SCOPE_K, OBJ_K), "stands", {KEY}),
-    ("x concurrent with the withdrawal", KP, "o1 a1 x1 W", "x1", (KEY, SCOPE_K, OBJ_K), "cut", {KEY}),
+    ("x concurrent with the withdrawal", KP, "o1 a1 x1 W", "x1", (KEY, SCOPE_K, OBJ_K), "out of force", {KEY}),
     ("x names the withdrawal", KP, "o1 a1 W xW", "xW", (KEY, SCOPE_K, OBJ_K), "not seated", set()),
     ("the withdrawal voided by a concurrent counting removal of k", KP, "o1 a1 x1 W rm", "x1", (KEY, SCOPE_K, OBJ_K), "stands", {KEY}),
     ("the withdrawal contested: removals of equal standing (rule 5)", KP, "o1 a1 x1 W rm rmO", "x1", (KEY, SCOPE_K, OBJ_K), "contested", {KEY}),
-    ("re-accepted on a second device, x under it only", KP, "o1 a1 W a2 x2", "x2", (KEY, SCOPE_K, OBJ_K), "cut", {KEY}),
+    ("re-accepted on a second device, x under it only", KP, "o1 a1 W a2 x2", "x2", (KEY, SCOPE_K, OBJ_K), "out of force", {KEY}),
     # the walk seats k (a1 ended, a2 live): an act follows the walk. A count over x3 would still leave k out
     # (left_in_past, RosterHead.readmission_needed): acts re-seat, counts do not re-count
     ("re-accepted on a second device, x names both", KP, "o1 a1 W a2 x3", "x3", (KEY, SCOPE_K, OBJ_K), "stands", {KEY}),
-    ("the conferrer's withdrawal concurrent", KP, "o1 a1 x1 wc", "x1", (KEY, SCOPE_K, OBJ_K), "cut", {KEY}),
-    ("an unseat by the object's own key concurrent", KP, "o1 a1 x1 u", "x1", (KEY, SCOPE_K, OBJ_K), "cut", {KEY}),
+    ("the conferrer's withdrawal concurrent", KP, "o1 a1 x1 wc", "x1", (KEY, SCOPE_K, OBJ_K), "out of force", {KEY}),
+    ("an unseat by the object's own key concurrent", KP, "o1 a1 x1 u", "x1", (KEY, SCOPE_K, OBJ_K), "out of force", {KEY}),
     ("an act naming the unseat", KP, "o1 a1 u xu", "xu", (KEY, SCOPE_K, OBJ_K), "not seated", set()),
-    ("an unseat by a count, x concurrent", GP, "g y1 u", "y1", (KEY_G, SCOPE_G, OBJ_G), "cut", {"A", "B", "C"}),
+    ("an unseat by a count, x concurrent", GP, "g y1 u", "y1", (KEY_G, SCOPE_G, OBJ_G), "out of force", {"A", "B", "C"}),
     ("an unseat by a count, x in its past", GP, "g y1 uy", "y1", (KEY_G, SCOPE_G, OBJ_G), "stands", {"A", "B", "C"}),
     ("an act naming the counted unseat", GP, "g u yu", "yu", (KEY_G, SCOPE_G, OBJ_G), "not seated", {"A", "B"}),
-    ("a resignation concurrent", GP, "g y1 Cw", "y1", (KEY_G, SCOPE_G, OBJ_G), "cut", {"A", "B", "C"}),
+    ("a resignation concurrent", GP, "g y1 Cw", "y1", (KEY_G, SCOPE_G, OBJ_G), "out of force", {"A", "B", "C"}),
     ("an act naming the resignation", GP, "g Cw yC", "yC", (KEY_G, SCOPE_G, OBJ_G), "not seated", {"A", "B"}),
     ("another member's resignation concurrent", GP, "g y1 Aw", "y1", (KEY_G, SCOPE_G, OBJ_G), "stands", {"A", "B", "C"}),
     ("not k's seat at all", KP, "o1 a1 x1", "x1", ("z", SCOPE_K, OBJ_K), "not seated", {KEY}),
+    # E2 to E4 with heads
+    ("E2: an act at the end's head, concurrent", HP, "o1 a1 h0 Wh xh0", "xh0", (KEY, SCOPE_K, OBJ_K), "out of force", {KEY}),
+    ("E2: an act at an older head than the end's", HP, "o1 a1 h0 h1 Wh1 xh0", "xh0", (KEY, SCOPE_K, OBJ_K), "out of force", {KEY}),
+    ("E2: an act at a head concurrent with the end's", HP, "o1 a1 h0 hc Wh xhc", "xhc", (KEY, SCOPE_K, OBJ_K), "out of force", {KEY}),
+    ("E3: an act at a later head, concurrent with the end", HP, "o1 a1 h0 h1 Wh xh1", "xh1", (KEY, SCOPE_K, OBJ_K), "does not count", {KEY}),
+    ("E4: an act at a later head naming the end", HP, "o1 a1 h0 h1 Wh xWh", "xWh", (KEY, SCOPE_K, OBJ_K), "not seated", set()),
+    ("E3: the end contested (rule 5), an act at a later head", HP, "o1 a1 h0 h1 Wh xh1 rmh rmOh", "xh1", (KEY, SCOPE_K, OBJ_K), "contested, not counted", {KEY}),
+    ("E2: the end contested (rule 5), an act at its head", HP, "o1 a1 h0 Wh xh0 rmh rmOh", "xh0", (KEY, SCOPE_K, OBJ_K), "contested", {KEY}),
+    ("an act at a later head, no end", HP, "o1 a1 h0 h1 xh1", "xh1", (KEY, SCOPE_K, OBJ_K), "stands", {KEY}),
 ]
 
-POOLS = {"key": (KP, (KEY, SCOPE_K, OBJ_K), ("o1", "a1")), "group": (GP, (KEY_G, SCOPE_G, OBJ_G), ("g",))}
+POOLS = {"key": (KP, (KEY, SCOPE_K, OBJ_K), ("o1", "a1")), "group": (GP, (KEY_G, SCOPE_G, OBJ_G), ("g",)),
+         "heads": (HP, (KEY, SCOPE_K, OBJ_K), ("o1", "a1", "h0", "h1", "hc"))}
 BOUND = 5        # rows beyond the base
 
 
@@ -170,7 +206,7 @@ def run_cases():
     for name, pool, ids, x, (k, scope, obj), want, mem in CASES:
         S = state(pick(pool, ids.split()))
         got = ST.exercised_stands(S, x, k, scope, obj)
-        sc, ob = (SCOPE_K, OBJ_K) if pool is KP else (SCOPE_G, OBJ_G)
+        sc, ob = (SCOPE_G, OBJ_G) if pool is GP else (SCOPE_K, OBJ_K)
         m = act_head_members(S, x, sc, ob)
         P = [q for q in S.Cs if q["id"] in S.anc[x]]
         a_ok = set(ST.walk_holders(P, scope, obj)) == act_head_members(S, x, scope, obj)
@@ -185,7 +221,9 @@ def main():
     for name, x, want, got, mem, m in rows:
         good = got == want and m == mem
         ok = ok and good
-        print("  %-4s %-64s %-4s %-11s seated at its past %s" % ("ok" if good else "NOT", name, x, got, sorted(m)))
+        cf = ST.ANSWERS.get(got)
+        two = "counted %s, in force %s" % ("yes" if cf[0] else "no", "yes" if cf[1] else "no") if cf else "?"
+        print("  %-4s %-60s %-4s %-15s %-29s seated at its past %s" % ("ok" if good else "NOT", name, x, got, two, sorted(m)))
         if not good:
             print("       expected %s, members %s" % (want, sorted(mem)))
     print("WORLDS")
@@ -204,7 +242,7 @@ def main():
         print("  %s: %d worlds, %d acts (%s); heads whose members move with ending cuts outside their past: %d; other rows whose cut status changes: %d"
               % (name, n, acts, ", ".join("%s %d" % kv for kv in sorted(tally.items())), moved, changed))
     print("PLANTS")
-    for mut in ("seat_cut_unread", "seat_cut_retro"):
+    for mut in ("seat_cut_unread", "seat_cut_retro", "seat_cut_own_head"):
         ST.MUT.add(mut)
         try:
             changed = [r[0] for r in run_cases() if r[2] != r[3]]

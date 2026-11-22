@@ -157,11 +157,11 @@ by an independent implementation or a deployment under partition.
 
 | Proved (Lean) | Run (models, to a bound) | Open |
 |---|---|---|
-| three kinds of finality, exact threshold, say rule, checkpoint: [`Settled.lean`](proofs/Settled.lean) | purge equals keeping everything, eight plants caught: [`check_purge.py`](models/causal_kernel/check_purge.py) | least set of rows to keep |
+| three kinds of finality, exact threshold, say rule, checkpoint, a cut reaching forward from the head it names: [`Settled.lean`](proofs/Settled.lean) | purge equals keeping everything, nine plants caught: [`check_purge.py`](models/causal_kernel/check_purge.py) | least set of rows to keep |
 | one kept set in every arrival order: [`Causal.lean`](proofs/Causal.lean), [`Order.lean`](proofs/Order.lean) | one answer in every arrival order: [`check.py`](models/causal_kernel/check.py), [`check_cut.py`](models/causal_kernel/check_cut.py) | withdrawn receipt |
 | a seat is two consents; one signature never removes: [`Consent.lean`](proofs/Consent.lean), [`RosterHead.lean`](proofs/RosterHead.lean) | thirty-four attacks, classed: [`check_attacks.py`](models/causal_kernel/check_attacks.py) | many acts purged at once |
 | a reader's own line: [`Reader.lean`](proofs/Reader.lean) | one roster, five instances: [`check_rosters.py`](models/causal_kernel/check_rosters.py) | independent implementation; deployment |
-| an act under a seat follows the cut, the members at a head stay by past (CC 2.4.1.1): [`SeatCut.lean`](proofs/SeatCut.lean) | acts under a withdrawal, unseat or resignation, two plants caught: [`check_seat_cut.py`](models/causal_kernel/check_seat_cut.py) | a withdrawal naming its head under the reader's line; one say under a cut |
+| an act under a seat follows the cut, the members at a head stay by past (CC 2.4.1.1): [`SeatCut.lean`](proofs/SeatCut.lean) | acts under a withdrawal, unseat or resignation, counted at their own head and in force, three plants caught: [`check_seat_cut.py`](models/causal_kernel/check_seat_cut.py) | a withdrawal naming its head under the reader's line; one say and receipts under a cut |
 
 Every theorem in plain words: [`proofs/README.md`](proofs/README.md). Every open item: [`REVIEW.md`](REVIEW.md).
 
@@ -177,7 +177,7 @@ curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_
 
 Then, from the repository root, `./check.sh`. It compiles the thirty-three proof files, runs eleven model checks
 one after another and counts the divergence list, one line per step. It prints
-`proofs: 33 files, 749 theorems reported, 5022 declarations audited, plant caught, rc=0`, in about two minutes. Some checks use three worker processes.
+`proofs: 33 files, 759 theorems reported, 5041 declarations audited, plant caught, rc=0`, in about two minutes. Some checks use three worker processes.
 Nineteen files are carried from the parent, `Reader.lean` among them with the sibling of the acknowledged head
 read as CC 2.7.8 reads it; seven added here prove the crate's gaps
 ([`crates/ciris-kernel/FORMAL_GAPS.md`](crates/ciris-kernel/FORMAL_GAPS.md)); `Repurge.lean` is native to this

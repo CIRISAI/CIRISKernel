@@ -17,7 +17,7 @@ Sources (all under models/):
     seat      causal_kernel/attacks.py (every scenario its 34 tests conclude, with the seat, window and route rules)
               and causal_kernel/window.py (the adversary table): conclusions, the cut, live seats, the reader's
               line, holders, tips and window outcomes
-    seat_cut  causal_kernel/check_seat_cut.py: its named cases and every kept set of its two pools, every act's
+    seat_cut  causal_kernel/check_seat_cut.py: its named cases and every kept set of its three pools, every act's
               exercised_stands and the members at every concluded row as a head
     purge     causal_kernel/purge.py: every replay check_purge.py runs, under both readings
     key_end   causal_kernel/check_key_end.py: every generated world at every instant

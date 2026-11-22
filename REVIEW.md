@@ -11,9 +11,9 @@ python3 -I models/causal_kernel/check_purge.py               # one model check; 
 ```
 
 `proofs/build.sh` compiles the thirty-three files in dependency order and fails on a compile error, a `sorry`, or an
-axiom beyond `propext`, `Quot.sound` and `Classical.choice`. It prints `proofs: 33 files, 749 theorems reported, 5022 declarations audited, plant caught,
-rc=0`: 749 is the number of `#print axioms` lines the files contain, one for each theorem they print, not every
-lemma. `proofs/Audit.lean` then checks every declaration of the stack the same way, printed or not (5,022), and `build.sh` fails unless its planted `sorry` and axiom are caught. Each model check compares its verdicts with a recorded file and fails on any difference, any plant not
+axiom beyond `propext`, `Quot.sound` and `Classical.choice`. It prints `proofs: 33 files, 759 theorems reported, 5041 declarations audited, plant caught,
+rc=0`: 759 is the number of `#print axioms` lines the files contain, one for each theorem they print, not every
+lemma. `proofs/Audit.lean` then checks every declaration of the stack the same way, printed or not (5,041), and `build.sh` fails unless its planted `sorry` and axiom are caught. Each model check compares its verdicts with a recorded file and fails on any difference, any plant not
 caught, or any set that gives two answers in two arrival orders. [`models/README.md`](models/README.md) lists the
 ten checks and their last lines.
 
@@ -89,7 +89,15 @@ The full table, theorem by theorem, is [`proofs/README.md`](proofs/README.md). B
   line (CC 2.7.8, `line_voids_old_fork`), against backdating, which is not implemented. On the wire, rows must carry
   the ancestry the answer reads (a withdrawal names a head; an act names the standing it is exercised under); until
   then persist uses CC 2.6.7's freshness window as an interim instant rule, which the kernel does not model.
-- **One say for seats under a cut.** Rule 6 (KERNEL.md 6) is not read by `exercised_stands`.
+- **One say and receipts for seats under a cut.** Rule 6 (KERNEL.md 6; CONFERRAL_END.md E3's exception) is not
+  read by `exercised_stands`, and neither are receipts that keep an act in force (E8, section G: the ender's side,
+  a count end's `lifts`, a receipter the grant names): seat rows carry no receipt of an act. E1 (an end with a newer
+  head in its own past concludes nothing) is not read. `exercised_stands` gives two answers, counted at its own head
+  and in force (E2 to E4); a conformance run over `conferral_end.py`'s fixtures is still to come.
+- **A cut at an older head** (KERNEL.md 6 rule 4, changed 2026-11-22). `head::View::counts_at` reads a counted cut
+  at an older head than the act's; receipts at the act's head do not settle it against such a cut, so for a reader
+  with no acknowledgement of the act's head a cut by an old head's count can still uncount it (8a's exposure).
+  `carried` does not read a cut at a head concurrent with the act's.
 - **A slot held on one signature.** Nothing checks the tables for one.
 - **The fork result is reader-relative.** A reader with no acknowledgement of its own is exposed to a fork by keys
   that met a past count.
@@ -105,9 +113,10 @@ As theorems (each a counterexample or a rejected rule kept with its witness): `O
 line wins by being longer); `RosterHead.Rejected.Model.later_withdrawal_changes_members`; `Duty.Rejected`;
 `ruleII_never_final` (`Window.lean`: under the rule not taken, any objector reopens any landing for ever).
 
-As plants (a rule switched off or broken; the check must catch it): `check_purge.py`, eight plants
+As plants (a rule switched off or broken; the check must catch it): `check_purge.py`, nine plants
 (`drop_unsettled`, `freeze_now`, `ck_acks`, `drop_duty`, `keep_deleted`, `no_say`, `narrow_eval`,
-`freeze_carried`); `check.py`, mutations of the door and of tie-breaking; `check_rosters.py`, a break per property;
+`freeze_carried`, `final_blocks_earlier`) and the rule's plant `own_head_only` (a cut at an older head not read);
+`check_seat_cut.py`, three (`seat_cut_unread`, `seat_cut_retro`, `seat_cut_own_head`); `check.py`, mutations of the door and of tie-breaking; `check_rosters.py`, a break per property;
 `check_key_end.py`, a plant per property; `check_time.py`, a plant comparing two signers' instants.
 
 As attacks: `check_attacks.py`, thirty-four attacks in 126 scenarios, classed HOLDS 13, CONCEDED 15, NOT

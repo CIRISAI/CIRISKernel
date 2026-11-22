@@ -87,7 +87,9 @@ plant "a new entry voided by a head after it"           src/held_view.rs 'v.v.co
 plant "a resumed stub keeps its signatures"             src/held_view.rs '            if e.stub {' '            if false {'
 plant "a foreign row made dirty"                        src/held.rs '            if !fx {' '            if true {'
 plant "an act under a seat ignores a concurrent ending cut" src/seat.rs 'if !g.concurrent(i, x) {' 'if true {'
-plant "a withdrawal voided by a removal still cuts"     src/seat.rs 'crate::cut::Status::Counts => return Exercised::Cut,' 'crate::cut::Status::Counts | crate::cut::Status::Void => return Exercised::Cut,'
+plant "a withdrawal voided by a removal still cuts"     src/seat.rs 'crate::cut::Status::Counts => out_of_force = true,' 'crate::cut::Status::Counts | crate::cut::Status::Void => out_of_force = true,'
+plant "an act at a later head than the end's still counts (E3 unread)" src/seat.rs 'crate::cut::Status::Counts if later(r) => return Exercised::NotCounted,' 'crate::cut::Status::Counts if false => return Exercised::NotCounted,'
+plant "the end voids an act at its own head (E2 read as E3)" src/seat.rs 'pe.len() < px.len() && pe.is_subset(&px)' 'pe.is_subset(&px)'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 echo "ciris-kernel plants: $caught of $total caught"
 [ $caught -eq $total ]
