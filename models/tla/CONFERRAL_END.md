@@ -19,10 +19,15 @@ the end's past). Ship it in v62.0. It has three parts:
    cheap at the 47 producer sites. This gives "valid when made": an act counts at its own head, a late
    arrival or a re-fold gets the same answer, and as-of walks keep a resigned official's verdicts.
 2. **The 10 ending sites name `h_e`**, the head the end acts from.
-3. **One receipt producer.** A clean Ack of an act by the ender's side (the conferrer, or a co-holder of the
-   body the act was done for, never the act's own signer) keeps that act in force after `h_e`. This gives CC
-   4.5.5 its durable half: a withhold or an attestation stays in force after a moderator resigns or a worker's
-   grant is rotated, if the body receipted it.
+3. **One receipt producer.** A clean Ack of an act by the ender's side keeps that act in force after `h_e`.
+   This gives CC 4.5.5 its durable half: a withhold or an attestation stays in force after a moderator resigns
+   or a worker's grant is rotated, if the body receipted it. Who may receipt (section G):
+   - the conferrer, which for a count is the count, a bulk receipt included;
+   - a single co-holder;
+   - a receipter the grant names.
+
+   Never the act's own signer, and never a node. A count end carries a `lifts` flag: set for a compromise, so
+   that no single receipt survives it; unset for a rotation. A self end cannot lift anything.
 
 Not needed: `under`, `prev`, `ack`. Do not stay on instants for v62.0. The model finds no answer persist needs
 that this combination does not give, and two that instants cannot give without arrival order: the late act
@@ -84,9 +89,10 @@ Signed in any order, each naming only rows already signed:
 | b1, b2 | B's acts on two devices, each naming the head it is at, an old one included; `under` and `prev` are read only by the full reading; an act may cite the end; one may be a deputy edge |
 | u1 | an **uncited** act: it names nothing |
 | c1 | the deputy's act |
-| E | the end, by A or by B (a resignation), naming `h_e`, an `ack` of acts and the receipts it names |
-| Q1, Q2 | receipts by A, D (a co-holder) or B, on two devices, each naming one act and its signer's previous receipt on that device (its own series), and optionally the end |
+| E | the end, by A (a count end, with or without `lifts`) or by B (a self end: a resignation), naming `h_e`, an `ack` of acts and the receipts it names |
+| Q1, Q2 | receipts by A (the conferrer; for a count, the count), D (a single co-holder), R (a receipter the grant names) or B, on two devices, each naming one act and its signer's previous receipt on that device (its own series), and optionally the end |
 | Rm | a removal of the ender's key or of D's |
+| Rx | the body's end of R's receipter seat, naming R's receipts it has seen |
 | a2 | B's re-acceptance |
 
 Node 1 takes the rows in every order the door allows. So an act can arrive long after the end is held, at a
@@ -104,8 +110,8 @@ head, in force from `h_e` on⟩:
 
 | Run | Constants | Distinct states, diameter, time |
 |---|---|---|
-| small (CI) | 2 acts of B on 2 devices, H0 and H1, an end by A or B, one receipt by A, D or B | 123,114, 13, 9 s |
-| large (local) | + the uncited act, a removal of the ender's or D's key | 5,962,404, 17, 11 min |
+| small (CI) | 2 acts of B on 2 devices, H0 and H1, an end by A or B with or without `lifts`, one receipt by A, D, R or B, the receipter's end | 1,170,592, 15, 90 s |
+| large (local) | + the uncited act, a removal of the ender's or D's key; no receipter | 11,917,636, 17, 24 min |
 
 Plants, each caught at both bounds:
 
@@ -119,6 +125,9 @@ Plants, each caught at both bounds:
 | `own_head`: the end voids an act at its own head | `Inv_ForwardNeverVoidsAtOwnHead` |
 | `receipts`: a receipt in the end's past ignored | `Inv_ReceiptedStays` |
 | `self`: the grantee's own receipt keeps its own act in force | `Inv_NotInForceFromEnd` |
+| `selflift`: a self end carrying `lifts` lifts the co-holders' receipts | `Inv_ReceiptedStays` |
+| `after_rx`: a receipter's receipt made after its seat ended still keeps | `Inv_NotInForceFromEnd` |
+| `bulk_after`: a receipt with the end in its past (a bulk receipt after the end) keeps | `Inv_NotInForceFromEnd` |
 
 Documented configurations, outside both runs. Those marked FAIL fail on purpose; each records a difference
 with TLC's trace.
@@ -134,10 +143,12 @@ with TLC's trace.
 | `_line_acts` | FAIL `Inv_AsOfStands` | the line applied to authored acts |
 | `_receipts_resign` | FAIL `Inv_ResignNeedsNoCooperation` | receipts counted only in the end's past |
 | `_receipts_any` | FAIL `Inv_EnderDecidesForce` | receipts counted wherever held |
-| `_receipts_past_sound` | passes | the main invariants under `RSCOPE = "past"` (the main configuration runs `"any"`, the recommended scope, with `Inv_ResignNeedsNoCooperation`); 123,114 states |
-| `_receipt_removed` | passes | one act, two chained receipts, removals of the ender's or D's key; 1,340,098 states |
-| `_reaccept` | passes | the main invariants with B's re-acceptance (`Inv_ReacceptUntouched`); 1,226,406 states |
-| `_owner` | passes | one head only, the uncited act included; 47,353 states |
+| `_receipts_past_rotation` | FAIL `Inv_RotationKeepsReceipted` | receipts counted only in the end's past also lose a co-holder's receipt at a rotation |
+| `_receipts_past_sound` | passes | the main invariants but those, under `RSCOPE = "past"` (the main configuration runs `"any"`, the recommended scope), and without `Inv_ReceipterBeforeStands`, which also needs a receipt the end does not name; 1,170,592 states |
+| `_who_none` | FAIL `Inv_RotationKeepsReceipted` | (d): only the count's receipts; a rotation lifts the co-holder's receipt |
+| `_receipt_removed` | passes | one act, two chained receipts, removals of the ender's or D's key; 2,677,518 states |
+| `_reaccept` | passes | the main invariants with B's re-acceptance (`Inv_ReacceptUntouched`); 2,439,732 states |
+| `_owner` | passes | one head only, the uncited act included; 93,951 states |
 
 ## A. Persist's question: acts that name nothing
 
@@ -303,6 +314,72 @@ Put exercised acts there, and an unseat voids every concurrent act at its own he
 holder rule (`Cut::holder`, `holder_both_or_neither`) would also read two concurrent device acts as `Conflict`.
 No proof assumes acts are absent, because none puts them there. Keep them off.
 
+## G. Who receipts
+
+The case is a conferrer that is a COUNT: a root grant whose conferrer is the bundle's holders at 2 of 3, and a
+CI worker attesting builds. A counted receipt for every build will not happen.
+
+In the model:
+- A is the body's count, and its receipts are counted rows: a bulk receipt is the same rule applied to each
+  act it names.
+- D is a single co-holder.
+- R is a receipter the grant names. Its seat is conferred by the body, which ends it with Rx.
+- B is the grantee.
+
+An end by A is a count end and may carry `lifts`; an end by B is a self end. The main configuration runs all
+of it at 1,170,592 states.
+
+**(a) One holder's receipt, refined.** The refinement holds and does not bring back `_receipts_resign`:
+
+| End | What a single co-holder's clean receipt does | Checked by |
+|---|---|---|
+| A self end (a resignation, one's own withdrawal) | keeps the act in force | `Inv_ResignNeedsNoCooperation` |
+| A count end without `lifts` (a rotation) | keeps the act in force | `Inv_RotationKeepsReceipted` |
+| A count end with `lifts` (a compromise) | keeps nothing; only the count's own receipts keep anything | `Inv_CountEndLiftsSingles` |
+
+A self end cannot lift co-holders' receipts. The plant `selflift`, a resignation carrying `lifts` that is
+honoured, is caught as `Inv_ReceiptedStays`.
+
+The price is now only this: one holder keeps an act in force against a rotation, which by its own flag says
+the grant was not compromised. If the receipting holder is the one compromised, the body removes that key, and
+a receipt not in the removal's past counts for nothing (`_receipt_removed`).
+
+**(b) The grant names a receipter.** This is a delegation of acknowledging: the body confers it and can end
+it.
+- R's receipts made before the body ends R's seat (in Rx's past) stand (`Inv_ReceipterBeforeStands`).
+- A receipt that names Rx keeps nothing (`Inv_ReceipterAfterItsEndNothing`; the plant `after_rx` is caught).
+- A receipt concurrent with Rx counts. Like any act concurrent with an end, it cannot be told from one made
+  before it.
+- A count end with `lifts` overrides R as it overrides D.
+
+**(c) A serve seat (a node) receipts.** Rule it out. A node is never anyone's consent, so a node's receipt is
+either its owner's, which is (b) with the owner as receipter, or nobody's. It adds nothing over (b).
+
+**(d) Nothing is durable past the end of a root grant.** Then a rotation lifts everything. In
+`ConferralEnd_who_none.cfg`, `Inv_RotationKeepsReceipted` fails: a co-holder's receipt does not survive a
+rotation. Every attestation must then be re-signed after every rotation, which is the cost (d) puts on the
+worker.
+
+**A lone duty holder in a room.** Nobody else holds the seat, so there is no D.
+- **The members' count receipting in bulk before the end works.** It is the count's own receipt.
+- **A bulk receipt after the end is excluded:** a receipt with the end in its past keeps nothing
+  (`Inv_ReceiptAfterEndNothing`; the plant `bulk_after` is caught).
+- But a count round has to happen before the resignation, which does not wait for one.
+- **(b) is the cheaper answer:** the room names a receipter, such as its owner or a second seat. That
+  receipter receipts as acts happen, needs no count, and is ended by the body like any seat.
+
+**Recommendation: (a) refined + (b).**
+- Single co-holders' receipts count against self ends and against rotations.
+- A count end that carries `lifts` overrides them.
+- A grant may name a receipter: a seat or the worker's owner. For a root grant, that is the CI worker's
+  owner or an attestation-receipter seat. For a lone duty holder, it is the room's named receipter.
+- Not (c), and not (d).
+
+Wire cost:
+- a `lifts` flag on count ending rows, which are among the 10 ending sites;
+- an optional receipter field on the grant (the offer);
+- receipts by the receipter, from the same one receipt producer.
+
 ## For the Constitution to vendor
 
 > **CC 2.4.1.1, the end of a conferral.** Every act names the head it is at. An ending row (a withdrawal of an
@@ -315,6 +392,9 @@ No proof assumes acts are absent, because none puts them there. Keep them off.
 > end's head on it is not in force. An act at a later head finds the standing ended and does not count, unless
 > the ender holds a clean receipt of it concurrent with the end; then the ender has no say on it at that head
 > (CC 2.7.7 rule 6). An act stays in force after the end when the conferrer or a co-holder of the body it was
-> done for, not its own signer, holds a clean receipt of it that does not have the end in its past (CC 4.5.5).
+> done for, or a receipter the grant names, not its own signer and not a node, holds a clean receipt of it that does not have the end in its past (CC 4.5.5).
+> A co-holder's or a named receipter's receipt counts against a resignation and against a rotation; a
+> count's end that lifts receipts (a compromise) leaves in force only what the count itself receipted. A
+> receipter's receipt made after the body ended its seat counts for nothing.
 > An act that another live standing of its signer authorises at its head stands on that standing. The
 > reader's line (CC 2.7.8) applies to the end as to any counted cut, and not to an authored act.

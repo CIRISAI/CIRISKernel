@@ -26,6 +26,8 @@
                the act was done for) or B itself, on one of two devices, naming that signer's previous
                receipt on that device (its own series) and optionally the end.
      Rm        a removal of a key (the ender's, or D's), naming the end or not.
+     Rx        the body's end of the seat of R, a receipter the grant names (WithRx), naming R's receipts
+               it has seen. Receipts may also be signed by R, and may name Rx.
      a2        B's re-acceptance of the offer, naming the end or not.
    Two nodes take the rows: node 1 in ANY order the door allows (so an act may arrive long after the end is
    held, at a node that never saw it), node 2 in one fixed order; node 1 may acknowledge H1 (CC 2.7.8).
@@ -51,15 +53,18 @@
      "arrival"   each act's answer latched when it arrives (a late act refused its answer, no re-fold);
      "own_head"  the end voids a concurrent act at the end's own head (a cut at the act's own head);
      "receipts"  a receipt in the end's past ignored (weakR);
-     "self"      the grantee's own receipt keeps its own act in force (weakR).
+     "self"      the grantee's own receipt keeps its own act in force (weakR);
+     "selflift"  a self end (a resignation) carrying `lifts` lifts the co-holders' receipts;
+     "after_rx"  the receipter's receipt made after the body ended its seat still keeps;
+     "bulk_after" a receipt with the end in its past (a bulk receipt after the end) keeps.
    (`_plant_converge` runs "arrival" against Inv_NodesAgree alone.)
    Documented failing configurations (outside both runs): TIE = "any" (ANY-STANDING for the full reading),
    LINE = "tips" (guard b, the line over the series' tips), LINEACTS (the line of CC 2.7.8 applied to authored
    acts that name a head), RSCOPE = "any" and the resignation case, and the differences between readings. *)
 EXTENDS Naturals, FiniteSets, Sequences
 
-CONSTANTS PLANT, TIE, LINE, LINEACTS, RSCOPE, MaxB, MaxQ, WithH1, WithU, WithC, WithRm, WithA2, WithTie,
-          WithBEnder
+CONSTANTS PLANT, TIE, LINE, LINEACTS, RSCOPE, WHO, MaxB, MaxQ, WithH1, WithU, WithC, WithRm, WithA2, WithTie,
+          WithBEnder, WithRx
 
 BNum == {"b1", "b2", "b3"}
 BId(i) == CASE i = 1 -> "b1" [] i = 2 -> "b2" [] OTHER -> "b3"
@@ -67,10 +72,10 @@ BIds == BNum \cup {"u1"}                 \* B's acts, the uncited one included
 Qs == {"Q1", "Q2", "Q3"}
 QId(i) == CASE i = 1 -> "Q1" [] i = 2 -> "Q2" [] OTHER -> "Q3"
 ActIds == BIds \cup {"c1"}
-Ids == ActIds \cup Qs \cup {"H1", "E", "Rm", "a2"}
+Ids == ActIds \cup Qs \cup {"H1", "E", "Rm", "a2", "Rx"}
 None == "none"
 Null == [k |-> None, s |-> None, dev |-> 0, hd |-> "H0", un |-> None, nm |-> {}, prev |-> None,
-         ack |-> {}, of |-> None, sub |-> FALSE, tgt |-> None]
+         ack |-> {}, of |-> None, sub |-> FALSE, tgt |-> None, lifts |-> FALSE]
 Variants == {"full", "set", "weak", "weakR"}
 
 VARIABLES made, f, done, h1, ak, rk, latch
@@ -109,11 +114,19 @@ Members(S, a) == IF PLANT = "members" /\ EL(S, a) THEN {"A", "C", "D"} ELSE {"A"
 \* one say: a clean receipt of the act by the ender, concurrent with the end
 Say(x, S) == PLANT # "say" /\ \E q \in Qs \cap S : f[q].of = x /\ f[q].s = f["E"].s /\ ~KeyCut(q, S)
                                                   /\ "E" \notin Anc(q) /\ q \notin Anc("E")
-\* the ender's side keeps an act in force: a clean receipt by A or D (never the act's own signer)
-Elig(q, x, pl) == f[q].s \in {"A", "D"} \cup (IF pl = "self" THEN {"B"} ELSE {}) /\
-                  (f[q].s # f[x].s \/ pl = "self")
+\* WHO RECEIPTS. A is the conferrer (for a root grant or a room's duty seat: the body's COUNT; its receipts
+\* are counted rows, a bulk receipt included), D a single co-holder, R a receipter the grant names (a seat or
+\* the worker's owner, conferred by the body and ended by it: Rx), B the grantee (never, for its own acts).
+\* A count end (by A) may carry `lifts` (compromise): then no single receipt (D's or R's) keeps anything; a
+\* rotation does not carry it. A self end (by B) cannot lift receipts. WHO = "none" is (d): only the count's
+\* own receipts keep anything.
+Lifted(pl) == f["E"].lifts /\ (f["E"].s = "A" \/ pl = "selflift")
+Elig(q, x, pl) == CASE f[q].s = "A" -> TRUE
+                    [] f[q].s = "D" -> WHO = "all" /\ ~Lifted(pl)
+                    [] f[q].s = "R" -> WHO = "all" /\ ~Lifted(pl) /\ (pl = "after_rx" \/ "Rx" \notin Anc(q))
+                    [] OTHER -> pl = "self"
 KeptP(x, S, pl) == \E q \in Qs \cap S : f[q].of = x /\ Elig(q, x, pl) /\ ~KeyCut(q, S) /\
-                     (q \in Anc("E") \/ (RSCOPE = "any" /\ "E" \notin Anc(q)))
+                     (q \in Anc("E") \/ (RSCOPE = "any" /\ ("E" \notin Anc(q) \/ pl = "bulk_after")))
 Kept(x, S) == KeptP(x, S, PLANT)
 KeptH(x, S) == KeptP(x, S, "none")
 \* another live standing of the signer authorises the act: ANY-STANDING (always under the weak readings)
@@ -149,7 +162,7 @@ Ans(x, S, a, v) ==
 \* arrival plant, the answer latched over the prefix that ends with the act)
 IdNum(x) == CASE x = "H1" -> 1 [] x = "b1" -> 2 [] x = "b2" -> 3 [] x = "b3" -> 4 [] x = "a2" -> 5
               [] x = "E" -> 6 [] x = "c1" -> 7 [] x = "u1" -> 8 [] x = "Rm" -> 9 [] x = "Q1" -> 10
-              [] x = "Q2" -> 11 [] OTHER -> 12
+              [] x = "Q2" -> 11 [] x = "Rx" -> 12 [] OTHER -> 13
 Rank(x) == Cardinality(Anc(x)) * 16 + IdNum(x)
 Pos(x) == 1 + Cardinality({y \in made : Rank(y) < Rank(x)})
 Prefix(k) == {y \in made : Pos(y) <= k}
@@ -187,7 +200,7 @@ MakeC(hd, cite) ==
   /\ Mk("c1", [Null EXCEPT !.k = "act", !.s = "C", !.hd = hd, !.un = "sub",
                !.nm = {SubOf} \cup (IF hd = "H1" THEN {"H1"} ELSE {}) \cup (IF cite THEN {"E"} ELSE {})])
 
-MakeE(s, ack, rq, hd) ==
+MakeE(s, ack, rq, hd, lf) ==
   LET nm == ack \cup rq
       past == nm \cup UNION {Anc(y) : y \in nm}
   IN /\ s \in (IF WithBEnder THEN {"A", "B"} ELSE {"A"})
@@ -195,19 +208,25 @@ MakeE(s, ack, rq, hd) ==
      /\ rq \subseteq Made \cap Qs
      /\ \A y, z \in nm : y \notin Anc(z)
      /\ hd \in Heads(Made) /\ ("H1" \in past => hd = "H1")
-     /\ Mk("E", [Null EXCEPT !.k = "end", !.s = s, !.hd = hd, !.ack = ack,
+     /\ Mk("E", [Null EXCEPT !.k = "end", !.s = s, !.hd = hd, !.ack = ack, !.lifts = lf,
                  !.nm = nm \cup (IF hd = "H1" THEN {"H1"} ELSE {})])
 
 QTip(s, d) == {q \in Made \cap Qs : f[q].s = s /\ f[q].dev = d /\
                  ~\E r \in Made \cap Qs : f[r].s = s /\ f[r].dev = d /\ q \in Anc(r)}
-MakeQ(s, d, x, afterE) ==
+MakeQ(s, d, x, afterE, afterRx) ==
   LET nq == Cardinality(Made \cap Qs)
       p == QTip(s, d)
       pv == IF p = {} THEN None ELSE CHOOSE y \in p : TRUE
   IN /\ nq < MaxQ /\ x \in Made \cap BIds /\ (afterE => "E" \in Made)
      /\ (MaxQ = 1 => d = 1)              \* a second device matters only for a second receipt
+     /\ (afterRx => s = "R" /\ "Rx" \in Made)
      /\ Mk(QId(nq + 1), [Null EXCEPT !.k = "receipt", !.s = s, !.dev = d, !.of = x, !.prev = pv,
-             !.nm = {x} \cup (IF pv = None THEN {} ELSE {pv}) \cup (IF afterE THEN {"E"} ELSE {})])
+             !.nm = {x} \cup (IF pv = None THEN {} ELSE {pv}) \cup (IF afterE THEN {"E"} ELSE {})
+                    \cup (IF afterRx THEN {"Rx"} ELSE {})])
+
+\* the body's end of the receipter's seat, naming the receipts it has seen (or none)
+MakeRx(rq) == WithRx /\ rq \subseteq {q \in Made \cap Qs : f[q].s = "R"} /\
+              Mk("Rx", [Null EXCEPT !.k = "unseat", !.s = "A", !.nm = rq])
 
 MakeRm(k, nE) == WithRm /\ "E" \in Made /\ k \in {f["E"].s, "D"} /\
                  Mk("Rm", [Null EXCEPT !.k = "removal", !.s = "count", !.tgt = k,
@@ -239,8 +258,11 @@ Next == \/ Close
               MakeB(d, hd, c, u, sb)
         \/ MakeU
         \/ \E hd \in {"H0", "H1"}, c \in BOOLEAN : MakeC(hd, c)
-        \/ \E s \in {"A", "B"}, ack \in SUBSET BIds, rq \in SUBSET Qs, hd \in {"H0", "H1"} : MakeE(s, ack, rq, hd)
-        \/ \E s \in {"A", "D", "B"}, d \in {1, 2}, x \in BIds, b \in BOOLEAN : MakeQ(s, d, x, b)
+        \/ \E s \in {"A", "B"}, ack \in SUBSET BIds, rq \in SUBSET Qs, hd \in {"H0", "H1"}, lf \in BOOLEAN :
+              MakeE(s, ack, rq, hd, lf)
+        \/ \E s \in {"A", "D", "R", "B"}, d \in {1, 2}, x \in BIds, b, r \in BOOLEAN :
+              (s = "R" => WithRx) /\ MakeQ(s, d, x, b, r)
+        \/ \E rq \in SUBSET Qs : MakeRx(rq)
         \/ \E k \in {"A", "B", "D"}, b \in BOOLEAN : MakeRm(k, b)
         \/ \E b \in BOOLEAN : MakeA2(b)
         \/ \E x \in Ids : Arrive(x)
@@ -329,10 +351,37 @@ Inv_EnderDecidesForce == ForAll(PEnder)
 \* a resignation (the end by B) that does not name a co-holder's receipt held before it: is the act kept?
 \* (fails under RSCOPE = "past": ConferralEnd_receipts_resign.cfg)
 PResign(x, S, a, n) ==
-  (EL(S, a) /\ f["E"].s = "B" /\ x \in BIds /\ Static(x, S, a) /\ ~NamesEnd(x, "weakR") /\
+  (WHO = "all" /\ EL(S, a) /\ f["E"].s = "B" /\ x \in BIds /\ Static(x, S, a) /\ ~NamesEnd(x, "weakR") /\
    ~Later(f[x].hd, EndHd) /\ \E q \in Qs \cap S : f[q].of = x /\ f[q].s = "D" /\ ~KeyCut(q, S) /\ "E" \notin Anc(q))
     => Ans(x, S, a, "weakR")[2]
 Inv_ResignNeedsNoCooperation == ForAll(PResign)
+\* (a) refined: a count end that lifts receipts leaves in force only what the count itself receipted
+PLifts(x, S, a, n) ==
+  (EL(S, a) /\ f["E"].s = "A" /\ f["E"].lifts /\ Reached(x, "weakR") /\ ~OtherAuth(x, S, "weakR") /\
+   ~\E q \in Qs \cap S : f[q].of = x /\ f[q].s = "A") => ~Ans(x, S, a, "weakR")[2]
+Inv_CountEndLiftsSingles == ForAll(PLifts)
+\* a rotation (a count end without `lifts`) keeps what a single co-holder receipted before it
+PRot(x, S, a, n) ==
+  (EL(S, a) /\ f["E"].s = "A" /\ ~f["E"].lifts /\ x \in BIds /\ Static(x, S, a) /\ ~NamesEnd(x, "weakR") /\
+   ~Later(f[x].hd, EndHd) /\ \E q \in Qs \cap S : f[q].of = x /\ f[q].s = "D" /\ ~KeyCut(q, S) /\ "E" \notin Anc(q))
+    => Ans(x, S, a, "weakR")[2]
+Inv_RotationKeepsReceipted == ForAll(PRot)
+\* (b): the receipter's receipts made before the body ended its seat stand; one made after keeps nothing
+PRBefore(x, S, a, n) ==
+  (WHO = "all" /\ EL(S, a) /\ ~Lifted("none") /\ x \in BIds /\ Static(x, S, a) /\ ~NamesEnd(x, "weakR") /\
+   ~Later(f[x].hd, EndHd) /\ "Rx" \in S /\
+   \E q \in Qs \cap S : f[q].of = x /\ f[q].s = "R" /\ q \in Anc("Rx") /\ ~KeyCut(q, S) /\ "E" \notin Anc(q))
+    => Ans(x, S, a, "weakR")[2]
+Inv_ReceipterBeforeStands == ForAll(PRBefore)
+PRAfter(x, S, a, n) ==
+  (EL(S, a) /\ Reached(x, "weakR") /\ ~OtherAuth(x, S, "weakR") /\
+   \A q \in Qs \cap S : f[q].of = x => (f[q].s = "R" /\ "Rx" \in Anc(q))) => ~Ans(x, S, a, "weakR")[2]
+Inv_ReceipterAfterItsEndNothing == ForAll(PRAfter)
+\* a receipt with the end in its past (a bulk receipt by the count after the end included) keeps nothing
+PBulk(x, S, a, n) ==
+  (EL(S, a) /\ Reached(x, "weakR") /\ ~OtherAuth(x, S, "weakR") /\
+   \A q \in Qs \cap S : f[q].of = x => "E" \in Anc(q)) => ~Ans(x, S, a, "weakR")[2]
+Inv_ReceiptAfterEndNothing == ForAll(PBulk)
 \* as-of: an act at its head stays counted for every reader whatever head the reader acknowledged
 \* (fails with LINEACTS: ConferralEnd_line_acts.cfg)
 PAsOf(x, S, a, n) == (x \in BNum /\ ~KeyV(x, S) /\ ("E" \in S => (~NamesEnd(x, "weak") /\ ~Later(f[x].hd, EndHd))))
