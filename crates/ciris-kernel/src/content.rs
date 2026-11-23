@@ -31,6 +31,19 @@
 //! every history to a bound. It is checked by run, not by a TLA+ model. `tests/content.rs` replays its case
 //! table (`tests/fixtures/conferral_content.json`) through this module.
 //!
+//! **With no end among the rows, nothing here is in play.** Every content row of the member is then counted,
+//! and in force unless its author's own retraction is held: its rule is `no_end`, or `W.retracted`. A caller
+//! may rely on that and call this module for a member and a room only once it holds an end of that member's
+//! seat (`tests/content.rs`, `no_end_among_the_rows`).
+//!
+//! Several ends of one seat in one call are read: a resignation and a removal, two removals naming different
+//! tips, a second end after a first.
+//!
+//! **A member seated again is not modelled.** These rules know one seat. A row the member signs under a later
+//! seat names a head later than the old end's, and given to this call with that end it comes back
+//! `E3.later_head`, not counted. Until a re-admission is ruled and checked, do not give this call the rows of
+//! a later seat together with the ends of an earlier one.
+//!
 //! Not covered: receipts together with tips, a re-admission of the member, the reader's line on an end, key
 //! removals, more than one room.
 

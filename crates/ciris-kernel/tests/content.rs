@@ -206,6 +206,31 @@ fn the_fold_by_arrival() {
     assert_eq!(bad, 0);
 }
 
+/// With no end among the rows, every content row of the member is counted, and in force unless its author's
+/// own retraction is held: a caller need not call this module before it holds an end of the member's seat.
+/// Over every history of the worlds fixture, with its ends taken out.
+#[test]
+fn no_end_among_the_rows() {
+    let fx = fixture("conferral_content_worlds.json");
+    let heads: Vec<CRow> = fx.at("heads").arr().iter().map(row).collect();
+    let (mut n, mut bad) = (0, 0);
+    for w in fx.at("worlds").arr() {
+        let rows: Vec<CRow> = w.at("rows").arr().iter().map(row).collect();
+        let list: Vec<&CRow> = heads.iter().chain(rows.iter()).filter(|r| r.kind != Kind::End).collect();
+        for (x, a) in run(&list, None) {
+            n += 1;
+            let own = |r: &&CRow| list.iter().any(|t| t.id == x && t.signer == r.signer);
+            let retracted = list.iter().filter(|r| r.retracts.as_ref() == Some(&x)).any(|r| own(r));
+            let (counted, in_force, rule) = show(&a);
+            if !(counted && in_force != retracted && rule == if retracted { "W.retracted" } else { "no_end" }) {
+                bad += 1;
+            }
+        }
+    }
+    report("room content with no end held (every row counted; in force unless retracted)", n, bad);
+    assert_eq!(bad, 0);
+}
+
 /// A past that cannot tell gives no bit: with one roster head or end not held, every content row is either
 /// undecided, naming that row, or judged as it is over the rows that are held.
 #[test]

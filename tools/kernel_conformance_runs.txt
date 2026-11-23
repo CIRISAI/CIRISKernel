@@ -36,3 +36,4 @@ room content after a seat ends (conferral_content.py case table)
 room content, one row not held (undecided, never a wrong bit)
 room content, histories built row by row (conferral_content.py)
 room content, folded row by row with changed
+room content with no end held (every row counted; in force unless retracted)
