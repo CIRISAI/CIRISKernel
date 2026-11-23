@@ -10,7 +10,9 @@ window, at every `now` of the history) is compared with the answer over the same
     (i)   every answer after purge equals the answer with nothing purged, under the broad reading of the reader's
           line (the rule, CC 2.7.8) and, separately, under the narrow one;
     (ii)  no row a duty of the never-purge list covers is dropped, and no row a deletion duty ends is kept whole;
-    (iii) each plant is caught.
+    (iii) each plant is caught;
+    (iv)  the rule's plant `own_head_only` (a cut at an older head not read, the answer before 2026-11-22) changes
+          countsAt somewhere: the extensions where it does are listed.
 
 It reports the rows each reading keeps whole and reduces to a stub, and records the reader's line as
 checkpoint.py runs it (a counted act that is not a roster version, on a head below the acknowledged one, is void).
@@ -29,7 +31,7 @@ import causal_kernel as CK  # noqa: E402
 import cut  # noqa: E402
 import checkpoint as CP  # noqa: E402
 
-PLANTS = ("drop_unsettled", "freeze_now", "ck_acks", "drop_duty", "keep_deleted", "no_say", "narrow_eval", "freeze_carried")
+PLANTS = ("drop_unsettled", "freeze_now", "ck_acks", "drop_duty", "keep_deleted", "no_say", "narrow_eval", "freeze_carried", "final_blocks_earlier")
 
 
 def reader_line_reading():
@@ -76,6 +78,25 @@ def main():
         caught[p] = nd + nb > 0
         say("  plant %s: %s (%d answers differ, %d duty breaches)" % (p, "caught" if caught[p] else "NOT CAUGHT", nd, nb))
         lines.append("plant\t%s\t%s, %d differ, %d breaches" % (p, "caught" if caught[p] else "not caught", nd, nb))
+    # the answer before 2026-11-22: a cut at an older head not read. Every extension of every history, held whole
+    nd, ex = 0, []
+    for h in P.HISTORIES:
+        base = P.full_store(h["rows"])
+        for X in P.extensions(h["pool"]):
+            for reading in ("broad", "narrow"):
+                want = dict(P.View(base, X, h["own"], reading).answers(0)["countsAt"])
+                old = dict(P.View(base, X, h["own"], reading, plant="own_head_only").answers(0)["countsAt"])
+                d = sorted(a for a in want if want[a] != old[a])
+                nd += len(d)
+                if d and reading == "broad":
+                    ex.append("%s; offered {%s}: %s" % (h["name"], ",".join(r["id"] for r in X), ", ".join(
+                        "%s counts %s, before %s" % (a, want[a], old[a]) for a in d)))
+    caught["own_head_only"] = nd > 0
+    say("  plant own_head_only (a cut at an older head not read): %s (%d countsAt answers differ)" % (
+        "caught" if nd else "NOT CAUGHT", nd))
+    for e in ex:
+        say("      " + e)
+    lines.append("plant\town_head_only\t%s, %d countsAt differ" % ("caught" if nd else "not caught", nd))
     rl = reader_line_reading()
     say("reader's line as run: " + rl)
     lines.append("reading\treader's line\t%s" % rl)

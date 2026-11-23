@@ -173,8 +173,8 @@ relay, holds those nodes back as long as it is withheld (CONCEDED, attack 26).
 
 A checkpoint keeps, for each row whose bytes it drops, a **stub**: the row's digest, the digests it names, the
 fields a rule reads, and its conclusion. A settled act keeps its answer and its receipts' digests; any other act
-keeps its receipts and cuts whole (CC 2.7.10). On the nine histories of `check_purge.py`, the broad reading of the
-reader's line keeps 12 rows whole and reduces 36 to stubs; the narrow reading, 16 and 32. These are toy counts on
+keeps its receipts and cuts whole (CC 2.7.10). On the eleven histories of `check_purge.py`, the broad reading of the
+reader's line keeps 14 rows whole and reduces 43 to stubs; the narrow reading, 18 and 39. These are toy counts on
 hand-built histories of a few rows, printed by that check. They are not a performance claim and say nothing
 about a store's size in practice. A node that keeps every row conforms; checkpoint and purge are permissions.
 

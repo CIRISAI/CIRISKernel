@@ -21,7 +21,7 @@ Each is run by `./check.sh` at the top of the repository. The last line is what 
 
 | Command (from the repository root) | Checks | Last line |
 |---|---|---|
-| `python3 -I models/causal_kernel/check_purge.py` | checkpoint and purge (CC 2.7.10): nine histories, every extension to four late rows, purged once and again part way, at each `now`; eight plants | `RESULT: ok` |
+| `python3 -I models/causal_kernel/check_purge.py` | checkpoint and purge (CC 2.7.10): eleven histories, every extension to four late rows, purged once and again part way, at each `now`; nine plants, and the rule's plant `own_head_only` (a cut at an older head not read) | `RESULT: ok` |
 | `python3 -I models/causal_kernel/check_time.py` | two notions of time over 86 worlds of two rows; readings not covered are reported with witness pairs | `RESULT: ok` |
 | `python3 -I models/causal_kernel/check_key_end.py` | a key's own end: ten properties, plants, ten attacks (two workers) | `RESULT: ok` |
 | `python3 -I models/causal_kernel/check_conferral_end.py` | the end of a conferral (CC 2.4.1.1): 35 cases with a hand-written answer for every act, in every arrival order; the fixture for persist gives the same answers | `RESULT: ok` |

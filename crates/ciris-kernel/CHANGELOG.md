@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+**An answer changes: `head::View::counts_at` reads a cut at an older head.** A counting cut at an earlier head
+now voids an act at a later head that is concurrent with the cut (KERNEL.md section 6 rule 4, "rows on that slot
+concurrent with it do not count from the head the cut names"; `CONFERRAL_END.md` E3). Before, only a cut at the
+act's own head was read. `carried`, `Answers` and `HeldView` read `counts_at` and move with it.
+- One say still applies: a cutter holding a clean receipt of the act concurrent with the cut has no say on it.
+- The reader's line still applies: a reader that acknowledged the later head holds the older cut void.
+- Unchanged: a cut at the act's own head, a cut at a later head (it only takes the act out of force), a cut at
+  a concurrent head, and a cut the act has in its past.
+- Purge: only an act's answer at its own head is stored as final. The digests of its clean receipts are kept,
+  and a cut at an older head is read again.
+- `purge.py` had the same gap and was fixed first: eleven histories (two new), and the plants `own_head_only`
+  and `final_blocks_earlier`. `Settled.lean` gains `countsFrom` with six theorems; the existing ones are untouched.
+- Three planted breaks in `head.rs`.
+- Persist does not call `counts_at`, `carried`, `Answers` or `HeldView` (its own reading, 2026-11-23).
+
+`seat::exercised_stands`, proposed with this change in PR #21, is not added: `conferral::answers` gives the
+whole rule (E1 to E8) and is the one implementation.
+
 **An answer changes: on a plain count, the member removed is a voice of its own removal.** `seat::group_count`,
 and so `seat_rule`'s group count, no longer drops the voice of a key the row removes under `quorum`,
 `majority`, a declared threshold, `founder_only` or `weighted` (the Constitution's ruling of 2026-11-23 on
