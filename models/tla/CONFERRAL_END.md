@@ -455,12 +455,14 @@ content: section E already says "an ender who acks an old tip keeps only what li
 
 **The reference and the run.** `models/causal_kernel/conferral_content.py` is the reference, and
 `check_conferral_content.py` (a `./check.sh` step) checks it:
-- 39 cases with a hand-written answer for every content row, each in every arrival order;
-- every history of up to four rows beyond two roster heads: 1,133,469 histories, 1,584,262 extensions compared.
-  A history has up to three content rows, each naming up to two earlier ones as predecessors; up to two ends
-  (a removal or a resignation, at either head, optionally stale or naming the earlier end); and one row adding
-  tips. An end's or an adding row's tips may be rows not held or not signed yet. The default run uses one key
-  and five tip sets; `--wide` uses two keys and every pair of tips;
+- 41 cases with a hand-written answer for every content row, each in every arrival order;
+- every history of up to four rows beyond two roster heads: 412,007 histories, 1,435,650 extensions compared.
+  A history has up to three content rows on two keys of the member, each naming up to two earlier ones as
+  predecessors, or retracting one; up to two ends (a removal or a resignation, at either head, with up to
+  two tips, optionally stale or naming the earlier end); and one row adding tips. A tip or a predecessor is a
+  row signed earlier, since an id fixes its row; it need not be held, and every history is also read with
+  each one of its content rows not held. Run once by hand at five rows with one key: 4,244,169 histories,
+  17,759,924 extensions, nothing found;
 - three plants, each caught.
 
 **What the run found.**
@@ -482,9 +484,9 @@ content: section E already says "an ender who acks an old tip keeps only what li
      the member's own tips are still read (`resignation_then_counted_tips`), and a further resignation narrows
      only those, never what the counted row named (`resignation_counted_tips_then_narrowing`).
 
-   With that, `cannot_add` holds over the whole run: once an end counts, no end and no tips row the member
-   signs puts a row into the room's content, and a content row the member signs enters only where a tip named
-   before it holds it good.
+   With that, `cannot_add` holds over the whole run: once an end counts, nothing the member signs afterwards
+   puts a row into the room's content. No content row it signs later is ever in, and no end or tips row it
+   signs brings an earlier row in.
 
 2. **Whether an end counts must depend on its own causal past alone.** A first draft voided the member's own
    end where it named a head later than another end's. The run found the member reviving a row that way: it
@@ -498,7 +500,7 @@ content: section E already says "an ender who acks an old tip keeps only what li
    E3, not the tips:
    - a further counted end at an older head takes out rows at later heads, and nothing else (`further_end`);
    - the member's own backdated end at an older head takes its own kept rows at later heads out. Among
-     extensions by the member alone this happened 1,520 times, always by `E3.later_head`, and nothing else but the member's own
+     extensions by the member alone this happened 816 times, always by `E3.later_head`, and nothing else but the member's own
      retraction ever took out a row the count held good (`word_stands`). Section E lists this under backdating; the reader's
      line bounds it, and the line is not in this run.
 
@@ -506,9 +508,14 @@ content: section E already says "an ender who acks an old tip keeps only what li
    set is their union (`two_removals_different_tips`). Nothing waits, and the answer is a function of the held
    rows. That the two removals are also two tips of the roster is the line's business, as for any counted row.
 
-5. **The end that does not wait.** The run lets an end name tips that are not held, and tips of rows not
-   signed yet. `cannot_add` still holds in the form above, and the answer is the same in every arrival order
-   once the rows are held (`tip_arrives_after_end`). What it admits:
+5. **Nothing waits on content.** A tip does not make an end wait, and a predecessor does not make a content
+   row wait. The run reads every history with each one of its content rows not held. `cannot_add` holds
+   there too, a late row's arrival never takes a row out unless it is a retraction of that row, and it
+   changes no count (`arrival_grows`). The answer is the same in every arrival order once the rows are held
+   (`tip_arrives_after_end`, `middle_of_chain_arrives`). With a predecessor in the middle of a chain not
+   held, what lies behind it is not kept until it arrives (`middle_of_chain_not_held`). That an ended member
+   cannot supply a different row for an id already named rests on the id being a digest of the row; the run
+   takes it as given and does not check it. What the unwaited form admits:
    - an end naming a tip that never arrives keeps nothing, and no rule tells it from an end that names none
      (`end_names_tip_never_held`). A node must keep the end's tips to apply a late arrival;
    - a resigning member may name a tip it has signed and not published, and publish it later with a chain
@@ -544,8 +551,8 @@ content: section E already says "an ender who acks an old tip keeps only what li
 **The node-local fallback** (a row a reader held before it held the end stays shown to that reader) is not part
 of the proposal, and the reference keeps it apart (`shown_first_held`).
 - It is the spec's `arrival` plant: an answer latched on arrival, which `Inv_Fold` and `Inv_NodesAgree` exist
-  to catch. In 17 of the 39 cases two arrival orders of one set of rows show different rooms.
-- In 18 cases it shows a row the proposal keeps out. That includes a row the member signed after the removal
+  to catch. In 18 of the 41 cases two arrival orders of one set of rows show different rooms.
+- In 19 cases it shows a row the proposal keeps out. That includes a row the member signed after the removal
   that reached a node before the removal did, so it does not keep such rows out "everywhere": it keeps them
   out only at nodes the end reached first.
 - A node that folds again from its rows (a cold start, a checkpoint) loses the order unless it stores it.

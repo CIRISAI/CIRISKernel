@@ -165,7 +165,9 @@ and what was found.
 
 It differs from `conferral_end.json` in these fields:
 - an act has `prev`, the list of its predecessors (its author's rows; empty for a first row). An edit or a
-  retraction also has `target` and `compose`, which no rule reads;
+  retraction also has `target` and `compose`; a retraction by the row's own key takes its target out
+  (`W.retracted`). Neither `prev` nor `target` is in `names`: a content row waits on its head and on what it
+  cites, and a predecessor that is not among the case's rows is simply not followed;
 - an end has `trusted_through` (a list; empty where its signers held none of the member's rows), and its
   `signer` is `count` for a removal or a key of the member (`B`, `B2`) for a resignation. Its tips are not in
   `names`: the end does not wait for them, and a tip that is not among the case's rows keeps nothing;

@@ -11,9 +11,12 @@ The proposal.
    on several devices forks routinely, and a row that names both branches joins them.
 2. A row that ends the member's seat (a counted removal, or the member's own resignation) names in
    `trusted_through` the newest rows of the member its signers hold good: the tips, a set.
-3. THE END NEVER WAITS ON A TIP. A tip is not among the rows the end names for the door, so the end concludes
-   whether or not its tips are held. A tip that is not held keeps nothing; when it arrives, it and its
-   ancestors are kept. A tip that never arrives keeps nothing, for ever.
+3. NOTHING WAITS ON CONTENT. A tip is not among the rows an end names for the door, and a predecessor is not
+   among the rows a content row names for it: `prev`, `trusted_through` and a retraction's `target` are read by
+   the fold and make no row wait. A tip that is not held keeps nothing; when it arrives, it and its held
+   ancestors are kept. A predecessor that is not held is not followed, so what lies behind it is not kept
+   until it arrives. A row named by id is fixed by that id: what an ended member signs later is never the row
+   a tip or a predecessor already names.
 4. After the end, a content row of the member is in the room's content when it is a named tip that is held, or
    an ancestor of one along `prev` among its author's own rows. Every other content row of theirs counts at its
    own head and is not in the room's content.
@@ -197,9 +200,10 @@ def head(i, *names):
 
 def act(i, h, prev=(), names=(), signer="B", **kw):
     prev = [prev] if isinstance(prev, str) else sorted(prev or ())
+    # `names` is what the door waits on: the head and what the row cites. A predecessor and a retraction's
+    # target are read by the fold and make no row wait
     return dict({"id": i, "kind": "act", "signer": signer, "head": h, "prev": prev,
-                 "names": sorted(set(names) | {h} | set(prev) | ({kw["target"]} if kw.get("target") else set()))},
-                **kw)
+                 "names": sorted(set(names) | {h})}, **kw)
 
 
 def end(i, h, tips=(), signer=COUNT, names=()):
@@ -302,6 +306,13 @@ CASES = [
      "not count, E4): it is still its author's own retraction and takes effect",
      [H0, M1, end("E", "H0", ["m1"]), act("w2", "H0", "m1", ["E"], target="m1", compose="retract")], {},
      {"m1": (T, F, "W.retracted"), "w2": (F, F, "E4.names_end")}),
+    ("middle_of_chain_not_held", "the tip m3 is held, its predecessor m2 is not, and m1 behind that is held: "
+     "nothing shows m1 is m3's ancestor, so m1 is not kept until m2 arrives",
+     [H0, M1, M3, end("E", "H0", ["m3"])], {}, {"m1": OUT, "m3": KEPT}),
+    ("middle_of_chain_arrives", "the same, and m2 arrives: m2 and m1 are kept; the same answer in every arrival "
+     "order once all three are held, m2 last included",
+     [H0, M1, M3, end("E", "H0", ["m3"]), M2], {}, {"m1": KEPT, "m2": KEPT, "m3": KEPT},
+     [["H0", "m1", "m3", "E", "m2"], ["H0", "E", "m3", "m1", "m2"], ["H0", "m2", "m1", "m3", "E"]]),
     ("fork_other_branch_named_later", "the same fork, and a counted row then names the other branch's tip: both "
      "branches stay",
      [H0, M1, M2, act("x2", "H0", "m1"), end("E", "H0", ["m2"]), tips("A", "E", ["x2"])], {},

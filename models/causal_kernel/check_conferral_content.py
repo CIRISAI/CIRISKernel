@@ -11,14 +11,16 @@ check_conferral_content.py: room content after a member's seat ends, where the e
                  heads; up to three content rows of the member, each naming up to two earlier ones as `prev`
                  and optionally an earlier end, or retracting an earlier one; up to two ends, each a counted removal or the member's own, at
                  either head, optionally stale or naming the earlier end; one row adding tips, counted or the
-                 member's own; four rows in all besides the heads (`--rows N`). An end's or an adding row's
-                 tips may be rows not held or not signed yet. By default one key signs and the tip sets are
-                 none, each single row and one pair; `--wide` has two keys and every pair. Every extension of a
-                 held set by rows of the member alone, and by one counted row, is compared:
+                 member's own; four rows in all besides the heads (`--rows N`). A tip or a predecessor is a row
+                 signed earlier (an id fixes its row) and need not be held: every history is also read with
+                 each one of its content rows not held. Two keys of the member sign; `--one-key` has one. Every
+                 extension of a held set by rows of the member alone, and by one counted row, is compared:
 
-        cannot_add      once an end counts, no end and no tips row the member signs puts a row into the room's
-                        content, and a content row the member signs enters only where a tip named before it
-                        holds it good (a tip may name a row not yet held: the end never waits on one)
+        cannot_add      once an end counts, nothing the member signs afterwards puts a row into the room's
+                        content: no content row it signs later is ever in, and no end or tips row it signs
+                        brings an earlier row in. Also with any one content row not held
+        arrival_grows   a content row arriving late (a tip, or a predecessor in the middle of a chain) never
+                        takes a row out, unless it is a retraction of that row, and changes no count
         word_stands     a row the count's tips hold good stays, whatever the member signs, unless the member
                         retracts it (W.retracted) or the member's own backdated end puts it at a later head
                         than an end of its seat (E3.later_head): the reader's line bounds that, and the run
@@ -54,7 +56,7 @@ import conferral_content as CC  # noqa: E402
 FIXTURE = os.path.join(ROOT, "crates", "ciris-kernel", "tests", "fixtures", "conferral_content.json")
 HEADS = [CC.head("H0"), CC.head("H1", "H0")]
 MAX_ROWS, MAX_ACTS, MAX_ENDS, MAX_TIPS = 4, 3, 2, 1
-WIDE = False     # --wide: two keys and every pair of tips; the default is one key and the tip sets below
+WIDE = True      # two keys of the member; --one-key has one (for a deeper --rows)
 
 
 def next_rows(rows):
@@ -71,11 +73,9 @@ def next_rows(rows):
                         yield CC.act(i, h, prev, [cite] if cite else [], signer=key)
                 for target in acts:                   # a retraction of an earlier row, its own or not
                     yield CC.act(i, h, (), signer=key, target=target, compose="retract")
-    # a tip may be a row not signed yet (a1 to a3 by id): the end does not wait on its tips
-    every = ["a%d" % n for n in range(1, MAX_ACTS + 1)]
-    tip_sets = [()] + [c for k in (1, 2) for c in itertools.combinations(every, k)]
-    if not WIDE:
-        tip_sets = [(), ("a1",), ("a2",), ("a3",), ("a1", "a2")]
+    # a row names a tip or a predecessor by id, which fixes that row: so both are rows signed earlier. That a
+    # named row may not be HELD is checked by taking one content row out of each history (`go`)
+    tip_sets = [()] + [c for k in (1, 2) for c in itertools.combinations(acts, k)]
     if len(ends) < MAX_ENDS:
         i = "e%d" % (len(ends) + 1)
         for signer in (CC.COUNT, "B"):
@@ -134,10 +134,9 @@ class Run:
                         if v["in_force"] and not base[x]["in_force"]:
                             self.fail("cannot_add", rows, "%s is in the content by an end or a tips row the member "
                                                           "signed after an end counted" % x)
-                        if v["in_force"] and x not in pa and not any(
-                                x in CC.held_good(rows, r) for r in rows[:k] if r["kind"] in ("end", "tips")):
-                            self.fail("cannot_add", rows, "%s is in the content and no tip named before it holds "
-                                                          "it good" % x)
+                        if v["in_force"] and x not in pa:
+                            self.fail("cannot_add", rows, "%s, signed by the member after an end counted, is in "
+                                                          "the content" % x)
                 if p_count_end:
                     for x, v in pa.items():
                         if v["in_force"] and not a[x]["in_force"]:
@@ -161,6 +160,27 @@ class Run:
                 for x, v in pa.items():
                     if v["in_force"] and not a[x]["in_force"] and a[x]["rule"] != "E3.later_head":
                         self.fail("further_end", rows, "%s leaves the content by %s" % (x, a[x]["rule"]))
+            # one content row not held: the fold fills in when it arrives, and its arrival changes no count
+            for gone in [r for r in added if r["kind"] == "act"]:
+                held = [r for r in rows if r is not gone]
+                h = self.ans(held)
+                self.pairs += 1
+                for x, v in h.items():
+                    lost = v["in_force"] and not a[x]["in_force"]
+                    if lost and not (gone.get("compose") == "retract" and gone.get("target") == x):
+                        self.fail("arrival_grows", rows, "%s leaves the content when %s arrives" % (x, gone["id"]))
+                    if v["counted"] != a[x]["counted"]:
+                        self.fail("arrival_grows", rows, "%s's count changes when %s arrives" % (x, gone["id"]))
+                k = len(rows)
+                while k > len(HEADS) and by_member(rows[k - 1]):
+                    k -= 1
+                    if path[k - len(HEADS)][1]:
+                        base = self.ans([r for r in rows[:k] + [r for r in rows[k:] if r["kind"] == "act"]
+                                         if r is not gone])
+                        for x, v in h.items():
+                            if v["in_force"] and not base[x]["in_force"]:
+                                self.fail("cannot_add", rows, "without %s held, %s is in the content by an end or "
+                                                              "a tips row the member signed later" % (gone["id"], x))
             if self.merge == "count_first" and not self.self_tips:
                 for m in CC.MERGES[1:]:
                     o = CC.answers(rows, m)
@@ -225,7 +245,7 @@ def first_held():
 
 def main():
     global MAX_ROWS, WIDE
-    WIDE = "--wide" in sys.argv
+    WIDE = "--one-key" not in sys.argv
     if "--rows" in sys.argv:
         MAX_ROWS = int(sys.argv[sys.argv.index("--rows") + 1])
     n, problems = CC.check_cases()
@@ -272,7 +292,7 @@ def main():
     print("RESULT: %s: %d cases, %d content answers; %d histories of up to %d rows%s, %d extensions compared; a "
           "member's backdated end took a kept row out by E3 in %d; plants caught %d of %d"
           % ("ok" if not problems else "%d problems" % len(problems), n, answers, run.worlds, MAX_ROWS,
-             " (wide)" if WIDE else "", run.pairs,
+             "" if WIDE else " (one key)", run.pairs,
              run.e3, caught, len(plants)))
     return 1 if problems else 0
 
