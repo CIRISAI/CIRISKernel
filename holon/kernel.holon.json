@@ -1,0 +1,874 @@
+{
+ "spec": "ciris/holon-decl/0",
+ "id": "kernel.causal",
+ "name": "the causal kernel",
+ "plain": "Pure functions over a set of rows that name each other: given the rows a caller holds, they say which are kept, what the set concludes, who holds a seat, and which answers are settled. Its inputs are the rows, the rule tables and constants the caller passes in, the reader's own key where an answer is the reader's, and an instant where an answer reads one.",
+ "status": "case_checked",
+ "standing": "function",
+ "carrier": {
+  "state": "none of its own. Its argument is a set of rows, each an opaque id, the ids it names and a signer; the fields an answer reads (roles, scopes, windows, heads) come through traits or closures the caller implements. The crate computes no id and reads no bytes"
+ },
+ "step": {
+  "kind": "computed",
+  "engine_external": "CIRISAI/CIRISKernel, crate ciris-kernel, tag kernel-v0.2.1, commit 0e7211e2bcea2f65176a5acd3408e2e00f7269e8"
+ },
+ "below": [],
+ "source": [
+  {
+   "external": "CIRISAI/CIRISKernel kernel/KERNEL.md (CC 2.7, The kernel)",
+   "edition": "tag kernel-v0.2.1, commit 0e7211e2bcea"
+  },
+  {
+   "external": "CIRISAI/CIRISKernel crates/ciris-kernel/FORMAL_GAPS.md (the class of each public function)",
+   "edition": "0e7211e2bcea, sha256 da779dc58002f6b432df9eee686b42f7984994172b69cc52b857d5e43708a8e4"
+  }
+ ],
+ "views": [
+  {
+   "id": "kept",
+   "reads": "the least set of rows closed under the door; the same set in any arrival order (layers::kept, layers::arrive)",
+   "consumers": [
+    {
+     "id": "persist",
+     "kind": "dependent",
+     "pin": "kernel-v0.2.1",
+     "budget": {
+      "quantity": "the kept set",
+      "agrees_with": "the Python model causal_kernel (check.py), and the specification below",
+      "over": "causal (check.py worlds), 60,016 cases; TLC's reachable states of Door.tla replayed through the door, 3,072; recorded rules: witnesses 484, other rules 848, rosters 52,132"
+     }
+    }
+   ],
+   "status": "case_checked",
+   "evidence": [
+    {
+     "run": "bash tools/kernel_conformance.sh",
+     "inputs": [
+      {
+       "digest": "7577e4d7fabb9ae53959b32d04e5e89ead00b246b325c5e8dec60fe6c6dc986d",
+       "name": "tools/kernel_conformance.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ],
+   "specification": {
+    "status": "proved",
+    "states": "The door as a Lean definition: kept_is_least, door_any_order, door_perm (Causal). Door.tla model-checks the door under every interleaving TLC reaches.",
+    "evidence": [
+     {
+      "run": "bash proofs/build.sh",
+      "inputs": [
+       {
+        "digest": "cdfc5e61ea791e071336ff5f4daa3d2c2c993f771881d6b2ffadf0fd88e29a06",
+        "name": "proofs/build.sh"
+       },
+       {
+        "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+        "repository": "CIRISAI/CIRISKernel"
+       }
+      ],
+      "printed": "proofs: 26 files, 602 theorems reported, rc=0",
+      "repository": "CIRISAI/CIRISKernel",
+      "commit": "0e7211e2bcea"
+     },
+     {
+      "run": "bash tools/tla_check.sh",
+      "inputs": [
+       {
+        "digest": "497cb8c701557bdb41ea69c99ba39baf6b3227d0a81802e80f658ab9da30204d",
+        "name": "tools/tla_check.sh"
+       },
+       {
+        "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+        "repository": "CIRISAI/CIRISKernel"
+       }
+      ],
+      "printed": "tla: 5 specs, 21780 distinct states, 5 pass with their plant caught; Door states fixture current",
+      "repository": "CIRISAI/CIRISKernel",
+      "commit": "0e7211e2bcea"
+     }
+    ]
+   }
+  },
+  {
+   "id": "concluded",
+   "reads": "what each kept row concludes, a function of its own past and so final once the row is kept (layers::conclude)",
+   "consumers": [
+    {
+     "id": "persist",
+     "kind": "dependent",
+     "pin": "kernel-v0.2.1",
+     "budget": {
+      "quantity": "what each kept row concludes",
+      "agrees_with": "the Python model causal_kernel (check.py), and the specification below",
+      "over": "causal (check.py worlds), 60,016 cases; conclude over rows with cycles of names, 54,160"
+     }
+    }
+   ],
+   "status": "case_checked",
+   "evidence": [
+    {
+     "run": "bash tools/kernel_conformance.sh",
+     "inputs": [
+      {
+       "digest": "7577e4d7fabb9ae53959b32d04e5e89ead00b246b325c5e8dec60fe6c6dc986d",
+       "name": "tools/kernel_conformance.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ],
+   "specification": {
+    "status": "proved",
+    "states": "conclOf_unique, concl_final, concl_new_row (Causal).",
+    "evidence": [
+     {
+      "run": "bash proofs/build.sh",
+      "inputs": [
+       {
+        "digest": "cdfc5e61ea791e071336ff5f4daa3d2c2c993f771881d6b2ffadf0fd88e29a06",
+        "name": "proofs/build.sh"
+       },
+       {
+        "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+        "repository": "CIRISAI/CIRISKernel"
+       }
+      ],
+      "printed": "proofs: 26 files, 602 theorems reported, rc=0",
+      "repository": "CIRISAI/CIRISKernel",
+      "commit": "0e7211e2bcea"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cut",
+   "reads": "the cut by the well-founded fixed point, and who holds a slot under it (cut::Cut)",
+   "consumers": [
+    {
+     "id": "persist",
+     "kind": "dependent",
+     "pin": "kernel-v0.2.1",
+     "budget": {
+      "quantity": "the status of each counting row and the holder of each slot",
+      "agrees_with": "the Python model check_cut.py, and the specification below",
+      "over": "cut (check_cut.py worlds), 20,985 cases"
+     }
+    }
+   ],
+   "status": "case_checked",
+   "evidence": [
+    {
+     "run": "bash tools/kernel_conformance.sh",
+     "inputs": [
+      {
+       "digest": "7577e4d7fabb9ae53959b32d04e5e89ead00b246b325c5e8dec60fe6c6dc986d",
+       "name": "tools/kernel_conformance.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ],
+   "specification": {
+    "status": "proved",
+    "states": "The fixed point as a Lean definition: CutFix.cut_wfs, cut_counts_not_void, step_antitone, stopped_counts, total_between. Cut.tla model-checks the removal half.",
+    "evidence": [
+     {
+      "run": "bash proofs/build.sh",
+      "inputs": [
+       {
+        "digest": "cdfc5e61ea791e071336ff5f4daa3d2c2c993f771881d6b2ffadf0fd88e29a06",
+        "name": "proofs/build.sh"
+       },
+       {
+        "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+        "repository": "CIRISAI/CIRISKernel"
+       }
+      ],
+      "printed": "proofs: 26 files, 602 theorems reported, rc=0",
+      "repository": "CIRISAI/CIRISKernel",
+      "commit": "0e7211e2bcea"
+     },
+     {
+      "run": "bash tools/tla_check.sh",
+      "inputs": [
+       {
+        "digest": "497cb8c701557bdb41ea69c99ba39baf6b3227d0a81802e80f658ab9da30204d",
+        "name": "tools/tla_check.sh"
+       },
+       {
+        "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+        "repository": "CIRISAI/CIRISKernel"
+       }
+      ],
+      "printed": "tla: 5 specs, 21780 distinct states, 5 pass with their plant caught; Door states fixture current",
+      "repository": "CIRISAI/CIRISKernel",
+      "commit": "0e7211e2bcea"
+     }
+    ]
+   }
+  },
+  {
+   "id": "line",
+   "reads": "built on, and the reader's own acknowledged line (line::settle, void, own_line)",
+   "consumers": [
+    {
+     "id": "persist",
+     "kind": "dependent",
+     "pin": "kernel-v0.2.1",
+     "budget": {
+      "quantity": "what is void for a reader, and which versions count",
+      "agrees_with": "the Python models attacks.py and roster_fork, and the specification below",
+      "over": "seat, line, tips, window (attacks.py and window.py scenarios), 3,556 cases; line::versions (roster_fork worlds), 77,402; line::settle against the settle it replaced, 12,000"
+     }
+    }
+   ],
+   "status": "case_checked",
+   "evidence": [
+    {
+     "run": "bash tools/kernel_conformance.sh",
+     "inputs": [
+      {
+       "digest": "7577e4d7fabb9ae53959b32d04e5e89ead00b246b325c5e8dec60fe6c6dc986d",
+       "name": "tools/kernel_conformance.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ],
+   "specification": {
+    "status": "proved",
+    "states": "line_voids_old_fork, old_fork_void_for_ever, sibling_void, sibling_waits, merge_accepted (Reader); Versions.counts_built_on. ReaderLine.tla.",
+    "evidence": [
+     {
+      "run": "bash proofs/build.sh",
+      "inputs": [
+       {
+        "digest": "cdfc5e61ea791e071336ff5f4daa3d2c2c993f771881d6b2ffadf0fd88e29a06",
+        "name": "proofs/build.sh"
+       },
+       {
+        "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+        "repository": "CIRISAI/CIRISKernel"
+       }
+      ],
+      "printed": "proofs: 26 files, 602 theorems reported, rc=0",
+      "repository": "CIRISAI/CIRISKernel",
+      "commit": "0e7211e2bcea"
+     },
+     {
+      "run": "bash tools/tla_check.sh",
+      "inputs": [
+       {
+        "digest": "497cb8c701557bdb41ea69c99ba39baf6b3227d0a81802e80f658ab9da30204d",
+        "name": "tools/tla_check.sh"
+       },
+       {
+        "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+        "repository": "CIRISAI/CIRISKernel"
+       }
+      ],
+      "printed": "tla: 5 specs, 21780 distinct states, 5 pass with their plant caught; Door states fixture current",
+      "repository": "CIRISAI/CIRISKernel",
+      "commit": "0e7211e2bcea"
+     }
+    ]
+   }
+  },
+  {
+   "id": "seats",
+   "reads": "who stands in a seat, by two consents and a bounded walk; the members at a head; a group's count (seat::Seats, seat_rule, group_count)",
+   "consumers": [
+    {
+     "id": "persist",
+     "kind": "dependent",
+     "pin": "kernel-v0.2.1",
+     "budget": {
+      "quantity": "who holds each seat, the members at a head, and whether a group's count is met",
+      "agrees_with": "the Python model seat.py (attacks.py scenarios), and the specification below",
+      "over": "seat, line, tips, window scenarios, 3,556 cases; members at a head and count_members against the rows, 40,875; group_count against the seat rule, 40,000; the counts CC 3.3.4 and CC 4.4.3.6 state, 20; one offer seating many, 2,000; a weighted count with a further voice, 12"
+     }
+    }
+   ],
+   "status": "case_checked",
+   "evidence": [
+    {
+     "run": "bash tools/kernel_conformance.sh",
+     "inputs": [
+      {
+       "digest": "7577e4d7fabb9ae53959b32d04e5e89ead00b246b325c5e8dec60fe6c6dc986d",
+       "name": "tools/kernel_conformance.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ],
+   "specification": {
+    "status": "proved",
+    "states": "SeatWalk.walk_iff_chain, SeatWalk.holder_every_tip, SeatCount.met_mono, RosterHead.membersAt_function. No TLA+ spec.",
+    "evidence": [
+     {
+      "run": "bash proofs/build.sh",
+      "inputs": [
+       {
+        "digest": "cdfc5e61ea791e071336ff5f4daa3d2c2c993f771881d6b2ffadf0fd88e29a06",
+        "name": "proofs/build.sh"
+       },
+       {
+        "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+        "repository": "CIRISAI/CIRISKernel"
+       }
+      ],
+      "printed": "proofs: 26 files, 602 theorems reported, rc=0",
+      "repository": "CIRISAI/CIRISKernel",
+      "commit": "0e7211e2bcea"
+     }
+    ]
+   }
+  },
+  {
+   "id": "conferral_end",
+   "reads": "for each act under an ended standing: counted at its head, in force now, and the rule that decides (conferral::answers)",
+   "consumers": [
+    {
+     "id": "persist",
+     "kind": "dependent",
+     "pin": "kernel-v0.2.1",
+     "budget": {
+      "quantity": "for each act: counted, in force, and the deciding rule",
+      "agrees_with": "the Python reference conferral_end.py. No Lean. ConferralEnd.tla checks the reference on the main branch and is not in this tag",
+      "over": "the end of a conferral (conferral_end.py case table), 103 cases; one row not held (undecided, never a wrong bit), 180"
+     }
+    }
+   ],
+   "status": "case_checked",
+   "evidence": [
+    {
+     "run": "bash tools/kernel_conformance.sh",
+     "inputs": [
+      {
+       "digest": "7577e4d7fabb9ae53959b32d04e5e89ead00b246b325c5e8dec60fe6c6dc986d",
+       "name": "tools/kernel_conformance.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ]
+  },
+  {
+   "id": "content",
+   "reads": "room content after a member's seat ends: the rows the end holds good (content::answers, changed)",
+   "consumers": [
+    {
+     "id": "persist",
+     "kind": "dependent",
+     "pin": "kernel-v0.2.1",
+     "budget": {
+      "quantity": "for each content row: counted, in force, and the deciding rule",
+      "agrees_with": "the Python reference conferral_content.py. No Lean, no TLA+",
+      "over": "case table, 169 cases; one row not held, 373; histories built row by row, 37,643; with no end held, 37,643; folded row by row with changed, 34,751"
+     }
+    }
+   ],
+   "status": "case_checked",
+   "evidence": [
+    {
+     "run": "bash tools/kernel_conformance.sh",
+     "inputs": [
+      {
+       "digest": "7577e4d7fabb9ae53959b32d04e5e89ead00b246b325c5e8dec60fe6c6dc986d",
+       "name": "tools/kernel_conformance.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ]
+  },
+  {
+   "id": "head",
+   "reads": "answers by head: settled, missing, receipts, one say; checkpoint and purge (head::View, head::purge)",
+   "consumers": [
+    {
+     "id": "persist",
+     "kind": "dependent",
+     "pin": "kernel-v0.2.1",
+     "budget": {
+      "quantity": "the answers at a head, and the view after a purge",
+      "agrees_with": "the Python model purge.py (check_purge.py), and the specification below",
+      "over": "checkpoint and purge (check_purge.py replays), 1,768 cases; head::View through its indexes against the scanned one, 4,912; a view of a store with cycles of names, 3,000"
+     }
+    }
+   ],
+   "status": "case_checked",
+   "evidence": [
+    {
+     "run": "bash tools/kernel_conformance.sh",
+     "inputs": [
+      {
+       "digest": "7577e4d7fabb9ae53959b32d04e5e89ead00b246b325c5e8dec60fe6c6dc986d",
+       "name": "tools/kernel_conformance.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ],
+   "specification": {
+    "status": "proved",
+    "states": "ack_blocking_quorum, say_settled_final, countsAt_final, checkpoint_conclusions, pruned_view_answers (Settled). Purge.tla. Not covered: head::View::window, answers and tips.",
+    "evidence": [
+     {
+      "run": "bash proofs/build.sh",
+      "inputs": [
+       {
+        "digest": "cdfc5e61ea791e071336ff5f4daa3d2c2c993f771881d6b2ffadf0fd88e29a06",
+        "name": "proofs/build.sh"
+       },
+       {
+        "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+        "repository": "CIRISAI/CIRISKernel"
+       }
+      ],
+      "printed": "proofs: 26 files, 602 theorems reported, rc=0",
+      "repository": "CIRISAI/CIRISKernel",
+      "commit": "0e7211e2bcea"
+     },
+     {
+      "run": "bash tools/tla_check.sh",
+      "inputs": [
+       {
+        "digest": "497cb8c701557bdb41ea69c99ba39baf6b3227d0a81802e80f658ab9da30204d",
+        "name": "tools/tla_check.sh"
+       },
+       {
+        "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+        "repository": "CIRISAI/CIRISKernel"
+       }
+      ],
+      "printed": "tla: 5 specs, 21780 distinct states, 5 pass with their plant caught; Door states fixture current",
+      "repository": "CIRISAI/CIRISKernel",
+      "commit": "0e7211e2bcea"
+     }
+    ]
+   }
+  },
+  {
+   "id": "window",
+   "reads": "receipt, landing and recount for a window (window::rule, outcome)",
+   "consumers": [
+    {
+     "id": "persist",
+     "kind": "dependent",
+     "pin": "kernel-v0.2.1",
+     "budget": {
+      "quantity": "a window's rule and outcome",
+      "agrees_with": "the Python model window.py, and the specification below",
+      "over": "seat, line, tips, window (attacks.py and window.py scenarios), 3,556 cases"
+     }
+    }
+   ],
+   "status": "case_checked",
+   "evidence": [
+    {
+     "run": "bash tools/kernel_conformance.sh",
+     "inputs": [
+      {
+       "digest": "7577e4d7fabb9ae53959b32d04e5e89ead00b246b325c5e8dec60fe6c6dc986d",
+       "name": "tools/kernel_conformance.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ],
+   "specification": {
+    "status": "proved",
+    "states": "dishonest_never_stands, quorum_closed_final (Recount); WindowTable.landings_agree. No TLA+ spec.",
+    "evidence": [
+     {
+      "run": "bash proofs/build.sh",
+      "inputs": [
+       {
+        "digest": "cdfc5e61ea791e071336ff5f4daa3d2c2c993f771881d6b2ffadf0fd88e29a06",
+        "name": "proofs/build.sh"
+       },
+       {
+        "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+        "repository": "CIRISAI/CIRISKernel"
+       }
+      ],
+      "printed": "proofs: 26 files, 602 theorems reported, rc=0",
+      "repository": "CIRISAI/CIRISKernel",
+      "commit": "0e7211e2bcea"
+     }
+    ]
+   }
+  },
+  {
+   "id": "key_end",
+   "reads": "a key's own end and the rows that lapse, at an instant the caller gives (key_end)",
+   "consumers": [
+    {
+     "id": "persist",
+     "kind": "dependent",
+     "pin": "kernel-v0.2.1",
+     "budget": {
+      "quantity": "whether a key is live or ended at the instant given, and the rows retained",
+      "agrees_with": "the Python model check_key_end.py, and the specification below",
+      "over": "a key's own end (check_key_end.py worlds), 215,460 cases; key_end::retained against the per-row reading, 18,000"
+     }
+    }
+   ],
+   "status": "case_checked",
+   "evidence": [
+    {
+     "run": "bash tools/kernel_conformance.sh",
+     "inputs": [
+      {
+       "digest": "7577e4d7fabb9ae53959b32d04e5e89ead00b246b325c5e8dec60fe6c6dc986d",
+       "name": "tools/kernel_conformance.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ],
+   "specification": {
+    "status": "proved",
+    "states": "live_own_rows, live_perm, ended_stays_ended (KeyEnd); Retained.retained_down_closed. Not covered: key_end::conclude_rule and successor.",
+    "evidence": [
+     {
+      "run": "bash proofs/build.sh",
+      "inputs": [
+       {
+        "digest": "cdfc5e61ea791e071336ff5f4daa3d2c2c993f771881d6b2ffadf0fd88e29a06",
+        "name": "proofs/build.sh"
+       },
+       {
+        "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+        "repository": "CIRISAI/CIRISKernel"
+       }
+      ],
+      "printed": "proofs: 26 files, 602 theorems reported, rc=0",
+      "repository": "CIRISAI/CIRISKernel",
+      "commit": "0e7211e2bcea"
+     }
+    ]
+   }
+  },
+  {
+   "id": "trust",
+   "reads": "the reader's trust walk over acceptance edges (trust::reaches, honours)",
+   "consumers": [
+    {
+     "id": "persist",
+     "kind": "dependent",
+     "pin": "kernel-v0.2.1",
+     "budget": {
+      "quantity": "whether the reader's walk reaches a key, and the verdict it honours",
+      "agrees_with": "the Lean walk of TrustSet.lean, with reaches_mono_budget and verdict_is_the_capped_walk proved of it in the parent repository; TrustWalk.tla",
+      "over": "trust::reaches and derived::reach against the walks they replaced, 6,012,046 cases; against the Lean walk, 127,008; the cycle reading, 46,800; the TrustSet.lean worked world, 7"
+     }
+    }
+   ],
+   "status": "case_checked",
+   "evidence": [
+    {
+     "run": "bash tools/kernel_conformance.sh",
+     "inputs": [
+      {
+       "digest": "7577e4d7fabb9ae53959b32d04e5e89ead00b246b325c5e8dec60fe6c6dc986d",
+       "name": "tools/kernel_conformance.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    },
+    {
+     "run": "bash proofs/build.sh",
+     "inputs": [
+      {
+       "digest": "cdfc5e61ea791e071336ff5f4daa3d2c2c993f771881d6b2ffadf0fd88e29a06",
+       "name": "proofs/build.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "proofs: 26 files, 602 theorems reported, rc=0",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    },
+    {
+     "run": "bash tools/tla_check.sh",
+     "inputs": [
+      {
+       "digest": "497cb8c701557bdb41ea69c99ba39baf6b3227d0a81802e80f658ab9da30204d",
+       "name": "tools/tla_check.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "tla: 5 specs, 21780 distinct states, 5 pass with their plant caught; Door states fixture current",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ]
+  },
+  {
+   "id": "ranked",
+   "reads": "the ranked count, with and without a declared order (ranked::ranked)",
+   "consumers": [
+    {
+     "id": "persist",
+     "kind": "dependent",
+     "pin": "kernel-v0.2.1",
+     "budget": {
+      "quantity": "the winner of a ranked count, or none on a tie for weakest",
+      "agrees_with": "the Python reexpress.py decisions; Election.free_perm and free_agrees, proved in the parent repository for a count with no declared order. With a declared order it is checked by cases only",
+      "over": "reexpress.py decisions over the operators, 17,886 cases (the run that covers the ranked count, by the crate README; not confirmed by reading the test)"
+     }
+    }
+   ],
+   "status": "case_checked",
+   "evidence": [
+    {
+     "run": "bash tools/kernel_conformance.sh",
+     "inputs": [
+      {
+       "digest": "7577e4d7fabb9ae53959b32d04e5e89ead00b246b325c5e8dec60fe6c6dc986d",
+       "name": "tools/kernel_conformance.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    },
+    {
+     "run": "bash proofs/build.sh",
+     "inputs": [
+      {
+       "digest": "cdfc5e61ea791e071336ff5f4daa3d2c2c993f771881d6b2ffadf0fd88e29a06",
+       "name": "proofs/build.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "proofs: 26 files, 602 theorems reported, rc=0",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ]
+  }
+ ],
+ "certificate": {
+  "kind": "none"
+ },
+ "not_claimed": [
+  "No closure claim in this format's terms.",
+  "No view is proved as code. Where a Lean theorem is named, it is proved of a Lean definition of the same shape, and the Rust agrees with that definition on the cases stated, not by extraction.",
+  "It does not admit, verify or store: it never sees bytes, hashes, signatures or a file, and it reads no clock. An instant is an argument where an answer reads one.",
+  "The runs cited were made on one machine on 2026-11-23 by the Kernel session. Nobody else has repeated them for this file.",
+  "This is a file the kernel repository publishes. It is not a governed row.",
+  "Written against ciris/holon-decl/0 at CIRISHolon e98fc4c, a version that is not frozen. Holon's compiler answers `pending` for it: every run and digest it cites is held in this repository, not in Holon's."
+ ],
+ "owed": [
+  "Whether order-freeness is a closure claim here. Proved in Lean for the kept set and for conclusions (Causal.door_any_order, door_perm, conclOf_unique, concl_final) and model-checked for the door (Door.tla); for the other views it is checked by cases only.",
+  "The status of each view is the weakest class among its functions. crates/ciris-kernel/FORMAL_GAPS.md classes each function and is the authority.",
+  "Later work on main is not declared here: the planted breaks number 68 there, and derived::claims, the two-standings check and a change to seat::group_count on a removal are after this tag.",
+  "trust and ranked name theorems proved in the parent repository (CIRISConstitution). No run here builds them, so those two views carry no specification member."
+ ],
+ "plants": [
+  {
+   "what": "planted breaks in the crate, each a one-line change a test must catch",
+   "planted": 63,
+   "caught": 63,
+   "evidence": [
+    {
+     "run": "bash tools/kernel_crate_plants.sh",
+     "inputs": [
+      {
+       "digest": "6b43f675c48b98cfe9c921e26edc9e6b111ba9a1c26851bfa88c1d77e5456271",
+       "name": "tools/kernel_crate_plants.sh"
+      },
+      {
+       "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+       "repository": "CIRISAI/CIRISKernel"
+      }
+     ],
+     "printed": "ciris-kernel plants: 63 of 63 caught",
+     "repository": "CIRISAI/CIRISKernel",
+     "commit": "0e7211e2bcea"
+    }
+   ]
+  }
+ ],
+ "evidence": [
+  {
+   "run": "./check.sh",
+   "inputs": [
+    {
+     "digest": "1fd944f6cb6d8295766a1b55bb3d8299776d1c2934e736a1a206bc3c6c22ac4e",
+     "name": "check.sh"
+    },
+    {
+     "tree": "0e7211e2bcea2f65176a5acd3408e2e00f7269e8",
+     "repository": "CIRISAI/CIRISKernel"
+    }
+   ],
+   "printed": "all 19 steps passed",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "848bc2becaaa8b5faa7032fdc9d261118f85a79c8d24d1798496db94863c8bce",
+   "name": "crates/ciris-kernel/tests/fixtures/causal.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "263fe0db36a06d5facaeffa1537b73b58676ca4d81287d22c174eb52ee280000",
+   "name": "crates/ciris-kernel/tests/fixtures/conferral_content.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "5d56107dae66dfa00c1612b1c1e57bd3acbab2c01f3ea144db9dfcdfb56689f0",
+   "name": "crates/ciris-kernel/tests/fixtures/conferral_content_worlds.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "4fbf2663fd57a8a0430e35e8faca9d00efa19d9c87fd7af31f8c53703115ff11",
+   "name": "crates/ciris-kernel/tests/fixtures/conferral_end.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "549803f0699987ff8fc3471449e01bb5bf19f1d03eaeea305651a05f3643cf85",
+   "name": "crates/ciris-kernel/tests/fixtures/cut.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "fe25b4f09d036186da20010a79d14707994193016e3557d0692d3a92a17ea6e4",
+   "name": "crates/ciris-kernel/tests/fixtures/key_end.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "d386b9f5cb92da1191a0d5c2177aed51b9e7a4463e1ce8060f1b6f276ae36137",
+   "name": "crates/ciris-kernel/tests/fixtures/lib.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "e7acf66a7099cd4f15f8e5edc0462baa2fede65b2e4e8788e963df5a856a82b3",
+   "name": "crates/ciris-kernel/tests/fixtures/purge.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "6faefd3c0665910c42a832c2f3fd062e95b6bf7d0aa0b49deca9fe4ae507cc70",
+   "name": "crates/ciris-kernel/tests/fixtures/reexpress.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "8af03b9f466934306c3b84ded1e93105c02205cf2c3fd4a4b499245b9e98f35c",
+   "name": "crates/ciris-kernel/tests/fixtures/seat.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "153c464a8691e483522e7a7bee35c39984c8cdadc09c25775f3716474c0d052a",
+   "name": "crates/ciris-kernel/tests/fixtures/tables.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "3cee10ce3c9726f5248d5614042e348120def1852abc88ca5c8a6417f7da0836",
+   "name": "crates/ciris-kernel/tests/fixtures/tla_door.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  },
+  {
+   "digest": "6a35b6ad20749444f04be89b4303918104c222d646e6dadb5830dd147dee2007",
+   "name": "crates/ciris-kernel/tests/fixtures/versions.json",
+   "repository": "CIRISAI/CIRISKernel",
+   "commit": "0e7211e2bcea"
+  }
+ ]
+}
