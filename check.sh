@@ -53,7 +53,13 @@ step "divergence list (counts)"           diverge   python3 -I tools/divergence_
 step "kernel_fixtures (fixtures current)"   fixtures  python3 -I tools/kernel_fixtures.py --check
 step "ciris-kernel build (no_std)"         crate     bash tools/kernel_crate_build.sh
 step "ciris-kernel conformance"            conform   bash tools/kernel_conformance.sh
-step "ciris-kernel plants"                 plants    bash tools/kernel_crate_plants.sh
+# CI sets CHECK_SKIP_PLANTS=1: there the plants run as parallel jobs of crate.yml (tools/kernel_crate_plants.sh
+# says why), and this step would run them all again, one after another.
+if [ "${CHECK_SKIP_PLANTS:-}" = 1 ]; then
+  printf 'skip  %-34s        %s\n' "ciris-kernel plants" "CHECK_SKIP_PLANTS=1: run elsewhere (in CI, the plants jobs of crate.yml)"
+else
+  step "ciris-kernel plants"                 plants    bash tools/kernel_crate_plants.sh
+fi
 step "tla (TLC, nine specs, plants)"       tla       bash tools/tla_check.sh
 
 echo "---"
