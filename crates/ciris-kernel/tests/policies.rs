@@ -197,6 +197,48 @@ fn the_counts_the_text_states() {
             admits(Policy::Unanimous, None, "member", &["a", "b"], &[], false, &["b"], &["a"], &[]),
             false,
         ),
+        // CC 4.5.13: "At two members nobody is removed", the consent of the one removed included
+        (
+            "unanimous: at two the consent of the one removed removes nobody",
+            admits(Policy::Unanimous, None, "member", &["a", "b"], &[], false, &["b"], &["a", "b"], &[]),
+            false,
+        ),
+        // CC 2.7.5: on a plain count the member removed is a voice of its removal
+        (
+            "majority: the member removed is a voice of its removal",
+            admits(
+                Policy::Strict(1, 2),
+                None,
+                "member",
+                &["a", "b", "c", "d"],
+                &[],
+                false,
+                &["d"],
+                &["a", "b", "d"],
+                &[],
+            ),
+            true,
+        ),
+        (
+            "majority: two of four do not remove",
+            admits(Policy::Strict(1, 2), None, "member", &["a", "b", "c", "d"], &[], false, &["d"], &["a", "b"], &[]),
+            false,
+        ),
+        (
+            "majority: a member seated again is still no voice of its own seating",
+            admits(
+                Policy::Strict(1, 2),
+                None,
+                "member",
+                &["a", "b", "c", "d"],
+                &[],
+                true,
+                &["d"],
+                &["a", "b", "d"],
+                &[],
+            ),
+            false,
+        ),
         // CC 4.4.3.6 open:self_admit: "a widening naming exactly one new K and K signed it"
         (
             "self_admit: j admits itself",
@@ -220,7 +262,7 @@ fn the_counts_the_text_states() {
             true,
         ),
         (
-            "self_admit: the member named is no voice",
+            "self_admit: the member named is no voice of this removal",
             admits(Policy::SelfAdmit, None, "member", &abc, &[], false, &["c"], &["a", "c"], &[]),
             false,
         ),

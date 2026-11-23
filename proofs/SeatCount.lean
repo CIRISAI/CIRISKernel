@@ -3,7 +3,8 @@
   CC 4.4.3.6; crates/ciris-kernel src/seat.rs, `seat_rule` and `met`).
 
   Over a finite universe `U` of keys, a counted row's voices are the keys that signed it, are members at the
-  head it names, and are not keys the row itself seats or removes. This file proves: no key admits itself
+  head it names, and are not keys the row itself names out of its count (`named`: a key it seats; a key it
+  removes where the policy's own text excludes it, as `unanimous` does). This file proves: no key admits itself
   (its own signature never moves the count); the count never falls when a signature is added, so a count once
   met stays met; each policy is met by more voices whenever it is met by fewer; under `unanimous` a two-member
   group removes nobody (CC 4.5.13, "at two coincide only if the one removed consents"); under

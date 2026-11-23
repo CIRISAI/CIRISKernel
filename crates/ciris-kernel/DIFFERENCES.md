@@ -70,10 +70,12 @@ KERNEL.md 8a.
 ## What the kernel gained
 
 - `seat::Policy::Unanimous`, `SelfAdmit` and `Weighted`, and `SeatRow::weights`.
-- In `seat_rule`, no key admits itself: a key the counted row names is no voice of its count.
+- In `seat_rule`, no key admits itself: a key the counted row seats is no voice of its count. On a removal the
+  member removed is a voice unless the policy's own text excludes it, as `unanimous`, `open:self_admit` and the
+  duty withdrawal do (CC 2.7.5; the Constitution's ruling of 2026-11-23).
 - `derived::fold_default` (CC 3.5.1).
 
-Each has cases from its CC sentence: `tests/policies.rs`, 20 cases, and `tests/fold_default.rs`, the four
+Each has cases from its CC sentence: `tests/policies.rs`, 24 cases, and `tests/fold_default.rs`, the four
 rules and every order of six rows. Each also has a plant: `tools/kernel_crate_plants.sh`, 15 of 15 caught.
 The Python models' 934,667 cases are unchanged by them.
 
