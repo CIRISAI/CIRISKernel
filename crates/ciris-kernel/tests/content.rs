@@ -220,7 +220,7 @@ fn no_end_among_the_rows() {
         for (x, a) in run(&list, None) {
             n += 1;
             let own = |r: &&CRow| list.iter().any(|t| t.id == x && t.signer == r.signer);
-            let retracted = list.iter().filter(|r| r.retracts.as_ref() == Some(&x)).any(|r| own(r));
+            let retracted = list.iter().filter(|r| r.retracts.as_ref() == Some(&x)).any(own);
             let (counted, in_force, rule) = show(&a);
             if !(counted && in_force != retracted && rule == if retracted { "W.retracted" } else { "no_end" }) {
                 bad += 1;
