@@ -16,6 +16,7 @@
 //! | [`layers`] | 3 | kept (the monotone door) and concluded |
 //! | [`derived`] | 5, 6 | the order on kinds, the slot, removal by causal past, reach, tally |
 //! | [`cut`] | 6 | the cut, by the well-founded fixed point |
+//! | [`conferral`] | CC 2.4.1.1, CC 4.5.5 | the end of a conferral: an act counted at its head, and in force |
 //! | [`line`] | 7, 8a | built on, and the reader's own acknowledged line |
 //! | [`seat`] | 5 (stands), 7 | the seat: two consents, the bounded walk, members at a head, tips wait |
 //! | [`window`] | 5 (window) | a window as rows: receipt, landing and recount |
@@ -29,6 +30,7 @@
 
 extern crate alloc;
 
+pub mod conferral;
 pub mod cut;
 pub mod derived;
 pub mod graph;

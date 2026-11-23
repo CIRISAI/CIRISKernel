@@ -30,3 +30,5 @@ the frontier's walk against the pairwise frontier; duplicate ids
 trust walk against the Lean walk
 trust walk, TrustSet.lean worked world
 trust::reaches and derived::reach against the walks they replaced
+the end of a conferral (conferral_end.py case table)
+the end of a conferral, one row not held (undecided, never a wrong bit)

@@ -1,5 +1,27 @@
 # Changelog — ciris-kernel
 
+## [0.2.1]
+
+Additive: no existing function, type or answer changes. A caller on 0.2.0 moves the tag and nothing else.
+
+New module `conferral`: the causal end of a conferral (CC 2.4.1.1, CC 4.5.5; rules E1 to E8 of
+`models/tla/CONFERRAL_END.md`).
+- `conferral::answers(rows, &standing, &past)` gives, for every act among the rows, `Judged { counted,
+  in_force, rule }`: whether it counts at the head it names, whether it is in force now, and the rule that
+  decides. It covers any-standing, receipts, one say, `lifts`, a deputy's act, key removals and the reader's
+  line on the end.
+- The caller supplies rows through `ConferralRow`, who each key is to the standing through `Standing::role`,
+  and the causal past as a function `in_past(a, b) -> Result<bool, Id>`. `Err(id)` means "cannot tell until
+  this row is held", and the acts that need it come back `Answer::Undecided(id)`, never as a wrong bit. No
+  lineage is materialised.
+- One end per call. Two ends of one standing are outside the model, and `answers` refuses them
+  (`Refused::SeveralEnds`).
+- `tests/fixtures/conferral_end.json` (33 cases, 45 act answers) is the module's own test and an adopter's
+  conformance fixture. `conferral_end.tsv` is the same table in plain text.
+
+Which bit a caller reads: a tally at a head and an as-of answer read `counted`; anything done now on the act's
+strength reads `in_force`; an act that authorises a further row passes both down.
+
 ## [0.2.0]
 
 Performance for CIRISPersist's adoption (PR #3). See `PERF.md` for the measurements and method.
