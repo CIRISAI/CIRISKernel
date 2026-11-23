@@ -116,6 +116,45 @@ the reader reaches A first by an edge allowing no further hop, then through B wi
 only the second path reaches C. The crate implements the first reading: a key is expanded again only with
 more budget.
 
+### The fixture for persist: the end of a conferral
+
+`tests/fixtures/conferral_end.json` is a conformance fixture for persist, not for this crate: no Rust test
+reads it. `tests/fixtures/conferral_end.tsv` holds the same cases as a plain table, one line per act, for the
+Constitution's case table. It holds the cases of the end of a conferral (CC 2.4.1.1 as ruled, read forward; CC 4.5.5), as
+`models/tla/CONFERRAL_END.md` recommends them for persist v62.0:
+- every act names its head;
+- an end names its head `h_e`;
+- the ender's side keeps acts in force by receipts.
+
+`tools/kernel_fixtures.py` writes it from the reference `models/causal_kernel/conferral_end.py`. The reference
+is checked three ways:
+- against a hand-written answer for every act (`check_conferral_end.py`, a `./check.sh` step);
+- in every arrival order;
+- against `models/tla/ConferralEnd.tla` state by state (`tools/conferral_xcheck.py`, run by
+  `tools/tla_check.sh`).
+
+Each case has:
+- `rows`, in the kernel's row shape. Each row has `id`, `kind`, `signer` and `names`, plus the fields a rule
+  reads: `head` on an act or an end (`null` for an act that names no head), `of` on a receipt, `lifts` on an
+  end, `target` on a removal, `via` on a deputy's act.
+- `reader_acks`: the heads the reader acknowledged.
+- `other_standing` and `who`.
+- `refused`: `null`, or the refusal the text gives one of the case's rows at the door (see below).
+- `orders`: arrival orders, all of which must end at the same answers.
+- `answers`: for every act,
+  - `counted`: counted at its own head;
+  - `in_force`: in force now;
+  - `rule`: the rule that decides it, named so that a failing test names it.
+
+The roles and the rules, in the order they decide, are in the fixture's header.
+
+Three cases (`uncited_act`, `uncited_act_receipted`, `uncited_act_no_end`) hold an act that names no head. The
+Constitution's text refuses such a row at the door (`act_names_no_head`), so a store that follows the text
+never holds one. Those cases carry `"refused": "act_names_no_head"`, and every other case `"refused": null`.
+An adopter runs the cases whose `refused` is null; for the others its witness is the refusal. Their `answers`
+are what the model concludes if the row were admitted: counted, and not in force once an end is held unless
+the ender's side receipted it.
+
 ## What this crate leaves out, and why
 
 - **The rejected rules.** The group checkpoint (`checkpoint.py` with `group=True`) and the window's `void` and

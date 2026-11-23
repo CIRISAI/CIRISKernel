@@ -5,6 +5,10 @@
 Held views, slice 4 (issue #4, `HELD.md`): the head layer held (`held_view::HeldView`), its checkpoint (ids
 only, rows re-attached by id), foreign rows on `Held`, and `proofs/Held.lean`. No existing answer changes.
 
+A fixture for persist, not read by this crate: `tests/fixtures/conferral_end.json` and `conferral_end.tsv`, the
+cases of the end of a conferral (CC 2.4.1.1) with `counted`, `in_force` and the deciding `rule` for every act
+(see the README, "The fixture for persist"). No code in `src/` changes.
+
 ### Adopting (from 0.3.0)
 
 Checked against `git diff` of `src/` from 0.3.0. No public enum gained or lost a variant (`held::Refused` is
