@@ -415,7 +415,7 @@ The cases:
 - the receipt cases: after a self end, after a rotation, lifted by a compromise, a self end that cannot lift,
   a receipt after the end, the receipter before and after its seat's end, the grantee's own receipt, a
   receipt by a removed key, and (d);
-- acts that name no head;
+- acts that name no head (marked `refused` in the fixture: the text refuses them at the door);
 - the base cases, one say, naming the end, the tie, the re-acceptance and the deputy;
 - the end's own voids: a stale head, the line, and a removed key.
 

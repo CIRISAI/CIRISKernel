@@ -139,15 +139,21 @@ Each case has:
   end, `target` on a removal, `via` on a deputy's act.
 - `reader_acks`: the heads the reader acknowledged.
 - `other_standing` and `who`.
+- `refused`: `null`, or the refusal the text gives one of the case's rows at the door (see below).
 - `orders`: arrival orders, all of which must end at the same answers.
 - `answers`: for every act,
   - `counted`: counted at its own head;
   - `in_force`: in force now;
   - `rule`: the rule that decides it, named so that a failing test names it.
 
-The roles and the rules, in the order they decide, are in the fixture's header. An act that names no head is
-counted and not in force once an end is held, unless the ender's side receipted it. That is the answer persist
-must give for the rows it holds from before the change.
+The roles and the rules, in the order they decide, are in the fixture's header.
+
+Three cases (`uncited_act`, `uncited_act_receipted`, `uncited_act_no_end`) hold an act that names no head. The
+Constitution's text refuses such a row at the door (`act_names_no_head`), so a store that follows the text
+never holds one. Those cases carry `"refused": "act_names_no_head"`, and every other case `"refused": null`.
+An adopter runs the cases whose `refused` is null; for the others its witness is the refusal. Their `answers`
+are what the model concludes if the row were admitted: counted, and not in force once an end is held unless
+the ender's side receipted it.
 
 ## What this crate leaves out, and why
 

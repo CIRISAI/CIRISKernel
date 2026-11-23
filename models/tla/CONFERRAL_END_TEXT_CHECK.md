@@ -11,19 +11,26 @@ Each finding quotes the sentence and says what the model says. They are listed m
 
 ## Findings that change an answer
 
-**1. Acts that name no head: the text refuses the rows persist already holds.**
+**1. Acts that name no head: the text refuses them, the model counts them. Ruled; no change needed.**
 
 > "A row that exercises a standing and names no head concludes nothing, `act_names_no_head`."
 
 The model counts an act that names no head at its own head and holds it out of force once an end is held,
 unless it is receipted. That is the fixture's `uncited_act` (E2.forward) and `uncited_act_receipted`
-(E8.receipt). Every act persist signed before this change is such a row. Read literally, the sentence makes
-all of them conclude nothing, retroactively. That is against CC 4.5.5 ("Acts already taken under the duty
-stand") and against "The end never undoes that count".
+(E8.receipt).
 
-Needed: scope the refusal to rows of the new wire version. A row of an earlier version that names no head is
-read as the model reads it: concurrent with every end, never at a later head, so counted, and not in force
-after an end unless receipted.
+This is a recorded difference, not a needed change. As first written, this finding said that every act
+persist signed before the change is such a row and that the sentence voids them retroactively. That premise
+was wrong:
+- Persist reports (2026-11-22) that the Constitution ruled the refusal deliberately: an act that names nothing
+  cannot be judged (section A of `CONFERRAL_END.md`), a kept row of that kind on an upgraded node concludes
+  nothing, and its signer signs a fresh one. I have the ruling from persist's relay, not from the text.
+- Persist reports that no such row exists. The canonical node runs the 61.x line, which has no edition-2
+  store, and no v62 node has run live. The kept edition-2 rows are the eight genesis statements and the
+  seat's key record, which exercise no standing.
+
+The text is the rule of record. The fixture marks the three cases `refused: act_names_no_head`; an adopter's
+witness for them is the refusal, and their answers are what the model concludes if such a row were admitted.
 
 **2. A receipt must not keep in force an act at a later head.**
 
@@ -125,7 +132,8 @@ Suggested: "… is not in force from the withdrawal's head on, read as CC 2.4.1.
   offer's receipter is not a member of any roster: a CI worker's owner, for instance. Under a root grant, the
   conferrer is a count of bundle holders.
 - **It leaves acts that name no head unreceiptable.** "the head the acts name" does not exist for them, yet
-  `uncited_act_receipted` keeps such an act in force.
+  `uncited_act_receipted` keeps such an act in force. Under the text such an act is refused (finding 1), so
+  this has no live case.
 - **The card's "member" is narrow in the same way.**
 
 Suggested: "the conferrer (a count where the conferrer is one), another holder of the body the acts were done
@@ -233,7 +241,7 @@ a standing and the builder sends no head, then on the new wire it is `act_names_
 
 | # | What | Kind |
 |---|---|---|
-| 1 | scope `act_names_no_head` to the new wire version; held rows are read as the model's uncited act | changes an answer |
+| 1 | `act_names_no_head`: the text refuses, the model counts; ruled for the text, no live row, fixture cases marked `refused` | recorded difference, no change |
 | 2 | receipts and one say: say "not in force" and "only acts that count" | changes an answer |
 | 3 | the end of a receipter's role: stated by causal past, and given a row | changes an answer |
 | 4 | `lifts`: one wording, and decide whether a single-key conferrer may lift | changes an answer |
