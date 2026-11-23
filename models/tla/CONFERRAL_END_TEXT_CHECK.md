@@ -1,7 +1,10 @@
-# CC 2.4.1.1 at rc22 850ed50, and `names_head` at 76c4550, read against the model
+# CC 2.4.1.1 and `names_head` at rc22 3a8a033, read against the model
 
-I read the Constitution's text at `850ed50` and the family model at `76c4550` with `git show`. Nothing in that
-repository was changed. They are read against:
+I read the Constitution's text and its family model (`manifests/family_model.json`) at `3a8a033` with `git`.
+Nothing in that repository was changed. The first reading was of the text at `850ed50` and the family model at
+`76c4550`; this one was redone on 2026-11-22 at the Constitution's request. Every quote below was checked
+against the files at `3a8a033`, and what changed since the first reading is said where it bears on a finding
+and listed in "Added since 850ed50". They are read against:
 - E1 to E8 and section G of `CONFERRAL_END.md`;
 - the spec `ConferralEnd.tla`;
 - the reference `models/causal_kernel/conferral_end.py` and its case table
@@ -82,18 +85,18 @@ Needed:
 - one wording;
 - a decision on whether a single-key conferrer may lift.
 
-**5. `under` is on the wire, and no rule reads it.**
+**5. `under`: resolved at 3a8a033.**
 
-> "the also role under, a set of exactly one" (commit 850ed50; refs table: "ack, cites or under; each list a
-> set, and under a set of exactly one")
+At `850ed50` the refs table carried `under` and no sentence said what read it. The text now gives it one use:
 
-The recommended design needs no `under`. Under ANY-STANDING, which the text adopts ("An act that another live
-standing of its signer authorises at its head stands on that standing"), no answer depends on it. If a reader
-used `under` to bind an act to one standing (BOUND), it would contradict that sentence; that is the trace
-`ConferralEnd_tie_any`.
+> "`under` names the one edge a deputy's edge hangs from, a set of exactly one"
 
-Needed: say `under` is attribution only and no rule reads it, or drop it. Making it required costs the 47
-producer sites the design avoided.
+> "A deputy's edge names the edge it hangs from, its delegator's seat edge, in `refs.also.under`"
+
+That is the deputy edge of E6 (the fixture's `deputy`), not a binding of an act to one standing. No act
+carries it, so it does not contradict ANY-STANDING ("An act that another live standing of its signer
+authorises at its head stands on that standing"). The family model agrees: `may_carry_under` is false for
+every family but a deputy's edge. Nothing more is needed.
 
 ## Findings of wording or scope
 
@@ -107,16 +110,20 @@ first.
 
 Suggested: "does not count under the ended standing".
 
-**7. The old sentence in 4.5.5 still voids concurrent acts.**
+**7. The sentence in 4.5.5: resolved at 3a8a033.**
 
-> "A `withdraws` against *any* `delegates_to` in the chain invalidates everything downstream of it, *for every
-> act that has the withdrawal in its own past or is concurrent with it*"
+At `850ed50` CC 4.5.5 still said a `withdraws` in the chain invalidates every act concurrent with it. It now
+reads:
 
-The new 2.4.1.1 paragraph rereads "the two sentences above", the ones in 2.4.1.1. This sentence is in Part 4,
-and it still says a concurrent act is invalidated. The model never voids an act at or before `h_e` (E2,
-`Inv_ForwardNeverVoidsAtOwnHead`).
+> "A `withdraws` against *any* `delegates_to` in the chain ends everything downstream of it"
 
-Suggested: "… is not in force from the withdrawal's head on, read as CC 2.4.1.1 the end of a standing reads it".
+> "An act with the withdrawal in its own past does not count. An act at the withdrawal's head, at an older head
+> or at a concurrent one counts at its own head"
+
+> "From the withdrawal's head on it is in force only under a clean receipt."
+
+That is E4, E2 and E8. The paragraph does not restate E3 (an act at a later head); it cites CC 2.4.1.1, which
+does. Finding 6 applies to its first sentence too: "does not count" holds for the ended standing only.
 
 **8. `act:ack`: who signs, and its head.**
 
@@ -161,7 +168,7 @@ Suggested: "counted rows and every end of a standing".
 
 ## What matches the model
 
-| Text (850ed50) | Model |
+| Text (3a8a033) | Model |
 |---|---|
 | "The head is the newest its signer holds of the record that seats the standing … For a grant from a root it is the bundle in force. Where one row between two keys is the whole record, as an owner-binding is, that row is the head." | `persist_root_grant`, `persist_owner_binding`; section D |
 | "That head is the newest its signer holds, and an end with a newer head in its own past concludes nothing, `end_names_old_head`." | E1, `end_stale_head` |
@@ -173,7 +180,7 @@ Suggested: "counted rows and every end of a standing".
 | "A receipt changes what is in force, never what counted" | `Inv_ReceiptsChangeOnlyForce` |
 | "*The limit.* … No reader can tell it from an honest earlier act, and no rule here tries." | `persist_behind_node` |
 | 2.7.8: "It does not reach an authored act that names its head, which counts at that head whatever head a reader has acknowledged." | `Inv_AsOfStands`, `ConferralEnd_line_acts` |
-| 4.5.5: "What stays in force after a seat ends is what a receipt covers" | E8 |
+| 4.5.5: "From the withdrawal's head on it is in force only under a clean receipt." | E8 |
 | refs.head "on a counted row, on a roster version, and on a row that exercises or ends a standing" | the recommendation's wire |
 | `receipter`: "A person or an agent, never a node." | section G (c) |
 
@@ -183,59 +190,73 @@ Two model rules the text leaves to the general rules, which do cover them:
 
 Both follow from a removed key's rows counting only in the removal's past (KERNEL.md section 6).
 
-## `names_head` at 76c4550
+## Added since 850ed50
 
-Of 190 families:
+- **An acceptance or a decline names no head.** "An acceptance or a decline names none: it names the row it
+  answers, and that row names the head." The model agrees: its `accept` row has no head, and no E-rule reads
+  one (the fixture's `reaccept_two_devices`). The model's `accept` names nothing at all; the text's names
+  what it answers in `refs.answers`, which no E-rule reads either.
+- **An accord invocation names no head.** "An accord invocation names none, since it fires at each node on
+  receipt, under the roster that node holds". This is outside the model: an invocation is then not an act
+  exercised at a head, and E1 to E8 give it no answer. Noted, not checked: "under the roster that node holds"
+  on receipt is a reading per node, and the model's convergence result (every answer is a function of the
+  held rows) says nothing about it.
+- **Federation scope and the commons.** "a row there names a head only where its signer signs under a
+  standing." This is the sentence point (a) below asked for.
+- **`withdraws` and `recants` (CC 2.6.1.1).** "A `withdraws` or a `recants` carries the family id of its target
+  and no `dimension`, and its `sub` is its target's." No E-rule reads it. It bears on point (c) below.
 
-| `names_head` | Families |
-|---|---|
-| `by_placement` | 150 |
-| `none` | 12 |
-| `roster` | 9 |
-| `standing` | 8 |
-| null (open) | 11 |
+## `names_head` at 3a8a033
+
+Of 185 families (190 at `76c4550`):
+
+| `names_head` | Families at 3a8a033 | At 76c4550 |
+|---|---|---|
+| `by_placement` | 145 | 150 |
+| `none` | 15 | 12 |
+| `roster` | 9 | 9 |
+| `standing` | 8 | 8 |
+| by selector (one value per leaf or act) | 3 | 0 |
+| null (open) | 5 | 11 |
+
+21 cells are now ruled from `formal/derivation/names_head_text.tsv`; the rest are derived from the placement
+and signer cells. A new column, `standing_act`, says what a row of the family is to a standing: `exercise`,
+`offer`, `acceptance`, `end`, `none`, or open.
 
 Against "every act names its head; ends name `h_e`; receipts":
 
-**a. The self branch of `by_placement` misses seated signers.** The builder's note says: "at self it names
-none unless its signer signs as someone's node, agent or delegate". `moderation:{allegation_type}` is
-`by_placement`, with placement `["self_collective", "targeted_family", "targeted_room", "commons"]` and signer
-`seat_role(moderate)`. At commons or self_collective, under this rule it would name no head, though it is
-exercised under a duty seat. That makes it `act_names_no_head` or unread.
+**a. The self branch of `by_placement`: addressed in words.** The builder's note now reads "at self, at
+federation or in the commons, where there is no roster, it names none unless its signer signs as someone's
+node, agent or delegate or under a grant, and then that binding, delegation or bundle", and the text has the
+matching sentence. `moderation:{allegation_type}` and `detection:{detector}` are still `by_placement`; their
+signers come by `delegates_to(moderate)` and `delegates_to(infra:detect)`, so they fall under "delegate".
+The cell itself still says only `by_placement`: a builder that reads the value and not the note cannot tell
+the two self branches apart.
 
-The same holds for any `by_placement` family whose signer is a `seat_role`, a holder, a grantee of a root grant
-or a key grant. The detection rows of a granted CI worker (`detection:{detector}`) need the bundle in force.
+**b. `act:ack`: resolved as a column.** It is now ruled `by_placement`, "the head the acknowledged acts name".
+Finding 8 stands beside it: the model needs no head on a receipt.
 
-Needed: at self or commons, a family signed under a seat or a grant names `standing`.
+**c. A marker for the ends: partly addressed.** `standing_act` is `end` for `membership:{stage}` at
+`leaf=removal` and `leaf=resignation`, both naming `roster`, and for `key:revocation` and
+`identity:occurrence_revocation`, which name none (a person's own key plane, not a conferral). The other
+ending sites are a `withdraws` against an acceptance or an offer. `withdraws` is a primitive, not a family:
+by CC 2.6.1.1 it carries its target's family id, so its row in this table is its target's, whose
+`standing_act` is `offer` or `acceptance`, not `end`. Nothing in the table tells the builder that such a
+`withdraws` carries `refs.head` (`h_e`); only the 2.4.1.1 sentence does.
 
-**b. `act:ack` is null** ("the placement cell is unread"). The registry row says it names `refs.head`. The
-model needs no head on a receipt (finding 8), so the column should say `none` or `standing`, not null. As it
-stands, a payload builder that reads the column sends no head and refuses nothing, while the text's who-signs
-reads "a voice at the head the acts name".
+Needed: a rule, or a sentence in the build's note, that a `withdraws` of an offer or an acceptance names `h_e`.
 
-**c. No column marks the ends.** `names_head` is per family, but the 10 ending sites are a `withdraws` row
-against an acceptance or an offer, an unseating, and a resignation. `withdraws` is the primitive of 2.4.1.1,
-not a family of this model. Nothing in 76c4550 tells the builder that an end carries `refs.head` (`h_e`); only
-the 2.4.1.1 sentence does.
+**d. The records themselves: resolved for the binding.** `ownership:{relation}:{target_kind}:{version}` is now
+ruled `none` ("an owner binding their own key acts as themselves; a binding that names an affiliation names
+that affiliation's roster version"). `key_grant:{axis}` is still `standing`, derived. If a key grant is itself
+the record that seats a standing, the same question is open for it.
 
-Needed: a column or a rule for the ending rows, or a sentence in the build's note that the builder adds
-`refs.head` to every end.
+**e. `duty:{kind}`: resolved.** It is now ruled `by_placement`: "a duty exercised in a room names that room's
+roster version".
 
-**d. `standing` covers the records themselves.** `ownership:{relation}:{target_kind}:{version}` is
-`standing`. If it is the owner binding, it is the head; it does not name one. Likewise `key_grant:{axis}` if
-it is the grant. A record that seats a standing should name none, or be its own head, not "the record that
-seats its signer".
-
-**e. Families marked `none` that may exercise a conferred standing.** `duty:{kind}` is `none` ("a row of its
-signer's own"), but its signer is "the attester of the referenced permission", which is a standing. A duty
-appointment is exercised under that permission, so it should name the permission's head.
-
-`key:revocation`, `key:record` and `identity:occurrence*` are rightly `none`: a person's own key plane.
-
-**f. 11 families are open:** `act:ack`, `admission:unit`, `archive_release:{basis}`,
-`contribution:{subject_kind}`, `lawful_order:release`, `location_proof:{version}`, `preserve_request`,
-`preserve_response`, `retirement:{state}`, `stream:head`, `trust:blessing`. If any of these is exercised under
-a standing and the builder sends no head, then on the new wire it is `act_names_no_head`.
+**f. 5 families are open** (11 before): `archive_release:{basis}`, `lawful_order:release`, `preserve_request`,
+`preserve_response`, `retirement:{state}`. `standing_act` is open for 13 families. If any of these is
+exercised under a standing and the builder sends no head, it is `act_names_no_head`.
 
 ## Summary
 
@@ -245,6 +266,9 @@ a standing and the builder sends no head, then on the new wire it is `act_names_
 | 2 | receipts and one say: say "not in force" and "only acts that count" | changes an answer |
 | 3 | the end of a receipter's role: stated by causal past, and given a row | changes an answer |
 | 4 | `lifts`: one wording, and decide whether a single-key conferrer may lift | changes an answer |
-| 5 | `under`: attribution only, or dropped | changes an answer |
-| 6 to 10 | wording: the tie, the old 4.5.5 sentence, `act:ack`'s signer, counted receipts and the line, one's own end | wording or scope |
-| `names_head` a to f | the self branch of `by_placement`, `act:ack` null, a marker for ends, record families, `duty`, the 11 open families | column |
+| 5 | `under` | resolved at 3a8a033 |
+| 6 | the tie: "does not count under the ended standing" (also the first sentence of the new 4.5.5 paragraph) | wording or scope |
+| 7 | the old 4.5.5 sentence | resolved at 3a8a033 |
+| 8 to 10 | wording: `act:ack`'s signer, counted receipts and the line, one's own end | wording or scope |
+| `names_head` b, d (the binding), e | `act:ack`, the owner binding, `duty` | resolved at 3a8a033 |
+| `names_head` a, c, d (`key_grant`), f | the self branch in the cell, a `withdraws` that ends names `h_e`, the key grant, the 5 open families | column |
