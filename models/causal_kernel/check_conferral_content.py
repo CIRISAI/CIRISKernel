@@ -9,7 +9,7 @@ check_conferral_content.py: room content after a member's seat ends, where the e
                  rows, gives every answer the fixture states, and each listed arrival order ends at it
     every world  every history to a bound, built row by row, every row naming only earlier rows: two roster
                  heads; up to three content rows of the member, each naming up to two earlier ones as `prev`
-                 and optionally an earlier end; up to two ends, each a counted removal or the member's own, at
+                 and optionally an earlier end, or retracting an earlier one; up to two ends, each a counted removal or the member's own, at
                  either head, optionally stale or naming the earlier end; one row adding tips, counted or the
                  member's own; four rows in all besides the heads (`--rows N`). An end's or an adding row's
                  tips may be rows not held or not signed yet. By default one key signs and the tip sets are
@@ -19,9 +19,11 @@ check_conferral_content.py: room content after a member's seat ends, where the e
         cannot_add      once an end counts, no end and no tips row the member signs puts a row into the room's
                         content, and a content row the member signs enters only where a tip named before it
                         holds it good (a tip may name a row not yet held: the end never waits on one)
-        word_stands     a row the count's tips hold good stays, whatever the member signs, unless the member's
-                        own backdated end puts it at a later head than an end of its seat (E3.later_head): the
-                        reader's line bounds that, and the run reports how often it happens
+        word_stands     a row the count's tips hold good stays, whatever the member signs, unless the member
+                        retracts it (W.retracted) or the member's own backdated end puts it at a later head
+                        than an end of its seat (E3.later_head): the reader's line bounds that, and the run
+                        reports how often it happens
+        retract_removes a retraction never puts a row into the room's content
         tips_grow       a counted row adding tips never takes a row out, and changes no count
         further_end     a further counted end takes a row out only by E3.later_head
         counted_alike   whether a row counts never depends on whose tips are read
@@ -67,6 +69,8 @@ def next_rows(rows):
                 for prev in [()] + [c for n in (1, 2) for c in itertools.combinations(acts, n)]:
                     for cite in [None] + ends:
                         yield CC.act(i, h, prev, [cite] if cite else [], signer=key)
+                for target in acts:                   # a retraction of an earlier row, its own or not
+                    yield CC.act(i, h, (), signer=key, target=target, compose="retract")
     # a tip may be a row not signed yet (a1 to a3 by id): the end does not wait on its tips
     every = ["a%d" % n for n in range(1, MAX_ACTS + 1)]
     tip_sets = [()] + [c for k in (1, 2) for c in itertools.combinations(every, k)]
@@ -139,9 +143,14 @@ class Run:
                         if v["in_force"] and not a[x]["in_force"]:
                             if a[x]["rule"] == "E3.later_head":
                                 self.e3 += 1
-                            else:
+                            elif a[x]["rule"] != "W.retracted":
                                 self.fail("word_stands", rows, "%s leaves the content by %s" % (x, a[x]["rule"]))
             pa, p_end, p_count_end = path[len(rows) - 1 - len(HEADS)]
+            if last.get("compose") == "retract":
+                self.pairs += 1
+                for x, v in pa.items():
+                    if a[x]["in_force"] and not v["in_force"]:
+                        self.fail("retract_removes", rows, "%s enters the content when a retraction is signed" % x)
             if last["signer"] == CC.COUNT and last["kind"] == "tips":
                 self.pairs += 1
                 for x, v in pa.items():

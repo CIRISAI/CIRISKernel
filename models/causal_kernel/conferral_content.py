@@ -29,8 +29,8 @@ Rows (the kernel's row shape: `id`, `kind`, `signer`, the ids it `names`, and th
     head   a roster version; `names` the heads it extends
     act    a content row of the member: `signer` the key (B or B2), `head` the roster head it names, `prev` the
            list of its predecessors (empty for a first row), and for an edit or a retraction `target`, the row
-           it composes on, and `compose` ("edit" or "retract"). No rule reads `target` or `compose`: a
-           composer is a content row like any other
+           it composes on, and `compose` ("edit" or "retract"). An edit is a content row like any other, and
+           no rule reads its `target`. A retraction is read: see W.retracted
     end    an end of the member's seat: `signer` "count" (a counted removal) or a key of the member (its own
            resignation), `head` (h_e), `trusted_through` the tips it holds good (a list; empty where its signers
            hold none, which on the wire is the member's absence). The tips are NOT in `names`
@@ -61,6 +61,10 @@ Rules for a content row, in the order they decide (the name a failing test repor
     no_end           no end counts: counted and in force
     E4.names_end     the row has a counting end in its past: not counted
     E3.later_head    the row names a head that has a counting end's h_e in its past: the seat is ended there
+    W.retracted      counted, not in force: a retraction of the row by its own key is held. The Constitution's
+                     ruling of 2026-11-22: an author's retraction of its own row takes effect whenever it is
+                     signed, before or after an end, whether or not the retraction itself counts or is kept,
+                     and a retraction of a retraction restores nothing. It can only take a row out
     T.held_good      counted and in force: a held tip that is read, or its ancestor along `prev` among rows of
                      the same key
     E2.forward       counted at its own head, not in force: not held good
@@ -153,17 +157,21 @@ def answers(rows, merge="count_first", self_tips=False):
     ends = [by[i] for i in sorted(void) if void[i] is None]
     later = lambda h, he: he in anc(h) if h in by else False
     good = kept(rows, merge, self_tips)
+    retracted = {r["target"] for r in rows if r["kind"] == "act" and r.get("compose") == "retract"
+                 and r.get("target") in by and by[r["target"]]["signer"] == r["signer"]}
     out = {}
     for r in rows:
         if r["kind"] != "act":
             continue
         x = r["id"]
-        if not ends:
-            a = (True, True, "no_end")
-        elif any(e["id"] in anc(x) for e in ends):
+        if any(e["id"] in anc(x) for e in ends):
             a = (False, False, "E4.names_end")
         elif any(later(r["head"], e["head"]) for e in ends):
             a = (False, False, "E3.later_head")
+        elif x in retracted:
+            a = (True, False, "W.retracted")
+        elif not ends:
+            a = (True, True, "no_end")
         elif x in good:
             a = (True, True, "T.held_good")
         else:
@@ -273,11 +281,27 @@ CASES = [
      "NOT follow its target into the content; if it did, an ended member would rewrite its kept posts",
      [H0, M1, end("E", "H0", ["m1"]), act("e2", "H0", "m1", target="m1", compose="edit")], {},
      {"m1": KEPT, "e2": OUT}),
-    ("kept_post_retracted_after_end", "the same with a retraction: by this rule it is out too, and the retracted "
-     "post stays in the room. Whether a member's own retraction should take effect whenever it is signed is for "
-     "the Constitution: taking one's own row out can never add content",
+    ("kept_post_retracted_after_end", "the same with a retraction: the retraction row is out of the content like "
+     "any row no tip names, and it still takes effect: an author's retraction of its own row takes effect "
+     "whenever it is signed, so the kept post leaves the room's content. It can only take a row out",
      [H0, M1, end("E", "H0", ["m1"]), act("w2", "H0", "m1", target="m1", compose="retract")], {},
+     {"m1": (T, F, "W.retracted"), "w2": OUT}),
+    ("post_retracted_no_end", "with no end held: a member retracts its own post, and the post is out",
+     [H0, M1, act("w2", "H0", "m1", target="m1", compose="retract")], {},
+     {"m1": (T, F, "W.retracted"), "w2": (T, T, "no_end")}),
+    ("retraction_by_another_key", "a retraction signed by another key than the row's own is not read here: only "
+     "an author's retraction of its own row takes effect by this rule",
+     [H0, M1, end("E", "H0", ["m1"]), act("w2", "H0", target="m1", compose="retract", signer="B2")], {},
      {"m1": KEPT, "w2": OUT}),
+    ("retraction_of_a_retraction", "the member retracts its retraction: nothing is restored, or an ended member "
+     "would add a row back",
+     [H0, M1, end("E", "H0", ["m1"]), act("w2", "H0", "m1", target="m1", compose="retract"),
+      act("w3", "H0", "w2", target="w2", compose="retract")], {},
+     {"m1": (T, F, "W.retracted"), "w2": (T, F, "W.retracted"), "w3": OUT}),
+    ("retraction_that_does_not_count", "the retraction names the end (so as an act under the ended seat it does "
+     "not count, E4): it is still its author's own retraction and takes effect",
+     [H0, M1, end("E", "H0", ["m1"]), act("w2", "H0", "m1", ["E"], target="m1", compose="retract")], {},
+     {"m1": (T, F, "W.retracted"), "w2": (F, F, "E4.names_end")}),
     ("fork_other_branch_named_later", "the same fork, and a counted row then names the other branch's tip: both "
      "branches stay",
      [H0, M1, M2, act("x2", "H0", "m1"), end("E", "H0", ["m2"]), tips("A", "E", ["x2"])], {},

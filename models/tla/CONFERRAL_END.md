@@ -455,8 +455,8 @@ content: section E already says "an ender who acks an old tip keeps only what li
 
 **The reference and the run.** `models/causal_kernel/conferral_content.py` is the reference, and
 `check_conferral_content.py` (a `./check.sh` step) checks it:
-- 35 cases with a hand-written answer for every content row, each in every arrival order;
-- every history of up to four rows beyond two roster heads: 1,045,545 histories, 1,412,410 extensions compared.
+- 39 cases with a hand-written answer for every content row, each in every arrival order;
+- every history of up to four rows beyond two roster heads: 1,133,469 histories, 1,584,262 extensions compared.
   A history has up to three content rows, each naming up to two earlier ones as predecessors; up to two ends
   (a removal or a resignation, at either head, optionally stale or naming the earlier end); and one row adding
   tips. An end's or an adding row's tips may be rows not held or not signed yet. The default run uses one key
@@ -498,8 +498,8 @@ content: section E already says "an ender who acks an old tip keeps only what li
    E3, not the tips:
    - a further counted end at an older head takes out rows at later heads, and nothing else (`further_end`);
    - the member's own backdated end at an older head takes its own kept rows at later heads out. Among
-     extensions by the member alone this happened 1,380 times, always by `E3.later_head`, and nothing else ever
-     took out a row the count held good (`word_stands`). Section E lists this under backdating; the reader's
+     extensions by the member alone this happened 1,520 times, always by `E3.later_head`, and nothing else but the member's own
+     retraction ever took out a row the count held good (`word_stands`). Section E lists this under backdating; the reader's
      line bounds it, and the line is not in this run.
 
 4. **Two concurrent ends naming different tips.** Under `count_first` both are the count's word and the kept
@@ -525,10 +525,14 @@ content: section E already says "an ender who acks an old tip keeps only what li
 7. **A composer does not follow its target.** An edit or a retraction is a content row and is kept only where
    a tip holds it good. If "a composer on a kept row follows its target" meant it is kept because its target
    is, an ended member would rewrite its kept posts for ever (`kept_post_edited_after_end`: the edit is out,
-   the post stays as the count held it good). The same rule keeps a retraction signed after the end out, so
-   the retracted post stays in the room (`kept_post_retracted_after_end`). Taking one's own row out can never
-   add content, so the Constitution could let a member's own retraction take effect whenever it is signed;
-   the reference does not.
+   the post stays as the count held it good).
+
+   A retraction is the exception, by the Constitution's ruling of 2026-11-22: an author's retraction of its own
+   row takes effect whenever it is signed. The retraction row itself is out like any row no tip names, and its
+   target leaves the content all the same (`kept_post_retracted_after_end`, rule `W.retracted`). It holds
+   whether or not the retraction counts as an act under the ended seat, only for the row's own key, and a
+   retraction of a retraction restores nothing. The run checks that a retraction never puts a row into the
+   content (`retract_removes`).
 
 8. **The costs are as the proposal states them**, each a fixture case:
    - a row in flight when the removers signed is out for everyone until a counted row names it
@@ -540,8 +544,8 @@ content: section E already says "an ender who acks an old tip keeps only what li
 **The node-local fallback** (a row a reader held before it held the end stays shown to that reader) is not part
 of the proposal, and the reference keeps it apart (`shown_first_held`).
 - It is the spec's `arrival` plant: an answer latched on arrival, which `Inv_Fold` and `Inv_NodesAgree` exist
-  to catch. In 14 of the 35 cases two arrival orders of one set of rows show different rooms.
-- In 14 cases it shows a row the proposal keeps out. That includes a row the member signed after the removal
+  to catch. In 17 of the 39 cases two arrival orders of one set of rows show different rooms.
+- In 18 cases it shows a row the proposal keeps out. That includes a row the member signed after the removal
   that reached a node before the removal did, so it does not keep such rows out "everywhere": it keeps them
   out only at nodes the end reached first.
 - A node that folds again from its rows (a cold start, a checkpoint) loses the order unless it stores it.
@@ -553,7 +557,6 @@ of the proposal, and the reference keeps it apart (`shown_first_held`).
 - A row adding tips is a counted row of the room. The Constitution has said it names the head it is counted
   over and the end it extends. The reference carries that head and no rule reads it; the reader's line on it
   is not in this run.
-- Whether a member's own retraction of a kept row takes effect after the end (finding 7).
 - A resignation's tips are the member's own word about its own rows. That is harmless here, since those rows
   were signed at heads it sat at, and a second resignation can only remove.
 
