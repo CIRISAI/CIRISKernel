@@ -13,6 +13,15 @@ one voice now stands. Under `weighted` the removed member's weight counts.
 - A caller counting an accord bundle no longer needs to pass an empty `to` for the removed holder.
 - No proof changes: `proofs/SeatCount.lean` states the count over the voices given, and which keys are voices
   is the crate's reading, tested by cases (`tests/policies.rs`).
+New function `derived::claims`: a signer's claim for a key, by what its rows name and by no instant (the
+`holon:claim` family, CC 3.1.11 "How claims are read", rc22 `3f694e4`: "This family is read this way, and
+not by the default of CC 3.5.1"). Rows are grouped by signer and a key the
+caller gives. The one row of a group that no other row of the group has in its past is the claim
+(`Claim::Stands`), or ends it (`Claim::Ended`, a `recants` or `withdraws`). Two such rows are `Claim::Split`:
+the signer says two things and has no claim until one of its rows has both in its past. A row of another
+signer never voids or replaces a claim. `derived::fold_default`, which breaks such a tie by the signer's own
+instants (CC 3.5.1), is unchanged. Checked by cases only: 13 cases and every order of seven rows; four
+planted breaks.
 
 Held views, slice 4 (issue #4, `HELD.md`): the head layer held (`held_view::HeldView`), its checkpoint (ids
 only, rows re-attached by id), foreign rows on `Held`, and `proofs/Held.lean`. No existing answer changes.

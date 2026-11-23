@@ -95,6 +95,8 @@ unless marked as the parent's.
 | the cycle reading | a walk that passes no key twice, against the Lean `walk` | 46,800 | 0 |
 | fold default | CC 3.5.1's four rules, and every order of six rows | 724 | 0 |
 | the counts CC states | `unanimous`, `open:self_admit`, `weighted`, `founder_only`, no key admits itself, the member removed is a voice: 24 cases from CC 3.3.4, 4.4.3.6, 4.5.13 and 2.7.5 | 24 | 0 |
+| a signer's claim | `derived::claims`: the rule's 13 cases, and every order of seven rows | 5,053 | 0 |
+| the counts CC states | `unanimous`, `open:self_admit`, `weighted`, `founder_only`, no key admits itself: 20 cases from CC 3.3.4, 4.4.3.6 and 2.7.5 | 20 | 0 |
 | TLC's states | every reachable state of `models/tla/Door.tla`, replayed through the door | 384 | 0 |
 | **total** | | **934,667** | **0** |
 
