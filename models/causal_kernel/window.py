@@ -4,9 +4,9 @@ window.py: a window as rows.
     open      row p opens the window. It names the head it is counted over, and (for an eviction) its target.
     answer    a row naming p that says something the window's table counts: approve, object, confirm, answered, act.
     receipt   a key with the concluder's seat signs that it holds p, stating its own instant.
-              It names p and no other row: "inside the window" is what the landing has in its past and the
-              receipt has not, so a receipt naming further rows would put them before the window. A row that
-              names more is no receipt, and a landing naming it concludes nothing.
+              "Inside the window" is what the landing has in its past and the receipt has not, so a receipt
+              with a row of the target in its past would put that row before the window. A row that has one, beyond
+              what the opener itself has in its past, is no receipt, and a landing naming it concludes nothing.
     landing   the same key names its receipt and the head it then holds, states its own instant and the outcome.
 
 "Inside the window" is a relation between rows: in the past of the landing and not in the past of the receipt.
@@ -156,7 +156,10 @@ def rule(r, P, past):
     if k == "answer": return True                              # whether its voice counts is read against the roster at p's head
     spec, base = WINDOWS[p["window"]], _base(P, past, p)
     if r["signer"] not in ST.members_at(P, past, p["obj"], p["head"], spec["concluder"]): return False
-    if k == "receipt": return set(r["names"]) == {p["id"]}       # a receipt names the opener and no other row
+    if k == "receipt":
+        # a receipt puts no row of the target before the window: none in its past that the opener's past does not hold
+        t = p.get("target")
+        return t is None or not any(q["signer"] == t and q["id"] != p["id"] and not past(q["id"], p["id"]) for q in P)
     rec = by.get(r["receipt"])
     if rec is None or rec["kind"] != "receipt" or rec["signer"] != r["signer"] or rec["of"] != p["id"]: return False
     answers = K.sel(P, kind="answer", of=p["id"])

@@ -31,8 +31,8 @@ pub enum WinKind {
     Open,
     /// It answers one.
     Answer,
-    /// The concluder's receipt of the opener. It names the opener and no other row; one that names more is no
-    /// receipt, and a landing naming it concludes nothing.
+    /// The concluder's receipt of the opener. One that has a row of the target in its past, beyond what the
+    /// opener has in its own, is no receipt, and a landing naming it concludes nothing.
     Receipt,
     /// The concluder's landing.
     Landing,
@@ -331,8 +331,10 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         return Some(false);
     }
     if k == WinKind::Receipt {
-        // a receipt names the opener and no other row: what it names would otherwise lie before the window
-        return Some(r.names().iter().all(|n| n == o.id()));
+        // a receipt puts no row of the target before the window: none in its past that the opener's past does
+        // not hold
+        let Some(t) = o.target_key() else { return Some(true) };
+        return Some(!rows.iter().any(|q| q.signer() == t && q.id() != o.id() && !p.past(q.id(), o.id())));
     }
     let Some(rec) = r.receipt().and_then(|x| p.get(x)) else { return Some(false) };
     if rec.win_kind() != Some(WinKind::Receipt) || rec.signer() != r.signer() || rec.of() != Some(o.id()) {

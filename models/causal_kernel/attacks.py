@@ -609,7 +609,7 @@ def t12(t):
     late = [g, p, n, wide, WN.landing("Lw", "d3", "p", "rw", "landed", W)]
     S = conc(late, WIN)
     o, bad = win(late); t.order(bad)
-    t.fact("a receipt that names the owner's row beside the opener is no receipt (%s), the landing naming it concludes nothing (%s), and the window stays %s"
+    t.fact("a receipt with the owner's row in its past is no receipt (%s), the landing naming it concludes nothing (%s), and the window stays %s"
            % (S.C["rw"], S.C["Lw"], o["recount"]), not S.C["rw"] and not S.C["Lw"] and o["recount"] == "open")
     own = [g, WN.opener("p", "d1", "self_roster_evict", "g", ("g",), target="d3"), WN.receipt("r", "d1", "p", 0), WN.landing("L", "d1", "p", "r", "landed", W), R("n", "note", "d3", ("g",))]
     o, bad = win(own); t.order(bad)
