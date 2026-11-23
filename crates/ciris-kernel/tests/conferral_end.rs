@@ -62,6 +62,8 @@ fn row(j: &J) -> CRow {
             "removal" => Kind::Removal,
             "accept" => Kind::Accept,
             "receipter_end" => Kind::ReceipterEnd,
+            // a row withdrawing a receipt: refused at the door, and read by nothing if held
+            "withdrawal" => Kind::Other,
             k => panic!("kind {k}"),
         },
         signer: j.at("signer").s().to_string(),

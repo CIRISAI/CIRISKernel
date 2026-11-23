@@ -70,6 +70,13 @@ The candidates compared (the four you asked me to choose among, and the two halv
   receipt never revives an act at a later head or one naming the end (`Inv_ReceiptForwardOnly`). It changes
   force only, never a count (`Inv_ReceiptsChangeOnlyForce`). A receipt by a key removed concurrently counts
   for nothing.
+  A receipt, once sent, is never withdrawn (the Constitution's ruling of 2026-11-23): a row withdrawing one is
+  refused at the door, and if one were held nothing reads it (case `receipt_never_withdrawn`). The ruling
+  rests on reading the rules, not on a run: the TLA+ spec has no such row. Read otherwise, the ender's
+  withdrawal of its own receipt would take back its one say (E3) and change a count, and a single receipter
+  could drop what only a count end with `lifts` may. A single key's mistaken receipt is undone by the count's
+  end with `lifts` or by a removal of that key concurrent with the receipt. A count's own mistaken receipt
+  has no undo in this rule.
 - **Not the line for authored acts.** CC 2.7.8's line voids counted acts naming an older head. It must not be
   applied to authored acts that name their head (section C).
 - **Exercised acts stay off the seat's slot** (section F).
@@ -383,7 +390,7 @@ Wire cost:
 ## H. Conformance fixtures for persist
 
 The fixture is `crates/ciris-kernel/tests/fixtures/conferral_end.json`, in the kernel's fixture format. It has
-34 cases and 49 act answers. Each act has `counted`, `in_force` and the `rule` that decides it, and 12 rules
+35 cases and 51 act answers. Each act has `counted`, `in_force` and the `rule` that decides it, and 12 rules
 appear.
 
 The same cases are a plain table, one line per act, in `conferral_end.tsv` next to it. That is the

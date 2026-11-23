@@ -20,14 +20,16 @@ New module `conferral`: the causal end of a conferral (CC 2.4.1.1, CC 4.5.5; rul
   lineage is materialised.
 - One end per call. Two ends of one standing are outside the model, and `answers` refuses them
   (`Refused::SeveralEnds`).
-- `tests/fixtures/conferral_end.json` (34 cases, 49 act answers) is the module's own test and an adopter's
+- `tests/fixtures/conferral_end.json` (35 cases, 51 act answers) is the module's own test and an adopter's
   conformance fixture. `conferral_end.tsv` is the same table in plain text.
+- Since 0.2.1 the fixture has one more case, `receipt_never_withdrawn`: a row withdrawing a receipt is refused
+  at the door by the Constitution's text and read by nothing here (`Kind::Other`). The module is unchanged.
 
 Which bit a caller reads: a tally at a head and an as-of answer read `counted`; anything done now on the act's
 strength reads `in_force`; an act that authorises a further row passes both down.
 
 New module `content`: room content after a member's seat ends, where the end names the rows it holds good
-(CC 2.4.1.1; `models/tla/CONFERRAL_END.md` section I on the main branch).
+(CC 2.4.1.1; `models/tla/CONFERRAL_END.md` section I).
 - `content::answers(rows, &seat, &past)` gives, for every content row of the member, `Judged { counted,
   in_force, rule }`, where `in_force` means "in the room's content now". It reads the tips of counted rows
   first (`count_first`), follows predecessors as a set among the member's own rows (by member, not by key),

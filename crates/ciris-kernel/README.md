@@ -119,7 +119,7 @@ more budget.
 ### The end of a conferral
 
 `conferral::answers` is checked against the case table of `models/causal_kernel/conferral_end.py`
-(`tests/fixtures/conferral_end.json`; 34 cases, each with its rows listed in every order the fixture gives
+(`tests/fixtures/conferral_end.json`; 35 cases, each with its rows listed in every order the fixture gives
 and in reverse). That reference is the weakR reading of `models/tla/ConferralEnd.tla`, and is compared with
 that spec state by state.
 
