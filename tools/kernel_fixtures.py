@@ -25,6 +25,9 @@ Sources (all under models/):
     conferral_content causal_kernel/conferral_content.py: room content after a member's seat ends, where the end
               names the rows held good: its case table, and (conferral_content_worlds) histories built row by
               row as check_conferral_content.py builds them. tests/content.rs replays both through content::answers.
+    conferral_two causal_kernel/check_conferral_two.py: one row that needs two standings (an owner binding and a
+              root grant): its case table, per act and owner. No Rust test reads it; it is for Verify's
+              standing walk and an adopter's own code.
 """
 import base64
 import hashlib
@@ -592,6 +595,8 @@ def main():
     dump("conferral_content.json", CN.fixture(), out)
     import check_conferral_content as CK
     dump("conferral_content_worlds.json", CK.worlds_fixture(), out)
+    import check_conferral_two as C2
+    dump("conferral_two.json", C2.fixture(), out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():
