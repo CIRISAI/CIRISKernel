@@ -356,10 +356,11 @@ def check_cases():
 def refused(rows):
     """The refusal the Constitution's text gives one of the case's rows at the door, or None. An act that
     exercises a standing and names no head is refused (`act_names_no_head`, CC 2.4.1.1). So is a row that
-    withdraws a receipt (`receipt_never_withdrawn`: a receipt, once sent, is never withdrawn)."""
+    withdraws a receipt (`federation_withdraws_not_admitted`, the text's one refusal for a withdrawal no rule
+    admits: a receipt, once sent, is never withdrawn)."""
     if any(r["kind"] == "act" and r.get("head") is None for r in rows):
         return "act_names_no_head"
-    return "receipt_never_withdrawn" if any(r["kind"] == "withdrawal" for r in rows) else None
+    return "federation_withdraws_not_admitted" if any(r["kind"] == "withdrawal" for r in rows) else None
 
 
 def fixture():
@@ -381,7 +382,7 @@ def fixture():
                       "D": "a single co-holder", "R": "a receipter the grant names", "count": "a counted row"},
             "refused": "a case's `refused` is null, or the refusal the Constitution's text gives one of its rows at "
                        "the door (`act_names_no_head`: an act that exercises a standing and names no head; "
-                       "`receipt_never_withdrawn`: a row that withdraws a receipt). A "
+                       "`federation_withdraws_not_admitted`: a row that withdraws a receipt). A "
                        "store that follows the text never holds such a row, so its witness for the case is the "
                        "refusal; `answers` is then what the model concludes if the row were admitted",
             "rules": __doc__.split("Rules, in the order they decide (the name a failing test reports):")[1].strip(),
