@@ -324,7 +324,7 @@ fn ballot(g: &mut Lcg) -> Ballot {
     }
 }
 
-/// The seat rule's `Conf::Group` arm as first written, inline over the counted row, from its voices on.
+/// The seat rule's `Conf::Group` arm written a second time, inline over the counted row, from its voices on.
 fn count_before(r: &S, is_offer: bool, pol: Option<Policy>, mem: &BTreeSet<u32>, v: &BTreeSet<u32>) -> bool {
     if pol == Some(Policy::SelfAdmit) {
         return if is_offer && r.to().len() == 1 && !mem.contains(&r.to()[0]) {
@@ -342,7 +342,11 @@ fn count_before(r: &S, is_offer: bool, pol: Option<Policy>, mem: &BTreeSet<u32>,
         let y = yes.intersection(&base).count();
         return 2 * y > base.len() && (y >= 2 || mem.len() < 2);
     }
-    let yes: BTreeSet<&u32> = v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).collect();
+    // on a removal the member removed is a voice unless the policy's text excludes it (CC 2.7.5)
+    let yes: BTreeSet<&u32> = v
+        .iter()
+        .filter(|k| mem.contains(*k) && !((is_offer || pol == Some(Policy::Unanimous)) && r.to().contains(k)))
+        .collect();
     if pol == Some(Policy::Weighted) {
         let sum: u64 = yes.iter().map(|k| r.weights().iter().find(|(w, _)| w == *k).map_or(0, |(_, x)| *x)).sum();
         return r.need().is_some_and(|t| t > 0 && sum >= t as u64);

@@ -1,5 +1,37 @@
 # Changelog — ciris-kernel
 
+## [0.2.2]
+
+**One answer changes: on a plain count, the member removed is a voice of its own removal.** `seat::group_count`,
+and so `seat_rule`'s group count, no longer drops the voice of a key the row removes under `quorum`,
+`majority`, a declared threshold, `founder_only` or `weighted` (CC 2.7.5 at rc22 `462260c`: "A member the row
+removes is a voice of its own removal, except where the group's policy states otherwise"). A removal that
+failed by that one voice now stands. Under `weighted` the removed member's weight counts.
+- Unchanged: `unanimous`, `open:self_admit` and the duty withdrawal, whose own sentences exclude the member
+  named; and every seating, where a key the row seats is still no voice.
+- A caller counting an accord bundle no longer needs to pass an empty `to` for the removed holder.
+- Persist (its own reading, 2026-11-23): one caller, the room ballot; no stored answer; room removals under a
+  plain count now count the removed member's voice.
+- No proof changes. Which keys are voices is the crate's reading, tested by cases (`tests/policies.rs`, 24).
+
+New function `derived::claims`: a signer's claim for a key, by what its rows name and by no instant (the
+`holon:claim` family, CC 3.1.11 "How claims are read", rc22 `3f694e4`). Rows are grouped by signer and a key
+the caller gives. The one row of a group that no other row of the group has in its past is the claim
+(`Claim::Stands`), or ends it (`Claim::Ended`, a `recants` or `withdraws`). Two such rows are `Claim::Split`:
+no claim until one row of the signer has both in its past. A row of another signer never voids or replaces a
+claim. `derived::fold_default` (CC 3.5.1) is unchanged. Checked by cases only: 13 cases and every order of
+seven rows; four planted breaks.
+
+Fixtures:
+- `conferral_end.json` gains the case `receipt_never_withdrawn` (35 cases, 51 act answers): a row withdrawing
+  a receipt is refused at the door by the text (`federation_withdraws_not_admitted`) and read by nothing here
+  (`Kind::Other`). `conferral` is unchanged.
+- `conferral_two.json` is new: one row that needs two standings, an owner binding and a root grant
+  (CC 3.1.2.1), 11 cases from `models/causal_kernel/check_conferral_two.py`, now a step of `./check.sh`. No
+  Rust test reads it; a caller runs `conferral::answers` once per record and joins the answers bit by bit.
+
+`conferral` and `content` are unchanged from 0.2.1.
+
 ## [0.2.1]
 
 Additive: no existing function, type or answer changes. A caller on 0.2.0 moves the tag and nothing else.

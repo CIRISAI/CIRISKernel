@@ -10,6 +10,7 @@ checkpoint and purge (check_purge.py replays)
 conclude over rows with cycles of names, against conclude over what kept keeps
 cut (check_cut.py worlds)
 fold default (CC 3.5.1 rules and every order of six rows)
+a signer's claim by what its rows name (the rule's cases and every order of seven rows)
 group_count against the seat rule over the ballot's rows and the count it replaced
 head::View read through its indexes against the scanned one (purge.json histories)
 kernel_lib operators

@@ -25,6 +25,7 @@ The lists give the stronger checks.
 | `derived::live_edges`, `reach`, `means` | `two_readers`, `no_own_edge_no_reach` (Causal) | | Lean |
 | `derived::tally` | | | cases (`check.py`, `check_cut.py` worlds) |
 | `derived::fold_default` | | | neither (CC 3.5.1's four rules as tests, and every order of six rows) |
+| `derived::claims` | | | neither (the rule's 13 cases as tests, and every order of seven rows) |
 | `cut::Cut::new`, `status`, `counts` | `CutFix.cut_wfs`, `cut_counts_not_void`, `step_antitone`, `stopped_counts`, `total_between` | `Cut` (the removal half) | Lean, TLA+ |
 | `cut::Cut::holder` | `Causal.holder_both_or_neither` over the counting rows | | Lean |
 | `line::settle`, `void`, `own_line`, `counted_acts` | `line_voids_old_fork`, `old_fork_void_for_ever`, `sibling_by_acknowledgement`, `sibling_void`, `sibling_waits`, `merge_accepted` (Reader) | `ReaderLine` | Lean, TLA+ |

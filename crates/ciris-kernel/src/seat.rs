@@ -1032,6 +1032,8 @@ pub struct GroupCount<'a, K> {
     /// An offer (true) or an unseat (false).
     pub offer: bool,
     /// The keys the row seats or removes (`SeatRow::to`).
+    /// A key the row seats is no voice of its count; a key it removes is a voice like any other, except
+    /// under `unanimous`, `open:self_admit` and the duty withdrawal, whose text excludes it.
     pub to: &'a [K],
     /// The members at the head, less those whose own leaving is in the row's past.
     pub members: &'a BTreeSet<K>,
@@ -1078,16 +1080,19 @@ fn count_of<K: Ord>(
         let yes: BTreeSet<&K> = v.iter().filter(|k| mem.contains(*k)).collect();
         return duty_count_keys(pol == Some(Policy::DutyWithdraw), to, &yes, mem);
     }
-    // no key admits itself (CC 2.7.5): a key the row seats or removes is no voice of the count. The voices
-    // that are members, ascending and each once, read off the two sorted sets with no set built.
-    let yes = || v.intersection(mem).filter(|k| !to.contains(k));
+    // no key admits itself (CC 2.7.5): a key the row seats is no voice of its count. On a removal the member
+    // removed is a voice like any other unless the policy's own text excludes it: `unanimous` (below),
+    // `open:self_admit` and the duty withdrawal (above) do. The voices that are members, ascending and each
+    // once, read off the two sorted sets with no set built.
+    let unanimous = pol == Some(Policy::Unanimous);
+    let yes = || v.intersection(mem).filter(move |k| !(is_offer || unanimous) || !to.contains(k));
     if pol == Some(Policy::Weighted) {
         // in u128, so no further voice can lower the sum (`SeatCount.weighted_mono`, over Nat)
         let sum: u128 = yes().map(|k| weight(k) as u128).sum();
         return need.is_some_and(|t| t > 0 && sum >= t as u128);
     }
     let n_yes = yes().count();
-    if pol == Some(Policy::Unanimous) {
+    if unanimous {
         let others = mem.iter().filter(|k| !to.contains(k)).count();
         return if is_offer {
             !mem.is_empty() && n_yes == others && to.iter().all(|k| !mem.contains(k) || v.contains(k))
