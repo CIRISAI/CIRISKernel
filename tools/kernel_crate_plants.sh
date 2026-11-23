@@ -1,14 +1,28 @@
 #!/usr/bin/env bash
 # Plant one break at a time in a copy of crates/ciris-kernel (never in the working tree) and check that the
 # differential tests catch each. Exits 1 if a plant is not caught or the unbroken copy fails.
+#
+# PLANTS_SHARD=k/n runs only the plants whose place in the list below is k modulo n (k from 1 to n), so that n
+# runs with k = 1..n between them run every plant once. CI runs the shards as separate jobs (crate.yml): each
+# plant is a release rebuild and the whole test suite, about 41 s on a runner, and 54 of them one after another
+# took the check job past its time limit. Without PLANTS_SHARD every plant runs, as ./check.sh does locally.
 set -u
 root="$(cd "$(dirname "$0")/.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 cp -a "$root/crates/ciris-kernel" "$work/ciris-kernel"
 export CARGO_TARGET_DIR="$work/target"
-caught=0; total=0
+caught=0; total=0; seen=0
+shard="${PLANTS_SHARD:-1/1}"
+k="${shard%/*}"; n="${shard#*/}"
+case "$k$n" in *[!0-9]*|"") echo "PLANTS_SHARD=$shard: want k/n"; exit 1 ;; esac
+[ "$n" -ge 1 ] && [ "$k" -ge 1 ] && [ "$k" -le "$n" ] || { echo "PLANTS_SHARD=$shard: want 1 <= k <= n"; exit 1; }
+mine() {  # true when the next plant in the list belongs to this shard
+  seen=$((seen + 1))
+  [ $(( (seen - 1) % n )) -eq $((k - 1)) ]
+}
 plant() {  # plant <name> <file> <old> <new>
+  mine || return 0
   local name="$1" f="$work/ciris-kernel/$2"
   cp "$f" "$f.orig"
   python3 -I -c 'import sys; p,a,b=sys.argv[1:4]; s=open(p).read(); assert a in s, a; open(p,"w").write(s.replace(a,b,1))' "$f" "$3" "$4" || { echo "plant $name: text not found"; exit 1; }
@@ -21,6 +35,7 @@ plant() {  # plant <name> <file> <old> <new>
   mv "$f.orig" "$f"
 }
 plant_run() {  # plant_run <name> <file> <old> <new>: the conformance step must fail on the copy
+  mine || return 0
   local name="$1" f="$work/ciris-kernel/$2"
   cp "$f" "$f.orig"
   python3 -I -c 'import sys; p,a,b=sys.argv[1:4]; s=open(p).read(); assert a in s, a; open(p,"w").write(s.replace(a,b,1))' "$f" "$3" "$4" || { echo "plant $name: text not found"; exit 1; }
@@ -87,5 +102,9 @@ plant "a new entry voided by a head after it"           src/held_view.rs 'v.v.co
 plant "a resumed stub keeps its signatures"             src/held_view.rs '            if e.stub {' '            if false {'
 plant "a foreign row made dirty"                        src/held.rs '            if !fx {' '            if true {'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
-echo "ciris-kernel plants: $caught of $total caught"
-[ $caught -eq $total ]
+if [ "$n" -eq 1 ]; then
+  echo "ciris-kernel plants: $caught of $total caught"
+else
+  echo "ciris-kernel plants: $caught of $total caught (shard $k of $n; $seen plants in all)"
+fi
+[ $total -gt 0 ] && [ $caught -eq $total ]

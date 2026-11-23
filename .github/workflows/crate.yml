@@ -48,7 +48,27 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --offline --release -p ciris-kernel
       - run: bash tools/kernel_conformance.sh
+
+  # The planted breaks, split over four runners. Each plant is a release rebuild and the whole test suite; run
+  # one after another (54 on 2026-11-22) they took 29 to 44 minutes inside each of two jobs, this workflow's
+  # test job and ci.yml's ./check.sh, and on the slower runners took the latter past its 75 minutes. The
+  # shards between them run every plant once (tools/kernel_crate_plants.sh, PLANTS_SHARD). A reviewer's
+  # ./check.sh still runs them all.
+  plants:
+    name: plants (shard ${{ matrix.shard }} of 4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - run: bash tools/kernel_crate_plants.sh
+        env:
+          PLANTS_SHARD: ${{ matrix.shard }}/4
 
   fixtures:
     name: fixtures current (regenerate, then git diff)
