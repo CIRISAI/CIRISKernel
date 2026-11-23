@@ -19,6 +19,14 @@ act's own head was read. `carried`, `Answers` and `HeldView` read `counts_at` an
 
 `seat::exercised_stands`, proposed with this change in PR #21, is not added: `conferral::answers` gives the
 whole rule (E1 to E8) and is the one implementation.
+`content::answers`: a counted removal is the member's end and also a version of the roster that later rows
+name. A content row of the member that names an end of its seat as its head now names a head at which the
+member is out: not counted, rule `no_seat`. Before, the row came back `Undecided` on that id, since no
+`Kind::Head` row carried it, and a caller had to present the removal twice under two ids. A version built on
+the removal that admits the member again is a `Kind::Head` marked `Admits`, as before. One new case
+(`row_naming_the_removal_as_its_head`; the fixture has 56 cases, 131 answers) and one planted break. The
+exhaustive histories of `check_conferral_content.py` do not build such a row; the case and the crate's test
+of it are what cover the rule.
 
 **An answer changes: on a plain count, the member removed is a voice of its own removal.** `seat::group_count`,
 and so `seat_rule`'s group count, no longer drops the voice of a key the row removes under `quorum`,

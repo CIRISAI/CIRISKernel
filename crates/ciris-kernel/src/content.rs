@@ -48,6 +48,11 @@
 //! cross seats. A row naming a head at which the member does not sit ([`SeatAt::Out`]) belongs to no seat and
 //! does not count. A caller that says nothing of the heads (every head [`SeatAt::Sits`]) gets one seat.
 //!
+//! A counted removal is the member's end and also a version of the roster that later rows name. A caller gives
+//! it as the [`Kind::End`] it is to the member; a content row of the member that names it as its head names a
+//! head at which the member is out and does not count. A version built on it that admits the member again is a
+//! [`Kind::Head`] with [`SeatAt::Admits`], and the past the caller supplies places it after the removal.
+//!
 //! **The member's own rows are by member, not by key.** A predecessor signed by another key of the member is
 //! followed, and a retraction from another of its keys takes effect, across seats too. A co-member's row is
 //! never followed and a co-member's retraction is not read.
@@ -309,10 +314,14 @@ impl<'a, R: ContentRow, P: Past<R::Id>> Ctx<'a, R, P> {
 // does not sit at it. Err where the head is not held, or the past cannot tell.
 fn seat_of<R: ContentRow, P: Past<R::Id>>(
     heads: &[&R],
+    ends: &[&R],
     h: Option<&R::Id>,
     past: &P,
 ) -> Result<Option<BTreeSet<R::Id>>, R::Id> {
     let Some(h) = h else { return Ok(None) };
+    if ends.iter().any(|e| e.id() == h) {
+        return Ok(None); // an end of the member's seat named as a head: the member is out at it
+    }
     let Some(at) = heads.iter().find(|r| r.id() == h) else { return Err(h.clone()) };
     if at.seat() == SeatAt::Out {
         return Ok(None);
@@ -347,6 +356,7 @@ fn seat_of<R: ContentRow, P: Past<R::Id>>(
 /// [`Answer::Undecided`] with the row to fetch.
 pub fn answers<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Key>, past: &P) -> Answers<R::Id> {
     let heads: Vec<&R> = rows.iter().copied().filter(|r| r.kind() == Kind::Head).collect();
+    let ends: Vec<&R> = rows.iter().copied().filter(|r| r.kind() == Kind::End).collect();
     let content: Vec<&R> =
         rows.iter().copied().filter(|r| r.kind() == Kind::Content && (seat.member)(r.signer())).collect();
     let all = |i: &R::Id| content.iter().map(|x| (x.id().clone(), Answer::Undecided(i.clone()))).collect();
@@ -354,7 +364,7 @@ pub fn answers<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Ke
     // each row's seat; an end or a tips row whose seat cannot be told leaves every row undecided
     let mut seats: BTreeMap<&R::Id, Option<BTreeSet<R::Id>>> = BTreeMap::new();
     for r in rows.iter().copied().filter(|r| matches!(r.kind(), Kind::Content | Kind::End)) {
-        match seat_of(&heads, r.head(), past) {
+        match seat_of(&heads, &ends, r.head(), past) {
             Ok(s) => {
                 seats.insert(r.id(), s);
             }
