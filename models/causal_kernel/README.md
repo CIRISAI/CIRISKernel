@@ -43,7 +43,7 @@ checked by `check_lock.py`).
   strict majority of the others, never on fewer than two voices.
 - **The window.** A receipt, a landing, and three rules for an answer concurrent with the landing, run against
   the self-roster lone path, the moderation fallback and the halt fuse. `window_adversary.tsv` is the table:
-  recount breaks none of twenty checks.
+  recount breaks none of twenty-nine checks over four windows (the members' check of CC 4.5.13 is the fourth).
 - **Copying as need.** A party given only its routed rows concludes the same as one given everything; a
   stranger is routed nothing.
 - **A writer's keys.** The key plane re-read from rows on the writer's own chain agrees with

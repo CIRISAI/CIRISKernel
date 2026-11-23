@@ -19,6 +19,18 @@ act's own head was read. `carried`, `Answers` and `HeldView` read `counts_at` an
 
 `seat::exercised_stands`, proposed with this change in PR #21, is not added: `conferral::answers` gives the
 whole rule (E1 to E8) and is the one implementation.
+**A fourth window, and two additions to the window table's types.** The members' check of CC 4.5.13
+(`moderation_overturn`): a duty holder's act opens its own window; a strict majority of the roster at the head
+the act names, never fewer than two voices, lifts it by objecting; short of that at the close it stands; the
+duty holder has no say in the lift. It lands by a row and is read under recount like the other three, so two
+nodes holding the same rows agree. Read by each node's own clock, as the text had it, two nodes holding the
+same rows can differ for good.
+- `WindowSpec` gains the field `opener: Option<String>`: the scope the opener's signer holds where it is not
+  the counted one. **A caller that builds a `WindowSpec` literal adds `opener: None`.**
+- `How` gains `MoreAtLeast(num, den, least)`: more than `num / den`, and never fewer than `least` voices.
+- `window.py` has the window and eleven adversary rows; the table is now 38 rows and 29 checks. Recount breaks
+  none, the voiding rule nine, the contesting rule two. Two planted breaks in the crate.
+
 `window::rule`: a receipt that names any row but the opener is no receipt, and a landing naming it concludes
 nothing. "Inside the window" is what the landing has in its past and the receipt has not, so a receipt naming
 further rows would put them before the window (a concluder could delay its receipt and name the target's
