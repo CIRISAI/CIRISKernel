@@ -8,12 +8,25 @@ trap 'rm -rf "$work"' EXIT
 cp -a "$root/crates/ciris-kernel" "$work/ciris-kernel"
 export CARGO_TARGET_DIR="$work/target"
 caught=0; total=0
+# The plants build in a profile of their own, not --release: incremental, opt-level 1, no debug info, and
+# overflow checks and debug assertions off as in release, so a plant is caught by a differential test and not
+# by a check release does not make. A plant changes a line or two, and a release build recompiles the crate and
+# every test binary whole for it. Measured on four cores, 58 plants: about 74 s each under --release (the step
+# ran past the job's 75 minutes on the slower runners), 18 minutes in all this way, 58 of 58 caught either way.
+# The unbroken tests under --release are the conformance step's and crate.yml's.
+run_tests() {
+  # CARGO_INCREMENTAL is unset so that the dev profile's own default (incremental) holds: CI's rust-cache
+  # action exports CARGO_INCREMENTAL=0, and setting it to 1 is refused by sccache where that wraps rustc.
+  env -u CARGO_INCREMENTAL CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_PROFILE_DEV_DEBUG=0 \
+    CARGO_PROFILE_DEV_OVERFLOW_CHECKS=false CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false CARGO_PROFILE_DEV_INCREMENTAL=true \
+    cargo test --offline -q
+}
 plant() {  # plant <name> <file> <old> <new>
   local name="$1" f="$work/ciris-kernel/$2"
   cp "$f" "$f.orig"
   python3 -I -c 'import sys; p,a,b=sys.argv[1:4]; s=open(p).read(); assert a in s, a; open(p,"w").write(s.replace(a,b,1))' "$f" "$3" "$4" || { echo "plant $name: text not found"; exit 1; }
   total=$((total + 1))
-  if (cd "$work/ciris-kernel" && cargo test --offline --release -q > "$work/log" 2>&1); then
+  if (cd "$work/ciris-kernel" && run_tests > "$work/log" 2>&1); then
     echo "NOT CAUGHT  $name"
   else
     caught=$((caught + 1)); echo "caught      $name"
@@ -32,7 +45,7 @@ plant_run() {  # plant_run <name> <file> <old> <new>: the conformance step must 
   fi
   mv "$f.orig" "$f"
 }
-(cd "$work/ciris-kernel" && cargo test --offline --release -q > "$work/log" 2>&1) || { echo "the unbroken copy fails"; exit 1; }
+(cd "$work/ciris-kernel" && run_tests > "$work/log" 2>&1) || { echo "the unbroken copy fails"; tail -n 20 "$work/log"; exit 1; }
 plant "a removal voids rows in its own past"          src/derived.rs '|| c.g.in_past(i, x))' ')'
 plant "two cuts saying the same thing contest"         src/cut.rs 'if as_cut && self.spec.says(xr) == self.spec.says(rr) {' 'if false {'
 plant "a counted offer's proposer ends it alone"      src/seat.rs '&& o.conf() != Some(Conf::Group) && !eq(o)' '&& !eq(o)'
