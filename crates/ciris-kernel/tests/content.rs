@@ -4,7 +4,7 @@
 //! fixture gives and in reverse; then what a past that cannot tell does.
 
 mod common;
-use ciris_kernel::content::{answers, changed, Answer, ContentRow, Kind, Seat};
+use ciris_kernel::content::{answers, changed, Answer, ContentRow, Kind, Seat, SeatAt};
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -18,6 +18,8 @@ struct CRow {
     prev: Vec<String>,
     tips: Vec<String>,
     retracts: Option<String>,
+    extends: Option<String>,
+    seat: SeatAt,
 }
 
 impl ContentRow for CRow {
@@ -44,6 +46,12 @@ impl ContentRow for CRow {
     fn retracts(&self) -> Option<&String> {
         self.retracts.as_ref()
     }
+    fn extends(&self) -> Option<&String> {
+        self.extends.as_ref()
+    }
+    fn seat(&self) -> SeatAt {
+        self.seat
+    }
 }
 
 fn row(j: &J) -> CRow {
@@ -64,6 +72,12 @@ fn row(j: &J) -> CRow {
         prev: list("prev"),
         tips: list("trusted_through"),
         retracts: if opt("compose").as_deref() == Some("retract") { opt("target") } else { None },
+        extends: opt("extends"),
+        seat: match opt("seat").as_deref() {
+            Some("admits") => SeatAt::Admits,
+            Some("out") => SeatAt::Out,
+            _ => SeatAt::Sits,
+        },
     }
 }
 
@@ -111,6 +125,16 @@ fn cases(fx: &J) -> Vec<&J> {
     run
 }
 
+/// The histories of the worlds fixture, each with the roster heads of its group.
+fn worlds(fx: &J) -> Vec<(Vec<CRow>, &J)> {
+    let mut out = Vec::new();
+    for g in fx.at("groups").arr() {
+        let heads: Vec<CRow> = g.at("heads").arr().iter().map(row).collect();
+        out.extend(g.at("worlds").arr().iter().map(|w| (heads.clone(), w)));
+    }
+    out
+}
+
 #[test]
 fn case_table() {
     let fx = fixture("conferral_content.json");
@@ -147,9 +171,8 @@ fn case_table() {
 #[test]
 fn histories() {
     let fx = fixture("conferral_content_worlds.json");
-    let heads: Vec<CRow> = fx.at("heads").arr().iter().map(row).collect();
     let (mut n, mut bad) = (0, 0);
-    for w in fx.at("worlds").arr() {
+    for (heads, w) in worlds(&fx) {
         let rows: Vec<CRow> = w.at("rows").arr().iter().map(row).collect();
         let list: Vec<&CRow> = heads.iter().chain(rows.iter()).collect();
         let got = run(&list, None);
@@ -176,10 +199,9 @@ fn histories() {
 #[test]
 fn the_fold_by_arrival() {
     let fx = fixture("conferral_content_worlds.json");
-    let heads: Vec<CRow> = fx.at("heads").arr().iter().map(row).collect();
     let seat = Seat { member: &|k: &String| k == "B" || k == "B2", counted: &|k: &String| k == "count" };
     let (mut n, mut bad) = (0, 0);
-    for w in fx.at("worlds").arr() {
+    for (heads, w) in worlds(&fx) {
         let rows: Vec<CRow> = w.at("rows").arr().iter().map(row).collect();
         // the build order, and the reverse order where no row then precedes a row it names for the door
         let mut orders: Vec<Vec<&CRow>> = vec![rows.iter().collect()];
@@ -206,28 +228,34 @@ fn the_fold_by_arrival() {
     assert_eq!(bad, 0);
 }
 
-/// With no end among the rows, every content row of the member is counted, and in force unless its author's
-/// own retraction is held: a caller need not call this module before it holds an end of the member's seat.
+/// With no end among the rows, every content row of the member at a head where it sits is counted, and in
+/// force unless the member's own retraction of it is held: a caller need not call this module before it holds an end of the member's seat.
 /// Over every history of the worlds fixture, with its ends taken out.
 #[test]
 fn no_end_among_the_rows() {
     let fx = fixture("conferral_content_worlds.json");
-    let heads: Vec<CRow> = fx.at("heads").arr().iter().map(row).collect();
     let (mut n, mut bad) = (0, 0);
-    for w in fx.at("worlds").arr() {
+    for (heads, w) in worlds(&fx) {
         let rows: Vec<CRow> = w.at("rows").arr().iter().map(row).collect();
         let list: Vec<&CRow> = heads.iter().chain(rows.iter()).filter(|r| r.kind != Kind::End).collect();
         for (x, a) in run(&list, None) {
             n += 1;
-            let own = |r: &&CRow| list.iter().any(|t| t.id == x && t.signer == r.signer);
-            let retracted = list.iter().filter(|r| r.retracts.as_ref() == Some(&x)).any(own);
+            let me = list.iter().find(|r| r.id == x).expect("row");
+            let out = list.iter().any(|h| Some(&h.id) == me.head.as_ref() && h.seat == SeatAt::Out);
+            let member = |r: &&&CRow| r.signer == "B" || r.signer == "B2";
+            let retracted = list.iter().filter(member).any(|r| r.retracts.as_ref() == Some(&x));
+            let want = match (out, retracted) {
+                (true, _) => (false, false, "no_seat"),
+                (_, true) => (true, false, "W.retracted"),
+                _ => (true, true, "no_end"),
+            };
             let (counted, in_force, rule) = show(&a);
-            if !(counted && in_force != retracted && rule == if retracted { "W.retracted" } else { "no_end" }) {
+            if (counted, in_force, rule.as_str()) != want {
                 bad += 1;
             }
         }
     }
-    report("room content with no end held (every row counted; in force unless retracted)", n, bad);
+    report("room content with no end held (counted where seated; in force unless retracted)", n, bad);
     assert_eq!(bad, 0);
 }
 

@@ -89,8 +89,14 @@ plant "a deputy keeps force its edge has lost"         src/conferral.rs '(c, f) 
 plant "the member's own end adds tips beside a counted end" src/content.rs 'if ends.iter().any(|e| counts(e) && is_count(e)) {' 'if false {'
 plant "the member's own ends are joined, not met"       src/content.rs 'Some(o) => o.intersection(&g).copied().collect(),' 'Some(o) => o.union(&g).copied().collect(),'
 plant "a tips row signed by the member is read"         src/content.rs 'for t in self.of_kind(Kind::Tips).filter(|t| is_count(t)) {' 'for t in self.of_kind(Kind::Tips) {'
-plant "the walk crosses into another key's rows"        src/content.rs 'if self.by.get(q).is_some_and(|p| p.signer() == x.signer()) {' 'if self.by.get(q).is_some() {'
-plant "a retraction by another key takes a row out"     src/content.rs '.filter(|(w, t)| cx.by.get(t).is_some_and(|x| x.signer() == w.signer()))' '.filter(|(_, t)| cx.by.get(t).is_some())'
+plant "the walk passes through a co-member's row"       src/content.rs 'if self.by.get(q).is_some_and(|p| (self.seat.member)(p.signer())) {' 'if self.by.get(q).is_some() {'
+plant "a co-member's retraction takes a row out"        src/content.rs 'let content: Vec<&R> =
+        rows.iter().copied().filter(|r| r.kind() == Kind::Content && (seat.member)(r.signer())).collect();
+    let all' 'let content: Vec<&R> = rows.iter().copied().filter(|r| r.kind() == Kind::Content).collect();
+    let all'
+plant "a later seat's rows are judged by an earlier end" src/content.rs 'if a.id() == h || past.in_past(a.id(), h)? {' 'if false {'
+plant "a row between seats counts"                      src/content.rs 'if at.seat() == SeatAt::Out {' 'if false {'
+plant "a retraction is read in its own seat only"       src/content.rs 'out.extend(seat_answers(&sub, seat, past, &retracted));' 'let sr: BTreeSet<&R::Id> = retracted.iter().copied().filter(|t| sub.iter().any(|w| w.retracts() == Some(*t))).collect(); out.extend(seat_answers(&sub, seat, past, &sr));'
 plant "an end with an end in its past still ends"       src/content.rs 'Ok(seated.then_some(Void::SeatEnded))' 'Ok(seated.then_some(Void::SeatEnded).filter(|_| false))'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 echo "ciris-kernel plants: $caught of $total caught"

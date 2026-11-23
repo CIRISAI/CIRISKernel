@@ -16,7 +16,7 @@ New module `conferral`: the causal end of a conferral (CC 2.4.1.1, CC 4.5.5; rul
   lineage is materialised.
 - One end per call. Two ends of one standing are outside the model, and `answers` refuses them
   (`Refused::SeveralEnds`).
-- `tests/fixtures/conferral_end.json` (33 cases, 45 act answers) is the module's own test and an adopter's
+- `tests/fixtures/conferral_end.json` (34 cases, 49 act answers) is the module's own test and an adopter's
   conformance fixture. `conferral_end.tsv` is the same table in plain text.
 
 Which bit a caller reads: a tally at a head and an as-of answer read `counted`; anything done now on the act's
@@ -26,17 +26,21 @@ New module `content`: room content after a member's seat ends, where the end nam
 (CC 2.4.1.1; `models/tla/CONFERRAL_END.md` section I on the main branch).
 - `content::answers(rows, &seat, &past)` gives, for every content row of the member, `Judged { counted,
   in_force, rule }`, where `in_force` means "in the room's content now". It reads the tips of counted rows
-  first (`count_first`), follows predecessors as a set within one key's rows, waits on nothing (an unheld tip
-  or predecessor keeps nothing until it arrives), and applies an author's own retraction whenever it is signed.
+  first (`count_first`), follows predecessors as a set among the member's own rows (by member, not by key),
+  waits on nothing (an unheld tip or predecessor keeps nothing until it arrives), and applies the member's
+  own retraction whenever it is signed.
+- Seat by seat: a head says what it is to the member (`SeatAt::Sits`, `Admits`, `Out`). A member seated again
+  has a new seat; each seat's content is judged by its own ends and tips, a re-admission restores nothing,
+  and a row at a head where the member does not sit is `no_seat`. A caller that gives no `seat` gets one seat.
 - `content::changed(rows, &arrived, &seat, &past)` gives the rows whose answer the arrival of one row changes,
   each with its new answer. Folding every arrival with it ends at `answers`. It is computed by reading the
   rows twice: linear in the member's rows in the room for each arrival. A form that visits only what can
   change is not written yet.
 - The past is the same three-way function as `conferral`'s.
-- `tests/fixtures/conferral_content.json` (41 cases, 95 answers) is the module's test and an adopter's
-  fixture; `conferral_content_worlds.json` holds 14,906 histories with the reference's answers.
+- `tests/fixtures/conferral_content.json` (55 cases, 128 answers) is the module's test and an adopter's
+  fixture; `conferral_content_worlds.json` holds 22,700 histories with the reference's answers, a second seat and a co-member's rows among them.
 - The rule is checked by an exhaustive run in Python (`check_conferral_content.py`), not by a TLA+ model. Not
-  covered: receipts together with tips, a re-admission, the reader's line on an end, key removals.
+  covered: receipts together with tips, the reader's line on an end, key removals.
 
 ## [0.2.0]
 

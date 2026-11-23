@@ -119,7 +119,7 @@ more budget.
 ### The end of a conferral
 
 `conferral::answers` is checked against the case table of `models/causal_kernel/conferral_end.py`
-(`tests/fixtures/conferral_end.json`; 33 cases, each with its rows listed in every order the fixture gives
+(`tests/fixtures/conferral_end.json`; 34 cases, each with its rows listed in every order the fixture gives
 and in reverse). That reference is the weakR reading of `models/tla/ConferralEnd.tla`, and is compared with
 that spec state by state; the spec and the comparison are on the main branch, not on this release line.
 
@@ -135,11 +135,13 @@ whose `refused` is null.
 ### Room content after a member's seat ends
 
 `content::answers` is checked against `models/causal_kernel/conferral_content.py`:
-- its case table (`tests/fixtures/conferral_content.json`; the 40 cases under `count_first`, each with its rows
+- its case table (`tests/fixtures/conferral_content.json`; the 54 cases under `count_first`, each with its rows
   listed in every order the fixture gives and in reverse). The one case under `merge: union` states what a
   rejected reading gives and is not run;
-- 14,906 histories built row by row (`conferral_content_worlds.json`): every history of up to three rows
-  beyond two roster heads and every 53rd of four rows, 30,867 answers;
+- 22,700 histories built row by row (`conferral_content_worlds.json`), 37,643 answers: over two roster heads,
+  every history of up to three rows and every 53rd of four; with the member admitted again at the second
+  head and a co-member signing, every history of up to three rows; with a head between at which the member
+  is not listed, every history of up to two;
 - with one roster head or end withheld from the caller's past: undecided, naming the missing row, or judged
   as over the rows held;
 - `content::changed` folded over each history in its build order, and in reverse where the door allows: it
