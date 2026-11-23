@@ -15,7 +15,7 @@ role, scope, policy, window and constant is data the caller passes in ([`SeatLaw
 ```
 cargo build --offline --release -p ciris-kernel
 bash tools/kernel_conformance.sh          # the differential tests, one line per run and a total
-bash tools/kernel_crate_plants.sh         # fifteen planted breaks, each must be caught
+bash tools/kernel_crate_plants.sh         # the planted breaks, each must be caught
 python3 -I tools/kernel_fixtures.py       # regenerate the fixtures from the Python models
 ```
 
@@ -75,28 +75,50 @@ unless marked as the parent's.
 ## Conformance
 
 `tools/kernel_fixtures.py` imports the Python models, runs their own cases and writes every answer to
-`tests/fixtures/`. The Rust tests rebuild the same rows and compare answer by answer. At this commit:
+`tests/fixtures/`. The Rust tests rebuild the same rows and compare answer by answer. Each run prints its
+name, its cases and its disagreements, and the step fails if a listed run does not report. The figures below
+are the script's output when this table was last written (main after PR #29); the script is the authority:
 
-| Run | Source of the cases | Cases | Disagreements |
-|---|---|---|---|
-| operators | every reducer over every set of up to three rows of a pool of 18; every interval over four values | 7,968 | 0 |
-| re-expressed decisions | `reexpress.py`'s six decisions over small input spaces, written again with `ops` | 17,886 | 0 |
-| causal | `check.py` section 1: 6,606 sets of up to six rows of its two pools, and each set in two further arrival orders | 60,016 | 0 |
-| cut | `check_cut.py` section 1 at its own bounds | 20,985 | 0 |
-| seat, line, tips, window | 134 scenarios: every scenario `attacks.py`'s 34 tests conclude under the seat, window and route rules, and the 27 rows of the window adversary table | 3,556 | 0 |
-| recorded rules: witnesses | the 17 witnesses of `witnesses.py` with their variants and adversaries, 103 worlds: the kept set and conclusions, as one set and in three arrival orders | 484 | 0 |
-| recorded rules: other rules | the 18 attack scenarios concluded under a rule of their own: as above, and the cut, holders and windows | 848 | 0 |
-| recorded rules: rosters | 1,991 worlds that `check_rosters.py`'s unmutated properties conclude: as above, over `roster.py`'s settled conclusions | 52,132 | 0 |
-| `line::versions` | every set of up to three versions of `roster_fork`'s three settings, for every reader, and the attack tests' own calls | 77,402 | 0 |
-| checkpoint and purge | `check_purge.py`: 400 replays (200 under each reading) over the nine histories | 1,768 | 0 |
-| a key's own end | `check_key_end.py`: 5,670 worlds at six instants | 215,460 | 0 |
-| lazy closure | against the eager closure the crate first shipped, over generated graphs | 301,219 | 0 |
-| trust walk | the `TrustSet.lean` worked world, and the Lean `walk` over generated graphs | 127,015 | 0 |
-| the cycle reading | a walk that passes no key twice, against the Lean `walk` | 46,800 | 0 |
-| fold default | CC 3.5.1's four rules, and every order of six rows | 724 | 0 |
-| the counts CC states | `unanimous`, `open:self_admit`, `weighted`, `founder_only`, no key admits itself, the member removed is a voice: 24 cases from CC 3.3.4, 4.4.3.6, 4.5.13 and 2.7.5 | 24 | 0 |
-| TLC's states | every reachable state of `models/tla/Door.tla`, replayed through the door | 384 | 0 |
-| **total** | | **934,667** | **0** |
+| Run, as `tools/kernel_conformance.sh` names it | Cases | Disagreements |
+|---|---|---|
+| TLC's reachable states of Door.tla, replayed through the crate's door | 3,072 | 0 |
+| a key's own end (check_key_end.py worlds) | 215,460 | 0 |
+| a view of a store with cycles of names, against what kept keeps | 3,000 | 0 |
+| a weighted count with a further voice | 12 | 0 |
+| causal (check.py worlds) | 60,016 | 0 |
+| checkpoint and purge (check_purge.py replays) | 1,768 | 0 |
+| conclude over rows with cycles of names, against conclude over what kept keeps | 54,160 | 0 |
+| cut (check_cut.py worlds) | 20,985 | 0 |
+| fold default (CC 3.5.1 rules and every order of six rows) | 724 | 0 |
+| group_count against the seat rule over the ballot's rows and the count it replaced | 40,000 | 0 |
+| head::View read through its indexes against the scanned one (purge.json histories) | 4,912 | 0 |
+| kernel_lib operators | 7,968 | 0 |
+| key_end::retained against the per-row reading of ended | 18,000 | 0 |
+| lazy closure against the eager closure | 301,219 | 0 |
+| line::settle against the settle it replaced | 12,000 | 0 |
+| line::versions (roster_fork worlds, every set to three versions, every reader) | 77,402 | 0 |
+| members at a head, count_members and seat::conclude against the rows | 40,875 | 0 |
+| one offer seating many: its consenting keys | 2,000 | 0 |
+| recorded rules: other_rules | 848 | 0 |
+| recorded rules: rosters | 52,132 | 0 |
+| recorded rules: witnesses | 484 | 0 |
+| reexpress.py decisions over the operators | 17,886 | 0 |
+| seat, line, tips, window (attacks.py and window.py scenarios) | 3,556 | 0 |
+| the counts CC 3.3.4 and CC 4.4.3.6 state, on their own cases | 24 | 0 |
+| the cycle reading: a walk that passes no key twice, against the Lean walk | 46,800 | 0 |
+| the frontier's walk against the pairwise frontier; duplicate ids | 24,373 | 0 |
+| trust walk against the Lean walk | 127,008 | 0 |
+| trust walk, TrustSet.lean worked world | 7 | 0 |
+| trust::reaches and derived::reach against the walks they replaced | 6,012,046 | 0 |
+| held_view::differential over purge.json histories (in order, reversed, shuffled; resumed) | 1,168 | 0 |
+| the end of a conferral (conferral_end.py case table) | 106 | 0 |
+| the end of a conferral, one row not held (undecided, never a wrong bit) | 194 | 0 |
+| room content after a seat ends (conferral_content.py case table) | 169 | 0 |
+| room content, one row not held (undecided, never a wrong bit) | 373 | 0 |
+| room content, histories built row by row (conferral_content.py) | 37,643 | 0 |
+| room content, folded row by row with changed | 34,751 | 0 |
+| room content with no end held (counted where seated; in force unless retracted) | 37,643 | 0 |
+| **total, 37 runs** | **7,260,784** | **0** |
 
 A **recorded rule** is how a world whose conclusion rule belongs to the instance is brought in. The rule of
 a witness or a roster instance is table data and the model's own code, not the kernel. So the model's verdict
@@ -105,8 +127,8 @@ ask no question the table lacks. What these runs check is the kernel's door, rec
 derived answers over the model's conclusions. The answers the witnesses compute are per-case functions of
 the model and are not ported.
 
-Fifteen planted breaks are each caught (`tools/kernel_crate_plants.sh`, run on a copy), in `derived` (two),
-`cut`, `seat` (four), `head`, `key_end`, `line` (two), `window`, `ranked`, `graph` and `layers`.
+`tools/kernel_crate_plants.sh` plants 69 breaks, one at a time on a copy of the crate, and each must fail a
+test. Count them with `grep -c '^plant' tools/kernel_crate_plants.sh`; the script prints how many were caught.
 
 **The cycle reading.** "A cycle is visited once" (CC 2.7.5) has two readings. Under the first, a walk never
 passes the same key twice. It equals the Lean `walk` on every case, since a key reached again has no more
