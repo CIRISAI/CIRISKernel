@@ -225,6 +225,39 @@ def explore(workers=3, **kw):
     return top
 
 
+def worlds_fixture(full=3, deeper=4, every=53):
+    """Histories with the reference's answers, for a differential test of another implementation: every history
+    of up to `full` rows, and every `every`-th history of `deeper` rows, in the order the run builds them. Two
+    keys. Each history is its rows (as conferral_content.json has them) and {content row: [counted, in_force,
+    rule]} under count_first."""
+    global MAX_ROWS, WIDE
+    keep = (MAX_ROWS, WIDE)
+    MAX_ROWS, WIDE = deeper, True
+    out, seen = [], [0]
+
+    def go(rows):
+        n = len(rows) - len(HEADS)
+        if n:
+            take = n <= full
+            if n == deeper:
+                seen[0] += 1
+                take = seen[0] % every == 0
+            if take:
+                out.append({"rows": rows[len(HEADS):],
+                            "answers": {x: [a["counted"], a["in_force"], a["rule"]]
+                                        for x, a in CC.answers(rows).items()}})
+        if n < deeper:
+            for r in next_rows(rows):
+                go(rows + [r])
+    go(list(HEADS))
+    MAX_ROWS, WIDE = keep
+    return {"about": "room content after a member's seat ends: histories built row by row as "
+                     "models/causal_kernel/check_conferral_content.py builds them (every history of up to %d rows "
+                     "beyond the two roster heads, and every %dth of %d rows), each with the answers of "
+                     "conferral_content.py under count_first. For a differential test" % (full, every, deeper),
+            "heads": HEADS, "worlds": out}
+
+
 def first_held():
     """Over the case table: the cases where two arrival orders of one set of rows show different rooms under
     the node-local fallback, and the cases where it shows a row the proposal keeps out."""

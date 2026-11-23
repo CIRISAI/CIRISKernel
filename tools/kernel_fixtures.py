@@ -589,6 +589,8 @@ def main():
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution
     import conferral_content as CN
     dump("conferral_content.json", CN.fixture(), out)
+    import check_conferral_content as CK
+    dump("conferral_content_worlds.json", CK.worlds_fixture(), out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():
