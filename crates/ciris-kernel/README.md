@@ -155,6 +155,22 @@ An adopter runs the cases whose `refused` is null; for the others its witness is
 are what the model concludes if the row were admitted: counted, and not in force once an end is held unless
 the ender's side receipted it.
 
+### The fixture for persist: room content after a member's seat ends
+
+`tests/fixtures/conferral_content.json` is in the same format and is also for persist; no Rust test reads it.
+It states a PROPOSAL for CC 2.4.1.1 (the Constitution's, 2026-11-22), not a ruling: a content row names its
+key's previous content row in the room (`prev`), and the row that ends a member's seat names the newest rows
+it holds good (`trusted_through`). `models/tla/CONFERRAL_END.md`, section I, has the rules, what was checked
+and what was found.
+
+It differs from `conferral_end.json` in these fields:
+- an act has `prev` (the same key's previous content row, or `null`);
+- an end has `trusted_through` (a list; empty where its signers held none of the member's rows), and its
+  `signer` is `count` for a removal or a key of the member (`B`, `B2`) for a resignation;
+- a row of kind `tips` adds tips to the end it names in `extends`;
+- a case has `merge` (whose tips are read) in place of `reader_acks`, `other_standing` and `who`;
+- `in_force` means "in the room's content", and `refused` is `null` in every case.
+
 ## What this crate leaves out, and why
 
 - **The rejected rules.** The group checkpoint (`checkpoint.py` with `group=True`) and the window's `void` and
