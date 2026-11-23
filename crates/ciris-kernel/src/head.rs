@@ -6,8 +6,12 @@
 //! (for a stub), and, where an act's count at its own head is final, that answer. Every answer here reads
 //! only those fields, which is why a stub answers as the whole row does.
 //!
-//! * `counts_at`: does the act count at the head it names. One say: a signer holding a clean receipt of
-//!   the act in a row concurrent with the cut has no say on it (`symmetric_say_forced`, `say4_closed`).
+//! * `counts_at`: does the act count at the head it names: no counted cut of it concurrent with it at that
+//!   head or at an older one (rule 4: rows concurrent with the cut do not count from the head the cut names;
+//!   CONFERRAL_END.md E3; through 0.3.0 only a cut at the act's own head was read). One say: a signer holding a
+//!   clean receipt of the act in a row concurrent with the cut has no say on it (`symmetric_say_forced`,
+//!   `say4_closed`). Receipts at the act's head settle it against cuts there, not against a cut at an older
+//!   head, which a reader that acknowledged the act's head holds void (the line).
 //! * `carried`: is it still in force at a later head; a forward cut is blocked by nothing.
 //! * `settled`: clean receipts from n − t + 1 of the n members at its head (`ack_blocking_quorum`).
 //! * `void`: the counted rows the reader's own acknowledged line holds void (broad reading, CC 2.7.8).
@@ -110,13 +114,15 @@ pub struct Entry<I, K, T> {
     pub stub: bool,
     /// A stub's stored conclusion.
     pub concl: bool,
-    /// An act's count at its own head, where it is final.
+    /// An act's count at its own head against the cuts naming that head, where it is final (a cut at an older
+    /// head is read again).
     pub final_counts: Option<bool>,
     /// The act was settled when stored.
     pub settled_stub: bool,
     /// The keys whose receipts of a final act were held when its receipts were dropped.
     pub ackers: Vec<K>,
-    /// The receipt digests of a settled act.
+    /// The digests of the clean receipts held of a final act when its receipts were dropped (one say on a cut
+    /// at an older head reads them).
     pub acks: Vec<I>,
     /// A receipt or cut of a final act, dropped: the cut and receipt rules no longer read it.
     pub dropped: bool,
@@ -591,23 +597,63 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         out
     }
 
-    fn voids_at(&self, c: &Entry<I, K, T>, a: &I, rcpts: &BTreeMap<K, Vec<I>>) -> bool {
-        let act = &self.rec[a];
-        if c.head != act.head || !self.conc(&c.id, a) {
-            return false;
+    /// The clean receipts one say reads: those held ([`View::receipts`]), and those a purge dropped and recorded
+    /// on a final act ([`Entry::acks`]).
+    fn say_receipts(&self, a: &I) -> BTreeMap<K, Vec<I>> {
+        let mut out = self.receipts(a);
+        for x in &self.rec[a].acks {
+            if let Some(e) = self.rec.get(x) {
+                let l = out.entry(e.signer.clone()).or_default();
+                if !l.contains(x) {
+                    l.push(x.clone());
+                }
+            }
         }
-        let m = self.member_of(&act.head);
+        out
+    }
+
+    /// Whether cut `c`'s say-holding signatures by members at `head` reach that head's count. One say: a
+    /// signer holding a clean receipt of the act in a row concurrent with the cut has no say on it.
+    fn met(&self, c: &Entry<I, K, T>, head: &Option<I>, rcpts: &BTreeMap<K, Vec<I>>) -> bool {
+        let m = self.member_of(head);
         let voice: BTreeSet<&K> = c
             .sigs
             .iter()
             .filter(|k| m.contains(k))
             .filter(|k| !(self.say && rcpts.get(*k).is_some_and(|xs| xs.iter().any(|x| self.conc(x, &c.id)))))
             .collect();
-        voice.len() >= self.q(&act.head)
+        voice.len() >= self.q(head)
     }
 
-    /// Whether act `a` counts at the head it names.
-    pub fn counts_at(&self, a: &I) -> bool {
+    /// Whether head `h` has head `he` strictly in its past.
+    fn later(&self, h: &Option<I>, he: &Option<I>) -> bool {
+        match (h, he) {
+            (Some(h), Some(he)) => h != he && self.anc.get(h).is_some_and(|s| s.contains(he)),
+            _ => false,
+        }
+    }
+
+    /// A cut at the act's own head, concurrent with it.
+    fn voids_at(&self, c: &Entry<I, K, T>, a: &I, rcpts: &BTreeMap<K, Vec<I>>) -> bool {
+        let act = &self.rec[a];
+        c.head == act.head && self.conc(&c.id, a) && self.met(c, &act.head, rcpts)
+    }
+
+    /// A cut at a head older than the act's (a head in the past of the act's head), concurrent with it: rule 4,
+    /// rows on the slot concurrent with the cut do not count from the head the cut names (CONFERRAL_END.md E3).
+    /// Counted over the members at the cut's head, with one say as at the act's own head.
+    fn voids_from(&self, c: &Entry<I, K, T>, a: &I) -> bool {
+        let act = &self.rec[a];
+        if !self.later(&act.head, &c.head) || !self.conc(&c.id, a) {
+            return false;
+        }
+        let rc = if self.say { self.say_receipts(a) } else { BTreeMap::new() };
+        self.met(c, &c.head, &rc)
+    }
+
+    /// Whether act `a` counts at its head against the cuts naming that head: the answer a purge stores as
+    /// final ([`Entry::final_counts`]).
+    pub(crate) fn counts_own(&self, a: &I) -> bool {
         let r = &self.rec[a];
         if let Some(f) = r.final_counts {
             return f;
@@ -617,6 +663,12 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         }
         let rc = if self.say { self.receipts(a) } else { BTreeMap::new() };
         !self.cuts(a).iter().any(|c| self.voids_at(c, a, &rc))
+    }
+
+    /// Whether act `a` counts at the head it names: no counted cut of it concurrent with it at that head or at
+    /// an older one (KERNEL.md section 6, rule 4). A cut naming a later head acts forward ([`View::carried`]).
+    pub fn counts_at(&self, a: &I) -> bool {
+        self.counts_own(a) && !self.cuts(a).iter().any(|c| self.voids_from(c, a))
     }
 
     /// Whether act `a` is still in force at the latest head: it counts at its own, and no cut of it naming
@@ -763,13 +815,19 @@ pub fn purge<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Outp
     let mut out = BTreeMap::new();
     for (i, r) in &v.rec {
         if r.stub {
-            // a stub stays a stub; a final act's receipt signers are kept
+            // a stub stays a stub; a final act's receipt signers and receipt digests are kept
             let mut r = r.clone();
-            if r.kind == Kind::Act && r.final_counts.is_some() && !r.settled_stub {
-                let mut a: BTreeSet<K> = r.ackers.iter().cloned().collect();
-                a.extend(v.receipts(i).into_keys());
-                r.ackers = a.into_iter().collect();
-                r.settled_stub = v.settled(i);
+            if r.kind == Kind::Act && r.final_counts.is_some() {
+                let held = v.receipts(i);
+                let mut d: BTreeSet<I> = r.acks.iter().cloned().collect();
+                d.extend(held.values().flatten().cloned());
+                r.acks = d.into_iter().collect();
+                if !r.settled_stub {
+                    let mut a: BTreeSet<K> = r.ackers.iter().cloned().collect();
+                    a.extend(held.into_keys());
+                    r.ackers = a.into_iter().collect();
+                    r.settled_stub = v.settled(i);
+                }
             }
             out.insert(i.clone(), r);
             continue;
@@ -786,7 +844,7 @@ pub fn purge<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Outp
         if r.kind == Kind::Cut {
             if let Some(act) = r.of.as_ref().and_then(|o| v.rec.get(o)) {
                 if act.head != r.head {
-                    whole = true; // a forward cut: carried reads it again
+                    whole = true; // a cut at another head: carried, or counts_at for an older head, reads it again
                 }
             }
         }
@@ -810,15 +868,16 @@ pub fn purge<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Outp
         }
         if r.kind == Kind::Act && v.c[i] {
             if fin.contains(i) {
-                e.final_counts = Some(v.counts_at(i));
+                e.final_counts = Some(v.counts_own(i));
             }
+            let mut acks: Vec<I> = v.receipts(i).into_values().flatten().collect();
+            acks.sort();
             if v.settled(i) {
                 e.settled_stub = true;
-                let mut acks: Vec<I> = v.receipts(i).into_values().flatten().collect();
-                acks.sort();
                 e.acks = acks;
             } else if fin.contains(i) {
                 e.ackers = v.receipts(i).into_keys().collect();
+                e.acks = acks;
             }
         }
         if !whole && matches!(r.kind, Kind::Ack | Kind::Cut) && r.of.as_ref().is_some_and(|o| fin.contains(o)) {
@@ -942,6 +1001,72 @@ mod tests {
         }
         assert!(cases > 100_000);
         assert_eq!(bad, 0, "{bad} of {cases} answers differ");
+    }
+
+    /// Rule 4 read from the head the cut names (CONFERRAL_END.md E2, E3): a cut at an older head reaches an act
+    /// at a later head concurrent with it, one say excepted; a cut at a later head acts forward; a cut at a head
+    /// concurrent with the act's, or one the act has in its past, changes nothing at the act's head; a reader
+    /// that acknowledged the act's head holds the older cut void.
+    #[test]
+    fn a_cut_reaches_forward_from_the_head_it_names() {
+        type E = Entry<&'static str, char, i64>;
+        let seat = |id, names: Vec<&'static str>, m: &str, q| {
+            let mut e = E::new(id, Kind::Seat, 'r', names);
+            e.members = m.chars().collect();
+            e.q = q;
+            e
+        };
+        let act = |id, by, head| {
+            let mut e = E::new(id, Kind::Act, by, vec![head]);
+            e.head = Some(head);
+            e
+        };
+        let ack = |id, by, of| {
+            let mut e = E::new(id, Kind::Ack, by, vec![of]);
+            e.of = Some(of);
+            e
+        };
+        let cut = |id, of, sigs: &str, head: &'static str| {
+            let mut e = E::new(id, Kind::Cut, sigs.chars().next().unwrap(), vec![head]);
+            e.of = Some(of);
+            e.head = Some(head);
+            e.sigs = sigs.chars().collect();
+            e
+        };
+        let mut rk = E::new("rk", Kind::ReaderAck, 'N', vec!["v1"]);
+        rk.head = Some("v1");
+        let base = [
+            seat("v0", vec![], "ABC", 2),
+            seat("v1", vec!["v0"], "ABC", 2),
+            seat("w1", vec!["v0"], "ABC", 2),
+            seat("v2", vec!["v1"], "ABC", 2),
+            act("E", 'A', "v1"),
+            ack("aA", 'A', "E"),
+        ];
+        let answer = |extra: Vec<E>, a: &'static str| {
+            let s: Store<&'static str, char, i64> = base.iter().cloned().chain(extra).map(|e| (e.id, e)).collect();
+            let v = View::new(&s, &[], 'N', Reading::Broad, true);
+            (v.counts_at(&a), v.carried(&a))
+        };
+        let at = |extra: Vec<E>| answer(extra, "E");
+        assert_eq!(at(vec![]), (true, true));
+        // E3: a cut naming v0, older than E's v1, concurrent with E: E does not count at v1 (through 0.3.0: it did)
+        assert_eq!(at(vec![cut("x", "E", "BC", "v0")]), (false, false));
+        // one say: B holds a clean receipt of E concurrent with the cut, so B has no say and the cut falls short
+        assert_eq!(at(vec![cut("x", "E", "BC", "v0"), ack("aB", 'B', "E")]), (true, true));
+        // the line: a reader that acknowledged v1 holds the cut at v0 void
+        assert_eq!(at(vec![cut("x", "E", "BC", "v0"), rk]), (true, true));
+        // a cut the act has in its past: rows in its past stand
+        let mut e2 = act("E2", 'A', "v1");
+        e2.names.push("x2");
+        assert_eq!(answer(vec![cut("x2", "E2", "BC", "v0"), e2], "E2"), (true, true));
+        // E2: a cut at E's own head voids it there, as before
+        assert_eq!(at(vec![cut("y", "E", "BC", "v1")]), (false, false));
+        // forward: a cut at the later v2 never changes what counted at v1; E is out of force
+        assert_eq!(at(vec![cut("z", "E", "BC", "v2")]), (true, false));
+        // a cut at w1, concurrent with E's head v1, is neither older nor later: E counts at v1 (E2). `carried`
+        // reads only cuts at later heads, so it is not read there either (open: KERNEL.md section 6)
+        assert_eq!(at(vec![cut("w", "E", "BC", "w1")]), (true, true));
     }
 
     #[test]

@@ -15,9 +15,11 @@ The answers compared:
                of the act it names, and that act is in its past; the reader's own acknowledgement: signed by the
                node; anything else: yes
     countsAt   does the act count at the head it names: no counted act void for the reader (below), and no cut of
-               it naming the SAME head, concurrent with it, whose say-holding signatures by members there reach the
-               count. ONE SAY (CC 2.7.7 rule 6): a signer holding a clean receipt of the act in a row concurrent
-               with the cut has no say on it
+               it naming the SAME head or an OLDER one (a head in the act's head's past), concurrent with it, whose
+               say-holding signatures by members at the head the cut names reach that head's count (rule 4: rows
+               concurrent with the cut do not count from the head the cut names; CONFERRAL_END.md E3). ONE SAY
+               (CC 2.7.7 rule 6): a signer holding a clean receipt of the act in a row concurrent with the cut has
+               no say on it. Before 2026-11-22 only a cut at the act's own head was read
     carried    is the act still in force at the latest head: countsAt, and no cut of it naming a LATER head whose
                signatures by members there reach that head's count. A forward cut is blocked by nothing
     settled    clean receipts from n - t + 1 of the n members at the act's head are held (`ack_blocking_quorum`)
@@ -32,17 +34,22 @@ THE PURGE (the rule under test). The node signs a checkpoint naming the rows not
 acknowledgement and no answer reads it. Each row is then kept whole or as a stub:
     whole   a row under a duty of DUTIES, unless a deletion duty outranks it;
             an act whose countsAt is not final, and every receipt and every cut of it;
-            every cut naming a head later than its act's (carried reads it again);
+            every cut naming a head other than its act's (carried, and countsAt for an older head, read it again);
             a window opener whose window is open at the checkpoint
-    stub    everything else. countsAt is final for a SETTLED act (for every reader), and, for this node only, for
-            an act whose head is older than one the node has acknowledged (BROAD); its receipts and same-head cuts
-            are then dropped. A row a deletion duty ends, and no hold suspends, keeps no bytes.
+    stub    everything else. countsAt against the cuts at the act's own head is final for a SETTLED act (for every
+            reader), and, for this node only, for an act whose head is older than one the node has acknowledged
+            (BROAD); that answer is stored, with the digests of the clean receipts held (one say on a cut at an
+            older head reads them), and its receipts and same-head cuts are then dropped. A cut at an older head
+            is read again: receipts at the act's head do not block it. A row a deletion duty ends, and no hold
+            suspends, keeps no bytes.
 
 `reading="narrow"` runs the same purge and answers under the narrow reading; the check reports the rows each
 reading keeps. PLANTS: `drop_unsettled`, `freeze_now`, `ck_acks` (the checkpoint read as an acknowledgement),
 `drop_duty`, `keep_deleted`, `no_say` (every signature counts, purged and whole alike: the purge then
 differs, so it rests on the one-say rule), `narrow_eval` (purged under the broad reading,
-answered under the narrow), `freeze_carried` (carried stored at the checkpoint).
+answered under the narrow), `freeze_carried` (carried stored at the checkpoint), `final_blocks_earlier` (the
+stored answer read as final against a cut at an older head too). `own_head_only` (a cut at an older head not read,
+the answer before 2026-11-22) is a plant of the rule, not of the purge: check_purge.py counts the answers it changes.
 """
 import hashlib
 import itertools
@@ -162,22 +169,59 @@ class View:
                 out.setdefault(k, []).append(x["id"])
         return out
 
-    def voids_at(self, c, a):
-        act = self.rec[a]
-        if c["head"] != act["head"] or not self.conc(c["id"], a):
-            return False
-        M, q = self.members(act["head"]), self.rec[act["head"]]["q"]
-        R = self.receipts(a) if self.say and self.plant != "no_say" else {}
+    def say_receipts(self, a):
+        """The clean receipts one say reads: those held, and those a purge dropped and recorded on a final act."""
+        R = {k: list(xs) for k, xs in self.receipts(a).items()}
+        for x in self.rec[a].get("acks", ()):
+            if x in self.rec and x not in R.get(self.rec[x]["signer"], ()):
+                R.setdefault(self.rec[x]["signer"], []).append(x)
+        return R
+
+    def _met(self, c, head, R):
+        """The cut's say-holding signatures by members at `head` reach that head's count. ONE SAY: a signer
+        holding a clean receipt of the act in a row concurrent with the cut has no say on it."""
+        M, q = self.members(head), self.rec[head]["q"]
         voice = {k for k in c["sigs"] if k in M and not any(self.conc(x, c["id"]) for x in R.get(k, ()))}
         return len(voice) >= q
 
-    def counts_at(self, a):
+    def later(self, h, he):
+        """Head h has head he strictly in its past."""
+        return h is not None and he is not None and h != he and h in self.anc and he in self.anc[h]
+
+    def voids_at(self, c, a):
+        """A cut naming the act's own head, concurrent with it."""
+        act = self.rec[a]
+        if c["head"] != act["head"] or not self.conc(c["id"], a):
+            return False
+        R = self.receipts(a) if self.say and self.plant != "no_say" else {}
+        return self._met(c, act["head"], R)
+
+    def voids_from(self, c, a):
+        """A cut naming a head OLDER than the act's, concurrent with it (rule 4: rows on the slot concurrent with
+        the cut do not count from the head the cut names; CONFERRAL_END.md E3). Counted over the members at the
+        cut's head; one say as at the act's own head."""
+        if self.plant == "own_head_only":
+            return False
+        act = self.rec[a]
+        if not self.later(act["head"], c["head"]) or not self.conc(c["id"], a):
+            return False
+        R = self.say_receipts(a) if self.say and self.plant != "no_say" else {}
+        return self._met(c, c["head"], R)
+
+    def counts_own(self, a):
+        """countsAt against the cuts at the act's own head: what a purge may store as final."""
         r = self.rec[a]
         if r.get("final") is not None:
             return r["final"]
         if a in self.V:
             return False
         return not any(self.voids_at(c, a) for c in self._cuts(a))
+
+    def counts_at(self, a):
+        r = self.rec[a]
+        if self.plant == "final_blocks_earlier" and r.get("final") is not None:
+            return r["final"]
+        return self.counts_own(a) and not any(self.voids_from(c, a) for c in self._cuts(a))
 
     def carried(self, a):
         r = self.rec[a]
@@ -260,8 +304,11 @@ def purge(store, own, now, reading="broad", plant=None):
         if i == "ck":
             continue
         if r.get("stub"):                                                # a stub stays a stub; a final act's receipt
-            if r["kind"] == "act" and r.get("final") is not None and not r.get("settled_stub"):   # signers are kept
-                r = dict(r, ackers=tuple(sorted(set(r.get("ackers", ())) | set(V.receipts(i)))), settled_stub=V.settled(i))
+            if r["kind"] == "act" and r.get("final") is not None:   # signers and receipt digests are kept
+                held = {x for xs in V.receipts(i).values() for x in xs}
+                r = dict(r, acks=tuple(sorted(set(r.get("acks", ())) | held)))
+                if not r.get("settled_stub"):
+                    r = dict(r, ackers=tuple(sorted(set(r.get("ackers", ())) | set(V.receipts(i)))), settled_stub=V.settled(i))
             out[i] = r
             continue
         d, k = duty_of(r), r["kind"]
@@ -284,11 +331,12 @@ def purge(store, own, now, reading="broad", plant=None):
         kw = {}
         if k == "act" and V.C[i]:
             if i in final or plant == "drop_unsettled":
-                kw.update(final=V.counts_at(i))
+                kw.update(final=V.counts_own(i) if plant != "final_blocks_earlier" else V.counts_at(i))
+            acks = tuple(sorted(x for xs in V.receipts(i).values() for x in xs))
             if V.settled(i):
-                kw.update(settled_stub=True, acks=tuple(sorted(x for xs in V.receipts(i).values() for x in xs)))
+                kw.update(settled_stub=True, acks=acks)
             elif i in final:
-                kw.update(ackers=tuple(sorted(V.receipts(i))))
+                kw.update(ackers=tuple(sorted(V.receipts(i))), acks=acks)
             if plant == "freeze_carried":
                 kw.update(frozen_carried=V.carried(i))
         if whole:
@@ -380,6 +428,19 @@ history("reader closes an older head", "N",
         [seat("v0", (), "ABC", 2), act("E", "A", "v0"), ack("aA", "A", "E"), seat("v1", ("v0", "E"), "ABC", 2),
          row("rk", "rack", "N", ("v1",), head="v1"), act("F", "B", "v0"), ack("fB", "B", "F")],
         [cut("x", "E", "BC", "v0"), cut("y", "F", "AC", "v0"), ack("aB", "B", "E")])
+# A cut at an EARLIER head reaches a later one (rule 4, CONFERRAL_END.md E3): E names v1, the cut x names v0 and is
+# concurrent with E, so E does not count at v1 unless B's concurrent receipt takes B's say; a reader that
+# acknowledged v1 holds x void (the line, CC 2.7.8).
+history("a cut at an earlier head reaches a later head", "N",
+        [seat("v0", (), "ABC", 2), seat("v1", ("v0",), "ABC", 2), act("E", "A", "v1"), ack("aA", "A", "E")],
+        [cut("x", "E", "BC", "v0"), ack("aB", "B", "E"), row("rk", "rack", "N", ("v1",), head="v1")])
+# A settled act is final against cuts at its own head, not against a cut at an earlier head: E is settled at v1
+# (members AXY, count 2) by X and A, and the purge drops its receipts; x by A and B at v0 does not count (A holds a
+# concurrent receipt: one say, read from the receipts the purge recorded), y by B and C at v0 voids E.
+history("a settled act and cuts at an earlier head", "N",
+        [seat("v0", (), "ABC", 2), seat("v1", ("v0",), "AXY", 2), act("E", "X", "v1"), ack("aX", "X", "E"),
+         ack("aA", "A", "E")],
+        [cut("x", "E", "AB", "v0"), cut("y", "E", "BC", "v0"), row("rk", "rack", "N", ("v1",), head="v1")])
 
 
 def extensions(pool):
