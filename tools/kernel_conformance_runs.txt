@@ -31,3 +31,10 @@ trust walk against the Lean walk
 trust walk, TrustSet.lean worked world
 trust::reaches and derived::reach against the walks they replaced
 held_view::differential over purge.json histories (in order, reversed, shuffled; resumed)
+the end of a conferral (conferral_end.py case table)
+the end of a conferral, one row not held (undecided, never a wrong bit)
+room content after a seat ends (conferral_content.py case table)
+room content, one row not held (undecided, never a wrong bit)
+room content, histories built row by row (conferral_content.py)
+room content, folded row by row with changed
+room content with no end held (counted where seated; in force unless retracted)

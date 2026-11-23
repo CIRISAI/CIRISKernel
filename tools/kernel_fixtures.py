@@ -19,11 +19,12 @@ Sources (all under models/):
               line, holders, tips and window outcomes
     purge     causal_kernel/purge.py: every replay check_purge.py runs, under both readings
     key_end   causal_kernel/check_key_end.py: every generated world at every instant
-    conferral_end causal_kernel/conferral_end.py: the case table of the end of a conferral (CC 2.4.1.1, CC 4.5.5)
-              as recommended for persist v62.0, with every act's `counted`, `in_force` and deciding `rule`. No
-              Rust test reads it: it is the conformance fixture for persist, which writes its own adapter.
+    conferral_end causal_kernel/conferral_end.py: the case table of the end of a conferral (CC 2.4.1.1, CC 4.5.5),
+              with every act's `counted`, `in_force` and deciding `rule`. tests/conferral_end.rs replays it
+              through conferral::answers, and an adopter may run it against its own code.
     conferral_content causal_kernel/conferral_content.py: room content after a member's seat ends, where the end
-              names the rows held good (a proposal for CC 2.4.1.1). The same format; no Rust test reads it.
+              names the rows held good: its case table, and (conferral_content_worlds) histories built row by
+              row as check_conferral_content.py builds them. tests/content.rs replays both through content::answers.
 """
 import base64
 import hashlib
