@@ -164,10 +164,12 @@ it holds good (`trusted_through`). `models/tla/CONFERRAL_END.md`, section I, has
 and what was found.
 
 It differs from `conferral_end.json` in these fields:
-- an act has `prev` (the same key's previous content row, or `null`);
+- an act has `prev`, the list of its predecessors (its author's rows; empty for a first row). An edit or a
+  retraction also has `target` and `compose`, which no rule reads;
 - an end has `trusted_through` (a list; empty where its signers held none of the member's rows), and its
-  `signer` is `count` for a removal or a key of the member (`B`, `B2`) for a resignation;
-- a row of kind `tips` adds tips to the end it names in `extends`;
+  `signer` is `count` for a removal or a key of the member (`B`, `B2`) for a resignation. Its tips are not in
+  `names`: the end does not wait for them, and a tip that is not among the case's rows keeps nothing;
+- a row of kind `tips` adds tips to the end it names in `extends`, and has the `head` it is counted over;
 - a case has `merge` (whose tips are read) in place of `reader_acks`, `other_standing` and `who`;
 - `in_force` means "in the room's content", and `refused` is `null` in every case.
 

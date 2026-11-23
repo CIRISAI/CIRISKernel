@@ -431,15 +431,20 @@ adds tips, so two ends and growing tips are outside it.
   an honest late row;
 - a receipt per content row by co-members is a signed "seen" per member per row.
 
-**The proposal.**
-1. A content row (a message, a file placement, a reaction) is an act under its signer's membership. It names
-   its roster head and, in `prev`, the previous content row of the same key in the room: one series per key.
+**The proposal**, as it stood after persist and Edge read their code against it:
+1. A content row (a message, a file placement, a reaction, an edit or a retraction of one) is an act under its
+   signer's membership. On the wire each is a composer its author signs. It names its roster head and, in
+   `prev`, its author's current newest content rows in the room: a set of predecessors. One identity key is
+   held on all of a person's devices, so a series forks routinely, and a row naming both branches joins them.
 2. The row that ends the seat (a counted removal, or the member's own resignation) names in `trusted_through`
-   the newest row of each series its signers hold: the tips.
-3. After the end, a content row of the member is in the room's content when it is a named tip or an ancestor
-   of one along `prev`. Every other row of theirs counts at its own head and is not in the content.
-4. Tips only grow: a later counted row of the body may name further tips, and the kept set is the union.
-5. No co-member receipts content.
+   the newest rows of the member its signers hold good: the tips, a set (the text caps it at 64).
+3. The end never waits on a tip. It concludes on its own terms; a tip not yet held keeps nothing until it
+   arrives, and one that never arrives keeps nothing.
+4. After the end, a content row of the member is in the room's content when it is a held tip or an ancestor of
+   one along `prev` among its author's own rows. Every other row of theirs counts at its own head and is not
+   in the content.
+5. Tips only grow: a later counted row of the body may name further tips, and the kept set is the union.
+6. No co-member receipts content.
 
 **Is this the form section C dropped?** No. The dropped form (guard (b), `_line_tips`) moved the READER'S LINE
 onto series tips: a reader that acknowledged a newer tip of the target's series held void an end that acked an
@@ -450,10 +455,12 @@ content: section E already says "an ender who acks an old tip keeps only what li
 
 **The reference and the run.** `models/causal_kernel/conferral_content.py` is the reference, and
 `check_conferral_content.py` (a `./check.sh` step) checks it:
-- 25 cases with a hand-written answer for every content row, each in every arrival order;
-- every history of up to four rows beyond two roster heads: 263,959 histories, 272,150 extensions compared.
-  A history has up to three content rows on two keys, up to two ends (a removal or a resignation, at either
-  head, with up to two tips, optionally stale or naming the earlier end) and one row adding tips;
+- 35 cases with a hand-written answer for every content row, each in every arrival order;
+- every history of up to four rows beyond two roster heads: 1,045,545 histories, 1,412,410 extensions compared.
+  A history has up to three content rows, each naming up to two earlier ones as predecessors; up to two ends
+  (a removal or a resignation, at either head, optionally stale or naming the earlier end); and one row adding
+  tips. An end's or an adding row's tips may be rows not held or not signed yet. The default run uses one key
+  and five tip sets; `--wide` uses two keys and every pair of tips;
 - three plants, each caught.
 
 **What the run found.**
@@ -470,10 +477,14 @@ content: section E already says "an ender who acks an old tip keeps only what li
      counted row adding tips;
    - the member's own ends are read only where no counted end counts, and then a row stays only where EVERY
      one of them holds it good, so a further resignation can take rows out and never add one;
-   - a row adding tips signed by the member is never read (plant: caught).
+   - a row adding tips signed by the member is never read (plant: caught);
+   - after a resignation with no counted end, a counted row adding tips adds to what the member held good:
+     the member's own tips are still read (`resignation_then_counted_tips`), and a further resignation narrows
+     only those, never what the counted row named (`resignation_counted_tips_then_narrowing`).
 
-   With that, `cannot_add` holds over the whole run: once an end counts, rows signed by the member alone never
-   put a row into the room's content, neither a new row nor an old one.
+   With that, `cannot_add` holds over the whole run: once an end counts, no end and no tips row the member
+   signs puts a row into the room's content, and a content row the member signs enters only where a tip named
+   before it holds it good.
 
 2. **Whether an end counts must depend on its own causal past alone.** A first draft voided the member's own
    end where it named a head later than another end's. The run found the member reviving a row that way: it
@@ -487,7 +498,7 @@ content: section E already says "an ender who acks an old tip keeps only what li
    E3, not the tips:
    - a further counted end at an older head takes out rows at later heads, and nothing else (`further_end`);
    - the member's own backdated end at an older head takes its own kept rows at later heads out. Among
-     extensions by the member alone this happened 228 times, always by `E3.later_head`, and nothing else ever
+     extensions by the member alone this happened 1,380 times, always by `E3.later_head`, and nothing else ever
      took out a row the count held good (`word_stands`). Section E lists this under backdating; the reader's
      line bounds it, and the line is not in this run.
 
@@ -495,18 +506,42 @@ content: section E already says "an ender who acks an old tip keeps only what li
    set is their union (`two_removals_different_tips`). Nothing waits, and the answer is a function of the held
    rows. That the two removals are also two tips of the roster is the line's business, as for any counted row.
 
-5. **The costs are as the proposal states them**, each a fixture case:
+5. **The end that does not wait.** The run lets an end name tips that are not held, and tips of rows not
+   signed yet. `cannot_add` still holds in the form above, and the answer is the same in every arrival order
+   once the rows are held (`tip_arrives_after_end`). What it admits:
+   - an end naming a tip that never arrives keeps nothing, and no rule tells it from an end that names none
+     (`end_names_tip_never_held`). A node must keep the end's tips to apply a late arrival;
+   - a resigning member may name a tip it has signed and not published, and publish it later with a chain
+     behind it. Those rows were signed before the resignation that names them, at heads the member sat at;
+     the member cannot choose them afterwards. Under a waiting end they would have had to arrive first.
+   - naming a tip never makes it count: a tip at a head later than `h_e`, or one that has the end in its
+     past, stays out (`tip_at_later_head`).
+
+6. **Predecessors as a set.** The walk from a tip follows every `prev` that is a row of the same key, so a row
+   that names two branches keeps both under one tip (`fork_rejoined`), and an end may name several tips of
+   one key (`fork_both_branches_named`). Nothing new opens: a row signed later is never an ancestor of a tip
+   named earlier. A predecessor that is another key's row is not followed.
+
+7. **A composer does not follow its target.** An edit or a retraction is a content row and is kept only where
+   a tip holds it good. If "a composer on a kept row follows its target" meant it is kept because its target
+   is, an ended member would rewrite its kept posts for ever (`kept_post_edited_after_end`: the edit is out,
+   the post stays as the count held it good). The same rule keeps a retraction signed after the end out, so
+   the retracted post stays in the room (`kept_post_retracted_after_end`). Taking one's own row out can never
+   add content, so the Constitution could let a member's own retraction take effect whenever it is signed;
+   the reference does not.
+
+8. **The costs are as the proposal states them**, each a fixture case:
    - a row in flight when the removers signed is out for everyone until a counted row names it
      (`removal_in_flight_row`, `in_flight_row_named_later`);
    - a key the enders never saw sign has its whole series out until named (`second_key_never_seen`);
-   - in a forked series only the named branch stays (`fork_of_one_series`); "at most one tip per series" then
-     leaves the other branch to a later counted row, even where the enders held both.
+   - in a forked series only the named branches stay (`fork_of_one_series`); a branch the enders did not hold
+     waits for a later counted row.
 
 **The node-local fallback** (a row a reader held before it held the end stays shown to that reader) is not part
 of the proposal, and the reference keeps it apart (`shown_first_held`).
 - It is the spec's `arrival` plant: an answer latched on arrival, which `Inv_Fold` and `Inv_NodesAgree` exist
-  to catch. In 9 of the 25 cases two arrival orders of one set of rows show different rooms.
-- In 10 cases it shows a row the proposal keeps out. That includes a row the member signed after the removal
+  to catch. In 14 of the 35 cases two arrival orders of one set of rows show different rooms.
+- In 14 cases it shows a row the proposal keeps out. That includes a row the member signed after the removal
   that reached a node before the removal did, so it does not keep such rows out "everywhere": it keeps them
   out only at nodes the end reached first.
 - A node that folds again from its rows (a cold start, a checkpoint) loses the order unless it stores it.
@@ -515,8 +550,10 @@ of the proposal, and the reference keeps it apart (`shown_first_held`).
 
 **For the Constitution to settle; the run does not.**
 - Which `merge`. The run supports `count_first`; `union` is unsafe.
-- A row adding tips is "a counted row of the same body". The reference takes its signer as the count and gives
-  it no head. If it names a head it is a counted row under the reader's line like any other.
+- A row adding tips is a counted row of the room. The Constitution has said it names the head it is counted
+  over and the end it extends. The reference carries that head and no rule reads it; the reader's line on it
+  is not in this run.
+- Whether a member's own retraction of a kept row takes effect after the end (finding 7).
 - A resignation's tips are the member's own word about its own rows. That is harmless here, since those rows
   were signed at heads it sat at, and a second resignation can only remove.
 

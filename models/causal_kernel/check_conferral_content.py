@@ -7,15 +7,18 @@ check_conferral_content.py: room content after a member's seat ends, where the e
                  and rule for every content row, in every arrival order the door allows (up to 200 per case)
     fixture      crates/ciris-kernel/tests/fixtures/conferral_content.json: the reference, run on each case's
                  rows, gives every answer the fixture states, and each listed arrival order ends at it
-    every world  every history to a bound (two roster heads; up to three content rows on two keys of the
-                 member, each naming any earlier row as `prev` and optionally an earlier end; up to two ends,
-                 each a counted removal or the member's own, at either head, naming up to two tips, optionally
-                 stale or naming the earlier end; one row adding tips, counted or the member's own; four rows
-                 in all besides the heads, or `--rows N`), built row by row, every row naming only earlier rows. Every
-                 extension of a held set by rows of the member alone, and by one counted row, is compared:
+    every world  every history to a bound, built row by row, every row naming only earlier rows: two roster
+                 heads; up to three content rows of the member, each naming up to two earlier ones as `prev`
+                 and optionally an earlier end; up to two ends, each a counted removal or the member's own, at
+                 either head, optionally stale or naming the earlier end; one row adding tips, counted or the
+                 member's own; four rows in all besides the heads (`--rows N`). An end's or an adding row's
+                 tips may be rows not held or not signed yet. By default one key signs and the tip sets are
+                 none, each single row and one pair; `--wide` has two keys and every pair. Every extension of a
+                 held set by rows of the member alone, and by one counted row, is compared:
 
-        cannot_add      once an end counts, rows signed by the member alone never put a row into the room's
-                        content: not a new row, and not an old one
+        cannot_add      once an end counts, no end and no tips row the member signs puts a row into the room's
+                        content, and a content row the member signs enters only where a tip named before it
+                        holds it good (a tip may name a row not yet held: the end never waits on one)
         word_stands     a row the count's tips hold good stays, whatever the member signs, unless the member's
                         own backdated end puts it at a later head than an end of its seat (E3.later_head): the
                         reader's line bounds that, and the run reports how often it happens
@@ -32,7 +35,8 @@ check_conferral_content.py: room content after a member's seat ends, where the e
     The run reports, over the case table, in how many cases two arrival orders of one set of rows show
     different rooms.
 
-    python3 -I check_conferral_content.py      exit 1 on any difference
+    python3 -I check_conferral_content.py [--rows N] [--workers N]      exit 1 on any difference
+    (three worker processes and the calling one, as the other checks here)
 """
 import itertools
 import json
@@ -48,6 +52,7 @@ import conferral_content as CC  # noqa: E402
 FIXTURE = os.path.join(ROOT, "crates", "ciris-kernel", "tests", "fixtures", "conferral_content.json")
 HEADS = [CC.head("H0"), CC.head("H1", "H0")]
 MAX_ROWS, MAX_ACTS, MAX_ENDS, MAX_TIPS = 4, 3, 2, 1
+WIDE = False     # --wide: two keys and every pair of tips; the default is one key and the tip sets below
 
 
 def next_rows(rows):
@@ -57,12 +62,16 @@ def next_rows(rows):
     n_tips = sum(r["kind"] == "tips" for r in rows)
     if len(acts) < MAX_ACTS:
         i = "a%d" % (len(acts) + 1)
-        for key in CC.KEYS:
+        for key in (CC.KEYS if WIDE else CC.KEYS[:1]):
             for h in ("H0", "H1"):
-                for prev in [None] + acts:
+                for prev in [()] + [c for n in (1, 2) for c in itertools.combinations(acts, n)]:
                     for cite in [None] + ends:
                         yield CC.act(i, h, prev, [cite] if cite else [], signer=key)
-    tip_sets = [()] + [c for k in (1, 2) for c in itertools.combinations(acts, k)]
+    # a tip may be a row not signed yet (a1 to a3 by id): the end does not wait on its tips
+    every = ["a%d" % n for n in range(1, MAX_ACTS + 1)]
+    tip_sets = [()] + [c for k in (1, 2) for c in itertools.combinations(every, k)]
+    if not WIDE:
+        tip_sets = [(), ("a1",), ("a2",), ("a3",), ("a1", "a2")]
     if len(ends) < MAX_ENDS:
         i = "e%d" % (len(ends) + 1)
         for signer in (CC.COUNT, "B"):
@@ -75,7 +84,7 @@ def next_rows(rows):
         for signer in (CC.COUNT, "B"):
             for e in ends:
                 for tp in tip_sets[1:]:
-                    yield CC.tips("t1", e, tp, signer)
+                    yield CC.tips("t1", e, tp, signer)      # at H0; no rule reads an adding row's head
 
 
 def by_member(r):
@@ -95,7 +104,7 @@ class Run:
         self.bad.setdefault(prop, (note, [(r["id"], r["kind"], r["signer"], r.get("head"), r.get("prev"),
                                           r.get("trusted_through"), r["names"]) for r in rows]))
 
-    def go(self, rows, path):
+    def go(self, rows, path, descend=True):
         """`path[j]`: for the prefix of `rows` of length len(HEADS) + j, its answers, whether an end counts in it,
         and whether a counted end does."""
         if self.limit is not None and self.bad:
@@ -115,9 +124,16 @@ class Run:
                 pa, p_end, p_count_end = path[k - len(HEADS)]
                 if p_end:
                     self.pairs += 1
+                    # the same content rows, without the ends and tips rows the member signed since
+                    base = self.ans(rows[:k] + [r for r in rows[k:] if r["kind"] == "act"])
                     for x, v in a.items():
-                        if v["in_force"] and not (x in pa and pa[x]["in_force"]):
-                            self.fail("cannot_add", rows, "%s enters the content after rows of the member alone" % x)
+                        if v["in_force"] and not base[x]["in_force"]:
+                            self.fail("cannot_add", rows, "%s is in the content by an end or a tips row the member "
+                                                          "signed after an end counted" % x)
+                        if v["in_force"] and x not in pa and not any(
+                                x in CC.held_good(rows, r) for r in rows[:k] if r["kind"] in ("end", "tips")):
+                            self.fail("cannot_add", rows, "%s is in the content and no tip named before it holds "
+                                                          "it good" % x)
                 if p_count_end:
                     for x, v in pa.items():
                         if v["in_force"] and not a[x]["in_force"]:
@@ -143,9 +159,41 @@ class Run:
                         self.fail("counted_alike", rows, "a count differs under %s" % m)
                 if CC.answers(rows[::-1], self.merge) != a:
                     self.fail("set_function", rows, "the answer depends on the order of the list")
-        if len(added) < MAX_ROWS:
+        if descend and len(added) < MAX_ROWS:
             for r in next_rows(rows):
                 self.go(rows + [r], path + [info])
+        return info
+
+
+def _subtree(job):
+    """One worker's share: the histories that begin with the two rows of `job`."""
+    kw, rows_max, wide, r1, r2 = job
+    global MAX_ROWS, WIDE
+    MAX_ROWS, WIDE = rows_max, wide
+    run = Run(**kw)
+    path = [run.go(list(HEADS), [], descend=False)]
+    path.append(run.go(HEADS + [r1], path, descend=False))
+    run.worlds, run.pairs, run.e3, run.bad = 0, 0, 0, {}    # the two prefixes are the caller's to count
+    run.go(HEADS + [r1, r2], path)
+    return run.worlds, run.pairs, run.e3, run.bad
+
+
+def explore(workers=3, **kw):
+    """Every history to the bound, the subtrees below the first two rows shared among `workers` processes."""
+    import multiprocessing
+    top = Run(**kw)
+    path = [top.go(list(HEADS), [], descend=False)]
+    jobs = []
+    for r1 in next_rows(list(HEADS)):
+        top.go(HEADS + [r1], path, descend=False)
+        if MAX_ROWS >= 2:
+            jobs += [(kw, MAX_ROWS, WIDE, r1, r2) for r2 in next_rows(HEADS + [r1])]
+    with multiprocessing.Pool(workers) as pool:
+        for w, p, e, bad in pool.imap_unordered(_subtree, jobs, chunksize=8):
+            top.worlds += w; top.pairs += p; top.e3 += e
+            for k, v in bad.items():
+                top.bad.setdefault(k, v)
+    return top
 
 
 def first_held():
@@ -167,7 +215,8 @@ def first_held():
 
 
 def main():
-    global MAX_ROWS
+    global MAX_ROWS, WIDE
+    WIDE = "--wide" in sys.argv
     if "--rows" in sys.argv:
         MAX_ROWS = int(sys.argv[sys.argv.index("--rows") + 1])
     n, problems = CC.check_cases()
@@ -190,8 +239,8 @@ def main():
     if {c["name"] for c in fx["cases"]} != {c[0] for c in CC.CASES}:
         problems.append("the fixture's cases are not the table's")
 
-    run = Run()
-    run.go(list(HEADS), [])
+    workers = int(sys.argv[sys.argv.index("--workers") + 1]) if "--workers" in sys.argv else 3
+    run = explore(workers)
     for prop, (note, rows) in sorted(run.bad.items()):
         problems.append("%s: %s\n    %s" % (prop, note, "\n    ".join(map(str, rows))))
 
@@ -211,9 +260,10 @@ def main():
         print(p)
     print("first-held fallback (not part of the proposal): in %d of %d cases two arrival orders of one set of rows "
           "show different rooms; in %d it shows a row the proposal keeps out" % (len(differ), n, len(shows_out)))
-    print("RESULT: %s: %d cases, %d content answers; %d histories of up to %d rows, %d extensions compared; a "
+    print("RESULT: %s: %d cases, %d content answers; %d histories of up to %d rows%s, %d extensions compared; a "
           "member's backdated end took a kept row out by E3 in %d; plants caught %d of %d"
-          % ("ok" if not problems else "%d problems" % len(problems), n, answers, run.worlds, MAX_ROWS, run.pairs,
+          % ("ok" if not problems else "%d problems" % len(problems), n, answers, run.worlds, MAX_ROWS,
+             " (wide)" if WIDE else "", run.pairs,
              run.e3, caught, len(plants)))
     return 1 if problems else 0
 

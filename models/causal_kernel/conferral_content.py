@@ -5,14 +5,19 @@ set of rows, for every content row of the member, whether it is COUNTED at its o
 FORCE (in the room's content) now, and the rule that decides it.
 
 The proposal.
-1. A content row (a message, a file placement, a reaction) is an act under its signer's membership. It names
-   the roster head it is at and, in `prev`, the previous content row of the same KEY in the room: one series per
-   key, so a member with two devices has two series.
+1. A content row (a message, a file placement, a reaction, and an edit or a retraction of one: on the wire each
+   is a composer its author signs) is an act under its signer's membership. It names the roster head it is at
+   and, in `prev`, its author's current newest content rows in the room: its predecessors, a set. One key held
+   on several devices forks routinely, and a row that names both branches joins them.
 2. A row that ends the member's seat (a counted removal, or the member's own resignation) names in
-   `trusted_through` the newest row of each series its signers hold: the tips.
-3. After the end, a content row of the member is in the room's content when it is a named tip or an ancestor of
-   one along `prev`. Every other content row of theirs counts at its own head and is not in the room's content.
-4. Tips only grow: a later counted row of the same body (`tips`) may name further tips, and the kept set is the
+   `trusted_through` the newest rows of the member its signers hold good: the tips, a set.
+3. THE END NEVER WAITS ON A TIP. A tip is not among the rows the end names for the door, so the end concludes
+   whether or not its tips are held. A tip that is not held keeps nothing; when it arrives, it and its
+   ancestors are kept. A tip that never arrives keeps nothing, for ever.
+4. After the end, a content row of the member is in the room's content when it is a named tip that is held, or
+   an ancestor of one along `prev` among its author's own rows. Every other content row of theirs counts at its
+   own head and is not in the room's content.
+5. Tips only grow: a later counted row of the same body (`tips`) may name further tips, and the kept set is the
    union. No co-member receipts content.
 
 No instant is read and no arrival order: the answer is a function of the held rows. One member's seat and its
@@ -23,11 +28,14 @@ key removals.
 Rows (the kernel's row shape: `id`, `kind`, `signer`, the ids it `names`, and the fields a rule reads):
     head   a roster version; `names` the heads it extends
     act    a content row of the member: `signer` the key (B or B2), `head` the roster head it names, `prev` the
-           key's previous content row or None
+           list of its predecessors (empty for a first row), and for an edit or a retraction `target`, the row
+           it composes on, and `compose` ("edit" or "retract"). No rule reads `target` or `compose`: a
+           composer is a content row like any other
     end    an end of the member's seat: `signer` "count" (a counted removal) or a key of the member (its own
            resignation), `head` (h_e), `trusted_through` the tips it holds good (a list; empty where its signers
-           hold none, which on the wire is the member's absence)
-    tips   a later row naming further tips: `extends` the end it adds to (which it names), `trusted_through`
+           hold none, which on the wire is the member's absence). The tips are NOT in `names`
+    tips   a later row naming further tips: `extends` the end it adds to (which it names), `trusted_through`,
+           and `head`, the roster head it is counted over (a counted row names one; no rule here reads it)
 
 Which ends count:
     end_void.stale_head  E1: the end has a head later than h_e in its own past: it concludes nothing
@@ -53,7 +61,8 @@ Rules for a content row, in the order they decide (the name a failing test repor
     no_end           no end counts: counted and in force
     E4.names_end     the row has a counting end in its past: not counted
     E3.later_head    the row names a head that has a counting end's h_e in its past: the seat is ended there
-    T.held_good      counted and in force: a tip that is read, or its ancestor along `prev` in the same series
+    T.held_good      counted and in force: a held tip that is read, or its ancestor along `prev` among rows of
+                     the same key
     E2.forward       counted at its own head, not in force: not held good
 """
 
@@ -99,8 +108,8 @@ def counting_ends(rows):
 
 
 def held_good(rows, r):
-    """The content rows a row's tips hold good: each named tip that is a content row of the member, and its
-    ancestors along `prev` while they are rows of the same key (one series)."""
+    """The content rows a row's tips hold good: each named tip that is held and is a content row of the member,
+    and its ancestors along every `prev` that is a row of the same key."""
     by = {x["id"]: x for x in rows}
     out, todo = set(), list(r.get("trusted_through", ()))
     while todo:
@@ -109,9 +118,10 @@ def held_good(rows, r):
         if x is None or x["kind"] != "act" or x["signer"] not in KEYS or t in out:
             continue
         out.add(t)
-        p = by.get(x.get("prev"))
-        if p is not None and p["signer"] == x["signer"]:
-            todo.append(p["id"])
+        for q in x.get("prev") or ():
+            p = by.get(q)
+            if p is not None and p["signer"] == x["signer"]:
+                todo.append(q)
     return out
 
 
@@ -177,19 +187,21 @@ def head(i, *names):
     return {"id": i, "kind": "head", "signer": COUNT, "names": list(names)}
 
 
-def act(i, h, prev=None, names=(), signer="B"):
-    return {"id": i, "kind": "act", "signer": signer, "head": h, "prev": prev,
-            "names": sorted(set(names) | {h} | ({prev} if prev else set()))}
+def act(i, h, prev=(), names=(), signer="B", **kw):
+    prev = [prev] if isinstance(prev, str) else sorted(prev or ())
+    return dict({"id": i, "kind": "act", "signer": signer, "head": h, "prev": prev,
+                 "names": sorted(set(names) | {h} | set(prev) | ({kw["target"]} if kw.get("target") else set()))},
+                **kw)
 
 
 def end(i, h, tips=(), signer=COUNT, names=()):
     return {"id": i, "kind": "end", "signer": signer, "head": h, "trusted_through": sorted(tips),
-            "names": sorted(set(names) | {h} | set(tips))}
+            "names": sorted(set(names) | {h})}                 # the tips are not named: the end never waits
 
 
-def tips(i, extends, tps, signer=COUNT):
-    return {"id": i, "kind": "tips", "signer": signer, "extends": extends, "trusted_through": sorted(tps),
-            "names": sorted({extends} | set(tps))}
+def tips(i, extends, tps, signer=COUNT, h="H0"):
+    return {"id": i, "kind": "tips", "signer": signer, "head": h, "extends": extends,
+            "trusted_through": sorted(tps), "names": sorted({extends, h})}
 
 
 H0, H1 = head("H0"), head("H1", "H0")
@@ -231,12 +243,41 @@ CASES = [
      [H0, M1, end("E", "H0", ["m1"]), act("m2", "H0", "m1", ["E"])], {},
      {"m1": KEPT, "m2": (F, F, "E4.names_end")}),
     ("resignation_names_tip", "the member's own resignation names its own newest row, which no one else holds "
-     "yet: the resignation waits at every node until m2 is held (it names it), and then the history stays",
+     "yet: the resignation concludes at once (the seat ends; nothing waits), and when m2 arrives it and what is "
+     "behind it are kept",
      [H0, M1, M2, end("R", "H0", ["m2"], "B")], {}, {"m1": KEPT, "m2": KEPT},
-     [["H0", "m1", "m2", "R"]]),
+     [["H0", "m1", "R", "m2"], ["H0", "m1", "m2", "R"]]),
+    ("end_names_tip_never_held", "the end names a tip that never arrives: it keeps nothing, and no rule tells "
+     "this end from one that names no tip, so the member's held rows are out",
+     [H0, M1, end("E", "H0", ["m9"])], {}, {"m1": OUT}),
+    ("tip_arrives_after_end", "the removal names m2, and m2 reaches this node after the removal: out until then, "
+     "kept from then on; the same answer in every arrival order once the rows are held",
+     [H0, M1, end("E", "H0", ["m2"]), M2], {}, {"m1": KEPT, "m2": KEPT},
+     [["H0", "m1", "E", "m2"], ["H0", "m1", "m2", "E"], ["H0", "E", "m1", "m2"]]),
     ("fork_of_one_series", "one key forked its own series (m2 and x2 both follow m1): the end names one branch, "
      "and only that branch and what is behind it stay; the other branch is out until a counted row names it",
      [H0, M1, M2, act("x2", "H0", "m1"), end("E", "H0", ["m2"])], {}, {"m1": KEPT, "m2": KEPT, "x2": OUT}),
+    ("fork_both_branches_named", "the enders hold both branches of a fork and name both: tips are a set, and "
+     "both branches stay",
+     [H0, M1, M2, act("x2", "H0", "m1"), end("E", "H0", ["m2", "x2"])], {}, {"m1": KEPT, "m2": KEPT, "x2": KEPT}),
+    ("fork_rejoined", "two devices forked the series (m2, x2) and a later row names both as its predecessors: "
+     "one tip keeps both branches",
+     [H0, M1, M2, act("x2", "H0", "m1"), act("j3", "H0", ["m2", "x2"]), end("E", "H0", ["j3"])], {},
+     {"m1": KEPT, "m2": KEPT, "x2": KEPT, "j3": KEPT}),
+    ("kept_post_edited_before_end", "the member edited its post m1 before the removal, and the edit is behind the "
+     "named tip: the edit is kept with its target",
+     [H0, M1, act("e2", "H0", "m1", target="m1", compose="edit"), end("E", "H0", ["e2"])], {},
+     {"m1": KEPT, "e2": KEPT}),
+    ("kept_post_edited_after_end", "after the removal the member signs an edit of its kept post m1 at the old "
+     "head: the edit is a content row no tip names, so it is out though its target is kept. A composer does "
+     "NOT follow its target into the content; if it did, an ended member would rewrite its kept posts",
+     [H0, M1, end("E", "H0", ["m1"]), act("e2", "H0", "m1", target="m1", compose="edit")], {},
+     {"m1": KEPT, "e2": OUT}),
+    ("kept_post_retracted_after_end", "the same with a retraction: by this rule it is out too, and the retracted "
+     "post stays in the room. Whether a member's own retraction should take effect whenever it is signed is for "
+     "the Constitution: taking one's own row out can never add content",
+     [H0, M1, end("E", "H0", ["m1"]), act("w2", "H0", "m1", target="m1", compose="retract")], {},
+     {"m1": KEPT, "w2": OUT}),
     ("fork_other_branch_named_later", "the same fork, and a counted row then names the other branch's tip: both "
      "branches stay",
      [H0, M1, M2, act("x2", "H0", "m1"), end("E", "H0", ["m2"]), tips("A", "E", ["x2"])], {},
@@ -265,6 +306,14 @@ CASES = [
     ("two_resignations", "the member signs two resignations at one head naming different tips (a fork of its own "
      "end): a row stays only where both hold it good, so a second resignation never adds a row",
      [H0, M1, M2, end("R", "H0", ["m1"], "B"), end("R2", "H0", ["m2"], "B")], {}, {"m1": KEPT, "m2": OUT}),
+    ("resignation_then_counted_tips", "the member resigned naming m1, and no counted row ends the seat; a "
+     "counted row then names m2: the member's own tips are still read and the counted row's are added",
+     [H0, M1, act("x1", "H0"), end("R", "H0", ["m1"], "B"), tips("A", "R", ["x1"])], {},
+     {"m1": KEPT, "x1": KEPT}),
+    ("resignation_counted_tips_then_narrowing", "the same, and the member then signs a second resignation "
+     "naming nothing: it narrows the member's own tips to none, and what the counted row named stays",
+     [H0, M1, act("x1", "H0"), end("R", "H0", ["m1"], "B"), tips("A", "R", ["x1"]), end("R2", "H0", [], "B")], {},
+     {"m1": OUT, "x1": KEPT}),
     ("member_adds_tips_itself", "a row adding tips signed by the member is never read: only a counted row adds",
      [H0, M1, M2, end("E", "H0", ["m1"]), tips("A", "E", ["m2"], "B")], {}, {"m1": KEPT, "m2": OUT}),
     ("second_end_after_first", "a second removal that has the first in its past ends nothing (the seat was "
@@ -280,6 +329,9 @@ CASES = [
      {"m1": KEPT, "m2": (F, F, "E3.later_head")}),
     ("end_stale_head", "E1: an end naming H0 with H1 in its own past concludes nothing, and its tips are not read",
      [H0, H1, M1, end("E", "H0", ["m1"], names=["H1"])], {}, {"m1": (T, T, "no_end")}),
+    ("tip_at_later_head", "the end names as a tip a row at a head later than h_e: naming it does not make it "
+     "count (E3 decides first), and what is behind it at h_e is kept",
+     [H0, H1, M1, act("m2", "H1", "m1"), end("E", "H0", ["m2"])], {}, {"m1": KEPT, "m2": (F, F, "E3.later_head")}),
     ("tip_not_the_members", "a tip that is not a content row of the member is not read: here the end names a "
      "roster head as a tip, and nothing is held good",
      [H0, M1, end("E", "H0", ["H0"])], {}, {"m1": OUT}),
