@@ -313,7 +313,7 @@ signed field.
 
 Only the seating offer's own instants are read. A seat conferred under an offer that has ended is not ended by it
 here, unless the caller states the same end on the conferred offer. Propagating ends down a chain is not done.
-The tip reading (`tips_common`) is unchanged: while tips wait, a key stands only if every tip seats it.
+The tip reading is the fold (`tips_fold`): with several tips, a key stands only if the fold of their changes seats it.
 
 **Node bearing.** Persist's `NodeBearingSeats::at(key, now)` wraps no kernel function. It is persist data
 (intervals per key), resolved to a bool before `seat::group_count` runs. The at-row form is persist's own:

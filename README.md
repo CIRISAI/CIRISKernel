@@ -174,9 +174,9 @@ curl -sSfL https://github.com/leanprover/elan/releases/latest/download/elan-x86_
 ./elan-init -y --default-toolchain leanprover/lean4:v4.14.0
 ```
 
-Then, from the repository root, `./check.sh`. It compiles the thirty-two proof files, runs ten model checks
+Then, from the repository root, `./check.sh`. It compiles the thirty-three proof files, runs ten model checks
 one after another and counts the divergence list, one line per step. It prints
-`proofs: 32 files, 747 theorems reported, 5012 declarations audited, plant caught, rc=0`, in about two minutes. Some checks use three worker processes.
+`proofs: 33 files, 754 theorems reported, 5022 declarations audited, plant caught, rc=0`, in about two minutes. Some checks use three worker processes.
 Nineteen files are carried from the parent, `Reader.lean` among them with the sibling of the acknowledged head
 read as CC 2.7.8 reads it; seven added here prove the crate's gaps
 ([`crates/ciris-kernel/FORMAL_GAPS.md`](crates/ciris-kernel/FORMAL_GAPS.md)); `Repurge.lean` is native to this

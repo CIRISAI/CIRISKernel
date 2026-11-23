@@ -838,8 +838,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
 /// Seats read **at a held row** (0.3): the instant is the one row `at` states ([`crate::Dated`]), never a
 /// clock. A seat counts at that instant only when the offer that seats it covers it: stated at or before it,
 /// and not ended by it (`asserted_at <= t < valid_until`, [`crate::covers_at`]). An owner's standing judged at
-/// the row being admitted is `holders_at(owner, node, None, admitted)`. The tip reading is unchanged: while
-/// tips wait, a key stands only if every tip seats it.
+/// the row being admitted is `holders_at(owner, node, None, admitted)`. The tip reading is the fold
+/// ([`Seats::tips_fold`]).
 ///
 /// Only the seating offer's own instants are read. A seat conferred under an offer whose own standing ended is
 /// not ended by it here; that chain is the conferring offer's `valid_until`, which the caller states on the

@@ -418,6 +418,18 @@ out of force there.
 A group's roster is a lineage: each version names the heads it extends and is counted over their members.
 Every other row takes its place from the roster head it names. Nothing else is ordered.
 
+**The fold at tips (2026-11-23; `models/roster_fork/fold.py`, `seat::Seats::tips_fold`).** The paragraph below is
+the rule this section was written to, tips wait, and it is what `tips_common` still gives. `seat::Seats` (`stands`,
+`holders`) now reads the fold the Constitution adopted on a run: with several tips a key every tip seats is in; a
+key some tip's line removed is out unless a later addition has that removal in its past; a key a tip adds is in where
+that addition meets its count on the voices of keys the fold seats, over the members at its heads that the fold
+seats, starting from the common keys; tips that differ in protocol or policy do not fold and give the common keys;
+and a version naming several heads is counted over the newest counted of them, a head one key wrote (an open room's
+self-admission) narrowing no count. **run** (`fold_check.py`: nine settings, 100,747 sets, six planted breaks;
+`check_attacks.py`, tests 3, 4, 7 and 34 restated). **proved** (`TipsFold.lean`): the fold's bounds, not its count.
+What it costs: where the one key common to two tips is an adversary's, what it signed on either folds in at once,
+where under tips-wait it needed one more row of its own.
+
 Two versions of one head wait. The roster is then the members common to all tips, until a version naming the
 tips makes one head again. **run** (`models/roster_fork/fork_check.py`): over every set of up to three
 versions an adversary below the count can cause, in three settings under two counting protocols, the roster is
