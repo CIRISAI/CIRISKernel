@@ -118,7 +118,47 @@ the reader reaches A first by an edge allowing no further hop, then through B wi
 only the second path reaches C. The crate implements the first reading: a key is expanded again only with
 more budget.
 
+### The end of a conferral
+
+`conferral::answers` is checked against the case table of `models/causal_kernel/conferral_end.py`
+(`tests/fixtures/conferral_end.json`; 35 cases, each with its rows listed in every order the fixture gives
+and in reverse). That reference is the weakR reading of `models/tla/ConferralEnd.tla`, and is compared with
+that spec state by state.
+
+A second run withholds one row at a time from the caller's past. Every act is then either undecided, naming
+the row that is missing, or judged exactly as it is over the rows that are held.
+
+The fixture is also for adopters. Each case has `rows` (`id`, `kind`, `signer`, `names`, and `head`, `of`,
+`lifts`, `target`, `via` where a rule reads them), `reader_acks`, `other_standing`, `who`, `orders`, and
+`answers`: for every act `counted`, `in_force` and the `rule` that decides it. A case whose `refused` is not
+null holds a row the Constitution's text refuses at the door (`act_names_no_head`); an adopter runs the cases
+whose `refused` is null.
+
+### Room content after a member's seat ends
+
+`content::answers` is checked against `models/causal_kernel/conferral_content.py`:
+- its case table (`tests/fixtures/conferral_content.json`; the 54 cases under `count_first`, each with its rows
+  listed in every order the fixture gives and in reverse). The one case under `merge: union` states what a
+  rejected reading gives and is not run;
+- 22,700 histories built row by row (`conferral_content_worlds.json`), 37,643 answers: over two roster heads,
+  every history of up to three rows and every 53rd of four; with the member admitted again at the second
+  head and a co-member signing, every history of up to three rows; with a head between at which the member
+  is not listed, every history of up to two;
+- with one roster head or end withheld from the caller's past: undecided, naming the missing row, or judged
+  as over the rows held;
+- `content::changed` folded over each history in its build order, and in reverse where the door allows: it
+  ends at `content::answers`.
+
+The rule itself is checked by `check_conferral_content.py` (a `./check.sh` step): every history of up to four
+rows, with what the member alone and one counted row can change. It is a run in Python, not a TLA+ model.
+
+In the fixture an act has `prev` (its predecessors), and `target` with `compose` for an edit or a retraction;
+an end has `trusted_through`; a row of kind `tips` adds tips to the end in `extends`. Neither a predecessor nor
+a tip is in `names`: nothing waits on content.
+
 ## What this crate leaves out, and why
+
+- **Two ends of one standing held together.** The model has one end. `conferral::answers` refuses several.
 
 - **The rejected rules.** The group checkpoint (`checkpoint.py` with `group=True`) and the window's `void` and
   `contest` rules are kept in the models only to show why they are refused. KERNEL.md 5 and 8a, and

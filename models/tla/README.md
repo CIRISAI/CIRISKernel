@@ -34,6 +34,11 @@ it holds a witness's minor row that the same witness's newer adult row supersede
 `_receipts_resign.cfg`, `_receipts_past_rotation.cfg`, `_who_none.cfg` and `_receipts_any.cfg`, outside both runs, are meant to fail: each records where two
 readings of the end differ, with TLC's trace (`CONFERRAL_END.md`). `_tie_bound.cfg`, `_receipts_past_sound.cfg`,
 `_receipt_removed.cfg`, `_reaccept.cfg` and `_owner.cfg`, also outside, pass.
+`tools/conferral_xcheck.py` dumps every reachable state of `ConferralEnd_xcheck_all.cfg` and
+`_xcheck_none.cfg`, which carry the spec's own answers (`DUMPANS`), and requires
+`models/causal_kernel/conferral_end.py` to give the same answer for every act; `tools/tla_check.sh` runs it.
+That reference writes persist's fixture `crates/ciris-kernel/tests/fixtures/conferral_end.json`.
+`_xcheck_removal.cfg` and `_xcheck_two.cfg` are larger, and are run by hand.
 `tools/tla_door_fixture.py` dumps every reachable state of
 `Door.tla`, and `crates/ciris-kernel/tests/tla_door.rs` replays each through the crate's door.
 These are runs to a bound over models written by the authors of the rules, as the Python checks are.

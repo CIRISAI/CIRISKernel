@@ -42,6 +42,9 @@ step "proofs/build.sh"                    lean      bash proofs/build.sh
 step "check_purge (checkpoint, purge)"    purge     python3 -I models/causal_kernel/check_purge.py
 step "check_time (two notions of time)"   time      python3 -I models/causal_kernel/check_time.py
 step "check_key_end (a key's own end)"    key_end   python3 -I models/causal_kernel/check_key_end.py
+step "check_conferral_end (an end)"      conferral python3 -I models/causal_kernel/check_conferral_end.py
+step "check_conferral_content (tips)"    content   python3 -I models/causal_kernel/check_conferral_content.py
+step "check_conferral_two (two records)" two       python3 -I models/causal_kernel/check_conferral_two.py
 step "check_rosters (one roster)"         rosters   python3 -I models/causal_kernel/check_rosters.py
 step "check_attacks (34 attacks)"         attacks   python3 -I models/causal_kernel/check_attacks.py
 step "check (order-freeness)"             check     python3 -I models/causal_kernel/check.py
@@ -54,7 +57,13 @@ step "divergence list (counts)"           diverge   python3 -I tools/divergence_
 step "kernel_fixtures (fixtures current)"   fixtures  python3 -I tools/kernel_fixtures.py --check
 step "ciris-kernel build (no_std)"         crate     bash tools/kernel_crate_build.sh
 step "ciris-kernel conformance"            conform   bash tools/kernel_conformance.sh
-step "ciris-kernel plants"                 plants    bash tools/kernel_crate_plants.sh
+# CI sets CHECK_SKIP_PLANTS=1: there the plants run as parallel jobs of crate.yml (tools/kernel_crate_plants.sh
+# says why), and this step would run them all again, one after another.
+if [ "${CHECK_SKIP_PLANTS:-}" = 1 ]; then
+  printf 'skip  %-34s        %s\n' "ciris-kernel plants" "CHECK_SKIP_PLANTS=1: run elsewhere (in CI, the plants jobs of crate.yml)"
+else
+  step "ciris-kernel plants"                 plants    bash tools/kernel_crate_plants.sh
+fi
 step "tla (TLC, nine specs, plants)"       tla       bash tools/tla_check.sh
 
 echo "---"

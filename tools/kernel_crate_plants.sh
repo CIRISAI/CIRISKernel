@@ -1,14 +1,28 @@
 #!/usr/bin/env bash
 # Plant one break at a time in a copy of crates/ciris-kernel (never in the working tree) and check that the
 # differential tests catch each. Exits 1 if a plant is not caught or the unbroken copy fails.
+#
+# PLANTS_SHARD=k/n runs only the plants whose place in the list below is k modulo n (k from 1 to n), so that n
+# runs with k = 1..n between them run every plant once. CI runs the shards as separate jobs (crate.yml): each
+# plant is a release rebuild and the whole test suite, about 41 s on a runner, and 54 of them one after another
+# took the check job past its time limit. Without PLANTS_SHARD every plant runs, as ./check.sh does locally.
 set -u
 root="$(cd "$(dirname "$0")/.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 cp -a "$root/crates/ciris-kernel" "$work/ciris-kernel"
 export CARGO_TARGET_DIR="$work/target"
-caught=0; total=0
+caught=0; total=0; seen=0
+shard="${PLANTS_SHARD:-1/1}"
+k="${shard%/*}"; n="${shard#*/}"
+case "$k$n" in *[!0-9]*|"") echo "PLANTS_SHARD=$shard: want k/n"; exit 1 ;; esac
+[ "$n" -ge 1 ] && [ "$k" -ge 1 ] && [ "$k" -le "$n" ] || { echo "PLANTS_SHARD=$shard: want 1 <= k <= n"; exit 1; }
+mine() {  # true when the next plant in the list belongs to this shard
+  seen=$((seen + 1))
+  [ $(( (seen - 1) % n )) -eq $((k - 1)) ]
+}
 plant() {  # plant <name> <file> <old> <new>
+  mine || return 0
   local name="$1" f="$work/ciris-kernel/$2"
   cp "$f" "$f.orig"
   python3 -I -c 'import sys; p,a,b=sys.argv[1:4]; s=open(p).read(); assert a in s, a; open(p,"w").write(s.replace(a,b,1))' "$f" "$3" "$4" || { echo "plant $name: text not found"; exit 1; }
@@ -21,6 +35,7 @@ plant() {  # plant <name> <file> <old> <new>
   mv "$f.orig" "$f"
 }
 plant_run() {  # plant_run <name> <file> <old> <new>: the conformance step must fail on the copy
+  mine || return 0
   local name="$1" f="$work/ciris-kernel/$2"
   cp "$f" "$f.orig"
   python3 -I -c 'import sys; p,a,b=sys.argv[1:4]; s=open(p).read(); assert a in s, a; open(p,"w").write(s.replace(a,b,1))' "$f" "$3" "$4" || { echo "plant $name: text not found"; exit 1; }
@@ -90,6 +105,27 @@ plant "an act under a seat ignores a concurrent ending cut" src/seat.rs 'if !g.c
 plant "a withdrawal voided by a removal still cuts"     src/seat.rs 'crate::cut::Status::Counts => out_of_force = true,' 'crate::cut::Status::Counts | crate::cut::Status::Void => out_of_force = true,'
 plant "an act at a later head than the end's still counts (E3 unread)" src/seat.rs 'crate::cut::Status::Counts if later(r) => return Exercised::NotCounted,' 'crate::cut::Status::Counts if false => return Exercised::NotCounted,'
 plant "the end voids an act at its own head (E2 read as E3)" src/seat.rs 'pe.len() < px.len() && pe.is_subset(&px)' 'pe.is_subset(&px)'
+plant "an act naming the end still counts"            src/conferral.rs 'return Ok((false, false, Rule::NamesEnd));' 'return Ok((true, false, Rule::NamesEnd));'
+plant "the grantee receipts its own act"              src/conferral.rs 'Role::Grantee | Role::Other => Ok(false),' 'Role::Grantee | Role::Other => Ok(true),'
+plant "a receipt after the end keeps the act"         src/conferral.rs 'Ok(!self.key_cut(q)? && self.eligible(q, e)? && !self.past.in_past(e.id(), q.id())?)' 'Ok(!self.key_cut(q)? && self.eligible(q, e)?)'
+plant "a past that cannot tell reads as no"            src/conferral.rs 'Err(i) => need = need.or(Some(i)),' 'Err(_) => {}'
+plant "a deputy keeps force its edge has lost"         src/conferral.rs '(c, f) = (c && uc, c && f && uf);' '(c, f) = (c && uc, c && f);'
+plant "the member's own end adds tips beside a counted end" src/content.rs 'if ends.iter().any(|e| counts(e) && is_count(e)) {' 'if false {'
+plant "the member's own ends are joined, not met"       src/content.rs 'Some(o) => o.intersection(&g).copied().collect(),' 'Some(o) => o.union(&g).copied().collect(),'
+plant "a tips row signed by the member is read"         src/content.rs 'for t in self.of_kind(Kind::Tips).filter(|t| is_count(t)) {' 'for t in self.of_kind(Kind::Tips) {'
+plant "the walk passes through a co-member's row"       src/content.rs 'if x.kind() != Kind::Content || !(self.seat.member)(x.signer()) || !out.insert(id) {' 'if x.kind() != Kind::Content || !out.insert(id) {'
+plant "a co-member's retraction takes a row out"        src/content.rs 'let content: Vec<&R> =
+        rows.iter().copied().filter(|r| r.kind() == Kind::Content && (seat.member)(r.signer())).collect();
+    let all' 'let content: Vec<&R> = rows.iter().copied().filter(|r| r.kind() == Kind::Content).collect();
+    let all'
+plant "a later seat's rows are judged by an earlier end" src/content.rs 'if a.id() == h || past.in_past(a.id(), h)? {' 'if false {'
+plant "a row between seats counts"                      src/content.rs 'if at.seat() == SeatAt::Out {' 'if false {'
+plant "a retraction is read in its own seat only"       src/content.rs 'out.extend(seat_answers(&sub, seat, past, &retracted));' 'let sr: BTreeSet<&R::Id> = retracted.iter().copied().filter(|t| sub.iter().any(|w| w.retracts() == Some(*t))).collect(); out.extend(seat_answers(&sub, seat, past, &sr));'
+plant "an end with an end in its past still ends"       src/content.rs 'Ok(seated.then_some(Void::SeatEnded))' 'Ok(seated.then_some(Void::SeatEnded).filter(|_| false))'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
-echo "ciris-kernel plants: $caught of $total caught"
-[ $caught -eq $total ]
+if [ "$n" -eq 1 ]; then
+  echo "ciris-kernel plants: $caught of $total caught"
+else
+  echo "ciris-kernel plants: $caught of $total caught (shard $k of $n; $seen plants in all)"
+fi
+[ $total -gt 0 ] && [ $caught -eq $total ]

@@ -193,7 +193,7 @@ at a head stay by past (CC 2.4.1.1).
 Four steps build and test the Rust crate [`crates/ciris-kernel`](crates/ciris-kernel/README.md), the kernel as
 pure functions with no dependencies, against the Python models' own cases; they need cargo. The last step
 model-checks the eight TLA+ specs of [`models/tla/`](models/tla) with TLC, each with a planted break it must
-catch, and needs Java. The run ends `all 18 steps passed`.
+catch, and needs Java. The run ends `all 21 steps passed`.
 
 ## Lineage
 
