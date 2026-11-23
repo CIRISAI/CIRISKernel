@@ -22,6 +22,9 @@ Sources (all under models/):
     conferral_end causal_kernel/conferral_end.py: the case table of the end of a conferral (CC 2.4.1.1, CC 4.5.5),
               with every act's `counted`, `in_force` and deciding `rule`. tests/conferral_end.rs replays it
               through conferral::answers, and an adopter may run it against its own code.
+    conferral_content causal_kernel/conferral_content.py: room content after a member's seat ends, where the end
+              names the rows held good: its case table, and (conferral_content_worlds) histories built row by
+              row as check_conferral_content.py builds them. tests/content.rs replays both through content::answers.
 """
 import base64
 import hashlib
@@ -585,6 +588,10 @@ def main():
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution
+    import conferral_content as CN
+    dump("conferral_content.json", CN.fixture(), out)
+    import check_conferral_content as CK
+    dump("conferral_content_worlds.json", CK.worlds_fixture(), out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():

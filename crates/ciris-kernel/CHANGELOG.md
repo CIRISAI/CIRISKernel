@@ -22,6 +22,22 @@ New module `conferral`: the causal end of a conferral (CC 2.4.1.1, CC 4.5.5; rul
 Which bit a caller reads: a tally at a head and an as-of answer read `counted`; anything done now on the act's
 strength reads `in_force`; an act that authorises a further row passes both down.
 
+New module `content`: room content after a member's seat ends, where the end names the rows it holds good
+(CC 2.4.1.1; `models/tla/CONFERRAL_END.md` section I on the main branch).
+- `content::answers(rows, &seat, &past)` gives, for every content row of the member, `Judged { counted,
+  in_force, rule }`, where `in_force` means "in the room's content now". It reads the tips of counted rows
+  first (`count_first`), follows predecessors as a set within one key's rows, waits on nothing (an unheld tip
+  or predecessor keeps nothing until it arrives), and applies an author's own retraction whenever it is signed.
+- `content::changed(rows, &arrived, &seat, &past)` gives the rows whose answer the arrival of one row changes,
+  each with its new answer. Folding every arrival with it ends at `answers`. It is computed by reading the
+  rows twice: linear in the member's rows in the room for each arrival. A form that visits only what can
+  change is not written yet.
+- The past is the same three-way function as `conferral`'s.
+- `tests/fixtures/conferral_content.json` (41 cases, 95 answers) is the module's test and an adopter's
+  fixture; `conferral_content_worlds.json` holds 14,906 histories with the reference's answers.
+- The rule is checked by an exhaustive run in Python (`check_conferral_content.py`), not by a TLA+ model. Not
+  covered: receipts together with tips, a re-admission, the reader's line on an end, key removals.
+
 ## [0.2.0]
 
 Performance for CIRISPersist's adoption (PR #3). See `PERF.md` for the measurements and method.

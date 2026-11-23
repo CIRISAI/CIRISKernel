@@ -132,6 +132,26 @@ The fixture is also for adopters. Each case has `rows` (`id`, `kind`, `signer`, 
 null holds a row the Constitution's text refuses at the door (`act_names_no_head`); an adopter runs the cases
 whose `refused` is null.
 
+### Room content after a member's seat ends
+
+`content::answers` is checked against `models/causal_kernel/conferral_content.py`:
+- its case table (`tests/fixtures/conferral_content.json`; the 40 cases under `count_first`, each with its rows
+  listed in every order the fixture gives and in reverse). The one case under `merge: union` states what a
+  rejected reading gives and is not run;
+- 14,906 histories built row by row (`conferral_content_worlds.json`): every history of up to three rows
+  beyond two roster heads and every 53rd of four rows, 30,867 answers;
+- with one roster head or end withheld from the caller's past: undecided, naming the missing row, or judged
+  as over the rows held;
+- `content::changed` folded over each history in its build order, and in reverse where the door allows: it
+  ends at `content::answers`.
+
+The rule itself is checked by `check_conferral_content.py` (a `./check.sh` step): every history of up to four
+rows, with what the member alone and one counted row can change. It is a run in Python, not a TLA+ model.
+
+In the fixture an act has `prev` (its predecessors), and `target` with `compose` for an edit or a retraction;
+an end has `trusted_through`; a row of kind `tips` adds tips to the end in `extends`. Neither a predecessor nor
+a tip is in `names`: nothing waits on content.
+
 ## What this crate leaves out, and why
 
 - **Two ends of one standing held together.** The model has one end. `conferral::answers` refuses several.

@@ -25,6 +25,7 @@ Each is run by `./check.sh` at the top of the repository. The last line is what 
 | `python3 -I models/causal_kernel/check_time.py` | two notions of time over 86 worlds of two rows; readings not covered are reported with witness pairs | `RESULT: ok` |
 | `python3 -I models/causal_kernel/check_key_end.py` | a key's own end: ten properties, plants, ten attacks (two workers) | `RESULT: ok` |
 | `python3 -I models/causal_kernel/check_conferral_end.py` | the end of a conferral (CC 2.4.1.1): 33 cases with a hand-written answer for every act, in every arrival order; the fixture gives the same answers | `RESULT: ok` |
+| `python3 -I models/causal_kernel/check_conferral_content.py` | room content after a member's seat ends, where the end names the rows held good: 41 cases in every arrival order; every history of up to four rows, with what the member alone and one counted row can change; three plants (three workers) | `RESULT: ok` |
 | `python3 -I models/causal_kernel/check_rosters.py` | one roster mechanism, five instances: 90 properties, each with a break (three workers) | `90 properties, verdicts as recorded: True` |
 | `python3 -I models/causal_kernel/check_attacks.py` | thirty-four attacks, 126 scenarios, classed HOLDS / CONCEDED / NOT EXPRESSIBLE / BROKEN (three workers) | `RESULT: ok in …s` |
 | `python3 -I models/causal_kernel/check.py` | order-freeness: every set of up to six rows from two pools in every arrival order; the seventeen witnesses (three workers) | `RESULT: ok` |
