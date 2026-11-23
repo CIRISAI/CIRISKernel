@@ -74,7 +74,7 @@ KERNEL.md 8a.
   member removed is a voice like any other (CC 2.7.5, CC 4.5.13; the Constitution's ruling of 2026-11-23).
 - `derived::fold_default` (CC 3.5.1).
 
-Each has cases from its CC sentence: `tests/policies.rs`, 20 cases, and `tests/fold_default.rs`, the four
+Each has cases from its CC sentence: `tests/policies.rs`, 24 cases, and `tests/fold_default.rs`, the four
 rules and every order of six rows. Each also has a plant: `tools/kernel_crate_plants.sh`, 15 of 15 caught.
 The Python models' 934,667 cases are unchanged by them.
 
