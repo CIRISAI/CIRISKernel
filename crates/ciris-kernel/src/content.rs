@@ -270,11 +270,8 @@ impl<'a, R: ContentRow, P: Past<R::Id>> Ctx<'a, R, P> {
             if x.kind() != Kind::Content || !(self.seat.member)(x.signer()) || !out.insert(id) {
                 continue;
             }
-            for q in x.prev() {
-                if self.by.get(q).is_some_and(|p| (self.seat.member)(p.signer())) {
-                    todo.push(q);
-                }
-            }
+            // a predecessor that is not held, or not the member's own, is dropped when it is taken up
+            todo.extend(x.prev());
         }
     }
 

@@ -89,7 +89,7 @@ plant "a deputy keeps force its edge has lost"         src/conferral.rs '(c, f) 
 plant "the member's own end adds tips beside a counted end" src/content.rs 'if ends.iter().any(|e| counts(e) && is_count(e)) {' 'if false {'
 plant "the member's own ends are joined, not met"       src/content.rs 'Some(o) => o.intersection(&g).copied().collect(),' 'Some(o) => o.union(&g).copied().collect(),'
 plant "a tips row signed by the member is read"         src/content.rs 'for t in self.of_kind(Kind::Tips).filter(|t| is_count(t)) {' 'for t in self.of_kind(Kind::Tips) {'
-plant "the walk passes through a co-member's row"       src/content.rs 'if self.by.get(q).is_some_and(|p| (self.seat.member)(p.signer())) {' 'if self.by.get(q).is_some() {'
+plant "the walk passes through a co-member's row"       src/content.rs 'if x.kind() != Kind::Content || !(self.seat.member)(x.signer()) || !out.insert(id) {' 'if x.kind() != Kind::Content || !out.insert(id) {'
 plant "a co-member's retraction takes a row out"        src/content.rs 'let content: Vec<&R> =
         rows.iter().copied().filter(|r| r.kind() == Kind::Content && (seat.member)(r.signer())).collect();
     let all' 'let content: Vec<&R> = rows.iter().copied().filter(|r| r.kind() == Kind::Content).collect();
