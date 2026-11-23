@@ -13,6 +13,7 @@ one voice now stands. Under `weighted` the removed member's weight counts.
 - A caller counting an accord bundle no longer needs to pass an empty `to` for the removed holder.
 - No proof changes: `proofs/SeatCount.lean` states the count over the voices given, and which keys are voices
   is the crate's reading, tested by cases (`tests/policies.rs`).
+
 New function `derived::claims`: a signer's claim for a key, by what its rows name and by no instant (the
 `holon:claim` family, CC 3.1.11 "How claims are read", rc22 `3f694e4`: "This family is read this way, and
 not by the default of CC 3.5.1"). Rows are grouped by signer and a key the
