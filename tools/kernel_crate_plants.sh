@@ -58,6 +58,7 @@ plant "a cut at a concurrent head reaches the act"     src/head.rs 'if !self.lat
 plant "a key's end read inclusively"                   src/key_end.rs 'x.until.is_none_or(|u| now < u)' 'x.until.is_none_or(|u| now <= u)'
 plant "the reader's line ignored"                      src/line.rs '(built_ok && !mine.iter().any(|&m| behind(r, m)))' 'built_ok'
 plant "concurrent answers not recounted"               src/window.rs 'answers.extend(ans);' ''
+plant "a receipt naming further rows is still a receipt" src/window.rs 'return Some(r.names().iter().all(|n| n == o.id()));' 'return Some(true);'
 plant "an election's tie broken by list order"         src/ranked.rs 'back: if declared { -(index(o) as i64) } else { 0 }' 'back: -(index(o) as i64)'
 plant "a version counts though what it builds on does not" src/line.rs 'if builds_on(i).iter().all(|e| out.contains(e)) {' 'if true {'
 plant "the lazy closure skips a past it already knows"  src/graph.rs 'Some(pa) => b.union(pa),' 'Some(_) => {}'

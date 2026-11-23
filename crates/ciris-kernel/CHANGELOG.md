@@ -19,6 +19,12 @@ act's own head was read. `carried`, `Answers` and `HeldView` read `counts_at` an
 
 `seat::exercised_stands`, proposed with this change in PR #21, is not added: `conferral::answers` gives the
 whole rule (E1 to E8) and is the one implementation.
+`window::rule`: a receipt that names any row but the opener is no receipt, and a landing naming it concludes
+nothing. "Inside the window" is what the landing has in its past and the receipt has not, so a receipt naming
+further rows would put them before the window (a concluder could delay its receipt and name the target's
+rows in it). The Constitution's wire shape for the receipt (`window:held`, naming the opener alone) already
+forbids it; the crate holds the same line for any caller. `window.py` and `attacks.py` test 12 carry the case;
+one planted break. No row built as the model builds a receipt changes its answer.
 
 **An answer changes: on a plain count, the member removed is a voice of its own removal.** `seat::group_count`,
 and so `seat_rule`'s group count, no longer drops the voice of a key the row removes under `quorum`,

@@ -595,6 +595,13 @@ def t12(t):
     L4 = [WN.receipt("r4", "d3", "p", 0), WN.landing("L4", "d3", "p", "r4", "landed", W)]         # the thief lands again, naming nothing new
     o, bad = win(thief + [n] + L2 + L4); t.order(bad)
     t.fact("the thief lands again beside it, naming only its own receipt: recount=%s (a landing that does not stand says nothing against one that does)" % o["recount"], o["recount"] == "refused")
+    # the thief delays its receipt and names the owner's row in it, to put that row before the window
+    wide = R("rw", "receipt", "d3", ("p", "n"), of="p", at=0)
+    late = [g, p, n, wide, WN.landing("Lw", "d3", "p", "rw", "landed", W)]
+    S = conc(late, WIN)
+    o, bad = win(late); t.order(bad)
+    t.fact("a receipt that names the owner's row beside the opener is no receipt (%s), the landing naming it concludes nothing (%s), and the window stays %s"
+           % (S.C["rw"], S.C["Lw"], o["recount"]), not S.C["rw"] and not S.C["Lw"] and o["recount"] == "open")
     own = [g, WN.opener("p", "d1", "self_roster_evict", "g", ("g",), target="d3"), WN.receipt("r", "d1", "p", 0), WN.landing("L", "d1", "p", "r", "landed", W), R("n", "note", "d3", ("g",))]
     o, bad = win(own); t.order(bad)
     t.note("stated residuals: an absent owner looks lost (the first line above), and an owner with one live device cannot evict a thief who signs anything (recount=%s)" % o["recount"])
