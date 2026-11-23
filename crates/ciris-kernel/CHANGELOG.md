@@ -9,6 +9,9 @@ A fixture for persist, not read by this crate: `tests/fixtures/conferral_end.jso
 cases of the end of a conferral (CC 2.4.1.1) with `counted`, `in_force` and the deciding `rule` for every act
 (see the README, "The fixture for persist"). No code in `src/` changes.
 
+A second fixture for persist in the same format, `tests/fixtures/conferral_content.json`: room content after a
+member's seat ends, where the end names the rows held good. It states a proposal for CC 2.4.1.1, not a ruling.
+
 ### Adopting (from 0.3.0)
 
 Checked against `git diff` of `src/` from 0.3.0. No public enum gained or lost a variant (`held::Refused` is

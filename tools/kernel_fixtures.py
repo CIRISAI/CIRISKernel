@@ -22,6 +22,8 @@ Sources (all under models/):
     conferral_end causal_kernel/conferral_end.py: the case table of the end of a conferral (CC 2.4.1.1, CC 4.5.5)
               as recommended for persist v62.0, with every act's `counted`, `in_force` and deciding `rule`. No
               Rust test reads it: it is the conformance fixture for persist, which writes its own adapter.
+    conferral_content causal_kernel/conferral_content.py: room content after a member's seat ends, where the end
+              names the rows held good (a proposal for CC 2.4.1.1). The same format; no Rust test reads it.
 """
 import base64
 import hashlib
@@ -585,6 +587,10 @@ def main():
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution
+    import conferral_content as CN
+    dump("conferral_content.json", CN.fixture(), out)
+    import check_conferral_content as CK
+    dump("conferral_content_worlds.json", CK.worlds_fixture(), out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():
