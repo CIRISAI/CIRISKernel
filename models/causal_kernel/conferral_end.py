@@ -276,6 +276,15 @@ CASES = [
     ("uncited_act_receipted", "the same act, receipted by a co-holder: in force",
      [H0, H1, end("H0"), act("u1", None), receipt("q1", "u1", CO_HOLDER)], {}, {"u1": (T, T, "E8.receipt")}),
     ("uncited_act_no_end", "an uncited act with no end held", [H0, act("u1", None)], {}, {"u1": (T, T, "no_end")}),
+    ("deputy_receipted_under_edge_out_of_force", "the deputy's act is receipted by the conferrer, and its deputy "
+     "edge is counted and not in force: both bits pass down, each to its own, so the act counts and is not in "
+     "force (E6); with the edge receipted too, it is in force",
+     [H0, end("H0"), act("s1", "H0", sub=True), act("c1", "H0", ["s1"], signer="C", via="s1"),
+      receipt("q1", "c1", CONFERRER),
+      act("s2", "H0", sub=True), act("c2", "H0", ["s2"], signer="C", via="s2"),
+      receipt("q2", "c2", CONFERRER), receipt("q3", "s2", CONFERRER)], {},
+     {"s1": (T, F, "E2.forward"), "c1": (T, F, "E6.upstream"),
+      "s2": (T, T, "E8.receipt"), "c2": (T, T, "E8.receipt")}),
     # deputies, the end's own validity, the reader's line, a removed grantee
     ("deputy", "a deputy edge at H1 (later than h_e) does not count, so its deputy's act does not either; one at "
      "H0 counts and its deputy's act at H0 counts too, neither in force",

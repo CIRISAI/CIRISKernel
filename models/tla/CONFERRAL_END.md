@@ -383,7 +383,7 @@ Wire cost:
 ## H. Conformance fixtures for persist
 
 The fixture is `crates/ciris-kernel/tests/fixtures/conferral_end.json`, in the kernel's fixture format. It has
-33 cases and 45 act answers. Each act has `counted`, `in_force` and the `rule` that decides it, and 12 rules
+34 cases and 49 act answers. Each act has `counted`, `in_force` and the `rule` that decides it, and 12 rules
 appear.
 
 The same cases are a plain table, one line per act, in `conferral_end.tsv` next to it. That is the
@@ -455,8 +455,10 @@ content: section E already says "an ender who acks an old tip keeps only what li
 
 **The reference and the run.** `models/causal_kernel/conferral_content.py` is the reference, and
 `check_conferral_content.py` (a `./check.sh` step) checks it:
-- 41 cases with a hand-written answer for every content row, each in every arrival order;
-- every history of up to four rows beyond two roster heads: 412,007 histories, 1,435,650 extensions compared.
+- 55 cases with a hand-written answer for every content row, each in every arrival order;
+- every history of up to four rows: 850,987 histories, 3,569,415 extensions compared, over three sets of
+  roster heads (the member seated throughout; admitted again at the second head, with a co-member also
+  signing; seated, not listed, admitted again, one row shallower).
   A history has up to three content rows on two keys of the member, each naming up to two earlier ones as
   predecessors, or retracting one; up to two ends (a removal or a resignation, at either head, with up to
   two tips, optionally stale or naming the earlier end); and one row adding tips. A tip or a predecessor is a
@@ -500,7 +502,7 @@ content: section E already says "an ender who acks an old tip keeps only what li
    E3, not the tips:
    - a further counted end at an older head takes out rows at later heads, and nothing else (`further_end`);
    - the member's own backdated end at an older head takes its own kept rows at later heads out. Among
-     extensions by the member alone this happened 816 times, always by `E3.later_head`, and nothing else but the member's own
+     extensions by the member alone this happened 784 times, always by `E3.later_head`, and nothing else but the member's own
      retraction ever took out a row the count held good (`word_stands`). Section E lists this under backdating; the reader's
      line bounds it, and the line is not in this run.
 
@@ -551,13 +553,35 @@ content: section E already says "an ender who acks an old tip keeps only what li
 **The node-local fallback** (a row a reader held before it held the end stays shown to that reader) is not part
 of the proposal, and the reference keeps it apart (`shown_first_held`).
 - It is the spec's `arrival` plant: an answer latched on arrival, which `Inv_Fold` and `Inv_NodesAgree` exist
-  to catch. In 18 of the 41 cases two arrival orders of one set of rows show different rooms.
-- In 19 cases it shows a row the proposal keeps out. That includes a row the member signed after the removal
+  to catch. In 23 of the 55 cases two arrival orders of one set of rows show different rooms.
+- In 24 cases it shows a row the proposal keeps out. That includes a row the member signed after the removal
   that reached a node before the removal did, so it does not keep such rows out "everywhere": it keeps them
   out only at nodes the end reached first.
 - A node that folds again from its rows (a cold start, a checkpoint) loses the order unless it stores it.
 - It breaks no count and neither bit of the model if it is kept as a third, local bit that nothing else reads.
   If anything reads it (a tally, a further row, a key wrap), nodes diverge in effect.
+
+9. **A member seated again: seat by seat.** A seat is one stay, from the roster version that admits the
+   member to the end of that stay. A content row and an end belong to the seat of the head they name, a row
+   adding tips to the seat of the end it extends, and each seat's content is judged by that seat's own ends
+   and tips alone. Checked over histories with a second seat:
+   - a row at the re-admitting head is in the content, with no end of that seat (`rejoin_and_post`);
+   - the head a row names decides: a row signed after the re-admission that names the old head is a row of
+     the old seat and is out (`stale_device_after_rejoin`);
+   - a re-admission restores nothing (`rejoin_restores_nothing`);
+   - the walk from a tip does not cross seats. Rejoining, posting a row that names left-out rows as its
+     predecessors and leaving with that row as the tip brings nothing back
+     (`second_seat_tip_reaches_left_out_row`). `cannot_add` holds per seat over the whole run;
+   - a row naming a head at which the member does not sit belongs to no seat and does not count
+     (`row_between_seats`, rule `no_seat`);
+   - a counted row may still add tips for the first end after the rejoin (`keeps_first_end_after_rejoin`);
+     a tip that points at a row of another seat holds nothing good (`first_end_names_second_seat_row`);
+   - a retraction is read across seats (`retract_old_post_after_rejoin`).
+
+10. **"The member's own" is by member, not by key.** A predecessor signed by another key of the same member is
+    followed, and a retraction from a second device takes effect (`prev_across_the_members_keys`,
+    `retraction_from_a_second_device`). A co-member's row is never followed and a co-member's retraction is
+    not read; in the run a co-member's row changes no answer (`co_member_inert`).
 
 **For the Constitution to settle; the run does not.**
 - Which `merge`. The run supports `count_first`; `union` is unsafe.
@@ -567,7 +591,8 @@ of the proposal, and the reference keeps it apart (`shown_first_held`).
 - A resignation's tips are the member's own word about its own rows. That is harmless here, since those rows
   were signed at heads it sat at, and a second resignation can only remove.
 
-**Not modelled here:** receipts together with tips; a re-admission; the reader's line on an end; key removals.
+**Not modelled here:** receipts together with tips; the reader's line on an end; key removals; more than two
+seats; more than one room.
 
 ## For the Constitution to vendor
 
