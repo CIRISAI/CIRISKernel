@@ -563,7 +563,7 @@ def check_room(spec, inst, private):
                       "manifests/governance_policy.json community_invite target_voice cell; CC 3.1.3.2 'the invitee's acceptance is the second voice'",
                       verdict_of(base), base, "no cancel", m,
                       "without the parameter: %s" % (plain["fails"][:1] or "holds")))
-    # C8 tips wait on the kernel's own seats: two versions of one head, then a version naming both
+    # C8 the fold at tips on the kernel's own seats: two versions of one head, then a version naming both
     ax = RS.accept(spec, "ax", "X", ("g",))
     v1 = RS.add(spec, "v1", ("g",), "X", ("A", "B"), names=("ax",))
     v2 = RS.remove(spec, "v2", ("g",), "C", ("A", "B"))
@@ -576,12 +576,12 @@ def check_room(spec, inst, private):
             got = frozenset().union(*[ST.Seats(CK.State([q for q in S.Cs if q["id"] == t["id"] or q["id"] in S.anc[t["id"]]],
                                                          {q["id"]: True for q in S.Cs})).holders("member", "g") for t in ST.Seats(S).tips("g")]) \
                 if len(ST.Seats(S).tips("g")) > 1 else got
-        want = {P("A"), P("B")} | ({P("X")} if "both" in n else set())
+        want = {P("A"), P("B"), P("X")}                         # the fold: X's addition and C's removal both take effect
         if got != want: return "%s: roster %s" % (n, sorted(got))
     base = run(spec, worlds, c8)
     TIPS["union"] = True
     m = run(spec, worlds, c8, orders=False)
-    res.append(result(inst, "tips wait (KERNEL 7): two versions of one head give the members common to both; a version naming both makes one head",
+    res.append(result(inst, "the fold at tips (KERNEL 7): of two versions of one head, the member one adds is in and the member the other removes is out; a version naming both makes one head",
                       "CC 3.2 T6; formal/roster_fork", verdict_of(base), base, "the tips' union (a removal on one tip does not reach)", m))
     return res
 
