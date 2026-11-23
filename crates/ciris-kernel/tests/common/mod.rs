@@ -711,6 +711,7 @@ pub fn windows_of(j: &J) -> BTreeMap<String, WindowSpec<i64>> {
                     over: match c[2].s() {
                         "all" => Base::All,
                         "others" => Base::Others,
+                        "opener" => Base::Opener,
                         s => Base::Scope(s.into()),
                     },
                     out: c[3].s().into(),
