@@ -109,9 +109,10 @@ def _past(rows):
     return by, anc
 
 
-def counting_ends(rows):
-    """{end id: None if it counts, else the rule that voids it}."""
-    by, anc = _past(rows)
+def counting_ends(rows, world=None):
+    """{end id: None if it counts, else the rule that voids it}, for the ends among `rows` (one seat's). The
+    causal past is read over `world`, every held row: an end's past is what it names, in any seat."""
+    by, anc = _past(world or rows)
     ends = [r for r in rows if r["kind"] == "end"]
     later = lambda h, he: he in anc(h) if h in by else False
     memo = {}
@@ -147,10 +148,10 @@ def held_good(rows, r):
     return out
 
 
-def kept(rows, merge="count_first", self_tips=False):
+def kept(rows, merge="count_first", self_tips=False, world=None):
     """The content rows held good by the tips that are read under `merge`. `self_tips` is a plant: a `tips` row
     signed by the member is read."""
-    void = counting_ends(rows)
+    void = counting_ends(rows, world)
     ends = [r for r in rows if r["kind"] == "end"]
     counts = [e for e in ends if void[e["id"]] is None]
     c_ends = [e for e in ends if e["signer"] == COUNT and void[e["id"]] != "end_void.stale_head"]
@@ -197,7 +198,7 @@ def ended_seats(rows, merge="count_first"):
     some, counted = set(), set()
     for s in {v for v in seat.values() if v is not None}:
         sub = heads + [r for r in rows if seat.get(r["id"]) == s]
-        void = counting_ends(sub)
+        void = counting_ends(sub, rows)
         ends = [r for r in sub if r["kind"] == "end" and void[r["id"]] is None]
         if ends:
             some.add(s)
@@ -218,18 +219,19 @@ def answers(rows, merge="count_first", self_tips=False):
     retracted = {r["target"] for r in rows if r["kind"] == "act" and r.get("compose") == "retract"
                  and r["signer"] in KEYS and r.get("target") in by and by[r["target"]]["signer"] in KEYS}
     for s in {v for v in seat.values() if v is not None}:
-        out.update(_seat_answers(heads + [r for r in rows if seat.get(r["id"]) == s], merge, self_tips, retracted))
+        out.update(_seat_answers(heads + [r for r in rows if seat.get(r["id"]) == s], merge, self_tips, retracted,
+                                 rows))
     return out
 
 
-def _seat_answers(rows, merge, self_tips, retracted):
+def _seat_answers(rows, merge, self_tips, retracted, world):
     """The answers over the rows of one seat (and the roster heads)."""
     assert merge in MERGES, merge
-    by, anc = _past(rows)
-    void = counting_ends(rows)
+    by, anc = _past(world)
+    void = counting_ends(rows, world)
     ends = [by[i] for i in sorted(void) if void[i] is None]
     later = lambda h, he: he in anc(h) if h in by else False
-    good = kept(rows, merge, self_tips)
+    good = kept(rows, merge, self_tips, world)
     out = {}
     for r in rows:
         if r["kind"] != "act" or r["signer"] not in KEYS:      # another member's row is not this member's content
