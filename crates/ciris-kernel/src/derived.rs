@@ -201,3 +201,53 @@ pub fn fold_default<R: Row, N: Ord + Clone, T: Ord>(
     }
     out
 }
+
+/// What one signer says for one key ([`claims`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Claim {
+    /// The signer's claim: its one row of the group that no other row of the group has in its past.
+    Stands(usize),
+    /// That one row ends the claim (a `recants` or a `withdraws`): the signer claims nothing for the key.
+    Ended(usize),
+    /// Two rows or more of the group, none in another's past (ascending by row id): the signer says two
+    /// things, and has no claim for the key until one row of its own has them all in its past.
+    Split(Vec<usize>),
+}
+
+/// A signer's claim for a key, by what its rows name and by no instant (CC 3.1.11, the `holon` family).
+/// Among `rows`, grouped by signer and `key` (a row with no key is not read), the heads of a group are its
+/// rows that no other row of the group has in its causal past. One head is the answer: [`Claim::Stands`], or
+/// [`Claim::Ended`] where `ends` says the row ends a claim. Several heads are [`Claim::Split`]. So a later
+/// claim replaces an earlier one only by naming it (a `supersedes`), directly or through rows between.
+///
+/// Each signer's group is read on its own: a row of another signer is in no group but its own, and neither
+/// voids nor replaces a claim, whatever it names. It may still lie on the path by which one row of a signer
+/// has another in its past. The answer is a function of the set of rows, in any order.
+pub fn claims<R: Row, N: Ord + Clone>(
+    c: &Concluded<'_, R>,
+    rows: &[usize],
+    key: impl Fn(&R) -> Option<N>,
+    ends: impl Fn(&R) -> bool,
+) -> BTreeMap<(R::Key, N), Claim> {
+    let mut groups: BTreeMap<(R::Key, N), Vec<usize>> = BTreeMap::new();
+    for &i in rows {
+        let r = c.g.row(i);
+        if let Some(k) = key(r) {
+            groups.entry((r.signer().clone(), k)).or_default().push(i);
+        }
+    }
+    let mut out = BTreeMap::new();
+    for (k, g) in groups {
+        let mut heads: Vec<usize> =
+            g.iter().copied().filter(|&i| !g.iter().any(|&j| j != i && c.g.in_past(i, j))).collect();
+        heads.sort_by(|&a, &b| c.g.row(a).id().cmp(c.g.row(b).id()));
+        heads.dedup();
+        let claim = match heads.as_slice() {
+            [h] if ends(c.g.row(*h)) => Claim::Ended(*h),
+            [h] => Claim::Stands(*h),
+            _ => Claim::Split(heads),
+        };
+        out.insert(k, claim);
+    }
+    out
+}
