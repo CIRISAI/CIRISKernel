@@ -5,7 +5,8 @@
 **An answer changes: on a plain count, the member removed is a voice of its own removal.** `seat::group_count`,
 and so `seat_rule`'s group count, no longer drops the voice of a key the row removes under `quorum`,
 `majority`, a declared threshold, `founder_only` or `weighted` (the Constitution's ruling of 2026-11-23 on
-CC 2.7.5: the member removed counts unless the policy's own text excludes it). A removal that failed by that
+CC 2.7.5, rc22 `462260c`: "A member the row removes is a voice of its own removal, except where the group's
+policy states otherwise"). A removal that failed by that
 one voice now stands. Under `weighted` the removed member's weight counts.
 - Unchanged: `unanimous`, `open:self_admit` and the duty withdrawal, whose own sentences exclude the member
   named; and every seating, where a key the row seats is still no voice.
