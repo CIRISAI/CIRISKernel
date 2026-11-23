@@ -601,6 +601,57 @@ of the proposal, and the reference keeps it apart (`shown_first_held`).
 **Not modelled here:** receipts together with tips; the reader's line on an end; key removals; more than two
 seats; more than one room.
 
+## J. One row that needs two standings
+
+A node that is its owner's by an owner binding and holds a duty by a root grant signs one row (a build row).
+CC 3.1.2.1 has it name the bundle in force, and says a new owner must accept the grant "before it confers for
+acts under the new binding". With one head named, nothing places the act against a re-binding.
+
+`models/causal_kernel/check_conferral_two.py` judges the act under each record with the reference of sections
+A to H and joins the answers bit by bit: the act counts for an owner when it counts under the grant and under
+that owner's binding, and it is in force when it is in force under both. The grant has head G0 and the count's
+end EG. The binding has B0 (the node is O1's), a re-binding B1 to O2 that names B0, and O2's acceptance AC of
+the grant under B1. Each history fixes, for every act, whether its signer held B1 and AC when it signed, which
+the graph does not show. An honest node names the newest row it holds; a backdating node names B0 though it
+holds B1. Every set of rows a reader may hold is judged: 272 histories, 13,995 states over the three readings.
+
+| Reading | What the act names besides the grant's head | Result |
+|---|---|---|
+| `one` | nothing | breaks four properties |
+| `named` | the binding row it is under: B0 or B1 | breaks `consent` |
+| `named_acc` | the row that seats it with its owner: B0, or O2's acceptance AC | holds all six |
+
+The six properties:
+- `old_owner`: an honest act signed holding B1 does not count for O1. Under `one` it does: the act does not
+  name B1, so it is concurrent with the re-binding and counts at B0.
+- `consent`: an act counts for O2 only if its signer held AC when it signed. Under `one` and `named` an act
+  signed before the acceptance counts for O2 once the reader holds AC: the new owner's later acceptance adopts
+  acts it never saw.
+- `one_owner`: no act counts for both owners. Under `one` an act signed before the re-binding does.
+- `kept`: an honest act signed before B1 counts under O1's binding, and one signed holding AC counts under
+  O2's once the reader holds AC.
+- `backdated`: a backdated act never counts for O2, and is in force for O1 only by O1's own receipt. It still
+  counts for O1 at B0, out of force: the limit section D states for any two-key standing.
+- `grant_end`: once the reader holds EG, an act the count did not receipt is in force for neither owner.
+
+**Recommendation.** The act names two heads, one per record: the bundle in force, and the row that seats the
+node with its owner. Under a first binding that is the binding row. Under a re-binding it is the new owner's
+acceptance of the grant, which names the re-binding. An act that names the re-binding itself was signed
+before the new owner accepted, and counts for nobody.
+
+"The binding in the act's causal past" is not a separate option. A row has in its past only what it, or a row
+it names, names. So the binding is in an act's past only when the act names it or names a row that does, and
+that is `named` or `named_acc`.
+
+**For the crate.** No new code: a caller runs `conferral::answers` once per record and joins the two answers
+bit by bit, as section E6 already does for a deputy's act.
+
+**Limits.** This is a Python run over the reference, not a TLA+ configuration, and it has no fixture. It has
+one grant head, one re-binding, at most two acts and one receipt per record. Not modelled: a second
+re-binding, a grant end concurrent with a new bundle version, the new owner declining, the reader's line.
+Whether a later acceptance should adopt earlier acts (`named`) is the Constitution's to rule; the run only
+shows that `named` does so and `named_acc` does not.
+
 ## For the Constitution to vendor
 
 > **CC 2.4.1.1, the end of a conferral.** Every act names the head it is at. An ending row (a withdrawal of an
