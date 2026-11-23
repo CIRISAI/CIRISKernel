@@ -3,12 +3,11 @@
   CC 4.4.3.6; crates/ciris-kernel src/seat.rs, `seat_rule` and `met`).
 
   Over a finite universe `U` of keys, a counted row's voices are the keys that signed it, are members at the
-  head it names, and are not keys the row itself seats (on a removal the member removed is a voice like any
-  other, so there `named` is empty). This file proves: no key admits itself
+  head it names, and are not keys the row itself names out of its count (`named`: a key it seats; a key it
+  removes where the policy's own text excludes it, as `unanimous` does). This file proves: no key admits itself
   (its own signature never moves the count); the count never falls when a signature is added, so a count once
   met stays met; each policy is met by more voices whenever it is met by fewer; under `unanimous` a two-member
-  group removes only with the consent of the one removed (CC 4.5.13, "at two coincide only if the one removed
-  consents"); under
+  group removes nobody (CC 4.5.13, "at two coincide only if the one removed consents"); under
   `open:self_admit` one voice never removes; and a duty withdrawal never stands on one voice where there are
   two holders or more (CC 4.5.4 (iv)). Core Lean 4.14, no Mathlib.
 -/
@@ -38,7 +37,8 @@ open Classical
 noncomputable def yes {K : Type} (U : List K) (signed mem named : K → Prop) : Nat :=
   cnt (fun k => signed k ∧ mem k ∧ ¬ named k) U
 
-/-- **No key admits itself** (CC 2.7.5): whether a key the row seats signed it never moves the count. -/
+/-- **No key admits itself** (CC 2.7.5): whether a key the row seats or removes signed it never moves the
+    count. -/
 theorem no_key_admits_itself {K : Type} (U : List K) (signed signed' mem named : K → Prop)
     (h : ∀ k, ¬ named k → (signed k ↔ signed' k)) : yes U signed mem named = yes U signed' mem named := by
   unfold yes
@@ -83,29 +83,9 @@ theorem met_mono (p : Policy) (y y' n : Nat) (hy : y ≤ y') (hp : ∀ o, p ≠ 
   | unanimous o => exact absurd rfl (hp o)
   | notACount => exact h
 
-/-- Under `unanimous`, the other member of a two-member group does not remove alone (CC 4.5.13): `y` here is
-    the others' voices, the one removed not signing. -/
-theorem unanimous_two_others_alone_remove_nobody (y : Nat) : ¬ met (.unanimous 1) y 2 := by
+/-- Under `unanimous`, a two-member group removes nobody (CC 4.5.13). -/
+theorem unanimous_two_removes_nobody (y : Nat) : ¬ met (.unanimous 1) y 2 := by
   intro ⟨h1, h2⟩; omega
-
-/-- A `unanimous` removal with the voice of the one removed counted (CC 2.7.5, CC 4.5.13): every other member
-    signs (`yo` of `others`), and the voices `y`, the one removed among them if it signed, are a strict
-    majority of the roster `n`. Its yes cannot stand in for another's. -/
-def unanimousRemoves (others yo y n : Nat) : Prop := yo = others ∧ n < 2 * y
-
-/-- At two, a `unanimous` removal stands only if the one removed consents: its voice is counted beside the
-    other's. -/
-theorem unanimous_two_only_by_consent (yo y : Nat) (hy : y ≤ yo + 1) (h : unanimousRemoves 1 yo y 2) :
-    y = yo + 1 := by
-  obtain ⟨h1, h2⟩ := h; omega
-
-/-- And with that consent it stands. -/
-theorem unanimous_two_with_consent : unanimousRemoves 1 1 2 2 := ⟨rfl, by omega⟩
-
-/-- The yes of the one removed never stands in for a member who did not sign. -/
-theorem unanimous_consent_is_no_substitute (others yo y n : Nat) (hm : yo < others) :
-    ¬ unanimousRemoves others yo y n := by
-  intro ⟨h1, _⟩; omega
 
 /-- Under `unanimous`, a removal by every other member of three or more stands. -/
 theorem unanimous_others_remove (n : Nat) (h : 3 ≤ n) : met (.unanimous (n - 1)) (n - 1) n := by
@@ -144,7 +124,7 @@ theorem wsum_mono {K : Type} (w : K → Nat) (p q : K → Prop) [DecidablePred p
     · by_cases hq : q k <;> simp [hp, hq] <;> omega
 
 /-- Under `weighted`, a further signature never lowers the sum, so a threshold once met stays met; and a key
-    the row seats adds nothing whether it signed or not. -/
+    the row names adds nothing whether it signed or not. -/
 theorem weighted_mono {K : Type} (U : List K) (w : K → Nat) (signed signed' mem named : K → Prop)
     (h : ∀ k, signed k → signed' k) :
     wsum w (fun k => signed k ∧ mem k ∧ ¬ named k) U ≤ wsum w (fun k => signed' k ∧ mem k ∧ ¬ named k) U :=
@@ -157,10 +137,7 @@ end SeatCount
 #print axioms SeatCount.no_key_admits_itself
 #print axioms SeatCount.yes_mono
 #print axioms SeatCount.met_mono
-#print axioms SeatCount.unanimous_two_others_alone_remove_nobody
-#print axioms SeatCount.unanimous_two_only_by_consent
-#print axioms SeatCount.unanimous_two_with_consent
-#print axioms SeatCount.unanimous_consent_is_no_substitute
+#print axioms SeatCount.unanimous_two_removes_nobody
 #print axioms SeatCount.unanimous_others_remove
 #print axioms SeatCount.strict_one_voice
 #print axioms SeatCount.self_admit_one_never_removes

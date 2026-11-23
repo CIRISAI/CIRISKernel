@@ -30,7 +30,7 @@ round 2 and pass there.
 
 | # | Class | Minimal case | Persist | Kernel (round 2 → now) | The kernel's rule | Verdict and action |
 |---|---|---|---|---|---|---|
-| 1 | `unanimous` removal excludes the member named (6) | members {a, b, c}; removal of b signed by a and c | admits (`consensus.rs:247`) | did not → admits | CC 3.3.4, `unanimous`: "For a **removal**, every member other than the target signs *and* those signers are a strict majority of the roster"; CC 4.5.13: "at two coincide only if the one removed consents". Lean `SeatCount.unanimous_two_only_by_consent`, `unanimous_others_remove` | **kernel lacked**: `seat::Policy::Unanimous` added, with the removal reading; cases in `tests/policies.rs`. 0 left |
+| 1 | `unanimous` removal excludes the member named (6) | members {a, b, c}; removal of b signed by a and c | admits (`consensus.rs:247`) | did not → admits | CC 3.3.4, `unanimous`: "For a **removal**, every member other than the target signs *and* those signers are a strict majority of the roster"; CC 4.5.13: "at two coincide only if the one removed consents". Lean `SeatCount.unanimous_two_removes_nobody`, `unanimous_others_remove` | **kernel lacked**: `seat::Policy::Unanimous` added, with the removal reading; cases in `tests/policies.rs`. 0 left |
 | 2 | founders-only infrastructure groups (8) | `infrastructure`, `quorum:1/2`, roster {human (founder), install (founder, node-bearing)}; signed by install | does not admit (`consensus.rs:162`, `eligible`) | admitted → does not | CC 3.2 *Infrastructure does not vote*: a `node`-bearing key "MUST NOT be counted in the community's `consensus_protocol`", and the founders sign; CC 6.1.8 N1: "its own roster count at the head the row names". The kernel counts the scope the row names (`counted`) over the head it names (`RosterHead.counted_over_named_head`) | **adapter artefact**: the adapter now counts the founder scope, seating only founders that are not node-bearing. 0 left |
 | 3 | one voice per person (5) | `quorum:2/3`, roster {ann, ben, dan}; removal of dan signed by ann and by ann2, a second device of ann | does not admit: one person is one voice (`PersonsAt`, `consensus.rs:105`) | admitted (two keys) → does not | KERNEL.md 7b: "One person, one voice. A tally over voices equals the count of persons"; a person's devices are one voice (CC 2.7.8, a person's keys are one roster) | **adapter artefact**: the kernel counts voices, and presenting a device as its person's voice is the adapter's job under 7b. The adapter maps each key through `PersonsAt::voice` and each seat through `seat_person`. 0 left |
 | 4 | self-signed re-admission (1) | `quorum:1/2`, roster {a (founder), b}; a widening naming a, signed by a | does not admit (`consensus.rs:223`) | admitted → does not | CC 2.7.5: "no key admits itself"; CC 3.3.4 `founder_only`: "cannot re-seat itself alone". Lean `SeatCount.no_key_admits_itself` | **kernel lacked**: in `seat_rule`, a key the counted row seats or removes is no voice of the count. The Python models' cases are unchanged by it. 0 left |
@@ -71,7 +71,8 @@ KERNEL.md 8a.
 
 - `seat::Policy::Unanimous`, `SelfAdmit` and `Weighted`, and `SeatRow::weights`.
 - In `seat_rule`, no key admits itself: a key the counted row seats is no voice of its count. On a removal the
-  member removed is a voice like any other (CC 2.7.5, CC 4.5.13; the Constitution's ruling of 2026-11-23).
+  member removed is a voice unless the policy's own text excludes it, as `unanimous`, `open:self_admit` and the
+  duty withdrawal do (CC 2.7.5; the Constitution's ruling of 2026-11-23).
 - `derived::fold_default` (CC 3.5.1).
 
 Each has cases from its CC sentence: `tests/policies.rs`, 24 cases, and `tests/fold_default.rs`, the four

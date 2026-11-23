@@ -2,19 +2,16 @@
 
 ## Unreleased
 
-**An answer changes: the member removed is a voice of its own removal.** `seat::group_count`, and so
-`seat_rule`'s group count, no longer drops the voice of a key the row removes (the Constitution's ruling of
-2026-11-23 on CC 2.7.5 and CC 4.5.13: "on a removal the member removed is a voice like any other"). A key the
-row seats is still no voice of its own seating.
-- Plain counts (`quorum`, `majority`, a declared threshold, `founder_only`, `weighted`): the member removed
-  counts if it signed. A removal that failed by that one voice now stands.
-- `unanimous`: every other member still signs, and the strict majority of the roster now counts the member
-  removed too. At two members a removal stands only with the consent of the one removed; before, never.
-- `open:self_admit` and the duty withdrawal are unchanged: their own sentences exclude the member named.
+**An answer changes: on a plain count, the member removed is a voice of its own removal.** `seat::group_count`,
+and so `seat_rule`'s group count, no longer drops the voice of a key the row removes under `quorum`,
+`majority`, a declared threshold, `founder_only` or `weighted` (the Constitution's ruling of 2026-11-23 on
+CC 2.7.5: the member removed counts unless the policy's own text excludes it). A removal that failed by that
+one voice now stands. Under `weighted` the removed member's weight counts.
+- Unchanged: `unanimous`, `open:self_admit` and the duty withdrawal, whose own sentences exclude the member
+  named; and every seating, where a key the row seats is still no voice.
 - A caller counting an accord bundle no longer needs to pass an empty `to` for the removed holder.
-- `proofs/SeatCount.lean`: `unanimous_two_only_by_consent`, `unanimous_two_with_consent`,
-  `unanimous_consent_is_no_substitute`; `unanimous_two_removes_nobody` is now
-  `unanimous_two_others_alone_remove_nobody`.
+- No proof changes: `proofs/SeatCount.lean` states the count over the voices given, and which keys are voices
+  is the crate's reading, tested by cases (`tests/policies.rs`).
 
 Held views, slice 4 (issue #4, `HELD.md`): the head layer held (`held_view::HeldView`), its checkpoint (ids
 only, rows re-attached by id), foreign rows on `Held`, and `proofs/Held.lean`. No existing answer changes.

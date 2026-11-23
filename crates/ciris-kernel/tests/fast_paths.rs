@@ -342,8 +342,11 @@ fn count_before(r: &S, is_offer: bool, pol: Option<Policy>, mem: &BTreeSet<u32>,
         let y = yes.intersection(&base).count();
         return 2 * y > base.len() && (y >= 2 || mem.len() < 2);
     }
-    // on a removal the member removed is a voice like any other (CC 2.7.5, CC 4.5.13)
-    let yes: BTreeSet<&u32> = v.iter().filter(|k| mem.contains(*k) && !(is_offer && r.to().contains(k))).collect();
+    // on a removal the member removed is a voice unless the policy's text excludes it (CC 2.7.5)
+    let yes: BTreeSet<&u32> = v
+        .iter()
+        .filter(|k| mem.contains(*k) && !((is_offer || pol == Some(Policy::Unanimous)) && r.to().contains(k)))
+        .collect();
     if pol == Some(Policy::Weighted) {
         let sum: u64 = yes.iter().map(|k| r.weights().iter().find(|(w, _)| w == *k).map_or(0, |(_, x)| *x)).sum();
         return r.need().is_some_and(|t| t > 0 && sum >= t as u64);
@@ -353,7 +356,7 @@ fn count_before(r: &S, is_offer: bool, pol: Option<Policy>, mem: &BTreeSet<u32>,
         return if is_offer {
             !mem.is_empty() && yes.len() == others && r.to().iter().all(|k| !mem.contains(k) || v.contains(k))
         } else {
-            yes.iter().filter(|k| !r.to().contains(k)).count() == others && 2 * yes.len() > mem.len()
+            yes.len() == others && 2 * yes.len() > mem.len()
         };
     }
     ciris_kernel::seat::met(pol, yes.len(), mem.len(), r.need())

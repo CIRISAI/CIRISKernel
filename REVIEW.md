@@ -11,7 +11,7 @@ python3 -I models/causal_kernel/check_purge.py               # one model check; 
 ```
 
 `proofs/build.sh` compiles the thirty-two files in dependency order and fails on a compile error, a `sorry`, or an
-axiom beyond `propext`, `Quot.sound` and `Classical.choice`. It prints `proofs: 32 files, 744 theorems reported, 5004 declarations audited, plant caught,
+axiom beyond `propext`, `Quot.sound` and `Classical.choice`. It prints `proofs: 32 files, 741 theorems reported, 4999 declarations audited, plant caught,
 rc=0`: 734 is the number of `#print axioms` lines the files contain, one for each theorem they print, not every
 lemma. `proofs/Audit.lean` then checks every declaration of the stack the same way, printed or not (4,985), and `build.sh` fails unless its planted `sorry` and axiom are caught. Each model check compares its verdicts with a recorded file and fails on any difference, any plant not
 caught, or any set that gives two answers in two arrival orders. [`models/README.md`](models/README.md) lists the

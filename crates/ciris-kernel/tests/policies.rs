@@ -187,7 +187,7 @@ fn the_counts_the_text_states() {
             false,
         ),
         (
-            "unanimous: the target's yes does not stand in for another's",
+            "unanimous: the target is no voice",
             admits(Policy::Unanimous, None, "member", &abc, &[], false, &["b"], &["a", "b"], &[]),
             false,
         ),
@@ -197,13 +197,13 @@ fn the_counts_the_text_states() {
             admits(Policy::Unanimous, None, "member", &["a", "b"], &[], false, &["b"], &["a"], &[]),
             false,
         ),
-        // CC 4.5.13: "at two coincide only if the one removed consents"
+        // CC 4.5.13: "At two members nobody is removed", the consent of the one removed included
         (
-            "unanimous: at two the one removed consents",
+            "unanimous: at two the consent of the one removed removes nobody",
             admits(Policy::Unanimous, None, "member", &["a", "b"], &[], false, &["b"], &["a", "b"], &[]),
-            true,
+            false,
         ),
-        // CC 2.7.5: "On a removal the member removed is a voice like any other."
+        // CC 2.7.5: on a plain count the member removed is a voice of its removal
         (
             "majority: the member removed is a voice of its removal",
             admits(
