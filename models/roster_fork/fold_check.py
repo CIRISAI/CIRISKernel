@@ -4,8 +4,9 @@ The strict fold at tips, checked over every set of versions roster_fork enumerat
 
 Properties, over every set of at most K versions in each setting:
     removed_out      no key a valid version removed is in the roster
-    past_count       where the adversary does not meet the count over the members common to the tips, the fold
-                     seats no adversary key whose every adding version was signed by adversary keys alone
+    past_count       where the adversary meets the count neither over the members common to the tips nor over
+                     the rest of the folded roster, the fold seats no adversary key whose every adding version
+                     was signed by adversary keys alone
     policy_holds     tips that differ in policy seat nobody who is not common to them
     honest_sooner    (a count, not a property) sets where the fold lists an honest member M0 leaves out
     authored_seats   adding an outsider's own admission to a set never takes an honest member out of the roster.
@@ -18,6 +19,8 @@ Properties, over every set of at most K versions in each setting:
 
 Planted breaks, each of which must fail the property named:
     plain            an add is folded whatever its count leaned on              -> past_count
+    one_step         an add's count discounts the voices of members who are out, and still counts the voice of
+                     a key the fold itself does not seat (a forged line of two)  -> past_count
     keeps_removed    a member a tip removed stays in the fold                   -> removed_out
     policy_folds     tips that differ in policy are folded                      -> policy_holds
     authored_wait    an authored tip makes the roster the common members        -> authored_seats
@@ -42,12 +45,13 @@ SETTINGS = [
     ("three of five, two of them", "quorum3", 5, "01234", "34", 3, True, False, False),
     ("a past count: majority of three, the adversary one seated key, one it loses, one fresh", "majority", 4, "012", "123", 3, False, False, False),
     ("a past count: majority of four, two seated adversary keys and a fresh one", "majority", 5, "0123", "234", 3, False, False, False),
+    ("a past count and a forged line of two: majority of three, one seated, one it loses, two fresh", "majority", 5, "012", "1234", 3, False, False, False),
     ("a policy change: majority, one of four", "majority", 5, "0123", "3", 3, True, False, True),
     ("authored heads: majority of four with one adversary, an honest and an adversary outsider", "majority", 6, "0123", "35", 3, True, True, False),
     ("authored heads and a policy change: majority of three, one adversary outsider", "majority", 4, "012", "3", 3, True, True, True),
 ]
 PROPS = ("removed_out", "past_count", "policy_holds", "authored_seats", "authored_counts", "back_to_one")
-PLANTS = (("plain", "past_count"), ("keeps_removed", "removed_out"), ("policy_folds", "policy_holds"),
+PLANTS = (("plain", "past_count"), ("one_step", "past_count"), ("keeps_removed", "removed_out"), ("policy_folds", "policy_holds"),
           ("authored_wait", "authored_seats"), ("narrow", "authored_counts"))
 
 
@@ -77,7 +81,7 @@ def run(setting, want=PROPS):
         if len(tips) > 1 and not W.meets(W.F, common):
             for zi in range(W.n):
                 z = 1 << zi
-                if roster & ~common & W.F & z:
+                if roster & ~common & W.F & z and not W.meets(W.F, roster & ~z):
                     ad = [i for i in FD.adders_of(W, S, z) if i not in W.auth]
                     if ad and all(not (vs[i]["sig"] & W.H) for i in ad):
                         first("past_count", S, "the fold seats %s, added by adversary keys alone" % F.names(W, z))

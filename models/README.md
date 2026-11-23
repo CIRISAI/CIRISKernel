@@ -33,7 +33,7 @@ Each is run by `./check.sh` at the top of the repository. The last line is what 
 | `python3 -I models/causal_kernel/check_cut.py` | the cut: order-freeness and that only a key that may cut a slot changes it (three workers) | `RESULT: ok` |
 | `python3 -I models/causal_kernel/check_roomkey.py` | private rooms: voices, bindings, symbolic deniability (three workers) | `RESULT: ok in …s (77 facts)` |
 | `python3 -I models/roster_fork/fork_check.py --check` | tips wait, under several counting protocols | `roster_fork: with tips waiting …` |
-| `python3 -I models/roster_fork/fold_check.py` | a proposed fold at tips (not the rule of the text, which is that tips wait): commuting membership changes seat at once, an addition only where it still meets its count without the voices any tip removed, tips that differ in policy wait; with a policy change and with heads one key can write (an outsider's own admission, a resignation); six properties over eight settings, five planted breaks | `RESULT: ok` |
+| `python3 -I models/roster_fork/fold_check.py` | a proposed fold at tips (not the rule of the text, which is that tips wait): commuting membership changes seat at once, an addition only where it still meets its count without the voices any tip removed, tips that differ in policy wait; with a policy change and with heads one key can write (an outsider's own admission, a resignation); six properties over nine settings, six planted breaks | `RESULT: ok` |
 | `python3 -I models/key_plane/key_plane_model.py --check` | the key effects of the transitions table | `key_plane: …` |
 
 Each of these was run in the parent repository at commit `60c741e` and here; apart from lines that print elapsed

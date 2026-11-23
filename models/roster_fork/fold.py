@@ -2,9 +2,10 @@
 """The fold at tips: roster_fork's enumeration (fork.py, unchanged) with three things added.
 
     the strict fold   with several tips the roster is the fold of every tip's changes: a member any tip's line
-                      removed is out; a member some tip adds is in where the version that adds it still meets its
-                      count without the voices any tip removed; otherwise the roster is what M0 gives, the members
-                      common to the tips. Tips that differ in policy do not fold: they wait, as under M0.
+                      removed is out, unless a later addition has that removal in its past; a member some tip adds
+                      is in where the version that adds it meets its count on the voices of members the fold
+                      seats, over the members of its heads that the fold seats (a least fixed point from the
+                      common members). Tips that differ in policy do not fold: they wait, as under M0.
     a policy change   a counted version with the roster of its head and policy 1, which asks every member's
                       signature for a later change. Two tips that differ in policy conflict.
     authored heads    a version one key writes: an outsider's own admission to an open room, and a member's own
@@ -151,17 +152,22 @@ def fold(W, S):
         return common, False, tp, False                         # tips that differ in policy wait
     if "keeps_removed" in MUT: gone = 0
     keep = common
-    for zi in range(W.n):
-        z = 1 << zi
-        if not (union & z) or (common & z) or (gone & z): continue
-        adders = [i for i in lines if i and W.valid(i) and vs[i]["R"] & z and not any(vs[e]["R"] & z for e in vs[i]["E"])]
-        ok = bool(adders)
-        for i in adders:
-            if i in W.auth or "plain" in MUT: continue          # its own signature is its count
-            base = W.ALL
-            for e in vs[i]["E"]: base &= vs[e]["R"]
-            if not W.meets_pol(vs[i]["sig"] & ~gone, base & ~gone, max(W.pol.get(e, 0) for e in vs[i]["E"])): ok = False
-        if ok: keep |= z
+    while True:                                                 # least fixed point: a voice counts once its key is in
+        more = keep
+        for zi in range(W.n):
+            z = 1 << zi
+            if not (union & z) or (keep & z) or (gone & z): continue
+            adders = [i for i in live if vs[i]["R"] & z and not any(vs[e]["R"] & z for e in vs[i]["E"])]
+            ok = bool(adders)
+            for i in adders:
+                if i in W.auth or "plain" in MUT: continue      # its own signature is its count
+                base = W.ALL
+                for e in vs[i]["E"]: base &= vs[e]["R"]
+                seated = (union & ~gone) if "one_step" in MUT else keep
+                if not W.meets_pol(vs[i]["sig"] & seated, base & seated, max(W.pol.get(e, 0) for e in vs[i]["E"])): ok = False
+            if ok: more |= z
+        if more == keep: break
+        keep = more
     return keep & ~gone, False, tp, True
 
 
