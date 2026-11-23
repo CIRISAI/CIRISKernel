@@ -197,7 +197,7 @@ a `sorry`, or an axiom beyond the three of core Lean.
 
 Then it runs `Audit.lean`, the semantic audit. That file imports the whole stack and asks Lean which axioms every declaration depends on (`collectAxioms`). This covers every declaration, not only the theorems a `#print axioms` line reports. A `sorry` leaves `sorryAx` behind, and an `axiom` declared here names itself, so either fails the build, even in a lemma no printed theorem uses. The audit has a plant every run. `build.sh` writes a module with an unused `sorry` and a minted axiom, audits it with the stack, and fails unless both are refused. `build.sh` also fails on any "declaration uses 'sorry'" the compiler reports. The run line adds `N declarations audited, plant caught`.
 
-Output of the run in this repository: `proofs: 32 files, 741 theorems reported, 4999 declarations audited, plant caught, rc=0`. The nineteen files carried from the parent print 550 (548 at the commit they were carried at, and two more since `Reader.lean` states `sibling_by_acknowledgement`); the seven added for the crate (`CutFix`, `SeatWalk`, `SeatCount`, `WindowTable`, `Retained`, `Versions`, `Ops`) print 52; `Repurge.lean` prints 13; `Admission.lean` prints 76; `MinorVoid.lean` prints 15; `KeyOfIssuer.lean` prints 16; `DerivedCircle.lean` prints 12; `Held.lean` prints 7. The count is of lines reporting the axioms a declaration depends on (`#print axioms`), one per theorem the files print, not of every lemma.
+Output of the run in this repository: `proofs: 32 files, 744 theorems reported, 5004 declarations audited, plant caught, rc=0`. The nineteen files carried from the parent print 550 (548 at the commit they were carried at, and two more since `Reader.lean` states `sibling_by_acknowledgement`); the seven added for the crate (`CutFix`, `SeatWalk`, `SeatCount`, `WindowTable`, `Retained`, `Versions`, `Ops`) print 55; `Repurge.lean` prints 13; `Admission.lean` prints 76; `MinorVoid.lean` prints 15; `KeyOfIssuer.lean` prints 16; `DerivedCircle.lean` prints 12; `Held.lean` prints 7. The count is of lines reporting the axioms a declaration depends on (`#print axioms`), one per theorem the files print, not of every lemma.
 
 `Repurge.lean` is written for this repository and has no counterpart in the parent or in the crate's gaps.
 
@@ -211,7 +211,7 @@ over Lean definitions of the same shape, and are built by `build.sh` like the re
 |---|---|
 | `CutFix.lean` | the cut's well-founded fixed point: for any antitone step, what it reports as counting counts whatever the undecided cuts do; the cut's step is antitone |
 | `SeatWalk.lean` | the bounded walk of live seats is exactly the chains of at most `depth` links from a root; tips wait |
-| `SeatCount.lean` | no key admits itself; counts never fall; each policy's arithmetic, `unanimous` at two, `open:self_admit`, the duty floor, `weighted` |
+| `SeatCount.lean` | no key admits itself; counts never fall; each policy's arithmetic, `unanimous` at two (only with the consent of the one removed), `open:self_admit`, the duty floor, `weighted` |
 | `WindowTable.lean` | a window's table before and at its close |
 | `Retained.lean` | the rows that have not lapsed are closed downwards; revocations are kept |
 | `Versions.lean` | built on, for roster versions |

@@ -1097,6 +1097,8 @@ pub struct GroupCount<'a, K> {
     /// An offer (true) or an unseat (false).
     pub offer: bool,
     /// The keys the row seats or removes (`SeatRow::to`).
+    /// A key the row seats is no voice of its count; a key it removes is a voice like any other, except
+    /// under `open:self_admit` and the duty withdrawal, whose text excludes it.
     pub to: &'a [K],
     /// The members at the head, less those whose own leaving is in the row's past.
     pub members: &'a BTreeSet<K>,
@@ -1143,9 +1145,10 @@ fn count_of<K: Ord>(
         let yes: BTreeSet<&K> = v.iter().filter(|k| mem.contains(*k)).collect();
         return duty_count_keys(pol == Some(Policy::DutyWithdraw), to, &yes, mem);
     }
-    // no key admits itself (CC 2.7.5): a key the row seats or removes is no voice of the count. The voices
-    // that are members, ascending and each once, read off the two sorted sets with no set built.
-    let yes = || v.intersection(mem).filter(|k| !to.contains(k));
+    // no key admits itself (CC 2.7.5): a key the row seats is no voice of its count. On a removal the member
+    // removed is a voice like any other (CC 2.7.5, CC 4.5.13). The voices that are members, ascending and each
+    // once, read off the two sorted sets with no set built.
+    let yes = || v.intersection(mem).filter(|k| !is_offer || !to.contains(k));
     if pol == Some(Policy::Weighted) {
         // in u128, so no further voice can lower the sum (`SeatCount.weighted_mono`, over Nat)
         let sum: u128 = yes().map(|k| weight(k) as u128).sum();
@@ -1157,7 +1160,10 @@ fn count_of<K: Ord>(
         return if is_offer {
             !mem.is_empty() && n_yes == others && to.iter().all(|k| !mem.contains(k) || v.contains(k))
         } else {
-            n_yes == others && 2 * n_yes > mem.len()
+            // every other member signs; the roster's strict majority counts the member removed too, whose
+            // yes cannot stand in for another's
+            let others_yes = v.intersection(mem).filter(|k| !to.contains(k)).count();
+            others_yes == others && 2 * n_yes > mem.len()
         };
     }
     met(pol, n_yes, mem.len(), need)
