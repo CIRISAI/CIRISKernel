@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+`seat::seat_rule`: the holder of a seat may end its own seat by a row of its own under that seat, where the
+caller's `SeatLaw::ends` lists the seat's scope for itself. That is how an owner's revocation of a key is
+presented (CC 2.4.1.1: it "ends the owner-binding's standing", and "only the key's own revocation ends its
+liveness"): an Unseat of scope `owner`, `to` the owner, under the owner-binding, with `ends` =
+`{owner: [owner]}`. It concludes only for the one live owner over the row's own past, as before. Additive: a
+table that lists another scope (the reading until now, `{owner: [registered]}`, which ended the key itself) is
+read as before, with `to` the object's key. The reference `seat.py` and `check_rosters.py`'s key instance move
+to the text's reading: the owner's revocation ends the binding, the key stays registered, its rows count, and
+it can take a new first binding. Eight scenarios in the seat fixture run the crate's rule; two planted breaks.
+**A caller whose law table has `owner -> registered` ends keys by their owner's revocation, which the text does
+not allow.**
+
 **Answers change: at several tips `seat::Seats` reads the fold, not the common members.** `stands`, `holders`,
 `holders_at` and `stands_at` now read `Seats::tips_fold` (CC 2.7.8 as the Constitution adopted it on a run,
 2026-11-23; `models/roster_fork/fold.py`):
