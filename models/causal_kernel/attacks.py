@@ -445,6 +445,7 @@ def t08(t):
 # =========================================================================================================
 def window_bases():
     Ws, Wm, Wh = WN.secs("self_roster_evict"), WN.secs("moderation_fallback"), WN.secs("halt_fuse")
+    Wo = WN.secs("moderation_overturn")
     gs = ST.offer("g", "d1", ("d1", "d2", "d3"), "self", "@", "self", cosigners=("d2", "d3"))
     gm = ST.offer("g", "m1", ("m1", "m2", "m3"), "duty", "@", "self", cosigners=("m2", "m3"))     # three duty holders (CC 4.5.4)
     md = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("g",), head=("g",), policy="duty_confer", counted="duty",
@@ -470,6 +471,14 @@ def window_bases():
             [gh, WN.opener("p", "h1", "halt_fuse", "g", ("g",)), WN.answer("c2", "h2", "p", "confirm"), WN.receipt("r", "h2", "p", 0),
              WN.landing("L", "h2", "p", "r", "confirmed", 0, ("c2",))],
             {"h3 signs anything": R("n", "note", "h3", ("g",))}, None, "h2"),
+        "overturn: the act stands at the close": (
+            [gm, md, WN.opener("p", "MOD", "moderation_overturn", "g", ("md",)), WN.answer("o1", "m1", "p", "object"), WN.receipt("r", "m3", "p", 0),
+             WN.landing("L", "m3", "p", "r", "stands", Wo, ("o1",))],
+            {"a second member objects": WN.answer("n", "m2", "p", "object")}, "lifted", "m1"),
+        "overturn: lifted by a majority (count)": (
+            [gm, md, WN.opener("p", "MOD", "moderation_overturn", "g", ("md",)), WN.answer("o1", "m1", "p", "object"), WN.answer("o2", "m2", "p", "object"),
+             WN.receipt("r", "m1", "p", 0), WN.landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2"))],
+            {"the duty holder signs anything": R("n", "note", "MOD", ("md",)), "m3 signs anything": R("n", "note", "m3", ("g",))}, None, "m1"),
     }
 
 
@@ -489,9 +498,9 @@ def t09(t):
                 line += "; then a landing naming both: recount=%s" % o2["recount"]
                 flips.append((name, who, o2["recount"]))
             t.note(line)
-    t.fact("every lone landing of the three windows is flipped by one late row under recount: %d flips" % len(flips), len(flips) == 3)
+    t.fact("every lone landing of the four windows is flipped by one late row under recount: %d flips" % len(flips), len(flips) == 4)
     t.fact("no landing with a count behind it is flipped (quorum_closed_final)", not any("count" in n or "majority" in n for n, _, _ in flips))
-    t.fact("each flip ends, once a landing names both, at the opposite outcome: %s" % ", ".join(o for _, _, o in flips), [o for _, _, o in flips] == ["refused", "answered", "confirmed"])
+    t.fact("each flip ends, once a landing names both, at the opposite outcome: %s" % ", ".join(o for _, _, o in flips), [o for _, _, o in flips] == ["refused", "answered", "confirmed", "lifted"])
     lapse, lates, _, _ = window_bases()["halt: lapsed at the fuse"]
     c2 = lates["a second holder confirms"]
     k1 = ST.cosign("k1", "h3", "v1", ("g", "L"))
@@ -505,7 +514,7 @@ def t09(t):
            % (o2["recount"], o3["recount"]), (o2["recount"], o3["recount"]) == ("contested", "lapsed"))
     return dict(cls="CONCEDED", who="one key that was counted at the opener's head and still holds its seat: the evicted device itself, the moderator, one further accord holder",
                 witness="halt: g(h1,h2,h3) p(h1 halts) L(h3 lands 'lapsed' at the fuse); a year later n(h2 'confirm', naming only p): the lapse is contested, and a landing naming both must say 'confirmed'. "
-                        "The same for an eviction (the evicted key signs anything: refused) and the members' fallback (the moderator answers: answered).",
+                        "The same for an eviction (the evicted key signs anything: refused), the members' fallback (the moderator answers: answered) and the members' check (a second member objects: lifted).",
                 protects="KERNEL 5: 'What recount costs: a lone landing is never final against a key that can still sign'; causal_order README: 'A key whose answer would move it can unseat the landing at any later time by leaving it unnamed'. "
                          "One signature, no deadline, by a key that was counted at the opener's head and has not been removed since; it lasts until a concluder signs a landing naming both, and that landing must state the flipped outcome. "
                          "No later row of the ledger closes it: the checkpoint is not applied to window answers. "
@@ -595,6 +604,13 @@ def t12(t):
     L4 = [WN.receipt("r4", "d3", "p", 0), WN.landing("L4", "d3", "p", "r4", "landed", W)]         # the thief lands again, naming nothing new
     o, bad = win(thief + [n] + L2 + L4); t.order(bad)
     t.fact("the thief lands again beside it, naming only its own receipt: recount=%s (a landing that does not stand says nothing against one that does)" % o["recount"], o["recount"] == "refused")
+    # the thief delays its receipt and names the owner's row in it, to put that row before the window
+    wide = R("rw", "receipt", "d3", ("p", "n"), of="p", at=0)
+    late = [g, p, n, wide, WN.landing("Lw", "d3", "p", "rw", "landed", W)]
+    S = conc(late, WIN)
+    o, bad = win(late); t.order(bad)
+    t.fact("a receipt with the owner's row in its past is no receipt (%s), the landing naming it concludes nothing (%s), and the window stays %s"
+           % (S.C["rw"], S.C["Lw"], o["recount"]), not S.C["rw"] and not S.C["Lw"] and o["recount"] == "open")
     own = [g, WN.opener("p", "d1", "self_roster_evict", "g", ("g",), target="d3"), WN.receipt("r", "d1", "p", 0), WN.landing("L", "d1", "p", "r", "landed", W), R("n", "note", "d3", ("g",))]
     o, bad = win(own); t.order(bad)
     t.note("stated residuals: an absent owner looks lost (the first line above), and an owner with one live device cannot evict a thief who signs anything (recount=%s)" % o["recount"])

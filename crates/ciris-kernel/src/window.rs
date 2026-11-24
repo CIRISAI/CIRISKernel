@@ -31,7 +31,8 @@ pub enum WinKind {
     Open,
     /// It answers one.
     Answer,
-    /// The concluder's receipt of the opener.
+    /// The concluder's receipt of the opener. One that has a row of the target in its past, beyond what the
+    /// opener has in its own, is no receipt, and a landing naming it concludes nothing.
     Receipt,
     /// The concluder's landing.
     Landing,
@@ -76,6 +77,8 @@ pub enum How {
     AtLeast(u64, u64, u64),
     /// More than `num / den` of n.
     More(u64, u64),
+    /// More than `num / den` of n, and never fewer than `least` voices (a strict majority with a floor).
+    MoreAtLeast(u64, u64, u64),
 }
 
 /// Which keys a clause counts over.
@@ -87,6 +90,8 @@ pub enum Base {
     Others,
     /// Another scope at the opener's head.
     Scope(String),
+    /// The opener's signer alone: the proposer's own voice (its withdrawal of an open proposal).
+    Opener,
 }
 
 /// One clause of a window's table: if `value` is said by enough of `over`, the outcome is `out`.
@@ -109,6 +114,9 @@ pub struct WindowSpec<T> {
     pub counted: String,
     /// The scope of the concluder.
     pub concluder: String,
+    /// The scope the opener's signer holds, where it is not the counted one (a duty holder's act that the
+    /// members may lift opens its own window). `None`: the counted scope.
+    pub opener: Option<String>,
     /// What the opener's signer says by opening.
     pub opener_says: Option<String>,
     /// Clauses that close the window at once.
@@ -130,11 +138,12 @@ pub struct WindowSpec<T> {
 pub enum Outcome {
     /// The opener is not held or did not conclude.
     None,
-    /// No landing concluded yet.
+    /// No landing has concluded and the answers held meet no at-once count.
     Open,
     /// Two landings that stand state different outcomes, or none stands.
     Contested,
-    /// The outcome the standing landings state.
+    /// The outcome the standing landings state, or, where no landing has concluded, the outcome of an at-once
+    /// count the answers held meet (a count that is met needs no clock and no concluder).
     Landed(String),
 }
 
@@ -158,6 +167,7 @@ struct Ctx<'x, R: WindowRow, S: CutSpec<R>> {
 impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
     fn base(&self, b: &Base) -> BTreeSet<R::Key> {
         let (name, scope) = match b {
+            Base::Opener => return core::iter::once(self.opener_signer.clone()).collect(),
             Base::All => ("all", self.w.counted.as_str()),
             Base::Others => ("others", self.w.counted.as_str()),
             Base::Scope(s) => (s.as_str(), s.as_str()),
@@ -220,8 +230,13 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
     let mut voters = x.base(&Base::All);
     voters.extend(x.base(&Base::Scope("moderate".into())));
     voters.extend(tv.iter().cloned());
+    // the proposer's withdrawal is its own voice on the opener's clause, and never replaces what it said by opening
+    let is_wd = |a: &&R| *a.signer() == x.opener_signer && a.says().is_some_and(|w| w.as_ref() == "withdraw");
+    let withdrawn = answers.iter().any(is_wd);
     // a voice that says two things says nothing
-    let by = ops::group_by(answers.iter().copied().filter(|a| voters.contains(a.signer())), |a| a.signer().clone());
+    let by = ops::group_by(answers.iter().copied().filter(|a| voters.contains(a.signer()) && !is_wd(a)), |a| {
+        a.signer().clone()
+    });
     let mut said: BTreeMap<R::Key, String> = BTreeMap::new();
     for (s, rs) in by {
         if let Some(v) = ops::one(rs.iter().filter_map(|a| a.says().map(|w| String::from(w.as_ref())))) {
@@ -232,6 +247,9 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         said.entry(x.opener_signer.clone()).or_insert_with(|| o.clone());
     }
     let met = |cl: &Clause, floor: bool| {
+        if cl.over == Base::Opener {
+            return if cl.value == "withdraw" { withdrawn } else { said.get(&x.opener_signer) == Some(&cl.value) };
+        }
         let keys = x.base(&cl.over);
         let yes = said
             .iter()
@@ -243,6 +261,7 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         match cl.how {
             How::AtLeast(num, den, least) => yes >= core::cmp::max(least, (num * n).div_ceil(den)),
             How::More(num, den) => yes * den > num * n,
+            How::MoreAtLeast(num, den, least) => yes * den > num * n && yes >= least,
             How::One => yes >= 1,
             How::Strict => 2 * yes > n,
         }
@@ -266,6 +285,18 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         }
     }
     w.default.clone()
+}
+
+/// The answers that are voices: an approval that has the proposer's withdrawal in its past approves nothing.
+fn voices_of<'r, R: WindowRow>(
+    answers: Vec<&'r R>,
+    opener: &R::Key,
+    past: &dyn Fn(&R::Id, &R::Id) -> bool,
+) -> Vec<&'r R> {
+    let says = |a: &R, w: &str| a.says().is_some_and(|s| s.as_ref() == w);
+    let wd: Vec<&R::Id> =
+        answers.iter().filter(|a| a.signer() == opener && says(a, "withdraw")).map(|a| a.id()).collect();
+    answers.iter().copied().filter(|a| !(says(a, "approve") && wd.iter().any(|w| past(w, a.id())))).collect()
 }
 
 /// The conclusion rule for a window row; `None` for a row that is not one (conclude it by the seat).
@@ -293,7 +324,8 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
     let past = |a: &R::Id, b: &R::Id| p.past(a, b);
     if k == WinKind::Open {
         let (Some(w), Some(obj)) = (r.window().and_then(windows), r.obj()) else { return Some(false) };
-        return Some(members_in(&rows, &past, law, spec, &obj, r.head(), &w.counted).contains(r.signer()));
+        let scope = w.opener.as_ref().unwrap_or(&w.counted);
+        return Some(members_in(&rows, &past, law, spec, &obj, r.head(), scope).contains(r.signer()));
     }
     let Some(o) = r.of().and_then(|o| p.get(o)) else { return Some(false) };
     if o.win_kind() != Some(WinKind::Open) {
@@ -323,14 +355,20 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         return Some(false);
     }
     if k == WinKind::Receipt {
-        return Some(true);
+        // a receipt puts no row of the target before the window: none in its past that the opener's past does
+        // not hold
+        let Some(t) = o.target_key() else { return Some(true) };
+        return Some(!rows.iter().any(|q| q.signer() == t && q.id() != o.id() && !p.past(q.id(), o.id())));
     }
     let Some(rec) = r.receipt().and_then(|x| p.get(x)) else { return Some(false) };
     if rec.win_kind() != Some(WinKind::Receipt) || rec.signer() != r.signer() || rec.of() != Some(o.id()) {
         return Some(false);
     }
-    let answers: Vec<&R> =
-        rows.iter().copied().filter(|q| q.win_kind() == Some(WinKind::Answer) && q.of() == Some(o.id())).collect();
+    let answers: Vec<&R> = voices_of(
+        rows.iter().copied().filter(|q| q.win_kind() == Some(WinKind::Answer) && q.of() == Some(o.id())).collect(),
+        o.signer(),
+        &past,
+    );
     let inside: Vec<&R> = rows.iter().copied().filter(|q| q.id() != rec.id() && !p.past(q.id(), rec.id())).collect();
     let elapsed = match (r.at(), rec.at()) {
         (Some(a), Some(b)) => a >= b && a - b >= w.secs,
@@ -373,9 +411,6 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
         .copied()
         .filter(|&i| g.row(i).win_kind() == Some(WinKind::Landing) && g.row(i).of() == Some(p.id()))
         .collect();
-    if ls.is_empty() {
-        return Outcome::Open;
-    }
     let rows: Vec<&R> = c.cs().iter().map(|&i| g.row(i)).collect();
     let past = |a: &R::Id, b: &R::Id| match (g.idx(a), g.idx(b)) {
         (Some(a), Some(b)) => g.in_past(a, b),
@@ -425,6 +460,19 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
     if w.target_votes {
         voters.extend(p.target_key().cloned());
     }
+    if ls.is_empty() {
+        // no landing has concluded: a count that is met needs no clock and no concluder, so the table's at-once
+        // outcome over the answers held is the outcome; short of it the window is open
+        let held: Vec<&R> = c
+            .cs()
+            .iter()
+            .copied()
+            .filter(|&r| g.row(r).win_kind() == Some(WinKind::Answer) && g.row(r).of() == Some(p.id()) && !late(r))
+            .map(|r| g.row(r))
+            .collect();
+        let got = table_outcome(&x, p.target_key(), &voices_of(held, p.signer(), &past), &[], false);
+        return if got == "open" { Outcome::Open } else { Outcome::Landed(got) };
+    }
     let mut said: Vec<Option<String>> = Vec::new();
     for l in g.frontier(&ls) {
         let lr = g.row(l);
@@ -452,6 +500,7 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
             .filter(|q| q.win_kind() == Some(WinKind::Answer) && q.of() == Some(p.id()))
             .collect();
         answers.extend(ans);
+        let answers = voices_of(answers, p.signer(), &past);
         let elapsed = match (lr.at(), g.row(rec).at()) {
             (Some(a), Some(b)) => a >= b && a - b >= w.secs,
             _ => false,
@@ -701,6 +750,7 @@ mod tests {
             let spec = WindowSpec {
                 counted: "member".into(),
                 concluder: if g.next(2) == 0 { "concl".into() } else { "member".into() },
+                opener: None,
                 opener_says: if g.next(2) == 0 { Some("approve".into()) } else { None },
                 at_once: clauses(&mut g),
                 silent: None,

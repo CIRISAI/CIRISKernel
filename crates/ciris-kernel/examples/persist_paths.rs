@@ -401,6 +401,7 @@ fn window_spec() -> WindowSpec<i64> {
     WindowSpec {
         counted: "member".into(),
         concluder: "member".into(),
+        opener: None,
         opener_says: Some("approve".into()),
         at_once: vec![Clause {
             value: "approve".into(),

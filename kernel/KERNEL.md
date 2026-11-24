@@ -275,13 +275,14 @@ read from the row alone against now. `by receipt` on a clock is the concluder's 
 **measured**: five clocks time a window from a signed instant and judge it at receipt, which is neither notion
 of time, so those five stay without a meaning. **open**.
 
-A landing that states an outcome its own past does not give concludes nothing. An answer concurrent with the
+A count that is met needs no clock and no concluder: where no landing has concluded, the outcome is the one an
+at-once count gives over the answers held, and short of it the window is open. A landing that states an outcome its own past does not give concludes nothing. An answer concurrent with the
 landing is **recounted**: it is counted with the landing's past, and the landing stands only if the table still
-gives the outcome it stated. **run** (`models/causal_kernel/window_adversary.tsv`): against the three windows
-of the text, twenty checks of what each exists to prevent. Recount breaks none. The check that a thief does
+gives the outcome it stated. **run** (`models/causal_kernel/window_adversary.tsv`): against the five windows
+of the text (the members' check of CC 4.5.13 and the self roster's addition were added on 2026-11-23), forty-seven checks of what each exists to prevent. Recount breaks none. The check that a thief does
 not evict alone holds against an owner who signs anything inside the window; an owner who signs nothing
 looks lost. A landing that voids concurrent
-answers breaks seven, a thief evicting alone among them. An answer that contests any landing breaks two.
+answers breaks eleven, a thief evicting alone among them. An answer that contests any landing breaks two.
 **proved**: `Recount.dishonest_never_stands`, `stands_is_table_over_all_not_late`, and `quorum_closed_final` (a
 landing with a strict majority behind it is final where no key of that majority answers both ways; under rule 6
 of section 6 such a key has no say there), and
