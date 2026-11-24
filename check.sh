@@ -55,6 +55,7 @@ step "fold_check (the fold at tips)"      fold      python3 -I models/roster_for
 step "key_plane_model (writer's keys)"    keyplane  python3 -I models/key_plane/key_plane_model.py --check
 step "divergence list (counts)"           diverge   python3 -I tools/divergence_counts.py
 step "kernel_fixtures (fixtures current)"   fixtures  python3 -I tools/kernel_fixtures.py --check
+step "plants name text that is there"   targets   python3 -I tools/kernel_plants_targets.py
 step "ciris-kernel build (no_std)"         crate     bash tools/kernel_crate_build.sh
 step "ciris-kernel conformance"            conform   bash tools/kernel_conformance.sh
 # CI sets CHECK_SKIP_PLANTS=1: there the plants run as parallel jobs of crate.yml (tools/kernel_crate_plants.sh
