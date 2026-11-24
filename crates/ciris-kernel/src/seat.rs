@@ -708,12 +708,12 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     /// * Tips that differ in protocol or policy ([`SeatRow::regime`]) do not fold: the answer is then the keys
     ///   common to them ([`Seats::tips_common`]).
     pub fn tips_fold(&self, s: &str, o: &ObjOf<R>) -> Option<BTreeSet<R::Key>> {
-        let key = (String::from(s), o.clone());
-        if let Some(t) = self.fold_memo.borrow().get(&key) {
+        let at = (String::from(s), o.clone());
+        if let Some(t) = self.fold_memo.borrow().get(&at) {
             return t.clone();
         }
-        let t = self.fold_of(s, o, &key);
-        self.fold_memo.borrow_mut().insert(key, t.clone());
+        let t = self.fold_of(s, o, &at);
+        self.fold_memo.borrow_mut().insert(at, t.clone());
         t
     }
 

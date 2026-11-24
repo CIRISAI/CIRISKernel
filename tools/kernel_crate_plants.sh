@@ -86,7 +86,7 @@ plant "an offer seating many reads one key's signature for all" src/seat.rs 'let
 plant "acceptances filed under one key"                 src/seat.rs 'SeatKind::Accept => acc.entry(r.signer()).or_default().push(i),' 'SeatKind::Accept => acc.entry(g.row(cs[0]).signer()).or_default().push(i),'
 plant "any withdrawal ends every acceptance"            src/seat.rs 'let ended = |row: &R| !wd_of(row.id()).is_empty();' 'let ended = |_row: &R| !wd.is_empty();'
 plant "kept tips answer for another object"             src/seat.rs 'if let Some(t) = self.tips_memo.borrow().get(o) {' 'if let Some(t) = self.tips_memo.borrow().values().next() {'
-plant "kept common holders answer for another scope"    src/seat.rs 'let key = (String::from(s), o.clone());' 'let key = (String::new(), o.clone());'
+plant "kept folded holders answer for another scope"    src/seat.rs 'let at = (String::from(s), o.clone());' 'let at = (String::new(), o.clone());'
 plant "the members at a head leave out the head"        src/seat.rs 'anc.iter().filter(|&&q| q == hi || past.has(q))' 'anc.iter().filter(|&&q| past.has(q))'
 plant "a window's counted scope read as moderate"       src/window.rs 'cache.insert("all".into(), sets[0].clone());' 'cache.insert("all".into(), sets[1].clone());'
 plant "the trust walk's index skips a key's own edges" src/trust.rs 'let lo = by_src.partition_point(|&x| edges[x].src < k);' 'let lo = by_src.partition_point(|&x| edges[x].src <= k);'
