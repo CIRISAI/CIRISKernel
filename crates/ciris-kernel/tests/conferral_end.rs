@@ -233,7 +233,7 @@ fn one_receipt_naming_several_acts() {
         via: None,
         lifts: false,
     };
-    let base = vec![
+    let base = [
         mk("H0", Kind::Head, "count", &[], None, None),
         mk("H1", Kind::Head, "count", &["H0"], None, None),
         mk("b1", Kind::Act, "B", &["H0"], Some("H0"), None),
