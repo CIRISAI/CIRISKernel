@@ -314,6 +314,10 @@ def seat_cases():
         title, cases = world()
         for name, rows, prop, need in cases:
             record(rows, A.WIN)
+    # a delegation chain from a counted grant: check_delegation.py's cases, under the seat rule
+    import check_delegation as DG
+    for _name, rows, _asks in DG.CASES:
+        record(rows, A.SEAT)
     rulefn = {"seat": A.SEAT, "window": A.WIN, "route": A.ROUTE}
     problems, out = [], []
     for i, (name, rows) in enumerate(scen):
