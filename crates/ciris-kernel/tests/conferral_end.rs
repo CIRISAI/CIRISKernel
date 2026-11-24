@@ -215,3 +215,54 @@ fn two_ends_are_refused() {
     let list: Vec<&CRow> = rows.iter().collect();
     assert!(matches!(run(&list, c, None), Err(Refused::SeveralEnds(..))));
 }
+
+/// One wire receipt names many acts (`refs.also.ack`). A caller presents it as one row per act named, each
+/// with `of` that act, and all of them carry the wire row's own id and names. The answers are those of
+/// separate receipts: a bulk receipt keeps each act it names, an act it does not name is not kept, and one
+/// that has the end in its past keeps nothing.
+#[test]
+fn one_receipt_naming_several_acts() {
+    let mk = |id: &str, kind: Kind, signer: &str, names: &[&str], head: Option<&str>, of: Option<&str>| CRow {
+        id: id.into(),
+        kind,
+        signer: signer.into(),
+        names: names.iter().map(|n| n.to_string()).collect(),
+        head: head.map(String::from),
+        of: of.map(String::from),
+        target: None,
+        via: None,
+        lifts: false,
+    };
+    let base = vec![
+        mk("H0", Kind::Head, "count", &[], None, None),
+        mk("H1", Kind::Head, "count", &["H0"], None, None),
+        mk("b1", Kind::Act, "B", &["H0"], Some("H0"), None),
+        mk("b2", Kind::Act, "B", &["H0"], Some("H0"), None),
+        mk("b3", Kind::Act, "B", &["H0"], Some("H0"), None),
+        mk("E", Kind::End, "A", &["H1"], Some("H1"), None),
+    ];
+    let st = Standing { role: &role, other_standing: false, who: Who::All, reader_acks: &[] };
+    let judge = |extra: Vec<CRow>| {
+        let rows: Vec<CRow> = base.iter().cloned().chain(extra).collect();
+        let refs: Vec<&CRow> = rows.iter().collect();
+        let past = Names { by: refs.iter().map(|r| (r.id.as_str(), *r)).collect(), hidden: None };
+        let got = answers(&refs, &st, &|a: &String, b: &String| past.in_past(a, b)).expect("one end");
+        ["b1", "b2", "b3"].map(|x| show(&got[x]))
+    };
+    let kept = (true, true, "E8.receipt".to_string());
+    let out = (true, false, "E2.forward".to_string());
+    // a co-holder's bulk receipt of b1 and b2, presented as two rows under one id
+    let bulk = |names: &[&str]| {
+        vec![mk("q", Kind::Receipt, "D", names, None, Some("b1")), mk("q", Kind::Receipt, "D", names, None, Some("b2"))]
+    };
+    assert_eq!(judge(bulk(&["b1", "b2"])), [kept.clone(), kept.clone(), out.clone()]);
+    // the same answers as two receipts under two ids
+    let two = vec![
+        mk("q1", Kind::Receipt, "D", &["b1"], None, Some("b1")),
+        mk("q2", Kind::Receipt, "D", &["b2"], None, Some("b2")),
+    ];
+    assert_eq!(judge(two), [kept.clone(), kept, out.clone()]);
+    // a bulk receipt that has the end in its past keeps nothing
+    assert_eq!(judge(bulk(&["b1", "b2", "E"])), [out.clone(), out.clone(), out]);
+    report("the end of a conferral: one receipt naming several acts, presented as one row per act", 9, 0);
+}
