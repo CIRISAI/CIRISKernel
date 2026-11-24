@@ -99,7 +99,7 @@ Recommended: a git dependency on the kernel repository at a tag, the way persist
 `ciris-verify-core` (`Cargo.toml:581`):
 
 ```toml
-ciris-kernel = { git = "https://github.com/CIRISAI/CIRISKernel", tag = "kernel-v0.2.0", version = "0.2" }
+ciris-kernel = { git = "https://github.com/CIRISAI/CIRISKernel", tag = "kernel-v0.2.2", version = "0.2" }
 ```
 
 `deny.toml` has `[sources] allow-git = []` with `unknown-git = "warn"`, so the repository would be added to
@@ -109,3 +109,51 @@ until the API settles; the crate is `publish = false`.
 The crate declares `rust-version = "1.89"`, and CI builds and tests it on that toolchain. Persist pins
 1.97.0 (`rust-toolchain.toml`), which is newer. The kernel repository's `deny.toml` holds persist's licence
 allow-list, and `cargo deny check` passes under it.
+
+## Presenting rows: what the functions assume
+
+The crate takes rows through traits and judges what it is given. It cannot tell a mis-presented row from a
+real one, so an adapter that presents rows the wrong way gets a wrong answer and no error. Each rule below was
+found by running a caller's first encoding against the crate on 2026-11-23. Reproduce the cases named before
+trusting an adapter.
+
+**A roster lineage, for `seat::members_at` and `seat::Seats`.**
+- The founding row: an Offer, `Conf::Own`, whose object is its own id, `to` the members, each a cosigner. A
+  synthetic signer is fine if it is not in `to`.
+- Every later node (a restating version, a widening, a self-admission, a removal): `Conf::Group`. A later node
+  given as `Conf::Own` under a signer with no founding seat seats nobody and is not a tip, with no error.
+- A restating version is Offers for the keys it adds and Unseats for the keys it drops. Do not offer again a
+  member who carries over: an Unseat ends the offers in its past, so a re-offer after it seats the removed key.
+- Each node names the heads it extends in `names` and in `head`.
+- Each counted node carries its real voices (signer, cosigners, cosign rows it names), its policy word and its
+  threshold. `members_at` does not read them; `Seats::tips_fold` does, for every addition not common to the
+  tips, and an addition with no member's voice waits.
+- A resignation is a `SeatKind::Withdraw` by the member, targeting the offer that seats it or its own
+  acceptance. It is no tip. It takes effect at a head only where some node in that head's past names it; a
+  node extending the same head does not have it in its past.
+- A founder is whatever scope the caller seats it in. `members_at(.., scope)` answers for the scope asked.
+- `SeatRow::regime`: the protocol and policy in force at each counted act, on every counted act.
+
+**A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,
+members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
+voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row
+names (`models/causal_kernel/roomkey.py`, `rule`).
+
+**A delegation chain**, for `Seats::stands`.
+- The counted grant: an Offer, `Conf::Group`, counted over the holders, `sub()` true where it carries
+  sub-delegation.
+- Each onward grant: an Offer, `Conf::Seat` (not `Conf::Own`), `under()` the offer that seats the delegator,
+  the same object, a scope the delegator's covers, the delegate's own acceptance, `sub()` where it may be
+  passed on again.
+- The depth cap is `SeatLaw::depth`. A term is the caller's to check at the door; `stands_at` reads only the
+  seating offer's own instants.
+
+**Receipts**, for `conferral::answers`. One wire receipt naming several acts is one row per act named, each
+with `of` that act, all under the wire row's own id (`tests/conferral_end.rs`,
+`one_receipt_naming_several_acts`).
+
+**A removal in a room's content**, for `content::answers`. Give a member's removal once, as `Kind::End`. A
+content row that names it as its head is read as naming a head at which the member is out.
+
+**Windows.** A `WindowSpec` literal states `opener` (`None` unless the opener's signer holds another scope than
+the counted one). `window::outcome` answers a met at-once count with no landing row.

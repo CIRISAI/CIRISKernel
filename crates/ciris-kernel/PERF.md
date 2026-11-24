@@ -333,3 +333,35 @@ from `kernel-v0.1.0`. Rows with digests for ids cannot form a cycle, but `Row` d
 - A/B against `e3e2fa0`, pinned, three rounds, load 15–20: `Graph::new` reads 0.94–1.04×, `conclude` and the
   seat rule 0.97–1.03×. The mean over all 176 cells is 1.01×, and byte-identical code swings up to 1.46× in
   the same run. A first version with two flag vectors read 0.72–0.85× and was replaced.
+
+## The fold at tips (2026-11-23)
+
+`Seats::stands` and `holders` read `tips_fold` where they read `tips_common`. With one tip nothing is read and
+the cost is unchanged: the seat and window benches are within noise of `kernel-v0.2.2` at sizes 3, 16 and 128
+(one run of `tools/kernel_bench_ab.py`, three rounds, on a host at load 14; differences under 10% are not
+resolved by it). `members_at` no longer copies its heads where none is a head one key wrote.
+
+With several tips the fold reads the seats of each tip's line, as `tips_common` does, and then for each key
+that is not common to the tips it reads the members at the heads of the offer that adds it. Three benches
+cover it (`examples/persist_paths.rs`), each building `Seats` and asking `holders` once; n is the history's
+length in counted rows.
+
+| bench | 16 | 128 | 1024 |
+|---|---|---|---|
+| `Seats::new+tips_common/two_tips_at_the_end` (the rule replaced) | 93 µs | 675 µs | 3.3 ms |
+| `Seats::new+holders/two_tips_at_the_end` (two tips, one key each) | 125 µs | 1.4 ms | 5.8 ms |
+| `Seats::new+holders/many_tips` (n / 8 tips, one key each) | 163 µs | 4.5 ms | 247 ms |
+| `Seats::new+holders/two_tips` (a fork at the middle, n / 2 keys to judge) | 287 µs | 13 ms | 521 ms |
+
+Single runs on the loaded host, not an A/B. What they show:
+- The usual fork (a long history, two tips at its end) costs about twice the rule it replaced.
+- The cost grows with the tips times the history, and with the keys to judge times the history. Both were
+  true of `tips_common` for the tips; the fold adds the second.
+- Under tips-wait a room had to join its tips to seat anyone. Under the fold it need not, so tips can
+  accumulate, an open room's self-admissions on an old head most of all. A caller should join tips with a
+  counted row naming them before they are many, or hold the answer and not re-read it per call.
+
+Three changes were made after the first measurement (26 ms at 128 for the fork at the middle): a line that
+never names a key is not re-read for it; one members cache serves every key judged; an outsider's own
+admission is not counted over the members. **Open:** the seats of each tip's line are built from the whole
+history each time. Tips that share a long past could share its walk; that is not done.

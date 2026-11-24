@@ -743,13 +743,25 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         }
         // k is seated at some tip by an offer that every other line either never held k against, or removed k
         // in that offer's past
+        // per line, the keys any of its offers over `o` names: a line outside this set never seated k, so it
+        // cannot have removed k, and no seats need reading for it
+        let named: Vec<BTreeSet<&R::Key>> = lines
+            .iter()
+            .map(|(ids, _)| {
+                ids.iter()
+                    .map(|&q| g.row(q))
+                    .filter(|r| r.seat_kind() == SeatKind::Offer && r.obj().as_ref() == Some(o))
+                    .flat_map(|r| r.to().iter())
+                    .collect()
+            })
+            .collect();
         let survives = |k: &R::Key| {
             lines.iter().any(|(_, sd)| {
                 sd.get(k).is_some_and(|offs| {
                     offs.iter().any(|off| {
                         let Some(oi) = g.idx(off) else { return false };
-                        lines.iter().all(|(ids2, sd2)| {
-                            if sd2.contains_key(k) {
+                        lines.iter().zip(&named).all(|((ids2, sd2), named2)| {
+                            if sd2.contains_key(k) || !named2.contains(k) {
                                 return true;
                             }
                             if ids2.contains(&oi) {
@@ -765,6 +777,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let cand: Vec<R::Key> = union.iter().filter(|k| !common.contains(*k) && survives(k)).cloned().collect();
         // every counted offer that adds k meets its count on the voices of keys the fold seats, over the
         // members at its heads that the fold seats
+        let members: MembersAt<R> = MembersAt::default();
         let count_holds = |k: &R::Key, seated: &BTreeSet<R::Key>| {
             let offs: BTreeSet<&R::Id> = lines.iter().filter_map(|(_, sd)| sd.get(k)).flatten().collect();
             offs.into_iter().all(|off| {
@@ -773,13 +786,16 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 if r.conf() != Some(Conf::Group) {
                     return seated.contains(r.signer()) || !union.contains(r.signer());
                 }
+                if authored_head(self.law, r) {
+                    return true; // an outsider's own admission: its own signature is its count
+                }
                 let anc: Vec<usize> = self.c.cs().iter().copied().filter(|&q| g.in_past(q, i)).collect();
                 let p = Past::new(g, i, &anc);
                 let Some(obj) = r.obj() else { return false };
                 let over = r.over().unwrap_or(obj);
                 let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
                 let ok = if over == *o && counted == s { Some(seated.clone()) } else { self.tips_fold(counted, &over) };
-                let mut mem = count_members(&p, self.law, self.spec);
+                let mut mem = count_members_with(&p, self.law, self.spec, Some(&members));
                 if let Some(ok) = ok {
                     mem.retain(|m| ok.contains(m));
                 }
@@ -924,14 +940,14 @@ fn authored_head<R: SeatRow>(law: &SeatLaw, r: &R) -> bool {
 /// The heads a count is read over: the heads named, with each authored head replaced by the heads it names in
 /// turn, and then only the newest of them (one that is in another's past is dropped). Unchanged where no head
 /// named is an authored one.
-fn counted_heads<'r, R: SeatRow + 'r>(
+fn counted_heads<'r, 'h, R: SeatRow + 'r>(
     law: &SeatLaw,
-    heads: &[R::Id],
+    heads: &'h [R::Id],
     row: &dyn Fn(&R::Id) -> Option<&'r R>,
     past: &dyn Fn(&R::Id, &R::Id) -> bool,
-) -> Vec<R::Id> {
+) -> alloc::borrow::Cow<'h, [R::Id]> {
     if !heads.iter().any(|h| row(h).is_some_and(|r| authored_head(law, r))) {
-        return heads.to_vec();
+        return alloc::borrow::Cow::Borrowed(heads); // the usual case: nothing is copied
     }
     let mut todo: Vec<R::Id> = heads.to_vec();
     let mut seen: BTreeSet<R::Id> = BTreeSet::new();
@@ -946,7 +962,7 @@ fn counted_heads<'r, R: SeatRow + 'r>(
         }
     }
     let newest: Vec<R::Id> = kept.iter().filter(|a| !kept.iter().any(|b| *a != b && past(a, b))).cloned().collect();
-    newest
+    alloc::borrow::Cow::Owned(newest)
 }
 
 fn concluded_over<'a, R: Row>(rows: impl IntoIterator<Item = &'a R>) -> Concluded<'a, R> {
@@ -972,7 +988,7 @@ pub fn members_at<R: SeatRow, S: CutSpec<R>>(
         _ => false,
     });
     let mut out: Option<BTreeSet<R::Key>> = None;
-    for h in &heads {
+    for h in heads.iter() {
         let Some(hi) = g.idx(h).filter(|hi| anc.binary_search(hi).is_ok()) else { return BTreeSet::new() };
         let past = g.ancestors(hi);
         let sc = concluded_over(anc.iter().filter(|&&q| q == hi || past.has(q)).map(|&q| g.row(q)));
@@ -1011,7 +1027,7 @@ pub fn members_in_scopes<R: SeatRow, S: CutSpec<R>>(
 ) -> Vec<BTreeSet<R::Key>> {
     let mut out: Vec<Option<BTreeSet<R::Key>>> = scopes.iter().map(|_| None).collect();
     let heads = counted_heads(law, heads, &|h| rows.iter().copied().find(|q| q.id() == h), past);
-    for h in &heads {
+    for h in heads.iter() {
         let sub: Vec<&R> = rows.iter().copied().filter(|q| q.id() == h || past(q.id(), h)).collect();
         if !sub.iter().any(|q| q.id() == h) {
             return scopes.iter().map(|_| BTreeSet::new()).collect();
