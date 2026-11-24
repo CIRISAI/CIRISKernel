@@ -89,12 +89,15 @@ CONFERS = {  # scope held -> (scopes it may confer, "same": over the same object
     "self": (("wa", "takedown", "author", "custodian", "operator"), "same"),
     "root": (("attest", "infra:attest", "assure:age", "assure:capacity", "infra:attest_assurance", "infra:detect"), "holder"),
 }
-# what the holder of a seat over an object may end over that same object, besides its own seat (a cut, so it takes
-# standing). CC 2.4.1.1: "Its owner revokes it under the owner-binding." The owner seat is the owner-binding: the
+# what the holder of a seat over an object may end over that same object by a row of its own (a cut, so it takes
+# standing). CC 2.4.1.1: "Its owner revokes it under the owner-binding, and that ends the owner-binding's standing.
+# ... Only the key's own revocation ends its liveness, and neither of the others does" (the sentence of 2026-11-16;
+# until 2026-11-23 this table read the owner's revocation as ending the key's registration). So the owner's
+# revocation ends the owner's OWN seat, the binding, and nothing of the key's. The owner seat is the owner-binding: the
 # owner's row and the key's own signature on it (CC 3.2, The first binding). The ender must be the ONE live owner
 # over the ender's own past: `owner_of` "resolves to at most one key", and with two the key "MUST NOT be treated as
 # owned by any of them" (CC 3.2), so with two live owners neither alone revokes (derived from those two sentences).
-ENDS = {"owner": ("registered",)}
+ENDS = {"owner": ("owner",)}
 # seats whose ending is final: a revocation is "never withdrawn" (CC 2.4.1.1), so no offer re-seats the same key in the
 # same scope over the same object once a concluded revocation of that slot is in its past
 FINAL = ("registered",)
@@ -400,7 +403,9 @@ def _ender(r, P, by):
     if "any_key_revokes" in MUT: return True
     up = by.get(r.get("under"))
     if up is None or up["kind"] != "offer" or up["obj"] != r["obj"] or r["signer"] not in up["to"]: return False
-    if r["scope"] not in ENDS.get(up["scope"], ()) or tuple(r["to"]) != (r["obj"],): return False
+    if r["scope"] not in ENDS.get(up["scope"], ()): return False
+    # it ends another scope's seat of the object's own key, or (the same scope) the ender's own seat
+    if tuple(r["to"]) != ((r["signer"],) if r["scope"] == up["scope"] else (r["obj"],)): return False
     if "owner_unread" in MUT: return True                         # MUTATION: the binding named is enough
     sole = Seats(CK.State(P, {q["id"]: True for q in P}))
     if "owner_any_live" in MUT: return sole.stands(r["signer"], up["scope"], r["obj"])

@@ -314,6 +314,24 @@ def seat_cases():
         title, cases = world()
         for name, rows, prop, need in cases:
             record(rows, A.WIN)
+    # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
+    # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
+    rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
+    ob = ST.offer("ob", "KY", "OW", "owner", "KY", "self", ("rec",), cosigners=("OW",))
+    ov = ST.offer("ov", "KY", "OV", "owner", "KY", "self", ("rec",), cosigners=("OV",))
+    orev = lambda i, who, under, names: ST.unseat(i, who, who, "owner", "KY", "seat", tuple(names), under=under)
+    kills = lambda i, who, under, names: ST.unseat(i, who, "KY", "registered", "KY", "seat", tuple(names), under=under)
+    for rows in (
+        [rec, ob, orev("rv", "OW", "ob", ("ob",))],                                   # the owner revokes: the binding ends
+        [rec, ob, kills("rv", "OW", "ob", ("ob",))],                                  # the owner cannot end the key itself
+        [rec, ob, orev("rv", "TX", "ob", ("ob",))],                                   # a third key under the owner's binding
+        [rec, ob, ST.withdraw("wb", "OW", "ob", ("ob",)), orev("rv", "OW", "ob", ("wb",))],   # a former owner
+        [rec, ob, ov, orev("rv", "OW", "ob", ("ob", "ov"))],                          # one of two live owners
+        [rec, ob, orev("rv", "OW", "ob", ("ob",)), ST.offer("ob2", "KY", "OV", "owner", "KY", "self", ("rv",), cosigners=("OV",))],
+        [rec, ob, ST.unseat("rv", "KY", "KY", "registered", "KY", "self", ("ob",))],  # the key's own revocation
+        [rec, ob, ST.unseat("rv", "OW", "OV", "owner", "KY", "seat", ("ob",), under="ob")],   # an owner's row names another key
+    ):
+        record(rows, A.SEAT)
     rulefn = {"seat": A.SEAT, "window": A.WIN, "route": A.ROUTE}
     problems, out = [], []
     for i, (name, rows) in enumerate(scen):

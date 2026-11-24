@@ -794,8 +794,9 @@ def check_madeup(I, inst="MADE-UP: a room where one signature removes (no floor)
 
 
 # =================================================================================================================
-# A key's revocation: CC 2.4.1.1 "Three may revoke a key, and no other." The key's own and the owner's, here; the
-# roster's count is the self roster's eviction and the room's removal, run above.
+# A key's revocation: CC 2.4.1.1 "Three may revoke a key, and no other", with three effects: the key's own ends its
+# liveness; its owner's ends the owner-binding's standing; the roster's count ends the seat. The key's own and the
+# owner's are here; the roster's count is the self roster's eviction and the room's removal, run above.
 # =================================================================================================================
 @contextlib.contextmanager
 def seat_mut(*names):
@@ -821,7 +822,11 @@ def check_key_revocation(inst="a key (its registration, its owner, its revokers)
         if how == "one row": return [ST.offer(i, "KY", owner, "owner", "KY", "self", ("rec",), cosigners=(owner,))]
         return [ST.offer(i, "KY", owner, "owner", "KY", "self", ("rec",)), ST.accept("a" + i, owner, i)]       # the genesis record and the owner's row
     def own_rev(i, names): return ST.unseat(i, "KY", "KY", "registered", "KY", "self", tuple(names))
-    def owner_rev(i, signer, under, names): return ST.unseat(i, signer, "KY", "registered", "KY", "seat", tuple(names), under=under)
+    # the owner's revocation ends the owner-binding's standing: the owner's own seat over the key, nothing of the key's
+    def owner_rev(i, signer, under, names): return ST.unseat(i, signer, signer, "owner", "KY", "seat", tuple(names), under=under)
+    # the reading until 2026-11-23, kept as a planted break: the owner's revocation ends the key's registration
+    def owner_kills(i, signer, under, names): return ST.unseat(i, signer, "KY", "registered", "KY", "seat", tuple(names), under=under)
+    owner = lambda S: ST.Seats(S).one("owner", "KY")
     registered = lambda S: "KY" in ST.Seats(S).holders("registered", "KY")
     status = lambda S, i: CUT.Cut(S).status(S.by[i])
     res = []
@@ -843,6 +848,7 @@ def check_key_revocation(inst="a key (its registration, its owner, its revokers)
         b = binding("ob", "OW", how)
         tail = tuple(r["id"] for r in b)
         W2.append(("a third key revokes under the owner's binding (%s)" % how, [rec] + b + [owner_rev("rv", "TX", "ob", tail), row("mc", ("rec",))]))
+        W2.append(("a third key revokes the key itself under the owner's binding (%s)" % how, [rec] + b + [owner_kills("rv", "TX", "ob", tail), row("mc", ("rec",))]))
         W2.append(("a third key revokes as if its own (%s)" % how, [rec] + b + [ST.unseat("rv", "TX", "KY", "registered", "KY", "self", tail), row("mc", ("rec",))]))
     W2.append(("a third key binds itself without the key's signature and revokes",
                [rec, ST.offer("ob", "TX", "TX", "owner", "KY", "self", ("rec",)), owner_rev("rv", "TX", "ob", ("ob",)), row("mc", ("rec",))]))
@@ -854,26 +860,35 @@ def check_key_revocation(inst="a key (its registration, its owner, its revokers)
     res.append(result(inst, "a revocation signed by any other key revokes nothing", src, verdict_of(base), base,
                       "any key's unseat under a seat counts", m))
 
-    # K3 the owner's revocation revokes, by causal past
-    W3 = []
-    for how in ("one row", "two rows"):
-        b = binding("ob", "OW", how)
-        tail = tuple(r["id"] for r in b)
-        W3.append(("the owner revokes (%s); the key's rows before, concurrent, after" % how,
-                   [rec] + b + [row("mb", ("rec",)), owner_rev("rv", "OW", "ob", tail + ("mb",)), row("mc", ("rec",)), row("ma", ("rv",))]))
-        W3.append(("the owner revokes (%s) while the owner's withdrawal of the binding is concurrent" % how,
-                   [rec] + b + [row("mb", ("rec",)), owner_rev("rv", "OW", "ob", tail + ("mb",)), ST.withdraw("wb", "OW", "ob", tail),
-                                row("mc", ("rec",)), row("ma", ("rv",))]))
+    # K3 the owner's revocation ends the owner-binding's standing and nothing of the key's, by causal past
+    def w3(rev):
+        W = []
+        for how in ("one row", "two rows"):
+            b = binding("ob", "OW", how)
+            tail = tuple(r["id"] for r in b)
+            W.append(("the owner revokes (%s); the key's rows before, concurrent, after" % how,
+                      [rec] + b + [row("mb", ("rec",)), rev("rv", "OW", "ob", tail + ("mb",)), row("mc", ("rec",)), row("ma", ("rv",))]))
+            W.append(("the owner revokes (%s) while the owner's withdrawal of the binding is concurrent" % how,
+                      [rec] + b + [row("mb", ("rec",)), rev("rv", "OW", "ob", tail + ("mb",)), ST.withdraw("wb", "OW", "ob", tail),
+                                   row("mc", ("rec",)), row("ma", ("rv",))]))
+        return W
+    W3 = w3(owner_rev)
     def k3(S, rows, n):
         st = tuple(status(S, i) for i in ("mb", "mc", "ma"))
-        if registered(S) or st != ("counts", "void", "concludes nothing"): return "registered %s, statuses %s" % (registered(S), st)
+        if owner(S) is not None: return "the key still has an owner: %s" % owner(S)
+        if not registered(S) or st != ("counts", "counts", "counts"): return "registered %s, statuses %s" % (registered(S), st)
     base = run(spec, W3, k3)
     with seat_mut("owner_not_a_revoker"):
         saved = dict(ST.ENDS); ST.ENDS.clear()
         try: m = run(spec, W3, k3, orders=False)
         finally: ST.ENDS.update(saved)
-    res.append(result(inst, "the owner's revocation ends the key's registration from the revocation forward, by causal past", src,
-                      verdict_of(base), base, "no seat ends another key's seat (the owner is not a revoker)", m))
+    res.append(result(inst, "the owner's revocation ends the owner-binding's standing from the revocation forward; the key stays registered and its rows count", src,
+                      verdict_of(base), base, "no seat ends a seat by a row of its own (the owner is not a revoker)", m))
+    saved = dict(ST.ENDS); ST.ENDS["owner"] = ("owner", "registered")
+    try: m = run(spec, w3(owner_kills), k3, orders=False)
+    finally: ST.ENDS.clear(); ST.ENDS.update(saved)
+    res.append(result(inst, "only the key's own revocation ends its liveness: the owner's does not", src,
+                      verdict_of(base), base, "the owner's revocation ends the key's registration (the reading until 2026-11-23)", m))
 
     # K4 a former owner: the binding was withdrawn in the revocation's past
     W4 = []
@@ -883,6 +898,7 @@ def check_key_revocation(inst="a key (its registration, its owner, its revokers)
         W4.append(("the owner withdraws the binding, then revokes (%s)" % how,
                    [rec] + b + [ST.withdraw("wb", "OW", "ob", tail), owner_rev("rv", "OW", "ob", ("wb",)), row("mc", ("rec",))]))
     def k4(S, rows, n):
+        if S.C["rv"]: return "the former owner's revocation concluded"
         if not registered(S) or status(S, "mc") != "counts": return "registered %s, the key's row concurrent with it %s" % (registered(S), status(S, "mc"))
     base = run(spec, W4, k4)
     with seat_mut("owner_unread"):
@@ -900,6 +916,7 @@ def check_key_revocation(inst="a key (its registration, its owner, its revokers)
                        [rec] + b1 + b2 + [owner_rev("rv", who, under, tail), row("mc", ("rec",))]))
     def k5(S, rows, n):
         if ST.Seats(S).one("owner", "KY") is not None: return "an owner is read: %s" % ST.Seats(S).one("owner", "KY")
+        if S.C["rv"]: return "one of two live owners revoked alone"
         if not registered(S) or status(S, "mc") != "counts": return "registered %s, the key's row concurrent with it %s" % (registered(S), status(S, "mc"))
     base = run(spec, W5, k5)
     with seat_mut("owner_any_live"):
@@ -909,9 +926,9 @@ def check_key_revocation(inst="a key (its registration, its owner, its revokers)
 
     # K6 a revoked key does not un-revoke itself: it re-registers, or withdraws its own revocation
     W6 = []
-    for by in ("itself", "its owner"):
+    for by in ("itself",):
         b = binding("ob", "OW", "one row")
-        rv = own_rev("rv", ("ob",)) if by == "itself" else owner_rev("rv", "OW", "ob", ("ob",))
+        rv = own_rev("rv", ("ob",))
         W6.append(("revoked by %s; the key signs a fresh registration after" % by,
                    [rec] + b + [rv, ST.offer("rec2", "KY", "KY", "registered", "KY", "self", ("rv",)), row("ma", ("rec2",))]))
         W6.append(("revoked by %s; the key withdraws the revocation and registers again" % by,
@@ -923,6 +940,20 @@ def check_key_revocation(inst="a key (its registration, its owner, its revokers)
         m = run(spec, W6, k6, orders=False)
     res.append(result(inst, "a revoked key cannot un-revoke itself (a revocation is never withdrawn)", src, verdict_of(base), base,
                       "a key's own offer re-seats it after its revocation", m))
+    # K7 after its owner's revocation the key is unowned and still live: it takes a new first binding by its own signature
+    b = binding("ob", "OW", "one row")
+    W7 = [("revoked by its owner; the key signs a new binding to another owner, naming the revocation",
+           [rec] + b + [owner_rev("rv", "OW", "ob", ("ob",)), ST.offer("ob2", "KY", "OV", "owner", "KY", "self", ("rv",), cosigners=("OV",)),
+                        row("ma", ("ob2",))])]
+    def k7(S, rows, n):
+        if owner(S) != "OV" or not registered(S) or status(S, "ma") != "counts":
+            return "owner %s, registered %s, the key's later row %s" % (owner(S), registered(S), status(S, "ma"))
+    base = run(spec, W7, k7)
+    saved = dict(ST.ENDS); ST.ENDS["owner"] = ("owner", "registered")
+    try: m = run(spec, [(n, [owner_kills("rv", "OW", "ob", ("ob",)) if r["id"] == "rv" else r for r in rows]) for n, rows in W7], k7, orders=False)
+    finally: ST.ENDS.clear(); ST.ENDS.update(saved)
+    res.append(result(inst, "a key its owner revoked is unowned and live: it takes a new first binding", src, verdict_of(base), base,
+                      "the owner's revocation ends the key's registration (the reading until 2026-11-23)", m))
     return res
 
 
