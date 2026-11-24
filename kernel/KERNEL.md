@@ -277,11 +277,11 @@ of time, so those five stay without a meaning. **open**.
 
 A landing that states an outcome its own past does not give concludes nothing. An answer concurrent with the
 landing is **recounted**: it is counted with the landing's past, and the landing stands only if the table still
-gives the outcome it stated. **run** (`models/causal_kernel/window_adversary.tsv`): against the three windows
-of the text, twenty checks of what each exists to prevent. Recount breaks none. The check that a thief does
+gives the outcome it stated. **run** (`models/causal_kernel/window_adversary.tsv`): against the four windows
+of the text (the fourth, the members' check of CC 4.5.13, was added on 2026-11-23), twenty-nine checks of what each exists to prevent. Recount breaks none. The check that a thief does
 not evict alone holds against an owner who signs anything inside the window; an owner who signs nothing
 looks lost. A landing that voids concurrent
-answers breaks seven, a thief evicting alone among them. An answer that contests any landing breaks two.
+answers breaks nine, a thief evicting alone among them. An answer that contests any landing breaks two.
 **proved**: `Recount.dishonest_never_stands`, `stands_is_table_over_all_not_late`, and `quorum_closed_final` (a
 landing with a strict majority behind it is final where no key of that majority answers both ways; under rule 6
 of section 6 such a key has no say there), and

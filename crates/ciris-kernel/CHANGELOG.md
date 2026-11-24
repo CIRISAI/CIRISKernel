@@ -19,6 +19,25 @@ act's own head was read. `carried`, `Answers` and `HeldView` read `counts_at` an
 
 `seat::exercised_stands`, proposed with this change in PR #21, is not added: `conferral::answers` gives the
 whole rule (E1 to E8) and is the one implementation.
+**A fourth window, and two additions to the window table's types.** The members' check of CC 4.5.13
+(`moderation_overturn`): a duty holder's act opens its own window; a strict majority of the roster at the head
+the act names, never fewer than two voices, lifts it by objecting; short of that at the close it stands; the
+duty holder has no say in the lift. It lands by a row and is read under recount like the other three, so two
+nodes holding the same rows agree. Read by each node's own clock, as the text had it, two nodes holding the
+same rows can differ for good.
+- `WindowSpec` gains the field `opener: Option<String>`: the scope the opener's signer holds where it is not
+  the counted one. **A caller that builds a `WindowSpec` literal adds `opener: None`.**
+- `How` gains `MoreAtLeast(num, den, least)`: more than `num / den`, and never fewer than `least` voices.
+- `window.py` has the window and eleven adversary rows; the table is now 38 rows and 29 checks. Recount breaks
+  none, the voiding rule nine, the contesting rule two. Two planted breaks in the crate.
+
+`window::rule`: a receipt that has a row of the target in its past, beyond what the opener has in its own, is
+no receipt, and a landing naming it concludes nothing. "Inside the window" is what the landing has in its past
+and the receipt has not, so such a receipt would put the target's row before the window and hide it from the
+target's silence (a concluder could delay its receipt and name the target's rows in it). A receipt may name
+other rows: in a private room every row names its signer's voice. The Constitution's wire shape for the
+receipt (`window:held`, naming the proposal alone) is stricter. `window.py` and `attacks.py` test 12 carry the
+case; one planted break. No row built as the model builds a receipt changes its answer.
 `content::answers`: a counted removal is the member's end and also a version of the roster that later rows
 name. A content row of the member that names an end of its seat as its head now names a head at which the
 member is out: not counted, rule `no_seat`. Before, the row came back `Undecided` on that id, since no

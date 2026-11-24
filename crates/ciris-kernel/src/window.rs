@@ -31,7 +31,8 @@ pub enum WinKind {
     Open,
     /// It answers one.
     Answer,
-    /// The concluder's receipt of the opener.
+    /// The concluder's receipt of the opener. One that has a row of the target in its past, beyond what the
+    /// opener has in its own, is no receipt, and a landing naming it concludes nothing.
     Receipt,
     /// The concluder's landing.
     Landing,
@@ -76,6 +77,8 @@ pub enum How {
     AtLeast(u64, u64, u64),
     /// More than `num / den` of n.
     More(u64, u64),
+    /// More than `num / den` of n, and never fewer than `least` voices (a strict majority with a floor).
+    MoreAtLeast(u64, u64, u64),
 }
 
 /// Which keys a clause counts over.
@@ -109,6 +112,9 @@ pub struct WindowSpec<T> {
     pub counted: String,
     /// The scope of the concluder.
     pub concluder: String,
+    /// The scope the opener's signer holds, where it is not the counted one (a duty holder's act that the
+    /// members may lift opens its own window). `None`: the counted scope.
+    pub opener: Option<String>,
     /// What the opener's signer says by opening.
     pub opener_says: Option<String>,
     /// Clauses that close the window at once.
@@ -243,6 +249,7 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         match cl.how {
             How::AtLeast(num, den, least) => yes >= core::cmp::max(least, (num * n).div_ceil(den)),
             How::More(num, den) => yes * den > num * n,
+            How::MoreAtLeast(num, den, least) => yes * den > num * n && yes >= least,
             How::One => yes >= 1,
             How::Strict => 2 * yes > n,
         }
@@ -293,7 +300,8 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
     let past = |a: &R::Id, b: &R::Id| p.past(a, b);
     if k == WinKind::Open {
         let (Some(w), Some(obj)) = (r.window().and_then(windows), r.obj()) else { return Some(false) };
-        return Some(members_in(&rows, &past, law, spec, &obj, r.head(), &w.counted).contains(r.signer()));
+        let scope = w.opener.as_ref().unwrap_or(&w.counted);
+        return Some(members_in(&rows, &past, law, spec, &obj, r.head(), scope).contains(r.signer()));
     }
     let Some(o) = r.of().and_then(|o| p.get(o)) else { return Some(false) };
     if o.win_kind() != Some(WinKind::Open) {
@@ -323,7 +331,10 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         return Some(false);
     }
     if k == WinKind::Receipt {
-        return Some(true);
+        // a receipt puts no row of the target before the window: none in its past that the opener's past does
+        // not hold
+        let Some(t) = o.target_key() else { return Some(true) };
+        return Some(!rows.iter().any(|q| q.signer() == t && q.id() != o.id() && !p.past(q.id(), o.id())));
     }
     let Some(rec) = r.receipt().and_then(|x| p.get(x)) else { return Some(false) };
     if rec.win_kind() != Some(WinKind::Receipt) || rec.signer() != r.signer() || rec.of() != Some(o.id()) {
@@ -701,6 +712,7 @@ mod tests {
             let spec = WindowSpec {
                 counted: "member".into(),
                 concluder: if g.next(2) == 0 { "concl".into() } else { "member".into() },
+                opener: None,
                 opener_says: if g.next(2) == 0 { Some("approve".into()) } else { None },
                 at_once: clauses(&mut g),
                 silent: None,

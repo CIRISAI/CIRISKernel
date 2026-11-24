@@ -702,6 +702,9 @@ pub fn windows_of(j: &J) -> BTreeMap<String, WindowSpec<i64>> {
                         J::Arr(t) if t[0].s() == "atleast" => {
                             How::AtLeast(t[1].i() as u64, t[2].i() as u64, t[3].i() as u64)
                         }
+                        J::Arr(t) if t[3].i() > 0 => {
+                            How::MoreAtLeast(t[1].i() as u64, t[2].i() as u64, t[3].i() as u64)
+                        }
                         J::Arr(t) => How::More(t[1].i() as u64, t[2].i() as u64),
                         x => panic!("clause {x:?}"),
                     },
@@ -723,6 +726,7 @@ pub fn windows_of(j: &J) -> BTreeMap<String, WindowSpec<i64>> {
                 WindowSpec {
                     counted: w.at("counted").s().into(),
                     concluder: w.at("concluder").s().into(),
+                    opener: w.get("opener").and_then(|x| x.opt_s()),
                     opener_says: w.at("opener_says").opt_s(),
                     at_once: clauses(w.at("at_once")),
                     silent: w.at("silent").opt_s(),
