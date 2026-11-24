@@ -1415,7 +1415,9 @@ fn ender<R: SeatRow, S: CutSpec<R>>(
     if !law.ends.get(us.as_ref()).is_some_and(|e| e.iter().any(|x| x == rs.as_ref())) {
         return false;
     }
-    if r.to().len() != 1 || Obj::Key(r.to()[0].clone()) != obj {
+    // it ends another scope's seat of the object's own key, or (the same scope) the ender's own seat
+    let own = us.as_ref() == rs.as_ref();
+    if r.to().len() != 1 || if own { r.to()[0] != *r.signer() } else { Obj::Key(r.to()[0].clone()) != obj } {
         return false;
     }
     let sc = concluded_over(p.rows());
