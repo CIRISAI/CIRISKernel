@@ -12,5 +12,7 @@ for t in thumbv7em-none-eabihf wasm32-unknown-unknown; do
     built="$built, $t"
   fi
 done
+# the docs build with no warning: a broken or ambiguous link in the crate's docs fails here
+RUSTDOCFLAGS="-D warnings" cargo doc --offline --no-deps -p ciris-kernel >/dev/null 2>&1 || { echo "cargo doc: warnings"; exit 1; }
 deps=$(cargo tree --offline -p ciris-kernel -e normal --prefix none 2>/dev/null | sort -u | grep -vc '^ciris-kernel ')
 echo "ciris-kernel built: $built; dependencies: $deps"

@@ -46,6 +46,7 @@ step "check_conferral_end (an end)"      conferral python3 -I models/causal_kern
 step "check_conferral_content (tips)"    content   python3 -I models/causal_kernel/check_conferral_content.py
 step "check_conferral_two (two records)" two       python3 -I models/causal_kernel/check_conferral_two.py
 step "check_delegation (a chain)"         deleg     python3 -I models/causal_kernel/check_delegation.py
+step "check_resignation (wrap, dissolved)" resign   python3 -I models/causal_kernel/check_resignation.py
 step "check_rosters (one roster)"         rosters   python3 -I models/causal_kernel/check_rosters.py
 step "check_attacks (34 attacks)"         attacks   python3 -I models/causal_kernel/check_attacks.py
 step "check (order-freeness)"             check     python3 -I models/causal_kernel/check.py
@@ -56,6 +57,7 @@ step "fold_check (the fold at tips)"      fold      python3 -I models/roster_for
 step "key_plane_model (writer's keys)"    keyplane  python3 -I models/key_plane/key_plane_model.py --check
 step "divergence list (counts)"           diverge   python3 -I tools/divergence_counts.py
 step "kernel_fixtures (fixtures current)"   fixtures  python3 -I tools/kernel_fixtures.py --check
+step "plants name text that is there"   targets   python3 -I tools/kernel_plants_targets.py
 step "ciris-kernel build (no_std)"         crate     bash tools/kernel_crate_build.sh
 step "ciris-kernel conformance"            conform   bash tools/kernel_conformance.sh
 # CI sets CHECK_SKIP_PLANTS=1: there the plants run as parallel jobs of crate.yml (tools/kernel_crate_plants.sh
