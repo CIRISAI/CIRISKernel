@@ -257,8 +257,8 @@ def t03(t):
     (m0, st0, tp0), bad = reader_view(base + [aD, cC, wD] + next_counted()); t.order(bad)
     (m1, st1, tp1), bad = reader_view(base + [aD, cC, wD] + next_counted() + acked("wE"), own="B"); t.order(bad)
     t.fact("after one more counted row on the removal (A and B admit E): for a reader that acknowledged it the old-head admission is behind its line (void: %s) and the roster is %s; "
-           "for a reader with no acknowledgement it is still a waiting tip: D is never listed, and neither is E (roster %s)" % ("wD" in st1, fs(m1), fs(m0)),
-           "wD" in st1 and m1 == {"A", "B", "E"} and m0 == {"A", "B"} and "D" not in m0)
+           "for a reader with no acknowledgement it is still a tip, and the fold seats E, whom the seated members admitted, and never D, whose admission needed the removed key's voice (roster %s)" % ("wD" in st1, fs(m1), fs(m0)),
+           "wD" in st1 and m1 == {"A", "B", "E"} and m0 == {"A", "B", "E"} and "D" not in m0)
     ok = all(v for _, v in t.facts)
     return dict(cls="HOLDS" if ok else "BROKEN", who="one seated key together with one removed key that met the count at the head the removal was counted over",
                 witness="x(A+B remove C at head w) cC(C cosigns 'admit D', naming w) wD(A admits D at head w, naming cC). wD concludes; D is not listed for any reader: the tips wait. A reader that acknowledges a later counted row has wD behind its line.",
@@ -294,14 +294,14 @@ def t04(t):
     gain = t.fact("a seated key with the removed key's old voice signs a removal of B on the head the newest counted row is itself counted over: B is unlisted while the tips wait", moved[key])
     (m0, st0, tp0), bad = reader_view(base + next_counted() + late[key]); t.order(bad)
     (m1, st1, tp1), bad = reader_view(base + next_counted() + acked("wE") + late[key], own="B"); t.order(bad)
-    bound = t.fact("the same rows once the room has a counted row on a newer head: a reader that acknowledged it is not moved (roster %s, the forged row void); a reader with no acknowledgement still sees two tips (roster %s)"
-                   % (fs(m1), fs(m0)), m1 == {"A", "B", "E"} and "z" in st1 and m0 == {"A"})
+    bound = t.fact("the same rows once the room has a counted row on a newer head: a reader that acknowledged it is not moved (roster %s, the forged row void); a reader with no acknowledgement still sees two tips, B out by the forged removal and E folded in (roster %s)"
+                   % (fs(m1), fs(m0)), m1 == {"A", "B", "E"} and "z" in st1 and m0 == {"A", "E"})
     for n in (1, 2, 3):
         (ma, sa, ta), bad = reader_view(base + forged_line(n, "w")); t.order(bad)
         (mb, sb, tb), bad = reader_view(base + acked("x") + forged_line(n, "w"), own="B"); t.order(bad)
-        t.fact("%d forged row%s from the head the newest honest row is counted over: no acknowledgement: %d tips, members %s, nothing stale; a reader that acknowledged the honest row: %d tip, members %s, the forged line void for it (a sibling of the acknowledged act names an older head, CC 2.7.8). The removed key is never listed"
+        t.fact("%d forged row%s from the head the newest honest row is counted over: no acknowledgement: %d tips, members %s, nothing stale; a reader that acknowledged the honest row: %d tip, members %s, the forged line void for it (a sibling of the acknowledged act names an older head, CC 2.7.8). The removed key is never listed. The forger is the one key common to the tips, so it is the count over them and its own admissions fold in, as one more row of its own would list them"
                % (n, "" if n == 1 else "s, each counted over the one before,", len(ta), fs(ma), len(tb), fs(mb)),
-               ma == {"A"} and len(ta) == 2 and not sa and mb == {"A", "B"} and len(tb) == 1 and "z1" in sb)
+               ma == {"A"} | {"F%d" % i for i in range(2, n + 1)} and len(ta) == 2 and not sa and mb == {"A", "B"} and len(tb) == 1 and "z1" in sb)
     (mc, sc, tc), bad = reader_view(base + forged_line(2, "w"), checkpoint=True); t.order(bad)
     t.fact("WHY THE GROUP CHECKPOINT IS OFF: with Seats(..., checkpoint=True) the two forged rows are one row deeper than the honest line and leave the honest removal behind (stale: %s): members %s, the removed key listed again"
            % (",".join(sorted(sc)), fs(mc)), "x" in sc and "C" in mc and "B" not in mc)
@@ -391,8 +391,8 @@ def t07(t):
     ref, bad = free([g, d, ak, d2], SEAT, ans); t.order(bad)
     t.fact("f1 and f2 confer K's duty, then K, f2 and f3 confer J's: f1, K, J stand = %s" % (ref,), ref == (True, True, True))
     ref, bad = free([g, d, ak, d2, c3, xf], SEAT, ans); t.order(bad)
-    t.fact("concurrently f2 and f3 withdraw f1, counted over the founding head: the two counted lines wait as tips, the holders are the keys common to them, "
-           "and f1, K, J stand = %s in every order" % (ref,), ref == (False, False, False))
+    t.fact("concurrently f2 and f3 withdraw f1, counted over the founding head: two tips. f1 is out; K waits, since its conferral needed f1's voice; "
+           "J, conferred by the common holders f2 and f3, is folded in: f1, K, J stand = %s in every order" % (ref,), ref == (False, False, True))
     cr = ST.cosign("cr", "f3", "g2", ("xf", "d2"))
     g2 = ST.offer("g2", "f2", "f1", "duty", "g", "group", ("xf", "d2", "cr"), head=("xf", "d2"), policy="duty_confer", content="g2", counted="duty", cosigners=("f1",))
     ref, bad = free([g, d, ak, d2, c3, xf, cr, g2], SEAT, ans); t.order(bad)
@@ -1238,8 +1238,9 @@ def t34(t):
         half_a &= t.fact("%d forged row%s on the old head w; (a) a reader that acknowledged the honest head: members %s, the whole forged line void (%s), one tip"
                          % (n, "" if n == 1 else "s, each counted over the one before,", fs(m), ",".join(sorted(st))), m == {"A", "B", "E"} and tp == {"wE"} and "x" not in st and "z1" in st and (n == 1 or "z2" in st))
         (m, st, tp), bad = reader_view(base + acked("wE") + f); t.order(bad)
-        half_b &= t.fact("   (b) a reader with no acknowledgement: no row is stale; the lines wait as two tips (%s) and the members are the keys common to them: %s. The removed key is not listed"
-                         % (",".join(sorted(tp)), fs(m)), not st and "wE" in tp and len(tp) == 2 and m == {"A"})
+        half_b &= t.fact("   (b) a reader with no acknowledgement: no row is stale; two tips (%s), folded: %s. B is out by the forged removal, the removed key is not listed, "
+                         "and the forger, the one key common to the tips, folds in what it signed on either"
+                         % (",".join(sorted(tp)), fs(m)), not st and "wE" in tp and len(tp) == 2 and m == {"A", "E"} | {"F%d" % i for i in range(2, min(n, 3) + 1)})
     t.note("the fourth forged row does not conclude: the forged line's own admissions have by then outgrown the two keys that sign it")
     (m, st, tp), bad = reader_view(base + forged_line(2, "w"), checkpoint=True); t.order(bad)
     t.fact("built on is a rule of its own: even with the refused group checkpoint on, the second forged row does not leave the honest line behind (stale: %s; members %s)" % (",".join(sorted(st)) or "none", fs(m)), "x" not in st and "wE" not in st)
@@ -1266,8 +1267,8 @@ def checkpoint_price():
     q2 = ST.offer("q2", "C", "G", "member", "g", "group", ("q1", "q2c", "q2e", "q2a"), head=("q1",), policy="community_invite", content="q2", room="g")
     line = [q1c, q1a, q1, q2c, q2e, q2a, q2]
     (m2_, s2_, t2_), bad = reader_view(pre + [hmc, hma, hm] + line); t.order(bad)
-    t.fact("an honest counted admission (of F, on head w) signed offline, while two further counted rows were made without it: nothing is void; it waits as a tip, and the roster is the keys common to the tips: %s. "
-           "The offline admission is not listed, and neither are the two members admitted meanwhile, until a counted row names both tips" % fs(m2_), not s2_ and m2_ == {"A", "B", "C"})
+    t.fact("an honest counted admission (of F, on head w) signed offline, while two further counted rows were made without it: nothing is void; it is a tip, and the fold lists the offline admission and the two members admitted meanwhile, "
+           "each on the voices of the three common keys: %s" % fs(m2_), not s2_ and m2_ == {"A", "B", "C", "E", "F", "G"})
     mgc = [in_room(ST.cosign("mg%s" % k, k, "mg", ("q2", "hm"))) for k in "BC"]
     mga = in_room(ST.accept("mga", "H", None, ("g",), scope="member", obj="g"))
     mg = ST.offer("mg", "A", "H", "member", "g", "group", ("q2", "hm", "mgB", "mgC", "mga"), head=("q2", "hm"), policy="community_invite", content="mg", room="g")
@@ -1282,14 +1283,14 @@ def checkpoint_price():
     md2 = ST.offer("md2", "A", "B", "detect:x", "g", "group", ("g",), head=("g",), policy="duty_confer", counted="duty", cosigners=("B",), room="g")
     S = conc(pre + [md2] + line, ROUTE)
     t.fact("a seat over the room is placed only by the duty holders' count (CC 4.5.4), so an appointment on the founding head is a counted act: two counted rows later "
-           "that leave it unnamed, it waits as a tip and B holds it = %s, as any counted row on an old head" % ST.Seats(S).stands("B", "detect:x", "g"),
-           not ST.Seats(S).stands("B", "detect:x", "g"))
+           "that leave it unnamed, it is a tip and the fold seats B in it = %s, on the voices of holders common to the tips" % ST.Seats(S).stands("B", "detect:x", "g"),
+           ST.Seats(S).stands("B", "detect:x", "g"))
     base = room_rows(*ROOM)
     (ma, sa, ta), bad = reader_view(base + forged_line(2, "w")); t.order(bad)
     (mb, sb, tb), bad = reader_view(base + forged_line(2, "w"), checkpoint=True); t.order(bad)
     t.fact("THE REASON THE GROUP CHECKPOINT IS OFF. A past count (seated A with removed C) signs two rows from the head the newest honest row is counted over, the second over the first. As the rule stands: two tips, members %s, nothing stale. "
            "With Seats(..., checkpoint=True): the forged line is one row deeper, the honest removal is left behind (%s) and the members are %s: the removed key is back. That is a rank by depth of line"
-           % (fs(ma), ",".join(sorted(sb)), fs(mb)), ma == {"A"} and not sa and "x" in sb and mb == {"A", "C", "F2"})
+           % (fs(ma), ",".join(sorted(sb)), fs(mb)), ma == {"A", "F2"} and not sa and "x" in sb and mb == {"A", "C", "F2"})
     gm = ST.offer("g", "m1", ("m1", "m2", "m3"), "duty", "@", "self", cosigners=("m2", "m3"))     # three duty holders (CC 4.5.4)
     md = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("g",), head=("g",), policy="duty_confer", counted="duty",
                   cosigners=("m3", "MOD"))                                     # two of the three confer, MOD accepting

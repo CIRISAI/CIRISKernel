@@ -740,7 +740,7 @@ fn main() {
             h.run("trust::EdgeIndex::new", n, || trust::EdgeIndex::new(&e).reaches(&key(0), &(), 0, &near));
             // </index>
         }
-        if h.wants(&["line::", "seat::Seats::tips"]) {
+        if h.wants(&["line::", "seat::Seats::tips", "seat::Seats::new+holders/", "seat::Seats::new+tips_common/"]) {
             // the reader's line
             let rows = ledger(n);
             let c = concluded(&rows, &law);
@@ -749,6 +749,49 @@ fn main() {
             h.run("line::void", n, || line::void(&c, &SeatLine, Some(&own), |_| true).len());
             let s = Seats::new(&c, &law, &NoCut, None);
             h.run("seat::Seats::tips", n, || s.tips(&gobj).len());
+            // every addition accepted by its joiner, so each key a tip adds is a seat the fold must judge
+            let mut joined = ledger(n);
+            for r in joined.iter_mut().filter(|r| r.conf == Some(Conf::Group)) {
+                r.cosigners = r.to.clone();
+            }
+            let cj = concluded(&joined, &law);
+            h.run("seat::Seats::new+holders/two_tips", n, || {
+                Seats::new(&cj, &law, &NoCut, None).holders("member", &gobj, None).len()
+            });
+            // the usual fork: a long shared history and two tips at its end, each adding one key
+            let mut end = ledger(n);
+            end.retain(|r| r.id != rid(7, 0));
+            for r in end.iter_mut().filter(|r| r.conf == Some(Conf::Group)) {
+                r.cosigners = r.to.clone();
+            }
+            let mut f = end.last().unwrap().clone();
+            f.id = rid(7, 1);
+            f.to = vec![key(20_001)];
+            f.cosigners = f.to.clone();
+            end.push(f);
+            let ce = concluded(&end, &law);
+            h.run("seat::Seats::new+holders/two_tips_at_the_end", n, || {
+                Seats::new(&ce, &law, &NoCut, None).holders("member", &gobj, None).len()
+            });
+            // the same fork read as the keys common to the tips, the rule the fold replaced
+            h.run("seat::Seats::new+tips_common/two_tips_at_the_end", n, || {
+                Seats::new(&ce, &law, &NoCut, None).tips_common("member", &gobj).map_or(0, |m| m.len())
+            });
+            // many tips: n / 8 counted additions (at least two), all on the last row of a history of n
+            let mut many = end.clone();
+            many.pop();
+            let base = many.last().unwrap().clone();
+            for i in 0..(n / 8).max(2) {
+                let mut f = base.clone();
+                f.id = rid(7, 100 + i as u32);
+                f.to = vec![key(30_000 + i)];
+                f.cosigners = f.to.clone();
+                many.push(f);
+            }
+            let cm = concluded(&many, &law);
+            h.run("seat::Seats::new+holders/many_tips", n, || {
+                Seats::new(&cm, &law, &NoCut, None).holders("member", &gobj, None).len()
+            });
         }
         if h.wants(&["head::"]) {
             // head

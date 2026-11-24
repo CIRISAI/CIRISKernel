@@ -39,4 +39,5 @@ room content, one row not held (undecided, never a wrong bit)
 room content, histories built row by row (conferral_content.py)
 room content, folded row by row with changed
 room content with no end held (counted where seated; in force unless retracted)
+the fold at tips: self-admission, a head one key wrote, tips that differ in policy
 the end of a conferral: one receipt naming several acts, presented as one row per act
