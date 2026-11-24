@@ -317,13 +317,13 @@ class Seats:
 
     def stands(self, k, s, o, root=None):
         if not any(self._has(r, s) and (root is None or r["root"] == root) for r in K.sel(self.recs, k=k, obj=o)): return False
-        common = self.tips_common(s, o)                         # while tips wait, a key stands only if every tip seats it
-        return common is None or k in common
+        fold = self.tips_fold(s, o)                             # with several tips, the fold of their changes
+        return fold is None or k in fold
 
     def holders(self, s, o, root=None):
         got = frozenset(r["k"] for r in K.sel(self.recs, obj=o) if self._has(r, s) and (root is None or r["root"] == root))
-        common = self.tips_common(s, o)
-        return got if common is None else got & common
+        fold = self.tips_fold(s, o)
+        return got if fold is None else got & fold
 
     def tips(self, o):
         """The frontier of the counted acts on o that count, with its founding row."""
@@ -342,6 +342,104 @@ class Seats:
             m = frozenset(r["k"] for r in K.sel(Q.recs, obj=o) if Q._has(r, s))
             out = m if out is None else out & m
         return out
+
+    def _at(self, rows):
+        """The seats read over a sub-set of the concluded rows (one line: no further recursion into tips)."""
+        return Seats(CK.State(rows, {q["id"]: True for q in rows}), self.holds, self.confers)
+
+    def tips_fold(self, s, o):
+        """KERNEL.md section 7, the fold at tips (models/roster_fork/fold.py): with several tips, the keys holding
+        `s` over `o` when every tip's changes are folded. None with one tip or none.
+            common   a key every tip seats is in;
+            out      a key some tip's line removed is out, unless a later addition of it has that removal in its
+                     past. So a key one tip admits and another removes is out;
+            in       a key some tip adds is in where the counted offer that adds it meets its count on the voices
+                     of keys the fold seats, over the members at its heads that the fold seats: a least fixed
+                     point from the common keys;
+            wait     tips that differ in protocol or policy (a counted row's `regime`, where the caller states one)
+                     do not fold: the answer is then the common keys, as tips_common gives."""
+        tp = self.tips(o)
+        if len(tp) <= 1: return None
+        if "fold_off" in MUT: return self.tips_common(s, o)
+        S = self.S
+        memo = self.__dict__.setdefault("_fold_memo", {})
+        if (s, o) in memo: return memo[(s, o)]
+        lines = []
+        for t in tp:
+            sub = [q for q in S.Cs if q["id"] == t["id"] or q["id"] in S.anc[t["id"]]]
+            Q = self._at(sub)
+            seated = {}                                         # key -> the offers that seat it at this tip
+            for r in K.sel(Q.recs, obj=o):
+                if Q._has(r, s): seated.setdefault(r["k"], set()).add(r["offer"])
+            lines.append((t, sub, {q["id"] for q in sub}, seated))
+        common = frozenset.intersection(*[frozenset(sd) for _, _, _, sd in lines])
+        union = frozenset.union(*[frozenset(sd) for _, _, _, sd in lines])
+        if len({t.get("regime") for t, _, _, _ in lines}) > 1 and "regime_folds" not in MUT:
+            memo[(s, o)] = common
+            return common
+
+        def survives(k):
+            """k is seated at some tip by an offer that every other line either never held k against, or removed k
+            in that offer's past."""
+            for _, _, _, sd in lines:
+                for off in sd.get(k, ()):
+                    ok = True
+                    for _, sub2, ids2, sd2 in lines:
+                        if k in sd2: continue
+                        if off in ids2: ok = False; break       # this line ended the very seat
+                        seen = [q for q in sub2 if q["id"] in S.anc[off]]
+                        Q2 = self._at(seen)
+                        if any(Q2._has(r, s) for r in K.sel(Q2.recs, obj=o, k=k)): ok = False; break   # removed beside it
+                    if ok: return True
+            return False
+
+        cand = [k for k in sorted(union - common, key=str) if survives(k) or "keeps_removed" in MUT]
+        out_keys = union - common - frozenset(cand)             # removed on a line and not added again after it
+
+        def count_holds(k, seated):
+            """Every counted offer that adds k meets its count on the voices of keys the fold seats, over the
+            members at its heads that the fold seats."""
+            if "plain_fold" in MUT: return True
+            offs = set()
+            for _, _, _, sd in lines: offs |= sd.get(k, set())
+            for off in offs:
+                r = S.by[off]
+                if r.get("conf") != "group":
+                    if r["signer"] not in seated and r["signer"] in union: return False
+                    continue
+                P = [q for q in S.Cs if q["id"] in S.anc[off]]
+                past = lambda a, b: a in S.anc[b]
+                over, counted = r.get("over", r["obj"]), r.get("counted", "member")
+                if (over, counted) == (o, s): ok = seated if "one_step" not in MUT else (union - out_keys)
+                else: ok = self.tips_fold(counted, over)                 # another scope's own fold; None: one tip there
+                mem = members_at(P, past, over, r.get("head", ()), counted) - left_in_past(P, over, counted)
+                if ok is not None: mem = mem & ok
+                yes = voices(r, P) & mem
+                if r.get("policy") in DUTY_POLICY:
+                    if not duty_count(r, P, yes, mem): return False
+                elif not met(r.get("policy"), len(yes), len(mem), r.get("need")): return False
+            return True
+
+        memo[(s, o)] = common                                   # a count over this scope asked meanwhile reads the common keys
+        got = common
+        while True:                                             # least fixed point: a voice counts once its key is in
+            more = got | frozenset(k for k in cand if k not in got and count_holds(k, got))
+            if more == got: break
+            got = more
+        memo[(s, o)] = got
+        return got
+
+    def _out(self, s, o):
+        """The keys the fold holds out of scope `s` over `o`: seated at some tip, removed on another line, and not
+        added again after that removal. Empty with one tip."""
+        tp = self.tips(o)
+        if len(tp) <= 1: return frozenset()
+        S, sets = self.S, []
+        for t in tp:
+            sub = [q for q in S.Cs if q["id"] == t["id"] or q["id"] in S.anc[t["id"]]]
+            Q = self._at(sub)
+            sets.append(frozenset(r["k"] for r in K.sel(Q.recs, obj=o) if Q._has(r, s)))
+        return frozenset.union(*sets) - frozenset.intersection(*sets) - (self.tips_fold(s, o) or frozenset())
 
     def one(self, s, o):
         """The single holder, where the seat is single-valued (an owner): two live holders is none."""

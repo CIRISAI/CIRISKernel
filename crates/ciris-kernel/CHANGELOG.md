@@ -14,6 +14,27 @@ it can take a new first binding. Eight scenarios in the seat fixture run the cra
 **A caller whose law table has `owner -> registered` ends keys by their owner's revocation, which the text does
 not allow.**
 
+**Answers change: at several tips `seat::Seats` reads the fold, not the common members.** `stands`, `holders`,
+`holders_at` and `stands_at` now read `Seats::tips_fold` (CC 2.7.8 as the Constitution adopted it on a run,
+2026-11-23; `models/roster_fork/fold.py`):
+- a key every tip seats is in;
+- a key some tip's line removed is out, unless a later addition of it has that removal in its past (so a key one
+  tip admits and another removes is out);
+- a key a tip adds is in where the counted offer that adds it meets its count on the voices of keys the fold
+  seats, over the members at its heads that the fold seats: a least fixed point from the common keys;
+- tips that differ in protocol or policy do not fold and give the common keys. The caller states that value per
+  counted act through the new `SeatRow::regime` (default `None`: every tip equal).
+`tips_common` is unchanged and still public. With one tip nothing changes.
+- `members_at` and `members_in`: a head one key wrote (an `open:self_admit` admission signed by the key it
+  seats) is read through to the heads it names, and only the newest counted heads are intersected, so such a
+  head narrows no count. Unchanged where no head named is one.
+- What moves for a caller: a member one tip admits is listed at once where its admission holds on the common
+  members' voices; before, it waited for a version naming both tips. A member any tip removes is out, as before.
+- The cost, stated in KERNEL.md section 7: where the one key common to two tips is an adversary's, what it
+  signed on either tip folds in at once.
+- Reference `seat.py` (`Seats.tips_fold`); `attacks.py` tests 3, 4, 7 and 34 and three measured facts restated;
+  `check_rosters.py`'s tips property restated. `tests/fold.rs` (7 cases: self-admission, a head one key wrote,
+  tips that differ in policy). `proofs/TipsFold.lean` (7 theorems: the fold's bounds). Five planted breaks.
 **Answers change: `window::outcome` reads a met count with no landing; a proposer's withdrawal; a fifth window.**
 For the Constitution's rewrite of CC 3.3.6.4 (the self roster's lone path as rows), each checked in `window.py`:
 - **A count that is met needs no clock and no concluder.** Where no landing has concluded, `outcome` is the

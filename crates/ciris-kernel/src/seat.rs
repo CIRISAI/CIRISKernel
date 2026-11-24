@@ -155,6 +155,11 @@ pub trait SeatRow: Row {
     fn head(&self) -> &[Self::Id] {
         &[]
     }
+    /// A counted act: the protocol and policy in force at it, as one value the caller compares by equality.
+    /// Tips whose values differ do not fold ([`Seats::tips_fold`]). `None` where the caller states none.
+    fn regime(&self) -> Option<&Self::Word> {
+        None
+    }
     /// The policy row a count is read from.
     fn policy(&self) -> Option<&Self::Word> {
         None
@@ -285,6 +290,8 @@ pub fn covers(have: &str, want: &str) -> bool {
 
 type ObjOf<R> = Obj<<R as Row>::Id, <R as Row>::Key>;
 type MembersMemo<R> = BTreeMap<(Vec<<R as Row>::Id>, ObjOf<R>, String), BTreeSet<<R as Row>::Key>>;
+/// One tip's line: the concluded rows in its past with it, and the offers that seat each key there.
+type Line<R> = (Vec<usize>, BTreeMap<<R as Row>::Key, BTreeSet<<R as Row>::Id>>);
 type CommonMemo<R> = RefCell<BTreeMap<(String, ObjOf<R>), Option<BTreeSet<<R as Row>::Key>>>>;
 type Step<'r, R> = ((&'r <R as Row>::Id, &'r <R as Row>::Key), (usize, Root<<R as Row>::Id, <R as Row>::Key>));
 
@@ -412,6 +419,7 @@ pub struct Seats<'c, 'a, R: SeatRow, S: CutSpec<R>> {
     /// when built, and no reader enters either (the reader's line is in `stale`).
     tips_memo: RefCell<BTreeMap<ObjOf<R>, Vec<usize>>>,
     common_memo: CommonMemo<R>,
+    fold_memo: CommonMemo<R>,
 }
 
 impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
@@ -568,7 +576,18 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 Some(Live { offer: oid.clone(), k: k.clone(), scope: o.scope()?.clone(), obj: o.obj()?, depth, root })
             })
             .collect();
-        Seats { c, cut, law, spec, by, stale, recs, tips_memo: RefCell::default(), common_memo: RefCell::default() }
+        Seats {
+            c,
+            cut,
+            law,
+            spec,
+            by,
+            stale,
+            recs,
+            tips_memo: RefCell::default(),
+            common_memo: RefCell::default(),
+            fold_memo: RefCell::default(),
+        }
     }
 
     /// The concluded set.
@@ -596,12 +615,12 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         covers(sc, s) || self.law.holds.get(sc).is_some_and(|h| h.iter().any(|x| x == s))
     }
 
-    /// Whether key `k` stands in scope `s` over `o` (rooted at `root`, when given). While tips wait, a key
-    /// stands only if every tip seats it.
+    /// Whether key `k` stands in scope `s` over `o` (rooted at `root`, when given). With several tips, a key
+    /// stands only if the fold of their changes seats it ([`Seats::tips_fold`]).
     pub fn stands(&self, k: &R::Key, s: &str, o: &ObjOf<R>, root: Option<&Root<R::Id, R::Key>>) -> bool {
         let any =
             self.recs.iter().any(|r| r.k == *k && r.obj == *o && self.has(r, s) && root.is_none_or(|x| r.root == *x));
-        any && self.tips_common(s, o).is_none_or(|c| c.contains(k))
+        any && self.tips_fold(s, o).is_none_or(|c| c.contains(k))
     }
 
     /// The keys holding scope `s` over `o`.
@@ -612,7 +631,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             .filter(|r| r.obj == *o && self.has(r, s) && root.is_none_or(|x| r.root == *x))
             .map(|r| r.k.clone())
             .collect();
-        match self.tips_common(s, o) {
+        match self.tips_fold(s, o) {
             None => got,
             Some(c) => got.intersection(&c).cloned().collect(),
         }
@@ -664,6 +683,151 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         t
     }
 
+    /// The seats read over one line of the concluded rows (the rows at `ids`), with the offers that seat each
+    /// key in scope `s` over `o`.
+    fn line_seats(&self, ids: &[usize], s: &str, o: &ObjOf<R>) -> BTreeMap<R::Key, BTreeSet<R::Id>> {
+        let g = &self.c.g;
+        let sc = Concluded::with(Graph::new(ids.iter().map(|&q| g.row(q))), None);
+        let q = Seats::new(&sc, self.law, self.spec, None);
+        let mut seated: BTreeMap<R::Key, BTreeSet<R::Id>> = BTreeMap::new();
+        for r in q.recs.iter().filter(|r| r.obj == *o && q.has(r, s)) {
+            seated.entry(r.k.clone()).or_default().insert(r.offer.clone());
+        }
+        seated
+    }
+
+    /// With several tips, the keys holding `s` over `o` when every tip's changes are folded (KERNEL.md section
+    /// 7; `models/roster_fork/fold.py`); `None` with one tip or none.
+    ///
+    /// * A key every tip seats is in.
+    /// * A key some tip's line removed is out, unless a later addition of it has that removal in its past. So a
+    ///   key one tip admits and another removes is out.
+    /// * A key some tip adds is in where the counted offer that adds it meets its count on the voices of keys
+    ///   the fold seats, over the members at its heads that the fold seats: a least fixed point from the common
+    ///   keys.
+    /// * Tips that differ in protocol or policy ([`SeatRow::regime`]) do not fold: the answer is then the keys
+    ///   common to them ([`Seats::tips_common`]).
+    pub fn tips_fold(&self, s: &str, o: &ObjOf<R>) -> Option<BTreeSet<R::Key>> {
+        let at = (String::from(s), o.clone());
+        if let Some(t) = self.fold_memo.borrow().get(&at) {
+            return t.clone();
+        }
+        let t = self.fold_of(s, o, &at);
+        self.fold_memo.borrow_mut().insert(at, t.clone());
+        t
+    }
+
+    fn fold_of(&self, s: &str, o: &ObjOf<R>, key: &(String, ObjOf<R>)) -> Option<BTreeSet<R::Key>> {
+        let tp = self.tips(o);
+        if tp.len() <= 1 {
+            return None;
+        }
+        let g = &self.c.g;
+        let lines: Vec<Line<R>> = tp
+            .iter()
+            .map(|&t| {
+                let ids: Vec<usize> = self.c.cs().iter().copied().filter(|&q| q == t || g.in_past(q, t)).collect();
+                let seated = self.line_seats(&ids, s, o);
+                (ids, seated)
+            })
+            .collect();
+        let mut common: BTreeSet<R::Key> = lines[0].1.keys().cloned().collect();
+        let mut union: BTreeSet<R::Key> = BTreeSet::new();
+        for (_, sd) in &lines {
+            common.retain(|k| sd.contains_key(k));
+            union.extend(sd.keys().cloned());
+        }
+        let regimes: BTreeSet<Option<&R::Word>> = tp.iter().map(|&t| g.row(t).regime()).collect();
+        if regimes.len() > 1 {
+            return Some(common); // tips that differ in protocol or policy wait
+        }
+        // k is seated at some tip by an offer that every other line either never held k against, or removed k
+        // in that offer's past
+        // per line, the keys any of its offers over `o` names: a line outside this set never seated k, so it
+        // cannot have removed k, and no seats need reading for it
+        let named: Vec<BTreeSet<&R::Key>> = lines
+            .iter()
+            .map(|(ids, _)| {
+                ids.iter()
+                    .map(|&q| g.row(q))
+                    .filter(|r| r.seat_kind() == SeatKind::Offer && r.obj().as_ref() == Some(o))
+                    .flat_map(|r| r.to().iter())
+                    .collect()
+            })
+            .collect();
+        let survives = |k: &R::Key| {
+            lines.iter().any(|(_, sd)| {
+                sd.get(k).is_some_and(|offs| {
+                    offs.iter().any(|off| {
+                        let Some(oi) = g.idx(off) else { return false };
+                        lines.iter().zip(&named).all(|((ids2, sd2), named2)| {
+                            if sd2.contains_key(k) || !named2.contains(k) {
+                                return true;
+                            }
+                            if ids2.contains(&oi) {
+                                return false; // this line ended the very seat
+                            }
+                            let seen: Vec<usize> = ids2.iter().copied().filter(|&q| g.in_past(q, oi)).collect();
+                            !self.line_seats(&seen, s, o).contains_key(k) // else removed beside it
+                        })
+                    })
+                })
+            })
+        };
+        let cand: Vec<R::Key> = union.iter().filter(|k| !common.contains(*k) && survives(k)).cloned().collect();
+        // every counted offer that adds k meets its count on the voices of keys the fold seats, over the
+        // members at its heads that the fold seats
+        let members: MembersAt<R> = MembersAt::default();
+        let count_holds = |k: &R::Key, seated: &BTreeSet<R::Key>| {
+            let offs: BTreeSet<&R::Id> = lines.iter().filter_map(|(_, sd)| sd.get(k)).flatten().collect();
+            offs.into_iter().all(|off| {
+                let Some(i) = g.idx(off) else { return false };
+                let r = g.row(i);
+                if r.conf() != Some(Conf::Group) {
+                    return seated.contains(r.signer()) || !union.contains(r.signer());
+                }
+                if authored_head(self.law, r) {
+                    return true; // an outsider's own admission: its own signature is its count
+                }
+                let anc: Vec<usize> = self.c.cs().iter().copied().filter(|&q| g.in_past(q, i)).collect();
+                let p = Past::new(g, i, &anc);
+                let Some(obj) = r.obj() else { return false };
+                let over = r.over().unwrap_or(obj);
+                let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
+                let ok = if over == *o && counted == s { Some(seated.clone()) } else { self.tips_fold(counted, &over) };
+                let mut mem = count_members_with(&p, self.law, self.spec, Some(&members));
+                if let Some(ok) = ok {
+                    mem.retain(|m| ok.contains(m));
+                }
+                let v = voices(r, &p);
+                let pol = self.law.policy_of(r.policy().map(|x| x.as_ref()));
+                match pol {
+                    Some(Policy::Ranked) => true, // an election's ballots are read by the seat rule alone
+                    Some(Policy::DutyConfer) | Some(Policy::DutyWithdraw) => {
+                        let yes: BTreeSet<&R::Key> = v.iter().filter(|x| mem.contains(*x)).collect();
+                        duty_count_keys(pol == Some(Policy::DutyWithdraw), r.to(), &yes, &mem)
+                    }
+                    _ => count_of(pol, true, r.to(), &mem, &v, r.need(), |x| {
+                        r.weights().iter().find(|(w, _)| w == x).map_or(0, |(_, n)| *n)
+                    }),
+                }
+            })
+        };
+        // a count over this scope asked meanwhile reads the common keys
+        self.fold_memo.borrow_mut().insert(key.clone(), Some(common.clone()));
+        let mut got = common;
+        loop {
+            // least fixed point: a voice counts once its key is in
+            let more: Vec<R::Key> =
+                cand.iter().filter(|k| !got.contains(*k) && count_holds(k, &got)).cloned().collect();
+            if more.is_empty() {
+                break;
+            }
+            got.extend(more);
+        }
+        Some(got)
+    }
+
     fn common_of(&self, s: &str, o: &ObjOf<R>) -> Option<BTreeSet<R::Key>> {
         let tp = self.tips(o);
         if tp.len() <= 1 {
@@ -690,8 +854,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
 /// Seats read **at a held row** (0.3): the instant is the one row `at` states ([`crate::Dated`]), never a
 /// clock. A seat counts at that instant only when the offer that seats it covers it: stated at or before it,
 /// and not ended by it (`asserted_at <= t < valid_until`, [`crate::covers_at`]). An owner's standing judged at
-/// the row being admitted is `holders_at(owner, node, None, admitted)`. The tip reading is unchanged: while
-/// tips wait, a key stands only if every tip seats it.
+/// the row being admitted is `holders_at(owner, node, None, admitted)`. The tip reading is the fold
+/// ([`Seats::tips_fold`]).
 ///
 /// Only the seating offer's own instants are read. A seat conferred under an offer whose own standing ended is
 /// not ended by it here; that chain is the conferring offer's `valid_until`, which the caller states on the
@@ -723,7 +887,7 @@ impl<'c, 'a, R: SeatRow + crate::Dated, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             })
             .map(|r| r.k.clone())
             .collect();
-        Some(match self.tips_common(s, o) {
+        Some(match self.tips_fold(s, o) {
             None => got,
             Some(c) => got.intersection(&c).cloned().collect(),
         })
@@ -747,7 +911,7 @@ impl<'c, 'a, R: SeatRow + crate::Dated, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 && root.is_none_or(|x| r.root == *x)
                 && self.offer_covers(&r.offer, &t)
         });
-        Some(any && self.tips_common(s, o).is_none_or(|c| c.contains(k)))
+        Some(any && self.tips_fold(s, o).is_none_or(|c| c.contains(k)))
     }
 }
 
@@ -764,12 +928,50 @@ fn may_confer<R: SeatRow>(law: &SeatLaw, up: &R, o: &R) -> bool {
     scopes.iter().any(|s| covers(s, os.as_ref())) && o.obj() == want
 }
 
+/// A head one key wrote: an outsider's own admission to an open room (`open:self_admit`, signed by the key it
+/// seats). It narrows no count but by its own signer.
+fn authored_head<R: SeatRow>(law: &SeatLaw, r: &R) -> bool {
+    r.seat_kind() == SeatKind::Offer
+        && law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::SelfAdmit)
+        && r.to().len() == 1
+        && r.to()[0] == *r.signer()
+}
+
+/// The heads a count is read over: the heads named, with each authored head replaced by the heads it names in
+/// turn, and then only the newest of them (one that is in another's past is dropped). Unchanged where no head
+/// named is an authored one.
+fn counted_heads<'r, 'h, R: SeatRow + 'r>(
+    law: &SeatLaw,
+    heads: &'h [R::Id],
+    row: &dyn Fn(&R::Id) -> Option<&'r R>,
+    past: &dyn Fn(&R::Id, &R::Id) -> bool,
+) -> alloc::borrow::Cow<'h, [R::Id]> {
+    if !heads.iter().any(|h| row(h).is_some_and(|r| authored_head(law, r))) {
+        return alloc::borrow::Cow::Borrowed(heads); // the usual case: nothing is copied
+    }
+    let mut todo: Vec<R::Id> = heads.to_vec();
+    let mut seen: BTreeSet<R::Id> = BTreeSet::new();
+    let mut kept: Vec<R::Id> = Vec::new();
+    while let Some(h) = todo.pop() {
+        if !seen.insert(h.clone()) {
+            continue;
+        }
+        match row(&h) {
+            Some(r) if authored_head(law, r) => todo.extend(r.head().iter().cloned()),
+            _ => kept.push(h),
+        }
+    }
+    let newest: Vec<R::Id> = kept.iter().filter(|a| !kept.iter().any(|b| *a != b && past(a, b))).cloned().collect();
+    alloc::borrow::Cow::Owned(newest)
+}
+
 fn concluded_over<'a, R: Row>(rows: impl IntoIterator<Item = &'a R>) -> Concluded<'a, R> {
     Concluded::with(Graph::new(rows), None)
 }
 
 /// The live `scope` seats over `obj`, read from the rows in the past of the heads only (`p`: a row's
-/// concluded ancestors). Several heads: the keys common to all of them (tips wait).
+/// concluded ancestors). Several heads: the keys common to the newest counted of them. A head one key wrote
+/// (an outsider's own admission) is read through to the heads it names, so it narrows no count.
 pub fn members_at<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
     law: &SeatLaw,
@@ -781,8 +983,12 @@ pub fn members_at<R: SeatRow, S: CutSpec<R>>(
     // as members_in over p's rows with p's closure, read by index: a head's past is taken whole once
     let g = p.graph();
     let anc = p.ancestors();
+    let heads = counted_heads(law, heads, &|h| g.idx(h).map(|i| g.row(i)), &|a, b| match (g.idx(a), g.idx(b)) {
+        (Some(a), Some(b)) => g.in_past(a, b),
+        _ => false,
+    });
     let mut out: Option<BTreeSet<R::Key>> = None;
-    for h in heads {
+    for h in heads.iter() {
         let Some(hi) = g.idx(h).filter(|hi| anc.binary_search(hi).is_ok()) else { return BTreeSet::new() };
         let past = g.ancestors(hi);
         let sc = concluded_over(anc.iter().filter(|&&q| q == hi || past.has(q)).map(|&q| g.row(q)));
@@ -820,7 +1026,8 @@ pub fn members_in_scopes<R: SeatRow, S: CutSpec<R>>(
     scopes: &[&str],
 ) -> Vec<BTreeSet<R::Key>> {
     let mut out: Vec<Option<BTreeSet<R::Key>>> = scopes.iter().map(|_| None).collect();
-    for h in heads {
+    let heads = counted_heads(law, heads, &|h| rows.iter().copied().find(|q| q.id() == h), past);
+    for h in heads.iter() {
         let sub: Vec<&R> = rows.iter().copied().filter(|q| q.id() == h || past(q.id(), h)).collect();
         if !sub.iter().any(|q| q.id() == h) {
             return scopes.iter().map(|_| BTreeSet::new()).collect();

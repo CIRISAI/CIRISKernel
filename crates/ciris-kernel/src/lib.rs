@@ -18,7 +18,7 @@
 //! | [`cut`] | 6 | the cut, by the well-founded fixed point |
 //! | [`conferral`] | CC 2.4.1.1, CC 4.5.5 | the end of a conferral: an act counted at its head, and in force |
 //! | [`content`] | CC 2.4.1.1 | room content after a member's seat ends: the rows the end holds good |
-//! | [`line`] | 7, 8a | built on, and the reader's own acknowledged line |
+//! | [`mod@line`] | 7, 8a | built on, and the reader's own acknowledged line |
 //! | [`seat`] | 5 (stands), 7 | the seat: two consents, the bounded walk, members at a head, tips wait |
 //! | [`window`] | 5 (window) | a window as rows: receipt, landing and recount |
 //! | [`head`] | 3, 3a | answers by head: receipts, one say, settled, missing; checkpoint and purge |
