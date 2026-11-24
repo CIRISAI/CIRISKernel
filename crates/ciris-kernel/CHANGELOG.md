@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**Answers change: `window::outcome` reads a met count with no landing; a proposer's withdrawal; a fifth window.**
+For the Constitution's rewrite of CC 3.3.6.4 (the self roster's lone path as rows), each checked in `window.py`:
+- **A count that is met needs no clock and no concluder.** Where no landing has concluded, `outcome` is the
+  outcome an at-once clause gives over the answers held (`Outcome::Landed`), and `Open` only short of that.
+  Before, it was `Open` until a landing concluded, a majority's approval included.
+- **The proposer's withdrawal.** An answer `withdraw` by the opener's signer is read by a clause over the new
+  `Base::Opener`. It never replaces what the proposer said by opening, so a strict majority that has approved
+  still lands (a count once met is final), and the tables read the approval first. An approval that has the
+  withdrawal in its past approves nothing.
+- **`self_roster_add`**: the eviction's table without the target's silence.
+- `window.py`'s elapsed test no longer assumes both instants are stated; the crate already did not.
+- The adversary table is 57 rows and 47 checks over five windows: recount breaks none, the voiding rule eleven,
+  the contesting rule two. Three planted breaks in the crate, and `landing_only` in the model.
+- A caller matching `Base` exhaustively adds an arm for `Base::Opener`.
+
 **An answer changes: `head::View::counts_at` reads a cut at an older head.** A counting cut at an earlier head
 now voids an act at a later head that is concurrent with the cut (KERNEL.md section 6 rule 4, "rows on that slot
 concurrent with it do not count from the head the cut names"; `CONFERRAL_END.md` E3). Before, only a cut at the
