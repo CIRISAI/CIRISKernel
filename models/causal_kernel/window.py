@@ -2,7 +2,8 @@
 window.py: a window as rows.
 
     open      row p opens the window. It names the head it is counted over, and (for an eviction) its target.
-    answer    a row naming p that says something the window's table counts: approve, object, confirm, answered, act.
+    answer    a row naming p that says something the window's table counts: approve, object, confirm, answered, act,
+              against (a vote against the act proposed: the same row as `act` with the other polarity).
     receipt   a key with the concluder's seat signs that it holds p, stating its own instant.
               "Inside the window" is what the landing has in its past and the receipt has not, so a receipt
               with a row of the target in its past would put that row before the window. A row that has one, beyond
@@ -39,6 +40,27 @@ show that witness.
 
 The five windows are data (WINDOWS): the policy row of manifests/governance_policy.json, the clauses that close
 the window at once, the clauses read at the close, and the default.
+
+A clause is (value said, threshold, base, outcome). The bases:
+    all               the window's counted scope at the opener's head
+    others            the same, less the opener's signer: out of the voices and out of the size counted over (the
+                      members' check: "a strict majority of the members seated at the head the act names, the
+                      act's author apart"). Where the opener is a removal of an AI agent's key (an unseat marked
+                      `agent`), the key it removes is apart too: an agent "acts under its own key and has no
+                      vote", so in the lift of its own removal it is no voice and is not counted over, whether
+                      the count is read with no landing, by a landing, or by the recount
+    opener            the opener's signer alone
+    any other word    that scope at the opener's head
+The thresholds: "strict", "one", ("atleast", n, d, min), ("more", n, d, min), and
+    ("voted", n, d, min, against)   more than n/d of the keys of the base that VOTED, and at least min voices: a key
+                      voted if it said the clause's value or `against`. A silent key is not counted over.
+
+A duty holder's single-signature answer (a value an at-once clause reads as "one" over a named scope, said by a
+holder of that scope) is what that key said: a vote the same key also cast is moot, and does not make its answer
+two things said.
+
+An opener is a row of kind `open`, or a counted act that names a window (`window` on an unseat: a moderator's lone
+removal of an agent's key, seat.py). Such an act is concluded by the seat's rule and the opener's together.
 """
 import os
 import sys
@@ -67,23 +89,39 @@ WINDOWS = {
                         "at_once": (("approve", "strict", "all", "landed"), ("withdraw", "one", "opener", "refused"),
                                     ("object", "strict", "others", "refused")),
                         "silent": None, "at_close": (), "default": "landed"},
-    # CC 4.5.13: a moderator answers within 48 h; on their absence a live majority of the members acts
+    # CC 4.5.13: a moderator answers within 48 h; on their absence the members act: "a strict majority of the members
+    # who voted, never fewer than two voices" (data/governance_policy.tsv, moderation_action). `act` is a vote for,
+    # `against` a vote against, a silent member is not counted over. A moderator's answer is no vote
     "moderation_fallback": {"policy": "moderation_action", "counted": "member", "concluder": "member", "opener_says": None,
                             "at_once": (("answered", "one", "moderate", "answered"),),
-                            "silent": None, "at_close": (("act", "strict", "all", "fallback"),), "default": "lapsed"},
+                            "silent": None, "at_close": (("act", ("voted", 1, 2, 2, "against"), "all", "fallback"),), "default": "lapsed"},
     # CC 4.2.1.1: one holder fires at once; the halt lapses at the fuse unless a strict majority confirms
     "halt_fuse": {"policy": "accord_halt", "counted": "holder", "concluder": "holder", "opener_says": "confirm",
                   "at_once": (("confirm", "strict", "all", "confirmed"),),
                   "silent": None, "at_close": (), "default": "lapsed"},
-    # CC 4.5.13, the members' check: a duty holder's act takes effect at once and is itself the opener; a strict
-    # majority of the roster at the head the act names, never fewer than two voices, lifts it by objecting; short of
-    # that at the close it stands. The duty holder has no say in the lift of its own act
+    # CC 4.5.13, the members' check: a duty holder's act takes effect at once and is itself the opener. "The act is
+    # lifted when a strict majority of the members seated at the head the act names, the act's author apart, has
+    # objected within the 48-hour window. ... The floor is two voices. The author's own objection is no voice, and the
+    # author is not among the members the majority is taken of. Where the author is one of two members no lift is
+    # possible." Short of that at the close it stands. So the base is `others`
     "moderation_overturn": {"policy": "moderation_overturn", "counted": "member", "concluder": "member", "opener": "moderate",
-                            "opener_says": None, "at_once": (("object", ("more", 1, 2, 2), "all", "lifted"),),
+                            "opener_says": None, "at_once": (("object", ("more", 1, 2, 2), "others", "lifted"),),
                             "silent": None, "at_close": (), "default": "stands"},
 }
 SECS = None
 MUT = set()            # planted breaks, switched on by a check
+BASES = ("all", "others", "opener")
+
+
+def removed_agent(p):
+    """The key an opener removes, where the opener is a removal of an agent's key: apart from the lift's count."""
+    if p["kind"] != "unseat" or not p.get("agent") or "removed_counted_over" in ST.MUT: return frozenset()
+    return frozenset(p["to"])
+
+
+def is_opener(r):
+    """A row that opens a window: an `open` row, or a counted act that names a window."""
+    return r["kind"] == "open" or (r["kind"] == "unseat" and r.get("window") in WINDOWS)
 
 
 def secs(name):
@@ -119,24 +157,34 @@ def landing(id, signer, p, rec, says, at, names=()):
 def table_outcome(spec, p, answers, inside, base, elapsed):
     """The outcome the table gives. answers: rows answering p; inside: rows read for the target's silence;
     base(name) -> the keys counted; elapsed: whether the concluder's two instants span the window."""
-    tv = {p["target"]} if spec.get("target_votes") else set()   # the joiner's own yes is a voice of the floor (CC 3.1.3.2)
+    tv = {p.get("target")} if spec.get("target_votes") else set()   # the joiner's own yes is a voice of the floor (CC 3.1.3.2)
     withdrawn = any(a["signer"] == p["signer"] and a["says"] == "withdraw" for a in answers)
-    said = K.group([a for a in answers if a["signer"] in base("all") | base("moderate") | tv
-                    and not (a["signer"] == p["signer"] and a["says"] == "withdraw")], "signer", "one", "says")
+    heard = [a for a in answers if a["signer"] in base("all") | base("moderate") | tv
+             and not (a["signer"] == p["signer"] and a["says"] == "withdraw")]
+    # a duty holder's single-signature answer is what that key said: its vote is moot
+    duty = {value: over for value, how, over, _ in spec["at_once"] if how == "one" and over not in BASES}
+    acted = {a["signer"] for a in heard if a["says"] in duty and a["signer"] in base(duty[a["says"]])}
+    if "vote_beside_answer" in MUT: acted = set()
+    said = K.group([a for a in heard if a["signer"] not in acted or a["says"] in duty], "signer", "one", "says")
     if spec["opener_says"]: said.setdefault(p["signer"], spec["opener_says"])       # a voice that says two things says nothing
     def count_met(value, how, over, floor=False):
         if over == "opener": return withdrawn if value == "withdraw" else said.get(p["signer"]) == value
-        keys = base(over)
-        yes = K.group([{"k": s} for s, v in said.items() if v == value and (s in keys or (floor and s in tv and value == "approve"))], None, "count", "k")
+        keys = voice = base(over)
+        # MUTATION overturn_whole_roster: the opener's signer is no voice and is still counted over
+        if over == "others" and "overturn_whole_roster" in MUT: keys = base("all")
+        yes = K.group([{"k": s} for s, v in said.items() if v == value and (s in voice or (floor and s in tv and value == "approve"))], None, "count", "k")
         if isinstance(how, tuple):               # a threshold read off the policy table
-            kind, num, den, least = how          # ("atleast", n, d, min): >= max(min, ceil(n*N/d)); ("more", n, d, min): > n/d and >= min
+            kind, num, den, least = how[:4]      # ("atleast", n, d, min): >= max(min, ceil(n*N/d)); ("more", n, d, min): > n/d and >= min
+            if kind == "voted":                  # ("voted", n, d, min, against): > n/d of those of the base who voted, and >= min
+                no = K.group([{"k": s} for s, v in said.items() if v == how[4] and s in voice], None, "count", "k")
+                return yes * den > num * (yes + no) and yes >= least
             if kind == "atleast": return yes >= max(least, -(-num * len(keys) // den))
             return yes * den > num * len(keys) and yes >= least
         return yes >= 1 if how == "one" else 2 * yes > len(keys)
     for value, how, over, out in spec["at_once"]:
         if count_met(value, how, over): return out
     if not elapsed: return "open"
-    if spec["silent"] and K.sel(inside, signer=p["target"]): return spec["silent"]
+    if spec["silent"] and K.sel(inside, signer=p.get("target")): return spec["silent"]
     for value, how, over, out in spec["at_close"]:
         if count_met(value, how, over, floor=True): return out
     return spec["default"]
@@ -149,7 +197,7 @@ def _base(rows, past, p):
         if name not in cache:
             scope = spec["counted"] if name in ("all", "others") else name
             m = ST.members_at(rows, past, p["obj"], p["head"], scope)
-            cache[name] = m - {p["signer"]} if name == "others" else m
+            cache[name] = m - {p["signer"]} - removed_agent(p) if name == "others" else m
         return cache[name]
     return base
 
@@ -169,14 +217,15 @@ def voices_of(answers, p, past):
 def rule(r, P, past):
     """The conclusion rule: window rows here, every other row by seat.seat_rule."""
     k = r["kind"]
-    if k not in ("open", "answer", "receipt", "landing"):
+    if k not in ("open", "answer", "receipt", "landing") and not is_opener(r):
         return ST.seat_rule(r, P, past)
     by = {q["id"]: q for q in P}
-    if k == "open":
+    if is_opener(r):
         w = WINDOWS[r["window"]]                               # the opener's signer holds the opener's scope, by default the counted one
+        if k != "open" and not ST.seat_rule(r, P, past): return False     # an act that opens its own window: validly made, by the seat
         return r["signer"] in ST.members_at(P, past, r["obj"], r["head"], w.get("opener", w["counted"]))
     p = by.get(r["of"])
-    if p is None or p["kind"] != "open": return False
+    if p is None or not is_opener(p): return False
     if k == "answer": return True                              # whether its voice counts is read against the roster at p's head
     spec, base = WINDOWS[p["window"]], _base(P, past, p)
     if r["signer"] not in ST.members_at(P, past, p["obj"], p["head"], spec["concluder"]): return False
@@ -230,8 +279,8 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
         conc = [r for r in S.Cs if (pos[r["id"]] > pos[L["id"]] and L["id"] not in S.anc[r["id"]]) if by_arrival] if by_arrival else \
                [r for r in S.Cs if S.concurrent(r["id"], L["id"])]
         conc = [r for r in conc if not late(r)]
-        ans = [r for r in K.sel(conc, kind="answer", of=pid) if r["signer"] in base("all") | base("moderate") | ({p["target"]} if spec.get("target_votes") else set())]
-        tgt = K.sel(conc, signer=p["target"]) if spec["silent"] else []
+        ans = [r for r in K.sel(conc, kind="answer", of=pid) if r["signer"] in base("all") | base("moderate") | ({p.get("target")} if spec.get("target_votes") else set())]
+        tgt = K.sel(conc, signer=p.get("target")) if spec["silent"] else []
         if how == "contest":
             said.append({"v": "contested" if ans or tgt else L["says"]})
         else:
@@ -369,7 +418,7 @@ def moderation_world():
                   cosigners=("m3", "MOD"))                                     # two of the three confer, MOD accepting
     W = secs("moderation_fallback")
     p = opener("p", "m2", "moderation_fallback", "g", ("md",))
-    # four members at the head (m1, m2, m3 and MOD): a strict majority of them is three acts
+    # four members at the head (m1, m2, m3 and MOD); the count at the close is over the members who voted
     acts = [answer("x1", "m1", "p", "act"), answer("x2", "m2", "p", "act"), answer("x3", "m3", "p", "act")]
     xs = ("x1", "x2", "x3")
     A = answer("A", "MOD", "p", "answered")
@@ -397,11 +446,48 @@ def moderation_world():
          [g, dict(md, names=("g",), head=("g",)), dict(p), receipt("r", "m2", "p", 0), acts[0], acts[1], A,
           landing("L", "m2", "p", "r", "fallback", W, ("x1", "x2"))],
          "a duty seat stands only on a member", "fallback"),
-        ("false landing, short of the count: two members of four act and one of them lands the fallback",
-         [g, am, md, p, receipt("r", "m2", "p", 0), acts[0], acts[1], landing("L", "m2", "p", "r", "fallback", W, ("x1", "x2"))],
+        ("false landing, short of the count: one member acts and another votes against, and one of them lands the fallback",
+         [g, am, md, p, receipt("r", "m2", "p", 0), acts[0], answer("n2", "m2", "p", "against"),
+          landing("L", "m2", "p", "r", "fallback", W, ("x1", "n2"))],
          "the fallback needs the members' majority", "not fallback"),
     ]
-    return "moderation fallback (48 h, absent moderator, members' majority)", cases
+    # a room of four founders and MOD, admitted and then made moderator: the count is over the members who voted,
+    # for (`act`) or against (`against`), floor two voices; a silent member (MOD among them) is not counted over
+    g4, am4 = admitted("MOD", by=("m1", "m3", "m4"), founders=("m1", "m2", "m3", "m4"))
+    md4 = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("am",), head=("am",), policy="duty_confer", counted="duty",
+                   cosigners=("m3", "m4", "MOD"))
+    b4 = [g4, am4, md4, p, receipt("r", "m2", "p", 0)]
+    acts = acts[:1] + acts[2:]                                                 # x1 and x3: m2 lands, and votes against below
+    n2, n4 = answer("n2", "m2", "p", "against"), answer("n4", "m4", "p", "against")
+    fb = lambda *names: landing("L", "m2", "p", "r", "fallback", W, names)
+    cases += [
+        ("five members, two vote for and three are silent: the landing names the two votes",
+         b4 + acts + [fb("x1", "x3")], "a silent member is not counted over", "fallback"),
+        ("five members, one votes for and nobody against",
+         b4 + acts[:1] + [fb("x1")], "never fewer than two voices", "not fallback"),
+        ("five members, two vote for and two against: the landing names all four",
+         b4 + acts + [n2, n4, fb("x1", "x3", "n2", "n4")], "a strict majority of those who voted", "not fallback"),
+        ("five members, two vote for and one against",
+         b4 + acts + [n2, fb("x1", "x3", "n2")], "a strict majority of those who voted", "fallback"),
+        ("withheld votes: two vote for and the landing names them; two votes against were kept from the lander",
+         b4 + acts + [n2, n4, fb("x1", "x3")], "a strict majority of those who voted", "not fallback"),
+        ("a member votes both for and against, beside one vote for",
+         b4 + acts + [answer("n1", "m1", "p", "against"), fb("x1", "x3", "n1")], "a voice that says two things says nothing", "not fallback"),
+        ("two keys off the roster vote against two members' votes for",
+         b4 + acts + [answer("z1", "z", "p", "against"), answer("z2", "y", "p", "against"), fb("x1", "x3", "z1", "z2")],
+         "only a member's vote is counted", "fallback"),
+        ("a key conferred `moderate` while it is no member votes for, beside one member's vote",
+         [g4, dict(md4, names=("g",), head=("g",)), p, receipt("r", "m2", "p", 0)] + acts[:1] + [answer("xM", "MOD", "p", "act"), fb("x1", "xM")],
+         "a duty seat stands only on a member, and a non-member's vote is no vote", "not fallback"),
+        ("a moderator who is also a member answers and votes for, beside one vote for: no landing",
+         b4 + acts + [answer("A1", "m1", "p", "answered")], "its act answers and its vote is moot", "answered"),
+        ("the same, and a member lands the fallback over it, naming all three",
+         b4 + acts + [answer("A1", "m1", "p", "answered"), fb("x1", "x3", "A1")], "its act answers and its vote is moot", "not fallback"),
+        ("after the fallback has landed, the moderator answers, naming the landing",
+         b4 + acts + [n2, fb("x1", "x3", "n2"), answer("A", "MOD", "p", "answered", ("L",))],
+         "a moderator's act after the fallback has landed does not reopen the window", "fallback"),
+    ]
+    return "moderation fallback (48 h, absent moderator, a majority of the members who voted)", cases
 
 
 def halt_world():
@@ -439,48 +525,74 @@ def overturn_world():
                   cosigners=("m3", "MOD"))
     W = secs("moderation_overturn")
     p = opener("p", "MOD", "moderation_overturn", "g", ("md",))         # the duty holder's act opens its own window
-    # four members at the head (m1, m2, m3 and MOD, the duty holder): a strict majority of the roster is three objections
+    # four members at the head (m1, m2, m3 and MOD, the duty holder); the act's author apart, three are counted over and
+    # two objections lift (rule of CC 4.5.13: a strict majority of the members less the author, floor two)
     o1, o2, o3 = answer("o1", "m1", "p", "object"), answer("o2", "m2", "p", "object"), answer("o3", "m3", "p", "object")
     base = [g, am, md, p]
     r1, r3 = receipt("r", "m1", "p", 0), receipt("r", "m3", "p", 0)
     stands = landing("L", "m3", "p", "r", "stands", W, ("o1",))
-    stands2 = landing("L", "m3", "p", "r", "stands", W, ("o1", "o3"))    # m3 objected itself, and lands on the two objections it names
     g1 = ST.offer("g", "m1", ("m1",), "duty", "@", "self")
     p1 = opener("p", "m1", "moderation_overturn", "g", ("g",))          # the lone duty holder (its founding seat moderates) is the one member
     cases = [
         ("false landing, no count: one member objects and lands the lift alone",
          base + [o1, r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1",))], "the lift needs the members' majority", "not lifted"),
-        ("false landing, short of the count: two members of four object and one of them lands the lift",
-         base + [o1, o2, r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2"))], "the lift needs the members' majority", "not lifted"),
-        ("the room lifts: three of four object and one of them lands at once",
+        ("the room lifts: two of the three members other than the duty holder object and one of them lands at once",
+         base + [o1, o2, r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2"))], "the room may lift a duty holder's act", "lifted"),
+        ("the room lifts: all three members other than the duty holder object and one of them lands at once",
          base + [o1, o2, o3, r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2", "o3"))], "the room may lift a duty holder's act", "lifted"),
         ("stands at the close: one objection in 48 h and another member lands",
          base + [o1, r3, stands], "short of the count the act stands", "stands"),
-        ("false landing: a member lands 'stands' leaving a third objection unnamed",
-         base + [o1, o2, o3, r3, stands2], "a majority's objections are not overridden by a landing", "not stands"),
-        ("withheld objection: an honest member lands 'stands'; a relay had kept the third objection from it",
-         base + [o1, o2, o3, r3, stands2], "a majority's objections are not overridden by a landing", "not stands"),
-        ("a second landing naming both: a member lands 'lifted', naming the first landing and the third objection",
-         base + [o1, o2, o3, r3, stands2, receipt("r2", "m1", "p", 0), landing("L2", "m1", "p", "r2", "lifted", 0, ("L", "o2"))],
+        ("false landing: a member lands 'stands' leaving a second objection unnamed",
+         base + [o1, o2, r3, stands], "a majority's objections are not overridden by a landing", "not stands"),
+        ("withheld objection: an honest member lands 'stands'; a relay had kept the second objection from it",
+         base + [o1, o2, r3, stands], "a majority's objections are not overridden by a landing", "not stands"),
+        ("a second landing naming both: a member lands 'lifted', naming the first landing and the second objection",
+         base + [o1, o2, r3, stands, receipt("r2", "m1", "p", 0), landing("L2", "m1", "p", "r2", "lifted", 0, ("L", "o2"))],
          "a row naming both decides", "lifted"),
         ("the duty holder objects to its own act, with one member: the landing names both",
          base + [o1, answer("oM", "MOD", "p", "object"), r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "oM"))],
-         "two voices of four do not lift", "not lifted"),
+         "the author's objection is no voice", "not lifted"),
         ("the duty holder objects to its own act, with two members: the landing names the three",
          base + [o1, o2, answer("oM", "MOD", "p", "object"), r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2", "oM"))],
-         "(the duty holder is a member, and the table counts a member's objection: its own included)", None),
-        ("a key with no seat at the head objects, with two members",
-         base + [o1, o2, answer("oz", "z", "p", "object"), r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2", "oz"))],
+         "the author is not among the members the majority is taken of", "lifted"),
+        ("a key with no seat at the head objects, with one member",
+         base + [o1, answer("oz", "z", "p", "object"), r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "oz"))],
          "only a member seated at the head the act names counts", "not lifted"),
         ("the floor: in a room of one, the one member (its lone duty holder) objects to its own act and lands",
          [g1, p1, dict(o1), r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1",))], "never fewer than two voices", "not lifted"),
-        ("a member who holds no duty opens the check on an act of its own, and three of four object and land the lift",
+        ("a member who holds no duty opens the check on an act of its own, and the three other members object and land the lift",
          [g, am, opener("p", "MOD", "moderation_overturn", "g", ("am",)), o1, o2, o3, r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2", "o3"))],
          "only a duty holder's act opens the members' check", "not lifted"),
         ("objection signed just after, naming the landing: a member objects late and honestly",
-         base + [o1, o3, r3, stands2, answer("o2", "m2", "p", "object", ("L",))], "(what an honest late objection is worth)", None),
+         base + [o1, r3, stands, answer("o2", "m2", "p", "object", ("L",))], "(what an honest late objection is worth)", None),
         ("objection signed just after, leaving the landing unnamed",
-         base + [o1, o3, r3, stands2, o2], "(a late objection against a landing that stands)", None),
+         base + [o1, r3, stands, o2], "(a late objection against a landing that stands)", None),
+    ]
+    # the moderator is itself on the roster (a duty holder is a member and holds every duty): its own objection is no
+    # voice and it is not among the members the majority is taken of
+    pm = opener("p", "m1", "moderation_overturn", "g", ("g",))
+    o3, o4 = answer("o3", "m3", "p", "object"), answer("o4", "m4", "p", "object")
+    r2 = receipt("r", "m2", "p", 0)
+    lift = lambda *names: landing("L", "m2", "p", "r", "lifted", 0, names)
+    g4 = ST.offer("g", "m1", ("m1", "m2", "m3", "m4"), "duty", "@", "self", cosigners=("m2", "m3", "m4"))
+    g2 = ST.offer("g", "m1", ("m1", "m2"), "duty", "@", "self", cosigners=("m2",))
+    cases += [
+        ("room of three, the moderator a member: both others object, two of two",
+         [g, pm, o2, o3, r2, lift("o2", "o3")], "the room may lift a duty holder's act", "lifted"),
+        ("room of three, the moderator a member: one other objects alone",
+         [g, pm, o2, r2, lift("o2")], "never fewer than two voices", "not lifted"),
+        ("room of three, the moderator a member: one other and the moderator object",
+         [g, pm, o1, o2, r2, lift("o1", "o2")], "the author's objection is no voice", "not lifted"),
+        ("room of four, the moderator a member: two of the three others object",
+         [g4, pm, o2, o3, r2, lift("o2", "o3")], "the author is not among the members the majority is taken of", "lifted"),
+        ("room of four, the moderator a member: one of the three others objects",
+         [g4, pm, o2, r2, lift("o2")], "the lift needs the members' majority", "not lifted"),
+        ("room of four, the moderator a member: one other and the moderator object",
+         [g4, pm, o1, o2, r2, lift("o1", "o2")], "the author's objection is no voice", "not lifted"),
+        ("room of two, the moderator and one member: both object",
+         [g2, pm, o1, o2, r2, lift("o1", "o2")], "where the author is one of two members no lift is possible", "not lifted"),
+        ("room of two, the moderator and one member: the member objects, no landing",
+         [g2, pm, o2], "where the author is one of two members no lift is possible", "open"),
     ]
     return "moderation overturn (48 h, the members' check on a duty holder's act)", cases
 

@@ -48,6 +48,7 @@ step "check_conferral_two (two records)" two       python3 -I models/causal_kern
 step "check_delegation (a chain)"         deleg     python3 -I models/causal_kernel/check_delegation.py
 step "check_duty_seats (on a member)"     dutyseat  python3 -I models/causal_kernel/check_duty_seats.py
 step "check_resignation (wrap, dissolved)" resign   python3 -I models/causal_kernel/check_resignation.py
+step "check_agent_removal (the lift)"     agent     python3 -I models/causal_kernel/check_agent_removal.py
 step "check_rosters (one roster)"         rosters   python3 -I models/causal_kernel/check_rosters.py
 step "check_attacks (34 attacks)"         attacks   python3 -I models/causal_kernel/check_attacks.py
 step "check (order-freeness)"             check     python3 -I models/causal_kernel/check.py

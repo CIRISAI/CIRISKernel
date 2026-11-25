@@ -8,6 +8,13 @@
 //! * `in_force` is whether the act has effect from the end's head on. Anything a host does now on the act's
 //!   strength (serving it as a present act of the standing, wrapping a key to its signer) reads it.
 //! * An act that authorises a further row passes both down, each to its own (E6).
+//! * A deputy hangs from an act of the grantee, its deputy edge ([`ConferralRow::via`]). Nothing marks a row
+//!   as an edge: an act is one exactly when another act's `via` names it, and an edge that itself has a
+//!   `via` is an onward hop, a deputy deputizing. The grantee's own edge needs nothing more. An act whose edge
+//!   is an onward hop counts only if the edge above that one carries sub-delegation
+//!   ([`ConferralRow::sub_delegation`]), and no act counts more than [`Standing::deputy_depth`] `via` hops
+//!   from the grantee's edge. Both are read from the rows' `via`, so no presentation of the onward row passes
+//!   them. A deputy ends with the seat: the end reaches the edge, and the edge passes it down.
 //!
 //! The caller supplies the rows through [`ConferralRow`], who each key is to the standing through
 //! [`Standing::role`], and the causal past through a function, so that it need not materialise a lineage. That
@@ -92,9 +99,14 @@ pub trait ConferralRow {
     fn target(&self) -> Option<&Self::Key> {
         None
     }
-    /// The deputy edge a deputy's act is under: itself an act of the grantee.
+    /// The deputy edge a deputy's act is under: itself an act of the grantee, or of a deputy above.
     fn via(&self) -> Option<&Self::Id> {
         None
+    }
+    /// On a deputy edge: the deputy may deputize onward. An act two hops below an edge without it does not
+    /// count. A fact the edge row states; it is read only when a row under a row under this one is judged.
+    fn sub_delegation(&self) -> bool {
+        false
     }
     /// On a count end: it lifts the receipts of single co-holders and of the receipter (a compromise).
     fn lifts(&self) -> bool {
@@ -126,7 +138,13 @@ pub struct Standing<'a, I, K> {
     /// The heads the reader has acknowledged (CC 2.7.8). An end that a newer acknowledged head does not have in
     /// its past is void for this reader.
     pub reader_acks: &'a [I],
+    /// The most `via` hops an act may be from the grantee's own edge (the text's cap is [`DEPUTY_DEPTH`]). An
+    /// act further down does not count; at 0 no deputy's act counts.
+    pub deputy_depth: usize,
 }
+
+/// The text's cap on a chain of deputies: at most this many `via` hops from the grantee's own edge.
+pub const DEPUTY_DEPTH: usize = 5;
 
 /// The rule that decides an act, in the order the rules decide. [`Rule::as_str`] is the name the reference and
 /// the fixture use.
@@ -154,6 +172,11 @@ pub enum Rule {
     Receipt,
     /// E2: counted at its own head, not in force.
     Forward,
+    /// E6: an act more than [`Standing::deputy_depth`] `via` hops from the grantee's own edge. Not counted.
+    Depth,
+    /// E6: an act whose deputy edge is an onward hop under an edge that does not carry sub-delegation. Not
+    /// counted.
+    NoSub,
     /// E6: a deputy's act whose deputy edge does not count, or is not in force.
     Upstream,
 }
@@ -173,6 +196,8 @@ impl Rule {
             Rule::OneSay => "E3.one_say",
             Rule::Receipt => "E8.receipt",
             Rule::Forward => "E2.forward",
+            Rule::Depth => "E6.depth",
+            Rule::NoSub => "E6.no_sub",
             Rule::Upstream => "E6.upstream",
         }
     }
@@ -350,6 +375,27 @@ impl<'a, R: ConferralRow, P: Past<R::Id>> Ctx<'a, R, P> {
         Ok((true, false, Rule::Forward))
     }
 
+    // the deputy edge `x` is under, where it is held
+    fn edge(&self, x: &R) -> Option<&'a R> {
+        x.via().and_then(|v| self.rows.iter().copied().find(|r| r.id() == v && r.kind() == Kind::Act))
+    }
+
+    // The `via` hops from `x` up to the grantee's own edge. The walk stops one past the cap, or past the rows
+    // (a cycle of names): the count is then already over the cap, or the cycle is left to `judge`. An edge
+    // that is not held is the row to fetch.
+    fn edges(&self, x: &R) -> Result<usize, R::Id> {
+        let mut n = 0;
+        let mut at = x;
+        while let Some(v) = at.via() {
+            if n > self.st.deputy_depth || n > self.rows.len() {
+                break;
+            }
+            at = self.edge(at).ok_or_else(|| v.clone())?;
+            n += 1;
+        }
+        Ok(n)
+    }
+
     fn judge(
         &self,
         x: &'a R,
@@ -365,8 +411,18 @@ impl<'a, R: ConferralRow, P: Past<R::Id>> Ctx<'a, R, P> {
                 return Ok((false, false, Rule::KeyRemoved));
             }
             let (mut c, mut f, mut rule) = self.end_rule(x, void)?;
+            if self.edges(x)? > self.st.deputy_depth {
+                return Ok((false, false, if c { Rule::Depth } else { rule }));
+            }
             // a deputy's act follows its deputy edge; a chain of edges longer than the rows is a cycle of names
-            let up = x.via().and_then(|v| self.rows.iter().copied().find(|r| r.id() == v && r.kind() == Kind::Act));
+            let up = self.edge(x);
+            // the edge `x` is under is an onward hop where it has a `via` itself: the edge above must carry
+            // sub-delegation. Read from the rows, whatever the onward row is presented as
+            if let Some(above) = up.and_then(|u| self.edge(u)) {
+                if !above.sub_delegation() {
+                    return Ok((false, false, if c { Rule::NoSub } else { rule }));
+                }
+            }
             if let (Some(u), true) = (up, depth < self.rows.len()) {
                 let (uc, uf, _) = self.judge(u, void, memo, depth + 1)?;
                 if (c && !uc) || (c && f && !uf) {

@@ -466,7 +466,7 @@ def window_bases():
     Wo = WN.secs("moderation_overturn")
     gs = ST.offer("g", "d1", ("d1", "d2", "d3"), "self", "@", "self", cosigners=("d2", "d3"))
     # three duty holders (CC 4.5.4); MOD is admitted to the roster and then seated to moderate (a duty seat stands only on a
-    # member), so the room has four members and a strict majority of them is three
+    # member), so the room has four members; the members' check is counted over the three other than MOD, the act's author
     gm, am = WN.admitted("MOD")
     md = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("am",), head=("am",), policy="duty_confer", counted="duty",
                   cosigners=("m3", "MOD"))                                     # two of the three confer, MOD accepting
@@ -492,9 +492,9 @@ def window_bases():
              WN.landing("L", "h2", "p", "r", "confirmed", 0, ("c2",))],
             {"h3 signs anything": R("n", "note", "h3", ("g",))}, None, "h2"),
         "overturn: the act stands at the close": (
-            [gm, am, md, WN.opener("p", "MOD", "moderation_overturn", "g", ("md",)), WN.answer("o1", "m1", "p", "object"), WN.answer("o3", "m3", "p", "object"),
-             WN.receipt("r", "m3", "p", 0), WN.landing("L", "m3", "p", "r", "stands", Wo, ("o1", "o3"))],
-            {"a third member objects": WN.answer("n", "m2", "p", "object")}, "lifted", "m1"),
+            [gm, am, md, WN.opener("p", "MOD", "moderation_overturn", "g", ("md",)), WN.answer("o1", "m1", "p", "object"), WN.receipt("r", "m3", "p", 0),
+             WN.landing("L", "m3", "p", "r", "stands", Wo, ("o1",))],
+            {"a second member objects": WN.answer("n", "m2", "p", "object")}, "lifted", "m1"),
         "overturn: lifted by a majority (count)": (
             [gm, am, md, WN.opener("p", "MOD", "moderation_overturn", "g", ("md",)), WN.answer("o1", "m1", "p", "object"), WN.answer("o2", "m2", "p", "object"),
              WN.answer("o3", "m3", "p", "object"), WN.receipt("r", "m1", "p", 0), WN.landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2", "o3"))],
@@ -534,7 +534,7 @@ def t09(t):
            % (o2["recount"], o3["recount"]), (o2["recount"], o3["recount"]) == ("contested", "lapsed"))
     return dict(cls="CONCEDED", who="one key that was counted at the opener's head and still holds its seat: the evicted device itself, the moderator, one further accord holder",
                 witness="halt: g(h1,h2,h3) p(h1 halts) L(h3 lands 'lapsed' at the fuse); a year later n(h2 'confirm', naming only p): the lapse is contested, and a landing naming both must say 'confirmed'. "
-                        "The same for an eviction (the evicted key signs anything: refused), the members' fallback (the moderator answers: answered) and the members' check (a third member objects: lifted).",
+                        "The same for an eviction (the evicted key signs anything: refused), the members' fallback (the moderator answers: answered) and the members' check (a second member objects: lifted).",
                 protects="KERNEL 5: 'What recount costs: a lone landing is never final against a key that can still sign'; causal_order README: 'A key whose answer would move it can unseat the landing at any later time by leaving it unnamed'. "
                          "One signature, no deadline, by a key that was counted at the opener's head and has not been removed since; it lasts until a concluder signs a landing naming both, and that landing must state the flipped outcome. "
                          "No later row of the ledger closes it: the checkpoint is not applied to window answers. "

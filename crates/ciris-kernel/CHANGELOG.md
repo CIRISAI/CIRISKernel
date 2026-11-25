@@ -36,10 +36,117 @@ The reference: `models/causal_kernel/seat.py`, with `check_duty_seats.py` (37 ha
 order, five planted breaks). The cases are in the `seat` fixture with the standing each asks for, the cases of
 persist's table (`HOLDS.duty = ("member",)`) under that table. Nine plants in `tools/kernel_crate_plants.sh`.
 The worlds of `attacks.py`, `window.py` and `check_rosters.py` that conferred a duty on a key that was no
-member now admit that key first; the two moderation windows therefore run over four members, and the adversary
-table is 62 rows and 51 checks (recount breaks none). With the duty holder a member, the overturn world no
-longer told the opener's scope from the counted one, so it gains a case: a member who holds no duty opens the
-check, and nothing is opened.
+member now admit that key first, so the moderator of the two moderation windows is one of four members. With
+the members' check counted over the members less the act's author (below), the overturn world's original answers
+stand: two objections of the three other members lift, and the moderator's own objection is no voice. With the
+duty holder a member, the overturn world no longer told the opener's scope from the counted one, so it gains a
+case: a member who holds no duty opens the check, and nothing is opened. The fallback rows of four members that
+conferred `moderate` on a key off the roster now admit it first; one keeps it off the roster to show that its
+vote is no vote. `check_agent_removal.py` gains two cases in a community founded with scope `duty`: a moderator
+conferred on a non-member removes nothing, and the same key admitted first removes an agent's key alone. Its
+world A, founded with scope `member`, is not reached by this rule and keeps its non-member moderator.
+
+**Answers change in two windows; a moderator's lone removal of an AI agent's key and its lift (CC 4.5.13).**
+Three public types change, and one trait gains a method.
+
+What a caller must change to compile:
+- `window::How` is no longer `Copy` (it is `Clone`), and gains `How::MoreOfVoted(num, den, least, against)`: an
+  exhaustive `match` adds an arm, and code that copied a `How` clones it;
+- an exhaustive `match` on `seat::Policy` adds `Policy::Lift`.
+`window::Base`, `window::Clause` and `window::WindowSpec` are unchanged.
+
+Answers that change:
+- **The members' check (`moderation_overturn`) is counted over the members less the act's author.** The
+  reference's clause is now `("object", ("more", 1, 2, 2), "others", "lifted")`; it was over `all`. This is the
+  Constitution's rc22 text, ruled by Eric on 2026-11-25: "The act is lifted when a strict majority of the members
+  seated at the head the act names, the act's author apart, has objected within the 48-hour window. ... The floor
+  is two voices. The author's own objection is no voice, and the author is not among the members the majority is
+  taken of. Where the author is one of two members no lift is possible." Where the moderator is not on the roster
+  nothing changes. Where it is: its objection no longer counts, and the majority is of one member fewer. A room
+  of three with the moderator a member lifts on both others (two of two) and not on one other with the moderator;
+  a room of four lifts on two of the three others; a room of two cannot lift. This is table data: the crate's
+  `Base::Others` already said it, and a caller's own `WindowSpec` for this window moves to `Base::Others`.
+- **The moderation fallback (`moderation_fallback`) is a strict majority of the members who voted, floor two.**
+  The reference's at-close clause is now `("act", ("voted", 1, 2, 2, "against"), "all", "fallback")`; it was a
+  strict majority of all members. `act` is a vote for; the new answer word `against` is a vote against (the same
+  row with the other polarity, not an objection); a silent member is not counted over. Ruled by the Constitution
+  session on 2026-11-25; `data/governance_policy.tsv`, row `moderation_action`, already said it. Four members
+  with two votes for and none against now fall back, where they did not; two for and two against do not; one
+  vote for alone does not (the floor). In the crate this is `How::MoreOfVoted`.
+- **`window::rule` and `window::outcome`: a duty holder's answer is what that key said.** A value that an
+  at-once clause reads as `How::One` over a `Base::Scope`, said by a holder of that scope, is that key's voice,
+  and any other answer of the same key is moot. Before, a moderator who was also a member and both answered and
+  voted had said two things and so nothing. Tables with no such clause are read as before. A moderator's answer
+  that names the fallback's landing changes nothing (a row of the table now says so).
+- **`window::rule`: an opener that is also an offer or an unseat** (`win_kind() == Some(Open)` and
+  `seat_kind()` `Offer` or `Unseat`) concludes only where `seat::seat_rule` concludes it too. Before, the
+  opener's rule alone was read for such a row. A row that is only an opener is read as before.
+- **`seat::seat_rule`: a counted row of a policy the table reads as `Policy::Lift`** concludes only as a
+  re-seating (below). The reference's table reads `moderation_overturn` so; a counted row of that policy was a
+  strict majority of the members before, and no fixture or check had one.
+
+New:
+- `SeatRow::removes_agent` (default `false`). An unseat of a roster seat (`SeatLaw::roster_seats`) of one key,
+  `Conf::Group`, that the caller marks so concludes on its signer's one voice where that signer holds `moderate`
+  over the object at the head the row names, whatever the room's protocol and however many holders. The kernel
+  cannot see a key record, so the caller states the mark. Unmarked, or signed by a key that is no moderator
+  there, the row is counted as any removal is and fails where it failed.
+- That removal is the opener of a `moderation_overturn` window: the caller presents it with
+  `win_kind() == Some(WinKind::Open)` and `window()` naming the table.
+- `Policy::Lift` and `seat::lift_voices`: the lift's effect is a counted row. An offer of this policy that seats
+  the key again, cites the removal (`SeatRow::content`), names the head the removal names and names objections,
+  each presented as a cosignature whose `of` is the removal. Its voices are those objections' signers and no
+  other key; the removal's author is no voice and is not counted over, and neither is the key seated (below). It concludes on more than half of those members, never fewer than two, and only where the key was on
+  the roster at that head (it restores and does not admit). `lift_voices` returns the author and the voices;
+  `GroupCount`'s contract says what `members` and `voices` are under this policy. `Seats::tips_fold` reads the
+  same count over the members the fold seats.
+- **The removed agent's key is apart from the lift of its own removal, on every path.** Ruled on 2026-11-25
+  from the Constitution's sentence that an AI agent "acts under its own key and has no vote": the count is the
+  members seated at the head the act names, the act's author apart and the removed key apart. In
+  `window::rule` and `window::outcome`, `Base::Others` of a window whose opener is an unseat marked
+  `removes_agent` leaves out the keys that opener removes, with its signer, so the count with no landing, a
+  landing's own count and the recount all read it so. The re-seating row's members leave it out as well. A
+  room of the moderator, the agent and two persons lifts on both persons (two of two) and not on one. This is
+  for the lift of an agent's removal only: no other count of a room leaves agents' keys out, since the kernel
+  sees no key record.
+- No reading of the roster reads a window. Until that row is written the window reads `lifted` and the key is
+  out. That gap is accepted.
+
+Checked: `models/causal_kernel/check_agent_removal.py` (38 cases in 8,975 arrival orders, eight planted breaks
+in the seat rule, five in the window tables), whose rows are in the seat fixture and run the crate's rules; the
+adversary table is 81 rows and 71 checks over five windows (recount breaks none, the voiding rule twelve, the
+contesting rule two); ten planted breaks in the crate, which CI's plants jobs run. Not decided here, and stated
+in that file: a moderator whose duty ended after the head the removal names still removes at that head.
+
+Deputy chains in `conferral`, and a new module `standing`.
+
+- `conferral::answers` reads two gates on a deputy's chain, both from the rows' `via` and nothing else. A row
+  is a deputy edge exactly when another act's `via` names it, and an edge that itself has a `via` is an
+  onward hop. An act whose edge is an onward hop counts only if the edge above that one carries
+  sub-delegation: rule `E6.no_sub`. No act counts more than `Standing::deputy_depth` `via` hops from the
+  grantee's own edge: rule `E6.depth`. The grantee's own edge needs no sub-delegation, and a deputy still
+  ends with the seat (`E6.upstream`). No mark of an edge is read, so no presentation of the onward row passes
+  a gate. The onward row itself is its signer's own act one hop higher and counts as that.
+- **Source-breaking:** `conferral::Standing` gains the field `deputy_depth: usize`; a struct literal must
+  state it. `conferral::DEPUTY_DEPTH` (5) is the text's cap. `conferral::Rule` gains `Depth` and `NoSub`; a
+  `match` over it without a wildcard must name them.
+- `ConferralRow` gains `sub_delegation()`, defaulting to false: a fact the edge row states. **An answer of
+  0.3.0 changes** where a caller already presented a chain two edges deep: an act whose `via` names a row
+  that has a `via` itself counted in 0.3.0, and now counts only if the row above carries `sub_delegation()`
+  and the chain is within the cap. A chain one edge deep is unchanged at a cap of at least 1.
+- `standing::answers`: one row that needs two standings, a root grant and an owner binding (CC 3.1.2.1). The
+  act names its bundle version and the owner's acceptance of the grant; the acceptance names its binding; a
+  re-binding ends the binding before it. The function runs `conferral::answers` under the grant and under the
+  binding and joins the bits, and returns per act the binding and its owner, `counted`, `in_force` and the
+  rule under each record (`Answer::Stands`), or why the act counts for nobody (`Answer::Nobody`), or the row to
+  fetch (`Answer::Undecided`). It reads the causal past as the rows name it.
+- Fixtures: `conferral_end.json` has 42 cases and 93 act answers (seven deputy-chain cases; each case states
+  `deputy_depth`, and a row may state `sub_delegation`; rows no longer state `sub`, which marked a deputy
+  edge and was read by nothing). `conferral_two.json` has 21 cases, each row states
+  the fields a rule reads (`head`, `on`, `owner`), and each case states `reader_acks` and `why`.
+  `tests/conferral_two.rs` replays it.
+- Checked by cases only. The TLA+ spec has one deputy edge, where neither gate applies; TLC was not run for
+  this change.
 
 ## [0.3.0]
 
