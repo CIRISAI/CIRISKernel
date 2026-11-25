@@ -115,7 +115,7 @@ CD2 = confer("cd2", "D", "moderate", ("A", "B"), ("md2",))               # a fre
 CM = confer("cm", "A", "moderate", ("B", "C"), ("g",))                   # persist's table: a named duty is a counted row
 # a member-only room's members' count confers `moderate` (counted over `member`)
 MCD = lambda i, k, heads: ST.offer(i, "A", k, "moderate", OBJ, "group", tuple(heads), head=tuple(heads), policy="community_invite",
-                                   counted="member", cosigners=("B", k))
+                                   counted="member", cosigners=("B", "C", k))   # A, B and C: D is no voice of its own seat
 G1 = ST.offer("g", "A", ("A",), "duty", "@", "self")                     # a lone founder (scope duty, no map)
 MS1 = ST.offer("ms", "A", "A", "member", OBJ, "self", ("g",))            # and its own offer of `member` to itself
 # founding records: listed members A, B, C (where present), duty_holders {moderate: [A, B], review: [A]}
