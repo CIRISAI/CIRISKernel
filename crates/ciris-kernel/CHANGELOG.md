@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+**A founding record seats its listed members and its named duty holders** (CC 4.5.4: "A founding record seats
+the duty holders it names, each by their own signature on it. ... The record names them in `duty_holders`, a
+map from a duty to the set of members who hold it, each a listed member who signed the record.").
+
+- New: `SeatRow::duty_holders` (default empty), a founding record's map from a duty to its holders, as
+  `&[(Word, Vec<Key>)]`. A founding row (an offer whose object is its own id) with a non-empty map seats each
+  key of `to` that signed it (signer or cosigner) in the row's own scope, `member` as presented, and each such
+  key an entry names in that entry's duty. No count is taken, so no floor is asked and "no key admits itself"
+  is not engaged: one, two or twelve founders run alike.
+- A key of `to` that did not sign such a row is seated in nothing, and a later acceptance of the row does not
+  seat it. An entry naming a key that is not a listed signer seats nothing. Neither row is refused. (A founding
+  row with no map still seats an unsigned key of `to` that accepts it later, as before.)
+- `SeatRow::scope` is now read on a withdrawal: a withdrawal of a founding record naming a scope ends that one
+  seat of its signer's (a founder laying down a duty), and is no end of its stay. With no scope it ends every
+  seat the row gives its signer, which is an end of its stay and ends the duty seats conferred on it in that
+  withdrawal's past. A withdrawal naming a scope of an ordinary offer ends nothing unless the scope is the
+  offer's. `seat::left_in_past` reads the withdrawal's scope where it names one.
+- `seat::Live::scope` is the seat's scope. For an ordinary offer that is its scope as before; a founding record
+  gives one `Live` per seat, with the same `offer`.
+- The duty rules engage over a community whose founding row has a map naming a holder, as over a founding row
+  of scope `duty`. A founding row of scope `duty` with no map is read as before.
+- The chained founding presentation (one counted `member` row per founding holder; a lone founder's own
+  `member` offer to itself) is withdrawn from ADOPTING.md, and with it the note that two founders had no
+  presentation. Its cases in `check_duty_seats.py` that only showed that presentation are gone; the founding
+  record's cases replace them.
+
+The reference: `seat.found`, `seat.seat_scopes`, and `withdraw(..., scope=)` in `models/causal_kernel/seat.py`;
+`check_duty_seats.py` has 52 cases (the founding record with one, two and three founders, a duty laid down, the
+stay ended, a duty conferred after the founding, a counted removal, a counted duty withdrawal of a founding seat,
+a founder with no entry, an unsigned listed member, an entry naming a key that is not listed) in every arrival
+order, and eight planted breaks. Three new plants in `tools/kernel_crate_plants.sh`.
+
 **A duty seat stands only on a member** (CC 4.5.4, "a non-member holds no duty"). Answers change; no signature
 does, and one function is added (`seat::stay_ended_in_past`).
 
@@ -28,11 +60,6 @@ seat the duty holders place that is no duty (a node's detector seat); a count ov
   count over duty holders.
 - A founding holder whose duty the others withdraw is no member afterwards (its membership was its founding
   seat, as before), so conferring its duty again now takes its admission first.
-
-Presenting a founding so that a holder can lay down its duty and stay a member is in ADOPTING.md. Two founders
-have no such presentation; that is open. The presentation is interim: it will be replaced by the founding-record
-rule (CC 4.5.4: a founding record seats its listed members and its named duty holders, each by their own
-signature on it; no count is taken at founding).
 
 The reference: `models/causal_kernel/seat.py`, with `check_duty_seats.py` (37 hand-written cases, every arrival
 order, five planted breaks). The cases are in the `seat` fixture with the standing each asks for, the cases of

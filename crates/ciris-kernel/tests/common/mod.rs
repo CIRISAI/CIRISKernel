@@ -285,6 +285,8 @@ pub struct TRow {
     pub options: Vec<String>,
     pub ranking: Vec<String>,
     pub duties: Vec<String>,
+    /// A founding record's `duty_holders`: (duty, keys) pairs.
+    pub duty_holders: Vec<(String, Vec<String>)>,
     pub sigs: Vec<String>,
     pub obj: Option<Obj<String, String>>,
     pub over: Option<Obj<String, String>>,
@@ -361,6 +363,10 @@ impl TRow {
             options: strs(&m, "options"),
             ranking: strs(&m, "ranking"),
             duties: strs(&m, "duties"),
+            duty_holders: m
+                .get("duty_holders")
+                .map(|x| x.arr().iter().map(|e| (e.arr()[0].s().to_string(), e.arr()[1].strs())).collect())
+                .unwrap_or_default(),
             sigs: strs(&m, "sigs"),
             obj: o("obj"),
             over: o("over"),
@@ -492,6 +498,9 @@ impl SeatRow for TRow {
     }
     fn duties(&self) -> &[String] {
         &self.duties
+    }
+    fn duty_holders(&self) -> &[(String, Vec<String>)] {
+        &self.duty_holders
     }
     fn options(&self) -> &[String] {
         &self.options

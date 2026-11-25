@@ -16,27 +16,24 @@ The rule, in two halves (seat.py, `member`):
 At tips the duty seat follows the folded roster (seat.Seats.tips_fold): out where the fold holds its holder out of
 `member`.
 
-The founding, as rows. A founding row of scope `duty` seats the keys it names as duty holders, and that seat holds
-`member`: a founding holder's membership is its founding duty seat, and its withdrawal of the founding row ends both.
-Where a founding holder is to lay down its duty and stay a member, it needs a member seat beside its duty seat, and
-what runs depends on how many found the community:
-    three or more   the founding row, then one chained counted row of scope `member` per founding holder, signed by
-                    the other holders (the crate holds that no key admits itself, CC 2.7.5: a key a counted row
-                    seats is no voice of its count, so one row seating every founder on the founders' own voices
-                    concludes nothing there; this reference does not have that rule, and the cases here use only
-                    rows the two agree on). Each holder then has a member seat beside its duty seat: its withdrawal
-                    of the founding row ends its duty seat, and it stays a member.
-    one             the founding row, then the founder's own offer of `member` to itself over the founding row
-                    (conferrer: the object's own key). Over a founding row that seats one key that offer stands on
-                    its own, so it outlives the founder's withdrawal of the founding row.
-    two             neither runs: one voice of two meets no count here, and over a founding row that seats several
-                    keys an own offer stands only while its signer's founding seat does. Two founders have no
-                    presentation in which either lays down its duty and stays a member. This is open.
-This presentation is interim: it will be replaced by the founding-record rule (CC 4.5.4: a founding record seats its
-listed members and its named duty holders, each by their own signature on it; no count is taken at founding).
-The withdrawal of the founding row ends the duty seats conferred on that holder in its past as well: it is the
-holder's own withdrawal of a seat that holds `member`. Persist's table gives the duty seat `member` and no named duty
-(HOLDS.duty = ("member",)), with each named duty a chained counted row; the cases run that table too.
+The founding record (CC 4.5.4: "A founding record seats the duty holders it names, each by their own signature on
+it. ... The record names them in `duty_holders`, a map from a duty to the set of members who hold it, each a listed
+member who signed the record."). The row (seat.found): `to` the listed members, scope `member`, and a `duty_holders`
+map. It seats each listed member who signed it in `member`, and each holder an entry names in that duty, when the
+holder is a listed member who signed. No count is taken at founding, so no floor is asked and no key is a voice of
+anything: one, two or twelve founders run alike. The seats end separately:
+    a duty laid down   the founder's withdrawal of the founding row naming that duty (`scope`) ends that duty seat
+                       only; its member seat and its other duties stand
+    the stay ended     its withdrawal of the founding row naming no seat ends every seat the row gives it, and by the
+                       rule above every duty seat conferred on it in that withdrawal's past
+    no entry           a founder no entry names is a member and no duty holder
+    no signature       a listed member who did not sign the row is seated in nothing, and a later acceptance does not
+                       seat it (the record seats by the signature on it). An entry naming a key that is not a listed
+                       signer seats nothing. The text names no refusal for either row; both are read, not refused.
+The duty rules engage over a founding record whose map names a holder, as over a founding row of scope `duty`.
+A founding row of scope `duty` with no map is read as before: every key it seats is a duty holder, and that seat
+holds `member`, so its withdrawal of the founding row ends both. Persist's table gives that seat `member` and no
+named duty (HOLDS.duty = ("member",)); the cases run that table too.
 
 What the rule does not reach, each a case below: a community whose founding row is not of scope `duty`; a seat the
 duty holders place that makes its holder no duty holder (a node's detector seat). A deputy's edge is no seat
@@ -51,6 +48,9 @@ Planted breaks, each of which must change a case's answer:
     resign_keeps_duty   a holder's own end of its stay does not end its duty seats
     member_cut_only     a counted removal cuts the member seat only (seat.py's own mutation): the old offer revives
     duty_fold_unread    at tips the duty seat does not follow the folded roster
+    holders_unread      a founding record's `duty_holders` map is not read: it seats members only
+    unsigned_seated     a listed member who did not sign the founding record is seated
+    scope_unread        a withdrawal's `scope` is not read: laying down one duty ends the founder's stay
 
 Not here: the count that confers or withdraws a duty seat (check_rosters.py, the duty instance); a count over a scope
 that is no duty; the term of a seat; an act done under a duty seat after it ends (conferral_end.py).
@@ -108,15 +108,18 @@ XD = remove("xd", "D", ("A", "B", "C"), ("cd",))                             # t
 MD2 = admit("md2", "D", ("A", "B"), ("cd",), ("wd",))                    # D admitted again after resigning
 MD2X = admit("md2", "D", ("A", "B"), ("xd",))                            # D admitted again after its removal
 CD2 = confer("cd2", "D", "moderate", ("A", "B"), ("md2",))               # a fresh conferral over the re-admission
-# the founding with a member seat beside each founding holder's duty seat
-# (one chained counted row per founding holder, signed by the others: no key admits itself)
-MFA = admit("mfa", "A", ("B", "C"), ("g",))
-MFB = admit("mfb", "B", ("A", "C"), ("mfa",))
-MFC = admit("mfc", "C", ("A", "B"), ("mfb",))
-WA = ST.withdraw("wa", "A", "g", ("mfa",))                              # A lays down its founding duty seat
-CM = confer("cm", "A", "moderate", ("B", "C"), ("mfa",))                 # persist's table: a named duty is a chained row
-G1 = ST.offer("g", "A", ("A",), "duty", "@", "self")                     # a lone founder
+CM = confer("cm", "A", "moderate", ("B", "C"), ("g",))                   # persist's table: a named duty is a counted row
+G1 = ST.offer("g", "A", ("A",), "duty", "@", "self")                     # a lone founder (scope duty, no map)
 MS1 = ST.offer("ms", "A", "A", "member", OBJ, "self", ("g",))            # and its own offer of `member` to itself
+# founding records: listed members A, B, C (where present), duty_holders {moderate: [A, B], review: [A]}
+DH = {"moderate": ("A", "B"), "review": ("A",)}
+F3 = ST.found("g", "A", ("A", "B", "C"), DH, cosigners=("B", "C"))
+F2 = ST.found("g", "A", ("A", "B"), DH, cosigners=("B",))
+F1 = ST.found("g", "A", ("A",), {"moderate": ("A",), "review": ("A",)})
+FM = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B", "C"), "review": ("A",)}, cosigners=("B", "C"))
+LAY = lambda i, k, duty, names=("g",): ST.withdraw(i, k, "g", names, scope=duty)     # a founder lays down one duty
+LEAVE = lambda i, k, names=("g",): ST.withdraw(i, k, "g", names)                    # a founder ends its stay
+ALL = lambda k, m, mod, rev: [(k, "member", m), (k, "moderate", mod), (k, "review", rev), (k, "duty", mod or rev)]
 
 # (name, rows, [(key, scope, stands)], table): table "persist" reads the rows under HOLDS.duty = ("member",)
 CASES = [
@@ -181,30 +184,62 @@ CASES = [
      [G, MD, CD, ST.withdraw("wd", "D", "md", ("md",))], [("D", "moderate", F), ("D", "member", F)], None),
     ("and stands when the re-admission lands (beside)",
      [G, MD, CD, ST.withdraw("wd", "D", "md", ("md",)), MD2], [("D", "moderate", T), ("D", "member", T)], None),
-    # ---- the founding with a member seat beside the duty seat --------------------------------------------------------
-    ("the founding as chained rows: each founding holder has a member seat beside its founding duty seat",
-     [G, MFA, MFB, MFC], [("A", "member", T), ("A", "duty", T), ("A", "moderate", T), ("C", "member", T), ("C", "duty", T)], None),
-    ("each of the three lays down its duty in turn (it withdraws the founding row) and all stay members; nobody holds a duty",
-     [G, MFA, MFB, MFC, ST.withdraw("wa", "A", "g", ("mfc",)), ST.withdraw("wb", "B", "g", ("mfc",)), ST.withdraw("wc", "C", "g", ("mfc",))],
-     [("A", "member", T), ("B", "member", T), ("C", "member", T), ("A", "duty", F), ("B", "duty", F), ("C", "duty", F)], None),
-    ("a founding holder lays down its duty (it withdraws the founding row) and stays a member",
-     [G, MFA, WA], [("A", "member", T), ("A", "duty", F), ("A", "moderate", F), ("B", "duty", T), ("B", "member", T)], None),
-    ("a lone founder with its own offer of `member` to itself lays down its duty and stays a member",
+    # ---- the founding record: listed members and named duty holders ------------------------------------------------
+    ("three founders: each listed signer a member; A holds moderate and review, B moderate, C no duty",
+     [F3], ALL("A", T, T, T) + ALL("B", T, T, F) + ALL("C", T, F, F), None),
+    ("two founders: the same, with no count taken", [F2], ALL("A", T, T, T) + ALL("B", T, T, F), None),
+    ("one founder", [F1], ALL("A", T, T, T), None),
+    ("three founders: A lays down moderate and stays a member, keeping review",
+     [F3, LAY("wm", "A", "moderate")], ALL("A", T, F, T) + ALL("B", T, T, F), None),
+    ("two founders: A lays down moderate and stays a member, keeping review",
+     [F2, LAY("wm", "A", "moderate")], ALL("A", T, F, T) + ALL("B", T, T, F), None),
+    ("one founder: it lays down moderate and stays a member, keeping review",
+     [F1, LAY("wm", "A", "moderate")], ALL("A", T, F, T), None),
+    ("two founders: A lays down both duties and is a member holding no duty",
+     [F2, LAY("wm", "A", "moderate"), LAY("wr", "A", "review")], ALL("A", T, F, F) + ALL("B", T, T, F), None),
+    ("three founders: A withdraws the founding row naming no seat: out of everything",
+     [F3, LEAVE("wa", "A")], ALL("A", F, F, F) + ALL("B", T, T, F) + ALL("C", T, F, F), None),
+    ("two founders: A withdraws the founding row naming no seat: out of everything",
+     [F2, LEAVE("wa", "A")], ALL("A", F, F, F) + ALL("B", T, T, F), None),
+    ("one founder: it withdraws the founding row: out of everything", [F1, LEAVE("wa", "A")], ALL("A", F, F, F), None),
+    ("a founder lays down a duty it does not hold: nothing ends", [F3, LAY("wr", "B", "review")], ALL("B", T, T, F), None),
+    ("a duty conferred on a founder after the founding: laying down moderate keeps it",
+     [F3, confer("ct", "A", "takedown", ("A", "B"), ("g",)), LAY("wm", "A", "moderate", ("ct",))],
+     ALL("A", T, F, T) + [("A", "takedown", T)], None),
+    ("and the founder's end of its stay ends it, with no withdrawal of that offer",
+     [F3, confer("ct", "A", "takedown", ("A", "B"), ("g",)), LEAVE("wa", "A", ("ct",))],
+     ALL("A", F, F, F) + [("A", "takedown", F)], None),
+    ("a counted removal from the roster ends a founder's member seat and the duty seats the record gave it",
+     [F3, remove("xa", "A", ("B", "C"), ("g",))], ALL("A", F, F, F) + ALL("B", T, T, F), None),
+    ("the other holders withdraw a founder's founding moderate seat by their count: it keeps review and its member seat",
+     [FM, ST.unseat("xm", "B", "A", "moderate", OBJ, "group", ("g",), head=("g",), policy="duty_withdraw", counted="duty", cosigners=("C",))],
+     ALL("A", T, F, T) + ALL("C", T, T, F), None),
+    ("the duty rules engage: the two founding holders confer moderate on an admitted key",
+     [F3, MD, confer("cd", "D", "moderate", ("A", "B"), ("md",))], [("D", "moderate", T), ("D", "duty", T)], None),
+    ("a founder no entry names is no duty holder and no voice in a duty count: A and C of the holders A and B confer nothing",
+     [F3, MD, confer("cd", "D", "moderate", ("A", "C"), ("md",))], [("D", "moderate", F), ("D", "member", T)], None),
+    ("a founder that laid down its last duty is no voice in a duty count: A (no duty) and B of the holders B and C confer nothing",
+     [FM, admit("md", "D", ("A", "B"), ("g",)), LAY("wm", "A", "moderate", ("md",)), LAY("wr", "A", "review", ("md",)),
+      admit("me", "E", ("A", "B", "C"), ("md",), ("wm", "wr")), confer("cd", "D", "moderate", ("A", "B"), ("me",))],
+     [("D", "moderate", F), ("A", "member", T), ("A", "duty", F), ("E", "member", T)], None),
+    ("a listed member who did not sign the record is seated in nothing, even with a later acceptance of it",
+     [ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "C")}, cosigners=("B",)), ST.accept("ac", "C", "g")],
+     [("C", "member", F), ("C", "moderate", F), ("A", "moderate", T), ("B", "member", T)], None),
+    ("an entry naming a key that is not a listed member seats nothing",
+     [ST.found("g", "A", ("A", "B"), {"moderate": ("A", "Z")}, cosigners=("B",))],
+     [("Z", "moderate", F), ("Z", "member", F), ("A", "moderate", T)], None),
+    # ---- a founding row of scope duty, as before ---------------------------------------------------------------------
+    ("a lone founder of scope duty with its own offer of `member` to itself lays down its duty and stays a member",
      [G1, MS1, ST.withdraw("wa", "A", "g", ("ms",))], [("A", "member", T), ("A", "duty", F)], None),
-    ("two founders: an own offer of `member` stands only on its signer's founding seat, so it does not outlive that seat",
+    ("two founders of scope duty: an own offer of `member` stands only on its signer's founding seat, so it does not outlive that seat",
      [G2, ST.offer("ms", "A", "A", "member", OBJ, "self", ("g",)), ST.withdraw("wa", "A", "g", ("ms",))],
      [("A", "member", F), ("A", "duty", F), ("B", "member", T)], None),
-    ("with the founding row alone, the same withdrawal ends its membership too",
+    ("with the founding row of scope duty alone, the withdrawal ends its membership too",
      [G, ST.withdraw("wa", "A", "g", ("g",))], [("A", "member", F), ("A", "duty", F), ("B", "member", T)], None),
-    ("persist's table: the founding holders are duty holders and members, and hold no named duty until a chained row confers one",
-     [G, MFA, CM], [("A", "duty", T), ("A", "member", T), ("A", "moderate", T), ("B", "duty", T), ("B", "moderate", F)], "persist"),
+    ("persist's table: the founding holders are duty holders and members, and hold no named duty until a counted row confers one",
+     [G, CM], [("A", "duty", T), ("A", "member", T), ("A", "moderate", T), ("B", "duty", T), ("B", "moderate", F)], "persist"),
     ("persist's table: a founding holder lays down a named duty (it withdraws that offer) and stays a member and a founding duty holder",
-     [G, MFA, CM, ST.withdraw("wm", "A", "cm", ("cm",))], [("A", "moderate", F), ("A", "duty", T), ("A", "member", T)], "persist"),
-    ("persist's table: it lays down its founding duty seat, which ends the named duty conferred before, and stays a member",
-     [G, MFA, CM, ST.withdraw("wa", "A", "g", ("cm",))], [("A", "duty", F), ("A", "moderate", F), ("A", "member", T), ("B", "duty", T)], "persist"),
-    ("persist's table: a duty conferred on it after that stands, since it is a member",
-     [G, MFA, CM, ST.withdraw("wa", "A", "g", ("cm",)), confer("cm2", "A", "moderate", ("B", "C"), ("cm",), ("wa",))],
-     [("A", "moderate", T), ("A", "duty", T), ("A", "member", T)], "persist"),
+     [G, CM, ST.withdraw("wm", "A", "cm", ("cm",))], [("A", "moderate", F), ("A", "duty", T), ("A", "member", T)], "persist"),
     # ---- two tips -----------------------------------------------------------------------------------------------
     ("two tips: the holder is removed on one and another member is admitted on the other; the duty seat is out under the fold",
      [G, MD, CD, XD, admit("me", "E", ("A", "B", "C"), ("cd",))], [("D", "moderate", F), ("D", "member", F), ("E", "member", T), ("A", "moderate", T)], None),
@@ -218,7 +253,8 @@ CASES = [
     ("not reached: a seat the duty holders place that is no duty (a node's detector seat) stands on a key that is no member, and makes it no duty holder",
      [G, confer("cn", "N", "detect:list1", ("A", "B"), ("g",))], [("N", "detect:list1", T), ("N", "member", F), ("N", "duty", F)], None),
 ]
-PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_only", "duty_fold_unread")
+PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_only", "duty_fold_unread", "holders_unread",
+          "unsigned_seated", "scope_unread")
 
 
 @contextlib.contextmanager

@@ -135,13 +135,21 @@ trusting an adapter.
 - `SeatRow::regime`: the protocol and policy in force at each counted act, on every counted act.
 
 **A community's founding and its duty seats**, for `seat::Seats` (unreleased; see the CHANGELOG).
-- The founding row: an Offer, `Conf::Own`, scope `duty`, whose object is its own id, `to` the union of the duty
-  holders, each a cosigner. With `SeatLaw::holds["duty"]` containing `member`, each founding holder is a member
-  by that seat: its membership is its founding duty seat, and its withdrawal of the founding row, or the
-  others' withdrawal of its duty, ends both.
-- A named duty is a chained counted row: an Offer, `Conf::Group`, policy `duty_confer`, counted `duty`, over
-  the head it extends. With `holds["duty"] = ["member"]` only, a founding holder holds no named duty until such
-  a row. It lays that duty down by withdrawing that offer, and stays a member and a duty holder.
+- The founding record (CC 4.5.4): one Offer, `Conf::Own`, scope `member`, whose object is its own id, `to` the
+  listed members, each a cosigner (the signer one of them), and `SeatRow::duty_holders` the record's
+  `duty_holders` map: per duty, the members who hold it. It seats each listed member who signed it in
+  `member` and each holder an entry names in that duty, with no count, so one, two or twelve founders are
+  presented alike. Do not present the founding as chained counted rows.
+- A listed member who did not sign the record is seated in nothing, and a later acceptance does not seat it.
+  An entry naming a key that is not a listed signer seats nothing. Neither is refused: the crate reads them,
+  and the text names no refusal for them. Refuse them at your door if you need to.
+- A founder lays down one duty by a `SeatKind::Withdraw` of the founding row whose `scope()` is that duty: its
+  member seat and its other duties stand. A withdrawal of the founding row with no scope ends every seat the
+  row gives the founder (an end of its stay), and so every duty seat conferred on it before.
+- A founding row of scope `duty` with no map is read as before: every key it seats is a duty holder, and with
+  `SeatLaw::holds["duty"]` containing `member` that seat is its membership, so its withdrawal ends both.
+- A duty conferred after the founding is a counted row: an Offer, `Conf::Group`, policy `duty_confer`, counted
+  `duty`, over the head it extends. Its holder lays it down by withdrawing that offer.
 - A duty seat is live only on a member. Present the widening that admits a key before, or with, the conferral
   on it: a conferral on a key that is not yet a member seats nobody, with no error, and is live once the
   widening is held.
@@ -149,16 +157,8 @@ trusting an adapter.
   counted removal (an Unseat of scope `member`) end its duty seats whose offers are in that row's past. Present
   them as that one row; do not also unseat each duty. After a re-admission present fresh conferrals: the old
   offers stay ended.
-- For a founding holder to lay down its founding duty seat and stay a member it needs a member seat beside it.
-  With three founders or more: one chained counted Offer of scope `member` per founding holder, signed by the
-  other holders (a key the row seats is no voice of its count, so one row seating all founders on their own
-  voices concludes nothing). With one founder: its own Offer of `member` to itself over the founding row,
-  `Conf::Own`. With two founders neither runs (one voice of two meets no count, and an own offer over a
-  founding row that seats several stands only while its signer's founding seat does): this is open.
-  This presentation is interim: it will be replaced by the founding-record rule (CC 4.5.4: a founding record
-  seats its listed members and its named duty holders, each by their own signature on it; no count is taken
-  at founding).
-- A holder's withdrawal of the founding row ends the duty seats conferred on it in that withdrawal's past too.
+- A founder's withdrawal of the founding row naming no seat ends the duty seats conferred on it in that
+  withdrawal's past too.
 - Cases: `models/causal_kernel/check_duty_seats.py`, all in the `seat` fixture.
 
 **A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,

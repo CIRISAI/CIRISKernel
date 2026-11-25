@@ -37,7 +37,17 @@ What ends a seat.
     upstream   a seat conferred under another falls with it (the walk is run again on every read). A `self` offer
                over a founding row that seats several keys, signed by one of them, is live only while that
                signer's own founding seat is: it falls with it like any seat conferred under it.
-    duty       over a community the founding record seats duty holders (scope `duty`), who are equals (CC 4.5.4).
+    founding   a founding record (CC 4.5.4; `found`) lists its members in `to` and names its duty holders in
+               `duty_holders`, a map from a duty to the members who hold it. It seats each listed member who signed
+               it in `member`, and each holder an entry names, when a listed signer, in that duty: one row, no
+               count, however many found it. A listed member who did not sign is seated in nothing (a later
+               acceptance does not seat it), and an entry naming a key that is no listed signer seats nothing. The
+               seats end separately: a withdrawal of the founding row that names a duty (`scope`) ends that seat
+               only; one that names no seat ends every seat the row gives its signer (an end of its stay).
+               A founding row of scope `duty` with no map seats every key it names as a duty holder (HOLDS gives
+               that seat `member`), as before.
+    duty       over a community the founding record seats duty holders (a `duty_holders` map, or scope `duty`),
+               who are equals (CC 4.5.4).
                A duty seat is conferred by a strict majority of the holders or by the lone holder, withdrawn by a
                strict majority of the others, never on fewer than two voices where there are two holders, and
                ended by a removal from the roster. A seat so conferred is rooted in the group: its conferrer's
@@ -50,7 +60,7 @@ What ends a seat.
                `member` over the community. Nothing revives: a later admission does not seat an offer so ended. A
                conferral that is not in the end's past (made after it, or beside it) waits for the next admission
                like any conferral on a non-member. At tips the duty seat follows the folded roster.
-               Only where the community's founding row is of scope `duty`, and only a seat that makes its holder
+               Only where the community's founding row seats duty holders, and only a seat that makes its holder
                a duty holder (`duty`, a named duty, a duty the record declares): another seat the duty holders
                place, a node's detector seat for one, is not asked for membership.
 
@@ -200,8 +210,19 @@ def accept(id, signer, of, names=(), scope=None, obj=None):
     return R(id, "accept", signer, names, of=of, scope=scope, obj=obj, **kw)
 
 
-def withdraw(id, signer, target, names=()):
-    return R(id, "withdraw", signer, tuple(names) + ((target,) if target not in names else ()), target=target)
+def withdraw(id, signer, target, names=(), scope=None):
+    """A withdrawal of row `target`. `scope`, where given, names the one seat of a founding row it ends (the
+    duty a founding holder lays down); with none it ends every seat the target gives its signer."""
+    kw = {} if scope is None else {"scope": scope}
+    return R(id, "withdraw", signer, tuple(names) + ((target,) if target not in names else ()), target=target, **kw)
+
+
+def found(id, signer, to, duty_holders=None, cosigners=(), scope="member", **kw):
+    """A founding record (CC 4.5.4): `to` its listed members, each seated `member` by its own signature on it;
+    `duty_holders` a map from a duty to the members who hold it, each seated in that duty by the same signature.
+    The map is carried as sorted (duty, keys) pairs."""
+    dh = tuple(sorted((d, tuple(ks)) for d, ks in (duty_holders or {}).items()))
+    return offer(id, signer, to, scope, "@", "self", cosigners=tuple(cosigners), duty_holders=dh, **kw)
 
 
 def unseat(id, signer, k, scope, obj, conf, names=(), **kw):
@@ -234,26 +255,48 @@ def declared(by, obj):
 ROSTER_SEATS = ("member",)
 
 
+def lists_holders(g):
+    """A founding row that names its duty holders (CC 4.5.4): a `duty_holders` map that names at least one key."""
+    return any(ks for _, ks in g.get("duty_holders") or ())
+
+
+def seat_scopes(o, k):
+    """The scopes offer `o` seats key k in. One, the offer's own scope, for every offer but a founding row that carries
+    a `duty_holders` map: that row seats each listed member who signed it in its own scope (`member`), and in each duty
+    whose entry names it; a listed member who did not sign it is seated in nothing, whatever it accepts later."""
+    if not o.get("duty_holders") or o["obj"] != o["id"] or "holders_unread" in MUT: return (o["scope"],)
+    if k not in signers(o) and "unsigned_seated" not in MUT: return ()       # MUTATION: a listed member who did not sign is seated
+    return (o["scope"],) + tuple(d for d, ks in o["duty_holders"] if k in ks and d != o["scope"])
+
+
+def founding_duty(o, sc):
+    """A duty seat a founding row gives by its `duty_holders` map."""
+    return bool(o.get("duty_holders")) and o["obj"] == o["id"] and sc != o["scope"]
+
+
 def duty_seat(by, o):
     """A seat placed over a community by its duty holders (an object that is a founding row seating duty holders):
     every scope but the roster's own, so a scope the record declares, or any other, follows the holders' count."""
     g = by.get(o["obj"])
-    if g is None or g["kind"] != "offer" or g["obj"] != g["id"] or g["id"] == o["id"] or g["scope"] != "duty": return False
+    if g is None or g["id"] == o["id"] or not duty_room(by, o["obj"]): return False
     if "duty_list_only" in MUT: return is_duty(o["scope"])      # MUTATION: only the named duties follow the count
     return o["scope"] not in ROSTER_SEATS
 
 
 def duty_room(by, obj):
-    """obj is a community whose founding row seats duty holders (the only place the duty rules engage)."""
+    """obj is a community whose founding row seats duty holders (the only place the duty rules engage): a founding row
+    of scope `duty`, or one whose `duty_holders` map names a holder."""
     g = by.get(obj)
-    return g is not None and g["kind"] == "offer" and g["obj"] == g["id"] and g["scope"] == "duty"
+    return g is not None and g["kind"] == "offer" and g["obj"] == g["id"] and (g["scope"] == "duty" or lists_holders(g))
 
 
-def roster_seat(o, holds=None):
-    """An offer of the roster's own seat over a community: a scope its duty holders do not place (ROSTER_SEATS), or the
-    founding row itself, where the seat it offers holds `member`. Every other offer over the community is a duty seat."""
-    if not (o["id"] == o["obj"] or o["scope"] in ROSTER_SEATS): return False
-    return covers(o["scope"], "member") or "member" in K.rule(HOLDS if holds is None else holds, o["scope"], ())
+def roster_seat(o, holds=None, sc=None):
+    """A seat of the roster's own over a community, given by offer `o` in scope `sc` (default the offer's): a scope
+    its duty holders do not place (ROSTER_SEATS: a member's, an agent's), or a founding row's own scope where it holds
+    `member`. Every other seat over the community is a duty seat."""
+    sc = o["scope"] if sc is None else sc
+    if not ((o["id"] == o["obj"] and sc == o["scope"]) or sc in ROSTER_SEATS): return False
+    return sc in ROSTER_SEATS or covers(sc, "member") or "member" in K.rule(HOLDS if holds is None else holds, sc, ())
 
 
 def stay_ends(rows, by, holds=None):
@@ -265,6 +308,9 @@ def stay_ends(rows, by, holds=None):
         if w["kind"] != "withdraw": continue
         t, k = by.get(w.get("target")), w["signer"]
         if t is None: continue
+        if w.get("scope") is not None and w["scope"] not in ROSTER_SEATS and not (t["kind"] == "offer" and roster_seat(t, holds, w["scope"])) \
+                and "scope_unread" not in MUT:
+            continue                                                # it lays down one duty seat, and the stay goes on
         if t["kind"] == "accept" and t["signer"] == k:
             if t["of"] is not None: t = by.get(t["of"])
             elif t.get("obj") is not None and t.get("scope") in ROSTER_SEATS and duty_room(by, t["obj"]):
@@ -275,10 +321,12 @@ def stay_ends(rows, by, holds=None):
     return out
 
 
-def duty_held(by, o):
+def duty_held(by, o, sc=None):
     """A duty seat proper: a seat the duty holders place over their community (duty_seat) whose scope makes its holder a
-    duty holder. The seat the membership rule reaches."""
-    return duty_seat(by, o) and is_duty(o["scope"], declared(by, o["obj"]))
+    duty holder, or a duty seat a founding row gives by its `duty_holders` map. The seat the membership rule reaches."""
+    sc = o["scope"] if sc is None else sc
+    if founding_duty(o, sc): return True
+    return duty_seat(by, o) and is_duty(sc, declared(by, o["obj"]))
 
 
 def _lone(r, P, by):
@@ -367,28 +415,30 @@ class Seats:
         # a duty seat over a community: duty holders are equals (CC 4.5.4 (iii)), so the key that conferred it does not end it
         # alone; it ends by its holder's withdrawal or a count (duty_withdraw, or the members' recall)
         eq = lambda o: duty_seat(S.by, o) and "duty_ranked" not in MUT
-        off_ended = lambda o, k: any(w["target"] == o["id"] and (w["signer"] == k or (w["signer"] not in o["to"] and o["conf"] != "group" and not eq(o)))
-                                     and not late(w, o) for w in wd)
+        # a withdrawal that names a scope ends that one seat of the row it withdraws (a founding holder lays down a duty)
+        off_ended = lambda o, k, sc: any(w["target"] == o["id"] and (w["signer"] == k or (w["signer"] not in o["to"] and o["conf"] != "group" and not eq(o)))
+                                         and (w.get("scope") in (None, sc) or "scope_unread" in MUT) and not late(w, o) for w in wd)
         self.stale = V = CP.void(S, C, own, checkpoint)         # counted acts built on one that does not count, or behind the reader's line
         unseats = [u for u in K.sel(Cs, kind="unseat") if C.counts(u) and u["id"] not in V]
 
         left = stay_ends(wd, S.by, holds)                       # the holders' own ends of a stay as a member
         gone = {(k, g) for _, k, g in left}
 
-        def resigned(o, k):
+        def resigned(o, k, sc):
             """A duty seat whose offer is in the past of its holder's own end of its stay as a member is ended by it."""
-            if "duty_revives" in MUT or "resign_keeps_duty" in MUT or not duty_held(S.by, o): return False
+            if "duty_revives" in MUT or "resign_keeps_duty" in MUT or not duty_held(S.by, o, sc): return False
             return any(k2 == k and g == o["obj"] and ((pos[o["id"]] < pos[w["id"]]) if by_arrival else (o["id"] in S.anc[w["id"]]))
                        for w, k2, g in left)
 
-        def unseated(o, k):
+        def unseated(o, k, sc):
             for u in unseats:
                 # a removal from the roster ends the removed member's duty seats too, "since a non-member holds no duty" (CC 4.5.4)
-                held = ("seat", k, o["scope"], o["obj"]) in u["cuts"] or (
-                    "member_cut_only" not in MUT and (is_duty(o["scope"]) or duty_seat(S.by, o)) and ("seat", k, "member", o["obj"]) in u["cuts"])
+                held = ("seat", k, sc, o["obj"]) in u["cuts"] or (
+                    "member_cut_only" not in MUT and (is_duty(sc) or duty_seat(S.by, o) or founding_duty(o, sc))
+                    and any(("seat", k, r, o["obj"]) in u["cuts"] for r in ROSTER_SEATS))
                 if not held: continue
                 # MUTATION duty_revives: a removal from the roster ends no duty seat by its past, so the next admission seats the old offer
-                if "duty_revives" in MUT and ("seat", k, o["scope"], o["obj"]) not in u["cuts"] and duty_held(S.by, o): continue
+                if "duty_revives" in MUT and ("seat", k, sc, o["obj"]) not in u["cuts"] and duty_held(S.by, o, sc): continue
                 # MUTATION by_arrival: an unseat ends the offers that were held before it, by list position
                 if (pos[o["id"]] < pos[u["id"]]) if by_arrival else (o["id"] in S.anc[u["id"]]): return True
             return False
@@ -402,40 +452,42 @@ class Seats:
                 if paired and not ended(a) and C.counts(a): return True
             return False
 
-        base = [(o, k) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V
-                for k in o["to"] if not off_ended(o, k) and accepted(o, k) and not unseated(o, k) and not resigned(o, k)]
+        base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V
+                for k in o["to"] if accepted(o, k) for sc in seat_scopes(o, k)
+                if not off_ended(o, k, sc) and not unseated(o, k, sc) and not resigned(o, k, sc)]
 
         def step(live):
-            at = {(oid, k): (d, root) for oid, k, d, root in live}
+            at = {(oid, k, sc): (d, root) for oid, k, sc, d, root in live}
+            held = {(oid, k): v for (oid, k, _), v in sorted(at.items(), key=lambda x: x[1][0], reverse=True)}
             out = set(live)
-            for o, k in base:
-                if (o["id"], k) in at: continue
+            for o, k, sc in base:
+                if (o["id"], k, sc) in at: continue
                 if o["conf"] == "self":
                     # over a founding row that seats several keys, a signer's own offer stands on that signer's founding seat
-                    if o["obj"] == o["id"] or not founding_many(S.by, o["obj"]) or (o["obj"], o["signer"]) in at:
-                        out.add((o["id"], k, 0, o["signer"]))
-                elif o["conf"] == "group": out.add((o["id"], k, 0, ("group", o["obj"])))
-                elif eq(o): out.add((o["id"], k, 0, ("group", o["obj"])))     # validly made by the lone holder: it stands as an equal
+                    if o["obj"] == o["id"] or not founding_many(S.by, o["obj"]) or (o["obj"], o["signer"]) in held:
+                        out.add((o["id"], k, sc, 0, o["signer"]))
+                elif o["conf"] == "group": out.add((o["id"], k, sc, 0, ("group", o["obj"])))
+                elif eq(o): out.add((o["id"], k, sc, 0, ("group", o["obj"])))     # validly made by the lone holder: it stands as an equal
                 elif o["conf"] == "seat":
                     up = S.by.get(o.get("under"))
-                    hit = at.get((o.get("under"), o["signer"]))
+                    hit = held.get((o.get("under"), o["signer"]))
                     if up is not None and hit is not None and self.may_confer(up, o):
-                        out.add((o["id"], k, hit[0] + 1, hit[1]))
+                        out.add((o["id"], k, sc, hit[0] + 1, hit[1]))
             return frozenset(out)
 
         self.live = K.fix(step, frozenset(), depth + 1)       # one link per pass: at most `depth` links below a root
         # a duty seat stands only where its holder holds the roster's seat over the same community at this reading. The
         # walk is run again without the duty seats of keys that are not members, until none is left (a seat under one falls too)
         while "duty_no_member" not in MUT:
-            mem = {(S.by[oid]["obj"], k) for oid, k, _, _ in self.live if roster_seat(S.by[oid], holds)}
+            mem = {(S.by[oid]["obj"], k) for oid, k, sc, _, _ in self.live if roster_seat(S.by[oid], holds, sc)}
             # MUTATION resign_keeps_duty: a key that ended its own stay still reads as a member for its duty seats
-            keep = [(o, k) for o, k in base if not duty_held(S.by, o) or (o["obj"], k) in mem
+            keep = [(o, k, sc) for o, k, sc in base if not duty_held(S.by, o, sc) or (o["obj"], k) in mem
                     or ("resign_keeps_duty" in MUT and (k, o["obj"]) in gone)]
             if len(keep) == len(base): break
             base[:] = keep
             self.live = K.fix(step, frozenset(), depth + 1)
-        self.recs = [{"id": "%s/%s" % (oid, k), "offer": oid, "k": k, "scope": S.by[oid]["scope"], "obj": S.by[oid]["obj"],
-                      "depth": d, "root": root} for oid, k, d, root in self.live]
+        self.recs = [{"id": "%s/%s/%s" % (oid, k, sc), "offer": oid, "k": k, "scope": sc, "obj": S.by[oid]["obj"],
+                      "depth": d, "root": root} for oid, k, sc, d, root in self.live]
 
     def may_confer(self, up, o):
         """May the holder of the seat offered by `up` confer the seat `o` offers?"""
@@ -450,7 +502,7 @@ class Seats:
 
     def _member(self, rec):
         """A duty seat follows the folded roster: with several tips, its holder is among the members the fold seats."""
-        if "duty_no_member" in MUT or "duty_fold_unread" in MUT or not duty_held(self.S.by, self.S.by[rec["offer"]]): return True
+        if "duty_no_member" in MUT or "duty_fold_unread" in MUT or not duty_held(self.S.by, self.S.by[rec["offer"]], rec["scope"]): return True
         fold = self.tips_fold("member", rec["obj"])
         return fold is None or rec["k"] in fold
 
@@ -621,7 +673,9 @@ def left_in_past(P, obj, scope="member"):
     for w in P:
         if w["kind"] != "withdraw": continue
         t = by.get(w["target"])
-        if t is None or t.get("obj") not in (obj, None) or t.get("scope") not in (scope, None): continue
+        # a withdrawal that names a scope leaves that one seat of the row it withdraws (a founder's duty laid down)
+        ts = w["scope"] if w.get("scope") is not None and "scope_unread" not in MUT else t.get("scope") if t else None
+        if t is None or t.get("obj") not in (obj, None) or ts not in (scope, None): continue
         if (t["kind"] == "accept" and t["signer"] == w["signer"]) or (t["kind"] == "offer" and w["signer"] in t["to"]):
             out.add(w["signer"])
     return frozenset(out)

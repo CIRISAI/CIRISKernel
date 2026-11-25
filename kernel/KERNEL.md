@@ -228,12 +228,15 @@ community at the same reading, so a conferral on a key that is not a member seat
 duty count, and it stands with no further row when the key's widening lands. An end of the holder's stay as a
 member, its own resignation or a counted removal, ends the duty seats whose offers are in that end's past, and
 a later admission revives none of them; a conferral that is not in the end's past waits for the next
-admission. At tips the duty seat follows the folded roster. The founding seat holds `member`, so a founding
-holder's membership is its founding duty seat unless a member seat is presented beside it. A seat the duty
+admission. At tips the duty seat follows the folded roster. The founding record lists the members and names
+the duty holders in `duty_holders`, a map from a duty to the members who hold it: one row seats each listed
+member who signed it in `member` and each named holder in its duty, with no count, however many found it. A
+listed member who did not sign is seated in nothing, and so is a key an entry names that is no listed signer.
+The seats end separately: a founder's withdrawal of the record naming one duty ends that seat only, and one
+naming no seat ends its stay and every duty seat it held. A seat the duty
 holders place that makes its holder no duty holder (a node's detector seat) is not asked for membership.
-**run** (`models/causal_kernel/check_duty_seats.py`): 37 cases in every arrival order, five planted breaks
-caught. **open**: two founders have no presentation in which either lays down its duty and stays a member;
-the members' check (`moderation_overturn`) counts the objection of the duty holder whose act it is, now that
+**run** (`models/causal_kernel/check_duty_seats.py`): 52 cases in every arrival order, eight planted breaks
+caught. **open**: the members' check (`moderation_overturn`) counts the objection of the duty holder whose act it is, now that
 the duty holder is a member, and the sentence that it has no say in the lift is not a rule of the table.
 **run**: five properties, each with a deliberate break that is caught. `owner` and the steward of an agent are one
 seat. `member`, an accord holder and a key of a self roster are one counted seat over three objects. `serve` is
