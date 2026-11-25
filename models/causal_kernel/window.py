@@ -172,7 +172,7 @@ def table_outcome(spec, p, answers, inside, base, elapsed):
             if kind == "voted":                  # ("voted", n, d, min, against): > n/d of those of the base who voted, and >= min
                 no = K.group([{"k": s} for s, v in said.items() if v == how[4] and s in voice], None, "count", "k")
                 return yes * den > num * (yes + no) and yes >= least
-            if kind == "atleast": return yes >= max(least, -(-num * len(keys) // den))
+            if kind == "atleast": return len(keys) > 0 and yes >= max(least, -(-num * len(keys) // den))   # nothing is met by nobody
             return yes * den > num * len(keys) and yes >= least
         return yes >= 1 if how == "one" else 2 * yes > len(keys)
     for value, how, over, out in spec["at_once"]:
