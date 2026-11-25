@@ -16,7 +16,8 @@ Sources (all under models/):
     cut       causal_kernel/check_cut.py: its section 1 worlds, at its own bounds
     seat      causal_kernel/attacks.py (every scenario its 34 tests conclude, with the seat, window and route rules)
               and causal_kernel/window.py (the adversary table): conclusions, the cut, live seats, the reader's
-              line, holders, tips and window outcomes
+              line, holders, tips and window outcomes; with the cases of check_delegation.py and
+              check_agent_removal.py
     purge     causal_kernel/purge.py: every replay check_purge.py runs, under both readings
     key_end   causal_kernel/check_key_end.py: every generated world at every instant
     conferral_end causal_kernel/conferral_end.py: the case table of the end of a conferral (CC 2.4.1.1, CC 4.5.5),
@@ -237,7 +238,7 @@ def seat_answers(S, ST, WN, CUT, CP):
             rd["tips"][o] = sorted(x["id"] for x in Q.tips(o))
         out["readers"]["-" if own is None else own] = rd
     wins = {}
-    for p in K_sel(S.Cs, "open"):
+    for p in [r for r in S.Cs if WN.is_opener(r)]:           # an `open` row, or an act that opens its own window
         if p.get("window") in WN.WINDOWS:
             wins[p["id"]] = WN.outcome(S, p["id"], "recount")
     out["windows"] = wins
@@ -319,6 +320,11 @@ def seat_cases():
     import check_delegation as DG
     for _name, rows, _asks in DG.CASES:
         record(rows, A.SEAT)
+    # a moderator's lone removal of an agent's key and the members' lift (CC 4.5.13): check_agent_removal.py's cases,
+    # under the window rule (the removal is the opener of its own window; every other row goes to the seat rule)
+    import check_agent_removal as AR
+    for _name, rows, _concl, _roster, _wins in AR.CASES:
+        record(rows, A.WIN)
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
@@ -393,7 +399,7 @@ def derived_of(S, ST, WN, CUT):
     out = {"cut": [C.status(r) for r in S.rows], "holders": {}, "windows": {}}
     for o in objs:
         out["holders"][o] = {sc: sorted(Q.holders(sc, o)) for sc in scopes}
-    for p in K_sel(S.Cs, "open"):
+    for p in [r for r in S.Cs if WN.is_opener(r)]:           # an `open` row, or an act that opens its own window
         if p.get("window") in WN.WINDOWS:
             out["windows"][p["id"]] = WN.outcome(S, p["id"], "recount")
     return out

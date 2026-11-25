@@ -426,6 +426,8 @@ impl SeatRow for TRow {
             "cosign" => SeatKind::Cosign,
             "ballot" => SeatKind::Ballot,
             "ack" => SeatKind::Ack,
+            // an objection in a window is presented as a voice for the row it answers (seat::lift_voices)
+            "answer" if self.says.as_deref() == Some("object") => SeatKind::Cosign,
             _ => SeatKind::Other,
         }
     }
@@ -463,6 +465,9 @@ impl SeatRow for TRow {
     }
     fn head(&self) -> &[String] {
         &self.head
+    }
+    fn removes_agent(&self) -> bool {
+        self.f("agent").is_some_and(|x| x.b())
     }
     fn policy(&self) -> Option<&String> {
         self.policy.as_ref()
@@ -504,6 +509,8 @@ impl WindowRow for TRow {
     fn win_kind(&self) -> Option<WinKind> {
         match self.kind.as_str() {
             "open" => Some(WinKind::Open),
+            // an act that names a window opens it (a moderator's lone removal of an agent's key)
+            "unseat" if self.window.is_some() => Some(WinKind::Open),
             "answer" => Some(WinKind::Answer),
             "receipt" => Some(WinKind::Receipt),
             "landing" => Some(WinKind::Landing),
@@ -681,6 +688,7 @@ pub fn law_of(j: &J) -> SeatLaw {
             "ranked" => Policy::Ranked,
             "duty" if k == "duty_confer" => Policy::DutyConfer,
             "duty" if k == "duty_withdraw" => Policy::DutyWithdraw,
+            "lift" => Policy::Lift,
             _ => Policy::NotACount,
         };
         law.policy.insert(k.clone(), p);
@@ -701,6 +709,9 @@ pub fn windows_of(j: &J) -> BTreeMap<String, WindowSpec<i64>> {
                         J::Str(_) => How::Strict,
                         J::Arr(t) if t[0].s() == "atleast" => {
                             How::AtLeast(t[1].i() as u64, t[2].i() as u64, t[3].i() as u64)
+                        }
+                        J::Arr(t) if t[0].s() == "voted" => {
+                            How::MoreOfVoted(t[1].i() as u64, t[2].i() as u64, t[3].i() as u64, t[4].s().into())
                         }
                         J::Arr(t) if t[3].i() > 0 => {
                             How::MoreAtLeast(t[1].i() as u64, t[2].i() as u64, t[3].i() as u64)
