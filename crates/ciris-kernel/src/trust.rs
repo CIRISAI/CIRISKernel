@@ -37,6 +37,18 @@ pub const HOP_CAP: u32 = 5;
 /// Whether the walk from `from`, with `budget` hops, reaches authority `a` for class `c`
 /// (`TrustSet.reaches`). Each key is expanded only with the greatest budget it has been reached with.
 pub fn reaches<K: Ord + Clone, C: PartialEq>(edges: &[Accepts<K, C>], from: &K, c: &C, budget: u32, a: &K) -> bool {
+    walk_from(from, c, budget, a, |k, see| edges.iter().filter(|e| e.src == *k).any(see))
+}
+
+// The walk, over whatever gives the edges out of a key: `out(k, see)` shows `see` each edge whose source is
+// `k`, in the edges' order, until one answers true.
+fn walk_from<'e, K: Ord + Clone + 'e, C: PartialEq + 'e>(
+    from: &K,
+    c: &C,
+    budget: u32,
+    a: &K,
+    out: impl Fn(&K, &mut dyn FnMut(&'e Accepts<K, C>) -> bool) -> bool,
+) -> bool {
     let mut best: BTreeMap<K, u32> = BTreeMap::new();
     best.insert(from.clone(), budget);
     let mut todo: Vec<K> = alloc::vec![from.clone()];
@@ -45,7 +57,10 @@ pub fn reaches<K: Ord + Clone, C: PartialEq>(edges: &[Accepts<K, C>], from: &K, 
         if b == 0 {
             continue;
         }
-        for e in edges.iter().filter(|e| e.src == k && e.admits(c)) {
+        let found = out(&k, &mut |e| {
+            if !e.admits(c) {
+                return false;
+            }
             if e.dst == *a {
                 return true;
             }
@@ -54,6 +69,10 @@ pub fn reaches<K: Ord + Clone, C: PartialEq>(edges: &[Accepts<K, C>], from: &K, 
                 best.insert(e.dst.clone(), nb);
                 todo.push(e.dst.clone());
             }
+            false
+        });
+        if found {
+            return true;
         }
     }
     false
@@ -93,27 +112,10 @@ fn walk<K: Ord + Clone, C: PartialEq>(
     budget: u32,
     a: &K,
 ) -> bool {
-    let mut best: BTreeMap<K, u32> = BTreeMap::new();
-    best.insert(from.clone(), budget);
-    let mut todo: Vec<K> = alloc::vec![from.clone()];
-    while let Some(k) = todo.pop() {
-        let b = best[&k];
-        if b == 0 {
-            continue;
-        }
-        let lo = by_src.partition_point(|&x| edges[x].src < k);
-        for e in by_src[lo..].iter().map(|&x| &edges[x]).take_while(|e| e.src == k).filter(|e| e.admits(c)) {
-            if e.dst == *a {
-                return true;
-            }
-            let nb = core::cmp::min(b - 1, e.depth);
-            if best.get(&e.dst).is_none_or(|&o| nb > o) {
-                best.insert(e.dst.clone(), nb);
-                todo.push(e.dst.clone());
-            }
-        }
-    }
-    false
+    walk_from(from, c, budget, a, |k, see| {
+        let lo = by_src.partition_point(|&x| edges[x].src < *k);
+        by_src[lo..].iter().map(|&x| &edges[x]).take_while(|e| e.src == *k).any(see)
+    })
 }
 
 /// Whether the reader honours a licence of class `cls` issued by `auth`: its own walk, within the cap,

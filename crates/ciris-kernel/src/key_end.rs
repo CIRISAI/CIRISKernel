@@ -142,7 +142,7 @@ pub fn live<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, now: R::T) -> bool {
     if revoked_from(c, k).is_some_and(|a| now >= a) {
         return false;
     }
-    records(c, k).any(|x| x.from <= now && x.until.is_none_or(|u| now < u))
+    records(c, k).any(|x| crate::covers_at(Some(x.from), x.until, &now))
 }
 
 /// Whether key `k` has ended at `now`: no record of it states an end after now, or it revoked itself by now.

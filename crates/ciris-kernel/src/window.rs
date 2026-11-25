@@ -18,7 +18,7 @@
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
 use crate::ops;
-use crate::seat::{members_in, members_in_scopes, persons, seat_rule, Obj, SeatKind, SeatLaw, SeatRow, AGENT};
+use crate::seat::{self, members_in, members_in_scopes, persons, seat_rule, Obj, Policy, SeatKind, SeatLaw, SeatRow, AGENT};
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
@@ -301,14 +301,15 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         let n = keys.len() as u64;
         match &cl.how {
             &How::AtLeast(num, den, least) => yes >= core::cmp::max(least, (num * n).div_ceil(den)),
-            &How::More(num, den) => yes * den > num * n,
+            // the thresholds the seat's policies also state are read by the seat's count
+            &How::More(num, den) => seat::met(Some(Policy::Strict(num, den)), yes as usize, n as usize, None),
             &How::MoreAtLeast(num, den, least) => yes * den > num * n && yes >= least,
             How::MoreOfVoted(num, den, least, against) => {
                 let no = said.iter().filter(|(s, v)| *v == against && keys.contains(*s)).count() as u64;
                 yes * den > num * (yes + no) && yes >= *least
             }
-            How::One => yes >= 1,
-            How::Strict => 2 * yes > n,
+            How::One => seat::met(Some(Policy::One), yes as usize, n as usize, None),
+            How::Strict => seat::met(Some(Policy::Strict(1, 2)), yes as usize, n as usize, None),
         }
     };
     for cl in &w.at_once {

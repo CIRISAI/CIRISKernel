@@ -59,7 +59,7 @@
 //!
 //! Not covered: receipts together with tips, the reader's line on an end, key removals, more than one room.
 
-use crate::conferral::Past;
+use crate::conferral::{self, any3, Past};
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
 use core::fmt::Debug;
@@ -192,22 +192,6 @@ pub enum Answer<I> {
 /// The answer for every content row of the member, by the row's id.
 pub type Answers<I> = BTreeMap<I, Answer<I>>;
 
-// `any` over a three-way answer: yes if any is yes; else the first row that must be held; else no.
-fn any3<T, I>(items: impl Iterator<Item = T>, mut f: impl FnMut(T) -> Result<bool, I>) -> Result<bool, I> {
-    let mut need = None;
-    for t in items {
-        match f(t) {
-            Ok(true) => return Ok(true),
-            Ok(false) => {}
-            Err(i) => need = need.or(Some(i)),
-        }
-    }
-    match need {
-        Some(i) => Err(i),
-        None => Ok(false),
-    }
-}
-
 // why an end concludes nothing
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Void {
@@ -228,10 +212,7 @@ impl<'a, R: ContentRow, P: Past<R::Id>> Ctx<'a, R, P> {
     }
 
     fn later(&self, h: Option<&R::Id>, he: Option<&R::Id>) -> Result<bool, R::Id> {
-        match (h, he) {
-            (Some(h), Some(he)) => self.past.in_past(he, h),
-            _ => Ok(false),
-        }
+        conferral::later(self.past, h, he)
     }
 
     // Whether an end counts is decided by its own causal past alone: E1 (a head later than its own in its
@@ -246,9 +227,8 @@ impl<'a, R: ContentRow, P: Past<R::Id>> Ctx<'a, R, P> {
             return v.clone();
         }
         let out = (|| {
-            let stale = any3(self.of_kind(Kind::Head), |h| {
-                Ok(self.past.in_past(h.id(), e.id())? && self.later(Some(h.id()), e.head())?)
-            })?;
+            let stale =
+                conferral::stale_head(self.past, self.of_kind(Kind::Head).map(|h| h.id()), e.id(), e.head())?;
             if stale {
                 return Ok(Some(Void::StaleHead));
             }
