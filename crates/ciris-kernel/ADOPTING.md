@@ -174,6 +174,11 @@ trusting an adapter.
   moderator alone, at the head it names. There is no mark to set: the seat's scope says whose key it is. An
   Unseat of a `member` seat so signed is counted as any removal is, and fails where it failed. The re-seating
   row of the lift is an Offer of scope `agent`.
+- That removal is in force only while the moderator's `moderate` standing is, by the end rule: once an end of
+  the standing is held (its own withdrawal, a counted removal of it, the holders' counted withdrawal of its
+  duty), the removal ends nothing for that reader unless a receipt of it is held. Present a duty holder's
+  receipt as a `SeatKind::Ack` row with `of()` the removal and no `room()`, signed by a holder other than the
+  moderator. A reader's acknowledgement of a head keeps `room()` and `head()` as before.
 - `content` reads no seat: a host decides who may post and who reads from `Seats::roster` itself.
 
 **A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,

@@ -190,7 +190,7 @@ held view, admitting a row by its dirty cone or resuming a checkpoint, answers a
 Four steps build and test the Rust crate [`crates/ciris-kernel`](crates/ciris-kernel/README.md), the kernel as
 pure functions with no dependencies, against the Python models' own cases; they need cargo. The last step
 model-checks the eight TLA+ specs of [`models/tla/`](models/tla) with TLC, each with a planted break it must
-catch, and needs Java. The run ends `all 27 steps passed`.
+catch, and needs Java. The run ends `all 28 steps passed`.
 
 ## Lineage
 

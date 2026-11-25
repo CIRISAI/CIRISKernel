@@ -338,6 +338,10 @@ def seat_cases():
     import check_agent_seat as AS
     for _name, rows, _concl, _mem, _roster, asks, _wins in AS.CASES:
         record(rows, A.WIN, [(k, sc, AS.OBJ) for k, sc, _ in asks])
+    # a moderator's lone removal is in force only while the end rule says so: check_removal_in_force.py's cases
+    import check_removal_in_force as RF
+    for _name, rows, _concl, _roster, asks in RF.CASES:
+        record(rows, A.WIN, [(k, sc, RF.OBJ) for k, sc, _ in asks])
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")

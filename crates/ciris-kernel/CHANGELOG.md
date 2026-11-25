@@ -34,6 +34,47 @@ stay ended, a duty conferred after the founding, a counted removal, a counted du
 a founder with no entry, an unsigned listed member, an entry naming a key that is not listed) in every arrival
 order, and eight planted breaks. Three new plants in `tools/kernel_crate_plants.sh`.
 
+**A moderator's lone removal is in force only while the end rule says so** (CC 4.5.13 with CC 2.4.1.1 and CC
+4.5.5). Before, the seat walk asked only whether the removal concluded; nothing in `seat` read the end of the
+moderator's standing. No signature changes.
+
+Answers that change, in `seat::Seats` (`recs`, `stands`, `holders`, `roster`, and through them `members_at`,
+`count_members` and `seat_rule`):
+- A moderator's lone removal of an agent's key (a counted unseat of an `agent` seat that concludes on the
+  moderator's one voice, and whose count is not met) is an act under its `moderate` standing. It is a live unseat
+  only where the end rule of `conferral` (E2 to E8, `models/tla/CONFERRAL_END.md`), re-expressed over seat rows,
+  gives it in force over the rows held. Out of force, it ends nothing, and the agent's key is seated again for that
+  reader. The window it opens is unchanged.
+- E7: where the moderator holds `moderate` over the room now (by the standing it used, another one, or its own
+  re-acceptance), the removal is in force.
+- The ends read: the moderator's withdrawal of the offer that seats it in `moderate`, of its acceptance of it, or
+  of its stay; the room's counted removal of it from the roster; the other holders' counted withdrawal of its
+  duty. Each takes the removal out of force from the end's head on (E2), unless a receipt of it is held: a
+  `SeatKind::Ack` whose `of` is the removal, by a duty holder at the head the removal names other than the
+  moderator, without the end in its past (E8). A removal that has the end in its past (E4), or names a head that
+  has the end's head in its past (E3), does not count. The end's head: the heads a counted end names; for a
+  withdrawal, the newest counted acts on the room in its past.
+- Before: a removal signed after the moderator's duty ended, naming the older head, removed the key for a reader
+  holding the end; a removal made while it held the duty stayed in force after the duty ended. Now neither does,
+  unless receipted.
+- By kind of end, under the existing rules: the moderator's own laying down, the counted removal, and the counted
+  withdrawal of its duty answer alike (out of force unless receipted). They differ only where the moderator holds
+  `moderate` again: after its own withdrawal of its acceptance a re-acceptance of the same offer re-seats it, so
+  its removal is in force (E7); after a counted end that offer is cut, a re-acceptance re-seats nothing, and only
+  a new conferral (after a re-admission, for a removal from the roster) keeps it in force. No seat row lifts
+  receipts, so a co-holder's receipt keeps the removal in force after a counted end as after a self end.
+- At tips each line reads a lone removal as the whole set judges it.
+
+Not done: a count's own receipt (only duty holders' acks are read); a receipt by a key removed concurrently is not
+voided; an end that is itself a lone removal out of force still counts as an end (no cascade).
+
+The reference: `seat.removal_in_force`, `out_of_force`, `lone_act` and `count_met` (the group count, factored out of
+`seat_rule`) in `seat.py`, which re-express the rule on seat rows rather than call `conferral_end.answers`; it reads
+the rows' past only, so it is a function of the set. `check_removal_in_force.py` is new: 22 cases in arrival orders
+and two planted breaks (the end not read; a receipt by the remover keeps it). Four plants in
+`tools/kernel_crate_plants.sh`. No earlier case changes its answer: no case before had a moderator's duty end
+after its lone removal.
+
 **An AI agent's key has a seat of its own kind: on the roster, in no count** (CC 4.5.13: an agent "acts under its
 own key and has no vote"; "a recall and an election count its persons alone").
 
@@ -192,8 +233,8 @@ New:
 Checked: `models/causal_kernel/check_agent_removal.py` (38 cases in 8,975 arrival orders, eight planted breaks
 in the seat rule, five in the window tables), whose rows are in the seat fixture and run the crate's rules; the
 adversary table is 81 rows and 71 checks over five windows (recount breaks none, the voiding rule twelve, the
-contesting rule two); ten planted breaks in the crate, which CI's plants jobs run. Not decided here, and stated
-in that file: a moderator whose duty ended after the head the removal names still removes at that head.
+contesting rule two); ten planted breaks in the crate, which CI's plants jobs run. A moderator whose duty ended
+after the head the removal names is read by the end rule: see "A moderator's lone removal is in force" above.
 
 Deputy chains in `conferral`, and a new module `standing`.
 

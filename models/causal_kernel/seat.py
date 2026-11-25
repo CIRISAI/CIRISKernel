@@ -87,6 +87,13 @@ members may lift that act as they may any act of a moderator."
                   removal's author apart, never fewer than two: the overturn's count.
                   It restores and does not admit: the key it seats held its `agent` seat at that head.
                   No reading of the roster reads a window: until that row is written the key is out.
+    in force      the removal is an act under the remover's `moderate` standing, and the seat walk counts it as a
+                  live unseat only where the end rule (conferral_end.py, E2 to E8) gives it in force over the rows
+                  held (removal_in_force, re-expressed over seat rows): an end of that standing, its own laying
+                  down, a counted removal of it, or the other holders' counted withdrawal of its duty, takes it out
+                  of force from the end's head on unless another duty holder's receipt of it (an `ack` naming it)
+                  is held; a removal naming a head later than the end's, or having the end in its past, does not
+                  count. Out of force, it ends nothing and the agent's key is seated again for that reader.
 
 Tips wait (KERNEL.md section 7). When several counted acts on one object are concurrent, the holders of a scope
 over it are the keys common to the tips, until a counted act names them all.
@@ -413,7 +420,7 @@ def own_keys(by, obj):
 
 # ---- derived: the live seats ---------------------------------------------------------------------------
 class Seats:
-    def __init__(self, S, holds=HOLDS, confers=CONFERS, depth=DEPTH, by_arrival=False, own=None, checkpoint=False):
+    def __init__(self, S, holds=HOLDS, confers=CONFERS, depth=DEPTH, by_arrival=False, own=None, checkpoint=False, drop=None):
         self.S, self.holds, self.confers, self.own = S, holds, confers, own
         self.cut = C = CUT.Cut(S)
         Cs = S.Cs
@@ -432,6 +439,13 @@ class Seats:
                                          and (w.get("scope") in (None, sc) or "scope_unread" in MUT) and not late(w, o) for w in wd)
         self.stale = V = CP.void(S, C, own, checkpoint)         # counted acts built on one that does not count, or behind the reader's line
         unseats = [u for u in K.sel(Cs, kind="unseat") if C.counts(u) and u["id"] not in V]
+        # a moderator's lone removal is an act under its `moderate` standing, in force only while the end rule says so
+        # (out_of_force). `drop`: the lone removals already judged out of force over the whole set, for a reading of
+        # one line of it (the tips, the fold) or of the set with every removal taken as made (`frozenset()`)
+        if drop is None:
+            drop = out_of_force(S, unseats, holds, confers, depth, own, checkpoint) if "end_unread" not in MUT else frozenset()
+        self.dropped = drop
+        unseats = [u for u in unseats if u["id"] not in drop]
 
         left = stay_ends(wd, S.by, holds)                       # the holders' own ends of a stay as a member
         gone = {(k, g) for _, k, g in left}
@@ -546,14 +560,14 @@ class Seats:
         S, out = self.S, None
         for t in tp:
             sub = [q for q in S.Cs if q["id"] == t["id"] or q["id"] in S.anc[t["id"]]]          # one tip: no further recursion
-            Q = Seats(CK.State(sub, {q["id"]: True for q in sub}), self.holds, self.confers)
+            Q = Seats(CK.State(sub, {q["id"]: True for q in sub}), self.holds, self.confers, drop=self.dropped)
             m = frozenset(r["k"] for r in K.sel(Q.recs, obj=o) if Q._has(r, s))
             out = m if out is None else out & m
         return out
 
     def _at(self, rows):
         """The seats read over a sub-set of the concluded rows (one line: no further recursion into tips)."""
-        return Seats(CK.State(rows, {q["id"]: True for q in rows}), self.holds, self.confers)
+        return Seats(CK.State(rows, {q["id"]: True for q in rows}), self.holds, self.confers, drop=self.dropped)
 
     def tips_fold(self, s, o):
         """KERNEL.md section 7, the fold at tips (models/roster_fork/fold.py): with several tips, the keys holding
@@ -663,6 +677,96 @@ class Seats:
         return frozenset((r["k"], r["scope"], r["obj"], r["depth"], r["root"]) for r in self.recs)
 
 
+# ---- a lone removal in force: the end rule (conferral_end.py, E2 to E8) re-expressed over seat rows ----------------
+def lone_act(u, S):
+    """u (a counted unseat that counts) is a moderator's lone removal of an agent's key made under the remover's
+    standing: it concludes as a lone removal, and the room's count of it is not met (a removal the persons' count
+    carries is the count's act, not the moderator's)."""
+    if not agent_removal(u) or u.get("conf") != "group": return False
+    P = [q for q in S.Cs if q["id"] in S.anc[u["id"]]]
+    past = lambda a, b: a in S.anc[b]
+    return lone_removal(u, P, past) and not count_met(u, P, past)
+
+
+def head_of_end(S, E, obj):
+    """h_e, the head an end acts from (E1): the heads a counted end names; for a withdrawal, the newest counted acts
+    on obj in its past (the newest roster heads its signer holds)."""
+    if E["kind"] == "unseat": return tuple(E.get("head", ()))
+    acts = [q for q in S.Cs if q["id"] in S.anc[E["id"]] and q["kind"] in ("offer", "unseat") and q.get("obj") == obj
+            and (q.get("conf") == "group" or q["id"] == obj)]
+    return tuple(a["id"] for a in K.frontier(S.anc, acts))
+
+
+def later(S, hx, he):
+    """A head x names has every head of h_e in its past: x is at a later head than the end (E3)."""
+    return bool(he) and any(h in S.anc and all(e in S.anc[h] for e in he) for h in hx)
+
+
+def standing_ends(S, x, standing, unseats):
+    """The rows held that end the remover's standing: a withdrawal of a standing offer by its holder (or by the
+    conferrer of an offer that is not counted), of the holder's acceptance of one, or of the holder's stay; a counted
+    unseat that cuts the holder's standing seat or its roster seat with a standing offer in its past."""
+    M, obj, by = x["signer"], x["obj"], S.by
+    ids = {o for o, _ in standing}
+    out = []
+    stay = {w["id"] for w, k, g in stay_ends(K.sel(S.Cs, kind="withdraw"), by) if k == M and g == obj}
+    for w in K.sel(S.Cs, kind="withdraw"):
+        t = by.get(w["target"])
+        if t is None: continue
+        if t["kind"] == "offer" and t["id"] in ids and (w.get("scope") is None or (t["id"], w["scope"]) in standing) and (
+                w["signer"] == M or (w["signer"] not in t["to"] and t["conf"] != "group" and not duty_seat(by, t))):
+            out.append(w)
+        elif t["kind"] == "accept" and t["signer"] == M and w["signer"] == M and t.get("of") in ids:
+            out.append(w)
+        elif w["id"] in stay and any(o in S.anc[w["id"]] for o in ids):
+            out.append(w)
+    for u in unseats:
+        if u["id"] == x["id"] or M not in u["to"] or u["obj"] != obj or not any(o in S.anc[u["id"]] for o in ids): continue
+        if any(("seat", M, sc, obj) in u["cuts"] for _, sc in standing) or any(("seat", M, r, obj) in u["cuts"] for r in ROSTER_SEATS):
+            out.append(u)
+    return out
+
+
+def removal_in_force(S, x, unseats, now):
+    """CC 4.5.13 read with the end rule (CC 2.4.1.1, CC 4.5.5; conferral_end.py): a moderator's lone removal x is an
+    act under its `moderate` standing.
+        E7      the remover holds `moderate` over the room now (`now`, the seats with every removal made): in force
+        E4      an end of its standing is in x's past: not counted, not in force
+        E3      x names a head later than the end's head h_e: not counted, not in force
+        E8      x is at h_e or before, or concurrent with it: counted, and in force only under a receipt of it that
+                does not have the end in its past, by a duty holder at the head x names other than the remover
+                (an `ack` row whose `of` is x); never by the remover itself
+        E2      otherwise counted at its own head and not in force
+    With several ends held, in force only where each keeps it. Where the standing is gone and no end of it is held
+    (it fell with a seat above it), E2 and E8 with no end."""
+    M, obj = x["signer"], x["obj"]
+    if now.stands(M, "moderate", obj): return True
+    standing, duty = set(), None
+    for h in x.get("head", ()):
+        sub = [q for q in S.Cs if q["id"] == h or q["id"] in S.anc.get(h, ())]
+        Q = Seats(CK.State(sub, {q["id"]: True for q in sub}))
+        standing |= {(r["offer"], r["scope"]) for r in Q.recs if r["k"] == M and r["obj"] == obj and Q._has(r, "moderate")}
+        d = Q.holders("duty", obj)
+        duty = d if duty is None else duty & d
+    duty = (duty or frozenset()) - (frozenset() if "remover_receipt" in MUT else {M})
+    acks = [q for q in S.Cs if q["kind"] == "ack" and q.get("of") == x["id"] and q["signer"] in duty]
+    kept = lambda E: any(E is None or E["id"] not in S.anc[q["id"]] for q in acks)
+    ends = standing_ends(S, x, standing, unseats)
+    if not ends: return kept(None)
+    for E in ends:
+        if E["id"] in S.anc[x["id"]] or later(S, x.get("head", ()), head_of_end(S, E, obj)) or not kept(E):
+            return False
+    return True
+
+
+def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
+    """The lone removals among `unseats` the end rule holds out of force over S."""
+    acts = [u for u in unseats if u.get("scope") == AGENT and lone_act(u, S)]
+    if not acts: return frozenset()
+    now = Seats(S, holds, confers, depth, own=own, checkpoint=checkpoint, drop=frozenset())
+    return frozenset(x["id"] for x in acts if not removal_in_force(S, x, unseats, now))
+
+
 def stands(S, root, k, s, o, **kw):
     return Seats(S, **kw).stands(k, s, o, root)
 
@@ -763,6 +867,23 @@ def _ender(r, P, by):
     return sole.one(up["scope"], r["obj"]) == r["signer"]
 
 
+def count_met(r, P, past, table=None):
+    """A counted row's count (conf=group), met over its concluded ancestors P: the lift, the ranked tally, the duty
+    count, or the policy's threshold over the persons at the heads it names."""
+    k, by, heads = r["kind"], {q["id"]: q for q in P}, r.get("head", ())
+    if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "lift": return lift_count(r, P, past, by)
+    mem, vot = counted_keys(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
+    left = count_left(P, past, r.get("over", r["obj"]), r.get("counted", "member"))
+    mem, vot = mem - left, vot - left
+    if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
+        # the count is the ranked tally: the ballots the row names, one voice each, and the row seats the winner
+        ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot") if b["id"] in r["names"] and b["signer"] in vot]
+        # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
+        return k == "offer" and bool(ballots) and RANKED(ballots, list(r["options"]), declared=False)[0] == r["to"][0]
+    if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
+    return met(r.get("policy"), len(voices(r, P) & vot), len(mem), r.get("need"), table)
+
+
 def seat_rule(r, P, past, table=None, other=None):
     """The conclusion rule. P: r's concluded ancestors."""
     k, by = r["kind"], {q["id"]: q for q in P}
@@ -778,19 +899,8 @@ def seat_rule(r, P, past, table=None, other=None):
             if k == "unseat": return _ender(r, P, by)
             return k == "offer" and r.get("under") in by and r["signer"] in by[r["under"]]["to"]
         if conf == "group":
-            heads = r.get("head", ())
             if k == "unseat" and lone_removal(r, P, past): return True          # CC 4.5.13: a moderator, an agent's key
-            if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "lift": return lift_count(r, P, past, by)
-            mem, vot = counted_keys(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
-            left = count_left(P, past, r.get("over", r["obj"]), r.get("counted", "member"))
-            mem, vot = mem - left, vot - left
-            if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
-                # the count is the ranked tally: the ballots the row names, one voice each, and the row seats the winner
-                ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot") if b["id"] in r["names"] and b["signer"] in vot]
-                # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
-                return k == "offer" and bool(ballots) and RANKED(ballots, list(r["options"]), declared=False)[0] == r["to"][0]
-            if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
-            return met(r.get("policy"), len(voices(r, P) & vot), len(mem), r.get("need"), table)
+            return count_met(r, P, past, table)
         return False
     if k == "accept":
         return r["of"] is None or (r["of"] in by and r["signer"] in by[r["of"]].get("to", ()))
