@@ -227,8 +227,7 @@ impl<'a, R: ContentRow, P: Past<R::Id>> Ctx<'a, R, P> {
             return v.clone();
         }
         let out = (|| {
-            let stale =
-                conferral::stale_head(self.past, self.of_kind(Kind::Head).map(|h| h.id()), e.id(), e.head())?;
+            let stale = conferral::stale_head(self.past, self.of_kind(Kind::Head).map(|h| h.id()), e.id(), e.head())?;
             if stale {
                 return Ok(Some(Void::StaleHead));
             }
