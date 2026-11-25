@@ -170,8 +170,10 @@ trusting an adapter.
   count (`community_invite` or the room's protocol), the agent cosigning its own acceptance. Its signature on
   that row is its consent and no voice. Do not seat it in `member`: a key in `member` is a person, counted.
 - `Seats::roster(o)` is the whole roster, members and agents. Wrap keys to it, serve content to it and read an
-  audience from it. `Seats::holders("member", o)` is the persons, and every count reads that (or the scope it
-  names) less the agents.
+  audience from it. Every count reads the members (or the scope it names) less the agents: `count_members`,
+  `Policy::Lift`'s members, and a window's `Base::All`, `Base::Others` and `Base::Scope`. `Seats::holders("member",
+  o)` can hold an agent that holds a duty whose scope holds `member`; for persons apply `seat::persons` with the
+  holders of `agent`.
 - A duty conferred on an agent is a duty seat of its own (a counted `duty_confer` row), live while its `agent`
   seat is. It acts alone within that duty. It is still no voice in any count, the duty holders' own included.
 - A moderator's lone removal of an agent's key is an Unseat of its `agent` seat, `Conf::Group`, signed by the
@@ -209,7 +211,13 @@ with `of` that act, all under the wire row's own id (`tests/conferral_end.rs`,
 
 **Two bindings of one node**, for `standing::answers`: present every binding of the node you hold, a re-binding
 with `on()` the binding it ends. Two bindings to different owners that do not name each other leave the node with
-no owner (`Nobody::TwoOwners`) until a re-binding of one is in the act's past.
+no owner (`Nobody::TwoOwners`) until a re-binding of one is in the act's past, also where one is in the other's
+past without re-binding it. `Nobody::TwoOwners` is a new variant: an exhaustive `match` adds the arm.
+
+**Withdrawals and live seats.** A withdrawal's `SeatRow::scope()` names the one seat of its target it ends (a
+founder laying down a duty); `None` ends every seat the target gives its signer. A scope naming a roster seat
+ends the stay only where the target gives the signer that seat. `Live::scope` is the seat's own scope: one
+founding record gives one `Live` per seat, with the same `offer`.
 
 **A deputy edge**, for `conferral::answers`. This is the deputy of an exercised standing, not the delegation
 chain of `Seats::stands` above.

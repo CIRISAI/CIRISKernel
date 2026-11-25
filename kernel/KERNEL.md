@@ -482,13 +482,13 @@ count of the room is taken of persons, so an agent's key is no voice and is not 
 removal, a duty conferral or withdrawal, or a window, whatever other seat it holds. An agent may hold a duty by
 its own duty seat, which stands on its `agent` seat, and acts alone within it. The room's count removes an agent's
 key as any key; a moderator removes it alone, read from the seat's scope. **run**
-(`models/causal_kernel/check_agent_seat.py`): 19 cases in arrival orders, three planted breaks caught; the
+(`models/causal_kernel/check_agent_seat.py`): 28 cases in arrival orders, seven planted breaks caught; the
 moderator's lone removal and its lift in `check_agent_removal.py`. That removal is an act under the moderator's
 `moderate` standing, and the seat walk counts it only while the end rule of section 6 (E2 to E8) gives it in force
 over the rows held: an end of the standing (the moderator's own laying down, a counted removal of it, the other
 holders' counted withdrawal of its duty) takes it out of force from the end's head on unless another duty holder's
 receipt of it is held, and the agent's key is seated again for a reader holding that end. **run**
-(`models/causal_kernel/check_removal_in_force.py`): 24 cases in arrival orders, three planted breaks caught.
+(`models/causal_kernel/check_removal_in_force.py`): 26 cases in arrival orders, four planted breaks caught.
 Nothing puts such a removal back in force: a moderator seated again signs it again.
 
 An adversary holding the count of an old head signs a valid version alone. A witnessed lineage answers that

@@ -365,3 +365,14 @@ Three changes were made after the first measurement (26 ms at 128 for the fork a
 never names a key is not re-read for it; one members cache serves every key judged; an outsider's own
 admission is not counted over the members. **Open:** the seats of each tip's line are built from the whole
 history each time. Tips that share a long past could share its walk; that is not done.
+
+## A chain of lone removals (2026-11-25)
+
+A moderator's lone removal is read with the end rule, which reads the members at the removal's head, whose seats
+read every earlier lone removal the same way. With nothing kept between those builds, a chain of n removals, each
+naming the one before as its head, cost about six times more per row (the reference: n = 4, 0.17 s; n = 5, 1.1 s;
+n = 6, 6.9 s). `Seats::new` now keeps the members at a head (`MembersAt`, keyed by heads, object and scope) for
+every build below it, as `seat::conclude` keeps them for one pass, and the reference keeps the seats of a set of
+rows (`seat.seats_of`). The reference reads a chain of 24 in 0.18 s. `tests/seat.rs`
+`a_chain_of_lone_removals_is_read_in_time` reads the fixture's chain of 32 and fails above 20 s; CI's time for
+it is in that test's output. Not measured on persist's benches.
