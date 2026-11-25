@@ -1,5 +1,37 @@
 # Changelog — ciris-kernel
 
+## Unreleased
+
+Deputy chains in `conferral`, and a new module `standing`.
+
+- `conferral::answers` reads two gates on a deputy's chain, both from the rows' `via` and nothing else. A row
+  is a deputy edge exactly when another act's `via` names it, and an edge that itself has a `via` is an
+  onward hop. An act whose edge is an onward hop counts only if the edge above that one carries
+  sub-delegation: rule `E6.no_sub`. No act counts more than `Standing::deputy_depth` `via` hops from the
+  grantee's own edge: rule `E6.depth`. The grantee's own edge needs no sub-delegation, and a deputy still
+  ends with the seat (`E6.upstream`). No mark of an edge is read, so no presentation of the onward row passes
+  a gate. The onward row itself is its signer's own act one hop higher and counts as that.
+- **Source-breaking:** `conferral::Standing` gains the field `deputy_depth: usize`; a struct literal must
+  state it. `conferral::DEPUTY_DEPTH` (5) is the text's cap. `conferral::Rule` gains `Depth` and `NoSub`; a
+  `match` over it without a wildcard must name them.
+- `ConferralRow` gains `sub_delegation()`, defaulting to false: a fact the edge row states. **An answer of
+  0.3.0 changes** where a caller already presented a chain two edges deep: an act whose `via` names a row
+  that has a `via` itself counted in 0.3.0, and now counts only if the row above carries `sub_delegation()`
+  and the chain is within the cap. A chain one edge deep is unchanged at a cap of at least 1.
+- `standing::answers`: one row that needs two standings, a root grant and an owner binding (CC 3.1.2.1). The
+  act names its bundle version and the owner's acceptance of the grant; the acceptance names its binding; a
+  re-binding ends the binding before it. The function runs `conferral::answers` under the grant and under the
+  binding and joins the bits, and returns per act the binding and its owner, `counted`, `in_force` and the
+  rule under each record (`Answer::Stands`), or why the act counts for nobody (`Answer::Nobody`), or the row to
+  fetch (`Answer::Undecided`). It reads the causal past as the rows name it.
+- Fixtures: `conferral_end.json` has 42 cases and 93 act answers (seven deputy-chain cases; each case states
+  `deputy_depth`, and a row may state `sub_delegation`; rows no longer state `sub`, which marked a deputy
+  edge and was read by nothing). `conferral_two.json` has 21 cases, each row states
+  the fields a rule reads (`head`, `on`, `owner`), and each case states `reader_acks` and `why`.
+  `tests/conferral_two.rs` replays it.
+- Checked by cases only. The TLA+ spec has one deputy edge, where neither gate applies; TLC was not run for
+  this change.
+
 ## [0.3.0]
 
 The first tag of the 0.3 line (`kernel-v0.3.0`). It follows `kernel-v0.2.2`, which persist pins, and carries
