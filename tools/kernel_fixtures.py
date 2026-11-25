@@ -231,9 +231,10 @@ def seat_answers(S, ST, WN, CUT, CP):
         Q = ST.Seats(S, own=own)
         rd = {"recs": sorted([[r["offer"], r["k"], r["scope"], r["obj"], r["depth"],
                                r["root"] if isinstance(r["root"], str) else ["group", r["root"][1]]] for r in Q.recs]),
-              "stale": sorted(Q.stale), "holders": {}, "tips": {}, "duty": {}}
+              "stale": sorted(Q.stale), "holders": {}, "tips": {}, "duty": {}, "roster": {}}
         for o in objs:
             rd["holders"][o] = sorted(Q.holders("member", o))
+            rd["roster"][o] = sorted(Q.roster(o))
             rd["duty"][o] = sorted(Q.holders("duty", o))
             rd["tips"][o] = sorted(x["id"] for x in Q.tips(o))
         out["readers"]["-" if own is None else own] = rd
@@ -332,6 +333,11 @@ def seat_cases():
     import check_agent_removal as AR
     for _name, rows, _concl, _roster, _wins in AR.CASES:
         record(rows, A.WIN)
+    # an AI agent's key has a seat of its own kind, on the roster and in no count (CC 4.5.13): check_agent_seat.py's
+    # cases, under the window rule, each with the standing it asks for
+    import check_agent_seat as AS
+    for _name, rows, _concl, _mem, _roster, asks, _wins in AS.CASES:
+        record(rows, A.WIN, [(k, sc, AS.OBJ) for k, sc, _ in asks])
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")

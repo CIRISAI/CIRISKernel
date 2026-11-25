@@ -474,6 +474,17 @@ The members at a head stay by past under CC 2.4.1.1: a withdrawal, unseat or res
 at a later head uncounts, the acts exercised under the seat (section 6), never the members at a head or n
 (`rows_outside_change_nothing`).
 
+**An AI agent's key is on the roster and in no count** (CC 4.5.13: an agent "acts under its own key and has no
+vote"; "a recall and an election count its persons alone"). Its key is seated over the room in a scope of its own,
+`agent`, by an admission the room's persons count. The roster (`seat::Seats::roster`) is the members and the
+agents, and it is what content, wraps and audience read; the members (`holders("member", ..)`) are persons. Every
+count of the room is taken of persons, so an agent's key is no voice and is not counted over in an admission, a
+removal, a duty conferral or withdrawal, or a window, whatever other seat it holds. An agent may hold a duty by
+its own duty seat, which stands on its `agent` seat, and acts alone within it. The room's count removes an agent's
+key as any key; a moderator removes it alone, read from the seat's scope. **run**
+(`models/causal_kernel/check_agent_seat.py`): 19 cases in arrival orders, three planted breaks caught; the
+moderator's lone removal and its lift in `check_agent_removal.py`.
+
 An adversary holding the count of an old head signs a valid version alone. A witnessed lineage answers that
 (CC 3.2 T6), and it is each reader's own trust that decides whose witnesses count.
 

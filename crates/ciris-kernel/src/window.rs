@@ -18,7 +18,7 @@
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
 use crate::ops;
-use crate::seat::{members_in, members_in_scopes, seat_rule, Obj, SeatKind, SeatLaw, SeatRow};
+use crate::seat::{members_in, members_in_scopes, persons, seat_rule, Obj, SeatKind, SeatLaw, SeatRow, AGENT};
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
@@ -91,12 +91,13 @@ pub enum How {
 /// Which keys a clause counts over.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Base {
-    /// The window's counted scope at the opener's head.
+    /// The window's counted scope at the opener's head, less the agents there (every count of a room is by
+    /// person: an AI agent's key, seated in [`AGENT`], is no voice and is not counted over).
     All,
     /// The same, less the opener's signer: out of the voices and out of the size counted over (the members'
     /// check: a strict majority of the members seated at the head the act names, the act's author apart).
-    /// Where the opener is a removal of an AI agent's key ([`SeatRow::removes_agent`]), the key it removes is
-    /// apart too, on every path: the count with no landing, a landing's, and the recount.
+    /// Where the opener is a moderator's lone removal of an agent's key, the key it removes is an agent's and
+    /// so in no count, on every path: the count with no landing, a landing's, and the recount.
     Others,
     /// Another scope at the opener's head.
     Scope(String),
@@ -170,25 +171,16 @@ struct Ctx<'x, R: WindowRow, S: CutSpec<R>> {
     obj: ObjOf<R>,
     head: &'x [R::Id],
     opener_signer: R::Key,
-    /// The key the opener removes, where the opener is a removal of an AI agent's key: apart from
-    /// [`Base::Others`] with the opener's signer.
-    removed: &'x [R::Key],
     w: &'x WindowSpec<R::T>,
     cache: core::cell::RefCell<BTreeMap<String, BTreeSet<R::Key>>>,
 }
 
-/// The key an opener removes, where the opener is a removal of an AI agent's key
-/// ([`SeatRow::removes_agent`]). An agent "acts under its own key and has no vote" (CC 4.5.13): in the lift of
-/// its own removal it is no voice and is not counted over.
-fn removed_agent<R: WindowRow>(o: &R) -> &[R::Key] {
-    if o.seat_kind() == SeatKind::Unseat && o.removes_agent() {
-        o.to()
-    } else {
-        &[]
-    }
-}
-
 impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
+    /// Whether any row read holds a seat of [`AGENT`] scope: without one, no key is an agent's here.
+    fn has_agents(&self) -> bool {
+        self.rows.iter().any(|q| q.scope().is_some_and(|s| s.as_ref() == AGENT))
+    }
+
     fn base(&self, b: &Base) -> BTreeSet<R::Key> {
         let (name, scope) = match b {
             Base::Opener => return core::iter::once(self.opener_signer.clone()).collect(),
@@ -200,9 +192,13 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
             return m.clone();
         }
         let mut m = members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, scope);
+        if matches!(b, Base::All | Base::Others) && scope != AGENT && self.has_agents() {
+            // a count of the room is by person: the agents at the head are no voice and not counted over
+            let agents = members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, AGENT);
+            m = persons(m, &agents);
+        }
         if matches!(b, Base::Others) {
             m.remove(&self.opener_signer);
-            m.retain(|k| !self.removed.contains(k));
         }
         self.cache.borrow_mut().insert(name.into(), m.clone());
         m
@@ -226,17 +222,18 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
         if named.iter().any(|s| *s == "all" || *s == "others") {
             return extra.map(read);
         }
-        let mut scopes: Vec<&str> = alloc::vec![w.counted.as_str(), "moderate"];
+        let mut scopes: Vec<&str> = alloc::vec![w.counted.as_str(), "moderate", AGENT];
         scopes.extend(named.iter().copied());
         scopes.extend(extra);
         let mut sets = members_in_scopes(self.rows, self.past, self.law, self.spec, &self.obj, self.head, &scopes);
         let got = extra.and_then(|_| sets.pop());
         let mut cache = self.cache.borrow_mut();
-        let mut others = sets[0].clone();
+        // a count of the room is by person: the agents at the head are no voice and not counted over
+        let agents = if w.counted == AGENT { BTreeSet::new() } else { sets[2].clone() };
+        let mut others = persons(sets[0].clone(), &agents);
         others.remove(&self.opener_signer);
-        others.retain(|k| !self.removed.contains(k));
         cache.insert("others".into(), others);
-        cache.insert("all".into(), sets[0].clone());
+        cache.insert("all".into(), persons(sets[0].clone(), &agents));
         for (scope, set) in scopes.iter().zip(sets).skip(1) {
             cache.insert((*scope).into(), set);
         }
@@ -396,7 +393,6 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         obj: obj.clone(),
         head: o.head(),
         opener_signer: o.signer().clone(),
-        removed: removed_agent(o),
         w: &w,
         cache: Default::default(),
     };
@@ -478,7 +474,6 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
         obj: obj.clone(),
         head: p.head(),
         opener_signer: p.signer().clone(),
-        removed: removed_agent(p),
         w: &w,
         cache: Default::default(),
     };

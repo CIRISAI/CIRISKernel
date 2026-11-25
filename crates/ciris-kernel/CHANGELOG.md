@@ -34,6 +34,53 @@ stay ended, a duty conferred after the founding, a counted removal, a counted du
 a founder with no entry, an unsigned listed member, an entry naming a key that is not listed) in every arrival
 order, and eight planted breaks. Three new plants in `tools/kernel_crate_plants.sh`.
 
+**An AI agent's key has a seat of its own kind: on the roster, in no count** (CC 4.5.13: an agent "acts under its
+own key and has no vote"; "a recall and an election count its persons alone").
+
+What a caller must change to compile:
+- `SeatRow::removes_agent` is removed (it was added earlier in this Unreleased section and never released). An
+  implementation that defines it deletes it.
+
+New:
+- `seat::AGENT` (`"agent"`): the scope of an agent's seat over a room. The reference's law names it a roster
+  seat (`SeatLaw::roster_seats` is `["member", "agent"]` in the fixtures' law): a seat the room's persons place,
+  not the duty holders.
+- `Seats::roster(o)`: the room's whole roster, the keys holding `member` and the keys holding `agent`. Content,
+  wraps and audience read it. `Seats::holders("member", o)` holds no agent.
+- `seat::persons(m, agents)`: `m` less the agents' keys, public so that a caller counting over its own roster
+  does the same.
+
+Answers that change:
+- `seat::count_members`, and through it `seat_rule`, `group_count`'s contract and `Seats::tips_fold`'s count:
+  the members a count is taken of are the keys of the counted scope at the heads less the keys holding `agent`
+  there. An agent's key is no voice and is not counted over in any count of the room (an admission, a removal,
+  a duty conferral or withdrawal), whatever other seat it holds. A key in `member` is counted as before. A
+  caller of `group_count` subtracts the agents itself.
+- A duty seat conferred alone (`Conf::Own` or `Conf::Seat`) stands only if its signer is the one duty holder
+  who is a person: an agent holding a duty is no holder that rule reads.
+- `window::rule` and `window::outcome`: `Base::All` and `Base::Others` are the counted scope less the agents at
+  the opener's head. The window's context no longer carries the keys an opener removes: the key a lone removal
+  removes is an agent's and so in no count.
+- A moderator's lone removal (above, CC 4.5.13) is a counted unseat of one key's `agent` seat; the seat's scope
+  says the key is an agent's. Its lift's re-seating row is an offer of scope `agent`, and the "restores" test
+  reads that scope at the head.
+- The duty-seat rule asks for the roster's seat: for an agent that is its `agent` seat. An agent's withdrawal of
+  its `agent` seat is an end of its stay (it ends the duty seats in its past), and a counted unseat of that seat
+  ends them as a removal of a member's does. At tips the duty seat of an agent follows the folded `agent` seat.
+- `content` reads no seat, and is unchanged; a host reads the audience from `Seats::roster`.
+
+The reference: `seat.AGENT`, `Seats.roster`, `seat.counted_keys` and `agents_at` in `seat.py`; `window._base`
+reads `counted_keys`. `check_agent_seat.py` is new: 19 cases in arrival orders and three planted breaks (an
+agent a voice; an agent counted over; a lone removal that reaches a person's seat). In `check_agent_removal.py`
+every agent's key is admitted in scope `agent` and its removal is of that scope, and the case table reads
+`Seats.roster`. One answer changed there: after the lift, an admission signed by one person and the agent (of
+two persons) was counted over the agent and concluded, two voices of three; the agent is no voice and is not
+counted over, so it is one of two and concludes nothing. A case beside it, the same admission signed by both
+persons, concludes. The plants `seated_voice` and `removed_counted_over` of that file are the plants
+`agent_voice` and `agent_counted_over` of `seat.py` now, since the rule they broke is the agent's being in no
+count. In the crate the plants on the removed-key code are replaced by plants on the agents' subtraction (in a
+count and in a window), on the lone-holder rule and on the roster; the fixture's seat answers carry the roster.
+
 **A duty seat stands only on a member** (CC 4.5.4, "a non-member holds no duty"). Answers change; no signature
 does, and one function is added (`seat::stay_ended_in_past`).
 
@@ -115,29 +162,30 @@ Answers that change:
   strict majority of the members before, and no fixture or check had one.
 
 New:
-- `SeatRow::removes_agent` (default `false`). An unseat of a roster seat (`SeatLaw::roster_seats`) of one key,
-  `Conf::Group`, that the caller marks so concludes on its signer's one voice where that signer holds `moderate`
-  over the object at the head the row names, whatever the room's protocol and however many holders. The kernel
-  cannot see a key record, so the caller states the mark. Unmarked, or signed by a key that is no moderator
-  there, the row is counted as any removal is and fails where it failed.
+- A counted unseat (`Conf::Group`) of one key's `agent` seat concludes on its signer's one voice where that
+  signer holds `moderate` over the object at the head the row names, whatever the room's protocol and however
+  many holders. An unseat of a person's seat, or one signed by a key that is no moderator there, is counted as
+  any removal is and fails where it failed. (This entry first keyed the removal on a mark the caller set,
+  `SeatRow::removes_agent`; the mark is removed before release, and the seat's scope says it: see "An AI
+  agent's key" above.)
 - That removal is the opener of a `moderation_overturn` window: the caller presents it with
   `win_kind() == Some(WinKind::Open)` and `window()` naming the table.
 - `Policy::Lift` and `seat::lift_voices`: the lift's effect is a counted row. An offer of this policy that seats
   the key again, cites the removal (`SeatRow::content`), names the head the removal names and names objections,
   each presented as a cosignature whose `of` is the removal. Its voices are those objections' signers and no
-  other key; the removal's author is no voice and is not counted over, and neither is the key seated (below). It concludes on more than half of those members, never fewer than two, and only where the key was on
-  the roster at that head (it restores and does not admit). `lift_voices` returns the author and the voices;
-  `GroupCount`'s contract says what `members` and `voices` are under this policy. `Seats::tips_fold` reads the
-  same count over the members the fold seats.
+  other key; the removal's author is no voice and is not counted over, and neither is the key seated (below).
+  It concludes where those voices are more than half of the members at the head the removal names, the
+  removal's author apart and the key removed apart, and never fewer than two; and only where the key seated
+  held that seat at that head (it restores and does not admit). `lift_voices` returns the author and the
+  voices; `GroupCount`'s contract says what `members` and `voices` are under this policy. `Seats::tips_fold`
+  reads the same count over the members the fold seats.
 - **The removed agent's key is apart from the lift of its own removal, on every path.** Ruled on 2026-11-25
   from the Constitution's sentence that an AI agent "acts under its own key and has no vote": the count is the
-  members seated at the head the act names, the act's author apart and the removed key apart. In
-  `window::rule` and `window::outcome`, `Base::Others` of a window whose opener is an unseat marked
-  `removes_agent` leaves out the keys that opener removes, with its signer, so the count with no landing, a
-  landing's own count and the recount all read it so. The re-seating row's members leave it out as well. A
-  room of the moderator, the agent and two persons lifts on both persons (two of two) and not on one. This is
-  for the lift of an agent's removal only: no other count of a room leaves agents' keys out, since the kernel
-  sees no key record.
+  members seated at the head the act names, the act's author apart and the removed key apart, so the count
+  with no landing, a landing's own count, the recount and the re-seating row all read it so. A room of the
+  moderator, the agent and two persons lifts on both persons (two of two) and not on one. This first rested on
+  the mark (`removes_agent`) and a set of removed keys in the window's context; it now follows from the
+  agent's seat, which is in no count of the room (see "An AI agent's key" above).
 - No reading of the roster reads a window. Until that row is written the window reads `lifted` and the key is
   out. That gap is accepted.
 

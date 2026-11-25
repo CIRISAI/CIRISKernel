@@ -145,6 +145,8 @@ fn seat_scenarios() {
                     sorted_ids(&q.holders("duty", &ob, None)) == rd.at("duty").at(o).strs(),
                     format!("duty holders of {o} for {reader}"),
                 );
+                // the whole roster: members and agents (CC 4.5.13)
+                cmp(sorted_ids(&q.roster(&ob)) == rd.at("roster").at(o).strs(), format!("roster of {o} for {reader}"));
                 let tips = sorted_ids(q.tips(&ob).iter().map(|&i| &c.g.row(i).id));
                 cmp(tips == rd.at("tips").at(o).strs(), format!("tips of {o} for {reader}"));
             }

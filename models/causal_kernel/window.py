@@ -113,12 +113,6 @@ MUT = set()            # planted breaks, switched on by a check
 BASES = ("all", "others", "opener")
 
 
-def removed_agent(p):
-    """The key an opener removes, where the opener is a removal of an agent's key: apart from the lift's count."""
-    if p["kind"] != "unseat" or not p.get("agent") or "removed_counted_over" in ST.MUT: return frozenset()
-    return frozenset(p["to"])
-
-
 def is_opener(r):
     """A row that opens a window: an `open` row, or a counted act that names a window."""
     return r["kind"] == "open" or (r["kind"] == "unseat" and r.get("window") in WINDOWS)
@@ -196,8 +190,11 @@ def _base(rows, past, p):
     def base(name):
         if name not in cache:
             scope = spec["counted"] if name in ("all", "others") else name
-            m = ST.members_at(rows, past, p["obj"], p["head"], scope)
-            cache[name] = m - {p["signer"]} - removed_agent(p) if name == "others" else m
+            # a count of the room is by person: an agent's key is no voice and is not counted over (seat.counted_keys); the
+            # key a lone removal removes is an agent's, so it is apart from the lift of its own removal
+            m = ST.counted_keys(rows, past, p["obj"], p["head"], scope)[0] if name in ("all", "others") \
+                else ST.members_at(rows, past, p["obj"], p["head"], scope)
+            cache[name] = m - {p["signer"]} if name == "others" else m
         return cache[name]
     return base
 

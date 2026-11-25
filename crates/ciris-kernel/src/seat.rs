@@ -181,13 +181,6 @@ pub trait SeatRow: Row {
     fn regime(&self) -> Option<&Self::Word> {
         None
     }
-    /// An unseat of the roster's seat: the key it removes is an AI agent's (CC 4.5.13). The kernel cannot see
-    /// a key record, so the caller states it. Such a removal concludes on its signer's one voice where that
-    /// signer holds `moderate` over the object at the head the row names; see [`lift_voices`] for its lift.
-    /// Default `false`: the removal is counted as any removal is.
-    fn removes_agent(&self) -> bool {
-        false
-    }
     /// The policy row a count is read from.
     fn policy(&self) -> Option<&Self::Word> {
         None
@@ -280,8 +273,8 @@ pub enum Policy {
     /// CC 4.5.13, the members' check as a counted row: an offer that seats again an agent's key a moderator
     /// removed alone. Its voices are the signers of the objections it names ([`lift_voices`]), the removal's
     /// author and the key it seats no voice; it is met by more than half of the members at the head the
-    /// removal names, the removal's author and the key removed apart, never fewer than two voices. A counted row of this policy
-    /// that is no such re-seating concludes nothing.
+    /// removal names (persons: the key removed is an agent's, in no count), the removal's author apart, never
+    /// fewer than two voices. A counted row of this policy that is no such re-seating concludes nothing.
     Lift,
     /// Not a count (a seat, not a threshold).
     NotACount,
@@ -403,6 +396,17 @@ impl<R: SeatRow> LineSpec<R> for SeatLine {
             None
         }
     }
+}
+
+/// The scope of an AI agent's seat over a room (CC 4.5.13): on the roster, and in no count.
+pub const AGENT: &str = "agent";
+
+/// `m` less the agents' keys: every count of a room is by person.
+pub fn persons<K: Ord + Clone>(m: BTreeSet<K>, agents: &BTreeSet<K>) -> BTreeSet<K> {
+    if agents.is_empty() {
+        return m;
+    }
+    m.into_iter().filter(|k| !agents.contains(k)).collect()
 }
 
 fn row_of<'a, R: SeatRow>(by: &BTreeMap<&R::Id, &'a R>, o: &ObjOf<R>) -> Option<&'a R> {
@@ -830,11 +834,13 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         covers(sc, s) || self.law.holds.get(sc).is_some_and(|h| h.iter().any(|x| x == s))
     }
 
-    /// A duty seat follows the folded roster: with several tips, its holder is among the members the fold
-    /// seats. Any other seat is not asked.
+    /// A duty seat follows the folded roster: with several tips, its holder is among the members, or the
+    /// agents, the fold seats. Any other seat is not asked.
     fn member(&self, i: usize) -> bool {
         let r = &self.recs[i];
-        !self.duty[i] || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))
+        !self.duty[i]
+            || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))
+            || self.tips_fold(AGENT, &r.obj).is_some_and(|c| c.contains(&r.k))
     }
 
     /// The live seats that give scope `s` over `o` (rooted at `root`, when given), by index.
@@ -856,6 +862,15 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     pub fn stands(&self, k: &R::Key, s: &str, o: &ObjOf<R>, root: Option<&Root<R::Id, R::Key>>) -> bool {
         let any = self.giving(s, o, root).any(|r| r.k == *k);
         any && self.tips_fold(s, o).is_none_or(|c| c.contains(k))
+    }
+
+    /// The room's whole roster over `o`: the keys holding `member` and the keys holding [`AGENT`] (CC 4.5.13).
+    /// Content, wraps and audience read it. No count reads it: a count is taken of the members (or the scope
+    /// it names) less the agents.
+    pub fn roster(&self, o: &ObjOf<R>) -> BTreeSet<R::Key> {
+        let mut m = self.holders("member", o, None);
+        m.extend(self.holders(AGENT, o, None));
+        m
     }
 
     /// The keys holding scope `s` over `o`.
@@ -1035,8 +1050,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     let Some((author, v)) = lift_voices_with(&p, self.law, self.spec, Some(&members)) else {
                         return false;
                     };
-                    mem.remove(&author); // the removal's author apart
-                    mem.retain(|k| !r.to().contains(k)); // and the key removed
+                    mem.remove(&author); // the removal's author apart (the key removed is an agent's: in no count)
                     v
                 } else {
                     voices(r, &p)
@@ -1348,8 +1362,8 @@ pub fn voices<R: SeatRow>(r: &R, p: &Past<'_, '_, R>) -> BTreeSet<R::Key> {
 }
 
 /// CC 4.5.13: a moderator of the room removes an AI agent's key alone. `r` (the row of `p`, or a row in its
-/// past) is an unseat of the roster's seat of one key, counted, that the caller marks
-/// ([`SeatRow::removes_agent`]), and its signer holds `moderate` over the object at the head it names.
+/// past) is a counted unseat of one key's [`AGENT`] seat (the seat's scope says whose key it is), and its
+/// signer holds `moderate` over the object at the head it names.
 fn lone_removal<R: SeatRow, S: CutSpec<R>>(
     r: &R,
     p: &Past<'_, '_, R>,
@@ -1357,23 +1371,23 @@ fn lone_removal<R: SeatRow, S: CutSpec<R>>(
     spec: &S,
     cache: Option<&MembersAt<R>>,
 ) -> bool {
-    if r.seat_kind() != SeatKind::Unseat || r.conf() != Some(Conf::Group) || !r.removes_agent() || r.to().len() != 1 {
+    if r.seat_kind() != SeatKind::Unseat || r.conf() != Some(Conf::Group) || r.to().len() != 1 {
         return false;
     }
     let (Some(scope), Some(obj)) = (r.scope(), r.obj()) else { return false };
-    law.roster_seats.iter().any(|s| s == scope.as_ref())
-        && members_at_with(p, law, spec, &obj, r.head(), "moderate", cache).contains(r.signer())
+    scope.as_ref() == AGENT && members_at_with(p, law, spec, &obj, r.head(), "moderate", cache).contains(r.signer())
 }
 
 /// The voices of a re-seating row (`p.row()`, a counted offer of [`Policy::Lift`]), or `None` where it is
 /// none. The row cites a removal ([`SeatRow::content`]) that is a moderator's lone removal of an agent's key
-/// ([`SeatRow::removes_agent`]), of the same key, scope and object, and names the head that removal names.
+/// (an unseat of its [`AGENT`] seat), of the same key, scope and object, and names the head that removal names.
 /// Its voices are the signers of the cosignatures it names whose `of` is the removal: the caller presents
 /// each objection to the removal (an answer `object` in its `moderation_overturn` window) as such a
 /// cosignature. The removal's author is no voice. The row's own signers are no voices either.
 ///
 /// Returns the removal's author and the voices. The count ([`Policy::Lift`]) is taken of the members at the
-/// head less that author and less the key removed (an agent "acts under its own key and has no vote").
+/// head (persons: the agents apart) less that author. The key removed is an agent's, so it is in no count
+/// (an agent "acts under its own key and has no vote").
 pub fn lift_voices<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
     law: &SeatLaw,
@@ -1491,11 +1505,47 @@ fn members_at_with<R: SeatRow, S: CutSpec<R>>(
 /// The members a group-conferred offer or unseat `p.row()` is counted over, exactly as [`seat_rule`] reads
 /// them: the live seats of its counted scope (default `member`) over its object (or `over`), at every head it
 /// names ([`members_at`]: read from the concluded rows in each head's past, intersected over the heads), less
+/// the keys holding [`AGENT`] at those heads (every count of a room is by person), less
 /// the keys whose own leaving is in the row's past ([`left_in_past`]; for a count over the duty holders, the
 /// end of a holder's stay as a member too, [`stay_ended_in_past`]). With [`voices`], what
 /// [`GroupCount`] needs. Empty for a row with no object.
 pub fn count_members<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> BTreeSet<R::Key> {
     count_members_with(p, law, spec, None)
+}
+
+/// The keys holding [`AGENT`] over `obj` at the heads: on the roster, and in no count. Empty with no row of that
+/// scope among `p`'s.
+fn agents_at_with<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+    heads: &[R::Id],
+    cache: Option<&MembersAt<R>>,
+) -> BTreeSet<R::Key> {
+    if !p.rows().any(|q| q.scope().is_some_and(|s| s.as_ref() == AGENT)) {
+        return BTreeSet::new();
+    }
+    members_at_with(p, law, spec, obj, heads, AGENT, cache)
+}
+
+/// [`members_at`] of `scope` less the agents at the same heads: the keys a count of the room is taken of.
+/// Every count of a room is by person (CC 4.5.13: an agent "has no vote"), so an agent's key is no voice and
+/// is not counted over, whatever other seat it holds.
+fn persons_at_with<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+    heads: &[R::Id],
+    scope: &str,
+    cache: Option<&MembersAt<R>>,
+) -> BTreeSet<R::Key> {
+    let m = members_at_with(p, law, spec, obj, heads, scope, cache);
+    if m.is_empty() || scope == AGENT {
+        return m;
+    }
+    persons(m, &agents_at_with(p, law, spec, obj, heads, cache))
 }
 
 fn count_members_with<R: SeatRow, S: CutSpec<R>>(
@@ -1508,7 +1558,7 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
     let Some(obj) = r.obj() else { return BTreeSet::new() };
     let over = r.over().unwrap_or(obj);
     let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
-    let mut mem = members_at_with(p, law, spec, &over, r.head(), counted, cache);
+    let mut mem = persons_at_with(p, law, spec, &over, r.head(), counted, cache);
     for k in left_in_past(p, &over, counted) {
         mem.remove(&k);
     }
@@ -1573,13 +1623,15 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     if pol == Some(Policy::Lift) {
                         // the overturn's count over the objections the row names, at the head the removal names
                         let Some((author, v)) = lift_voices_with(p, law, spec, cache) else { return false };
-                        let mut mem = members_at_with(p, law, spec, &obj, r.head(), "member", cache);
-                        // a lift restores and does not admit: the key was on the roster at that head
-                        if !r.to().iter().all(|k| mem.contains(k)) {
+                        // a lift restores and does not admit: the key held that seat (an agent's) at that head
+                        let seat = r.scope().map_or("member", |s| s.as_ref());
+                        let held = members_at_with(p, law, spec, &obj, r.head(), seat, cache);
+                        if !r.to().iter().all(|k| held.contains(k)) {
                             return false;
                         }
+                        // the members are persons: the key removed is an agent's, no voice and not counted over
+                        let mut mem = persons_at_with(p, law, spec, &obj, r.head(), "member", cache);
                         mem.remove(&author); // the author is not among the members the majority is taken of
-                        mem.retain(|k| !r.to().contains(k)); // nor is the key removed: an agent has no vote
                         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
                     }
                     let mem = count_members_with(p, law, spec, cache);
@@ -1638,15 +1690,16 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
 ///
 /// - `members` is [`count_members`]: the live seats of the counted scope read from the **concluded** rows in
 ///   each head's past, **intersected over every head** the row names (so tips wait and a waiting row counts
-///   for nothing), **less the keys whose own leaving is in the counted row's past** ([`left_in_past`]). It is
+///   for nothing), **less the agents' keys at those heads** (the holders of [`AGENT`]; [`persons`]), **less
+///   the keys whose own leaving is in the counted row's past** ([`left_in_past`]). It is
 ///   a function of the head *and the row*: cache [`members_at`] per head if you will, and subtract
 ///   `left_in_past` on every count (and, for a count over the duty holders, [`stay_ended_in_past`]).
 /// - `voices` is [`voices`]: the row's signer, its cosigners, and the signers of the cosignatures it names
 ///   that name every head it is counted over.
 /// - Under [`Policy::Lift`] the two are read otherwise: `voices` is [`lift_voices`] (the objections the row
-///   names, the removal's author left out) and `members` is [`members_at`] at the head less that author and
-///   less the key removed, with no leaving subtracted. The seat rule asks besides that the key seated was
-///   among the members at that head.
+///   names, the removal's author left out) and `members` is [`members_at`] at the head less the agents (the
+///   key removed among them) and less that author, with no leaving subtracted. The seat rule asks besides
+///   that the key seated held the seat it seats (`agent`) at that head.
 /// - `to`, `members`, `voices` and the weights are in **one** key space. A caller counting persons (KERNEL.md
 ///   7b) collapses `to` the same way, once each: two devices of one person in `to` are one key.
 #[derive(Clone, Copy, Debug)]
@@ -1755,7 +1808,9 @@ fn revoked_before<R: SeatRow>(law: &SeatLaw, r: &R, p: &Past<'_, '_, R>) -> bool
 fn lone<R: SeatRow, S: CutSpec<R>>(law: &SeatLaw, spec: &S, r: &R, p: &Past<'_, '_, R>) -> bool {
     let Some(obj) = r.obj() else { return false };
     let sc = concluded_over(p.rows());
-    let held = Seats::new(&sc, law, spec, None).holders("duty", &obj, None);
+    let seats = Seats::new(&sc, law, spec, None);
+    // the holders are persons: an agent holding a duty is no holder this count reads
+    let held = persons(seats.holders("duty", &obj, None), &seats.holders(AGENT, &obj, None));
     held.len() == 1 && held.contains(r.signer())
 }
 

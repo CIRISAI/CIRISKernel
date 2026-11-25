@@ -161,6 +161,21 @@ trusting an adapter.
   withdrawal's past too.
 - Cases: `models/causal_kernel/check_duty_seats.py`, all in the `seat` fixture.
 
+**An AI agent's key**, for `seat::Seats` and the counts (unreleased; see the CHANGELOG).
+- Seat an agent's key over the room in scope `agent` (`seat::AGENT`): an Offer, `Conf::Group`, by the room's
+  count (`community_invite` or the room's protocol), the agent cosigning its own acceptance. Its signature on
+  that row is its consent and no voice. Do not seat it in `member`: a key in `member` is a person, counted.
+- `Seats::roster(o)` is the whole roster, members and agents. Wrap keys to it, serve content to it and read an
+  audience from it. `Seats::holders("member", o)` is the persons, and every count reads that (or the scope it
+  names) less the agents.
+- A duty conferred on an agent is a duty seat of its own (a counted `duty_confer` row), live while its `agent`
+  seat is. It acts alone within that duty. It is still no voice in any count, the duty holders' own included.
+- A moderator's lone removal of an agent's key is an Unseat of its `agent` seat, `Conf::Group`, signed by the
+  moderator alone, at the head it names. There is no mark to set: the seat's scope says whose key it is. An
+  Unseat of a `member` seat so signed is counted as any removal is, and fails where it failed. The re-seating
+  row of the lift is an Offer of scope `agent`.
+- `content` reads no seat: a host decides who may post and who reads from `Seats::roster` itself.
+
 **A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,
 members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
 voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row

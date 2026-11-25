@@ -472,9 +472,6 @@ impl SeatRow for TRow {
     fn head(&self) -> &[String] {
         &self.head
     }
-    fn removes_agent(&self) -> bool {
-        self.f("agent").is_some_and(|x| x.b())
-    }
     fn policy(&self) -> Option<&String> {
         self.policy.as_ref()
     }
