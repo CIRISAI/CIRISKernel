@@ -37,7 +37,9 @@ order, five planted breaks). The cases are in the `seat` fixture with the standi
 persist's table (`HOLDS.duty = ("member",)`) under that table. Nine plants in `tools/kernel_crate_plants.sh`.
 The worlds of `attacks.py`, `window.py` and `check_rosters.py` that conferred a duty on a key that was no
 member now admit that key first; the two moderation windows therefore run over four members, and the adversary
-table is 61 rows and 50 checks (recount breaks none).
+table is 62 rows and 51 checks (recount breaks none). With the duty holder a member, the overturn world no
+longer told the opener's scope from the counted one, so it gains a case: a member who holds no duty opens the
+check, and nothing is opened.
 
 ## [0.3.0]
 
