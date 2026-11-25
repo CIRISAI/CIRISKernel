@@ -140,9 +140,12 @@ trusting an adapter.
   `duty_holders` map: per duty, the members who hold it. It seats each listed member who signed it in
   `member` and each holder an entry names in that duty, with no count, so one, two or twelve founders are
   presented alike. Do not present the founding as chained counted rows.
-- A listed member who did not sign the record is seated in nothing, and a later acceptance does not seat it.
-  An entry naming a key that is not a listed signer seats nothing. Neither is refused: the crate reads them,
-  and the text names no refusal for them. Refuse them at your door if you need to.
+- A founding row seats by the signatures on it, with a map or without. A listed member who did not sign it is
+  seated in nothing, and a later acceptance does not seat it: the text's terminal reason is
+  `membership_founding_member_unsigned` (CC 3.1.3.2), and the key joins by an ordinary admission. A record
+  whose map names a duty holder who did not sign it the text refuses at the door
+  (`founding_duty_holder_not_signer`, CC 4.5.4). The crate does not refuse rows; handed either, it seats
+  nothing for that key.
 - A founder lays down one duty by a `SeatKind::Withdraw` of the founding row whose `scope()` is that duty: its
   member seat and its other duties stand. A withdrawal of the founding row with no scope ends every seat the
   row gives the founder (an end of its stay), and so every duty seat conferred on it before.

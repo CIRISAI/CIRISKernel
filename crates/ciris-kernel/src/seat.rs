@@ -228,7 +228,8 @@ pub trait SeatRow: Row {
     /// [`SeatRow::to`] that signed it (signer or cosigner) in the row's own scope (`member`), and each such key
     /// an entry names in that entry's duty; a key of `to` that did not sign is seated in nothing, whatever it
     /// accepts later, and an entry's key that is not a listed signer is seated in nothing. Default empty: the
-    /// founding row seats each key in its one scope, as before. A withdrawal of the founding row that names a
+    /// founding row seats each key of `to` that signed it in its one scope (a founding row seats by the
+    /// signatures on it, with or without a map). A withdrawal of the founding row that names a
     /// scope ([`SeatRow::scope`] on the withdrawal) ends that one seat of its signer's.
     fn duty_holders(&self) -> &[(Self::Word, Vec<Self::Key>)] {
         &[]
@@ -436,15 +437,20 @@ fn founding<R: SeatRow>(o: &R) -> bool {
 }
 
 /// The scopes offer `o` seats key `k` in (`signed`: k signed it). One, the offer's own scope, for every offer
-/// but a founding row with a `duty_holders` map: that row seats a listed member who signed it in its own scope
-/// and in each duty whose entry names it, and a listed member who did not sign it in nothing.
+/// but a founding row. A founding row seats by the signatures on it (CC 3.1.3.2: a listed key that did not sign
+/// is `membership_founding_member_unsigned`, and joins by an ordinary admission): a listed member who did not
+/// sign it in nothing, whatever it accepts later; one who signed it in its own scope, and where it has a
+/// `duty_holders` map, in each duty whose entry names it.
 fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<&'a R::Word> {
     let Some(own) = o.scope() else { return Vec::new() };
-    if o.duty_holders().is_empty() || !founding(o) {
+    if !founding(o) {
         return alloc::vec![own];
     }
     if !signed {
         return Vec::new();
+    }
+    if o.duty_holders().is_empty() {
+        return alloc::vec![own];
     }
     let mut out = alloc::vec![own];
     out.extend(o.duty_holders().iter().filter(|(d, ks)| ks.contains(k) && d != own).map(|(d, _)| d));

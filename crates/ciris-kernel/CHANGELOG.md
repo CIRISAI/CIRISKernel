@@ -11,9 +11,12 @@ map from a duty to the set of members who hold it, each a listed member who sign
   key of `to` that signed it (signer or cosigner) in the row's own scope, `member` as presented, and each such
   key an entry names in that entry's duty. No count is taken, so no floor is asked and "no key admits itself"
   is not engaged: one, two or twelve founders run alike.
-- A key of `to` that did not sign such a row is seated in nothing, and a later acceptance of the row does not
-  seat it. An entry naming a key that is not a listed signer seats nothing. Neither row is refused. (A founding
-  row with no map still seats an unsigned key of `to` that accepts it later, as before.)
+- A founding row seats by the signatures on it, with or without a map: a key of `to` that did not sign it is
+  seated in nothing, and a later acceptance of the row does not seat it (CC 3.1.3.2's terminal reason
+  `membership_founding_member_unsigned`); it joins by an ordinary admission. **An answer changes** for a founding
+  row with no map: before, an unsigned key of `to` that accepted it later was seated. An entry naming a key that
+  is not a listed signer seats nothing; the text refuses such a record at the door
+  (`founding_duty_holder_not_signer`, CC 4.5.4), and the crate, handed one, seats nothing for that key.
 - `SeatRow::scope` is now read on a withdrawal: a withdrawal of a founding record naming a scope ends that one
   seat of its signer's (a founder laying down a duty), and is no end of its stay. With no scope it ends every
   seat the row gives its signer, which is an end of its stay and ends the duty seats conferred on it in that
@@ -29,10 +32,10 @@ map from a duty to the set of members who hold it, each a listed member who sign
   record's cases replace them.
 
 The reference: `seat.found`, `seat.seat_scopes`, and `withdraw(..., scope=)` in `models/causal_kernel/seat.py`;
-`check_duty_seats.py` has 56 cases (the founding record with one, two and three founders, a duty laid down, the
+`check_duty_seats.py` has 58 cases (the founding record with one, two and three founders, a duty laid down, the
 stay ended, a duty conferred after the founding, a counted removal, a counted duty withdrawal of a founding seat,
 a founder with no entry, an unsigned listed member, an entry naming a key that is not listed) in every arrival
-order, and nine planted breaks. Three new plants in `tools/kernel_crate_plants.sh`.
+order, and ten planted breaks. Four new plants in `tools/kernel_crate_plants.sh`.
 
 **The duty-seat rule reaches every room.** "Under the text a duty seat conferred by any path stands only while its
 holder is a member." Before, the membership condition and the no-revival half engaged only over a community whose

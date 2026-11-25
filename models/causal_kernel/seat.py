@@ -40,7 +40,7 @@ What ends a seat.
     founding   a founding record (CC 4.5.4; `found`) lists its members in `to` and names its duty holders in
                `duty_holders`, a map from a duty to the members who hold it. It seats each listed member who signed
                it in `member`, and each holder an entry names, when a listed signer, in that duty: one row, no
-               count, however many found it. A listed member who did not sign is seated in nothing (a later
+               count, however many found it. A listed member who did not sign any founding row, with a map or without, is seated in nothing (a later
                acceptance does not seat it), and an entry naming a key that is no listed signer seats nothing. The
                seats end separately: a withdrawal of the founding row that names a duty (`scope`) ends that seat
                only; one that names no seat ends every seat the row gives its signer (an end of its stay).
@@ -279,11 +279,16 @@ def lists_holders(g):
 
 
 def seat_scopes(o, k):
-    """The scopes offer `o` seats key k in. One, the offer's own scope, for every offer but a founding row that carries
-    a `duty_holders` map: that row seats each listed member who signed it in its own scope (`member`), and in each duty
-    whose entry names it; a listed member who did not sign it is seated in nothing, whatever it accepts later."""
-    if not o.get("duty_holders") or o["obj"] != o["id"] or "holders_unread" in MUT: return (o["scope"],)
+    """The scopes offer `o` seats key k in. One, the offer's own scope, for every offer but a founding row. A founding
+    row seats by the signatures on it, with or without a map: a listed member who did not sign it is seated in nothing,
+    whatever it accepts later (CC 3.1.3.2, `membership_founding_member_unsigned`); one who signed it in its own scope,
+    and where it carries a `duty_holders` map, in each duty whose entry names it."""
+    if o["obj"] != o["id"]: return (o["scope"],)
+    # a founding row seats by the signatures on it, with or without a map (CC 3.1.3.2: a listed key that did not sign
+    # is `membership_founding_member_unsigned`; it joins by an ordinary admission)
+    if "unsigned_no_map" in MUT and not o.get("duty_holders"): return (o["scope"],)   # MUTATION: the old exception
     if k not in signers(o) and "unsigned_seated" not in MUT: return ()       # MUTATION: a listed member who did not sign is seated
+    if not o.get("duty_holders") or "holders_unread" in MUT: return (o["scope"],)
     return (o["scope"],) + tuple(d for d, ks in o["duty_holders"] if k in ks and d != o["scope"])
 
 

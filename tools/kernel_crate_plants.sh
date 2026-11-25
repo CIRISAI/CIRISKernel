@@ -100,7 +100,12 @@ plant "every seat over a community asks for membership" src/seat.rs 'community(b
 plant "the duty-seat rule reaches duty rooms only" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty' 'duty_room(by, &obj) && !founding(o) && !roster && law.is_duty'
 plant "a duty count counts a holder whose resignation is in its past" src/seat.rs 'if !mem.is_empty() && law.is_duty(counted, &duties) {' 'if false {'
 plant "a holder admitted again stays out of the duty count" src/seat.rs 'if !back {' 'if true {'
-plant "a founding record's duty holders unread" src/seat.rs 'if o.duty_holders().is_empty() || !founding(o) {' 'if true {'
+plant "a founding record's duty holders unread" src/seat.rs '    if o.duty_holders().is_empty() {
+        return alloc::vec![own];' '    if true {
+        return alloc::vec![own];'
+plant "a founding row with no map seats an unsigned key that accepts later" src/seat.rs '    if !founding(o) {
+        return alloc::vec![own];' '    if !founding(o) || o.duty_holders().is_empty() {
+        return alloc::vec![own];'
 plant "a listed member who did not sign the record is seated" src/seat.rs '    if !signed {
         return Vec::new();' '    if false {
         return Vec::new();'
