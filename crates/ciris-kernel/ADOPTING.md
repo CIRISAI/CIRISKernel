@@ -152,6 +152,36 @@ names (`models/causal_kernel/roomkey.py`, `rule`).
 with `of` that act, all under the wire row's own id (`tests/conferral_end.rs`,
 `one_receipt_naming_several_acts`).
 
+**A deputy edge**, for `conferral::answers`. This is the deputy of an exercised standing, not the delegation
+chain of `Seats::stands` above.
+- The edge is a `Kind::Act` signed by whoever deputizes, naming the head it is at. `deputy_edge()` is true on
+  it. `sub_delegation()` is true where the deputy may deputize onward.
+- The grantee's own edge has no `via`. An onward edge, signed by a deputy, has `via` the edge that deputy is
+  under, and counts only if that edge has `sub_delegation()`.
+- A deputy's act has `via` its edge and `deputy_edge()` false.
+- An onward edge presented without `deputy_edge()` is read as a deputy's plain act: it counts with no
+  sub-delegation above it, and so does everything under it, with no error
+  (`conferral_end.json`, `deputy_chain_no_sub`).
+- `Standing::deputy_depth` is the cap, `conferral::DEPUTY_DEPTH` (5) by the text. The depth is the `via` hops
+  above a row, plus one if the row is itself an edge. Every edge of the chain must be among the rows; one
+  that is not is the row an `Undecided` names.
+- In the fixture a deputy edge is `sub: true` and one that may be passed on is `sub_delegation: true`.
+
+**A grant chain**, for `standing::answers`: the rows of one node under one root grant.
+- Each bundle version: `Kind::Bundle`. The causal past must have an earlier version in a later one's past.
+- Each owner binding: `Kind::Binding`, `owner()` the owner. A re-binding has `on()` the binding it ends. Two
+  re-bindings of one binding are refused (`Refused::SeveralEnds`).
+- Each owner's acceptance of the grant: `Kind::Acceptance`, signed by that owner, `on()` its binding. One
+  signed by another key is nobody's acceptance.
+- Each act: `Kind::Act`, `head()` the bundle version it names, `on()` the acceptance it stands on. An act
+  with `on()` a binding, or none, counts for nobody.
+- The grant's end: `Kind::GrantEnd`, `head()` its bundle version. A receipt: `Kind::Receipt`, `on()` the act.
+  The grant's `Standing::role` says who receipts under the grant; under a binding only its owner does.
+- Give the real past. An act that reaches a re-binding through any row it names has that end in its past and
+  does not count under the binding it ended (`conferral_two.json`,
+  `backdated_after_an_act_under_the_new_owner`).
+- Not checked here: that the act's signer is the node the binding binds. Present one node's acts.
+
 **A removal in a room's content**, for `content::answers`. Give a member's removal once, as `Kind::End`. A
 content row that names it as its head is read as naming a head at which the member is out.
 

@@ -4,7 +4,7 @@
 //! cannot tell does, and two ends.
 
 mod common;
-use ciris_kernel::conferral::{answers, Answer, ConferralRow, Kind, Refused, Role, Standing, Who};
+use ciris_kernel::conferral::{answers, Answer, ConferralRow, Kind, Refused, Role, Standing, Who, DEPUTY_DEPTH};
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -19,6 +19,8 @@ struct CRow {
     target: Option<String>,
     via: Option<String>,
     lifts: bool,
+    deputy_edge: bool,
+    sub_delegation: bool,
 }
 
 impl ConferralRow for CRow {
@@ -48,6 +50,12 @@ impl ConferralRow for CRow {
     fn lifts(&self) -> bool {
         self.lifts
     }
+    fn deputy_edge(&self) -> bool {
+        self.deputy_edge
+    }
+    fn sub_delegation(&self) -> bool {
+        self.sub_delegation
+    }
 }
 
 fn row(j: &J) -> CRow {
@@ -73,6 +81,8 @@ fn row(j: &J) -> CRow {
         target: opt("target"),
         via: opt("via"),
         lifts: j.get("lifts").is_some_and(|v| v.b()),
+        deputy_edge: j.get("sub").is_some_and(|v| v.b()),
+        sub_delegation: j.get("sub_delegation").is_some_and(|v| v.b()),
     }
 }
 
@@ -123,6 +133,7 @@ fn run(rows: &[&CRow], c: &J, hidden: Option<&str>) -> Result<BTreeMap<String, A
         other_standing: c.at("other_standing").b(),
         who: if c.at("who").s() == "none" { Who::ConferrerOnly } else { Who::All },
         reader_acks: &acks,
+        deputy_depth: c.at("deputy_depth").i() as usize,
     };
     let past = Names { by: rows.iter().map(|r| (r.id.as_str(), *r)).collect(), hidden };
     answers(rows, &st, &|a: &String, b: &String| past.in_past(a, b))
@@ -232,6 +243,8 @@ fn one_receipt_naming_several_acts() {
         target: None,
         via: None,
         lifts: false,
+        deputy_edge: false,
+        sub_delegation: false,
     };
     let base = [
         mk("H0", Kind::Head, "count", &[], None, None),
@@ -241,7 +254,8 @@ fn one_receipt_naming_several_acts() {
         mk("b3", Kind::Act, "B", &["H0"], Some("H0"), None),
         mk("E", Kind::End, "A", &["H1"], Some("H1"), None),
     ];
-    let st = Standing { role: &role, other_standing: false, who: Who::All, reader_acks: &[] };
+    let st =
+        Standing { role: &role, other_standing: false, who: Who::All, reader_acks: &[], deputy_depth: DEPUTY_DEPTH };
     let judge = |extra: Vec<CRow>| {
         let rows: Vec<CRow> = base.iter().cloned().chain(extra).collect();
         let refs: Vec<&CRow> = rows.iter().collect();

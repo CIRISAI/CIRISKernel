@@ -52,6 +52,7 @@ The lists give the stronger checks.
 | `ops::sel`, `sel_before`, `group_by`, `min_of`, `max_of`, `one`, `count`, `sum_per`, `in_range`, `fix` | | | cases (`kernel_lib.py`, 7,968 inputs; `reexpress.py`, 17,886) |
 | `graph::Graph` (`in_past`, `concurrent`, `frontier`, `past`, `ancestors`) | | | cases (the eager closure as oracle, 301,219; the frontier's walk against the pairwise frontier and duplicate ids, `tests/fast_paths.rs`, 24,373; rows with cycles of names wait exactly when `kept` leaves them out, `tests/cycle.rs`, 54,160) |
 | `graph::Graph::waiting`; the waiting rule of `layers::conclude`, `Concluded::with` and `head::View::new` (a row on a cycle of names, or naming one, concludes nothing and a view leaves it out) | no theorem: the proofs assume a kept set, which has no cycle | | cases only (`tests/cycle.rs`: rows wait, and views hold, exactly what `kept` keeps; 54,160 and 3,000 cases) |
+| `standing::answers` (built on `conferral::answers`; the deputy gates of `conferral::answers`, `E6.no_sub` and `E6.depth`, are in the same class) | | `ConferralEnd` has one deputy edge and no second record: it reaches neither | cases (`check_conferral_two.py`, 21 cases under `acc`, and one row withheld at a time; `conferral_end.py`, 6 deputy-chain cases). The Python run of every state checks the reference, not the crate |
 | `ops::rule`, `seat::covers`, `seat::Obj::from_reference`, `is_identity_reference` | | | neither (unit tests) |
 
 **Counts**, by row of the table:
@@ -61,7 +62,7 @@ The lists give the stronger checks.
 | proved in Lean | 26 |
 | of which also model-checked in TLA+ | 8 |
 | model-checked in TLA+ only | 0 |
-| cases only | 5 |
+| cases only | 6 |
 | neither | 2 |
 
 The three statements proposed earlier (G1, G2, G3) are proved: `Ops.leastNoTie_perm`, `Ops.leastNoTie_none_iff`

@@ -1,5 +1,33 @@
 # Changelog — ciris-kernel
 
+## Unreleased
+
+Deputy chains in `conferral`, and a new module `standing`.
+
+- `conferral::answers` reads two gates on a deputy's chain. An onward hop (a deputy edge that itself has a
+  `via`) counts only under an edge that carries sub-delegation: rule `E6.no_sub`. No act counts more than
+  `Standing::deputy_depth` deputy edges from the seat: rule `E6.depth`. The grantee's own edge needs no
+  sub-delegation, and a deputy still ends with the seat (`E6.upstream`).
+- **Source-breaking:** `conferral::Standing` gains the field `deputy_depth: usize`; a struct literal must
+  state it. `conferral::DEPUTY_DEPTH` (5) is the text's cap. `conferral::Rule` gains `Depth` and `NoSub`; a
+  `match` over it without a wildcard must name them.
+- `ConferralRow` gains `deputy_edge()` and `sub_delegation()`, both defaulting to false. With the defaults and
+  a cap of at least 1, every answer of 0.3.0 is unchanged: a row is an onward hop only where the caller says
+  it is a deputy edge. A caller with chains of deputies must present both, or an onward hop is read as a
+  deputy's plain act and counts.
+- `standing::answers`: one row that needs two standings, a root grant and an owner binding (CC 3.1.2.1). The
+  act names its bundle version and the owner's acceptance of the grant; the acceptance names its binding; a
+  re-binding ends the binding before it. The function runs `conferral::answers` under the grant and under the
+  binding and joins the bits, and returns per act the binding and its owner, `counted`, `in_force` and the
+  rule under each record (`Answer::Stands`), or why the act counts for nobody (`Answer::Nobody`), or the row to
+  fetch (`Answer::Undecided`). It reads the causal past as the rows name it.
+- Fixtures: `conferral_end.json` has 41 cases and 87 act answers (six deputy-chain cases; each case states
+  `deputy_depth`, and a row may state `sub_delegation`). `conferral_two.json` has 21 cases, each row states
+  the fields a rule reads (`head`, `on`, `owner`), and each case states `reader_acks` and `why`.
+  `tests/conferral_two.rs` replays it.
+- Checked by cases only. The TLA+ spec has one deputy edge, where neither gate applies; TLC was not run for
+  this change.
+
 ## [0.3.0]
 
 The first tag of the 0.3 line (`kernel-v0.3.0`). It follows `kernel-v0.2.2`, which persist pins, and carries

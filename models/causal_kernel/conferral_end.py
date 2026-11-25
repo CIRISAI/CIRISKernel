@@ -14,14 +14,15 @@ Rows (the kernel's row shape: an `id`, a `kind`, a `signer`, the ids it `names`,
     head          a roster version, a bundle version, or an owner binding; `names` the heads it extends
     act           an exercised act of the grantee (or of a deputy): `head` the head it names (None: an uncited
                   act, from before this change), `sub` true for a deputy edge, `via` the deputy edge a deputy's
-                  act is under
+                  act is under (a deputy edge with a `via` is an onward hop: a deputy deputizing),
+                  `sub_delegation` true on a deputy edge that may be passed on
     end           the end of the grantee's standing: `head` (h_e), `lifts` (a count end for a compromise)
     receipt       a clean ack of one act (`of`) by the ender's side
     removal       a removal of key `target`
     accept        the grantee's re-acceptance (a second standing of its own)
     receipter_end the body's end of the receipter's seat
-Roles: A the conferrer (for a count: the count), B the grantee, C a deputy, D a single co-holder, R a receipter
-the grant names. At most one end per row set.
+Roles: A the conferrer (for a count: the count), B the grantee, C a deputy (C2 to C6: deputies further down a
+chain), D a single co-holder, R a receipter the grant names. At most one end per row set.
 
 Rules, in the order they decide (the name a failing test reports):
     key_removed          the act's signer's key is removed by a removal that does not have the act in its past
@@ -38,6 +39,10 @@ Rules, in the order they decide (the name a failing test reports):
                          past, is held (the conferrer; a co-holder or the named receipter unless a count end lifts
                          receipts; the receipter's only before its seat's end; never the act's own signer)
     E2.forward           counted at its own head (at, before or concurrent with h_e, or no head at all), not in force
+    E6.depth             an act more than `deputy_depth` deputy edges from the seat (its `via` chain, and itself
+                         if it is a deputy edge): not counted
+    E6.no_sub            an onward hop (a deputy edge that has a `via`) under an edge that does not carry
+                         `sub_delegation`: not counted. The first hop, an edge of the grantee's own, needs none
     E6.upstream          a deputy's act whose deputy edge does not count (or is not in force)
 """
 
@@ -61,8 +66,12 @@ def _past(rows):
     return by, anc
 
 
-def answers(rows, reader_acks=(), other_standing=False, who="all"):
-    """{act id: {"counted": bool, "in_force": bool, "rule": str}} over the held `rows`."""
+DEPUTY_DEPTH = 5
+
+
+def answers(rows, reader_acks=(), other_standing=False, who="all", deputy_depth=DEPUTY_DEPTH):
+    """{act id: {"counted": bool, "in_force": bool, "rule": str}} over the held `rows`. `deputy_depth` is the
+    most deputy edges an act may be from the seat."""
     by, anc = _past(rows)
     kind = lambda k: [r for r in rows if r["kind"] == k]
     ends = kind("end")
@@ -131,6 +140,13 @@ def answers(rows, reader_acks=(), other_standing=False, who="all"):
 
     memo = {}
 
+    def depth(x):
+        """The deputy edges from the seat to `x`: its `via` chain, and itself if it is a deputy edge."""
+        n = 1 if by[x].get("sub") else 0
+        while by[x].get("via"):
+            x, n = by[x]["via"], n + 1
+        return n
+
     def ans(x):
         if x in memo:
             return memo[x]
@@ -139,7 +155,11 @@ def answers(rows, reader_acks=(), other_standing=False, who="all"):
             out = (False, False, "key_removed")
         else:
             c, f, rule = end_rule(x)
-            if r.get("via"):
+            if depth(x) > deputy_depth:
+                c, f, rule = False, False, "E6.depth" if c else rule
+            elif r.get("via") and r.get("sub") and not by[r["via"]].get("sub_delegation"):
+                c, f, rule = False, False, "E6.no_sub" if c else rule
+            elif r.get("via"):
                 uc, uf, _ = ans(r["via"])
                 if (c and not uc) or (c and f and not uf):
                     rule = "E6.upstream"
@@ -181,6 +201,27 @@ def removal(i, target, names=()):
 
 H0, H1, H2 = head("H0"), head("H1", "H0"), head("H2", "H1")
 T, F = True, False
+
+
+def CHAIN2(sub_delegation, s="s", c="c"):
+    """Depth two at H0: the grantee's edge s1 to C, C's act c1 under it, C's onward edge s2 to C2, and C2's act
+    c2 under that. `sub_delegation`: whether s1 may be passed on."""
+    return [act(s + "1", "H0", sub=True, sub_delegation=sub_delegation),
+            act(c + "1", "H0", [s + "1"], signer="C", via=s + "1"),
+            act(s + "2", "H0", [s + "1"], signer="C", sub=True, via=s + "1"),
+            act(c + "2", "H0", [s + "2"], signer="C2", via=s + "2")]
+
+
+def _chain6():
+    who = [GRANTEE, "C", "C2", "C3", "C4", "C5", "C6"]
+    rows = []
+    for k in range(1, 7):
+        up = {"via": "s%d" % (k - 1)} if k > 1 else {}
+        rows.append(act("s%d" % k, "H0", list(up.values()), signer=who[k - 1], sub=True, sub_delegation=True, **up))
+    return rows + [act("c5", "H0", ["s5"], signer="C5", via="s5"), act("c6", "H0", ["s6"], signer="C6", via="s6")]
+
+
+CHAIN6 = _chain6()
 
 # (name, about, rows, params, {act: (counted, in_force, rule)}, arrival orders a node may take them in)
 CASES = [
@@ -305,6 +346,43 @@ CASES = [
       act("s2", "H0", sub=True), act("c2", "H0", ["s2"], signer="C", via="s2")], {},
      {"s1": (F, F, "E3.later_head"), "c1": (F, F, "E6.upstream"), "s2": (T, F, "E2.forward"),
       "c2": (T, F, "E2.forward")}),
+    # deputy chains: the first hop needs no sub-delegation, an onward hop needs it on the edge above, at most
+    # `deputy_depth` edges, and a deputy ends with the seat (persist's depth two: B holds the standing, B
+    # deputizes C, C deputizes C2)
+    ("deputy_chain_before_end", "depth two, no end held: the grantee's edge to C carries sub-delegation, C's edge "
+     "to C2 hangs from it; C's act and C2's act count and are in force",
+     [H0] + CHAIN2(True), {}, {"s1": (T, T, "no_end"), "c1": (T, T, "no_end"), "s2": (T, T, "no_end"),
+                               "c2": (T, T, "no_end")}),
+    ("deputy_chain_after_end", "the same rows and the standing's end: every edge and act counts at its head and "
+     "none is in force (a deputy ends with the seat)",
+     [H0] + CHAIN2(True) + [end("H0")], {},
+     {"s1": (T, F, "E2.forward"), "c1": (T, F, "E2.forward"), "s2": (T, F, "E2.forward"),
+      "c2": (T, F, "E2.forward")}),
+    ("deputy_chain_no_sub", "the grantee's edge to C carries no sub-delegation: C's own act counts, C's onward "
+     "edge does not, and C2's act under it does not",
+     [H0] + CHAIN2(False), {}, {"s1": (T, T, "no_end"), "c1": (T, T, "no_end"), "s2": (F, F, "E6.no_sub"),
+                                "c2": (F, F, "E6.upstream")}),
+    ("deputy_chain_of_six", "six edges, each carrying sub-delegation: the fifth deputy's act counts; the sixth "
+     "edge does not, nor the sixth deputy's act",
+     [H0] + CHAIN6, {},
+     dict({"s%d" % k: (T, T, "no_end") for k in range(1, 6)},
+          c5=(T, T, "no_end"), s6=(F, F, "E6.depth"), c6=(F, F, "E6.depth"))),
+    ("deputy_chain_depth_one", "the cap is a parameter of the call: at depth 1 the onward edge does not count, "
+     "sub-delegation or not",
+     [H0] + CHAIN2(True), {"deputy_depth": 1},
+     {"s1": (T, T, "no_end"), "c1": (T, T, "no_end"), "s2": (F, F, "E6.depth"), "c2": (F, F, "E6.depth")}),
+    ("deputy_chain_middle_receipted", "after the end, the middle edge s2 and the act under it are receipted by "
+     "the conferrer and the top edge s1 is not: s2 and c2 count and are not in force (both bits pass down, "
+     "each to its own); with the top edge t1 receipted too, t2 and d2 are in force; with the top receipted "
+     "and the middle not (u1, u2), the act under the middle is not in force",
+     [H0, end("H0")] + CHAIN2(True) + CHAIN2(True, "t", "d") + CHAIN2(True, "u", "e")
+     + [receipt("q%d" % i, x, CONFERRER) for i, x in enumerate(("s2", "c2", "t1", "t2", "d2", "u1", "e2"))], {},
+     {"s1": (T, F, "E2.forward"), "c1": (T, F, "E2.forward"), "s2": (T, F, "E6.upstream"),
+      "c2": (T, F, "E6.upstream"),
+      "t1": (T, T, "E8.receipt"), "d1": (T, F, "E2.forward"), "t2": (T, T, "E8.receipt"),
+      "d2": (T, T, "E8.receipt"),
+      "u1": (T, T, "E8.receipt"), "e1": (T, F, "E2.forward"), "u2": (T, F, "E2.forward"),
+      "e2": (T, F, "E6.upstream")}),
     ("end_stale_head", "E1: an end naming H0 with H1 in its own past concludes nothing",
      [H0, H1, act("b1", "H1"), end("H0", names=["b1"])], {}, {"b1": (T, T, "end_void.stale_head")}),
     ("end_old_fork_for_reader", "the reader acknowledged H1; an end naming H0, not in H1's past, is void for that "
@@ -316,13 +394,16 @@ CASES = [
 ]
 
 
-def orders(rows):
-    """Every order the door allows of a small row set (a row after everything it names that is held)."""
+def orders(rows, limit=None):
+    """Every order the door allows of a small row set (a row after everything it names that is held); with
+    `limit`, the first that many (a chain of deputies has too many to list)."""
     ids = {r["id"] for r in rows}
     by = {r["id"]: r for r in rows}
     out = []
 
     def go(done, seq):
+        if limit is not None and len(out) >= limit:
+            return
         if len(seq) == len(rows):
             out.append(list(seq)); return
         for r in rows:
@@ -347,7 +428,7 @@ def check_cases():
         if set(got) != set(want):
             problems.append("%s: acts %s, expectations for %s" % (name, sorted(got), sorted(want)))
         by = {r["id"]: r for r in rows}
-        for o in orders(rows)[:200]:
+        for o in orders(rows, 200):
             if answers([by[i] for i in o], **params) != got:
                 problems.append("%s: order %s differs" % (name, o))
     return len(CASES), problems
@@ -373,12 +454,14 @@ def fixture():
         cases.append({"name": name, "about": about, "rows": rows,
                       "reader_acks": list(params.get("reader_acks", [])),
                       "other_standing": params.get("other_standing", False), "who": params.get("who", "all"),
+                      "deputy_depth": params.get("deputy_depth", DEPUTY_DEPTH),
                       "orders": c[5] if len(c) > 5 else [[r["id"] for r in rows]],
                       "refused": refused(rows),
                       "answers": answers(rows, **params)})
     return {"about": "the causal end of a conferral (CC 2.4.1.1, CC 4.5.5) as recommended for persist v62.0: "
                      "models/tla/CONFERRAL_END.md; generated from models/causal_kernel/conferral_end.py",
             "roles": {"A": "the conferrer (for a count, the count)", "B": "the grantee", "C": "a deputy",
+                      "C2": "a deputy's deputy (C3 to C6: further down the chain)",
                       "D": "a single co-holder", "R": "a receipter the grant names", "count": "a counted row"},
             "refused": "a case's `refused` is null, or the refusal the Constitution's text gives one of its rows at "
                        "the door (`act_names_no_head`: an act that exercises a standing and names no head; "
@@ -401,6 +484,8 @@ def _row_text(r):
         bits.append("lifts")
     if r.get("sub"):
         bits.append("deputy_edge")
+    if r.get("sub_delegation"):
+        bits.append("sub_delegation")
     if r["names"]:
         bits.append("names=" + ",".join(r["names"]))
     return " ".join(bits)
