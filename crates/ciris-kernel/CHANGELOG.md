@@ -1,6 +1,36 @@
 # Changelog — ciris-kernel
 
-## Unreleased
+## [0.3.0]
+
+The first tag of the 0.3 line (`kernel-v0.3.0`). It follows `kernel-v0.2.2`, which persist pins, and carries
+everything below. Several answers change and three public types gain members.
+
+### Adopting 0.3.0 from 0.2.2
+
+Answers that change:
+- `seat::Seats::stands`, `holders`, `holders_at`, `stands_at`: at several tips they read the fold of the tips'
+  changes (`tips_fold`), not the members common to them. `tips_common` is unchanged.
+- `window::outcome`: a met at-once count is the outcome with no landing row.
+- `window::rule`: a receipt with a row of the target in its past, beyond the opener's own, is no receipt.
+- `head::View::counts_at` (and `carried`, `Answers`, `HeldView`): a counting cut at an older head voids a
+  concurrent act at a later head.
+- `content::answers`: a content row naming an end of the member's seat as its head is `no_seat`, where it was
+  undecided.
+
+What a caller must change to compile:
+- a `WindowSpec` literal adds `opener: None`;
+- an exhaustive `match` on `window::How` adds `MoreAtLeast`, and on `window::Base` adds `Opener`.
+
+New, and optional:
+- `SeatRow::regime` (default `None`): the protocol and policy in force at a counted act;
+- `seat::Seats::tips_fold`; `seat_rule`: a holder may end its own seat by a row under it, where
+  `SeatLaw::ends` lists the scope for itself (an owner's revocation of a key);
+- two windows in the reference's tables, `moderation_overturn` and `self_roster_add`.
+
+Read `ADOPTING.md`, "Presenting rows: what the functions assume", before writing an adapter. `PERF.md` gives
+the fold's cost: join tips before they are many.
+
+### The changes
 
 `seat::seat_rule`: the holder of a seat may end its own seat by a row of its own under that seat, where the
 caller's `SeatLaw::ends` lists the seat's scope for itself. That is how an owner's revocation of a key is
@@ -207,7 +237,7 @@ Behaviour, not signature:
 - `proofs/Held.lean`: `admit_eq`, `admits_eq`, `admit_dirty_new`, `admit_derived`, `resume_eq`,
   `resume_concl`, `resume_admits_eq`.
 
-## [0.3.0]
+### Held views
 
 Held views, slices 1 to 3 (issue #4, `HELD.md`): the concluded layer held across admissions, its memory bounded,
 and what persist's verdict choke point needs: answers read at a held row, read sets, and derived wake-ups. No

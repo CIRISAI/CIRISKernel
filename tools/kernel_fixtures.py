@@ -314,6 +314,10 @@ def seat_cases():
         title, cases = world()
         for name, rows, prop, need in cases:
             record(rows, A.WIN)
+    # a delegation chain from a counted grant: check_delegation.py's cases, under the seat rule
+    import check_delegation as DG
+    for _name, rows, _asks in DG.CASES:
+        record(rows, A.SEAT)
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
