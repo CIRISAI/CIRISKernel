@@ -1318,13 +1318,29 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
     let mut duty: Option<BTreeSet<R::Key>> = None;
     for h in xr.head() {
         let Some(hi) = g.idx(h) else { continue };
-        let sub: Vec<&R> = c.cs().iter().copied().filter(|&q| q == hi || g.in_past(q, hi)).map(|q| g.row(q)).collect();
-        let sc = Concluded::with(Graph::new(sub), None);
-        let q = Seats::build(&sc, law, spec, None, None, Some(cache));
-        for r in q.recs.iter().filter(|r| r.k == *m && r.obj == obj && q.has(r, "moderate")) {
-            standing.insert((r.offer.clone(), r.scope.clone()));
-        }
-        let d = q.holders("duty", &obj, None);
+        // read once per (head, object, remover) for every build that shares the cache: the build of a head's
+        // past holds lone removals of its own, each read here in turn, and unkept that is a doubling per row
+        let key = (h.clone(), obj.clone(), m.clone());
+        let known = cache.standing.borrow().get(&key).cloned();
+        let (st, d) = match known {
+            Some(v) => v,
+            None => {
+                let sub: Vec<&R> =
+                    c.cs().iter().copied().filter(|&q| q == hi || g.in_past(q, hi)).map(|q| g.row(q)).collect();
+                let sc = Concluded::with(Graph::new(sub), None);
+                let q = Seats::build(&sc, law, spec, None, None, Some(cache));
+                let st: BTreeSet<SeatOf<R>> = q
+                    .recs
+                    .iter()
+                    .filter(|r| r.k == *m && r.obj == obj && q.has(r, "moderate"))
+                    .map(|r| (r.offer.clone(), r.scope.clone()))
+                    .collect();
+                let v = (st, q.holders("duty", &obj, None));
+                cache.standing.borrow_mut().insert(key, v.clone());
+                v
+            }
+        };
+        standing.extend(st);
         duty = Some(match duty {
             None => d,
             Some(before) => before.intersection(&d).cloned().collect(),
@@ -1761,11 +1777,17 @@ pub fn conclude<'a, R: SeatRow, S: CutSpec<R>>(
 /// The members at a head, kept per (sorted heads, object, scope) for one [`conclude`].
 struct MembersAt<R: SeatRow> {
     memo: RefCell<MembersMemo<R>>,
+    // per (head, object, key): the seats that give the key `moderate` at the head, and the duty holders there
+    standing: RefCell<StandingMemo<R>>,
 }
+
+/// What [`removal_in_force`] reads of the seats at one head.
+type StandingAt<R> = (BTreeSet<SeatOf<R>>, BTreeSet<<R as Row>::Key>);
+type StandingMemo<R> = BTreeMap<(<R as Row>::Id, ObjOf<R>, <R as Row>::Key), StandingAt<R>>;
 
 impl<R: SeatRow> Default for MembersAt<R> {
     fn default() -> Self {
-        MembersAt { memo: RefCell::default() }
+        MembersAt { memo: RefCell::default(), standing: RefCell::default() }
     }
 }
 
