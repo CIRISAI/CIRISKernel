@@ -46,6 +46,7 @@ step "check_conferral_end (an end)"      conferral python3 -I models/causal_kern
 step "check_conferral_content (tips)"    content   python3 -I models/causal_kernel/check_conferral_content.py
 step "check_conferral_two (two records)" two       python3 -I models/causal_kernel/check_conferral_two.py
 step "check_delegation (a chain)"         deleg     python3 -I models/causal_kernel/check_delegation.py
+step "check_duty_seats (on a member)"     dutyseat  python3 -I models/causal_kernel/check_duty_seats.py
 step "check_resignation (wrap, dissolved)" resign   python3 -I models/causal_kernel/check_resignation.py
 step "check_agent_removal (the lift)"     agent     python3 -I models/causal_kernel/check_agent_removal.py
 step "check_rosters (one roster)"         rosters   python3 -I models/causal_kernel/check_rosters.py

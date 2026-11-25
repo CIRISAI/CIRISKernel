@@ -223,6 +223,18 @@ covers 18 of them, three are read off the row judged (`author`, `self`, `subject
 founding record seats the duty holders who sign it, and they are equals (CC 4.5.4). A duty seat is conferred
 by a strict majority of the duty holders, or by the lone holder with the new holder's acceptance. It is
 withdrawn by a strict majority of the others, never on fewer than two voices where there are two holders.
+A duty seat stands only on a member: it stands only where its holder holds the roster's seat over the same
+community at the same reading, so a conferral on a key that is not a member seats nobody and is no voice in a
+duty count, and it stands with no further row when the key's widening lands. An end of the holder's stay as a
+member, its own resignation or a counted removal, ends the duty seats whose offers are in that end's past, and
+a later admission revives none of them; a conferral that is not in the end's past waits for the next
+admission. At tips the duty seat follows the folded roster. The founding seat holds `member`, so a founding
+holder's membership is its founding duty seat unless a member seat is presented beside it. A seat the duty
+holders place that makes its holder no duty holder (a node's detector seat) is not asked for membership.
+**run** (`models/causal_kernel/check_duty_seats.py`): 37 cases in every arrival order, five planted breaks
+caught. **open**: two founders have no presentation in which either lays down its duty and stays a member;
+the members' check (`moderation_overturn`) counts the objection of the duty holder whose act it is, now that
+the duty holder is a member, and the sentence that it has no say in the lift is not a rule of the table.
 **run**: five properties, each with a deliberate break that is caught. `owner` and the steward of an agent are one
 seat. `member`, an accord holder and a key of a self roster are one counted seat over three objects. `serve` is
 two seats required together, which is a question for **may**.
@@ -279,7 +291,7 @@ A count that is met needs no clock and no concluder: where no landing has conclu
 at-once count gives over the answers held, and short of it the window is open. A landing that states an outcome its own past does not give concludes nothing. An answer concurrent with the
 landing is **recounted**: it is counted with the landing's past, and the landing stands only if the table still
 gives the outcome it stated. **run** (`models/causal_kernel/window_adversary.tsv`): against the five windows
-of the text (the members' check of CC 4.5.13 and the self roster's addition were added on 2026-11-23; on 2026-11-25 the members' check was counted over the members less the act's author and the moderation fallback over the members who voted), sixty-six checks of what each exists to prevent. Recount breaks none. The check that a thief does
+of the text (the members' check of CC 4.5.13 and the self roster's addition were added on 2026-11-23; on 2026-11-25 the members' check was counted over the members less the act's author and the moderation fallback over the members who voted), seventy-one checks of what each exists to prevent. Recount breaks none. The check that a thief does
 not evict alone holds against an owner who signs anything inside the window; an owner who signs nothing
 looks lost. A landing that voids concurrent
 answers breaks twelve, a thief evicting alone among them. An answer that contests any landing breaks two.

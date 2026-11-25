@@ -88,6 +88,8 @@ def reseat(i, by, who, removal, head, objections, accepted=True, cite=True):
 
 
 # ---- world A: the moderator is not on the roster. Members m1 and m2 and the agent's key AG: a roster of three ------
+# The founding row is of scope `member`, so the rule that a duty seat stands only on a member (seat.py, over a community
+# founded with scope `duty`) does not reach it: MOD's `moderate` seat is live here. World B has the duty-founded case.
 GA = ST.offer("g", "m1", ("m1", "m2"), "member", "@", "self", cosigners=("m2",))
 AGA = admit("ag", "AG", ("m1", "m2"), "g")
 MDA = ST.offer("md", "m1", "MOD", "moderate", OBJ, "group", ("ag",), head=("ag",), policy="community_invite",
@@ -104,6 +106,11 @@ AGB = admit("ag", "AG", ("m1", "m2", "m3"), "g")
 B = [GB, AGB]
 XB = remove("x", "m1", "AG", "ag")
 O3, O4 = obj("o3", "m3"), obj("o4", "m4")
+# a moderator conferred by the duty holders: a duty seat stands only on a member (CC 4.5.4), so MOD is admitted first
+AMB = admit("am", "MOD", ("m1", "m2", "m3", "m4"), "ag")
+MDB = ST.offer("md", "m1", "MOD", "moderate", OBJ, "group", ("am",), head=("am",), policy="duty_confer", counted="duty",
+               cosigners=("m2", "m3", "MOD"))
+MDB0 = dict(MDB, names=("ag",), head=("ag",))                                  # the same conferral, MOD not admitted
 
 # ---- world C: three duty holders and AG, a roster of four with the moderator on it ----------------------------------
 GC = ST.offer("g", "m1", ("m1", "m2", "m3"), "duty", "@", "self", cosigners=("m2", "m3"))
@@ -179,6 +186,11 @@ CASES = [
      {"m1", "m2", "N"}, {"x": "open"}),
     ("B: a duty holder removes an agent's key alone: out at once",
      B + [XB], {"x": T}, {"m1", "m2", "m3", "m4"}, {"x": "open"}),
+    ("B: a moderator conferred on a key that is no member removes an agent's key alone: nothing (it holds no duty)",
+     B + [MDB0, remove("x", "MOD", "AG", "md")], {"x": F}, {"m1", "m2", "m3", "m4", "AG"}, {"x": "none"}),
+    ("B: the same key admitted first and then conferred `moderate` removes an agent's key alone: out at once",
+     B + [AMB, MDB, remove("x", "MOD", "AG", "md")], {"am": T, "md": T, "x": T}, {"m1", "m2", "m3", "m4", "MOD"},
+     {"x": "open"}),
     ("B: a duty holder removes another duty holder alone: nothing",
      B + [remove("x", "m1", "m2", "ag", agent=False)], {"x": F}, {"m1", "m2", "m3", "m4", "AG"}, {"x": "none"}),
     ("B: one person and the author object: one voice of the three persons, and the author is no voice",

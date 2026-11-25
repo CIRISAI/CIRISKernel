@@ -403,23 +403,34 @@ def add_world():
     return "self roster, lone addition (24 h)", cases
 
 
+def admitted(k, by=("m1", "m3"), founders=("m1", "m2", "m3")):
+    """A room of three founding duty holders, and key k admitted to its roster by two of them (k cosigning: its own
+    yes). A duty seat stands only on a member (seat.py, `member`), so a world that confers one on k admits k first and
+    counts the conferral over the admission."""
+    g = ST.offer("g", founders[0], founders, "duty", "@", "self", cosigners=founders[1:])     # three duty holders (CC 4.5.4)
+    am = ST.offer("am", by[0], k, "member", "g", "group", ("g",), head=("g",), policy="community_invite", cosigners=tuple(by[1:]) + (k,))
+    return g, am
+
+
 def moderation_world():
-    g = ST.offer("g", "m1", ("m1", "m2", "m3"), "duty", "@", "self", cosigners=("m2", "m3"))     # three duty holders (CC 4.5.4)
-    md = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("g",), head=("g",), policy="duty_confer", counted="duty",
+    g, am = admitted("MOD")                                                    # MOD is a member, then a moderator
+    md = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("am",), head=("am",), policy="duty_confer", counted="duty",
                   cosigners=("m3", "MOD"))                                     # two of the three confer, MOD accepting
     W = secs("moderation_fallback")
     p = opener("p", "m2", "moderation_fallback", "g", ("md",))
-    acts = [answer("x1", "m1", "p", "act"), answer("x3", "m3", "p", "act")]
+    # four members at the head (m1, m2, m3 and MOD); the count at the close is over the members who voted
+    acts = [answer("x1", "m1", "p", "act"), answer("x2", "m2", "p", "act"), answer("x3", "m3", "p", "act")]
+    xs = ("x1", "x2", "x3")
     A = answer("A", "MOD", "p", "answered")
-    base = [g, md, p, receipt("r", "m2", "p", 0)] + acts
-    L = landing("L", "m2", "p", "r", "fallback", W, ("x1", "x3"))
+    base = [g, am, md, p, receipt("r", "m2", "p", 0)] + acts
+    L = landing("L", "m2", "p", "r", "fallback", W, xs)
     cases = [
         ("false landing: a member lands the members' moderation; the moderator had answered and the landing leaves the answer unnamed",
          base + [A, L], "present moderator is not overridden", "not fallback"),
         ("false landing, stated falsely: the same landing naming the moderator's answer",
-         base + [A, landing("L", "m2", "p", "r", "fallback", W, ("x1", "x3", "A"))], "present moderator is not overridden", "not fallback"),
+         base + [A, landing("L", "m2", "p", "r", "fallback", W, xs + ("A",))], "present moderator is not overridden", "not fallback"),
         ("false landing, no count: one member lands the fallback alone",
-         [g, md, p, receipt("r", "m2", "p", 0), landing("L", "m2", "p", "r", "fallback", W)], "the fallback needs the members' majority", "not fallback"),
+         [g, am, md, p, receipt("r", "m2", "p", 0), landing("L", "m2", "p", "r", "fallback", W)], "the fallback needs the members' majority", "not fallback"),
         ("withheld answer: an honest member lands; a relay had kept the moderator's answer from the room",
          base + [A, L], "present moderator is not overridden", "not fallback"),
         ("a second landing naming both: another member lands 'answered', naming the first landing and the moderator's answer",
@@ -431,22 +442,32 @@ def moderation_world():
          base + [L, answer("A", "MOD", "p", "answered", ("L",))], "(what an honest late answer is worth)", None),
         ("answer signed just after, leaving the landing unnamed: the moderator returns late",
          base + [L, A], "(a late moderator against the members' act)", None),
+        ("a moderator's seat conferred on a key that is not a member: its answer is no moderator's answer, and the members' majority lands",
+         [g, dict(md, names=("g",), head=("g",)), dict(p), receipt("r", "m2", "p", 0), acts[0], acts[1], A,
+          landing("L", "m2", "p", "r", "fallback", W, ("x1", "x2"))],
+         "a duty seat stands only on a member", "fallback"),
+        ("false landing, short of the count: one member acts and another votes against, and one of them lands the fallback",
+         [g, am, md, p, receipt("r", "m2", "p", 0), acts[0], answer("n2", "m2", "p", "against"),
+          landing("L", "m2", "p", "r", "fallback", W, ("x1", "n2"))],
+         "the fallback needs the members' majority", "not fallback"),
     ]
-    # a room of four: the count is over the members who voted, for (`act`) or against (`against`), floor two voices
-    g4 = ST.offer("g", "m1", ("m1", "m2", "m3", "m4"), "duty", "@", "self", cosigners=("m2", "m3", "m4"))
-    md4 = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("g",), head=("g",), policy="duty_confer", counted="duty",
+    # a room of four founders and MOD, admitted and then made moderator: the count is over the members who voted,
+    # for (`act`) or against (`against`), floor two voices; a silent member (MOD among them) is not counted over
+    g4, am4 = admitted("MOD", by=("m1", "m3", "m4"), founders=("m1", "m2", "m3", "m4"))
+    md4 = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("am",), head=("am",), policy="duty_confer", counted="duty",
                    cosigners=("m3", "m4", "MOD"))
-    b4 = [g4, md4, p, receipt("r", "m2", "p", 0)]
+    b4 = [g4, am4, md4, p, receipt("r", "m2", "p", 0)]
+    acts = acts[:1] + acts[2:]                                                 # x1 and x3: m2 lands, and votes against below
     n2, n4 = answer("n2", "m2", "p", "against"), answer("n4", "m4", "p", "against")
     fb = lambda *names: landing("L", "m2", "p", "r", "fallback", W, names)
     cases += [
-        ("four members, two vote for and two are silent: the landing names the two votes",
+        ("five members, two vote for and three are silent: the landing names the two votes",
          b4 + acts + [fb("x1", "x3")], "a silent member is not counted over", "fallback"),
-        ("four members, one votes for and nobody against",
+        ("five members, one votes for and nobody against",
          b4 + acts[:1] + [fb("x1")], "never fewer than two voices", "not fallback"),
-        ("four members, two vote for and two against: the landing names all four",
+        ("five members, two vote for and two against: the landing names all four",
          b4 + acts + [n2, n4, fb("x1", "x3", "n2", "n4")], "a strict majority of those who voted", "not fallback"),
-        ("four members, two vote for and one against",
+        ("five members, two vote for and one against",
          b4 + acts + [n2, fb("x1", "x3", "n2")], "a strict majority of those who voted", "fallback"),
         ("withheld votes: two vote for and the landing names them; two votes against were kept from the lander",
          b4 + acts + [n2, n4, fb("x1", "x3")], "a strict majority of those who voted", "not fallback"),
@@ -455,8 +476,9 @@ def moderation_world():
         ("two keys off the roster vote against two members' votes for",
          b4 + acts + [answer("z1", "z", "p", "against"), answer("z2", "y", "p", "against"), fb("x1", "x3", "z1", "z2")],
          "only a member's vote is counted", "fallback"),
-        ("the moderator, who is no member, votes for beside one member's vote",
-         b4 + acts[:1] + [answer("xM", "MOD", "p", "act"), fb("x1", "xM")], "a moderator's vote is no vote", "not fallback"),
+        ("a key conferred `moderate` while it is no member votes for, beside one member's vote",
+         [g4, dict(md4, names=("g",), head=("g",)), p, receipt("r", "m2", "p", 0)] + acts[:1] + [answer("xM", "MOD", "p", "act"), fb("x1", "xM")],
+         "a duty seat stands only on a member, and a non-member's vote is no vote", "not fallback"),
         ("a moderator who is also a member answers and votes for, beside one vote for: no landing",
          b4 + acts + [answer("A1", "m1", "p", "answered")], "its act answers and its vote is moot", "answered"),
         ("the same, and a member lands the fallback over it, naming all three",
@@ -498,22 +520,26 @@ def halt_world():
 
 
 def overturn_world():
-    g = ST.offer("g", "m1", ("m1", "m2", "m3"), "duty", "@", "self", cosigners=("m2", "m3"))
-    md = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("g",), head=("g",), policy="duty_confer", counted="duty",
+    g, am = admitted("MOD")                                                    # MOD is a member, then a moderator
+    md = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("am",), head=("am",), policy="duty_confer", counted="duty",
                   cosigners=("m3", "MOD"))
     W = secs("moderation_overturn")
     p = opener("p", "MOD", "moderation_overturn", "g", ("md",))         # the duty holder's act opens its own window
-    o1, o2 = answer("o1", "m1", "p", "object"), answer("o2", "m2", "p", "object")
-    base = [g, md, p]
+    # four members at the head (m1, m2, m3 and MOD, the duty holder); the act's author apart, three are counted over and
+    # two objections lift (rule of CC 4.5.13: a strict majority of the members less the author, floor two)
+    o1, o2, o3 = answer("o1", "m1", "p", "object"), answer("o2", "m2", "p", "object"), answer("o3", "m3", "p", "object")
+    base = [g, am, md, p]
     r1, r3 = receipt("r", "m1", "p", 0), receipt("r", "m3", "p", 0)
     stands = landing("L", "m3", "p", "r", "stands", W, ("o1",))
     g1 = ST.offer("g", "m1", ("m1",), "duty", "@", "self")
-    md1 = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("g",), head=("g",), policy="duty_confer", counted="duty", cosigners=("MOD",))
+    p1 = opener("p", "m1", "moderation_overturn", "g", ("g",))          # the lone duty holder (its founding seat moderates) is the one member
     cases = [
         ("false landing, no count: one member objects and lands the lift alone",
          base + [o1, r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1",))], "the lift needs the members' majority", "not lifted"),
-        ("the room lifts: two of three object and one of them lands at once",
+        ("the room lifts: two of the three members other than the duty holder object and one of them lands at once",
          base + [o1, o2, r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2"))], "the room may lift a duty holder's act", "lifted"),
+        ("the room lifts: all three members other than the duty holder object and one of them lands at once",
+         base + [o1, o2, o3, r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2", "o3"))], "the room may lift a duty holder's act", "lifted"),
         ("stands at the close: one objection in 48 h and another member lands",
          base + [o1, r3, stands], "short of the count the act stands", "stands"),
         ("false landing: a member lands 'stands' leaving a second objection unnamed",
@@ -525,12 +551,18 @@ def overturn_world():
          "a row naming both decides", "lifted"),
         ("the duty holder objects to its own act, with one member: the landing names both",
          base + [o1, answer("oM", "MOD", "p", "object"), r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "oM"))],
-         "the duty holder has no say in the lift", "not lifted"),
+         "the author's objection is no voice", "not lifted"),
+        ("the duty holder objects to its own act, with two members: the landing names the three",
+         base + [o1, o2, answer("oM", "MOD", "p", "object"), r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2", "oM"))],
+         "the author is not among the members the majority is taken of", "lifted"),
         ("a key with no seat at the head objects, with one member",
          base + [o1, answer("oz", "z", "p", "object"), r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "oz"))],
          "only a member seated at the head the act names counts", "not lifted"),
-        ("the floor: in a room of one, the one member objects and lands",
-         [g1, md1, p, o1, r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1",))], "never fewer than two voices", "not lifted"),
+        ("the floor: in a room of one, the one member (its lone duty holder) objects to its own act and lands",
+         [g1, p1, dict(o1), r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1",))], "never fewer than two voices", "not lifted"),
+        ("a member who holds no duty opens the check on an act of its own, and the three other members object and land the lift",
+         [g, am, opener("p", "MOD", "moderation_overturn", "g", ("am",)), o1, o2, o3, r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2", "o3"))],
+         "only a duty holder's act opens the members' check", "not lifted"),
         ("objection signed just after, naming the landing: a member objects late and honestly",
          base + [o1, r3, stands, answer("o2", "m2", "p", "object", ("L",))], "(what an honest late objection is worth)", None),
         ("objection signed just after, leaving the landing unnamed",
