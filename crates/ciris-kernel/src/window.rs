@@ -769,7 +769,7 @@ mod tests {
                 }
             }
             // now and then the last key holds an agent's seat as well: every base leaves it out, read either way
-            if (id + n) % 4 == 0 {
+            if (id + n).is_multiple_of(4) {
                 let mut o = W::new(id, vec![0], 1);
                 o.kind = SeatKind::Offer;
                 o.to = vec![n];

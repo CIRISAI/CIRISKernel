@@ -1298,6 +1298,7 @@ fn out_of_force<R: SeatRow, S: CutSpec<R>>(
 ///
 /// With several ends held, in force only where each keeps it. Where the standing is gone and no end of it is
 /// held, E2 and E8 with no end.
+#[allow(clippy::too_many_arguments)]
 fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
     c: &Concluded<'_, R>,
     x: usize,
