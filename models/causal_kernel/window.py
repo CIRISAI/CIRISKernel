@@ -192,8 +192,10 @@ def _base(rows, past, p):
             scope = spec["counted"] if name in ("all", "others") else name
             # a count of the room is by person: an agent's key is no voice and is not counted over (seat.counted_keys); the
             # key a lone removal removes is an agent's, so it is apart from the lift of its own removal
-            m = ST.counted_keys(rows, past, p["obj"], p["head"], scope)[0] if name in ("all", "others") \
-                else ST.members_at(rows, past, p["obj"], p["head"], scope)
+            # in no count means out of the base for every scope a clause reads, `moderate` included (the ruling of
+            # 2026-11-25; MUTATION scope_keeps_agents: a named scope keeps its agents)
+            m = ST.members_at(rows, past, p["obj"], p["head"], scope) if name not in ("all", "others") and "scope_keeps_agents" in MUT \
+                else ST.counted_keys(rows, past, p["obj"], p["head"], scope)[0]
             cache[name] = m - {p["signer"]} if name == "others" else m
         return cache[name]
     return base

@@ -99,7 +99,7 @@ pub enum Base {
     /// Where the opener is a moderator's lone removal of an agent's key, the key it removes is an agent's and
     /// so in no count, on every path: the count with no landing, a landing's, and the recount.
     Others,
-    /// Another scope at the opener's head.
+    /// Another scope at the opener's head, less the agents there (in no count, for every scope).
     Scope(String),
     /// The opener's signer alone: the proposer's own voice (its withdrawal of an open proposal).
     Opener,
@@ -192,8 +192,9 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
             return m.clone();
         }
         let mut m = members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, scope);
-        if matches!(b, Base::All | Base::Others) && scope != AGENT && self.has_agents() {
-            // a count of the room is by person: the agents at the head are no voice and not counted over
+        if scope != AGENT && self.has_agents() {
+            // in no count: the agents at the head are out of the base and the voices for every scope a clause
+            // reads, a named one (`moderate`) included
             let agents = members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, AGENT);
             m = persons(m, &agents);
         }
@@ -229,12 +230,15 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
         let got = extra.and_then(|_| sets.pop());
         let mut cache = self.cache.borrow_mut();
         // a count of the room is by person: the agents at the head are no voice and not counted over
-        let agents = if w.counted == AGENT { BTreeSet::new() } else { sets[2].clone() };
+        let at_head = sets[2].clone();
+        let agents = if w.counted == AGENT { BTreeSet::new() } else { at_head.clone() };
         let mut others = persons(sets[0].clone(), &agents);
         others.remove(&self.opener_signer);
         cache.insert("others".into(), others);
         cache.insert("all".into(), persons(sets[0].clone(), &agents));
         for (scope, set) in scopes.iter().zip(sets).skip(1) {
+            // a named scope's base leaves its agents out too
+            let set = if *scope == AGENT { set } else { persons(set, &at_head) };
             cache.insert((*scope).into(), set);
         }
         got
@@ -763,6 +767,17 @@ mod tests {
                     rows.push(o);
                     id += 1;
                 }
+            }
+            // now and then the last key holds an agent's seat as well: every base leaves it out, read either way
+            if (id + n) % 4 == 0 {
+                let mut o = W::new(id, vec![0], 1);
+                o.kind = SeatKind::Offer;
+                o.to = vec![n];
+                o.cosigners = vec![n];
+                o.scope = Some(AGENT.into());
+                o.obj = Some(Obj::Row(0));
+                o.conf = Some(Conf::Own);
+                rows.push(o);
             }
             let v = W::new(100, rows.iter().map(|r| r.id).collect(), 1);
             rows.push(v);

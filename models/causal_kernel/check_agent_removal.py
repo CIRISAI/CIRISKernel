@@ -32,7 +32,8 @@ Part 2. Planted breaks in the seat rule, each of which must change a case's answ
     author_voice       the removal's author's objection is a voice of the re-seating
     agent_voice        an agent's signature is a voice of a count (the removed key's objection counts)
     lift_over_all      the re-seating is counted over the whole roster, the author with it (the reading ruled out)
-    restores_unseated  the re-seating seats a key that was not on the roster at the head the removal names
+    restores_unseated  the re-seating seats a key that was not on the roster at the head the removal names (the
+                       lone removal's own test that the key holds an agent's seat there, seen from the lift)
     agent_counted_over an agent is counted over, in the window and in the re-seating (the removed key with it)
     lift_no_floor      the re-seating has no floor of two voices
 
@@ -133,6 +134,8 @@ CASES = [
      A + [XA], {"x": T}, {"m1", "m2", "MOD"}, {"x": "open"}),
     ("A: a moderator removes a person's key alone: nothing",
      A + [remove("x", "MOD", "m2", "md", scope="member")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
+    ("A: a moderator's unseat of the agent's key in scope member (a seat it does not hold): nothing",
+     A + [remove("x", "MOD", "AG", "md", scope="member")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
     ("A: a member who is no moderator removes an agent's key alone: nothing",
      A + [remove("x", "m1", "AG", "md")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
     ("A: the same row naming no window, read by the seat rule alone: nothing",
@@ -182,9 +185,10 @@ CASES = [
     ("A: the objections to the first removal do not lift the second",
      A + [XA, O1, O2, RSA, X2, reseat("rs2", "m1", "AG", "x2", "rs", ("o1", "o2"))], {"x2": T, "rs2": F}, {"m1", "m2", "MOD"},
      {"x": "lifted", "x2": "open"}),
-    ("A: a moderator 'removes' a key that was never seated, and both members object: lifted, and nothing is admitted",
-     A + [remove("x", "MOD", "Q", "md"), O1, O2, reseat("rs", "m1", "Q", "x", "md", ("o1", "o2"))], {"x": T, "rs": F},
-     {"m1", "m2", "MOD", "AG"}, {"x": "lifted"}),
+    ("A: a moderator 'removes' a key that was never seated: no agent's seat at that head, so nothing concludes, and "
+     "objections and a re-seating admit nothing",
+     A + [remove("x", "MOD", "Q", "md"), O1, O2, reseat("rs", "m1", "Q", "x", "md", ("o1", "o2"))], {"x": F, "rs": F},
+     {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
     ("A: at tips, an admission at the removal beside the re-seating: the fold seats the key on its two objectors' voices",
      A + [XA, O1, O2, RSA, admit("j", "N", ("m1", "m2"), "x")], {"rs": T, "j": T}, {"m1", "m2", "MOD", "AG", "N"}, {"x": "lifted"}),
     ("A: at tips, the same admission beside a re-seating that does not conclude: the key stays out",

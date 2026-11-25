@@ -281,6 +281,9 @@ def K_sel(rows, kind):
     return [r for r in rows if r["kind"] == kind]
 
 
+CHAIN = 32        # the lone removals in the seat fixture's chain
+
+
 def seat_cases():
     import attacks as A
     import seat as ST
@@ -382,7 +385,13 @@ def seat_cases():
     for t in WN.adversary_table():
         adversary.append({"window": t["window"], "case": t["case"], "recount": t["outcome"]["recount"],
                           "landing_concluded": t["landing_concluded"]})
-    return {"law": law, "windows": windows, "scenarios": out, "adversary": adversary,
+    # a chain of lone removals, each naming the one before (the review of 2026-11-25): read in polynomial time
+    rows = [AS.G3] + AS.chain(CHAIN)
+    S = CK.concluded(CK.kept(list(rows)), A.WIN)
+    refs = {}
+    chain = {"n": CHAIN, "rows": with_refs(rows, refs), "refs": refs, "c": [S.C[r["id"]] for r in S.rows],
+             "roster": sorted(ST.Seats(S).roster(AS.OBJ))}
+    return {"law": law, "windows": windows, "scenarios": out, "adversary": adversary, "chain": chain,
             "skipped_other_rules": skipped["rules"], "problems": problems}
 
 

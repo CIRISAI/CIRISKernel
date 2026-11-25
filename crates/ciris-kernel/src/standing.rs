@@ -11,8 +11,8 @@
 //! (the binding as the only head, a re-binding of it as the end). It joins the two bit by bit: the act
 //! **counts** for the binding's owner when it counts under both, and is **in force** when it is in force under
 //! both. An act that names a binding row itself, or the bundle alone, stands on no acceptance and counts for
-//! nobody. Where the node has two live owners (a binding to another owner held, neither binding in the other's
-//! past, and that one not re-bound in the act's past) it has none, and the act counts for nobody.
+//! nobody. Where the node has two live owners (a binding to another owner held, neither re-binding the other,
+//! and that one not re-bound in the act's past) it has none, and the act counts for nobody.
 //!
 //! The past is the caller's ([`Past`]), read as the rows name it. An act that names the first owner's
 //! acceptance and reaches a re-binding through another row it names (its signer's previous act) has that end in
@@ -100,8 +100,8 @@ pub enum Nobody {
     /// The acceptance it names is not signed by its binding's owner.
     NotTheOwnersAcceptance,
     /// The node has two live owners, so none (CC 3.2: "two owners is none"; `seat::Seats::one`): a binding
-    /// of it to another owner is held, neither binding is in the other's past, and no re-binding of that one
-    /// is in the act's past.
+    /// of it to another owner is held, neither re-binds the other (one in the other's past without re-binding it
+    /// is still live), and no re-binding of that one is in the act's past.
     TwoOwners,
 }
 
@@ -208,12 +208,26 @@ fn stands_on<'a, R: StandingRow>(x: &'a R, rows: &[&'a R]) -> Result<Result<&'a 
     Ok(Ok(b))
 }
 
-// two owners is none: a binding of the node to another owner than `b`'s is held, neither in the other's past,
-// and no re-binding of it is in act `x`'s past. Several live bindings to the same owner are one owner.
+// `c` is `b`, or re-binds `b` through a chain of re-bindings (`on`), among the rows held
+fn rebinds<R: StandingRow>(c: &R, b: &R, rows: &[&R]) -> bool {
+    let mut at = Some(c);
+    for _ in 0..=rows.len() {
+        let Some(r) = at else { return false };
+        if r.id() == b.id() {
+            return true;
+        }
+        at = r.on().and_then(|o| rows.iter().copied().find(|q| q.id() == o && q.kind() == Kind::Binding));
+    }
+    false
+}
+
+// two owners is none: a binding of the node to another owner than `b`'s is held, neither re-binding the other
+// (one in the other's past without re-binding it is still live), and no re-binding of it is in act `x`'s past.
+// Several live bindings to the same owner are one owner.
 fn two_owners<R: StandingRow, P: Past<R::Id>>(x: &R, b: &R, rows: &[&R], past: &P) -> Result<bool, R::Id> {
     for c in rows.iter().filter(|c| c.kind() == Kind::Binding && c.id() != b.id() && c.owner() != b.owner()) {
-        if past.in_past(c.id(), b.id())? || past.in_past(b.id(), c.id())? {
-            continue;
+        if rebinds(*c, b, rows) || rebinds(b, *c, rows) {
+            continue; // one ends the other: a stint, not a rival
         }
         let mut ended = false;
         for e in rows.iter().filter(|e| e.kind() == Kind::Binding && e.on() == Some(c.id())) {

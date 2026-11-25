@@ -33,6 +33,7 @@ counted withdrawal of its duty).
 Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     end_unread       the end is not read: a lone removal stays in force whatever ends its standing
     remover_receipt  a receipt by the remover itself keeps its own removal in force
+    count_unread_lone a removal the room's count carries is read as the moderator's lone act
     reseat_revives   the remover holding `moderate` again (its re-acceptance, a new conferral) puts its removal
                      back in force
 
@@ -121,6 +122,10 @@ CASES = [
     ("the removal names the remover's laying down, at the head before it: it concludes, and is not counted (E4)",
      W + [ST.withdraw("wm", "p1", "g", ("ag",), scope="moderate"), lone("x", "p1", "AG", ("ag",), ("wm",))],
      {"x": T}, P3 | {"AG"}, []),
+    ("the same with another holder's receipt of it: still not counted (E4); the receipt has the end in its past through "
+     "the removal it names, so it keeps nothing either (E8), and no case can tell E4 from E8 here",
+     W + [ST.withdraw("wm", "p1", "g", ("ag",), scope="moderate"), lone("x", "p1", "AG", ("ag",), ("wm",)),
+          receipt("q2", "p2", "x")], {"x": T}, P3 | {"AG"}, []),
     ("the removal at a head with the laying down in its past does not conclude (no standing there)",
      W + [ST.withdraw("wm", "p1", "g", ("ag",), scope="moderate"), admit("j", "n", ("p2", "p3"), ("ag",), cites=("wm",)),
           lone("x", "p1", "AG", ("j",))], {"x": F}, P3 | {"n", "AG"}, []),
@@ -154,6 +159,10 @@ CASES = [
     ("the other holders withdraw the remover's moderate after its removal: out of force",
      W + [X, UND], {"x": T, "xm": T}, P3 | {"AG"}, [("p1", "moderate", F), ("p1", "member", T)]),
     ("the same with a receipt by another holder: in force", W + [X, receipt("q3", "p3", "x"), UND], {"x": T}, P3, []),
+    ("a removal the room's count carries, signed by the moderator with another: the count's act, not the moderator's; "
+     "the moderator's laying down leaves it in force",
+     W + [ST.unseat("x", "p1", "AG", "agent", OBJ, "group", ("ag",), head=("ag",), policy="community_remove",
+                    cosigners=("p2",), window=OV), LAY], {"x": T}, P3, [("p1", "moderate", F)]),
     # ---- a removal at a later head than the end ---------------------------------------------------------------------------
     ("the removal names a head later than the end's, without the end in its past: not counted (E3), the agent seated",
      W + [remove("xp", "p1", ("p2", "p3"), ("ag",)), admit("j", "n", ("p2", "p3"), ("ag",)), lone("x", "p1", "AG", ("j",))],
@@ -167,7 +176,7 @@ CASES = [
     ("two tips with a receipt of the removal by another holder: in force",
      W + [X, receipt("q2", "p2", "x"), remove("xp", "p1", ("p2", "p3"), ("ag",))], {"x": T, "xp": T}, P23, []),
 ]
-PLANTS = ("end_unread", "remover_receipt", "reseat_revives")
+PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone")
 
 
 def read(S, case):
