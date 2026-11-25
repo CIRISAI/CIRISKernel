@@ -18,7 +18,7 @@
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
 use crate::ops;
-use crate::seat::{members_in, members_in_scopes, Obj, SeatKind, SeatLaw, SeatRow};
+use crate::seat::{members_in, members_in_scopes, seat_rule, Obj, SeatKind, SeatLaw, SeatRow};
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
@@ -27,7 +27,9 @@ use alloc::vec::Vec;
 /// What a window row is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WinKind {
-    /// It opens a window.
+    /// It opens a window. A row may be an act of the seat as well (an offer or an unseat that opens its own
+    /// window: a moderator's lone removal of an agent's key): it then concludes only where the seat's rule
+    /// concludes it too.
     Open,
     /// It answers one.
     Answer,
@@ -67,7 +69,7 @@ pub trait WindowRow: SeatRow {
 }
 
 /// How a clause counts.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum How {
     /// A strict majority of the keys counted.
     Strict,
@@ -79,6 +81,11 @@ pub enum How {
     More(u64, u64),
     /// More than `num / den` of n, and never fewer than `least` voices (a strict majority with a floor).
     MoreAtLeast(u64, u64, u64),
+    /// `MoreOfVoted(num, den, least, against)`: more than `num / den` of the keys of the base that voted, and
+    /// never fewer than `least` voices. A key voted if it said the clause's value or `against`; a silent key
+    /// is not counted over (the moderation fallback: "a strict majority of the members who voted, never fewer
+    /// than two voices").
+    MoreOfVoted(u64, u64, u64, String),
 }
 
 /// Which keys a clause counts over.
@@ -86,7 +93,8 @@ pub enum How {
 pub enum Base {
     /// The window's counted scope at the opener's head.
     All,
-    /// The same, less the opener's signer.
+    /// The same, less the opener's signer: out of the voices and out of the size counted over (the members'
+    /// check: a strict majority of the members seated at the head the act names, the act's author apart).
     Others,
     /// Another scope at the opener's head.
     Scope(String),
@@ -233,13 +241,31 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
     // the proposer's withdrawal is its own voice on the opener's clause, and never replaces what it said by opening
     let is_wd = |a: &&R| *a.signer() == x.opener_signer && a.says().is_some_and(|w| w.as_ref() == "withdraw");
     let withdrawn = answers.iter().any(is_wd);
+    // a duty holder's single-signature answer (a value an at-once clause reads as one voice over a named scope,
+    // said by a holder of that scope) is what that key said: a vote the same key also cast is moot
+    let mut duty: BTreeMap<&str, &Base> = BTreeMap::new();
+    for cl in &w.at_once {
+        if cl.how == How::One && matches!(cl.over, Base::Scope(_)) {
+            duty.insert(cl.value.as_str(), &cl.over);
+        }
+    }
+    let duty_word = |a: &R| a.says().and_then(|s| duty.get(s.as_ref()).copied());
+    let acted: BTreeSet<&R::Key> = answers
+        .iter()
+        .copied()
+        .filter(|a| voters.contains(a.signer()) && !is_wd(a))
+        .filter(|a| duty_word(a).is_some_and(|b| x.base(b).contains(a.signer())))
+        .map(|a| a.signer())
+        .collect();
+    let moot = |a: &R| acted.contains(a.signer()) && duty_word(a).is_none();
     // a voice that says two things says nothing
     let by = ops::group_by(answers.iter().copied().filter(|a| voters.contains(a.signer()) && !is_wd(a)), |a| {
         a.signer().clone()
     });
     let mut said: BTreeMap<R::Key, String> = BTreeMap::new();
     for (s, rs) in by {
-        if let Some(v) = ops::one(rs.iter().filter_map(|a| a.says().map(|w| String::from(w.as_ref())))) {
+        let heard = rs.iter().filter(|a| !moot(a));
+        if let Some(v) = ops::one(heard.filter_map(|a| a.says().map(|w| String::from(w.as_ref())))) {
             said.insert(s, v);
         }
     }
@@ -258,10 +284,14 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
             })
             .count() as u64;
         let n = keys.len() as u64;
-        match cl.how {
-            How::AtLeast(num, den, least) => yes >= core::cmp::max(least, (num * n).div_ceil(den)),
-            How::More(num, den) => yes * den > num * n,
-            How::MoreAtLeast(num, den, least) => yes * den > num * n && yes >= least,
+        match &cl.how {
+            &How::AtLeast(num, den, least) => yes >= core::cmp::max(least, (num * n).div_ceil(den)),
+            &How::More(num, den) => yes * den > num * n,
+            &How::MoreAtLeast(num, den, least) => yes * den > num * n && yes >= least,
+            How::MoreOfVoted(num, den, least, against) => {
+                let no = said.iter().filter(|(s, v)| *v == against && keys.contains(*s)).count() as u64;
+                yes * den > num * (yes + no) && yes >= *least
+            }
             How::One => yes >= 1,
             How::Strict => 2 * yes > n,
         }
@@ -299,7 +329,8 @@ fn voices_of<'r, R: WindowRow>(
     answers.iter().copied().filter(|a| !(says(a, "approve") && wd.iter().any(|w| past(w, a.id())))).collect()
 }
 
-/// The conclusion rule for a window row; `None` for a row that is not one (conclude it by the seat).
+/// The conclusion rule for a window row; `None` for a row that is not one (conclude it by the seat). An
+/// opener that is also an offer or an unseat is concluded here by both rules.
 pub fn rule<R: WindowRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
     windows: &Tables<'_, R>,
@@ -324,6 +355,10 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
     let past = |a: &R::Id, b: &R::Id| p.past(a, b);
     if k == WinKind::Open {
         let (Some(w), Some(obj)) = (r.window().and_then(windows), r.obj()) else { return Some(false) };
+        // an act that opens its own window is validly made by the seat's rule too
+        if matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && !seat_rule(p, law, spec, &|_| true) {
+            return Some(false);
+        }
         let scope = w.opener.as_ref().unwrap_or(&w.counted);
         return Some(members_in(&rows, &past, law, spec, &obj, r.head(), scope).contains(r.signer()));
     }

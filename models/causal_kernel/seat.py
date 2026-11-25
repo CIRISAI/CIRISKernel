@@ -43,6 +43,23 @@ What ends a seat.
                ended by a removal from the roster. A seat so conferred is rooted in the group: its conferrer's
                withdrawal or departure does not end it.
 
+An AI agent's key (CC 4.5.13). "No single key removes a member alone, and no duty holder removes another from the
+roster alone. ... An AI agent's key is the exception. A moderator of the room MAY remove it alone and at once, and
+the members may lift that act as they may any act of a moderator."
+    the removal   a counted unseat of the roster's seat that the caller marks `agent=True` (the kernel cannot see a
+                  key record) concludes on its signer's one voice where that signer holds `moderate` over the
+                  object at the head the row names, whatever the room's protocol and however many holders. Not so
+                  marked, or not so signed, it is counted as any removal is.
+    the lift      the removal opens a `moderation_overturn` window (window.py: `window` on the row). The lift's
+                  effect is a row: a counted offer of policy `moderation_overturn` that seats the key again, cites
+                  the removal (`content`), names the head the removal names, and names objections (answers
+                  `object` to the removal). Its voices are the signers of those objections and no other key; the
+                  removal's author is no voice, and neither is the key it seats. It concludes when those voices
+                  are a strict majority of the members at that head, the removal's author apart, never fewer than
+                  two: the overturn's count.
+                  It restores and does not admit: the key it seats was on the roster at that head.
+                  No reading of the roster reads a window: until that row is written the key is out.
+
 Tips wait (KERNEL.md section 7). When several counted acts on one object are concurrent, the holders of a scope
 over it are the keys common to the tips, until a counted act names them all.
 
@@ -137,6 +154,9 @@ POLICY = policy_table()
 # A removal runs under the room's own declared protocol (CC 3.3.4; the table's cell is `protocol`). The rooms of
 # these scenarios declare two thirds. roster.py runs the other protocols.
 POLICY.update({k: ("duty", 0, 0) for k in DUTY_POLICY})          # CC 4.5.4 (iv), read by duty_count, not by met()
+# CC 4.5.13, the members' check as a counted row: the re-seating of an agent's key a moderator removed alone. Read by
+# lift_count, not by met(): a counted row of this policy that is no such re-seating concludes nothing.
+POLICY["moderation_overturn"] = ("lift", 1, 2)
 if POLICY.get("community_remove", ("", 0, 0))[0] == "declared":
     POLICY["community_remove"] = ("atleast", 2, 3)
 
@@ -224,6 +244,48 @@ def duty_count(r, P, yes, mem):
     base = mem - set(r["to"]) if DUTY_POLICY[r["policy"]] == "withdraw" and "count_target" not in MUT else mem
     y = yes & base
     return 2 * len(y) > len(base) and (len(y) >= 2 or len(mem) < 2 or "no_duty_floor" in MUT)
+
+
+def agent_removal(r):
+    """A removal of an agent's key from the roster, as the caller marks it: an unseat of the roster's seat, of one key."""
+    if r["kind"] != "unseat" or r["scope"] not in ROSTER_SEATS or len(r["to"]) != 1: return False
+    return bool(r.get("agent")) or "agent_unread" in MUT            # MUTATION agent_unread: any key may be removed alone
+
+
+def lone_removal(r, P, past):
+    """CC 4.5.13: a moderator of the room removes an agent's key alone. The signer holds `moderate` over the object at
+    the head the row names."""
+    if not agent_removal(r) or r.get("conf") != "group": return False
+    if "moderator_unread" in MUT: return True                       # MUTATION: any key removes an agent's key alone
+    return r["signer"] in members_at(P, past, r["obj"], r.get("head", ()), "moderate")
+
+
+def lift_voices(r, P, past, by):
+    """The voices of a re-seating row, or None where it is none: the signers of the objections it names to the lone
+    removal it cites, less that removal's author."""
+    rem = by.get(r.get("content"))
+    if r["kind"] != "offer" or rem is None or rem["kind"] != "unseat" or not lone_removal(rem, P, past): return None
+    if (rem["obj"], rem["scope"], tuple(rem["to"]), tuple(rem.get("head", ()))) != (r["obj"], r["scope"], tuple(r["to"]), tuple(r.get("head", ()))):
+        return None                                                 # the same seat, at the head the removal names
+    v = frozenset(a["signer"] for a in P if a["kind"] == "answer" and a.get("of") == rem["id"] and a.get("says") == "object"
+                  and a["id"] in r["names"])
+    return v if "author_voice" in MUT else v - {rem["signer"]}      # MUTATION author_voice: the author's objection counts
+
+
+def lift_count(r, P, past, by):
+    """The overturn's count (window.py, moderation_overturn) over the objections a re-seating row names: a strict
+    majority of the members at the head, the removal's author apart (no voice, and not counted over); the key seated
+    is counted over and is no voice; never fewer than two."""
+    v = lift_voices(r, P, past, by)
+    if v is None: return False
+    mem = members_at(P, past, r["obj"], r.get("head", ()), "member")
+    # a lift restores: the key was on the roster at the head the removal names. Without this a moderator's "removal" of
+    # a key never seated, and a strict majority's objections, would admit it past the room's own protocol
+    if not set(r["to"]) <= mem and "restores_unseated" not in MUT: return False
+    yes = (v & mem) - (frozenset() if "seated_voice" in MUT else frozenset(r["to"]))
+    if "lift_over_all" not in MUT: mem = mem - {by[r["content"]]["signer"]}    # MUTATION lift_over_all: the author counted over
+    # the floor of two is the window's; here it follows from the rest (the key seated is counted over and no voice)
+    return 2 * len(yes) > len(mem) and len(yes) >= 2
 
 
 def founding_many(by, obj):
@@ -417,6 +479,12 @@ class Seats:
                 yes = voices(r, P) & mem
                 if r.get("policy") in DUTY_POLICY:
                     if not duty_count(r, P, yes, mem): return False
+                elif K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "lift":
+                    # a re-seating: its voices are the objections it names, over the members the fold seats
+                    v = lift_voices(r, P, past, {q["id"]: q for q in P}) or frozenset()
+                    yes = (v & mem) - frozenset(r["to"])
+                    mem = mem - {S.by[r["content"]]["signer"]} if v else mem      # the removal's author apart
+                    if not (2 * len(yes) > len(mem) and len(yes) >= 2): return False
                 elif not met(r.get("policy"), len(yes), len(mem), r.get("need")): return False
             return True
 
@@ -526,6 +594,8 @@ def seat_rule(r, P, past, table=None, other=None):
             return k == "offer" and r.get("under") in by and r["signer"] in by[r["under"]]["to"]
         if conf == "group":
             heads = r.get("head", ())
+            if k == "unseat" and lone_removal(r, P, past): return True          # CC 4.5.13: a moderator, an agent's key
+            if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "lift": return lift_count(r, P, past, by)
             mem = members_at(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member")) \
                 - left_in_past(P, r.get("over", r["obj"]), r.get("counted", "member"))
             if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":

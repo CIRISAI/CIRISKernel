@@ -279,10 +279,10 @@ A count that is met needs no clock and no concluder: where no landing has conclu
 at-once count gives over the answers held, and short of it the window is open. A landing that states an outcome its own past does not give concludes nothing. An answer concurrent with the
 landing is **recounted**: it is counted with the landing's past, and the landing stands only if the table still
 gives the outcome it stated. **run** (`models/causal_kernel/window_adversary.tsv`): against the five windows
-of the text (the members' check of CC 4.5.13 and the self roster's addition were added on 2026-11-23), forty-seven checks of what each exists to prevent. Recount breaks none. The check that a thief does
+of the text (the members' check of CC 4.5.13 and the self roster's addition were added on 2026-11-23; on 2026-11-25 the members' check was counted over the members less the act's author and the moderation fallback over the members who voted), sixty-six checks of what each exists to prevent. Recount breaks none. The check that a thief does
 not evict alone holds against an owner who signs anything inside the window; an owner who signs nothing
 looks lost. A landing that voids concurrent
-answers breaks eleven, a thief evicting alone among them. An answer that contests any landing breaks two.
+answers breaks twelve, a thief evicting alone among them. An answer that contests any landing breaks two.
 **proved**: `Recount.dishonest_never_stands`, `stands_is_table_over_all_not_late`, and `quorum_closed_final` (a
 landing with a strict majority behind it is final where no key of that majority answers both ways; under rule 6
 of section 6 such a key has no say there), and
