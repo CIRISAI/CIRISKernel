@@ -32,6 +32,8 @@ what runs depends on how many found the community:
     two             neither runs: one voice of two meets no count here, and over a founding row that seats several
                     keys an own offer stands only while its signer's founding seat does. Two founders have no
                     presentation in which either lays down its duty and stays a member. This is open.
+This presentation is interim: it will be replaced by the founding-record rule (CC 4.5.4: a founding record seats its
+listed members and its named duty holders, each by their own signature on it; no count is taken at founding).
 The withdrawal of the founding row ends the duty seats conferred on that holder in its past as well: it is the
 holder's own withdrawal of a seat that holds `member`. Persist's table gives the duty seat `member` and no named duty
 (HOLDS.duty = ("member",)), with each named duty a chained counted row; the cases run that table too.

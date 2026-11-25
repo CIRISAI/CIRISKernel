@@ -30,7 +30,9 @@ seat the duty holders place that is no duty (a node's detector seat); a count ov
   seat, as before), so conferring its duty again now takes its admission first.
 
 Presenting a founding so that a holder can lay down its duty and stay a member is in ADOPTING.md. Two founders
-have no such presentation; that is open.
+have no such presentation; that is open. The presentation is interim: it will be replaced by the founding-record
+rule (CC 4.5.4: a founding record seats its listed members and its named duty holders, each by their own
+signature on it; no count is taken at founding).
 
 The reference: `models/causal_kernel/seat.py`, with `check_duty_seats.py` (37 hand-written cases, every arrival
 order, five planted breaks). The cases are in the `seat` fixture with the standing each asks for, the cases of

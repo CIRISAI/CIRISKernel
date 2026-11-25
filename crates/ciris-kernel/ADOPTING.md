@@ -155,6 +155,9 @@ trusting an adapter.
   voices concludes nothing). With one founder: its own Offer of `member` to itself over the founding row,
   `Conf::Own`. With two founders neither runs (one voice of two meets no count, and an own offer over a
   founding row that seats several stands only while its signer's founding seat does): this is open.
+  This presentation is interim: it will be replaced by the founding-record rule (CC 4.5.4: a founding record
+  seats its listed members and its named duty holders, each by their own signature on it; no count is taken
+  at founding).
 - A holder's withdrawal of the founding row ends the duty seats conferred on it in that withdrawal's past too.
 - Cases: `models/causal_kernel/check_duty_seats.py`, all in the `seat` fixture.
 
