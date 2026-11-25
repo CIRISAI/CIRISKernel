@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [0.4.0]
+
+The first tag of the 0.4 line (`kernel-v0.4.0`), after `kernel-v0.3.0`. Several answers change, one public
+enum gains a variant (`standing::Nobody::TwoOwners`: an exhaustive match breaks), and `SeatRow` gains
+`duty_holders`. Known to be missing, each stated below where it belongs: the owner's statement on an agent's
+duty seat is not read; four ruled readings of a receipt of a lone removal are not built; a counted window
+clause over a duty that leaves an agent out has a case in the reference only (no policy table has such a
+clause, so no fixture carries one).
+
 **A founding record seats its listed members and its named duty holders** (CC 4.5.4: "A founding record seats
 the duty holders it names, each by their own signature on it. ... The record names them in `duty_holders`, a
 map from a duty to the set of members who hold it, each a listed member who signed the record.").
@@ -86,7 +95,7 @@ fixture; two plants.
   `moderate` include it. A counted clause over `moderate` leaves it out of the base and the voices.
 - E3 over seat rows: an end's head that is not held makes nothing later, in the reference and the crate alike.
 - A chain of lone removals is read in polynomial time: `Seats::new` keeps the members at a head for the builds
-  below it (PERF.md). The reference read a chain of six in 6.9 s; it reads twenty-four in 0.18 s.
+  below it, and the seats that give a remover its standing at a head once per (head, object, remover) (PERF.md). The reference read a chain of six in 6.9 s; it reads twenty-four in 0.18 s.
 - `Seats::holders("member", o)` may hold an agent that holds a seat whose `holds` include `member` (a duty of
   scope `duty` under such a table); a caller wanting persons applies `seat::persons` with the agents. Ruled: an
   agent's key may hold a duty and is no voice in any count, the duty's own included.
