@@ -203,6 +203,10 @@ names (`models/causal_kernel/roomkey.py`, `rule`).
 with `of` that act, all under the wire row's own id (`tests/conferral_end.rs`,
 `one_receipt_naming_several_acts`).
 
+**Two bindings of one node**, for `standing::answers`: present every binding of the node you hold, a re-binding
+with `on()` the binding it ends. Two bindings to different owners that do not name each other leave the node with
+no owner (`Nobody::TwoOwners`) until a re-binding of one is in the act's past.
+
 **A deputy edge**, for `conferral::answers`. This is the deputy of an exercised standing, not the delegation
 chain of `Seats::stands` above.
 - The edge is a `Kind::Act` signed by whoever deputizes, naming the head it is at. Nothing marks it: a row is

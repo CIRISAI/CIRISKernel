@@ -81,6 +81,7 @@ plant "a lone removal's end unread"                 src/seat.rs 'None => out_of_
 plant "a remover's own receipt keeps its removal"   src/seat.rs 'duty.remove(m); // never the remover'"'"'s own receipt' ''
 plant "a receipt after the end keeps a removal"     src/seat.rs 'acks.iter().any(|&q| e.is_none_or(|e| !g.in_past(e, q)))' '!acks.is_empty() || e.is_none()'
 plant "a removal at a later head than the end counts" src/seat.rs '!g.in_past(e, x) && !later(&head_of(e)) && kept(Some(e))' '!g.in_past(e, x) && kept(Some(e))'
+plant "two live owners still give an owner"          src/standing.rs 'Ok(true) => drop(out.insert(x.id().clone(), Answer::Nobody(Nobody::TwoOwners))),' 'Ok(true) => at.push((x, b)),'
 plant "a re-seating admits a key never seated"          src/seat.rs 'if !r.to().iter().all(|k| held.contains(k)) {' 'if false {'
 plant "an election's tie broken by list order"         src/ranked.rs 'back: if declared { -(index(o) as i64) } else { 0 }' 'back: -(index(o) as i64)'
 plant "a version counts though what it builds on does not" src/line.rs 'if builds_on(i).iter().all(|e| out.contains(e)) {' 'if true {'

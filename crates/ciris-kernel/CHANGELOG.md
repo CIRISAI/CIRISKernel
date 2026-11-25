@@ -50,6 +50,18 @@ changes. New cases: a member-only founding, a counted conferral of `moderate` on
 member (seated), that member's resignation (the duty ends), its re-admission (nothing revives), and a counted
 removal. Two plants in the crate.
 
+**Two owners is none, in `standing::answers`** (CC 3.2: a key with two live owner-bindings naming different owners
+has no owner; `seat::Seats::one` runs that rule). Where the rows hold a binding of the node to another owner than
+the one the act's acceptance names, neither binding in the other's past, and no re-binding of that other binding
+in the act's past, the act counts for nobody: `Answer::Nobody(Nobody::TwoOwners)` (`"two_owners"`), new. Before,
+the two bindings were read as two stints and the act counted under the one its acceptance names. Several live
+bindings to the same owner are one owner, and a re-binding that names the binding before it is unchanged. A
+binding is live at the act unless a re-binding of it is in the act's past, the reading `chain_answers` already
+gives a stint's end; so an act whose past holds only the first owner's binding counts for nobody once the reader
+holds a concurrent binding to another owner, and one whose past holds a re-binding of that other binding stands.
+An exhaustive `match` on `standing::Nobody` adds the arm. The reference: `chain_answers` in
+`check_conferral_two.py`, with five cases (`TWO_CASES`) in the `conferral_two` fixture; one plant.
+
 **A moderator's lone removal is in force only while the end rule says so** (CC 4.5.13 with CC 2.4.1.1 and CC
 4.5.5). Before, the seat walk asked only whether the removal concluded; nothing in `seat` read the end of the
 moderator's standing. No signature changes.
