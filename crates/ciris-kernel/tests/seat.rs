@@ -86,6 +86,12 @@ fn seat_scenarios() {
             sc.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
         let rows = rows_with_refs(sc.at("rows").arr(), &refs);
         let a = sc.at("a");
+        // a scenario read under another table of what a seat holds carries it (`holds`)
+        let own_law = sc.get("holds").map(|h| World {
+            law: SeatLaw { holds: h.obj().iter().map(|(k, v)| (k.clone(), v.strs())).collect(), ..w.law.clone() },
+            windows: w.windows.clone(),
+        });
+        let w = own_law.as_ref().unwrap_or(&w);
         let c = conclude(kept(&rows, |_| true), |p| w.rule(&name, p), None);
         let mut cmp = |ok: bool, what: String| {
             cases += 1;
@@ -141,6 +147,15 @@ fn seat_scenarios() {
                 );
                 let tips = sorted_ids(q.tips(&ob).iter().map(|&i| &c.g.row(i).id));
                 cmp(tips == rd.at("tips").at(o).strs(), format!("tips of {o} for {reader}"));
+            }
+        }
+        // the standing a scenario asks for by name (check_duty_seats.py's cases)
+        if let Some(asks) = sc.get("stands") {
+            let q = Seats::new(&c, &w.law, &spec, None);
+            for ask in asks.arr() {
+                let (k, s, o, want) = (ask.arr()[0].s(), ask.arr()[1].s(), ask.arr()[2].s(), ask.arr()[3].b());
+                let got = q.stands(&k.to_string(), s, &obj_named(&rows, o), None);
+                cmp(got == want, format!("{k} stands in {s} over {o}"));
             }
         }
         for (pid, want) in a.at("windows").obj() {

@@ -984,7 +984,10 @@ def check_duty(spec, inst):
     """CC 4.5.4 community law on the one mechanism: members and duty holders, no other tier. The founding record seats
     the duty holders who sign it. (iv) conferral by a strict majority of the holders, withdrawal by a strict majority of
     the others, never fewer than two voices where there are two holders; a lone holder confers alone with the new
-    holder's acceptance. (iii) holders are equals. A removal from the roster ends the removed member's duty seats."""
+    holder's acceptance. (iii) holders are equals. A removal from the roster ends the removed member's duty seats.
+    A duty seat stands only on a member (seat.py, `member`), so each world that confers one first admits the key it
+    confers on, by the room's own count (`adm`); the conferral is then counted over that admission as its head. The
+    worlds test the duty holders' count, and check_duty_seats.py tests the membership condition itself."""
     src = "CC 4.5.4 Community law (iii), (iv); 'a non-member holds no duty'"
     duty = lambda S: ST.Seats(S).holders("duty", "g")
     def found(keys): return RS.found(spec, keys, scope="duty")
@@ -995,6 +998,7 @@ def check_duty(spec, inst):
         return ST.unseat(i, signers[0], k, "duty", "g", "group", tuple(head), head=tuple(head), policy="duty_withdraw",
                          counted="duty", cosigners=tuple(signers[1:]))
     lone = lambda i, signer, k, under="g", names=("g",): [ST.offer(i, signer, k, "duty", "g", "seat", names, under=under), ST.accept("a" + i, k, i)]
+    adm = lambda k, signers: [RS.accept(spec, "ac" + k, k), RS.add(spec, "m" + k, ("g",), k, signers, names=("ac" + k,))]   # the widening that makes k a member
     def prop(name, worlds, mut, mut_name):
         def p(S, rows, n):
             got = duty(S)
@@ -1005,18 +1009,18 @@ def check_duty(spec, inst):
             m = run(spec, [(w[0], w[1]) for w in worlds], p, orders=False)
         return result(inst, name, src, verdict_of(base), base, mut_name, m)
     res = []
-    W = [("a lone holder confers alone, the new holder accepting", [found(("A",))] + lone("o", "A", "B"), frozenset({"A", "B"})),
-         ("one holder of two confers alone", [found(("A", "B"))] + lone("o", "A", "C"), frozenset({"A", "B"}))]
+    W = [("a lone holder confers alone, the new holder accepting", [found(("A",))] + adm("B", ("A",)) + lone("o", "A", "B"), frozenset({"A", "B"})),
+         ("one holder of two confers alone", [found(("A", "B"))] + adm("C", ("A", "B")) + lone("o", "A", "C"), frozenset({"A", "B"}))]
     res.append(prop("a lone duty holder confers alone with the new holder's acceptance; one of two confers nothing alone", W, "lone_any",
                     "any holder confers alone"))
-    W = [("two of three confer", [found(("A", "B", "C")), confer("o", ("A", "B"), "D")], frozenset({"A", "B", "C", "D"})),
+    W = [("two of three confer", [found(("A", "B", "C"))] + adm("D", ("A", "B")) + [confer("o", ("A", "B"), "D", head=("mD",))], frozenset({"A", "B", "C", "D"})),
          ("four holders: two of the three others withdraw the fourth", [found(("A", "B", "C", "D")), withdraw("x", ("A", "B"), "D")], frozenset({"A", "B", "C"}))]
     res.append(prop("conferral by a strict majority of the holders; withdrawal by a strict majority of the others, the holder concerned not counted", W,
                     "count_target", "the holder concerned counted in its own withdrawal"))
     W = [("two holders: one withdraws the other alone", [found(("A", "B")), withdraw("x", ("A",), "B")], frozenset({"A", "B"}))]
     res.append(prop("where there are two holders, no duty seat is withdrawn on fewer than two voices", W, "no_duty_floor", "no floor of two voices"))
-    W = [("A confers alone, then withdraws the offer", [found(("A",))] + lone("o", "A", "B") + [ST.withdraw("w", "A", "o", ("ao",))], frozenset({"A", "B"})),
-         ("A confers alone, then leaves", [found(("A",))] + lone("o", "A", "B") + [ST.withdraw("w", "A", "g", ("ao",))], frozenset({"B"}))]
+    W = [("A confers alone, then withdraws the offer", [found(("A",))] + adm("B", ("A",)) + lone("o", "A", "B") + [ST.withdraw("w", "A", "o", ("ao",))], frozenset({"A", "B"})),
+         ("A confers alone, then leaves", [found(("A",))] + adm("B", ("A",)) + lone("o", "A", "B") + [ST.withdraw("w", "A", "g", ("ao", "mB"))], frozenset({"B"}))]
     res.append(prop("holders are equals: the key that conferred a duty seat does not end it alone", W, "duty_ranked", "a conferrer's withdrawal ends what it conferred"))
     W = [("the room removes a duty holder from its roster", [found(("A", "B", "C"))] + RS.remove(spec, "x", ("g",), "C", ("A", "B")), frozenset({"A", "B"}))]
     res.append(prop("a removal from the roster ends the removed member's duty seats (a non-member holds no duty)", W, "member_cut_only",
@@ -1027,10 +1031,10 @@ def check_duty(spec, inst):
     stands = lambda S, k, s: ST.Seats(S).stands(k, s, "g")
     own = lambda i, signer, k, s: [ST.offer(i, signer, k, s, "g", "self", ("g",)), ST.accept("a" + i, k, i)]
     W2 = [("one of two holders seats detect:x alone", [found(("A", "B"))] + own("o", "A", "C", "detect:x"), ("C", "detect:x", False)),
-          ("one of two holders seats a declared duty alone", [gd(("A", "B"))] + own("o", "A", "C", "verify"), ("C", "verify", False)),
+          ("one of two holders seats a declared duty alone", [gd(("A", "B"))] + adm("C", ("A", "B")) + own("o", "A", "C", "verify"), ("C", "verify", False)),
           ("the lone holder seats detect:x, the holder accepting", [found(("A",))] + own("o", "A", "C", "detect:x"), ("C", "detect:x", True)),
           ("two of three seat a declared duty, and its holder is a duty holder",
-           [gd(("A", "B", "D")), ST.offer("o", "A", "C", "verify", "g", "group", ("g",), head=("g",), policy="duty_confer", counted="duty", cosigners=("B", "C"))],
+           [gd(("A", "B", "D"))] + adm("C", ("A", "B")) + [ST.offer("o", "A", "C", "verify", "g", "group", ("mC",), head=("mC",), policy="duty_confer", counted="duty", cosigners=("B", "C"))],
            ("C", "duty", True))]
     def ps(S, rows, n):
         k, s, want = dict((w[0], w[2]) for w in W2)[n]

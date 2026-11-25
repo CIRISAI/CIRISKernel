@@ -1,5 +1,44 @@
 # Changelog — ciris-kernel
 
+## Unreleased
+
+**A duty seat stands only on a member** (CC 4.5.4, "a non-member holds no duty"). Answers change; no signature
+does, and one function is added (`seat::stay_ended_in_past`).
+
+Reached: a community whose founding row is of scope `duty`, and there a seat that makes its holder a duty
+holder (`duty`, a duty the law names, a duty the founding row declares). Not reached: any other community; a
+seat the duty holders place that is no duty (a node's detector seat); a count over a scope that is no duty.
+
+- `seat::Seats::recs`, `stands`, `holders`, `holders_at`, `stands_at`, `one`, and through them
+  `seat::members_at`, `members_in`, `count_members` and `seat_rule`: a duty seat conferred on a key that holds
+  no roster seat over the community (a `member` seat, or the founding seat where it holds `member`) is not
+  live. Before, `duty_confer` on a non-member seated it. When the key's widening lands the seat is live with no
+  further row. Such a key is no duty holder, so it is not counted in, and is no voice of, a duty count.
+- A holder's own withdrawal of a seat that holds `member` over the community (its member seat, its acceptance of
+  one, or the founding row) ends the duty seats whose offers are in that withdrawal's past. Before, a member
+  had to withdraw each offer. A counted removal from the roster ended them already and still does.
+- Nothing revives: a later admission of the key does not make live a duty offer so ended. A conferral that is
+  not in the end's past (made after it, or concurrent with it) is not ended by it: it waits for the next
+  admission like any conferral on a non-member.
+- At several tips a duty seat is live only where the folded roster (`tips_fold("member", ..)`) seats its
+  holder.
+- `seat::count_members` (and so `seat_rule`): a count over duty holders also leaves out a holder whose own end
+  of its stay as a member is in the counted row's past with no admission of it after (`stay_ended_in_past`,
+  new and public). A caller of `group_count` that subtracts `left_in_past` itself subtracts this too for a
+  count over duty holders.
+- A founding holder whose duty the others withdraw is no member afterwards (its membership was its founding
+  seat, as before), so conferring its duty again now takes its admission first.
+
+Presenting a founding so that a holder can lay down its duty and stay a member is in ADOPTING.md. Two founders
+have no such presentation; that is open.
+
+The reference: `models/causal_kernel/seat.py`, with `check_duty_seats.py` (37 hand-written cases, every arrival
+order, five planted breaks). The cases are in the `seat` fixture with the standing each asks for, the cases of
+persist's table (`HOLDS.duty = ("member",)`) under that table. Nine plants in `tools/kernel_crate_plants.sh`.
+The worlds of `attacks.py`, `window.py` and `check_rosters.py` that conferred a duty on a key that was no
+member now admit that key first; the two moderation windows therefore run over four members, and the adversary
+table is 61 rows and 50 checks (recount breaks none).
+
 ## [0.3.0]
 
 The first tag of the 0.3 line (`kernel-v0.3.0`). It follows `kernel-v0.2.2`, which persist pins, and carries

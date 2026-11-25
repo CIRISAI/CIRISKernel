@@ -42,6 +42,17 @@ What ends a seat.
                strict majority of the others, never on fewer than two voices where there are two holders, and
                ended by a removal from the roster. A seat so conferred is rooted in the group: its conferrer's
                withdrawal or departure does not end it.
+    member     a duty seat stands only where its holder holds the roster's seat over the same community at the
+               same reading (a member seat, or the founding seat, which holds `member`). A conferral on a key that
+               is not a member seats nobody, is no voice in a duty count, and stands with no further row once the
+               key's widening lands. An end of the holder's stay ends the duty seats whose offers are in that
+               end's past: a counted removal from the roster, or the holder's own withdrawal of a seat that holds
+               `member` over the community. Nothing revives: a later admission does not seat an offer so ended. A
+               conferral that is not in the end's past (made after it, or beside it) waits for the next admission
+               like any conferral on a non-member. At tips the duty seat follows the folded roster.
+               Only where the community's founding row is of scope `duty`, and only a seat that makes its holder
+               a duty holder (`duty`, a named duty, a duty the record declares): another seat the duty holders
+               place, a node's detector seat for one, is not asked for membership.
 
 Tips wait (KERNEL.md section 7). When several counted acts on one object are concurrent, the holders of a scope
 over it are the keys common to the tips, until a counted act names them all.
@@ -211,6 +222,44 @@ def duty_seat(by, o):
     return o["scope"] not in ROSTER_SEATS
 
 
+def duty_room(by, obj):
+    """obj is a community whose founding row seats duty holders (the only place the duty rules engage)."""
+    g = by.get(obj)
+    return g is not None and g["kind"] == "offer" and g["obj"] == g["id"] and g["scope"] == "duty"
+
+
+def roster_seat(o, holds=None):
+    """An offer of the roster's own seat over a community: a scope its duty holders do not place (ROSTER_SEATS), or the
+    founding row itself, where the seat it offers holds `member`. Every other offer over the community is a duty seat."""
+    if not (o["id"] == o["obj"] or o["scope"] in ROSTER_SEATS): return False
+    return covers(o["scope"], "member") or "member" in K.rule(HOLDS if holds is None else holds, o["scope"], ())
+
+
+def stay_ends(rows, by, holds=None):
+    """The holders' own ends of a stay as a member, among `rows`: (withdrawal, key, community) for each withdrawal by a
+    key of an offer of the roster's seat that names it, or of its own acceptance of one (the offer the acceptance
+    names, or a standing acceptance's own scope and object). Read from the rows alone."""
+    out = []
+    for w in rows:
+        if w["kind"] != "withdraw": continue
+        t, k = by.get(w.get("target")), w["signer"]
+        if t is None: continue
+        if t["kind"] == "accept" and t["signer"] == k:
+            if t["of"] is not None: t = by.get(t["of"])
+            elif t.get("obj") is not None and t.get("scope") in ROSTER_SEATS and duty_room(by, t["obj"]):
+                out.append((w, k, t["obj"])); continue
+            else: continue
+        if t is None or t["kind"] != "offer" or k not in t["to"]: continue
+        if duty_room(by, t["obj"]) and roster_seat(t, holds): out.append((w, k, t["obj"]))
+    return out
+
+
+def duty_held(by, o):
+    """A duty seat proper: a seat the duty holders place over their community (duty_seat) whose scope makes its holder a
+    duty holder. The seat the membership rule reaches."""
+    return duty_seat(by, o) and is_duty(o["scope"], declared(by, o["obj"]))
+
+
 def _lone(r, P, by):
     """CC 4.5.4 (iv): a duty conferred by one key stands only if that key is then the one duty holder over the object."""
     if "lone_any" in MUT: return True
@@ -260,12 +309,23 @@ class Seats:
         self.stale = V = CP.void(S, C, own, checkpoint)         # counted acts built on one that does not count, or behind the reader's line
         unseats = [u for u in K.sel(Cs, kind="unseat") if C.counts(u) and u["id"] not in V]
 
+        left = stay_ends(wd, S.by, holds)                       # the holders' own ends of a stay as a member
+        gone = {(k, g) for _, k, g in left}
+
+        def resigned(o, k):
+            """A duty seat whose offer is in the past of its holder's own end of its stay as a member is ended by it."""
+            if "duty_revives" in MUT or "resign_keeps_duty" in MUT or not duty_held(S.by, o): return False
+            return any(k2 == k and g == o["obj"] and ((pos[o["id"]] < pos[w["id"]]) if by_arrival else (o["id"] in S.anc[w["id"]]))
+                       for w, k2, g in left)
+
         def unseated(o, k):
             for u in unseats:
                 # a removal from the roster ends the removed member's duty seats too, "since a non-member holds no duty" (CC 4.5.4)
                 held = ("seat", k, o["scope"], o["obj"]) in u["cuts"] or (
                     "member_cut_only" not in MUT and (is_duty(o["scope"]) or duty_seat(S.by, o)) and ("seat", k, "member", o["obj"]) in u["cuts"])
                 if not held: continue
+                # MUTATION duty_revives: a removal from the roster ends no duty seat by its past, so the next admission seats the old offer
+                if "duty_revives" in MUT and ("seat", k, o["scope"], o["obj"]) not in u["cuts"] and duty_held(S.by, o): continue
                 # MUTATION by_arrival: an unseat ends the offers that were held before it, by list position
                 if (pos[o["id"]] < pos[u["id"]]) if by_arrival else (o["id"] in S.anc[u["id"]]): return True
             return False
@@ -280,7 +340,7 @@ class Seats:
             return False
 
         base = [(o, k) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V
-                for k in o["to"] if not off_ended(o, k) and accepted(o, k) and not unseated(o, k)]
+                for k in o["to"] if not off_ended(o, k) and accepted(o, k) and not unseated(o, k) and not resigned(o, k)]
 
         def step(live):
             at = {(oid, k): (d, root) for oid, k, d, root in live}
@@ -301,6 +361,16 @@ class Seats:
             return frozenset(out)
 
         self.live = K.fix(step, frozenset(), depth + 1)       # one link per pass: at most `depth` links below a root
+        # a duty seat stands only where its holder holds the roster's seat over the same community at this reading. The
+        # walk is run again without the duty seats of keys that are not members, until none is left (a seat under one falls too)
+        while "duty_no_member" not in MUT:
+            mem = {(S.by[oid]["obj"], k) for oid, k, _, _ in self.live if roster_seat(S.by[oid], holds)}
+            # MUTATION resign_keeps_duty: a key that ended its own stay still reads as a member for its duty seats
+            keep = [(o, k) for o, k in base if not duty_held(S.by, o) or (o["obj"], k) in mem
+                    or ("resign_keeps_duty" in MUT and (k, o["obj"]) in gone)]
+            if len(keep) == len(base): break
+            base[:] = keep
+            self.live = K.fix(step, frozenset(), depth + 1)
         self.recs = [{"id": "%s/%s" % (oid, k), "offer": oid, "k": k, "scope": S.by[oid]["scope"], "obj": S.by[oid]["obj"],
                       "depth": d, "root": root} for oid, k, d, root in self.live]
 
@@ -315,13 +385,19 @@ class Seats:
         if s == "duty" and is_duty(rec["scope"], declared(self.S.by, rec["obj"])): return True   # a holder of any one duty is a duty holder
         return covers(rec["scope"], s) or s in K.rule(self.holds, rec["scope"], ())
 
+    def _member(self, rec):
+        """A duty seat follows the folded roster: with several tips, its holder is among the members the fold seats."""
+        if "duty_no_member" in MUT or "duty_fold_unread" in MUT or not duty_held(self.S.by, self.S.by[rec["offer"]]): return True
+        fold = self.tips_fold("member", rec["obj"])
+        return fold is None or rec["k"] in fold
+
     def stands(self, k, s, o, root=None):
-        if not any(self._has(r, s) and (root is None or r["root"] == root) for r in K.sel(self.recs, k=k, obj=o)): return False
+        if not any(self._has(r, s) and (root is None or r["root"] == root) and self._member(r) for r in K.sel(self.recs, k=k, obj=o)): return False
         fold = self.tips_fold(s, o)                             # with several tips, the fold of their changes
         return fold is None or k in fold
 
     def holders(self, s, o, root=None):
-        got = frozenset(r["k"] for r in K.sel(self.recs, obj=o) if self._has(r, s) and (root is None or r["root"] == root))
+        got = frozenset(r["k"] for r in K.sel(self.recs, obj=o) if self._has(r, s) and (root is None or r["root"] == root) and self._member(r))
         fold = self.tips_fold(s, o)
         return got if fold is None else got & fold
 
@@ -412,7 +488,7 @@ class Seats:
                 over, counted = r.get("over", r["obj"]), r.get("counted", "member")
                 if (over, counted) == (o, s): ok = seated if "one_step" not in MUT else (union - out_keys)
                 else: ok = self.tips_fold(counted, over)                 # another scope's own fold; None: one tip there
-                mem = members_at(P, past, over, r.get("head", ()), counted) - left_in_past(P, over, counted)
+                mem = members_at(P, past, over, r.get("head", ()), counted) - count_left(P, past, over, counted)
                 if ok is not None: mem = mem & ok
                 yes = voices(r, P) & mem
                 if r.get("policy") in DUTY_POLICY:
@@ -482,6 +558,25 @@ def left_in_past(P, obj, scope="member"):
     return frozenset(out)
 
 
+def stay_ended_in_past(P, past, obj):
+    """The keys whose own end of a stay as a member of obj is among P (a counted row's past) with no admission of the
+    key after it there: a count over the duty holders that has such an end in its past does not count that key, since
+    the end ended its duty seats. The counted removal needs no such reading: it is a head, read by members_at."""
+    if "leaving_unread" in MUT or "resign_keeps_duty" in MUT: return frozenset()
+    by = {q["id"]: q for q in P}
+    if not duty_room(by, obj): return frozenset()
+    back = lambda w, k: any(m["kind"] == "offer" and m["obj"] == obj and k in m["to"] and roster_seat(m) and past(w["id"], m["id"]) for m in P)
+    return frozenset(k for w, k, g in stay_ends(P, by) if g == obj and not back(w, k))
+
+
+def count_left(P, past, obj, scope):
+    """The keys a count over `scope` at obj leaves out for a leaving in its row's past: the leaving of that seat, and for
+    a count over duty holders, the end of the key's stay as a member. A count over another scope is as it was."""
+    out = left_in_past(P, obj, scope)
+    by = {q["id"]: q for q in P}
+    return out | stay_ended_in_past(P, past, obj) if is_duty(scope, declared(by, obj)) else out
+
+
 def voices(r, P):
     """The keys that signed r: its signer, its cosigners, and the signers of the cosign rows it names that themselves
     name every head r is counted over."""
@@ -527,7 +622,7 @@ def seat_rule(r, P, past, table=None, other=None):
         if conf == "group":
             heads = r.get("head", ())
             mem = members_at(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member")) \
-                - left_in_past(P, r.get("over", r["obj"]), r.get("counted", "member"))
+                - count_left(P, past, r.get("over", r["obj"]), r.get("counted", "member"))
             if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
                 # the count is the ranked tally: the ballots the row names, one voice each, and the row seats the winner
                 ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot") if b["id"] in r["names"] and b["signer"] in mem]

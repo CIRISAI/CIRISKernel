@@ -288,15 +288,17 @@ def seat_cases():
     rules = {id(A.SEAT): "seat", id(A.WIN): "window", id(A.ROUTE): "route"}
     seen, scen, skipped = {}, [], {"rules": 0}
 
-    def record(rows, rule):
+    def record(rows, rule, asks=None, table=None):
+        """`asks`: (key, scope, object) the scenario also states `stands` for. `table`: read under another HOLDS
+        (check_duty_seats.py's `persist`); the scenario then carries its own `holds`."""
         name = rules.get(id(rule))
         if name is None:
             skipped["rules"] += 1
             return
-        key = (name, json.dumps([row_enc(r) for r in rows], sort_keys=True))
+        key = (name, table, json.dumps([row_enc(r) for r in rows], sort_keys=True))
         if key not in seen:
             seen[key] = True
-            scen.append((name, list(rows)))
+            scen.append((name, list(rows), list(asks or ()), table))
 
     orig_conc = A.conc
 
@@ -318,6 +320,11 @@ def seat_cases():
     import check_delegation as DG
     for _name, rows, _asks in DG.CASES:
         record(rows, A.SEAT)
+    # a duty seat stands only on a member: check_duty_seats.py's cases, under the seat rule, each with the standing
+    # it asks for; the cases of persist's table carry that table
+    import check_duty_seats as DS
+    for _name, rows, asks, tab in DS.CASES:
+        record(rows, A.SEAT, [(k, sc, DS.OBJ) for k, sc, _ in asks], tab)
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
@@ -338,11 +345,18 @@ def seat_cases():
         record(rows, A.SEAT)
     rulefn = {"seat": A.SEAT, "window": A.WIN, "route": A.ROUTE}
     problems, out = [], []
-    for i, (name, rows) in enumerate(scen):
+    for i, (name, rows, asks, tab) in enumerate(scen):
         check_rows(rows, problems, "scenario %d" % i)
-        S = CK.concluded(CK.kept(list(rows)), rulefn[name])
-        refs = {}
-        out.append({"rule": name, "rows": with_refs(rows, refs), "refs": refs, "a": enc(seat_answers(S, ST, WN, CUT, CP))})
+        with DS.table(tab):
+            S = CK.concluded(CK.kept(list(rows)), rulefn[name])
+            refs = {}
+            e = {"rule": name, "rows": with_refs(rows, refs), "refs": refs, "a": enc(seat_answers(S, ST, WN, CUT, CP))}
+            if asks:
+                Q = ST.Seats(S)
+                e["stands"] = [[k, sc, o, Q.stands(k, sc, o)] for k, sc, o in asks]
+            if tab:
+                e["holds"] = enc(ST.HOLDS)
+        out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
            "policy": {k: list(v) for k, v in ST.POLICY.items()}}

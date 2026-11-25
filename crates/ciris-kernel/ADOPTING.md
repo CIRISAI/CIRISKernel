@@ -134,6 +134,30 @@ trusting an adapter.
 - A founder is whatever scope the caller seats it in. `members_at(.., scope)` answers for the scope asked.
 - `SeatRow::regime`: the protocol and policy in force at each counted act, on every counted act.
 
+**A community's founding and its duty seats**, for `seat::Seats` (unreleased; see the CHANGELOG).
+- The founding row: an Offer, `Conf::Own`, scope `duty`, whose object is its own id, `to` the union of the duty
+  holders, each a cosigner. With `SeatLaw::holds["duty"]` containing `member`, each founding holder is a member
+  by that seat: its membership is its founding duty seat, and its withdrawal of the founding row, or the
+  others' withdrawal of its duty, ends both.
+- A named duty is a chained counted row: an Offer, `Conf::Group`, policy `duty_confer`, counted `duty`, over
+  the head it extends. With `holds["duty"] = ["member"]` only, a founding holder holds no named duty until such
+  a row. It lays that duty down by withdrawing that offer, and stays a member and a duty holder.
+- A duty seat is live only on a member. Present the widening that admits a key before, or with, the conferral
+  on it: a conferral on a key that is not yet a member seats nobody, with no error, and is live once the
+  widening is held.
+- A member's resignation (a Withdraw by the member of its member offer or of its own acceptance of it) and a
+  counted removal (an Unseat of scope `member`) end its duty seats whose offers are in that row's past. Present
+  them as that one row; do not also unseat each duty. After a re-admission present fresh conferrals: the old
+  offers stay ended.
+- For a founding holder to lay down its founding duty seat and stay a member it needs a member seat beside it.
+  With three founders or more: one chained counted Offer of scope `member` per founding holder, signed by the
+  other holders (a key the row seats is no voice of its count, so one row seating all founders on their own
+  voices concludes nothing). With one founder: its own Offer of `member` to itself over the founding row,
+  `Conf::Own`. With two founders neither runs (one voice of two meets no count, and an own offer over a
+  founding row that seats several stands only while its signer's founding seat does): this is open.
+- A holder's withdrawal of the founding row ends the duty seats conferred on it in that withdrawal's past too.
+- Cases: `models/causal_kernel/check_duty_seats.py`, all in the `seat` fixture.
+
 **A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,
 members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
 voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row

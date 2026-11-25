@@ -301,7 +301,7 @@ def rule(r, P, past):
     if not ok or spec is None or r["kind"] not in ("offer", "unseat") or r.get("conf") != "group": return ok
     if r["id"] == r["obj"]: return ok
     mem = ST.members_at(P, past, r.get("over", r["obj"]), r.get("head", ()), r.get("counted", spec.counted)) \
-        - ST.left_in_past(P, r.get("over", r["obj"]), r.get("counted", spec.counted))      # a key that left in the version's past
+        - ST.count_left(P, past, r.get("over", r["obj"]), r.get("counted", spec.counted))  # a key that left in the version's past
     v = ST.voices(r, P) & mem
     if r["kind"] == "offer":
         acc = [a for a in K.sel(P, kind="accept") if a["id"] in r["names"] and a["signer"] in r["to"]]
