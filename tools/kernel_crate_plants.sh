@@ -95,7 +95,8 @@ plant "a holder's end of its stay ends another key's duty seats" src/seat.rs '*k
 plant "at tips a duty seat does not follow the folded roster" src/seat.rs '!self.duty[i]
             || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))' 'true || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))'
 plant "the founding seat is no member seat" src/seat.rs 'let own = (o.obj() == Some(Obj::Row(o.id().clone())) && o.scope().map(|x| x.as_ref()) == Some(s)) || roster;' 'let own = roster;'
-plant "every seat the duty holders place asks for membership" src/seat.rs 'duty_seat(law, by, o) && law.is_duty(sc.as_ref(), &declared(by, &obj))' 'duty_seat(law, by, o)'
+plant "every seat over a community asks for membership" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty(sc.as_ref(), &declared(by, &obj))' 'community(by, &obj) && !founding(o) && !roster'
+plant "the duty-seat rule reaches duty rooms only" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty' 'duty_room(by, &obj) && !founding(o) && !roster && law.is_duty'
 plant "a duty count counts a holder whose resignation is in its past" src/seat.rs 'if !mem.is_empty() && law.is_duty(counted, &duties) {' 'if false {'
 plant "a holder admitted again stays out of the duty count" src/seat.rs 'if !back {' 'if true {'
 plant "a founding record's duty holders unread" src/seat.rs 'if o.duty_holders().is_empty() || !founding(o) {' 'if true {'

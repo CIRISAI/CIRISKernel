@@ -16,8 +16,8 @@
 //! Whether an offer or an unseat was validly made is concluded ([`seat_rule`]); whether a seat is live now
 //! is derived ([`Seats`]). No instant, digest or list position is read.
 //!
-//! **A duty seat stands only on a member** (CC 4.5.4, "a non-member holds no duty"). Over a community whose
-//! founding row is of scope `duty`, a seat that makes its holder a duty holder stands only where that holder
+//! **A duty seat stands only on a member** (CC 4.5.4, "a non-member holds no duty"). Over any community (an
+//! object that is its own founding row), a seat that makes its holder a duty holder stands only where that holder
 //! holds the roster's seat over the same community at the same reading: a member seat, or the founding seat
 //! where it holds `member`. A conferral on a key that is not a member seats nobody and is no voice in a duty
 //! count; when the key's widening lands the seat stands with no further row. An end of the holder's stay ends
@@ -477,15 +477,24 @@ fn duty_room<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, obj: &ObjOf<R>) -> bool {
     })
 }
 
-/// A duty seat proper, the seat of `o` in scope `sc`: a seat the duty holders place over their community
-/// ([`duty_seat`]) whose scope makes its holder a duty holder, or a duty seat a founding row gives by its
-/// `duty_holders` map. The seat the membership rule reaches.
+/// A community: an object that is its own founding row. The duty-seat rule (a duty seat stands only on the
+/// roster's seat; an end of the stay ends the duty seats before it) reaches every community, whatever its
+/// founding row seats (CC 4.5.4: "a non-member holds no duty").
+fn community<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, obj: &ObjOf<R>) -> bool {
+    row_of(by, obj).is_some_and(|g| g.seat_kind() == SeatKind::Offer && founding(g))
+}
+
+/// A duty seat proper, the seat of `o` in scope `sc`: over a community, a seat of another row whose scope is
+/// no roster seat and makes its holder a duty holder, or a duty seat a founding row gives by its
+/// `duty_holders` map. The seat the membership rule reaches, in every community. (Who may confer it is
+/// [`duty_seat`]'s, and that is unchanged.)
 fn duty_held<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, o: &R, sc: &R::Word) -> bool {
     if founding_duty(o, sc) {
         return true;
     }
     let Some(obj) = o.obj() else { return false };
-    duty_seat(law, by, o) && law.is_duty(sc.as_ref(), &declared(by, &obj))
+    let roster = o.scope().is_some_and(|s| law.roster_seats.iter().any(|x| x == s.as_ref()));
+    community(by, &obj) && !founding(o) && !roster && law.is_duty(sc.as_ref(), &declared(by, &obj))
 }
 
 /// The seat of offer `o` in scope `s` is the roster's own over a community: a scope its duty holders do not
@@ -521,7 +530,7 @@ fn stay_end<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, w: &R) -> Opti
             None => {
                 let (obj, s) = (t.obj()?, t.scope()?);
                 let roster = law.roster_seats.iter().any(|x| x == s.as_ref());
-                return (roster && duty_room(by, &obj)).then_some(obj);
+                return (roster && community(by, &obj)).then_some(obj);
             }
         }
     }
@@ -529,7 +538,7 @@ fn stay_end<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, w: &R) -> Opti
         return None;
     }
     let obj = t.obj()?;
-    (duty_room(by, &obj) && roster_offer(law, t)).then_some(obj)
+    (community(by, &obj) && roster_offer(law, t)).then_some(obj)
 }
 
 fn founding_many<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, obj: &ObjOf<R>) -> bool {
@@ -1276,7 +1285,7 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
         let d = q.holders("duty", &obj, None);
         duty = Some(match duty {
             None => d,
-            Some(x) => x.intersection(&d).cloned().collect(),
+            Some(before) => before.intersection(&d).cloned().collect(),
         });
     }
     let mut duty = duty.unwrap_or_default();
@@ -1515,12 +1524,11 @@ pub fn left_in_past<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>, scope: &str
 
 /// The keys whose own end of a stay as a member of `obj` is among `p` (a counted row's past) with no
 /// admission of the key after it there: a count over the duty holders with such an end in its past does not
-/// count that key, since the end ended its duty seats. Empty where `obj` is not a community whose founding row
-/// seats duty holders. A counted removal needs no such reading: it is a head, read by [`members_at`].
+/// count that key, since the end ended its duty seats. Empty where `obj` is not a community. A counted removal needs no such reading: it is a head, read by [`members_at`].
 pub fn stay_ended_in_past<R: SeatRow>(p: &Past<'_, '_, R>, law: &SeatLaw, obj: &ObjOf<R>) -> BTreeSet<R::Key> {
     let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
     let mut out = BTreeSet::new();
-    if !duty_room(&by, obj) {
+    if !community(&by, obj) {
         return out;
     }
     for w in p.rows().filter(|w| w.seat_kind() == SeatKind::Withdraw) {

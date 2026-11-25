@@ -60,9 +60,11 @@ What ends a seat.
                `member` over the community. Nothing revives: a later admission does not seat an offer so ended. A
                conferral that is not in the end's past (made after it, or beside it) waits for the next admission
                like any conferral on a non-member. At tips the duty seat follows the folded roster.
-               Only where the community's founding row seats duty holders, and only a seat that makes its holder
-               a duty holder (`duty`, a named duty, a duty the record declares): another seat the duty holders
-               place, a node's detector seat for one, is not asked for membership.
+               Over every community, whatever its founding row seats (a room founded with members only, whose
+               members' count confers a duty, included), and only a seat that makes its holder a duty holder
+               (`duty`, a named duty, a duty the record declares): another seat, a node's detector seat for one,
+               is not asked for membership. Who may confer a duty is unchanged: the duty holders' count or the
+               lone holder where the founding row seats duty holders (duty_seat), the room's count otherwise.
 
 An AI agent's key (CC 4.5.13). An agent "acts under its own key and has no vote"; "a recall and an election count
 its persons alone". "No single key removes a member alone, and no duty holder removes another from the roster
@@ -299,6 +301,15 @@ def duty_seat(by, o):
     return o["scope"] not in ROSTER_SEATS
 
 
+def community(by, obj):
+    """obj is a community: an object that is its own founding row. The duty-seat rule (a duty seat stands only on
+    the roster's seat; an end of the stay ends the duty seats before it) reaches every community, whatever its
+    founding row seats (CC 4.5.4: "a non-member holds no duty")."""
+    g = by.get(obj)
+    if "member_rule_duty_rooms_only" in MUT: return duty_room(by, obj)   # MUTATION: the rule reaches duty rooms only
+    return g is not None and g["kind"] == "offer" and g["obj"] == g["id"]
+
+
 def duty_room(by, obj):
     """obj is a community whose founding row seats duty holders (the only place the duty rules engage): a founding row
     of scope `duty`, or one whose `duty_holders` map names a holder."""
@@ -329,11 +340,11 @@ def stay_ends(rows, by, holds=None):
             continue                                                # it lays down one duty seat, and the stay goes on
         if t["kind"] == "accept" and t["signer"] == k:
             if t["of"] is not None: t = by.get(t["of"])
-            elif t.get("obj") is not None and t.get("scope") in ROSTER_SEATS and duty_room(by, t["obj"]):
+            elif t.get("obj") is not None and t.get("scope") in ROSTER_SEATS and community(by, t["obj"]):
                 out.append((w, k, t["obj"])); continue
             else: continue
         if t is None or t["kind"] != "offer" or k not in t["to"]: continue
-        if duty_room(by, t["obj"]) and roster_seat(t, holds): out.append((w, k, t["obj"]))
+        if community(by, t["obj"]) and roster_seat(t, holds): out.append((w, k, t["obj"]))
     return out
 
 
@@ -342,7 +353,9 @@ def duty_held(by, o, sc=None):
     duty holder, or a duty seat a founding row gives by its `duty_holders` map. The seat the membership rule reaches."""
     sc = o["scope"] if sc is None else sc
     if founding_duty(o, sc): return True
-    return duty_seat(by, o) and is_duty(sc, declared(by, o["obj"]))
+    # over any community, a seat whose scope makes its holder a duty holder (who may confer it is duty_seat's)
+    g = by.get(o["obj"])
+    return community(by, o["obj"]) and g["id"] != o["id"] and o["scope"] not in ROSTER_SEATS and is_duty(sc, declared(by, o["obj"]))
 
 
 def _lone(r, P, by):
@@ -826,7 +839,7 @@ def stay_ended_in_past(P, past, obj):
     the end ended its duty seats. The counted removal needs no such reading: it is a head, read by members_at."""
     if "leaving_unread" in MUT or "resign_keeps_duty" in MUT: return frozenset()
     by = {q["id"]: q for q in P}
-    if not duty_room(by, obj): return frozenset()
+    if not community(by, obj): return frozenset()
     back = lambda w, k: any(m["kind"] == "offer" and m["obj"] == obj and k in m["to"] and roster_seat(m) and past(w["id"], m["id"]) for m in P)
     return frozenset(k for w, k, g in stay_ends(P, by) if g == obj and not back(w, k))
 

@@ -223,8 +223,8 @@ covers 18 of them, three are read off the row judged (`author`, `self`, `subject
 founding record seats the duty holders who sign it, and they are equals (CC 4.5.4). A duty seat is conferred
 by a strict majority of the duty holders, or by the lone holder with the new holder's acceptance. It is
 withdrawn by a strict majority of the others, never on fewer than two voices where there are two holders.
-A duty seat stands only on a member: it stands only where its holder holds the roster's seat over the same
-community at the same reading, so a conferral on a key that is not a member seats nobody and is no voice in a
+A duty seat stands only on a member, in every room whatever its founding row seats: it stands only where its
+holder holds the roster's seat over the same community at the same reading, so a conferral on a key that is not a member seats nobody and is no voice in a
 duty count, and it stands with no further row when the key's widening lands. An end of the holder's stay as a
 member, its own resignation or a counted removal, ends the duty seats whose offers are in that end's past, and
 a later admission revives none of them; a conferral that is not in the end's past waits for the next
@@ -235,7 +235,7 @@ listed member who did not sign is seated in nothing, and so is a key an entry na
 The seats end separately: a founder's withdrawal of the record naming one duty ends that seat only, and one
 naming no seat ends its stay and every duty seat it held. A seat the duty
 holders place that makes its holder no duty holder (a node's detector seat) is not asked for membership.
-**run** (`models/causal_kernel/check_duty_seats.py`): 52 cases in every arrival order, eight planted breaks
+**run** (`models/causal_kernel/check_duty_seats.py`): 56 cases in every arrival order, nine planted breaks
 caught. **open**: the members' check (`moderation_overturn`) counts the objection of the duty holder whose act it is, now that
 the duty holder is a member, and the sentence that it has no say in the lift is not a rule of the table.
 **run**: five properties, each with a deliberate break that is caught. `owner` and the steward of an agent are one

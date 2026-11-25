@@ -150,7 +150,8 @@ trusting an adapter.
   `SeatLaw::holds["duty"]` containing `member` that seat is its membership, so its withdrawal ends both.
 - A duty conferred after the founding is a counted row: an Offer, `Conf::Group`, policy `duty_confer`, counted
   `duty`, over the head it extends. Its holder lays it down by withdrawing that offer.
-- A duty seat is live only on a member. Present the widening that admits a key before, or with, the conferral
+- A duty seat is live only on a member, in every room, whatever its founding row seats (a room founded with
+  members only included). Present the widening that admits a key before, or with, the conferral
   on it: a conferral on a key that is not yet a member seats nobody, with no error, and is live once the
   widening is held.
 - A member's resignation (a Withdraw by the member of its member offer or of its own acceptance of it) and a
@@ -179,7 +180,10 @@ trusting an adapter.
   duty), the removal ends nothing for that reader unless a receipt of it is held. Present a duty holder's
   receipt as a `SeatKind::Ack` row with `of()` the removal and no `room()`, signed by a holder other than the
   moderator. A reader's acknowledgement of a head keeps `room()` and `head()` as before.
-- `content` reads no seat: a host decides who may post and who reads from `Seats::roster` itself.
+- `content::answers` reads no seat row: the caller marks each roster version (`ContentRow::seat`, `SeatAt`)
+  for the author. For an agent's rows mark it by its `agent` seat (in `Seats::roster`), as a member's by its
+  member seat; its stay begins at the version that admits it in `agent` and ends at its removal or
+  resignation. The audience of a room is `Seats::roster`.
 
 **A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,
 members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its

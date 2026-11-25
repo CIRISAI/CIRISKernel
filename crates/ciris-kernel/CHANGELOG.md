@@ -29,10 +29,26 @@ map from a duty to the set of members who hold it, each a listed member who sign
   record's cases replace them.
 
 The reference: `seat.found`, `seat.seat_scopes`, and `withdraw(..., scope=)` in `models/causal_kernel/seat.py`;
-`check_duty_seats.py` has 52 cases (the founding record with one, two and three founders, a duty laid down, the
+`check_duty_seats.py` has 56 cases (the founding record with one, two and three founders, a duty laid down, the
 stay ended, a duty conferred after the founding, a counted removal, a counted duty withdrawal of a founding seat,
 a founder with no entry, an unsigned listed member, an entry naming a key that is not listed) in every arrival
-order, and eight planted breaks. Three new plants in `tools/kernel_crate_plants.sh`.
+order, and nine planted breaks. Three new plants in `tools/kernel_crate_plants.sh`.
+
+**The duty-seat rule reaches every room.** "Under the text a duty seat conferred by any path stands only while its
+holder is a member." Before, the membership condition and the no-revival half engaged only over a community whose
+founding row seats duty holders. Now, over any community (an object that is its own founding row), a seat whose
+scope makes its holder a duty holder (`duty`, a duty the law names, one the record declares) is live only where
+its holder holds the roster's seat (`member`, or `agent`) at the same reading, and a holder's own end of its stay
+ends the duty seats conferred before it, as a counted removal does. `seat::stay_ended_in_past` reads every
+community. Who may confer a duty is unchanged (the duty holders' count or the lone holder where the founding row
+seats duty holders; the room's count otherwise, and "the members' count seats one" where no duty holder is
+left). A node's detector seat is still not asked for membership. Answers that change: a room founded with
+members only whose members' count confers `moderate` on a key that is no member seats nobody (the case of
+`check_duty_seats.py` that said "not reached" now answers no); in `check_agent_removal.py` world A the moderator
+is admitted before its conferral, so the roster there gains it, and no conclusion or window outcome of that world
+changes. New cases: a member-only founding, a counted conferral of `moderate` on a non-member (nobody) and on a
+member (seated), that member's resignation (the duty ends), its re-admission (nothing revives), and a counted
+removal. Two plants in the crate.
 
 **A moderator's lone removal is in force only while the end rule says so** (CC 4.5.13 with CC 2.4.1.1 and CC
 4.5.5). Before, the seat walk asked only whether the removal concluded; nothing in `seat` read the end of the
@@ -108,7 +124,8 @@ Answers that change:
 - The duty-seat rule asks for the roster's seat: for an agent that is its `agent` seat. An agent's withdrawal of
   its `agent` seat is an end of its stay (it ends the duty seats in its past), and a counted unseat of that seat
   ends them as a removal of a member's does. At tips the duty seat of an agent follows the folded `agent` seat.
-- `content` reads no seat, and is unchanged; a host reads the audience from `Seats::roster`.
+- `content` reads no seat row, and is unchanged: the caller's `SeatAt` marks for an agent's rows come from its
+  `agent` seat, and a host reads the audience from `Seats::roster`.
 
 The reference: `seat.AGENT`, `Seats.roster`, `seat.counted_keys` and `agents_at` in `seat.py`; `window._base`
 reads `counted_keys`. `check_agent_seat.py` is new: 19 cases in arrival orders and three planted breaks (an
@@ -126,8 +143,9 @@ count and in a window), on the lone-holder rule and on the roster; the fixture's
 does, and one function is added (`seat::stay_ended_in_past`).
 
 Reached: a community whose founding row is of scope `duty`, and there a seat that makes its holder a duty
-holder (`duty`, a duty the law names, a duty the founding row declares). Not reached: any other community; a
-seat the duty holders place that is no duty (a node's detector seat); a count over a scope that is no duty.
+holder (`duty`, a duty the law names, a duty the founding row declares). Not reached: any other community (now
+reached: see "The duty-seat rule reaches every room" above); a seat the duty holders place that is no duty (a
+node's detector seat); a count over a scope that is no duty.
 
 - `seat::Seats::recs`, `stands`, `holders`, `holders_at`, `stands_at`, `one`, and through them
   `seat::members_at`, `members_in`, `count_members` and `seat_rule`: a duty seat conferred on a key that holds
@@ -161,7 +179,7 @@ case: a member who holds no duty opens the check, and nothing is opened. The fal
 conferred `moderate` on a key off the roster now admit it first; one keeps it off the roster to show that its
 vote is no vote. `check_agent_removal.py` gains two cases in a community founded with scope `duty`: a moderator
 conferred on a non-member removes nothing, and the same key admitted first removes an agent's key alone. Its
-world A, founded with scope `member`, is not reached by this rule and keeps its non-member moderator.
+world A, founded with scope `member`, was not reached by this rule then; it is now, and its moderator is a member.
 
 **Answers change in two windows; a moderator's lone removal of an AI agent's key and its lift (CC 4.5.13).**
 Three public types change, and one trait gains a method.

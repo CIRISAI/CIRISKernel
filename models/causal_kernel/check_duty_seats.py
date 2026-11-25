@@ -35,8 +35,11 @@ A founding row of scope `duty` with no map is read as before: every key it seats
 holds `member`, so its withdrawal of the founding row ends both. Persist's table gives that seat `member` and no
 named duty (HOLDS.duty = ("member",)); the cases run that table too.
 
-What the rule does not reach, each a case below: a community whose founding row is not of scope `duty`; a seat the
-duty holders place that makes its holder no duty holder (a node's detector seat). A deputy's edge is no seat
+The rule reaches every community, whatever its founding row seats (CC 4.5.4: "a non-member holds no duty"): a room
+founded with members only, whose members' count confers a duty, is held to it too; who may confer a duty is as
+before (the duty holders' count or the lone holder where the founding row seats duty holders, the room's count
+otherwise). What the rule does not reach, a case below: a seat the duty holders place that makes its holder no duty
+holder (a node's detector seat). A deputy's edge is no seat
 (conferral_end.py), and its case there answers as it did.
 
 Every case is a hand-written answer, read in every arrival order of its rows (a fixed sample of 300 where there are
@@ -51,6 +54,7 @@ Planted breaks, each of which must change a case's answer:
     holders_unread      a founding record's `duty_holders` map is not read: it seats members only
     unsigned_seated     a listed member who did not sign the founding record is seated
     scope_unread        a withdrawal's `scope` is not read: laying down one duty ends the founder's stay
+    member_rule_duty_rooms_only  the membership rule reaches only rooms whose founding row seats duty holders
 
 Not here: the count that confers or withdraws a duty seat (check_rosters.py, the duty instance); a count over a scope
 that is no duty; the term of a seat; an act done under a duty seat after it ends (conferral_end.py).
@@ -109,6 +113,9 @@ MD2 = admit("md2", "D", ("A", "B"), ("cd",), ("wd",))                    # D adm
 MD2X = admit("md2", "D", ("A", "B"), ("xd",))                            # D admitted again after its removal
 CD2 = confer("cd2", "D", "moderate", ("A", "B"), ("md2",))               # a fresh conferral over the re-admission
 CM = confer("cm", "A", "moderate", ("B", "C"), ("g",))                   # persist's table: a named duty is a counted row
+# a member-only room's members' count confers `moderate` (counted over `member`)
+MCD = lambda i, k, heads: ST.offer(i, "A", k, "moderate", OBJ, "group", tuple(heads), head=tuple(heads), policy="community_invite",
+                                   counted="member", cosigners=("B", k))
 G1 = ST.offer("g", "A", ("A",), "duty", "@", "self")                     # a lone founder (scope duty, no map)
 MS1 = ST.offer("ms", "A", "A", "member", OBJ, "self", ("g",))            # and its own offer of `member` to itself
 # founding records: listed members A, B, C (where present), duty_holders {moderate: [A, B], review: [A]}
@@ -247,14 +254,25 @@ CASES = [
      [G, remove("xc", "C", ("A", "B"), ("g",)), admit("md", "D", ("B", "C"), ("g",)), confer("cd", "D", "moderate", ("A", "B"), ("md",))],
      [("D", "member", F), ("D", "moderate", F), ("D", "duty", F), ("A", "moderate", T), ("C", "member", F)], None),
     # ---- what the rule does not reach -----------------------------------------------------------------------------
-    ("not reached: a room whose founding row is not of scope duty; its members' count seats a key that is no member to moderate",
-     [GM, ST.offer("cd", "A", "D", "moderate", OBJ, "group", ("g",), head=("g",), policy="community_invite", counted="member", cosigners=("B", "D"))],
-     [("D", "moderate", T), ("D", "member", F)], None),
+    # ---- a room founded with members only: the rule reaches it too ----------------------------------------------------
+    ("a member-only founding: the members' count confers moderate on a key that is no member, and seats nobody",
+     [GM, MCD("cd", "D", ("g",))], [("D", "moderate", F), ("D", "member", F)], None),
+    ("the same conferral on a member seats it",
+     [GM, admit("md", "D", ("A", "B", "C"), ("g",)), MCD("cd", "D", ("md",))], [("D", "moderate", T), ("D", "member", T)], None),
+    ("that member resigns: its duty seat ends",
+     [GM, admit("md", "D", ("A", "B", "C"), ("g",)), MCD("cd", "D", ("md",)), ST.withdraw("wd", "D", "md", ("cd",))],
+     [("D", "moderate", F), ("D", "member", F)], None),
+    ("re-admitted after that, nothing revives",
+     [GM, admit("md", "D", ("A", "B", "C"), ("g",)), MCD("cd", "D", ("md",)), ST.withdraw("wd", "D", "md", ("cd",)),
+      admit("md2", "D", ("A", "B", "C"), ("cd",), ("wd",))], [("D", "moderate", F), ("D", "member", T)], None),
+    ("a member-only founding: a counted removal from the roster ends the member's moderate seat",
+     [GM, admit("md", "D", ("A", "B", "C"), ("g",)), MCD("cd", "D", ("md",)), remove("xd", "D", ("A", "B", "C"), ("cd",))],
+     [("D", "moderate", F), ("D", "member", F)], None),
     ("not reached: a seat the duty holders place that is no duty (a node's detector seat) stands on a key that is no member, and makes it no duty holder",
      [G, confer("cn", "N", "detect:list1", ("A", "B"), ("g",))], [("N", "detect:list1", T), ("N", "member", F), ("N", "duty", F)], None),
 ]
 PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_only", "duty_fold_unread", "holders_unread",
-          "unsigned_seated", "scope_unread")
+          "unsigned_seated", "scope_unread", "member_rule_duty_rooms_only")
 
 
 @contextlib.contextmanager
