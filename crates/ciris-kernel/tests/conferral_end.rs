@@ -19,7 +19,6 @@ struct CRow {
     target: Option<String>,
     via: Option<String>,
     lifts: bool,
-    deputy_edge: bool,
     sub_delegation: bool,
 }
 
@@ -50,9 +49,6 @@ impl ConferralRow for CRow {
     fn lifts(&self) -> bool {
         self.lifts
     }
-    fn deputy_edge(&self) -> bool {
-        self.deputy_edge
-    }
     fn sub_delegation(&self) -> bool {
         self.sub_delegation
     }
@@ -81,7 +77,6 @@ fn row(j: &J) -> CRow {
         target: opt("target"),
         via: opt("via"),
         lifts: j.get("lifts").is_some_and(|v| v.b()),
-        deputy_edge: j.get("sub").is_some_and(|v| v.b()),
         sub_delegation: j.get("sub_delegation").is_some_and(|v| v.b()),
     }
 }
@@ -243,7 +238,6 @@ fn one_receipt_naming_several_acts() {
         target: None,
         via: None,
         lifts: false,
-        deputy_edge: false,
         sub_delegation: false,
     };
     let base = [

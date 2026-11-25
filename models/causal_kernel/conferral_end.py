@@ -13,9 +13,10 @@ only the count's own receipts keep anything).
 Rows (the kernel's row shape: an `id`, a `kind`, a `signer`, the ids it `names`, and the fields a rule reads):
     head          a roster version, a bundle version, or an owner binding; `names` the heads it extends
     act           an exercised act of the grantee (or of a deputy): `head` the head it names (None: an uncited
-                  act, from before this change), `sub` true for a deputy edge, `via` the deputy edge a deputy's
-                  act is under (a deputy edge with a `via` is an onward hop: a deputy deputizing),
-                  `sub_delegation` true on a deputy edge that may be passed on
+                  act, from before this change), `via` the deputy edge a deputy's act is under,
+                  `sub_delegation` true on a deputy edge that may be passed on. Nothing marks a row as a
+                  deputy edge: an act is one exactly when another act's `via` names it, and an edge that
+                  itself has a `via` is an onward hop (a deputy deputizing)
     end           the end of the grantee's standing: `head` (h_e), `lifts` (a count end for a compromise)
     receipt       a clean ack of one act (`of`) by the ender's side
     removal       a removal of key `target`
@@ -39,10 +40,12 @@ Rules, in the order they decide (the name a failing test reports):
                          past, is held (the conferrer; a co-holder or the named receipter unless a count end lifts
                          receipts; the receipter's only before its seat's end; never the act's own signer)
     E2.forward           counted at its own head (at, before or concurrent with h_e, or no head at all), not in force
-    E6.depth             an act more than `deputy_depth` deputy edges from the seat (its `via` chain, and itself
-                         if it is a deputy edge): not counted
-    E6.no_sub            an onward hop (a deputy edge that has a `via`) under an edge that does not carry
-                         `sub_delegation`: not counted. The first hop, an edge of the grantee's own, needs none
+    E6.depth             an act more than `deputy_depth` `via` hops from the grantee's own edge: not counted
+    E6.no_sub            an act whose deputy edge is an onward hop (the edge itself has a `via`) under an edge
+                         that does not carry `sub_delegation`: not counted. Read from the rows' `via` alone: the
+                         row above the act's edge either carries it or does not. The first hop, an edge of
+                         the grantee's own, needs none. The onward row itself, judged as an act, is its
+                         signer's own act one hop higher and counts there; it confers nothing
     E6.upstream          a deputy's act whose deputy edge does not count (or is not in force)
 """
 
@@ -141,8 +144,8 @@ def answers(rows, reader_acks=(), other_standing=False, who="all", deputy_depth=
     memo = {}
 
     def depth(x):
-        """The deputy edges from the seat to `x`: its `via` chain, and itself if it is a deputy edge."""
-        n = 1 if by[x].get("sub") else 0
+        """The `via` hops from `x` up to the grantee's own edge."""
+        n = 0
         while by[x].get("via"):
             x, n = by[x]["via"], n + 1
         return n
@@ -157,7 +160,7 @@ def answers(rows, reader_acks=(), other_standing=False, who="all", deputy_depth=
             c, f, rule = end_rule(x)
             if depth(x) > deputy_depth:
                 c, f, rule = False, False, "E6.depth" if c else rule
-            elif r.get("via") and r.get("sub") and not by[r["via"]].get("sub_delegation"):
+            elif r.get("via") and by[r["via"]].get("via") and not by[by[r["via"]]["via"]].get("sub_delegation"):
                 c, f, rule = False, False, "E6.no_sub" if c else rule
             elif r.get("via"):
                 uc, uf, _ = ans(r["via"])
@@ -206,9 +209,9 @@ T, F = True, False
 def CHAIN2(sub_delegation, s="s", c="c"):
     """Depth two at H0: the grantee's edge s1 to C, C's act c1 under it, C's onward edge s2 to C2, and C2's act
     c2 under that. `sub_delegation`: whether s1 may be passed on."""
-    return [act(s + "1", "H0", sub=True, sub_delegation=sub_delegation),
+    return [act(s + "1", "H0", sub_delegation=sub_delegation),
             act(c + "1", "H0", [s + "1"], signer="C", via=s + "1"),
-            act(s + "2", "H0", [s + "1"], signer="C", sub=True, via=s + "1"),
+            act(s + "2", "H0", [s + "1"], signer="C", via=s + "1"),
             act(c + "2", "H0", [s + "2"], signer="C2", via=s + "2")]
 
 
@@ -217,7 +220,7 @@ def _chain6():
     rows = []
     for k in range(1, 7):
         up = {"via": "s%d" % (k - 1)} if k > 1 else {}
-        rows.append(act("s%d" % k, "H0", list(up.values()), signer=who[k - 1], sub=True, sub_delegation=True, **up))
+        rows.append(act("s%d" % k, "H0", list(up.values()), signer=who[k - 1], sub_delegation=True, **up))
     return rows + [act("c5", "H0", ["s5"], signer="C5", via="s5"), act("c6", "H0", ["s6"], signer="C6", via="s6")]
 
 
@@ -325,9 +328,9 @@ CASES = [
     ("deputy_receipted_under_edge_out_of_force", "the deputy's act is receipted by the conferrer, and its deputy "
      "edge is counted and not in force: both bits pass down, each to its own, so the act counts and is not in "
      "force (E6); with the edge receipted too, it is in force",
-     [H0, end("H0"), act("s1", "H0", sub=True), act("c1", "H0", ["s1"], signer="C", via="s1"),
+     [H0, end("H0"), act("s1", "H0"), act("c1", "H0", ["s1"], signer="C", via="s1"),
       receipt("q1", "c1", CONFERRER),
-      act("s2", "H0", sub=True), act("c2", "H0", ["s2"], signer="C", via="s2"),
+      act("s2", "H0"), act("c2", "H0", ["s2"], signer="C", via="s2"),
       receipt("q2", "c2", CONFERRER), receipt("q3", "s2", CONFERRER)], {},
      {"s1": (T, F, "E2.forward"), "c1": (T, F, "E6.upstream"),
       "s2": (T, T, "E8.receipt"), "c2": (T, T, "E8.receipt")}),
@@ -342,8 +345,8 @@ CASES = [
     # deputies, the end's own validity, the reader's line, a removed grantee
     ("deputy", "a deputy edge at H1 (later than h_e) does not count, so its deputy's act does not either; one at "
      "H0 counts and its deputy's act at H0 counts too, neither in force",
-     [H0, H1, end("H0"), act("s1", "H1", sub=True), act("c1", "H0", ["s1"], signer="C", via="s1"),
-      act("s2", "H0", sub=True), act("c2", "H0", ["s2"], signer="C", via="s2")], {},
+     [H0, H1, end("H0"), act("s1", "H1"), act("c1", "H0", ["s1"], signer="C", via="s1"),
+      act("s2", "H0"), act("c2", "H0", ["s2"], signer="C", via="s2")], {},
      {"s1": (F, F, "E3.later_head"), "c1": (F, F, "E6.upstream"), "s2": (T, F, "E2.forward"),
       "c2": (T, F, "E2.forward")}),
     # deputy chains: the first hop needs no sub-delegation, an onward hop needs it on the edge above, at most
@@ -358,19 +361,31 @@ CASES = [
      [H0] + CHAIN2(True) + [end("H0")], {},
      {"s1": (T, F, "E2.forward"), "c1": (T, F, "E2.forward"), "s2": (T, F, "E2.forward"),
       "c2": (T, F, "E2.forward")}),
-    ("deputy_chain_no_sub", "the grantee's edge to C carries no sub-delegation: C's own act counts, C's onward "
-     "edge does not, and C2's act under it does not",
-     [H0] + CHAIN2(False), {}, {"s1": (T, T, "no_end"), "c1": (T, T, "no_end"), "s2": (F, F, "E6.no_sub"),
-                                "c2": (F, F, "E6.upstream")}),
-    ("deputy_chain_of_six", "six edges, each carrying sub-delegation: the fifth deputy's act counts; the sixth "
-     "edge does not, nor the sixth deputy's act",
+    ("deputy_chain_no_sub", "the grantee's edge s1 to C carries no sub-delegation. C's row s2 is a row like "
+     "any act of C's, with `via` s1, and nothing marks it as an edge; C2's act c2 has `via` s2. C's own acts "
+     "c1 and s2 count, one hop under s1. c2 does not: the row it stands on is an onward hop, and the edge "
+     "above that carries no sub-delegation. The gate is read from the `via` of the rows, so no presentation "
+     "of s2 passes it",
+     [H0] + CHAIN2(False), {}, {"s1": (T, T, "no_end"), "c1": (T, T, "no_end"), "s2": (T, T, "no_end"),
+                                "c2": (F, F, "E6.no_sub")}),
+    ("deputy_chain_no_sub_at_the_second_edge", "three edges: s1 carries sub-delegation and s2, under it, does "
+     "not. C2's act c2 under s2 counts (s2 is an onward hop under s1, which carries it). C2's row s3 is C2's "
+     "own act under s2 and counts as that. C3's act c3 under s3 does not count: s3 is an onward hop under "
+     "s2. An act under c3 falls with it",
+     [H0, act("s1", "H0", sub_delegation=True), act("s2", "H0", ["s1"], signer="C", via="s1"),
+      act("c2", "H0", ["s2"], signer="C2", via="s2"), act("s3", "H0", ["s2"], signer="C2", via="s2"),
+      act("c3", "H0", ["s3"], signer="C3", via="s3"), act("c4", "H0", ["c3"], signer="C4", via="c3")], {},
+     {"s1": (T, T, "no_end"), "s2": (T, T, "no_end"), "c2": (T, T, "no_end"), "s3": (T, T, "no_end"),
+      "c3": (F, F, "E6.no_sub"), "c4": (F, F, "E6.no_sub")}),
+    ("deputy_chain_of_six", "six edges, each carrying sub-delegation: the fifth deputy's act counts, five hops "
+     "from the grantee's edge, and so does its row s6, also five hops; the sixth deputy's act, six hops, "
+     "does not",
      [H0] + CHAIN6, {},
-     dict({"s%d" % k: (T, T, "no_end") for k in range(1, 6)},
-          c5=(T, T, "no_end"), s6=(F, F, "E6.depth"), c6=(F, F, "E6.depth"))),
-    ("deputy_chain_depth_one", "the cap is a parameter of the call: at depth 1 the onward edge does not count, "
-     "sub-delegation or not",
+     dict({"s%d" % k: (T, T, "no_end") for k in range(1, 7)}, c5=(T, T, "no_end"), c6=(F, F, "E6.depth"))),
+    ("deputy_chain_depth_one", "the cap is a parameter of the call: at depth 1 a deputy's deputy does not "
+     "count, sub-delegation or not; the deputy's own rows do",
      [H0] + CHAIN2(True), {"deputy_depth": 1},
-     {"s1": (T, T, "no_end"), "c1": (T, T, "no_end"), "s2": (F, F, "E6.depth"), "c2": (F, F, "E6.depth")}),
+     {"s1": (T, T, "no_end"), "c1": (T, T, "no_end"), "s2": (T, T, "no_end"), "c2": (F, F, "E6.depth")}),
     ("deputy_chain_middle_receipted", "after the end, the middle edge s2 and the act under it are receipted by "
      "the conferrer and the top edge s1 is not: s2 and c2 count and are not in force (both bits pass down, "
      "each to its own); with the top edge t1 receipted too, t2 and d2 are in force; with the top receipted "
@@ -472,8 +487,9 @@ def fixture():
             "cases": cases}
 
 
-def _row_text(r):
-    """One row in a compact form for the case table: id:kind:signer, then head=, of=, target=, via=, lifts, names=."""
+def _row_text(r, edge=False):
+    """One row in a compact form for the case table: id:kind:signer, then head=, of=, target=, via=, lifts, names=.
+    `edge`: another act's `via` names it (it is a deputy edge by the rows, not by a mark)."""
     bits = ["%s:%s:%s" % (r["id"], r["kind"], r["signer"])]
     if r["kind"] in ("act", "end"):
         bits.append("head=%s" % (r.get("head") or "-"))
@@ -482,7 +498,7 @@ def _row_text(r):
             bits.append("%s=%s" % (k, r[k]))
     if r.get("lifts"):
         bits.append("lifts")
-    if r.get("sub"):
+    if edge:
         bits.append("deputy_edge")
     if r.get("sub_delegation"):
         bits.append("sub_delegation")
@@ -505,7 +521,7 @@ def table():
         name, about, rows, params, _ = c[:5]
         got = answers(rows, **params)
         ps = ",".join("%s=%s" % (k, v if not isinstance(v, list) else "+".join(v)) for k, v in sorted(params.items())) or "-"
-        rt = " | ".join(_row_text(r) for r in rows)
+        rt = " | ".join(_row_text(r, any(q.get("via") == r["id"] for q in rows)) for r in rows)
         for x in sorted(got):
             a = got[x]
             lines.append("\t".join([name, x, str(a["counted"]).lower(), str(a["in_force"]).lower(), a["rule"],

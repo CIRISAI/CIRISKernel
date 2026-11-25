@@ -141,15 +141,16 @@ more budget.
 ### The end of a conferral
 
 `conferral::answers` is checked against the case table of `models/causal_kernel/conferral_end.py`
-(`tests/fixtures/conferral_end.json`; 41 cases, each with its rows listed in every order the fixture gives
+(`tests/fixtures/conferral_end.json`; 42 cases, each with its rows listed in every order the fixture gives
 and in reverse). That reference is the weakR reading of `models/tla/ConferralEnd.tla`, and is compared with
 that spec state by state.
 
 A second run withholds one row at a time from the caller's past. Every act is then either undecided, naming
 the row that is missing, or judged exactly as it is over the rows that are held.
 
-The deputy gates (an onward hop needs sub-delegation on the edge above it; at most `Standing::deputy_depth`
-edges from the seat) are in six of those cases. The TLA+ spec has one deputy edge and does not reach them.
+The deputy gates (an act under an onward hop needs sub-delegation on the edge above that hop; at most
+`Standing::deputy_depth` `via` hops from the grantee's edge; both read from the rows' `via`, with no mark of
+an edge) are in seven of those cases. The TLA+ spec has one deputy edge and does not reach them.
 
 ### One row under a root grant and an owner binding
 

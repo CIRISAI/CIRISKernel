@@ -64,9 +64,13 @@ The candidates compared (the four you asked me to choose among, and the two halv
 - **E6. Reach.** The end reaches only acts exercised under the target, deputies transitively. It never reaches
   the member set or n at any head (`Inv_MembersByPast`).
   A deputy hangs from a deputy edge, itself an act under the standing, and ends with the seat: the edge passes
-  both bits down, each to its own. The grantee's own edge (the first hop) needs no sub-delegation. An onward
-  hop, a deputy's own deputy edge, counts only under an edge that carries sub-delegation (`E6.no_sub`), and
-  no act counts more than five deputy edges from the seat (`E6.depth`; the cap is a parameter of the call).
+  both bits down, each to its own. Nothing marks a row as a deputy edge: an act is one exactly when another
+  act names it as the edge it is under (`via`), and an edge that itself has a `via` is an onward hop, a
+  deputy deputizing. The grantee's own edge (the first hop) needs no sub-delegation. An act whose edge is an
+  onward hop counts only if the edge above that one carries sub-delegation (`E6.no_sub`), and no act counts
+  more than five `via` hops from the grantee's edge (`E6.depth`; the cap is a parameter of the call). Both
+  are read from the rows' `via` alone, so no presentation of the onward row passes them. The onward row
+  itself, judged as an act, is its signer's own act one hop higher: it counts there and confers nothing.
   These two gates are in the reference and the crate and are checked by cases only: the spec has one deputy
   edge, where neither can apply (section H).
 - **E7. ANY-STANDING.** Nothing binds an act to one standing. An act that another live standing of its signer
@@ -396,7 +400,7 @@ Wire cost:
 ## H. Conformance fixtures for persist
 
 The fixture is `crates/ciris-kernel/tests/fixtures/conferral_end.json`, in the kernel's fixture format. It has
-41 cases and 87 act answers. Each act has `counted`, `in_force` and the `rule` that decides it, and 14 rules
+42 cases and 93 act answers. Each act has `counted`, `in_force` and the `rule` that decides it, and 14 rules
 appear.
 
 The same cases are a plain table, one line per act, in `conferral_end.tsv` next to it. That is the
@@ -424,17 +428,19 @@ acks is in the past of a removal that names the end, so a removal of the grantee
 weak the end acks nothing, so the removal cuts it unless the removal names the act itself.
 
 **The deputy gates and the cross-check.** `E6.no_sub` and `E6.depth` read two things the spec does not have: a
-deputy edge that is itself under an edge, and the count of edges above an act. The spec has one deputy edge
-(`sub` on one of B's acts) and one act under it (c1). `conferral_xcheck.py` builds c1 with `via` and never
-marks a row as a deputy edge or as carrying sub-delegation, and it calls the reference with the default cap
-of 5. In every state it compares, c1 is one edge from the seat and is not an onward hop, so neither gate can
-decide an answer there: the reference's answers for those states are computed as before. This was reasoned
-from the code and the six deputy cases; TLC was not run for this change.
+deputy edge that is itself under an edge, and the count of `via` hops above an act. The spec has one deputy
+edge (`sub` on one of B's acts) and one act under it (c1). `conferral_xcheck.py` builds c1 with `via` one of
+B's acts, and B's acts have no `via`; it calls the reference with the default cap of 5. In every state it
+compares, c1 is one hop from the grantee's edge and its edge is not an onward hop, so neither gate can decide
+an answer there: the reference's answers for those states are computed as before. The reference reads no
+mark of a deputy edge. This was reasoned from the code and the seven deputy-chain cases; TLC was not run for
+this change.
 
 The cases:
-- deputy chains: depth two before and after the end, no sub-delegation on the first edge, a chain of six, the
-  cap as a parameter, and a chain whose middle edge is receipted and whose top is not. A case with many rows
-  is checked in its first 200 arrival orders;
+- deputy chains: depth two before and after the end, no sub-delegation on the first edge (the onward row is
+  a row like any act of the deputy's, and the act under it does not count), none on the second edge of
+  three, a chain of six, the cap as a parameter, and a chain whose middle edge is receipted and whose top is
+  not. A case with many rows is checked in its first 200 arrival orders;
 - persist's six;
 - the receipt cases: after a self end, after a rotation, lifted by a compromise, a self end that cannot lift,
   a receipt after the end, the receipter before and after its seat's end, the grantee's own receipt, a

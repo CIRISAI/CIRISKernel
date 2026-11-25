@@ -154,18 +154,22 @@ with `of` that act, all under the wire row's own id (`tests/conferral_end.rs`,
 
 **A deputy edge**, for `conferral::answers`. This is the deputy of an exercised standing, not the delegation
 chain of `Seats::stands` above.
-- The edge is a `Kind::Act` signed by whoever deputizes, naming the head it is at. `deputy_edge()` is true on
-  it. `sub_delegation()` is true where the deputy may deputize onward.
+- The edge is a `Kind::Act` signed by whoever deputizes, naming the head it is at. Nothing marks it: a row is
+  an edge exactly when another act's `via` names it. `sub_delegation()` is true on it where the deputy may
+  deputize onward.
 - The grantee's own edge has no `via`. An onward edge, signed by a deputy, has `via` the edge that deputy is
-  under, and counts only if that edge has `sub_delegation()`.
-- A deputy's act has `via` its edge and `deputy_edge()` false.
-- An onward edge presented without `deputy_edge()` is read as a deputy's plain act: it counts with no
-  sub-delegation above it, and so does everything under it, with no error
+  under. A deputy's act has `via` its edge.
+- The gates are read from `via` alone. An act whose edge has a `via` itself counts only if the row above
+  that edge has `sub_delegation()`, however the onward row is presented
   (`conferral_end.json`, `deputy_chain_no_sub`).
+- The onward row itself is judged as its signer's own act, one hop higher, and counts there. Do not read its
+  `counted` as "this deputation stands": ask about an act under it.
+- What the crate cannot check is the `via` itself. An act presented with a `via` nearer the seat than the
+  edge it was made under passes: derive `via` from the signed row, never from the caller's own reckoning.
 - `Standing::deputy_depth` is the cap, `conferral::DEPUTY_DEPTH` (5) by the text. The depth is the `via` hops
-  above a row, plus one if the row is itself an edge. Every edge of the chain must be among the rows; one
-  that is not is the row an `Undecided` names.
-- In the fixture a deputy edge is `sub: true` and one that may be passed on is `sub_delegation: true`.
+  from a row up to the grantee's own edge. Every edge of the chain must be among the rows; one that is not
+  is the row an `Undecided` names.
+- In the fixture an edge that may be passed on is `sub_delegation: true`.
 
 **A grant chain**, for `standing::answers`: the rows of one node under one root grant.
 - Each bundle version: `Kind::Bundle`. The causal past must have an earlier version in a later one's past.
