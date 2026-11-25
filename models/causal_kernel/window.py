@@ -153,17 +153,18 @@ def table_outcome(spec, p, answers, inside, base, elapsed):
     base(name) -> the keys counted; elapsed: whether the concluder's two instants span the window."""
     tv = {p.get("target")} if spec.get("target_votes") else set()   # the joiner's own yes is a voice of the floor (CC 3.1.3.2)
     withdrawn = any(a["signer"] == p["signer"] and a["says"] == "withdraw" for a in answers)
-    heard = [a for a in answers if a["signer"] in base("all") | base("moderate") | tv
+    heard = [a for a in answers if a["signer"] in base("all") | base.raw("moderate") | tv
              and not (a["signer"] == p["signer"] and a["says"] == "withdraw")]
     # a duty holder's single-signature answer is what that key said: its vote is moot
     duty = {value: over for value, how, over, _ in spec["at_once"] if how == "one" and over not in BASES}
-    acted = {a["signer"] for a in heard if a["says"] in duty and a["signer"] in base(duty[a["says"]])}
+    acted = {a["signer"] for a in heard if a["says"] in duty and a["signer"] in base.raw(duty[a["says"]])}
     if "vote_beside_answer" in MUT: acted = set()
     said = K.group([a for a in heard if a["signer"] not in acted or a["says"] in duty], "signer", "one", "says")
     if spec["opener_says"]: said.setdefault(p["signer"], spec["opener_says"])       # a voice that says two things says nothing
     def count_met(value, how, over, floor=False):
         if over == "opener": return withdrawn if value == "withdraw" else said.get(p["signer"]) == value
-        keys = voice = base(over)
+        # a count (a fraction, a floor) leaves the agents out; a clause one holder's act resolves reads them
+        keys = voice = base.raw(over) if how == "one" else base(over)
         # MUTATION overturn_whole_roster: the opener's signer is no voice and is still counted over
         if over == "others" and "overturn_whole_roster" in MUT: keys = base("all")
         yes = K.group([{"k": s} for s, v in said.items() if v == value and (s in voice or (floor and s in tv and value == "approve"))], None, "count", "k")
@@ -198,6 +199,15 @@ def _base(rows, past, p):
                 else ST.counted_keys(rows, past, p["obj"], p["head"], scope)[0]
             cache[name] = m - {p["signer"]} if name == "others" else m
         return cache[name]
+
+    def raw(name):
+        """The keys a clause one holder's act resolves (`one`) reads over a named scope: its holders, agents
+        included (an agent acts under its seat by the acts one signature resolves; the ruling of 2026-11-25)."""
+        if name in ("all", "others", "opener") or "one_leaves_agents" in MUT: return base(name)
+        if ("raw", name) not in cache:
+            cache[("raw", name)] = ST.members_at(rows, past, p["obj"], p["head"], name)
+        return cache[("raw", name)]
+    base.raw = raw
     return base
 
 
@@ -278,7 +288,7 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
         conc = [r for r in S.Cs if (pos[r["id"]] > pos[L["id"]] and L["id"] not in S.anc[r["id"]]) if by_arrival] if by_arrival else \
                [r for r in S.Cs if S.concurrent(r["id"], L["id"])]
         conc = [r for r in conc if not late(r)]
-        ans = [r for r in K.sel(conc, kind="answer", of=pid) if r["signer"] in base("all") | base("moderate") | ({p.get("target")} if spec.get("target_votes") else set())]
+        ans = [r for r in K.sel(conc, kind="answer", of=pid) if r["signer"] in base("all") | base.raw("moderate") | ({p.get("target")} if spec.get("target_votes") else set())]
         tgt = K.sel(conc, signer=p.get("target")) if spec["silent"] else []
         if how == "contest":
             said.append({"v": "contested" if ans or tgt else L["says"]})

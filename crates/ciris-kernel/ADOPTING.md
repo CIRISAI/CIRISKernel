@@ -68,6 +68,9 @@ migrations, and the local operational store.
 - **The key plane** (`community_dek.rs:545`, epoch identity) and **private-room bindings**.
 - **Effects and drafts** (KERNEL_SEAMS §5.6, §5.7). The crate returns answers, not effects.
 - **Classification of a raw row into a family**, and the table loader. The crate takes the tables as values.
+- **An agent's owner on its duty seat.** The kernel does not read the owner's statement on an agent's duty seat
+  yet (CC 4.5.4, `founding_duty_holder_agent_owner_unsigned`). Until it does, a caller must not present an
+  agent's duty seat without the owner's statement having been checked at the door.
 
 ## Points to settle before adoption
 
@@ -171,9 +174,13 @@ trusting an adapter.
   that row is its consent and no voice. Do not seat it in `member`: a key in `member` is a person, counted.
 - `Seats::roster(o)` is the whole roster, members and agents. Wrap keys to it, serve content to it and read an
   audience from it. Every count reads the members (or the scope it names) less the agents: `count_members`,
-  `Policy::Lift`'s members, and a window's `Base::All`, `Base::Others` and `Base::Scope`. `Seats::holders("member",
+  `Policy::Lift`'s members, and a window's `Base::All`, `Base::Others` and `Base::Scope` in a counted clause (a
+  clause one holder's act resolves, `How::One`, reads an agent holder's act). `Seats::holders("member",
   o)` can hold an agent that holds a duty whose scope holds `member`; for persons apply `seat::persons` with the
   holders of `agent`.
+- The kernel does not read the owner's statement on an agent's duty seat yet (CC 4.5.4,
+  `founding_duty_holder_agent_owner_unsigned`): the seat rows carry no owner of an agent's key. Until it does, a
+  caller must not present an agent's duty seat without the owner's statement having been checked at the door.
 - A duty conferred on an agent is a duty seat of its own (a counted `duty_confer` row), live while its `agent`
   seat is. It acts alone within that duty. It is still no voice in any count, the duty holders' own included.
 - A moderator's lone removal of an agent's key is an Unseat of its `agent` seat, `Conf::Group`, signed by the

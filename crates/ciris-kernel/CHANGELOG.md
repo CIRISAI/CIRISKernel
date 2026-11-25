@@ -80,18 +80,19 @@ fixture; two plants.
   are two live owners, so none (above).
 - `window`: `Base::Scope(s)` leaves the agents at the opener's head out, as `Base::All` and `Base::Others` do and
   as `seat::count_members` does for every counted scope (ruled: "in no count" is out of the base and the voices
-  for every scope). An agent holding `moderate` is no longer heard in a window through that seat: its
-  `answered` to a moderation fallback opens nothing. This follows the ruling as written; whether an agent
-  moderator's single-signature answer should still be read is open.
+  for every scope a counted clause reads (a fraction, a floor). A clause one holder's act resolves
+  (`How::One`) still reads an agent holder's act (ruled 2026-11-25): an agent holding `moderate` answers a
+  moderation fallback, and the window closes as `answered`; and the moderators a window hears through
+  `moderate` include it. A counted clause over `moderate` leaves it out of the base and the voices.
 - E3 over seat rows: an end's head that is not held makes nothing later, in the reference and the crate alike.
 - A chain of lone removals is read in polynomial time: `Seats::new` keeps the members at a head for the builds
   below it (PERF.md). The reference read a chain of six in 6.9 s; it reads twenty-four in 0.18 s.
 - `Seats::holders("member", o)` may hold an agent that holds a seat whose `holds` include `member` (a duty of
   scope `duty` under such a table); a caller wanting persons applies `seat::persons` with the agents. Ruled: an
   agent's key may hold a duty and is no voice in any count, the duty's own included.
-- Not expressible in the seat rows, and not built: a conferral of a duty on an agent needing its owner's
-  signature, and a founding entry naming an agent whose owner did not sign
-  (`founding_duty_holder_agent_owner_unsigned`). The rows carry no owner of an agent's key.
+- The kernel does not read the owner's statement on an agent's duty seat yet (CC 4.5.4,
+  `founding_duty_holder_agent_owner_unsigned`): the seat rows carry no owner of an agent's key. Until it does, a
+  caller must not present an agent's duty seat without the owner's statement having been checked at the door.
 
 **A moderator's lone removal is in force only while the end rule says so** (CC 4.5.13 with CC 2.4.1.1 and CC
 4.5.5). Before, the seat walk asked only whether the removal concluded; nothing in `seat` read the end of the
