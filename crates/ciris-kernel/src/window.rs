@@ -95,6 +95,8 @@ pub enum Base {
     All,
     /// The same, less the opener's signer: out of the voices and out of the size counted over (the members'
     /// check: a strict majority of the members seated at the head the act names, the act's author apart).
+    /// Where the opener is a removal of an AI agent's key ([`SeatRow::removes_agent`]), the key it removes is
+    /// apart too, on every path: the count with no landing, a landing's, and the recount.
     Others,
     /// Another scope at the opener's head.
     Scope(String),
@@ -168,8 +170,22 @@ struct Ctx<'x, R: WindowRow, S: CutSpec<R>> {
     obj: ObjOf<R>,
     head: &'x [R::Id],
     opener_signer: R::Key,
+    /// The key the opener removes, where the opener is a removal of an AI agent's key: apart from
+    /// [`Base::Others`] with the opener's signer.
+    removed: &'x [R::Key],
     w: &'x WindowSpec<R::T>,
     cache: core::cell::RefCell<BTreeMap<String, BTreeSet<R::Key>>>,
+}
+
+/// The key an opener removes, where the opener is a removal of an AI agent's key
+/// ([`SeatRow::removes_agent`]). An agent "acts under its own key and has no vote" (CC 4.5.13): in the lift of
+/// its own removal it is no voice and is not counted over.
+fn removed_agent<R: WindowRow>(o: &R) -> &[R::Key] {
+    if o.seat_kind() == SeatKind::Unseat && o.removes_agent() {
+        o.to()
+    } else {
+        &[]
+    }
 }
 
 impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
@@ -186,6 +202,7 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
         let mut m = members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, scope);
         if matches!(b, Base::Others) {
             m.remove(&self.opener_signer);
+            m.retain(|k| !self.removed.contains(k));
         }
         self.cache.borrow_mut().insert(name.into(), m.clone());
         m
@@ -217,6 +234,7 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
         let mut cache = self.cache.borrow_mut();
         let mut others = sets[0].clone();
         others.remove(&self.opener_signer);
+        others.retain(|k| !self.removed.contains(k));
         cache.insert("others".into(), others);
         cache.insert("all".into(), sets[0].clone());
         for (scope, set) in scopes.iter().zip(sets).skip(1) {
@@ -378,6 +396,7 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         obj: obj.clone(),
         head: o.head(),
         opener_signer: o.signer().clone(),
+        removed: removed_agent(o),
         w: &w,
         cache: Default::default(),
     };
@@ -459,6 +478,7 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
         obj: obj.clone(),
         head: p.head(),
         opener_signer: p.signer().clone(),
+        removed: removed_agent(p),
         w: &w,
         cache: Default::default(),
     };

@@ -27,8 +27,9 @@ Sources (all under models/):
               names the rows held good: its case table, and (conferral_content_worlds) histories built row by
               row as check_conferral_content.py builds them. tests/content.rs replays both through content::answers.
     conferral_two causal_kernel/check_conferral_two.py: one row that needs two standings (an owner binding and a
-              root grant): its case table, per act and owner. No Rust test reads it; it is for Verify's
-              standing walk and an adopter's own code.
+              root grant), and a later bundle version: its case table, per act and owner, with why.
+              tests/conferral_two.rs replays it through standing::answers; it is also for Verify's standing
+              walk and an adopter's own code.
 """
 import base64
 import hashlib

@@ -127,7 +127,7 @@ ask no question the table lacks. What these runs check is the kernel's door, rec
 derived answers over the model's conclusions. The answers the witnesses compute are per-case functions of
 the model and are not ported.
 
-`tools/kernel_crate_plants.sh` plants 69 breaks, one at a time on a copy of the crate, and each must fail a
+`tools/kernel_crate_plants.sh` plants 98 breaks, one at a time on a copy of the crate, and each must fail a
 test. Count them with `grep -c '^plant' tools/kernel_crate_plants.sh`; the script prints how many were caught.
 
 **The cycle reading.** "A cycle is visited once" (CC 2.7.5) has two readings. Under the first, a walk never
@@ -141,12 +141,24 @@ more budget.
 ### The end of a conferral
 
 `conferral::answers` is checked against the case table of `models/causal_kernel/conferral_end.py`
-(`tests/fixtures/conferral_end.json`; 35 cases, each with its rows listed in every order the fixture gives
+(`tests/fixtures/conferral_end.json`; 42 cases, each with its rows listed in every order the fixture gives
 and in reverse). That reference is the weakR reading of `models/tla/ConferralEnd.tla`, and is compared with
 that spec state by state.
 
 A second run withholds one row at a time from the caller's past. Every act is then either undecided, naming
 the row that is missing, or judged exactly as it is over the rows that are held.
+
+The deputy gates (an act under an onward hop needs sub-delegation on the edge above that hop; at most
+`Standing::deputy_depth` `via` hops from the grantee's edge; both read from the rows' `via`, with no mark of
+an edge) are in seven of those cases. The TLA+ spec has one deputy edge and does not reach them.
+
+### One row under a root grant and an owner binding
+
+`standing::answers` is checked against the case table of `models/causal_kernel/check_conferral_two.py`
+(`tests/fixtures/conferral_two.json`; 21 cases under its reading `acc`, rows as listed and in reverse): per
+act and owner whether it counts and is in force, the binding it stands under and the rule that decides under
+each record, or why it counts for nobody. A second run withholds one row at a time. Cases only: the Python
+run of every state checks the reference, not the crate.
 
 The fixture is also for adopters. Each case has `rows` (`id`, `kind`, `signer`, `names`, and `head`, `of`,
 `lifts`, `target`, `via` where a rule reads them), `reader_acks`, `other_standing`, `who`, `orders`, and

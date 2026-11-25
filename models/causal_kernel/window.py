@@ -45,7 +45,10 @@ A clause is (value said, threshold, base, outcome). The bases:
     all               the window's counted scope at the opener's head
     others            the same, less the opener's signer: out of the voices and out of the size counted over (the
                       members' check: "a strict majority of the members seated at the head the act names, the
-                      act's author apart")
+                      act's author apart"). Where the opener is a removal of an AI agent's key (an unseat marked
+                      `agent`), the key it removes is apart too: an agent "acts under its own key and has no
+                      vote", so in the lift of its own removal it is no voice and is not counted over, whether
+                      the count is read with no landing, by a landing, or by the recount
     opener            the opener's signer alone
     any other word    that scope at the opener's head
 The thresholds: "strict", "one", ("atleast", n, d, min), ("more", n, d, min), and
@@ -108,6 +111,12 @@ WINDOWS = {
 SECS = None
 MUT = set()            # planted breaks, switched on by a check
 BASES = ("all", "others", "opener")
+
+
+def removed_agent(p):
+    """The key an opener removes, where the opener is a removal of an agent's key: apart from the lift's count."""
+    if p["kind"] != "unseat" or not p.get("agent") or "removed_counted_over" in ST.MUT: return frozenset()
+    return frozenset(p["to"])
 
 
 def is_opener(r):
@@ -188,7 +197,7 @@ def _base(rows, past, p):
         if name not in cache:
             scope = spec["counted"] if name in ("all", "others") else name
             m = ST.members_at(rows, past, p["obj"], p["head"], scope)
-            cache[name] = m - {p["signer"]} if name == "others" else m
+            cache[name] = m - {p["signer"]} - removed_agent(p) if name == "others" else m
         return cache[name]
     return base
 

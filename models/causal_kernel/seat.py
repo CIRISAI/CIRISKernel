@@ -55,8 +55,9 @@ the members may lift that act as they may any act of a moderator."
                   the removal (`content`), names the head the removal names, and names objections (answers
                   `object` to the removal). Its voices are the signers of those objections and no other key; the
                   removal's author is no voice, and neither is the key it seats. It concludes when those voices
-                  are a strict majority of the members at that head, the removal's author apart, never fewer than
-                  two: the overturn's count.
+                  are a strict majority of the members at that head, the removal's author apart and the key
+                  removed apart (an agent "acts under its own key and has no vote"), never fewer than two: the
+                  overturn's count.
                   It restores and does not admit: the key it seats was on the roster at that head.
                   No reading of the roster reads a window: until that row is written the key is out.
 
@@ -274,8 +275,8 @@ def lift_voices(r, P, past, by):
 
 def lift_count(r, P, past, by):
     """The overturn's count (window.py, moderation_overturn) over the objections a re-seating row names: a strict
-    majority of the members at the head, the removal's author apart (no voice, and not counted over); the key seated
-    is counted over and is no voice; never fewer than two."""
+    majority of the members at the head, the removal's author apart and the key seated apart (each no voice, and
+    not counted over); never fewer than two."""
     v = lift_voices(r, P, past, by)
     if v is None: return False
     mem = members_at(P, past, r["obj"], r.get("head", ()), "member")
@@ -284,8 +285,8 @@ def lift_count(r, P, past, by):
     if not set(r["to"]) <= mem and "restores_unseated" not in MUT: return False
     yes = (v & mem) - (frozenset() if "seated_voice" in MUT else frozenset(r["to"]))
     if "lift_over_all" not in MUT: mem = mem - {by[r["content"]]["signer"]}    # MUTATION lift_over_all: the author counted over
-    # the floor of two is the window's; here it follows from the rest (the key seated is counted over and no voice)
-    return 2 * len(yes) > len(mem) and len(yes) >= 2
+    if "removed_counted_over" not in MUT: mem = mem - frozenset(r["to"])       # MUTATION: the key removed counted over
+    return 2 * len(yes) > len(mem) and (len(yes) >= 2 or "lift_no_floor" in MUT)
 
 
 def founding_many(by, obj):
@@ -483,7 +484,7 @@ class Seats:
                     # a re-seating: its voices are the objections it names, over the members the fold seats
                     v = lift_voices(r, P, past, {q["id"]: q for q in P}) or frozenset()
                     yes = (v & mem) - frozenset(r["to"])
-                    mem = mem - {S.by[r["content"]]["signer"]} if v else mem      # the removal's author apart
+                    if v: mem = mem - {S.by[r["content"]]["signer"]} - frozenset(r["to"])   # the author and the key removed apart
                     if not (2 * len(yes) > len(mem) and len(yes) >= 2): return False
                 elif not met(r.get("policy"), len(yes), len(mem), r.get("need")): return False
             return True

@@ -249,7 +249,7 @@ pub enum Policy {
     /// CC 4.5.13, the members' check as a counted row: an offer that seats again an agent's key a moderator
     /// removed alone. Its voices are the signers of the objections it names ([`lift_voices`]), the removal's
     /// author and the key it seats no voice; it is met by more than half of the members at the head the
-    /// removal names, the removal's author apart, never fewer than two voices. A counted row of this policy
+    /// removal names, the removal's author and the key removed apart, never fewer than two voices. A counted row of this policy
     /// that is no such re-seating concludes nothing.
     Lift,
     /// Not a count (a seat, not a threshold).
@@ -819,6 +819,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                         return false;
                     };
                     mem.remove(&author); // the removal's author apart
+                    mem.retain(|k| !r.to().contains(k)); // and the key removed
                     v
                 } else {
                     voices(r, &p)
@@ -1135,7 +1136,7 @@ fn lone_removal<R: SeatRow, S: CutSpec<R>>(
 /// cosignature. The removal's author is no voice. The row's own signers are no voices either.
 ///
 /// Returns the removal's author and the voices. The count ([`Policy::Lift`]) is taken of the members at the
-/// head less that author.
+/// head less that author and less the key removed (an agent "acts under its own key and has no vote").
 pub fn lift_voices<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
     law: &SeatLaw,
@@ -1330,6 +1331,7 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                             return false;
                         }
                         mem.remove(&author); // the author is not among the members the majority is taken of
+                        mem.retain(|k| !r.to().contains(k)); // nor is the key removed: an agent has no vote
                         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
                     }
                     let mem = count_members_with(p, law, spec, cache);
@@ -1394,8 +1396,9 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
 /// - `voices` is [`voices`]: the row's signer, its cosigners, and the signers of the cosignatures it names
 ///   that name every head it is counted over.
 /// - Under [`Policy::Lift`] the two are read otherwise: `voices` is [`lift_voices`] (the objections the row
-///   names, the removal's author left out) and `members` is [`members_at`] at the head less that author,
-///   with no leaving subtracted. The seat rule asks besides that the key seated is among those members.
+///   names, the removal's author left out) and `members` is [`members_at`] at the head less that author and
+///   less the key removed, with no leaving subtracted. The seat rule asks besides that the key seated was
+///   among the members at that head.
 /// - `to`, `members`, `voices` and the weights are in **one** key space. A caller counting persons (KERNEL.md
 ///   7b) collapses `to` the same way, once each: two devices of one person in `to` are one key.
 #[derive(Clone, Copy, Debug)]
@@ -1454,8 +1457,9 @@ fn count_of<K: Ord>(
         return duty_count_keys(pol == Some(Policy::DutyWithdraw), to, &yes, mem);
     }
     if pol == Some(Policy::Lift) {
-        // the members' check: more than half of the members (the caller has taken the act's author out of
-        // them and out of the voices), never fewer than two; the key seated is counted over and is no voice
+        // the members' check: more than half of the members (the caller has taken the act's author and the
+        // key removed out of them, and the author out of the voices), never fewer than two; the key seated
+        // is no voice
         let yes = v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).count();
         return is_offer && 2 * yes > mem.len() && yes >= 2;
     }
