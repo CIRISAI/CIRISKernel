@@ -180,7 +180,8 @@ trusting an adapter.
   row of the lift is an Offer of scope `agent`.
 - That removal is in force only while the moderator's `moderate` standing is, by the end rule: once an end of
   the standing is held (its own withdrawal, a counted removal of it, the holders' counted withdrawal of its
-  duty), the removal ends nothing for that reader unless a receipt of it is held. Present a duty holder's
+  duty), the removal ends nothing for that reader unless a receipt of it is held, and nothing puts it back: a
+  moderator seated again (the same offer accepted again, or a new conferral) signs the removal again. Present a duty holder's
   receipt as a `SeatKind::Ack` row with `of()` the removal and no `room()`, signed by a holder other than the
   moderator. A reader's acknowledgement of a head keeps `room()` and `head()` as before.
 - `content::answers` reads no seat row: the caller marks each roster version (`ContentRow::seat`, `SeatAt`)

@@ -13,7 +13,11 @@ unseat only where it is in force over the rows held:
                 the offer, of its acceptance, or of its stay), a counted removal of it from the roster, or the
                 other holders' counted withdrawal of its duty. Its head h_e: the heads a counted end names; for a
                 withdrawal, the newest counted acts on the room in its past
-    E7          the remover holds `moderate` now (another standing, or its own re-acceptance): in force
+    E7          a seat that gave the remover `moderate` at the act's head is live and has no end held: in force.
+                A seat taken up after the act's head authorises nothing earlier, and nothing puts the act back in
+                force once each such seat has an end: not the same offer accepted again, not a new conferral
+                (CC 2.4.1.1: "from the end's head on it is not in force"; "A receipt ... revives no act"). A
+                moderator seated again signs the removal again
     E4          the act has the end in its past: not counted
     E3          the act names a head later than h_e: not counted
     E8          otherwise counted at its own head, and in force only under a receipt of it, an `ack` row naming it,
@@ -23,14 +27,14 @@ Out of force, the removal ends nothing for that reader: the agent's key is seate
 the set (every case is read in arrival orders), and at tips the lines read the removal as the whole set judges it.
 
 Part 1. Cases, each a hand-written answer: which rows conclude, the roster (members and agents), and standings asked
-by name. Each kind of end is a case with and without a receipt, and the answers by kind are stated together:
-    the remover lays down its duty          out of force unless receipted; its re-acceptance keeps it in force (E7)
-    the room's count removes the remover    out of force unless receipted; a re-acceptance does nothing (the
-                                            counted end cut the offer); a new conferral keeps it in force (E7)
-    the other holders withdraw its duty     the same as the counted removal
+by name. Each kind of end is a case with and without a receipt, and the three kinds answer alike: out of force
+unless receipted, and for good (the remover's own laying down, the room's counted removal of it, the other holders'
+counted withdrawal of its duty).
 Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     end_unread       the end is not read: a lone removal stays in force whatever ends its standing
     remover_receipt  a receipt by the remover itself keeps its own removal in force
+    reseat_revives   the remover holding `moderate` again (its re-acceptance, a new conferral) puts its removal
+                     back in force
 
 Not here: a count's own receipt (a counted ack): only duty holders' acks are read; a count end that lifts receipts
 (no seat row says so); a receipt by a key removed concurrently; a lone removal whose remover is an agent removed in
@@ -124,8 +128,16 @@ CASES = [
      W + [X, ST.withdraw("wa", "p1", "g", ("x",))], {"x": T}, P23 | {"AG"}, [("p1", "member", F)]),
     ("a moderator by a conferred seat withdraws its acceptance after its removal: out of force",
      WQ + [ST.withdraw("wq", "q", "acq", ("x",))], {"x": T}, PQ | {"AG"}, [("q", "moderate", F)]),
-    ("and accepts the same offer again: it holds moderate, and its removal is in force (E7)",
-     WQ + [ST.withdraw("wq", "q", "acq", ("x",)), ST.accept("acq2", "q", "cq", ("wq",))], {"x": T}, PQ, [("q", "moderate", T)]),
+    ("and accepts the same offer again: it holds moderate, and its removal stays out of force (nothing revives it)",
+     WQ + [ST.withdraw("wq", "q", "acq", ("x",)), ST.accept("acq2", "q", "cq", ("wq",))], {"x": T}, PQ | {"AG"}, [("q", "moderate", T)]),
+    ("seated again, it signs the removal again: the new removal is in force, the old one is not",
+     WQ + [ST.withdraw("wq", "q", "acq", ("x",)), ST.accept("acq2", "q", "cq", ("wq",)), lone("x2", "q", "AG", ("acq2",))],
+     {"x": T, "x2": T}, PQ, [("q", "moderate", T)]),
+    ("another standing live at the removal's head: p1 holds a conferred moderate seat beside its founding one, lays "
+     "the founding one down, then removes the agent: in force (E7)",
+     W + [ST.offer("cm", "p2", "p1", "moderate", OBJ, "group", ("ag",), head=("ag",), policy="duty_confer", counted="duty",
+                   cosigners=("p3", "p1")), ST.withdraw("wm", "p1", "g", ("cm",), scope="moderate"),
+          lone("x", "p1", "AG", ("cm",), ("wm",))], {"cm": T, "x": T}, P3, [("p1", "moderate", T)]),
     # ---- the room's count removes the remover -----------------------------------------------------------------------
     ("the room's count removes the remover after its removal: out of force",
      W + [X, OUT], {"x": T, "xp": T}, P23 | {"AG"}, [("p1", "moderate", F)]),
@@ -133,11 +145,11 @@ CASES = [
     ("the counted removal of a conferred moderator, and its acceptance again: the offer is cut, out of force",
      WQ + [remove("xq", "q", ("p1", "p2", "p3"), ("x",)), ST.accept("acq2", "q", "cq", ("xq",))], {"x": T, "xq": T}, P3 | {"AG"},
      [("q", "moderate", F)]),
-    ("re-admitted and conferred `moderate` again: another standing, in force (E7)",
+    ("re-admitted and conferred `moderate` again: a seat taken up after the removal's head authorises nothing earlier; out of force",
      WQ + [remove("xq", "q", ("p1", "p2", "p3"), ("x",)), admit("aq2", "q", ("p1", "p2", "p3"), ("xq",)),
            ST.offer("cq2", "p1", "q", "moderate", OBJ, "group", ("aq2",), head=("aq2",), policy="duty_confer", counted="duty",
                     cosigners=("p2", "q"))],
-     {"x": T, "cq2": T}, PQ, [("q", "moderate", T)]),
+     {"x": T, "cq2": T}, PQ | {"AG"}, [("q", "moderate", T)]),
     # ---- the other holders withdraw its duty --------------------------------------------------------------------------
     ("the other holders withdraw the remover's moderate after its removal: out of force",
      W + [X, UND], {"x": T, "xm": T}, P3 | {"AG"}, [("p1", "moderate", F), ("p1", "member", T)]),
@@ -155,7 +167,7 @@ CASES = [
     ("two tips with a receipt of the removal by another holder: in force",
      W + [X, receipt("q2", "p2", "x"), remove("xp", "p1", ("p2", "p3"), ("ag",))], {"x": T, "xp": T}, P23, []),
 ]
-PLANTS = ("end_unread", "remover_receipt")
+PLANTS = ("end_unread", "remover_receipt", "reseat_revives")
 
 
 def read(S, case):

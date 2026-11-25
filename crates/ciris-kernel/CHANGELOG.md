@@ -76,8 +76,12 @@ Answers that change, in `seat::Seats` (`recs`, `stands`, `holders`, `roster`, an
   only where the end rule of `conferral` (E2 to E8, `models/tla/CONFERRAL_END.md`), re-expressed over seat rows,
   gives it in force over the rows held. Out of force, it ends nothing, and the agent's key is seated again for that
   reader. The window it opens is unchanged.
-- E7: where the moderator holds `moderate` over the room now (by the standing it used, another one, or its own
-  re-acceptance), the removal is in force.
+- E7: the removal is in force where a seat that gave the moderator `moderate` at the head the removal names is
+  live and has no end held. Nothing else keeps it standing (CC 2.4.1.1: "from the end's head on it is not in
+  force"; "A receipt changes what is in force, never what counted, and it revives no act"): a seat taken up after
+  the removal's head authorises nothing earlier, so neither the same offer accepted again nor a new conferral puts
+  it back in force. A moderator seated again who still wants the key out signs the removal again. An end in the
+  past of the head the removal names is not read (the seat was live there again).
 - The ends read: the moderator's withdrawal of the offer that seats it in `moderate`, of its acceptance of it, or
   of its stay; the room's counted removal of it from the roster; the other holders' counted withdrawal of its
   duty. Each takes the removal out of force from the end's head on (E2), unless a receipt of it is held: a
@@ -88,12 +92,9 @@ Answers that change, in `seat::Seats` (`recs`, `stands`, `holders`, `roster`, an
 - Before: a removal signed after the moderator's duty ended, naming the older head, removed the key for a reader
   holding the end; a removal made while it held the duty stayed in force after the duty ended. Now neither does,
   unless receipted.
-- By kind of end, under the existing rules: the moderator's own laying down, the counted removal, and the counted
-  withdrawal of its duty answer alike (out of force unless receipted). They differ only where the moderator holds
-  `moderate` again: after its own withdrawal of its acceptance a re-acceptance of the same offer re-seats it, so
-  its removal is in force (E7); after a counted end that offer is cut, a re-acceptance re-seats nothing, and only
-  a new conferral (after a re-admission, for a removal from the roster) keeps it in force. No seat row lifts
-  receipts, so a co-holder's receipt keeps the removal in force after a counted end as after a self end.
+- The three kinds of end, the moderator's own laying down, the counted removal and the counted withdrawal of its
+  duty, answer alike: out of force unless receipted, for good. No seat row lifts receipts, so a co-holder's
+  receipt keeps the removal in force after a counted end as after a self end.
 - At tips each line reads a lone removal as the whole set judges it.
 
 Not done: a count's own receipt (only duty holders' acks are read); a receipt by a key removed concurrently is not
@@ -101,8 +102,9 @@ voided; an end that is itself a lone removal out of force still counts as an end
 
 The reference: `seat.removal_in_force`, `out_of_force`, `lone_act` and `count_met` (the group count, factored out of
 `seat_rule`) in `seat.py`, which re-express the rule on seat rows rather than call `conferral_end.answers`; it reads
-the rows' past only, so it is a function of the set. `check_removal_in_force.py` is new: 22 cases in arrival orders
-and two planted breaks (the end not read; a receipt by the remover keeps it). Four plants in
+the rows' past only, so it is a function of the set. `check_removal_in_force.py` is new: 24 cases in arrival orders
+and three planted breaks (the end not read; a receipt by the remover keeps it; a remover seated again revives
+its removal). Five plants in
 `tools/kernel_crate_plants.sh`. No earlier case changes its answer: no case before had a moderator's duty end
 after its lone removal.
 

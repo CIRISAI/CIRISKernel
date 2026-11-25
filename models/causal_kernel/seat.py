@@ -95,7 +95,9 @@ members may lift that act as they may any act of a moderator."
                   down, a counted removal of it, or the other holders' counted withdrawal of its duty, takes it out
                   of force from the end's head on unless another duty holder's receipt of it (an `ack` naming it)
                   is held; a removal naming a head later than the end's, or having the end in its past, does not
-                  count. Out of force, it ends nothing and the agent's key is seated again for that reader.
+                  count. Out of force, it ends nothing and the agent's key is seated again for that reader. Only another
+                  standing live at the removal's head keeps it; nothing revives it (a moderator seated again signs
+                  the removal again).
 
 Tips wait (KERNEL.md section 7). When several counted acts on one object are concurrent, the holders of a scope
 over it are the keys common to the tips, until a counted act names them all.
@@ -723,9 +725,11 @@ def later(S, hx, he):
 def standing_ends(S, x, standing, unseats):
     """The rows held that end the remover's standing: a withdrawal of a standing offer by its holder (or by the
     conferrer of an offer that is not counted), of the holder's acceptance of one, or of the holder's stay; a counted
-    unseat that cuts the holder's standing seat or its roster seat with a standing offer in its past."""
+    unseat that cuts the holder's standing seat or its roster seat with a standing offer in its past. Each with the
+    standing seats it ends: [(row, seats)]."""
     M, obj, by = x["signer"], x["obj"], S.by
     ids = {o for o, _ in standing}
+    of = lambda oids: frozenset(s for s in standing if s[0] in oids)
     out = []
     stay = {w["id"] for w, k, g in stay_ends(K.sel(S.Cs, kind="withdraw"), by) if k == M and g == obj}
     for w in K.sel(S.Cs, kind="withdraw"):
@@ -733,22 +737,27 @@ def standing_ends(S, x, standing, unseats):
         if t is None: continue
         if t["kind"] == "offer" and t["id"] in ids and (w.get("scope") is None or (t["id"], w["scope"]) in standing) and (
                 w["signer"] == M or (w["signer"] not in t["to"] and t["conf"] != "group" and not duty_seat(by, t))):
-            out.append(w)
+            out.append((w, frozenset(s for s in standing if s[0] == t["id"] and w.get("scope") in (None, s[1]))))
         elif t["kind"] == "accept" and t["signer"] == M and w["signer"] == M and t.get("of") in ids:
-            out.append(w)
+            out.append((w, of({t["of"]})))
         elif w["id"] in stay and any(o in S.anc[w["id"]] for o in ids):
-            out.append(w)
+            out.append((w, of({o for o in ids if o in S.anc[w["id"]]})))
     for u in unseats:
         if u["id"] == x["id"] or M not in u["to"] or u["obj"] != obj or not any(o in S.anc[u["id"]] for o in ids): continue
-        if any(("seat", M, sc, obj) in u["cuts"] for _, sc in standing) or any(("seat", M, r, obj) in u["cuts"] for r in ROSTER_SEATS):
-            out.append(u)
+        if any(("seat", M, r, obj) in u["cuts"] for r in ROSTER_SEATS):
+            out.append((u, of({o for o in ids if o in S.anc[u["id"]]})))
+        elif any(("seat", M, sc, obj) in u["cuts"] for _, sc in standing):
+            out.append((u, frozenset(s for s in standing if s[0] in S.anc[u["id"]] and ("seat", M, s[1], obj) in u["cuts"])))
     return out
 
 
 def removal_in_force(S, x, unseats, now):
     """CC 4.5.13 read with the end rule (CC 2.4.1.1, CC 4.5.5; conferral_end.py): a moderator's lone removal x is an
     act under its `moderate` standing.
-        E7      the remover holds `moderate` over the room now (`now`, the seats with every removal made): in force
+        E7      a seat that gave the remover `moderate` at the head x names is live now (`now`, the seats with every
+                removal made) and no end of it is held: in force. A seat taken up after x's head authorises nothing
+                earlier, and nothing puts the removal back in force once every such seat has an end held: not the
+                same offer accepted again, not a new conferral (CC 2.4.1.1: "A receipt ... revives no act")
         E4      an end of its standing is in x's past: not counted, not in force
         E3      x names a head later than the end's head h_e: not counted, not in force
         E8      x is at h_e or before, or concurrent with it: counted, and in force only under a receipt of it that
@@ -758,7 +767,6 @@ def removal_in_force(S, x, unseats, now):
     With several ends held, in force only where each keeps it. Where the standing is gone and no end of it is held
     (it fell with a seat above it), E2 and E8 with no end."""
     M, obj = x["signer"], x["obj"]
-    if now.stands(M, "moderate", obj): return True
     standing, duty = set(), None
     for h in x.get("head", ()):
         sub = [q for q in S.Cs if q["id"] == h or q["id"] in S.anc.get(h, ())]
@@ -769,7 +777,14 @@ def removal_in_force(S, x, unseats, now):
     duty = (duty or frozenset()) - (frozenset() if "remover_receipt" in MUT else {M})
     acks = [q for q in S.Cs if q["kind"] == "ack" and q.get("of") == x["id"] and q["signer"] in duty]
     kept = lambda E: any(E is None or E["id"] not in S.anc[q["id"]] for q in acks)
-    ends = standing_ends(S, x, standing, unseats)
+    # an end in the past of the head x names did not end the standing live there (a seat taken up again after it)
+    found = [(E, sc) for E, sc in standing_ends(S, x, standing, unseats)
+             if not all(E["id"] == h or E["id"] in S.anc.get(h, ()) for h in x.get("head", ()))]
+    ended = frozenset().union(*(sc for _, sc in found)) if found else frozenset()
+    live = {(r["offer"], r["scope"]) for r in now.recs if r["k"] == M and r["obj"] == obj}
+    if now.stands(M, "moderate", obj) and ("reseat_revives" in MUT or any(s in live and s not in ended for s in standing)):
+        return True                                             # MUTATION reseat_revives: any standing now keeps it
+    ends = [E for E, _ in found]
     if not ends: return kept(None)
     for E in ends:
         if E["id"] in S.anc[x["id"]] or later(S, x.get("head", ()), head_of_end(S, E, obj)) or not kept(E):

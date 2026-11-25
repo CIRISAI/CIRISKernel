@@ -1247,8 +1247,11 @@ fn out_of_force<R: SeatRow, S: CutSpec<R>>(
 /// CC 4.5.13 read with the end rule (CC 2.4.1.1, CC 4.5.5; `conferral`, rules E2 to E8, re-expressed over
 /// seat rows): a moderator's lone removal `x` is an act under its `moderate` standing.
 ///
-/// * E7: the remover holds `moderate` over the room now (`now`, the seats with every removal taken as made):
-///   in force.
+/// * E7: a seat that gave the remover `moderate` at the heads `x` names is live now (`now`, the seats with every
+///   removal taken as made) and no end of it is held: in force. A seat taken up after `x`'s head authorises
+///   nothing earlier, and nothing puts `x` back in force once each such seat has an end held (CC 2.4.1.1: "A
+///   receipt ... revives no act"): not the same offer accepted again, not a new conferral. An end in the past
+///   of the heads `x` names is not read (the seat was live there again).
 /// * The ends of its standing held: a withdrawal of a standing offer by its holder (or by the conferrer of
 ///   an offer that is not counted), of the holder's acceptance of one, or of the holder's stay; a counted
 ///   unseat that cuts the holder's standing seat or its roster seat with a standing offer in its past. The
@@ -1274,9 +1277,6 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
     let xr = g.row(x);
     let Some(obj) = xr.obj() else { return true };
     let m = xr.signer();
-    if now.stands(m, "moderate", &obj, None) {
-        return true; // E7: no end, or another standing
-    }
     // the standing at the heads x names, and the duty holders there
     let mut standing: BTreeSet<(R::Id, R::Word)> = BTreeSet::new();
     let mut duty: Option<BTreeSet<R::Key>> = None;
@@ -1312,7 +1312,13 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
     let roster = |s: Option<&R::Word>| {
         s.is_some_and(|x| x.as_ref() == "member" || law.roster_seats.iter().any(|r| r == x.as_ref()))
     };
-    let mut ends: Vec<usize> = Vec::new();
+    // each end held, with the standing seats it ends
+    type Seat<I, W> = (I, W);
+    let of = |pick: &dyn Fn(&Seat<R::Id, R::Word>) -> bool| -> BTreeSet<Seat<R::Id, R::Word>> {
+        standing.iter().filter(|s| pick(s)).cloned().collect()
+    };
+    let before = |o: &R::Id, e: usize| g.idx(o).is_some_and(|oi| g.in_past(oi, e));
+    let mut found: Vec<(usize, BTreeSet<Seat<R::Id, R::Word>>)> = Vec::new();
     for &w in c.cs() {
         let wr = g.row(w);
         if wr.seat_kind() != SeatKind::Withdraw {
@@ -1329,8 +1335,12 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
             && wr.signer() == m
             && t.of().is_some_and(|o| ids.contains(o));
         let stay = wr.signer() == m && stay_end(law, by, wr).as_ref() == Some(&obj) && after(w);
-        if offer_end || accept_end || stay {
-            ends.push(w);
+        if offer_end {
+            found.push((w, of(&|s| s.0 == *t.id() && wr.scope().is_none_or(|ws| *ws == s.1))));
+        } else if accept_end {
+            found.push((w, of(&|s| Some(&s.0) == t.of())));
+        } else if stay {
+            found.push((w, of(&|s| before(&s.0, w))));
         }
     }
     for (u, uo) in unseats {
@@ -1338,10 +1348,25 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
         if *u == x || !ur.to().contains(m) || uo.as_ref() != Some(&obj) || !after(*u) {
             continue;
         }
-        if standing.iter().any(|(_, sc)| ur.scope() == Some(sc)) || roster(ur.scope()) {
-            ends.push(*u);
+        if roster(ur.scope()) {
+            found.push((*u, of(&|s| before(&s.0, *u))));
+        } else if standing.iter().any(|(_, sc)| ur.scope() == Some(sc)) {
+            found.push((*u, of(&|s| before(&s.0, *u) && ur.scope() == Some(&s.1))));
         }
     }
+    // an end in the past of the head x names did not end the standing live there (a seat taken up again)
+    found.retain(|(e, _)| !xr.head().iter().all(|h| g.idx(h).is_some_and(|hi| hi == *e || g.in_past(*e, hi))));
+    // E7: a seat that gave the remover `moderate` at x's head is live and has no end held. Nothing else puts the
+    // removal back in force: not the same offer accepted again, not a new conferral (CC 2.4.1.1)
+    let ended: BTreeSet<&Seat<R::Id, R::Word>> = found.iter().flat_map(|(_, sc)| sc.iter()).collect();
+    let live: BTreeSet<(&R::Id, &R::Word)> =
+        now.recs.iter().filter(|r| r.k == *m && r.obj == obj).map(|r| (&r.offer, &r.scope)).collect();
+    if now.stands(m, "moderate", &obj, None)
+        && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s))
+    {
+        return true;
+    }
+    let ends: Vec<usize> = found.iter().map(|(e, _)| *e).collect();
     if ends.is_empty() {
         return kept(None);
     }
