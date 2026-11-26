@@ -64,7 +64,9 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   the lay-down in its past, a second counted recall with the first, a second withdrawal. An end read so is a
   withdrawal of a row seating the key (its own, or the conferrer's of the offer) or an unseat, with no seating of
   the key in that scope after it in the row's past (a re-admitted member's second leaving is an end). A removal
-  of an agent's key is not read as an earlier end (a moderator's lone one may be lifted or fall out of force).
+  of an agent's key is not read as an earlier end (a moderator's lone one may be lifted or fall out of force); the
+  cost: a second counted removal of an agent's key is not reached by (2). A row that ends several seats is no end
+  only where every seat it ends was already ended.
   Plants `end_of_ended_seat` and `end_reseat_unread`, in both languages.
 - A lay-down is a roster change: with the head rules (`heads`) it names the newest heads and is held to H4, and a
   lay-down behind a reader's line is no end for it; until then two cases wait on them (H2b and G3c with a reader
