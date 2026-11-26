@@ -382,6 +382,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         // a room of one, or one whose every other elector has departed (E1, the limit): a standing seating closes
         // itself
         let st = self.standing(&seats);
+        // `departed` reads exactly the rows of `rows` (`Past::rows` is the slice given); the anchor only places the
+        // reading and adds no row, so this is the reference's `departed(rows)`
         let mut gone = match rows.last() {
             Some(&anchor) => self.departed(anchor, rows, obj),
             None => BTreeSet::new(),
