@@ -7,6 +7,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 # One run per branch or PR: a newer push cancels the run of an older one, whose tree the newer one holds.
 # A push runs on main only; a branch is checked through its pull request, so a PR's commit runs once, not twice
@@ -55,8 +56,13 @@ jobs:
   # shards between them run every plant once (tools/kernel_crate_plants.sh, PLANTS_SHARD). A reviewer's
   # ./check.sh still runs them all. Six shards since 2026-11-25: at about 120 plants a shard of four ran 34 to
   # 36 minutes and one passed its 45.
+  # Not on a draft pull request: six runners for half an hour on every push of work in progress held the
+  # organisation's shared runners (2026-11-26, six lanes open at once). A draft gets the tests, the lints, the
+  # builds and the fixtures; marking it ready for review runs the planted breaks, and main runs them on every
+  # push. Nothing merges without them: a draft cannot be merged.
   plants:
     name: plants (shard ${{ matrix.shard }} of 6)
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:

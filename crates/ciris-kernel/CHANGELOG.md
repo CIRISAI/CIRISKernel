@@ -42,6 +42,18 @@ reads an undecided act as the fixture does.
 - `key_end::live` reads `covers_at`.
 - `kernel/TEXT.md` was a copy of CC 2.7 at 1.0-rc19 and is a pointer to the Constitution's section.
 
+**The end of a key record is outside it** (CC 2.6.2: "covers an instant t when its `asserted_at` <= t < its
+`valid_until` ... an equal one covers nothing"; CC 2.4.1.1 on a rotation: "at or after its `asserted_at` and
+before its `valid_until`"). Three answers change, all at the exact end; no generated world of the reference
+reached one, so no earlier fixture answer moves.
+
+- A rotation whose old-key instant equals the old record's end concluded and now does not (it names no
+  successor). A row whose own instant equals the end of the record it names concluded and now does not.
+- The door refuses a record whose end equals its own instant (`well_formed`: `from < until`; it was `<=`).
+- One test, `covers_at`, for a key's liveness, a row's own instant and a rotation's; `key_end`'s closed test is
+  gone. Reference: `key_end.covers`; five boundary worlds (`check_key_end.BOUNDARY`, in the `key_end` fixture),
+  attack K11, plant `end_closed`; one crate plant on the door.
+
 ## [0.4.0]
 
 The first tag of the 0.4 line (`kernel-v0.4.0`), after `kernel-v0.3.0`. Several answers change, one public

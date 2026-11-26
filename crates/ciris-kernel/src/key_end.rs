@@ -65,18 +65,15 @@ pub struct Record<'r, K, T> {
     pub end: EndRule,
 }
 
-fn end_le<T: Ord>(x: &T, until: &Option<T>) -> bool {
-    until.as_ref().is_none_or(|u| x <= u)
-}
-
-/// The door for a key record, read from the row alone: the end it must or must not state, `from <= until`,
+/// The door for a key record, read from the row alone: the end it must or must not state, `from < until` (an
+/// equal end covers nothing, CC 2.6.2),
 /// `until - from <= ceil`, and a rotation carrying the old key's signature beside the new key's.
 pub fn well_formed<R: KeyEndRow>(r: &R, ceil: R::T) -> bool {
     let Some(x) = r.record() else { return true };
     match x.until {
         None => x.end != EndRule::Required,
         Some(u) => {
-            if x.end == EndRule::Forbidden || x.from > u || u - x.from > ceil {
+            if x.end == EndRule::Forbidden || x.from >= u || u - x.from > ceil {
                 return false;
             }
             if let Some(old) = x.succ_of {
@@ -105,12 +102,12 @@ pub fn conclude_rule<R: KeyEndRow>(p: &Past<'_, '_, R>) -> bool {
             }
             Some(old) => prev.first().is_some_and(|q| {
                 let o = q.record().unwrap();
-                o.key == old && x.at_old.is_some_and(|a| o.from <= a && end_le(&a, &o.until))
+                o.key == old && x.at_old.is_some_and(|a| crate::covers_at(Some(o.from), o.until, &a))
             }),
         }
     } else if let Some((at, cover)) = r.statement() {
         match p.get(cover).and_then(|c| c.record()) {
-            Some(c) => c.key == r.signer() && c.from <= at && end_le(&at, &c.until),
+            Some(c) => c.key == r.signer() && crate::covers_at(Some(c.from), c.until, &at),
             None => false,
         }
     } else {
