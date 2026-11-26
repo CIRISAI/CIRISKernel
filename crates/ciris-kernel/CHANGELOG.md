@@ -26,6 +26,9 @@ beyond the ballot count").
   whose own leaving is in the row's past is out of the base, the voices and the candidates (`left_in_past`, one
   rule). **An answer changes** for a ballot ranking such a leaver: it is not counted. Seven cases; two plants in
   `seat.py`, one in the crate.
+- **A ballot ranking more than three is void**, the whole ballot (CC 4.5.13: "Each person ranks up to three";
+  CIRISConstitution#241 O3). New: `seat::ELECTION_RANKS` (3). **An answer changes**: before, every rank counted.
+  Two cases; one plant in each language.
 - **The room elects only where no duty holder is left** (CC 4.5.4 (v): "With no duty holder left the room locks, and
   the members' count seats one"; rule 2: "While another duty holder remains, a vacant seat is conferred under line
   (iv), and the community does not lock"). A ranked row concludes nothing where a key holds a duty seat at the heads
@@ -39,9 +42,9 @@ beyond the ballot count").
   them, and the crate cannot hold them yet. (1) Several seatings: "the one counted over the larger set stands", and
   two over equal sets of different ballots seat nobody until one is counted over their union. The rows carry no
   election id, so the crate cannot tell which seatings belong to one election. While two seatings are two tips,
-  neither stands; once a row names both, both stand. The text does not decide the other three: (2) the decline and
+  neither stands; once a row names both, both stand. The text does not decide the other two: (2) the decline and
   "the next in runoff order" (striking the decliner and counting again, or the order of the first count, give
-  different winners in the case); (3) a ballot ranking more than three; (4) every member a candidate: two members whom no ballot names tie for weakest and seat nobody. Not
+  different winners in the case); (3) every member a candidate: two members whom no ballot names tie for weakest and seat nobody. Not
   built, and outside these rows: the lock (nobody posts, admits or acts until a moderator is seated) and the
   node's 24 h since it first held the lock.
 

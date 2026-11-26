@@ -39,6 +39,7 @@ Planted breaks, each of which must change a case's answer:
     election_beside_holder    the election seats while a duty holder is live at the heads the row names
     election_agent_holder     an AI agent's key holding a duty is read as a holder, and the room does not elect
     candidates_roster         the candidates are the member seats at the heads, a leaver among them
+    ballot_ranks_unbounded    a ballot ranking more than three counts
 
     python3 -I check_election.py      exit 1 on any difference
 """
@@ -173,6 +174,13 @@ CASES = [
      [G4, ST.withdraw("wc", "C", "g", ("g",)), ballot("ba", "A", "CB"), ballot("bb", "B", "B"),
       elect("el", "B", ("ba", "bb"), ("B", "D"))],
      MOD("B"), "a candidate who leaves"),
+    ("a ballot ranking four is void, the whole ballot (CC 4.5.13 'Each person ranks up to three'; #241 O3): one "
+     "ballot is under the floor",
+     [G5, ballot("ba", "A", "BCDE"), ballot("bb", "B", "B"), elect("el", "B", ("ba", "bb"), M5)],
+     NOMOD("B"), "the ballot"),
+    ("a ballot ranking three counts: B is seated",
+     [G5, ballot("ba", "A", "BCD"), ballot("bb", "B", "B"), elect("el", "B", ("ba", "bb"), M5)],
+     MOD("B"), "the ballot"),
     # ---- one ballot a person -----------------------------------------------------------------------------------------
     ("two different ballots by one member are none: B's one ballot is under the floor",
      [G3, ballot("ba", "A", "B"), ballot("ba2", "A", "C"), ballot("bb", "B", "B"),
@@ -248,11 +256,6 @@ OPEN = [
      "roster) | C (the members no ballot names are no standing candidates, and the count runs as over A, B and C). "
      "Over a roster of n with every member voting and no first-round majority, two members with no first choice is "
      "the common case, so under the first reading a runoff seldom decides."),
-    ("OPEN: a ballot ranking four, where the text says each person ranks up to three: A ranks B, C, D and E; B ranks B",
-     [G5, ballot("ba", "A", "BCDE"), ballot("bb", "B", "B"), elect("el", "B", ("ba", "bb"), M5)],
-     MOD("B"), "the ballot",
-     "B (the whole ranking counted, the model's answer; or its first three, the same here) | nobody (a ballot "
-     "ranking more than three is refused or void; one ballot is then under the floor)"),
     ("OPEN: a winner who declines: of eight, A has four first choices, C three, B one, and B's ballot passes to A, "
      "who wins and declines; one seating names B and one C, each over the ballots and the decline",
      [G8, ballot("ba", "A", "AB"), ballot("bd", "D", "AB"), ballot("be", "E", "AB"), ballot("bf", "F", "AB"),
@@ -300,7 +303,7 @@ def planted(plant):
 
 PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_any_winner", "ballot_withdrawal_unread",
           "ballot_nonmember_ranked", "election_beside_holder", "election_agent_holder",
-          "candidates_roster")
+          "candidates_roster", "ballot_ranks_unbounded")
 
 
 def answers(rows, asks, plant=None, arrive=False):

@@ -252,6 +252,10 @@ pub trait SeatRow: Row {
     }
 }
 
+/// The most keys an election's ballot ranks (CC 4.5.13: "Each person ranks up to three"); a ballot ranking more is
+/// void, the whole ballot.
+pub const ELECTION_RANKS: usize = 3;
+
 /// A count, read from the policy table.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Policy {
@@ -1941,6 +1945,7 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
             // `ballot:moderator`: "A ballot naming ... a non-member is kept and not counted"): the candidates are
             // the base, so an agent's key and a key whose own leaving is in the row's past are none
             .filter(|b| b.ranking().iter().all(|k| mem.contains(k)))
+            .filter(|b| b.ranking().len() <= ELECTION_RANKS)
             .map(|b| (b.signer().clone(), b.ranking().to_vec()))
             .collect();
         // the one ranked row is the election, which declares no order: a tie for weakest seats nobody

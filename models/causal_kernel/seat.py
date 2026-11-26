@@ -163,6 +163,8 @@ FINAL = ("registered",)
 # over the duty holders at the head the row names; a seat conferred alone stands only if its signer was then the
 # one duty holder, read over the offer's own past.
 DUTY_POLICY = {"duty_confer": "confer", "duty_withdraw": "withdraw"}
+# CC 4.5.13: "Each person ranks up to three"; a ballot ranking more is void, the whole ballot (#241 O3)
+ELECTION_RANKS = 3
 MUT = set()       # named mutations, switched on by a check (formal/causal_kernel/check_rosters.py, the key instance)
 
 
@@ -969,7 +971,8 @@ def count_met(r, P, past, table=None):
                   if "candidates_roster" in MUT else vot)
         ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot")
                    if (b["id"] in r["names"] or "ballot_unnamed" in MUT) and (b["signer"] in vot or "ballot_any_signer" in MUT)
-                   and b["id"] not in gone and (set(b["ranking"]) <= roster or "ballot_nonmember_ranked" in MUT)]
+                   and b["id"] not in gone and (set(b["ranking"]) <= roster or "ballot_nonmember_ranked" in MUT)
+                   and (len(b["ranking"]) <= ELECTION_RANKS or "ballot_ranks_unbounded" in MUT)]
         # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
         won = RANKED(ballots, list(r["options"]), declared="election_declared" in MUT)[0]
         if "election_any_winner" in MUT: return k == "offer" and bool(ballots) and won is not None
