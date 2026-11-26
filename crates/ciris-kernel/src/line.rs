@@ -155,11 +155,12 @@ pub fn versions(
     valid: &dyn Fn(usize) -> bool,
     ack: Option<usize>,
 ) -> BTreeSet<usize> {
-    let conc = |i: usize, j: usize| i != j && !past(j).contains(&i) && !past(i).contains(&j);
-    // i extends only versions strictly in the past of j, an act of the reader's line (CC 2.7.8)
+    // i is not in the past of j, an act of the reader's line, and extends only versions strictly in j's past
+    // (CC 2.7.8; no test of concurrency, as `settle`)
     let stale = |i: usize, j: usize| {
         let bi = builds_on(i);
-        conc(i, j) && !bi.is_empty() && bi.iter().all(|e| past(j).contains(e))
+        let beside = i != j && !past(j).contains(&i);
+        beside && !bi.is_empty() && bi.iter().all(|e| past(j).contains(e))
     };
     let mine: BTreeSet<usize> = match ack {
         None => BTreeSet::new(),

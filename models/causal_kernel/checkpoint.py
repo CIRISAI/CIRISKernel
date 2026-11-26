@@ -140,8 +140,10 @@ def versions(ids, builds_on, past, valid, ack=None, group=False):
     conc = lambda i, j: i != j and i not in past[j] and j not in past[i]
     # the refused group checkpoint (group=True only): i's heads strictly older than the heads j extends
     stale = lambda i, j: conc(i, j) and bool(builds_on[j]) and bool(builds_on[i]) and all(any(e in past[h] for h in builds_on[j]) for e in builds_on[i])
-    # the reader's line: i extends only versions strictly in the past of j, an act of the line (CC 2.7.8)
-    behind = lambda i, j: conc(i, j) and bool(builds_on[i]) and all(e in past[j] for e in builds_on[i])
+    # the reader's line: i is not in the past of j, an act of the line, and extends only versions strictly in j's past
+    # (CC 2.7.8; no test of concurrency, as settle; MUTATION versions_concurrent: only versions concurrent with j)
+    behind = lambda i, j: i != j and i not in past[j] and ("versions_concurrent" not in MUT or j not in past[i]) \
+        and bool(builds_on[i]) and all(e in past[j] for e in builds_on[i])
     P = [i for i in ids if valid(i)]
     mine = frozenset() if ack is None else frozenset({ack}) | frozenset(past[ack])       # the reader checkpoint: its acknowledged line
     P = sorted((i for i in P if i in mine or not any(behind(i, a) for a in mine)), key=lambda i: len(past[i]))

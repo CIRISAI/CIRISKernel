@@ -196,6 +196,10 @@ POLICY.update({k: ("duty", 0, 0) for k in DUTY_POLICY})          # CC 4.5.4 (iv)
 # CC 4.5.13, the members' check as a counted row: the re-seating of an agent's key a moderator removed alone. Read by
 # lift_count, not by met(): a counted row of this policy that is no such re-seating concludes nothing.
 POLICY["moderation_overturn"] = ("lift", 1, 2)
+# CC 4.4.3.6 `open:self_admit`: an outsider's own admission to an open room. The group's side of a widening naming one
+# new key is that key's own signature; a removal, or a widening naming a key already seated, takes two voices besides
+# the member named. A head it writes narrows no count: a count naming it is read at the heads it names (count_heads)
+POLICY["open:self_admit"] = ("self_admit", 0, 0)
 if POLICY.get("community_remove", ("", 0, 0))[0] == "declared":
     POLICY["community_remove"] = ("atleast", 2, 3)
 
@@ -458,7 +462,9 @@ class Seats:
         # a lift is read by the line as before (concurrent acts only), pending the lift follow-up
         # (MUTATION lift_exemption_off: the new line reads the lift too)
         lift = lambda r: K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "lift" and "lift_exemption_off" not in MUT
-        L = CP.void(S, CP.EVERY, own, checkpoint, lift) if own is not None and "cut_before_line" not in MUT else frozenset()
+        # (MUTATION line_after_cut: the first pass reads the cut, not every row as counting)
+        first = CUT.Cut(S) if "line_after_cut" in MUT else CP.EVERY
+        L = CP.void(S, first, own, checkpoint, lift) if own is not None and "cut_before_line" not in MUT else frozenset()
         self.cut = C = CUT.Cut(S, without=L)
         Cs = S.Cs
         wd = K.sel(Cs, kind="withdraw")
@@ -474,7 +480,8 @@ class Seats:
         # a withdrawal that names a scope ends that one seat of the row it withdraws (a founding holder lays down a duty)
         off_ended = lambda o, k, sc: any(w["target"] == o["id"] and (w["signer"] == k or (w["signer"] not in o["to"] and o["conf"] != "group" and not eq(o)))
                                          and (w.get("scope") in (None, sc) or "scope_unread" in MUT) and not late(w, o) for w in wd)
-        self.stale = V = L | CP.void(S, C, own, checkpoint, lift)     # counted acts built on one that does not count, or behind the reader's line
+        # (MUTATION line_void_unlisted: the acts of the first pass not listed as void)
+        self.stale = V = (frozenset() if "line_void_unlisted" in MUT else L) | CP.void(S, C, own, checkpoint, lift)     # counted acts built on one that does not count, or behind the reader's line
         unseats = [u for u in K.sel(Cs, kind="unseat") if C.counts(u) and u["id"] not in V]
         # a moderator's lone removal is an act under its `moderate` standing, in force only while the end rule says so
         # (out_of_force). `drop`: the lone removals already judged out of force over the whole set, for a reading of
@@ -837,7 +844,7 @@ def members_at(P, past, obj, heads, scope="member"):
     """The live `scope` seats over obj, read from the rows in the past of the heads only. Several heads: the
     keys common to all of them (KERNEL.md section 7)."""
     out = None
-    for h in newest(heads, past):                       # the count is read at the newest heads named
+    for h in count_heads(heads, P, past):              # the count is read at the newest heads named
         sub = [q for q in P if q["id"] == h or past(q["id"], h)]
         if not any(q["id"] == h for q in sub): return frozenset()
         m = seats_of(sub).holders(scope, obj)
@@ -934,6 +941,26 @@ def newest(heads, past):
     return tuple(h for h in hs if not any(h != o and past(h, o) for o in hs))
 
 
+def authored_head(r):
+    """A head one key wrote: an outsider's own admission to an open room (`open:self_admit`, signed by the key it
+    seats). It narrows no count but by its own signer."""
+    return r["kind"] == "offer" and K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "self_admit" \
+        and len(r["to"]) == 1 and r["to"][0] == r["signer"]
+
+
+def count_heads(heads, P, past):
+    """The heads a count is read over (seat.rs counted_heads): the heads named, each authored head replaced by the
+    heads it names in turn, and then the newest of them."""
+    by, todo, seen, kept = {q["id"]: q for q in P}, list(heads), set(), []
+    while todo:
+        h = todo.pop()
+        if h in seen: continue
+        seen.add(h)
+        if h in by and authored_head(by[h]): todo.extend(by[h].get("head", ()))
+        else: kept.append(h)
+    return newest(sorted(kept, key=str), past)
+
+
 def newer_head_in_past(heads, of, P, past, obj):
     """Whether the newest heads named are not the newest counted heads of obj's roster in the row's own past: a
     counted change of obj's roster (checkpoint.is_counted_act) among P, in the past of row `of` (every row of P where
@@ -941,13 +968,16 @@ def newer_head_in_past(heads, of, P, past, obj):
     change nor obj's founding row. A counted row over a roster concludes only at the newest counted heads of that
     roster in its own past."""
     if "count_heads_unread" in MUT: return False
-    hs = newest(heads, past)
+    hs = newest(heads, past)                            # the newest named (an authored head stands as itself here)
     by = {q["id"]: q for q in P}
     # MUTATION head_any_row: a named head may be any row
     if "head_any_row" not in MUT and any(h != obj and not (h in by and CP.is_counted_act(by[h], obj)) for h in hs):
         return True
-    return any(CP.is_counted_act(q, obj) and (of is None or past(q["id"], of)) and q["id"] not in hs
-               and not any(past(q["id"], h) for h in hs) for q in P)
+    # MUTATION changes_any_object: a counted change of any object moves the head; past_disjunct_off: a change behind a
+    # named head moves it too
+    of_obj = (lambda q: CP.is_counted_act(q, q.get("obj"))) if "changes_any_object" in MUT else (lambda q: CP.is_counted_act(q, obj))
+    behind = (lambda q: False) if "past_disjunct_off" in MUT else (lambda q: any(past(q["id"], h) for h in hs))
+    return any(of_obj(q) and (of is None or past(q["id"], of)) and q["id"] not in hs and not behind(q) for q in P)
 
 
 def _revoked_before(r, P):
@@ -988,6 +1018,10 @@ def count_met(r, P, past, table=None):
         # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
         return k == "offer" and bool(ballots) and RANKED(ballots, list(r["options"]), declared=False)[0] == r["to"][0]
     if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
+    if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "self_admit":
+        v = voices(r, P)
+        if k == "offer" and len(r["to"]) == 1 and r["to"][0] not in mem: return r["to"][0] in v
+        return len({x for x in v & mem if x not in r["to"]}) >= 2
     return met(r.get("policy"), len(voices(r, P) & vot), len(mem), r.get("need"), table)
 
 
@@ -1006,6 +1040,8 @@ def seat_rule(r, P, past, table=None, other=None):
             if k == "unseat": return _ender(r, P, by)
             return k == "offer" and r.get("under") in by and r["signer"] in by[r["under"]]["to"]
         if conf == "group":
+            # MUTATION count_heads_before_lone: the newest-heads test read ahead of the lone removal's arm
+            if "count_heads_before_lone" in MUT and newer_head_in_past(r.get("head", ()), None, P, past, r.get("over", r["obj"])): return False
             if k == "unseat" and lone_removal(r, P, past): return True          # CC 4.5.13: a moderator, an agent's key
             return count_met(r, P, past, table)
         return False

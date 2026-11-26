@@ -30,6 +30,12 @@ Planted breaks, each of which must change a case's answer:
     all_heads_read       a count read at every head it names, not the newest of them
     head_any_row         a named head may be any row, not only a counted change or the founding row
     heads_of_obj         the newest heads tested on the row's own object, not the object it is counted over
+    changes_any_object   a counted change of any object moves the head
+    past_disjunct_off    a counted change behind a named head moves it too
+    line_void_unlisted   the acts behind the reader's line not listed as void
+    line_after_cut       the line's first pass reads the cut, not every row as counting
+    count_heads_before_lone  the newest-heads test read ahead of the moderator's lone removal
+    versions_concurrent  a roster version behind the reader's line only where concurrent with its act
     lift_exemption_off   the new line reads the members' lift too (the exemption pending the lift follow-up)
 
     python3 -I check_count_heads.py      exit 1 on any difference
@@ -168,6 +174,19 @@ CASES = [
              ST.offer("ah", "A", "B", "member", "h", "group", ("h", "aG"), head=("h",), policy="community_invite", cosigners=("B",)),
              ST.offer("ox", "A", "X", "member", "h", "group", ("ah",), head=("ah",), over="g", policy="community_invite",
                       cosigners=FIVE[1:] + ("X",))], None, {"ah": T, "ox": F}, {}, set(), ({"ah": T, "ox": T}, {}, set())),
+    # a count naming an authored head (an outsider's own admission, `open:self_admit`) beside an older counted head: it
+    # is read at the newest head named, the authored one, and through it at the heads that one names (seat.rs reads it
+    # so too: counted_heads)
+    ("an outsider admits itself at the newest head; a removal by five names the fourth member's admission and that "
+     "self-admission",
+     ROOM + [ST.offer("sa", "Z", "Z", "member", OBJ, "group", ("aG",), head=("aG",), policy="open:self_admit"),
+             remove("xg", "G", FIVE, ("aD", "sa"))], None, {"sa": T, "xg": T}, {"member": (SEVEN | {"Z"}) - {"G"}}, set(), None),
+    # the counted changes read are those of the object counted over: a change of another room in the row's past
+    # moves no head of this one
+    ("a removal by five at the newest head names an admission of another room",
+     ROOM + [ST.found("h", "A", ("A",), {}),
+             ST.offer("ah", "A", "B", "member", "h", "group", ("h",), head=("h",), policy="community_invite", cosigners=("B",)),
+             remove("xg", "G", FIVE, ("aG",), ("ah",))], None, {"ah": T, "xg": T}, {"member": SEVEN - {"G"}}, set(), None),
     # the reader's line is read with every row counting (W3). The rows of a review: a reader acknowledged an admission
     # that a removal cuts on main, and a sibling admission at the same head. The removal names a row that is no counted
     # change among its heads, so it now concludes nothing, the acknowledged admission stands, and the sibling is behind
@@ -196,8 +215,37 @@ CASES = [
     ("the members' lift of a lone removal, for a reader that acknowledged the removal (pending the lift follow-up)",
      AR.A + [AR.XA, AR.O1, AR.O2, AR.RSA, ack("ak", "m1", "x")], "m1", {"rs": T}, {"agent": {"AG"}}, set(), None),
 ]
+# the reader's line over roster versions (checkpoint.versions, line::versions), on worlds of roster_fork's rule M
+# (set-aside: a version may have in its past a version it does not extend). Each: (name, extends, past, roster of each
+# version, the reader's acknowledged version, the versions that count, those before, the roster of the tips, before).
+# The new answers hold a version void for the reader until it is signed again at the newer head; the roster of the
+# tips then reads without that version's change: an admission not listed, a removal not taken
+VERSIONS = (
+    ("a version extends the founding version with the acknowledged one in its past", ((), (0,), (0,)), ((), (0,), (0, 1)),
+     ("0123", "012", "012"), 1, {0, 1}, {0, 1, 2}, "012", "012"),
+    ("the same, and a version over it admits a member", ((), (0,), (0,), (2,)), ((), (0,), (0, 1), (0, 1, 2)),
+     ("0123", "012", "012", "0124"), 1, {0, 1}, {0, 1, 2, 3}, "012", "0124"),
+    ("the same, and a version over it removes a member", ((), (0,), (0,), (2,)), ((), (0,), (0, 1), (0, 1, 2)),
+     ("0123", "01234", "01234", "0124"), 1, {0, 1}, {0, 1, 2, 3}, "01234", "0124"),
+)
+
+
+def version_answer(E, past, ack):
+    T, _ = CP.versions(list(range(len(E))), {i: E[i] for i in range(len(E))}, {i: set(past[i]) for i in range(len(E))},
+                       lambda i: True, ack, False)
+    return set(T)
+
+
+def version_roster(past, R, T):
+    covered = set().union(*[set(past[i]) for i in T]) if T else set()
+    tips = [i for i in T if i not in covered]
+    return "".join(sorted(set.intersection(*[set(R[i]) for i in tips]))) if tips else ""
+
+
 PLANTS = (("count_heads_unread", ST.MUT), ("line_concurrent", CP.MUT), ("cut_before_line", ST.MUT), ("all_heads_read", ST.MUT),
-          ("head_any_row", ST.MUT), ("heads_of_obj", ST.MUT))
+          ("head_any_row", ST.MUT), ("heads_of_obj", ST.MUT),
+          ("changes_any_object", ST.MUT), ("past_disjunct_off", ST.MUT), ("line_void_unlisted", ST.MUT), ("line_after_cut", ST.MUT),
+          ("count_heads_before_lone", ST.MUT), ("versions_concurrent", CP.MUT))
 GUARDS = (("lift_exemption_off", ST.MUT),)      # a break of the lift's exemption, pending the lift follow-up
 
 
@@ -224,7 +272,8 @@ def want(concl, holds, stale):
 
 
 def run_all():
-    return [answer(CK.concluded(CK.kept(list(rows)), RULE), own, concl, holds) for _, rows, own, concl, holds, _, _ in CASES]
+    return [answer(CK.concluded(CK.kept(list(rows)), RULE), own, concl, holds) for _, rows, own, concl, holds, _, _ in CASES] + \
+        [(version_answer(E, past, ack), version_roster(past, R, version_answer(E, past, ack))) for _, E, past, R, ack, *_ in VERSIONS]
 
 
 def main():
@@ -238,6 +287,10 @@ def main():
             if answer(CK.arrive([rows[0]] + p, RULE), own, concl, holds) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in p]))
                 break
+    for name, E, past, R, ack, want_t, old_t, want_r, old_r in VERSIONS:
+        t = version_answer(E, past, ack)
+        if (t, version_roster(past, R, t)) != (want_t, want_r):
+            problems.append("%s: got %s, roster %s" % (name, t, version_roster(past, R, t)))
     # the answer before: the rules switched off together
     for _, m in PLANTS: m.add(_)
     try:
@@ -250,12 +303,16 @@ def main():
         if o != b:
             problems.append("%s: before the change got %s, the case states %s" % (name, o, b))
         changed += before is not None
+    for (name, E, past, R, ack, want_t, old_t, want_r, old_r), o in zip(VERSIONS, old[len(CASES):]):
+        if o != (old_t, old_r):
+            problems.append("%s: before the change got %s, the case states %s" % (name, o, (old_t, old_r)))
+        changed += (want_t, want_r) != (old_t, old_r)
     caught = 0
     now = run_all()
     for p, m in PLANTS + GUARDS:
         m.add(p)
         try:
-            hit = [c[0] for c, a, b in zip(CASES, now, run_all()) if a != b]
+            hit = [c[0] for c, a, b in zip(list(CASES) + list(VERSIONS), now, run_all()) if a != b]
         finally:
             m.discard(p)
         caught += bool(hit)
@@ -264,8 +321,8 @@ def main():
             problems.append("plant %s not caught" % p)
     for p in problems:
         print(p)
-    print("RESULT: %s: %d cases (%d whose answer this change makes), %d arrival orders, %d of %d planted breaks caught"
-          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), changed, n, caught, len(PLANTS + GUARDS)))
+    print("RESULT: %s: %d cases and %d of roster versions (%d whose answer this change makes), %d arrival orders, %d of %d planted breaks caught"
+          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), len(VERSIONS), changed, n, caught, len(PLANTS + GUARDS)))
     return 1 if problems else 0
 
 

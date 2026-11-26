@@ -574,6 +574,13 @@ def versions_cases():
     for n in sorted(x[0] for x in A.TESTS):
         A.run_one(n)
     A.cp_versions, A.free = orig, orig_free
+    # roster versions on a world of roster_fork's set-aside rule M: check_count_heads.py's cases
+    import check_count_heads as CH
+    for name, E, past, R, ack, *_ in CH.VERSIONS:
+        T = CH.version_answer(E, past, ack)
+        calls.append({"setting": "check_count_heads.py: " + name,
+                      "versions": [{"E": list(E[i]), "past": sorted(past[i]), "valid": True} for i in range(len(E))],
+                      "cases": [[list(range(len(E))), ack, sorted(T)]]})
     return out + calls
 
 

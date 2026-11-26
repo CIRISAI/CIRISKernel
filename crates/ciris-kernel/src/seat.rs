@@ -1904,15 +1904,16 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
 /// of that roster in its own past (CC 2.7.8). A cosignature needs no reading of its own: it is a voice only
 /// where the row names it, so the row's past holds the cosignature's.
 ///
-/// `heads` are read as the count reads them ([`counted_heads`]: the newest of those named), and each must
-/// be such a counted change or `obj`'s founding row: a head that is any other row is no head of the count.
-fn newer_head_in_past<R: SeatRow>(p: &Past<'_, '_, R>, law: &SeatLaw, obj: &ObjOf<R>, heads: &[R::Id]) -> bool {
+/// `heads` are read as the newest of those named (one in the past of another named head is dropped; an
+/// authored head stands as itself here, though the count reads through it, [`counted_heads`]), and each
+/// must be such a counted change or `obj`'s founding row: a head that is any other row is no head of the count.
+fn newer_head_in_past<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>, heads: &[R::Id]) -> bool {
     let changes = |q: &R| LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj);
-    let heads = counted_heads(law, heads, &|h| p.get(h), &|a, b| p.past(a, b));
-    if heads.iter().any(|h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(changes)) {
+    let heads: Vec<&R::Id> = heads.iter().filter(|&a| !heads.iter().any(|b| a != b && p.past(a, b))).collect();
+    if heads.iter().any(|&h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(changes)) {
         return true;
     }
-    p.rows().any(|q| changes(q) && !heads.iter().any(|h| h == q.id() || p.past(q.id(), h)))
+    p.rows().any(|q| changes(q) && !heads.iter().any(|&h| h == q.id() || p.past(q.id(), h)))
 }
 
 /// A counted row's count ([`Conf::Group`]), met over `p`: the lift, the ranked tally, the duty count, or the
@@ -1941,7 +1942,7 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
     // read at the newest counted heads of the roster in its own past. A lift (above) is exempt, pending the lift
     // follow-up: it is counted at the head its act names
     // the object the count is taken over
-    if newer_head_in_past(p, law, &r.over().unwrap_or(obj.clone()), r.head()) {
+    if newer_head_in_past(p, &r.over().unwrap_or(obj.clone()), r.head()) {
         return false;
     }
     let mem = count_members_with(p, law, spec, cache);

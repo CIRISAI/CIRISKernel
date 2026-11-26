@@ -3,8 +3,10 @@
 ## Unreleased
 
 **A count is read at the newest counted heads in its own past; one reader's line; the line before the cut.**
-Additive: three public functions (`cut::Cut::new_without`, `line::settle_with`, `line::void_with`).
-`Seats::cut()` is now the reader's cut where `own` is set. Several answers change; each is listed below.
+Additive: three public functions (`cut::Cut::new_without`, `line::settle_with`, `line::void_with`). One public
+function returns something else: `Seats::cut()` is the reader's cut where `own` is set (solved without the acts
+behind that reader's line), and the cut over the set only where it is not. Several answers change; each is
+listed below.
 
 - A counted row over a roster concludes only at the newest counted heads of that roster in its own past
   (`seat::seat_rule`, the count arm). A counted change is what the reader's line reads as a counted act
@@ -18,8 +20,10 @@ Additive: three public functions (`cut::Cut::new_without`, `line::settle_with`, 
 
   The count is read at the newest of the heads named: `seat::counted_heads` (Python `seat.newest`) drops a
   named head that is in the past of another named head, and `members_at` reads only those. Several concurrent
-  newest heads (tips) are intersected as before. A row that has not seen the newer head (one concurrent with
-  it) concludes as before; the line and the fold read it.
+  newest heads (tips) are intersected as before. A head one key wrote (an outsider's own admission,
+  `open:self_admit`) is read through to the heads it names, in the reference as in the crate (the reference
+  gains that policy). A row that has not seen the newer head (one concurrent with it) concludes as before; the
+  line and the fold read it.
 
   Read as before: a lift (`Policy::Lift`), pending the lift follow-up (it is to name the newest counted heads
   in its own past and be counted over the members seated both at the act's head and at its own, the author
@@ -37,8 +41,18 @@ Additive: three public functions (`cut::Cut::new_without`, `line::settle_with`, 
   line. This is the rule `head::View` reads. A lift is read by the line as before (void only where concurrent
   with an act of the line), pending the same follow-up: `line::settle_with` and `line::void_with` take the acts
   read so. **Answers change** for a counted act that has an act of the line in its own past and names a head
-  older than it. In practice that is a moderator's lone removal at an older head, since the rule above refuses
-  the other counted rows.
+  older than it. With the rule above (the newest named heads, each a counted change), the only such act that
+  concludes is a moderator's lone removal at an older head; before that rule, any counted row of that shape was
+  one.
+- `line::versions` (Python `checkpoint.versions`) is the same rule: no test of concurrency. Where a version's
+  past is the closure of the versions it extends (roster_fork's rule M0, and every fixture of `versions.json`
+  before this change), the answers are the same. Where a version may have in its past a version it does not
+  extend (roster_fork's set-aside rule M), **answers change**. On rule M's worlds (every set of up to three
+  versions, every reader), 50,868 of 330,909 answers differ, each in holding more versions void for the reader.
+  In 46,508 of them the roster of the tips is the same. In 4,135 a member is listed who was not: the voided
+  version removed that member. In 225 a member is not listed who was: the voided version admitted that member.
+  In every class the version is void until it is signed again at the newer head. Three cases in
+  `check_count_heads.py`, one per class, and in `versions.json`.
 - The line is read before the cut (`seat::Seats`): a counted act void for a reader cuts nothing for that
   reader. For a reader with an acknowledgement, the cut is solved without the acts behind its line
   (`cut::Cut::new_without`), and `Seats::cut()` returns that cut. **Answers change:** a counted removal
@@ -48,14 +62,17 @@ Additive: three public functions (`cut::Cut::new_without`, `line::settle_with`, 
   head a counted change, such a removal is itself concurrent with the acknowledged act and named over an act
   behind it, so it is void for that reader and cuts nothing. A case states both forms. For a reader with no
   acknowledgement nothing changes: a removal at a tip is read by the fold as before.
-- Cases: `models/causal_kernel/check_count_heads.py` (27 cases in arrival orders, seven planted breaks; each
+- Cases: `models/causal_kernel/check_count_heads.py` (29 cases in arrival orders and three of roster versions, thirteen planted breaks; each
   case states its answer before the change), attack 35 in `attacks.py`, and the fixture `seat.json`, which
   carries them. The cases include two of a moderator who lays down its seat and then removes an agent's key
   alone, naming the head where it held the seat: the end rule holds the removal not in force, with the
   withdrawal in its past or concurrent with it. A case of the lift states today's answer for a reader that
   acknowledged the removal, for the follow-up to change.
 
-  Existing cases rewritten to name the newest counted head (each fact holds again):
+  Existing cases rewritten to name the newest counted head (each fact holds again). In the first two the roster
+  counted over had NOT changed: the old rows were honest. This rule refuses them because a counted change of any
+  scope (a duty conferral here) moves the head. **An answer changes** for rows of that shape already written:
+  they conclude nothing and are signed again at the newer head.
   - `roomkey.py`, "the enabling is revocable": the withdrawal names the conferral it ends;
   - `attacks.py` test 3, "conferred by the count, then f1 withdrawn by the others": the withdrawal names the
     conferral;
@@ -63,7 +80,7 @@ Additive: three public functions (`cut::Cut::new_without`, `line::settle_with`, 
   - `check_rosters.py` T7: the stalled widening named a withdrawal and now names the founding row, with the
     withdrawal in its past.
 
-  Seven crate plants.
+  Thirteen crate plants.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
