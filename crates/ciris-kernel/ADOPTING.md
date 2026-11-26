@@ -111,6 +111,11 @@ migrations, and the local operational store.
   concludes (open, with Eric). Where a room's protocol states no rule for an act (`RoomProtocol::states`), the
   `cosigned_act` half of an `&` is no condition: an open room's record changes under `default_standing` alone, with
   `SeatLaw::community_floor` (set it from the policy table's `min_count.community`; 0 sets no floor).
+- A family: present its founding record with `group_kind()` `family`, its founders as the `duty_holders` entry
+  `founder` (no other entry: a duty map refuses the family), and its `consensus_protocol` (any of the set). Nothing
+  signs as the family. Under `founder_only` state `counted()` `founder`; a promotion is an offer of scope `founder`
+  the member accepts, a demotion an unseat of `founder`. Present `protocol_entrenched()` and `dissolves()` where the
+  record carries them, and ask `Seats::dissolved` whether a group is gone. No last-founder rule is the kernel's.
 - State `counted()` as the act's own body or not at all: the members for an admission, a removal, the recall, the
   lift, the election and a change of the record; `duty` for the duty holders' acts; `founder` in an infrastructure
   community; the accord's holders; a self roster's own seat. Any other `counted()`, or an `over()` naming another

@@ -1,16 +1,15 @@
 # `data/` — what the kernel is run on
 
-Every file here is copied unchanged from the parent repository at commit `60c741e`, except the four policy files
-(`governance_policy.tsv`, `governance_policy.json`, `governance_policy_vectors.json`, `governance_policy_acts.tsv`),
-copied unchanged from the Constitution's `rc23` at commit `f1773bf7684ebc29cfbe971474bc4064ea1de348` (the last commit
-touching `constitution/governance_policy.tsv`; the branch head was `efc31033dbf1ff51a1236ddba17cd68caa11c6f5`). The
-table's own pin, `policy_sha256` in the two manifests, is `8d58a472cc09beda6a962a4f579da6d5fcf5a3c63fbcd62f8db81aa84c20b873`:
-a content hash of the table, not a commit. `governance_policy_acts.tsv` is copied from rc23 at commit
-`682e9e44579b7cb650ede5c38e028c4fe510a9a3` (an infrastructure community's kind and a node's seat, 4c165f8; its record changes under its founders'
-protocol, 6c60be9; a record change meets the protocol in force and the standing default together, and a family has its
-rows, 682e9e4); the other three
-are unchanged there. `consensus_protocols.tsv` is copied unchanged from rc23 at commit
-`3670faa01a0c228b302a8653756bb953c246df97` (the last commit touching it). The parent generates most
+Every file here is copied unchanged from the parent repository at commit `60c741e`, except the five policy files
+(`governance_policy.tsv`, `governance_policy.json`, `governance_policy_vectors.json`, `governance_policy_acts.tsv`,
+`consensus_protocols.tsv`), copied unchanged from the Constitution's `rc23` at commit
+`2b509c82873da8ef251fa6a08f95cea9c7652738` (`constitution/` for the tables, `manifests/` for the two JSON files). The
+table's own pin, `policy_sha256` in the two manifests, is `d9f0d0a9d8378b16c8f7747d169e02bf15a85d930813c51d3d717b174e4780cd`:
+a content hash of the table, not a commit. The steps that brought the acts table there: an infrastructure community's
+kind and a node's seat (4c165f8); its record changes under its founders' protocol (6c60be9); a record change meets the
+protocol in force and the standing default together, and a family has its rows (682e9e4); the reading of `&` where a
+protocol states no rule, the group kind, and `dissolve` (2b509c8). `consensus_protocols.tsv` at 2b509c8 gives
+`founder_only` a removal rule (`founder-target`, `role_at:founder:1`). The parent generates most
 of them from its rule tables; the generators are not carried, so treat these as fixed inputs.
 
 | File | What it is | Read by | From (parent) |

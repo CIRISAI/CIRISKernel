@@ -226,6 +226,9 @@ def kind_of(by, obj, is_key=False):
     g = by.get(obj)
     if g is None or g["kind"] != "offer" or g.get("obj") != g["id"]: return None
     if "kind_unread" in MUT: return "community"                  # MUTATION: every founding row a community
+    # the group kind of the founding record (a family record carries `family_key_id`): `family` or `community`; a
+    # community's cohort_subkind then splits off an infrastructure community
+    if g.get("group_kind") == "family": return "family"
     k = KINDS.get(g["scope"]) if "kind_partial" in MUT else KINDS.get(g["scope"], "community")   # MUTATION kind_partial
     # a community's record says whether it is an infrastructure community: `cohort_subkind` (any other value, or none,
     # is a community)
@@ -254,6 +257,14 @@ def act_of(r, by, is_key=False):
     kind = kind_of(by, obj, is_key)
     if kind is None: return None
     if sc is None and kind != "accord": return None    # no scope: no act (as the crate)
+    if kind == "family":
+        # a family's acts (the table's family rows): an admission and a removal of a member, a promotion to and a
+        # demotion from the founder role (counted as an admission and as a removal: F1), a change of the record and its
+        # dissolution. No duty seat, no moderator, no agent (F4)
+        if sc == "record" and offer:
+            return ("dissolve" if r.get("dissolved_at") is not None else "record_change", "record", kind)
+        if sc in ("member", "founder"): return ("admit" if offer else "remove", "member", kind)
+        return None
     if kind == "community":
         c = by.get(r.get("content"))
         if offer and c is not None and c["kind"] == "unseat" and c.get("obj") == obj and c.get("scope") == sc \
@@ -264,6 +275,7 @@ def act_of(r, by, is_key=False):
         if (sc == "detect" or sc.startswith("detect:")) and "detect_unread" not in MUT:
             return ("seat_confer" if offer else "seat_withdraw", "detect", kind)
         # a change of the community's record (its consensus_protocol, say): the act record_change
+        if sc == "record" and offer and r.get("dissolved_at") is not None: return ("dissolve", "record", kind)
         if sc == "record" and offer and "record_unread" not in MUT: return ("record_change", "record", kind)
         dec = declared(by, obj)
         if not is_duty(sc, dec): return None
@@ -353,10 +365,12 @@ def protocol_rule(word):
 
 
 def founders_of(by, obj):
-    """The founders an infrastructure community's founding row seats: its signers. Its own word is checked against
-    their number; every later count reads the founder seats at its own heads (P1, Q5)."""
+    """The founders an infrastructure community's founding row seats: its signers that are among its `to` (a founding
+    row seats the keys that signed it; a signer it does not name is seated in nothing, and is no founder). Its own word
+    is checked against their number; every later count reads the founder seats at its own heads (P1, Q5)."""
     g = by.get(obj)
-    return len(signers(g)) if g is not None else 0
+    if g is None: return 0
+    return len(signers(g) if "founders_all_signers" in MUT else signers(g) & frozenset(g["to"]))   # MUTATION
 
 
 def infrastructure_rule(word, n_founders):
@@ -440,7 +454,10 @@ def community_rule(word, need=None, weights=None):
     if pr[0] == "founder_only" and "founder_only_community" not in MUT: return None
     if "one_voice_community_protocol" in MUT: return pr                      # MUTATION: a one-voice protocol is one
     if pr[0] == "quorum" and pr[1] == 1: return None
-    if pr[0] == "weighted" and need is not None and any(w >= need for _, w in (weights or ())): return None
+    if pr[0] == "weighted":
+        keys = [k for k, _ in (weights or ())]
+        if len(keys) != len(set(keys)) and "weights_twice_at_change" not in MUT: return None   # a key weighed twice
+        if need is not None and any(w >= need for _, w in (weights or ())): return None
     return pr
 
 
@@ -470,10 +487,26 @@ def _protocol_part(r, by, need, weights):
         out = dict(policy="P:founders", need=None, weights=None)
         if r.get("scope") == "record" and r.get("consensus_protocol") is not None: out["founders_word"] = r["consensus_protocol"]
         return out
-    pr = community_rule(w, rec.get("need"), rec.get("weights"))
+    family = kind_of(by, obj) == "family"
+    if family:
+        # a family (CC 3.3.4, 3.1.3.2, 4.5.12.5): every protocol of the set, founder_only and quorum:1/n included, and no
+        # floor of two voices; its record carries no duty map (F4: duty_holders_on_family), its founder roles apart
+        if any(d != "founder" for d, _ in (by[obj].get("duty_holders") or ())): return REFUSED
+        pr = protocol_rule(w) if "family_floor_two" not in MUT else community_rule(w, rec.get("need"), rec.get("weights"))
+    else:
+        pr = community_rule(w, rec.get("need"), rec.get("weights"))
     if pr is None: return REFUSED
     kind, m, _n = pr
-    if r.get("counted", "member") != "member" and "protocol_body_free" not in MUT: return REFUSED
+    # the body: a family under founder_only counts its active founders (the `founder` role standing at the row's
+    # heads: the founding roles and later conferred ones, less demotions and leavings); every other count its members
+    body = "founder" if family and kind == "founder_only" else "member"
+    if r.get("counted", "member") != body and "protocol_body_free" not in MUT: return REFUSED
+    if family and kind == "founder_only":
+        # each act takes one active founder; a removal (a demotion too) one other than the one it names
+        out = dict(policy="P:founder_only", need=None, weights=None)
+        if r["kind"] == "unseat": out["exclude_target"] = True
+        if "family_founders_fixed" in MUT: out["founders_fixed"] = True
+        return out
     # open:self_admit governs admissions alone (an offer of the member seat): the set states no removal under it, and
     # a removal concludes nothing (Q2: an explicit exception, not the `&` reading, until Eric answers whether an open
     # room may remove anyone); a change of the record is never counted as an admission
@@ -488,7 +521,10 @@ def _protocol_part(r, by, need, weights):
         need, weights = rec.get("need"), rec.get("weights")
         keys = [k for k, _ in (weights or ())]
         if len(keys) != len(set(keys)): return REFUSED          # a record weighing one key twice states no weights
-    return dict(policy="P:" + kind, need=need, weights=weights)
+    out = dict(policy="P:" + kind, need=need, weights=weights)
+    # a family's removal naming only its own signer, on that signature alone, is no leaving (F3: the resignation is)
+    if family and r["kind"] == "unseat" and "self_removal_as_leave" not in MUT: out["no_self_removal"] = True
+    return out
 
 
 def in_force(r, by):
@@ -528,6 +564,9 @@ def in_force(r, by):
             w = r["consensus_protocol"]
             ok = protocol_rule(w) if a[2] == "infrastructure" else community_rule(w, r.get("need"), r.get("weights"))
             if ok is None or (a[2] == "infrastructure" and ok[0] != "quorum"): return REFUSED
+        # an entrenched record (`consensus_protocol_entrenched`): a change of its protocol, or of the flag itself,
+        # concludes nothing (F5); every other amendment concludes under the protocol
+        if a[0] == "record_change" and not entrenchment_allows(r, by): return REFUSED
         # the body an act counts is the act's own (body_of), over its own object: never one the row states. A
         # protocol row's is its protocol's (_protocol_part); a duty's conferral, withdrawal and recall are read by
         # their own gates (duty_gate, duty_over, act_of's body)
@@ -564,6 +603,31 @@ def in_force(r, by):
     return dict(policy=word, all=out, any="record_change_either_policy" in MUT)
 
 
+def entrenchment_allows(r, by):
+    """Whether change r of the record is allowed by its entrenchment (F5, the one place it is read): on a record in
+    force carrying `consensus_protocol_entrenched` true, a change stating another protocol, or one stating a protocol
+    without the flag (a change of the flag), concludes nothing; a change that states no protocol (a rename, a role,
+    metadata) is allowed. A record not entrenched allows every change."""
+    if "entrenched_amendable" in MUT: return True
+    rec = protocol_record(by, r.get("obj"))
+    if rec is None or not rec.get("consensus_protocol_entrenched"): return True
+    if "entrenched_whole_record" in MUT: return False             # MUTATION: every amendment refused
+    if r.get("consensus_protocol") is None: return r.get("consensus_protocol_entrenched", True) is True
+    return r["consensus_protocol"] == rec.get("consensus_protocol") and r.get("consensus_protocol_entrenched") is True
+
+
+def is_dissolve(q):
+    """A dissolution of the group: a counted offer of scope `record` carrying `dissolved_at` (the act dissolve)."""
+    return q["kind"] == "offer" and q.get("conf") == "group" and q.get("scope") == "record" and \
+        q.get("dissolved_at") is not None
+
+
+def dissolved_in(P, obj):
+    """A concluded dissolution of obj is among P (a row's concluded past): the group's record is withdrawn, every seat
+    over it ends, and no row over it concludes after (the text's refusal `group_dissolved`)."""
+    return "dissolve_unread" not in MUT and any(is_dissolve(q) and q.get("obj") == obj for q in P)
+
+
 def body_of(a, by, obj):
     """The body an act counts (N2: the act's own, never the row's `counted`): an infrastructure community's founders;
     the duty holders (`duty`) for the duty holders' acts (a duty's conferral and withdrawal, a detector seat's); an
@@ -573,6 +637,7 @@ def body_of(a, by, obj):
     act, _sc, kind = a
     if kind == "infrastructure": return "founder"
     if kind == "accord": return "holder"
+    if kind == "family": return "member"
     if kind == "self": return by[obj]["scope"] if obj in by else "key"
     if act in ("duty_confer", "duty_withdraw", "seat_confer", "seat_withdraw"): return "duty"
     return "member"
@@ -735,7 +800,7 @@ def lone_founding(o):
     it. The older presentation, a lone founder's row of scope `duty`, holds the law's duties through HOLDS and is read
     as before."""
     return o.get("obj") == o["id"] and not o.get("duty_holders") and len(o["to"]) == 1 and o["scope"] == "member" \
-        and signers(o) == frozenset(o["to"]) and "lone_founder_unread" not in MUT
+        and signers(o) == frozenset(o["to"]) and "lone_founder_unread" not in MUT and o.get("group_kind") != "family"
 
 
 def seat_scopes(o, k):
@@ -1013,7 +1078,10 @@ class Seats:
                 if paired and not ended(a) and C.counts(a) and not own_void(a, o, k): return True
             return False
 
-        base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V
+        # a concluded dissolution of a group ends every seat over it (it reads as the withdrawal of the group's record)
+        gone = frozenset(q["obj"] for q in Cs if is_dissolve(q) and C.counts(q)) if "dissolve_leaves_seats" not in MUT \
+            else frozenset()
+        base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V and o["obj"] not in gone
                 for k in o["to"] if accepted(o, k) for sc in seat_scopes(o, k)
                 if not off_ended(o, k, sc) and not unseated(o, k, sc) and not resigned(o, k, sc)]
 
@@ -1071,6 +1139,13 @@ class Seats:
         if not any(self._has(r, s) and (root is None or r["root"] == root) and self._member(r) for r in K.sel(self.recs, k=k, obj=o)): return False
         fold = self.tips_fold(s, o)                             # with several tips, the fold of their changes
         return fold is None or k in fold
+
+    def dissolved(self, o):
+        """Group o is dissolved: a concluded dissolution of it is held, or, with no signer, every member it seated has
+        an end of their seat (its roster empty, folded at tips, and its founding row held): no row over it concludes."""
+        if any(is_dissolve(q) and q.get("obj") == o for q in self.S.Cs): return True
+        return founding_row(self.S.by, o) and not self.roster(o) and any(
+            g == o for _, _, g in stay_ends(self.S.Cs, self.S.by))
 
     def roster(self, o):
         """The room's whole roster over o: its members, its agents (CC 4.5.13) and its nodes (an infrastructure community). Content, wraps and audience read it;
@@ -1733,6 +1808,13 @@ def _count_under(r, P, past, by, table=None):
     # seats there, M their strict majority (P1, Q5)
     if r.get("founders_word") is not None and infrastructure_rule(r["founders_word"], len(mem)) is None:
         return False
+    if r.get("founders_fixed"):                      # MUTATION family_founders_fixed: the founding row's founders only
+        g = by.get(r["obj"]) or {}
+        mem = vot = frozenset(k for d, ks in (g.get("duty_holders") or ()) if d == "founder" for k in ks) & signers(g)
+    # a family under founder_only: a removal takes an active founder other than the one it names
+    if r.get("exclude_target"): vot = vot - frozenset(r.get("to", ()))
+    # a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
+    if r.get("no_self_removal") and voices(r, P) <= frozenset(r.get("to", ())): return False
     # the community floor, where a policy row governs alone in place of a protocol that states no rule (the `&` reading)
     if r.get("floor") is not None and len(voices(r, P) & vot) < r["floor"]: return False
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
@@ -1761,6 +1843,14 @@ def seat_rule(r, P, past, table=None, other=None):
     k, by = r["kind"], {q["id"]: q for q in P}
     if k in ("offer", "unseat"):
         conf = r["conf"]
+        # after a group's dissolution no row over it concludes (group_dissolved)
+        if r.get("obj") != r["id"] and dissolved_in(P, r.get("obj")): return False
+        # a dissolution is counted at the newest heads in its own past: every counted row over the group there is a
+        # head or in a head's past
+        if is_dissolve(r) and "dissolve_any_heads" not in MUT and any(
+                q.get("conf") == "group" and q.get("obj") == r["obj"] and q["kind"] in ("offer", "unseat")
+                and q["id"] not in r.get("head", ()) and not any(past(q["id"], h) for h in r.get("head", ())) for q in P):
+            return False
         if k == "offer" and _revoked_before(r, P, past): return False   # a revoked key does not re-seat itself (FINAL)
         # a single key's own offer of a duty (or one under its seat) concludes only where that key is the lone person
         # duty holder: "by a strict majority of the duty holders, or by the lone holder with the new holder's
@@ -1784,9 +1874,16 @@ def seat_rule(r, P, past, table=None, other=None):
         return False
     if k == "accept":
         if _revoked_before(r, P, past): return False           # a room key whose seat's end stands is not seated again (FINAL)
+        o = by.get(r.get("of"))
+        if dissolved_in(P, o.get("obj") if o is not None else r.get("obj")): return False   # group_dissolved
         return r["of"] is None or (r["of"] in by and r["signer"] in by[r["of"]].get("to", ()))
     if k == "withdraw":
         t = by.get(r["target"])
+        # MUTATION family_last_founder_refused: a family's last active founder may not leave (no such rule: a
+        # resignation is never refused for leaving the group without a founder)
+        if "family_last_founder_refused" in MUT and t is not None and kind_of(by, t.get("obj")) == "family" and \
+                seats_of(P).holders("founder", t["obj"]) == frozenset((r["signer"],)):
+            return False
         return t is not None and (r["signer"] in signers(t) or (t["kind"] == "offer" and r["signer"] in t["to"]))
     if k == "cosign":
         return True

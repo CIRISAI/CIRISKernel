@@ -475,10 +475,38 @@ told what act it is by the policy a row states.
 - **No one-voice community protocol** (Q1, CC 4.5.13): a community's record may not declare `quorum:1/{n}`, nor a
   weighted record one of whose weights reaches its threshold, at founding or in a change
   (`seat::community_protocol`; `federation_community_consensus_protocol_violation`): nothing concludes under it.
-- **`founder_only` is no community protocol** (Q3): a community naming it concludes nothing. It is a family's (and a
-  publication's subscriber list's, and a room's own listing's), read from the founders the record names. The table
-  gives the `family` kind its rows (`CommunityKind::Family`), but not how a family is founded, so `kind_of` never
-  answers it: the family is not built in this tag.
+- **`founder_only` is no community protocol** (Q3): a community naming it concludes nothing. It is a family's.
+- **The family** (CC 3.3.4, 3.1.3.2, 4.5.12.5; the Constitution's family rulings and F1 to F5; the tables at rc23
+  2b509c8, policy pin d9f0d0a9). New `SeatRow::group_kind()` (default `None`, a community): a founding record of group
+  kind `family` founds a `CommunityKind::Family`, whatever its scope or `cohort_subkind`. A family is keyless: nothing
+  signs as it (its `family_key_id` is no voice).
+  - **Founders** are the members whose `founder` role stands at the row's heads, read as for any count: the founding
+    record's roles (its `duty_holders` entry `founder`, the signers it names) and roles conferred later, less
+    demotions and leavings. A member is admitted with the role, or promoted, by an offer of scope `founder` counted
+    as an admission, which seats nobody without that member's own acceptance (F1). A demotion is an unseat of
+    `founder` counted as a removal; a founder lays its own role down by its own row (a withdrawal naming `founder`).
+    A resigned founder holds no authority.
+  - **Acts** (the table's family rows: admit, remove, record_change, dissolve, each under `cosigned_act`): every
+    protocol of the set, `founder_only` and `quorum:1/{n}` included, with no floor of two voices. Under `founder_only`
+    each act takes one active founder (`counted()` `founder`): an admission with the joiner's acceptance; a removal
+    (and a demotion) one other than the key it names, so two founders removing each other concurrently is CC 2.7.7
+    rule 5's contested pair (both are out); a change of the record, its protocol included. A removal naming only its
+    own signer, on that signature alone, concludes nothing (F3: the resignation is the leaving).
+  - **No duty seats** (F4): a family record carrying a duty map (any entry but `founder`) concludes nothing
+    (`duty_holders_on_family`), and no moderator arm applies (a lone founder holds no `moderate`).
+  - **No last-founder refusal**: a resignation is never refused, nor a removal that leaves members and no founder.
+    Under `founder_only` the family can then do nothing (its members can still leave, and it dissolves when the
+    last has); the way out is a founder promoting another before leaving (F2).
+- **Entrenchment** (F5, every group): new `SeatRow::protocol_entrenched()` (`consensus_protocol_entrenched`). On an
+  entrenched record in force, a change of `consensus_protocol`, or of the flag, concludes nothing; every other
+  amendment (a rename, a role, metadata) concludes under the protocol; admission and removal are unaffected.
+- **Dissolution** (the act `dissolve`, family and community, with a record change's policy): new
+  `SeatRow::dissolves()` (`dissolved_at`). A dissolution is counted at the newest heads in its own past; once it is
+  concluded every seat over the group ends and no row over it concludes (the text's `group_dissolved`).
+  `Seats::dissolved(o)` also answers a dissolution with no signer: every member has an end of their seat.
+- **Founders of an infrastructure community** (H5): the founding row's signers it seats (among its `to`), not every
+  signer: a cosigner it does not name is no founder and seated in nothing. **A weighted record weighing a key twice**
+  is refused at a change too (W1).
 - **`open:self_admit` governs admissions alone** (the read's N1, Q2): an offer of the member seat. A change of the
   record is never counted as an admission under it (before, a non-member's own change of an open room's record to
   `quorum:1/1` concluded, and then one member removed another). The set states no removal under it, so a removal
@@ -505,13 +533,13 @@ told what act it is by the policy a row states.
 - **The edge, stated** (ruled, P2): two concurrent changes of the protocol that disagree leave no protocol in force,
   so removals wait until a change names both tips under the protocol the common members had (the text's wait rule,
   CC 2.7.8, from the protocol side). No code.
-- The reference: `check_acts.py` has 35 act cases, 101 refusal cases, 5 stand cases, 30 protocol words and 17
-  infrastructure words, the sheet's 18 answers, 40 planted breaks (25 new); five rows pending the head rules and `room-keys-fix` (A1, A3,
+- The reference: `check_acts.py` has 40 act cases, 130 refusal cases, 11 stand cases, 3 dissolution cases, 30
+  protocol words and 17 infrastructure words, the sheet's 18 answers, 51 planted breaks (36 new); five rows pending the head rules and `room-keys-fix` (A1, A3,
   P1-3, Q4); two of the read's rows (A1: an old head's record change by removed members; A3: one founder's
   own offer) are listed as pending the head rules and `room-keys-fix`. `check_room_keys.py`'s two-key count and
   `check_rosters.py`'s infrastructure instance (I1: the node in scope `node`, founding record `infrastructure`) are
   restated. Crate tests `protocol_set_replay` and `the_recall_is_told_by_its_act` (a law mapping `moderator_recall`
-  to a plain threshold: the recall is told by its act). Twenty-nine new plants in the crate, one retired (N read from the record); those on changed text retargeted.
+  to a plain threshold: the recall is told by its act). Thirty-nine new plants in the crate, one retired (N read from the record); those on changed text retargeted.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

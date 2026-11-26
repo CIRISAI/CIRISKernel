@@ -189,6 +189,33 @@ fn the_recall_is_told_by_its_act() {
     }
 }
 
+/// A group is dissolved (`Seats::dissolved`): by a concluded dissolution, or with no signer when every member has
+/// an end of their seat (`check_acts.py`'s DISSOLVED).
+#[test]
+fn dissolved_replay() {
+    use ciris_kernel::layers::{conclude, kept};
+    use ciris_kernel::seat::{seat_rule, Obj, Seats};
+    use common::DictCut;
+    let fx = fixture("acts.json");
+    let law = law_of(fixture("seat.json").at("law"));
+    let (mut cases, mut bad) = (0, 0);
+    for c in fx.at("dissolved").arr() {
+        let refs: BTreeMap<String, String> =
+            c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rows = rows_with_refs(c.at("rows").arr(), &refs);
+        let k = kept(&rows, |_| true);
+        let cc = conclude(k, |p| seat_rule(p, &law, &DictCut, &|_| true), None);
+        let q = Seats::new(&cc, &law, &DictCut, None);
+        cases += 1;
+        if q.dissolved(&Obj::Row(c.at("obj").s().to_string())) != c.at("dissolved").b() {
+            bad += 1;
+            eprintln!("dissolved {}: got {}", c.at("name").s(), !c.at("dissolved").b());
+        }
+    }
+    report("a group's dissolution against check_acts.py", cases, bad);
+    assert_eq!(bad, 0);
+}
+
 #[test]
 fn no_table_binds_nothing() {
     let law = SeatLaw::default();

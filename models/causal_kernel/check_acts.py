@@ -49,6 +49,17 @@ Planted breaks, each of which must change a case's answer:
     founder_only_community        a community may declare founder_only (Q3)
     unstated_cosigned_blocks      the cosigned_act half of an `&` is a condition where the protocol states no rule
     unstated_floor_unread         the policy governing alone there takes no floor of two voices
+    founders_all_signers          an infrastructure founding row's founders are all its signers, not those it seats (H5)
+    family_founders_fixed         a family's founders are its founding roles alone, not the role standing at the heads (F1)
+    family_floor_two              a family takes the community's closed set (no one-voice protocol)
+    family_last_founder_refused   a family's last founder may not leave
+    entrenched_amendable          an entrenched record's protocol may be changed (F5)
+    entrenched_whole_record       an entrenched record refuses every amendment, not its protocol alone (F5)
+    dissolve_leaves_seats         a dissolution ends no seat
+    dissolve_unread               a row over a dissolved group concludes
+    dissolve_any_heads            a dissolution need not name the newest heads in its own past
+    self_removal_as_leave         a removal naming only its own signer, on that signature alone, concludes (F3)
+    weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
     record_change_as_admission    under open:self_admit an offer of another seat (an agent's, the record) is counted as an
@@ -86,6 +97,23 @@ def grp(i, kind, k, scope, policy, heads=("g",), obj=OBJ, **kw):
               **kw)
 
 
+# a family (CC 3.3.4, 3.1.3.2, 4.5.12.5): founders by the founding record's roles (its `founder` entry), keyless
+FAM = ST.found("g", "A", ("A", "B", "C"), {"founder": ("A",)}, cosigners=("B", "C"), group_kind="family",
+               family_key_id="FK", consensus_protocol="founder_only")
+FAM2 = ST.found("g", "A", ("A", "B", "C"), {"founder": ("A", "B")}, cosigners=("B", "C"), group_kind="family",
+                family_key_id="FK", consensus_protocol="founder_only")
+FAMJ = ST.found("g", "A", ("A", "B", "C"), {"founder": ("A",)}, cosigners=("B", "C"), group_kind="family",
+                family_key_id="FK", consensus_protocol="majority")
+FAMQ = dict(FAMJ, consensus_protocol="quorum:1/3")
+FAME = dict(FAM, consensus_protocol_entrenched=True)
+FADM = lambda i, k, signer="A", heads=("g",), counted="founder", scope="member", acc=True: grp(
+    i, "offer", k, scope, None, heads=heads, signer=signer, cosigners=(k,) if acc else (), counted=counted)
+FREM = lambda i, k, signer="A", heads=("g",), counted="founder", scope="member", cosigners=(): grp(
+    i, "unseat", k, scope, None, heads=heads, signer=signer, cosigners=cosigners, counted=counted)
+FREC = lambda i, w=None, signer="A", heads=("g",), **kw: grp(i, "offer", (), "record", None, heads=heads, signer=signer,
+                                                            counted="founder", consensus_protocol=w, **kw)
+FDIS = lambda i="d", signer="A", heads=("g",): grp(i, "offer", (), "record", None, heads=heads, signer=signer,
+                                                  counted="founder", dissolved_at=100)
 REM = grp("xr", "unseat", "X", "agent", "community_remove", window="moderation_overturn")
 # (name, rows, the row asked, (act, scope class, kind) or None)
 CASES = [
@@ -138,6 +166,14 @@ CASES = [
      ("admit", "node", "infrastructure")),
     ("its removal of a node", [GI, grp("r", "unseat", "n1", "node", "cosigned_act", cosigners=("f2",))], "r",
      ("remove", "node", "infrastructure")),
+    ("a family's founding record (group kind `family`) founds a family: an admission there is the family's",
+     [FAM, FADM("r", "D")], "r", ("admit", "member", "family")),
+    ("a promotion to the founder role is counted as an admission (F1)", [FAM, FADM("r", "B", scope="founder")], "r",
+     ("admit", "member", "family")),
+    ("a dissolution of the family is the act dissolve", [FAM, FDIS()], "d", ("dissolve", "record", "family")),
+    ("and of a community", [GM, grp("d", "offer", (), "record", None, dissolved_at=100)], "d", ("dissolve", "record", "community")),
+    ("a moderator's seat over a family is no act (F4: a family has no duty seats)",
+     [FAM, grp("r", "offer", "B", "moderate", "duty_confer", counted="duty")], "r", None),
     ("a change of an infrastructure community's record is record_change (P1)",
      [GI, grp("r", "offer", (), "record", "cosigned_act", signer="f1", cosigners=("f2",), consensus_protocol="quorum:3/4")],
      "r", ("record_change", "record", "infrastructure")),
@@ -222,6 +258,7 @@ GI1 = ST.offer("g", "f1", ("f1",), "founder", "@", "self", cohort_subkind="infra
 GI4 = ST.offer("g", "f1", ("f1", "f2", "f3", "f4"), "founder", "@", "self", cosigners=("f2", "f3", "f4"),
                cohort_subkind="infrastructure", consensus_protocol="quorum:3/4")                     # four founders
 RM_A = lambda heads: grp("x", "unseat", "D", "member", "community_remove", heads=heads, cosigners=("B",))   # A and B
+CONTESTED = (False, False)        # the contested pair's answer, stated: see TIPS
 CONCLUDE = [
     ("an admission stating accord_halt (one voice) is no admission's policy: with the table it concludes nothing",
      [GM4, grp("r", "offer", "E", "member", "accord_halt", cosigners=("E",))], "r", False, True),
@@ -281,6 +318,9 @@ CONCLUDE = [
      [GI, ST.withdraw("w3", "f3", "g"), INODE(("f1", "f2"), heads=("w3",))], "r", True, False),
     ("and after f2's and f3's, f1 alone (one of one) does: a stated consequence",
      [GI, ST.withdraw("w3", "f3", "g"), ST.withdraw("w2", "f2", "g"), INODE(("f1",), heads=("w2", "w3"))], "r", True, False),
+    ("the founders are the founding row's signers it seats: a cosigner Z it does not name is no founder, so quorum:2/3 "
+     "stands over f1, f2, f3, and the three admit f4 (H5)",
+     [dict(GI, cosigners=("f2", "f3", "Z")), IAD("a4", "f4", ("f1", "f2", "f3"))], "a4", True, False),
     ("an infrastructure founding row with no founder seat (founded in `member`): its body is empty, so nothing concludes",
      [ST.offer("g", "f1", ("f1", "f2", "f3"), "member", "@", "self", cosigners=("f2", "f3"), cohort_subkind="infrastructure",
                consensus_protocol="quorum:2/3"), INODE(("f1", "f2"))], "r", False, False),
@@ -360,6 +400,9 @@ CONCLUDE = [
     ("nor under a weighted record one of whose weights reaches its threshold",
      [dict(GW, weights=(("A", 5), ("B", 2), ("C", 1), ("D", 1))), grp("r", "offer", "E", "member", None, cosigners=("E",))],
      "r", False, False),
+    ("a change to a weighted record that weighs one key twice is refused at the change (W1)",
+     [GM4, REC("am", "weighted:r", cosigners=("B", "C", "D"), need=5, weights=(("A", 3), ("A", 3), ("B", 1)))], "am",
+     False, False),
     ("a change stating a policy of its own (default_content) is refused: the change's policies are fixed",
      [GM4, grp("am", "offer", (), "record", "default_content", cosigners=("B", "C"), consensus_protocol="quorum:2/4")],
      "am", False, True),
@@ -411,6 +454,58 @@ CONCLUDE = [
      True, True),
     ("and an admission E did not sign does not", [GO, grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "C"))],
      "r", False, False),
+    # ---- a family (CC 3.3.4, 3.1.3.2, 4.5.12.5; the Constitution's family rulings and F1 to F5) -------------------
+    ("under founder_only one active founder admits, with the joiner's own acceptance", [FAM, FADM("r", "D")], "r", True, False),
+    ("a member who is no founder does not", [FAM, FADM("r", "D", signer="B")], "r", False, False),
+    ("one active founder removes a member", [FAM, FREM("x", "C")], "x", True, False),
+    ("one active founder changes the record (its protocol included)", [FAM, FREC("am", "majority")], "am", True, False),
+    ("one active founder dissolves the family", [FAM, FDIS()], "d", True, False),
+    ("after the dissolution no row over the family concludes (group_dissolved)", [FAM, FDIS(), FADM("r", "D", heads=("d",))],
+     "r", False, False),
+    ("nor one with the dissolution in its past at an older head",
+     [FAM, FDIS(), dict(FADM("r", "D", heads=("g",)), names=("g", "d"))], "r", False, False),
+    ("a dissolution is counted at the newest heads in its own past: one beside the family's last version concludes "
+     "nothing", [FAM, FADM("r", "D"), dict(FDIS(heads=("g",)), names=("g", "r"))], "d", False, False),
+    ("and one naming that version concludes", [FAM, FADM("r", "D"), FDIS(heads=("r",))], "d", True, False),
+    ("an entrenched protocol: a change of the protocol concludes nothing (F5)", [FAME, FREC("am", "majority")], "am",
+     False, False),
+    ("nor a change of the entrenchment flag", [FAME, FREC("am", "founder_only", consensus_protocol_entrenched=False)], "am",
+     False, False),
+    ("every other amendment concludes under the protocol: a rename", [FAME, FREC("am", None, name="the Smiths")], "am", True, False),
+    ("and admission is unaffected", [FAME, FADM("r", "D")], "r", True, False),
+    ("a resigned founder holds no authority: after A's resignation A does not admit D",
+     [FAM, ST.withdraw("wa", "A", "g", ("g",)), FADM("r", "D", heads=("wa",))], "r", False, False),
+    ("with the last founder gone nothing concludes: B and C (members) do not admit D under founder_only",
+     [FAM, ST.withdraw("wa", "A", "g", ("g",)), grp("r", "offer", "D", "member", None, heads=("wa",), signer="B",
+                                                    cosigners=("C", "D"), counted="founder")], "r", False, False),
+    ("no last-founder refusal: the last founder's resignation concludes", [FAM, ST.withdraw("wa", "A", "g", ("g",))], "wa",
+     True, True),
+    ("the way out (F2): A promotes B (with B's acceptance), then leaves; B admits D",
+     [FAM, FADM("p", "B", scope="founder"), ST.withdraw("wa", "A", "g", ("p",)), FADM("r", "D", signer="B", heads=("wa",))],
+     "r", True, False),
+    ("F1: a member is admitted with the founder role (an admission, and a promotion naming it), then admits E",
+     [FAM, FADM("r", "D"), FADM("p", "D", scope="founder", heads=("r",)), FADM("r2", "E", signer="D", heads=("p",))], "r2",
+     True, False),
+    ("a promotion without the member's acceptance seats no founder: B, offered the role, does not admit D",
+     [FAM, FADM("p", "B", scope="founder", acc=False), FADM("r", "D", signer="B", heads=("p",))], "r", False, False),
+    ("a demotion by another founder: A demotes B, and B no longer admits",
+     [FAM2, FREM("x", "B", scope="founder"), FADM("r", "D", signer="B", heads=("x",))], "r", False, False),
+    ("a self-demotion: B lays its own role down by its own row, and no longer admits",
+     [FAM2, ST.withdraw("wb", "B", "g", ("g",), scope="founder"), FADM("r", "D", signer="B", heads=("wb",))], "r",
+     False, False),
+    ("and B's demotion stays B's role alone: B is still a member", [FAM2, ST.withdraw("wb", "B", "g", ("g",), scope="founder")],
+     "wb", True, True),
+    ("a demotion with no other active founder concludes nothing: A alone does not demote A",
+     [FAM, FREM("x", "A", scope="founder")], "x", False, False),
+    ("F3: a removal naming only its own signer, on that signature alone, concludes nothing (the resignation is the "
+     "leaving), even where one voice would meet the count (quorum:1/3)", [FAMQ, FREM("x", "B", signer="B", counted="member")],
+     "x", False, False),
+    ("quorum:1/3 in a family concludes: one member admits D (no floor of two voices)",
+     [FAMQ, FADM("r", "D", counted="member")], "r", True, False),
+    ("a family record carrying a duty map concludes nothing (F4: duty_holders_on_family)",
+     [ST.found("g", "A", ("A", "B", "C"), {"founder": ("A",), "moderate": ("B",)}, cosigners=("B", "C"),
+               group_kind="family", family_key_id="FK", consensus_protocol="founder_only"), FADM("r", "D")], "r", False, False),
+    ("a family is keyless: a row signed by its family key admits nobody", [FAM, FADM("r", "D", signer="FK")], "r", False, False),
     # ---- the body a recall and a withdrawal count ------------------------------------------------------------------
     ("three agents do not recall a person moderator: a recall counted over the agents concludes nothing",
      [FH4, AG, grp("r", "unseat", "A", "moderate", None, heads=("ag",), signer="X", cosigners=("Y", "Z"), counted="agent")],
@@ -457,6 +552,15 @@ CONCLUDE = [
 
 # The wait at tips (step 5), and who stands: (name, rows, [(key, scope, stands)])
 TIPS = [
+    ("a family admission seats the joiner with its acceptance", [FAM, FADM("r", "D")], [("D", "member", True)]),
+    ("and not without it", [FAM, FADM("r", "D", acc=False)], [("D", "member", False)]),
+    ("a dissolution ends every seat over the family", [FAM, FDIS()], [("A", "member", False), ("B", "member", False),
+                                                                     ("A", "founder", False)]),
+    ("a promotion with acceptance seats the founder role", [FAM, FADM("p", "B", scope="founder")], [("B", "founder", True)]),
+    ("a demotion ends the role and keeps the member", [FAM2, FREM("x", "B", scope="founder")],
+     [("B", "founder", False), ("B", "member", True)]),
+    ("two founders removing each other concurrently (CC 2.7.7 rule 5, the contested pair)",
+     [FAM2, FREM("xa", "A", signer="B"), FREM("xb", "B")], [("A", "member", CONTESTED[0]), ("B", "member", CONTESTED[1])]),
     ("a node's seat over an infrastructure community stands on the founders' count alone, by scope and kind",
      [GI, grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2",), counted="founder")], [("n1", "node", True)]),
     ("every other seat needs the seated key's own consent: a flag `consent` on a counted admission waives nothing",
@@ -491,7 +595,7 @@ PROTOCOL_WORDS = [
 SHEET_ANSWERS = [(w, act, ST.protocol_states(ST.protocol_rule(w)[0], act))
                  for w in ("founder_only", "unanimous", "majority", "quorum:2/3", "weighted:stake", "open:self_admit")
                  for act in ("admit", "remove", "other")]
-EXPECT_SHEET = {("founder_only", "remove"): False, ("founder_only", "other"): False, ("open:self_admit", "remove"): False,
+EXPECT_SHEET = {("founder_only", "other"): False, ("open:self_admit", "remove"): False,
                 ("open:self_admit", "other"): False}
 # The protocol of an infrastructure community (P1): a quorum of its founders' strict majority, N // 2 + 1 of N
 INFRA_WORDS = [("quorum:2/3", 3, ("quorum", 2, 3)), ("quorum:3/4", 4, ("quorum", 3, 4)), ("quorum:3/5", 5, ("quorum", 3, 5)),
@@ -514,6 +618,15 @@ _LINE = [G3, _adm("ad", "D", ("A", "B", "C"), ("g",)), _adm("ae", "E", ("A", "B"
          _adm("af", "F", ("A", "B"), ("am",)),
          grp("mg", "offer", "G", "member", "cosigned_act", heads=("xb", "af"), signer="C", cosigners=("D", "E", "G")),
          _rem("xc", "C", ("F",), ("mg",))]
+# Dissolution with no signer: when every member has an end of their seat, the group is dissolved. (name, rows, dissolved)
+DISSOLVED = [
+    ("all members leave the family: it is dissolved", [FAM, ST.withdraw("wa", "A", "g", ("g",)),
+                                                       ST.withdraw("wb", "B", "g", ("g",)), ST.withdraw("wc", "C", "g", ("g",))],
+     True),
+    ("two of three leave: it is not", [FAM, ST.withdraw("wa", "A", "g", ("g",)), ST.withdraw("wb", "B", "g", ("g",))], False),
+    ("a concluded dissolution", [FAM, FDIS()], True),
+]
+
 PENDING = [
     ("A1: two removed members' change of the record at an old head (to quorum:2/5) installs nothing: A and B do not "
      "seat F under it, and F alone does not remove C", _LINE, [(k, "member", k in "CDEG") for k in "ABCDEFG"]),
@@ -538,7 +651,9 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "consent_one_waives", "infra_any_quorum", "infra_body_members", "infra_n_from_word", "infra_m_fixed", "infra_record_frozen",
           "infra_record_simple_majority", "record_change_as_admission", "self_admit_removal_counted", "body_from_row",
           "record_change_either_policy", "one_voice_community_protocol", "founder_only_community",
-          "unstated_cosigned_blocks", "unstated_floor_unread")
+          "unstated_cosigned_blocks", "unstated_floor_unread", "founders_all_signers", "weights_twice_at_change",
+          "family_founders_fixed", "family_floor_two", "family_last_founder_refused", "entrenched_amendable",
+          "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "dissolve_any_heads", "self_removal_as_leave")
 
 
 @contextlib.contextmanager
@@ -563,6 +678,12 @@ def concludes(rows, rid, bound, plant=None):
     with ST.binding(bound), planted(plant):
         S = CK.concluded(CK.kept(list(rows)), lambda r, P, past: ST.seat_rule(r, P, past))
         return bool(S.C.get(rid))
+
+
+def dissolved(rows, plant=None):
+    with planted(plant):
+        S = CK.concluded(CK.kept(list(rows)), lambda r, P, past: ST.seat_rule(r, P, past))
+        return ST.Seats(S).dissolved(OBJ)
 
 
 def tip_answers(plant=None, cases=None):
@@ -600,6 +721,10 @@ def main():
     for w, want in PROTOCOL_WORDS:
         if ST.protocol_rule(w) != want:
             problems.append("protocol word %r: got %s, expected %s" % (w, ST.protocol_rule(w), want))
+    for name, rows, want in DISSOLVED:
+        got = dissolved(rows)
+        if got != want:
+            problems.append("dissolved %s: got %s, expected %s" % (name, got, want))
     for w, act, got in SHEET_ANSWERS:
         if got != EXPECT_SHEET.get((w, act), True):
             problems.append("the sheet: %s states a rule for %s: got %s" % (w, act, got))
@@ -620,6 +745,7 @@ def main():
         hit = [name for name, rows, rid, want in CASES if answer(rows, rid, plant) != want]
         hit += [c[0] for c in CONCLUDE if concludes(c[1], c[2], True, plant) != c[3]]
         hit += ["tips: " + c[0] for c, got in zip(TIPS, tip_answers(plant)) if got != [w for _, _, w in c[2]]]
+        hit += ["dissolved: " + c[0] for c in DISSOLVED if dissolved(c[1], plant) != c[2]]
         caught += bool(hit)
         print("  plant %-16s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0]) if hit else "NOT CAUGHT"))
         if not hit:

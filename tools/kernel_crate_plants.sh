@@ -297,11 +297,13 @@ plant 'act_of: a recall or withdrawal counts any body'  src/seat.rs '           
                 _ => Some((Act::Recall, ScopeClass::Duty, kind)),'
 plant 'act_of: every founding row a community'          src/seat.rs '    let kind = g.scope().and_then(|sc| law.kinds.get(sc.as_ref()).copied()).unwrap_or(CommunityKind::Community);' '    let kind = CommunityKind::Community;'
 plant 'kind_of: a founding scope the map names not no kind' src/seat.rs '    let kind = g.scope().and_then(|sc| law.kinds.get(sc.as_ref()).copied()).unwrap_or(CommunityKind::Community);' '    let kind = law.kinds.get(g.scope()?.as_ref()).copied()?;'
-plant 'the protocol set open: any word read as majority' src/seat.rs '    let proto = community_protocol(word.as_ref(), rec.need(), rec.weights()).ok_or(())?;' '    let proto = community_protocol(word.as_ref(), rec.need(), rec.weights()).unwrap_or(RoomProtocol::Majority);'
+plant 'the protocol set open: any word read as majority' src/seat.rs '        community_protocol(word.as_ref(), rec.need(), rec.weights()).ok_or(())?' '        community_protocol(word.as_ref(), rec.need(), rec.weights()).unwrap_or(RoomProtocol::Majority)'
 plant 'a change of the record may name any word'        src/seat.rs 'community_protocol(w.as_ref(), r.need(), r.weights()).is_some()' 'true'
 plant "a quorum's number read from the row's need"       src/seat.rs 'RoomProtocol::Quorum(m, _) => (Policy::Declared, Some(usize::try_from(m).map_err(|_| ())?)),' 'RoomProtocol::Quorum(..) => (Policy::Declared, r.need()),'
-plant "a weighted protocol reads the row's weights"      src/seat.rs 'Ok(InForce { pol: Some(pol), need, weights: Some(rec), founders_word: false, floor: 0 })' 'Ok(InForce { pol: Some(pol), need, weights: None, founders_word: false, floor: 0 })'
-plant "the protocol's body unread"                      src/seat.rs '    if counted != "member" {' '    if false {'
+plant "a weighted protocol reads the row's weights"      src/seat.rs '        weights: Some(rec),
+        no_self_removal' '        weights: None,
+        no_self_removal'
+plant "the protocol's body unread"                      src/seat.rs '    if counted != body {' '    if false {'
 plant 'open:self_admit governs any act, not admissions alone' src/seat.rs '    if proto == RoomProtocol::SelfAdmit
         && (r.seat_kind() != SeatKind::Offer' '    if false
         && (r.seat_kind() != SeatKind::Offer'
@@ -316,11 +318,31 @@ plant 'under open:self_admit a record change an admission' src/seat.rs '&& (r.se
 plant 'under open:self_admit a removal counted'          src/seat.rs '&& (r.seat_kind() != SeatKind::Offer || !r.scope().is_some_and(|s| s.as_ref() == "member"))' '&& r.seat_kind() == SeatKind::Offer && !r.scope().is_some_and(|s| s.as_ref() == "member")'
 plant "an act's body the row's"                          src/seat.rs 'if r.over().is_some_and(|o| o != obj) || counted != body_of(get, (act, sc, kind), &obj) {' 'if false {'
 plant 'an infrastructure community counted over its members' src/seat.rs '        if counted != "founder" {' '        if counted != "founder" && counted != "member" {'
-plant "an infrastructure community's M read from its word" src/seat.rs 'return Ok(InForce { pol: Some(Policy::Strict(1, 2)), need: None, weights: None, founders_word, floor: 0 });' 'return Ok(InForce { pol: Some(Policy::Declared), need: match RoomProtocol::parse(word.as_ref()) { Some(RoomProtocol::Quorum(m, _)) => Some(m as usize), _ => None }, weights: None, founders_word: false, floor: 0 });'
-plant "an infrastructure community's M fixed by its founding count" src/seat.rs 'return Ok(InForce { pol: Some(Policy::Strict(1, 2)), need: None, weights: None, founders_word, floor: 0 });' 'return Ok(InForce { pol: Some(Policy::Declared), need: Some(founders_of(get, &obj) / 2 + 1), weights: None, founders_word, floor: 0 });'
+plant "an infrastructure community's M read from its word" src/seat.rs 'return Ok(InForce { founders_word, ..InForce::plain(Some(Policy::Strict(1, 2)), None) });' 'return Ok(InForce::plain(Some(Policy::Declared), match RoomProtocol::parse(word.as_ref()) { Some(RoomProtocol::Quorum(m, _)) => Some(m as usize), _ => None }));'
+plant "an infrastructure community's M fixed by its founding count" src/seat.rs 'return Ok(InForce { founders_word, ..InForce::plain(Some(Policy::Strict(1, 2)), None) });' 'return Ok(InForce { founders_word, ..InForce::plain(Some(Policy::Declared), Some(founders_of(get, &obj) / 2 + 1)) });'
 plant "a change of the record meets either joined policy" src/seat.rs '!fs.is_empty() && fs.iter().all(|f| count_under(p, law, spec, cache, f))' '!fs.is_empty() && fs.iter().any(|f| count_under(p, law, spec, cache, f))'
 plant 'the cosigned_act half blocks where the protocol states no rule' src/seat.rs '    let dropped = unstated().is_some();' '    let dropped = unstated().is_some() && false;'
-plant 'a policy governing alone takes no floor'          src/seat.rs '    if f.floor > 0 && voices(r, p).iter().filter(|k| mem.contains(*k)).count() < f.floor {' '    if false {'
+plant 'a policy governing alone takes no floor'          src/seat.rs '    if f.floor > 0 && v.iter().filter(|k| mem.contains(*k)).count() < f.floor {' '    if false {'
+plant "the founders all the founding row's signers"     src/seat.rs '.filter(|k| g.to().contains(*k))' '.filter(|_| true)'
+plant 'a change may weigh one key twice'                 src/seat.rs 'if weights.iter().enumerate().any(|(i, (k, _))| weights[..i].iter().any(|(j, _)| j == k)) =>' 'if false =>'
+plant 'a family takes the two-voice floor'               src/seat.rs '        RoomProtocol::parse(word.as_ref()).ok_or(())?
+    } else {' '        community_protocol(word.as_ref(), rec.need(), rec.weights()).ok_or(())?
+    } else {'
+plant 'an entrenched protocol amendable'                 src/seat.rs '    if !rec.protocol_entrenched() {
+        return true;' '    if !rec.protocol_entrenched() || true {
+        return true;'
+plant 'an entrenched record refuses every amendment'     src/seat.rs '        None => true,
+        Some(w) => rec.consensus_protocol()' '        None => false,
+        Some(w) => rec.consensus_protocol()'
+plant 'a dissolution leaves the seats'                   src/seat.rs '            if !gone.is_empty() && o.obj().is_some_and(|ob| gone.contains(&ob)) {' '            if false {'
+plant 'a row over a dissolved group concludes'           src/seat.rs '            if !founding(r) && r.obj().is_some_and(|o| dissolved_in(p, &o)) {' '            if false {'
+plant 'a dissolution at any heads'                       src/seat.rs '                if stale {
+                    return false;' '                if stale && false {
+                    return false;'
+plant 'a self-removal read as the leaving'               src/seat.rs '    if f.no_self_removal && v.iter().all(|k| r.to().contains(k)) {' '    if false {'
+plant "a family's founder_only removal by its target"    src/seat.rs '    let v: BTreeSet<R::Key> = if f.exclude_target {' '    let v: BTreeSet<R::Key> = if false {'
+plant 'a family with a duty map'                         src/seat.rs '        if p.get(i).ok_or(())?.duty_holders().iter().any(|(d, _)| d.as_ref() != "founder") {' '        if false {'
+plant 'a family read as a community'                     src/seat.rs '    if g.group_kind().is_some_and(|k| k.as_ref() == "family") {' '    if false {'
 plant 'a one-voice community protocol'                   src/seat.rs 'RoomProtocol::FounderOnly | RoomProtocol::Quorum(1, _) => None,' 'RoomProtocol::FounderOnly => None,'
 plant 'founder_only a community protocol'                src/seat.rs 'RoomProtocol::FounderOnly | RoomProtocol::Quorum(1, _) => None,' 'RoomProtocol::Quorum(1, _) => None,'
 plant "an infrastructure community's record change no act" src/seat.rs '"record" if offer => return Some((Act::RecordChange, ScopeClass::Record, kind)),' '"record" if false => return Some((Act::RecordChange, ScopeClass::Record, kind)),'

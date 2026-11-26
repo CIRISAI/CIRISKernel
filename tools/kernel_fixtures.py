@@ -675,6 +675,14 @@ def key_end_cases():
             "pool": pool, "worlds": worlds}
 
 
+def dissolved_cases(AC):
+    out = []
+    for name, rows, want in AC.DISSOLVED:
+        refs = {}
+        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "obj": AC.OBJ, "dissolved": want})
+    return out
+
+
 def acts_cases():
     """check_acts.py: the act each counted row is (seat.act_of) and the policy rows each act may take (seat.policy_for),
     with the acts table and the kinds table they read."""
@@ -697,6 +705,7 @@ def acts_cases():
             "infrastructure_words": [[w, n, list(ST.infrastructure_rule(w, n)) if ST.infrastructure_rule(w, n) else None]
                                      for w, n, _ in AC.INFRA_WORDS],
             "protocol_states": [[w, act, got] for w, act, got in AC.SHEET_ANSWERS],
+            "dissolved": dissolved_cases(AC),
             "community_floor": ST.COMMUNITY_FLOOR}
 
 
