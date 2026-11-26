@@ -98,9 +98,9 @@ plant "a receipt after the unseat keeps" src/seat.rs '                    && !g.
                     && !g.in_past(*u, q)
 '
 plant "a lone removal lifts" src/seat.rs 'er.seat_kind() == SeatKind::Unseat && er.conf() == Some(Conf::Group) && !lone.contains(&e)' 'er.seat_kind() == SeatKind::Unseat && er.conf() == Some(Conf::Group)'
-' ''
 plant "the remover left in the count's receipt's base" src/seat.rs '    mem.remove(xr.signer());
     let mut v = voices(qr, &p);' '    let mut v = voices(qr, &p);'
+plant "a mutual pair decided one then the other" src/seat.rs '                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone);' '                let excl: BTreeSet<usize> =
                     out.iter().chain(got.iter().filter(|(_, v)| !*v).map(|(j, _)| j)).map(|&j| acts[j]).collect();
                 let drop2: BTreeSet<R::Id> = excl.iter().map(|&y| g.row(y).id().clone()).collect();
                 let now = nows
