@@ -28,9 +28,12 @@
 //! under the grant and under the binding, and is in force likewise, so a re-binding reaches it as it reaches
 //! the edge, and under the binding only its owner receipts. Two owners is none for the edge and every act under it.
 //!
-//! Not read here: a receipt by a co-holder of the binding (only the binding's owner receipts under it), and
-//! whether the act's signer is the node the binding binds. The caller presents the rows of one node under one
-//! grant.
+//! An act standing directly on an acceptance (a root edge, the node's own act) counts only where its signer is
+//! the grant's grantee ([`Role::Grantee`]): a deputy that names the acceptance itself stands on nothing
+//! ([`Nobody::NotTheGrantee`]). The binding names no node, so the grant's grantee is the node read here.
+//!
+//! Not read here: a receipt by a co-holder of the binding (only the binding's owner receipts under it). The
+//! caller presents the rows of one node under one grant.
 
 use crate::conferral::{self, ConferralRow, Judged, Past, Refused, Role, Who};
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -115,6 +118,13 @@ pub enum Nobody {
     AcceptanceNamesNoBinding,
     /// The acceptance it names is not signed by its binding's owner.
     NotTheOwnersAcceptance,
+    /// An act standing directly on an acceptance (a root edge) signed by a key that is not the grant's grantee
+    /// ([`Role::Grantee`] under the grant's `role`): a deputy that names the acceptance itself.
+    NotTheGrantee,
+    /// The deputy edge it names (`via`) is a held row that is no act.
+    EdgeNotAnAct,
+    /// Its chain of deputy edges is longer than the deputy depth allows, by more than one hop.
+    TooDeep,
     /// The node has two live owners, so none (CC 3.2: "two owners is none"; `seat::Seats::one`): a binding
     /// of it to another owner is held, neither re-binds the other (one in the other's past without re-binding it
     /// is still live), and no re-binding of that one is in the act's past.
@@ -130,6 +140,9 @@ impl Nobody {
             Nobody::NotAnAcceptance => "not_an_acceptance",
             Nobody::AcceptanceNamesNoBinding => "acceptance_names_no_binding",
             Nobody::NotTheOwnersAcceptance => "not_the_owners_acceptance",
+            Nobody::NotTheGrantee => "not_the_grantee",
+            Nobody::EdgeNotAnAct => "edge_not_an_act",
+            Nobody::TooDeep => "too_deep",
             Nobody::TwoOwners => "two_owners",
         }
     }
@@ -210,10 +223,19 @@ impl<R: StandingRow> ConferralRow for As<'_, R> {
     }
 }
 
-// where an act stands: the binding its acceptance names, why it stands on none, or the row to fetch
-fn stands_on<'a, R: StandingRow>(x: &'a R, rows: &[&'a R]) -> Result<Result<&'a R, Nobody>, R::Id> {
-    let held = |i: &R::Id| rows.iter().copied().find(|r| r.id() == i).ok_or_else(|| i.clone());
-    let Some(x) = root_edge(x, rows)? else { return Ok(Err(Nobody::NoAcceptance)) };
+// where an act stands: its root edge (itself, for the node's own act) and the binding that edge's acceptance
+// names, why it stands on none, or the row to fetch. `index`: the rows by id; `cap`: the deputy depth
+fn stands_on<'a, R: StandingRow>(
+    x: &'a R,
+    index: &BTreeMap<&R::Id, &'a R>,
+    cap: usize,
+    grant: &conferral::Standing<'_, R::Id, R::Key>,
+) -> Result<Result<(&'a R, &'a R), Nobody>, R::Id> {
+    let held = |i: &R::Id| index.get(i).copied().ok_or_else(|| i.clone());
+    let x = match root_edge(x, index, cap)? {
+        Ok(x) => x,
+        Err(why) => return Ok(Err(why)),
+    };
     let Some(on) = x.on() else { return Ok(Err(Nobody::NoAcceptance)) };
     let a = held(on)?;
     match a.kind() {
@@ -229,18 +251,41 @@ fn stands_on<'a, R: StandingRow>(x: &'a R, rows: &[&'a R]) -> Result<Result<&'a 
     if b.owner() != Some(a.signer()) {
         return Ok(Err(Nobody::NotTheOwnersAcceptance));
     }
-    Ok(Ok(b))
+    // a root edge (an act standing directly on an acceptance) is the grantee's own act: any other key's
+    // root-shaped act stands on nothing
+    if (grant.role)(x.signer()) != Role::Grantee {
+        return Ok(Err(Nobody::NotTheGrantee));
+    }
+    Ok(Ok((x, b)))
 }
 
-// the node's own act a deputy's act stands on: its edges (`via`) followed to one that has none. `None` for a
-// cycle of edges, which names no acceptance; an edge not held is the row to fetch
-fn root_edge<'a, R: StandingRow>(x: &'a R, rows: &[&'a R]) -> Result<Option<&'a R>, R::Id> {
+// the node's own act a deputy's act stands on: its edges (`via`) followed to one that has none, at most
+// `cap + 1` hops (further down conferral's E6.depth counts nothing anyway); why it stands on none (an edge that
+// is a held row and no act, a cycle of edges, a chain past the cap); or the edge to fetch
+fn root_edge<'a, R: StandingRow>(
+    x: &'a R,
+    index: &BTreeMap<&R::Id, &'a R>,
+    cap: usize,
+) -> Result<Result<&'a R, Nobody>, R::Id> {
     let mut at = x;
-    for _ in 0..=rows.len() {
-        let Some(v) = at.via() else { return Ok(Some(at)) };
-        at = rows.iter().copied().find(|r| r.id() == v && r.kind() == Kind::Act).ok_or_else(|| v.clone())?;
+    let mut seen: BTreeSet<&R::Id> = core::iter::once(x.id()).collect();
+    let mut hops = 0usize;
+    while let Some(v) = at.via() {
+        let Some(e) = index.get(v).copied() else { return Err(v.clone()) };
+        if e.kind() != Kind::Act {
+            return Ok(Err(Nobody::EdgeNotAnAct));
+        }
+        if seen.contains(v) {
+            return Ok(Err(Nobody::NoAcceptance));
+        }
+        hops += 1;
+        if hops > cap + 1 {
+            return Ok(Err(Nobody::TooDeep));
+        }
+        seen.insert(v);
+        at = e;
     }
-    Ok(None)
+    Ok(Ok(at))
 }
 
 // `c` is `b`, or re-binds `b` through a chain of re-bindings (`on`), among the rows held
@@ -299,10 +344,15 @@ pub fn answers<R: StandingRow, P: Past<R::Id>>(
     let mut out = BTreeMap::new();
     // the binding each act stands under
     let mut at: Vec<(&R, &R)> = Vec::new();
+    // the rows by id, so that each act's walk to its root edge is at most `deputy_depth + 1` lookups
+    let mut index: BTreeMap<&R::Id, &R> = BTreeMap::new();
+    for &r in rows {
+        index.entry(r.id()).or_insert(r);
+    }
     for &x in &acts {
-        match stands_on(x, rows) {
+        match stands_on(x, &index, grant.deputy_depth, grant) {
             // two owners is none for the edge, and so for every act under it
-            Ok(Ok(b)) => match root_edge(x, rows).and_then(|e| two_owners(e.unwrap_or(x), b, rows, past)) {
+            Ok(Ok((e, b))) => match two_owners(e, b, rows, past) {
                 Ok(false) => at.push((x, b)),
                 Ok(true) => drop(out.insert(x.id().clone(), Answer::Nobody(Nobody::TwoOwners))),
                 Err(i) => drop(out.insert(x.id().clone(), Answer::Undecided(i))),

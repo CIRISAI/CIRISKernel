@@ -160,7 +160,7 @@ an edge) are in seven of those cases. The TLA+ spec has one deputy edge and does
 ### One row under a root grant and an owner binding
 
 `standing::answers` is checked against the case table of `models/causal_kernel/check_conferral_two.py`
-(`tests/fixtures/conferral_two.json`; 36 cases, 21 under its reading `acc`, 6 of two owners and 9 of a deputy, rows as listed and in reverse): per
+(`tests/fixtures/conferral_two.json`; 42 cases, 21 under its reading `acc`, 6 of two owners and 15 of a deputy, rows as listed and in reverse): per
 act and owner whether it counts and is in force, the binding it stands under and the rule that decides under
 each record, or why it counts for nobody. A second run withholds one row at a time. Cases only: the Python
 run of every state checks the reference, not the crate.

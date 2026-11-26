@@ -14,8 +14,22 @@ and `StandingRow::sub_delegation` (default `false`), additive. `standing::answer
   unless receipted under the binding by its owner. Because E6 passes both bits down, the act is in force only
   where its edge is too: a receipt of the act alone does not keep it.
 - Two owners is none for the edge, and so for every act under it.
-The reference: `chain_answers` in `check_conferral_two.py`, with nine cases (`DEPUTY_CASES`, in the
-`conferral_two` fixture, read as listed and in reverse) and two planted breaks; two crate plants.
+- The module header's "Not read here: a deputy edge under such an act" is gone.
+- A root edge (an act standing directly on an acceptance, with no `via`) counts only where its signer is the
+  grant's grantee (`Role::Grantee` under the grant's `role`); another key's root-shaped act counts for nobody:
+  `Nobody::NotTheGrantee` (`"not_the_grantee"`), new. Without it a deputy skipped E6 by naming the acceptance
+  itself. This is also the check that the node's own acts are the grantee's.
+- A `via` naming a held row that is no act: `Nobody::EdgeNotAnAct` (`"edge_not_an_act"`), new (before: undecided on
+  a row already held). A chain longer than the deputy depth by more than one hop: `Nobody::TooDeep`
+  (`"too_deep"`), new; the walk to the root edge is at most `deputy_depth + 1` lookups in an index of the rows, so
+  `answers` is O(acts · deputy_depth · log rows) for this walk. A cycle of edges stands on no acceptance.
+- **Breaking:** `standing::Nobody` gains three variants.
+- The reference: conferral_end.py's deputy walk is bounded as the crate's is (it hung on a cycle of `via`) and an
+  edge not held is undecided there (it raised).
+The reference: `chain_answers` in `check_conferral_two.py`, with fifteen cases (`DEPUTY_CASES`, in the
+`conferral_two` fixture, read as listed and in reverse; the plants compare reasons as well as bits) and four
+planted breaks; four crate plants. `tests/conferral_two.rs` now withholds any row, a deputy edge among them, and
+reads an undecided act as the fixture does.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
