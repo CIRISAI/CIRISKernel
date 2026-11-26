@@ -1049,11 +1049,10 @@ def t27(t):
     t.fact("every row offered three times: roster %s" % fs(mem), mem == ref)
     one = ST.unseat("z", "A", "B", "member", "g", "group", ("x",), head=("x",), policy="community_remove", content="z", room="g")
     mem, st, bad = roster(base + [one]); t.order(bad)
-    # the member a removal names is not counted (community_remove: "the member being removed is not counted"), and the
-    # policy row states no floor: in a room of two, one member's removal of the other is one of the one other
-    t.fact("a seated member's unseat of the one other member: %s, roster %s (the member removed is not counted, and "
-           "community_remove states no floor: in a room of two either removes the other alone)" % (st["z"], fs(mem)),
-           mem == ref - {"B"})
+    # the member a removal names is not counted (community_remove), and in a community one voice never decides who is
+    # in a room (CC 4.5.13: the floor of two voices besides the member removed): a room of two removes nobody by count
+    t.fact("a seated member's unseat of the one other member: %s, roster %s (the floor of two voices besides the member "
+           "removed: a room of two removes nobody by count, and its members can leave)" % (st["z"], fs(mem)), mem == ref)
     S = conc(base + [R("zz", "note", "X", ("m2",), room="g")], ROUTE)
     t.fact("a kept row that concludes nothing is inert for the audience answer too: an outsider's row naming m2 does not put the outsider in m2's audience", "X" not in RT.audience(S)["m2"])
     return dict(cls="CONCEDED", who="an outsider: any key at all, at one signature a row",

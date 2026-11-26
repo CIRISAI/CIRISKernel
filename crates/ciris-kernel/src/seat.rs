@@ -1289,6 +1289,10 @@ fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> R
         // a removal under the room's protocol counts the other members (the sheet's removal rules for quorum and
         // weighted are the admission rule over them; unanimous reads its own rule)
         base_excludes_target: r.seat_kind() == SeatKind::Unseat && proto != RoomProtocol::Unanimous,
+        // in a community the floor is never fewer than two voices, so one voice never decides who is in a room,
+        // whatever its size (CC 4.5.13): a counted removal takes two voices besides the member it removes (a family
+        // has no floor)
+        floor: if r.seat_kind() == SeatKind::Unseat && !family { law.community_floor } else { 0 },
         ..InForce::plain(Some(pol), need)
     })
 }
@@ -3590,7 +3594,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         return false;
     }
     // the community floor, where a policy row governs alone in place of a protocol that states no rule (`&`)
-    if f.floor > 0 && v.iter().filter(|k| mem.contains(*k)).count() < f.floor {
+    if f.floor > 0 && v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).count() < f.floor {
         return false;
     }
     if pol == Some(Policy::Ranked) {

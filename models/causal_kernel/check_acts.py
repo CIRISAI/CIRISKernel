@@ -78,6 +78,7 @@ Planted breaks, each of which must change a case's answer:
     contested_voice_everywhere    a removal voids a voice whatever head the other row names (not from its own head on)
     negative_weight               a weighted record may weigh a key below zero
     removal_counts_target         a removal under the room's protocol counts the member it removes, over and as a voice
+    removal_floor_unread          a community's counted removal takes no floor of two voices besides the member removed
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
@@ -333,6 +334,13 @@ CONCLUDE = [
      True, False),
     ("in a room of six, three others removing F are three of five (more than half), where counting F would make them "
      "three of six", [GM6, grp("r", "unseat", "F", "member", None, cosigners=("B", "C"))], "r", True, False),
+    ("in a community one voice never decides who is in a room (CC 4.5.13): of three, A and B remove C (two voices "
+     "besides C)", [GM, grp("r", "unseat", "C", "member", None, cosigners=("B",))], "r", True, False),
+    ("and in a room of two, A alone removes nobody: the floor of two voices besides the member removed",
+     [ST.offer("g", "A", ("A", "B"), "member", "@", "self", cosigners=("B",)), grp("r", "unseat", "B", "member", None)],
+     "r", False, False),
+    ("a family has no floor: under quorum:1/3 one member removes another", [FAMQ, FREM("x", "C", signer="B", counted="member")],
+     "x", True, False),
     ("and the member removed is no voice: F with two others is two of five", [GM6, grp("r", "unseat", "F", "member", None,
                                                                                       cosigners=("B", "F"))], "r",
      False, False),
@@ -852,7 +860,7 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "dissolve_any_heads", "role_unread", "role_outlives_stay",
           "contested_both_out", "founder_role_survives_leave", "role_on_own_offer", "entrenched_weights_free",
           "concurrent_amendments_free", "infra_word_restated_always", "contested_scoped_to_kinds",
-          "contested_voice_everywhere", "negative_weight", "removal_counts_target")
+          "contested_voice_everywhere", "negative_weight", "removal_counts_target", "removal_floor_unread")
 
 
 @contextlib.contextmanager

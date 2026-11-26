@@ -498,8 +498,11 @@ told what act it is by the policy a row states.
   move**: a removal by two of four (A and B removing D) under `majority` now concludes (two of the three others), and
   the cases are restated where they turned on it (the step-5 removals are read against a unanimous room; the community
   contested pair is two of three on each side; `check_readmit.py`'s removal reads a room of five). F3's self-only
-  removal now follows from it. `community_remove` states no floor, so in a room of two either member removes the other
-  alone (`check_attacks.py`, attack 27, restated).
+  removal now follows from it. **The community floor applies to counted removals** (CC 4.5.13: "In a community the
+  floor is never fewer than two voices, so one voice never decides who is in a room, whatever the size"): a removal
+  takes two voices besides the member it removes (`SeatLaw::community_floor`). So a room of two removes nobody by
+  count (the edge; its members can leave), and in a room of three two remove the third. A family has no floor, and an
+  infrastructure community's M is at least two.
 - **A change of the record meets the protocol in force and the standing default together** (Q1: the table's
   `cosigned_act&default_standing`, fixed; policies joined by `&` are each met, the stricter decides). A row stating
   another policy (`default_content`, say) is refused: the `default_*` rows are classes of content change (the table's

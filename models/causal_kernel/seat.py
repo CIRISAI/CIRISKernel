@@ -550,6 +550,10 @@ def _protocol_part(r, by, need, weights):
     # removal rules for quorum and weighted are the admission rule over the other members): the key it removes is
     # neither counted over nor a voice (unanimous reads its own rule, count_of)
     if r["kind"] == "unseat" and kind != "unanimous" and "removal_counts_target" not in MUT: out["base_excludes_target"] = True
+    # in a community the floor is never fewer than two voices, so one voice never decides who is in a room, whatever
+    # its size (CC 4.5.13): a counted removal takes two voices besides the member it removes (a family has no floor)
+    if r["kind"] == "unseat" and not family and "removal_floor_unread" not in MUT:
+        out["floor"] = COMMUNITY_FLOOR
     # a family's removal naming only its own signer, on that signature alone, is no leaving (F3: the resignation is)
     if family and r["kind"] == "unseat" and "self_removal_as_leave" not in MUT: out["no_self_removal"] = True
     return out
@@ -1977,7 +1981,7 @@ def _count_under(r, P, past, by, table=None):
     if r.get("no_self_removal") and voices(r, P) - r.get("void_voices", frozenset()) <= frozenset(r.get("to", ())):
         return False
     # the community floor, where a policy row governs alone in place of a protocol that states no rule (the `&` reading)
-    if r.get("floor") is not None and len(voices(r, P) & vot) < r["floor"]: return False
+    if r.get("floor") is not None and len((voices(r, P) & vot) - frozenset(r.get("to", ()))) < r["floor"]: return False
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
         # the count is the ranked tally: the ballots the row names, one voice each, and the row seats the winner
         ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot") if b["id"] in r["names"] and b["signer"] in vot]
