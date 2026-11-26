@@ -418,20 +418,24 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
   A duty laid down and taken up again by the holder's own acceptance of the same offer, in a lone removal's past,
   is its standing there. **Answers change:** a newcomer whose acceptance a count has in its past is in the count's
   base (three of five where it was three of four).
-- **The edge, stated** (as of the tips ruling below). (o) A fork point with no member who signed only one chain
-  (e.g. a room founded by one key), for a reader with no row: the tie keeps both chains, and only a reader's
-  acknowledgement decides. "A sibling that meets its count is lawful" is weak where one key is the whole count (a lone
-  holder, a room of one, a self-admission): there siblings cost nothing to write; the lone-offer rule covers the honest
-  line, the fork is evidence, and the next counted change closes it. (i) A reader with no row of its own over the room, facing a
-  silent colluder's packing chain under the same protocol (a fork whose voices never acknowledged the honest line,
-  so nothing is self-forked): the fold seats the chain's admissions for that reader, and a long enough chain
-  outvotes. A newcomer admitted on the fork acknowledges the fork and holds the honest rows behind its line; it
-  takes the group's past from its admitter (CC 3.3.4: "A node new to the group, or one with no acknowledged head of
-  its own, takes the group's past from a current member, who vouches for it under their own signature"). (ii) A
-  count that omits a newcomer's acceptance its signers have seen, and needs the smaller base, concludes: it does
-  nothing its signers could not do a moment before the acceptance arrived. (iii) A lone holder that forks at the head
-  of its own first conferral is one key that said two things: the sibling is behind no line until a reader
-  acknowledges a change built on the first; the two rows are the evidence a later count can cite.
+- **The residual, stated** (as of the tips ruling below). ONE residual, in three shapes, each only for a reader with
+  no row of its own over the room (a member is never such a reader, by H6):
+  1. a fork point with no member who signed only one chain (a room founded by one key; every founder colluding): the
+     tie keeps both chains, and only a reader's acknowledgement decides;
+  2. a silent colluder's packing chain under the same protocol (a fork whose voices never acknowledged the honest
+     line, so nothing is self-forked): the fold seats the chain's admissions, and a long enough chain outvotes;
+  3. a newcomer admitted on the fork, which acknowledges the fork and holds the honest rows behind its line: it takes
+     the group's past from its admitter (CC 3.3.4: "A node new to the group, or one with no acknowledged head of its
+     own, takes the group's past from a current member, who vouches for it under their own signature").
+
+  Stated beside it, not part of it: a count that omits a newcomer's acceptance its signers have seen, and needs the
+  smaller base, concludes: it does nothing its signers could not do a moment before the acceptance arrived. And the
+  lone holder's window: a lone holder that forks at the head of its own first conferral is one key that said two
+  things; the sibling is behind no line until a reader acknowledges a change built on the first, and the two rows are
+  the evidence a later count can cite.
+  "A sibling that meets its count is lawful" is weak where one key is the whole count (a lone holder, a room of one, a
+  self-admission): there siblings cost nothing to write; the lone-offer rule covers the honest line, the fork is
+  evidence, and the next counted change closes it.
 - Cases: `models/causal_kernel/check_count_heads.py`, rewritten: 69 cases by rule, 7 of them EDGE, on
   acceptances, the lone offer, the self-fork and a room of one besides H1 to H8; three of roster versions; the line
   read directly; 23 planted breaks. Attack 35 reads them; the fixtures carry them, each with

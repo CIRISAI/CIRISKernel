@@ -38,8 +38,11 @@ acknowledged change only where every head it names is strictly in the past of th
 
 Each case is read as one batch and in arrival orders of its rows (every order up to six rows above the founding one,
 else the batch order, its reverse and forty shuffles). A case marked EDGE states what the rules give at the stated
-weak-subjectivity edge: a reader with no row over the room (a member is never such a reader, by H6), and a count that
-omits an acceptance its signers have seen (it does only what they could do a moment before the acceptance arrived).
+residual: ONE residual, in three shapes, each only for a reader with no row of its own (a member is never such a
+reader, by H6): (1) a fork point with no member who signed only one chain (a room founded by one key; every founder
+colluding); (2) a silent colluder's packing chain under the same protocol; (3) a newcomer admitted on the fork, which
+takes its past from its admitter (CC 3.3.4). Marked EDGE beside it: a count that omits an acceptance its signers have
+seen (it does only what they could do a moment before the acceptance arrived), and the lone holder's window.
 The acceptance cases read the ruling of 2026-11-26 (a): the members at the newest named heads, plus each seat placed
 by an offer in those heads' past whose holder's own acceptance of it is in the counted row's own past, less every
 leaving in the row's past; the bounds (1) to (4) each have a case (bound (3), a private room, is check_room_keys').
@@ -489,7 +492,7 @@ CASES = [
          "no self-fork, and for D the same count as the removal naming p2: it concludes, and A is out",
      silent(2, lambda sg, fp: remove("xr", "A", tuple("CDEFG"), ("aG",))), "D", {"xr": T},
      {"member": frozenset("BCDEFG")}, {"p1"}),
-    (EDGE, "both ways, for a reader with no row: the removal at aG alone concludes (five of seven), the one naming p2 is "
+    (EDGE, "residual (2): both ways, for a reader with no row: the removal at aG alone concludes (five of seven), the one naming p2 is "
            "five of nine and does not (the case above): for that reader alone the two differ, as it holds the chain. Its "
            "roster is then the fold of the two tips, the removal's line and the chain's: A is out on one, so the admissions "
            "A signed meet no count on the voices the fold seats, and only B and C are common",
@@ -508,12 +511,12 @@ CASES = [
     (SF, "the line before the cut: A and B (B silent since g) remove E at the founding head; not self-forked (B "
          "acknowledged nothing it is behind), but behind D's line: it cuts nothing for D, and E stays",
      silent(0, lambda sg, fp: remove("xe", "E", ("A", "B"), ("g",))), "D", {"xe": T}, {"member": frozenset("ABCDEFG")}, {"xe"}),
-    (EDGE, "the same for a reader with no row: the removal stands and cuts E's admission, and the admissions built on it "
+    (EDGE, "residual (2): the same for a reader with no row: the removal stands and cuts E's admission, and the admissions built on it "
            "with E's voice fall too (a silent colluder's old-head removal, for a reader with no row)",
      silent(0, lambda sg, fp: remove("xe", "E", ("A", "B"), ("g",))), None, {"xe": T},
      {"member": frozenset("ABCD")}, {"aF", "aG"}),
-    (EDGE, "the silent colluder at n=8, for a reader with no row: A, B and X1..X8 remove C, ten of fifteen (the stated "
-           "residual: a silent colluder's packing chain under one protocol)",
+    (EDGE, "residual (2): the silent colluder at n=8, for a reader with no row: A, B and X1..X8 remove C, ten of fifteen (a silent "
+           "colluder's packing chain under one protocol)",
      silent(8, lambda sg, fp: remove("xr", "C", sg, ("aG", fp))), None, {"xr": T}, {}, set()),
     (SF, "the same read by D: the chain is behind D's line and leaves the fold, and the removal concludes nothing for D",
      silent(8, lambda sg, fp: remove("xr", "C", sg, ("aG", fp))), "D", {"xr": T}, {"member": frozenset("ABCDEFG")}, {"p1"}),
@@ -528,7 +531,7 @@ CASES = [
      [G4, QA("aD", "D", ("A", "B", "C", "H"), ("g",)), QA("aE", "E", ("A", "B", "C", "H", "D"), ("aD",)),
       QA("p1", "X1", ("A", "B"), ("g",)), QA("p2", "X2", ("A", "B", "C", "X1"), ("p1",))], None, {"p1": T, "p2": T},
      {"member": frozenset("ABCDEH")}, {"p1", "p2"}),
-    (EDGE, "a fork point with no member who signed only one chain (here C signed both, and every founder at g did), for "
+    (EDGE, "residual (1): a fork point with no member who signed only one chain (here C signed both, and every founder at g did), for "
            "a reader with no row: the tie keeps both, and the packers' removal of D stands",
      ROOM + [admit("p1", "X1", ("A", "B"), ("g",)), admit("p2", "X2", ("A", "B", "C", "X1"), ("p1",)),
              admit("p3", "X3", ("A", "B", "C", "X1", "X2"), ("p2",)), admit("p4", "X4", ("A", "B", "C", "X1", "X2", "X3"), ("p3",)),

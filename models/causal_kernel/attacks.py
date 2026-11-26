@@ -1306,12 +1306,12 @@ def t35(t):
         else:
             t.fact("%s: %s" % (rule, name), ok)
     ok = all(v for _, v in t.facts)
-    return dict(cls="HOLDS" if ok else "BROKEN", who="nobody, for a reader with a row of its own over the room (a member is never a reader with none, by H6); the stated weak-subjectivity edge in the EDGE notes",
+    return dict(cls="HOLDS" if ok else "BROKEN", who="nobody, for a reader with a row of its own over the room (a member is never a reader with none, by H6); the stated residual in the EDGE notes",
                 witness="g(A,B,C) aD..aG (counted admissions to seven). ax(A+B admit X, head g, naming aG): concludes nothing (H1). "
                         "xg(A+B remove G, heads g and aG): concludes nothing (H1). A cheap tip dc (A confers moderate at g) and "
                         "xg(A+B, heads dc and aG): void for every member, whose own rows are its line (H6).",
                 protects="seat.newer_head_in_past (H1-H4, H7), seat.honest; checkpoint.acknowledgements (H6), settle and versions (H5); Seats, the line before the cut. "
-                         "The edge, stated: for a reader with no row over the room concurrent tips intersect; a count that omits an acceptance its signers have seen does only what they could do before it arrived (%d notes)." % len(opens),
+                         "The residual, stated: ONE residual in three shapes, each only for a reader with no row of its own: (1) a fork point with no member who signed only one chain; (2) a silent colluder's packing chain under the same protocol; (3) a newcomer admitted on the fork, which takes its past from its admitter (CC 3.3.4). Beside it: a count that omits an acceptance its signers have seen does only what they could do before it arrived (%d notes)." % len(opens),
                 fix="")
 
 

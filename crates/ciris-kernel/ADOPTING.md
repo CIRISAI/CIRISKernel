@@ -191,10 +191,10 @@ trusting an adapter.
   strength of one line.
   A reader's roster (`Seats::new`, `Seats::for_reader`) reads S'' over the rows it holds: a change self-forked
   there neither adds nor removes members. The readings of one line inside the kernel do not.
-  **The residual, stated:** a fork point with no member who signed only one chain (a room founded by one key), for a
-  reader with no row; and a reader with no row of its own, facing a silent colluder's packing chain under the
-  same protocol (a fork whose voices never acknowledged the honest line), reads the fork's admissions folded in;
-  and a newcomer admitted on the fork takes its past from its admitter (CC 3.3.4).
+  **The residual, stated:** one residual, in three shapes, each only for a reader with no row of its own: (1) a fork
+  point with no member who signed only one chain (a room founded by one key; every founder colluding); (2) a silent
+  colluder's packing chain under the same protocol; (3) a newcomer admitted on the fork, which takes its past from its
+  admitter (CC 3.3.4). A store serving such a reader gives it the past of the member that admitted it.
   A seat is two consents: an admission the joiner does not sign
   seats it where its own acceptance (a `SeatKind::Accept` by the joiner, `of` the admission) is in the counted
   row's past, even when the acceptance is in no head's past. Present the acceptance as the joiner's own row; a
