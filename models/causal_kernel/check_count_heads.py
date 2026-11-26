@@ -27,6 +27,7 @@ Planted breaks, each of which must change a case's answer:
     count_heads_unread   a counted row's count read at the heads it names, whatever is in its past (W1)
     line_concurrent      the line voids only acts concurrent with an act of it (W2)
     cut_before_line      the cut is read before the reader's line (W3)
+    lift_exemption_off   the new line reads the members' lift too (the exemption pending the lift follow-up)
 
     python3 -I check_count_heads.py      exit 1 on any difference
 """
@@ -92,6 +93,10 @@ MDM = ST.offer("md", "m1", "MOD", "moderate", OBJ, "group", ("am",), head=("am",
 ANM = admit("an", "N", ("m1", "m2", "MOD"), ("md",))      # a counted admission after the moderator's seat
 XLM = ST.unseat("xl", "MOD", "AG", "agent", OBJ, "group", ("an",), head=("md",), policy="community_remove")
 WM = [GM, AGM, AMM, MDM, ANM]
+# MOD lays its `moderate` seat down (its own withdrawal of the conferral), and then removes AG alone at the head md
+WDM = ST.withdraw("wd", "MOD", "md", ("md",))
+XLW = lambda names: ST.unseat("xl", "MOD", "AG", "agent", OBJ, "group", names, head=("md",), policy="community_remove")
+import check_agent_removal as AR  # noqa: E402   world A: the lift
 
 # (name, rows, reader, {row: concludes}, {scope: holders}, stale, the answer before: (concludes, holders, stale))
 CASES = [
@@ -127,8 +132,20 @@ CASES = [
      "admission's past, so it is behind the line, and cuts nothing for that reader",
      WM + [ack("ak", "m1", "an"), XLM], "m1", {"xl": T}, {"member": {"m1", "m2", "MOD", "N"}, "agent": {"AG"}}, {"xl"},
      ({"xl": T}, {"member": {"m1", "m2", "MOD", "N"}, "agent": set()}, set())),
+    # what the code gives (the end rule: a lone removal is in force only while its author holds the standing it acts
+    # under; seat.out_of_force), with the author's withdrawal of its seat in the removal's past, and concurrent with it
+    ("a moderator lays down its seat and then removes an agent's key alone, naming the head where it held the seat",
+     [GM, AGM, AMM, MDM, WDM, XLW(("md", "wd"))], None, {"xl": T, "wd": T}, {"moderate": set(), "agent": {"AG"}}, set(), None),
+    ("the same removal concurrent with the moderator's withdrawal of its seat",
+     [GM, AGM, AMM, MDM, WDM, XLW(("md",))], None, {"xl": T, "wd": T}, {"moderate": set(), "agent": {"AG"}}, set(), None),
+    # the lift, read as before, pending the lift follow-up (it is to name the newest counted heads in its own past and
+    # be counted over the members seated both at the act's head and at its own, the author apart): today, for a
+    # reader that acknowledged the removal, the re-seating counts and the agent's key is back
+    ("the members' lift of a lone removal, for a reader that acknowledged the removal (pending the lift follow-up)",
+     AR.A + [AR.XA, AR.O1, AR.O2, AR.RSA, ack("ak", "m1", "x")], "m1", {"rs": T}, {"agent": {"AG"}}, set(), None),
 ]
 PLANTS = (("count_heads_unread", ST.MUT), ("line_concurrent", CP.MUT), ("cut_before_line", ST.MUT))
+GUARDS = (("lift_exemption_off", ST.MUT),)      # a break of the lift's exemption, pending the lift follow-up
 
 
 def answer(S, own, concl, holds):
@@ -182,7 +199,7 @@ def main():
         changed += before is not None
     caught = 0
     now = run_all()
-    for p, m in PLANTS:
+    for p, m in PLANTS + GUARDS:
         m.add(p)
         try:
             hit = [c[0] for c, a, b in zip(CASES, now, run_all()) if a != b]
@@ -195,7 +212,7 @@ def main():
     for p in problems:
         print(p)
     print("RESULT: %s: %d cases (%d whose answer this change makes), %d arrival orders, %d of %d planted breaks caught"
-          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), changed, n, caught, len(PLANTS)))
+          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), changed, n, caught, len(PLANTS + GUARDS)))
     return 1 if problems else 0
 
 

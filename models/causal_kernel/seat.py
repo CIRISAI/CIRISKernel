@@ -455,7 +455,10 @@ class Seats:
         # the reader's line is read before the cut: a counted act void for this reader cuts nothing for it (CC 2.7.8).
         # L: the acts behind the reader's line and those built on them, every row taken as counting; then the cut
         # without them, and the acts built on one the cut voids (MUTATION cut_before_line: the cut reads them too)
-        L = CP.void(S, CP.EVERY, own, checkpoint) if own is not None and "cut_before_line" not in MUT else frozenset()
+        # a lift is read by the line as before (concurrent acts only), pending the lift follow-up
+        # (MUTATION lift_exemption_off: the new line reads the lift too)
+        lift = lambda r: K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "lift" and "lift_exemption_off" not in MUT
+        L = CP.void(S, CP.EVERY, own, checkpoint, lift) if own is not None and "cut_before_line" not in MUT else frozenset()
         self.cut = C = CUT.Cut(S, without=L)
         Cs = S.Cs
         wd = K.sel(Cs, kind="withdraw")
@@ -471,7 +474,7 @@ class Seats:
         # a withdrawal that names a scope ends that one seat of the row it withdraws (a founding holder lays down a duty)
         off_ended = lambda o, k, sc: any(w["target"] == o["id"] and (w["signer"] == k or (w["signer"] not in o["to"] and o["conf"] != "group" and not eq(o)))
                                          and (w.get("scope") in (None, sc) or "scope_unread" in MUT) and not late(w, o) for w in wd)
-        self.stale = V = L | CP.void(S, C, own, checkpoint)     # counted acts built on one that does not count, or behind the reader's line
+        self.stale = V = L | CP.void(S, C, own, checkpoint, lift)     # counted acts built on one that does not count, or behind the reader's line
         unseats = [u for u in K.sel(Cs, kind="unseat") if C.counts(u) and u["id"] not in V]
         # a moderator's lone removal is an act under its `moderate` standing, in force only while the end rule says so
         # (out_of_force). `drop`: the lone removals already judged out of force over the whole set, for a reading of
@@ -958,7 +961,8 @@ def count_met(r, P, past, table=None):
     count, or the policy's threshold over the persons at the heads it names."""
     k, by, heads = r["kind"], {q["id"]: q for q in P}, r.get("head", ())
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "lift": return lift_count(r, P, past, by)
-    # read at the newest counted heads of the roster in its own past (a lift is counted at the head its act names)
+    # read at the newest counted heads of the roster in its own past. A lift (above) is exempt, pending the lift
+    # follow-up: it is counted at the head its act names
     if newer_head_in_past(heads, None, P, past, r["obj"]): return False
     mem, vot = counted_keys(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
     left = count_left(P, past, r.get("over", r["obj"]), r.get("counted", "member"))

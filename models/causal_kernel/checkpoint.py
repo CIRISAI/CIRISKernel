@@ -64,7 +64,7 @@ def own_line(S, own, obj):
     return [r for r in counted_acts(S, obj) if r["id"] in acked or any(r["id"] in S.anc[h] for h in acked if h in S.anc)]
 
 
-def settle(S, C, obj, own=None, group=False):
+def settle(S, C, obj, own=None, group=False, old_line=lambda r: False):
     """(certain, possible): the ids of the counted acts on obj that count for reader `own`.
 
     A counted act counts iff the cut lets it count, EVERY COUNTED ACT AMONG THE HEADS IT NAMES ITSELF COUNTS, and no
@@ -81,8 +81,10 @@ def settle(S, C, obj, own=None, group=False):
     # CC 2.7.8: "holds void every counted act that names an older head and is not in that head's past, however many rows
     # it has": no test of concurrency, so a row with c in its own past that names a head older than c is void too
     # (MUTATION line_concurrent: the line voids only rows concurrent with c, the rule until 0.5.0)
+    # `old_line(r)`: an act the line reads as before, only where it is concurrent with c (a lift, pending the lift
+    # follow-up: the lift is counted at the head its act names; seat.Seats passes it)
     line_behind = lambda r, c: c["id"] != r["id"] and r["id"] not in S.anc[c["id"]] and older(S, r["head"], [c["id"]]) \
-        and ("line_concurrent" not in MUT or S.concurrent(r["id"], c["id"]))
+        and (("line_concurrent" not in MUT and not old_line(r)) or S.concurrent(r["id"], c["id"]))
     # the refused group checkpoint (group=True only): r's heads strictly older than the heads c names
     behind = lambda r, c: c["id"] != r["id"] and S.concurrent(r["id"], c["id"]) and older(S, r["head"], c["head"])
 
@@ -114,12 +116,12 @@ class EVERY:
     counts = staticmethod(lambda r: True)
 
 
-def void(S, C, own=None, group=False):
+def void(S, C, own=None, group=False, old_line=lambda r: False):
     """The ids of the counted acts the cut lets count that do not count for reader `own`: left behind by its
     acknowledged line, or built on a counted act that does not count."""
     out = set()
     for obj in {r["obj"] for r in S.Cs if r["kind"] in ("offer", "unseat") and r.get("conf") == "group" and r.get("head")}:
-        _, U = settle(S, C, obj, own, group)
+        _, U = settle(S, C, obj, own, group, old_line)
         out |= {r["id"] for r in counted_acts(S, obj) if C.counts(r) and r["id"] not in U}
     return frozenset(out)
 

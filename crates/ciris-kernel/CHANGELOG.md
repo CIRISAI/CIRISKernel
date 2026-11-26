@@ -3,7 +3,7 @@
 ## Unreleased
 
 **A count is read at the newest counted heads in its own past; one reader's line; the line before the cut.**
-Additive: one public function (`cut::Cut::new_without`). Several answers change; each is listed below.
+Additive: three public functions (`cut::Cut::new_without`, `line::settle_with`, `line::void_with`). Several answers change; each is listed below.
 
 - A counted row over a roster concludes only at the newest counted heads of that roster in its own past
   (`seat::seat_rule`, the count arm). A counted offer or unseat ([`Conf::Group`]) whose own past holds a counted
@@ -11,14 +11,16 @@ Additive: one public function (`cut::Cut::new_without`). Several answers change;
   counted change is what the reader's line reads as a counted act (`SeatLine`'s `counted_act`): an offer or
   unseat conferred by a count on the same object that names a head, of any scope. That covers an admission, a
   removal, a duty conferral or withdrawal and a recall. A row that has not seen the newer head (one concurrent
-  with it) concludes as before; the line and the fold read it. A lift (`Policy::Lift`) is counted at the head
-  its act names and is read as before. A moderator's lone removal is read as before. A cosignature needs no
+  with it) concludes as before; the line and the fold read it. A lift (`Policy::Lift`) is read as before,
+  pending the lift follow-up: it is to name the newest counted heads in its own past and be counted over the
+  members seated both at the act's head and at its own, the author apart. A moderator's lone removal is read as before. A cosignature needs no
   reading of its own: it is a voice only where the row names it, so the row's past holds the cosignature's.
   **Answers change:** a counted row naming a head older than a counted change in its own past concluded
   before and concludes nothing now.
 - The reader's line is the text's (CC 2.7.8: "holds void every counted act that names an older head and is
   not in that head's past"): `line::settle` no longer asks that the act be concurrent with the act of the line.
-  This is the rule `head::View` reads. **Answers change** for a counted act that has an act of the line in its
+  This is the rule `head::View` reads. A lift is read by the line as before (void only where concurrent with
+  an act of the line), pending the same follow-up: `line::settle_with` and `line::void_with` take the acts read so. **Answers change** for a counted act that has an act of the line in its
   own past and names a head older than it; in practice that is a moderator's lone removal at an older head,
   since the rule above refuses the other counted rows.
 - The line is read before the cut (`seat::Seats`): a counted act void for a reader cuts nothing for that
@@ -26,12 +28,15 @@ Additive: one public function (`cut::Cut::new_without`). Several answers change;
   (`cut::Cut::new_without`). **Answers change:** a counted removal concurrent with the head a reader
   acknowledged, behind that reader's line, no longer takes the key off the roster for that reader. For a reader
   with no acknowledgement nothing changes: a removal at a tip is read by the fold as before.
-- Cases: `models/causal_kernel/check_count_heads.py` (13 cases in arrival orders, three planted breaks; each case
-  states its answer before the change); attack 35 in `attacks.py`; the fixture `seat.json` carries them.
+- Cases: `models/causal_kernel/check_count_heads.py` (16 cases in arrival orders, four planted breaks; each case
+  states its answer before the change). They include two of a moderator who lays down its seat and then removes an
+  agent's key alone, naming the head where it held the seat: the end rule holds the removal not in force, with the
+  withdrawal in its past or concurrent with it. A case of the lift states today's answer for a reader that
+  acknowledged the removal, for the follow-up to change; attack 35 in `attacks.py`; the fixture `seat.json` carries them.
   Changed in existing cases: `roomkey.py` ("the enabling is revocable": the counted withdrawal names the
   conferral it ends as its head) and `attacks.py` test 3 ("conferred by the count, then f1 withdrawn by the
   others, naming it": the withdrawal names the conferral as its head). Each named a head older than a counted
-  change in its own past, and each fact holds again. Three crate plants.
+  change in its own past, and each fact holds again. Four crate plants.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

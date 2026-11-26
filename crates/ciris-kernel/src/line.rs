@@ -72,6 +72,19 @@ pub fn settle<R: Row, L: LineSpec<R>>(
     own: Option<&R::Key>,
     cut_counts: impl Fn(usize) -> bool,
 ) -> BTreeSet<usize> {
+    settle_with(c, spec, obj, own, cut_counts, |_| false)
+}
+
+/// [`settle`], with `old_line(i)` naming the acts the line reads as before 0.5.0: void only where concurrent
+/// with an act of the line (the members' lift, pending its follow-up; `seat::Seats` passes it).
+pub fn settle_with<R: Row, L: LineSpec<R>>(
+    c: &Concluded<'_, R>,
+    spec: &L,
+    obj: &L::Obj,
+    own: Option<&R::Key>,
+    cut_counts: impl Fn(usize) -> bool,
+    old_line: impl Fn(usize) -> bool,
+) -> BTreeSet<usize> {
     let acts = counted_acts(c, spec, obj);
     let line: BTreeSet<&R::Id> = acts.iter().map(|&i| c.g.row(i).id()).collect();
     let mut live: Vec<usize> = acts.iter().copied().filter(|&i| cut_counts(i)).collect();
@@ -84,8 +97,10 @@ pub fn settle<R: Row, L: LineSpec<R>>(
     // many rows it has": no test of concurrency, so an act with `m` in its own past that names a head older
     // than `m` is void too. This is the rule `head::View` reads (an act not in an acknowledged head's past that
     // names only heads strictly in it).
-    let behind =
-        |r: usize, m: usize| m != r && !c.g.in_past(r, m) && older(c, heads(r), core::slice::from_ref(c.g.row(m).id()));
+    let behind = |r: usize, m: usize| {
+        let beside = if old_line(r) { c.g.concurrent(r, m) } else { !c.g.in_past(r, m) };
+        m != r && beside && older(c, heads(r), core::slice::from_ref(c.g.row(m).id()))
+    };
     let mut out: BTreeSet<usize> = BTreeSet::new();
     let mut out_ids: BTreeSet<&R::Id> = BTreeSet::new();
     for &r in &live {
@@ -106,10 +121,21 @@ pub fn void<R: Row, L: LineSpec<R>>(
     own: Option<&R::Key>,
     cut_counts: impl Fn(usize) -> bool,
 ) -> BTreeSet<usize> {
+    void_with(c, spec, own, cut_counts, |_| false)
+}
+
+/// [`void`], with `old_line` as in [`settle_with`].
+pub fn void_with<R: Row, L: LineSpec<R>>(
+    c: &Concluded<'_, R>,
+    spec: &L,
+    own: Option<&R::Key>,
+    cut_counts: impl Fn(usize) -> bool,
+    old_line: impl Fn(usize) -> bool,
+) -> BTreeSet<usize> {
     let objs: BTreeSet<L::Obj> = c.cs().iter().filter_map(|&i| spec.counted_act(c.g.row(i)).map(|(o, _)| o)).collect();
     let mut out = BTreeSet::new();
     for obj in &objs {
-        let ok = settle(c, spec, obj, own, &cut_counts);
+        let ok = settle_with(c, spec, obj, own, &cut_counts, &old_line);
         for i in counted_acts(c, spec, obj) {
             if cut_counts(i) && !ok.contains(&i) {
                 out.insert(i);

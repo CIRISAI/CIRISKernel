@@ -617,7 +617,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     ) -> Self {
         // the reader's line is read before the cut: a counted act void for this reader (behind its line, or built
         // on such an act, every row taken as counting) cuts nothing for it (CC 2.7.8)
-        let behind = if own.is_some() { line::void(c, &SeatLine, own, |_| true) } else { BTreeSet::new() };
+        // a lift is read by the line as before (concurrent acts only), pending the lift follow-up
+        let lift = |i: usize| law.policy_of(c.g.row(i).policy().map(|x| x.as_ref())) == Some(Policy::Lift);
+        let behind = if own.is_some() { line::void_with(c, &SeatLine, own, |_| true, lift) } else { BTreeSet::new() };
         let cut = Cut::new_without(c, spec, &behind);
         let g = &c.g;
         let by: BTreeMap<&'a R::Id, &'a R> = g.rows().iter().map(|r| (r.id(), *r)).collect();
@@ -654,7 +656,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     && w.scope().is_none_or(|ws| ws == sc)
             })
         };
-        let mut stale = line::void(c, &SeatLine, own, |i| cut.counts(i) && !behind.contains(&i));
+        let mut stale = line::void_with(c, &SeatLine, own, |i| cut.counts(i) && !behind.contains(&i), lift);
         stale.extend(behind.iter().copied());
         // each unseat that counts, with its object read once
         let unseats: Vec<(usize, Option<ObjOf<R>>)> = cs
@@ -1928,8 +1930,8 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
         mem.remove(&author); // the author is not among the members the majority is taken of
         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
     }
-    // read at the newest counted heads of the roster in its own past (a lift, above, is counted at the head its
-    // act names)
+    // read at the newest counted heads of the roster in its own past. A lift (above) is exempt, pending the lift
+    // follow-up: it is counted at the head its act names
     if newer_head_in_past(p, &obj, r.head()) {
         return false;
     }
