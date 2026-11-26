@@ -426,7 +426,9 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
      line, so nothing is self-forked): the fold seats the chain's admissions, and a long enough chain outvotes;
   3. a newcomer admitted on the fork, which acknowledges the fork and holds the honest rows behind its line: it takes
      the group's past from its admitter (CC 3.3.4: "A node new to the group, or one with no acknowledged head of its
-     own, takes the group's past from a current member, who vouches for it under their own signature").
+     own, takes the group's past from a current member, who vouches for it under their own signature"). Read by
+     itself, such a newcomer holds the honest admissions behind its line and reads the fork's roster alone, not the
+     fold; on a fork S″ voids it reads the honest roster and its own seat is void.
 
   Stated beside it, not part of it: a count that omits a newcomer's acceptance its signers have seen, and needs the
   smaller base, concludes: it does nothing its signers could not do a moment before the acceptance arrived. And the

@@ -207,6 +207,12 @@ ACN = ST.accept("acN", "N", "oN")
 FOUR = frozenset("ABCD")
 
 
+# the residual (1) chain: A and B fork at g, and A, B and C (every founder) build five admissions on it
+PACK = [admit("p1", "X1", ("A", "B"), ("g",)), admit("p2", "X2", ("A", "B", "C", "X1"), ("p1",)),
+        admit("p3", "X3", ("A", "B", "C", "X1", "X2"), ("p2",)), admit("p4", "X4", ("A", "B", "C", "X1", "X2", "X3"), ("p3",)),
+        admit("p5", "X5", ("A", "B", "C", "X1", "X2", "X3", "X4"), ("p4",))]
+
+
 def invite(i, k, signers, heads, cites=()):
     """A counted invitation of k that k does not sign: a seat when k's own acceptance completes it."""
     return ST.offer(i, signers[0], k, "member", OBJ, "group", tuple(heads) + tuple(cites), head=tuple(heads),
@@ -544,6 +550,21 @@ CASES = [
              admit("p5", "X5", ("A", "B", "C", "X1", "X2", "X3", "X4"), ("p4",)),
              remove("xD", "D", ("A", "B", "C", "X1", "X2", "X3", "X4", "X5"), ("aG", "p5"))], "D", {"xD": T},
      {"member": SEVEN}, {"p1"}),
+    # residual (3): a newcomer admitted on the fork, reading as itself, its only row its acceptance of the fork's offer
+    (SF, "a newcomer on a fork S'' voids: A, B and C invite X at g, after signing the honest admissions; X accepts. Read "
+         "by X: the invitation is self-forked over the rows X holds, so X reads the honest roster and its own seat is void "
+         "(seated by nothing)",
+     ROOM + [invite("oX", "X", ("A", "B", "C"), ("g",)), ST.accept("acX", "X", "oX")], "X", {"oX": T, "acX": T},
+     {"member": SEVEN}, {"oX"}),
+    (EDGE, "residual (3): a newcomer admitted on the fork in the residual (1) world (no single-chain member, both kept): "
+           "the eight on the chain invite X at p5, and X accepts. Read by X: the honest admissions are behind X's line "
+           "(the reader-line exclusion), so X reads the fork's roster alone, not the fold; it takes its past from its "
+           "admitter (CC 3.3.4)",
+     ROOM + PACK + [invite("oX", "X", ("A", "B", "C", "X1", "X2", "X3", "X4", "X5"), ("p5",)), ST.accept("acX", "X", "oX")],
+     "X", {"oX": T, "acX": T}, {"member": frozenset("ABCX") | {"X1", "X2", "X3", "X4", "X5"}}, {"aD"}),
+    (EDGE, "the same rows for a reader with no row: the fold of both chains, with X",
+     ROOM + PACK + [invite("oX", "X", ("A", "B", "C", "X1", "X2", "X3", "X4", "X5"), ("p5",)), ST.accept("acX", "X", "oX")],
+     None, {"oX": T, "acX": T}, {"member": SEVEN | {"X", "X1", "X2", "X3", "X4", "X5"}}, set()),
     # the lone holder's window, stated: a lone holder may add lone conferrals beside its first until the room's next
     # counted change; each is a row by one key that said two things at one head, and the two rows are the evidence a
     # recall cites (the members recall any duty holder, however seated, CC 4.5.13)
