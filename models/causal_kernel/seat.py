@@ -607,10 +607,13 @@ def own_keys(by, obj):
 #       seating stood under C4 in the receipt's own past; one say per person, read causally. Once closed, no rival
 #       seating counts.
 ELECTION_RANKS = 3               # "Each person ranks up to three": a ballot ranking more is void, the whole ballot
-# E3 (ruled): once its holder's seat has ended, a seating that stood (C4) and never closed names the next election,
-# C3 deciding between rival ids by past. ELECTION_WAIT_CLOSE: the candidate rule E3 replaced (no next election until
-# the earlier closes or its seating is beaten), kept to show what it does
-ELECTION_WAIT_CLOSE = False
+#   E3  once its holder's seat has ended, a seating that stood (C4) and never closed names the next election, C3
+#       deciding between rival ids by past.
+#   F1  every input to a seating's count comes from the set it names: its ballots, the withdrawals of them, the
+#       declines, the leavings it reads, and (F2) the end or ends of the seat it reads the electorate at. Seatings
+#       over equal sets count alike.
+#   F3  a next election stands only while its id row stands, for the rows held: beating or un-standing a seating
+#       takes with it every election named on it.
 _EMEMO = {}
 
 
@@ -621,7 +624,7 @@ def is_election(o, table=None):
 
 
 def _memo(tag, row, f):
-    key = (tag, id(row), frozenset(MUT), ELECTION_WAIT_CLOSE)
+    key = (tag, id(row), frozenset(MUT))
     got = _EMEMO.get(key)
     if got is None or got[0] is not row:
         got = _EMEMO[key] = (row, f())
@@ -631,21 +634,25 @@ def _memo(tag, row, f):
 def id_seats(E):
     """The seats id row E gave: for a founding row, each duty seat it gives a signer (its map's, the one-founder's
     `moderate`, the older presentation's `duty`); for a seating, its winner's `moderate`. [(offer, key, scope)]."""
-    if E["obj"] == E["id"]:
+    if E.get("obj") == E["id"]:
         return [(E["id"], k, sc) for k in E["to"] for sc in seat_scopes(E, k)
                 if (sc != E["scope"] or sc == "duty") and is_duty(sc, record_duties(E))]
     return [(E["id"], E["to"][0], "moderate")] if E.get("to") else []
 
 
-def vacancy(E, P, past):
+def vacancy(E, P, past, named=None):
     """C1: the rows of P that end a seat E gave (each row whose own past holds that seat live and whose past with it
-    does not), or (E's id,) where E gives no seat; None while a seat E gave has no end in P."""
+    does not), or (E's id,) where E gives no seat; None while a seat E gave has no end in P. `named` (F2): only the
+    rows a seating names are read as ends. Only a holder's own withdrawal, or an unseat naming a holder, can end one."""
     seats = id_seats(E)
     if not seats or "vacancy_founding" in MUT: return (E["id"],)
     live = lambda rows: {(r["offer"], r["k"], r["scope"]) for r in seats_of(rows).recs}
+    holders = {k for _, k, _ in seats}
     ends, ended = [], set()
     for w in P:
         if w["kind"] not in ("withdraw", "unseat") or not past(E["id"], w["id"]): continue
+        if named is not None and w["id"] not in named and "vacancy_unnamed" not in MUT: continue
+        if not (w["signer"] in holders if w["kind"] == "withdraw" else set(w["to"]) & holders): continue
         pre = [q for q in P if past(q["id"], w["id"])]
         gone = {s for s in seats if s in live(pre) and s not in live(pre + [w])}
         if gone:
@@ -655,9 +662,9 @@ def vacancy(E, P, past):
     return tuple(ends)
 
 
-def electorate(E, P, past, obj):
+def electorate(E, P, past, obj, named=None):
     """C1: the persons seated at every row of E's vacancy (the agents apart), or empty where E has no vacancy in P."""
-    v = vacancy(E, P, past)
+    v = vacancy(E, P, past, named)
     if v is None: return frozenset()
     if "electorate_at_seating" in MUT:                              # MUTATION: the persons seated over the whole past
         Q = seats_of(P)
@@ -678,10 +685,16 @@ def ekey(E, rows, past):
     return ("s", E["obj"], v[0], v[2])
 
 
-def election_rows(q, Ek, elect, by, rows, past):
-    """q is a row of election Ek's set: a ballot or decline naming that election, or a withdrawal of such a ballot by
-    its own signer, signed by a member of the electorate."""
-    if q is None or (q["signer"] not in elect and "set_any_signer" not in MUT): return False
+def election_rows(q, Ek, elect, by, rows, past, obj=None):
+    """q is a row of election Ek's set: a ballot or decline naming that election, a withdrawal of such a ballot by
+    its own signer, or a leaving (its own end of its stay, or a counted removal from the roster) of a member of the
+    electorate (F1); signed by a member of the electorate (a removal: of one)."""
+    if q is None: return False
+    if q["kind"] == "unseat" and q.get("conf") == "group" and q.get("obj") == obj and q.get("scope") in ROSTER_SEATS:
+        return bool(set(q["to"]) & elect)
+    if q["kind"] == "withdraw" and obj is not None and any(g == obj and k in elect for _, k, g in stay_ends([q], by)):
+        return True
+    if q["signer"] not in elect and "set_any_signer" not in MUT: return False
     named = lambda b: b.get("of") in by and ekey(by[b["of"]], rows, past) == Ek
     if q["kind"] in ("ballot", "decline"): return named(q)
     if q["kind"] == "withdraw":
@@ -697,8 +710,11 @@ def seating_view(S, P, past):
         E = by.get(S.get("of"))
         if E is None: return (None, frozenset(), frozenset())
         Ek = ekey(E, P, past)
-        el = electorate(E, P, past, S["obj"])
-        return (Ek, el, frozenset(n for n in S["names"] if election_rows(by.get(n), Ek, el, by, P, past)))
+        named = frozenset(S["names"])
+        el = electorate(E, P, past, S["obj"], named)
+        v = vacancy(E, P, past, named) or ()
+        rows = {n for n in S["names"] if election_rows(by.get(n), Ek, el, by, P, past, S["obj"])}
+        return (Ek, el, frozenset(rows | (set(v) & named)))
     return _memo("view", S, f)
 
 
@@ -784,7 +800,7 @@ def departed(P, past, obj):
 def valid_id(E, r, P, past, by):
     """C3 and C5: id row E names an election for row r, read in r's past P: the room's founding row, or a seating of
     the room that closed its own election in r's past, or (E3) a seating of the room that stood under C4 in r's past
-    and whose seat has ended there (not under ELECTION_WAIT_CLOSE, the candidate rule E3 replaced)."""
+    and whose seat has ended there."""
     e = by.get(E)
     obj = r.get("obj")
     if e is None or "election_id_any" in MUT: return e is not None
@@ -792,7 +808,7 @@ def valid_id(E, r, P, past, by):
     if not (is_election(e) and e.get("obj") == obj): return False
     v = _view(P, past, e)
     if closure(v[0], P, past, obj) == v[2]: return True
-    if not ELECTION_WAIT_CLOSE and "wait_close" not in MUT:
+    if "wait_close" not in MUT:                  # MUTATION: the candidate rule E3 replaced (closed seatings only)
         here = _seatings_of(v[0], P, past, obj)
         return e["id"] in c4_standing(here, {x["id"]: _view(P, past, x)[2] for x in here}) and vacancy(e, P, past) is not None
     return False
@@ -800,13 +816,12 @@ def valid_id(E, r, P, past, by):
 
 def superseded(E, r, P, past, by):
     """E3, C3: election E is no longer the room's for row r where a seating of it that stood (C4) in r's past, and
-    whose seat has ended there, names the next election (r must name that one). Under ELECTION_WAIT_CLOSE, only a
-    closed seating does."""
+    whose seat has ended there, names the next election (r must name that one)."""
     e = by.get(E)
     obj = r.get("obj")
     if e is None or "superseded_unread" in MUT: return False
     Ek = ekey(e, P, past)
-    if ELECTION_WAIT_CLOSE or "wait_close" in MUT: return closure(Ek, P, past, obj) is not None
+    if "wait_close" in MUT: return closure(Ek, P, past, obj) is not None
     here = _seatings_of(Ek, P, past, obj)
     st = c4_standing(here, {x["id"]: _view(P, past, x)[2] for x in here})
     return any(vacancy(x, P, past) is not None for x in here if x["id"] in st)
@@ -821,16 +836,17 @@ def election_beaten(rows, past):
         if is_election(q): groups.setdefault((q.get("obj"), _view(rows, past, q)[0]), []).append(q)
     for (obj, Ek), el in groups.items():
         sets = {x["id"]: _view(rows, past, x)[2] for x in el}
-        if "id_read_whole" in MUT:                 # MUTATION: a seating's id read over the whole set, not its past
-            dead = {x["id"] for x in el if x.get("of") in {q["id"] for q in rows}
-                    and not valid_id(x["of"], x, rows, past, {q["id"]: q for q in rows})}
-            out |= dead
         grp = closure(Ek, rows, past, obj)
         if grp is not None and "closed_rivals_count" not in MUT:
             out |= {x["id"] for x in el if sets[x["id"]] != grp}
         else:
             st = c4_standing(el, sets)
             out |= {x["id"] for x in el if x["id"] not in st}
+    # F3: a next election stands only while its id row stands, for the rows held (MUTATION id_cascade_unread)
+    more = "id_cascade_unread" not in MUT
+    while more:
+        add = {q["id"] for el in groups.values() for q in el if q["id"] not in out and q.get("of") in out}
+        more = bool(add); out |= add
     return frozenset(out)
 
 
@@ -852,10 +868,13 @@ def election_count(r, P, past, by):
     grp = closure(Ek, P, past, obj)
     if grp is not None and grp != mine and "closed_rivals_count" not in MUT: return False
     if not el: return False
-    left = count_left(P, past, obj, "member")
+    # F1: the leavings and the withdrawals read are the set's
+    named = [q for q in P if q["id"] in mine] if "set_inputs_unread" not in MUT else P
+    left = {k for w in named if w["kind"] == "withdraw" for _, k, g in stay_ends([w], by) if g == obj} | \
+        {k for u in named if u["kind"] == "unseat" and u.get("obj") == obj and u.get("scope") in ROSTER_SEATS for k in u["to"]}
     voters = el - (frozenset() if "leaver_voice" in MUT else left)
-    gone = {w["target"] for w in K.sel(P, kind="withdraw") if w["target"] in by and by[w["target"]]["kind"] == "ballot"
-            and w["signer"] == by[w["target"]]["signer"]}
+    gone = {w["target"] for w in named if w["kind"] == "withdraw" and w["target"] in by
+            and by[w["target"]]["kind"] == "ballot" and w["signer"] == by[w["target"]]["signer"]}
     declined = {d["signer"] for d in K.sel(P, kind="decline") if d["id"] in mine and d["signer"] in el}
     ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot")
                if b["id"] in mine and b["signer"] in voters and b["id"] not in gone

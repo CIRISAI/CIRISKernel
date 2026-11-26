@@ -91,13 +91,6 @@ fn seat_scenarios() {
             law: SeatLaw { holds: h.obj().iter().map(|(k, v)| (k.clone(), v.strs())).collect(), ..w.law.clone() },
             windows: w.windows.clone(),
         });
-        // a scenario read under the election's candidate rule E3 replaced carries `wait_close`
-        let own_law = own_law.or_else(|| {
-            sc.get("wait_close").map(|_| World {
-                law: SeatLaw { election_wait_close: true, ..w.law.clone() },
-                windows: w.windows.clone(),
-            })
-        });
         let w = own_law.as_ref().unwrap_or(&w);
         let c = conclude(kept(&rows, |_| true), |p| w.rule(&name, p), None);
         let mut cmp = |ok: bool, what: String| {

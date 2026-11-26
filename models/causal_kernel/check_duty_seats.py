@@ -156,7 +156,9 @@ def ELECT(i, k, heads, voters=("B", "C"), ranking=None):
     """An election (rule 2, check_election.py): ballots of `voters` ranking k first, naming the founding row as their
     election, and k's own seating over them (the winner's acceptance; it names no head)."""
     bs = [ST.R("b" + v + i, "ballot", v, tuple(heads), ranking=ranking or (k, "C"), of="g") for v in voters]
-    return bs + [ST.offer(i, k, k, "moderate", OBJ, "group", tuple(b["id"] for b in bs), policy="moderator_election", of="g")]
+    # the seating names its set and, beside it, the rows at `heads` (the end of the seat it reads the electorate at, F2)
+    return bs + [ST.offer(i, k, k, "moderate", OBJ, "group", tuple(b["id"] for b in bs) + tuple(heads),
+                          policy="moderator_election", of="g")]
 
 
 G1 = ST.offer("g", "A", ("A",), "duty", "@", "self")                     # a lone founder (scope duty, no map)
@@ -347,7 +349,7 @@ CASES = [
      [("A", "moderate", F), ("A", "member", T), ("B", "moderate", F)], None),
     (DG + "A alone is that election's electorate, and its own ballot seats it again",
      [LF, ST.withdraw("la", "A", "g", ("g",), scope="moderate"), admit("mb", "B", ("A",), ("la",))]
-     + ELECT("ca", "A", ("mb",), voters=("A",), ranking=("A",)), [("A", "moderate", T), ("B", "moderate", F)], None),
+     + ELECT("ca", "A", ("la",), voters=("A",), ranking=("A",)), [("A", "moderate", T), ("B", "moderate", F)], None),
     (DG + "a lone founder's record naming a map: the map decides", [ST.found("g", "A", ("A",), {"review": ("A",)})],
      [("A", "review", T), ("A", "moderate", F)], None),
     (DG + "several signers and no map: members, no duty", [GM], [("A", "moderate", F), ("A", "member", T), ("A", "duty", F)], None),

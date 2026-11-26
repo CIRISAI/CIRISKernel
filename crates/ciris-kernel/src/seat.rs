@@ -363,10 +363,6 @@ pub struct SeatLaw {
     /// The kind of an object, from its founding row's scope (`member` and `duty`: a community; `holder`: an
     /// accord; `self`: a self roster). A key object is a self roster. An object with no kind has no act.
     pub kinds: BTreeMap<String, CommunityKind>,
-    /// The election's next id (CIRISConstitution#241, E3, ruled): `false` (the rule), once its holder's seat has
-    /// ended a seating that stood and never closed names the next election; `true`, the candidate rule E3 replaced
-    /// (no next election until the earlier closes or its seating is beaten), kept to show what it does.
-    pub election_wait_close: bool,
 }
 
 impl SeatLaw {

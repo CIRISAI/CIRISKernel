@@ -86,18 +86,17 @@ migrations, and the local operational store.
   reads them in this tag.
 - The election's seating is the one act read from the policy the row states (`Policy::Ranked`).
 
-**The moderator election** (C1 to C5; CHANGELOG). Present:
+**The moderator election** (C1 to C5, E1 to E3, F1 to F4; CHANGELOG). Present:
 - each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` its election's id row: the
-  room's founding row for the first election, then the closed seating of the one before;
+  room's founding row for the first election, then the seating of the one before;
 - a decline as `SeatKind::Decline`, `of()` its election;
 - the winner's own seating: an Offer of `moderate`, `Conf::Group`, policy `moderator_election`, signed by the
-  winner, `to()` the winner, `of()` its election, naming its set (the ballots, the voters' own withdrawals of
-  their ballots, the declines). **No `head()`**, no `options()`: the electorate is read at the election's
-  vacancy, not at a head;
+  winner, `to()` the winner, `of()` its election, naming its whole set: the ballots, the voters' own withdrawals
+  of their ballots, the declines, the leavings it reads, and the end or ends of the last holder's seat it reads
+  the electorate at. Nothing it does not name is read for the count. No `options()`;
 - each member's receipt of the seating as `SeatKind::Ack` with `of()` the seating: a strict majority of the
-  electorate, the winner apart, closes the election. Present the next election's rows naming the closed seating.
-- Leave `SeatLaw::election_wait_close` `false` (E3, ruled). A room re-closes an election an equivocator reopened
-  by removing it by count and a receipt after the removal.
+  electorate, the winner and the departed apart, closes the election. A room re-closes an election an equivocator
+  reopened by removing it by count and a receipt after the removal.
 
 ## Points to settle before adoption
 
