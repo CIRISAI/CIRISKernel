@@ -68,7 +68,8 @@ nothing, and a withdrawal concurrent with a landing is recounted with it, as an 
 other key withdraws nothing. One may conclude: seat.seat_rule concludes a withdrawal by any signer of the row it
 names, a cosigner of the ballot included. What makes it no withdrawal of the ballot is the match on the ballot's own
 signer here. Only a ballot is read so (the ruling on #221): an objection or an approval its signer withdrew is still
-a voice. A withdrawal of that withdrawal leaves the ballot withdrawn today (OPEN, asked of the Constitution).
+a voice. A withdrawn ballot stays withdrawn (ruling C2 on #221): a withdrawal of the withdrawal revives nothing,
+and the way back is a new ballot.
 
 The landing of the fallback and of the overturn is a signed row of the family that closes the self roster's lone
 path (CC 3.3.6.4; the ruling on CIRISConstitution#221, W1: one landing family for every window): the receipt is a
@@ -299,7 +300,11 @@ def unwithdrawn(spec, answers, rows):
     # a cosigner's withdrawal of a ballot concludes (seat.seat_rule reads every signer of the row); it is no withdrawal
     # of the ballot: only the ballot's own signer's is (MUTATION withdrawal_id_only: the id alone matched)
     own = (lambda x: None) if "withdrawal_id_only" in MUT else (lambda x: x["signer"])
-    wd = {(w["target"], own(w)) for w in rows if w["kind"] == "withdraw"}
+    ws = [w for w in rows if w["kind"] == "withdraw"]
+    if "withdrawal_revives" in MUT:                 # MUTATION: a withdrawal its signer withdrew withdraws nothing
+        gone = {(w["target"], w["signer"]) for w in ws}
+        ws = [w for w in ws if (w["id"], w["signer"]) not in gone]
+    wd = {(w["target"], own(w)) for w in ws}
     return [a for a in answers if a["says"] not in words or (a["id"], own(a)) not in wd]
 
 
@@ -624,9 +629,12 @@ def moderation_world():
         ("a member's vote for is cosigned by another member, who withdraws it: the landing names the three",
          b4 + [acts[0], dict(acts[1], cosigners=("m1",)), wd("w1", "m1", "x3"), fb("x1", "x3", "w1")],
          B221 + ", a cosigner's withdrawal (it concludes) withdraws no ballot of another signer", "fallback"),
-        ("OPEN: a member withdraws its vote for and then withdraws that withdrawal, the landing naming all",
+        ("a member withdraws its vote for and then withdraws that withdrawal, the landing naming all",
          b4 + acts + [wd("w1", "m1", "x1"), wd("w2", "m1", "w1"), fb("x1", "x3", "w1", "w2")],
-         "(OPEN CIRISConstitution#221: a withdrawal of a ballot's withdrawal; today the ballot stays withdrawn)", None),
+         B221 + ", a withdrawal of a withdrawal revives no ballot", "not fallback"),
+        ("a member withdraws its vote for and votes for again, beside a second vote for: the landing names the four",
+         b4 + acts + [wd("w1", "m1", "x1"), answer("x1b", "m1", "p", "for", ("w1",)), fb("x1", "x3", "w1", "x1b")],
+         B221 + ", withdraws, then votes again: one ballot", "fallback"),
         ("a ballot count met at once (ballot@once): two vote for and one of them withdraws its vote, no landing",
          [g4, am4, md4, opener("p", "m2", "ballot@once", "g", ("md",))] + acts + [wd("w1", "m1", "x1")],
          B221 + ", a ballot's withdrawal is read with no landing too", "open"),

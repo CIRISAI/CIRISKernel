@@ -427,7 +427,8 @@ pub fn ballot_words<T>(w: &WindowSpec<T>) -> BTreeSet<&str> {
 /// signer of the row it names, a cosigner included (and, for an offer, by a key it seats), so the match on the
 /// signer is what makes it the row's own: a cosigner's withdrawal of a ballot withdraws nothing. The one
 /// reading of a ballot's withdrawal: the window's ballots here, and any count of ballots of its own (an
-/// election's) may read it. A withdrawal is read wherever it concludes, itself withdrawn or not.
+/// election's) may read it. A withdrawal is read wherever it concludes, itself withdrawn or not: a withdrawn
+/// ballot stays withdrawn, and the way back is a new ballot (CIRISConstitution#221, ruling C2).
 pub fn own_withdrawals<'a, R: SeatRow + 'a>(
     rows: impl IntoIterator<Item = &'a R>,
 ) -> BTreeSet<(&'a R::Id, &'a R::Key)> {

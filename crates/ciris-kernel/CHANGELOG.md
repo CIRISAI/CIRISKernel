@@ -58,13 +58,14 @@ changes.
   the proposer concludes nothing, and another member lands it. ADOPTING states the assumption.
 - A table built to reach the path with no landing (`ballot@once`, a ballot count met at once) shows a ballot's
   withdrawal read there too. No policy row's table has such a clause.
-- OPEN: a signer withdraws its own withdrawal of a ballot. Today the ballot stays withdrawn: a withdrawal is read
-  wherever it concludes. The Constitution has been asked.
+- A withdrawn ballot stays withdrawn (ruling C2): a withdrawal of the withdrawal revives nothing, and the way back
+  is a new ballot. Two cases (a withdrawal of a withdrawal; a withdrawal and then a new ballot) and a plant in
+  each language cover it.
 - A poll is outside the kernel (a tally whose rule and close its own opening row states). ADOPTING.md says so.
 - OPEN: the door model (the Constitution's `door.py`, not in this repository).
-- The reference: `window.unwithdrawn`, `window.ballot_words` and `window.author_apart`; 30 new rows of
-  `window_adversary.tsv` (111 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
-  (those rows in arrival orders, ten planted breaks, the OPEN list). Ten new crate plants in
+- The reference: `window.unwithdrawn`, `window.ballot_words` and `window.author_apart`; 31 new rows of
+  `window_adversary.tsv` (112 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
+  (those rows in arrival orders, eleven planted breaks, the OPEN list). Eleven new crate plants in
   `tools/kernel_crate_plants.sh`.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).

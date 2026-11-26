@@ -35,6 +35,7 @@ Part 2. Planted breaks, each of which must break a row of Part 1:
     any_word_withdrawn         every answer read as withdrawn, not only a ballot
     no_landing_withdrawal_unread  a ballot's withdrawal not read where no landing has concluded
     stated_voices_others       a stated base's voices read without the opener's signer
+    withdrawal_revives         a withdrawal its signer withdrew withdraws nothing (ruling C2: it still does)
     ballot_word_act            the fallback's ballot says `act` (the word before the ruling)
 
 The base `active` above k (the ruling on #221, W6): the caller's stated count, the census's figure, which the kernel
@@ -65,9 +66,6 @@ CK, K = WN.CK, WN.K
 LEDGER = "CIRISConstitution#221"
 
 OPEN = (
-    ("a withdrawal of a ballot's withdrawal", "a signer withdraws its own withdrawal of its ballot (w2 names w1). "
-     "Today the ballot stays withdrawn: a withdrawal is read wherever it concludes, withdrawn or not. Asked of the "
-     "Constitution"),
     ("the door model", "formal/causal_kernel/door.py and door_text.tsv are the Constitution's, not this repository's"),
 )
 
@@ -117,6 +115,7 @@ PLANTS = (
     ("any_word_withdrawn", lambda: WN.MUT.add("any_word_withdrawn")),
     ("no_landing_withdrawal_unread", lambda: WN.MUT.add("no_landing_withdrawal_unread")),
     ("stated_voices_others", lambda: WN.MUT.add("stated_voices_others")),
+    ("withdrawal_revives", lambda: WN.MUT.add("withdrawal_revives")),
     ("ballot_word_act", lambda: WN.WINDOWS["moderation_fallback"].update(
         at_close=tuple(("act",) + c[1:] for c in WN.WINDOWS["moderation_fallback"]["at_close"]))),
 )
