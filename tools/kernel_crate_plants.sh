@@ -307,6 +307,7 @@ plant "F3: a next election stands though its id row is beaten" src/seat/election
 plant "F2: an end the seating does not name read as its vacancy" src/seat/election.rs ' || named.is_some_and(|n| !n.contains(wr.id()))' ''
 plant "F1: the count reads leavings and withdrawals off the seating's past, not its set" src/seat/election.rs 'let rows: Vec<&R> = all.iter().copied().filter(|q| mine.contains(q.id())).collect();' 'let rows: Vec<&R> = all.clone();'
 plant "a seating behind the reader's line read in C4" src/seat.rs 'let beaten = if elections { ecx.beaten(&stale) } else { BTreeSet::new() };' 'let beaten = if elections { ecx.beaten(&BTreeSet::new()) } else { BTreeSet::new() };'
+plant "N2: a leaving before the vacancy strikes a re-admitted member" src/seat/election.rs 'let window = !ends.iter().any(|&e| self.c.g.in_past(qi, e));' 'let window = true || ends.is_empty();'
 plant "act_of: the election's seating read as a conferral" src/seat.rs '                if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {' '                if false {'
 plant 'act_of: a detector seat read as no act'          src/seat.rs '            if sc == "detect" || sc.starts_with("detect:") {' '            if false {'
 plant 'act_of: the recall read as the withdrawal'       src/seat.rs 'let act = if law.is_duty(counted, &declared) { Act::DutyWithdraw } else { Act::Recall };' 'let act = Act::DutyWithdraw;'

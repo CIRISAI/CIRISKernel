@@ -685,15 +685,17 @@ def ekey(E, rows, past):
     return ("s", E["obj"], v[0], v[2])
 
 
-def election_rows(q, Ek, elect, by, rows, past, obj=None):
+def election_rows(q, Ek, elect, by, rows, past, obj=None, ends=()):
     """q is a row of election Ek's set: a ballot or decline naming that election, a withdrawal of such a ballot by
     its own signer, or a leaving (its own end of its stay, or a counted removal from the roster) of a member of the
-    electorate (F1); signed by a member of the electorate (a removal: of one)."""
+    electorate in the election's window (F1, N2: not in the past of the vacancy end the seating reads, which already
+    settled every leaving and re-admission before it); signed by a member of the electorate (a removal: of one)."""
     if q is None: return False
+    window = "leaving_before_vacancy_read" in MUT or not any(past(q["id"], e) for e in ends)
     if q["kind"] == "unseat" and q.get("conf") == "group" and q.get("obj") == obj and q.get("scope") in ROSTER_SEATS:
-        return bool(set(q["to"]) & elect)
+        return bool(set(q["to"]) & elect) and window
     if q["kind"] == "withdraw" and obj is not None and any(g == obj and k in elect for _, k, g in stay_ends([q], by)):
-        return True
+        return window
     if q["signer"] not in elect and "set_any_signer" not in MUT: return False
     named = lambda b: b.get("of") in by and ekey(by[b["of"]], rows, past) == Ek
     if q["kind"] in ("ballot", "decline"): return named(q)
@@ -713,7 +715,7 @@ def seating_view(S, P, past):
         named = frozenset(S["names"])
         el = electorate(E, P, past, S["obj"], named)
         v = vacancy(E, P, past, named) or ()
-        rows = {n for n in S["names"] if election_rows(by.get(n), Ek, el, by, P, past, S["obj"])}
+        rows = {n for n in S["names"] if election_rows(by.get(n), Ek, el, by, P, past, S["obj"], v)}
         return (Ek, el, frozenset(rows | (set(v) & named)))
     return _memo("view", S, f)
 

@@ -184,20 +184,24 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         el: &BTreeSet<R::Key>,
         p: &[usize],
         obj: &ObjOf<R>,
+        ends: &[usize],
     ) -> bool {
         let q = self.row(qi);
         let in_p = |id: &R::Id| self.idx(id).filter(|i| p.binary_search(i).is_ok());
+        // N2: a leaving in the past of the vacancy end the seating reads is settled there, and is no row of the set
+        let window = !ends.iter().any(|&e| self.c.g.in_past(qi, e));
         if q.seat_kind() == SeatKind::Unseat {
             let roster = q.scope().is_some_and(|s| self.law.roster_seats.iter().any(|x| x == s.as_ref()));
             return q.conf() == Some(Conf::Group)
                 && q.obj().as_ref() == Some(obj)
                 && roster
-                && q.to().iter().any(|k| el.contains(k));
+                && q.to().iter().any(|k| el.contains(k))
+                && window;
         }
         if q.seat_kind() == SeatKind::Withdraw && el.contains(q.signer()) {
             let by: BTreeMap<&R::Id, &R> = p.iter().map(|&i| (self.row(i).id(), self.row(i))).collect();
             if stay_end(self.law, &by, q).as_ref() == Some(obj) {
-                return true;
+                return window;
             }
         }
         if !el.contains(q.signer()) {
@@ -229,13 +233,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                 let ek = self.ekey(ei);
                 let named: BTreeSet<R::Id> = s.names().iter().cloned().collect();
                 let el = self.electorate(ei, si, &p, Some(&named));
-                let ends: BTreeSet<R::Id> = self
-                    .vacancy(ei, &p, Some(&named))
-                    .unwrap_or_default()
-                    .iter()
-                    .map(|&e| self.row(e).id().clone())
-                    .filter(|e| named.contains(e))
-                    .collect();
+                let vend: Vec<usize> = self.vacancy(ei, &p, Some(&named)).unwrap_or_default();
+                let ends: BTreeSet<R::Id> =
+                    vend.iter().map(|&e| self.row(e).id().clone()).filter(|e| named.contains(e)).collect();
                 let obj = s.obj();
                 let set = s
                     .names()
@@ -243,7 +243,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                     .filter(|n| {
                         self.idx(n).is_some_and(|qi| {
                             p.binary_search(&qi).is_ok()
-                                && obj.as_ref().is_some_and(|o| self.election_row(qi, &ek, &el, &p, o))
+                                && obj.as_ref().is_some_and(|o| self.election_row(qi, &ek, &el, &p, o, &vend))
                         })
                     })
                     .cloned()

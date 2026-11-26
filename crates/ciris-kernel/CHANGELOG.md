@@ -16,7 +16,9 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   id row's seat it names (the members at all of them); the founding row itself where it gives no seat. A member
   admitted after the vacancy neither votes nor stands. Different vacancies are different sets.
 - F1: every input to the count comes from the set: a withdrawal or a leaving counts only where the seating names it,
-  so seatings over equal sets count alike (C4's "one seat" is sound).
+  so seatings over equal sets count alike (C4's "one seat" is sound). A named leaving strikes a key only in the
+  election's window: one in the past of the vacancy end the seating reads is settled there (a member removed or
+  gone and re-admitted before the vacancy votes and stands), and is no row of the set.
 - C2: a seating concludes only where no person holds a duty over the room in the seats over its whole past, and no
   row of a later election is in its past.
 - C3, E3: an id row's standing is read in the naming row's past; once its holder's seat has ended, a seating that
@@ -44,9 +46,9 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   an election (the third read's b5) is theirs, a case pending them.
 - Two concurrent seatings of election 1 not nested, each line opening a next election: where both are held neither
   stands and both next elections fall (F3): nobody until a seating over the union.
-- The reference: `models/causal_kernel/check_election.py`, 69 cases, 17 of the close read directly
+- The reference: `models/causal_kernel/check_election.py`, 73 cases, 17 of the close read directly
   (`seat::election_closed`), 3 of the line, 1 pending the head rules, every one in arrival orders and in the `seat`
-  fixture; 27 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
+  fixture; 28 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
 
 **A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
 

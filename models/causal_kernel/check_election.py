@@ -473,6 +473,28 @@ CASES += [
      ballot("pa", "A", "D", ("wc",), of="ec"), ballot("pd", "D", "D", ("wc",), of="ec"),
      elect("n1", "D", ("pa", "pd"), of="ec", vac=("wc",))], MOD("D"), "F3, the cost"),
 ]
+# N2 (the fourth read, f1): a named leaving strikes a key only in the election's window, not in the past of the
+# vacancy end the seating reads (which already settled every leaving and re-admission before it)
+XE = ST.unseat("xe", "A", "E", "member", OBJ, "group", ("g",), head=("g",), policy="community_remove", cosigners=("B", "C", "D"))
+AE = admit("ae", "E", ("A", "B", "C", "D"), ("xe",))
+LMN = ST.withdraw("lm", "A", "g", ("ae",), scope="moderate")
+HN = [ballot("ba", "A", "E"), ballot("bb", "B", "E"), ballot("bc", "C", "C"), ballot("bd", "D", "C"), ballot("be", "E", "E")]
+IDN = tuple(b["id"] for b in HN)
+LEN = leave("le", "E", "g", ("g",))
+AE2 = admit("ae", "E", ("A", "B", "C", "D"), ("le",))
+CASES += [
+    ("N2 (F1a): E removed and re-admitted before the vacancy; E wins three to two", [G5, XE, AE, LMN] + HN + [elect("ee", "E", IDN)],
+     MOD("E") + NOMOD("C"), "N2"),
+    ("N2 (F1b): C's seating names E's old, undone removal: it is before the vacancy and strikes nobody, so the count "
+     "is E's and C's seating concludes nothing: E",
+     [G5, XE, AE, LMN] + HN + [elect("ee", "E", IDN), elect("ec", "C", IDN + ("xe",))], MOD("E") + NOMOD("C"), "N2"),
+    ("N2 (F1c): the same with E's own old leaving and its re-admission: E",
+     [G5, LEN, AE2, LMN] + HN + [elect("ee", "E", IDN), elect("ec", "C", IDN + ("le",))], MOD("E") + NOMOD("C"), "N2"),
+    ("N2, control: a leaving after the vacancy still strikes: E leaves after lm; C's seating naming that leaving reads "
+     "E no voice and no candidate (B's ballot for E void), and C wins; with E counted it is two to two, nobody",
+     [G5, LM] + [ballot("ba", "A", "C"), ballot("bb", "B", "E"), ballot("bc", "C", "C"), ballot("be", "E", "E"),
+                 leave("le", "E", "g", ("lm",)), elect("ec", "C", ("ba", "bb", "bc", "be", "le"))], MOD("C"), "N2"),
+]
 # b6: twins over equal sets count alike under F1, so the close's base is read the same from either: (regression)
 B6 = [G5, LM1, AF, LM2] + HB2 + [elect("ef", "F", IDB2, vac=("lm2",)), elect("ef2", "F", IDB2, vac=("lm2",)),
                                  ack("ka", "A", "ef"), ack("kb", "B", "ef"), ack("kc", "C", "ef2"), ack("kd", "D", "ef2")]
@@ -530,7 +552,8 @@ PLANTS = ("vacancy_founding", "vacancy_first_end", "electorate_at_seating", "lea
           "say_any_receipt", "close_leavers_kept", "closed_rivals_count", "election_id_any", "set_any_signer",
           "ballot_nonmember_ranked", "ballot_ranks_unbounded", "seating_any_signer", "twin_ids_apart",
           "fold_ranked_counted", "equivocator_out", "superseded_unread", "wait_close", "id_cascade_unread",
-          "vacancy_unnamed", "set_inputs_unread", "void_seating_read")
+          "vacancy_unnamed", "set_inputs_unread", "void_seating_read",
+          "leaving_before_vacancy_read")
 
 
 def answers(rows, asks, plant=None, arrive=False, own=None):
