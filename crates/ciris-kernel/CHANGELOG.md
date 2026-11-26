@@ -327,6 +327,247 @@ changes.
   `window_adversary.tsv` (112 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
   (those rows in arrival orders, eleven planted breaks, the OPEN list). Eleven new crate plants in
   `tools/kernel_crate_plants.sh`.
+**The heads of a count, and the reader's line** (the heads ruling of 2026-11-26, H1 to H8). The mesh is
+rebuilt fresh, so no old row has to keep concluding: many answers change, each listed here. Public API:
+`seat::is_election` and `line::LineSpec::acknowledges` (a default method) are new; `line::settle_with` and
+`line::void_with` take `never_behind` (the acts the line never holds behind); `cut::Cut::new_without` is new;
+`Seats::cut()` is the reader's cut where `own` is set.
+
+- **H1, the newest heads.** A count is read at the newest of the heads it names (`seat::counted_heads`: a named
+  head in another named head's past is dropped). Each must be a counted change over the row's own object, or
+  its founding row. They must be exactly the newest counted changes over that object in the row's own past
+  (`newer_head_in_past`). A counted change is what the reader's line reads as a counted act (an offer or
+  unseat with `Conf::Group` on the object, naming a head, of any scope), and no self-admission. Concurrent tips
+  are intersected. **Answers change:** a counted row now concludes nothing where
+  - it names a head older than a counted change in its own past;
+  - it names an old head beside the newest: the named heads must be an antichain, and a named head in another
+    named head's past is refused, not dropped (adding an older head would otherwise narrow the body counted over);
+  - it names a head that is no counted change: an acceptance, a withdrawal, a note, a version row.
+
+  Rows that were honest under the old rule are refused too: a counted change of any scope moves the head. A
+  duty withdrawal written at the head before the conferral it ends is one. Such rows are signed again at the
+  newer head.
+- **H2, no `over`.** A counted row is counted over its own object, and one stating another object (`over`)
+  concludes nothing. The duty-only checks of the field (`duty_over`, the duty gate's) and `on_object` are gone:
+  this rule and H1 cover them.
+- **H3, no read-through.** A self-admission is no head a count may name, and no counted change a count must
+  name. `counted_heads` no longer reads an authored head through. **Answers change:** a count naming a
+  self-admission concludes nothing.
+- **H4, no exemption.** Every row that changes a roster names the newest counted changes over its object in its
+  own past, or concludes nothing:
+  - a moderator's lone removal, whose signer must hold `moderate` at those heads, read with the withdrawals in the
+    removal's own past (its laying down there);
+  - a self-admission;
+  - a resignation or laying down: a withdrawal of a seat over a community, among the rows it names;
+  - the members' lift. It names the newest counted changes in its own past (the removal, as a rule) and cites the
+    removal. `lift_voices` no longer asks the lift to name the removal's head (the test `rem.head() == r.head()` is
+    gone). Its count is still taken over the members at the lift's own heads; the base is roster-kinds' follow-up.
+
+  **Answers change:** a lone removal at an old head, or after its signer laid `moderate` down, concludes
+  nothing (it concluded and was held out of force); a lift at the removal's head concludes nothing.
+- **H5, the text's line.** `line::settle`, `line::void` and `line::versions` have no test of concurrency, and
+  the line is read before the cut (`Seats`, `Cut::new_without`). **Answers change** on roster_fork's set-aside
+  worlds: more versions are void for a reader until they are signed again.
+- **H6, a reader's own rows are its acknowledgements.** `own_line` reads, besides explicit acknowledgements,
+  every concluded row the reader signed or cosigned over the object (`LineSpec::acknowledges`; `SeatLine` reads
+  the row's object, its room, or the object of the row its `of` or `target` names). Each acknowledges the
+  counted acts in its own past. **Answers change:** a member that wrote no acknowledgement holds a fork from an
+  old past void, behind its own admission.
+- **H7, narrow liveness** (retired by the tips ruling of 2026-11-27, below: the self-fork void subsumes it;
+  `acked_behind` and its plant are gone).
+- **H8, no caller-synthesised heads.** A row of no object, a note, or a cosignature naming itself is no head of a
+  count. A store presents its real rows (the founding record and its counted changes) and names the newest
+  counted changes. `examples/persist_paths.rs` presents a ballot so.
+- **An election's seating** (`seat::is_election`: an offer, `Conf::Group`, policy `Policy::Ranked`) is a roster
+  change. H4 applies: it names the newest counted changes over the room in its own past as its heads, or concludes
+  nothing. It sits on the reader's line by those heads, by the ordinary rule. Only H1's reading of the count at the
+  heads does not apply: its count is its election's (election2 fixes the electorate by the election's id and
+  vacancy). Every later counted row must name it. Ballots, their withdrawals, declines and receipts change no
+  roster and name no head.
+- **What a counted change is.** A roster-changing row that concludes under the policy the room's record binds to
+  its act, however many voices that policy needs (`seat::change`). Besides a `Conf::Group` offer or unseat naming a
+  head: a duty holder's own conferral of a duty over the room (`Conf::Own` or `Conf::Seat`, the lone holder's, on
+  one voice), and, with the acts table on, a self-admission concluded under the room's declared protocol. Each is a
+  head that later rows name, and counts read its seat (with (a)). H3 is unchanged: a one-key row under a policy it
+  states itself meets no bound policy. A seat placed by a row that is no counted change is read by no count until
+  a counted change has it in its past.
+- **A lone duty holder with an offer of a duty seat standing confers no other alone until that offer is accepted
+  or withdrawn** (`lone_offer_stands`). The offer is of any duty scope, to a key that has neither signed nor
+  accepted it, and no withdrawal ends it. It counts for the lone test only: the key offered holds nothing until it
+  accepts. Two holders at once are conferred by one row naming both. The lone-offer rule binds the honest line: A
+  cannot confer alone twice without forking its own line. The reader's line covers the fork for every reader that
+  acknowledged the first holder's seat. The two rows are the evidence a later count of the room can cite. Outside
+  an election a fork has no automatic effect.
+- **The fold at tips reads acceptances.** A tip's line holds the acceptances concluded after the tip that complete
+  an offer at it (`Seats::tips_fold`, `tips_common`), so a seat completed after a fork is not lost at the fold.
+- **Acceptances: a seat is two consents** (the ruling of 2026-11-26, (a), confirmed by the Constitution). A count
+  is taken of the members at the newest named heads, plus each seat placed by an offer in those heads' past whose
+  holder's own acceptance of it is in the counted row's own past, less every leaving or laying down in the row's
+  past. `members_at`, `members_in_scopes` and the standing `removal_in_force` reads at a lone removal's heads read
+  those acceptances with the heads' rows (`completing`). The bounds, each with a case:
+  1. the offer is in the heads' past (an offer outside it is not among the rows read, so no seat is created from
+     outside the heads);
+  2. the offer is not ended in the row's past: a withdrawal of it or of the acceptance, a counted removal of the
+     key with the offer in its past, the key's own end of its stay with the offer in its past;
+  3. in a private room, an acceptance by a key whose stay there ended completes nothing;
+  4. the acceptance is the key's own row, never a cosignature.
+
+  The withdrawals in a counted row's own past are read with its heads too (a withdrawal is no counted change, so
+  no head is read through). This replaces the lone removal's own subtraction of a laying down. A leaving ends the
+  one seat it withdraws: a second live seat of the key in that scope stands (`left_in_past`, `seated_otherwise`).
+  A duty laid down and taken up again by the holder's own acceptance of the same offer, in a lone removal's past,
+  is its standing there. **Answers change:** a newcomer whose acceptance a count has in its past is in the count's
+  base (three of five where it was three of four).
+- **T at the fork point** (the third attack; the Constitution: "where two changes at one fork point would each be
+  void by voices that signed both chains, the chain stands that the members seated at the fork point who signed only
+  one chain built on; where there are none, neither is void"). It replaces S''’s rescue and tie, under which the
+  longer side won where the same voices signed both (HC4: three keys erased an admission below the removal
+  threshold by writing two rows beside it; HC1, the honest form, lost the admission too). A self-forked change `q` is
+  void only where, of the members seated at its heads (its fork point), those who signed only the other side (the
+  rows without `q` in their past, after the fork point, on a line through a change `q` is behind) outnumber those
+  who signed only `q`'s side (`q` and the rows built on it). Equal, none on either side included: neither is void,
+  and the fold and the reader decide. Depth decides nothing. A key that signed both sides is in neither count; a
+  packed key, not seated at the fork point, is in none; a member that has since left still counts by what it signed
+  while seated. The beneficiary of a row is no evidence for its side: a key's own acceptance, and its yes on an offer
+  seating it, count it for neither. A merge of both lines is on neither side, and is not void for being built on a
+  void change: it reads its count without it, as any counting row does. **Answers change:** HC1, HC2 and HC4 keep the
+  admission (a tie); honest merges naming a cheap tip or a packing chain beside the newest head conclude (they were
+  cut by the closure); a room founded by one key whose founder admits alone from its founding head keeps the
+  admission (residual (1)); two concurrent invitations by the same four both stand ((1′), honest concurrency); the
+  cheap tip whose only other voices are the keys it seats is void, and the removal beside it concludes; the window
+  row whose closer is concurrent with the siblings keeps them (C, D and E signed only their side). Plants
+  `t_unread`, `fork_by_depth` (the S′ form) and `t_counts_beneficiary`, each with a crate plant; retired:
+  `rescue_unread`, `tie_unread`, `rescuer_signed_both`. Cases: HC1, HC2, HC4, HC6, the packed keys on a long fork, a
+  single-chain member that has since left, and the window's closers (wc).
+- **What T counts** (the fourth attack; the Constitution's reading of T in the text's terms). T's count was
+  stuffable: the siblings' beneficiaries counted for the siblings through a post or a cosignature on a withdrawal
+  (reopening the window once the lone holder had signed a later change), and a change citing an honest concurrent
+  post recruited its author. Now: (a) only counted changes count, through their counted voices (CC 2.7.7: a voice is
+  a signature a counted row counts); posts, acknowledgements, content and acceptances count for nothing. (b) Only
+  changes on a side: the competing line (the changes `q` is behind and those they name as heads, back to the fork
+  point) and the changes built on it; what a row cites is its author's choice, and a member is not recruited by
+  being named. (c) A member speaks for a chain only through a voice resting on a seat it held at the fork point (its
+  member voice in a member count; a duty voice only for a duty it held before the split), or one granted by the
+  other line's own non-forked change; a seat from the self-forked side, or from a sibling fork, is no standing.
+  **Answers change:** the window row whose closer A signs with B (whose moderate seat is the first conferral's) is
+  closed for every reader (moderate A, B and F; the siblings and the withdrawal void). Plants `t_counts_posts`,
+  `t_counts_sided_seat` and `t_strict_standing`, each with a crate plant; the crate's `t_counts_beneficiary` plant is
+  on the exclusion line itself. Cases: WT1 to WT4, RC0 to RC5, BN (a beneficiary that holds another duty at the fork
+  point), RC7 and its guard.
+- **Beside the residual, not part of it (RC7, the Constitution's ruling (i)).** "A counted change is void where every
+  voice that made it has gone on to build without it and the members who built only on the other line outnumber
+  those who built only on this one. Those voices could have removed what the change seated by their own count." What
+  is lost: there is no removal row, so nothing to lift or contest; the evidence is the abandoning keys' two
+  concurrent rows each. What is kinder: a void admission is no end of a stay, so in a private room the key it seated
+  is not barred by finality. Its guard: where not every voice built without the change (one of them built on it),
+  the change is not self-forked and stands.
+- **The residual, stated** (as of the tips ruling below). ONE residual, in three shapes, each only for a reader with
+  no row of its own over the room (a member is never such a reader, by H6):
+  1. no member seated at the fork point signed exactly one chain (a room founded by one key; every founder
+     colluding; a fork-point member that signed neither chain counts for neither): T is a tie, both chains are kept,
+     and only a reader's acknowledgement decides;
+  2. a silent colluder's packing chain under the same protocol (a fork whose voices never acknowledged the honest
+     line, so nothing is self-forked): the fold seats the chain's admissions, and a long enough chain outvotes;
+  3. a newcomer admitted on the fork, which acknowledges the fork and holds the honest rows behind its line: it takes
+     the group's past from its admitter (CC 3.3.4: "A node new to the group, or one with no acknowledged head of its
+     own, takes the group's past from a current member, who vouches for it under their own signature"). Read by
+     itself, such a newcomer holds the honest admissions behind its line and reads the fork's roster alone, not the
+     fold; on a fork S″ voids it reads the honest roster and its own seat is void.
+
+  Stated beside it, not part of it: a count that omits a newcomer's acceptance its signers have seen, and needs the
+  smaller base, concludes: it does nothing its signers could not do a moment before the acceptance arrived. And the
+  lone holder's window: a lone holder that forks at the head of its own first conferral is one key that said two
+  things; the sibling is behind no line until a reader acknowledges a change built on the first, and the two rows are
+  the evidence a later count can cite. The window is closed for a reader by any later counted change that reader has
+  acknowledged, and for every reader once the lone holder itself signs a later change; a change concurrent with the
+  siblings closes nothing (and the siblings are then read by T, like any self-fork).
+  "A sibling that meets its count is lawful" is weak where one key is the whole count (a lone holder, a room of one, a
+  self-admission): there siblings cost nothing to write; the lone-offer rule covers the honest line, the fork is
+  evidence, and the next counted change closes it.
+- Cases: `models/causal_kernel/check_count_heads.py`, rewritten: 69 cases by rule, 7 of them EDGE, on
+  acceptances, the lone offer, the self-fork and a room of one besides H1 to H8; three of roster versions; the line
+  read directly; 23 planted breaks. Attack 35 reads them; the fixtures carry them, each with
+  its reader. Existing cases rewritten so that every counted row and every seat's end names the newest counted
+  changes (`seat.honest`): `check_agent_removal`, `check_duty_seats` (the version and self-`of` heads now hold
+  nothing), `check_room_keys` (a merge is a counted change), `check_readmit`, `check_removal_in_force`, attack 6
+  and the checkpoint price. `check_removal_in_force`: five rows now conclude nothing with the roster unchanged
+  (their signer holds no `moderate` at the newest counted change they must name), listed in its `NOW_NOTHING`;
+  the two no-cascade rows that have x in their past and not the laying down that puts x out of force conclude
+  nothing (a row's standing is read from its own past), each with a sibling that has the laying down in its past
+  and is in force.
+  `check_room_keys` gains two acceptance cases (bounds 2 and 3). Crate: `tests/fold.rs` and `tests/policies.rs`
+  name counted heads, and a unit test of the line in `line.rs`. The generators of `tests/fast_paths.rs` (`ballot`,
+  `seat_world`) and `examples/persist_paths.rs` (`ballot`) present real rows: a founding record declaring a
+  `consensus_protocol`, every other seat a counted admission under it or under `community_invite` (signed by the
+  joiner, or completed by its own acceptance), and heads at the newest counted change, with no version rows;
+  `group_count`'s comparison takes its members and voices from the generator, not from the rows. A crate plant
+  for each rule above (`tools/kernel_crate_plants.sh`).
+
+**The tips of a count, the self-fork void, and a sibling-safe line** (the ruling of 2026-11-27, after the review of
+58b). The intersection of a count's heads and H7 are replaced.
+
+- **The fold, not the intersection.** The members at several heads are the fold of their lines (`Seats::tips_fold`,
+  the guarded fold of CC 2.7.8): `members_at` reads the seats over the union of the heads' pasts. One head reads its
+  own line as before. **Answers change:** a count naming two concurrent admissions is taken over both newcomers (five
+  of nine where it was five of seven); a merge row needs the newcomers' signatures.
+- **The self-fork void (S'').** A counted change in a counting row's past is void for that row where every counted
+  voice of it acknowledged, in that past, a counted change it is behind (`seat::void_changes`): it is no head of the
+  row, need not be named, and adds nothing to the row's members. A change built on a void one is void. **Rescue:**
+  the void does not reach a change that an honest continuation in the row's past extends, one with a counted voice
+  that is no forker, was a member at the change's heads, and was not seated by the fork. **Tie:** two chains that
+  would void each other, with no single-chain member on either side, are both kept. This is the ONLY automatic
+  effect of a key signing two things outside an election, and it voids a change, never a key.
+- **The regime of a protocol-change tip.** A tip that is itself a change of the record's protocol is read under its
+  NEW protocol, so tips on either side of the change are two regimes and wait (the text's wait rule): a fork packed
+  under the old protocol does not fold into a count under the new one.
+- **The reader-line exclusion.** When a reader reads a counting row, the changes void for that reader by its line
+  are left out of the row's fold and heads too. The reader's roster is read over the rows as they conclude for that
+  reader (`seat::for_reader`, `Seats::for_reader`): a count that stands for its reader and not for a reader with no
+  row is in that reader's roster, and one refused for it is not (CC 2.7.9: "A reader's own acknowledged head closes
+  older heads for that reader only"). A counted row the reader signed does not acknowledge the changes void for it
+  (a fork head it had to name).
+- **One line, sibling-safe** (CC 2.7.8 as amended). A counted change is behind an acknowledged change c only where
+  every head it names is strictly in the past of c's OWN heads, and it is not in c's past (`checkpoint.behind`,
+  `line::settle`, `line::versions`, `head::View::behind`, `purge.View.behind`). A sibling at c's own head is behind
+  no line. The same definition serves the reader's roster and the row's count. **Answers change:** a version or act
+  at the same head as an acknowledged one is no longer void for that reader; a fork at the head of the reader's
+  newest acknowledged change stands for it until it acknowledges a change built on that one. On roster_fork's rule
+  M worlds (every set of up to three versions, every reader: 330,909 answers), against the line that voids only
+  concurrent versions (the rule until 0.5.0): 116,420 answers differ; 116,020 hold FEWER versions void (siblings of
+  the acknowledged version now count: 62,605 with the same tip roster, 53,235 not listing a member the narrower
+  roster listed, as more tips wait, 580 listing a member a sibling admitted); 400 hold more void (versions written
+  behind: every head they extend strictly in the past of the acknowledged version's own heads), all 400 with the
+  same tip roster. Against the H5 line (no concurrency test, siblings void) 149,966 answers differ, every one
+  holding fewer void.
+- **A reader's roster reads S'' too** (the second review of 58b). The changes self-forked over the rows a reader
+  holds, as if one row had them all in its past (`roster_void`), cut nothing and seat nothing in its roster: a void
+  change neither adds nor removes members. **Answers change:** a self-forked removal at an old head no longer strips
+  the members it names for a reader with no row; a packing chain's keys are not listed. Plant `void_cuts_in_roster`.
+- **A self-fork is a row signed without the change in its past.** A voice of q forked against q where a row it
+  signed WITHOUT q in its past acknowledges a change q is behind; a merge naming both lines is no fork.
+- **The rescuer signed one chain only** (superseded by T at the fork point, above). A key that is a counted voice of
+  q's makers (or of their chain back to the fork point) did not rescue q. Plant `rescuer_signed_both`, retired.
+- **A founder's seating is a regime of its own.** A tip that changes the record's protocol OR its founder set (a
+  founder's seating) splits regimes, so concurrent founders' seatings wait at their common members; a rename or other
+  record change does not. Plant `regime_protocol_only`.
+- **The versions form folds.** The roster of several roster-version tips is the text's fold (roster_fork's
+  `fold.fold`), not their common members. On rule M's worlds, of the 53,235 answers that no longer listed a member
+  under the common-members form, 52,530 are a sibling tip's removal (the removal arm) and 705 were the common-members
+  form dropping a member a tip added in one regime; with the fold, those 705 list the member, and the class is the
+  removal arm alone (52,530 not listing a member, 2,035 listing one a tip added, 61,855 the same roster).
+- **The lone holder's window, stated.** A lone holder may add lone conferrals beside its first until the room's next
+  counted change; each is a row by one key that said two things at one head, and the two rows are the evidence a recall
+  cites (the members recall any duty holder, however seated, CC 4.5.13). The window is closed for a reader by any later
+  counted change that reader has acknowledged, and for every reader once the lone holder itself signs a later change;
+  a change concurrent with the siblings closes nothing.
+- **Acknowledging never un-voids** (CC 2.7.9; `checkpoint.own_line`, `line::own_line_with`). A row the reader signed
+  acknowledges the counted acts in its past that are not already void for the line its earlier rows (in its own past)
+  drew, nor void for the row itself. Naming a change as a head adopts nothing. Plant `ack_unvoids`.
+- Cases (`check_count_heads.py`): the round tables' rows (the H7 shapes, the strip, the room of one, the hostile
+  signer, honest siblings, packing, the tightened protocol, L' and its variants, S'' against itself, the silent
+  colluder for three readers). Plants: `self_fork_unread`, `rescue_unread`, `tie_unread`, `meet_tips`,
+  `regime_before_change`, `reader_exclusion_unread`, `ack_reads_void`, `line_not_sibling_safe`, each with a crate
+  plant. Retired: `ack_excuses_none` (H7) and `line_after_cut`.
 
 **The act-to-policy binding, step 3: the refusal, and the room's declared protocol** (the Constitution's
 `governance_policy_acts.tsv`).

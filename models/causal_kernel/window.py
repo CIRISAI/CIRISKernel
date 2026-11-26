@@ -335,6 +335,10 @@ def rule(r, P, past):
     if is_opener(r):
         w = WINDOWS[r["window"]]                               # the opener's signer holds the opener's scope, by default the counted one
         if k != "open" and not ST.seat_rule(r, P, past): return False     # an act that opens its own window: validly made, by the seat
+        # an opening names the newest counted changes over its object in its own past, and is counted there (H1;
+        # MUTATION window_opener_old_head: an opening at an older head is read there)
+        if k == "open" and "window_opener_old_head" not in ST.MUT \
+                and ST.newer_head_in_past(r.get("head", ()), None, P, past, r["obj"], ST.signers(r)): return False
         return r["signer"] in ST.members_at(P, past, r["obj"], r["head"], w.get("opener", w["counted"]))
     p = by.get(r["of"])
     if p is None or not is_opener(p): return False

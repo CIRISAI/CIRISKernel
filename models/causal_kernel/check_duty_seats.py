@@ -63,9 +63,8 @@ Planted breaks, each of which must change a case's answer:
     duty_gate_wrong_row the gate reads `counted` off the room's founding row, not the offer
     lone_founder_unread a record one person signs with no map seats that person in no duty
     own_duty_ungated    a single key's own offer of a duty concludes outside a duty room though it is no lone holder
-    duty_over_unread    a duty's count over another room (`over`) confers or withdraws it (review of #54)
     gate_counted_any_duty  a count over one duty's holders passes the gate as the duty holders' count
-    heads_any_object    a counted row naming another object's head counts (a count names its own room's heads)
+    head_any_row        a head of another object's line counts (H1: a head is a counted change of the row's own object)
     declared_roster_kept  a record's declared duty naming a roster scope (`member`, `agent`) is read as a duty
 
 Not here: the count that confers or withdraws a duty seat (check_rosters.py, the duty instance); a count over a scope
@@ -188,8 +187,9 @@ CASES = [
     ("the conferral and the widening as two tips of the founding row: the key is a member and its duty seat waits, as tips do",
      [G, confer("cd", "D", "moderate", ("A", "B"), ("g",)), admit("md", "D", ("A", "B"), ("g",))],
      [("D", "member", T), ("D", "moderate", F)], None),
-    ("a version naming both tips: the duty seat stands",
-     [G, confer("cd", "D", "moderate", ("A", "B"), ("g",)), admit("md", "D", ("A", "B"), ("g",)), admit("me", "E", ("A", "B"), ("cd", "md"))],
+    ("a version naming both tips, signed by A, B and D (the fold of the tips seats D: two of four is short; the ruling of "
+     "2026-11-27): the duty seat stands",
+     [G, confer("cd", "D", "moderate", ("A", "B"), ("g",)), admit("md", "D", ("A", "B"), ("g",)), admit("me", "E", ("A", "B", "D"), ("cd", "md"))],
      [("D", "member", T), ("D", "moderate", T), ("E", "member", T)], None),
     # ---- an end of the stay ---------------------------------------------------------------------------------------
     ("a member holding two duty seats", [G, MD, CD, CR], [("D", "moderate", T), ("D", "review", T), ("D", "duty", T)], None),
@@ -298,9 +298,20 @@ CASES = [
     # ---- two tips -----------------------------------------------------------------------------------------------
     ("two tips: the holder is removed on one and another member is admitted on the other; the duty seat is out under the fold",
      [G, MD, CD, XD, admit("me", "E", ("A", "B", "C"), ("cd",))], [("D", "moderate", F), ("D", "member", F), ("E", "member", T), ("A", "moderate", T)], None),
-    ("two tips: a key admitted on one tip by the voice of a member the other tip removed is out of the folded roster, and so is the duty seat conferred on it there",
+    ("two tips: A and B remove C at the founding head and, on the other tip, confer moderate on D over C's admission of "
+     "D: the removal is self-forked (A and B signed the conferral it is behind; S'', the ruling of 2026-11-27), void in "
+     "the roster, and cuts nothing: C stays, D and its duty seat stand",
      [G, remove("xc", "C", ("A", "B"), ("g",)), admit("md", "D", ("B", "C"), ("g",)), confer("cd", "D", "moderate", ("A", "B"), ("md",))],
-     [("D", "member", F), ("D", "moderate", F), ("D", "duty", F), ("A", "moderate", T), ("C", "member", F)], None),
+     [("D", "member", T), ("D", "moderate", T), ("D", "duty", T), ("A", "moderate", T), ("C", "member", T)], None),
+    ("two tips, the removers on one only: in a room under quorum:2/4, A and E remove C at the founding head; C and B "
+     "admit D there, and B, the lone moderator, confers moderate on D over that admission: C's removal is no "
+     "self-fork (A and E signed nothing else), so the fold takes C out, D's admission meets no count on the voices the "
+     "fold seats (B alone), and D's duty seat falls with its member seat",
+     [ST.found("g", "A", ("A", "B", "C", "E"), {"moderate": ("B",)}, cosigners=("B", "C", "E"), consensus_protocol="quorum:2/4"),
+      ST.unseat("xc", "A", "C", "member", OBJ, "group", ("g",), head=("g",), policy="community_remove", cosigners=("E",)),
+      ST.offer("md", "C", "D", "member", OBJ, "group", ("g",), head=("g",), policy="cosigned_act", cosigners=("B", "D")),
+      confer("cd", "D", "moderate", ("B",), ("md",))],
+     [("D", "member", F), ("D", "moderate", F), ("C", "member", F)], None),
     # ---- what the rule does not reach -----------------------------------------------------------------------------
     # ---- CIRISConstitution#241: a duty is conferred by its holders, the founding record or an election -------------------
     (DG + "a member-only founding, handed one (the text refuses it at the door: founding_duty_holders_unnamed): the "
@@ -364,12 +375,14 @@ CASES = [
      [GA, MDA, HD2, gate_offer("A", ("B", "D"), head=("h",), names=("h",))], [("D", "moderate", F)]),
     ("the same count at a head of g's line (D's admission): D holds moderate", [GA, MDA, HD2, gate_offer("A", ("B", "D"))],
      [("D", "moderate", T)]),
-    ("a version of g's roster as the head (a row of no object naming g's rows, as persist presents a ballot's head): "
-     "a head of g's line, and D holds moderate",
-     [GA, MDA, ST.R("v", "note", "A", ("md",)), gate_offer("A", ("B", "D"), head=("v",), names=("v",))], [("D", "moderate", T)]),
-    ("a merge head presented as a cosignature whose `of` is itself, naming g's rows: a head of g's line, and D "
-     "holds moderate", [GA, MDA, ST.R("v", "cosign", "A", ("md",), of="v"),
-                       gate_offer("A", ("B", "D"), head=("v",), names=("v",))], [("D", "moderate", T)]),
+    # H8 (the heads ruling of 2026-11-26): no caller-synthesised heads. A row of no object, or a cosignature whose `of`
+    # is itself, is no head of a count, and a count naming one concludes nothing (before: read by the rows it names)
+    ("a version of g's roster as the head (a row of no object naming g's rows, as persist presented a ballot's head): "
+     "no head of a count (H8), and D holds nothing",
+     [GA, MDA, ST.R("v", "note", "A", ("md",)), gate_offer("A", ("B", "D"), head=("v",), names=("v",))], [("D", "moderate", F)]),
+    ("a merge head presented as a cosignature whose `of` is itself, naming g's rows: no head of a count (H8), and D "
+     "holds nothing", [GA, MDA, ST.R("v", "cosign", "A", ("md",), of="v"),
+                       gate_offer("A", ("B", "D"), head=("v",), names=("v",))], [("D", "moderate", F)]),
     ("a version naming only h's founding row is no head of g: no duty",
      [GA, MDA, HD2, ST.R("v", "note", "D", ("h",)), gate_offer("A", ("B", "D"), head=("v",), names=("v",))],
      [("D", "moderate", F)]),
@@ -415,8 +428,8 @@ CASES = [
 PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_only", "duty_fold_unread", "holders_unread",
           "unsigned_seated", "scope_unread", "member_rule_duty_rooms_only",
           "unsigned_no_map", "duty_gate_off", "duty_gate_wrong_row", "own_duty_ungated", "lone_founder_unread",
-          "duty_over_unread", "gate_counted_any_duty", "declared_roster_kept",
-          "heads_any_object")
+          "gate_counted_any_duty", "declared_roster_kept",
+          "head_any_row")         # (the heads ruling: `over` refused for every count, H2; a head is a counted change, H1)
 
 
 @contextlib.contextmanager
@@ -467,6 +480,13 @@ def deputy():
     got = CE.answers(c[2], **dict(c[3]))
     return [] if all(got.get(x) == {"counted": cnt, "in_force": frc, "rule": rule} for x, (cnt, frc, rule) in c[4].items()) \
         else ["conferral_end deputy: %s" % got]
+
+
+# every counted row and every seat's end of these cases names the newest counted changes over the room in its own
+# past (H1, H4, the heads ruling of 2026-11-26): what a signer that holds its own past writes
+# (the review of #54's cases name a wrong head on purpose: only their seats' ends are rewritten)
+CASES = [(c[0], ST.honest(c[1], None if "review of #54" not in c[0] else {r["id"] for r in c[1] if r["kind"] == "withdraw"}))
+         + tuple(c[2:]) for c in CASES]
 
 
 def main():

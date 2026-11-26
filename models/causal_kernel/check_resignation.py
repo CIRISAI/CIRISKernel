@@ -32,7 +32,7 @@ Properties, over every set of those rows closed under what they name:
 
 Planted breaks:
     wrap_by_roster        the wrap set is the counted roster at the tips: a resigner is wrapped until cited
-    leaving_unread        a count ignores a leaving in its row's past (seat.py's own mutation)
+    leaving_unread        a count ignores a leaving in its row's past (seat.py's leaving_unread and ends_at_heads_unread)
     dissolved_by_roster   dissolution read from the counted roster: two concurrent resignations do not dissolve
 
     python3 -I check_resignation.py      exit 1 on any difference
@@ -99,7 +99,9 @@ def check(plant=None):
     n = 0
     saved = set(ST.MUT)
     if plant == "leaving_unread":
-        ST.MUT.add("leaving_unread")
+        # a count reads a leaving in its row's past two ways: it subtracts the key (left_in_past) and reads the
+        # withdrawal with its heads (members_at); the planted break turns off both
+        ST.MUT.update({"leaving_unread", "ends_at_heads_unread"})
     try:
         for k in range(len(POOL) + 1):
             for pick in itertools.combinations(POOL, k):

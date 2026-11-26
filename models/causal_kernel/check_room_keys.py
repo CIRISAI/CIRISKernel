@@ -113,10 +113,13 @@ OBJS = [WN.answer("o%d" % n, "m%d" % n, "x", "object") for n in (2, 3, 4)]
 WQ = ST.withdraw("wq", "q", "aq", ("ag",))                                    # q resigns: it withdraws the offer that seats it
 
 
-def merge(names):
-    """A later head with the named rows in its past: a row of no object and no `of` that names them (a merge head,
-    as persist's version row)."""
-    return R("h", "note", "m1", tuple(names))
+def merge(names, cite=()):
+    """A later head with the named rows in its past: a counted row naming them as its heads, the four founders
+    re-stating m1's seat (H8, the heads ruling of 2026-11-26: a row of no object is no head of a count, so a merge is a
+    counted change; it was a note naming them, as persist's version row). `names` are its heads, the newest counted
+    changes; `cite`, rows it names besides (a withdrawal, which is no head)."""
+    h = admit("h", "m1", ("m1", "m2", "m3", "m4"), tuple(names))
+    return dict(h, names=tuple(h["names"]) + tuple(cite)) if cite else h
 
 
 def rejoin(i, who, heads, scope="member"):
@@ -244,12 +247,32 @@ CASES += [
     ("private: the same re-admission is refused (membership_room_key_ended)", SECOND_ROW,
      SR + [ST.withdraw("wq", "q", "aq", ("aq2",)), rejoin("aq3", "q", ("wq",))], {"aq3": F}, M4 | {"AG"}, [("q", "member", F)]),
 ]
+# a seat is two consents (the ruling of 2026-11-26 on acceptances, (a)): an invitation of q that q does not sign, at
+# the newest head, then q's resignation with the invitation in its past, then q's own acceptance of the invitation.
+# A count of three at the invitation naming the acceptance: q does not count (its end ended every seating of it in the
+# end's past; in a private room a key whose stay ended completes nothing), so three of four is met
+def _late_accept(base):
+    o2 = admit("o2", "q", ("m1", "m2", "m3", "m4"), ("ag",), joiner=False)
+    return base + [o2, ST.withdraw("wq", "q", "aq", ("o2",)), ST.accept("acq", "q", "o2", ("wq",)),
+                   ST.offer("az", "m1", "z", "member", OBJ, "group", ("o2", "acq"), head=("o2",), policy="community_invite",
+                            cosigners=("m2", "m3", "z"))]
+
+
+CASES += [
+    ("private: q resigns with an invitation in its end's past and then accepts it: the acceptance completes nothing "
+     "(bound (3)); a count of three at the invitation naming it is three of four", OWN_ROW, _late_accept(PV),
+     {"wq": T, "az": T}, M4 | {"AG", "z"}, [("q", "member", F)]),
+    ("public: the same: the end ended the invitation, which was in its past (bound (2))", OWN_ROW, _late_accept(PB),
+     {"wq": T, "az": T}, M4 | {"AG", "z"}, [("q", "member", F)]),
+]
 # two admissions of one person at once (derived from CC 3.1.3.2 on #224, a residual): the kernel counts voices as
 # presented; which keys are one person's is the binding, never a row, so the collapse is the caller's until the voice's
 # own key roster is built ("no door refuses a widening for either, since no rule of standing reads a binding")
 TWO = PV + [rejoin("ak1", "k1", ("ag",)), rejoin("ak2", "k2", ("ag",))]
 # a later head with both admissions in its past (a count over two concurrent heads reads the keys common to both)
-HEAD = merge(("ak1", "ak2"))
+# (the four founders and both keys sign it: over the fold of the two tips, seven persons, four is short; the ruling of
+# 2026-11-27)
+HEAD = dict(merge(("ak1", "ak2")), cosigners=("m2", "m3", "m4", "k1", "k2"))
 XQ2 = lambda signers: remove("xq", "q", signers, ("h",))
 CASES += [
     ("two admissions of one person at once, under two room keys: both seat. No rule of standing reads a binding, so "
@@ -289,6 +312,11 @@ def orders(rows):
         rnd.shuffle(p)
         out.append(p)
     return out
+
+
+# every counted row and every seat's end of these cases names the newest counted changes over the room in its own
+# past (H1, H4, the heads ruling of 2026-11-26): what a signer that holds its own past writes
+CASES = [(c[0], c[1], ST.honest(c[2])) + tuple(c[3:]) for c in CASES]
 
 
 def main():

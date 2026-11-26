@@ -200,13 +200,64 @@ trusting an adapter.
   given as `Conf::Own` under a signer with no founding seat seats nobody and is not a tip, with no error.
 - A restating version is Offers for the keys it adds and Unseats for the keys it drops. Do not offer again a
   member who carries over: an Unseat ends the offers in its past, so a re-offer after it seats the removed key.
-- Each node names the heads it extends in `names` and in `head`.
+- Each node names the heads it extends in `names` and in `head`. **How a store presents a count (the heads ruling
+  of 2026-11-26):** by its real rows, the founding record and the counted changes over the room. A counted
+  row's `head` is exactly the newest counted changes over its own object in its own past (or the founding row
+  where there are none), and it names them. A counted change is a `Conf::Group` offer or unseat on the object
+  that names a head; a self-admission is none. A row of no object (a synthesised version row), a note, an
+  acceptance, a withdrawal or a cosignature naming itself is no head, and a count naming one concludes nothing.
+  `over` is not read for a count: a counted row stating another object concludes nothing. A moderator's lone
+  removal, a self-admission, a resignation (a withdrawal of a seat over a room) and a lift name the newest
+  counted changes too. A reader's line is drawn from every row the reader signed or cosigned over the room, so
+  pass `own` for a member reading its own roster. A reader with no row over the room is the stated
+  weak-subjectivity edge, and the text already says where such a reader's first acknowledgement comes from (CC
+  3.3.4): "A node does not rebuild a group's past from old signatures. The state of a roster is known when a node is
+  admitted to it. A node new to the group, or one with no acknowledged head of its own, takes the group's past from
+  a current member, who vouches for it under their own signature. That member is one the node already knows, the
+  member whose proposal a newcomer accepted or, for a person's further device, a device of theirs already in the
+  group." A store serving such a reader passes that member's acknowledged head as the reader's first.
+  **A reader's roster** (the ruling of 2026-11-27): build it over the rows as they conclude for that reader:
+  `let (rows, void) = seat::for_reader(&c, law, spec, &own); Seats::for_reader(&rows, law, spec, &own, &void)`. A
+  count can stand for its reader and not for a reader with no row (the changes void for the reader leave the
+  count's fold): CC 2.7.9, "A reader's own acknowledged head closes older heads for that reader only". Show such a
+  count as in force for that reader, and say that a reader with no acknowledgement of its own reads it otherwise.
+  The line is sibling-safe: a row at the head of the reader's acknowledged change is no row behind it. The members
+  at several heads are the fold of their lines, and a counted change self-forked by all its voices is void for a
+  count that has it in its past (S'') where T at its fork point says so: of the members seated at its heads, those
+  who signed only the other side outnumber those who signed only its side (a key's own acceptance, or its yes on an
+  offer seating it, counts it for neither; a tie, none on either side included, voids neither, so depth decides
+  nothing). That is the only automatic effect of a key signing two things outside an election, and it voids a
+  change, never a key. A lone holder's window is closed for a reader by any later counted change that reader has
+  acknowledged, and for every reader once the lone holder itself signs a later change.
+  **Acknowledging never un-voids** (CC 2.7.9: an acknowledgement closes older heads, and nothing reopens them): a
+  row the reader signs acknowledges only the changes in its past not already void for its line, so naming a change
+  as a head adopts nothing. A client does not build on a change that is void for it: its next row names only the
+  honest newest heads and is simply concurrent with the void change. That breaks no rule (it is no self-fork, the
+  void change not being the client's row, and H1 does not ask for a change that is not in its past).
+  **Founders' lines:** when a reader that held one founders' line later holds the other (two concurrent records'
+  versions), what it had read as concluded on the first line is then waiting, like any tip that turns out to have a
+  sibling (the regime wait). A store should not treat a founders' act over an infrastructure room as final on the
+  strength of one line.
+  A reader's roster (`Seats::new`, `Seats::for_reader`) reads S'' over the rows it holds: a change self-forked
+  there neither adds nor removes members. The readings of one line inside the kernel do not.
+  **The residual, stated:** one residual, in three shapes, each only for a reader with no row of its own: (1) no member
+  seated at the fork point signed exactly one chain (a room founded by one key; every founder colluding); (2) a silent
+  colluder's packing chain under the same protocol; (3) a newcomer admitted on the fork, which takes its past from its
+  admitter (CC 3.3.4). A store serving such a reader gives it the past of the member that admitted it.
+  A seat is two consents: an admission the joiner does not sign
+  seats it where its own acceptance (a `SeatKind::Accept` by the joiner, `of` the admission) is in the counted
+  row's past, even when the acceptance is in no head's past. Present the acceptance as the joiner's own row; a
+  cosignature is no acceptance. A counted change is any roster-changing row that concludes under the policy the
+  room's record binds to its act: a lone duty holder's conferral (counted, or its own offer) and an election's
+  seating are heads too, and a seating names the newest counted changes as its heads like any roster change. A lone
+  duty holder with an offer of a duty seat standing confers no other alone until that offer is accepted or
+  withdrawn: to seat two new holders at once, present one row naming both.
 - Each counted node carries its real voices (signer, cosigners, cosign rows it names), its policy word and its
   threshold. `members_at` does not read them; `Seats::tips_fold` does, for every addition not common to the
   tips, and an addition with no member's voice waits.
 - A resignation is a `SeatKind::Withdraw` by the member, targeting the offer that seats it or its own
-  acceptance. It is no tip. It takes effect at a head only where some node in that head's past names it; a
-  node extending the same head does not have it in its past.
+  acceptance, and naming the newest counted changes. It is no tip and no head. A counted row with it in its own
+  past reads it with the heads it names; a row that does not have it in its past does not.
 - A founder is whatever scope the caller seats it in. `members_at(.., scope)` answers for the scope asked.
 - `SeatRow::regime`: the protocol and policy in force at each counted act, on every counted act.
 
@@ -240,11 +291,11 @@ trusting an adapter.
   holders, not one duty's), `policy()` `duty_confer`, and `over()` absent or the room it confers in. Any other
   counted offer of a duty scope concludes nothing (CIRISConstitution#241): a members' admission count
   (`community_invite`, `counted()` `member`), a count under another policy, a count over another room. A
-  counted unseat of a duty scope is likewise counted over the room (`over()` absent or the room). Where no
+  counted unseat of a duty scope is likewise counted over the room (`over()` is read for no count). Where no
   holder is left, present the election.
-- Every head a counted row names is of its own object's line: the object's founding row, a row whose `obj()` is
-  the object, a withdrawal, acceptance or receipt of one, or a version row with no `obj()` that names one. A
-  count naming another room's row as a head concludes nothing.
+- Every head a counted row names is a counted change over its own object, or its founding row (see "How a
+  store presents a count" above). A count naming another room's row, or any other row, as a head concludes
+  nothing.
 - A community, for every rule that asks (the duty gate, the duty room, the one-founder room, a lone removal): an
   object that names a held offer whose object is itself. A moderator's lone removal of an agent's key is read
   only over a community; elsewhere present the removal as the room's counted unseat.

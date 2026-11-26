@@ -54,9 +54,10 @@ def voices(S, c):
 class Cut:
     """The three-valued status of every kept row of a concluded State."""
 
-    def __init__(self, S, well_founded=True):
+    def __init__(self, S, well_founded=True, without=frozenset()):
+        """`without`: ids of rows that cut nothing here (a row void for a reader, seat.Seats)."""
         self.S = S
-        self.cuts = [r for r in S.Cs if cuts_of(r)]
+        self.cuts = [r for r in S.Cs if cuts_of(r) and r["id"] not in without]
         T = self._T
         if well_founded:
             self.L = K.fix(lambda L: T(T(L)), frozenset(), len(self.cuts) + 2)

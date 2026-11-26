@@ -114,8 +114,8 @@ head; for such a reader the members become the keys common to the two lines, for
 both tips. A reader that acknowledged an honest newer head is not moved (PROVED `Reader.line_voids_old_fork`).
 CONCEDED in tests 4, 18, 19 and 34.
 
-**The attack runs.** `check_attacks.py` runs thirty-four attacks, thirty-three drawn from published failures of
-comparable systems, as 126 scenarios. It prints `classes: HOLDS 13; BROKEN 0; CONCEDED 15; NOT EXPRESSIBLE 6`.
+**The attack runs.** `check_attacks.py` runs thirty-five attacks, thirty-three drawn from published failures of
+comparable systems, as 126 scenarios. It prints `classes: HOLDS 14; BROKEN 0; CONCEDED 15; NOT EXPRESSIBLE 6`.
 The class each attack must fall in was written by the authors of the rules, so this confirms what they expected
 and is no independent test.
 

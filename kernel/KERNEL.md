@@ -615,7 +615,7 @@ What a private room does not give, each marked as the check marks it:
 
 ## 8a. Attacked
 
-`models/causal_kernel/check_attacks.py` runs thirty-four attacks, thirty-three of them drawn from the published
+`models/causal_kernel/check_attacks.py` runs thirty-five attacks, thirty-three of them drawn from the published
 failures of comparable systems, as 126 scenarios in 116,211 arrival orders: every order of a scenario of up to
 seven rows, and a fixed sample of a thousand above that. **run**: thirteen gain the attacker nothing, none gains
 what this page does not concede, fifteen are the limits below, and six cannot be expressed without a second

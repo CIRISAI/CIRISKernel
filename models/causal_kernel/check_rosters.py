@@ -174,14 +174,18 @@ def check_keys(spec, inst):
     worlds = []
     for keep, l1, l2 in ((k1, k2, k3), (k2, k1, k3), (k3, k1, k2)):
         for first, second in ((l1, l2), (l2, l1)):
-            for stale in (False, True):
+            # (an opening "on the old head", naming E1 beside the founding head, is refused since an opening names the
+            # newest counted changes in its own past (H1, the review of 58b): only the honest opening is a world)
+            for stale in (False,):
                 g = RS.found(spec, (k1, k2, k3))
                 p1_ = RS.lone_open(spec, "p1", keep, "evict", (spec.obj,), first)
                 rows = [g, p1_, WN.receipt("r1", keep, "p1", 0), WN.landing("L1", keep, "p1", "r1", "landed", W), RS.effect(spec, "E1", keep, "L1", p1_)]
                 h = (spec.obj,) if stale else ("E1",)
                 p2_ = RS.lone_open(spec, "p2", keep, "evict", h, second, names=("E1",) if stale else ())
                 rows += [p2_, WN.receipt("r2", keep, "p2", 0), WN.landing("L2", keep, "p2", "r2", "landed", W), RS.effect(spec, "E2", keep, "L2", p2_)]
-                rows += [RS.add(spec, "a4", ("E1", "E2") if stale else ("E2",), k4, (keep, k4))]
+                # the re-widening names E2 alone: E1 is in E2's past (p2 names it), and the named heads are an
+                # antichain (H1: a head in another named head's past is refused)
+                rows += [RS.add(spec, "a4", ("E2",), k4, (keep, k4))]
                 worlds.append(("keep %s, evict %s then %s%s" % (keep, first, second, ", second on the old head" if stale else ""), rows, keep))
     def p2(S, rows, name):
         keep = next(x for n, _, x in worlds if n == name)
@@ -696,6 +700,11 @@ def check_accord(spec, inst):
     f_after = WN.opener("fa", "h3", "halt_fuse", "A", ("A",), names=("x",))
     S = RS.state([g3] + x + [f_conc, f_after])
     plain = (S.C["fc"], S.C["fa"])
+    # the fire naming the removal on the old head is refused once an opening names the newest counted changes (H1 on
+    # the opener, the review of 58b); the plant reads it as before that rule
+    with seat_mut("window_opener_old_head"):
+        S_old = RS.state([g3] + x + [f_conc, f_after])
+        plain_old = (S_old.C["fc"], S_old.C["fa"])
     slot = lambda r: dict(r, on=(("seat", "h3", "holder", "A"),))
     S2 = RS.state([g3] + x + [slot(f_conc), slot(f_after)])
     cut2 = (CUT.Cut(S2).status(S2.by["fc"]), CUT.Cut(S2).status(S2.by["fa"]))
@@ -719,7 +728,7 @@ def check_accord(spec, inst):
     lb = {"worlds": 1, "orders": nord, "fails": [("latch", str(bad_l[:1]))] if bad_l else [], "order_differs": []}
     res.append(result(inst, "lame duck AND a removed holder no longer fires, with the latch on receipt (a reader-relative parameter that reads arrival order)",
                       "CC 4.2.1.1 'fires on receipt, latches'; CC 4.2.6 l.318", verdict_of(lb, param="latch_on_receipt (per node; NOT a function of the rows)"),
-                      lb, "plant: the plain mechanism (judged at the head the fire names)", {"fails": [("plain", "a removed holder's fire naming the removal concludes %s" % plain[1])] if plain[1] else []}))
+                      lb, "plant: the plain mechanism (judged at the head the fire names)", {"fails": [("plain", "a removed holder's fire naming the removal concludes %s (the opener read at its old head)" % plain_old[1])] if plain_old[1] else []}))
     res.append(result(inst, "lame duck (a holder named for removal fires until the decision) AND a removed holder no longer fires", "CC 4.2.6 'Removal cannot silence a firer'; CC 4.2.1.1 'fires on receipt, latches'",
                       "does NOT hold", base, None, None,
                       "the plain mechanism gives the lame duck and lets a removed holder fire for ever on an old head; putting the fire on the seat slot ends that but voids a latched fire; the text's rule is a latch at the node's receipt, which depends on arrival order by design"))
@@ -765,7 +774,8 @@ def check_infra(spec, inst):
     res.append(result(inst, "no single founder admits alone (quorum:2/3)", src, verdict_of(base), base, "quorum:1/N and no floor", m))
     # I3 T7: stalled at M active founders, non-admitting
     wd = ST.withdraw("wd3", "f3", "I")
-    worlds = [("f3 leaves; f1 and f2 widen J", [g, wd, aj, RS.add(spec, "w", ("wd3",), "J", ("f1", "f2"), names=("aj",))])]
+    # counted at the founding row, the newest counted head, with f3's leaving in its past (a head is a counted change)
+    worlds = [("f3 leaves; f1 and f2 widen J", [g, wd, aj, RS.add(spec, "w", ("I",), "J", ("f1", "f2"), names=("aj", "wd3"))])]
     def i3(S, rows, n):
         if "J" in members(S): return "a stalled roster admitted J"
     base = run(spec, worlds, i3)
@@ -1004,7 +1014,8 @@ def check_leaving(spec, inst):
         got = "E" in RS.roster(S, spec)
         if got != want: return "E seated %s, want %s" % (got, want)
     base = run(spec, [(n, rows) for n, rows, _ in W], pl)
-    with seat_mut("leaving_unread"):
+    # (a leaving in the version's past is read two ways: subtracted, and read with the heads; both are unread here)
+    with seat_mut("leaving_unread", "ends_at_heads_unread"):
         m = run(spec, [(n, rows) for n, rows, _ in W], pl, orders=False)
     return [result(inst, "a key's leaving binds by the version's past: a version with it there does not count that key; one without it still does",
                    "KERNEL.md 6, 7; RosterHead.lean leaving_binds_by_past", verdict_of(base), base,
@@ -1051,7 +1062,9 @@ def check_duty(spec, inst):
     W = [("two holders: one withdraws the other alone", [found(("A", "B")), withdraw("x", ("A",), "B")], frozenset({"A", "B"}))]
     res.append(prop("where there are two holders, no duty seat is withdrawn on fewer than two voices", W, "no_duty_floor", "no floor of two voices"))
     W = [("A confers alone, then withdraws the offer", [found(("A",))] + adm("B", ("A",)) + lone("o", "A", "B") + [ST.withdraw("w", "A", "o", ("ao",))], frozenset({"A", "B"})),
-         ("A confers alone, then leaves", [found(("A",))] + adm("B", ("A",)) + lone("o", "A", "B") + [ST.withdraw("w", "A", "g", ("ao", "mB"))], frozenset({"B"}))]
+         # A's lone conferral `o` is a counted change (it concludes under the duty conferral the record binds, on one
+         # voice): A's leaving names it with the admission, the newest counted changes in its past (H4)
+         ("A confers alone, then leaves", [found(("A",))] + adm("B", ("A",)) + lone("o", "A", "B") + [ST.withdraw("w", "A", "g", ("o", "ao", "mB"))], frozenset({"B"}))]
     res.append(prop("holders are equals: the key that conferred a duty seat does not end it alone", W, "duty_ranked", "a conferrer's withdrawal ends what it conferred"))
     W = [("the room removes a duty holder from its roster", [found(("A", "B", "C"))] + RS.remove(spec, "x", ("g",), "C", ("A", "B")), frozenset({"A", "B"}))]
     res.append(prop("a removal from the roster ends the removed member's duty seats (a non-member holds no duty)", W, "member_cut_only",

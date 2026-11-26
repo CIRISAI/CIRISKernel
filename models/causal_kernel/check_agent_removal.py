@@ -70,10 +70,21 @@ OBJ, OV = "g", "moderation_overturn"
 RULE = lambda r, P, past: WN.rule(r, P, past)
 
 
+# a count names the newest counted changes over the room in its own past (H1): a row that is no counted change (m1's
+# laying down of `moderate`) is in the past of the rows that name it, at the counted change before it
+HEAD = {"lm": "md"}
+
+
+def at(head):
+    """(names, heads) of a row written at `head`: it names the row, and is counted at the newest counted change."""
+    return ((head,) if HEAD.get(head, head) == head else (HEAD[head], head)), (HEAD.get(head, head),)
+
+
 def admit(i, who, signers, head, scope="member"):
     """An admission, the joiner cosigning (its own yes). Scope `agent`: an AI agent's key, admitted by the persons'
     count; its own signature is its consent and no voice."""
-    return ST.offer(i, signers[0], who, scope, OBJ, "group", (head,), head=(head,), policy="community_invite",
+    names, heads = at(head)
+    return ST.offer(i, signers[0], who, scope, OBJ, "group", names, head=heads, policy="community_invite",
                     cosigners=tuple(signers[1:]) + (who,))
 
 
@@ -81,7 +92,8 @@ def remove(i, by, who, head, scope="agent", window=True):
     """A removal from the roster by one key, naming the overturn's window. `scope`: the seat removed, an agent's
     (`agent`) or a person's (`member`); the seat's scope says whose key it is."""
     kw = {"window": OV} if window else {}
-    return ST.unseat(i, by, who, scope, OBJ, "group", (head,), head=(head,), policy="community_remove", **kw)
+    names, heads = at(head)
+    return ST.unseat(i, by, who, scope, OBJ, "group", names, head=heads, policy="community_remove", **kw)
 
 
 def obj(i, by, removal="x"):
@@ -89,7 +101,8 @@ def obj(i, by, removal="x"):
 
 
 def reseat(i, by, who, removal, head, objections, accepted=True, cite=True):
-    return ST.offer(i, by, who, "agent", OBJ, "group", (removal,) + tuple(objections), head=(head,), policy=OV,
+    names, heads = at(head)
+    return ST.offer(i, by, who, "agent", OBJ, "group", tuple(dict.fromkeys((removal,) + tuple(objections) + names)), head=heads, policy=OV,
                     cosigners=(who,) if accepted else (), **({"content": removal} if cite else {}))
 
 
@@ -106,7 +119,7 @@ LMA = ST.withdraw("lm", "m1", "g", ("md",), scope="moderate")
 A = [GA, AGA, AMA, MDA, LMA]
 XA = remove("x", "MOD", "AG", "lm")
 O1, O2, OA, OM = obj("o1", "m1"), obj("o2", "m2"), obj("oA", "AG"), obj("oM", "MOD")
-RSA = reseat("rs", "m1", "AG", "x", "lm", ("o1", "o2"))
+RSA = reseat("rs", "m1", "AG", "x", "x", ("o1", "o2"))
 X2 = remove("x2", "MOD", "AG", "rs")
 
 # ---- world B: the moderator is on the roster. Duty holders m1..m4 (each a member and a moderator) and AG: five ----
@@ -157,9 +170,9 @@ CASES = [
     ("A: the re-seating row naming those two objections concludes and the key is seated again",
      A + [XA, O1, O2, RSA], {"x": T, "rs": T}, {"m1", "m2", "MOD", "AG"}, {"x": "lifted"}),
     ("A: a re-seating row naming one objection of the two does not conclude",
-     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "lm", ("o1",))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
+     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "x", ("o1",))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
     ("A: the removed key's own objection is no voice: of the window with no landing, nor of the re-seating",
-     A + [XA, O1, OA, reseat("rs", "m1", "AG", "x", "lm", ("o1", "oA"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "open"}),
+     A + [XA, O1, OA, reseat("rs", "m1", "AG", "x", "x", ("o1", "oA"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "open"}),
     ("A: nor of a landing: a member lands 'lifted' naming its own objection and the removed key's",
      A + [XA, O1, OA, WN.receipt("r", "m1", "x", 0), WN.landing("L", "m1", "x", "r", "lifted", 0, ("o1", "oA"))],
      {"x": T, "L": F}, {"m1", "m2", "MOD"}, {"x": "open"}),
@@ -167,17 +180,17 @@ CASES = [
      A + [XA, O1, WN.receipt("r", "m2", "x", 0), WN.landing("L", "m2", "x", "r", "stands", WN.secs(OV), ("o1",)), OA],
      {"x": T, "L": T}, {"m1", "m2", "MOD"}, {"x": "stands"}),
     ("A: the removed key objects beside both persons: lifted on the two, as without it",
-     A + [XA, O1, O2, OA, reseat("rs", "m1", "AG", "x", "lm", ("o1", "o2", "oA"))], {"rs": T}, {"m1", "m2", "MOD", "AG"}, {"x": "lifted"}),
+     A + [XA, O1, O2, OA, reseat("rs", "m1", "AG", "x", "x", ("o1", "o2", "oA"))], {"rs": T}, {"m1", "m2", "MOD", "AG"}, {"x": "lifted"}),
     ("A: the moderator's own objection is no voice (it is the act's author)",
-     A + [XA, O1, OM, reseat("rs", "m1", "AG", "x", "lm", ("o1", "oM"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "open"}),
+     A + [XA, O1, OM, reseat("rs", "m1", "AG", "x", "x", ("o1", "oM"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "open"}),
     ("A: a re-seating row that does not cite the removal does not conclude",
-     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "lm", ("o1", "o2"), cite=False)], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
-    ("A: a re-seating row at another head than the removal names does not conclude",
-     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "x", ("o1", "o2"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
+     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "x", ("o1", "o2"), cite=False)], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
+    ("A: a re-seating row at the head the removal names, an older head than the removal itself, does not conclude (H4: no exemption)",
+     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "md", ("o1", "o2"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
     ("A: a re-seating row seating another key than the one removed does not conclude",
-     A + [XA, O1, O2, reseat("rs", "m1", "Q", "x", "lm", ("o1", "o2"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
+     A + [XA, O1, O2, reseat("rs", "m1", "Q", "x", "x", ("o1", "o2"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
     ("A: a re-seating row without the key's own signature concludes and seats nobody (two consents)",
-     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "lm", ("o1", "o2"), accepted=False)], {"rs": T}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
+     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "x", ("o1", "o2"), accepted=False)], {"rs": T}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
     ("A: objections to a removal that did not conclude re-seat nothing and remove nothing",
      A + [remove("x", "m1", "AG", "lm"), O1, O2, RSA], {"x": F, "rs": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
     ("A: after the lift the moderator removes the key again, naming the re-seating: out, and a new window is open",
@@ -187,16 +200,16 @@ CASES = [
     ("A: the same admission signed by both persons concludes",
      A + [XA, O1, O2, RSA, admit("j", "N", ("m1", "m2"), "rs")], {"rs": T, "j": T}, {"m1", "m2", "MOD", "AG", "N"}, {"x": "lifted"}),
     ("A: the objections to the first removal do not lift the second",
-     A + [XA, O1, O2, RSA, X2, reseat("rs2", "m1", "AG", "x2", "rs", ("o1", "o2"))], {"x2": T, "rs2": F}, {"m1", "m2", "MOD"},
+     A + [XA, O1, O2, RSA, X2, reseat("rs2", "m1", "AG", "x2", "x2", ("o1", "o2"))], {"x2": T, "rs2": F}, {"m1", "m2", "MOD"},
      {"x": "lifted", "x2": "open"}),
     ("A: a moderator 'removes' a key that was never seated: no agent's seat at that head, so nothing concludes, and "
      "objections and a re-seating admit nothing",
-     A + [remove("x", "MOD", "Q", "lm"), O1, O2, reseat("rs", "m1", "Q", "x", "lm", ("o1", "o2"))], {"x": F, "rs": F},
+     A + [remove("x", "MOD", "Q", "lm"), O1, O2, reseat("rs", "m1", "Q", "x", "x", ("o1", "o2"))], {"x": F, "rs": F},
      {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
     ("A: at tips, an admission at the removal beside the re-seating: the fold seats the key on its two objectors' voices",
      A + [XA, O1, O2, RSA, admit("j", "N", ("m1", "m2"), "x")], {"rs": T, "j": T}, {"m1", "m2", "MOD", "AG", "N"}, {"x": "lifted"}),
     ("A: at tips, the same admission beside a re-seating that does not conclude: the key stays out",
-     A + [XA, O1, reseat("rs", "m1", "AG", "x", "lm", ("o1",)), admit("j", "N", ("m1", "m2"), "x")], {"rs": F, "j": T},
+     A + [XA, O1, reseat("rs", "m1", "AG", "x", "x", ("o1",)), admit("j", "N", ("m1", "m2"), "x")], {"rs": F, "j": T},
      {"m1", "m2", "MOD", "N"}, {"x": "open"}),
     ("B: a duty holder removes an agent's key alone: out at once",
      B + [XB], {"x": T}, {"m1", "m2", "m3", "m4"}, {"x": "open"}),
@@ -208,22 +221,22 @@ CASES = [
     ("B: a duty holder removes another duty holder alone: nothing",
      B + [remove("x", "m1", "m2", "ag", scope="member")], {"x": F}, {"m1", "m2", "m3", "m4", "AG"}, {"x": "none"}),
     ("B: one person and the author object: one voice of the three persons, and the author is no voice",
-     B + [XB, O1, O2, reseat("rs", "m2", "AG", "x", "ag", ("o1", "o2"))], {"x": T, "rs": F}, {"m1", "m2", "m3", "m4"},
+     B + [XB, O1, O2, reseat("rs", "m2", "AG", "x", "x", ("o1", "o2"))], {"x": T, "rs": F}, {"m1", "m2", "m3", "m4"},
      {"x": "open"}),
     ("B: two of the three other persons object, the removed key apart: lifted, and the re-seating concludes",
-     B + [XB, O2, O3, reseat("rs", "m2", "AG", "x", "ag", ("o2", "o3"))], {"x": T, "rs": T},
+     B + [XB, O2, O3, reseat("rs", "m2", "AG", "x", "x", ("o2", "o3"))], {"x": T, "rs": T},
      {"m1", "m2", "m3", "m4", "AG"}, {"x": "lifted"}),
     ("C: the moderator, the agent and two persons: both persons object, two of two, and it lifts",
-     C + [remove("x", "m1", "AG", "ag"), O2, O3, reseat("rs", "m2", "AG", "x", "ag", ("o2", "o3"))], {"x": T, "rs": T},
+     C + [remove("x", "m1", "AG", "ag"), O2, O3, reseat("rs", "m2", "AG", "x", "x", ("o2", "o3"))], {"x": T, "rs": T},
      {"m1", "m2", "m3", "AG"}, {"x": "lifted"}),
     ("C: one person and the removed key object: one voice of two, and nothing lifts",
-     C + [remove("x", "m1", "AG", "ag"), O2, OA, reseat("rs", "m2", "AG", "x", "ag", ("o2", "oA"))], {"x": T, "rs": F},
+     C + [remove("x", "m1", "AG", "ag"), O2, OA, reseat("rs", "m2", "AG", "x", "x", ("o2", "oA"))], {"x": T, "rs": F},
      {"m1", "m2", "m3"}, {"x": "open"}),
     ("D: the moderator, the agent and one person: the person objects, and the floor of two holds",
-     D + [remove("x", "m1", "AG", "ag"), O2, reseat("rs", "m2", "AG", "x", "ag", ("o2",))], {"x": T, "rs": F},
+     D + [remove("x", "m1", "AG", "ag"), O2, reseat("rs", "m2", "AG", "x", "x", ("o2",))], {"x": T, "rs": F},
      {"m1", "m2"}, {"x": "open"}),
     ("C: one of the two persons objects: nothing lifts (one of two is no strict majority, and the floor is two)",
-     C + [remove("x", "m1", "AG", "ag"), O2, reseat("rs", "m2", "AG", "x", "ag", ("o2",))], {"x": T, "rs": F},
+     C + [remove("x", "m1", "AG", "ag"), O2, reseat("rs", "m2", "AG", "x", "x", ("o2",))], {"x": T, "rs": F},
      {"m1", "m2", "m3"}, {"x": "open"}),
 ]
 # The review of #54, item 8: in the window a withdrawal that names a scope departs its signer only where it ends the

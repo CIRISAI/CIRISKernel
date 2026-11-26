@@ -95,6 +95,7 @@ struct B {
     at: Option<i64>,
     rec: Option<(String, i64, Option<i64>)>,
     sigs: Vec<String>,
+    protocol: Option<String>,
 }
 
 impl B {
@@ -122,6 +123,7 @@ impl B {
             at: None,
             rec: None,
             sigs: Vec::new(),
+            protocol: None,
         }
     }
 }
@@ -180,6 +182,9 @@ impl SeatRow for B {
     }
     fn target(&self) -> Option<&Id> {
         self.target.as_ref()
+    }
+    fn consensus_protocol(&self) -> Option<&String> {
+        self.protocol.as_ref()
     }
 }
 
@@ -246,6 +251,8 @@ fn law() -> SeatLaw {
             ("majority", Policy::Strict(1, 2)),
             ("quorum", Policy::Declared),
             ("weighted", Policy::Weighted),
+            // a row counted under the room's declared protocol (the founding record's `consensus_protocol`)
+            ("cosigned_act", Policy::Protocol),
         ]
         .iter()
         .map(|(w, p)| (w.to_string(), *p))
@@ -254,35 +261,47 @@ fn law() -> SeatLaw {
     }
 }
 
-/// A ballot as persist's `consensus::ballot_rows` presents it: the founding row `G`, one offer per other
-/// member, the version `V` naming every seat, and the counted row `C` at head `[V]` with `voices` voices.
+/// The newest counted change of [`ballot`]'s roster: the admission of its other members, or the founding record
+/// where there are none.
+fn ballot_head(n: usize) -> Id {
+    if n > 1 {
+        rid(2, 0)
+    } else {
+        rid(0, 0)
+    }
+}
+
+/// A ballot as a store presents it, by its real rows (the heads ruling of 2026-11-26: no caller-synthesised
+/// heads): the founding record `G`, which seats its founder and declares the room's `consensus_protocol`; the
+/// counted admission `A` of the other `n - 1` members under that protocol, each a cosigner of it (its own yes),
+/// at head `[G]`; and the counted row `C` at head `[A]`, the newest counted change over the room, with `voices`
+/// voices.
 fn ballot(n: usize, voices: usize, policy: &str) -> Vec<B> {
     let gid = rid(0, 0);
     let members: Vec<String> = (0..n).map(key).collect();
     let g_signer = members[0].clone();
-    let mut rows = Vec::with_capacity(n + 3);
+    let mut rows = Vec::with_capacity(3);
     let mut g = B::new(gid, Vec::new(), g_signer.clone());
     g.kind = SeatKind::Offer;
     g.to = vec![g_signer.clone()];
     g.scope = Some("member".into());
     g.obj = Some(Obj::Row(gid));
     g.conf = Some(Conf::Own);
+    g.protocol = Some("founder_only".into());
     rows.push(g);
-    let mut version = vec![gid];
-    for (i, k) in members.iter().enumerate().skip(1) {
-        let id = rid(1, i as u32);
-        version.push(id);
-        let mut o = B::new(id, vec![gid], g_signer.clone());
-        o.kind = SeatKind::Offer;
-        o.to = vec![k.clone()];
-        o.scope = Some("member".into());
-        o.obj = Some(Obj::Row(gid));
-        o.conf = Some(Conf::Own);
-        o.cosigners = vec![k.clone()];
-        rows.push(o);
+    if n > 1 {
+        let mut a = B::new(rid(2, 0), vec![gid], g_signer.clone());
+        a.kind = SeatKind::Offer;
+        a.to = members[1..].to_vec();
+        a.cosigners = members[1..].to_vec();
+        a.scope = Some("member".into());
+        a.obj = Some(Obj::Row(gid));
+        a.conf = Some(Conf::Group);
+        a.head = vec![gid];
+        a.policy = Some("cosigned_act".into());
+        rows.push(a);
     }
-    let head = rid(2, 0);
-    rows.push(B::new(head, version, g_signer.clone()));
+    let head = ballot_head(n);
     let mut c = B::new(rid(3, 0), vec![head], members[0].clone());
     c.kind = SeatKind::Offer;
     c.to = vec![key(n + 7)];
@@ -328,7 +347,7 @@ fn ledger(n: usize) -> Vec<B> {
     let mut rows = ballot(n.min(64), 1, "founder_only");
     rows.pop();
     let gid = rid(0, 0);
-    let mut prev = rid(2, 0);
+    let mut prev = ballot_head(n.min(64)); // the admission: the newest counted change before the chain
     for i in 0..n {
         let mut c = B::new(rid(6, i as u32), vec![prev], key(0));
         c.kind = SeatKind::Offer;
@@ -362,12 +381,12 @@ fn chain_edges(n: usize, extra: usize) -> Vec<Accepts<String, ()>> {
     e
 }
 
-/// A window: the ballot's roster (`n` members), an opener at head `[V]`, an answer from each member, the
+/// A window: the ballot's roster (`n` members), an opener at head `[G]`, an answer from each member, the
 /// concluder's receipt and its landing.
 fn window_rows(n: usize) -> Vec<B> {
     let mut rows = ballot(n, 1, "founder_only");
     rows.pop();
-    let head = rid(2, 0);
+    let head = ballot_head(n);
     let mut o = B::new(rid(8, 0), vec![head], key(0));
     o.win = Some(WinKind::Open);
     o.window = Some("w".into());
@@ -693,7 +712,7 @@ fn main() {
             let last = c.g.len() - 1;
             let anc: Vec<usize> = c.g.ancestors(last).iter().filter(|&q| c.concluded(q)).collect();
             let p = Past::new(&c.g, last, &anc);
-            let head = [rid(2, 0)];
+            let head = [ballot_head(n)];
             h.run("seat::members_at", n, || seat::members_at(&p, &law, &NoCut, &gobj, &head, "member").len());
             h.run("seat::voices", n, || seat::voices(p.row(), &p).len());
             h.run("seat::left_in_past", n, || seat::left_in_past(&p, &gobj, "member").len());

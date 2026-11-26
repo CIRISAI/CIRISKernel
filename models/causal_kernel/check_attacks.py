@@ -2,7 +2,7 @@
 """
 check_attacks.py: one command, exit 0 or 1.
 
-Runs the thirty-four attacks of attacks.py against the kernel modules in this folder, three worker processes and this
+Runs the thirty-five attacks of attacks.py against the kernel modules in this folder, three worker processes and this
 one, each capped at 2 GiB of address space, and compares each test's class with attack_expected.tsv.
 
 Exit 0 only if
@@ -42,7 +42,7 @@ def main():
         res = mp.map(A.run_one, nums, chunksize=1)
         price, price_bad = mp.apply(A.checkpoint_price)
     facts = "--facts" in sys.argv
-    ok = len(res) == 34 and set(want) == set(nums)
+    ok = len(res) == 35 and set(want) == set(nums)
     count, orders, differ, scen = {}, 0, 0, 0
     for d in res:
         exp = want[d["n"]]["class"]
