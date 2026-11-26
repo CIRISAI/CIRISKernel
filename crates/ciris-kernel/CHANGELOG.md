@@ -418,7 +418,11 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
   A duty laid down and taken up again by the holder's own acceptance of the same offer, in a lone removal's past,
   is its standing there. **Answers change:** a newcomer whose acceptance a count has in its past is in the count's
   base (three of five where it was three of four).
-- **The edge, stated** (as of the tips ruling below). (i) A reader with no row of its own over the room, facing a
+- **The edge, stated** (as of the tips ruling below). (o) A fork point with no member who signed only one chain
+  (e.g. a room founded by one key), for a reader with no row: the tie keeps both chains, and only a reader's
+  acknowledgement decides. "A sibling that meets its count is lawful" is weak where one key is the whole count (a lone
+  holder, a room of one, a self-admission): there siblings cost nothing to write; the lone-offer rule covers the honest
+  line, the fork is evidence, and the next counted change closes it. (i) A reader with no row of its own over the room, facing a
   silent colluder's packing chain under the same protocol (a fork whose voices never acknowledged the honest line,
   so nothing is self-forked): the fold seats the chain's admissions for that reader, and a long enough chain
   outvotes. A newcomer admitted on the fork acknowledges the fork and holds the honest rows behind its line; it
@@ -483,6 +487,28 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
   behind: every head they extend strictly in the past of the acknowledged version's own heads), all 400 with the
   same tip roster. Against the H5 line (no concurrency test, siblings void) 149,966 answers differ, every one
   holding fewer void.
+- **A reader's roster reads S'' too** (the second review of 58b). The changes self-forked over the rows a reader
+  holds, as if one row had them all in its past (`roster_void`), cut nothing and seat nothing in its roster: a void
+  change neither adds nor removes members. **Answers change:** a self-forked removal at an old head no longer strips
+  the members it names for a reader with no row; a packing chain's keys are not listed. Plant `void_cuts_in_roster`.
+- **A self-fork is a row signed without the change in its past.** A voice of q forked against q where a row it
+  signed WITHOUT q in its past acknowledges a change q is behind; a merge naming both lines is no fork.
+- **The rescuer signed one chain only.** A key that is a counted voice of q's makers (or of their chain back to the
+  fork point) does not rescue q (the Constitution's T: a key that signed only one chain). For a change built on a void
+  one, the makers read are those of the void self-forked changes in its past, and the keys seated by the void chains
+  rescue nothing. Plant `rescuer_signed_both`.
+- **A founder's seating is a regime of its own.** A tip that changes the record's protocol OR its founder set (a
+  founder's seating) splits regimes, so concurrent founders' seatings wait at their common members; a rename or other
+  record change does not. Plant `regime_protocol_only`.
+- **The versions form folds.** The roster of several roster-version tips is the text's fold (roster_fork's
+  `fold.fold`), not their common members. On rule M's worlds, of the 53,235 answers that no longer listed a member
+  under the common-members form, 52,530 are a sibling tip's removal (the removal arm) and 705 were the common-members
+  form dropping a member a tip added in one regime; with the fold, those 705 list the member, and the class is the
+  removal arm alone (52,530 not listing a member, 2,035 listing one a tip added, 61,855 the same roster).
+- **The lone holder's window, stated.** A lone holder may add lone conferrals beside its first until the room's next
+  counted change; each is a row by one key that said two things at one head, and the two rows are the evidence a recall
+  cites (the members recall any duty holder, however seated, CC 4.5.13). The window closes at the next counted change by
+  anyone: a later lone sibling at the old head is behind it for every reader that acknowledged it.
 - **Acknowledging never un-voids** (CC 2.7.9; `checkpoint.own_line`, `line::own_line_with`). A row the reader signed
   acknowledges the counted acts in its past that are not already void for the line its earlier rows (in its own past)
   drew, nor void for the row itself. Naming a change as a head adopts nothing. Plant `ack_unvoids`.

@@ -1131,7 +1131,7 @@ pub struct Seats<'c, 'a, R: SeatRow, S: CutSpec<R>> {
 impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     /// Walk the live seats.
     pub fn new(c: &'c Concluded<'a, R>, law: &'c SeatLaw, spec: &'c S, own: Option<&R::Key>) -> Self {
-        Self::build_r(c, law, spec, own, None, None, None)
+        Self::build_r(c, law, spec, own, None, None, None, true)
     }
 
     /// The reader's roster (the ruling of 2026-11-27): [`Seats::new`] over the rows as they conclude for reader
@@ -1144,7 +1144,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         own: &R::Key,
         reader: &BTreeSet<R::Id>,
     ) -> Self {
-        Self::build_r(c, law, spec, Some(own), None, None, Some(reader))
+        Self::build_r(c, law, spec, Some(own), None, None, Some(reader), true)
     }
 
     /// [`Seats::new`], with the lone removals out of force given (`drop`) instead of judged over `c`: a reading
@@ -1159,9 +1159,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         drop: Option<&BTreeSet<R::Id>>,
         cache: Option<&MembersAt<R>>,
     ) -> Self {
-        Self::build_r(c, law, spec, own, drop, cache, None)
+        Self::build_r(c, law, spec, own, drop, cache, None, false)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn build_r(
         c: &'c Concluded<'a, R>,
         law: &'c SeatLaw,
@@ -1170,24 +1171,24 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         drop: Option<&BTreeSet<R::Id>>,
         cache: Option<&MembersAt<R>>,
         reader: Option<&BTreeSet<R::Id>>,
+        roster: bool,
     ) -> Self {
         // the reader's line is read before the cut: a counted act void for this reader (behind its line, or built
         // on such an act, every row taken as counting) cuts nothing for it (CC 2.7.8). A counted row the reader
         // signed acknowledges the changes in its past but those void for it ([`ack_void`]), and, over the rows
         // concluded for the reader, those void for the reader
         // an election's seating sits on the line by the heads it names, as any roster change
-        let except = |a: usize| -> BTreeSet<usize> {
-            let mut x = ack_void(c, law, spec, a);
-            if let Some(rv) = reader {
-                x.extend(rv.iter().filter_map(|i| c.g.idx(i)));
-            }
-            x
-        };
-        let behind = if own.is_some() {
+        let except = |a: usize| -> BTreeSet<usize> { ack_void(c, law, spec, a, reader) };
+        let mut behind = if own.is_some() {
             line::void_except(c, &SeatLine, own, |_| true, |_| false, &except)
         } else {
             BTreeSet::new()
         };
+        // a reader's roster reads S'' over the rows it holds: a change self-forked there cuts nothing and seats
+        // nothing (a void change neither adds nor removes members); the readings of a line inside the kernel do not
+        if roster {
+            behind.extend(roster_void(c, law, spec, reader));
+        }
         let cut = Cut::new_without(c, spec, &behind);
         let g = &c.g;
         let by: BTreeMap<&'a R::Id, &'a R> = g.rows().iter().map(|r| (r.id(), *r)).collect();
@@ -1663,20 +1664,28 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         }
         // the regime: once the binding reads it, the room's protocol in force in each tip's past (each act's own
         // policy is fixed by the table and no part of it); with no acts table, the row's stated regime
-        let regimes: BTreeSet<Option<&R::Word>> = tp
+        // a tip that changes the record's founder set (a founder's seating) is a regime of its own too: tips on either
+        // side of it wait at their common members
+        let founders = |t: usize| {
+            let r = g.row(t);
+            matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat)
+                && r.scope().is_some_and(|s| s.as_ref() == "founder")
+        };
+        let regimes: BTreeSet<(Option<&R::Word>, Option<usize>)> = tp
             .iter()
             .map(|&t| {
+                let own = founders(t).then_some(t);
                 if self.law.acts.is_none() {
-                    return g.row(t).regime();
+                    return (g.row(t).regime(), own);
                 }
                 // a tip that is itself a change of the record's protocol is under its NEW protocol, so tips on either
                 // side of the change are two regimes and wait (the text's wait rule, the ruling of 2026-11-27)
                 if is_amendment(g.row(t), o) {
-                    return g.row(t).consensus_protocol();
+                    return (g.row(t).consensus_protocol(), own);
                 }
                 let anc: Vec<usize> = self.c.cs().iter().copied().filter(|&q| g.in_past(q, t)).collect();
                 let pt = Past::new(g, t, &anc);
-                protocol_of(&pt, o)
+                (protocol_of(&pt, o), own)
             })
             .collect();
         if regimes.len() > 1 {
@@ -2508,80 +2517,169 @@ fn void_changes<R: SeatRow, S: CutSpec<R>>(
     spec: &S,
     cache: Option<&MembersAt<R>>,
 ) -> BTreeSet<R::Id> {
-    let r = p.row();
-    let Some(obj) = r.obj() else { return BTreeSet::new() };
-    let g = p.graph();
-    let anc = p.ancestors();
-    let counted = |q: usize| LineSpec::<R>::counted_act(&SeatLine, g.row(q)).is_some_and(|(o, _)| o == obj);
+    let Some(obj) = p.row().obj() else { return BTreeSet::new() };
+    void_changes_in(p.graph(), p.ancestors(), &obj, law, spec, cache)
+}
+
+/// [`void_changes`] over the rows `anc` (by index, concluded, closed under their pasts) for object `obj`: the past
+/// of a counting row, or the rows a reader's roster holds ([`roster_void`]).
+fn void_changes_in<R: SeatRow, S: CutSpec<R>>(
+    g: &Graph<'_, R>,
+    anc: &[usize],
+    obj: &ObjOf<R>,
+    law: &SeatLaw,
+    spec: &S,
+    cache: Option<&MembersAt<R>>,
+) -> BTreeSet<R::Id> {
+    let counted = |q: usize| LineSpec::<R>::counted_act(&SeatLine, g.row(q)).is_some_and(|(o, _)| o == *obj);
     let acts: Vec<usize> = anc.iter().copied().filter(|&q| counted(q)).collect();
     if acts.is_empty() {
         return BTreeSet::new();
     }
+    let held: BTreeSet<usize> = anc.iter().copied().collect();
+    let by: BTreeMap<&R::Id, &R> = anc.iter().map(|&q| (g.row(q).id(), g.row(q))).collect();
     // per change: its counted voices, and the members at its heads
     let mut info: BTreeMap<usize, (BTreeSet<R::Key>, BTreeSet<R::Key>)> = BTreeMap::new();
     for &q in &acts {
         let qa: Vec<usize> = anc.iter().copied().filter(|&x| g.in_past(x, q)).collect();
         let pq = Past::new(g, q, &qa);
         let qr = g.row(q);
-        let mem = members_at_with(&pq, law, spec, &obj, qr.head(), "member", cache);
+        let mem = members_at_with(&pq, law, spec, obj, qr.head(), "member", cache);
         let v: BTreeSet<R::Key> = voices(qr, &pq).into_iter().filter(|k| mem.contains(k)).collect();
         info.insert(q, (v, mem));
     }
-    let older = |hs: &[R::Id], than: &[R::Id]| !hs.is_empty() && hs.iter().all(|h| than.iter().any(|t| p.past(h, t)));
+    // heads strictly in the past of a held row's (a head not held is in no row's past here)
+    let older = |hs: &[R::Id], than: &[R::Id]| {
+        !hs.is_empty()
+            && hs
+                .iter()
+                .all(|h| than.iter().any(|t| g.idx(t).is_some_and(|ti| held.contains(&ti) && g.id_in_past(h, ti))))
+    };
     let behind = |q: usize, c: usize| c != q && !g.in_past(q, c) && older(g.row(q).head(), g.row(c).head());
-    // each voice's line in p: the counted changes in the past of (or equal to) a row it signed over the object
+    // each voice's rows over the object
     let keys: BTreeSet<&R::Key> = info.values().flat_map(|(v, _)| v.iter()).collect();
-    let mut lines: BTreeMap<&R::Key, Vec<usize>> = BTreeMap::new();
+    let mut signed: BTreeMap<&R::Key, Vec<usize>> = BTreeMap::new();
     for k in keys {
-        let signed: Vec<usize> = anc
+        let rows: Vec<usize> = anc
             .iter()
             .copied()
-            .filter(|&a| signed_by(g.row(a), k) && object_of(g.row(a), &|i| p.get(i)).as_ref() == Some(&obj))
+            .filter(|&a| signed_by(g.row(a), k) && object_of(g.row(a), &|i| by.get(i).copied()).as_ref() == Some(obj))
             .collect();
-        let line: Vec<usize> =
-            acts.iter().copied().filter(|&c| signed.iter().any(|&a| a == c || g.in_past(c, a))).collect();
-        lines.insert(k, line);
+        signed.insert(k, rows);
     }
     let none = Vec::new();
-    let line_of = |k: &R::Key| lines.get(k).unwrap_or(&none);
-    let makers = |q: usize| -> Vec<usize> {
-        info[&q].0.iter().flat_map(|k| line_of(k).iter().copied().filter(move |&c| behind(q, c))).collect()
+    // the changes q is behind that k acknowledged by a row without q in its past (a merge of both lines is no fork)
+    let forked_by = |q: usize, k: &R::Key| -> Vec<usize> {
+        signed
+            .get(k)
+            .unwrap_or(&none)
+            .iter()
+            .copied()
+            .filter(|&a| a != q && !g.in_past(q, a))
+            .flat_map(|a| acts.iter().copied().filter(move |&c| (c == a || g.in_past(c, a)) && behind(q, c)))
+            .collect()
     };
+    let makers = |q: usize| -> Vec<usize> { info[&q].0.iter().flat_map(|k| forked_by(q, k)).collect() };
     let forked = |q: usize| {
         let v = &info[&q].0;
-        !v.is_empty() && v.iter().all(|k| line_of(k).iter().any(|&c| behind(q, c)))
+        !v.is_empty() && v.iter().all(|k| !forked_by(q, k).is_empty())
     };
     let out: BTreeSet<usize> = acts.iter().copied().filter(|&q| forked(q)).collect();
     if out.is_empty() {
         return BTreeSet::new();
     }
     let forkers: BTreeSet<&R::Key> = out.iter().flat_map(|q| info[q].0.iter()).collect();
-    let plain = built_closure(g, &acts, &out, &|_| false);
-    let seated_on: BTreeSet<&R::Key> = plain.iter().flat_map(|&i| g.row(i).to().iter()).collect();
-    let rescued = |q: usize| {
+    let seated_of = |set: &BTreeSet<usize>| -> BTreeSet<R::Key> {
+        built_closure(g, &acts, set, &|_| false).iter().flat_map(|&i| g.row(i).to().iter().cloned()).collect()
+    };
+    let seated_on = seated_of(&out);
+    // the keys that signed the other chain: the counted voices of the roots' makers and of their chain back to the
+    // fork point (the counted changes in their past that are not in q's own), who cannot rescue q
+    let both = |q: usize, roots: &[usize]| -> BTreeSet<R::Key> {
+        let mk: Vec<usize> = roots.iter().flat_map(|&f| makers(f)).collect();
+        let chain: BTreeSet<usize> = acts
+            .iter()
+            .copied()
+            .filter(|&c| mk.contains(&c) || (c != q && !g.in_past(c, q) && mk.iter().any(|&m| g.in_past(c, m))))
+            .collect();
+        chain.iter().flat_map(|c| info[c].0.iter().cloned()).collect()
+    };
+    let rescued_by = |q: usize, roots: &[usize], seated: &BTreeSet<R::Key>| {
         let mem_q = &info[&q].1;
+        let other = both(q, roots);
         acts.iter().any(|&p2| {
             (p2 == q || g.in_past(q, p2))
-                && info[&p2].0.iter().any(|k| !forkers.contains(k) && !seated_on.contains(k) && mem_q.contains(k))
+                && info[&p2]
+                    .0
+                    .iter()
+                    .any(|k| !forkers.contains(k) && !seated.contains(k) && !other.contains(k) && mem_q.contains(k))
         })
     };
-    let mut void: BTreeSet<usize> = out.iter().copied().filter(|&q| !rescued(q)).collect();
+    // the self-forked changes first, each against its own makers
+    let mut void: BTreeSet<usize> = out.iter().copied().filter(|&q| !rescued_by(q, &[q], &seated_on)).collect();
     // the tie: kept where every change it is behind is void-eligible with no rescuer too
     let elig = built_closure(g, &acts, &void, &|_| false);
     void.retain(|&q| makers(q).iter().any(|c| !elig.contains(c)));
+    // then a change built on a void one, against the makers of the void self-forked changes in its past; the keys
+    // seated by the void chains rescue nothing built on them
+    let seated_void = seated_of(&void);
+    let roots: Vec<usize> = void.iter().copied().collect();
+    let rescued = |q: usize| {
+        let mine: Vec<usize> = roots.iter().copied().filter(|&f| f == q || g.in_past(f, q)).collect();
+        rescued_by(q, &mine, &seated_void)
+    };
     built_closure(g, &acts, &void, &rescued).into_iter().map(|i| g.row(i).id().clone()).collect()
+}
+
+/// S'' over the rows a reader's roster holds (`c`'s concluded rows), for each object a counted act is over, as if
+/// one row had them all in its past: the changes the roster leaves out (they neither add nor remove members).
+fn roster_void<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    reader: Option<&BTreeSet<R::Id>>,
+) -> BTreeSet<usize> {
+    let objs: BTreeSet<ObjOf<R>> =
+        c.cs().iter().filter_map(|&i| LineSpec::<R>::counted_act(&SeatLine, c.g.row(i)).map(|(o, _)| o)).collect();
+    let cache = MembersAt::<R>::default();
+    if let Some(rv) = reader {
+        *cache.rvoid.borrow_mut() = rv.clone();
+    }
+    let mut out = BTreeSet::new();
+    for obj in &objs {
+        for id in void_changes_in(&c.g, c.cs(), obj, law, spec, Some(&cache)) {
+            if let Some(i) = c.g.idx(&id) {
+                out.insert(i);
+            }
+        }
+    }
+    out
 }
 
 /// The counted changes void for a reader's own counted row `a` (index in `c`): the line does not take them as
 /// acknowledged by it (a fork head it had to name).
-fn ack_void<R: SeatRow, S: CutSpec<R>>(c: &Concluded<'_, R>, law: &SeatLaw, spec: &S, a: usize) -> BTreeSet<usize> {
+fn ack_void<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    a: usize,
+    reader: Option<&BTreeSet<R::Id>>,
+) -> BTreeSet<usize> {
+    // in the rows concluded for a reader, the changes its line voided are left out of its own counted rows too, and
+    // the row's own void is read with them (the reference's _ack_void reads the same)
+    let mut out: BTreeSet<usize> = reader.map(|rv| rv.iter().filter_map(|i| c.g.idx(i)).collect()).unwrap_or_default();
     let ar = c.g.row(a);
     if LineSpec::<R>::counted_act(&SeatLine, ar).is_none() {
-        return BTreeSet::new();
+        return out;
     }
     let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| c.g.in_past(q, a)).collect();
     let pa = Past::new(&c.g, a, &anc);
-    void_changes(&pa, law, spec, None).iter().filter_map(|i| c.g.idx(i)).collect()
+    let cache = MembersAt::<R>::default();
+    if let Some(rv) = reader {
+        *cache.rvoid.borrow_mut() = rv.clone();
+    }
+    out.extend(void_changes(&pa, law, spec, Some(&cache)).iter().filter_map(|i| c.g.idx(i)));
+    out
 }
 
 /// The rows as they conclude for reader `own` (the ruling of 2026-11-27, the reader-line exclusion): the changes
@@ -2596,7 +2694,7 @@ pub fn for_reader<'a, R: SeatRow, S: CutSpec<R>>(
     own: &R::Key,
 ) -> (Concluded<'a, R>, BTreeSet<R::Id>) {
     let rv: BTreeSet<R::Id> =
-        line::void_except(c, &SeatLine, Some(own), |_| true, |_| false, &|a: usize| ack_void(c, law, spec, a))
+        line::void_except(c, &SeatLine, Some(own), |_| true, |_| false, &|a: usize| ack_void(c, law, spec, a, None))
             .into_iter()
             .map(|i| c.g.row(i).id().clone())
             .collect();
@@ -2646,7 +2744,7 @@ pub fn members_in_scopes<R: SeatRow, S: CutSpec<R>>(
     let sub: Vec<&R> =
         rows.iter().copied().filter(|q| at(q) || q.seat_kind() == SeatKind::Withdraw || acc.contains(q.id())).collect();
     let sc = concluded_over(sub);
-    let seats = Seats::new(&sc, law, spec, None);
+    let seats = Seats::build(&sc, law, spec, None, None, None);
     scopes.iter().map(|scope| seats.holders(scope, obj, None)).collect()
 }
 
@@ -3589,7 +3687,7 @@ fn ender<R: SeatRow, S: CutSpec<R>>(
         return false;
     }
     let sc = concluded_over(p.rows());
-    let sole = Seats::new(&sc, law, spec, None);
+    let sole = Seats::build(&sc, law, spec, None, None, None);
     sole.one(us.as_ref(), &obj).as_ref() == Some(r.signer())
 }
 

@@ -189,7 +189,10 @@ trusting an adapter.
   versions), what it had read as concluded on the first line is then waiting, like any tip that turns out to have a
   sibling (the regime wait). A store should not treat a founders' act over an infrastructure room as final on the
   strength of one line.
-  **The residual, stated:** a reader with no row of its own, facing a silent colluder's packing chain under the
+  A reader's roster (`Seats::new`, `Seats::for_reader`) reads S'' over the rows it holds: a change self-forked
+  there neither adds nor removes members. The readings of one line inside the kernel do not.
+  **The residual, stated:** a fork point with no member who signed only one chain (a room founded by one key), for a
+  reader with no row; and a reader with no row of its own, facing a silent colluder's packing chain under the
   same protocol (a fork whose voices never acknowledged the honest line), reads the fork's admissions folded in;
   and a newcomer admitted on the fork takes its past from its admitter (CC 3.3.4).
   A seat is two consents: an admission the joiner does not sign

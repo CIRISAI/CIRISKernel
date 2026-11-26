@@ -708,9 +708,13 @@ def own_keys(by, obj):
 
 # ---- derived: the live seats ---------------------------------------------------------------------------
 class Seats:
-    def __init__(self, S, holds=HOLDS, confers=CONFERS, depth=DEPTH, by_arrival=False, own=None, checkpoint=False, drop=None):
+    def __init__(self, S, holds=HOLDS, confers=CONFERS, depth=DEPTH, by_arrival=False, own=None, checkpoint=False, drop=None,
+                 roster=True):
+        """`roster`: a reader's roster (the public reading): S'' is read over the rows it holds, as if a row had them all
+        in its past, and a change void there neither adds nor removes members (the second review of 58b). The readings
+        of a line inside the kernel (one tip, a head's past) pass False."""
         # the reader's roster is read over the rows as they conclude FOR THIS READER (reader_state)
-        if own is not None and getattr(S, "_reader", None) != own:
+        if roster and own is not None and getattr(S, "_reader", None) != own:
             S = reader_state(S, own)
         self.S, self.holds, self.confers, self.own = S, holds, confers, own
         # the reader's line is read before the cut: a counted act void for this reader cuts nothing for it (CC 2.7.8).
@@ -721,6 +725,10 @@ class Seats:
         # (MUTATION line_after_cut: the first pass reads the cut, not every row as counting)
         first = CUT.Cut(S) if "line_after_cut" in MUT else CP.EVERY
         L = CP.void(S, first, own, checkpoint) if own is not None and "cut_before_line" not in MUT else frozenset()
+        # the roster's own S'' void: the changes self-forked over the rows held cut nothing and seat nothing (MUTATION
+        # void_cuts_in_roster: they do)
+        if roster and "void_cuts_in_roster" not in MUT:
+            L = L | roster_void(S)
         self.cut = C = CUT.Cut(S, without=L)
         Cs = S.Cs
         wd = K.sel(Cs, kind="withdraw")
@@ -873,7 +881,7 @@ class Seats:
         S, out = self.S, None
         for t in tp:
             sub = self._tip_rows(t, o)                                                          # one tip: no further recursion
-            Q = Seats(CK.State(sub, {q["id"]: True for q in sub}), self.holds, self.confers, drop=self.dropped)
+            Q = Seats(CK.State(sub, {q["id"]: True for q in sub}), self.holds, self.confers, drop=self.dropped, roster=False)
             m = frozenset(r["k"] for r in K.sel(Q.recs, obj=o) if Q._has(r, s))
             out = m if out is None else out & m
         return out
@@ -890,7 +898,7 @@ class Seats:
 
     def _at(self, rows):
         """The seats read over a sub-set of the concluded rows (one line: no further recursion into tips)."""
-        return Seats(CK.State(rows, {q["id"]: True for q in rows}), self.holds, self.confers, drop=self.dropped)
+        return Seats(CK.State(rows, {q["id"]: True for q in rows}), self.holds, self.confers, drop=self.dropped, roster=False)
 
     def tips_fold(self, s, o):
         """KERNEL.md section 7, the fold at tips (models/roster_fork/fold.py): with several tips, the keys holding
@@ -923,7 +931,12 @@ class Seats:
         # a tip that is itself a change of the record's protocol is under its new protocol (MUTATION
         # regime_before_change: read in its past, so tips on either side of the change fold)
         own = lambda t: "regime_before_change" not in MUT and t.get("scope") == "record" and t.get("consensus_protocol")
-        if len({regime_of(t, {q["id"]: q for q in sub if q["id"] != t["id"] or own(t)}) for t, sub, _, _ in lines}) > 1 \
+        # a tip that changes the record's founder set (a founder's seating) is a regime of its own too: tips on either
+        # side of it wait at their common members (MUTATION regime_protocol_only: only the protocol splits regimes)
+        founders = lambda t: "regime_protocol_only" not in MUT and t["kind"] in ("offer", "unseat") and t.get("scope") == "founder"
+        regime = lambda t, sub: (regime_of(t, {q["id"]: q for q in sub if q["id"] != t["id"] or own(t)}),
+                                 t["id"] if founders(t) else None)
+        if len({regime(t, sub) for t, sub, _, _ in lines}) > 1 \
                 and "regime_folds" not in MUT:
             memo[(s, o)] = common
             return common
@@ -1216,7 +1229,7 @@ def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
     nows = {}
 
     def now(drop):
-        if drop not in nows: nows[drop] = Seats(S, holds, confers, depth, own=own, checkpoint=checkpoint, drop=drop)
+        if drop not in nows: nows[drop] = Seats(S, holds, confers, depth, own=own, checkpoint=checkpoint, drop=drop, roster=False)
         return nows[drop]
     lone_ids = frozenset(x["id"] for x in acts)
     by = {x["id"]: x for x in acts}
@@ -1332,40 +1345,81 @@ def _void_changes(r, P):
         qP = [x for x in P if past(x["id"], q["id"])]
         mem_q = members_at(qP, past, obj, q["head"])
         info[q["id"]] = (voices(q, qP) & mem_q, mem_q)
-    # each voice's line in P: the counted changes in the past of (or equal to) a row it signed or cosigned over obj
-    lines = {}
-    def line_of(k):
-        if k not in lines:
-            signed = [a for a in P if (a["signer"] == k or k in a.get("cosigners", ())) and CP.object_of(a, S.by) == obj]
-            lines[k] = [c for c in acts if any(c["id"] == a["id"] or c["id"] in S.anc[a["id"]] for a in signed)]
-        return lines[k]
+    # each voice's rows in P over obj; a voice k of q forked against q where a row k signed WITHOUT q in its past
+    # acknowledges a change q is behind (a row with q in its past, a merge of both lines, is no fork)
+    signed_rows = {}
+    def signed(k):
+        if k not in signed_rows:
+            signed_rows[k] = [a for a in P if (a["signer"] == k or k in a.get("cosigners", ())) and CP.object_of(a, S.by) == obj]
+        return signed_rows[k]
+    def forked_by(q, k):
+        """The changes q is behind that k acknowledged by a row without q in its past."""
+        return [c for a in signed(k) if a["id"] != q["id"] and not past(q["id"], a["id"])
+                for c in acts if (c["id"] == a["id"] or c["id"] in S.anc[a["id"]]) and CP.behind(S, q, c)]
     def makers(q):
-        return [c for k in info[q["id"]][0] for c in line_of(k) if CP.behind(S, q, c)]
+        return [c for k in info[q["id"]][0] for c in forked_by(q, k)]
     def forked(q):
         v = info[q["id"]][0]
-        return bool(v) and all(any(CP.behind(S, q, c) for c in line_of(k)) for k in v)
+        return bool(v) and all(forked_by(q, k) for k in v)
     out = {q["id"] for q in acts if forked(q)}
     if not out: return frozenset()
     forkers = set().union(*[info[i][0] for i in out])
     plain = _built_closure(acts, out)
     seated_on = set().union(*[set(S.by[i].get("to", ())) for i in plain])
-    def rescued(q):
+    def both(q, roots):
+        """The keys that signed the other chain: the counted voices of the makers of `roots` (q itself where it is
+        self-forked; for a change built on a void one, the void self-forked changes in its past) and of their chain
+        back to the fork point (the counted changes in their past that are not in q's own), who cannot rescue q
+        (MUTATION rescuer_signed_both: they can)."""
+        if "rescuer_signed_both" in MUT: return set()
+        mk = [c for f in roots for c in makers(f)]
+        chain = {c["id"] for c in mk} | {c["id"] for c in acts if c["id"] != q["id"] and not past(c["id"], q["id"])
+                                         and any(past(c["id"], m["id"]) for m in mk)}
+        return set().union(*[info[i][0] for i in chain]) if chain else set()
+    def rescued_by(q, roots, seated):
         if "rescue_unread" in MUT: return False
         mem_q = info[q["id"]][1]
-        return any((p["id"] == q["id"] or past(q["id"], p["id"])) and (info[p["id"]][0] - forkers - seated_on) & mem_q
+        other = both(q, roots)
+        return any((p["id"] == q["id"] or past(q["id"], p["id"])) and (info[p["id"]][0] - forkers - seated - other) & mem_q
                    for p in acts)
-    void = {i for i in out if not rescued(S.by[i])}
+    # the self-forked changes first, each against its own makers; then a change built on a void one, against the
+    # makers of the void self-forked changes in its past
+    void = {i for i in out if not rescued_by(S.by[i], [S.by[i]], seated_on)}
     if "tie_unread" not in MUT:
         elig = _built_closure(acts, void)
         void = {i for i in void if any(c["id"] not in elig for c in makers(S.by[i]))}
+    roots = set(void)
+    # the keys seated by the void chains (not by a rescued one) rescue nothing built on them
+    seated_void = set().union(*[set(S.by[i].get("to", ())) for i in _built_closure(acts, roots)]) if roots else set()
+    rescued = lambda q: rescued_by(q, [S.by[f] for f in roots if f == q["id"] or past(f, q["id"])], seated_void)
     return frozenset(_built_closure(acts, void, rescued))
+
+
+def roster_void(S):
+    """S'' over the rows S holds, for each room a counted act is over, as if one row had them all in its past: the
+    changes a reader's roster leaves out (they neither add nor remove members)."""
+    out = set()
+    # over the rows concluded for a reader, its line's void is in force (the crate's roster_void reads the same)
+    _RVOID.append(frozenset(getattr(S, "_rvoid", frozenset())))
+    try:
+        for obj in sorted({r["obj"] for r in S.Cs if CP.is_counted_act(r, r.get("obj"))}, key=str):
+            out |= void_changes({"id": ("roster", obj), "obj": obj, "kind": "roster"}, S.Cs)
+    finally:
+        _RVOID.pop()
+    return frozenset(out)
 
 
 def _ack_void(S, a):
     """The counted acts void for a reader's own counted row a (checkpoint.own_line)."""
     P = [q for q in S.Cs if q["id"] in S.anc.get(a["id"], ())]
-    # in the rows concluded for a reader, the changes its line voided are left out of its own counted rows too
-    return (void_changes(a, P) if a.get("obj") is not None else frozenset()) | getattr(S, "_rvoid", frozenset())
+    # in the rows concluded for a reader, the changes its line voided are left out of its own counted rows too, and the
+    # row's own void is read with them (the crate's ack_void reads the same)
+    rv = getattr(S, "_rvoid", frozenset())
+    _RVOID.append(frozenset(rv))
+    try:
+        return (void_changes(a, P) if a.get("obj") is not None else frozenset()) | rv
+    finally:
+        _RVOID.pop()
 
 
 CP.ACK_VOID = _ack_void
@@ -1483,7 +1537,7 @@ def seats_of(rows):
            repr(sorted(ENDS.items())))
     got = _SEATS_OF.get(key)
     if got is None:
-        got = _SEATS_OF[key] = (tuple(rows), Seats(CK.State(list(rows), {q["id"]: True for q in rows})))
+        got = _SEATS_OF[key] = (tuple(rows), Seats(CK.State(list(rows), {q["id"]: True for q in rows}), roster=False))
     return got[1]
 
 
@@ -1736,7 +1790,7 @@ def _ender(r, P, by):
     # it ends another scope's seat of the object's own key, or (the same scope) the ender's own seat
     if tuple(r["to"]) != ((r["signer"],) if r["scope"] == up["scope"] else (r["obj"],)): return False
     if "owner_unread" in MUT: return True                         # MUTATION: the binding named is enough
-    sole = Seats(CK.State(P, {q["id"]: True for q in P}))
+    sole = Seats(CK.State(P, {q["id"]: True for q in P}), roster=False)
     if "owner_any_live" in MUT: return sole.stands(r["signer"], up["scope"], r["obj"])
     return sole.one(up["scope"], r["obj"]) == r["signer"]
 

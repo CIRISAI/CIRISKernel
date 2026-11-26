@@ -69,13 +69,15 @@ plant "a window opened at an old head (H1)" src/window.rs '            && seat::
 plant "the line not sibling-safe (H5)" src/line.rs 'm != r && beside && !never_behind(r) && older(c, heads(r), heads(m))' 'm != r && beside && !never_behind(r) && older(c, heads(r), core::slice::from_ref(c.g.row(m).id()))'
 plant "versions behind not sibling-safe (H5)" src/line.rs 'bi.iter().all(|e| bj.iter().any(|&h| past(h).contains(e)))' 'bi.iter().all(|e| past(j).contains(e))'
 plant "no change self-forked (S'')" src/seat.rs '    let out: BTreeSet<usize> = acts.iter().copied().filter(|&q| forked(q)).collect();' '    let out: BTreeSet<usize> = acts.iter().copied().filter(|&q| false && forked(q)).collect();'
-plant "no rescue (S'')" src/seat.rs '    let mut void: BTreeSet<usize> = out.iter().copied().filter(|&q| !rescued(q)).collect();' '    let mut void: BTreeSet<usize> = out.clone();'
+plant "no rescue (S'')" src/seat.rs '    let mut void: BTreeSet<usize> = out.iter().copied().filter(|&q| !rescued_by(q, &[q], &seated_on)).collect();' '    let mut void: BTreeSet<usize> = out.clone();'
 plant "no tie (S'')" src/seat.rs '    void.retain(|&q| makers(q).iter().any(|c| !elig.contains(c)));' ''
 plant "the tips intersected, not folded" src/seat.rs 'hs.iter().any(|&hi| q == hi || g.ancestors(hi).has(q))' 'hs.iter().all(|&hi| q == hi || g.ancestors(hi).has(q))'
 plant "a record-change tip read in its past (regime)" src/seat.rs '                if is_amendment(g.row(t), o) {' '                if false {'
 plant "no reader exclusion" src/seat.rs '    *cache.rvoid.borrow_mut() = rv.clone();' ''
-plant "an own counted row acknowledges its void" src/seat.rs '            let mut x = ack_void(c, law, spec, a);' '            let mut x = BTreeSet::new();'
 plant "acknowledging un-voids (the line not monotone)" src/line.rs '            .filter(|&r| r == *a || (!ex.contains(&r) && !held.contains(&r)))' '            .filter(|&r| r == *a || !ex.contains(&r))'
+plant "a void change cuts in the roster" src/seat.rs '            behind.extend(roster_void(c, law, spec, reader));' ''
+plant "a rescuer that signed both chains" src/seat.rs '        let mk: Vec<usize> = roots.iter().flat_map(|&f| makers(f)).collect();' '        let mk: Vec<usize> = Vec::new();'
+plant "only the protocol splits regimes" src/seat.rs '                let own = founders(t).then_some(t);' '                let own: Option<usize> = None;'
 plant "a lone holder's standing duty offer unread" src/seat.rs '    if pol == Some(Policy::DutyConfer) && mem.len() < 2 && lone_offer_stands(law, p, r, &mem) {' '    if false {'
 plant "a lone holder's standing duty offer read for its own scope only" src/seat.rs '            && o.scope().is_some_and(|s| law.is_duty(s.as_ref(), &declared))' '            && o.scope() == r.scope()'
 plant "a duty holder's own conferral is no counted change" src/seat.rs '    room.is_some_and(|declared| own_conferral(law, q, obj, declared))' '    room.is_some_and(|declared| false && own_conferral(law, q, obj, declared))'
@@ -323,8 +325,8 @@ plant "a change of the record's protocol unread"         src/seat.rs '    if am.
 plant 'a change of the record no act'                   src/seat.rs '            if offer && sc == "record" {' '            if false {'
 plant 'a stated regime unread'                          src/seat.rs '                if r.regime().is_some_and(|g| r.obj().and_then(|o| protocol_of(p, &o)) != Some(g)) {' '                if false {'
 plant 'tips read by their stated regime'                src/seat.rs '                if self.law.acts.is_none() {
-                    return g.row(t).regime();' '                if true {
-                    return g.row(t).regime();'
+                    return (g.row(t).regime(), own);' '                if true {
+                    return (g.row(t).regime(), own);'
 plant 'the acts table read by no count'                  src/seat.rs '    if law.acts.is_some() {
         match (act_of(law, get, r), r.obj()) {' '    if false {
         match (act_of(law, get, r), r.obj()) {'

@@ -97,11 +97,15 @@ def win(rows, pid="p", **kw):
 
 
 def cp_versions(W, S, ack=None, group=False):
-    """checkpoint.versions over a roster_fork world: (certain, possible, the roster common to the certain tips)."""
+    """checkpoint.versions over a roster_fork world: (certain, possible, the roster of the certain tips). The roster is
+    the text's fold of the tips (roster_fork's fold.fold, CC 2.7.8: a member a sibling tip removed is out, one a tip
+    added is in where its version meets its count on the voices the fold seats), not their common members."""
+    import fold as FD
     vs = W.vs
     T, U = CP.versions(sorted(S), {i: vs[i]["E"] for i in S}, {i: vs[i]["past"] for i in S}, W.valid, ack, group)
-    r = W.ALL
-    for t in FK.tips_of(W, S, sorted(T)): r &= vs[t]["R"]
+    if not hasattr(W, "auth"): W.auth, W.pol = {}, {0: 0}
+    if not hasattr(W, "meets_pol"): W.meets_pol = lambda s, b, pol, drop=0: W.meets(s, b, drop)
+    r = FD.fold(W, set(T))[0]
     return T, U, r
 
 
@@ -412,16 +416,17 @@ def t07(t):
     ref, bad = free([g, mk, d, ak, d2], SEAT, ans); t.order(bad)
     t.fact("f1 and f2 confer K's duty, then K, f2 and f3 confer J's: f1, K, J stand = %s" % (ref,), ref == (True, True, True))
     ref, bad = free([g, mk, d, ak, d2, c3, xf], SEAT, ans); t.order(bad)
-    t.fact("concurrently f2 and f3 withdraw f1, counted over the founding head: two tips. f1 is out; K waits, since its conferral needed f1's voice; "
-           "J, conferred by the common holders f2 and f3, is folded in: f1, K, J stand = %s in every order" % (ref,), ref == (False, False, True))
+    t.fact("concurrently f2 and f3 withdraw f1, counted over the head before K's conferral, though both signed J's conferral, which the withdrawal "
+           "is behind: the withdrawal is self-forked (S''), void in every roster, and cuts nothing; it is signed again at the newer head: "
+           "f1, K, J stand = %s in every order" % (ref,), ref == (True, True, True))
     # f1's membership was its founding duty seat, which the withdrawal ended: a duty seat stands only on a member, so f1 is
     # admitted again by the version that names both tips (counted over the four members common to them), and its duty is
     # then conferred over that version by three of the four duty holders
     cm = [ST.cosign("cm3", "f3", "m2", ("xf", "d2")), ST.cosign("cmk", "K", "m2", ("xf", "d2"))]
     m2 = ST.offer("m2", "f2", "f1", "member", "g", "group", ("xf", "d2", "cm3", "cmk"), head=("xf", "d2"), policy="community_invite", content="m2", cosigners=("f1",))
     ref, bad = free([g, mk, d, ak, d2, c3, xf] + cm + [m2], SEAT, ans); t.order(bad)
-    t.fact("a version naming both tips (f2, f3 and K admit f1 again): f1, K, J stand = %s; the grants were never ended, since holders are equals (CC 4.5.4 (iii)), "
-           "and f1's ended duty seat is not revived by its admission" % (ref,), ref == (False, True, True))
+    t.fact("a version naming both (f2, f3 and K admit f1 again): f1, K, J stand = %s; the grants were never ended, since holders are equals (CC 4.5.4 (iii)), "
+           "and the void withdrawal ended nothing" % (ref,), ref == (True, True, True))
     cr = [ST.cosign("cr", "f3", "g2", ("m2",)), ST.cosign("crk", "K", "g2", ("m2",))]
     g2 = ST.offer("g2", "f2", "f1", "duty", "g", "group", ("m2", "cr", "crk"), head=("m2",), policy="duty_confer", content="g2", counted="duty", cosigners=("f1",))
     ref, bad = free([g, mk, d, ak, d2, c3, xf] + cm + [m2] + cr + [g2], SEAT, ans); t.order(bad)

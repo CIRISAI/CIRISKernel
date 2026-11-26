@@ -45,7 +45,7 @@ MUT = set()            # planted breaks, switched on by a check
 def older(S, heads, than):
     """Every row of `heads` is strictly in the past of one of `than`. (Read over the newest of the heads it is the
     same: a named head in the past of another named head is in the past of whatever that one is.)"""
-    return bool(heads) and all(any(h in S.anc[t] for t in than) for h in heads)
+    return bool(heads) and all(any(h in S.anc.get(t, ()) for t in than) for h in heads)
 
 
 def behind(S, r, c):

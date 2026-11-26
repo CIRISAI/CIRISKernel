@@ -298,9 +298,20 @@ CASES = [
     # ---- two tips -----------------------------------------------------------------------------------------------
     ("two tips: the holder is removed on one and another member is admitted on the other; the duty seat is out under the fold",
      [G, MD, CD, XD, admit("me", "E", ("A", "B", "C"), ("cd",))], [("D", "moderate", F), ("D", "member", F), ("E", "member", T), ("A", "moderate", T)], None),
-    ("two tips: a key admitted on one tip by the voice of a member the other tip removed is out of the folded roster, and so is the duty seat conferred on it there",
+    ("two tips: A and B remove C at the founding head and, on the other tip, confer moderate on D over C's admission of "
+     "D: the removal is self-forked (A and B signed the conferral it is behind; S'', the ruling of 2026-11-27), void in "
+     "the roster, and cuts nothing: C stays, D and its duty seat stand",
      [G, remove("xc", "C", ("A", "B"), ("g",)), admit("md", "D", ("B", "C"), ("g",)), confer("cd", "D", "moderate", ("A", "B"), ("md",))],
-     [("D", "member", F), ("D", "moderate", F), ("D", "duty", F), ("A", "moderate", T), ("C", "member", F)], None),
+     [("D", "member", T), ("D", "moderate", T), ("D", "duty", T), ("A", "moderate", T), ("C", "member", T)], None),
+    ("two tips, the remover on one only: in a room under the protocol `one`, A removes C at the founding head; C "
+     "admits D there, and B, the lone moderator, confers moderate on D over that admission: C's removal is no "
+     "self-fork (A signed nothing else), so the fold takes C out, D's admission meets no count on the voices the fold "
+     "seats, and D's duty seat falls with its member seat",
+     [ST.found("g", "A", ("A", "B", "C"), {"moderate": ("B",)}, cosigners=("B", "C"), consensus_protocol="one"),
+      ST.unseat("xc", "A", "C", "member", OBJ, "group", ("g",), head=("g",), policy="community_remove"),
+      ST.offer("md", "C", "D", "member", OBJ, "group", ("g",), head=("g",), policy="cosigned_act", cosigners=("D",)),
+      confer("cd", "D", "moderate", ("B",), ("md",))],
+     [("D", "member", F), ("D", "moderate", F), ("C", "member", F)], None),
     # ---- what the rule does not reach -----------------------------------------------------------------------------
     # ---- CIRISConstitution#241: a duty is conferred by its holders, the founding record or an election -------------------
     (DG + "a member-only founding, handed one (the text refuses it at the door: founding_duty_holders_unnamed): the "
