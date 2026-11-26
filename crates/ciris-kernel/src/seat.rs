@@ -2696,6 +2696,18 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
             None => true,
             Some(o) => by.get(o).is_some_and(|o| o.to().contains(r.signer())),
         },
+        // (2): an end of a seat that has an end of that seat in its own past is no end: a second withdrawal by its
+        // signer of the same row and the same seat concludes nothing
+        SeatKind::Withdraw
+            if p.rows().any(|w| {
+                w.seat_kind() == SeatKind::Withdraw
+                    && w.signer() == r.signer()
+                    && w.target() == r.target()
+                    && w.scope() == r.scope()
+            }) =>
+        {
+            false
+        }
         SeatKind::Withdraw => match r.target().and_then(|t| by.get(t)) {
             Some(t) => signed_by(*t, r.signer()) || (t.seat_kind() == SeatKind::Offer && t.to().contains(r.signer())),
             None => false,

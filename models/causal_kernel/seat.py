@@ -783,9 +783,12 @@ def closure(Ek, rows, past, obj):
         return "leaving_after_receipt_voids" not in MUT and any(past(a["id"], d["id"]) for a in by_p.get(k, ()))
     gone = frozenset() if "close_leavers_kept" in MUT else frozenset(
         k for k, d in departures(rows, past, obj) if not any(held_receipt(k, d2) for k2, d2 in departures(rows, past, obj) if k2 == k))
-    # H2: the base is the UNION of the members at every end any seating of the election names, over the rows held
-    # (each seating still counts its own electorate, C1/F2) (MUTATION base_per_seating_electorate)
-    union = frozenset().union(*[view(q)[1] for q in seat_ids.values()])
+    # the base is the INTERSECTION of the members at every end any seating of the election names, over the rows held:
+    # C1 applied election-wide (each seating still counts its own electorate, C1/F2). A lay-down that does not stand
+    # for the reader (H4: behind its line) is no end for it; that comes with the head rules (MUTATIONS
+    # base_per_seating_electorate: each group its own seating's electorate; close_base_union: the union)
+    els = [frozenset(view(q)[1]) for q in seat_ids.values()]
+    union = frozenset().union(*els) if "close_base_union" in MUT else frozenset.intersection(*els)
     met_ = []
     for group, rs in sorted(says.items(), key=lambda x: sorted(x[0])):
         S = next(q for q in seat_ids.values() if view(q)[2] == group)
@@ -1788,6 +1791,12 @@ def seat_rule(r, P, past, table=None, other=None):
         return r["of"] is None or (r["of"] in by and r["signer"] in by[r["of"]].get("to", ()))
     if k == "withdraw":
         t = by.get(r["target"])
+        # (2): an end of a seat that has an end of that seat in its own past is no end: a second withdrawal by its
+        # signer of the same row and the same seat concludes nothing (MUTATION end_of_ended_seat)
+        if "end_of_ended_seat" not in MUT and any(
+                w["kind"] == "withdraw" and w["signer"] == r["signer"] and w.get("target") == r["target"]
+                and w.get("scope") == r.get("scope") for w in P):
+            return False
         return t is not None and (r["signer"] in signers(t) or (t["kind"] == "offer" and r["signer"] in t["to"]))
     if k == "cosign":
         return True

@@ -370,13 +370,16 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             .filter(|(k, _)| !deps.iter().any(|(k2, d2)| k2 == k && held(k2, *d2)))
             .map(|(k, _)| k.clone())
             .collect();
-        // H2: the base is the UNION of the members at every end any seating of the election names, over the rows
-        // held (each seating still counts its own electorate)
-        let union: BTreeSet<R::Key> = seats.iter().flat_map(|&q| self.view(q).1).collect();
+        // the base is the INTERSECTION of the members at every end any seating of the election names, over the rows
+        // held: C1 applied election-wide (each seating still counts its own electorate). A lay-down that does not
+        // stand for the reader (H4: behind its line) is no end for it; that comes with the head rules
+        let mut els = seats.iter().map(|&q| self.view(q).1);
+        let first = els.next().unwrap_or_default();
+        let common: BTreeSet<R::Key> = els.fold(first, |acc, e| acc.intersection(&e).cloned().collect());
         let mut met: Vec<&BTreeSet<R::Id>> = Vec::new();
         for (group, rs) in &says {
             let Some(&s) = seats.iter().find(|&&q| self.view(q).2 == *group) else { continue };
-            let el = union.clone();
+            let el = common.clone();
             let Some(winner) = self.row(s).to().first() else { continue };
             let mut base = el.clone();
             base.remove(winner);

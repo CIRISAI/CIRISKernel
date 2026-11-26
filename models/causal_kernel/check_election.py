@@ -603,7 +603,7 @@ CASES += [
 # (5) the room of four: winners A (S1, signed by A) and B (S2, signed by B), voters C and D; B and C receipt S1, A and
 # D receipt S2. A seating is its signer's say (i): a winner that receipts the rival has said two things. Without (i)
 # nobody forks (each winner is outside its own seating's base) and both close two of three. With (i), over the ONE base
-# the election has for a reader (the union of the members at every end any of its seatings names, less the departed
+# the election has for a reader (the intersection of the members at every end any of its seatings names, less the departed
 # whose leaving does not hold their receipt and the forkers, over the rows held: n keys), no
 # two seatings of one election both close: a key receipting both forks, and a winner receipting the rival forks, so
 # the two receipter sets are disjoint and hold neither winner; each must be more than half of that base less its own
@@ -716,9 +716,12 @@ G3X = [ballot("xb", "B", "B", ("lm1", "lm2", "bb")), ballot("xc", "C", "B", ("lm
        ST.withdraw("wbb", "B", "bb", ("xb",)), ST.withdraw("wbc", "C", "bc", ("xc",))]
 G3B = elect("eb", "B", G3I + ("xb", "xc", "wbb", "wbc"), vac=("lm2", "lm1"))
 G3ED = elect("ed", "D", G3I, vac=("lm2",))
+G3C = N1R + [N1L2] + G3H + [G3ED] + [ack("k" + k.lower(), k, "ed") for k in "EFG"] + [N1L1] + G3X + [G3B]
 CASES += [
-    ("G3c (held): E, F and G receipt D's seating before holding B's: closed; D", N1R + [N1L2] + G3H + [G3ED]
-     + [ack("k" + k.lower(), k, "ed") for k in "EFG"] + [N1L1] + G3X + [G3B], MOD("D") + NOMOD("B"), "G3"),
+    ("G3c, the stated residual (a reader with no acknowledgement): E, F and G receipt D's seating before holding B's; "
+     "A's backdated lay-down shrinks the close's base to the founders, the newcomers' receipts fall outside it, and the "
+     "honest close fails: nobody (a backdated lay-down can shrink the close's base for a reader with no "
+     "acknowledgement, and that reaches an honest close made before the attack)", G3C, NOMOD("D", "B"), "G3, the residual"),
     ("G3d (held): the same receipts made after B's seating: not nested, nobody", N1R + [N1L2] + G3H + [G3ED, N1L1] + G3X
      + [G3B] + [ack("k" + k.lower(), k, "ed", ("eb",)) for k in "EFG"], NOMOD("B", "D"), "G3"),
 ]
@@ -732,7 +735,7 @@ H1CL = [ack("kd", "D", "s1", ("bd",)), ack("ke", "E", "s1", ("be",)), ack("kf", 
 H1B = [G6H, LM] + H1S2 + H1S1 + H1CL
 H1NX = [ST.withdraw("wc", "C", "s1", ("kd", "ke", "kf")), ballot("n1", "A", "A", ("wc",), of="s1"),
         ballot("n2", "D", "A", ("wc",), of="s1"), elect("en", "A", ("n1", "n2"), of="s1", vac=("wc",))]
-# H2: one base per election, the UNION of the members at every end any of its seatings names; nine members, A
+# H2 (base since J1: the INTERSECTION of the members at every end any of its seatings names); nine members, A
 # resigns at lm2 and six rank D; A then backdates lm1, and B and C re-ballot naming both ends
 GH2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"))
 H2R = [GH2]
@@ -757,9 +760,36 @@ CASES += [
      "of four, not closed, and the sets are not nested: nobody", H1B + [leave("lf", "F", "g", ("lm",))],
      NOMOD("B", "C"), "H1"),
     ("H2 (H2a): honest, D closed by E to I", H2HON, MOD("D"), "H2"),
-    ("H2 (H2b): B's seating over the founders' electorate (A, B, C at both ends) receipted by C: over the union base "
-     "of the election (A to I, the winner apart, A forked out) it is one of seven, and D's is five of seven: D",
-     H2HON + H2ATK, MOD("D") + NOMOD("B"), "H2"),
+    ("H2 (H2b), the stated residual (a reader with no acknowledgement): B's seating over the founders' electorate "
+     "(A, B, C at both ends) receipted by C; the close's base is the intersection over the election's ends (A, B, C), "
+     "A forked out and B the winner: C alone closes it, and D's five receipters fall outside: B",
+     H2HON + H2ATK, MOD("B") + NOMOD("D"), "H2, the residual"),
+]
+# J1 (the seventh read): A lays moderate down again on the newest admission, F and G ballot at that end. The base is
+# the intersection (C1 election-wide), so the newcomers at the second end raise no bar
+J1LM2 = ST.withdraw("lm2", "A", "g", ("g",), scope="moderate")
+J1ADM, _prev, _mem = [], "g", list("ABCDE")
+for _k in "FGHI":
+    J1ADM.append(admit("a" + _k, _k, tuple(_mem), (_prev,))); _mem.append(_k); _prev = "a" + _k
+J1H = [ballot("b" + k.lower(), k, "C", ("lm2",)) for k in "ABCDE"]
+J1S1 = elect("s1", "C", tuple(b["id"] for b in J1H), vac=("lm2",))
+J1HON = [G5, J1LM2] + J1ADM + J1H + [J1S1] + [ack("k" + k.lower(), k, "s1", ("b" + k.lower(),)) for k in "BDE"]
+J1X = [ballot("xf", "F", "F", ("lm1",)), ballot("xg", "G", "F", ("lm1",)), elect("sx", "F", ("xf", "xg"), vac=("lm1",))]
+CASES += [
+    ("J1 (J1b): A's second lay-down (lm1) on top of aI, whose chain does not hold lm2: no second end of an ended seat, "
+     "but A's two lay-downs, both read as vacancies, are A saying two things; the base, the intersection of the members "
+     "at lm2 and lm1 (A to E), less A and the winner C: B, D, E close it three of three: C",
+     J1HON + [ST.withdraw("lm1", "A", "g", ("aI",), scope="moderate")] + J1X, MOD("C") + NOMOD("F"), "J1"),
+    ("J1, (2): the variant where lm1 has lm2 in its past: an end of a seat with an end of that seat in its own past is "
+     "no end; lm1 concludes nothing, F's seating reads no vacancy: C",
+     J1HON + [ST.withdraw("lm1", "A", "g", ("aI", "lm2"), scope="moderate")] + J1X, MOD("C") + NOMOD("F"), "J1, (2)"),
+]
+# (2), read by conclusion: (name, rows, row, concludes)
+CONCL_CASES = [
+    ("J1, (2): lm1, with A's own lay-down of the same seat (lm2) in its past, concludes nothing",
+     J1HON + [ST.withdraw("lm1", "A", "g", ("aI", "lm2"), scope="moderate")] + J1X, "lm1", F),
+    ("J1: lm1 with no end of the seat in its past concludes",
+     J1HON + [ST.withdraw("lm1", "A", "g", ("aI",), scope="moderate")] + J1X, "lm1", T),
 ]
 # b5: the old-head removal reaching the election is the head rules' (H1 to H7); this tree does not read it. Kept as a
 # case the merged tree must pass once `heads` lands: PENDING until then
@@ -788,6 +818,11 @@ LINE_CASES = [
      + [elect("ed", "D", IDS5 + ("wa", "ba2", "wb", "bb2", "wd", "bd2"), head=("g",))], None, MOD("D") + NOMOD("C")),
 ]
 PENDING = [
+    ("H2b, PENDING the head rules, for a reader that acknowledged aI: lm1, a lay-down, is a roster change held to the "
+     "newest heads (H4) and is behind that reader's line, so it is no vacancy end for it: D",
+     H2HON + H2ATK + [R("akR", "ack", "R", ("aI",), room=OBJ, head=("aI",))], MOD("D") + NOMOD("B"), "H2b", "R"),
+    ("G3c, PENDING the head rules, for a reader that acknowledged aG: lm1 behind its line: the honest close holds: D",
+     G3C + [R("akR", "ack", "R", ("aG",), room=OBJ, head=("aG",))], MOD("D") + NOMOD("B"), "G3c", "R"),
     ("G3b, PENDING the head rules: B and C name A's backdated end in new ballots (electorate A, B, C); lm1, a "
      "resignation, is held to the newest heads (H4) and falls behind a reader's line that acknowledged aG",
      N1R + [N1L2] + G3H + [G3ED, N1L1] + G3X + [G3B], MOD("D") + NOMOD("B"), "G3b"),
@@ -818,6 +853,7 @@ PLANTS = ("vacancy_founding", "vacancy_first_end", "electorate_at_seating", "lea
           "fork_cosigned", "fork_by_stated_device", "two_closes_both_stand",
           "counted_end_forks_signer", "base_per_group",
           "leaving_after_receipt_voids", "base_per_seating_electorate",
+          "close_base_union", "end_of_ended_seat",
           "leaving_before_vacancy_read")
 
 
@@ -826,6 +862,12 @@ def answers(rows, asks, plant=None, arrive=False, own=None):
         S = CK.arrive(list(rows), RULE) if arrive else CK.concluded(CK.kept(list(rows)), RULE)
         Q = ST.Seats(S, own=own)
         return [Q.stands(k, s, OBJ) for k, s, _ in asks]
+
+
+def concludes(rows, rid, plant=None, arrive=False):
+    with planted(plant):
+        S = CK.arrive(list(rows), RULE) if arrive else CK.concluded(CK.kept(list(rows)), RULE)
+        return bool(S.C.get(rid))
 
 
 def closed(rows, seating, plant=None, arrive=False):
@@ -876,6 +918,15 @@ def main():
                     break
         finally:
             ST.MUT.discard("seating_not_a_say")
+    for name, rows, rid, want in CONCL_CASES:
+        got = concludes(rows, rid)
+        if got != want:
+            problems.append("%s: concludes %s, expected %s" % (name, got, want))
+        for p in orders(rows, 40):
+            n_orders += 1
+            if concludes([rows[0]] + list(p), rid, arrive=True) != got:
+                problems.append("%s: order %s differs" % (name, [r["id"] for r in p]))
+                break
     for name, rows, own, asks in LINE_CASES:
         want = [w for _, _, w in asks]
         got = answers(rows, asks, own=own)
@@ -895,13 +946,14 @@ def main():
             if closed([rows[0]] + list(p), seating, arrive=True) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in p]))
                 break
-    for name, rows, asks, _item in PENDING:
-        got = answers(rows, asks)
+    for name, rows, asks, _item, *own in PENDING:
+        got = answers(rows, asks, own=own[0] if own else None)
         print("  PENDING %s: %s (expected once the head rules land: %s)" % (name, got, [w for _, _, w in asks]))
     caught = 0
     for plant in PLANTS:
         hit = [name for name, rows, asks, _ in CASES if answers(rows, asks, plant) != [w for _, _, w in asks]]
         hit += [name for name, rows, sq, want in CLOSE_CASES if closed(rows, sq, plant) != want]
+        hit += [name for name, rows, rid, want in CONCL_CASES if concludes(rows, rid, plant) != want]
         hit += [name for name, rows, own, asks in LINE_CASES if answers(rows, asks, plant, own=own) != [w for _, _, w in asks]]
         ST.MUT.add("seating_not_a_say")
         try:

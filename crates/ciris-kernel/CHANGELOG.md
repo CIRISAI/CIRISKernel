@@ -32,8 +32,10 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   election); sets not nested seat nobody until a seating over the union.
 - C5, E1: the causal close: a strict majority of the electorate, the winner and the departed apart, receipting one
   seating that stood under C4 in each receipt's own past; one say per person read causally. One base per election
-  for a reader: the union of the members at every end any seating of the election names, over the rows held (each
-  seating still counts its own electorate), less the departed and the forkers. The departed (left, or removed, not
+  for a reader: the intersection of the members at every end any seating of the election names (C1 read
+  election-wide), over the rows held (each seating still counts its own electorate), less the departed and the
+  forkers. The union is a plant (`close_base_union`): a backdated second end then widens the base past an honest
+  close. The departed (left, or removed, not
   seated again) are read over the rows held, for every group alike, and a departed key's receipt counts for
   nothing, unless its leaving or removal holds that receipt: then the receipt counts and the key stays in the base
   (an honest leaving after the close does not reopen it). With everyone but the winner gone the seating closes
@@ -57,6 +59,13 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   reader's line, with no automatic effect. The edge: a minimal close on an odd base can still fail (three of five
   becomes two of four), and F3's cost then applies: it is rarer, not gone. There is no carve-out for an honest
   self-fork (a device restored from an old backup): that key is out of that election.
+- No second end: an end of a seat that has an end of that seat in its own past is no end and concludes nothing (a
+  withdrawal by its signer of the same row and scope as one already in its past). Plant `end_of_ended_seat`.
+- A lay-down is a roster change: with the head rules (`heads`) it names the newest heads and is held to H4, and a
+  lay-down behind a reader's line is no end for it; until then two cases wait on them (H2b and G3c with a reader
+  that acknowledged the newcomers, D for both). The stated residual, no-acknowledgement reader: a backdated
+  lay-down can shrink the close's base for a reader with no acknowledgement, and that reaches an honest close made
+  before the attack.
 - F3: a next election stands only while its id row stands, for the rows held: beating or un-standing a seating
   takes with it every election named on it (a late superset of election 1's set beats its seating, and election 2,
   named on it, falls).
@@ -73,9 +82,9 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
 - Rule for clients: each election row a key signs builds on that key's earlier rows of that election; a row that
   does not is the key saying two things, and the key is out of the election, a restored device included. Guidance
   (not a rule): build every other row a key signs on that key's own tips.
-- The reference: `models/causal_kernel/check_election.py`, 109 cases, 22 of the close read directly
-  (`seat::election_closed`), 3 of the line, 2 pending the head rules, every one in arrival orders and in the `seat`
-  fixture; 39 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
+- The reference: `models/causal_kernel/check_election.py`, 111 cases, 22 of the close read directly
+  (`seat::election_closed`), 3 of the line, 4 pending the head rules, every one in arrival orders and in the `seat`
+  fixture; 41 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
 
 **A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
 
