@@ -2484,7 +2484,9 @@ fn on_object_n<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, h: &R::Id, obj: &ObjOf<R>,
         return false;
     }
     let next = if r.seat_kind() == SeatKind::Withdraw { r.target() } else { r.of() };
-    match next {
+    // a row whose `of` names itself (a merge head presented as its own cosignature) refers to nothing else: it is
+    // read by the rows it names
+    match next.filter(|t| *t != r.id()) {
         Some(t) => on_object_n(by, t, obj, n + 1),
         None => r.names().iter().any(|m| on_object_n(by, m, obj, n + 1)),
     }
