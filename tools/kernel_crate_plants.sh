@@ -176,11 +176,7 @@ plant "a resignation ends no duty seat by its past (revival)" src/seat.rs 'if !o
 plant "a removal from the roster cuts the member seat only (revival)" src/seat.rs '                    && (ur.scope().map(|x| x.as_ref()) == Some(sc.s())
                         || (dutyish' '                    && (ur.scope().map(|x| x.as_ref()) == Some(sc.s())
                         || (false'
-plant "a holder's end of its stay ends another key's duty seats" src/seat.rs '                *k2 == k
-                    && oo.as_ref() == Some(room)
-                    && g.in_past(oi, *w)' '                (*k2 == k || duty)
-                    && oo.as_ref() == Some(room)
-                    && g.in_past(oi, *w)'
+plant "a holder's end of its stay ends another key's duty seats" src/seat.rs '*k2 == k && oo.as_ref() == Some(room) && g.in_past(oi, *w) && (duty ||' '(*k2 == k || duty) && oo.as_ref() == Some(room) && g.in_past(oi, *w) && (duty ||'
 plant "at tips a duty seat does not follow the folded roster" src/seat.rs '!self.duty[i]
             || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))' 'true || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))'
 plant "the founding seat is no member seat" src/seat.rs 'let own = (o.obj() == Some(Obj::Row(o.id().clone())) && o.scope().map(|x| x.as_ref()) == Some(s)) || roster;' 'let own = roster;'
@@ -209,11 +205,29 @@ plant "room-key finality unread (a removed room key seated again)" src/seat.rs '
 plant "room-key finality reaches a public room" src/seat.rs '|g| community(by, &obj) && g.private_room())' '|_| community(by, &obj))'
 plant "a moderator's lone removal of a room key is final" src/seat.rs '        count_met(&Past::new(g, u, &anc), law, spec, cache)' '        { let _ = (spec, cache, Past::new(g, u, &anc)); true }'
 plant "a resignation is no end of a room key's seat" src/seat.rs 'w.seat_kind() == SeatKind::Withdraw && w.signer() == k && stay_end' 'false && w.signer() == k && stay_end'
-plant "a key's own end voids none of its concurrent voices" src/seat.rs '&& g.concurrent(row, *w)
-            })' '&& g.concurrent(row, *w) && false
-            })'
-plant "a key's own end of one seat voids its voices on another" src/seat.rs '&& end_scope(&by, g.row(*w)) == o.scope() &&' '&&'
-plant "a resignation ends the row it names only" src/seat.rs '&& (duty || end_scope(&by, g.row(*w)).map(|x| x.as_ref()) == Some(sc.s()))' '&& duty'
+plant "a key's own end voids none of its concurrent voices" src/seat.rs '&& (g.concurrent(row, *w) || g.in_past(row, *w))' '&& false'
+plant "a key's own end of one seat voids its voices on another" src/seat.rs '&& same_class(*w, o, os.as_ref())' '&& true'
+plant "a key's consent before its own end survives it" src/seat.rs '(g.concurrent(row, *w) || g.in_past(row, *w))' 'g.concurrent(row, *w)'
+plant "a key's own end voids another key's voices" src/seat.rs '                *k2 == k
+                    && oo.as_ref() == Some(room)
+                    && same_class(*w, o, os.as_ref())' '                true
+                    && oo.as_ref() == Some(room)
+                    && same_class(*w, o, os.as_ref())'
+plant "a key's resignation ends another key's seats in its past" src/seat.rs '*k2 == k && oo.as_ref() == Some(room) && g.in_past(oi, *w) && (duty ||' '(*k2 == k || !duty) && oo.as_ref() == Some(room) && g.in_past(oi, *w) && (duty ||'
+plant "a resignation ends the row it names only" src/seat.rs '&& (duty || same_class(*w, o, sc.s()))' '&& duty'
+plant "seats compared by name, not by what they hold" src/seat.rs 'let holds_member = covers(sc, "member") || law.holds.get(sc).is_some_and(|h| h.iter().any(|x| x == "member"));' 'let holds_member = covers(sc, "member");'
+plant "a decline is an end of a stay" src/seat.rs '|| !t.to().contains(k) || !consented(by, t, k) {' '|| !t.to().contains(k) {'
+plant "a standing acceptance withdrawn before any offer used it ends a stay" src/seat.rs '&& used).then_some(obj)' ' && (used || !used)).then_some(obj)'
+plant "an ended stay does not bar an agent seat" src/seat.rs '.any(|sc| seat_class(law, o, sc.s()).is_some_and(fin) && room_key_ended(' '.any(|sc| sc.s() != AGENT && seat_class(law, o, sc.s()).is_some_and(fin) && room_key_ended('
+plant "only member and agent by name are roster seats for finality" src/seat.rs 'if !r.scope().is_some_and(|s| seat_class(law, r, s.as_ref()).is_some()) {' 'if !r.scope().is_some_and(|s| law.roster_seats.iter().any(|x| x == s.as_ref())) {'
+plant "an unseat of a seat the key never held is an end" src/seat.rs 'if !p.rows().any(|m| seated_by(law, m, qs, k, obj) && p.past(m.id(), q.id())) {' 'if false {'
+plant "one key's own row places a roster seat over a community" src/seat.rs 'if matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat)) {' 'if false {'
+plant "an offer waiving the key's consent places a roster seat over a community" src/seat.rs 'return kind_of(law, &get, &obj) == Some(CommunityKind::Infrastructure) && sc.as_ref() != "founder";' 'return kind_of(law, &get, &obj).is_some() || true;'
+plant "a second seat row of a seated key is refused" src/seat.rs '    removed
+        || p.rows().any(|w| {' '    removed
+        || p.rows().any(|m| m.seat_kind() == SeatKind::Offer && m.obj().as_ref() == Some(obj) && m.to().contains(k) && !founding(m))
+        || p.rows().any(|w| {'
+plant "one barred key does not bar a batch admission" src/seat.rs 'keys.into_iter().any(|k| {' 'keys.into_iter().all(|k| {'
 plant "a room key's offer accepted again re-seats it" src/seat.rs 'SeatKind::Accept if revoked_before(law, spec, r, p, &by, cache) => false,' 'SeatKind::Accept if false => false,'
 plant "a window's base read when asked keeps the agents" src/window.rs '            m = persons(m, &agents);' ''
 plant "two bindings one in the other's past read as one stint" src/standing.rs 'if rebinds(*c, b, rows) || rebinds(b, *c, rows) {' 'if past.in_past(c.id(), b.id())? || past.in_past(b.id(), c.id())? {'

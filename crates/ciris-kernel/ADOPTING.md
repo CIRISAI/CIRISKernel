@@ -252,14 +252,28 @@ names (`models/causal_kernel/roomkey.py`, `rule`).
   public). Over a private room the room key's seat is final once its end stands (unreleased; see the CHANGELOG):
   a re-admission of a removed or resigned room key, or its acceptance of the same offer again, concludes nothing:
   the text's refusal is `membership_room_key_ended` (a seating of a room key whose stay in that room has ended),
-  the door's to name. Keep `SeatLaw::final_scopes` as the table gives it (`registered`, `member`, `agent`). A room
+  the door's to name. Keep `SeatLaw::final_scopes` as the table gives it (`registered`, `member`, `agent`): a store
+  whose table lacks `member` and `agent` gets no room-key finality, silently; a store that listed `member` before
+  (as an unseat that is final in every room) now gets it in private rooms only. In a private room an ended stay in
+  any roster seat (`member`, `agent`, or a scope holding `member`, `founder` included) bars every roster seat of that
+  key there: a room key is one presence in one room. A room
   is private or public by its founding row, and no record change moves it (people found a new room): give
   `private_room` from the founding row only.
 - An end is the key's end of its stay in a scope, not of a row: one resignation or one counted removal ends every
   seating of the key in that scope in the end's past. A second seat row of a key already seated is a second basis
   for the same seat: one key, one voice.
-- In every room, a key's own signature on an offer of a roster seat, or its acceptance of one, that is concurrent
-  with its own end of its stay there is no voice (`Seats`): present the rows as they are; nothing to mark.
+- In every room, a key's own signature on an offer of a roster seat, or its acceptance of one, that does not have
+  its own end of its stay there in its past (concurrent with it, or before it: a standing acceptance given earlier)
+  is no voice (`Seats`): present the rows as they are; nothing to mark. Seats are compared by what they hold: the
+  founding `duty` seat, `founder` and `member` are one presence. A withdrawal of an offer the key never consented to
+  (declining an invitation, an unsigned listed founder withdrawing the founding record) is no end of a stay.
+- Over a group (an object that is its own founding row) a member or agent seat is placed or removed only by a
+  counted row, the founding record, the key's own end, or (an agent's key) a moderator's lone removal: a
+  `Conf::Own` or `Conf::Seat` row of such a seat concludes nothing, offer and unseat alike. A roster seat needs the
+  key's own consent: `SeatRow::consent_one` places one only for a node's seat over an infrastructure community
+  (its founding row's scope `founder`, `CommunityKind::Infrastructure` in `SeatLaw::kinds`), never a founder's seat.
+  Present a lone founder's later admissions as counted rows (a room of one grows by its member's proposal and the
+  newcomer's acceptance).
 - The kernel counts voices as presented. Which keys are one person's is the binding, never a row, so collapsing
   them (two admissions of one person under two room keys both seat) is the caller's until the voice's own key
   roster is built; the cosigners' checks of the binding are the caller's too.
