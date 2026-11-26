@@ -685,6 +685,20 @@ fn policy_in_force<'r, R: SeatRow + 'r>(
     Ok(pol)
 }
 
+/// Whether counted row `r` is the members' lift: its act ([`act_of`]) where the binding is on and the object has a
+/// kind, its policy in force (`pol`, [`Policy::Lift`]) otherwise.
+fn is_lift<'r, R: SeatRow + 'r>(
+    law: &SeatLaw,
+    get: &dyn Fn(&R::Id) -> Option<&'r R>,
+    r: &R,
+    pol: Option<Policy>,
+) -> bool {
+    match law.acts.as_ref().and_then(|_| act_of(law, get, r)) {
+        Some((act, _, _)) => act == Act::Lift,
+        None => pol == Some(Policy::Lift),
+    }
+}
+
 /// The policy rows an act may take over a scope class and a kind of object, and whether the counted row chooses
 /// one of them ([`Choice::Row`]) or the act fixes it ([`Choice::Fixed`]): the acts table's row, or `None` (no row,
 /// or a law that binds no act: [`SeatLaw::acts`] `None`). What a store asks so that it keeps no list of its own.
@@ -1576,8 +1590,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     mem.retain(|m| ok.contains(m));
                 }
                 let Ok(pol) = policy_in_force(self.law, &|i| p.get(i), r) else { return false };
-                // a re-seating's voices are the objections it names, counted over the members the fold seats
-                let v = if pol == Some(Policy::Lift) {
+                // a re-seating's voices (its act the lift) are the objections it names, counted over the members
+                // the fold seats
+                let v = if is_lift(self.law, &|i| p.get(i), r, pol) {
                     let Some((author, v)) = lift_voices_with(&p, self.law, self.spec, Some(&members)) else {
                         return false;
                     };
@@ -2581,7 +2596,8 @@ fn duty_gate<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, r: &R) -> boo
     if r.over().is_some_and(|o| o != obj) {
         return false;
     }
-    let pol = law.policy_of(r.policy().map(|x| x.as_ref()));
+    // the gate reads the policy in force (the acts table's, where it binds: a fixed act's row may state none)
+    let Ok(pol) = policy_in_force(law, &|i| by.get(i).copied(), r) else { return false };
     if pol == Some(Policy::Ranked) {
         return true;
     }
@@ -2642,7 +2658,8 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
     let Some(obj) = r.obj() else { return false };
     // the count reads the policy in force (the acts table, the room's protocol), never the stated one
     let Ok(pol) = policy_in_force(law, &|i| p.get(i), r) else { return false };
-    if pol == Some(Policy::Lift) {
+    // the lift is told by its act where the binding is on and the object has a kind, by its policy otherwise
+    if is_lift(law, &|i| p.get(i), r, pol) {
         // the overturn's count over the objections the row names, at the head the removal names
         // a lift restores and does not admit: the removal it cites is a lone removal, so the key held its
         // agent's seat at that head (lone_removal)

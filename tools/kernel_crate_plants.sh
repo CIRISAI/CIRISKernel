@@ -138,7 +138,7 @@ plant "the duty gate reads no policy" src/seat.rs 'r.counted().is_some_and(|c| c
 plant "a duty conferred by a count over another room" src/seat.rs '    if r.over().is_some_and(|o| o != obj) {
         return false;
     }
-    let pol' '    let pol'
+    // the gate reads the policy in force' '    // the gate reads the policy in force'
 plant "a duty withdrawn by a count over another room" src/seat.rs '    r.over().is_none_or(|o| o == obj)
 }' '    true
 }'
@@ -271,6 +271,8 @@ plant "a recall's holder a voice of it"                  src/seat.rs 'let yes = 
 plant "a runoff step's tie goes on"                      src/ranked.rs 'let Some(w) = ranked(ballots, &opts, floor, declared).0 else { break };' 'let Some(w) = ranked(ballots, &opts, floor, declared).0 else { opts.remove(0); continue };'
 plant 'the runoff order stops at its winner'             src/ranked.rs 'opts.retain(|o| *o != w);' 'opts.clear();'
 plant 'options holding no ballot eliminated one by one'  src/ranked.rs 'if s.standing.iter().any(|o| n(o) == 0) {' 'if false {'
+plant 'the duty gate reads the stated policy'           src/seat.rs '    let Ok(pol) = policy_in_force(law, &|i| by.get(i).copied(), r) else { return false };' '    let pol = law.policy_of(r.policy().map(|x| x.as_ref()));'
+plant 'the lift told by its policy only'                src/seat.rs '        Some((act, _, _)) => act == Act::Lift,' '        Some(_) => pol == Some(Policy::Lift),'
 plant 'the acts table read by no count'                  src/seat.rs '    if law.acts.is_some() {
         match (act_of(law, get, r), r.obj()) {' '    if false {
         match (act_of(law, get, r), r.obj()) {'

@@ -18,6 +18,7 @@ Planted breaks, each of which must change a case's answer:
     binding_off         the acts table is not read: a counted row is counted under any policy it states
     stated_policy_free  a row's stated policy is not held to its act's rows (a fixed act's, or the row's choice)
     protocol_unread     a protocol row (cosigned_act, community_remove) is counted as a row-declared threshold
+    gate_reads_stated   the duty gate reads the stated policy, not the one in force (step 4)
 
     python3 -I check_acts.py      exit 1 on any difference
 """
@@ -142,12 +143,15 @@ CONCLUDE = [
      [FH, grp("r", "offer", "N", "verify2", "accord_halt")], "r", False, True),
     ("a detector seat's conferral stating accord_halt is refused (its policy is fixed: duty_confer)",
      [FH, grp("r", "offer", "N", "detect:list1", "accord_halt", counted="duty")], "r", False, True),
+    ("a duty conferral stating no policy is counted under duty_confer, its act's fixed row (step 4: the duty gate "
+     "reads the policy in force); with no table the gate wants duty_confer stated",
+     [FH, grp("r", "offer", "B", "review", None, counted="duty", cosigners=("B",))], "r", True, False),
     ("an accord's counted row stating none is a standing act, counted under accord_majority",
      [GA, grp("r", "offer", "h4", "holder", None, counted="holder", cosigners=("h1", "h2", "h4"))], "r", True, False),
 ]
 
 PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread",
-          "binding_off", "stated_policy_free", "protocol_unread")
+          "binding_off", "stated_policy_free", "protocol_unread", "gate_reads_stated")
 
 
 @contextlib.contextmanager

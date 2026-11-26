@@ -872,8 +872,9 @@ class Seats:
                 yes = voices(r, P) & mem
                 if r.get("policy") in DUTY_POLICY:
                     if not duty_count(r, P, yes, mem): return False
-                elif K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "lift":
-                    # a re-seating: its voices are the objections it names, over the members the fold seats
+                elif (lambda a: a[0] == "lift" if a is not None else K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "lift")(
+                        act_of(r, {q["id"]: q for q in P}, r.get("obj") not in {q["id"] for q in P}) if BOUND else None):
+                    # a re-seating (its act the lift): its voices are the objections it names, over the members the fold seats
                     v = lift_voices(r, P, past, {q["id"]: q for q in P}) or frozenset()
                     yes = v & mem
                     if v: mem = mem - {S.by[r["content"]]["signer"]}   # the author apart (the key removed is an agent's: in no count)
@@ -1372,6 +1373,10 @@ def duty_gate(r, by, table=None):
     any policy passes; duty_over_unread: a count over another room passes.)"""
     if "duty_gate_off" in MUT or not community(by, r["obj"]) or not is_duty(r["scope"], declared(by, r["obj"])): return True
     if r.get("over", r["obj"]) != r["obj"] and "duty_over_unread" not in MUT: return False
+    # the gate reads the policy in force (the acts table's, where it binds: a fixed act's row may state none)
+    pol = policy_in_force(r, by) if "gate_reads_stated" not in MUT else r.get("policy")
+    if pol is REFUSED: return False
+    r = dict(r, policy=pol)
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked": return True
     src = by.get(r["obj"], {}) if "duty_gate_wrong_row" in MUT else r
     counted = src.get("counted", "member")
@@ -1393,7 +1398,10 @@ def count_met(r, P, past, table=None):
     pol = policy_in_force(r, by)
     if pol is REFUSED: return False                  # its act may not take the policy it states (the acts table)
     r = dict(r, policy=pol)                          # the count reads the policy in force, never the stated one
-    if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "lift": return lift_count(r, P, past, by)
+    # the lift is told by its act where the object has a kind (act_of), by its policy otherwise
+    a = act_of(r, by, r.get("obj") is not None and r.get("obj") not in by) if BOUND else None
+    if (a[0] == "lift" if a is not None else K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "lift"):
+        return lift_count(r, P, past, by)
     mem, vot = counted_keys(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
     left = count_left(P, past, r.get("over", r["obj"]), r.get("counted", "member"))
     mem, vot = mem - left, vot - left

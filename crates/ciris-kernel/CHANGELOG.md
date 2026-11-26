@@ -369,6 +369,17 @@ changes.
 - The reference: `check_acts.py`'s 12 refusal cases, each with the table and without, and three planted breaks in
   `seat.py`. `tests/acts.rs` replays them. Four plants in the crate.
 
+**The act-to-policy binding, step 4: the dispatch reads the act.** Where the law binds acts, the count is no longer
+told what act it is by the policy a row states.
+- The members' lift is told by its act (`act_of`: an offer naming a removal of the same seat), in the count and in
+  the fold at tips. With no acts table, or over an object with no kind, it is told by its policy, as before.
+- The duty gate reads the policy in force, not the stated one. A duty conferral stating no policy is counted under
+  its act's fixed row, `duty_confer`. **An answer changes**: before, the gate refused such a conferral.
+- Unchanged, and the one exception: the election's seating is still told by `Policy::Ranked` (see step 3). The
+  recall's exclusion keys on `Policy::Recall`, the threshold the fixed `moderator_recall` row maps to.
+- One case in `check_acts.py`, one planted break in `seat.py`, two in the crate. No other answer of any case
+  changes.
+
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
 - `content` reads `conferral`'s three-way `any`, later-head test and stale-head test; its own copies are gone.
