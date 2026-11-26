@@ -439,6 +439,28 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
   `t_unread`, `fork_by_depth` (the S′ form) and `t_counts_beneficiary`, each with a crate plant; retired:
   `rescue_unread`, `tie_unread`, `rescuer_signed_both`. Cases: HC1, HC2, HC4, HC6, the packed keys on a long fork, a
   single-chain member that has since left, and the window's closers (wc).
+- **What T counts** (the fourth attack; the Constitution's reading of T in the text's terms). T's count was
+  stuffable: the siblings' beneficiaries counted for the siblings through a post or a cosignature on a withdrawal
+  (reopening the window once the lone holder had signed a later change), and a change citing an honest concurrent
+  post recruited its author. Now: (a) only counted changes count, through their counted voices (CC 2.7.7: a voice is
+  a signature a counted row counts); posts, acknowledgements, content and acceptances count for nothing. (b) Only
+  changes on a side: the competing line (the changes `q` is behind and those they name as heads, back to the fork
+  point) and the changes built on it; what a row cites is its author's choice, and a member is not recruited by
+  being named. (c) A member speaks for a chain only through a voice resting on a seat it held at the fork point (its
+  member voice in a member count; a duty voice only for a duty it held before the split), or one granted by the
+  other line's own non-forked change; a seat from the self-forked side, or from a sibling fork, is no standing.
+  **Answers change:** the window row whose closer A signs with B (whose moderate seat is the first conferral's) is
+  closed for every reader (moderate A, B and F; the siblings and the withdrawal void). Plants `t_counts_posts`,
+  `t_counts_sided_seat` and `t_strict_standing`, each with a crate plant; the crate's `t_counts_beneficiary` plant is
+  on the exclusion line itself. Cases: WT1 to WT4, RC0 to RC5, BN (a beneficiary that holds another duty at the fork
+  point), RC7 and its guard.
+- **Beside the residual, not part of it (RC7, the Constitution's ruling (i)).** "A counted change is void where every
+  voice that made it has gone on to build without it and the members who built only on the other line outnumber
+  those who built only on this one. Those voices could have removed what the change seated by their own count." What
+  is lost: there is no removal row, so nothing to lift or contest; the evidence is the abandoning keys' two
+  concurrent rows each. What is kinder: a void admission is no end of a stay, so in a private room the key it seated
+  is not barred by finality. Its guard: where not every voice built without the change (one of them built on it),
+  the change is not self-forked and stands.
 - **The residual, stated** (as of the tips ruling below). ONE residual, in three shapes, each only for a reader with
   no row of its own over the room (a member is never such a reader, by H6):
   1. no member seated at the fork point signed exactly one chain (a room founded by one key; every founder

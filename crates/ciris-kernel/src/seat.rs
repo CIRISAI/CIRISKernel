@@ -2508,8 +2508,11 @@ fn built_closure<R: SeatRow>(
 /// - T at the fork point: a self-forked `q` is void only where, of the members seated at its heads, those who
 ///   signed only the other side (the rows without `q` in their past on a line through a change `q` is behind)
 ///   outnumber those who signed only `q`'s side (`q` and the rows built on it); equal, none on either side included,
-///   neither is void, so depth decides nothing; a key's own acceptance, and its yes on an offer seating it, count it
-///   for neither side; a merge of both lines is on neither;
+///   neither is void, so depth decides nothing; only counted changes count, through their counted voices; only
+///   changes on a side (the competing line by heads back to the fork point, and what is built on it; never a row a
+///   side merely cites); only a voice resting on a seat held at the fork point, or granted by an offer not on `q`'s
+///   side and not self-forked; a key's yes on an offer seating it counts for neither side; a merge of both lines is
+///   on neither;
 /// - built on: a counted change naming a void head is void, but a merge of both lines.
 fn void_changes<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
@@ -2589,35 +2592,74 @@ fn void_changes_in<R: SeatRow, S: CutSpec<R>>(
     }
     // the changes q is behind (the other side's line)
     let line = |q: usize| -> Vec<usize> { acts.iter().copied().filter(|&c| behind(q, c)).collect() };
-    // T at q's fork point: of the members seated at q's heads, those who signed only the other side against those who
-    // signed only q's side; the beneficiary of a row (a key's own acceptance, its yes on an offer seating it) is no
-    // evidence for its side, and a merge of both lines is on neither
-    let ben = true;
+    // T at q's fork point: of the members seated at q's heads, those who voiced only the other side against those who
+    // voiced only q's side (the fourth attack's tightening, the Constitution's reading of T):
+    // - only counted changes count, through their counted voices (a post, an acknowledgement or an acceptance is no
+    //   voice);
+    // - only changes on a side: q's side is q and the changes built on it; the other side is the competing line (the
+    //   changes q is behind and those they name as heads, back to the fork point) and the changes built on it; a row a
+    //   side merely cites is not on it; a merge of both lines is on neither;
+    // - only standing: a voice counts where the key held the seat it rests on (a member's seat; a duty for a
+    //   duty-counted change) at the fork point, or holds it by an offer that is not on q's side and not self-forked;
+    // - the beneficiary of an offer (its yes on the offer seating it) counts for neither side.
+    let declared_here = declared(&by, obj);
     let t_void = |q: usize| {
         let mem = &info[&q].1;
         let qr = g.row(q);
         let hs: Vec<usize> = qr.head().iter().filter_map(|h| g.idx(h)).collect();
+        let at_fp = |a: usize| hs.iter().any(|&h| a == h || g.in_past(a, h));
         let lq = line(q);
-        let rows: Vec<usize> = anc
+        let qa: Vec<usize> = anc.iter().copied().filter(|&x| g.in_past(x, q)).collect();
+        let pq = Past::new(g, q, &qa);
+        let duty_fp = members_at_with(&pq, law, spec, obj, qr.head(), "duty", cache);
+        // the competing line, by heads, back to the fork point
+        let mut chain: BTreeSet<usize> = BTreeSet::new();
+        let mut todo: Vec<usize> = lq.clone();
+        while let Some(x) = todo.pop() {
+            if at_fp(x) || !held.contains(&x) || !chain.insert(x) {
+                continue;
+            }
+            todo.extend(g.row(x).head().iter().filter_map(|h| g.idx(h)));
+        }
+        let pool: &[usize] = &acts;
+        let rows: Vec<usize> = pool
             .iter()
             .copied()
-            .filter(|&a| {
-                !hs.iter().any(|&h| a == h || g.in_past(a, h))
-                    && object_of(g.row(a), &|i| by.get(i).copied()).as_ref() == Some(obj)
-            })
+            .filter(|&a| !at_fp(a) && object_of(g.row(a), &|i| by.get(i).copied()).as_ref() == Some(obj))
             .collect();
+        let standing = |k: &R::Key, a: usize| -> bool {
+            let duty = g.row(a).counted().is_some_and(|c| c.as_ref() == "duty");
+            if (duty && duty_fp.contains(k)) || (!duty && mem.contains(k)) {
+                return true;
+            }
+            anc.iter().copied().any(|o| {
+                let or = g.row(o);
+                let fits = or.scope().is_some_and(|s| {
+                    if duty {
+                        law.is_duty(s.as_ref(), &declared_here)
+                    } else {
+                        s.as_ref() == "member"
+                    }
+                });
+                or.seat_kind() == SeatKind::Offer
+                    && fits
+                    && or.to().contains(k)
+                    && (o != q && !g.in_past(q, o) && !out.contains(&o) && g.in_past(o, a))
+            })
+        };
         let keys = |a: usize| -> BTreeSet<R::Key> {
             let r = g.row(a);
-            if ben && r.seat_kind() == SeatKind::Accept {
+            if r.seat_kind() == SeatKind::Accept {
                 return BTreeSet::new();
             }
-            let mut ks = signers(r);
-            if ben && r.seat_kind() == SeatKind::Offer {
-                for k in r.to() {
-                    ks.remove(k);
-                }
+            let mut ks = match info.get(&a) {
+                Some((v, _)) => v.clone(),
+                None => signers(r),
+            };
+            if r.seat_kind() == SeatKind::Offer {
+                ks.retain(|k| !r.to().contains(k)); // the beneficiary is no evidence for its side
             }
-            ks.into_iter().filter(|k| mem.contains(k)).collect()
+            ks.into_iter().filter(|k| mem.contains(k) && standing(k, a)).collect()
         };
         let mut km: BTreeSet<R::Key> = BTreeSet::new();
         let mut ko: BTreeSet<R::Key> = BTreeSet::new();
@@ -2626,7 +2668,7 @@ fn void_changes_in<R: SeatRow, S: CutSpec<R>>(
             let other = a != q
                 && !g.in_past(q, a)
                 && !g.in_past(a, q)
-                && lq.iter().any(|&c| a == c || g.in_past(c, a) || g.in_past(a, c));
+                && (chain.contains(&a) || lq.iter().any(|&c| g.in_past(c, a)));
             if mine {
                 km.extend(keys(a));
             } else if other {

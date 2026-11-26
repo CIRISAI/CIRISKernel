@@ -248,6 +248,29 @@ WCL = {"none": [],
                        counted="duty", cosigners=("B",)), ST.accept("kF", "F", "c")],
        "A5": [admit("c", "H", ("A", "B", "C", "D", "E"), ("d1",), ("kB",))]}
 WC = lambda n: WBASE + WCL[n] + WSIB + [WWB]
+# the fourth attack's wt.py: the closer by A and B, the siblings, and C, D and E posting on the siblings' side (WT2)
+# or withdrawing B's seat (WT3), honest F and G posting after the closer (WT4)
+WT1 = WBASE + WCL["AB"] + WSIB
+WPOSTS = [CK.row("q" + k, "post", k, ("zC", "zD", "zE"), room=OBJ) for k in "CDE"]
+WHON = [CK.row("h" + k, "post", k, ("c",), room=OBJ) for k in "FG"]
+
+# the fourth attack's rc.py: A, B and C found; D, F and G admitted (six at aG); A, B, C and D admit E at aG (4 of 6).
+# F posts at aG, concurrently (fp); c1 (A, B, C and D admit H at aG) and c2 (J at c1) are written without aE
+_rD = admit("aD", "D", ("A", "B", "C"), ("g",))
+_rF = admit("aF", "F", ("A", "B", "C", "D"), ("aD",))
+_rG = admit("aG", "G", ("A", "B", "C", "D", "F"), ("aF",))
+RCB = [G, _rD, _rF, _rG, admit("aE", "E", ("A", "B", "C", "D"), ("aG",))]
+RFP = CK.row("fp", "post", "F", ("aG",), room=OBJ)
+RC1_ = admit("c1", "H", ("A", "B", "C", "D"), ("aG",))
+RC1P = admit("c1", "H", ("A", "B", "C", "D"), ("aG",), ("fp",))
+RC2_ = admit("c2", "J", ("A", "B", "C", "D", "H"), ("c1",))
+RCQ = admit("cq", "Q", ("B", "C", "D", "F", "G"), ("aG",))       # RC7: B, C, D, F and G admit Q at aG, honestly
+RC7 = RCB + [RCQ, admit("c1", "H", ("A", "B", "C", "D", "Q"), ("cq",)), admit("c2", "J", ("A", "B", "C", "D", "H", "Q"), ("c1",))]
+RC7G = RCB + [RCQ, admit("c1", "H", ("A", "B", "C", "Q", "F"), ("cq",)), ack("kd", "D", "aE")]
+# BN: the founders give A moderate and B review; A confers moderate on B at g with B's yes (B holds a duty at g, so
+# only the beneficiary rule takes B's yes out of T's count); A and B then admit D and E without it
+GBN = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",), "review": ("B",)}, cosigners=("B", "C"))
+BN = [GBN, admit("aD", "D", ("A", "B"), ("g",)), admit("aE", "E", ("A", "B", "D"), ("aD",)), conf("cf", "B", ("g",))]
 
 
 def invite(i, k, signers, heads, cites=()):
@@ -656,10 +679,11 @@ CASES = [
      WC("notA"), None, {"zC": T, "wb": T, "c": T}, {"moderate": frozenset("ACDE"), "member": SEVEN | {"H"}}, set()),
     (LO, "the same read by B, who signed it: closed for B, the siblings are void for it and B keeps its seat",
      WC("notA"), "B", {"zC": T, "wb": T, "c": T}, {"moderate": frozenset("AB"), "member": SEVEN | {"H"}}, {"zC", "zD", "zE"}),
-    (EDGE, "A and B confer moderate on F at d1, concurrent with the siblings, which it is no closer of for a reader with "
-           "no row: the siblings are self-forked (A signed the closer), and T keeps them (C, D and E signed only their "
-           "side, through wb, against B and F)",
-     WC("AB"), None, {"zC": T, "wb": T, "c": T}, {"moderate": frozenset("ACDEF"), "member": SEVEN}, set()),
+    (LO, "the lone holder signs a later change with B (A and B confer moderate on F at d1): closed for every reader. The "
+         "siblings are self-forked (A signed the closer); by T, C, D and E's voices on wb rest on the siblings' own "
+         "seats and count for nothing, while B's on the closer rests on d1, the other line's own non-forked change: "
+         "B against none, and the siblings and wb are void",
+     WC("AB"), None, {"zC": T, "wb": T, "c": T}, {"moderate": frozenset("ABF"), "member": SEVEN}, {"wb", "zC", "zD", "zE"}),
     (LO, "the same read by B, who signed it: closed for B", WC("AB"), "B", {"zC": T, "wb": T, "c": T},
      {"moderate": frozenset("ABF"), "member": SEVEN}, {"zC", "zD", "zE"}),
     (LO, "the lone holder signs a later change (A among five admit H at d1): closed for every reader, the siblings void "
@@ -668,6 +692,43 @@ CASES = [
      {"wb", "zC", "zD", "zE"}),
     (LO, "the same read by B", WC("A5"), "B", {"zC": T, "wb": T, "c": T}, {"moderate": frozenset("AB"), "member": SEVEN | {"H"}},
      {"zC", "zD", "zE"}),
+    # ---- what T counts (the fourth attack): only counted changes, only rows on the side, only standing held at the
+    # fork point or granted by the other line's own non-forked change
+    (LO, "WT1: the closer by A and B at d1, the siblings at aG: B's voice on the closer rests on d1, the other line's "
+         "own non-forked change, so B counts; the siblings are void and the window is closed for every reader",
+     WT1, None, {"zC": T}, {"moderate": frozenset("ABF")}, {"zC", "zD", "zE"}),
+    (LO, "WT2: C, D and E post on the siblings' side: a post is no voice, and counts for nothing", WT1 + WPOSTS, None,
+     {"zC": T}, {"moderate": frozenset("ABF")}, {"zC", "zD", "zE"}),
+    (LO, "WT3: C, D and E cosign wb: their moderate voices rest on the siblings' own seats, held by none of them at "
+         "aG, and count for nothing: the siblings and wb are void", WT1 + [WWB], None, {"zC": T, "wb": T},
+     {"moderate": frozenset("ABF")}, {"wb", "zC", "zD", "zE"}),
+    (LO, "the same read by C", WT1 + [WWB], "C", {"wb": T}, {"moderate": frozenset("ABF")}, {"wb", "zC", "zD", "zE"}),
+    (LO, "WT4: WT3 and honest F and G posting after the closer: the same", WT1 + [WWB] + WHON, None, {"zC": T, "wb": T},
+     {"moderate": frozenset("ABF")}, {"wb", "zC", "zD", "zE"}),
+    (SF, "RC0: A, B, C and D remove E by count at aE, four of seven: short", RCB + [remove("xE", "E", tuple("ABCD"), ("aE",))],
+     None, {"xE": F}, {"member": frozenset("ABCDEFG")}, set()),
+    (SF, "RC1: c1 and c2 beside aE, by the same four: a tie, and E stays", RCB + [RC1_, RC2_], None,
+     {"aE": T, "c1": T, "c2": T}, {"member": frozenset("ABCDEFGHJ")}, set()),
+    (SF, "RC2: c1 cites F's concurrent post: what a row cites is its author's choice, and a member is not recruited by "
+         "being named: a tie, and E stays", RCB + [RFP, RC1P, RC2_], None, {"aE": T, "c1": T, "c2": T},
+     {"member": frozenset("ABCDEFGHJ")}, set()),
+    (SF, "the same read by E", RCB + [RFP, RC1P, RC2_], "E", {"aE": T}, {"member": frozenset("ABCDEFGHJ")}, set()),
+    (SF, "the same read by F", RCB + [RFP, RC1P, RC2_], "F", {"aE": T}, {"member": frozenset("ABCDEFGHJ")}, set()),
+    (SF, "RC5: F, a colluder, acknowledges c2: an acknowledgement is no voice: a tie, and E stays",
+     RCB + [RC1_, RC2_, ack("af", "F", "c2")], None, {"aE": T}, {"member": frozenset("ABCDEFGHJ")}, set()),
+    (EDGE, "RC7, beside the residual and not part of it: B, C, D, F and G admit Q at aG, honestly; A, B, C and D, every "
+           "voice of aE, then admit H at cq with Q, and J on it, without aE. A counted change is void where every voice "
+           "that made it has gone on to build without it and the members who built only on the other line outnumber "
+           "those who built only on this one (F and G, against none). Those voices could have removed what the change "
+           "seated by their own count",
+     RC7, None, {"aE": T, "cq": T, "c1": T, "c2": T}, {"member": frozenset("ABCDFGHJQ")}, {"aE"}),
+    (EDGE, "RC7 read by E: the same", RC7, "E", {"aE": T}, {"member": frozenset("ABCDFGHJQ")}, {"aE"}),
+    (SF, "RC7's guard: only three of aE's four voices (A, B and C, with Q and F) build c1 at cq without aE, and D "
+         "acknowledges aE: not every voice built without it, so aE is not self-forked, and E stays",
+     RC7G, None, {"aE": T, "c1": T}, {"member": frozenset("ABCDEFGHQ")}, set()),
+    (SF, "BN: B, who holds review at g, takes moderate at g by its own yes with A; A and B then admit D and E without "
+         "it: the beneficiary is no evidence for its side, so A alone against A and B: void, and only A holds moderate",
+     BN, None, {"cf": T, "aE": T}, {"member": frozenset("ABCDE"), "moderate": frozenset("A")}, {"cf"}),
     # the lone holder's window, stated: closed for a reader by any later counted change that reader has acknowledged,
     # and for every reader once the lone holder itself signs a later change; each sibling is a row by one key that said
     # two things at one head, and the two rows are the evidence a recall cites (the members recall any duty holder,
@@ -758,7 +819,8 @@ PLANTS = (("count_heads_unread", ST.MUT), ("all_heads_read", ST.MUT), ("head_any
           ("heads_not_antichain", ST.MUT), ("window_opener_old_head", ST.MUT), ("lone_offer_self_path", ST.MUT),
           ("self_fork_unread", ST.MUT), ("t_unread", ST.MUT), ("fork_by_depth", ST.MUT), ("meet_tips", ST.MUT),
           ("regime_before_change", ST.MUT), ("reader_exclusion_unread", ST.MUT),           ("ack_unvoids", CP.MUT), ("void_cuts_in_roster", ST.MUT),
-          ("t_counts_beneficiary", ST.MUT), ("regime_protocol_only", ST.MUT))
+          ("t_counts_beneficiary", ST.MUT), ("t_counts_posts", ST.MUT), ("t_counts_sided_seat", ST.MUT),
+          ("t_strict_standing", ST.MUT), ("regime_protocol_only", ST.MUT))
 # retired with T at the fork point (the third attack): rescue_unread, tie_unread and rescuer_signed_both (S' 's rescue
 # and tie, which T replaces; fork_by_depth plants the S' form whole)
 # retired with the ruling of 2026-11-27: ack_excuses_none (H7, subsumed by the self-fork void), ack_reads_void (a

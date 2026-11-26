@@ -1365,7 +1365,7 @@ def _void_changes(r, P):
         # side with the longer chain wins where the same voices signed both
         tv = {i for i in out if not any(c["id"] in out for c in acts if CP.behind(S, S.by[i], c))}
     else:
-        tv = {i for i in out if t_void(S, P, obj, acts, past, info, S.by[i])}
+        tv = {i for i in out if t_void(S, P, obj, acts, past, info, S.by[i], out)}
     # a change built on a void one is void, but a merge of both lines (a change the void one is behind in its past
     # too), which reads its count without the void change, as any counting row does
     line = {i: [c["id"] for c in acts if c["id"] != i and not past(i, c["id"]) and CP.behind(S, S.by[i], c)] for i in tv}
@@ -1377,34 +1377,75 @@ def _tuple(x):
     return () if x is None else (x,) if isinstance(x, str) else tuple(x)
 
 
-def t_void(S, P, obj, acts, past, info, q):
+def t_void(S, P, obj, acts, past, info, q, forked=frozenset()):
     """T at q's fork point (CC: "where two changes at one fork point would each be void by voices that signed both
     chains, the chain stands that the members seated at the fork point who signed only one chain built on; where there
-    are none, neither is void"). The fork point is q's heads; its members are those seated there. q's side is q and the
-    rows with q in their past; the other side is the rows without q in their past, after the fork point, on a line
-    through a change q is behind. q is void where the fork-point members who signed only the other side outnumber
-    those who signed only q's side; equal (none on either side included), neither is void. A merge of both lines (a
-    row with q and a change q is behind in its past) is on neither side. MUTATION t_unread: a
-    self-forked change is void."""
+    are none, neither is void"). The fork point is q's heads; its members are those seated there. q is void where the
+    fork-point members who signed only the other side outnumber those who signed only q's side; equal (none on either
+    side included), neither is void. What counts (the fourth attack):
+        counted      a member counts for a side only through a counted change it voiced: posts, acknowledgements,
+                     content and acceptances count for nothing (MUTATION t_counts_posts: every row's signers count)
+        on the side  q's side is q and the counted changes built on it; the other side is the competing line (the
+                     changes q is behind, and the changes they name as heads back to the fork point) and the counted
+                     changes built on them, never a row a side merely cites (what a row cites is its author's choice:
+                     a member is not recruited by being named); a merge of both lines (a change with q and a change q is behind in its
+                     past) is on neither
+        standing     a voice counts for a side only where the key held, at the fork point, the seat the voice relies
+                     on (a member's seat, or for a duty-counted change a duty), or holds it by a change
+                     that is neither on q's side nor itself self-forked: a seat from the self-forked side, or from a
+                     sibling fork, is no evidence, and a seat granted by the other line's own non-forked change
+                     gives standing (MUTATION t_counts_sided_seat: every seat counts; MUTATION t_strict_standing:
+                     only a seat held at the fork point)
+        beneficiary  a key's yes on an offer seating it counts it for neither (MUTATION t_counts_beneficiary: it does)
+    MUTATION t_unread: a self-forked change is void."""
     if "t_unread" in MUT: return True
     qid = q["id"]
     mem = info[qid][1]
     fp = set(q["head"]) | {x for h in q["head"] for x in S.anc.get(h, ())}
-    rows = [a for a in P if CP.object_of(a, S.by) == obj and a["id"] not in fp]
+    posts = "t_counts_posts" in MUT
+    pool = [a for a in P if CP.object_of(a, S.by) == obj] if posts else list(acts)
+    rows = [a for a in pool if a["id"] not in fp]
     behind = [c for c in acts if c["id"] != qid and not past(qid, c["id"]) and CP.behind(S, q, c)]
+    # the competing line: each change q is behind and the changes it names as heads back to the fork point (a row it
+    # merely cites is not on it)
+    chain = set()
+    todo = [c["id"] for c in behind]
+    while todo:
+        x = todo.pop()
+        if x in chain or x in fp or x not in S.by: continue
+        chain.add(x)
+        todo.extend(S.by[x].get("head", ()))
     def on_line(a):
-        return any(a["id"] == c["id"] or past(c["id"], a["id"]) or past(a["id"], c["id"]) for c in behind)
+        return a["id"] in chain or any(past(c["id"], a["id"]) for c in behind)
     mine = [a for a in rows if (a["id"] == qid or past(qid, a["id"])) and not any(past(c["id"], a["id"]) for c in behind)]
     other = [a for a in rows if a["id"] != qid and not past(qid, a["id"]) and not past(a["id"], qid) and on_line(a)]
+    qP = [x for x in P if past(x["id"], qid)]
+    held = {}
+    def held_fp(sc):
+        if sc not in held:
+            held[sc] = mem if sc == "member" else members_at(qP, past, obj, q["head"], sc)
+        return held[sc]
+    def standing(k, a):
+        """k's voice on a relies on a seat it held at the fork point, or one seated by a change that is neither on q's
+        side nor self-forked."""
+        if "t_counts_sided_seat" in MUT: return True
+        sc = "duty" if a.get("counted") == "duty" else "member"
+        if k in held_fp(sc): return True
+        if "t_strict_standing" in MUT: return False
+        dec = declared(S.by, obj)
+        fits = (lambda x: x is not None and is_duty(x, dec)) if sc == "duty" else (lambda x: x == "member")
+        return any(o.get("kind") == "offer" and fits(o.get("scope")) and k in _tuple(o.get("to"))
+                   and o["id"] != qid and not past(qid, o["id"]) and o["id"] not in forked and past(o["id"], a["id"])
+                   for o in P)
     def keys(rs):
-        # the beneficiary of a row is no evidence for its side: a key's own acceptance, and its yes on a change that
-        # seats it, count it for neither (MUTATION t_counts_beneficiary: they count)
         ben = "t_counts_beneficiary" not in MUT
         out = set()
         for a in rs:
             if ben and a.get("kind") == "accept": continue
-            out |= {a["signer"], *a.get("cosigners", ())} - (set(_tuple(a.get("to"))) if ben and a.get("kind") == "offer" else set())
-        return out & mem
+            ks = (set(info[a["id"]][0]) if not posts and a["id"] in info else {a["signer"], *a.get("cosigners", ())})
+            ks -= set(_tuple(a.get("to"))) if ben and a.get("kind") == "offer" else set()
+            out |= {k for k in ks & mem if standing(k, a)}
+        return out
     km, ko = keys(mine), keys(other)
     return len(ko - km) > len(km - ko)
 
