@@ -725,11 +725,14 @@ pub fn windows_of(j: &J) -> BTreeMap<String, WindowSpec<i64>> {
                         J::Arr(t) => How::More(t[1].i() as u64, t[2].i() as u64),
                         x => panic!("clause {x:?}"),
                     },
-                    over: match c[2].s() {
-                        "all" => Base::All,
-                        "others" => Base::Others,
-                        "opener" => Base::Opener,
-                        s => Base::Scope(s.into()),
+                    over: match &c[2] {
+                        J::Arr(t) if t[0].s() == "stated" => Base::Stated(t[1].i() as u64),
+                        x => match x.s() {
+                            "all" => Base::All,
+                            "others" => Base::Others,
+                            "opener" => Base::Opener,
+                            s => Base::Scope(s.into()),
+                        },
                     },
                     out: c[3].s().into(),
                 }

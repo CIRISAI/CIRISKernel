@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-**The moderation windows land by signed rows; the fallback's vote is a ballot** (CIRISConstitution#221). Additive:
-four public functions, no name changes.
+**The moderation windows land by signed rows; the fallback's vote is a ballot** (CIRISConstitution#221). One
+public enum gains a variant (`window::Base::Stated`: an exhaustive match breaks); four public functions; no name
+changes.
 
 - The ruling on #221: a member's vote on a moderation action where no moderator acts is a ballot of
   `ballot:moderation_action` (dimension `ballot:moderation_action:v1`), `for` or `against`. A contrary voice is a
@@ -18,8 +19,8 @@ four public functions, no name changes.
   the seat rule, so it withdraws nothing. The fold of what is left is `ops::one` per signer: agreeing ballots are
   one, and disagreeing ones say nothing. This is the rule `ranked.rs` writes inline for `ballot:moderator`. A
   withdrawal concurrent with a landing is recounted with it, as an answer is. **Answers change** only where a
-  ballot is withdrawn: no case before this one had such a withdrawal. An answer that is no ballot (an objection,
-  an approval) is read as before, withdrawn or not. Whether that should change is OPEN.
+  ballot is withdrawn: no case before this one had such a withdrawal. Only a ballot is read so (ruled): an
+  objection or an approval its signer withdrew is still a voice.
 - One landing family for every window (ruling W1): the receipt is `window:held` and the landing `window:landed`,
   which states the outcome. The reference's tables name both (`held`, `landing`).
 - Who signs (ruling W2): the fallback's landing by any member at the opener's head; the overturn's by any member
@@ -31,15 +32,21 @@ four public functions, no name changes.
   table is kept with its answers unchanged and is marked so in `window.py`, `window.rs` and ADOPTING.md.
 - `head::View::window(now)` is a per-node reading that decides nothing that counts (ruling W5). This is in its doc
   comment only; the code is unchanged.
-- W4 (derived, not built): if an overturn's landing binds the objections it was counted over, an objection
-  concurrent with it is not recounted. `check_window_rows.py` runs that reading as the switch
-  `landing_binds_objections`. Under it, three rows of the adversary table change from `contested` to `stands`,
-  and two of them then break the property "a majority's objections are not overridden by a landing".
-- OPEN: whether a withdrawn objection is still a voice (built: it is); the door model (the Constitution's
-  `door.py`, not in this repository).
-- The reference: `window.unwithdrawn`, `window.ballot_words` and `window.author_apart`; 17 new rows of
-  `window_adversary.tsv` (98 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
-  (those rows in arrival orders, four planted breaks, the W4 reading, the OPEN list). Four new crate plants in
+- W4, the overturn's landing binding the objections it was counted over, was tried and is withdrawn. Two rows of
+  the adversary table break under it ("a majority's objections are not overridden by a landing"). Today's reading
+  stands: an objection concurrent with the landing is recounted with it, and one that names the landing counts
+  for nothing.
+- New: `window::Base::Stated(n)`, the base `active` above the base law's `k`: the caller's stated count, the
+  census's figure (CC 6.1.9), which the kernel takes and does not check. The voices are those of `Base::All`. The
+  size counted over is `n` where `n` is larger than the members at the head, and never smaller. With it,
+  `default_content`, `default_standing`, `default_irreversible` and `community_invite` are expressible above `k`
+  as the self roster's lone path. The reference has `("stated", n)` and the spec `default_content@active` (a room
+  of thirteen members counted over twenty), with five cases, one of them on the clamp.
+- A poll is outside the kernel (a tally whose rule and close its own opening row states). ADOPTING.md says so.
+- OPEN: the door model (the Constitution's `door.py`, not in this repository).
+- The reference: `window.unwithdrawn`, `window.ballot_words` and `window.author_apart`; 22 new rows of
+  `window_adversary.tsv` (103 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
+  (those rows in arrival orders, five planted breaks, the OPEN list). Five new crate plants in
   `tools/kernel_crate_plants.sh`.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).

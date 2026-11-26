@@ -50,6 +50,10 @@ A clause is (value said, threshold, base, outcome). The bases:
                       vote", so in the lift of its own removal it is no voice and is not counted over, whether
                       the count is read with no landing, by a landing, or by the recount
     opener            the opener's signer alone
+    ("stated", n)     the base `active` above k (CIRISConstitution#221): the caller's stated count, the census's figure
+                      (CC 6.1.9), which the kernel takes and does not check. The voices are those of `all`; the size
+                      counted over is n where n is larger than the members `all` reads, and never smaller (a caller
+                      cannot shrink a base below the members the rows seat)
     any other word    that scope at the opener's head
 The thresholds: "strict", "one", ("atleast", n, d, min), ("more", n, d, min), and
     ("voted", n, d, min, against)   more than n/d of the keys of the base that VOTED, and at least min voices: a key
@@ -61,8 +65,8 @@ are a member's ballot of the family the window's table names (`ballot`; the fall
 and a voice whose unwithdrawn ballots disagree says nothing (the fold above, K.group "one"). A ballot its own
 signer withdrew (a `withdraw` row naming it, CC 2.4.1.1 rule 1) is no ballot: a landing that counts it concludes
 nothing, and a withdrawal concurrent with a landing is recounted with it, as an answer is. A withdrawal by any
-other key is no withdrawal (seat.seat_rule does not conclude it). Only a ballot is read so: whether an objection or
-an approval its signer withdrew is still a voice is not stated, and is left as it was (an OPEN case below).
+other key is no withdrawal (seat.seat_rule does not conclude it). Only a ballot is read so (the ruling on #221): an
+objection or an approval its signer withdrew is still a voice.
 
 The landing of the fallback and of the overturn is a signed row of the family that closes the self roster's lone
 path (CC 3.3.6.4; the ruling on CIRISConstitution#221, W1: one landing family for every window): the receipt is a
@@ -131,6 +135,23 @@ WINDOWS = {
                             "opener_says": None, "at_once": (("object", ("more", 1, 2, 2), "others", "lifted"),),
                             "silent": None, "at_close": (), "default": "stands"},
 }
+# default_content above k (CIRISConstitution#221; the ruling: the base `active` is the caller's stated count). The
+# self roster's lone path, read off the policy row: enact 2/3 at once, cancel 1/3 at the close, floor 1/3 at the close,
+# never fewer than two voices (min_count, community); default cancelled. Counted over ("stated", n): n = 20 here, the
+# census's figure for a room of thirteen members
+ACTIVE = 20
+WINDOWS["default_content@active"] = {
+    "policy": "default_content", "counted": "member", "concluder": "member", "opener_says": "approve",
+    "held": "window:held", "landing": "window:landed",
+    "at_once": (("approve", ("atleast", 2, 3, 2), ("stated", ACTIVE), "landed"),),
+    "silent": None,
+    "at_close": (("object", ("atleast", 1, 3, 2), ("stated", ACTIVE), "cancelled"),
+                 ("approve", ("atleast", 1, 3, 2), ("stated", ACTIVE), "landed")),
+    "default": "cancelled"}
+# the same with a stated count of five, fewer than the members a case seats: the size counted over is never smaller
+WINDOWS["default_content@active@5"] = dict(
+    WINDOWS["default_content@active"], at_once=(("approve", ("atleast", 2, 3, 2), ("stated", 5), "landed"),),
+    at_close=tuple((v, h, ("stated", 5), o) for v, h, _, o in WINDOWS["default_content@active"]["at_close"]))
 SECS = None
 MUT = set()            # planted breaks, switched on by a check
 BASES = ("all", "others", "opener")
@@ -186,19 +207,24 @@ def table_outcome(spec, p, answers, inside, base, elapsed):
     if spec["opener_says"]: said.setdefault(p["signer"], spec["opener_says"])       # a voice that says two things says nothing
     def count_met(value, how, over, floor=False):
         if over == "opener": return withdrawn if value == "withdraw" else said.get(p["signer"]) == value
+        stated = over[1] if isinstance(over, tuple) and over[0] == "stated" else None
+        if stated is not None: over = "all"                     # the voices of the stated base are the members at the head
         # a count (a fraction, a floor) leaves the agents out; a clause one holder's act resolves reads them
         keys = voice = base.raw(over) if how == "one" else base(over)
         # MUTATION overturn_whole_roster: the opener's signer is no voice and is still counted over
         if over == "others" and "overturn_whole_roster" in MUT: keys = base("all")
+        # the size counted over: the stated count, never fewer than the members at the head
+        # (MUTATION stated_shrinks: the stated count read even where it is smaller)
+        size = len(keys) if stated is None else (stated if "stated_shrinks" in MUT else max(stated, len(keys)))
         yes = K.group([{"k": s} for s, v in said.items() if v == value and (s in voice or (floor and s in tv and value == "approve"))], None, "count", "k")
         if isinstance(how, tuple):               # a threshold read off the policy table
             kind, num, den, least = how[:4]      # ("atleast", n, d, min): >= max(min, ceil(n*N/d)); ("more", n, d, min): > n/d and >= min
             if kind == "voted":                  # ("voted", n, d, min, against): > n/d of those of the base who voted, and >= min
                 no = K.group([{"k": s} for s, v in said.items() if v == how[4] and s in voice], None, "count", "k")
                 return yes * den > num * (yes + no) and yes >= least
-            if kind == "atleast": return len(keys) > 0 and yes >= max(least, -(-num * len(keys) // den))   # nothing is met by nobody
-            return yes * den > num * len(keys) and yes >= least
-        return yes >= 1 if how == "one" else 2 * yes > len(keys)
+            if kind == "atleast": return size > 0 and yes >= max(least, -(-num * size // den))   # nothing is met by nobody
+            return yes * den > num * size and yes >= least
+        return yes >= 1 if how == "one" else 2 * yes > size
     for value, how, over, out in spec["at_once"]:
         if count_met(value, how, over): return out
     if not elapsed: return "open"
@@ -338,9 +364,6 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
                [r for r in S.Cs if S.concurrent(r["id"], L["id"])]
         conc = [r for r in conc if not late(r)]
         ans = [r for r in K.sel(conc, kind="answer", of=pid) if r["signer"] in base("all") | base.raw("moderate") | ({p.get("target")} if spec.get("target_votes") else set())]
-        # SWITCH landing_binds_objections (CIRISConstitution#221 W4, derived and not built): the overturn's landing binds
-        # the objections it was counted over, and one concurrent with it is not recounted
-        if "landing_binds_objections" in MUT and author_apart(spec): ans = []
         tgt = K.sel(conc, signer=p.get("target")) if spec["silent"] else []
         if how == "contest":
             said.append({"v": "contested" if ans or tgt else L["says"]})
@@ -680,11 +703,10 @@ def overturn_world():
         ("a member other than the act's author lands 'stands' over no objection",
          base + [receipt("r", "m2", "p", 0), landing("L", "m2", "p", "r", "stands", W)],
          "CIRISConstitution#221: the overturn's landing is signed by any member but the act's author", "stands"),
-        # OPEN (not decided): whether an objection its own signer withdrew is still a voice. (a) it is (only a ballot is
-        # read as withdrawn; what is built); (b) it is not, as a ballot (objection:{state} is withdrawn by its signer)
-        ("OPEN: a member withdraws its objection, beside a second objection, and a member lands the lift naming the three",
+        # the ruling on #221: only a ballot is read as withdrawn; an objection its signer withdrew is still a voice
+        ("a member withdraws its objection, beside a second objection, and a member lands the lift naming the three",
          base + [o1, o2, ST.withdraw("w1", "m1", "o1"), r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2", "w1"))],
-         "(OPEN CIRISConstitution#221: a withdrawn objection; (a) still a voice, built: lifted; (b) no voice: not lifted)", None),
+         "CIRISConstitution#221: only a ballot is read as withdrawn", "lifted"),
     ]
     # the moderator is itself on the roster (a duty holder is a member and holds every duty): its own objection is no
     # voice and it is not among the members the majority is taken of
@@ -715,7 +737,34 @@ def overturn_world():
     return "moderation overturn (48 h, the members' check on a duty holder's act)", cases
 
 
-WORLDS = (self_world, add_world, moderation_world, halt_world, overturn_world)
+def active_world():
+    """default_content in a room of thirteen members (above k = 12), counted over the census's stated count."""
+    ms = tuple("c%02d" % i for i in range(1, 14))
+    g = ST.offer("g", ms[0], ms, "member", "@", "self", cosigners=ms[1:])
+    W = secs("default_content@active")
+    name = "default_content@active"
+    p = opener("p", ms[0], name, "g", ("g",))
+    ok = lambda n: [answer("a%d" % i, ms[i], "p", "approve") for i in range(1, n)]     # n approvals, the opener's among them
+    ids = lambda n: tuple("a%d" % i for i in range(1, n))
+    A = "CIRISConstitution#221: the base active, the caller's stated count"
+    p5 = opener("p", ms[0], name + "@5", "g", ("g",))
+    cases = [
+        ("nine of thirteen members approve, counted over a stated twenty: no landing",
+         [g, p] + ok(9), A + ": 2/3 of twenty is fourteen, more than the members seated", "open"),
+        ("seven approve and a member lands at the close: the floor, a third of twenty",
+         [g, p] + ok(7) + [receipt("r", ms[1], "p", 0), landing("L", ms[1], "p", "r", "landed", W, ids(7))], A, "landed"),
+        ("six approve and a member lands at the close, naming them",
+         [g, p] + ok(6) + [receipt("r", ms[1], "p", 0), landing("L", ms[1], "p", "r", "landed", W, ids(6))], A, "not landed"),
+        ("seven object, the opener's approval apart, and a member lands the cancel at the close",
+         [g, p] + [answer("o%d" % i, ms[i], "p", "object") for i in range(1, 8)] + [receipt("r", ms[1], "p", 0),
+          landing("L", ms[1], "p", "r", "cancelled", W, tuple("o%d" % i for i in range(1, 8)))], A, "cancelled"),
+        ("a stated count of five, fewer than the thirteen members seated: five approve, no landing",
+         [g, p5] + ok(5), A + ", never smaller than the members the rows seat", "not landed"),
+    ]
+    return "default content above k (the base active: a stated count of twenty)", cases
+
+
+WORLDS = (self_world, add_world, moderation_world, halt_world, overturn_world, active_world)
 
 
 def holds(need, got):

@@ -27,7 +27,16 @@ Part 2. Planted breaks, each of which must break a row of Part 1:
     ballot_withdrawal_unread   a withdrawn ballot is still a ballot
     withdrawal_not_recounted   a withdrawal concurrent with a landing is not read with it
     author_concludes           the act's author signs the overturn's receipt and landing (W2: it is no concluder)
+    stated_shrinks             a stated base smaller than the members at the head is read as stated
     ballot_word_act            the fallback's ballot says `act` (the word before the ruling)
+
+The base `active` above k (the ruling on #221, W6): the caller's stated count, the census's figure, which the kernel
+takes; never smaller than the members at the head (window.py, ("stated", n)). default_content above k runs on it.
+
+Tried and withdrawn (W4): the overturn's landing binding the objections it was counted over, so that one concurrent
+with it is not recounted. It breaks "a majority's objections are not overridden by a landing" in two rows of the
+table (a landing leaving a second objection unnamed, and one a relay kept from the lander). Today's reading stands:
+an objection concurrent with the landing is recounted with it; one that names the landing counts for nothing.
 
 Part 3. What #221 and the text do not decide, printed as OPEN with the candidate answers. The adversary table's OPEN
 rows have no property (`-`): they show what is built.
@@ -49,11 +58,6 @@ CK, K = WN.CK, WN.K
 LEDGER = "CIRISConstitution#221"
 
 OPEN = (
-    ("a withdrawn objection or approval", "whether an answer that is no ballot (the overturn's objection, the self "
-     "roster's approval or objection) is still a voice once its signer withdrew it. (a) it is: only a ballot is read "
-     "as withdrawn; built. (b) it is not, as a ballot (objection:{state} is withdrawn by its signer)"),
-    ("W4, the landing binds its objections", "derived, not built: switch `landing_binds_objections` (an overturn "
-     "objection concurrent with the landing is not recounted). The rows it changes are printed above"),
     ("the door model", "formal/causal_kernel/door.py and door_text.tsv are the Constitution's, not this repository's"),
 )
 
@@ -97,6 +101,7 @@ PLANTS = (
     ("ballot_withdrawal_unread", lambda: WN.MUT.add("ballot_withdrawal_unread")),
     ("withdrawal_not_recounted", lambda: WN.MUT.add("withdrawal_not_recounted")),
     ("author_concludes", lambda: WN.MUT.add("author_concludes")),
+    ("stated_shrinks", lambda: WN.MUT.add("stated_shrinks")),
     ("ballot_word_act", lambda: WN.WINDOWS["moderation_fallback"].update(
         at_close=tuple(("act",) + c[1:] for c in WN.WINDOWS["moderation_fallback"]["at_close"]))),
 )
@@ -129,18 +134,6 @@ def main():
         print("  plant %-26s %s" % (name, "caught by %d rows, first: %s" % (len(hit), hit[0]["case"]) if hit else "NOT CAUGHT"))
         if not hit:
             problems.append("plant %s not caught" % name)
-    # W4 (derived): the rows of the whole table whose recount outcome changes if the overturn's landing binds its objections
-    before = {(t["window"], t["case"]): t for t in table}
-    WN.MUT.add("landing_binds_objections")
-    try:
-        after = WN.adversary_table()
-    finally:
-        WN.MUT.discard("landing_binds_objections")
-    for t in after:
-        b = before[(t["window"], t["case"])]
-        if t["outcome"]["recount"] != b["outcome"]["recount"]:
-            print("  W4 changes: %s: %s -> %s (%s)" % (t["case"], b["outcome"]["recount"], t["outcome"]["recount"],
-                  "holds" if t["holds"]["recount"] else "BROKEN" if t["needs"] else "no property"))
     for what, why in OPEN:
         print("  OPEN %s: %s: %s" % (LEDGER, what, why))
     for p in problems:

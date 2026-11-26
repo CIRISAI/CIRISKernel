@@ -123,6 +123,11 @@ pub enum Base {
     Scope(String),
     /// The opener's signer alone: the proposer's own voice (its withdrawal of an open proposal).
     Opener,
+    /// The base `active` above the base law's `k` (CIRISConstitution#221): the caller's stated count, the
+    /// census's figure (CC 6.1.9), which the kernel takes and does not check. The voices are those of
+    /// [`Base::All`]; the size counted over is the stated count where it is larger than the members
+    /// [`Base::All`] reads, and never smaller (a caller cannot shrink a base below the members the rows seat).
+    Stated(u64),
 }
 
 /// One clause of a window's table: if `value` is said by enough of `over`, the outcome is `out`.
@@ -204,7 +209,7 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
     fn base(&self, b: &Base) -> BTreeSet<R::Key> {
         let (name, scope) = match b {
             Base::Opener => return core::iter::once(self.opener_signer.clone()).collect(),
-            Base::All => ("all", self.w.counted.as_str()),
+            Base::All | Base::Stated(_) => ("all", self.w.counted.as_str()),
             Base::Others => ("others", self.w.counted.as_str()),
             Base::Scope(s) => (s.as_str(), s.as_str()),
         };
@@ -341,7 +346,11 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
             .count();
         // CC 4.5.13: two comparisons (strictly more than a fraction, at least a fraction), each read by the
         // seat's count, with a floor in voices and a choice of base
-        let n = keys.len();
+        let mut n = keys.len();
+        if let Base::Stated(s) = &cl.over {
+            // the stated count, never fewer than the members at the head
+            n = n.max(*s as usize);
+        }
         let more = |num, den, base| seat::met(Some(Policy::Strict(num, den)), yes, base, None);
         match &cl.how {
             &How::AtLeast(num, den, least) => {
