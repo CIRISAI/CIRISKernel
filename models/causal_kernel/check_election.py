@@ -11,6 +11,9 @@ set it was seated on"). It concludes where the ranked count (reexpress.ranked, w
 the ballots it names yields its `to`. The seat is two consents: the winner signs the row, or accepts it. The seat
 then stands as any duty seat does, only while its holder is a member (check_duty_seats.py).
 
+When it seats: only where no duty holder is left at the heads the row names (CC 4.5.4 (v), rule 2), a holder whose
+own leaving is in the row's past not counted as left.
+
 What is counted (seat.count_met, its ranked arm):
     the ballots the row names, each from a key the count is over (the persons at the head the row names, less a
     key whose own leaving is in the row's past): an agent's ballot, a non-member's and an unnamed one count for
@@ -32,6 +35,7 @@ Planted breaks, each of which must change a case's answer:
     election_any_winner the row concludes where the count yields any winner, not the key it seats
     ballot_withdrawal_unread  a ballot its signer withdrew in the row's past still counts
     ballot_nonmember_ranked   a ballot ranking a key with no roster seat at the heads counts, the key skipped
+    election_beside_holder    the election seats while a duty holder is live at the heads the row names
 
     python3 -I check_election.py      exit 1 on any difference
 """
@@ -58,6 +62,10 @@ G1 = ST.offer("g", "A", ("A",), "member", "@", "self")
 G3 = ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", "C"))
 G4 = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"))
 G5 = ST.offer("g", "A", ("A", "B", "C", "D", "E"), "member", "@", "self", cosigners=("B", "C", "D", "E"))
+
+# rooms whose founding record seats duty holders: A alone holds moderate (FH), A and B do (FH2)
+FH = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"))
+FH2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B")}, cosigners=("B", "C"))
 
 
 def ballot(i, k, ranking, names=("g",)):
@@ -174,6 +182,22 @@ CASES = [
      [G3, ballot("ba", "A", "B"), ballot("bb", "B", "B"), ST.withdraw("wa", "B", "ba", ("ba",)),
       elect("el", "B", ("ba", "bb", "wa"), M3)],
      MOD("B"), "the fold"),
+    # ---- a vacancy ---------------------------------------------------------------------------------------------------
+    ("a room with a duty holder does not elect: A holds moderate by the founding record, and B's seating concludes nothing",
+     [FH, ballot("bb", "B", "B"), ballot("bc", "C", "B"), elect("el", "B", ("bb", "bc"), M3)],
+     NOMOD("B", "C") + MOD("A"), "a vacancy"),
+    ("the last holder lays its duty down: at a head after that, the room elects B",
+     [FH, ST.withdraw("wm", "A", "g", ("g",), scope="moderate"), ballot("bb", "B", "B", ("wm",)),
+      ballot("bc", "C", "B", ("wm",)), elect("el", "B", ("bb", "bc"), M3, heads=("wm",))],
+     MOD("B") + NOMOD("A", "C") + [("A", "member", T)], "a vacancy"),
+    ("the last holder leaves the room: at a head after that, the room elects B",
+     [FH, ST.withdraw("wa", "A", "g", ("g",)), ballot("bb", "B", "B", ("wa",)), ballot("bc", "C", "B", ("wa",)),
+      elect("el", "B", ("bb", "bc"), M3, heads=("wa",))],
+     MOD("B") + NOMOD("A") + [("A", "member", F)], "a vacancy"),
+    ("one of two holders lays its duty down: the other is left, and the room does not elect",
+     [FH2, ST.withdraw("wm", "A", "g", ("g",), scope="moderate"), ballot("bb", "B", "C", ("wm",)),
+      ballot("bc", "C", "C", ("wm",)), elect("el", "C", ("bb", "bc"), M3, heads=("wm",))],
+     NOMOD("A", "C") + MOD("B"), "a vacancy"),
     # ---- the seat ----------------------------------------------------------------------------------------------------
     ("a seating signed by another key seats the winner only with the winner's acceptance: none here",
      [G3, ballot("ba", "A", "B"), ballot("bb", "B", "B"), elect("el", "B", ("ba", "bb"), M3, signer="A")],
@@ -226,7 +250,7 @@ def planted(plant):
 
 
 PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_any_winner", "ballot_withdrawal_unread",
-          "ballot_nonmember_ranked")
+          "ballot_nonmember_ranked", "election_beside_holder")
 
 
 def answers(rows, asks, plant=None, arrive=False):

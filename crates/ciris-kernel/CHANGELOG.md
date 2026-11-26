@@ -24,6 +24,13 @@ beyond the ballot count").
   ranked key that was no option was passed over and the ballot counted for its next choice. Read so: an agent's key
   (it holds `agent`) is no member, and a member at the head whose leaving is in the row's past still is (an OPEN
   row in `check_election.py`, with its candidate answers). Four cases; one plant in each language.
+- **The room elects only where no duty holder is left** (CC 4.5.4 (v): "With no duty holder left the room locks, and
+  the members' count seats one"; rule 2: "While another duty holder remains, a vacant seat is conferred under line
+  (iv), and the community does not lock"). A ranked row concludes nothing where a key holds a duty seat at the heads
+  it names, less a holder whose own leaving is in the row's past (as a count over the duty holders reads them).
+  **An answer changes**: before, an election seated a moderator beside a live one. Four cases (a holder present; the
+  last holder laying its duty down, or leaving, and an election at a later head; one of two holders laying down);
+  one plant in each language.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

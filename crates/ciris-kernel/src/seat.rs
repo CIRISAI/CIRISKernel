@@ -1921,6 +1921,16 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
         // a ballot ranking a key that holds no seat of the roster at the heads is not counted, the whole ballot
         // (CC 3.1.4 `ballot:moderator`: "A ballot naming ... a non-member is kept and not counted")
         let over = r.over().unwrap_or(obj);
+        // the members' count seats a holder only where none is left (CC 4.5.4 (v); rule 2: "While another duty
+        // holder remains, a vacant seat is conferred under line (iv), and the community does not lock"): a duty
+        // holder at the heads the row names, its own leaving not in the row's past, and the election seats nobody
+        let mut holders = members_at_with(p, law, spec, &over, r.head(), "duty", cache);
+        for k in left_in_past(p, &over, "duty").into_iter().chain(stay_ended_in_past(p, law, &over)) {
+            holders.remove(&k);
+        }
+        if !holders.is_empty() {
+            return false;
+        }
         let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
         let roster = members_at_with(p, law, spec, &over, r.head(), counted, cache);
         let ballots: Vec<(R::Key, Vec<R::Key>)> = p

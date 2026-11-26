@@ -947,6 +947,12 @@ def count_met(r, P, past, table=None):
     mem, vot = mem - left, vot - left
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
         # the count is the ranked tally: the ballots the row names, one voice each, and the row seats the winner
+        # the members' count seats a holder only where none is left (CC 4.5.4 (v); rule 2: "While another duty holder
+        # remains, a vacant seat is conferred under line (iv), and the community does not lock"): a duty holder at
+        # the heads the row names, its own leaving not in the row's past, and the election seats nobody
+        over = r.get("over", r["obj"])
+        if "election_beside_holder" not in MUT and members_at(P, past, over, heads, "duty") - count_left(P, past, over, "duty"):
+            return False
         # a ballot its signer withdrew in the row's past is none (CC 4.5.13: "Disagreeing ballots neither withdrawn are
         # no ballot until a withdrawal leaves one"; the ballot's way back is its author's withdrawal)
         gone = frozenset() if "ballot_withdrawal_unread" in MUT else frozenset(
