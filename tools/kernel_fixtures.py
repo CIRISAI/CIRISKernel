@@ -616,7 +616,7 @@ def key_end_cases():
         if k not in at:
             at[k] = len(pool); pool.append(row_enc(r))
         return at[k]
-    for args, rows in CKE.worlds():
+    for args, rows in itertools.chain(CKE.worlds(), ((None, rows) for _, rows in CKE.BOUNDARY)):
         S = KE.state(rows)
         ans = []
         for now in CKE.NOWS:

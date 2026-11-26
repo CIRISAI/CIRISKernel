@@ -80,7 +80,7 @@ def WF(r):
         return not needs_end(r)
     if r["typ"] in END_FORBIDDEN and "end_on_person" not in MUT:
         return False
-    if vf > vu:
+    if vf > vu or (vf == vu and "end_closed" not in MUT):   # an equal end covers nothing (CC 2.6.2)
         return False
     if vu - vf > CEIL and "no_ceiling" not in MUT:
         return False
@@ -91,6 +91,14 @@ def WF(r):
 
 def _end(r):
     return INF if r["vu"] is None else r["vu"]
+
+
+def covers(r, t):
+    """CC 2.6.2: a record covers an instant t when vf <= t < vu, half-open. One test for a key's liveness, for
+    a row's own instant under the record it names, and for a rotation's old-key instant (CC 2.4.1.1)."""
+    if "end_closed" in MUT:      # PLANT: the end read as inside the record
+        return r["vf"] <= t <= _end(r)
+    return r["vf"] <= t < _end(r)
 
 
 # ---- concluded: the row against its past ---------------------------------------------------------------
@@ -117,14 +125,14 @@ def RULE(r, P, past):
         if not prev:
             return False
         p = prev[0]
-        return p["key"] == r["succ_of"] and p["vf"] <= r["at_old"] <= _end(p)   # the old key, inside its own record
+        return p["key"] == r["succ_of"] and covers(p, r["at_old"])   # the old key, inside its own record
     if r["kind"] in ("att", "edge"):
         c = by.get(r["cover"])
         if c is None or c["kind"] != "rec" or c["key"] != r["signer"]:
             return False
         if "conclude_reads_now" in MUT and CLOCK[0] >= _end(c):   # PLANT: conclusion reads now
             return False
-        return c["vf"] <= r["at"] <= _end(c)
+        return covers(c, r["at"])
     return True                                               # a revocation: the key's own, never withdrawn
 
 
@@ -151,7 +159,7 @@ def live(S, k, now, witnessed_late=False):
     if now >= rev_bound(S, k):
         return False
     for r in recs(S, k):
-        if r["vf"] <= now < _end(r):
+        if covers(r, now):
             return True
     if "witness_revives" in MUT:      # PLANT: another voice's row naming a key's record extends it by the ceiling
         for r in recs(S, k):
