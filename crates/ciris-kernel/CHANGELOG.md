@@ -368,8 +368,8 @@ change, each with a case in `check_room_keys.py` and a plant in each language:
   unsigned listed founding member withdrawing the founding record, barred the key for ever in a private room.
 - RK1: a roster seat over a community needs the key's own consent under every protocol: an offer waiving it
   (`consent_one`) concludes nothing, except a node's seat over an infrastructure community (never a founder's).
-  New: `CommunityKind::Infrastructure`, the kind of a founding row of scope `founder` (`seat.KINDS`; the enum is
-  `#[non_exhaustive]`).
+  Until `kind_of` reads the founding record's `cohort_subkind` (the binding's batch, with the `node` scope), the
+  test is marked: consent `one` is allowed only over a group that is no community by its kind.
 - RK2: over a group a member or agent seat is placed or removed only by a counted row, the founding record, the
   key's own end, or (an agent's key) a moderator's lone removal: one key's own row (`Conf::Own`) or a row under a
   seat (`Conf::Seat`) of such a seat concludes nothing, offer and unseat alike. A room of one still grows by its

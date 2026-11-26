@@ -475,9 +475,6 @@ words! {
         Body = "body",
         /// A custody.
         Custody = "custody",
-        /// An infrastructure community (CC 3.2): its founders' quorum seats its nodes, which never sign and have
-        /// no vote.
-        Infrastructure = "infrastructure",
     }
 }
 
@@ -2877,8 +2874,11 @@ fn roster_placement<R: SeatRow>(law: &SeatLaw, r: &R, by: &BTreeMap<&R::Id, &R>)
         return false;
     }
     if r.seat_kind() == SeatKind::Offer && r.consent_one() {
+        // MARKED: until `kind_of` reads the founding record's `cohort_subkind` (the binding's batch, with the `node`
+        // scope), consent "one" is allowed only over a group that is no community by its kind; then it is
+        // `kind_of(..) == Some(CommunityKind::Infrastructure)` and scope `node`
         let get = |i: &R::Id| by.get(i).copied();
-        return kind_of(law, &get, &obj) == Some(CommunityKind::Infrastructure) && sc.as_ref() != "founder";
+        return kind_of(law, &get, &obj) != Some(CommunityKind::Community) && sc.as_ref() != "founder";
     }
     true
 }
