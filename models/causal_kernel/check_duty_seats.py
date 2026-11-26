@@ -187,8 +187,9 @@ CASES = [
     ("the conferral and the widening as two tips of the founding row: the key is a member and its duty seat waits, as tips do",
      [G, confer("cd", "D", "moderate", ("A", "B"), ("g",)), admit("md", "D", ("A", "B"), ("g",))],
      [("D", "member", T), ("D", "moderate", F)], None),
-    ("a version naming both tips: the duty seat stands",
-     [G, confer("cd", "D", "moderate", ("A", "B"), ("g",)), admit("md", "D", ("A", "B"), ("g",)), admit("me", "E", ("A", "B"), ("cd", "md"))],
+    ("a version naming both tips, signed by A, B and D (the fold of the tips seats D: two of four is short; the ruling of "
+     "2026-11-27): the duty seat stands",
+     [G, confer("cd", "D", "moderate", ("A", "B"), ("g",)), admit("md", "D", ("A", "B"), ("g",)), admit("me", "E", ("A", "B", "D"), ("cd", "md"))],
      [("D", "member", T), ("D", "moderate", T), ("E", "member", T)], None),
     # ---- an end of the stay ---------------------------------------------------------------------------------------
     ("a member holding two duty seats", [G, MD, CD, CR], [("D", "moderate", T), ("D", "review", T), ("D", "duty", T)], None),

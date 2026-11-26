@@ -48,6 +48,15 @@ def older(S, heads, than):
     return bool(heads) and all(any(h in S.anc[t] for t in than) for h in heads)
 
 
+def behind(S, r, c):
+    """The line (the ruling of 2026-11-27, CC 2.7.8 as amended): counted act r is behind act c where every head r names
+    is strictly in the past of c's OWN heads and r is not in c's past. A sibling at c's own head is not behind it.
+    MUTATION line_not_sibling_safe: every head r names strictly in the past of c itself (the text until the ruling)."""
+    if c["id"] == r["id"] or r["id"] in S.anc[c["id"]]: return False
+    if "line_not_sibling_safe" in MUT: return older(S, r["head"], [c["id"]])
+    return older(S, r["head"], c.get("head", ()))
+
+
 def is_counted_act(r, obj):
     """A counted act on obj: an offer or an unseat conferred by a count, naming the head it is counted over. The one
     definition of a counted change of obj's roster: the reader's line reads it, and so does seat.newer_head_in_past."""
@@ -86,8 +95,16 @@ def own_line(S, own, obj):
     if own is None: return []
     acks = acknowledgements(S, own, obj)
     named = {h for a in acks if a["kind"] == "ack" for h in a.get("head", ())}
-    return [r for r in counted_acts(S, obj) if r["id"] in named or any(r["id"] == a["id"] or r["id"] in S.anc[a["id"]] for a in acks)
+    # a counted row the reader signed acknowledges the counted acts in its past but those void for it (a fork head it
+    # had to name; seat sets ACK_VOID; MUTATION ack_reads_void: it acknowledges them too)
+    ex = {a["id"]: (ACK_VOID(S, a) if ACK_VOID and is_counted_act(a, obj) and "ack_reads_void" not in MUT else frozenset())
+          for a in acks}
+    return [r for r in counted_acts(S, obj) if r["id"] in named
+            or any(r["id"] == a["id"] or (r["id"] in S.anc[a["id"]] and r["id"] not in ex[a["id"]]) for a in acks)
             or any(r["id"] in S.anc[h] for h in named if h in S.anc)]
+
+
+ACK_VOID = None     # seat.void_changes, read for a reader's own counted rows
 
 
 def settle(S, C, obj, own=None, group=False, never_behind=lambda r: False):
@@ -109,10 +126,11 @@ def settle(S, C, obj, own=None, group=False, never_behind=lambda r: False):
     # (MUTATION line_concurrent: the line voids only rows concurrent with c, the rule until 0.5.0)
     # `never_behind(r)`: an act the line never leaves behind (an election's seating, read at its election's vacancy;
     # seat.Seats passes it)
-    line_behind = lambda r, c: c["id"] != r["id"] and r["id"] not in S.anc[c["id"]] and older(S, r["head"], [c["id"]]) \
-        and not never_behind(r) and ("line_concurrent" not in MUT or S.concurrent(r["id"], c["id"]))
+    # the ruling of 2026-11-27: behind() is sibling-safe (r's heads strictly in the past of c's own heads)
+    line_behind = lambda r, c: behind(S, r, c) and not never_behind(r) \
+        and ("line_concurrent" not in MUT or S.concurrent(r["id"], c["id"]))
     # the refused group checkpoint (group=True only): r's heads strictly older than the heads c names
-    behind = lambda r, c: c["id"] != r["id"] and S.concurrent(r["id"], c["id"]) and older(S, r["head"], c["head"])
+    group_behind = lambda r, c: c["id"] != r["id"] and S.concurrent(r["id"], c["id"]) and older(S, r["head"], c["head"])
 
     def gamma(I):
         """The acts that count if exactly the acts in I (and the reader's line) are the checkpoints."""
@@ -121,7 +139,7 @@ def settle(S, C, obj, own=None, group=False, never_behind=lambda r: False):
         out = set()
         for r in live:                                                  # ancestors first
             if r["id"] in mine or (all(h in out for h in built[r["id"]]) and not any(line_behind(r, c) for c in line)
-                                   and not any(behind(r, c) for c in marks)):
+                                   and not any(group_behind(r, c) for c in marks)):
                 out.add(r["id"])
         return frozenset(out)
     T = frozenset()
@@ -167,8 +185,11 @@ def versions(ids, builds_on, past, valid, ack=None, group=False):
     stale = lambda i, j: conc(i, j) and bool(builds_on[j]) and bool(builds_on[i]) and all(any(e in past[h] for h in builds_on[j]) for e in builds_on[i])
     # the reader's line: i is not in the past of j, an act of the line, and extends only versions strictly in j's past
     # (CC 2.7.8; no test of concurrency, as settle; MUTATION versions_concurrent: only versions concurrent with j)
+    # sibling-safe (the ruling of 2026-11-27): every version i extends strictly in the past of a version j extends
+    # (MUTATION line_not_sibling_safe: in the past of j itself)
     behind = lambda i, j: i != j and i not in past[j] and ("versions_concurrent" not in MUT or j not in past[i]) \
-        and bool(builds_on[i]) and all(e in past[j] for e in builds_on[i])
+        and bool(builds_on[i]) and all((e in past[j]) if "line_not_sibling_safe" in MUT else any(e in past[h] for h in builds_on[j])
+                                       for e in builds_on[i])
     P = [i for i in ids if valid(i)]
     mine = frozenset() if ack is None else frozenset({ack}) | frozenset(past[ack])       # the reader checkpoint: its acknowledged line
     P = sorted((i for i in P if i in mine or not any(behind(i, a) for a in mine)), key=lambda i: len(past[i]))

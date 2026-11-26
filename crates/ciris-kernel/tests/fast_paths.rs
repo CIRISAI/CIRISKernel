@@ -701,7 +701,8 @@ fn an_offer_seating_many_seats_exactly_its_consenting_keys() {
 
 /// `line::settle` as first written: an act of the reader's line is live when the live list contains it. Its
 /// test of concurrency is the rule before 0.5.0; on the ledgers below it gives the same answer as the text's
-/// rule, since every act there names only its heads (its past is their closure).
+/// rule, since every act there names only its heads (its past is their closure). Sibling-safe, as the line is
+/// (the ruling of 2026-11-27): r is behind m where its heads are strictly in the past of m's own heads.
 fn settle_before<L: ciris_kernel::line::LineSpec<S>>(
     c: &Concluded<'_, S>,
     spec: &L,
@@ -719,8 +720,7 @@ fn settle_before<L: ciris_kernel::line::LineSpec<S>>(
     live.sort_by_key(|&i| c.g.level(i));
     let mine: BTreeSet<usize> = own_line(c, spec, own, obj).into_iter().filter(|i| live.contains(i)).collect();
     let heads = |i: usize| spec.counted_act(c.g.row(i)).map(|(_, h)| h).unwrap_or(&[]);
-    let behind =
-        |r: usize, m: usize| m != r && c.g.concurrent(r, m) && older(heads(r), std::slice::from_ref(c.g.row(m).id()));
+    let behind = |r: usize, m: usize| m != r && c.g.concurrent(r, m) && older(heads(r), heads(m));
     let mut out: BTreeSet<usize> = BTreeSet::new();
     let mut out_ids: BTreeSet<&u32> = BTreeSet::new();
     for &r in &live {

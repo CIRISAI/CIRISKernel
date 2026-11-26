@@ -687,6 +687,11 @@ def check_accord(spec, inst):
     f_after = WN.opener("fa", "h3", "halt_fuse", "A", ("A",), names=("x",))
     S = RS.state([g3] + x + [f_conc, f_after])
     plain = (S.C["fc"], S.C["fa"])
+    # the fire naming the removal on the old head is refused once an opening names the newest counted changes (H1 on
+    # the opener, the review of 58b); the plant reads it as before that rule
+    with seat_mut("window_opener_old_head"):
+        S_old = RS.state([g3] + x + [f_conc, f_after])
+        plain_old = (S_old.C["fc"], S_old.C["fa"])
     slot = lambda r: dict(r, on=(("seat", "h3", "holder", "A"),))
     S2 = RS.state([g3] + x + [slot(f_conc), slot(f_after)])
     cut2 = (CUT.Cut(S2).status(S2.by["fc"]), CUT.Cut(S2).status(S2.by["fa"]))
@@ -710,7 +715,7 @@ def check_accord(spec, inst):
     lb = {"worlds": 1, "orders": nord, "fails": [("latch", str(bad_l[:1]))] if bad_l else [], "order_differs": []}
     res.append(result(inst, "lame duck AND a removed holder no longer fires, with the latch on receipt (a reader-relative parameter that reads arrival order)",
                       "CC 4.2.1.1 'fires on receipt, latches'; CC 4.2.6 l.318", verdict_of(lb, param="latch_on_receipt (per node; NOT a function of the rows)"),
-                      lb, "plant: the plain mechanism (judged at the head the fire names)", {"fails": [("plain", "a removed holder's fire naming the removal concludes %s" % plain[1])] if plain[1] else []}))
+                      lb, "plant: the plain mechanism (judged at the head the fire names)", {"fails": [("plain", "a removed holder's fire naming the removal concludes %s (the opener read at its old head)" % plain_old[1])] if plain_old[1] else []}))
     res.append(result(inst, "lame duck (a holder named for removal fires until the decision) AND a removed holder no longer fires", "CC 4.2.6 'Removal cannot silence a firer'; CC 4.2.1.1 'fires on receipt, latches'",
                       "does NOT hold", base, None, None,
                       "the plain mechanism gives the lame duck and lets a removed holder fire for ever on an old head; putting the fire on the seat slot ends that but voids a latched fire; the text's rule is a latch at the node's receipt, which depends on arrival order by design"))
@@ -989,7 +994,8 @@ def check_leaving(spec, inst):
         got = "E" in RS.roster(S, spec)
         if got != want: return "E seated %s, want %s" % (got, want)
     base = run(spec, [(n, rows) for n, rows, _ in W], pl)
-    with seat_mut("leaving_unread"):
+    # (a leaving in the version's past is read two ways: subtracted, and read with the heads; both are unread here)
+    with seat_mut("leaving_unread", "ends_at_heads_unread"):
         m = run(spec, [(n, rows) for n, rows, _ in W], pl, orders=False)
     return [result(inst, "a key's leaving binds by the version's past: a version with it there does not count that key; one without it still does",
                    "KERNEL.md 6, 7; RosterHead.lean leaving_binds_by_past", verdict_of(base), base,

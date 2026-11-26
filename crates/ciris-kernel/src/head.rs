@@ -538,12 +538,17 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         r.head.iter().cloned().collect()
     }
 
+    /// The line (CC 2.7.8 as amended by the ruling of 2026-11-27, sibling-safe): `r` names heads all strictly in
+    /// the past of an acknowledged head's OWN heads, and is not in that head's past. A row at the acknowledged
+    /// head's own head is not behind it.
     pub(crate) fn behind(&self, r: &Entry<I, K, T>, acked: &BTreeSet<I>) -> bool {
         let hs = self.heads_of(r);
         acked.iter().any(|h| {
             // an acknowledged head not held (a reader's acknowledgement not naming its head) has no past here
-            let Some(ah) = self.anc.get(h) else { return false };
-            !hs.is_empty() && hs.iter().all(|x| ah.contains(x)) && !ah.contains(&r.id) && r.id != *h
+            let (Some(ah), Some(hr)) = (self.anc.get(h), self.rec.get(h)) else { return false };
+            let own = self.heads_of(hr);
+            let older = |x: &I| own.iter().any(|t| self.anc.get(t).is_some_and(|s| s.contains(x)));
+            !hs.is_empty() && hs.iter().all(older) && !ah.contains(&r.id) && r.id != *h
         })
     }
 
@@ -713,14 +718,19 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         n + self.q(&r.head) > m.len()
     }
 
-    /// Whether act `a`'s count at its head is final for this node: its head is older than one it has
-    /// acknowledged (broad reading only).
+    /// Whether act `a`'s count at its head is final for this node: its head is strictly in the past of the own
+    /// heads of one it has acknowledged (broad reading only; sibling-safe, as the line): every cut at that
+    /// head or an older one is behind its line.
     pub fn closed_for_me(&self, a: &I) -> bool {
         if self.reading != Reading::Broad {
             return false;
         }
         match &self.rec[a].head {
-            Some(h) => self.acked.iter().any(|x| self.anc.get(x).is_some_and(|s| s.contains(h))),
+            Some(h) => self.acked.iter().any(|x| {
+                self.rec
+                    .get(x)
+                    .is_some_and(|xr| self.heads_of(xr).iter().any(|t| self.anc.get(t).is_some_and(|s| s.contains(h))))
+            }),
             None => false,
         }
     }
@@ -1008,7 +1018,7 @@ mod tests {
     /// Rule 4 read from the head the cut names (CONFERRAL_END.md E2, E3): a cut at an older head reaches an act
     /// at a later head concurrent with it, one say excepted; a cut at a later head acts forward; a cut at a head
     /// concurrent with the act's, or one the act has in its past, changes nothing at the act's head; a reader
-    /// that acknowledged the act's head holds the older cut void.
+    /// that acknowledged a head built on the act's head holds the older cut void.
     #[test]
     fn a_cut_reaches_forward_from_the_head_it_names() {
         type E = Entry<&'static str, char, i64>;
@@ -1035,8 +1045,8 @@ mod tests {
             e.sigs = sigs.chars().collect();
             e
         };
-        let mut rk = E::new("rk", Kind::ReaderAck, 'N', vec!["v1"]);
-        rk.head = Some("v1");
+        let mut rk = E::new("rk", Kind::ReaderAck, 'N', vec!["v2"]);
+        rk.head = Some("v2");
         let base = [
             seat("v0", vec![], "ABC", 2),
             seat("v1", vec!["v0"], "ABC", 2),
@@ -1056,7 +1066,8 @@ mod tests {
         assert_eq!(at(vec![cut("x", "E", "BC", "v0")]), (false, false));
         // one say: B holds a clean receipt of E concurrent with the cut, so B has no say and the cut falls short
         assert_eq!(at(vec![cut("x", "E", "BC", "v0"), ack("aB", 'B', "E")]), (true, true));
-        // the line: a reader that acknowledged v1 holds the cut at v0 void
+        // the line (sibling-safe, the ruling of 2026-11-27): a reader that acknowledged v2 holds the cut at v0 void,
+        // v0 being strictly in the past of v2's own head v1
         assert_eq!(at(vec![cut("x", "E", "BC", "v0"), rk]), (true, true));
         // a cut the act has in its past: rows in its past stand
         let mut e2 = act("E2", 'A', "v1");

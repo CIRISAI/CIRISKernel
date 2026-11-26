@@ -332,13 +332,16 @@ fn a_late_void_head_voids_the_act_that_did_not_name_it() {
         e
     };
     let mut rk = Entry::new(4u32, Kind::ReaderAck, 0u32, vec![3]);
-    rk.head = Some(3); // the reader acknowledges 3, a fork of 2 from 1: 2 is behind it, so void
+    // the reader acknowledges 3, built on 10, a fork of 2 from 1: 2's head 1 is strictly in the past of 3's own head
+    // 10, so 2 is behind it and void (the line is sibling-safe: a sibling of 3 at 10 would not be)
+    rk.head = Some(3);
     let mut r = Entry::new(8u32, Kind::Act, 1u32, vec![7]);
     r.head = Some(9); // its head, 9, is not named, and arrives last
     let es: Vec<E> = vec![
         seat(1, vec![]),
         seat(2, vec![1]),
-        seat(3, vec![1]),
+        seat(10, vec![1]),
+        seat(3, vec![10]),
         rk,
         Entry::new(5, Kind::Other, 2, vec![1]),
         Entry::new(6, Kind::Other, 2, vec![5]),
@@ -348,9 +351,9 @@ fn a_late_void_head_voids_the_act_that_did_not_name_it() {
     ];
     differential(&Store::new(), 0u32, Reading::Broad, true, &es, &[0]).unwrap();
     let mut h = HeldView::empty(0u32, Reading::Broad, true);
-    h.admit_all(es[..8].iter().cloned());
+    h.admit_all(es[..9].iter().cloned());
     assert!(!h.view().c()[&8]);
-    let a = h.admit(es[8].clone()).unwrap();
+    let a = h.admit(es[9].clone()).unwrap();
     assert!(h.view().c()[&8] && h.view().v().contains(&8) && h.view().v().contains(&9));
     assert_eq!(a.dirty, vec![8, 9]);
     assert!(a.visited > h.len(), "the void set read whole is counted");

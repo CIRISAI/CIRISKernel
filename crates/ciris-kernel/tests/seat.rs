@@ -116,7 +116,12 @@ fn seat_scenarios() {
         }
         for (reader, rd) in a.at("readers").obj() {
             let own = if reader == "-" { None } else { Some(reader.clone()) };
-            let q = Seats::new(&c, &w.law, &spec, own.as_ref());
+            // a reader's roster is read over the rows as they conclude for it (the ruling of 2026-11-27)
+            let mine = own.as_ref().map(|k| ciris_kernel::seat::for_reader(&c, &w.law, &spec, k));
+            let q = match (&own, &mine) {
+                (Some(k), Some((rc, rv))) => Seats::for_reader(rc, &w.law, &spec, k, rv),
+                _ => Seats::new(&c, &w.law, &spec, None),
+            };
             let got: BTreeSet<J> = q
                 .recs()
                 .iter()

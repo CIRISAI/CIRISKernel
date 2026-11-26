@@ -270,7 +270,9 @@ CASES += [
 # own key roster is built ("no door refuses a widening for either, since no rule of standing reads a binding")
 TWO = PV + [rejoin("ak1", "k1", ("ag",)), rejoin("ak2", "k2", ("ag",))]
 # a later head with both admissions in its past (a count over two concurrent heads reads the keys common to both)
-HEAD = merge(("ak1", "ak2"))
+# (the four founders and both keys sign it: over the fold of the two tips, seven persons, four is short; the ruling of
+# 2026-11-27)
+HEAD = dict(merge(("ak1", "ak2")), cosigners=("m2", "m3", "m4", "k1", "k2"))
 XQ2 = lambda signers: remove("xq", "q", signers, ("h",))
 CASES += [
     ("two admissions of one person at once, under two room keys: both seat. No rule of standing reads a binding, so "

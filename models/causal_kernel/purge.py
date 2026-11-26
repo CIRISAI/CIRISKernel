@@ -135,9 +135,15 @@ class View:
         return [r["head"]] if r.get("head") else []
 
     def behind(self, r, A):
-        """r names heads all strictly older than an acknowledged head h, and r is not in h's past."""
+        """r names heads all strictly in the past of an acknowledged head h's OWN heads, and r is not in h's past
+        (CC 2.7.8 as amended by the ruling of 2026-11-27: the line is sibling-safe; a row at h's own head is not
+        behind it). MUTATION (plant) line_not_sibling_safe: heads strictly in the past of h itself."""
         hs = self.heads_of(r)
-        return any(hs and all(x in self.anc[h] for x in hs) and r["id"] not in self.anc[h] and r["id"] != h for h in A)
+        def older(h):
+            if self.plant == "line_not_sibling_safe": return all(x in self.anc[h] for x in hs)
+            hh = self.heads_of(self.rec[h]) if h in self.rec else []
+            return all(any(x in self.anc[t] for t in hh) for x in hs)
+        return any(hs and h in self.anc and older(h) and r["id"] not in self.anc[h] and r["id"] != h for h in A)
 
     def _void(self):
         A = self.acked()
@@ -244,11 +250,14 @@ class View:
         return len(have & set(M)) >= len(M) - q + 1
 
     def closed_for_me(self, a):
-        """countsAt is final for this node: its head is older than one it has acknowledged (broad reading)."""
+        """countsAt is final for this node: its head is strictly in the past of the own heads of one it has acknowledged
+        (broad reading; sibling-safe, as behind): every cut at that head or an older one is behind its line."""
         if self.reading != "broad":
             return False
         h = self.rec[a]["head"]
-        return any(h in self.anc[x] for x in self.acked())
+        if self.plant == "line_not_sibling_safe":
+            return any(h in self.anc[x] for x in self.acked())
+        return any(any(h in self.anc[t] for t in self.heads_of(self.rec[x])) for x in self.acked() if x in self.rec)
 
     def missing(self, a):
         r = self.rec[a]
@@ -419,14 +428,16 @@ history("reader's acknowledged line", "N",
         [seat("u", ("v0",), "AB", 2), seat("u2", ("u",), "A", 2)])
 # No acknowledgement of its own: a late removal on an old head counts, checkpoint or not.
 history("late removal, no acknowledgement", "N",
-        [seat("v0", (), "ABC", 2), seat("v1", ("v0",), "ABC", 2), act("E", "A", "v1"), ack("aA", "A", "E"),
-         ack("aB", "B", "E")],
+        [seat("v0", (), "ABC", 2), seat("v1", ("v0",), "ABC", 2), seat("v2", ("v1",), "ABC", 2), act("E", "A", "v2"),
+         ack("aA", "A", "E"), ack("aB", "B", "E")],
         [seat("u", ("v0",), "AB", 2), act("E2", "C", "u")])
-# The reader closes an old head: E on v0 has one receipt; v1 is built on E and the node acknowledged v1. A late cut
-# of E on v0 is void for this node under the broad reading, so E needs no receipts here; under the narrow it does.
+# The reader closes an old head: E on v0 has one receipt; v1 is built on E, v2 on v1, and the node acknowledged v2. A
+# late cut of E on v0 names a head strictly in the past of v2's own head, so it is void for this node under the broad
+# reading (the line is sibling-safe: a cut at v1's own head would not be), and E needs no receipts here; under the
+# narrow it does.
 history("reader closes an older head", "N",
         [seat("v0", (), "ABC", 2), act("E", "A", "v0"), ack("aA", "A", "E"), seat("v1", ("v0", "E"), "ABC", 2),
-         row("rk", "rack", "N", ("v1",), head="v1"), act("F", "B", "v0"), ack("fB", "B", "F")],
+         seat("v2", ("v1",), "ABC", 2), row("rk", "rack", "N", ("v2",), head="v2"), act("F", "B", "v0"), ack("fB", "B", "F")],
         [cut("x", "E", "BC", "v0"), cut("y", "F", "AC", "v0"), ack("aB", "B", "E")])
 # A cut at an EARLIER head reaches a later one (rule 4, CONFERRAL_END.md E3): E names v1, the cut x names v0 and is
 # concurrent with E, so E does not count at v1 unless B's concurrent receipt takes B's say; a reader that

@@ -307,9 +307,11 @@ def t04(t):
     for n in (1, 2, 3):
         (ma, sa, ta), bad = reader_view(base + forged_line(n, "w")); t.order(bad)
         (mb, sb, tb), bad = reader_view(base + acked("x") + forged_line(n, "w"), own="B"); t.order(bad)
-        t.fact("%d forged row%s from the head the newest honest row is counted over: no acknowledgement: %d tips, members %s, nothing stale; a reader that acknowledged the honest row: %d tip, members %s, the forged line void for it (a sibling of the acknowledged act names an older head, CC 2.7.8). The removed key is never listed. The forger is the one key common to the tips, so it is the count over them and its own admissions fold in, as one more row of its own would list them"
+        t.fact("%d forged row%s from the head the newest honest row is counted over: no acknowledgement: %d tips, members %s, nothing stale; a reader that acknowledged only the honest row: %d tips, members %s, nothing stale either: "
+               "the forged line is a sibling of the acknowledged act, behind no line (the line is sibling-safe, the ruling of 2026-11-27), and the fold takes out B and C. A reader that acknowledged a later honest row holds it void (test 34). "
+               "The removed key is never listed; the forger's own admissions fold in"
                % (n, "" if n == 1 else "s, each counted over the one before,", len(ta), fs(ma), len(tb), fs(mb)),
-               ma == {"A"} | {"F%d" % i for i in range(2, n + 1)} and len(ta) == 2 and not sa and mb == {"A", "B"} and len(tb) == 1 and "z1" in sb)
+               ma == {"A"} | {"F%d" % i for i in range(2, n + 1)} and len(ta) == 2 and not sa and mb == ma and len(tb) == 2 and not sb)
     (mc, sc, tc), bad = reader_view(base + forged_line(2, "w"), checkpoint=True); t.order(bad)
     t.fact("WHY THE GROUP CHECKPOINT IS OFF: with Seats(..., checkpoint=True) the two forged rows are one row deeper than the honest line and leave the honest removal behind (stale: %s): members %s, the removed key listed again"
            % (",".join(sorted(sc)), fs(mc)), "x" in sc and "C" in mc and "B" not in mc)
@@ -360,15 +362,18 @@ def t06(t):
     o1 = ST.offer("o1", "A", "K", "moderate", "g", "seat", ("mk",), under="g")
     a1 = ST.accept("a1", "K", "o1")
     wd1 = ST.withdraw("wd1", "K", "a1")                                         # leave
-    o2 = ST.offer("o2", "A", "K", "moderate", "g", "seat", ("wd1",), under="g")
+    # A, the lone holder, withdraws its first offer before conferring again (a lone holder with an offer of a duty seat
+    # standing confers no other alone until that offer is accepted or withdrawn)
+    wo1 = ST.withdraw("wo1", "A", "o1", ("wd1",))
+    o2 = ST.offer("o2", "A", "K", "moderate", "g", "seat", ("wo1",), under="g")
     a2 = ST.accept("a2", "K", "o2")                                             # join again
     wd3 = ST.withdraw("wd3", "K", "o1")                                         # leave, on the old branch: names only the first offer
     ans = lambda S: ST.Seats(S).stands("K", "moderate", "g")
     # each leave names the newest counted change over the room in its own past (H4: a resignation names it), mk
     H = ST.honest
-    ref, bad = free(H([g, mk, o1, a1, wd1, o2, a2, wd3]), SEAT, ans); t.order(bad)
+    ref, bad = free(H([g, mk, o1, a1, wd1, wo1, o2, a2, wd3]), SEAT, ans); t.order(bad)
     t.fact("leave, join, then a leave that names only the first offer: K is in = %s (a withdrawal ends the offer it names and no other)" % ref, ref is True)
-    ref, bad = free(H([g, mk, o1, a1, wd1, o2, a2, wd3, ST.withdraw("wd4", "K", "a2")]), SEAT, ans); t.order(bad)
+    ref, bad = free(H([g, mk, o1, a1, wd1, wo1, o2, a2, wd3, ST.withdraw("wd4", "K", "a2")]), SEAT, ans); t.order(bad)
     t.fact("with a leave that names the second acceptance: K is in = %s" % ref, ref is False)
     ref, bad = free(H([g, mk, o1, a1, wd1, ST.offer("o3", "A", "K", "moderate", "g", "seat", ("wd1",), under="g", consent="one")]), SEAT, ans); t.order(bad)
     t.fact("the conferrer cannot put a key that left back in without its acceptance, even claiming single consent: %s" % ref, ref is False)
@@ -1183,8 +1188,8 @@ def t31(t):
     S = conc(rows, ROUTE)
     past = lambda a, b: a in S.anc[b]
     ent = {h: ST.members_at(S.Cs, past, "g", h) for h in (("x",), ("wD",), ("x", "wD"))}
-    t.fact("entitled at the heads a write names: the removal tip %s; the other tip %s; both tips %s (the removed member is out, and so is the joiner, until a version names both)"
-           % (fs(ent[("x",)]), fs(ent[("wD",)]), fs(ent[("x", "wD")])), "C" in ent[("wD",)] and "C" not in ent[("x", "wD")] and "D" not in ent[("x", "wD")])
+    t.fact("entitled at the heads a write names: the removal tip %s; the other tip %s; both tips %s (the fold of the two: the removed member is out, the joiner in)"
+           % (fs(ent[("x",)]), fs(ent[("wD",)]), fs(ent[("x", "wD")])), "C" in ent[("wD",)] and "C" not in ent[("x", "wD")] and "D" in ent[("x", "wD")])
     mC = RT.msg("mC", "C", "g", ("wD",))
     mem, st, bad = roster(rows + [mC]); t.order(bad)
     t.fact("the removed member's own write, naming only the tip that still lists it: %s for a reader that holds the removal" % st["mC"], st["mC"] == "void")
@@ -1262,8 +1267,8 @@ def t34(t):
     for n in (1, 2, 3, 4):
         f = forged_line(n, "w")
         (m, st, tp), bad = reader_view(base + acked("wE") + f, own="B"); t.order(bad)
-        half_a &= t.fact("%d forged row%s on the old head w; (a) a reader that acknowledged the honest head: members %s, the whole forged line void (%s), one tip"
-                         % (n, "" if n == 1 else "s, each counted over the one before,", fs(m), ",".join(sorted(st))), m == {"A", "B", "E"} and tp == {"wE"} and "x" not in st and "z1" in st and (n == 1 or "z2" in st))
+        half_a &= t.fact("%d forged row%s on the old head w; (a) a reader that acknowledged the honest head: members %s, the first forged row void (%s) and the rows built on it concluding nothing for that reader, one tip"
+                         % (n, "" if n == 1 else "s, each counted over the one before,", fs(m), ",".join(sorted(st))), m == {"A", "B", "E"} and tp == {"wE"} and "x" not in st and "z1" in st)
         (m, st, tp), bad = reader_view(base + acked("wE") + f); t.order(bad)
         half_b &= t.fact("   (b) a reader with no acknowledgement: no row is stale; two tips (%s), folded: %s. B is out by the forged removal, the removed key is not listed, "
                          "and the forger, the one key common to the tips, folds in what it signed on either"
@@ -1320,19 +1325,20 @@ def checkpoint_price():
     (m2_, s2_, t2_), bad = reader_view(pre + [hmc, hma, hm] + line); t.order(bad)
     t.fact("an honest counted admission (of F, on head w) signed offline, while two further counted rows were made without it: nothing is void; it is a tip, and the fold lists the offline admission and the two members admitted meanwhile, "
            "each on the voices of the three common keys: %s" % fs(m2_), not s2_ and m2_ == {"A", "B", "C", "E", "F", "G"})
-    mgc = [in_room(ST.cosign("mg%s" % k, k, "mg", ("q2", "hm"))) for k in "BC"]
+    mgc = [in_room(ST.cosign("mg%s" % k, k, "mg", ("q2", "hm"))) for k in "BCF"]
     mga = in_room(ST.accept("mga", "H", None, ("g",), scope="member", obj="g"))
-    mg = ST.offer("mg", "A", "H", "member", "g", "group", ("q2", "hm", "mgB", "mgC", "mga"), head=("q2", "hm"), policy="community_invite", content="mg", room="g")
+    mg = ST.offer("mg", "A", "H", "member", "g", "group", ("q2", "hm", "mgB", "mgC", "mgF", "mga"), head=("q2", "hm"), policy="community_invite", content="mg", room="g")
     (m3_, s3_, t3_), bad = reader_view(pre + [hmc, hma, hm] + line + mgc + [mga, mg]); t.order(bad)
-    t.fact("one counted row naming both tips, counted over the three keys common to them, makes one head and lists everyone both lines admitted: %s" % fs(m3_), m3_ == {"A", "B", "C", "E", "F", "G", "H"} and len(t3_) == 1)
+    t.fact("one counted row naming both tips, counted over the fold of their lines (six; the ruling of 2026-11-27) and signed by four of them, makes one head and lists everyone both lines admitted: %s" % fs(m3_), m3_ == {"A", "B", "C", "E", "F", "G", "H"} and len(t3_) == 1)
     # the reader is E, admitted on the newer line: B cosigned the offline admission and the merge, so under H6 (a reader's own
     # rows are its acknowledgements) both are of B's own line
     (m4_, s4_, t4_), bad = reader_view(pre + [hmc, hma, hm] + line + [RT.msg("mm", "A", "g", ("q2",)), RT.ack("kk", "E", "g", "mm", ("q2",))], own="E"); t.order(bad)
     t.fact("for a reader that had acknowledged the newer head, the offline admission is behind its line (void: %s) and its roster is %s: that reader and one with no acknowledgement differ (%s)"
            % ("hm" in s4_, fs(m4_), fs(m2_)), "hm" in s4_ and m4_ == {"A", "B", "C", "E", "G"})
     (m5_, s5_, t5_), bad = reader_view(pre + [hmc, hma, hm] + line + [RT.msg("mm", "A", "g", ("q2",)), RT.ack("kk", "E", "g", "mm", ("q2",))] + mgc + [mga, mg], own="E"); t.order(bad)
-    t.fact("but for that reader the merge is built on a row behind its line, so the merge is void for it too (%s) and its roster stays %s: a reader whose acknowledgement outran a late honest row cannot take the merge that names it; "
-           "the late row has to be signed again on the newer head" % (",".join(sorted(s5_)), fs(m5_)), {"hm", "mg"} <= s5_ and m5_ == {"A", "B", "C", "E", "G"})
+    t.fact("for that reader the late row stays void (%s) and is left out of the merge's fold and heads (the reader-line exclusion): the merge is counted at the newer head alone for it, where F (one of its signers) "
+           "is no member, and it is short; the roster stays %s: a reader whose acknowledgement outran a late honest row does not take it through a merge; it has to be signed again on the newer head"
+           % (",".join(sorted(s5_)), fs(m5_)), "hm" in s5_ and m5_ == {"A", "B", "C", "E", "G"})
     md2 = ST.offer("md2", "A", "B", "detect:x", "g", "group", ("g",), head=("g",), policy="duty_confer", counted="duty", cosigners=("B",), room="g")
     S = conc(pre + [md2] + line, ROUTE)
     t.fact("a seat over the room is placed only by the duty holders' count (CC 4.5.4), so an appointment on the founding head is a counted act: two counted rows later "
@@ -1369,16 +1375,14 @@ def checkpoint_price():
     ra, rb, rc = cp_versions(Wl, S, ack=a2), cp_versions(Wl, S, ack=a1), cp_versions(Wl, S, ack=side)
     mg2 = Wl.mk((a2, side), (), m("0124"), m("012"))
     rm = [cp_versions(Wl, S | {mg2}, ack=x) for x in (a2, a1, side)]
-    # CC 2.7.8: two versions of one head wait as tips for a reader with no acknowledgement on that line; a reader that
-    # acknowledged one of them holds the other void (it names an older head and is not in the acknowledged head's past),
-    # and a version built on it too
+    # CC 2.7.8 as amended (the ruling of 2026-11-27): the line is sibling-safe. Two versions of one head wait as tips
+    # for every reader; one that acknowledged either does not hold the other void (it names no head strictly in the past
+    # of the acknowledged version's own heads), and every reader takes a version naming both
     t.fact("two siblings a2 and s on one head: a reader that acknowledged their common head sees both wait as tips (roster %s) and takes a "
-           "version naming both (%s); a reader that acknowledged a2 holds s void, and the version naming both with it (roster %s); "
-           "a reader that acknowledged s holds a2 void (roster %s). Each voiding is that reader's own"
-           % (FK.names(Wl, rb[2]), FK.names(Wl, rm[1][2]), FK.names(Wl, rm[0][2]), FK.names(Wl, rc[2])),
+           "version naming both (%s); so does a reader that acknowledged a2 (%s) and one that acknowledged s (%s): a sibling is behind no one's line"
+           % (FK.names(Wl, rb[2]), FK.names(Wl, rm[1][2]), FK.names(Wl, rm[0][2]), FK.names(Wl, rm[2][2])),
            side in rb[0] and a2 in rb[0] and mg2 in rm[1][0] and rm[1][2] == m("0124")
-           and side not in ra[0] and mg2 not in rm[0][0] and ra[2] == rm[0][2] == m("0124")
-           and a2 not in rc[0] and mg2 not in rm[2][0])
+           and side in ra[0] and mg2 in rm[0][0] and a2 in rc[0] and mg2 in rm[2][0])
     W, S0, m = long_range()
     f1 = W.mk((0,), (), m("12"), m("12")); f2 = W.mk((f1,), (), m("12"), m("12"))
     r1, r2 = cp_versions(W, S0 | {f1, f2}, ack=max(S0))[2], cp_versions(W, S0 | {f1, f2}, ack=f2)[2]

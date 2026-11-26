@@ -16,8 +16,8 @@ check_count_heads.py: the heads of a count, and the reader's line (the heads rul
         before the cut (seat.Seats).
     H6  A reader's own signed rows are its acknowledgements: every concluded row it signed or cosigned over the object
         (checkpoint.acknowledgements), each acknowledging the counted acts in its own past.
-    H7  A counted change in a row's past that is behind an acknowledgement, also in the row's past, by one of the
-        row's own signers is no head the row must name (seat.acked_behind). Never extended to a row built on it.
+    H7  Retired (the tips ruling of 2026-11-27): the self-fork void (SF, below) subsumes it; its cases now read under
+        that rule.
     H8  No caller-synthesised heads: a row of no object, a note, a cosignature naming itself is no head of a count.
     An election's seating (seat.is_election: an offer, conf group, policy ranked) is a roster change: it names the
     newest counted changes as its heads (H4) and sits on the line by them; only its count is not read at its heads
@@ -28,6 +28,13 @@ check_count_heads.py: the heads of a count, and the reader's line (the heads rul
     withdrawn (LO). The lone-offer rule binds the honest line: A cannot confer alone twice without forking its own
     line. The reader's line covers the fork for every reader that acknowledged the first holder's seat. The two rows
     are the evidence a later count of the room can cite. Outside an election a fork has no automatic effect.
+
+The tips ruling of 2026-11-27 (SF): the members at several heads are the fold of their lines, not the intersection;
+a counted change all of whose counted voices acknowledged a change it is behind is void for the counting row (S'':
+rescued by an honest continuation's single-chain member, kept on a tie), the ONLY automatic effect of a key signing
+two things outside an election, and it voids a change, never a key; a protocol-change tip is under its new protocol;
+the changes void for the reader leave a row's fold and heads too; and the line is sibling-safe (a change is behind an
+acknowledged change only where every head it names is strictly in the past of that change's own heads).
 
 Each case is read as one batch and in arrival orders of its rows (every order up to six rows above the founding one,
 else the batch order, its reverse and forty shuffles). A case marked EDGE states what the rules give at the stated
@@ -114,8 +121,9 @@ def elect(i, k, heads):
                           policy="moderator_election", options=(k, "C"), cosigners=(k,))]
 
 
-H1, H2, H3, H4, H5, H6, H7, H8, EL, AC, LO, EDGE = ("H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "election",
-                                                   "acceptance", "lone offer", "EDGE")
+H1, H2, H3, H4, H5, H6, H7, H8, EL, AC, LO, SF, EDGE = ("H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "election",
+                                                       "acceptance", "lone offer", "self-fork", "EDGE")
+SFB = "self-fork (binding off: the removal states `majority`)"
 
 
 def conf(i, to, heads, cites=(), scope="moderate", signers=("A",), joins=True):
@@ -134,6 +142,45 @@ GI5 = [ST.offer("g", "f1", ("f1", "f2", "f3"), "member", "@", "self", cosigners=
 FIVE_F = frozenset(("f1", "f2", "f3", "f4", "f5"))
 IX = lambda i, heads, signers, cites=(): ST.unseat(i, signers[0], "f3", "founder", OBJ, "group", tuple(heads) + tuple(cites),
                                                    head=tuple(heads), policy="cosigned_act", cosigners=tuple(signers[1:]))
+
+
+# a room under the protocol `one` (L'): A, B and C found it
+GQ = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"), consensus_protocol="one")
+QA = lambda i, k, sg, heads, cites=(): ST.offer(i, sg[0], k, "member", OBJ, "group", tuple(heads) + tuple(cites), head=tuple(heads),
+                                                 policy="cosigned_act", cosigners=tuple(sg[1:]) + (k,))
+QR = lambda i, k, sg, heads, cites=(): ST.unseat(i, sg[0], k, "member", OBJ, "group", tuple(heads) + tuple(cites),
+                                                  head=tuple(heads), policy="community_remove", cosigners=tuple(sg[1:]))
+QDC = ST.offer("dc", "A", "B", "moderate", OBJ, "group", ("g",), head=("g",), policy="duty_confer", counted="duty", cosigners=("B",))
+
+
+def lprime(aD_by, aE_by):
+    """L': the honest chain's first change signed by aD_by, then the honest C, D, E.. on top; A and B fork at g."""
+    return [GQ, QA("aD", "D", aD_by, ("g",)), QA("aE", "E", aE_by, ("aD",)), QA("aF", "F", ("C", "D", "E"), ("aE",)),
+            QA("aG", "G", ("C", "D", "E", "F"), ("aF",)), QDC, QA("xd", "X", ("A", "B"), ("dc",))]
+
+
+# the protocol raised after g: a room under `one` founded by A..F; the honest C..F admit G and raise it to two_thirds;
+# A and B (who signed nothing of it) pack X1..Xn from g under the old protocol
+GQ6 = ST.found("g", "A", tuple("ABCDEF"), {"moderate": ("A",)}, cosigners=tuple("BCDEF"), consensus_protocol="one")
+def raised(n, row):
+    rows = [GQ6, QA("ag2", "G", ("C", "D", "E", "F"), ("g",)),
+            ST.offer("amq", "C", (), "record", OBJ, "group", ("ag2",), head=("ag2",), policy="cosigned_act",
+                     consensus_protocol="two_thirds", cosigners=("D", "E", "F", "G"))]
+    sg, prev = ["A", "B"], "g"
+    for i in range(1, n + 1):
+        rows.append(QA("q%d" % i, "X%d" % i, tuple(sg), (prev,))); sg.append("X%d" % i); prev = "q%d" % i
+    return rows + [row(tuple(sg), ("amq", prev))]
+
+
+# the silent colluder: A signs the honest admissions with C; B signs nothing after g; A and B chain X1..Xn from g
+def silent(n, row):
+    rows, mem, prev = [G], ["A", "C"], "g"
+    for k in "DEFG":
+        rows.append(admit("a" + k, k, tuple(mem), (prev,))); mem.append(k); prev = "a" + k
+    sg, fp = ["A", "B"], "g"
+    for i in range(1, n + 1):
+        rows.append(admit("p%d" % i, "X%d" % i, tuple(sg), (fp,))); sg.append("X%d" % i); fp = "p%d" % i
+    return rows + [row(tuple(sg), fp)]
 
 
 # a room of one: A founds it alone (its lone founder, holding `moderate`), and invites under `community_invite`
@@ -183,9 +230,14 @@ CASES = [
      ROOM + [DC("dc", "B", ("g",), ("aG",))], None, {"dc": F}, {"moderate": {"A"}}, set()),
     (H1, "the same duty conferral at the newest head",
      ROOM + [DC("dc", "B", ("aG",))], None, {"dc": T}, {"moderate": {"A", "B"}}, set()),
-    (H1, "two admissions at the newest head, concurrent, and a removal by five naming both tips (intersected)",
+    (H1, "two admissions at the newest head, concurrent, and a removal by five naming both tips: the fold seats both "
+         "newcomers, and five of nine is short",
      ROOM + [admit("aX", "X", FIVE, ("aG",)), admit("aY", "Y", FIVE, ("aG",)), remove("xg", "G", FIVE, ("aX", "aY"))], None,
-     {"aX": T, "aY": T, "xg": T}, {"member": (SEVEN | {"X", "Y"}) - {"G"}}, set()),
+     {"aX": T, "aY": T, "xg": F}, {"member": SEVEN | {"X", "Y"}}, set()),
+    (H1, "the same removal by six of the nine, the newcomers among them: met",
+     ROOM + [admit("aX", "X", FIVE, ("aG",)), admit("aY", "Y", FIVE, ("aG",)),
+             remove("xg", "G", FIVE + ("X",), ("aX", "aY"))], None,
+     {"xg": T}, {"member": (SEVEN | {"X", "Y"}) - {"G"}}, set()),
     (H1, "a removal at the founding head that has not seen the admissions (concurrent with them) concludes; no reader",
      ROOM + [remove("xg", "G", ("A", "B"), ("g",))], None, {"xg": T}, {"member": SEVEN - {"G"}}, set()),
     (H1, "a counted change of another room in a row's past moves no head of this one",
@@ -246,20 +298,26 @@ CASES = [
     (H5, "a removal at the founding head concurrent with the admissions, for a reader that acknowledged the newest: it is "
          "behind the line and cuts nothing for that reader",
      ROOM + [ack("ak", "R", "aG"), remove("xg", "G", ("A", "B"), ("g",))], "R", {"xg": T}, {"member": SEVEN}, {"xg"}),
-    (H5, "a reader acknowledged an admission; a removal of the admitted key at the same head, concurrent with it, and a "
-         "sibling admission: the line, read with every row counting, holds the removal and the sibling behind it",
-     ROOM + [admit("ax", "X", FIVE, ("aG",)), remove("xx", "X", FIVE, ("aG",)), admit("ay", "Y", FIVE, ("aG",)),
-             ack("ak", "R", "ax")], "R", {"ax": T, "xx": T, "ay": T}, {"member": SEVEN | {"X"}}, {"xx", "ay"}),
+    (H5, "a reader acknowledged an admission built on an admission of X; a removal of X at the head before it and a "
+         "sibling admission there: every head each names is strictly in the past of the acknowledged admission's own "
+         "heads, so the line holds both behind",
+     ROOM + [admit("ax", "X", FIVE, ("aG",)), admit("ax2", "W", FIVE + ("X",), ("ax",)), remove("xx", "X", FIVE, ("aG",)),
+             admit("ay", "Y", FIVE, ("aG",)), ack("ak", "R", "ax2")], "R", {"ax": T, "ax2": T, "xx": T, "ay": T},
+     {"member": SEVEN | {"X", "W"}}, {"xx", "ay"}),
+    (H5, "the line is sibling-safe (the ruling of 2026-11-27): a reader acknowledged one of two admissions at one head; "
+         "the other is no change behind it, and both stand",
+     ROOM + [admit("ax", "X", FIVE, ("aG",)), admit("ay", "Y", FIVE, ("aG",)), ack("ak", "R", "ax")], "R",
+     {"ax": T, "ay": T}, {"member": SEVEN | {"X", "Y"}}, set()),
     # ---- H6 ---------------------------------------------------------------------------------------------------------
     (H6, "the same removal, for a founder that signed every admission and wrote no acknowledgement row",
      ROOM + [remove("xg", "G", ("A", "B"), ("g",))], "C", {"xg": T}, {"member": SEVEN}, {"xg"}),
     (H6, "a cheap concurrent tip (A's lone duty conferral at the founding head) and a removal by two naming it and the "
          "newest admission, for the newest member G (its own admission is its acknowledgement)",
-     ROOM + [DC("dc", "B", ("g",)), remove("xg", "G", ("A", "B"), ("dc", "aG"))], "G", {"dc": T, "xg": T}, {"member": SEVEN}, {"dc", "xg"}),
+     ROOM + [DC("dc", "B", ("g",)), remove("xg", "G", ("A", "B"), ("dc", "aG"))], "G", {"dc": T, "xg": F}, {"member": SEVEN}, {"dc"}),
     (H6, "a minority packs the room from the founding past (two admissions chained) and removes D with them, for D",
      ROOM + [admit("p1", "X1", ("A", "B"), ("g",)), admit("p2", "X2", ("A", "B", "X1"), ("p1",)),
-             remove("xd", "D", ("A", "B", "X1", "X2"), ("aG", "p2"))], "D", {"p1": T, "p2": T, "xd": T}, {"member": SEVEN},
-     {"p1", "p2", "xd"}),
+             remove("xd", "D", ("A", "B", "X1", "X2"), ("aG", "p2"))], "D", {"p1": T, "p2": T, "xd": F}, {"member": SEVEN},
+     {"p1"}),
     # ---- H7 ---------------------------------------------------------------------------------------------------------
     (H7, "the cheap tip in the past of an honest removal by five at the newest admission: behind its signers' "
          "acknowledgements, it need not be named",
@@ -282,10 +340,15 @@ CASES = [
      ROOM + [ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] +
      [dict(q, names=tuple(q["names"]) + ("aG",), head=("g",)) if q["id"] == "se" else q for q in elect("se", "D", ("g",))],
      None, {"se": F}, {"moderate": set()}, set()),
-    (EL, "the seating at the newest admission, concurrent with a later admission a reader acknowledged: behind that "
-         "reader's line by its heads, as any roster change",
+    (EL, "the seating at the newest admission, a sibling of a later admission a reader acknowledged: not behind (the line "
+         "is sibling-safe)",
      ROOM + [admit("aH", "H", tuple(sorted(SEVEN)), ("aG",)), ack("ak", "R", "aH"),
              ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)), "R",
+     {"se": T}, {"moderate": set()}, set()),
+    (EL, "the seating at the head before an admission built on a later one the reader acknowledged: behind that "
+         "reader's line by its heads, as any roster change",
+     ROOM + [admit("aH", "H", tuple(sorted(SEVEN)), ("aG",)), admit("aI", "I", tuple(sorted(SEVEN | {"H"})), ("aH",)),
+             ack("ak", "R", "aI"), ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)), "R",
      {"se": T}, {"moderate": set()}, {"se"}),
     (EL, "a later admission at the newest admission, leaving the seating unnamed in its past (it names the ballots)",
      ROOM + [ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)) +
@@ -300,11 +363,17 @@ CASES = [
      WN + [ACN, invite("aP", "P", ("A", "B", "C", "D"), ("oN",), ("acN",))], None, {"aP": T}, {"member": FOUR | {"N"}}, set()),
     (AC, "the newcomer's acceptance completes its seat for its own count: N and three others, four of five",
      WN + [ACN, invite("aP", "P", ("N", "A", "B", "C"), ("oN",), ("acN",))], None, {"aP": T}, {"member": FOUR | {"N"}}, set()),
-    (AC, "(1) two concurrent invitations, each accepted, and a count by three naming both tips: each seat is placed at "
-         "one tip only, so neither newcomer counts there (intersected): three of four",
+    (AC, "(1) two concurrent invitations, each accepted, and a count by three naming both tips: the fold seats both "
+         "newcomers (each seat placed at its own tip and completed there), and three of six is short",
      WN[:2] + [invite("oN", "N", ("A", "B", "C", "D"), ("aD",)), invite("oM", "M", ("A", "B", "C", "D"), ("aD",)),
                ST.accept("acN", "N", "oN"), ST.accept("acM", "M", "oM"),
-               invite("aP", "P", ("A", "B", "C"), ("oN", "oM"), ("acN", "acM"))], None, {"aP": T},
+               invite("aP", "P", ("A", "B", "C"), ("oN", "oM"), ("acN", "acM"))], None, {"aP": F},
+     {"member": FOUR | {"N", "M"}}, set()),
+    (AC, "(1') an acceptance whose offer is at neither head completes nothing: the count by four at oM alone, N's "
+         "acceptance in its past and oN not: N is not counted, four of five (A, B, C, D, M) is met",
+     WN[:2] + [invite("oN", "N", ("A", "B", "C", "D"), ("aD",)), invite("oM", "M", ("A", "B", "C", "D"), ("aD",)),
+               ST.accept("acM", "M", "oM"), ST.accept("acN", "N", "oN"),
+               invite("aP", "P", ("A", "B", "C", "D"), ("oM",), ("acM",))], None, {"aP": T},
      {"member": FOUR | {"N", "M"}}, set()),
     (AC, "(2) the invitation withdrawn by its conferrer before the count, the acceptance in the count's past: the offer is "
          "ended there and completes nothing, three of four",
@@ -342,35 +411,70 @@ CASES = [
          "concludes; B accepts after. For a reader with no row: A, B and C hold (what one row naming both gives)",
      ROOM + [conf("oB", "B", ("aG",), joins=False), conf("oC", "C", ("aG",)), ST.accept("acB", "B", "oB")], None,
      {"oB": T, "oC": T, "acB": T}, {"moderate": {"A", "B", "C"}}, set()),
-    (LO, "the same read by B: B's acceptance is its acknowledgement (H6), oC names a head strictly in the past of the "
-         "offer B acknowledged and does not have it in its past, so oC is behind B's line",
+    (LO, "the same read by B: oC is a sibling of the offer B acknowledged (both at aG), so it is not behind B's line "
+         "(the line is sibling-safe): A, B and C hold",
      ROOM + [conf("oB", "B", ("aG",), joins=False), conf("oC", "C", ("aG",)), ST.accept("acB", "B", "oB")], "B",
-     {"oC": T}, {"moderate": {"A", "B"}}, {"oC"}),
-    (LO, "self-fork after B's seat exists (B signed it; B and D have acknowledged it since): the forked conferral to C at "
-         "the older head, read by B: void by B's line",
-     ROOM + [conf("oB", "B", ("aG",)), ack("kB", "B", "oB"), ack("kD", "D", "oB"), conf("oC", "C", ("aG",))], "B",
-     {"oB": T, "oC": T}, {"moderate": {"A", "B"}}, {"oC"}),
-    (LO, "the same read by D, another member that acknowledged B's seat: void",
-     ROOM + [conf("oB", "B", ("aG",)), ack("kB", "B", "oB"), ack("kD", "D", "oB"), conf("oC", "C", ("aG",))], "D",
-     {"oC": T}, {"moderate": {"A", "B"}}, {"oC"}),
-    (EDGE, "the same read by a reader with no acknowledgement: the forked conferral stands (the stated residual)",
-     ROOM + [conf("oB", "B", ("aG",)), ack("kB", "B", "oB"), ack("kD", "D", "oB"), conf("oC", "C", ("aG",))], None,
      {"oC": T}, {"moderate": {"A", "B", "C"}}, set()),
+    (EDGE, "self-fork after B's seat exists (B signed it; B and D have acknowledged it since): the forked conferral to C "
+           "at the same head is a sibling of B's seat and is behind no reader's line: A, B and C hold. The window, stated: "
+           "a lone holder that forks at the head of its own first conferral is one key that said two things; the two "
+           "rows are the evidence a later count can cite",
+     ROOM + [conf("oB", "B", ("aG",)), ack("kB", "B", "oB"), ack("kD", "D", "oB"), conf("oC", "C", ("aG",))], "B",
+     {"oB": T, "oC": T}, {"moderate": {"A", "B", "C"}}, set()),
+    (LO, "the fork after a change built on B's seat that B signed (B's own conferral with A of review on E): the forked "
+         "conferral at the older head is behind B's line, and void for B",
+     ROOM + [conf("oB", "B", ("aG",)), conf("rE", "E", ("oB",), scope="review", signers=("A", "B")), conf("oC", "C", ("aG",))],
+     "B", {"oB": T, "rE": T, "oC": T}, {"moderate": {"A", "B"}}, {"oC"}),
     # ---- a room of one invites two (probe, the answers as built): the newcomer's yes is the second voice ------------
     (LO, "a room of one invites N1 and N2 by two concurrent proposals at the founding head, each with the newcomer's "
          "yes: both conclude",
      [G1, ONE("n1", "N1", ("g",)), ONE("n2", "N2", ("g",))], None, {"n1": T, "n2": T}, {"member": {"A", "N1", "N2"}}, set()),
     (LO, "the same proposals in sequence, the second at the first: it is counted over A and N1, and A alone is short",
      [G1, ONE("n1", "N1", ("g",)), ONE("n2", "N2", ("n1",))], None, {"n1": T, "n2": F}, {"member": {"A", "N1"}}, set()),
-    (EDGE, "after the two concurrent admissions, A alone admits N3 at both tips: the tips intersect to A, so the count "
-           "is one of one, and for a reader with no row (and for A) all three stand: concurrent proposals keep the "
-           "inviter's base at one",
-     [G1, ONE("n1", "N1", ("g",)), ONE("n2", "N2", ("g",)), ONE("n3", "N3", ("n1", "n2"))], None, {"n3": T},
-     {"member": {"A", "N1", "N2", "N3"}}, set()),
-    (LO, "the same read by N1, whose admission is its acknowledgement: N2's admission names the founding head, strictly "
-         "before the admission N1 acknowledged, and is behind N1's line, and N3's with it",
-     [G1, ONE("n1", "N1", ("g",)), ONE("n2", "N2", ("g",)), ONE("n3", "N3", ("n1", "n2"))], "N1", {"n3": T},
-     {"member": {"A", "N1"}}, {"n2", "n3"}),
+    (LO, "after the two concurrent admissions, A alone admits N3 at both tips: the fold seats A, N1 and N2, so A alone is "
+         "one of three and short",
+     [G1, ONE("n1", "N1", ("g",)), ONE("n2", "N2", ("g",)), ONE("n3", "N3", ("n1", "n2"))], None, {"n3": F},
+     {"member": {"A", "N1", "N2"}}, set()),
+    (LO, "the same read by N1: N2's admission is a sibling of N1's own, not behind its line: the same roster",
+     [G1, ONE("n1", "N1", ("g",)), ONE("n2", "N2", ("g",)), ONE("n3", "N3", ("n1", "n2"))], "N1", {"n3": F},
+     {"member": {"A", "N1", "N2"}}, set()),
+    # ---- S'': the self-fork void, its rescue and its tie (the ruling of 2026-11-27). This is the ONLY automatic effect of
+    # a key signing two things outside an election, and it voids a change, never a key --------------------------------
+    (SFB, "L': the honest chain's first change signed only by A and B, then C, D and the newcomers on it; A and B fork at "
+         "g: aD is self-forked, and rescued by C (a member at g who signed only the honest chain): C..G remove A, five of the eight the fold seats",
+     lprime(("A", "B"), ("C", "D")) + [dict(QR("xa", "A", ("C", "D", "E", "F", "G"), ("xd", "aG")), policy="majority")], None, {"xa": T},
+     {"member": frozenset("BCDEFGX")}, set()),
+    (SFB, "L' with A and B on aE too: the fork is self-forked and unrescued, and void for the removal; the honest chain "
+         "is rescued by C",
+     lprime(("A", "B"), ("A", "B", "C", "D")) + [dict(QR("xa", "A", ("C", "D", "E", "F", "G"), ("xd", "aG")), policy="majority")], None, {"xa": T},
+     {"member": frozenset("BCDEFGX")}, set()),
+    (SF, "S'' against itself: A and B sign two chains at g, each first row behind the other's second; no single-chain "
+         "member on either side: both are kept, and A, B and C admitting Z at both tips is a count over the fold",
+     [G, admit("q1", "D", ("A", "B"), ("g",)), admit("q2", "X", ("A", "B"), ("g",)), admit("q1b", "E", ("A", "B", "D"), ("q1",)),
+      admit("q2b", "Y", ("A", "B", "X"), ("q2",)), admit("rz", "Z", ("A", "B", "C", "D", "E", "X", "Y"), ("q1b", "q2b"))], None,
+     {"rz": T}, {"member": frozenset("ABCDEXYZ")}, set()),
+    (SF, "the protocol raised after g: A and B, who signed nothing of the honest line, pack X1 and X2 from g under the "
+         "old protocol: a tip that is the protocol change is under its new protocol, so the tips are two regimes and fold "
+         "to their common keys; C..G remove A",
+     raised(2, lambda sg, heads: ST.unseat("xa", "C", "A", "member", OBJ, "group", heads, head=heads, policy="community_remove",
+                                           cosigners=("D", "E", "F", "G"))), None, {"xa": T}, {}, set()),
+    (SF, "the same: the packers A, B, X1, X2 remove C, and conclude nothing",
+     raised(2, lambda sg, heads: ST.unseat("xc", "A", "C", "member", OBJ, "group", heads, head=heads, policy="community_remove",
+                                           cosigners=sg[1:])), None, {"xc": F}, {}, set()),
+    (SF, "the silent colluder: A signs the honest admissions with C, B signs nothing after g, and A and B chain X1 and X2 "
+         "from g. Nothing is self-forked (B acknowledged nothing the chain is behind): for a reader with no row, C..G's "
+         "removal of A is five of nine and short",
+     silent(2, lambda sg, fp: remove("xr", "A", tuple("CDEFG"), ("aG", fp))), None, {"xr": F},
+     {"member": frozenset("ABCDEFG") | {"X1", "X2"}}, set()),
+    (SF, "the same read by D: X1's admission is behind D's line, so it and the chain on it leave the removal's fold for D "
+         "(the reader-line exclusion): the removal concludes for D, and A is out of D's roster",
+     silent(2, lambda sg, fp: remove("xr", "A", tuple("CDEFG"), ("aG", fp))), "D", {"xr": F},
+     {"member": frozenset("BCDEFG")}, {"p1"}),
+    (EDGE, "the silent colluder at n=8, for a reader with no row: A, B and X1..X8 remove C, ten of fifteen (the stated "
+           "residual: a silent colluder's packing chain under one protocol)",
+     silent(8, lambda sg, fp: remove("xr", "C", sg, ("aG", fp))), None, {"xr": T}, {}, set()),
+    (SF, "the same read by D: the chain is behind D's line and leaves the fold, and the removal concludes nothing for D",
+     silent(8, lambda sg, fp: remove("xr", "C", sg, ("aG", fp))), "D", {"xr": T}, {"member": frozenset("ABCDEFG")}, {"p1"}),
     # ---- the edge: a count that omits an acceptance its signers have seen -----------------------------------------------
     (EDGE, "a count by three at the invitation that omits N's acceptance (its signers have seen it) and needs the smaller "
            "base: three of four is met. It is what they could do a moment before the acceptance arrived (the next case): "
@@ -383,31 +487,33 @@ CASES = [
            "counted change N acknowledged, so it is not behind N's line, and it stands for N too",
      WN + [ACN, invite("aP", "P", ("A", "B", "C"), ("oN",))], "N", {"acN": T, "aP": T},
      {"member": FOUR | {"N"}}, set()),
-    # ---- holes the rules leave: the stated weak-subjectivity edge (a member is never such a reader, by H6) ----------
-    (EDGE, "the cheap tip and the removal by two at (tip, newest), for a reader with no row: concurrent tips intersect "
-           "to the founders' roster, and G is out",
-     ROOM + [DC("dc", "B", ("g",)), remove("xg", "G", ("A", "B"), ("dc", "aG"))], None, {"dc": T, "xg": T},
-     {"member": SEVEN - {"G"}}, set()),
-    (EDGE, "the packed removal of D, for a reader with no row",
+    # ---- the tips rule (the ruling of 2026-11-27): the fold, the self-fork void (S''), for a reader with no row too
+    (H1, "the cheap tip and the removal by two at (tip, newest), for a reader with no row: the fork is self-forked (A "
+         "and B acknowledged the newest admission it is behind), so it is void for the removal, which is two of seven",
+     ROOM + [DC("dc", "B", ("g",)), remove("xg", "G", ("A", "B"), ("dc", "aG"))], None, {"dc": T, "xg": F},
+     {"member": SEVEN}, set()),
+    (H1, "the packed removal of D, for a reader with no row: the packing is self-forked and void for the removal",
      ROOM + [admit("p1", "X1", ("A", "B"), ("g",)), admit("p2", "X2", ("A", "B", "X1"), ("p1",)),
-             remove("xd", "D", ("A", "B", "X1", "X2"), ("aG", "p2"))], None, {"p1": T, "p2": T, "xd": T},
-     {"member": (SEVEN | {"X1", "X2"}) - {"D"}}, set()),
+             remove("xd", "D", ("A", "B", "X1", "X2"), ("aG", "p2"))], None, {"p1": T, "p2": T, "xd": F},
+     {"member": SEVEN | {"X1", "X2"}}, set()),
 ]
 
 # the reader's line over roster versions (checkpoint.versions, line::versions), on worlds of roster_fork's rule M
 # (set-aside: a version may have in its past a version it does not extend). Each: (name, extends, past, roster of each
 # version, the reader's acknowledged version, the versions that count, the roster of the tips).
 VERSIONS = (
-    ("a version extends the founding version with the acknowledged one in its past", ((), (0,), (0,)), ((), (0,), (0, 1)),
-     ("0123", "012", "012"), 1, {0, 1}, "012"),
-    ("the same, and a version over it admits a member", ((), (0,), (0,), (2,)), ((), (0,), (0, 1), (0, 1, 2)),
-     ("0123", "012", "012", "0124"), 1, {0, 1}, "012"),
-    ("the same, and a version over it removes a member", ((), (0,), (0,), (2,)), ((), (0,), (0, 1), (0, 1, 2)),
-     ("0123", "01234", "01234", "0124"), 1, {0, 1}, "01234"),
+    ("a version extends the founding version with the acknowledged one in its past: a sibling of it, not behind (the "
+     "line is sibling-safe)", ((), (0,), (0,)), ((), (0,), (0, 1)), ("0123", "012", "0124"), 1, {0, 1, 2}, "0124"),
+    ("a version extends the founding version with the acknowledged one, which extends a later version, in its past: "
+     "behind", ((), (0,), (1,), (0,)), ((), (0,), (0, 1), (0, 1, 2)), ("0123", "012", "012", "0124"), 2, {0, 1, 2}, "012"),
+    ("the same, and a version over the one behind admits a member: built on it, behind too",
+     ((), (0,), (1,), (0,), (3,)), ((), (0,), (0, 1), (0, 1, 2), (0, 1, 2, 3)), ("0123", "012", "012", "0124", "01245"), 2,
+     {0, 1, 2}, "012"),
 )
 # the seat's line read directly (checkpoint.settle over concluded acts): an act with the acknowledged act in its past
 # that names a head older than it. The rules above refuse such a row before the line reads it, so the line is read here
-LINE = [G, admit("a1", "D", ("A", "B", "C"), ("g",)), dict(admit("a2", "E", ("A", "B"), ("g",), ("a1",)))]
+LINE = [G, admit("a1", "D", ("A", "B", "C"), ("g",)), admit("a1b", "E", ("A", "B", "C", "D"), ("a1",)),
+        dict(admit("a2", "F", ("A", "B"), ("g",), ("a1b",)))]
 
 
 def version_answer(E, past, ack):
@@ -423,18 +529,23 @@ def version_roster(past, R, Tv):
 
 
 def line_answer():
-    S = CK.concluded(CK.kept(list(LINE) + [CK.row("ak", "ack", "R", ("a1",), room=OBJ, head=("a1",))]), lambda r, P, past: True)
+    S = CK.concluded(CK.kept(list(LINE) + [CK.row("ak", "ack", "R", ("a1b",), room=OBJ, head=("a1b",))]), lambda r, P, past: True)
     return frozenset(CP.void(S, CP.EVERY, "R"))
 
 
 PLANTS = (("count_heads_unread", ST.MUT), ("all_heads_read", ST.MUT), ("head_any_row", ST.MUT), ("past_disjunct_off", ST.MUT),
           ("changes_any_object", ST.MUT), ("over_allowed", ST.MUT), ("authored_heads", ST.MUT), ("lone_exempt", ST.MUT),
           ("ends_at_heads_unread", ST.MUT), ("resign_exempt", ST.MUT), ("line_concurrent", CP.MUT), ("versions_concurrent", CP.MUT),
-          ("cut_before_line", ST.MUT), ("line_void_unlisted", ST.MUT), ("line_after_cut", ST.MUT), ("acks_only", CP.MUT),
-          ("ack_excuses_none", ST.MUT), ("election_exempt", ST.MUT),
+          ("cut_before_line", ST.MUT), ("line_void_unlisted", ST.MUT), ("acks_only", CP.MUT),
+          ("line_not_sibling_safe", CP.MUT), ("election_exempt", ST.MUT),
           ("acceptance_unread", ST.MUT), ("acceptance_ends_unread", ST.MUT),
           ("lone_offer_unread", ST.MUT), ("lone_offer_same_scope", ST.MUT), ("fold_acceptance_unread", ST.MUT),
-          ("heads_not_antichain", ST.MUT), ("window_opener_old_head", ST.MUT), ("lone_offer_self_path", ST.MUT))
+          ("heads_not_antichain", ST.MUT), ("window_opener_old_head", ST.MUT), ("lone_offer_self_path", ST.MUT),
+          ("self_fork_unread", ST.MUT), ("rescue_unread", ST.MUT), ("tie_unread", ST.MUT), ("meet_tips", ST.MUT),
+          ("regime_before_change", ST.MUT), ("reader_exclusion_unread", ST.MUT), ("ack_reads_void", CP.MUT))
+# retired with the ruling of 2026-11-27: ack_excuses_none (H7, subsumed by the self-fork void) and line_after_cut (the
+# line's first pass reads every row as counting; with the line sibling-safe and the reader's rows concluded again for
+# it, no case here tells a first pass over the cut from one over every row)
 
 
 import contextlib  # noqa: E402
@@ -445,7 +556,7 @@ def setting(rule):
     """H3's cases run with the act-to-policy binding off: the binding has no act for a self-admission (the acts
     table names none), so in the reference with it on a self-admission concludes nothing at all and H3 has nothing
     to read. The crate's own cases (tests/fold.rs) read H3 under the self-admit policy."""
-    on = rule == H3 and "binding_off" not in ST.MUT
+    on = rule in (H3, SFB) and "binding_off" not in ST.MUT
     if on: ST.MUT.add("binding_off")
     try:
         yield

@@ -170,7 +170,20 @@ trusting an adapter.
   admitted to it. A node new to the group, or one with no acknowledged head of its own, takes the group's past from
   a current member, who vouches for it under their own signature. That member is one the node already knows, the
   member whose proposal a newcomer accepted or, for a person's further device, a device of theirs already in the
-  group." A store serving such a reader passes that member's acknowledged head as the reader's first. A seat is two consents: an admission the joiner does not sign
+  group." A store serving such a reader passes that member's acknowledged head as the reader's first.
+  **A reader's roster** (the ruling of 2026-11-27): build it over the rows as they conclude for that reader:
+  `let (rows, void) = seat::for_reader(&c, law, spec, &own); Seats::for_reader(&rows, law, spec, &own, &void)`. A
+  count can stand for its reader and not for a reader with no row (the changes void for the reader leave the
+  count's fold): CC 2.7.9, "A reader's own acknowledged head closes older heads for that reader only". Show such a
+  count as in force for that reader, and say that a reader with no acknowledgement of its own reads it otherwise.
+  The line is sibling-safe: a row at the head of the reader's acknowledged change is no row behind it. The members
+  at several heads are the fold of their lines, and a counted change self-forked by all its voices is void for a
+  count that has it in its past (S''): that is the only automatic effect of a key signing two things outside an
+  election, and it voids a change, never a key.
+  **The residual, stated:** a reader with no row of its own, facing a silent colluder's packing chain under the
+  same protocol (a fork whose voices never acknowledged the honest line), reads the fork's admissions folded in;
+  and a newcomer admitted on the fork takes its past from its admitter (CC 3.3.4).
+  A seat is two consents: an admission the joiner does not sign
   seats it where its own acceptance (a `SeatKind::Accept` by the joiner, `of` the admission) is in the counted
   row's past, even when the acceptance is in no head's past. Present the acceptance as the joiner's own row; a
   cosignature is no acceptance. A counted change is any roster-changing row that concludes under the policy the
