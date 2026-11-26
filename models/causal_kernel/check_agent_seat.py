@@ -32,6 +32,11 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     agent_voice          the agent's signature is a voice of a count
     agent_counted_over   the agent is counted over (in the denominator) and is no voice
     agent_unread         a moderator's lone removal reaches a person's seat (the scope is not read)
+    lone_any_key         a moderator's lone removal in scope agent reaches a key that holds no agent's seat
+    roster_cut_any_scope an unseat of a roster scope the key does not hold ends its duty seats
+    stay_scope_ungated   a withdrawal naming a roster scope ends the stay whatever seat its target gives
+    scope_keeps_agents   a window's counted clause over a named scope (moderate) keeps its agents (window.py)
+    one_leaves_agents    a window's clause one holder's act resolves leaves out an agent's act (window.py)
 
     python3 -I check_agent_seat.py      exit 1 on any difference
 """
@@ -67,6 +72,18 @@ def confer(i, k, scope, signers, heads):
     """A duty seat conferred by the duty holders' count (CC 4.5.4 (iv)), the holder cosigning."""
     return ST.offer(i, signers[0], k, scope, OBJ, "group", tuple(heads), head=tuple(heads), policy="duty_confer",
                     counted="duty", cosigners=tuple(signers[1:]) + ((k,) if k not in signers else ()))
+
+
+def chain(n):
+    """n agents' keys admitted by one counted row, then a moderator's n lone removals of them, each naming the one
+    before as its head (each concludes: its key still holds its agent's seat there)."""
+    ks = tuple("A%d" % i for i in range(n))
+    rows, prev = [ST.offer("ags", "p1", ks, "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
+                           cosigners=("p2", "p3") + ks)], "ags"
+    for i in range(n):
+        rows.append(lone("x%d" % i, "p1", ks[i], (prev,)))
+        prev = "x%d" % i
+    return rows
 
 
 def lone(i, by, who, heads, scope="agent"):
@@ -131,10 +148,43 @@ CASES = [
      W3 + [remove("x", "AG", ("p2", "p3"), ("ag",), "agent")], {"x": T}, P3, P3, [("AG", "agent", F)], {}),
     ("an agent resigns: off the roster and out of the wrap set, and its duty seat in that resignation's past ends",
      W3R + [ST.withdraw("wa", "AG", "ag", ("cr",))], {"wa": T}, P3, P3, [("AG", "review", F), ("AG", "agent", F)], {}),
+    # ---- the review of 2026-11-25 -----------------------------------------------------------------------------------
+    ("a moderator's lone removal in scope agent of a person's key ends nothing: the key holds no agent's seat",
+     W3 + [lone("x", "p1", "p2", ("ag",))], {"x": F}, P3, P3 | {"AG"}, [("p2", "moderate", T)], {"x": "none"}),
+    ("a moderator's unseat of an agent's key in scope member (a seat it does not hold) concludes nothing",
+     W3 + [lone("x", "p1", "AG", ("ag",), "member")], {"x": F}, P3, P3 | {"AG"}, [], {"x": "none"}),
+    ("the room's count unseats a person's key in scope agent, a seat it does not hold: its stay and duty seats stand",
+     W3 + [remove("x", "p1", ("p2", "p3"), ("ag",), "agent")], {"x": T}, P3, P3 | {"AG"}, [("p1", "moderate", T)], {}),
+    ("a person's withdrawal of the founding row naming scope agent, a seat the row does not give it, ends nothing",
+     W3 + [ST.withdraw("w", "p2", "g", ("ag",), scope="agent")], {"w": T}, P3, P3 | {"AG"}, [("p2", "moderate", T)], {}),
+    ("an agent holding moderate acts under it: its answer to a fallback, a clause one holder's act resolves, closes it",
+     W3 + [confer("cm", "AG", "moderate", ("p1", "p2"), ("ag",)), WN.opener("op", "p3", "moderation_fallback", OBJ, ("cm",)),
+           WN.answer("an", "AG", "op", "answered")], {"cm": T}, P3, P3 | {"AG"}, [("AG", "moderate", T)], {"op": "answered"}),
+    ("one person moderator and one agent moderator: the person is the lone holder, and withdraws the agent's duty alone",
+     W1 + [confer("cm", "AG", "moderate", ("p1",), ("ag",)),
+           ST.unseat("xm", "p1", "AG", "moderate", OBJ, "group", ("cm",), head=("cm",), policy="duty_withdraw", counted="duty")],
+     {"cm": T, "xm": T}, P1, P1 | {"AG"}, [("AG", "moderate", F), ("p1", "moderate", T)], {}),
+    ("an agent removed from the room by its count holds no duty from that end",
+     W3R + [remove("x", "AG", ("p2", "p3"), ("cr",), "agent")], {"x": T}, P3, P3, [("AG", "review", F), ("AG", "duty", F)], {}),
+    ("an agent removed by a moderator alone holds no duty from that end",
+     W3R + [lone("x", "p1", "AG", ("cr",))], {"x": T}, P3, P3, [("AG", "review", F)], {"x": "open"}),
+    ("a chain of twelve lone removals of the agent, each naming the one before, is read in polynomial time",
+     [G3] + chain(12), {"x0": T, "x11": T}, P3, P3, [("p1", "moderate", T), ("A11", "agent", F)], {}),
     ("an agent's duty seat stands only on its agent seat: conferred before the agent is admitted, it waits",
      [G3, confer("cr", "AG", "review", ("p1", "p2"), ("g",))], {"cr": T}, P3, P3, [("AG", "review", F)], {}),
 ]
-PLANTS = ("agent_voice", "agent_counted_over", "agent_unread")
+PLANTS = ("agent_voice", "agent_counted_over", "agent_unread", "lone_any_key", "roster_cut_any_scope", "stay_scope_ungated",
+          "one_leaves_agents")      # scope_keeps_agents is caught by COUNTED_CASE, read in main()
+# A counted clause over moderate (no table of the policy has one, so this window is the check's own and is not in
+# the fixture): a strict majority of the moderators approves. p1 and the agent moderator approve; the moderators
+# counted are the persons p1 and p2, so one of two, and nothing lands.
+COUNTED = {"policy": "moderation_action", "counted": "member", "concluder": "member", "opener_says": None,
+           "at_once": (("approve", "strict", "moderate", "landed"),), "silent": None, "at_close": (), "default": "lapsed"}
+COUNTED_CASE = ("an agent holding moderate is out of a counted clause over moderate: p1 and the agent approve, one of two",
+                W3 + [confer("cm", "AG", "moderate", ("p1", "p2"), ("ag",)),
+                      WN.opener("op", "p3", "test_counted_moderate", OBJ, ("cm",)),
+                      WN.answer("a1", "p1", "op", "approve"), WN.answer("a2", "AG", "op", "approve")],
+                {"cm": T}, P3, P3 | {"AG"}, [], {"op": "open"})
 
 
 def read(S, case):
@@ -168,6 +218,16 @@ def orders(rows):
 
 def main():
     problems, n_orders = [], 0
+    WN.WINDOWS["test_counted_moderate"] = COUNTED
+    try:
+        if answers(COUNTED_CASE) != want(COUNTED_CASE):
+            problems.append("%s: got %s" % (COUNTED_CASE[0], answers(COUNTED_CASE)))
+        WN.MUT.add("scope_keeps_agents")
+        if answers(COUNTED_CASE) == want(COUNTED_CASE):
+            problems.append("plant scope_keeps_agents not caught by the counted clause")
+    finally:
+        WN.MUT.discard("scope_keeps_agents")
+        del WN.WINDOWS["test_counted_moderate"]
     for case in CASES:
         got = answers(case)
         if got != want(case):
@@ -179,11 +239,11 @@ def main():
                 break
     caught = 0
     for plant in PLANTS:
-        ST.MUT.add(plant)
+        ST.MUT.add(plant); WN.MUT.add(plant)
         try:
             hit = [c[0] for c in CASES if answers(c) != want(c)]
         finally:
-            ST.MUT.discard(plant)
+            ST.MUT.discard(plant); WN.MUT.discard(plant)
         caught += bool(hit)
         print("  plant %-20s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0]) if hit else "NOT CAUGHT"))
         if not hit:

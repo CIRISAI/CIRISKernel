@@ -236,6 +236,16 @@ def chain_answers(rows, reader_acks=(), role=None):
             return "two_owners", None
         return "stands", b
 
+    def rebinds(c, b):
+        """c is b, or re-binds b through a chain of re-bindings (`on`)."""
+        seen = set()
+        while c is not None and c["id"] not in seen:
+            if c["id"] == b["id"]:
+                return True
+            seen.add(c["id"])
+            c = by.get(c.get("on")) if c.get("on") else None
+        return False
+
     def two_owners(x, b):
         """CC 3.2: a key with two live owner-bindings naming different owners has no owner ("two owners is none";
         seat.Seats.one). A binding of the node held that names another owner, neither binding in the other's
@@ -243,8 +253,8 @@ def chain_answers(rows, reader_acks=(), role=None):
         for c in rows:
             if c["kind"] != "binding" or c["id"] == b["id"] or c.get("owner") == b.get("owner"):
                 continue
-            if c["id"] in anc(b["id"]) or b["id"] in anc(c["id"]):
-                continue
+            if rebinds(c, b) or rebinds(b, c):
+                continue                                                     # one ends the other: a stint, not a rival
             if any(e["kind"] == "binding" and e.get("on") == c["id"] and e["id"] in anc(x["id"]) for e in rows):
                 continue
             return True
@@ -391,11 +401,11 @@ CASES = [
 ]
 # Two owners is none (CC 3.2). Rows written out: G0 the bundle, B0 the binding to O1 and A0 O1's acceptance under it, C0
 # a second binding of the node, concurrent with B0 (neither names the other), C1 a re-binding of C0, x1 the act.
-def _two(c0_owner="O2", c1=False, x_names=("G0", "A0")):
+def _two(c0_owner="O2", c1=False, x_names=("G0", "A0"), b_names_c=False):
     rows = [{"id": "G0", "kind": "bundle", "signer": "count", "names": []},
-            {"id": "B0", "kind": "binding", "signer": "N", "names": [], "owner": "O1", "on": None},
-            {"id": "A0", "kind": "acceptance", "signer": "O1", "names": ["B0"], "on": "B0"},
-            {"id": "C0", "kind": "binding", "signer": "N", "names": [], "owner": c0_owner, "on": None}]
+            {"id": "C0", "kind": "binding", "signer": "N", "names": [], "owner": c0_owner, "on": None},
+            {"id": "B0", "kind": "binding", "signer": "N", "names": ["C0"] if b_names_c else [], "owner": "O1", "on": None},
+            {"id": "A0", "kind": "acceptance", "signer": "O1", "names": ["B0"], "on": "B0"}]
     if c1:
         rows.append({"id": "C1", "kind": "binding", "signer": "N", "names": ["C0"], "owner": "O1", "on": "C0"})
     rows.append({"id": "x1", "kind": "act", "signer": "N", "names": list(x_names), "head": "G0", "on": "A0"})
@@ -413,6 +423,9 @@ TWO_CASES = [
     ("two_owners_one_rebound_in_the_acts_past", "O2's binding is re-bound to O1 (C1 names C0), and the act has "
      "that re-binding in its past: O2's binding is ended there, and the act stands on O1",
      _two(c1=True, x_names=("G0", "A0", "C1")), {"x1": {"O1": (T, T), "O2": (F, F)}}, {"x1": "stands"}),
+    ("two_owners_one_in_the_others_past", "O1's binding names O2's in its past but does not re-bind it (no `on`): "
+     "both are live, so two owners, none; the act counts for nobody", _two(b_names_c=True), {"x1": NOBODY},
+     {"x1": "two_owners"}),
     ("two_owners_rebinding_held_not_in_the_acts_past", "the same re-binding held by the reader, not in the act's "
      "past: O2's binding is not ended in the act's past, so at the act two owners were live; nobody",
      _two(c1=True), {"x1": NOBODY}, {"x1": "two_owners"}),

@@ -68,6 +68,9 @@ migrations, and the local operational store.
 - **The key plane** (`community_dek.rs:545`, epoch identity) and **private-room bindings**.
 - **Effects and drafts** (KERNEL_SEAMS §5.6, §5.7). The crate returns answers, not effects.
 - **Classification of a raw row into a family**, and the table loader. The crate takes the tables as values.
+- **An agent's owner on its duty seat.** The kernel does not read the owner's statement on an agent's duty seat
+  yet (CC 4.5.4, `founding_duty_holder_agent_owner_unsigned`). Until it does, a caller must not present an
+  agent's duty seat without the owner's statement having been checked at the door.
 
 ## Points to settle before adoption
 
@@ -99,7 +102,7 @@ Recommended: a git dependency on the kernel repository at a tag, the way persist
 `ciris-verify-core` (`Cargo.toml:581`):
 
 ```toml
-ciris-kernel = { git = "https://github.com/CIRISAI/CIRISKernel", tag = "kernel-v0.2.2", version = "0.2" }
+ciris-kernel = { git = "https://github.com/CIRISAI/CIRISKernel", tag = "kernel-v0.4.0", version = "0.4" }
 ```
 
 `deny.toml` has `[sources] allow-git = []` with `unknown-git = "warn"`, so the repository would be added to
@@ -140,9 +143,12 @@ trusting an adapter.
   `duty_holders` map: per duty, the members who hold it. It seats each listed member who signed it in
   `member` and each holder an entry names in that duty, with no count, so one, two or twelve founders are
   presented alike. Do not present the founding as chained counted rows.
-- A listed member who did not sign the record is seated in nothing, and a later acceptance does not seat it.
-  An entry naming a key that is not a listed signer seats nothing. Neither is refused: the crate reads them,
-  and the text names no refusal for them. Refuse them at your door if you need to.
+- A founding row seats by the signatures on it, with a map or without. A listed member who did not sign it is
+  seated in nothing, and a later acceptance does not seat it: the text's terminal reason is
+  `membership_founding_member_unsigned` (CC 3.1.3.2), and the key joins by an ordinary admission. A record
+  whose map names a duty holder who did not sign it the text refuses at the door
+  (`founding_duty_holder_not_signer`, CC 4.5.4). The crate does not refuse rows; handed either, it seats
+  nothing for that key.
 - A founder lays down one duty by a `SeatKind::Withdraw` of the founding row whose `scope()` is that duty: its
   member seat and its other duties stand. A withdrawal of the founding row with no scope ends every seat the
   row gives the founder (an end of its stay), and so every duty seat conferred on it before.
@@ -167,8 +173,14 @@ trusting an adapter.
   count (`community_invite` or the room's protocol), the agent cosigning its own acceptance. Its signature on
   that row is its consent and no voice. Do not seat it in `member`: a key in `member` is a person, counted.
 - `Seats::roster(o)` is the whole roster, members and agents. Wrap keys to it, serve content to it and read an
-  audience from it. `Seats::holders("member", o)` is the persons, and every count reads that (or the scope it
-  names) less the agents.
+  audience from it. Every count reads the members (or the scope it names) less the agents: `count_members`,
+  `Policy::Lift`'s members, and a window's `Base::All`, `Base::Others` and `Base::Scope` in a counted clause (a
+  clause one holder's act resolves, `How::One`, reads an agent holder's act). `Seats::holders("member",
+  o)` can hold an agent that holds a duty whose scope holds `member`; for persons apply `seat::persons` with the
+  holders of `agent`.
+- The kernel does not read the owner's statement on an agent's duty seat yet (CC 4.5.4,
+  `founding_duty_holder_agent_owner_unsigned`): the seat rows carry no owner of an agent's key. Until it does, a
+  caller must not present an agent's duty seat without the owner's statement having been checked at the door.
 - A duty conferred on an agent is a duty seat of its own (a counted `duty_confer` row), live while its `agent`
   seat is. It acts alone within that duty. It is still no voice in any count, the duty holders' own included.
 - A moderator's lone removal of an agent's key is an Unseat of its `agent` seat, `Conf::Group`, signed by the
@@ -177,7 +189,8 @@ trusting an adapter.
   row of the lift is an Offer of scope `agent`.
 - That removal is in force only while the moderator's `moderate` standing is, by the end rule: once an end of
   the standing is held (its own withdrawal, a counted removal of it, the holders' counted withdrawal of its
-  duty), the removal ends nothing for that reader unless a receipt of it is held. Present a duty holder's
+  duty), the removal ends nothing for that reader unless a receipt of it is held, and nothing puts it back: a
+  moderator seated again (the same offer accepted again, or a new conferral) signs the removal again. Present a duty holder's
   receipt as a `SeatKind::Ack` row with `of()` the removal and no `room()`, signed by a holder other than the
   moderator. A reader's acknowledgement of a head keeps `room()` and `head()` as before.
 - `content::answers` reads no seat row: the caller marks each roster version (`ContentRow::seat`, `SeatAt`)
@@ -205,7 +218,13 @@ with `of` that act, all under the wire row's own id (`tests/conferral_end.rs`,
 
 **Two bindings of one node**, for `standing::answers`: present every binding of the node you hold, a re-binding
 with `on()` the binding it ends. Two bindings to different owners that do not name each other leave the node with
-no owner (`Nobody::TwoOwners`) until a re-binding of one is in the act's past.
+no owner (`Nobody::TwoOwners`) until a re-binding of one is in the act's past, also where one is in the other's
+past without re-binding it. `Nobody::TwoOwners` is a new variant: an exhaustive `match` adds the arm.
+
+**Withdrawals and live seats.** A withdrawal's `SeatRow::scope()` names the one seat of its target it ends (a
+founder laying down a duty); `None` ends every seat the target gives its signer. A scope naming a roster seat
+ends the stay only where the target gives the signer that seat. `Live::scope` is the seat's own scope: one
+founding record gives one `Live` per seat, with the same `offer`.
 
 **A deputy edge**, for `conferral::answers`. This is the deputy of an exercised standing, not the delegation
 chain of `Seats::stands` above.

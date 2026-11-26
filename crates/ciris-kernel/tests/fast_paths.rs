@@ -602,7 +602,8 @@ fn retained_equals_the_per_row_reading() {
 }
 
 /// One founding offer seating many keys (more than `Seats::new` scans its signers for): a key is seated iff it
-/// signed the offer or accepted it by a row of its own.
+/// signed the offer. A founding row seats by the signatures on it: a listed key's acceptance by a row of its own
+/// does not seat it (CC 3.1.3.2, `membership_founding_member_unsigned`).
 #[test]
 fn an_offer_seating_many_seats_exactly_its_consenting_keys() {
     let law = law();
@@ -617,13 +618,12 @@ fn an_offer_seating_many_seats_exactly_its_consenting_keys() {
         o.conf = Some(Conf::Own);
         o.cosigners = (2..=n).filter(|_| pick(&mut g, 2) == 0).collect();
         let mut rows = vec![o.clone()];
-        let mut want: BTreeSet<u32> = o.cosigners.iter().copied().chain([1]).collect();
+        let want: BTreeSet<u32> = o.cosigners.iter().copied().chain([1]).collect();
         for k in 2..=n {
             if pick(&mut g, 3) == 0 {
                 let mut a = S::new(100 + k, vec![0], k, SeatKind::Accept);
                 a.of = Some(0);
                 rows.push(a);
-                want.insert(k);
             }
         }
         let c = conclude(rows.iter(), |p| seat_rule(p, &law, &NoCut, &|_| true), None);

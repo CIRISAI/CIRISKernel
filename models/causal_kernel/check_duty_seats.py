@@ -28,8 +28,11 @@ anything: one, two or twelve founders run alike. The seats end separately:
                        rule above every duty seat conferred on it in that withdrawal's past
     no entry           a founder no entry names is a member and no duty holder
     no signature       a listed member who did not sign the row is seated in nothing, and a later acceptance does not
-                       seat it (the record seats by the signature on it). An entry naming a key that is not a listed
-                       signer seats nothing. The text names no refusal for either row; both are read, not refused.
+                       seat it (the record seats by the signature on it, with or without a map; CC 3.1.3.2 names it
+                       `membership_founding_member_unsigned`): it joins by an ordinary admission. An entry naming a
+                       key that is not a listed signer seats nothing; the text refuses such a record at the door
+                       (`founding_duty_holder_not_signer`, CC 4.5.4). Handed either row, the kernel seats nothing
+                       for that key.
 The duty rules engage over a founding record whose map names a holder, as over a founding row of scope `duty`.
 A founding row of scope `duty` with no map is read as before: every key it seats is a duty holder, and that seat
 holds `member`, so its withdrawal of the founding row ends both. Persist's table gives that seat `member` and no
@@ -55,6 +58,7 @@ Planted breaks, each of which must change a case's answer:
     unsigned_seated     a listed member who did not sign the founding record is seated
     scope_unread        a withdrawal's `scope` is not read: laying down one duty ends the founder's stay
     member_rule_duty_rooms_only  the membership rule reaches only rooms whose founding row seats duty holders
+    unsigned_no_map     a founding row with no map seats a listed key that did not sign and accepts later
 
 Not here: the count that confers or withdraws a duty seat (check_rosters.py, the duty instance); a count over a scope
 that is no duty; the term of a seat; an act done under a duty seat after it ends (conferral_end.py).
@@ -232,6 +236,12 @@ CASES = [
     ("a listed member who did not sign the record is seated in nothing, even with a later acceptance of it",
      [ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "C")}, cosigners=("B",)), ST.accept("ac", "C", "g")],
      [("C", "member", F), ("C", "moderate", F), ("A", "moderate", T), ("B", "member", T)], None),
+    ("a founding row with no map seats by the signatures on it too: a listed key that did not sign, and accepts later, is not seated",
+     [ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B",)), ST.accept("ac", "C", "g")],
+     [("C", "member", F), ("A", "member", T), ("B", "member", T)], None),
+    ("and an ordinary admission seats it",
+     [ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B",)), ST.accept("ac", "C", "g"),
+      admit("mc", "C", ("A", "B"), ("g",), ("ac",))], [("C", "member", T)], None),
     ("an entry naming a key that is not a listed member seats nothing",
      [ST.found("g", "A", ("A", "B"), {"moderate": ("A", "Z")}, cosigners=("B",))],
      [("Z", "moderate", F), ("Z", "member", F), ("A", "moderate", T)], None),
@@ -272,7 +282,8 @@ CASES = [
      [G, confer("cn", "N", "detect:list1", ("A", "B"), ("g",))], [("N", "detect:list1", T), ("N", "member", F), ("N", "duty", F)], None),
 ]
 PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_only", "duty_fold_unread", "holders_unread",
-          "unsigned_seated", "scope_unread", "member_rule_duty_rooms_only")
+          "unsigned_seated", "scope_unread", "member_rule_duty_rooms_only",
+          "unsigned_no_map")
 
 
 @contextlib.contextmanager

@@ -101,7 +101,8 @@ pub enum Base {
     /// Where the opener is a moderator's lone removal of an agent's key, the key it removes is an agent's and
     /// so in no count, on every path: the count with no landing, a landing's, and the recount.
     Others,
-    /// Another scope at the opener's head.
+    /// Another scope at the opener's head, less the agents there (in no count, for every scope), except in a
+    /// clause one holder's act resolves ([`How::One`]), which reads an agent holder's act.
     Scope(String),
     /// The opener's signer alone: the proposer's own voice (its withdrawal of an open proposal).
     Opener,
@@ -194,8 +195,9 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
             return m.clone();
         }
         let mut m = members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, scope);
-        if matches!(b, Base::All | Base::Others) && scope != AGENT && self.has_agents() {
-            // a count of the room is by person: the agents at the head are no voice and not counted over
+        if scope != AGENT && self.has_agents() {
+            // in no count: the agents at the head are out of the base and the voices for every scope a clause
+            // reads, a named one (`moderate`) included
             let agents = members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, AGENT);
             m = persons(m, &agents);
         }
@@ -203,6 +205,20 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
             m.remove(&self.opener_signer);
         }
         self.cache.borrow_mut().insert(name.into(), m.clone());
+        m
+    }
+
+    /// The keys a clause one holder's act resolves ([`How::One`]) reads over `b`: for a named scope its
+    /// holders, agents included (an agent acts under its seat by the acts one signature resolves); for any
+    /// other base, [`Ctx::base`].
+    fn held(&self, b: &Base) -> BTreeSet<R::Key> {
+        let Base::Scope(s) = b else { return self.base(b) };
+        let key = alloc::format!("held|{s}");
+        if let Some(m) = self.cache.borrow().get(&key) {
+            return m.clone();
+        }
+        let m = members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, s);
+        self.cache.borrow_mut().insert(key, m.clone());
         m
     }
 
@@ -231,12 +247,17 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
         let got = extra.and_then(|_| sets.pop());
         let mut cache = self.cache.borrow_mut();
         // a count of the room is by person: the agents at the head are no voice and not counted over
-        let agents = if w.counted == AGENT { BTreeSet::new() } else { sets[2].clone() };
+        let at_head = sets[2].clone();
+        let agents = if w.counted == AGENT { BTreeSet::new() } else { at_head.clone() };
         let mut others = persons(sets[0].clone(), &agents);
         others.remove(&self.opener_signer);
         cache.insert("others".into(), others);
         cache.insert("all".into(), persons(sets[0].clone(), &agents));
         for (scope, set) in scopes.iter().zip(sets).skip(1) {
+            // a named scope's base leaves its agents out too; its holders, agents included, are what a clause
+            // one holder's act resolves reads
+            cache.insert(alloc::format!("held|{scope}"), set.clone());
+            let set = if *scope == AGENT { set } else { persons(set, &at_head) };
             cache.insert((*scope).into(), set);
         }
         got
@@ -253,7 +274,7 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
     let w = x.w;
     let tv: BTreeSet<R::Key> = if w.target_votes { target.cloned().into_iter().collect() } else { BTreeSet::new() };
     let mut voters = x.base(&Base::All);
-    voters.extend(x.base(&Base::Scope("moderate".into())));
+    voters.extend(x.held(&Base::Scope("moderate".into())));
     voters.extend(tv.iter().cloned());
     // the proposer's withdrawal is its own voice on the opener's clause, and never replaces what it said by opening
     let is_wd = |a: &&R| *a.signer() == x.opener_signer && a.says().is_some_and(|w| w.as_ref() == "withdraw");
@@ -271,7 +292,7 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         .iter()
         .copied()
         .filter(|a| voters.contains(a.signer()) && !is_wd(a))
-        .filter(|a| duty_word(a).is_some_and(|b| x.base(b).contains(a.signer())))
+        .filter(|a| duty_word(a).is_some_and(|b| x.held(b).contains(a.signer())))
         .map(|a| a.signer())
         .collect();
     let moot = |a: &R| acted.contains(a.signer()) && duty_word(a).is_none();
@@ -293,7 +314,8 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         if cl.over == Base::Opener {
             return if cl.value == "withdraw" { withdrawn } else { said.get(&x.opener_signer) == Some(&cl.value) };
         }
-        let keys = x.base(&cl.over);
+        // a count (a fraction, a floor) leaves the agents out; a clause one holder's act resolves reads them
+        let keys = if cl.how == How::One { x.held(&cl.over) } else { x.base(&cl.over) };
         let yes = said
             .iter()
             .filter(|(s, v)| {
@@ -513,7 +535,7 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
     }
     let late = |r: usize| gone.iter().any(|(ks, x)| ks.contains(g.row(r).signer()) && !g.in_past(r, *x));
     let mut voters = x.base(&Base::All);
-    voters.extend(x.base(&Base::Scope("moderate".into())));
+    voters.extend(x.held(&Base::Scope("moderate".into())));
     if w.target_votes {
         voters.extend(p.target_key().cloned());
     }
@@ -770,6 +792,17 @@ mod tests {
                     rows.push(o);
                     id += 1;
                 }
+            }
+            // now and then the last key holds an agent's seat as well: every base leaves it out, read either way
+            if (id + n).is_multiple_of(4) {
+                let mut o = W::new(id, vec![0], 1);
+                o.kind = SeatKind::Offer;
+                o.to = vec![n];
+                o.cosigners = vec![n];
+                o.scope = Some(AGENT.into());
+                o.obj = Some(Obj::Row(0));
+                o.conf = Some(Conf::Own);
+                rows.push(o);
             }
             let v = W::new(100, rows.iter().map(|r| r.id).collect(), 1);
             rows.push(v);

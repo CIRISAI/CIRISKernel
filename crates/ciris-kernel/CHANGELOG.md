@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [0.4.0]
+
+The first tag of the 0.4 line (`kernel-v0.4.0`), after `kernel-v0.3.0`. Several answers change, one public
+enum gains a variant (`standing::Nobody::TwoOwners`: an exhaustive match breaks), and `SeatRow` gains
+`duty_holders`. Known to be missing, each stated below where it belongs: the owner's statement on an agent's
+duty seat is not read; four ruled readings of a receipt of a lone removal are not built; a counted window
+clause over a duty that leaves an agent out has a case in the reference only (no policy table has such a
+clause, so no fixture carries one).
+
 **A founding record seats its listed members and its named duty holders** (CC 4.5.4: "A founding record seats
 the duty holders it names, each by their own signature on it. ... The record names them in `duty_holders`, a
 map from a duty to the set of members who hold it, each a listed member who signed the record.").
@@ -11,9 +20,12 @@ map from a duty to the set of members who hold it, each a listed member who sign
   key of `to` that signed it (signer or cosigner) in the row's own scope, `member` as presented, and each such
   key an entry names in that entry's duty. No count is taken, so no floor is asked and "no key admits itself"
   is not engaged: one, two or twelve founders run alike.
-- A key of `to` that did not sign such a row is seated in nothing, and a later acceptance of the row does not
-  seat it. An entry naming a key that is not a listed signer seats nothing. Neither row is refused. (A founding
-  row with no map still seats an unsigned key of `to` that accepts it later, as before.)
+- A founding row seats by the signatures on it, with or without a map: a key of `to` that did not sign it is
+  seated in nothing, and a later acceptance of the row does not seat it (CC 3.1.3.2's terminal reason
+  `membership_founding_member_unsigned`); it joins by an ordinary admission. **An answer changes** for a founding
+  row with no map: before, an unsigned key of `to` that accepted it later was seated. An entry naming a key that
+  is not a listed signer seats nothing; the text refuses such a record at the door
+  (`founding_duty_holder_not_signer`, CC 4.5.4), and the crate, handed one, seats nothing for that key.
 - `SeatRow::scope` is now read on a withdrawal: a withdrawal of a founding record naming a scope ends that one
   seat of its signer's (a founder laying down a duty), and is no end of its stay. With no scope it ends every
   seat the row gives its signer, which is an end of its stay and ends the duty seats conferred on it in that
@@ -29,10 +41,10 @@ map from a duty to the set of members who hold it, each a listed member who sign
   record's cases replace them.
 
 The reference: `seat.found`, `seat.seat_scopes`, and `withdraw(..., scope=)` in `models/causal_kernel/seat.py`;
-`check_duty_seats.py` has 56 cases (the founding record with one, two and three founders, a duty laid down, the
+`check_duty_seats.py` has 58 cases (the founding record with one, two and three founders, a duty laid down, the
 stay ended, a duty conferred after the founding, a counted removal, a counted duty withdrawal of a founding seat,
 a founder with no entry, an unsigned listed member, an entry naming a key that is not listed) in every arrival
-order, and nine planted breaks. Three new plants in `tools/kernel_crate_plants.sh`.
+order, and ten planted breaks. Four new plants in `tools/kernel_crate_plants.sh`.
 
 **The duty-seat rule reaches every room.** "Under the text a duty seat conferred by any path stands only while its
 holder is a member." Before, the membership condition and the no-revival half engaged only over a community whose
@@ -52,15 +64,44 @@ removal. Two plants in the crate.
 
 **Two owners is none, in `standing::answers`** (CC 3.2: a key with two live owner-bindings naming different owners
 has no owner; `seat::Seats::one` runs that rule). Where the rows hold a binding of the node to another owner than
-the one the act's acceptance names, neither binding in the other's past, and no re-binding of that other binding
-in the act's past, the act counts for nobody: `Answer::Nobody(Nobody::TwoOwners)` (`"two_owners"`), new. Before,
+the one the act's acceptance names, neither re-binding the other (one in the other's past without re-binding it is
+still live), and no re-binding of that other binding in the act's past, the act counts for nobody: `Answer::Nobody(Nobody::TwoOwners)` (`"two_owners"`), new. Before,
 the two bindings were read as two stints and the act counted under the one its acceptance names. Several live
 bindings to the same owner are one owner, and a re-binding that names the binding before it is unchanged. A
 binding is live at the act unless a re-binding of it is in the act's past, the reading `chain_answers` already
 gives a stint's end; so an act whose past holds only the first owner's binding counts for nobody once the reader
 holds a concurrent binding to another owner, and one whose past holds a re-binding of that other binding stands.
-An exhaustive `match` on `standing::Nobody` adds the arm. The reference: `chain_answers` in
-`check_conferral_two.py`, with five cases (`TWO_CASES`) in the `conferral_two` fixture; one plant.
+**Breaking:** `standing::Nobody` gains `TwoOwners`, so an exhaustive `match` on it must add the arm. The
+reference: `chain_answers` in `check_conferral_two.py`, with six cases (`TWO_CASES`) in the `conferral_two`
+fixture; two plants.
+
+**Fixes from the review of 2026-11-25** (each with a case that failed before it and a plant):
+- A moderator's lone removal concludes only where the key it removes holds an `agent` seat at the head the row
+  names. Before, an unseat in scope `agent` of a person's key, signed by a moderator alone, concluded and cut the
+  person's duty seats while its member seat stood. The lift's "restores" test is this same test now (a
+  re-seating stands only on a lone removal), so the separate test in `Policy::Lift`'s count is gone.
+- A counted unseat of a roster scope ends a key's duty seats only where an offer in its past seats the key in that
+  scope: an unseat in scope `agent` of a person ends no stay and no duty. The same reading for an end of a
+  moderator's standing.
+- A withdrawal naming a roster scope is an end of the signer's stay only where its target gives the signer that
+  seat (`seat::stay_ended_in_past` and `left_in_past` agree on it).
+- `standing::answers`: two bindings to different owners where one is in the other's past without re-binding it
+  are two live owners, so none (above).
+- `window`: `Base::Scope(s)` leaves the agents at the opener's head out, as `Base::All` and `Base::Others` do and
+  as `seat::count_members` does for every counted scope (ruled: "in no count" is out of the base and the voices
+  for every scope a counted clause reads (a fraction, a floor). A clause one holder's act resolves
+  (`How::One`) still reads an agent holder's act (ruled 2026-11-25): an agent holding `moderate` answers a
+  moderation fallback, and the window closes as `answered`; and the moderators a window hears through
+  `moderate` include it. A counted clause over `moderate` leaves it out of the base and the voices.
+- E3 over seat rows: an end's head that is not held makes nothing later, in the reference and the crate alike.
+- A chain of lone removals is read in polynomial time: `Seats::new` keeps the members at a head for the builds
+  below it, and the seats that give a remover its standing at a head once per (head, object, remover) (PERF.md). The reference read a chain of six in 6.9 s; it reads twenty-four in 0.18 s.
+- `Seats::holders("member", o)` may hold an agent that holds a seat whose `holds` include `member` (a duty of
+  scope `duty` under such a table); a caller wanting persons applies `seat::persons` with the agents. Ruled: an
+  agent's key may hold a duty and is no voice in any count, the duty's own included.
+- The kernel does not read the owner's statement on an agent's duty seat yet (CC 4.5.4,
+  `founding_duty_holder_agent_owner_unsigned`): the seat rows carry no owner of an agent's key. Until it does, a
+  caller must not present an agent's duty seat without the owner's statement having been checked at the door.
 
 **A moderator's lone removal is in force only while the end rule says so** (CC 4.5.13 with CC 2.4.1.1 and CC
 4.5.5). Before, the seat walk asked only whether the removal concluded; nothing in `seat` read the end of the
@@ -73,8 +114,12 @@ Answers that change, in `seat::Seats` (`recs`, `stands`, `holders`, `roster`, an
   only where the end rule of `conferral` (E2 to E8, `models/tla/CONFERRAL_END.md`), re-expressed over seat rows,
   gives it in force over the rows held. Out of force, it ends nothing, and the agent's key is seated again for that
   reader. The window it opens is unchanged.
-- E7: where the moderator holds `moderate` over the room now (by the standing it used, another one, or its own
-  re-acceptance), the removal is in force.
+- E7: the removal is in force where a seat that gave the moderator `moderate` at the head the removal names is
+  live and has no end held. Nothing else keeps it standing (CC 2.4.1.1: "from the end's head on it is not in
+  force"; "A receipt changes what is in force, never what counted, and it revives no act"): a seat taken up after
+  the removal's head authorises nothing earlier, so neither the same offer accepted again nor a new conferral puts
+  it back in force. A moderator seated again who still wants the key out signs the removal again. An end in the
+  past of the head the removal names is not read (the seat was live there again).
 - The ends read: the moderator's withdrawal of the offer that seats it in `moderate`, of its acceptance of it, or
   of its stay; the room's counted removal of it from the roster; the other holders' counted withdrawal of its
   duty. Each takes the removal out of force from the end's head on (E2), unless a receipt of it is held: a
@@ -85,12 +130,9 @@ Answers that change, in `seat::Seats` (`recs`, `stands`, `holders`, `roster`, an
 - Before: a removal signed after the moderator's duty ended, naming the older head, removed the key for a reader
   holding the end; a removal made while it held the duty stayed in force after the duty ended. Now neither does,
   unless receipted.
-- By kind of end, under the existing rules: the moderator's own laying down, the counted removal, and the counted
-  withdrawal of its duty answer alike (out of force unless receipted). They differ only where the moderator holds
-  `moderate` again: after its own withdrawal of its acceptance a re-acceptance of the same offer re-seats it, so
-  its removal is in force (E7); after a counted end that offer is cut, a re-acceptance re-seats nothing, and only
-  a new conferral (after a re-admission, for a removal from the roster) keeps it in force. No seat row lifts
-  receipts, so a co-holder's receipt keeps the removal in force after a counted end as after a self end.
+- The three kinds of end, the moderator's own laying down, the counted removal and the counted withdrawal of its
+  duty, answer alike: out of force unless receipted, for good. No seat row lifts receipts, so a co-holder's
+  receipt keeps the removal in force after a counted end as after a self end.
 - At tips each line reads a lone removal as the whole set judges it.
 
 Not done: a count's own receipt (only duty holders' acks are read); a receipt by a key removed concurrently is not
@@ -98,8 +140,9 @@ voided; an end that is itself a lone removal out of force still counts as an end
 
 The reference: `seat.removal_in_force`, `out_of_force`, `lone_act` and `count_met` (the group count, factored out of
 `seat_rule`) in `seat.py`, which re-express the rule on seat rows rather than call `conferral_end.answers`; it reads
-the rows' past only, so it is a function of the set. `check_removal_in_force.py` is new: 22 cases in arrival orders
-and two planted breaks (the end not read; a receipt by the remover keeps it). Four plants in
+the rows' past only, so it is a function of the set. `check_removal_in_force.py` is new: 26 cases in arrival orders
+and four planted breaks (the end not read; a receipt by the remover keeps it; a remover seated again revives
+its removal; a removal the room's count carries read as the moderator's). Plants in
 `tools/kernel_crate_plants.sh`. No earlier case changes its answer: no case before had a moderator's duty end
 after its lone removal.
 
@@ -140,8 +183,10 @@ Answers that change:
   `agent` seat, and a host reads the audience from `Seats::roster`.
 
 The reference: `seat.AGENT`, `Seats.roster`, `seat.counted_keys` and `agents_at` in `seat.py`; `window._base`
-reads `counted_keys`. `check_agent_seat.py` is new: 19 cases in arrival orders and three planted breaks (an
-agent a voice; an agent counted over; a lone removal that reaches a person's seat). In `check_agent_removal.py`
+reads `counted_keys`. `check_agent_seat.py` is new: 28 cases in arrival orders and seven planted breaks (an
+agent a voice; an agent counted over; a lone removal that reaches a person's seat; one that reaches a key with
+no agent's seat; a roster cut of a scope the key does not hold; a withdrawal naming a roster scope its target
+does not give; a window scope that keeps its agents). In `check_agent_removal.py`
 every agent's key is admitted in scope `agent` and its removal is of that scope, and the case table reads
 `Seats.roster`. One answer changed there: after the lift, an admission signed by one person and the agent (of
 two persons) was counted over the agent and concluded, two voices of three; the agent is no voice and is not
