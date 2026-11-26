@@ -231,6 +231,35 @@ no answer of any case changes.
   `acts` fixture, which `tests/acts.rs` replays. Seven plants in the crate. Every existing scenario of every
   fixture is unchanged; the seat law gains `acts` and `kinds` only.
 
+**A deputy under two standings** (CIRISConstitution#218, in no issue). New: `StandingRow::via` (default `None`)
+and `StandingRow::sub_delegation` (default `false`), additive. `standing::answers` now judges a deputy's act:
+- It stands on its deputy edge (`via`), the node's own act that names the owner's acceptance; it names no
+  acceptance itself, and stands where its edges' root stands (or on no acceptance, for a cycle of edges).
+- Both records read it with its edges through conferral's own deputy walk (E6.depth, E6.no_sub, E6.upstream);
+  no second walk. It counts for the binding's owner where it and its edges count under the grant and under the
+  binding, and is in force likewise.
+- A re-binding of the node reaches the deputy's act as it reaches the edge: with the re-binding in its past it
+  does not count for the old owner (E4 under the binding); concurrent with it, it counts and is not in force
+  unless receipted under the binding by its owner. Because E6 passes both bits down, the act is in force only
+  where its edge is too: a receipt of the act alone does not keep it.
+- Two owners is none for the edge, and so for every act under it.
+- The module header's "Not read here: a deputy edge under such an act" is gone.
+- A root edge (an act standing directly on an acceptance, with no `via`) counts only where its signer is the
+  grant's grantee (`Role::Grantee` under the grant's `role`); another key's root-shaped act counts for nobody:
+  `Nobody::NotTheGrantee` (`"not_the_grantee"`), new. Without it a deputy skipped E6 by naming the acceptance
+  itself. This is also the check that the node's own acts are the grantee's.
+- A `via` naming a held row that is no act: `Nobody::EdgeNotAnAct` (`"edge_not_an_act"`), new (before: undecided on
+  a row already held). A chain longer than the deputy depth by more than one hop: `Nobody::TooDeep`
+  (`"too_deep"`), new; the walk to the root edge is at most `deputy_depth + 1` lookups in an index of the rows, so
+  `answers` is O(acts · deputy_depth · log rows) for this walk. A cycle of edges stands on no acceptance.
+- **Breaking:** `standing::Nobody` gains three variants.
+- The reference: conferral_end.py's deputy walk is bounded as the crate's is (it hung on a cycle of `via`) and an
+  edge not held is undecided there (it raised).
+The reference: `chain_answers` in `check_conferral_two.py`, with fifteen cases (`DEPUTY_CASES`, in the
+`conferral_two` fixture, read as listed and in reverse; the plants compare reasons as well as bits) and four
+planted breaks; four crate plants (142 after merging main). `tests/conferral_two.rs` now withholds any row, a deputy edge among them, and
+reads an undecided act as the fixture does.
+
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
 - `content` reads `conferral`'s three-way `any`, later-head test and stale-head test; its own copies are gone.

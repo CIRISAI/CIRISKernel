@@ -268,6 +268,12 @@ founder laying down a duty); `None` ends every seat the target gives its signer.
 ends the stay only where the target gives the signer that seat. `Live::scope` is the seat's own scope: one
 founding record gives one `Live` per seat, with the same `offer`.
 
+**A deputy under two standings**, for `standing::answers`: present the node's edge as its own act with `on()` the
+owner's acceptance, and a deputy's act with `via()` its edge and no `on()`; `sub_delegation()` on an edge that
+may be passed on. For the deputy's act to stay in force after a re-binding, the old owner receipts the act and
+its edge. An act on the acceptance itself (no `via`) must be the grantee's: a deputy's act presented so stands on
+nothing (`Nobody::NotTheGrantee`).
+
 **A deputy edge**, for `conferral::answers`. This is the deputy of an exercised standing, not the delegation
 chain of `Seats::stands` above.
 - The edge is a `Kind::Act` signed by whoever deputizes, naming the head it is at. Nothing marks it: a row is

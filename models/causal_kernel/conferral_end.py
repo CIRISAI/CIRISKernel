@@ -144,16 +144,20 @@ def answers(rows, reader_acks=(), other_standing=False, who="all", deputy_depth=
     memo = {}
 
     def depth(x):
-        """The `via` hops from `x` up to the grantee's own edge."""
+        """The `via` hops from `x` up to the grantee's own edge, the walk stopping one past the cap, past the rows
+        (a cycle of names), or at an edge not held, as the crate's walk does."""
         n = 0
-        while by[x].get("via"):
+        while by[x].get("via") and n <= deputy_depth and n <= len(rows) and by[x]["via"] in by:
             x, n = by[x]["via"], n + 1
         return n
 
-    def ans(x):
+    def ans(x, hops=0):
         if x in memo:
             return memo[x]
         r = by[x]
+        if r.get("via") and r["via"] not in by:
+            memo[x] = (False, False, "undecided")           # the deputy edge is not held: the crate's Undecided
+            return memo[x]
         if key_cut(r):
             out = (False, False, "key_removed")
         else:
@@ -162,8 +166,10 @@ def answers(rows, reader_acks=(), other_standing=False, who="all", deputy_depth=
                 c, f, rule = False, False, "E6.depth" if c else rule
             elif r.get("via") and by[r["via"]].get("via") and not by[by[r["via"]]["via"]].get("sub_delegation"):
                 c, f, rule = False, False, "E6.no_sub" if c else rule
+            elif r.get("via") and hops >= len(rows):
+                c, f, rule = False, False, "E6.upstream"     # a cycle of names: nothing says it is under a standing
             elif r.get("via"):
-                uc, uf, _ = ans(r["via"])
+                uc, uf, _ = ans(r["via"], hops + 1)
                 if (c and not uc) or (c and f and not uf):
                     rule = "E6.upstream"
                 c, f = c and uc, c and f and uf
