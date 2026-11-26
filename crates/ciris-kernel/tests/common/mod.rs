@@ -701,6 +701,7 @@ pub fn law_of(j: &J) -> SeatLaw {
         final_scopes: j.at("final").strs(),
         roster_seats: j.at("roster_seats").strs(),
         depth: j.at("depth").i() as usize,
+        community_floor: j.get("community_floor").map_or(0, |x| x.i() as usize),
         ..Default::default()
     };
     for (k, v) in j.at("holds").obj() {

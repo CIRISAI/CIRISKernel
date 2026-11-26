@@ -481,9 +481,15 @@ told what act it is by the policy a row states.
   answers it: the family is not built in this tag.
 - **`open:self_admit` governs admissions alone** (the read's N1, Q2): an offer of the member seat. A change of the
   record is never counted as an admission under it (before, a non-member's own change of an open room's record to
-  `quorum:1/1` concluded, and then one member removed another); since a change must meet the protocol in force, an
-  open room's record does not change. The set states no removal under it, so a removal concludes nothing (before, two
-  voices removed): whether an open room may remove anyone is with Eric.
+  `quorum:1/1` concluded, and then one member removed another). The set states no removal under it, so a removal
+  concludes nothing (before, two voices removed): an explicit exception, kept until Eric answers whether an open room
+  may remove anyone.
+- **The reading of `&`** (the Constitution's ruling): where the protocol in force states no rule for the act, read
+  from the protocol sheet (`RoomProtocol::states`, seat.py `protocol_states`: an admission by its `rule` cell, a
+  removal by its `removal_rule`, any other act by whether its count set is the members), the `cosigned_act` half of
+  an `&` is no condition, and the other policy governs alone, never with fewer voices than the community floor
+  (`SeatLaw::community_floor`, the policy table's `min_count.community`, two). So an open room changes its record
+  under `default_standing`: two thirds of its members, never fewer than two.
 - **The body an act counts is the act's own** (the read's N2), never the row's `counted()`: the members for an
   admission, a removal, the recall, the lift, the election and a change of the record; all the duty holders (`duty`)
   for a duty's or a detector seat's conferral and withdrawal; an infrastructure community's founders; an accord's
@@ -499,13 +505,13 @@ told what act it is by the policy a row states.
 - **The edge, stated** (ruled, P2): two concurrent changes of the protocol that disagree leave no protocol in force,
   so removals wait until a change names both tips under the protocol the common members had (the text's wait rule,
   CC 2.7.8, from the protocol side). No code.
-- The reference: `check_acts.py` has 35 act cases, 96 refusal cases, 5 stand cases, 30 protocol words and 17
-  infrastructure words, 38 planted breaks (23 new); five rows pending the head rules and `room-keys-fix` (A1, A3,
+- The reference: `check_acts.py` has 35 act cases, 101 refusal cases, 5 stand cases, 30 protocol words and 17
+  infrastructure words, the sheet's 18 answers, 40 planted breaks (25 new); five rows pending the head rules and `room-keys-fix` (A1, A3,
   P1-3, Q4); two of the read's rows (A1: an old head's record change by removed members; A3: one founder's
   own offer) are listed as pending the head rules and `room-keys-fix`. `check_room_keys.py`'s two-key count and
   `check_rosters.py`'s infrastructure instance (I1: the node in scope `node`, founding record `infrastructure`) are
   restated. Crate tests `protocol_set_replay` and `the_recall_is_told_by_its_act` (a law mapping `moderator_recall`
-  to a plain threshold: the recall is told by its act). Twenty-seven new plants in the crate, one retired (N read from the record); those on changed text retargeted.
+  to a plain threshold: the recall is told by its act). Twenty-nine new plants in the crate, one retired (N read from the record); those on changed text retargeted.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

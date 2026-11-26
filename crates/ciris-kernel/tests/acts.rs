@@ -107,6 +107,21 @@ fn protocol_set_replay() {
             }
         }
     }
+    // what the protocol sheet says each protocol states a rule for (seat.protocol_states)
+    for w in fx.at("protocol_states").arr() {
+        let a = w.arr();
+        let p = RoomProtocol::parse(a[0].s()).expect("a protocol of the set");
+        let act = match a[1].s() {
+            "admit" => ciris_kernel::seat::Act::Admit,
+            "remove" => ciris_kernel::seat::Act::Remove,
+            _ => ciris_kernel::seat::Act::RecordChange,
+        };
+        cases += 1;
+        if p.states(act) != a[2].b() {
+            bad += 1;
+            eprintln!("protocol_states {} {}: got {}, want {}", a[0].s(), a[1].s(), p.states(act), a[2].b());
+        }
+    }
     report("the protocol set against check_acts.py", cases, bad);
     assert_eq!(bad, 0);
 }

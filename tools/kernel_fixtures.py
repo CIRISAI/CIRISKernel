@@ -418,7 +418,7 @@ def seat_cases():
                 e["holds"] = enc(ST.HOLDS)
         out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
-           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "community_floor": ST.COMMUNITY_FLOOR,
            "policy": {k: list(v) for k, v in ST.POLICY.items()},
            "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
     windows = {k: dict(enc(v), secs=WN.secs(k)) for k, v in WN.WINDOWS.items()}
@@ -557,7 +557,7 @@ def table_cases():
                                "c": [S.C[r["id"]] for r in S.rows], "c_settled": [P.C[r["id"]] for r in P.rows],
                                "arrivals": arr, "d": enc(derived_of(P, ST, WN, CUT))})
     out["law"] = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
-                  "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+                  "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "community_floor": ST.COMMUNITY_FLOOR,
                   "policy": {k: list(v) for k, v in ST.POLICY.items()}}
     out["windows"] = windows_now(WN)
     return out
@@ -695,7 +695,9 @@ def acts_cases():
             "conclude": conclude, "protocol_kinds": list(ST.PROTOCOL_KINDS),
             "protocol_words": [[w, list(ST.protocol_rule(w)) if ST.protocol_rule(w) else None] for w, _ in AC.PROTOCOL_WORDS],
             "infrastructure_words": [[w, n, list(ST.infrastructure_rule(w, n)) if ST.infrastructure_rule(w, n) else None]
-                                     for w, n, _ in AC.INFRA_WORDS]}
+                                     for w, n, _ in AC.INFRA_WORDS],
+            "protocol_states": [[w, act, got] for w, act, got in AC.SHEET_ANSWERS],
+            "community_floor": ST.COMMUNITY_FLOOR}
 
 
 def main():

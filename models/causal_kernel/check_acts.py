@@ -47,9 +47,12 @@ Planted breaks, each of which must change a case's answer:
     record_change_either_policy   a record change meets one of its joined policies, not both (Q1)
     one_voice_community_protocol  a community may declare a protocol under which one voice decides (Q1)
     founder_only_community        a community may declare founder_only (Q3)
+    unstated_cosigned_blocks      the cosigned_act half of an `&` is a condition where the protocol states no rule
+    unstated_floor_unread         the policy governing alone there takes no floor of two voices
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
-    record_change_as_admission    under open:self_admit or founder_only, a record change is counted as an admission (N1)
+    record_change_as_admission    under open:self_admit an offer of another seat (an agent's, the record) is counted as an
+                                  admission (N1)
     self_admit_removal_counted    a removal under open:self_admit takes two voices (the set states none) (N1)
     body_from_row       the body an act counts is the one the row states (`counted`, `over`), not the act's (N2)
 
@@ -201,6 +204,9 @@ GU = dict(GM4, consensus_protocol="unanimous")
 GF = ST.offer("g", "A", ("A", "B", "C"), "founder", "@", "self", cosigners=("B", "C"), consensus_protocol="founder_only")
 GW = dict(GM4, consensus_protocol="weighted:stake", need=5, weights=(("A", 3), ("B", 2), ("C", 1), ("D", 1)))
 GO = dict(GM4, consensus_protocol="open:self_admit")
+GO3 = ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", "C"), consensus_protocol="open:self_admit")
+GO2 = ST.offer("g", "A", ("A", "B"), "member", "@", "self", cosigners=("B",), consensus_protocol="open:self_admit")
+GO1 = ST.offer("g", "A", ("A",), "member", "@", "self", consensus_protocol="open:self_admit")
 AG = grp("ag", "offer", ("X", "Y", "Z"), "agent", "cosigned_act", cosigners=("B", "C", "X", "Y", "Z"))   # three agents
 G6 = ST.found("g", "A", ("A", "B", "C", "D", "E", "F"), {"moderate": ("A", "B", "F"), "review": ("C", "D", "E")},
               cosigners=("B", "C", "D", "E", "F"))
@@ -414,8 +420,17 @@ CONCLUDE = [
     # ---- N1: open:self_admit and founder_only govern admissions alone ----------------------------------------------
     ("in an open room (open:self_admit) a key's own change of the record is no admission: X alone changes nothing",
      [GO, REC("am", "quorum:2/4", signer="X", cosigners=(), to=("X",))], "am", False, False),
-    ("nor do the members: the room's protocol counts admissions alone, so its record does not change (cosigned_act's "
-     "part of the change is never met)", [GO, REC("am", "majority", cosigners=("B", "C", "D"))], "am", False, False),
+    # the reading of `&`: where the protocol states no rule for the act (the sheet), the other policy governs alone,
+    # with the community floor of two voices
+    ("an open room changes its record under default_standing alone (open:self_admit states no rule for it): two of "
+     "three", [GO3, REC("am", "majority", cosigners=("B",))], "am", True, False),
+    ("and one of three does not", [GO3, REC("am", "majority", cosigners=())], "am", False, False),
+    ("a two-member open room needs both", [GO2, REC("am", "majority", cosigners=())], "am", False, False),
+    ("and both change it", [GO2, REC("am", "majority", cosigners=("B",))], "am", True, False),
+    ("an open room's protocol admits to the member seat alone: X's own offer of an agent's seat concludes nothing",
+     [GO, grp("r", "offer", "X", "agent", "cosigned_act", signer="X")], "r", False, False),
+    ("a one-member open room's one member does not: the community floor of two voices",
+     [GO1, REC("am", "majority", cosigners=())], "am", False, False),
     ("open:self_admit states no removal: A and B do not remove D",
      [GO, grp("r", "unseat", "D", "member", None, cosigners=("B",))], "r", False, False),
     ("nor in a room naming founder_only (no community protocol)", [GF, REC("am", "majority")], "am", False, False),
@@ -472,6 +487,12 @@ PROTOCOL_WORDS = [
     ("accord_halt", None), ("cosigned_act", None), ("", None), ("quorum:２/3", None),
     ("quorum:2/4", ("quorum", 2, 4)), ("quorum:3/5", ("quorum", 3, 5)), ("quorum:1/1", ("quorum", 1, 1)),
 ]
+# What the sheet says each protocol states a rule for (seat.protocol_states): (word, act, states)
+SHEET_ANSWERS = [(w, act, ST.protocol_states(ST.protocol_rule(w)[0], act))
+                 for w in ("founder_only", "unanimous", "majority", "quorum:2/3", "weighted:stake", "open:self_admit")
+                 for act in ("admit", "remove", "other")]
+EXPECT_SHEET = {("founder_only", "remove"): False, ("founder_only", "other"): False, ("open:self_admit", "remove"): False,
+                ("open:self_admit", "other"): False}
 # The protocol of an infrastructure community (P1): a quorum of its founders' strict majority, N // 2 + 1 of N
 INFRA_WORDS = [("quorum:2/3", 3, ("quorum", 2, 3)), ("quorum:3/4", 4, ("quorum", 3, 4)), ("quorum:3/5", 5, ("quorum", 3, 5)),
                ("quorum:1/1", 1, ("quorum", 1, 1)), ("quorum:2/2", 2, ("quorum", 2, 2)), ("quorum:2/5", 5, None),
@@ -516,7 +537,8 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "record_by_founding", "body_free", "kind_partial", "election_any_duty", "node_consent_asked",
           "consent_one_waives", "infra_any_quorum", "infra_body_members", "infra_n_from_word", "infra_m_fixed", "infra_record_frozen",
           "infra_record_simple_majority", "record_change_as_admission", "self_admit_removal_counted", "body_from_row",
-          "record_change_either_policy", "one_voice_community_protocol", "founder_only_community")
+          "record_change_either_policy", "one_voice_community_protocol", "founder_only_community",
+          "unstated_cosigned_blocks", "unstated_floor_unread")
 
 
 @contextlib.contextmanager
@@ -578,6 +600,9 @@ def main():
     for w, want in PROTOCOL_WORDS:
         if ST.protocol_rule(w) != want:
             problems.append("protocol word %r: got %s, expected %s" % (w, ST.protocol_rule(w), want))
+    for w, act, got in SHEET_ANSWERS:
+        if got != EXPECT_SHEET.get((w, act), True):
+            problems.append("the sheet: %s states a rule for %s: got %s" % (w, act, got))
     for w, n, want in INFRA_WORDS:
         if ST.infrastructure_rule(w, n) != want:
             problems.append("an infrastructure protocol word %r over %d founders: got %s, expected %s"

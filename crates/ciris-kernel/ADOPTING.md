@@ -108,7 +108,9 @@ migrations, and the local operational store.
   weights reaches its threshold. A change of its record states no policy and meets both the protocol in force and
   `default_standing`.
 - Under `open:self_admit` the room's protocol counts admissions alone (an offer of the member seat): no removal
-  concludes, and the record does not change.
+  concludes (open, with Eric). Where a room's protocol states no rule for an act (`RoomProtocol::states`), the
+  `cosigned_act` half of an `&` is no condition: an open room's record changes under `default_standing` alone, with
+  `SeatLaw::community_floor` (set it from the policy table's `min_count.community`; 0 sets no floor).
 - State `counted()` as the act's own body or not at all: the members for an admission, a removal, the recall, the
   lift, the election and a change of the record; `duty` for the duty holders' acts; `founder` in an infrastructure
   community; the accord's holders; a self roster's own seat. Any other `counted()`, or an `over()` naming another

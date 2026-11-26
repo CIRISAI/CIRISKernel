@@ -304,6 +304,35 @@ def act_of(r, by, is_key=False):
 PROTOCOL_KINDS = ("founder_only", "unanimous", "majority", "quorum:{m}/{n}", "weighted:{rubric}", "open:self_admit")
 
 
+def protocol_sheet(path=None):
+    """data/consensus_protocols.tsv as data: the head of each kind (protocol_rule's kind) -> its row's cells."""
+    path = path or os.path.join(ROOT, "data", "consensus_protocols.tsv")
+    out = {}
+    for line in open(path, encoding="utf-8"):
+        if line.startswith("#") or not line.strip() or line.startswith("kind\t"): continue
+        kind, count_set, rule, removal_set, removal_rule = line.rstrip("\n").split("\t")[:5]
+        head = kind.split(":")[0] if kind.split(":")[0] in ("quorum", "weighted") else kind
+        out[head] = dict(count_set=count_set, rule=rule, removal_set=removal_set, removal_rule=removal_rule)
+    return out
+
+
+SHEET = protocol_sheet()
+# the community floor of voices (the policy table's min_count): a count under a policy row alone never takes fewer
+COMMUNITY_FLOOR = json.load(open(os.path.join(ROOT, "data", "governance_policy.json"), encoding="utf-8"))["min_count"]["community"]
+
+
+def protocol_states(kind, act):
+    """Whether protocol `kind` (protocol_rule's) states a rule for `act`, read from the sheet: an admission by its
+    `rule` cell, a removal by its `removal_rule` cell (`unstated` states none); any other act counted under the
+    protocol (a change of the record) by its count set: a count of the members states one, the joiner's own
+    signature (open:self_admit) and the founder role (founder_only) do not."""
+    row = SHEET.get(kind)
+    if row is None: return False
+    if act == "admit": return row["rule"] != "unstated"
+    if act == "remove": return row["removal_rule"] != "unstated"
+    return row["count_set"] == "member"
+
+
 def _count(w):
     """A whole number of the protocol word: one to nine digits, no leading zero (one spelling per number)."""
     return int(w) if 1 <= len(w) <= 9 and w.isascii() and w.isdigit() and w[0] != "0" else None
@@ -445,8 +474,9 @@ def _protocol_part(r, by, need, weights):
     if pr is None: return REFUSED
     kind, m, _n = pr
     if r.get("counted", "member") != "member" and "protocol_body_free" not in MUT: return REFUSED
-    # open:self_admit governs admissions alone (an offer of the member seat): the set states no removal under it (Q2),
-    # and a change of the record is never counted as an admission
+    # open:self_admit governs admissions alone (an offer of the member seat): the set states no removal under it, and
+    # a removal concludes nothing (Q2: an explicit exception, not the `&` reading, until Eric answers whether an open
+    # room may remove anyone); a change of the record is never counted as an admission
     if kind == "open:self_admit":
         if r["kind"] != "offer":
             if "self_admit_removal_counted" not in MUT: return REFUSED
@@ -506,16 +536,31 @@ def in_force(r, by):
             if r.get("over", r.get("obj")) != r.get("obj") or r.get("counted", "member") != body_of(a, by, r.get("obj")):
                 return REFUSED
     parts = word.split("&") if isinstance(word, str) and "&" in word else [word]
-    out = []
+    out, dropped = [], False
     for w in parts:
         if K.rule(POLICY, w, ("unknown",))[0] == "protocol" and "protocol_unread" not in MUT:
+            # the reading of `&` (the Constitution's ruling): where the protocol in force states no rule for the act
+            # (the sheet: protocol_states), the cosigned_act half is no condition, and the other policy governs alone,
+            # with the community floor of voices
+            if len(parts) > 1 and "unstated_cosigned_blocks" not in MUT:
+                rec = protocol_record(by, r.get("obj"))
+                # (a protocol its room may declare: one it may not, founder_only say, leaves no protocol in force)
+                pr = community_rule(rec.get("consensus_protocol"), rec.get("need"), rec.get("weights")) \
+                    if rec is not None else None
+                act = "admit" if r["kind"] == "offer" and r.get("scope") in ROSTER_SEATS else \
+                    "remove" if r["kind"] == "unseat" else "other"
+                if pr is not None and kind_of(by, r.get("obj")) != "infrastructure" and not protocol_states(pr[0], act):
+                    dropped = True
+                    continue
             f = _protocol_part(r, by, need, weights)
         else:
             f = dict(policy=w, need=need, weights=weights)
         if f is not REFUSED: out.append(f)
         elif "record_change_either_policy" not in MUT: return REFUSED   # MUTATION: one joined policy is enough
     if not out: return REFUSED
-    if len(parts) == 1: return out[0]
+    if dropped and "unstated_floor_unread" not in MUT:
+        out = [dict(f, floor=COMMUNITY_FLOOR) for f in out]
+    if len(out) == 1 and len(parts) == 1: return out[0]
     return dict(policy=word, all=out, any="record_change_either_policy" in MUT)
 
 
@@ -1688,6 +1733,8 @@ def _count_under(r, P, past, by, table=None):
     # seats there, M their strict majority (P1, Q5)
     if r.get("founders_word") is not None and infrastructure_rule(r["founders_word"], len(mem)) is None:
         return False
+    # the community floor, where a policy row governs alone in place of a protocol that states no rule (the `&` reading)
+    if r.get("floor") is not None and len(voices(r, P) & vot) < r["floor"]: return False
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
         # the count is the ranked tally: the ballots the row names, one voice each, and the row seats the winner
         ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot") if b["id"] in r["names"] and b["signer"] in vot]

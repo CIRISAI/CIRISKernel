@@ -409,6 +409,18 @@ impl RoomProtocol {
             _ => None,
         }
     }
+    /// Whether the protocol states a rule for an act, as the protocol sheet (`consensus_protocols.tsv`) gives it:
+    /// an admission by its `rule` cell, a removal by its `removal_rule` cell (`unstated` for `founder_only` and
+    /// `open:self_admit`), any other act counted under it (a change of the record) by its count set (a count of the
+    /// members states one; the joiner's own signature and the founder role do not). Where the protocol states none,
+    /// the `cosigned_act` half of an `&` is no condition, and the other policy governs alone, with
+    /// [`SeatLaw::community_floor`] (the Constitution's reading of `&`).
+    pub fn states(self, act: Act) -> bool {
+        match act {
+            Act::Admit => true,
+            _ => !matches!(self, RoomProtocol::FounderOnly | RoomProtocol::SelfAdmit),
+        }
+    }
     /// The body a count under it is taken over: the founders for `founder_only` (a family's protocol, Q3: the
     /// founders its record names; no family is built, and no community may declare it: [`community_protocol`]), the
     /// members otherwise.
@@ -458,6 +470,10 @@ pub struct SeatLaw {
     /// concludes nothing, and one over an object with a kind whose act has no row concludes nothing. The seat
     /// fixture's law carries `Some`.
     pub acts: Option<Vec<ActRule>>,
+    /// The community floor of voices (the policy table's `min_count.community`): a policy row that governs alone
+    /// where the room's protocol states no rule for the act (the reading of `&`, [`RoomProtocol::states`]) is met by
+    /// no fewer voices. 0: no floor.
+    pub community_floor: usize,
     /// The kind of an object, from its founding row's scope (`holder`: an accord; `self`: a self roster; `member`,
     /// `duty`, and every scope the map does not name: a community). A key object is a self roster. An object with no
     /// founding row has no kind and no act.
@@ -873,11 +889,13 @@ struct InForce<'a, R: SeatRow> {
     /// An infrastructure community's change of the record: the word it states must be the founders' quorum at its
     /// own heads (read by the count, which counts them).
     founders_word: bool,
+    /// The community floor of voices, where this policy governs alone in place of a protocol that states no rule.
+    floor: usize,
 }
 
 impl<'a, R: SeatRow> InForce<'a, R> {
     fn plain(pol: Option<Policy>, need: Option<usize>) -> Self {
-        InForce { pol, need, weights: None, founders_word: false }
+        InForce { pol, need, weights: None, founders_word: false, floor: 0 }
     }
 }
 
@@ -960,13 +978,39 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
         }
         return Ok(alloc::vec![protocol_part(law, p, r)?]);
     };
-    // policies joined by `&` (a change of the record: the protocol in force and the standing default): each is met
-    w.split('&')
-        .map(|part| match law.policy_of(Some(part)) {
-            Some(Policy::Protocol) => protocol_part(law, p, r),
-            pol => Ok(InForce::plain(pol, r.need())),
-        })
-        .collect()
+    // policies joined by `&` (a change of the record: the protocol in force and the standing default): each is met.
+    // Where the protocol in force states no rule for the act (RoomProtocol::states, the protocol sheet), the
+    // cosigned_act half is no condition and the other governs alone, with the community floor (the Constitution's
+    // reading of `&`)
+    let unstated = || {
+        let obj = r.obj()?;
+        if kind_of(law, get, &obj) == Some(CommunityKind::Infrastructure) {
+            return None;
+        }
+        let rec = protocol_record(p, &obj)?;
+        let proto = community_protocol(rec.consensus_protocol()?.as_ref(), rec.need(), rec.weights())?;
+        let act = match r.seat_kind() {
+            SeatKind::Offer if r.scope().is_some_and(|s| law.roster_seats.iter().any(|x| x == s.as_ref())) => {
+                Act::Admit
+            }
+            SeatKind::Unseat => Act::Remove,
+            _ => Act::RecordChange,
+        };
+        (!proto.states(act)).then_some(())
+    };
+    let dropped = unstated().is_some();
+    let mut out: Vec<InForce<'a, R>> = Vec::new();
+    for part in w.split('&') {
+        match law.policy_of(Some(part)) {
+            Some(Policy::Protocol) if dropped => {}
+            Some(Policy::Protocol) => out.push(protocol_part(law, p, r)?),
+            pol => out.push(InForce {
+                floor: if dropped { law.community_floor } else { 0 },
+                ..InForce::plain(pol, r.need())
+            }),
+        }
+    }
+    Ok(out)
 }
 
 /// The room's protocol in force at protocol row `r` ([`policy_in_force`]): in a community, the record's protocol
@@ -996,7 +1040,7 @@ fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> R
             return Err(());
         }
         let founders_word = r.scope().is_some_and(|s| s.as_ref() == "record") && r.consensus_protocol().is_some();
-        return Ok(InForce { pol: Some(Policy::Strict(1, 2)), need: None, weights: None, founders_word });
+        return Ok(InForce { pol: Some(Policy::Strict(1, 2)), need: None, weights: None, founders_word, floor: 0 });
     }
     let word = rec.consensus_protocol().ok_or(())?;
     let proto = community_protocol(word.as_ref(), rec.need(), rec.weights()).ok_or(())?;
@@ -1024,7 +1068,7 @@ fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> R
         // a family's protocol: no community declares it (community_protocol), so this arm is not reached
         RoomProtocol::FounderOnly => (Policy::One, None),
     };
-    Ok(InForce { pol: Some(pol), need, weights: Some(rec), founders_word: false })
+    Ok(InForce { pol: Some(pol), need, weights: Some(rec), founders_word: false, floor: 0 })
 }
 
 /// Whether counted row `r` is the members' lift: its act ([`act_of`]) where the binding is on and the object has a
@@ -3066,6 +3110,10 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     if f.founders_word
         && !r.consensus_protocol().is_some_and(|w| RoomProtocol::parse_in(w.as_ref(), Some(mem.len())).is_some())
     {
+        return false;
+    }
+    // the community floor, where a policy row governs alone in place of a protocol that states no rule (`&`)
+    if f.floor > 0 && voices(r, p).iter().filter(|k| mem.contains(*k)).count() < f.floor {
         return false;
     }
     if pol == Some(Policy::Ranked) {
