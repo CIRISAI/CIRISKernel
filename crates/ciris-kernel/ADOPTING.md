@@ -92,8 +92,9 @@ migrations, and the local operational store.
   holder's seat it votes on;
 - every row a key signs in an election (ballot, withdrawal, decline, receipt, seating) with that key's earlier rows
   of the election in its past (a client builds on its own tips): two such rows neither in the other's past are the
-  key saying two things, and the key is out of that election (a device restored from an old backup included). A
-  voice signing through room or device keys presents the key as `SeatRow::device`: the fork is per key;
+  key saying two things, and the key is out of that election (a device restored from an old backup included). The
+  fork is per verified signing key: return from `SeatRow::signing_key` the key whose signature the door verified
+  (the room key in a private room), never a client-supplied value; return `None` where the signer signed;
 - a decline as `SeatKind::Decline`, `of()` its election;
 - the winner's own seating: an Offer of `moderate`, `Conf::Group`, policy `moderator_election`, signed by the
   winner, `to()` the winner, `of()` its election, naming its whole set: the ballots, the voters' own withdrawals

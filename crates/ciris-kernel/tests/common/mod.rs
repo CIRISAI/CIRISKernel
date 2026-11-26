@@ -450,7 +450,9 @@ impl SeatRow for TRow {
     fn obj(&self) -> Option<Obj<String, String>> {
         self.obj.clone()
     }
-    fn device(&self) -> Option<&String> {
+    // the test's model of the verified signing key: `dev`, the room key whose signature the door checked
+    // (roomkey.by_dev); the row body's own `device_label` is never read
+    fn signing_key(&self) -> Option<&String> {
         match self.m.get("dev") {
             Some(J::Str(d)) => Some(d),
             _ => None,

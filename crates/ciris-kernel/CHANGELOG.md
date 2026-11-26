@@ -37,10 +37,13 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   neither in the other's past, are that key saying two things. The election's own rows only, authored by the key:
   a ballot, a withdrawal of one, a decline, a receipt, a lay-down read as its vacancy, a seating (a seating is its
   signer's say, like a receipt: a winner that receipts a rival has said two things). A row the key only cosigns is
-  never part of a fork; rows in two rooms, or of two elections, are never a fork. The fork is per key: a voice's
-  rows through two room or device keys (`SeatRow::device`, new, default `None`) are two keys' rows, and one say per
-  voice reads its duplicate ballots. With a seating a say, no two seatings of one election both close over the rows
-  held (the receipters are disjoint and both winners out), shown by the partition and a room of four. For a reader holding both rows the key is no voice (and no candidate) and out of that election's
+  never part of a fork; rows in two rooms, or of two elections, are never a fork. The fork is per verified signing
+  key: `SeatRow::signing_key` (new, default `None`) is the key whose signature verified the row, as checked by the
+  door, never a value the row states; a voice's rows through two room keys are two keys' rows, one say per voice
+  reading its duplicate ballots. With none, the signer is the key, so concurrent rows of one signer fork unless
+  chained; a device label in the row body is never read. With a seating a say, no two seatings of one election
+  both close over the rows held (the receipters are disjoint and both winners out), shown by the partition and a
+  room of four. For a reader holding both rows the key is no voice (and no candidate) and out of that election's
   close base, as a leaver; the honest receipters keep their receipts, and a close that still holds a majority of
   the remaining base stands. It reaches no count already determined: a seating counts only its named set, and a
   key whose two forked rows are both in the set is no ballot there. It is not a roster rule: outside an election a
@@ -62,9 +65,9 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   stands and both next elections fall (F3): nobody until a seating over the union.
 - Clients must present each election row a key signs with that key's earlier rows of that election in its past
   (an honest client builds on its own tips); otherwise the key has said two things, a restored device included.
-- The reference: `models/causal_kernel/check_election.py`, 93 cases, 20 of the close read directly
+- The reference: `models/causal_kernel/check_election.py`, 94 cases, 20 of the close read directly
   (`seat::election_closed`), 3 of the line, 1 pending the head rules, every one in arrival orders and in the `seat`
-  fixture; 33 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
+  fixture; 34 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
 
 **A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
 

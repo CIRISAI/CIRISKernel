@@ -811,9 +811,13 @@ def forkers(Ek, rows, past, obj, by, ends0=frozenset()):
     named = lambda b: across or (b.get("of") in by and ekey(by[b["of"]], rows, past) == Ek)
     if "seating_not_a_say" in MUT: sids = set()        # MUTATION: a seating is no say of its signer's
     mine = {}
-    # (4): the fork is per key: a voice's rows signed through two room or device keys (`dev`) are two keys' rows
-    # (MUTATION fork_per_voice: one voice, one key)
-    key = (lambda q: q["signer"]) if "fork_per_voice" in MUT else (lambda q: (q["signer"], q.get("dev")))
+    # (4): the fork is per key: a voice's rows signed through two room or device keys are two keys' rows. The key is the
+    # VERIFIED signing key (`dev` in these models: the room key whose signature the door checked; roomkey.by_dev), never
+    # a value the row states; with none, the signer (MUTATIONS fork_per_voice: one voice, one key; fork_by_stated_device:
+    # a device label the row body states read as the key)
+    if "fork_per_voice" in MUT: key = lambda q: q["signer"]
+    elif "fork_by_stated_device" in MUT: key = lambda q: (q["signer"], q.get("device_label") or q.get("dev") or q["signer"])
+    else: key = lambda q: (q["signer"], q.get("dev") or q["signer"])
     for q in rows:
         own = (q["kind"] in ("ballot", "decline") and named(q)) or q["id"] in sids or q["id"] in ends or \
             (q["kind"] == "ack" and (q.get("of") in sids or (across and q.get("of") in by and is_election(by[q["of"]])))) or \
@@ -822,7 +826,7 @@ def forkers(Ek, rows, past, obj, by, ends0=frozenset()):
         # a row the key only cosigns is never part of a fork (MUTATION fork_cosigned: it is)
         if "fork_cosigned" in MUT and q.get("obj") == obj:
             for c in q.get("cosigners", ()):
-                mine.setdefault(c if "fork_per_voice" in MUT else (c, None), []).append(q)
+                mine.setdefault(c if "fork_per_voice" in MUT else (c, c), []).append(q)
     out = {k for k, rs in mine.items()
            if any(not past(a["id"], b["id"]) and not past(b["id"], a["id"]) for i, a in enumerate(rs) for b in rs[i + 1:])}
     return frozenset(k if isinstance(k, str) else k[0] for k in out)

@@ -599,8 +599,13 @@ CASES += [
      [G5, LM, ballot("bd", "D", "C"), ballot("bd2", "D", "B"), admit("ax", "X", ("A", "B", "C", "D"), ("lm",))],
      [("X", "member", T), ("D", "member", T)], "(2), the guard"),
 ]
-# (5) the room of four: winners A (S1) and B (S2), voters C and D; B and C receipt S1, A and D receipt S2. Each winner
-# signed its own seating, and a seating is its signer's say (i): a winner that receipts the rival has said two things
+# (5) the room of four: winners A (S1, signed by A) and B (S2, signed by B), voters C and D; B and C receipt S1, A and
+# D receipt S2. A seating is its signer's say (i): a winner that receipts the rival has said two things. Without (i)
+# nobody forks (each winner is outside its own seating's base) and both close two of three. With (i) no two seatings of
+# one election both close over the rows held, which is why (ii) is a guard and no rule: a key receipting both
+# forks, and a winner receipting the rival forks, so the two receipter sets are disjoint and hold neither winner;
+# each must be more than half of a base of n - 1 (n the electorate less the forkers), and two such sets do not fit in
+# the n - 2 keys left
 G4F = room(4)
 R4 = [G4F, LM, ballot("bx", "C", "A"), ballot("bw2", "B", "A"), elect("s1", "A", ("bx", "bw2")),
       ballot("by", "D", "B"), ballot("bw1", "A", "B"), elect("s2", "B", ("by", "bw1"))]
@@ -614,10 +619,15 @@ CASES += [
      "election both close over the rows held (the receipters are disjoint and both winners are out)",
      R4 + R4A + R4B, NOMOD("A", "B"), "(5), (i), (ii)"),
     ("(5), b3 a reader of side 2 only: C", [G5, LM] + BE, MOD("C") + NOMOD("B"), "(5)"),
-    ("(4): two devices of one voice: E's ballots through two room keys, concurrent, the same ranking, are two keys' "
-     "rows, no fork; one say per voice: C three to two",
+    ("(4): two devices of one voice: E's ballots through two verified room keys (`dev`, the models' verified signing "
+     "key), concurrent, the same ranking, are two keys' rows, no fork; one say per voice: C three to two",
      [G5, LM] + H5[:4] + [dict(ballot("be1", "E", "C"), dev="e1"), dict(ballot("be2", "E", "C"), dev="e2"),
                           elect("ec", "C", IDS5[:4] + ("be1", "be2"))], MOD("C"), "(4)"),
+    ("(4): a label the row body states is no key: E, signing through one verified key, states two device labels on "
+     "two concurrent ballots of one ranking: one key said two things, a fork; with both in the set E is no ballot, and "
+     "A, B against C, D tie: nobody", [G5, LM] + H5[:4] + [dict(ballot("be1", "E", "C"), dev="e1", device_label="phone"),
+                                                          dict(ballot("be2", "E", "C"), dev="e1", device_label="laptop"),
+                                           elect("ec", "C", IDS5[:4] + ("be1", "be2"))], NOMOD("C", "B"), "(4)"),
     ("(1): a row the key only cosigns is no part of a fork: D's ballot and its concurrent cosignature on X's admission: "
      "D's voice counts, C", [G5, LM] + H5 + [admit("ax", "X", ("A", "B", "C", "D"), ("lm",)), EC], MOD("C"), "(1)"),
     ("(3), the honest self-fork: E, restored from an old backup, signs a second ballot without its first in its past: "
@@ -700,7 +710,7 @@ PLANTS = ("vacancy_founding", "vacancy_first_end", "electorate_at_seating", "lea
           "ballot_nonmember_ranked", "ballot_ranks_unbounded", "seating_any_signer", "twin_ids_apart",
           "fold_ranked_counted", "fork_reopens_close", "fork_base_kept", "fork_across_objects", "superseded_unread", "wait_close", "id_cascade_unread",
           "vacancy_unnamed", "set_inputs_unread", "void_seating_read", "seating_not_a_say", "fork_per_voice",
-          "fork_cosigned",
+          "fork_cosigned", "fork_by_stated_device",
           "leaving_before_vacancy_read")
 
 

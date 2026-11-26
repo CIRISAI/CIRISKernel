@@ -314,15 +314,16 @@ plant "F1: the count reads leavings and withdrawals off the seating's past, not 
 plant "a seating behind the reader's line read in C4" src/seat.rs 'let beaten = if elections { ecx.beaten(&stale) } else { BTreeSet::new() };' 'let beaten = if elections { ecx.beaten(&BTreeSet::new()) } else { BTreeSet::new() };'
 plant "N2: a leaving before the vacancy strikes a re-admitted member" src/seat/election.rs 'let window = !ends.iter().any(|&e| self.c.g.in_past(qi, e));' 'let window = true || ends.is_empty();'
 plant "(i): a seating is no say of its signer's" src/seat/election.rs '                _ => sids.contains(r.id()) || ends.contains(r.id()),' '                _ => ends.contains(r.id()),'
-plant "(4): the fork read per voice, not per key" src/seat/election.rs 'mine.entry((r.signer(), r.device())).or_default().push(q);' 'mine.entry((r.signer(), None)).or_default().push(q);'
-plant "(1): a row the key only cosigns read as part of a fork" src/seat/election.rs '                mine.entry((r.signer(), r.device())).or_default().push(q);
-            }' '                mine.entry((r.signer(), r.device())).or_default().push(q);
+plant "(4): the fork read per voice, not per key" src/seat/election.rs 'mine.entry((r.signer(), r.signing_key().unwrap_or(r.signer()))).or_default().push(q);' 'mine.entry((r.signer(), r.signer())).or_default().push(q);'
+plant "(1): a row the key only cosigns read as part of a fork" src/seat/election.rs '                mine.entry((r.signer(), r.signing_key().unwrap_or(r.signer()))).or_default().push(q);
+            }' '                mine.entry((r.signer(), r.signing_key().unwrap_or(r.signer()))).or_default().push(q);
             }
             if r.obj().as_ref() == Some(obj) {
                 for c in r.cosigners() {
-                    mine.entry((c, None)).or_default().push(q);
+                    mine.entry((c, c)).or_default().push(q);
                 }
             }'
+plant "(4): a device label the row body states read as the signing key" tests/common/mod.rs '        match self.m.get("dev") {' '        match self.m.get("device_label").or(self.m.get("dev")) {'
 plant "act_of: the election's seating read as a conferral" src/seat.rs '                if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {' '                if false {'
 plant 'act_of: a detector seat read as no act'          src/seat.rs '            if sc == "detect" || sc.starts_with("detect:") {' '            if false {'
 plant 'act_of: the recall read as the withdrawal'       src/seat.rs 'let act = if law.is_duty(counted, &declared) { Act::DutyWithdraw } else { Act::Recall };' 'let act = Act::DutyWithdraw;'
