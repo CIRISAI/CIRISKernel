@@ -31,6 +31,16 @@ beyond the ballot count").
   **An answer changes**: before, an election seated a moderator beside a live one. Four cases (a holder present; the
   last holder laying its duty down, or leaving, and an election at a later head; one of two holders laying down);
   one plant in each language.
+- Not built, each a row of `check_election.py`'s OPEN list with the model's answer now: the text decides two of
+  them, and the crate cannot hold them yet. (1) Several seatings: "the one counted over the larger set stands", and
+  two over equal sets of different ballots seat nobody until one is counted over their union. The rows carry no
+  election id, so the crate cannot tell which seatings belong to one election. While two seatings are two tips,
+  neither stands; once a row names both, both stand. The text does not decide the other four: (2) the decline and
+  "the next in runoff order" (striking the decliner and counting again, or the order of the first count, give
+  different winners in the case); (3) a ballot ranking more than three; (4) a ranked member whose leaving is in the
+  row's past; (5) every member a candidate: two members whom no ballot names tie for weakest and seat nobody. Not
+  built, and outside these rows: the lock (nobody posts, admits or acts until a moderator is seated) and the
+  node's 24 h since it first held the lock.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

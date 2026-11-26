@@ -62,6 +62,7 @@ G1 = ST.offer("g", "A", ("A",), "member", "@", "self")
 G3 = ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", "C"))
 G4 = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"))
 G5 = ST.offer("g", "A", ("A", "B", "C", "D", "E"), "member", "@", "self", cosigners=("B", "C", "D", "E"))
+G8 = ST.offer("g", "A", tuple("ABCDEFGH"), "member", "@", "self", cosigners=tuple("BCDEFGH"))
 
 # rooms whose founding record seats duty holders: A alone holds moderate (FH), A and B do (FH2)
 FH = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"))
@@ -235,6 +236,42 @@ OPEN = [
      "key that is no member when the count is read is void, CC 3.1.4's guard read at the count; one ballot is then "
      "under the floor). Whether the leaver's own ballot counts is open too: the model leaves it out (a count is "
      "not taken over a key whose own leaving is in its past)."),
+    ("OPEN: a ballot ranking four, where the text says each person ranks up to three: A ranks B, C, D and E; B ranks B",
+     [G5, ballot("ba", "A", "BCDE"), ballot("bb", "B", "B"), elect("el", "B", ("ba", "bb"), M5)],
+     MOD("B"), "the ballot",
+     "B (the whole ranking counted, the model's answer; or its first three, the same here) | nobody (a ballot "
+     "ranking more than three is refused or void; one ballot is then under the floor)"),
+    ("OPEN: a winner who declines: of eight, A has four first choices, C three, B one, and B's ballot passes to A, "
+     "who wins and declines; one seating names B and one C, each over the ballots and the decline",
+     [G8, ballot("ba", "A", "AB"), ballot("bd", "D", "AB"), ballot("be", "E", "AB"), ballot("bf", "F", "AB"),
+      ballot("bb", "B", "BA"), ballot("bc", "C", "C"), ballot("bg", "G", "C"), ballot("bh", "H", "C"),
+      CK.row("da", "decline", "A", ("g",)),
+      elect("eb", "B", ("ba", "bd", "be", "bf", "bb", "bc", "bg", "bh", "da"), M3),
+      elect("ec", "C", ("ba", "bd", "be", "bf", "bb", "bc", "bg", "bh", "da"), M3)],
+     NOMOD("A", "B", "C"), "a decline",
+     "C (the next in runoff order read as the order the original count ranks them: A, then C, the last standing "
+     "beside it, then B) | B (the count run again with the decliners struck: A's four ballots pass to B, five of "
+     "eight). The text: 'passes the duty to the next in runoff order'; 'The count yields the first in the set's "
+     "runoff order who has not declined'. The model reads no decline (a row of no seat kind) and seats nobody. "
+     "Silence past `election_grace_secs` is a node's clock, no row."),
+    ("NOT BUILT (the text decides): two seatings over different ballot sets of equal size, then an admission naming "
+     "both: the model seats both (while the two seatings are two tips, each waits, and neither stands)",
+     [G4, ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
+      elect("eb", "B", ("ba", "bb"), M4), elect("ec", "C", ("bc", "bd"), M4), admit("ax", "X", ("A", "B", "C"), ("eb", "ec"))],
+     MOD("B", "C"), "several acceptances",
+     "neither (CC 4.5.13: 'Two acceptances over different sets of equal size are a tie, and neither seats anyone. "
+     "The tie ends when the node holds an acceptance counted over the union of the two sets.'). Not built: the rows "
+     "carry no election id (the digest of the community and the last seating row), so the crate cannot tell which "
+     "seatings are one election's."),
+    ("NOT BUILT (the text decides): a seating over a larger set beside one over a smaller, then an admission naming "
+     "both: the model seats both",
+     [G5, ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
+      ballot("be", "E", "C"), elect("eb", "B", ("ba", "bb"), M5), elect("ec", "C", ("ba", "bb", "bc", "bd", "be"), M5),
+      admit("ax", "X", ("A", "B", "C", "D"), ("eb", "ec"))],
+     MOD("B", "C"), "several acceptances",
+     "C only (CC 4.5.13: 'Among the valid acceptances a node holds, the one counted over the larger set stands, a "
+     "larger set being a count'). Not built, as above. Read so here: 'larger' by the number of rows in the set, "
+     "which covers the ballot, withdrawal and decline rows."),
 ]
 
 
