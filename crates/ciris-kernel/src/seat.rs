@@ -2843,8 +2843,13 @@ fn revoked_before<R: SeatRow, S: CutSpec<R>>(
         return false;
     }
     keys.into_iter().any(|k| {
+        // a roster seat is a word the row carries (the lone founder's `moderate` is no roster seat)
         seat_scopes(o, k, signed_by(o, k))
             .into_iter()
+            .filter_map(|sc| match sc {
+                Sc::Row(w) => Some(w),
+                Sc::Moderate => None,
+            })
             .any(|sc| roster(sc.as_ref()) && fin(sc.as_ref()) && room_key_ended(law, spec, p, by, k, sc, &obj, cache))
     })
 }
