@@ -734,7 +734,8 @@ def check_infra(spec, inst):
     res.append(result(inst, "no single founder admits alone (quorum:2/3)", src, verdict_of(base), base, "quorum:1/N and no floor", m))
     # I3 T7: stalled at M active founders, non-admitting
     wd = ST.withdraw("wd3", "f3", "I")
-    worlds = [("f3 leaves; f1 and f2 widen J", [g, wd, aj, RS.add(spec, "w", ("wd3",), "J", ("f1", "f2"), names=("aj",))])]
+    # counted at the founding row, the newest counted head, with f3's leaving in its past (a head is a counted change)
+    worlds = [("f3 leaves; f1 and f2 widen J", [g, wd, aj, RS.add(spec, "w", ("I",), "J", ("f1", "f2"), names=("aj", "wd3"))])]
     def i3(S, rows, n):
         if "J" in members(S): return "a stalled roster admitted J"
     base = run(spec, worlds, i3)

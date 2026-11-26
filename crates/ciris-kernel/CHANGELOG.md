@@ -28,7 +28,7 @@ Additive: three public functions (`cut::Cut::new_without`, `line::settle_with`, 
   (`cut::Cut::new_without`). **Answers change:** a counted removal concurrent with the head a reader
   acknowledged, behind that reader's line, no longer takes the key off the roster for that reader. For a reader
   with no acknowledgement nothing changes: a removal at a tip is read by the fold as before.
-- Cases: `models/causal_kernel/check_count_heads.py` (16 cases in arrival orders, four planted breaks; each case
+- Cases: `models/causal_kernel/check_count_heads.py` (27 cases in arrival orders, seven planted breaks; each case
   states its answer before the change). They include two of a moderator who lays down its seat and then removes an
   agent's key alone, naming the head where it held the seat: the end rule holds the removal not in force, with the
   withdrawal in its past or concurrent with it. A case of the lift states today's answer for a reader that

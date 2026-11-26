@@ -837,7 +837,7 @@ def members_at(P, past, obj, heads, scope="member"):
     """The live `scope` seats over obj, read from the rows in the past of the heads only. Several heads: the
     keys common to all of them (KERNEL.md section 7)."""
     out = None
-    for h in heads:
+    for h in newest(heads, past):                       # the count is read at the newest heads named
         sub = [q for q in P if q["id"] == h or past(q["id"], h)]
         if not any(q["id"] == h for q in sub): return frozenset()
         m = seats_of(sub).holders(scope, obj)
@@ -926,12 +926,26 @@ def voices(r, P, past=None):
                                   if c["id"] in r["names"] and heads <= set(c["names"]))
 
 
+def newest(heads, past):
+    """The newest of the heads named: a head in the past of another named head is not a head of the count
+    (MUTATION all_heads_read: every named head read). Several concurrent newest heads (tips) stay, intersected."""
+    hs = tuple(dict.fromkeys(heads))
+    if "all_heads_read" in MUT: return hs
+    return tuple(h for h in hs if not any(h != o and past(h, o) for o in hs))
+
+
 def newer_head_in_past(heads, of, P, past, obj):
-    """A counted change of obj's roster (checkpoint.is_counted_act) among P, in the past of row `of` (every row of P
-    where `of` is None), that is neither one of `heads` nor in the past of one: a newer counted head than the heads
-    named. A counted row over a roster concludes only at the newest counted heads of that roster in its own past."""
+    """Whether the newest heads named are not the newest counted heads of obj's roster in the row's own past: a
+    counted change of obj's roster (checkpoint.is_counted_act) among P, in the past of row `of` (every row of P where
+    `of` is None), that is neither one of them nor in the past of one; or one of them that is neither such a counted
+    change nor obj's founding row. A counted row over a roster concludes only at the newest counted heads of that
+    roster in its own past."""
     if "count_heads_unread" in MUT: return False
-    hs = tuple(heads)
+    hs = newest(heads, past)
+    by = {q["id"]: q for q in P}
+    # MUTATION head_any_row: a named head may be any row
+    if "head_any_row" not in MUT and any(h != obj and not (h in by and CP.is_counted_act(by[h], obj)) for h in hs):
+        return True
     return any(CP.is_counted_act(q, obj) and (of is None or past(q["id"], of)) and q["id"] not in hs
                and not any(past(q["id"], h) for h in hs) for q in P)
 
@@ -963,7 +977,8 @@ def count_met(r, P, past, table=None):
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "lift": return lift_count(r, P, past, by)
     # read at the newest counted heads of the roster in its own past. A lift (above) is exempt, pending the lift
     # follow-up: it is counted at the head its act names
-    if newer_head_in_past(heads, None, P, past, r["obj"]): return False
+    # the object the count is taken over (MUTATION heads_of_obj: the row's own object)
+    if newer_head_in_past(heads, None, P, past, r["obj"] if "heads_of_obj" in MUT else r.get("over", r["obj"])): return False
     mem, vot = counted_keys(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
     left = count_left(P, past, r.get("over", r["obj"]), r.get("counted", "member"))
     mem, vot = mem - left, vot - left

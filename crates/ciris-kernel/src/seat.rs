@@ -881,7 +881,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     pub fn c(&self) -> &'c Concluded<'a, R> {
         self.c
     }
-    /// The cut over it.
+    /// The cut over it. For a reader (`own` set) it is that reader's: solved without the counted acts behind
+    /// the reader's line, which cut nothing for it (0.5.0). With no reader it is the cut over the set.
     pub fn cut(&self) -> &Cut<'c, 'a, R, S> {
         &self.cut
     }
@@ -1474,15 +1475,17 @@ fn authored_head<R: SeatRow>(law: &SeatLaw, r: &R) -> bool {
 }
 
 /// The heads a count is read over: the heads named, with each authored head replaced by the heads it names in
-/// turn, and then only the newest of them (one that is in another's past is dropped). Unchanged where no head
-/// named is an authored one.
+/// turn, and then only the newest of them (one that is in another's past is dropped). Several concurrent
+/// newest heads (tips) stay, and are intersected. Unchanged where no head named is an authored one or in the
+/// past of another.
 fn counted_heads<'r, 'h, R: SeatRow + 'r>(
     law: &SeatLaw,
     heads: &'h [R::Id],
     row: &dyn Fn(&R::Id) -> Option<&'r R>,
     past: &dyn Fn(&R::Id, &R::Id) -> bool,
 ) -> alloc::borrow::Cow<'h, [R::Id]> {
-    if !heads.iter().any(|h| row(h).is_some_and(|r| authored_head(law, r))) {
+    let behind_another = |a: &R::Id| heads.iter().any(|b| a != b && past(a, b));
+    if !heads.iter().any(|h| row(h).is_some_and(|r| authored_head(law, r)) || behind_another(h)) {
         return alloc::borrow::Cow::Borrowed(heads); // the usual case: nothing is copied
     }
     let mut todo: Vec<R::Id> = heads.to_vec();
@@ -1900,11 +1903,16 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
 /// conferral or withdrawal, a recall). A counted row over a roster concludes only at the newest counted heads
 /// of that roster in its own past (CC 2.7.8). A cosignature needs no reading of its own: it is a voice only
 /// where the row names it, so the row's past holds the cosignature's.
-fn newer_head_in_past<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>, heads: &[R::Id]) -> bool {
-    p.rows().any(|q| {
-        LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj)
-            && !heads.iter().any(|h| h == q.id() || p.past(q.id(), h))
-    })
+///
+/// `heads` are read as the count reads them ([`counted_heads`]: the newest of those named), and each must
+/// be such a counted change or `obj`'s founding row: a head that is any other row is no head of the count.
+fn newer_head_in_past<R: SeatRow>(p: &Past<'_, '_, R>, law: &SeatLaw, obj: &ObjOf<R>, heads: &[R::Id]) -> bool {
+    let changes = |q: &R| LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj);
+    let heads = counted_heads(law, heads, &|h| p.get(h), &|a, b| p.past(a, b));
+    if heads.iter().any(|h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(changes)) {
+        return true;
+    }
+    p.rows().any(|q| changes(q) && !heads.iter().any(|h| h == q.id() || p.past(q.id(), h)))
 }
 
 /// A counted row's count ([`Conf::Group`]), met over `p`: the lift, the ranked tally, the duty count, or the
@@ -1932,7 +1940,8 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
     }
     // read at the newest counted heads of the roster in its own past. A lift (above) is exempt, pending the lift
     // follow-up: it is counted at the head its act names
-    if newer_head_in_past(p, &obj, r.head()) {
+    // the object the count is taken over
+    if newer_head_in_past(p, law, &r.over().unwrap_or(obj.clone()), r.head()) {
         return false;
     }
     let mem = count_members_with(p, law, spec, cache);

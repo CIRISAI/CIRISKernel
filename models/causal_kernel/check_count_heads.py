@@ -27,6 +27,9 @@ Planted breaks, each of which must change a case's answer:
     count_heads_unread   a counted row's count read at the heads it names, whatever is in its past (W1)
     line_concurrent      the line voids only acts concurrent with an act of it (W2)
     cut_before_line      the cut is read before the reader's line (W3)
+    all_heads_read       a count read at every head it names, not the newest of them
+    head_any_row         a named head may be any row, not only a counted change or the founding row
+    heads_of_obj         the newest heads tested on the row's own object, not the object it is counted over
     lift_exemption_off   the new line reads the members' lift too (the exemption pending the lift follow-up)
 
     python3 -I check_count_heads.py      exit 1 on any difference
@@ -132,6 +135,54 @@ CASES = [
      "admission's past, so it is behind the line, and cuts nothing for that reader",
      WM + [ack("ak", "m1", "an"), XLM], "m1", {"xl": T}, {"member": {"m1", "m2", "MOD", "N"}, "agent": {"AG"}}, {"xl"},
      ({"xl": T}, {"member": {"m1", "m2", "MOD", "N"}, "agent": set()}, set())),
+    # a count is read at the newest of the heads it names, and those must be the newest counted heads of the roster in
+    # its own past, each a counted change or the founding row
+    ("a counted removal names the founding head and the newest admission together",
+     ROOM + [remove("xg", "G", ("A", "B"), ("g", "aG"))], None, {"xg": F}, {"member": SEVEN}, set(),
+     ({"xg": T}, {"member": SEVEN - {"G"}}, set())),
+    ("a counted admission names the founding head and the newest admission together",
+     ROOM + [admit("ax", "X", ("A", "B"), ("g", "aG"))], None, {"ax": F}, {"member": SEVEN}, set(),
+     ({"ax": T}, {"member": SEVEN | {"X"}}, set())),
+    ("the same removal, for a reader that acknowledged the newest admission",
+     ROOM + [ack("ak", "R", "aG"), remove("xg", "G", ("A", "B"), ("g", "aG"))], "R", {"xg": F}, {"member": SEVEN}, set(),
+     ({"xg": T}, {"member": SEVEN - {"G"}}, set())),
+    ("a counted removal by three names the fourth member's admission and the newest admission together",
+     ROOM + [remove("xg", "G", ("A", "B", "C"), ("aD", "aG"))], None, {"xg": F}, {"member": SEVEN}, set(),
+     ({"xg": T}, {"member": SEVEN - {"G"}}, set())),
+    ("a recall of the moderator names the founding head and the newest admission together",
+     ROOM + [RC(("g", "aG"), ("B", "C"))], None, {"rc": F}, {"moderate": {"A"}}, set(), ({"rc": T}, {"moderate": set()}, set())),
+    ("a counted removal by five of the seven names a row that is no counted change as its head",
+     ROOM + [CK.row("k", "note", "D", ("aG",)), remove("xg", "G", FIVE, ("k",))], None, {"xg": F}, {"member": SEVEN}, set(),
+     ({"xg": T}, {"member": SEVEN - {"G"}}, set())),
+    ("two admissions at the newest head, concurrent, and a removal by five naming both tips",
+     ROOM + [admit("aX", "X", FIVE, ("aG",)), admit("aY", "Y", FIVE, ("aG",)), remove("xg", "G", FIVE, ("aX", "aY"))], None,
+     {"aX": T, "aY": T, "xg": T}, {"member": (SEVEN | {"X", "Y"}) - {"G"}}, set(), None),
+    # the count is read over the object it is taken over (`over`), and so are its newest heads
+    ("an admission in a second room counted over the first room's roster names the first room's founding head, with its "
+     "newest admission in its own past",
+     ROOM + [ST.found("h", "A", ("A",), {}), ST.offer("ox", "A", "X", "member", "h", "group", ("g", "aG", "h"), head=("g",),
+                                                    over="g", policy="community_invite", cosigners=("B", "X"))], None,
+     {"ox": F}, {}, set(), ({"ox": T}, {}, set())),
+    ("an admission in a second room counted over the first room's roster names a counted change of the second room as its head",
+     ROOM + [ST.found("h", "A", ("A",), {}),
+             ST.offer("ah", "A", "B", "member", "h", "group", ("h", "aG"), head=("h",), policy="community_invite", cosigners=("B",)),
+             ST.offer("ox", "A", "X", "member", "h", "group", ("ah",), head=("ah",), over="g", policy="community_invite",
+                      cosigners=FIVE[1:] + ("X",))], None, {"ah": T, "ox": F}, {}, set(), ({"ah": T, "ox": T}, {}, set())),
+    # the reader's line is read with every row counting (W3). The rows of a review: a reader acknowledged an admission
+    # that a removal cuts on main, and a sibling admission at the same head. The removal names a row that is no counted
+    # change among its heads, so it now concludes nothing, the acknowledged admission stands, and the sibling is behind
+    # the line. (Asked of the Constitution: whether a cut act of the line leaves its siblings behind. With every head a
+    # counted change, a removal that cuts the acknowledged act is concurrent with it and built on an act behind it.)
+    ("a reader acknowledged an admission; a removal of the admitted key names a note among its heads; a sibling admission",
+     ROOM + [admit("ax", "X", FIVE, ("aG",)), CK.row("k", "note", "D", ("aG",)), remove("xx", "X", FIVE, ("aG", "k")),
+             admit("ay", "Y", FIVE, ("aG",)), ack("ak", "R", "ax")], "R",
+     {"ax": T, "xx": F, "ay": T}, {"member": SEVEN | {"X"}}, {"ay"},
+     ({"ax": T, "xx": T, "ay": T}, {"member": SEVEN | {"Y"}}, set())),
+    ("the same removal named at the newest head alone, concurrent with the acknowledged admission",
+     ROOM + [admit("ax", "X", FIVE, ("aG",)), CK.row("k", "note", "D", ("aG",)), remove("xx", "X", FIVE, ("aG",), ("k",)),
+             admit("ay", "Y", FIVE, ("aG",)), ack("ak", "R", "ax")], "R",
+     {"ax": T, "xx": T, "ay": T}, {"member": SEVEN | {"X"}}, {"xx", "ay"},
+     ({"ax": T, "xx": T, "ay": T}, {"member": SEVEN | {"Y"}}, set())),
     # what the code gives (the end rule: a lone removal is in force only while its author holds the standing it acts
     # under; seat.out_of_force), with the author's withdrawal of its seat in the removal's past, and concurrent with it
     ("a moderator lays down its seat and then removes an agent's key alone, naming the head where it held the seat",
@@ -145,7 +196,8 @@ CASES = [
     ("the members' lift of a lone removal, for a reader that acknowledged the removal (pending the lift follow-up)",
      AR.A + [AR.XA, AR.O1, AR.O2, AR.RSA, ack("ak", "m1", "x")], "m1", {"rs": T}, {"agent": {"AG"}}, set(), None),
 ]
-PLANTS = (("count_heads_unread", ST.MUT), ("line_concurrent", CP.MUT), ("cut_before_line", ST.MUT))
+PLANTS = (("count_heads_unread", ST.MUT), ("line_concurrent", CP.MUT), ("cut_before_line", ST.MUT), ("all_heads_read", ST.MUT),
+          ("head_any_row", ST.MUT), ("heads_of_obj", ST.MUT))
 GUARDS = (("lift_exemption_off", ST.MUT),)      # a break of the lift's exemption, pending the lift follow-up
 
 
@@ -186,7 +238,7 @@ def main():
             if answer(CK.arrive([rows[0]] + p, RULE), own, concl, holds) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in p]))
                 break
-    # the answer before: the three rules switched off together
+    # the answer before: the rules switched off together
     for _, m in PLANTS: m.add(_)
     try:
         old = run_all()
