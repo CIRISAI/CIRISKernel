@@ -44,6 +44,7 @@ Planted breaks, each of which must change a case's answer:
     decline_unread            a decline the seating names is not read: the count yields its winner
     larger_set_unread         every concluded seating stands, whatever the sets of its election's others
     election_id_unread        every ranked seating over the room is of one election
+    candidates_options        the candidates are the options the seating lists, not the roster at its head
 
     python3 -I check_election.py      exit 1 on any difference
 """
@@ -70,6 +71,7 @@ G1 = ST.offer("g", "A", ("A",), "member", "@", "self")
 G3 = ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", "C"))
 G4 = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"))
 G5 = ST.offer("g", "A", ("A", "B", "C", "D", "E"), "member", "@", "self", cosigners=("B", "C", "D", "E"))
+G10 = ST.offer("g", "A", tuple("ABCDEFGHIJ"), "member", "@", "self", cosigners=tuple("BCDEFGHIJ"))
 G8 = ST.offer("g", "A", tuple("ABCDEFGH"), "member", "@", "self", cosigners=tuple("BCDEFGH"))
 
 # the eight ballots of the decline cases: A four first choices, C three, B one (B's next choice A)
@@ -120,6 +122,7 @@ LG5 = [ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), b
        ballot("be", "E", "C"), elect("eb", "B", ("ba", "bb"), ("A", "B", "C", "D", "E")),
        elect("ec", "C", ("ba", "bb", "bc", "bd", "be"), ("A", "B", "C", "D", "E"))]
 M3, M4, M5 = ("A", "B", "C"), ("A", "B", "C", "D"), ("A", "B", "C", "D", "E")
+M10 = tuple("ABCDEFGHIJ")
 MOD = lambda *ks: [(k, "moderate", T) for k in ks]
 NOMOD = lambda *ks: [(k, "moderate", F) for k in ks]
 
@@ -140,6 +143,25 @@ CASES = [
      [G5, ballot("ba", "A", "AC"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
       ballot("be", "E", "B"), elect("el", "B", ("ba", "bb", "bc", "bd", "be"), M3)],
      NOMOD("A", "B", "C"), "the count"),
+    ("every member a candidate: of five, D and E, whom no ballot names, go out together (#241 E1, derived: options "
+     "holding no ballot are eliminated together), then A, and C has a majority",
+     [G5, ballot("ba", "A", "AC"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
+      ballot("be", "E", "B"), elect("el", "C", ("ba", "bb", "bc", "bd", "be"), M5)],
+     MOD("C") + NOMOD("A", "B"), "who may stand"),
+    ("the candidates are the roster at the head, whatever options the seating lists: the same ballots, the seating "
+     "listing A and B only, still seat C",
+     [G5, ballot("ba", "A", "AC"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
+      ballot("be", "E", "B"), elect("el", "C", ("ba", "bb", "bc", "bd", "be"), ("A", "B"))],
+     MOD("C"), "who may stand"),
+    ("a room of ten, first choices 4, 3 and 3 among three members: the seven others go together, then the two at 3 "
+     "tie for weakest, and the count seats nobody",
+     [G10] + [ballot("b" + k, k, r) for k, r in zip("ABCDEFGHIJ", ["A"] * 4 + ["B"] * 3 + ["CA"] * 3)]
+     + [elect("el", "A", tuple("b" + k for k in "ABCDEFGHIJ"), M10)],
+     NOMOD("A", "B", "C"), "ties"),
+    ("first choices 5, 3 and 2: the seven go together, then the 2, whose ballots pass to A, who is seated",
+     [G10] + [ballot("b" + k, k, r) for k, r in zip("ABCDEFGHIJ", ["A"] * 5 + ["B"] * 3 + ["CA"] * 2)]
+     + [elect("el", "A", tuple("b" + k for k in "ABCDEFGHIJ"), M10)],
+     MOD("A") + NOMOD("B", "C"), "ties"),
     # ---- ties --------------------------------------------------------------------------------------------------------
     ("three ballots, three first choices: a tie for weakest seats nobody (an election declares no order)",
      [G3, ballot("ba", "A", "AB"), ballot("bb", "B", "B"), ballot("bc", "C", "C"),
@@ -186,9 +208,9 @@ CASES = [
      [G3, ballot("ba", "A", "XB"), ballot("bb", "B", "B"), admit("ax", "X", ("A", "B"), ("g",)),
       elect("el", "B", ("ba", "bb"), M3, cites=("ax",))],
      NOMOD("A", "B") + [("X", "member", T)], "who may stand"),
-    ("and counted at a head after the admission: two ballots, B is seated",
+    ("and counted at a head after the admission: B has two first choices of three, and is seated",
      [G3, admit("ax", "X", ("A", "B"), ("g",)), ballot("ba", "A", "XB", ("ax",)), ballot("bb", "B", "B", ("ax",)),
-      elect("el", "B", ("ba", "bb"), M3, heads=("ax",))],
+      ballot("bc", "C", "B", ("ax",)), elect("el", "B", ("ba", "bb", "bc"), M3, heads=("ax",))],
      MOD("B"), "who may stand"),
     ("a ballot ranking first a member who left, its leaving in the seating's past, is not counted (#241 O2, derived: "
      "a leaver is out of the base, the voices and the candidates): one ballot is under the floor",
@@ -199,9 +221,10 @@ CASES = [
      [G4, ST.withdraw("wc", "C", "g", ("g",)), ballot("bc", "C", "B"), ballot("bb", "B", "B"),
       elect("el", "B", ("bc", "bb"), ("B", "D"), cites=("wc",))],
      NOMOD("B"), "a candidate who leaves"),
-    ("and without the leaving in its past, the seating counts both: B is seated (C's leaving beside it)",
-     [G4, ST.withdraw("wc", "C", "g", ("g",)), ballot("ba", "A", "CB"), ballot("bb", "B", "B"),
-      elect("el", "B", ("ba", "bb"), ("B", "D"))],
+    ("and without the leaving in its past, the seating counts A's ballot: B has two first choices of three, and is "
+     "seated (C's leaving beside it)",
+     [G4, ST.withdraw("wc", "C", "g", ("g",)), ballot("ba", "A", "CB"), ballot("bb", "B", "B"), ballot("bd", "D", "B"),
+      elect("el", "B", ("ba", "bb", "bd"), ("B", "D"))],
      MOD("B"), "a candidate who leaves"),
     ("a ballot ranking four is void, the whole ballot (CC 4.5.13 'Each person ranks up to three'; #241 O3): one "
      "ballot is under the floor",
@@ -332,15 +355,6 @@ CASES = [
 # cases (the answer now, in every arrival order), so a change to it is seen; the answer is no ruling.
 # (name, rows, [(key, scope, stands now)], ledger item, the candidate answers)
 OPEN = [
-    ("OPEN: every member a candidate, as the text says the ballot is: of five, over the roster's five, D and E named by "
-     "no ballot tie for weakest at no first choice, and the count seats nobody",
-     [G5, ballot("ba", "A", "AC"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
-      ballot("be", "E", "B"), elect("el", "C", ("ba", "bb", "bc", "bd", "be"), M5)],
-     NOMOD("A", "B", "C"), "who may stand",
-     "nobody (CC 4.5.13 'a tie seats nobody', read over every member, the crate's answer where the options are the "
-     "roster) | C (the members no ballot names are no standing candidates, and the count runs as over A, B and C). "
-     "Over a roster of n with every member voting and no first-round majority, two members with no first choice is "
-     "the common case, so under the first reading a runoff seldom decides."),
     ("NOT BUILT (the text decides): a recall in a room of one by its one voice: the model recalls",
      [FH1, recall("rc", "A", ("A",), ("g",))], NOMOD("A"), "a recall",
      "not recalled (CC 4.5.13: 'The floor is two voices'). Not built: the seat's count has no floor for a fraction "
@@ -365,7 +379,8 @@ def planted(plant):
 PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_any_winner", "ballot_withdrawal_unread",
           "ballot_nonmember_ranked", "election_beside_holder", "election_agent_holder",
           "candidates_roster", "ballot_ranks_unbounded", "recall_at_least",
-          "decline_unread", "larger_set_unread", "election_id_unread")
+          "decline_unread", "larger_set_unread", "election_id_unread",
+          "candidates_options")
 
 
 def answers(rows, asks, plant=None, arrive=False):

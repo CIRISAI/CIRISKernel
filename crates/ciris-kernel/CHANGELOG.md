@@ -69,9 +69,18 @@ beyond the ballot count").
   a reading over the concluded rows, like the fold at tips; each seating still concludes on its own past. At two
   tips the seat waits, as any seat does, until a row names both. **An answer changes**: before, two concluded
   seatings both seated, once a row named both. Seven cases; two plants in each language.
-- Not built, each a row of `check_election.py`'s OPEN list carrying the model's answer now. (1) The two-voice
-  floor of a recall (the text decides; a public change). (2) Every member a candidate (not decided): two members
-  whom no ballot names tie for weakest and seat nobody.
+- **Options holding no ballot are eliminated together** (CIRISConstitution#241 E1, derived, a sentence being added to
+  "Ranked choice is one count"). In each round of `ranked::ranked` and `ranked::runoff` (one loop, and
+  `reexpress.py`'s reference), every standing option with no first choice is struck at once, before the weakest is
+  sought. "A tie for weakest seats nobody" is then about options that hold ballots. Every one of the 480 cases of
+  the `reexpress` fixture keeps its winner, rounds and order, declared and not. In the runoff order, a group struck
+  together is ordered by the declared order, and with none the order stops above it. **The election's candidates
+  are the roster at the heads** (CC 4.5.13: "The ballot is the roster, every member a candidate"): the base, which
+  is the persons less a key whose own leaving is in the row's past. The seating's `options()` are not read. **Answers
+  change**: a room of five whose two members no ballot names now elects. Four cases (a room of ten at 4/3/3 seats
+  nobody; at 5/3/2 it seats A); a plant in `seat.py` and one in the crate.
+- Not built, each a row of `check_election.py`'s OPEN list carrying the model's answer now. The two-voice floor of a
+  recall (the text decides; a public change).
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

@@ -172,8 +172,8 @@ trusting an adapter.
 - A ballot (`ballot:moderator`) is a row of `SeatKind::Ballot`, `ranking()` its keys best first (at most
   `seat::ELECTION_RANKS`). Its withdrawal is a `SeatKind::Withdraw` by its signer, `target()` the ballot.
 - The acceptance (`ballot:moderator_acceptance`) is one Offer of scope `moderate` over the room, `Conf::Group`,
-  `policy()` the table's `moderator_election` row (`Policy::Ranked`), `to()` the winner, `options()` the
-  candidates, `head()` the head counted at. It names every ballot, withdrawal and decline of its set. The winner
+  `policy()` the table's `moderator_election` row (`Policy::Ranked`), `to()` the winner, `head()` the head
+  counted at. The candidates are the roster at that head (`options()` is not read). It names every ballot, withdrawal and decline of its set. The winner
   signs it, or accepts it.
 - A decline (`ballot:moderator_decline`) is a row whose `SeatRow::decline()` is true (default false), signed by
   the key declining. The count yields the first in the runoff order (`ranked::runoff`) whose decline the

@@ -2042,7 +2042,10 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
         // row names (CC 4.5.13: a decline "passes the duty to the next in runoff order")
         let declined: BTreeSet<&R::Key> =
             p.rows().filter(|d| d.decline() && r.names().contains(d.id())).map(|d| d.signer()).collect();
-        let won = runoff(&ballots, r.options(), 2, false).into_iter().find(|o| !declined.contains(o));
+        // the candidates are the roster at the heads: the base, persons less a key whose own leaving is in the row's
+        // past (CC 4.5.13: "The ballot is the roster, every member a candidate"); the row's `options` are not read
+        let candidates: Vec<R::Key> = mem.iter().cloned().collect();
+        let won = runoff(&ballots, &candidates, 2, false).into_iter().find(|o| !declined.contains(o));
         return is_offer && !ballots.is_empty() && won.as_ref() == r.to().first();
     }
     let v = voices(r, p);

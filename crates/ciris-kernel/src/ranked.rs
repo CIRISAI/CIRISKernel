@@ -58,8 +58,8 @@ fn count<P: Ord + Clone, O: Ord + Clone>(
         winner: Option<O>,
         done: bool,
         rounds: usize,
-        // the options eliminated, in turn
-        out: Vec<O>,
+        // the options eliminated, in turn: a group of those eliminated together
+        out: Vec<Vec<O>>,
         // the top of the order the count leaves known
         top: Vec<O>,
     }
@@ -95,6 +95,21 @@ fn count<P: Ord + Clone, O: Ord + Clone>(
         if s.standing.len() == 1 {
             return St { done: true, top: s.standing.clone(), winner, ..s.clone() };
         }
+        // the options holding no ballot are eliminated together (no ballot passes when one goes, so their order
+        // cannot change the count); a tie for weakest is then among options that hold ballots
+        let none: Vec<O> = s.standing.iter().filter(|o| n(o) == 0).cloned().collect();
+        if !none.is_empty() {
+            let mut out = s.out.clone();
+            out.push(none.clone());
+            return St {
+                standing: s.standing.iter().filter(|o| !none.contains(o)).cloned().collect(),
+                rounds: s.rounds + usize::from(winner.is_none()),
+                winner,
+                done: false,
+                out,
+                top: s.top.clone(),
+            };
+        }
         // weakest by (first choices, declared order: the option listed later is weaker); a tie is refused
         #[derive(PartialEq)]
         struct T<'o, O> {
@@ -109,7 +124,7 @@ fn count<P: Ord + Clone, O: Ord + Clone>(
             Ok(Some(w)) => {
                 let weakest = w.o.clone();
                 let mut out = s.out.clone();
-                out.push(weakest.clone());
+                out.push(alloc::vec![weakest.clone()]);
                 St {
                     standing: s.standing.iter().filter(|o| **o != weakest).cloned().collect(),
                     rounds: s.rounds + usize::from(winner.is_none()),
@@ -124,10 +139,22 @@ fn count<P: Ord + Clone, O: Ord + Clone>(
             _ => St { done: true, top: known(&winner), winner, ..s.clone() },
         }
     });
-    let order = if end.top.len() == 1 && end.standing.len() == 1 {
-        end.top.iter().cloned().chain(end.out.iter().rev().cloned()).collect()
-    } else {
-        end.top
-    };
+    // the order below the last one standing: the groups eliminated, latest first, as far as a group of one
+    // reaches (the order within a group eliminated together is not known; with a declared order, the option
+    // listed later is weaker)
+    let mut order = end.top.clone();
+    if end.top.len() == 1 && end.standing.len() == 1 {
+        for grp in end.out.iter().rev() {
+            if grp.len() == 1 {
+                order.extend(grp.iter().cloned());
+            } else if declared {
+                let mut g = grp.clone();
+                g.sort_by_key(|o| index(o));
+                order.extend(g);
+            } else {
+                break;
+            }
+        }
+    }
     (end.winner, end.rounds, order)
 }

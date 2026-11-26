@@ -101,17 +101,34 @@ def _runoff(rows, options, floor, declared, to_end):
             winner = w
         if len(standing) == 1:
             return standing, winner, True, rounds, out, (standing[0],)
+        # the options holding no ballot are eliminated together (no ballot passes when one goes, so their order
+        # cannot change the count); a tie for weakest is then among options that hold ballots
+        none = tuple(o for o in standing if first.get(o, 0) == 0)
+        if none:
+            return (tuple(o for o in standing if o not in none), winner, False, rounds + (winner is None),
+                    out + (none,), top)
         try:
             weakest = K.group(table, None, "least", ("n", "back"))
         except K.Tie:
             # no declared order: a tie for weakest seats nobody, or (past a majority) leaves the order below the winner
             return standing, winner, True, rounds, out, (winner,) if winner is not None else ()
         return (tuple(o for o in standing if o != weakest["o"]), winner, False, rounds + (winner is None),
-                out + (weakest["o"],), top)
+                out + ((weakest["o"],),), top)
 
     end = K.fix(round_, (tuple(options), None, False, 0, (), ()), len(options) + 1)
     _, winner, _, rounds, out, top = end
-    order = top + tuple(reversed(out)) if len(top) == 1 and len(end[0]) == 1 else top
+    # the order below the last one standing: the groups eliminated, latest first, as far as a group of one reaches
+    # (the order within a group eliminated together is not known; with a declared order, the option listed later
+    # is weaker)
+    order = top
+    if len(top) == 1 and len(end[0]) == 1:
+        for grp in reversed(out):
+            if len(grp) == 1:
+                order += grp
+            elif declared:
+                order += tuple(sorted(grp, key=options.index))
+            else:
+                break
     return winner, rounds, order
 
 

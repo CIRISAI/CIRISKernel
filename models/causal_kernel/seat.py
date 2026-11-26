@@ -1019,7 +1019,10 @@ def count_met(r, P, past, table=None):
         # the count yields the first in the set's runoff order who has not declined, the declines being those the row
         # names (CC 4.5.13; a decline is the winner's own row, `ballot:moderator_decline`, #241 O4)
         declined = set() if "decline_unread" in MUT else {d["signer"] for d in K.sel(P, kind="decline") if d["id"] in r["names"]}
-        won = next((o for o in RUNOFF(ballots, list(r["options"]), declared="election_declared" in MUT) if o not in declined), None)
+        # the candidates are the roster at the heads: the base, persons less a key whose own leaving is in the row's past
+        # (CC 4.5.13: "The ballot is the roster, every member a candidate"); the row's `options` are not read
+        cands = list(r["options"]) if "candidates_options" in MUT else sorted(vot)
+        won = next((o for o in RUNOFF(ballots, cands, declared="election_declared" in MUT) if o not in declined), None)
         if "election_any_winner" in MUT: return k == "offer" and bool(ballots) and won is not None
         return k == "offer" and bool(ballots) and won == r["to"][0]
     if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
