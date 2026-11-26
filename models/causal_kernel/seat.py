@@ -961,9 +961,12 @@ def count_met(r, P, past, table=None):
         gone = frozenset() if "ballot_withdrawal_unread" in MUT else frozenset(
             w["target"] for w in K.sel(P, kind="withdraw")
             if w["target"] in by and by[w["target"]]["kind"] == "ballot" and w["signer"] == by[w["target"]]["signer"])
-        # a ballot ranking a key that holds no seat of the roster at the heads is not counted, the whole ballot (CC 3.1.4
-        # `ballot:moderator`: "A ballot naming ... a non-member is kept and not counted"; its guard, each rank a member)
-        roster = members_at(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
+        # a ballot ranking a key that is not counted over is not counted, the whole ballot (CC 3.1.4 `ballot:moderator`:
+        # "A ballot naming ... a non-member is kept and not counted"; its guard, each rank a member). The candidates are
+        # the base: the persons at the heads, less a key whose own leaving is in the row's past (#241 O1, O2, derived:
+        # an agent's key is no candidate; a leaver is out of the base, the voices and the candidates)
+        roster = (members_at(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
+                  if "candidates_roster" in MUT else vot)
         ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot")
                    if (b["id"] in r["names"] or "ballot_unnamed" in MUT) and (b["signer"] in vot or "ballot_any_signer" in MUT)
                    and b["id"] not in gone and (set(b["ranking"]) <= roster or "ballot_nonmember_ranked" in MUT)]

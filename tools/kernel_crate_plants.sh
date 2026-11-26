@@ -174,7 +174,7 @@ plant 'an election counts a ballot it does not name'     src/seat.rs 'SeatKind::
 plant "an election's tie broken by its options' order"    src/seat.rs 'ranked(&ballots, r.options(), 2, false)' 'ranked(&ballots, r.options(), 2, true)'
 plant 'an election seats whoever its row names'          src/seat.rs '.0.as_ref() == r.to().first();' '.0.is_some();'
 plant 'an election counts a ballot its signer withdrew'  src/seat.rs '.filter(|b| !gone(b))' '.filter(|_| true)'
-plant 'an election counts a ballot ranking a non-member' src/seat.rs '.filter(|b| b.ranking().iter().all(|k| roster.contains(k)))' '.filter(|_| true)'
+plant 'an election counts a ballot ranking a non-member' src/seat.rs '.filter(|b| b.ranking().iter().all(|k| mem.contains(k)))' '.filter(|_| true)'
 plant 'an election seats beside a live duty holder'     src/seat.rs 'if !holders.is_empty() {' 'if false {'
 plant "an agent's duty seat stops an election"          src/seat.rs 'let mut holders = persons_at_with(p, law, spec, &over, r.head(), "duty", cache);' 'let mut holders = members_at_with(p, law, spec, &over, r.head(), "duty", cache);'
 plant 'a row'"'"'s concluded past read as its first row' src/layers.rs 'self.p.binary_search(&q).is_ok()' 'self.p.first() == Some(&q)'

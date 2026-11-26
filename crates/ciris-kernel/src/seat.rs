@@ -1933,15 +1933,14 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
         if !holders.is_empty() {
             return false;
         }
-        // a ballot ranking a key that holds no seat of the roster at the heads is not counted, the whole ballot
-        // (CC 3.1.4 `ballot:moderator`: "A ballot naming ... a non-member is kept and not counted")
-        let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
-        let roster = members_at_with(p, law, spec, &over, r.head(), counted, cache);
         let ballots: Vec<(R::Key, Vec<R::Key>)> = p
             .rows()
             .filter(|b| b.seat_kind() == SeatKind::Ballot && r.names().contains(b.id()) && mem.contains(b.signer()))
             .filter(|b| !gone(b))
-            .filter(|b| b.ranking().iter().all(|k| roster.contains(k)))
+            // a ballot ranking a key that is not counted over is not counted, the whole ballot (CC 3.1.4
+            // `ballot:moderator`: "A ballot naming ... a non-member is kept and not counted"): the candidates are
+            // the base, so an agent's key and a key whose own leaving is in the row's past are none
+            .filter(|b| b.ranking().iter().all(|k| mem.contains(k)))
             .map(|b| (b.signer().clone(), b.ranking().to_vec()))
             .collect();
         // the one ranked row is the election, which declares no order: a tie for weakest seats nobody
