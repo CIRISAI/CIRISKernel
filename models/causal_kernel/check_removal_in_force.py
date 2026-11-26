@@ -46,6 +46,8 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     count_receipt_unchecked  the count's receipt read over any room, at any head, with the remover a voice
     founding_duty_unread     a receipter's duty from a founding record not read as a seat a counted unseat ends
     agent_receipt_kept       an agent duty holder's receipt keeps a lone removal (ruled: an agent's receipt is no receipt)
+    remover_counted_over     the remover left in the denominator of the count's receipt (ruled R5: the room less it)
+    upstream_unread          a lone removal of a key whose seat the remover's moderate hangs under is not waited for
     lone_lifts / own_end_lifts  a lone removal, or the holder's own end, lifts receipts
     receipt_before_kept      a receipt made after a counted unseat of its signer's seat keeps
     failed_count_is_signers  a counted receipt that fails its count is read as its signer's own
@@ -328,6 +330,21 @@ CASES = [
     ("two tips with a receipt of the removal by another holder: in force",
      W + [X, receipt("q2", "p2", "x"), remove("xp", "p1", ("p2", "p3"), ("ag",))], {"x": T, "xp": T}, P23, []),
 ]
+# a room founded with members only: Z (an agent) is conferred moderate by the members' count with sub-delegation,
+# and confers moderate on the agent M under that seat; p1 is conferred moderate too
+R5 = [ST.found("g", "p1", ("p1", "p2", "p3", "p4"), {"moderate": ("p1",)}, cosigners=("p2", "p3", "p4")),
+      admit("ag", "AG", ("p1", "p2", "p3", "p4"), ("g",), "agent"), lone("x", "p1", "AG", ("ag",))]
+MG3 = ST.offer("g", "p1", ("p1", "p2", "p3"), "member", "@", "self", cosigners=("p2", "p3"))
+UP = [MG3, ST.offer("ags", "p1", ("Z", "M", "AG"), "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
+                    cosigners=("p2", "p3", "Z", "M", "AG")),
+      ST.offer("cz", "p1", "Z", "moderate", OBJ, "group", ("ags",), head=("ags",), policy="community_invite",
+               cosigners=("p2", "p3", "Z"), sub=True),
+      ST.offer("cp", "p1", "p1", "moderate", OBJ, "group", ("cz",), head=("cz",), policy="community_invite",
+               cosigners=("p2", "p3")),
+      ST.offer("cm", "Z", "M", "moderate", OBJ, "seat", ("cp",), under="cz", cosigners=("M",))]
+UPX = [lone("x", "M", "AG", ("cm",)), lone("y", "p1", "Z", ("cm",))]
+
+
 # The reviewer's rows for the review of #48 (its script, s48/cases.py), each a case named with its ledger row.
 def _review():
     Gv = ST.found("g", "p1", ("p1",), {"moderate": ("p1",)})
@@ -390,10 +407,24 @@ def _review():
     ]
 
 
+CASES += [
+    (RV + "a removal out of force that is no end still cuts nothing: M's moderate hangs under Z's seat; p1 removes Z "
+     "alone beside M's removal of AG, then lays down its moderate: p1's removal is out of force, Z keeps its seat, M "
+     "its moderate, and M's removal stands", UP + UPX + [ST.withdraw("wp", "p1", "cp", ("y",))],
+     {"x": T, "y": T}, {"p1", "p2", "p3", "Z", "M"}, [("M", "moderate", T), ("Z", "moderate", T)]),
+    (RV + "the same with p1's removal of Z in force: M's moderate falls with Z's seat, and M's removal is out of force",
+     UP + UPX, {"x": T, "y": T}, {"p1", "p2", "p3", "M", "AG"}, [("M", "moderate", F), ("Z", "agent", F)]),
+    (RV + "R5, the count's receipt is the room less the remover: four persons, two of the other three confirm",
+     R5 + [counted_receipt("qc", ("p2", "p3"), "x", ("x",)), ST.withdraw("wm", "p1", "g", ("x",), scope="moderate")],
+     {"x": T}, {"p1", "p2", "p3", "p4"}, []),
+    (RV + "R5, one of the other three does not",
+     R5 + [counted_receipt("qc", ("p2",), "x", ("x",)), ST.withdraw("wm", "p1", "g", ("x",), scope="moderate")],
+     {"x": T}, {"p1", "p2", "p3", "p4", "AG"}, []),
+]
 CASES += [(RV + "the reviewer's rows: " + n, rows, {}, roster, asks) for n, rows, roster, asks in _review()]
 PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone", "cascade", "count_receipt_unread",
           "removed_receipt_kept", "lifts_unread", "conferrer_lift_unread", "cycle_one_then_other", "count_receipt_unchecked",
-          "founding_duty_unread", "agent_receipt_kept", "lone_lifts", "own_end_lifts", "receipt_before_kept",
+          "founding_duty_unread", "agent_receipt_kept", "remover_counted_over", "upstream_unread", "lone_lifts", "own_end_lifts", "receipt_before_kept",
           "failed_count_is_signers")
 
 

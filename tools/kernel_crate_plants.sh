@@ -102,7 +102,11 @@ plant "a receipt after the unseat keeps" src/seat.rs '                    && !g.
 '
 plant "a lone removal lifts" src/seat.rs 'SeatKind::Unseat => er.conf() == Some(Conf::Group) && !lone.contains(&e),' 'SeatKind::Unseat => er.conf() == Some(Conf::Group),'
 plant "the holder's own end lifts" src/seat.rs '.is_some_and(|t| t.seat_kind() == SeatKind::Offer && !t.to().contains(er.signer())),' '.is_some_and(|t| t.seat_kind() == SeatKind::Offer),'
-plant "an ordered pair read as mutual" src/seat.rs ' && !g.in_past(y, x) && yr.to().first() == Some(xr.signer())' ' && yr.to().first() == Some(xr.signer())'
+plant "an ordered pair read as mutual" src/seat.rs '                        && !g.in_past(y, x)
+' ''
+plant "the remover left in the count's receipt's base" src/seat.rs '    mem.remove(xr.signer());
+    let mut v = voices(qr, &p);' '    let mut v = voices(qr, &p);'
+plant "a seat the remover's moderate hangs under not waited for" src/seat.rs '                    keys.insert(r.signer());' '                    let _ = r;'
 plant "a mutual pair decided one then the other" src/seat.rs '                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone);' '                let excl: BTreeSet<usize> =
                     out.iter().chain(got.iter().filter(|(_, v)| !*v).map(|(j, _)| j)).map(|&j| acts[j]).collect();
                 let drop2: BTreeSet<R::Id> = excl.iter().map(|&y| g.row(y).id().clone()).collect();

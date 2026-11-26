@@ -791,6 +791,9 @@ def count_receipt(S, q, x):
     mem, vot = mem - left, vot - left
     yes = voices(q, P) & vot
     if "count_receipt_unchecked" not in MUT: yes = yes - {x["signer"]}
+    # the room less the remover, in the base as in the voices (R5: one rule for a count that judges one member's act,
+    # as the overturn and the lift; MUTATION remover_counted_over)
+    if "remover_counted_over" not in MUT: mem = mem - {x["signer"]}
     return met(q.get("policy"), len(yes), len(mem), q.get("need"))
 
 
@@ -881,6 +884,22 @@ def removal_in_force(S, x, unseats, now, not_ends=frozenset(), lone_ids=frozense
     return True
 
 
+def standing_keys(S, x):
+    """The keys whose seats x's remover's standing rests on: the remover, and the signers up each chain of seats a
+    moderate seat of it is conferred under (`conf` seat, `under`) in x's past. A lone removal of one of them could end
+    the standing (MUTATION upstream_unread: the remover only)."""
+    keys = {x["signer"]}
+    if "upstream_unread" in MUT: return keys
+    for o in S.Cs:
+        if o["kind"] != "offer" or o.get("obj") != x["obj"] or x["signer"] not in o["to"] or o["id"] not in S.anc[x["id"]]:
+            continue
+        cur, n = o, 0
+        while cur is not None and cur.get("conf") == "seat" and n <= DEPTH:
+            keys.add(cur["signer"])
+            cur, n = S.by.get(cur.get("under")), n + 1
+    return keys
+
+
 def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
     """The lone removals among `unseats` the end rule holds out of force over S."""
     acts = [u for u in unseats if u.get("scope") == AGENT and lone_act(u, S)]
@@ -903,7 +922,7 @@ def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
     # end of another's: CC 2.7.7 rule 5, "Two cuts by keys of equal standing that undo each other stay contested. A
     # voice that the other cannot remove settles them", read for a set (a person's receipt, or the count's).
     waits = {x["id"]: {y["id"] for y in acts if y is not x and y["obj"] == x["obj"] and y["id"] not in S.anc[x["id"]]
-                       and y["to"][0] == x["signer"]} for x in acts}
+                       and y["to"][0] in standing_keys(S, x)} for x in acts}
     decided, out = {}, set()
     while len(decided) < len(acts):
         pend = [x["id"] for x in acts if x["id"] not in decided]

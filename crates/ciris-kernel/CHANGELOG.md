@@ -33,6 +33,11 @@
   are a person duty holder's other than the remover's, or the count's. One answer changes: an agent moderator's
   receipt kept a lone removal and now keeps nothing. A lone removal of a receipter no longer orders anything,
   since a receipter is a person and a lone removal removes only an agent.
+- Ruled (R5): the count's own receipt is over the persons of the room at the removal's head or later, the remover
+  apart in the base as in the voices (as the overturn and the lift). Four persons with the remover one: two of
+  the other three keep the removal; one does not.
+- An act also waits for a lone removal of any key whose seat its remover's standing is conferred under (a
+  `Conf::Seat` chain): such a removal decided out of force no longer cuts that seat for it.
 - Ruled: a ring of three or more concurrent lone removals, each undone by another, is read as the pair is (CC
   2.7.7 rule 5 read for a set): all out of force, all seats kept, until a person's receipt or the count's
   settles it.

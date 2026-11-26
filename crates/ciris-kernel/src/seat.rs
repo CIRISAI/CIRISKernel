@@ -1269,6 +1269,9 @@ fn count_receipt<R: SeatRow, S: CutSpec<R>>(
     for k in left_in_past(&p, &obj, "member") {
         mem.remove(&k);
     }
+    // the room less the remover, in the base as in the voices (R5: one rule for a count that judges one member's
+    // act, as the overturn and the lift)
+    mem.remove(xr.signer());
     let mut v = voices(qr, &p);
     v.remove(xr.signer());
     let yes = v.iter().filter(|k| mem.contains(*k)).count();
@@ -1325,11 +1328,33 @@ fn out_of_force<R: SeatRow, S: CutSpec<R>>(
         .iter()
         .map(|&x| {
             let xr = g.row(x);
+            // the keys the remover's standing rests on: the remover, and the signers up each chain of seats a
+            // moderate seat of it is conferred under in x's past
+            let mut keys: BTreeSet<&R::Key> = core::iter::once(xr.signer()).collect();
+            for &o in c.cs() {
+                let or = g.row(o);
+                if or.seat_kind() != SeatKind::Offer
+                    || or.obj() != xr.obj()
+                    || !or.to().contains(xr.signer())
+                    || !g.in_past(o, x)
+                {
+                    continue;
+                }
+                let mut cur = Some(or);
+                for _ in 0..=law.depth {
+                    let Some(r) = cur.filter(|r| r.conf() == Some(Conf::Seat)) else { break };
+                    keys.insert(r.signer());
+                    cur = r.under().and_then(|u| by.get(u).copied());
+                }
+            }
             (0..n)
                 .filter(|&j| {
                     let y = acts[j];
                     let yr = g.row(y);
-                    y != x && yr.obj() == xr.obj() && !g.in_past(y, x) && yr.to().first() == Some(xr.signer())
+                    y != x
+                        && yr.obj() == xr.obj()
+                        && !g.in_past(y, x)
+                        && yr.to().first().is_some_and(|k| keys.contains(k))
                 })
                 .collect()
         })
