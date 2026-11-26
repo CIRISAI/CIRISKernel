@@ -340,6 +340,14 @@ pub struct SeatLaw {
     pub depth: usize,
     /// The count each policy row names.
     pub policy: BTreeMap<String, Policy>,
+    /// The act-to-policy binding (the Constitution's `governance_policy_acts.tsv`): which policy rows each counted
+    /// act may take. `None`: this law binds no act to a policy, and the binding is the caller's (the behaviour
+    /// before it). `Some(rows)`: the binding is on. No rule reads it yet (steps 1 and 2 of the binding); the seat
+    /// fixture's law carries `Some`.
+    pub acts: Option<Vec<ActRule>>,
+    /// The kind of an object, from its founding row's scope (`member` and `duty`: a community; `holder`: an
+    /// accord; `self`: a self roster). A key object is a self roster. An object with no kind has no act.
+    pub kinds: BTreeMap<String, CommunityKind>,
 }
 
 impl SeatLaw {
@@ -350,6 +358,259 @@ impl SeatLaw {
     fn policy_of(&self, p: Option<&str>) -> Option<Policy> {
         p.and_then(|p| self.policy.get(p).copied())
     }
+}
+
+macro_rules! words {
+    ($(#[$m:meta])* $name:ident { $($(#[$vm:meta])* $v:ident = $w:literal),* $(,)? }) => {
+        $(#[$m])*
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[non_exhaustive]
+        pub enum $name { $($(#[$vm])* $v),* }
+        impl $name {
+            /// The word the acts table writes.
+            pub fn word(self) -> &'static str {
+                match self { $($name::$v => $w),* }
+            }
+            /// The value the acts table's word names.
+            pub fn from_word(w: &str) -> Option<Self> {
+                match w { $($w => Some($name::$v),)* _ => None }
+            }
+        }
+    };
+}
+
+words! {
+    /// A counted act of the acts table (`act`).
+    Act {
+        /// A widening of a roster seat.
+        Admit = "admit",
+        /// A removal of a roster seat.
+        Remove = "remove",
+        /// The duty holders' conferral of a duty (CC 4.5.4 (iv)).
+        DutyConfer = "duty_confer",
+        /// The other duty holders' withdrawal of a duty (CC 4.5.4 (iv)).
+        DutyWithdraw = "duty_withdraw",
+        /// The duty holders' conferral of a detector seat (CC 4.5.7).
+        SeatConfer = "seat_confer",
+        /// The duty holders' withdrawal of a detector seat (CC 4.5.7).
+        SeatWithdraw = "seat_withdraw",
+        /// The members' recall of a duty holder (CC 4.5.13).
+        Recall = "recall",
+        /// The members' lift of a moderator's act: the seat re-seated (CC 4.5.13).
+        Lift = "lift",
+        /// The members' fallback on a moderation action (a window).
+        ModerationFallback = "moderation_fallback",
+        /// The election's seating (CC 4.5.13).
+        ElectionSeating = "election_seating",
+        /// A poll.
+        Poll = "poll",
+        /// A change of the community's record.
+        RecordChange = "record_change",
+        /// The accord's confirmation of a halt (a window).
+        HaltConfirm = "halt_confirm",
+        /// The accord's resumption.
+        Resume = "resume",
+        /// An act of the accord's standing majority.
+        StandingAct = "standing_act",
+        /// A body's finding.
+        Finding = "finding",
+        /// A custodian's replacement.
+        Replace = "replace",
+    }
+}
+
+words! {
+    /// The scope class of a counted act (the acts table's `scope`).
+    ScopeClass {
+        /// A member's seat.
+        Member = "member",
+        /// An AI agent's seat.
+        Agent = "agent",
+        /// A duty seat.
+        Duty = "duty",
+        /// A detector seat (`detect:{list id}`, CC 4.5.7): no declared duty.
+        Detect = "detect",
+        /// The seat of `moderate`, by election.
+        Moderate = "moderate",
+        /// A key of a self roster.
+        Key = "key",
+        /// The seat a moderator's act took: the lift re-seats it.
+        Act = "act",
+        /// Content.
+        Content = "content",
+        /// The community's record.
+        Record = "record",
+        /// A halt.
+        Halt = "halt",
+        /// A custodian.
+        Custodian = "custodian",
+        /// Any scope.
+        Any = "any",
+    }
+}
+
+words! {
+    /// The kind of an object (the acts table's `community_kind`).
+    CommunityKind {
+        /// A community.
+        Community = "community",
+        /// A self roster.
+        SelfRoster = "self",
+        /// The accord.
+        Accord = "accord",
+        /// An affiliation.
+        Affiliation = "affiliation",
+        /// A body.
+        Body = "body",
+        /// A custody.
+        Custody = "custody",
+    }
+}
+
+words! {
+    /// Whether the counted row states its policy (`row`, one of those listed) or the act fixes it (`fixed`).
+    Choice {
+        /// The act takes its one row, and the counted row states none.
+        Fixed = "fixed",
+        /// The counted row states one of the rows listed.
+        Row = "row",
+    }
+}
+
+/// One row of the acts table: an act over a scope class and a kind of object, the policy rows it may take, and
+/// whether the counted row chooses.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActRule {
+    /// The act.
+    pub act: Act,
+    /// Its scope class.
+    pub scope: ScopeClass,
+    /// The kind of object.
+    pub kind: CommunityKind,
+    /// The policy rows it may take.
+    pub policies: Vec<String>,
+    /// Whether the row states one, or the act fixes it.
+    pub choice: Choice,
+}
+
+/// The kind of `obj`: a self roster for a key object; otherwise its founding row's scope read through
+/// [`SeatLaw::kinds`]; `None` where no founding row of it is held or its scope names no kind.
+pub fn kind_of<'r, R: SeatRow + 'r>(
+    law: &SeatLaw,
+    get: &dyn Fn(&R::Id) -> Option<&'r R>,
+    obj: &ObjOf<R>,
+) -> Option<CommunityKind> {
+    let id = match obj {
+        Obj::Key(_) => return Some(CommunityKind::SelfRoster),
+        Obj::Row(i) => i,
+    };
+    let g = get(id)?;
+    if g.seat_kind() != SeatKind::Offer || !founding(g) {
+        return None;
+    }
+    law.kinds.get(g.scope()?.as_ref()).copied()
+}
+
+/// The act a counted row is, decided from its kind, its scope and its object, never from the policy it states:
+/// (act, scope class, kind) as the acts table writes them, or `None` (not a counted act, or an object with no
+/// kind). `get` looks a row up among those the caller holds (the row's past).
+///
+/// - Over a community: an offer whose `content()` names an unseat of the same seat (object, scope, keys) is the
+///   lift, of that seat's scope class (the table binds the agent's); an offer or unseat of a roster seat
+///   ([`SeatLaw::roster_seats`]) is an admission or a removal of that seat; one of a detector seat
+///   (`detect:*`) is the holders' conferral or withdrawal of that seat; an offer of a duty under the ranked count
+///   ([`Policy::Ranked`]) is the election's seating, THE ONE ACT READ FROM THE STATED POLICY in this tag (the
+///   election is not answered safely by it: a caller must not rely on a ranked seating); another offer of a duty
+///   is the duty holders' conferral; an unseat of a duty counted over a duty (`counted()`: the body the row
+///   counts) is their withdrawal, and one counted over the members is the recall. Any other scope is no act.
+/// - Over an accord: any counted row is a standing act.
+/// - Over a self roster: an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
+///
+/// A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's.
+pub fn act_of<'r, R: SeatRow + 'r>(
+    law: &SeatLaw,
+    get: &dyn Fn(&R::Id) -> Option<&'r R>,
+    r: &R,
+) -> Option<(Act, ScopeClass, CommunityKind)> {
+    let offer = match r.seat_kind() {
+        SeatKind::Offer => true,
+        SeatKind::Unseat => false,
+        _ => return None,
+    };
+    if r.conf() != Some(Conf::Group) {
+        return None;
+    }
+    let obj = r.obj()?;
+    let kind = kind_of(law, get, &obj)?;
+    let sc = r.scope().map(|s| s.as_ref());
+    match kind {
+        CommunityKind::Community => {
+            if offer {
+                let lift = r.content().and_then(get).is_some_and(|c| {
+                    c.seat_kind() == SeatKind::Unseat
+                        && c.obj().as_ref() == Some(&obj)
+                        && c.scope().map(|s| s.as_ref()) == sc
+                        && c.to() == r.to()
+                });
+                if lift {
+                    // the seat re-seated: the table binds the agent's
+                    return Some((Act::Lift, ScopeClass::from_word(sc?)?, kind));
+                }
+            }
+            let sc = sc?;
+            if law.roster_seats.iter().any(|x| x == sc) {
+                let class = ScopeClass::from_word(sc)?;
+                return Some((if offer { Act::Admit } else { Act::Remove }, class, kind));
+            }
+            // a detector seat (CC 4.5.7: `detect:{list id}`, conferred and "withdrawn by the count of (iv)")
+            if sc == "detect" || sc.starts_with("detect:") {
+                return Some((if offer { Act::SeatConfer } else { Act::SeatWithdraw }, ScopeClass::Detect, kind));
+            }
+            let declared: Vec<&str> = match &obj {
+                Obj::Row(i) => get(i).map_or(Vec::new(), |g| g.duties().iter().map(|d| d.as_ref()).collect()),
+                Obj::Key(_) => Vec::new(),
+            };
+            if !law.is_duty(sc, &declared) {
+                return None;
+            }
+            if offer {
+                // THE ONE ACT READ FROM THE STATED POLICY: the election is not answered safely by this tag, and a
+                // caller must not rely on a ranked seating
+                if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {
+                    return Some((Act::ElectionSeating, ScopeClass::Moderate, kind));
+                }
+                return Some((Act::DutyConfer, ScopeClass::Duty, kind));
+            }
+            let counted = r.counted().map_or("member", |c| c.as_ref());
+            let act = if law.is_duty(counted, &declared) { Act::DutyWithdraw } else { Act::Recall };
+            Some((act, ScopeClass::Duty, kind))
+        }
+        CommunityKind::Accord => Some((Act::StandingAct, ScopeClass::Any, kind)),
+        CommunityKind::SelfRoster => {
+            let sc = sc?;
+            let own = match &obj {
+                Obj::Row(i) => get(i).and_then(|g| g.scope()).map(|s| s.as_ref() == sc),
+                Obj::Key(_) => None,
+            };
+            if sc == "key" || own == Some(true) {
+                Some((if offer { Act::Admit } else { Act::Remove }, ScopeClass::Key, kind))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// The policy rows an act may take over a scope class and a kind of object, and whether the counted row chooses
+/// one of them ([`Choice::Row`]) or the act fixes it ([`Choice::Fixed`]): the acts table's row, or `None` (no row,
+/// or a law that binds no act: [`SeatLaw::acts`] `None`). What a store asks so that it keeps no list of its own.
+pub fn policy_for(law: &SeatLaw, act: Act, scope: ScopeClass, kind: CommunityKind) -> Option<(&[String], Choice)> {
+    law.acts
+        .as_ref()?
+        .iter()
+        .find(|a| a.act == act && a.scope == scope && a.kind == kind)
+        .map(|a| (a.policies.as_slice(), a.choice))
 }
 
 /// Whether a scope held covers the scope wanted: equal, or the wanted one narrower by a `:` segment.

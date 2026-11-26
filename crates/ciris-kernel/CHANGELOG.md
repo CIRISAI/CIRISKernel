@@ -65,6 +65,60 @@ merge for this tag). Two public variants and a function are added. **BREAKING fo
 - `models/causal_kernel/check_ranked.py` has eight hand-written cases and three planted breaks in `reexpress.py`.
   There are three plants in the crate.
 
+**A moderator's lone removal: the four receipt items** (CIRISConstitution#218, pin list). New: one trait method,
+`SeatRow::lifts` (default `false`), additive. Answers change only for rows no case had before:
+- No cascade: a lone removal that is out of force ends no standing. A moderator's lone removal whose signer is an
+  agent removed in turn by a lone removal out of force stays in force. The acts are decided after the lone
+  removals of their signers' keys. Where two agent moderators remove each other at one head the two are decided
+  together, each an end of the other's standing (CC 2.7.7 rule 5: "Two cuts by keys of equal standing that undo
+  each other stay contested. A voice that the other cannot remove settles them"): each counts at its own head,
+  neither is in force, and both agents stay seated and keep their duty, until a person holding the duty
+  receipts one of them (or removes one), or the members' count does.
+- A count's own receipt: a `SeatKind::Ack` naming the removal with `Conf::Group`, counted over the persons at its
+  heads, keeps it in force where its count is met, beside a duty holder's receipt.
+- A receipt by a key removed at the same time is void: a duty holder's receipt keeps nothing where a counted
+  unseat of a seat that holder holds over the room does not have the receipt in its past (conferral's key_cut).
+- A count end that lifts receipts (`lifts()`, conferral's word), in CC 2.4.1.1's three cases: (i) a counted unseat
+  ending the moderator's standing may lift, and (iii) a conferrer ending its own offer (its withdrawal of an offer
+  that seats the moderator, counted or not) may lift; then every receipt but the count's own keeps nothing.
+  (ii) The holder's own end never lifts: the text refuses such a row at the door (`lifts_on_own_end`), and the
+  kernel, handed one, reads no lift. A moderator's lone removal lifts nothing.
+- A counted receipt that fails its count keeps nothing, and is not read as its signer's own receipt (confirmed).
+- Fixes from the review of #48: the count's receipt is a count over the persons of the removal's room, at heads
+  none older than the removal's, the remover no voice of it (before: any room, any head, any `counted` scope, so
+  a remover alone, or an agent, could keep its own removal). The acts are decided one strongly connected
+  component at a time, in rounds, against every act decided out of force before (before: an act outside a
+  mutual pair was decided with it, and only an act's own waits were left out). An ordered pair is not mutual
+  (its order is the review of #54's, below). A receipter's duty from a founding record is a seat a counted
+  unseat ends, as one from an offer.
+- Ruled: an agent's receipt is no receipt (CC 2.4.1.1: never the act's own signer's and never a node's; keeping
+  another's act in force is a voice). For every lone removal, a mutual pair's included, the receipts that keep it
+  are a person duty holder's other than the remover's, or the count's. One answer changes: an agent moderator's
+  receipt kept a lone removal and now keeps nothing. A lone removal of a receipter no longer orders anything,
+  since a receipter is a person and a lone removal removes only an agent.
+- Ruled (R5): the count's own receipt is over the persons of the room at the removal's head or later, the remover
+  apart in the base as in the voices (as the overturn and the lift). Four persons with the remover one: two of
+  the other three keep the removal; one does not.
+- Ruled: a ring of three or more concurrent lone removals, each undone by another, is read as the pair is (CC
+  2.7.7 rule 5 read for a set): all out of force, all seats kept, until a person's receipt or the count's
+  settles it.
+- Fixes from the review of #54. The count's receipt is read under one fixed rule, the members' check of one
+  member's act (the lift's own arithmetic): more than half of the persons of the room less the remover, never
+  fewer than two, whatever `policy()` or `need()` the row states. Before, the row's own policy was read, so one
+  person's ack under `accord_halt`, or the remover's or an agent's under a declared need of none, was the count's
+  receipt, which no lift lifts. Changed answer: each of those rows now keeps nothing.
+- No cascade through an earlier act: an act's verdict now waits for every lone removal that could end its
+  remover's standing, the ones in its past included (before, an act was decided before an earlier act in its
+  past, reading that act as an end, E4, before its own verdict was known). An ordered pair (y has x in its past,
+  and each removes the other's remover) is decided x first, without y, and y then reads x's verdict: x in force
+  ends y's standing; x out of force on its own (its remover lays the duty down) ends nothing, and y is in force.
+  Changed answers: in those two shapes the later act was out of force and is now in force.
+- Not built: the owner's statement on an agent's duty seat (CC 4.5.4).
+
+The reference: `seat.receipts_of`, `lifts_receipts` and the ordering in `out_of_force`; thirteen cases and six
+planted breaks in `check_removal_in_force.py`, each named for its row of the pin list. Six crate plants; the
+review of #54 adds thirteen cases, three planted breaks in the reference and three crate plants.
+
 **A duty is conferred by its holders, the founding record or an election** (CC 4.5.4; CIRISConstitution#241). This
 follows #48. **Answers of 0.4.0 change.** **Breaking:** one required trait method (`SeatRow::word`, below).
 - The gate, `seat::seat_rule`: a counted offer of a duty scope over a community concludes only where it is the duty
@@ -144,59 +198,38 @@ Plants: `duty_gate_off`, `duty_gate_wrong_row`, `own_duty_ungated`, `lone_founde
 `window_scope_roster_only` in the reference, each with a crate plant; and the crate's `SeatRow::word` read as
 another scope than `moderate`.
 
-**A moderator's lone removal: the four receipt items** (CIRISConstitution#218, pin list). New: one trait method,
-`SeatRow::lifts` (default `false`), additive. Answers change only for rows no case had before:
-- No cascade: a lone removal that is out of force ends no standing. A moderator's lone removal whose signer is an
-  agent removed in turn by a lone removal out of force stays in force. The acts are decided after the lone
-  removals of their signers' keys. Where two agent moderators remove each other at one head the two are decided
-  together, each an end of the other's standing (CC 2.7.7 rule 5: "Two cuts by keys of equal standing that undo
-  each other stay contested. A voice that the other cannot remove settles them"): each counts at its own head,
-  neither is in force, and both agents stay seated and keep their duty, until a person holding the duty
-  receipts one of them (or removes one), or the members' count does.
-- A count's own receipt: a `SeatKind::Ack` naming the removal with `Conf::Group`, counted over the persons at its
-  heads, keeps it in force where its count is met, beside a duty holder's receipt.
-- A receipt by a key removed at the same time is void: a duty holder's receipt keeps nothing where a counted
-  unseat of a seat that holder holds over the room does not have the receipt in its past (conferral's key_cut).
-- A count end that lifts receipts (`lifts()`, conferral's word), in CC 2.4.1.1's three cases: (i) a counted unseat
-  ending the moderator's standing may lift, and (iii) a conferrer ending its own offer (its withdrawal of an offer
-  that seats the moderator, counted or not) may lift; then every receipt but the count's own keeps nothing.
-  (ii) The holder's own end never lifts: the text refuses such a row at the door (`lifts_on_own_end`), and the
-  kernel, handed one, reads no lift. A moderator's lone removal lifts nothing.
-- A counted receipt that fails its count keeps nothing, and is not read as its signer's own receipt (confirmed).
-- Fixes from the review of #48: the count's receipt is a count over the persons of the removal's room, at heads
-  none older than the removal's, the remover no voice of it (before: any room, any head, any `counted` scope, so
-  a remover alone, or an agent, could keep its own removal). The acts are decided one strongly connected
-  component at a time, in rounds, against every act decided out of force before (before: an act outside a
-  mutual pair was decided with it, and only an act's own waits were left out). An ordered pair is not mutual
-  (its order is the review of #54's, below). A receipter's duty from a founding record is a seat a counted
-  unseat ends, as one from an offer.
-- Ruled: an agent's receipt is no receipt (CC 2.4.1.1: never the act's own signer's and never a node's; keeping
-  another's act in force is a voice). For every lone removal, a mutual pair's included, the receipts that keep it
-  are a person duty holder's other than the remover's, or the count's. One answer changes: an agent moderator's
-  receipt kept a lone removal and now keeps nothing. A lone removal of a receipter no longer orders anything,
-  since a receipter is a person and a lone removal removes only an agent.
-- Ruled (R5): the count's own receipt is over the persons of the room at the removal's head or later, the remover
-  apart in the base as in the voices (as the overturn and the lift). Four persons with the remover one: two of
-  the other three keep the removal; one does not.
-- Ruled: a ring of three or more concurrent lone removals, each undone by another, is read as the pair is (CC
-  2.7.7 rule 5 read for a set): all out of force, all seats kept, until a person's receipt or the count's
-  settles it.
-- Fixes from the review of #54. The count's receipt is read under one fixed rule, the members' check of one
-  member's act (the lift's own arithmetic): more than half of the persons of the room less the remover, never
-  fewer than two, whatever `policy()` or `need()` the row states. Before, the row's own policy was read, so one
-  person's ack under `accord_halt`, or the remover's or an agent's under a declared need of none, was the count's
-  receipt, which no lift lifts. Changed answer: each of those rows now keeps nothing.
-- No cascade through an earlier act: an act's verdict now waits for every lone removal that could end its
-  remover's standing, the ones in its past included (before, an act was decided before an earlier act in its
-  past, reading that act as an end, E4, before its own verdict was known). An ordered pair (y has x in its past,
-  and each removes the other's remover) is decided x first, without y, and y then reads x's verdict: x in force
-  ends y's standing; x out of force on its own (its remover lays the duty down) ends nothing, and y is in force.
-  Changed answers: in those two shapes the later act was out of force and is now in force.
-- Not built: the owner's statement on an agent's duty seat (CC 4.5.4).
+**The act-to-policy binding, steps 1 and 2** (the Constitution's `governance_policy_acts.tsv`). Nothing refuses yet:
+no answer of any case changes.
 
-The reference: `seat.receipts_of`, `lifts_receipts` and the ordering in `out_of_force`; thirteen cases and six
-planted breaks in `check_removal_in_force.py`, each named for its row of the pin list. Six crate plants; the
-review of #54 adds thirteen cases, three planted breaks in the reference and three crate plants.
+- The policy data moves to the Constitution's rc23 (commit `f1773bf`, table pin `8d58a472`; `data/README.md`). It
+  adds two rows, `duty_confer` and `duty_withdraw`, and changes the wording of `moderator_recall`'s base, a
+  `moderator_election` floor rule, and two `self_roster_*` `at_window` cells. No rule reads the changed cells, and
+  the fixture law is unchanged: `seat.py` already reads the two duty rows as the duty counts.
+- `data/governance_policy_acts.tsv` is new (rc23 at `dd358a3`): which policy rows each counted act may take. `seat.py` loads it
+  (`ACTS`), and the seat fixture's law carries it (`acts`). No rule reads it yet.
+- New, read by no rule yet: `seat::Act`, `seat::ScopeClass`, `seat::CommunityKind`, `seat::Choice` (each
+  `#[non_exhaustive]`, with `word()` and `from_word()`), `seat::ActRule`, `seat::kind_of`, `seat::act_of` and
+  `seat::policy_for`. `act_of` decides a counted row's act from its kind, scope and object:
+  - the lift: an offer naming a removal of the same seat; the table binds the agent's re-seating;
+  - an admission or a removal: of a roster seat;
+  - the holders' conferral or withdrawal of a detector seat: `detect:*` (CC 4.5.7);
+  - a conferral: another duty;
+  - a withdrawal or a recall: by `counted()`, the body the row counts (the duty holders, or the members).
+  An accord's rows are standing acts; a self roster's rows admit or remove a key. Any other scope is no act.
+  `policy_for(law, act, scope, kind)` is the store's query: the policy rows an act may take, and whether the row
+  chooses.
+- **The one act read from the stated policy**: an offer of a duty under the ranked count (`Policy::Ranked`) is the
+  election's seating. **The election is not answered safely by this tag, and a caller must not rely on a ranked
+  seating** (CIRISConstitution#241: the election is out of 0.5.0).
+- **BREAKING for an exhaustive struct literal of `SeatLaw`**: two new fields. `acts: Option<Vec<ActRule>>` is
+  `None` where a law binds no act to a policy: the behaviour before, with the binding left to the caller.
+  `kinds` maps a founding row's scope to an object's kind. The seat fixture's law carries `Some(acts)` and the
+  kinds. A literal with `..Default::default()` is unaffected.
+- Gap: the roster instances of `roster.py` (the `tables` fixture's `R:...` policy names) are not bound to acts
+  yet; their law carries `None`. The windows' specs stay the caller's.
+- The reference: `models/causal_kernel/check_acts.py`, with 23 cases and 15 queries, six planted breaks, and the
+  `acts` fixture, which `tests/acts.rs` replays. Seven plants in the crate. Every existing scenario of every
+  fixture is unchanged; the seat law gains `acts` and `kinds` only.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

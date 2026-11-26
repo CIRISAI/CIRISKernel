@@ -707,7 +707,35 @@ pub fn law_of(j: &J) -> SeatLaw {
         };
         law.policy.insert(k.clone(), p);
     }
+    acts_of(j, &mut law);
     law
+}
+
+/// The acts table and the kinds table a law carries (`acts`, `kinds`), where it carries them.
+pub fn acts_of(j: &J, law: &mut SeatLaw) {
+    use ciris_kernel::seat::{Act, ActRule, Choice, CommunityKind as ObjKind, ScopeClass};
+    if let Some(a) = j.get("acts") {
+        law.acts = Some(
+            a.arr()
+                .iter()
+                .map(|r| {
+                    let r = r.arr();
+                    ActRule {
+                        act: Act::from_word(r[0].s()).expect("an act the table names"),
+                        scope: ScopeClass::from_word(r[1].s()).expect("a scope class"),
+                        kind: ObjKind::from_word(r[2].s()).expect("a kind"),
+                        policies: r[3].strs(),
+                        choice: Choice::from_word(r[4].s()).expect("a choice"),
+                    }
+                })
+                .collect(),
+        );
+    }
+    if let Some(k) = j.get("kinds") {
+        for (sc, kd) in k.obj() {
+            law.kinds.insert(sc.clone(), ObjKind::from_word(kd.s()).expect("a kind"));
+        }
+    }
 }
 
 pub fn windows_of(j: &J) -> BTreeMap<String, WindowSpec<i64>> {

@@ -50,6 +50,7 @@ step "check_duty_seats (on a member)"     dutyseat  python3 -I models/causal_ker
 step "check_readmit (re-admitted counts)" readmit   python3 -I models/causal_kernel/check_readmit.py
 step "check_recall (a recall)"            recall    python3 -I models/causal_kernel/check_recall.py
 step "check_ranked (ranked choice)"       ranked    python3 -I models/causal_kernel/check_ranked.py
+step "check_acts (act to policy)"        acts      python3 -I models/causal_kernel/check_acts.py
 step "check_resignation (wrap, dissolved)" resign   python3 -I models/causal_kernel/check_resignation.py
 step "check_agent_removal (the lift)"     agent     python3 -I models/causal_kernel/check_agent_removal.py
 step "check_agent_seat (no count)"         agentseat python3 -I models/causal_kernel/check_agent_seat.py
