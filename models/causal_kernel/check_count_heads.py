@@ -87,7 +87,7 @@ DC = lambda heads: ST.offer("dc", "A", "B", "moderate", OBJ, "group", ("aG",), h
                             counted="duty", cosigners=("B",))
 RC = lambda heads, by: ST.unseat("rc", by[0], "A", "moderate", OBJ, "group", ("aG",), head=heads,
                                  policy="moderator_recall", cosigners=tuple(by[1:]))
-AH = admit("aH", "H", tuple(SEVEN), ("aG",))             # an eighth member, at the newest head
+AH = admit("aH", "H", tuple(sorted(SEVEN)), ("aG",))             # an eighth member, at the newest head
 CS = ST.cosign("cs", "C", "xs", ("aG", "aH"))            # a cosignature of xs that has aH in its own past
 XS = ST.unseat("xs", "A", "G", "member", OBJ, "group", ("aG", "cs"), head=("aG",), policy="community_remove",
                cosigners=("B", "D", "E"))

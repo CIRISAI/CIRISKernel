@@ -256,20 +256,38 @@ fn ballot(g: &mut Lcg) -> Ballot {
         if (founder_seat && counted == "founder") || (!founder_seat && counted == "member") {
             left.insert(k);
         }
-        if pick(g, 2) == 0 {
+        // key 1, which signs the head, keeps its seat in the head's past
+        if pick(g, 2) == 0 && k != 1 {
             version.push(300 + k);
         } else {
             in_c.push(300 + k);
         }
     }
-    rows.push(S::new(1000, version, 1, SeatKind::Other));
+    // the head: counted changes of the roster, since a counted row is read only at the newest counted heads in
+    // its own past, each a counted change or the founding row. 1000 names the seats and 1001 the withdrawals
+    // the head has in its past; each is signed by every key and met on one voice (key 1's)
+    let all: Vec<u32> = (2..=n).collect();
+    let head_row = |id: u32, names: Vec<u32>, head: u32| {
+        let mut h = S::new(id, names, 1, SeatKind::Offer);
+        h.to = vec![1];
+        h.scope = Some("version".into());
+        h.obj = Some(Obj::Row(0));
+        h.conf = Some(Conf::Group);
+        h.cosigners = all.clone();
+        h.head = vec![head];
+        h.policy = Some("one".into());
+        h
+    };
+    let (wds, seats): (Vec<u32>, Vec<u32>) = version.iter().partition(|&&i| (300..400).contains(&i));
+    rows.push(head_row(1000, seats, 0));
+    rows.push(head_row(1001, [vec![1000], wds].concat(), 1000));
     // the voices: members and keys of no seat (50, 51)
     let mut voices: Vec<u32> = (1..=n).chain([50, 51]).filter(|_| pick(g, 2) == 0).collect();
     // a cosignature row naming the head, a voice for the counted row
     let mut cosig = None;
     if pick(g, 3) == 0 {
         let k = 1 + pick(g, n as u64 + 1) as u32;
-        let mut c = S::new(3000, vec![1000], k, SeatKind::Cosign);
+        let mut c = S::new(3000, vec![1001], k, SeatKind::Cosign);
         c.of = Some(2000);
         rows.push(c);
         in_c.push(3000);
@@ -296,13 +314,13 @@ fn ballot(g: &mut Lcg) -> Ballot {
     }
     let offer = pick(g, 3) != 0;
     let mut c =
-        S::new(2000, [vec![1000], in_c].concat(), signer, if offer { SeatKind::Offer } else { SeatKind::Unseat });
+        S::new(2000, [vec![1001], in_c].concat(), signer, if offer { SeatKind::Offer } else { SeatKind::Unseat });
     c.to = to.clone();
     c.scope = Some("member".into());
     c.obj = Some(Obj::Row(0));
     c.conf = Some(Conf::Group);
     c.cosigners = voices.clone();
-    c.head = vec![1000];
+    c.head = vec![1001];
     c.policy = Some(word.into());
     c.counted = Some(counted.into());
     c.need = need;
@@ -635,7 +653,9 @@ fn an_offer_seating_many_seats_exactly_its_consenting_keys() {
     assert_eq!(bad, 0);
 }
 
-/// `line::settle` as first written: an act of the reader's line is live when the live list contains it.
+/// `line::settle` as first written: an act of the reader's line is live when the live list contains it. Its
+/// test of concurrency is the rule before 0.5.0; on the ledgers below it gives the same answer as the text's
+/// rule, since every act there names only its heads (its past is their closure).
 fn settle_before<L: ciris_kernel::line::LineSpec<S>>(
     c: &Concluded<'_, S>,
     spec: &L,
@@ -763,9 +783,22 @@ fn seat_world(g: &mut Lcg) -> Vec<S> {
             _ => late.push(300 + k),
         }
     }
-    rows.push(S::new(1000, v1, 1, SeatKind::Other));
+    // the two versions are counted changes of the roster (a count is read only at the newest counted heads in
+    // its own past, each a counted change or the founding row): signed by every key, met on key 1's voice
+    let version = |id: u32, names: Vec<u32>, head: u32| {
+        let mut h = S::new(id, names, 1, SeatKind::Offer);
+        h.to = vec![1];
+        h.scope = Some("version".into());
+        h.obj = Some(Obj::Row(0));
+        h.conf = Some(Conf::Group);
+        h.cosigners = (2..=n).collect();
+        h.head = vec![head];
+        h.policy = Some("one".into());
+        h
+    };
+    rows.push(version(1000, v1, 0));
     v2.push(1000);
-    rows.push(S::new(1001, v2, 1, SeatKind::Other));
+    rows.push(version(1001, v2, 1000));
     // cosignatures for the counted rows: at one version, both, or none; some for another row
     let mut cosigs: Vec<u32> = Vec::new();
     for i in 0..pick(g, 6) as u32 {
