@@ -171,11 +171,11 @@ CASES = [
      MOD("C"), "who may stand"),
     ("a room of ten, first choices 4, 3 and 3 among three members: the seven others go together, then the two at 3 "
      "tie for weakest, and the count seats nobody",
-     [G10, LM, LM] + [ballot("b" + k, k, r) for k, r in zip("ABCDEFGHIJ", ["A"] * 4 + ["B"] * 3 + ["CA"] * 3)]
+     [G10, LM] + [ballot("b" + k, k, r) for k, r in zip("ABCDEFGHIJ", ["A"] * 4 + ["B"] * 3 + ["CA"] * 3)]
      + [elect("el", "A", tuple("b" + k for k in "ABCDEFGHIJ"), M10)],
      NOMOD("A", "B", "C"), "ties"),
     ("first choices 5, 3 and 2: the seven go together, then the 2, whose ballots pass to A, who is seated",
-     [G10, LM, LM] + [ballot("b" + k, k, r) for k, r in zip("ABCDEFGHIJ", ["A"] * 5 + ["B"] * 3 + ["CA"] * 2)]
+     [G10, LM] + [ballot("b" + k, k, r) for k, r in zip("ABCDEFGHIJ", ["A"] * 5 + ["B"] * 3 + ["CA"] * 2)]
      + [elect("el", "A", tuple("b" + k for k in "ABCDEFGHIJ"), M10)],
      MOD("A") + NOMOD("B", "C"), "ties"),
     # ---- ties --------------------------------------------------------------------------------------------------------
@@ -325,16 +325,16 @@ CASES = [
     # ---- several acceptances of one election ------------------------------------------------------------------------
     ("two seatings of one election over different sets of equal size are a tie, and neither seats anyone (CC 4.5.13; "
      "#241 N2): B over A's and B's ballots, C over C's and D's, then an admission naming both",
-     [G4, LM, LM] + EQ4 + [admit("ax", "X", ("A", "B", "C"), ("eb", "ec"))], NOMOD("B", "C") + [("X", "member", T)],
+     [G4, LM] + EQ4 + [admit("ax", "X", ("A", "B", "C"), ("eb", "ec"))], NOMOD("B", "C") + [("X", "member", T)],
      "several acceptances"),
-    ("the same two, read while they are two tips: neither stands", [G4, LM, LM] + EQ4, NOMOD("B", "C"), "several acceptances"),
+    ("the same two, read while they are two tips: neither stands", [G4, LM] + EQ4, NOMOD("B", "C"), "several acceptances"),
     ("the seating over the larger set stands, the set counted in rows (#241 L3; CC 4.5.13 'the one counted over the "
      "larger set stands, a larger set being a count'): B over two ballots, C over all five",
-     [G5, LM, LM] + LG5 + [admit("ax", "X", ("A", "B", "C", "D"), ("eb", "ec"))], NOMOD("B") + MOD("C"), "several acceptances"),
+     [G5, LM] + LG5 + [admit("ax", "X", ("A", "B", "C", "D"), ("eb", "ec"))], NOMOD("B") + MOD("C"), "several acceptances"),
     ("and at the two tips, C's seat waits as any seat at two tips does, until a row names both (#241 L4)",
-     [G5, LM, LM] + LG5, NOMOD("B", "C"), "several acceptances"),
+     [G5, LM] + LG5, NOMOD("B", "C"), "several acceptances"),
     ("a tie ended by a seating over a larger set (the union and E's ballot): C stands",
-     [G5, LM, LM] + EQ4 + [ballot("be", "E", "C"), elect("eu", "C", ("ba", "bb", "bc", "bd", "be"), M5),
+     [G5, LM] + EQ4 + [ballot("be", "E", "C"), elect("eu", "C", ("ba", "bb", "bc", "bd", "be"), M5),
                    admit("ax", "X", ("A", "B", "C", "D"), ("eb", "ec", "eu"))],
      NOMOD("B") + MOD("C"), "several acceptances"),
     ("two seatings over the same set are one answer: both seat B",
