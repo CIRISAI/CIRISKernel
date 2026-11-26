@@ -669,8 +669,9 @@ CASES = [
     (LO, "the same read by B", WC("A5"), "B", {"zC": T, "wb": T, "c": T}, {"moderate": frozenset("AB"), "member": SEVEN | {"H"}},
      {"zC", "zD", "zE"}),
     # the lone holder's window, stated: closed for a reader by any later counted change that reader has acknowledged,
-    # and for every reader once the lone holder itself signs a later change; each sibling is a row by one key that said two things at one head, and the two rows are the evidence a
-    # recall cites (the members recall any duty holder, however seated, CC 4.5.13)
+    # and for every reader once the lone holder itself signs a later change; each sibling is a row by one key that said
+    # two things at one head, and the two rows are the evidence a recall cites (the members recall any duty holder,
+    # however seated, CC 4.5.13)
     (EDGE, "inside the window: A, the lone holder, confers moderate on B at aG and, as siblings, on C, D and E (each "
            "accepts): all four seat",
      ROOM + [conf("d1", "B", ("aG",), joins=False), ST.accept("kB", "B", "d1")] + [conf("z" + k, k, ("aG",), joins=False) for k in "CDE"]
