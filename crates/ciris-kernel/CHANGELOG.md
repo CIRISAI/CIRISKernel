@@ -441,6 +441,43 @@ reached one, so no earlier fixture answer moves.
   gone. Reference: `key_end.covers`; five boundary worlds (`check_key_end.BOUNDARY`, in the `key_end` fixture),
   attack K11, plant `end_closed`; one crate plant on the door.
 
+**The review of room-keys** (derived from CC 3.1.3.2, CC 3.2 and CC 4.5.13 on CIRISConstitution#224). Answers that
+change, each with a case in `check_room_keys.py` and a plant in each language:
+
+- F1: in a private room an ended stay in any roster seat bars every roster seat of that key (a room key is one
+  presence in one room), after a removal as after a resignation. Before, a removed member could be admitted as an
+  agent.
+- F2: a scope that holds `member` (`founder`) is a roster seat for finality. Before, it was read as `registered`.
+- F3: seats are compared by what they hold, not by name: a founder of scope `duty` admitted as a member too ends
+  both by one withdrawal. Before, the two were two presences.
+- F4: a key's own end of its stay voids its own consents that do not have the end in its past, a standing
+  acceptance given earlier included, in every room. Before, a re-admission concurrent with a resignation that named
+  the key's earlier standing acceptance seated it.
+- F5: a withdrawal of an offer the key never consented to is a decline, and no end of a stay (`seat::stay_end`;
+  a standing acceptance withdrawn before any offer named it, likewise). Before, declining an invitation, or an
+  unsigned listed founding member withdrawing the founding record, barred the key for ever in a private room.
+- RK1: a roster seat over a community needs the key's own consent under every protocol: an offer waiving it
+  (`consent_one`) concludes nothing, except a node's seat over an infrastructure community (never a founder's).
+  New: `CommunityKind::Infrastructure`, the kind of a founding row of scope `founder` (`seat.KINDS`; the enum is
+  `#[non_exhaustive]`).
+- RK2: over a group a member or agent seat is placed or removed only by a counted row, the founding record, the
+  key's own end, or (an agent's key) a moderator's lone removal: one key's own row (`Conf::Own`) or a row under a
+  seat (`Conf::Seat`) of such a seat concludes nothing, offer and unseat alike. A room of one still grows by its
+  member's counted proposal and the newcomer's acceptance (a case); an `open:self_admit` admission is a counted row
+  and is unchanged (`tests/policies.rs`). Whether a counted row meets the room's DECLARED protocol is the binding's
+  read (`act_of`), not this one.
+- R-a: a counted row concludes whole or not at all: in a private room an admission naming several keys, one of whose
+  stays has ended, concludes nothing for any of them (a case).
+- Existing answers that move: `check_duty_seats.py`'s two lone-founder cases with an own offer of `member` (`ms`
+  now concludes nothing; the first case's founder is no member after its withdrawal); `check_rosters.py`'s
+  Inv_JoinerConsented mutation worlds (an admission with `consent` `one` over a community concludes nothing) and
+  Inv_LeavingNotUndone, "leaving read as a withdrawal of the seat" (it now holds: the old standing acceptance is
+  void; `roster_expected.tsv` updated in all three instances). The crate tests that seated roster seats by
+  `Conf::Own` (`fast_paths.rs`'s ballot and seat world, `policies.rs`'s founders, `window.rs`'s and `seat.rs`'s
+  generated groups) now seat them by the founding record or counted rows.
+- Not changed: the unreachable arm "a non-counted unseat is final" is gone (every roster unseat over a community that
+  concludes is counted).
+
 **A removed room key is not seated again** (CIRISConstitution#224, the steward's decision of 2026-11-25: "a removed
 room key is not seated again. A person removed from a private room returns only under a new room key, by a new
 admission", of any end of the seat, a resignation included; CC 3.1.3.2: "a member admitted again makes a fresh one").
@@ -496,13 +533,13 @@ changes. Two admissions under two room keys at concurrent heads both seat, and e
 The kernel counts voices as presented; which keys are one person's is the binding, never a row, so the collapse is
 the caller's until the voice's own key roster is built (ADOPTING.md).
 
-A counted row concludes whole or not at all: an admission naming several keys, one of whose stays has ended, concludes
-nothing for any of them.
+A counted row concludes whole or not at all: in a private room an admission naming several keys, one of whose stays
+has ended, concludes nothing for any of them.
 
 The reference: `seat._revoked_before`, `seat.room_key_ended`, `seat.private_room` in `models/causal_kernel/seat.py`;
-`check_room_keys.py` has 38 cases and no OPEN row in every arrival order (up to six rows, else 41 orders) and eight
+`check_room_keys.py` has 54 cases and no OPEN row in every arrival order (up to six rows, else 41 orders) and twenty
 planted breaks; `roomkey.py` states the finding of re-admission under the same key for a public room and the refusal
-for the same room declared private. Eight plants in `tools/kernel_crate_plants.sh`.
+for the same room declared private. Twenty-one plants in `tools/kernel_crate_plants.sh`.
 
 ## [0.4.0]
 

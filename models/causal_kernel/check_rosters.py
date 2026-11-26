@@ -722,6 +722,9 @@ def check_infra(spec, inst):
     g = RS.found(spec, ("f1", "f2", "f3"), scope="founder")
     members = lambda S: ST.Seats(S).holders("member", "I")
     founders = lambda S: ST.Seats(S).holders("founder", "I")
+    # consent "one" is valid only for a NODE's seat over an infrastructure community (CC 3.1.3.2, CC 3.2, ruled on
+    # CIRISConstitution#224): the founders' quorum seats it, it never signs and has no vote; a founder's seat there, and
+    # any roster seat over another community, needs the key's own consent (seat.roster_placement)
     node = RS.add(spec, "n1", ("I",), "node1", ("f1", "f2"), consent="one")
     aj = RS.accept(spec, "aj", "J", ("I",), scope="member")
     # I1 a node is seated with no acceptance and never votes

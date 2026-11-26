@@ -284,8 +284,10 @@ CASES = [
      [ST.found("g", "A", ("A", "B"), {"moderate": ("A", "Z")}, cosigners=("B",))],
      [("Z", "moderate", F), ("Z", "member", F), ("A", "moderate", T)], None),
     # ---- a founding row of scope duty, as before ---------------------------------------------------------------------
-    ("a lone founder of scope duty with its own offer of `member` to itself lays down its duty and stays a member",
-     [G1, MS1, ST.withdraw("wa", "A", "g", ("ms",))], [("A", "member", T), ("A", "duty", F)], None),
+    ("a lone founder of scope duty and its own offer of `member` to itself: that offer concludes nothing (a roster seat over "
+     "a community is placed by a counted row, the founding record or the key's own end; derived from CC 3.1.3.2 on "
+     "CIRISConstitution#224, RK2), so its withdrawal of the founding row ends its stay",
+     [G1, MS1, ST.withdraw("wa", "A", "g", ("ms",))], [("A", "member", F), ("A", "duty", F)], None),
     ("two founders of scope duty: an own offer of `member` stands only on its signer's founding seat, so it does not outlive that seat",
      [G2, ST.offer("ms", "A", "A", "member", OBJ, "self", ("g",)), ST.withdraw("wa", "A", "g", ("ms",))],
      [("A", "member", F), ("A", "duty", F), ("B", "member", T)], None),

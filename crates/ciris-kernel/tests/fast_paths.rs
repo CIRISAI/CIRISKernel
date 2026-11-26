@@ -219,12 +219,16 @@ fn ballot(g: &mut Lcg) -> Ballot {
     gr.obj = Some(Obj::Row(0));
     gr.conf = Some(Conf::Own);
     rows.push(gr);
+    // the founding record seats key 1; every other seat is a counted admission of one voice, the key cosigning
+    // (its own consent): a roster seat over a group is placed by the founding record or a counted row
     let seat = |id: u32, k: u32, scope: &str| {
         let mut o = S::new(id, vec![0], 1, SeatKind::Offer);
         o.to = vec![k];
         o.scope = Some(scope.into());
         o.obj = Some(Obj::Row(0));
-        o.conf = Some(Conf::Own);
+        o.conf = Some(Conf::Group);
+        o.head = vec![0];
+        o.policy = Some("one".into());
         if k != 1 {
             o.cosigners = vec![k];
         }
@@ -726,19 +730,23 @@ fn seat_world(g: &mut Lcg) -> Vec<S> {
     f.obj = Some(Obj::Row(0));
     f.conf = Some(Conf::Own);
     let mut rows = vec![f];
+    // a counted admission of one voice, the key cosigning: by 1, a member, it concludes; by 7, no member, its count
+    // is not met and it does not conclude (a roster seat over a group is placed by a counted row)
     let seat = |id: u32, k: u32, scope: &str, by: u32| {
         let mut o = S::new(id, vec![0], by, SeatKind::Offer);
         o.to = vec![k];
         o.scope = Some(scope.into());
         o.obj = Some(Obj::Row(0));
-        o.conf = Some(Conf::Own);
+        o.conf = Some(Conf::Group);
+        o.head = vec![0];
+        o.policy = Some("one".into());
         if k != by {
             o.cosigners = vec![k];
         }
         o
     };
     for k in 2..=n {
-        // by 1, the group's own key; or by 7, no own key of it: that offer does not conclude
+        // by 1, a member; or by 7, no member: that offer does not conclude
         rows.push(seat(100 + k, k, "member", if pick(g, 5) == 0 { 7 } else { 1 }));
         if pick(g, 2) == 0 {
             rows.push(seat(200 + k, k, "founder", if pick(g, 6) == 0 { 7 } else { 1 }));

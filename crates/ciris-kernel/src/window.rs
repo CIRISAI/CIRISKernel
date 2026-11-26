@@ -763,6 +763,7 @@ mod tests {
         obj: Option<Obj<u32, u32>>,
         conf: Option<Conf>,
         head: Vec<u32>,
+        policy: Option<String>,
         of: Option<u32>,
         win: Option<WinKind>,
         window: Option<String>,
@@ -785,6 +786,7 @@ mod tests {
                 obj: None,
                 conf: None,
                 head: vec![],
+                policy: None,
                 of: None,
                 win: None,
                 window: None,
@@ -835,6 +837,9 @@ mod tests {
         }
         fn head(&self) -> &[u32] {
             &self.head
+        }
+        fn policy(&self) -> Option<&String> {
+            self.policy.as_ref()
         }
         fn of(&self) -> Option<&u32> {
             self.of.as_ref()
@@ -923,7 +928,10 @@ mod tests {
     /// the same whether the scopes the table reads are walked at once or each when first asked.
     #[test]
     fn prefilled_scopes_answer_as_scopes_read_when_asked() {
-        let law = SeatLaw::default();
+        // a roster seat over a group is placed by the founding record or a counted row: the members are seated by
+        // the founding record, and the agent's key by a counted admission of one voice
+        let mut law = SeatLaw::default();
+        law.policy.insert("one".into(), Policy::One);
         let mut g = Lcg(3);
         let mut h = Lcg(17);
         let (mut cases, mut bad, mut landed) = (0usize, 0usize, 0usize);
@@ -940,6 +948,13 @@ mod tests {
             for k in 1..=n {
                 for sc in SCOPES {
                     if (sc == "member" && k == 1) || g.next(3) == 0 {
+                        continue;
+                    }
+                    if sc == "member" {
+                        // the founding record lists and is signed by the member (the draw order is as before)
+                        rows[0].to.push(k);
+                        rows[0].cosigners.push(k);
+                        id += 1;
                         continue;
                     }
                     let mut o = W::new(id, vec![0], 1);
@@ -963,7 +978,9 @@ mod tests {
                 o.cosigners = vec![n];
                 o.scope = Some(AGENT.into());
                 o.obj = Some(Obj::Row(0));
-                o.conf = Some(Conf::Own);
+                o.conf = Some(Conf::Group);
+                o.head = vec![0];
+                o.policy = Some("one".into());
                 rows.push(o);
             }
             let v = W::new(100, rows.iter().map(|r| r.id).collect(), 1);
