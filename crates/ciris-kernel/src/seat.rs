@@ -130,8 +130,9 @@ pub enum SeatKind {
     /// A ranked ballot.
     Ballot,
     /// A reader's acknowledgement of a head (with [`SeatRow::room`]). With [`SeatRow::of`] naming a
-    /// moderator's lone removal instead, a receipt of that act by a duty holder, which keeps it in force after
-    /// the moderator's standing ends.
+    /// moderator's lone removal instead, a receipt of that act, which keeps it in force after the moderator's
+    /// standing ends: a duty holder's, or with [`Conf::Group`] the room's count's, met over the persons at the
+    /// heads it names.
     Ack,
     /// Anything else.
     Other,
@@ -189,6 +190,14 @@ pub trait SeatRow: Row {
     /// Tips whose values differ do not fold ([`Seats::tips_fold`]). `None` where the caller states none.
     fn regime(&self) -> Option<&Self::Word> {
         None
+    }
+    /// On an end of a moderator's standing: it lifts the receipts of acts under the ended standing, so only the
+    /// count's own receipt keeps such an act in force (conferral's [`crate::conferral::ConferralRow::lifts`]).
+    /// Honoured on a counted unseat and on a conferrer's withdrawal of its own offer that seats another (CC
+    /// 2.4.1.1); the holder's own end never lifts (`lifts_on_own_end`) and a lone removal lifts nothing. Default
+    /// `false`.
+    fn lifts(&self) -> bool {
+        false
     }
     /// The policy row a count is read from.
     fn policy(&self) -> Option<&Self::Word> {
@@ -1234,8 +1243,56 @@ fn holds_roster<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, u: usize, k: &R
             && m.obj().as_ref() == Some(obj)
             && m.to().contains(k)
             && g.in_past(q, u)
-            && (m.scope() == Some(us) || (us.as_ref() == "member" && founding(m) && roster_offer(law, m)))
+            && (seat_scopes(m, k, signed_by(m, k)).contains(&us)
+                || (us.as_ref() == "member" && founding(m) && roster_offer(law, m)))
     })
+}
+
+/// The room's count's receipt `q` of lone removal `x` (CIRISConstitution#218): a count over the persons of
+/// `x`'s room, whatever room or counted scope the row states, at heads none older than `x`'s (each is `x`'s
+/// head or has it in its past), the remover no voice of it and not counted over. Its count is [`room_count`]:
+/// more than half of the persons of the room less the remover, never fewer than two, whatever policy or need the
+/// row states (one key's `accord_halt`, or a declared need of none, is no receipt).
+fn count_receipt<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    q: usize,
+    x: usize,
+    law: &SeatLaw,
+    spec: &S,
+    cache: &MembersAt<R>,
+) -> bool {
+    let g = &c.g;
+    let (qr, xr) = (g.row(q), g.row(x));
+    let Some(obj) = xr.obj() else { return false };
+    if qr.obj().as_ref() != Some(&obj) || qr.over().is_some_and(|o| o != obj) {
+        return false;
+    }
+    let hx: Vec<usize> = xr.head().iter().filter_map(|h| g.idx(h)).collect();
+    let fresh = |h: &R::Id| g.idx(h).is_some_and(|hi| hx.iter().any(|&e| hi == e || g.in_past(e, hi)));
+    if qr.head().is_empty() || !qr.head().iter().all(fresh) {
+        return false;
+    }
+    let anc: Vec<usize> = c.cs().iter().copied().filter(|&a| g.in_past(a, q)).collect();
+    let p = Past::new(g, q, &anc);
+    let mut mem = persons_at_with(&p, law, spec, &obj, qr.head(), "member", Some(cache));
+    for k in left_in_past(&p, &obj, "member") {
+        mem.remove(&k);
+    }
+    // the room less the remover, in the base as in the voices (R5: one rule for a count that judges one member's
+    // act, as the overturn and the lift)
+    mem.remove(xr.signer());
+    let mut v = voices(qr, &p);
+    v.remove(xr.signer());
+    let yes = v.iter().filter(|k| mem.contains(*k)).count();
+    // the members' check of one member's act, whatever policy or need the row states
+    room_count(yes, mem.len())
+}
+
+/// The members' check of one member's act (the overturn's lift, the count's receipt of a lone removal): more than
+/// half of the base, never fewer than two voices. Whatever policy or need a row states, these counts are read by
+/// this rule alone.
+fn room_count(yes: usize, base: usize) -> bool {
+    2 * yes > base && yes >= 2
 }
 
 /// Whether unseat `u` (a row of `c` that counts) is a moderator's lone removal of an agent's key made under the
@@ -1273,12 +1330,110 @@ fn out_of_force<R: SeatRow, S: CutSpec<R>>(
     if acts.is_empty() {
         return BTreeSet::new();
     }
-    let none = BTreeSet::new();
-    let now = Seats::build(c, law, spec, own, Some(&none), Some(cache));
-    acts.into_iter()
-        .filter(|&x| !removal_in_force(c, x, law, spec, by, unseats, &now, cache))
-        .map(|x| g.row(x).id().clone())
-        .collect()
+    let lone: BTreeSet<usize> = acts.iter().copied().collect();
+    // No cascade (CIRISConstitution#218): a lone removal out of force ends no standing (and voids no receipt: a
+    // receipter is a person, and a lone removal removes only an agent). So an act's verdict waits for the verdict
+    // of every other lone removal y that could end its remover's standing (y removes a key the standing rests on),
+    // whether y is in its past (an end it reads under E4 only if y is in force), concurrent with it, or after it
+    // (E8). One exception, an ordered pair: where y has x in its past and x could end y's standing too, y is in
+    // force only if x is not, so y cannot be what puts x out of force: x is decided first, without y (no end of
+    // it and no cut in its reading), and y then reads x's verdict. The acts are decided one strongly connected
+    // component at a time, in rounds: every component whose waits are decided, against what the rounds before
+    // decided out of force. A component of two or more (agent moderators removing each other at one head, a pair
+    // or a ring) is decided together, each read as an end of another's: CC 2.7.7 rule 5, read for a set, two cuts
+    // by keys of equal standing that undo each other stay contested, until a voice none of them can remove
+    // settles them (a person's receipt, or the count's).
+    let n = acts.len();
+    // the keys each remover's standing rests on: the remover, and the signers up each chain of seats a moderate
+    // seat of it is conferred under in the act's past
+    let keys: Vec<BTreeSet<&R::Key>> = acts
+        .iter()
+        .map(|&x| {
+            let xr = g.row(x);
+            let mut keys: BTreeSet<&R::Key> = core::iter::once(xr.signer()).collect();
+            for &o in c.cs() {
+                let or = g.row(o);
+                if or.seat_kind() != SeatKind::Offer
+                    || or.obj() != xr.obj()
+                    || !or.to().contains(xr.signer())
+                    || !g.in_past(o, x)
+                {
+                    continue;
+                }
+                let mut cur = Some(or);
+                for _ in 0..=law.depth {
+                    let Some(r) = cur.filter(|r| r.conf() == Some(Conf::Seat)) else { break };
+                    keys.insert(r.signer());
+                    cur = r.under().and_then(|u| by.get(u).copied());
+                }
+            }
+            keys
+        })
+        .collect();
+    // act j could end the standing of act i's remover
+    let dep = |i: usize, j: usize| {
+        let (xr, yr) = (g.row(acts[i]), g.row(acts[j]));
+        i != j && yr.obj() == xr.obj() && yr.to().first().is_some_and(|k| keys[i].contains(k))
+    };
+    // the ordered pairs act i opens: a later act it could end, which could end it
+    let after: Vec<BTreeSet<usize>> =
+        (0..n).map(|i| (0..n).filter(|&j| dep(i, j) && dep(j, i) && g.in_past(acts[i], acts[j])).collect()).collect();
+    let waits: Vec<BTreeSet<usize>> =
+        (0..n).map(|i| (0..n).filter(|&j| dep(i, j) && !after[i].contains(&j)).collect()).collect();
+    let mut nows: BTreeMap<BTreeSet<R::Id>, Seats<'_, '_, R, S>> = BTreeMap::new();
+    let mut decided: BTreeMap<usize, bool> = BTreeMap::new();
+    let mut out: BTreeSet<usize> = BTreeSet::new();
+    while decided.len() < n {
+        let pend: Vec<usize> = (0..n).filter(|j| !decided.contains_key(j)).collect();
+        let reach: Vec<BTreeSet<usize>> = (0..n)
+            .map(|i| {
+                let mut seen: BTreeSet<usize> = BTreeSet::new();
+                if decided.contains_key(&i) {
+                    return seen;
+                }
+                let mut todo = alloc::vec![i];
+                while let Some(t) = todo.pop() {
+                    for &j in &waits[t] {
+                        if !decided.contains_key(&j) && seen.insert(j) {
+                            todo.push(j);
+                        }
+                    }
+                }
+                seen
+            })
+            .collect();
+        let mut comps: Vec<BTreeSet<usize>> = Vec::new();
+        for &i in &pend {
+            let mut comp: BTreeSet<usize> = reach[i].iter().copied().filter(|&j| reach[j].contains(&i)).collect();
+            comp.insert(i);
+            let ready = comp.iter().all(|&m| waits[m].iter().all(|j| decided.contains_key(j) || comp.contains(j)));
+            if ready && !comps.contains(&comp) {
+                comps.push(comp);
+            }
+        }
+        let excl: BTreeSet<usize> = out.iter().map(|&j| acts[j]).collect();
+        let mut got: Vec<(usize, bool)> = Vec::new();
+        for comp in &comps {
+            for &j in comp {
+                // an ordered pair's later act is no end of the earlier, and no cut in its reading
+                let ex: BTreeSet<usize> = excl.iter().copied().chain(after[j].iter().map(|&k| acts[k])).collect();
+                let drop: BTreeSet<R::Id> = ex.iter().map(|&y| g.row(y).id().clone()).collect();
+                let now = nows
+                    .entry(drop.clone())
+                    .or_insert_with(|| Seats::build(c, law, spec, own, Some(&drop), Some(cache)));
+                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &ex, &lone);
+                got.push((j, v));
+            }
+        }
+        for (j, v) in got {
+            decided.insert(j, v);
+            if !v {
+                out.insert(j);
+            }
+        }
+    }
+    let decided: BTreeMap<usize, bool> = decided.into_iter().map(|(j, v)| (acts[j], v)).collect();
+    decided.into_iter().filter(|(_, v)| !*v).map(|(x, _)| g.row(x).id().clone()).collect()
 }
 
 /// CC 4.5.13 read with the end rule (CC 2.4.1.1, CC 4.5.5; `conferral`, rules E2 to E8, re-expressed over
@@ -1311,6 +1466,8 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
     unseats: &[(usize, Option<ObjOf<R>>)],
     now: &Seats<'_, '_, R, S>,
     cache: &MembersAt<R>,
+    not_ends: &BTreeSet<usize>,
+    lone: &BTreeSet<usize>,
 ) -> bool {
     let g = &c.g;
     let xr = g.row(x);
@@ -1319,13 +1476,14 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
     // the standing at the heads x names, and the duty holders there
     let mut standing: BTreeSet<SeatOf<R>> = BTreeSet::new();
     let mut duty: Option<BTreeSet<R::Key>> = None;
+    let mut agents: Option<BTreeSet<R::Key>> = None;
     for h in xr.head() {
         let Some(hi) = g.idx(h) else { continue };
         // read once per (head, object, remover) for every build that shares the cache: the build of a head's
         // past holds lone removals of its own, each read here in turn, and unkept that is a doubling per row
         let key = (h.clone(), obj.clone(), m.clone());
         let known = cache.standing.borrow().get(&key).cloned();
-        let (st, d) = match known {
+        let (st, d, ag) = match known {
             Some(v) => v,
             None => {
                 let sub: Vec<&R> =
@@ -1338,7 +1496,7 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
                     .filter(|r| r.k == *m && r.obj == obj && q.has(r, "moderate"))
                     .map(|r| (r.offer.clone(), r.scope.clone()))
                     .collect();
-                let v = (st, q.holders("duty", &obj, None));
+                let v = (st, q.holders("duty", &obj, None), q.holders(AGENT, &obj, None));
                 cache.standing.borrow_mut().insert(key, v.clone());
                 v
             }
@@ -1348,19 +1506,66 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
             None => d,
             Some(before) => before.intersection(&d).cloned().collect(),
         });
+        agents = Some(match agents {
+            None => ag,
+            Some(before) => before.intersection(&ag).cloned().collect(),
+        });
     }
+    let agents = agents.unwrap_or_default();
     let mut duty = duty.unwrap_or_default();
-    duty.remove(m); // never the remover's own receipt
-    let acks: Vec<usize> = c
+    // never the remover's own receipt, and never an agent's: an agent's receipt is no receipt (CC 2.4.1.1;
+    // keeping another's act in force is a voice, which an agent does not have), for every lone removal
+    duty.remove(m);
+    duty.retain(|k| !agents.contains(k));
+    // the receipts of x that may keep it: a duty holder's other than the remover's, void where a counted
+    // unseat of a seat that key holds over the room does not have the receipt in its past (conferral's
+    // key_cut); and the room's own, a counted ack met over the persons at its heads (CIRISConstitution#218)
+    let acks: Vec<(usize, bool)> = c
         .cs()
         .iter()
         .copied()
-        .filter(|&q| {
+        .filter_map(|q| {
             let qr = g.row(q);
-            qr.seat_kind() == SeatKind::Ack && qr.of() == Some(xr.id()) && duty.contains(qr.signer())
+            if qr.seat_kind() != SeatKind::Ack || qr.of() != Some(xr.id()) {
+                return None;
+            }
+            if qr.conf() == Some(Conf::Group) {
+                return count_receipt(c, q, x, law, spec, cache).then_some((q, true));
+            }
+            if !duty.contains(qr.signer()) {
+                return None;
+            }
+            let cut = unseats.iter().any(|(u, uo)| {
+                g.row(*u).to().contains(qr.signer())
+                    && uo.as_ref() == Some(&obj)
+                    && !not_ends.contains(u)
+                    && !g.in_past(q, *u)
+                    && holds_roster(c, law, *u, qr.signer(), &obj)
+            });
+            (!cut).then_some((q, false))
         })
         .collect();
-    let kept = |e: Option<usize>| acks.iter().any(|&q| e.is_none_or(|e| !g.in_past(e, q)));
+    // an end stating `lifts` lifts every receipt but the count's own, in CC 2.4.1.1's cases: (i) a counted end;
+    // (iii) a conferrer ending its own offer (its withdrawal of an offer seating another), counted or not. (ii) The
+    // holder's own end never lifts (`lifts_on_own_end`, refused at the door; handed one, no lift is read), and a
+    // moderator's lone removal lifts nothing.
+    let lifts = |e: usize| {
+        let er = g.row(e);
+        if !er.lifts() {
+            return false;
+        }
+        match er.seat_kind() {
+            SeatKind::Unseat => er.conf() == Some(Conf::Group) && !lone.contains(&e),
+            SeatKind::Withdraw => er
+                .target()
+                .and_then(|t| by.get(t))
+                .is_some_and(|t| t.seat_kind() == SeatKind::Offer && !t.to().contains(er.signer())),
+            _ => false,
+        }
+    };
+    let kept = |e: Option<usize>| {
+        acks.iter().any(|&(q, counted)| e.is_none_or(|e| !g.in_past(e, q)) && (counted || e.is_none_or(|e| !lifts(e))))
+    };
     // the ends of the standing held
     let ids: BTreeSet<&R::Id> = standing.iter().map(|(o, _)| o).collect();
     let after = |e: usize| ids.iter().any(|o| g.idx(o).is_some_and(|oi| g.in_past(oi, e)));
@@ -1399,8 +1604,8 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
     }
     for (u, uo) in unseats {
         let ur = g.row(*u);
-        if *u == x || !ur.to().contains(m) || uo.as_ref() != Some(&obj) || !after(*u) {
-            continue;
+        if *u == x || !ur.to().contains(m) || uo.as_ref() != Some(&obj) || !after(*u) || not_ends.contains(u) {
+            continue; // (a lone removal out of force ends no standing: no cascade)
         }
         if roster(ur.scope()) && holds_roster(c, law, *u, m, &obj) {
             found.push((*u, of(&|s| before(&s.0, *u))));
@@ -1805,8 +2010,9 @@ struct MembersAt<R: SeatRow> {
     standing: RefCell<StandingMemo<R>>,
 }
 
-/// What [`removal_in_force`] reads of the seats at one head.
-type StandingAt<R> = (BTreeSet<SeatOf<R>>, BTreeSet<<R as Row>::Key>);
+/// What [`removal_in_force`] reads of the seats at one head: the remover's standing seats, the duty holders,
+/// and the agents.
+type StandingAt<R> = (BTreeSet<SeatOf<R>>, BTreeSet<<R as Row>::Key>, BTreeSet<<R as Row>::Key>);
 type StandingMemo<R> = BTreeMap<(<R as Row>::Id, ObjOf<R>, <R as Row>::Key), StandingAt<R>>;
 
 impl<R: SeatRow> Default for MembersAt<R> {
@@ -2100,7 +2306,7 @@ fn count_of<K: Ord>(
         // key removed out of them, and the author out of the voices), never fewer than two; the key seated
         // is no voice
         let yes = v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).count();
-        return is_offer && 2 * yes > mem.len() && yes >= 2;
+        return is_offer && room_count(yes, mem.len());
     }
     // the recall judges one holder: it is counted over the members less the holder it recalls, and that holder
     // is no voice of it, as the lift is counted over the room less the one it judges. A row is a recall when its

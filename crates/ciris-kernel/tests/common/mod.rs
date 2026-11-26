@@ -472,6 +472,9 @@ impl SeatRow for TRow {
     fn head(&self) -> &[String] {
         &self.head
     }
+    fn lifts(&self) -> bool {
+        self.f("lifts").is_some_and(|x| x.b())
+    }
     fn policy(&self) -> Option<&String> {
         self.policy.as_ref()
     }

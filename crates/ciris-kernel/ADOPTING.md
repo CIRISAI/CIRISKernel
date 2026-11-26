@@ -191,8 +191,17 @@ trusting an adapter.
   the standing is held (its own withdrawal, a counted removal of it, the holders' counted withdrawal of its
   duty), the removal ends nothing for that reader unless a receipt of it is held, and nothing puts it back: a
   moderator seated again (the same offer accepted again, or a new conferral) signs the removal again. Present a duty holder's
-  receipt as a `SeatKind::Ack` row with `of()` the removal and no `room()`, signed by a holder other than the
-  moderator. A reader's acknowledgement of a head keeps `room()` and `head()` as before.
+  receipt as a `SeatKind::Ack` row with `of()` the removal and no `room()`, signed by a person duty holder other
+  than the moderator; an agent's receipt keeps nothing. A reader's acknowledgement of a head keeps `room()` and `head()` as before. The room's count's
+  receipt is the same row with `conf()` `Conf::Group`, `obj()` the removal's room, `head()` (each the removal's
+  head or later), and the counting persons as signer and cosigners; it keeps the removal where more than half of
+  the room's persons less the remover sign it, never fewer than two (the remover is no voice of it and not
+  counted over). That rule is fixed: the row's `policy()` and `need()` are not read. Any other room, an older
+  head, or a `counted()` scope other than the persons, and it keeps nothing. A duty holder's receipt
+  is void where a counted unseat of a seat that holder holds does not have the receipt in its past. An end of
+  the moderator's standing that lifts receipts states `SeatRow::lifts()`: a counted end, or a conferrer's
+  withdrawal of its own offer; then only the count's receipt keeps. The holder's own end never lifts
+  (`lifts_on_own_end`): refuse such a row at the door; handed one, the kernel reads no lift.
 - `content::answers` reads no seat row: the caller marks each roster version (`ContentRow::seat`, `SeatAt`)
   for the author. For an agent's rows mark it by its `agent` seat (in `Seats::roster`), as a member's by its
   member seat; its stay begins at the version that admits it in `agent` and ends at its removal or

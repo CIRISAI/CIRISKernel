@@ -425,6 +425,13 @@ def lift_voices(r, P, past, by):
     return v if "author_voice" in MUT else v - {rem["signer"]}      # MUTATION author_voice: the author's objection counts
 
 
+def room_count(yes, base):
+    """The members' check of one member's act (the overturn, the lift, the count's receipt of a lone removal): more
+    than half of the base, never fewer than two voices (MUTATION lift_no_floor: no floor). Whatever policy or need a
+    row states, these counts are read by this rule alone."""
+    return 2 * len(yes) > len(base) and (len(yes) >= 2 or "lift_no_floor" in MUT)
+
+
 def lift_count(r, P, past, by):
     """The overturn's count (window.py, moderation_overturn) over the objections a re-seating row names: a strict
     majority of the members at the head, the removal's author apart and the key seated apart (each no voice, and
@@ -439,7 +446,7 @@ def lift_count(r, P, past, by):
     mem, vot = counted_keys(P, past, r["obj"], heads)
     yes = v & vot
     if "lift_over_all" not in MUT: mem = mem - {by[r["content"]]["signer"]}    # MUTATION lift_over_all: the author counted over
-    return 2 * len(yes) > len(mem) and (len(yes) >= 2 or "lift_no_floor" in MUT)
+    return room_count(yes, mem)
 
 
 def founding_many(by, obj):
@@ -681,7 +688,7 @@ class Seats:
                     v = lift_voices(r, P, past, {q["id"]: q for q in P}) or frozenset()
                     yes = v & mem
                     if v: mem = mem - {S.by[r["content"]]["signer"]}   # the author apart (the key removed is an agent's: in no count)
-                    if not (2 * len(yes) > len(mem) and len(yes) >= 2): return False
+                    if not room_count(yes, mem): return False
                 elif not met(r.get("policy"), len(yes), len(mem), r.get("need")): return False
             return True
 
@@ -721,7 +728,8 @@ def holds_roster(S, u, k, obj, r):
     ends no stay, and so no duty seat. (MUTATION roster_cut_any_scope: not read.)"""
     if "roster_cut_any_scope" in MUT: return True
     return any(m["kind"] == "offer" and m.get("obj") == obj and k in m["to"] and m["id"] in S.anc[u["id"]]
-               and (m["scope"] == r or (r == "member" and m["id"] == obj and roster_seat(m))) for m in S.Cs)
+               and ((m["scope"] == r if "founding_duty_unread" in MUT else r in seat_scopes(m, k))   # MUTATION: the offer's scope
+                    or (r == "member" and m["id"] == obj and roster_seat(m))) for m in S.Cs)
 
 
 def lone_act(u, S):
@@ -750,7 +758,7 @@ def later(S, hx, he):
     return bool(he) and any(h in S.anc and all(e in S.anc[h] for e in he) for h in hx)
 
 
-def standing_ends(S, x, standing, unseats):
+def standing_ends(S, x, standing, unseats, not_ends=frozenset()):
     """The rows held that end the remover's standing: a withdrawal of a standing offer by its holder (or by the
     conferrer of an offer that is not counted), of the holder's acceptance of one, or of the holder's stay; a counted
     unseat that cuts the holder's standing seat or its roster seat with a standing offer in its past. Each with the
@@ -772,6 +780,7 @@ def standing_ends(S, x, standing, unseats):
             out.append((w, of({o for o in ids if o in S.anc[w["id"]]})))
     for u in unseats:
         if u["id"] == x["id"] or M not in u["to"] or u["obj"] != obj or not any(o in S.anc[u["id"]] for o in ids): continue
+        if u["id"] in not_ends: continue                    # a lone removal out of force ends no standing (no cascade)
         if any(("seat", M, r, obj) in u["cuts"] and holds_roster(S, u, M, obj, r) for r in ROSTER_SEATS):
             out.append((u, of({o for o in ids if o in S.anc[u["id"]]})))
         elif any(("seat", M, sc, obj) in u["cuts"] for _, sc in standing):
@@ -779,7 +788,73 @@ def standing_ends(S, x, standing, unseats):
     return out
 
 
-def removal_in_force(S, x, unseats, now):
+def count_receipt(S, q, x):
+    """The room's count's receipt of lone removal x (CIRISConstitution#218): a count over the persons of x's room,
+    whatever room or scope the row states otherwise, at heads none older than x's (each is x's head or has it in its
+    past), the remover no voice of it (as it is no receipter). Its count is the members' check of one member's act
+    (room_count): more than half of the persons of the room less the remover, never fewer than two, whatever policy or
+    need the row states (a row's own `accord_halt`, or a declared need of none, is no receipt; MUTATION
+    receipt_row_policy: the row's policy read)."""
+    obj, hx = x["obj"], tuple(x.get("head", ()))
+    if "count_receipt_unchecked" not in MUT:                    # MUTATION: room, heads and remover not read
+        if q.get("obj") != obj or q.get("over", obj) != obj: return False
+        if not q.get("head") or not all(any(h == e or e in S.anc.get(h, ()) for e in hx) for h in q["head"]): return False
+    P = [r for r in S.Cs if r["id"] in S.anc[q["id"]]]
+    past = lambda a, b: a in S.anc[b]
+    over = q.get("obj") if "count_receipt_unchecked" in MUT else obj
+    scope = q.get("counted", "member") if "count_receipt_unchecked" in MUT else "member"
+    mem, vot = counted_keys(P, past, over, tuple(q.get("head", ())), scope)
+    left = left_in_past(P, over, scope)
+    mem, vot = mem - left, vot - left
+    yes = voices(q, P) & vot
+    if "count_receipt_unchecked" not in MUT: yes = yes - {x["signer"]}
+    # the room less the remover, in the base as in the voices (R5: one rule for a count that judges one member's act,
+    # as the overturn and the lift; MUTATION remover_counted_over)
+    if "remover_counted_over" not in MUT: mem = mem - {x["signer"]}
+    if "receipt_row_policy" in MUT: return met(q.get("policy"), len(yes), len(mem), q.get("need"))
+    return room_count(yes, mem)
+
+
+def receipts_of(S, x, duty, unseats, not_ends):
+    """The receipts of lone removal x held that may keep it in force, each with whether it is the count's: an `ack`
+    whose `of` is x, by a duty holder at x's head other than the remover, or counted (`conf` group) and met over the
+    persons at the heads it names (the room's count, the conferrer: CIRISConstitution#218, pin list: a count's own
+    receipt). A single key's receipt is void where a counted unseat of a seat that key holds over the room does not
+    have the receipt in its past (concurrent with it, or before it): conferral's key_cut (CIRISConstitution#218, pin
+    list: a receipt by a key removed at the same time)."""
+    out = []
+    for q in S.Cs:
+        if q["kind"] != "ack" or q.get("of") != x["id"]: continue
+        if q.get("conf") == "group":
+            if "count_receipt_unread" in MUT: continue          # MUTATION: the count's receipt is not read
+            if count_receipt(S, q, x): out.append((q, True))
+            elif "failed_count_is_signers" in MUT and q["signer"] in duty: out.append((q, False))   # MUTATION
+            continue
+        if q["signer"] not in duty: continue
+        cut = any(q["signer"] in u["to"] and u.get("obj") == x["obj"] and u["id"] not in not_ends
+                  and q["id"] not in S.anc[u["id"]] and ("receipt_before_kept" not in MUT or u["id"] not in S.anc[q["id"]])
+                  and holds_roster(S, u, q["signer"], x["obj"], u["scope"])
+                  for u in unseats)
+        if cut and "removed_receipt_kept" not in MUT: continue   # MUTATION: a removed key's receipt keeps
+        out.append((q, False))
+    return out
+
+
+def lifts_receipts(E, lone_ids, by=None):
+    """An end that states it lifts the receipts of acts under the ended standing (`lifts`; conferral's word): then only
+    the count's own receipt keeps (CIRISConstitution#218, pin list: a count end that lifts receipts). CC 2.4.1.1, "What
+    stays in force", names three cases: (i) a counted end may lift; (iii) a conferrer that ends its own offer may lift,
+    counted or not (its withdrawal of an offer that seats another); (ii) the holder's own end never lifts (its own
+    withdrawal, its resignation; the text refuses such a row at the door, `lifts_on_own_end`, and the kernel, handed
+    one, reads no lift). A moderator's lone removal lifts nothing."""
+    if not E.get("lifts") or "lifts_unread" in MUT: return False
+    if E["kind"] == "unseat": return E.get("conf") == "group" and (E["id"] not in lone_ids or "lone_lifts" in MUT)
+    t = (by or {}).get(E.get("target")) if E["kind"] == "withdraw" else None
+    return t is not None and t["kind"] == "offer" and (E["signer"] not in t["to"] or "own_end_lifts" in MUT) \
+        and "conferrer_lift_unread" not in MUT
+
+
+def removal_in_force(S, x, unseats, now, not_ends=frozenset(), lone_ids=frozenset()):
     """CC 4.5.13 read with the end rule (CC 2.4.1.1, CC 4.5.5; conferral_end.py): a moderator's lone removal x is an
     act under its `moderate` standing.
         E7      a seat that gave the remover `moderate` at the head x names is live now (`now`, the seats with every
@@ -795,18 +870,25 @@ def removal_in_force(S, x, unseats, now):
     With several ends held, in force only where each keeps it. Where the standing is gone and no end of it is held
     (it fell with a seat above it), E2 and E8 with no end."""
     M, obj = x["signer"], x["obj"]
-    standing, duty = set(), None
+    standing, duty, agents = set(), None, None
     for h in x.get("head", ()):
         sub = [q for q in S.Cs if q["id"] == h or q["id"] in S.anc.get(h, ())]
         Q = seats_of(sub)
         standing |= {(r["offer"], r["scope"]) for r in Q.recs if r["k"] == M and r["obj"] == obj and Q._has(r, "moderate")}
         d = Q.holders("duty", obj)
         duty = d if duty is None else duty & d
+        a = Q.holders(AGENT, obj)
+        agents = a if agents is None else agents & a
     duty = (duty or frozenset()) - (frozenset() if "remover_receipt" in MUT else {M})
-    acks = [q for q in S.Cs if q["kind"] == "ack" and q.get("of") == x["id"] and q["signer"] in duty]
-    kept = lambda E: any(E is None or E["id"] not in S.anc[q["id"]] for q in acks)
+    # an agent's receipt is no receipt (CC 2.4.1.1: never the act's own signer's and never a node's; keeping
+    # another's act in force is a voice, which an agent does not have): only a person duty holder receipts, for
+    # every lone removal, a mutual pair's included (MUTATION agent_receipt_kept)
+    if "agent_receipt_kept" not in MUT: duty = duty - (agents or frozenset())
+    acks = receipts_of(S, x, duty, unseats, not_ends)
+    kept = lambda E: any((E is None or E["id"] not in S.anc[q["id"]]) and (counted or E is None or not lifts_receipts(E, lone_ids, S.by))
+                         for q, counted in acks)
     # an end in the past of the head x names did not end the standing live there (a seat taken up again after it)
-    found = [(E, sc) for E, sc in standing_ends(S, x, standing, unseats)
+    found = [(E, sc) for E, sc in standing_ends(S, x, standing, unseats, not_ends)
              if not all(E["id"] == h or E["id"] in S.anc.get(h, ()) for h in x.get("head", ()))]
     ended = frozenset().union(*(sc for _, sc in found)) if found else frozenset()
     live = {(r["offer"], r["scope"]) for r in now.recs if r["k"] == M and r["obj"] == obj}
@@ -820,12 +902,83 @@ def removal_in_force(S, x, unseats, now):
     return True
 
 
+def standing_keys(S, x):
+    """The keys whose seats x's remover's standing rests on: the remover, and the signers up each chain of seats a
+    moderate seat of it is conferred under (`conf` seat, `under`) in x's past. A lone removal of one of them could end
+    the standing (MUTATION upstream_unread: the remover only)."""
+    keys = {x["signer"]}
+    if "upstream_unread" in MUT: return keys
+    for o in S.Cs:
+        if o["kind"] != "offer" or o.get("obj") != x["obj"] or x["signer"] not in o["to"] or o["id"] not in S.anc[x["id"]]:
+            continue
+        cur, n = o, 0
+        while cur is not None and cur.get("conf") == "seat" and n <= DEPTH:
+            keys.add(cur["signer"])
+            cur, n = S.by.get(cur.get("under")), n + 1
+    return keys
+
+
 def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
     """The lone removals among `unseats` the end rule holds out of force over S."""
     acts = [u for u in unseats if u.get("scope") == AGENT and lone_act(u, S)]
     if not acts: return frozenset()
-    now = Seats(S, holds, confers, depth, own=own, checkpoint=checkpoint, drop=frozenset())
-    return frozenset(x["id"] for x in acts if not removal_in_force(S, x, unseats, now))
+    nows = {}
+
+    def now(drop):
+        if drop not in nows: nows[drop] = Seats(S, holds, confers, depth, own=own, checkpoint=checkpoint, drop=drop)
+        return nows[drop]
+    lone_ids = frozenset(x["id"] for x in acts)
+    by = {x["id"]: x for x in acts}
+    # No cascade (CIRISConstitution#218, pin list: no cascade): a lone removal out of force ends no standing. (It
+    # voids no receipt either, since a receipter is a person and a lone removal removes only an agent.) So an act's
+    # verdict waits for the verdict of every other lone removal y that could end its remover's standing (y removes a
+    # key of standing_keys), whether y is in its past (an end it reads under E4 only if y is in force), concurrent
+    # with it, or after it (E8). One exception, an ordered pair: where y has x in its past and x could end y's
+    # standing too, y is in force only if x is not (x, in force, is an end in y's past), so y cannot be what puts x
+    # out of force. x is decided first, without y (y no end of it and no cut in its reading), and y then reads x's
+    # verdict: x in force ends y's standing; x out of force ends nothing (MUTATION ordered_pair_cascade: the old
+    # order, y decided first with x read as an end before x's own verdict was known). The acts are decided one
+    # strongly connected component at a time, in rounds: every component whose waits are decided, against what the
+    # rounds before decided out of force. A component of two or more (agent moderators removing each other at one
+    # head, a pair or a ring) is decided together, each read as an end of another's: CC 2.7.7 rule 5, "Two cuts by
+    # keys of equal standing that undo each other stay contested. A voice that the other cannot remove settles them",
+    # read for a set (a person's receipt, or the count's).
+    keys = {x["id"]: standing_keys(S, x) for x in acts}
+    dep = lambda x, y: y is not x and y["obj"] == x["obj"] and y["to"][0] in keys[x["id"]]     # y could end x's standing
+    after = {x["id"]: frozenset(y["id"] for y in acts if dep(x, y) and dep(y, x) and x["id"] in S.anc[y["id"]])
+             for x in acts}                                       # the ordered pairs x opens
+    if "ordered_pair_cascade" in MUT:
+        waits = {x["id"]: {y["id"] for y in acts if dep(x, y) and y["id"] not in S.anc[x["id"]]} for x in acts}
+        after = {i: frozenset() for i in after}
+    else:
+        waits = {x["id"]: {y["id"] for y in acts if dep(x, y) and y["id"] not in after[x["id"]]} for x in acts}
+    decided, out = {}, set()
+    while len(decided) < len(acts):
+        pend = [x["id"] for x in acts if x["id"] not in decided]
+        reach = {}
+        for i in pend:
+            seen, todo = set(), [i]
+            while todo:
+                for j in waits[todo.pop()]:
+                    if j not in decided and j not in seen:
+                        seen.add(j); todo.append(j)
+            reach[i] = seen
+        comps = []
+        for i in pend:
+            comp = frozenset({i} | {j for j in reach[i] if i in reach[j]})
+            if comp not in comps and all(j in decided or j in comp for m in comp for j in waits[m]):
+                comps.append(comp)
+        excl = frozenset() if "cascade" in MUT else frozenset(out)
+        got = {}
+        for comp in comps:
+            for i in sorted(comp):
+                if "cycle_one_then_other" in MUT:                    # MUTATION: a component decided in turn
+                    excl = frozenset(out | {k for k, v in got.items() if not v})
+                ex = excl | after[i]                                 # an ordered pair's later act is no end of the earlier
+                got[i] = removal_in_force(S, by[i], unseats, now(ex), ex, lone_ids)
+        decided.update(got)
+        out |= {i for i, v in got.items() if not v}
+    return frozenset(i for i, v in decided.items() if not v)
 
 
 def stands(S, root, k, s, o, **kw):
