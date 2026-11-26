@@ -6,7 +6,8 @@ copied unchanged from the Constitution's `rc23` at commit `f1773bf7684ebc29cfbe9
 touching `constitution/governance_policy.tsv`; the branch head was `efc31033dbf1ff51a1236ddba17cd68caa11c6f5`). The
 table's own pin, `policy_sha256` in the two manifests, is `8d58a472cc09beda6a962a4f579da6d5fcf5a3c63fbcd62f8db81aa84c20b873`:
 a content hash of the table, not a commit. `governance_policy_acts.tsv` is copied from rc23 at commit
-`4c165f86dcb1b47aba48e6fd59985e51ebd0f9ae` (an infrastructure community's kind and a node's seat); the other three
+`6c60be98cc8f00b819dfdc2c66c2a2b22f59780c` (an infrastructure community's kind and a node's seat, 4c165f8; its record
+changes under its founders' protocol, 6c60be9); the other three
 are unchanged there. `consensus_protocols.tsv` is copied unchanged from rc23 at commit
 `3670faa01a0c228b302a8653756bb953c246df97` (the last commit touching it). The parent generates most
 of them from its rule tables; the generators are not carried, so treat these as fixed inputs.

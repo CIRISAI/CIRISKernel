@@ -84,36 +84,52 @@ fn refusal_replay() {
 }
 
 /// The protocol set: the kinds the crate parses are the Constitution's table's (`consensus_protocols.tsv`, as
-/// `check_acts.py` reads it), and each word reads as seat.py's `protocol_rule` reads it.
+/// `check_acts.py` reads it), and each word reads as seat.py's `protocol_rule` reads it, in a community and in an
+/// infrastructure community (`infrastructure_rule`: a quorum of the founders' strict majority).
 #[test]
 fn protocol_set_replay() {
     use ciris_kernel::seat::{RoomProtocol, PROTOCOL_KINDS};
     let fx = fixture("acts.json");
     assert_eq!(fx.at("protocol_kinds").strs(), PROTOCOL_KINDS.map(String::from).to_vec());
     let (mut cases, mut bad) = (0, 0);
-    for w in fx.at("protocol_words").arr() {
-        let word = w.arr()[0].s();
-        let want = (!w.arr()[1].is_null()).then(|| {
-            let a = w.arr()[1].arr();
-            (a[0].s().to_string(), (!a[1].is_null()).then(|| a[1].i() as u64))
-        });
-        let got = RoomProtocol::parse(word).map(|p| match p {
-            RoomProtocol::FounderOnly => ("founder_only".to_string(), None),
-            RoomProtocol::Unanimous => ("unanimous".to_string(), None),
-            RoomProtocol::Majority => ("majority".to_string(), None),
-            RoomProtocol::Quorum(m, _) => ("quorum".to_string(), Some(m)),
-            RoomProtocol::Weighted => ("weighted".to_string(), None),
-            RoomProtocol::SelfAdmit => ("open:self_admit".to_string(), None),
-            _ => ("?".to_string(), None),
-        });
-        cases += 1;
-        if got != want {
-            bad += 1;
-            eprintln!("protocol word {word:?}: got {got:?}, want {want:?}");
+    for (list, infra) in [("protocol_words", false), ("infrastructure_words", true)] {
+        for w in fx.at(list).arr() {
+            let word = w.arr()[0].s();
+            let want = words_of(&w.arr()[1]);
+            let got = RoomProtocol::parse_in(word, infra).map(proto_words);
+            cases += 1;
+            if got != want {
+                bad += 1;
+                eprintln!("{list} {word:?}: got {got:?}, want {want:?}");
+            }
         }
     }
     report("the protocol set against check_acts.py", cases, bad);
     assert_eq!(bad, 0);
+}
+
+type Words = (String, Option<u64>, Option<u64>);
+
+/// seat.py's protocol_rule answer: (kind, m, n), or null.
+fn words_of(j: &common::J) -> Option<Words> {
+    (!j.is_null()).then(|| {
+        let a = j.arr();
+        let n = |x: &common::J| (!x.is_null()).then(|| x.i() as u64);
+        (a[0].s().to_string(), n(&a[1]), n(&a[2]))
+    })
+}
+
+fn proto_words(p: ciris_kernel::seat::RoomProtocol) -> Words {
+    use ciris_kernel::seat::RoomProtocol;
+    match p {
+        RoomProtocol::FounderOnly => ("founder_only".to_string(), None, None),
+        RoomProtocol::Unanimous => ("unanimous".to_string(), None, None),
+        RoomProtocol::Majority => ("majority".to_string(), None, None),
+        RoomProtocol::Quorum(m, n) => ("quorum".to_string(), Some(m), Some(n)),
+        RoomProtocol::Weighted => ("weighted".to_string(), None, None),
+        RoomProtocol::SelfAdmit => ("open:self_admit".to_string(), None, None),
+        _ => ("?".to_string(), None, None),
+    }
 }
 
 /// The recall is told by its act, not by the policy its fixed row maps to (the review of the binding): under a law

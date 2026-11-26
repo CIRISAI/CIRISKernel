@@ -40,6 +40,8 @@ Planted breaks, each of which must change a case's answer:
     election_any_duty   a ranked offer of any duty is the election's seating (A7)
     node_consent_asked  a node's seat over an infrastructure community waits for the node's acceptance (A6)
     consent_one_waives  a row's `consent = "one"` waives the seated key's acceptance (A6)
+    infra_any_quorum    an infrastructure community's quorum need not be its founders' strict majority (P1)
+    infra_body_members  an infrastructure community's protocol counts its members, not its founders (P1)
 
     python3 -I check_acts.py      exit 1 on any difference
 """
@@ -60,8 +62,8 @@ FH = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "
 GA = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))       # an accord
 GS = ST.offer("g", "d1", ("d1", "d2", "d3"), "self", "@", "self", cosigners=("d2", "d3"))         # a self roster
 GC = ST.offer("g", "A", ("A", "B", "C"), "club", "@", "self", cosigners=("B", "C"))         # a room founded in `club`
-GI = ST.offer("g", "f1", ("f1", "f2", "f3"), "member", "@", "self", cosigners=("f2", "f3"),
-              cohort_subkind="infrastructure")                                                     # an infrastructure community
+GI = ST.offer("g", "f1", ("f1", "f2", "f3"), "founder", "@", "self", cosigners=("f2", "f3"),
+              cohort_subkind="infrastructure", consensus_protocol="quorum:2/3")                     # an infrastructure community
 
 
 def grp(i, kind, k, scope, policy, heads=("g",), obj=OBJ, **kw):
@@ -123,6 +125,9 @@ CASES = [
      ("admit", "node", "infrastructure")),
     ("its removal of a node", [GI, grp("r", "unseat", "n1", "node", "cosigned_act", cosigners=("f2",))], "r",
      ("remove", "node", "infrastructure")),
+    ("a change of an infrastructure community's record is record_change (P1)",
+     [GI, grp("r", "offer", (), "record", "cosigned_act", signer="f1", cosigners=("f2",), consensus_protocol="quorum:3/4")],
+     "r", ("record_change", "record", "infrastructure")),
     ("a member's seat over an infrastructure community is no act there (founders and nodes only)",
      [GI, grp("r", "offer", "m1", "member", "community_invite", cosigners=("f2", "m1"))], "r", None),
     ("a node's seat over a community is the community's admission of a roster seat, which the table does not bind",
@@ -162,6 +167,7 @@ QUERIES = [
     (("remove", "member", "affiliation"), (("affiliation_member_action", "cosigned_act"), "row")),
     (("admit", "founder", "infrastructure"), (("cosigned_act",), "fixed")),
     (("remove", "node", "infrastructure"), (("cosigned_act",), "fixed")),
+    (("record_change", "record", "infrastructure"), (("cosigned_act",), "fixed")),
     (("admit", "node", "community"), None),
     (("record_change", "record", "community"), (("cosigned_act", "default_standing", "default_content", "default_irreversible"), "row")),
     (("admit", "member", "accord"), None),
@@ -182,6 +188,10 @@ GO = dict(GM4, consensus_protocol="open:self_admit")
 AG = grp("ag", "offer", ("X", "Y", "Z"), "agent", "cosigned_act", cosigners=("B", "C", "X", "Y", "Z"))   # three agents
 G6 = ST.found("g", "A", ("A", "B", "C", "D", "E", "F"), {"moderate": ("A", "B", "F"), "review": ("C", "D", "E")},
               cosigners=("B", "C", "D", "E", "F"))
+IN1 = grp("na", "offer", "n1", "node", None, signer="f1", cosigners=("f2",), counted="founder")       # node n1 seated
+IAM = lambda w, heads=("g",), cosigners=("f2",): grp("am", "offer", (), "record", "cosigned_act", heads=heads, signer="f1",
+                                                     cosigners=cosigners, counted="founder", consensus_protocol=w)
+INX = lambda cos: grp("x", "offer", "n2", "node", None, heads=("am",), signer="f1", cosigners=cos, counted="founder")
 RM_A = lambda heads: grp("x", "unseat", "D", "member", "community_remove", heads=heads)                # A alone
 CONCLUDE = [
     ("an admission stating accord_halt (one voice) is no admission's policy: with the table it concludes nothing",
@@ -210,13 +220,34 @@ CONCLUDE = [
     ("a duty conferral stating no policy is counted under duty_confer, its act's fixed row (step 4: the duty gate "
      "reads the policy in force); with no table the gate wants duty_confer stated",
      [FH, grp("r", "offer", "B", "review", None, counted="duty", cosigners=("B",))], "r", True, False),
-    ("a node's seat over an infrastructure community, under the founders' protocol (majority): two of three "
+    ("a node's seat over an infrastructure community, under the founders' protocol (quorum:2/3): two of three "
      "founders seat it, its own signature not asked",
-     [GI, grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2",))], "r", True, False),
-    ("a node is no voice in the founders' count (its seat holds no member's): f1 and the node n1 do not admit a "
+     [GI, grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2",), counted="founder")], "r", True, False),
+    ("a node is no voice in the founders' count (its seat holds no founder's): f1 and the node n1 do not admit a "
      "founder (one of three founders)",
-     [GI, grp("na", "offer", "n1", "node", None, signer="f1", cosigners=("f2",)),
-      grp("r", "offer", "f4", "founder", None, signer="f1", cosigners=("n1", "f4"), heads=("na",))], "r", False, False),
+     [GI, IN1, grp("r", "offer", "f4", "founder", None, signer="f1", cosigners=("n1", "f4"), heads=("na",), counted="founder")],
+     "r", False, False),
+    # ---- an infrastructure community's record (P1): a quorum of its founders' strict majority --------------------
+    ("an infrastructure community's record changes under its founders' protocol: f1 and f2 change it to quorum:3/4 "
+     "(the strict majority of four founders)", [GI, IAM("quorum:3/4")], "am", True, True),
+    ("and the change is in force: f1 and f2 no longer seat a node under it", [GI, IAM("quorum:3/4"), INX(("f2",))], "x",
+     False, False),
+    ("f1, f2 and f3 do (a fixed act stating none: with no table nothing)", [GI, IAM("quorum:3/4"), INX(("f2", "f3"))],
+     "x", True, False),
+    ("a change naming an M that is not N's strict majority (quorum:2/4) concludes nothing; with no table it is read as "
+     "any change", [GI, IAM("quorum:2/4")], "am", False, True),
+    ("nor quorum:3/3", [GI, IAM("quorum:3/3")], "am", False, True),
+    ("nor a protocol of another kind (majority)", [GI, IAM("majority")], "am", False, True),
+    ("an infrastructure record declaring quorum:3/3 has no protocol: the founders conclude nothing under it",
+     [dict(GI, consensus_protocol="quorum:3/3"),
+      grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2", "f3"), counted="founder")], "r", False, False),
+    ("nor one declaring majority", [dict(GI, consensus_protocol="majority"),
+                                     grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2", "f3"),
+                                         counted="founder")], "r", False, False),
+    ("its count is over the founders: a count over the members concludes nothing",
+     [GI, grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2",))], "r", False, False),
+    ("a node's voice is not counted in a change of the record: f1 and the node n1 do not change it",
+     [GI, IN1, IAM("quorum:3/4", heads=("na",), cosigners=("n1",))], "am", False, False),
     ("a node's seat over a community concludes nothing (the table binds it over infrastructure only)",
      [GM4, grp("r", "offer", "n1", "node", "community_invite", cosigners=("B", "C"))], "r", False, True),
     # ---- the recall told by its act ------------------------------------------------------------------------------
@@ -322,11 +353,12 @@ CONCLUDE = [
 # The wait at tips (step 5), and who stands: (name, rows, [(key, scope, stands)])
 TIPS = [
     ("a node's seat over an infrastructure community stands on the founders' count alone, by scope and kind",
-     [GI, grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2",))], [("n1", "node", True)]),
+     [GI, grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2",), counted="founder")], [("n1", "node", True)]),
     ("every other seat needs the seated key's own consent: a flag `consent` on a counted admission waives nothing",
      [GM4, grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "C"), consent="one")], [("E", "member", False)]),
     ("nor on a founder's seat over an infrastructure community",
-     [GI, grp("r", "offer", "f4", "founder", None, signer="f1", cosigners=("f2",), consent="one")], [("f4", "founder", False)]),
+     [GI, grp("r", "offer", "f4", "founder", None, signer="f1", cosigners=("f2",), consent="one", counted="founder")],
+     [("f4", "founder", False)]),
     ("tips on either side of a change of protocol do not fold: X admitted under the new protocol at one tip, Y under "
      "two-path at another, and neither stands until a row names both",
      [GM4, AM1, grp("ax", "offer", "X", "member", "cosigned_act", heads=("am",), cosigners=("X",)),
@@ -341,14 +373,20 @@ TIPS = [
 
 # The protocol set (data/consensus_protocols.tsv): (word, what seat.protocol_rule reads it as, or None)
 PROTOCOL_WORDS = [
-    ("founder_only", ("founder_only", None)), ("unanimous", ("unanimous", None)), ("majority", ("majority", None)),
-    ("open:self_admit", ("open:self_admit", None)), ("quorum:2/3", ("quorum", 2)), ("quorum:3/3", ("quorum", 3)),
-    ("quorum:999999999/999999999", ("quorum", 999999999)), ("weighted:stake", ("weighted", None)),
+    ("founder_only", ("founder_only", None, None)), ("unanimous", ("unanimous", None, None)), ("majority", ("majority", None, None)),
+    ("open:self_admit", ("open:self_admit", None, None)), ("quorum:2/3", ("quorum", 2, 3)), ("quorum:3/3", ("quorum", 3, 3)),
+    ("quorum:999999999/999999999", ("quorum", 999999999, 999999999)), ("weighted:stake", ("weighted", None, None)),
     ("quorum:4/3", None), ("quorum:0/3", None), ("quorum:03/4", None), ("quorum:1000000000/1000000000", None),
     ("quorum:2", None), ("quorum:2/3/4", None), ("quorum:+2/3", None), ("quorum: 2/3", None), ("quorum", None),
     ("weighted:", None), ("weighted", None), ("two_thirds", None), ("one", None), ("open", None), ("Majority", None),
     ("accord_halt", None), ("cosigned_act", None), ("", None), ("quorum:２/3", None),
+    ("quorum:2/4", ("quorum", 2, 4)), ("quorum:3/5", ("quorum", 3, 5)), ("quorum:1/1", ("quorum", 1, 1)),
 ]
+# The protocol of an infrastructure community (P1): a quorum of its founders' strict majority, N // 2 + 1 of N
+INFRA_WORDS = [("quorum:2/3", ("quorum", 2, 3)), ("quorum:3/4", ("quorum", 3, 4)), ("quorum:3/5", ("quorum", 3, 5)),
+               ("quorum:1/1", ("quorum", 1, 1)), ("quorum:2/2", ("quorum", 2, 2)), ("quorum:2/5", None), ("quorum:3/3", None),
+               ("quorum:2/4", None), ("quorum:1/2", None), ("majority", None), ("unanimous", None), ("founder_only", None),
+               ("weighted:stake", None), ("two_thirds", None)]
 
 # The review's A1 and A3 (rows of r56/tools/b2.py and b4.py): the head rules' job and room-keys-fix's (RK2). They hold
 # once `heads` and `room-keys-fix` are merged; until then main() reports them and does not fail on them.
@@ -376,7 +414,7 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "subkind_unread", "amendment_unread", "record_unread", "regime_unread",
           "regime_stated", "protocol_set_open", "row_need", "protocol_body_free", "disagreeing_first", "any_amendment",
           "record_by_founding", "body_free", "kind_partial", "election_any_duty", "node_consent_asked",
-          "consent_one_waives")
+          "consent_one_waives", "infra_any_quorum", "infra_body_members")
 
 
 @contextlib.contextmanager
@@ -438,6 +476,9 @@ def main():
     for w, want in PROTOCOL_WORDS:
         if ST.protocol_rule(w) != want:
             problems.append("protocol word %r: got %s, expected %s" % (w, ST.protocol_rule(w), want))
+    for w, want in INFRA_WORDS:
+        if ST.infrastructure_rule(w) != want:
+            problems.append("an infrastructure protocol word %r: got %s, expected %s" % (w, ST.infrastructure_rule(w), want))
     for c, got in zip(PENDING, tip_answers(cases=PENDING)):
         want = [w for _, _, w in c[2]]
         print("  pending the heads and room-keys-fix merge: %s: %s" % (c[0], "holds" if got == want else

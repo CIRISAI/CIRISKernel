@@ -453,16 +453,23 @@ told what act it is by the policy a row states.
   the same protocol with the same numbers.
 - **The roster instances' binding is a parameter** (`roster.Spec.bound`, False for the five; `seat.binding`):
   importing `roster.py` no longer switches the binding off process-wide.
-- **Not changed, and stated**: whether an infrastructure community may change its record (P1 to the Constitution):
-  this tag gives it no act (`record_change` is bound over a community only), so it cannot. A concurrent minority
-  change of the protocol freezes removals (two disagreeing changes: no protocol in force) until a row names both;
-  asked of the Constitution, left as is.
-- The reference: `check_acts.py` has 34 act cases, 53 refusal cases, 5 stand cases, 27 protocol words, 26 planted
-  breaks (11 new); two of the read's rows (A1: an old head's record change by removed members; A3: one founder's
+- **An infrastructure community's record changes** (ruled, P1; the acts table re-copied from rc23 6c60be9: row
+  `record_change` / `record` / `infrastructure`, `cosigned_act`, fixed). There the protocol is a quorum over the
+  founders alone, `quorum:{M}/{N}` with M the strict majority of N (`N / 2 + 1`): any other word (`quorum:2/5`,
+  `quorum:3/3`, `majority`) is no protocol there, at founding or in a change (the text's
+  `federation_community_consensus_protocol_violation`; the kernel concludes nothing under it), so a change may name
+  new founders' numbers, N and M together, but never another M (`RoomProtocol::parse_in`). Its counts are over the
+  founders (`counted()` `founder`), nodes in no base. The N a record states is not checked against the founders
+  held: that is the door's.
+- **The edge, stated** (ruled, P2): two concurrent changes of the protocol that disagree leave no protocol in force,
+  so removals wait until a change names both tips under the protocol the common members had (the text's wait rule,
+  CC 2.7.8, from the protocol side). No code.
+- The reference: `check_acts.py` has 35 act cases, 63 refusal cases, 5 stand cases, 30 protocol words and 14
+  infrastructure words, 28 planted breaks (13 new); two of the read's rows (A1: an old head's record change by removed members; A3: one founder's
   own offer) are listed as pending the head rules and `room-keys-fix`. `check_room_keys.py`'s two-key count and
   `check_rosters.py`'s infrastructure instance (I1: the node in scope `node`, founding record `infrastructure`) are
   restated. Crate tests `protocol_set_replay` and `the_recall_is_told_by_its_act` (a law mapping `moderator_recall`
-  to a plain threshold: the recall is told by its act). Fourteen plants in the crate.
+  to a plain threshold: the recall is told by its act). Seventeen plants in the crate.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

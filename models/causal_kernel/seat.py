@@ -287,6 +287,7 @@ def act_of(r, by, is_key=False):
         return None
     if kind == "infrastructure":
         # the founders' own roster, and a node's seat (placed and removed by the founders' count; no voice, no base)
+        if sc == "record" and offer and "record_unread" not in MUT: return ("record_change", "record", kind)
         return ("admit" if offer else "remove", sc, kind) if sc in ("founder", NODE) else None
     if kind == "accord": return ("standing_act", "any", kind)
     if kind == "self":
@@ -308,17 +309,28 @@ def _count(w):
 
 
 def protocol_rule(word):
-    """The protocol a record's word names: (kind, m) with kind one of PROTOCOL_KINDS' heads and m a quorum's number
-    (None otherwise), or None for a word outside the set."""
+    """The protocol a record's word names: (kind, m, n) with kind one of PROTOCOL_KINDS' heads and m, n a quorum's
+    numbers (None otherwise), or None for a word outside the set."""
     if not isinstance(word, str): return None
-    if word in ("founder_only", "unanimous", "majority", "open:self_admit"): return (word, None)
-    if "protocol_set_open" in MUT: return (word, None)           # MUTATION: any word is a protocol (read as majority)
+    if word in ("founder_only", "unanimous", "majority", "open:self_admit"): return (word, None, None)
+    if "protocol_set_open" in MUT: return (word, None, None)     # MUTATION: any word is a protocol (read as majority)
     if word.startswith("quorum:") and word.count("/") == 1:
         m, n = (_count(x) for x in word[len("quorum:"):].split("/"))
-        if m is not None and n is not None and m <= n: return ("quorum", m)
+        if m is not None and n is not None and m <= n: return ("quorum", m, n)
         return None
-    if word.startswith("weighted:") and len(word) > len("weighted:"): return ("weighted", None)
+    if word.startswith("weighted:") and len(word) > len("weighted:"): return ("weighted", None, None)
     return None
+
+
+def infrastructure_rule(word):
+    """The protocol of an infrastructure community (CC 3.2, ruled on the binding's P1): a quorum over its founders
+    alone, `quorum:M/N` with N the founder count and M its strict majority (N // 2 + 1). The rule (kind, m, n), or None
+    for any other word, `quorum:2/5` and `quorum:3/3` included (the text's federation_community_consensus_protocol_violation:
+    the kernel concludes nothing under it). The N the record states is not checked against the founders held."""
+    pr = protocol_rule(word)
+    if pr is None or pr[0] != "quorum": return None
+    if pr[1] != pr[2] // 2 + 1 and "infra_any_quorum" not in MUT: return None   # MUTATION: any quorum
+    return pr
 
 
 def is_amendment(q, obj):
@@ -411,16 +423,19 @@ def in_force(r, by):
         if r.get("regime") is not None and r.get("regime") != protocol_of(by, r.get("obj")) and "regime_unread" not in MUT:
             return REFUSED
         # a change of the record that states a protocol names one of the set, or concludes nothing
-        if a[0] == "record_change" and r.get("consensus_protocol") is not None \
-                and protocol_rule(r.get("consensus_protocol")) is None and "protocol_set_open" not in MUT:
-            return REFUSED
+        if a[0] == "record_change" and r.get("consensus_protocol") is not None and "protocol_set_open" not in MUT:
+            read = infrastructure_rule if a[2] == "infrastructure" else protocol_rule
+            if read(r.get("consensus_protocol")) is None: return REFUSED
     if K.rule(POLICY, word, ("unknown",))[0] == "protocol" and "protocol_unread" not in MUT:
         rec = protocol_record(by, r.get("obj"))
         if "record_by_founding" in MUT and r.get("scope") == "record": rec = by.get(r.get("obj"))   # MUTATION
-        pr = protocol_rule(rec.get("consensus_protocol")) if rec is not None else None
+        # an infrastructure community counts under a quorum of its founders alone (its founders' strict majority)
+        infra = kind_of(by, r.get("obj")) == "infrastructure"
+        read = infrastructure_rule if infra else protocol_rule
+        pr = read(rec.get("consensus_protocol")) if rec is not None else None
         if pr is None: return REFUSED
-        kind, m = pr
-        body = "founder" if kind == "founder_only" else "member"
+        kind, m, _n = pr
+        body = "founder" if kind == "founder_only" or (infra and "infra_body_members" not in MUT) else "member"
         if r.get("counted", "member") != body and "protocol_body_free" not in MUT: return REFUSED
         if kind == "founder_only" and r["kind"] != "offer": return REFUSED     # the set states no removal under it
         need, weights = None, None

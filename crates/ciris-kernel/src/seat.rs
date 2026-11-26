@@ -395,7 +395,21 @@ impl RoomProtocol {
             _ => None,
         }
     }
-    /// The body a count under it is taken over: the founders for `founder_only`, the members otherwise.
+    /// The protocol a record's word names in a community (`infrastructure` false), or in an infrastructure
+    /// community (true: CC 3.2, ruled on the binding's P1), where it is a quorum over the founders alone,
+    /// `quorum:{M}/{N}` with N the founder count and M its strict majority (`N / 2 + 1`); any other word there
+    /// (`quorum:2/5`, `quorum:3/3`, `majority`) is none, the text's `federation_community_consensus_protocol_violation`.
+    /// The N the record states is not checked against the founders held.
+    pub fn parse_in(w: &str, infrastructure: bool) -> Option<RoomProtocol> {
+        let p = RoomProtocol::parse(w)?;
+        match p {
+            _ if !infrastructure => Some(p),
+            RoomProtocol::Quorum(m, n) if m == n / 2 + 1 => Some(p),
+            _ => None,
+        }
+    }
+    /// The body a count under it is taken over: the founders for `founder_only`, the members otherwise (in an
+    /// infrastructure community, the founders whatever the protocol: [`RoomProtocol::parse_in`]).
     pub fn body(self) -> &'static str {
         match self {
             RoomProtocol::FounderOnly => "founder",
@@ -708,8 +722,10 @@ pub fn act_of<'r, R: SeatRow + 'r>(
             }
         }
         CommunityKind::Infrastructure => {
-            // the founders' own roster, and a node's seat (placed and removed by the founders' count)
+            // the founders' own roster, a node's seat (placed and removed by the founders' count), and a change of
+            // the record (under the founders' protocol)
             let class = match sc? {
+                "record" if offer => return Some((Act::RecordChange, ScopeClass::Record, kind)),
                 "founder" => ScopeClass::Founder,
                 "node" => ScopeClass::Node,
                 _ => return None,
@@ -848,8 +864,10 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
                     return Err(());
                 }
                 // a change of the record that states a protocol names one of the set, or concludes nothing
+                // (an infrastructure community's: a quorum of its founders' strict majority)
+                let infra = kind == CommunityKind::Infrastructure;
                 if act == Act::RecordChange
-                    && r.consensus_protocol().is_some_and(|w| RoomProtocol::parse(w.as_ref()).is_none())
+                    && r.consensus_protocol().is_some_and(|w| RoomProtocol::parse_in(w.as_ref(), infra).is_none())
                 {
                     return Err(());
                 }
@@ -861,8 +879,11 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
         return Ok(InForce { pol, need: r.need(), weights: None });
     }
     let rec = r.obj().and_then(|o| protocol_record(p, &o)).ok_or(())?;
-    let proto = rec.consensus_protocol().and_then(|w| RoomProtocol::parse(w.as_ref())).ok_or(())?;
-    if r.counted().map_or("member", |c| c.as_ref()) != proto.body() {
+    // an infrastructure community counts under a quorum of its founders alone (their strict majority)
+    let infra = r.obj().and_then(|o| kind_of(law, get, &o)) == Some(CommunityKind::Infrastructure);
+    let proto = rec.consensus_protocol().and_then(|w| RoomProtocol::parse_in(w.as_ref(), infra)).ok_or(())?;
+    let body = if infra { "founder" } else { proto.body() };
+    if r.counted().map_or("member", |c| c.as_ref()) != body {
         return Err(());
     }
     let (pol, need) = match proto {

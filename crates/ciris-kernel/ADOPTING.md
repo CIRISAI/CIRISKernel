@@ -97,9 +97,14 @@ migrations, and the local operational store.
   (the row's past) rather than from any other row: it gives the newest change of the record there (a counted
   `record` offer carrying `consensus_protocol`, ordered over the concluded rows), or the founding record's. Emit
   the notice `hard_case:community_consensus_protocol_change` for a change.
-- An infrastructure community cannot change its record in this tag (no `record_change` row binds over it; asked of
-  the Constitution). A concurrent minority change of a room's protocol leaves no protocol in force, so removals
-  wait, until a row names both changes.
+- An infrastructure community's protocol is a quorum of its founders' strict majority, `quorum:{M}/{N}` with
+  `M = N / 2 + 1`, counted over the founders (`counted()` `founder`; nodes in no base). Any other word there concludes
+  nothing (`RoomProtocol::parse_in(w, true)`): refuse it at your door at founding and at a change
+  (`federation_community_consensus_protocol_violation`), and check that its N is the founder count, which the
+  kernel does not. Its record changes under that protocol (`record_change` over `infrastructure`).
+- The edge: two concurrent changes of a room's protocol that disagree leave no protocol in force, so removals wait
+  until a change names both tips under the protocol the common members had (CC 2.7.8's wait, from the protocol
+  side; an old past is the weak-subjectivity edge).
 - An unseat of a duty counts over `duty` (the holders' withdrawal) or `member` (the recall), exactly: any other
   `counted()` concludes nothing.
 - A counted row's `regime()`, where you state one, must be the protocol in force in its past, or it concludes
