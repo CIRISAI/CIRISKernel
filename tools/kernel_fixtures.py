@@ -17,7 +17,7 @@ Sources (all under models/):
     seat      causal_kernel/attacks.py (every scenario its 34 tests conclude, with the seat, window and route rules)
               and causal_kernel/window.py (the adversary table): conclusions, the cut, live seats, the reader's
               line, holders, tips and window outcomes; with the cases of check_delegation.py and
-              check_agent_removal.py
+              check_agent_removal.py and check_readmit.py
     purge     causal_kernel/purge.py: every replay check_purge.py runs, under both readings
     key_end   causal_kernel/check_key_end.py: every generated world at every instant
     conferral_end causal_kernel/conferral_end.py: the case table of the end of a conferral (CC 2.4.1.1, CC 4.5.5),
@@ -331,6 +331,10 @@ def seat_cases():
     import check_duty_seats as DS
     for _name, rows, asks, tab in DS.CASES:
         record(rows, A.SEAT, [(k, sc, DS.OBJ) for k, sc, _ in asks], tab)
+    # a member who left and was re-admitted counts: check_readmit.py's cases, under the seat rule
+    import check_readmit as RA
+    for _name, rows, asks, _item in RA.CASES:
+        record(rows, A.SEAT, [(k, sc, RA.OBJ) for k, sc, _ in asks])
     # a moderator's lone removal of an agent's key and the members' lift (CC 4.5.13): check_agent_removal.py's cases,
     # under the window rule (the removal is the opener of its own window; every other row goes to the seat rule)
     import check_agent_removal as AR

@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+**A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
+
+- `seat::left_in_past` read a key's own leaving and ignored a later admission, unlike `stay_ended_in_past`. So
+  a member who resigned and was re-admitted stood as a member, but was in no count's base and no voice of any
+  count, for ever. Now a key is out of a count by its leaving only while no seating of it in that scope after the
+  leaving is in the counted row's past: no offer seating the key that has the leaving in its own past. The test
+  is one function, `seated_after`, read by both `left_in_past` and `stay_ended_in_past` (the scope's own seat for
+  the one, the roster's seat for the other). No public name changes.
+- **Answers change** (0.4.0 answers), each where a member resigned and the room re-admitted it before the
+  counted row:
+  - the member's voice counts: of six, an admission signed by A, B, C (re-admitted) and D, 4 of 6, concludes;
+    before it read 3 of 5 and did not;
+  - the member is in the base: of four, an admission or removal signed by A and B alone, 2 of 4, does not
+    conclude; before it read 2 of 3 and did;
+  - a removal: of six, F removed by A, B, C and D concludes; before it did not.
+  The same holds for every count that reads `left_in_past`: `count_members`, `group_count` callers that subtract
+  it, and the duty counts.
+- Not changed: a re-admission beside the counted row (not in its past) is not read by it; a leaving after the
+  re-admission puts the key out again. A counted removal followed by re-admission was never affected, since the
+  removal acts through `members_at` at the head. A window's clause reads no leaving and was never affected.
+  Private rooms are not special-cased: room-key finality refuses the re-admission there.
+- The reference: `models/causal_kernel/check_readmit.py`, 10 hand-written cases in every arrival order, all in
+  the `seat` fixture, and one planted break. Two plants in the crate.
+
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
 - `content` reads `conferral`'s three-way `any`, later-head test and stale-head test; its own copies are gone.

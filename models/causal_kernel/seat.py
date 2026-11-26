@@ -872,12 +872,29 @@ def counted_keys(P, past, obj, heads, scope="member"):
     return over, voters
 
 
-def left_in_past(P, obj, scope="member"):
-    """The keys whose own leaving is among P (a version's past): a concluded withdrawal, signed by the key, of the
-    acceptance or offer that seats it in `scope` over obj. KERNEL.md 6 and 7; RosterHead.lean leaving_binds_by_past:
-    a version that has a key's leaving in its own past does not count that key, whatever head it names."""
+def seated_after(P, past, obj, k, w, seats):
+    """Whether P (a counted row's past) holds an offer over obj seating k, by `seats`, that has the leaving w in its own
+    past: a seating of the key after its leaving. The one test of a re-admission, read by left_in_past and
+    stay_ended_in_past."""
+    if "readmit_unread" in MUT: return False
+    return any(m["kind"] == "offer" and m.get("obj") == obj and k in m.get("to", ()) and seats(m) and past(w["id"], m["id"])
+               for m in P)
+
+
+def _past_in(P):
+    by = {q["id"]: q for q in P}
+    return lambda a, b: a in K.ancestors(by, b)
+
+
+def left_in_past(P, obj, scope="member", past=None):
+    """The keys whose own leaving is among P (a version's past) with no seating of the key in that scope after it
+    there: a concluded withdrawal, signed by the key, of the acceptance or offer that seats it in `scope` over obj.
+    KERNEL.md 6 and 7; RosterHead.lean leaving_binds_by_past: a version that has a key's leaving in its own past does
+    not count that key, whatever head it names, unless a re-admission of the key after that leaving is in that past
+    too (CIRISConstitution#218, pin list: a re-admitted member counts)."""
     if "leaving_unread" in MUT: return frozenset()
     by = {q["id"]: q for q in P}
+    past = past or _past_in(P)
     out = set()
     for w in P:
         if w["kind"] != "withdraw": continue
@@ -886,7 +903,8 @@ def left_in_past(P, obj, scope="member"):
         ts = w["scope"] if w.get("scope") is not None and "scope_unread" not in MUT else t.get("scope") if t else None
         if t is None or t.get("obj") not in (obj, None) or ts not in (scope, None): continue
         if (t["kind"] == "accept" and t["signer"] == w["signer"]) or (t["kind"] == "offer" and w["signer"] in t["to"]):
-            out.add(w["signer"])
+            if not seated_after(P, past, obj, w["signer"], w, lambda m: m["scope"] == scope):
+                out.add(w["signer"])
     return frozenset(out)
 
 
@@ -897,14 +915,13 @@ def stay_ended_in_past(P, past, obj):
     if "leaving_unread" in MUT or "resign_keeps_duty" in MUT: return frozenset()
     by = {q["id"]: q for q in P}
     if not community(by, obj): return frozenset()
-    back = lambda w, k: any(m["kind"] == "offer" and m["obj"] == obj and k in m["to"] and roster_seat(m) and past(w["id"], m["id"]) for m in P)
-    return frozenset(k for w, k, g in stay_ends(P, by) if g == obj and not back(w, k))
+    return frozenset(k for w, k, g in stay_ends(P, by) if g == obj and not seated_after(P, past, obj, k, w, roster_seat))
 
 
 def count_left(P, past, obj, scope):
     """The keys a count over `scope` at obj leaves out for a leaving in its row's past: the leaving of that seat, and for
     a count over duty holders, the end of the key's stay as a member. A count over another scope is as it was."""
-    out = left_in_past(P, obj, scope)
+    out = left_in_past(P, obj, scope, past)
     by = {q["id"]: q for q in P}
     return out | stay_ended_in_past(P, past, obj) if is_duty(scope, declared(by, obj)) else out
 

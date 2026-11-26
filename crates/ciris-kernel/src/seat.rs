@@ -1589,8 +1589,10 @@ pub fn members_in_scopes<R: SeatRow, S: CutSpec<R>>(
 }
 
 /// The keys whose own leaving is among `p`: a concluded withdrawal, signed by the key, of the acceptance or
-/// offer that seats it in `scope` over `obj`. A version with a key's leaving in its own past does not count
-/// that key (`RosterHead.leaving_binds_by_past`). A count over the duty holders also leaves out
+/// offer that seats it in `scope` over `obj`, with no seating of the key in that scope after it among `p`. A
+/// version with a key's leaving in its own past does not count that key (`RosterHead.leaving_binds_by_past`),
+/// unless a re-admission of the key that has the leaving in its own past is there too. A count over the duty
+/// holders also leaves out
 /// [`stay_ended_in_past`], which [`count_members`] subtracts.
 pub fn left_in_past<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>, scope: &str) -> BTreeSet<R::Key> {
     let mut out = BTreeSet::new();
@@ -1609,11 +1611,30 @@ pub fn left_in_past<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>, scope: &str
             SeatKind::Offer => t.to().contains(w.signer()),
             _ => false,
         };
-        if own {
+        if own && !seated_after(p, obj, w.signer(), w.id(), |m| m.scope().is_some_and(|s| s.as_ref() == scope)) {
             out.insert(w.signer().clone());
         }
     }
     out
+}
+
+/// Whether `p` (a counted row's past) holds an offer over `obj` seating `k`, by `seats`, that has the leaving
+/// `w` in its own past: a seating of the key after its leaving. The one test of a re-admission, read by
+/// [`left_in_past`] and [`stay_ended_in_past`].
+fn seated_after<R: SeatRow>(
+    p: &Past<'_, '_, R>,
+    obj: &ObjOf<R>,
+    k: &R::Key,
+    w: &R::Id,
+    seats: impl Fn(&R) -> bool,
+) -> bool {
+    p.rows().any(|m| {
+        m.seat_kind() == SeatKind::Offer
+            && m.obj().as_ref() == Some(obj)
+            && m.to().contains(k)
+            && seats(m)
+            && p.past(w, m.id())
+    })
 }
 
 /// The keys whose own end of a stay as a member of `obj` is among `p` (a counted row's past) with no
@@ -1630,14 +1651,7 @@ pub fn stay_ended_in_past<R: SeatRow>(p: &Past<'_, '_, R>, law: &SeatLaw, obj: &
             continue;
         }
         let k = w.signer();
-        let back = p.rows().any(|m| {
-            m.seat_kind() == SeatKind::Offer
-                && m.obj().as_ref() == Some(obj)
-                && m.to().contains(k)
-                && roster_offer(law, m)
-                && p.past(w.id(), m.id())
-        });
-        if !back {
+        if !seated_after(p, obj, k, w.id(), |m| roster_offer(law, m)) {
             out.insert(k.clone());
         }
     }
