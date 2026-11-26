@@ -113,11 +113,13 @@ OBJS = [WN.answer("o%d" % n, "m%d" % n, "x", "object") for n in (2, 3, 4)]
 WQ = ST.withdraw("wq", "q", "aq", ("ag",))                                    # q resigns: it withdraws the offer that seats it
 
 
-def merge(names):
+def merge(names, cite=()):
     """A later head with the named rows in its past: a counted row naming them as its heads, the four founders
     re-stating m1's seat (H8, the heads ruling of 2026-11-26: a row of no object is no head of a count, so a merge is a
-    counted change; it was a note naming them, as persist's version row)."""
-    return admit("h", "m1", ("m1", "m2", "m3", "m4"), tuple(names))
+    counted change; it was a note naming them, as persist's version row). `names` are its heads, the newest counted
+    changes; `cite`, rows it names besides (a withdrawal, which is no head)."""
+    h = admit("h", "m1", ("m1", "m2", "m3", "m4"), tuple(names))
+    return dict(h, names=tuple(h["names"]) + tuple(cite)) if cite else h
 
 
 def rejoin(i, who, heads, scope="member"):

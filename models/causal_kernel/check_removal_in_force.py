@@ -484,13 +484,22 @@ LAY1 = ST.withdraw("la1", "A1", "cm1", ("x",), scope="moderate")
 CASES += [
     (NC + "x, A1's removal of A2, and A1's laying down after it: x out of force, A2 seated",
      B2 + [X12, LAY1], {"x": T}, P3 | {"A1", "A2"}, [("A1", "moderate", F)]),
-    (NC + "an ordered pair: A2's removal of A1 has x in its past; x is out of force by A1's own laying down, so it ended "
-     "nothing, and A2's removal is in force", B2 + [X12, LAY1, lone("y", "A2", "A1", ("cm2",), cites=("x",))],
+    (NC + "an ordered pair: A2's removal of A1 has x in its past and not A1's laying down (concurrent with it): it "
+     "concludes nothing, since the laying down that puts x out of force is not in the row's past, and at x, the newest "
+     "counted change it names, A2 is removed (the heads ruling of 2026-11-26, B)",
+     B2 + [X12, LAY1, lone("y", "A2", "A1", ("cm2",), cites=("x",))],
+     {"x": T, "y": F}, P3 | {"A1", "A2"}, [("A1", "agent", T), ("A2", "moderate", T)]),
+    (NC + "the ordered pair with A1's laying down in y's past: x is out of force there, A2's standing stands, and A2's "
+     "removal of A1 is in force", B2 + [X12, LAY1, lone("y", "A2", "A1", ("cm2",), cites=("x", "la1"))],
      {"x": T, "y": T}, P3 | {"A2"}, [("A1", "agent", F), ("A2", "moderate", T)]),
     (NC + "the ordered pair with no laying down: x in force ends A2's standing, so A2's removal of A1 is out of force",
      B2 + [X12, lone("y", "A2", "A1", ("cm2",), cites=("x",))], {"x": T, "y": T}, P3 | {"A1"}, [("A2", "agent", F)]),
-    (NC + "no pair: A2's removal of A3 has x in its past; x out of force ended nothing, so A2's removal is in force",
-     W3A + [X12, LAY1, lone("z", "A2", "A3", ("cm2",), cites=("x",))], {"x": T, "z": T}, P3 | {"A1", "A2"},
+    (NC + "no pair: A2's removal of A3 has x in its past and not A1's laying down: it concludes nothing (the laying "
+     "down that puts x out of force is not in the row's past; the heads ruling of 2026-11-26, B)",
+     W3A + [X12, LAY1, lone("z", "A2", "A3", ("cm2",), cites=("x",))], {"x": T, "z": F}, P3 | {"A1", "A2", "A3"},
+     [("A3", "agent", T)]),
+    (NC + "no pair, with A1's laying down in z's past: x out of force ended nothing, so A2's removal is in force",
+     W3A + [X12, LAY1, lone("z", "A2", "A3", ("cm2",), cites=("x", "la1"))], {"x": T, "z": T}, P3 | {"A1", "A2"},
      [("A3", "agent", F)]),
     (NC + "the same with x in force: A2's standing ended in its past, its removal of A3 out of force",
      W3A + [X12, lone("z", "A2", "A3", ("cm2",), cites=("x",))], {"x": T, "z": T}, P3 | {"A1", "A3"}, [("A2", "agent", F)]),
@@ -499,7 +508,9 @@ PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone"
           "removed_receipt_kept", "lifts_unread", "conferrer_lift_unread", "cycle_one_then_other", "count_receipt_unchecked",
           "founding_duty_unread", "agent_receipt_kept", "remover_counted_over", "lone_lifts", "own_end_lifts", "receipt_before_kept",
           "failed_count_is_signers", "receipt_row_policy", "ordered_pair_cascade",
-          "lift_no_floor", "lone_any_object", "leaving_ends_key", "reaccept_unread")
+          "lift_no_floor", "reaccept_unread", "own_conferral_no_change")
+# lone_any_object (a lone removal read over a key's own object) is retired: over a key's own object no row is a counted
+# change and no head is a row (H1, H8), so the heads hold no `moderate` there and the planted break changes no answer
 
 
 def read(S, case):

@@ -164,10 +164,20 @@ trusting an adapter.
   `over` is not read for a count: a counted row stating another object concludes nothing. A moderator's lone
   removal, a self-admission, a resignation (a withdrawal of a seat over a room) and a lift name the newest
   counted changes too. A reader's line is drawn from every row the reader signed or cosigned over the room, so
-  pass `own` for a member reading its own roster. A seat is two consents: an admission the joiner does not sign
+  pass `own` for a member reading its own roster. A reader with no row over the room is the stated
+  weak-subjectivity edge, and the text already says where such a reader's first acknowledgement comes from (CC
+  3.3.4): "A node does not rebuild a group's past from old signatures. The state of a roster is known when a node is
+  admitted to it. A node new to the group, or one with no acknowledged head of its own, takes the group's past from
+  a current member, who vouches for it under their own signature. That member is one the node already knows, the
+  member whose proposal a newcomer accepted or, for a person's further device, a device of theirs already in the
+  group." A store serving such a reader passes that member's acknowledged head as the reader's first. A seat is two consents: an admission the joiner does not sign
   seats it where its own acceptance (a `SeatKind::Accept` by the joiner, `of` the admission) is in the counted
   row's past, even when the acceptance is in no head's past. Present the acceptance as the joiner's own row; a
-  cosignature is no acceptance.
+  cosignature is no acceptance. A counted change is any roster-changing row that concludes under the policy the
+  room's record binds to its act: a lone duty holder's conferral (counted, or its own offer) and an election's
+  seating are heads too, and a seating names the newest counted changes as its heads like any roster change. A lone
+  duty holder with an offer of a duty seat standing confers no other alone until that offer is accepted or
+  withdrawn: to seat two new holders at once, present one row naming both.
 - Each counted node carries its real voices (signer, cosigners, cosign rows it names), its policy word and its
   threshold. `members_at` does not read them; `Seats::tips_fold` does, for every addition not common to the
   tips, and an addition with no member's voice waits.

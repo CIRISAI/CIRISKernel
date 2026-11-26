@@ -1032,7 +1032,9 @@ def check_duty(spec, inst):
     W = [("two holders: one withdraws the other alone", [found(("A", "B")), withdraw("x", ("A",), "B")], frozenset({"A", "B"}))]
     res.append(prop("where there are two holders, no duty seat is withdrawn on fewer than two voices", W, "no_duty_floor", "no floor of two voices"))
     W = [("A confers alone, then withdraws the offer", [found(("A",))] + adm("B", ("A",)) + lone("o", "A", "B") + [ST.withdraw("w", "A", "o", ("ao",))], frozenset({"A", "B"})),
-         ("A confers alone, then leaves", [found(("A",))] + adm("B", ("A",)) + lone("o", "A", "B") + [ST.withdraw("w", "A", "g", ("ao", "mB"))], frozenset({"B"}))]
+         # A's lone conferral `o` is a counted change (it concludes under the duty conferral the record binds, on one
+         # voice): A's leaving names it with the admission, the newest counted changes in its past (H4)
+         ("A confers alone, then leaves", [found(("A",))] + adm("B", ("A",)) + lone("o", "A", "B") + [ST.withdraw("w", "A", "g", ("o", "ao", "mB"))], frozenset({"B"}))]
     res.append(prop("holders are equals: the key that conferred a duty seat does not end it alone", W, "duty_ranked", "a conferrer's withdrawal ends what it conferred"))
     W = [("the room removes a duty holder from its roster", [found(("A", "B", "C"))] + RS.remove(spec, "x", ("g",), "C", ("A", "B")), frozenset({"A", "B"}))]
     res.append(prop("a removal from the roster ends the removed member's duty seats (a non-member holds no duty)", W, "member_cut_only",

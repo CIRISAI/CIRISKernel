@@ -19,9 +19,15 @@ check_count_heads.py: the heads of a count, and the reader's line (the heads rul
     H7  A counted change in a row's past that is behind an acknowledgement, also in the row's past, by one of the
         row's own signers is no head the row must name (seat.acked_behind). Never extended to a row built on it.
     H8  No caller-synthesised heads: a row of no object, a note, a cosignature naming itself is no head of a count.
-    An election's seating (seat.is_election: an offer, conf group, policy ranked) names no head and is exempt from
-    H1, H4 and the line; it is a counted change every later row must name. (roster-kinds' election2 replaces the
-    predicate with "a seating names its election's id row".)
+    An election's seating (seat.is_election: an offer, conf group, policy ranked) is a roster change: it names the
+    newest counted changes as its heads (H4) and sits on the line by them; only its count is not read at its heads
+    (election2: its election fixes the electorate).
+    A counted change is a roster-changing row that concludes under the policy the room's record binds to its act,
+    however many voices that needs: a lone duty holder's conferral, and its own offer of a duty (`self`), are heads.
+    A lone duty holder with an offer of a duty seat standing confers no other alone until that offer is accepted or
+    withdrawn (LO). The lone-offer rule binds the honest line: A cannot confer alone twice without forking its own
+    line. The reader's line covers the fork for every reader that acknowledged the first holder's seat. The two rows
+    are the evidence a later count of the room can cite. Outside an election a fork has no automatic effect.
 
 Each case is read as one batch and in arrival orders of its rows (every order up to six rows above the founding one,
 else the batch order, its reverse and forty shuffles). A case marked EDGE states what the rules give at the stated
@@ -108,8 +114,22 @@ def elect(i, k, heads):
                           policy="moderator_election", options=(k, "C"), cosigners=(k,))]
 
 
-H1, H2, H3, H4, H5, H6, H7, H8, EL, AC, EDGE = ("H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "election", "acceptance",
-                                               "EDGE")
+H1, H2, H3, H4, H5, H6, H7, H8, EL, AC, LO, EDGE = ("H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "election",
+                                                   "acceptance", "lone offer", "EDGE")
+
+
+def conf(i, to, heads, cites=(), scope="moderate", signers=("A",), joins=True):
+    """A duty conferral counted over the duty holders (`duty_confer`), signed by `signers` (A, the room's lone holder,
+    by default); `joins`: each key it seats signs it too (its own yes), else its own acceptance completes the seat."""
+    to = (to,) if isinstance(to, str) else tuple(to)
+    return ST.offer(i, signers[0], to, scope, OBJ, "group", tuple(heads) + tuple(cites), head=tuple(heads),
+                    policy="duty_confer", counted="duty", cosigners=tuple(signers[1:]) + (to if joins else ()))
+
+
+# a room of one: A founds it alone (its lone founder, holding `moderate`), and invites under `community_invite`
+G1 = ST.found("g", "A", ("A",), {})
+ONE = lambda i, k, heads, signers=("A",): ST.offer(i, signers[0], k, "member", OBJ, "group", tuple(heads), head=tuple(heads),
+                                                   policy="community_invite", cosigners=tuple(signers[1:]) + (k,))
 
 # world N: A, B and C found the room and admit D (four members); the four invite N by a counted offer N does not sign,
 # at the newest head, and N accepts it by its own row. The invitation is the newest counted change; N's acceptance is no
@@ -233,13 +253,18 @@ CASES = [
     (H8, "a removal by five names a cosignature whose `of` is itself",
      ROOM + [ST.R("v", "cosign", "D", ("aG",), of="v"), remove("xg", "G", FIVE, ("v",))], None, {"xg": F}, {"member": SEVEN}, set()),
     # ---- an election's seating --------------------------------------------------------------------------------------
-    (EL, "an election's seating at the founding head, with the newest admission in its past: exempt, it seats D",
+    (EL, "an election's seating at the newest admission: it names its heads as any roster change (H4) and seats D",
      ROOM + [ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)), None,
      {"se": T}, {"moderate": {"D"}}, set()),
-    (EL, "the same seating, concurrent with a later admission a reader acknowledged: the line never holds a seating behind",
+    (EL, "the same seating at the founding head, with the newest admission in its past: it concludes nothing (H4)",
+     ROOM + [ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] +
+     [dict(q, names=tuple(q["names"]) + ("aG",), head=("g",)) if q["id"] == "se" else q for q in elect("se", "D", ("g",))],
+     None, {"se": F}, {"moderate": set()}, set()),
+    (EL, "the seating at the newest admission, concurrent with a later admission a reader acknowledged: behind that "
+         "reader's line by its heads, as any roster change",
      ROOM + [admit("aH", "H", tuple(sorted(SEVEN)), ("aG",)), ack("ak", "R", "aH"),
              ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)), "R",
-     {"se": T}, {"moderate": set()}, set()),        # not stale; at two tips the fold seats no election (election2's)
+     {"se": T}, {"moderate": set()}, {"se"}),
     (EL, "a later admission at the newest admission, leaving the seating unnamed in its past (it names the ballots)",
      ROOM + [ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)) +
      [admit("ax", "X", FIVE, ("aG",), ("se",))], None, {"se": T, "ax": F}, {"moderate": {"D"}, "member": SEVEN}, set()),
@@ -266,6 +291,59 @@ CASES = [
     (AC, "(4) a cosignature by N of the invitation is no acceptance: N is not seated and does not count, three of four",
      WN + [ST.R("csN", "cosign", "N", ("oN",), of="oN"), invite("aP", "P", ("A", "B", "C"), ("oN",), ("csN",))], None,
      {"aP": T}, {"member": FOUR}, set()),
+    # ---- a lone duty holder's standing offer (the ruling of 2026-11-26): A lone duty holder with an offer of a duty
+    # seat standing confers no other alone until that offer is accepted or withdrawn --------------------------------
+    (LO, "A, the lone holder, offers moderate to B (no yes yet) and then confers moderate on C alone, the offer in its "
+         "past: the second concludes nothing",
+     ROOM + [conf("oB", "B", ("aG",), joins=False), conf("oC", "C", ("oB",))], None, {"oB": T, "oC": F},
+     {"moderate": {"A"}}, set()),
+    (LO, "the same after A withdraws its offer to B (its own end of its own offer): the lone conferral concludes",
+     ROOM + [conf("oB", "B", ("aG",), joins=False), ST.withdraw("wB", "A", "oB", ("oB",)), conf("oC", "C", ("oB",), ("wB",))],
+     None, {"oB": T, "oC": T}, {"moderate": {"A", "C"}}, set()),
+    (LO, "any duty: A's standing offer of `review` to B stops its lone conferral of `moderate` on C",
+     ROOM + [conf("oB", "B", ("aG",), scope="review", joins=False), conf("oC", "C", ("oB",))], None, {"oB": T, "oC": F},
+     {"moderate": {"A"}, "review": set()}, set()),
+    (LO, "two new holders at once: one row naming both, each signing it, concludes whole",
+     ROOM + [conf("oBC", ("B", "C"), ("aG",))], None, {"oBC": T}, {"moderate": {"A", "B", "C"}}, set()),
+    (LO, "two rows: the first seats B (its yes on it), so the second is counted over A and B, and A alone is short",
+     ROOM + [conf("oB", "B", ("aG",)), conf("oC", "C", ("oB",))], None, {"oB": T, "oC": F}, {"moderate": {"A", "B"}}, set()),
+    # the self-fork (the window, stated): the lone-offer rule binds the honest line: A cannot confer alone twice
+    # without forking its own line. The reader's line covers the fork for every reader that acknowledged the first
+    # holder's seat. The two rows are the evidence a later count of the room can cite. Outside an election a fork has
+    # no automatic effect
+    (LO, "self-fork before B accepted: A's second lone conferral, to C, leaves its own offer to B out of its past and "
+         "concludes; B accepts after. For a reader with no row: A, B and C hold (what one row naming both gives)",
+     ROOM + [conf("oB", "B", ("aG",), joins=False), conf("oC", "C", ("aG",)), ST.accept("acB", "B", "oB")], None,
+     {"oB": T, "oC": T, "acB": T}, {"moderate": {"A", "B", "C"}}, set()),
+    (LO, "the same read by B: B's acceptance is its acknowledgement (H6), oC names a head strictly in the past of the "
+         "offer B acknowledged and does not have it in its past, so oC is behind B's line",
+     ROOM + [conf("oB", "B", ("aG",), joins=False), conf("oC", "C", ("aG",)), ST.accept("acB", "B", "oB")], "B",
+     {"oC": T}, {"moderate": {"A", "B"}}, {"oC"}),
+    (LO, "self-fork after B's seat exists (B signed it; B and D have acknowledged it since): the forked conferral to C at "
+         "the older head, read by B: void by B's line",
+     ROOM + [conf("oB", "B", ("aG",)), ack("kB", "B", "oB"), ack("kD", "D", "oB"), conf("oC", "C", ("aG",))], "B",
+     {"oB": T, "oC": T}, {"moderate": {"A", "B"}}, {"oC"}),
+    (LO, "the same read by D, another member that acknowledged B's seat: void",
+     ROOM + [conf("oB", "B", ("aG",)), ack("kB", "B", "oB"), ack("kD", "D", "oB"), conf("oC", "C", ("aG",))], "D",
+     {"oC": T}, {"moderate": {"A", "B"}}, {"oC"}),
+    (EDGE, "the same read by a reader with no acknowledgement: the forked conferral stands (the stated residual)",
+     ROOM + [conf("oB", "B", ("aG",)), ack("kB", "B", "oB"), ack("kD", "D", "oB"), conf("oC", "C", ("aG",))], None,
+     {"oC": T}, {"moderate": {"A", "B", "C"}}, set()),
+    # ---- a room of one invites two (probe, the answers as built): the newcomer's yes is the second voice ------------
+    (LO, "a room of one invites N1 and N2 by two concurrent proposals at the founding head, each with the newcomer's "
+         "yes: both conclude",
+     [G1, ONE("n1", "N1", ("g",)), ONE("n2", "N2", ("g",))], None, {"n1": T, "n2": T}, {"member": {"A", "N1", "N2"}}, set()),
+    (LO, "the same proposals in sequence, the second at the first: it is counted over A and N1, and A alone is short",
+     [G1, ONE("n1", "N1", ("g",)), ONE("n2", "N2", ("n1",))], None, {"n1": T, "n2": F}, {"member": {"A", "N1"}}, set()),
+    (EDGE, "after the two concurrent admissions, A alone admits N3 at both tips: the tips intersect to A, so the count "
+           "is one of one, and for a reader with no row (and for A) all three stand: concurrent proposals keep the "
+           "inviter's base at one",
+     [G1, ONE("n1", "N1", ("g",)), ONE("n2", "N2", ("g",)), ONE("n3", "N3", ("n1", "n2"))], None, {"n3": T},
+     {"member": {"A", "N1", "N2", "N3"}}, set()),
+    (LO, "the same read by N1, whose admission is its acknowledgement: N2's admission names the founding head, strictly "
+         "before the admission N1 acknowledged, and is behind N1's line, and N3's with it",
+     [G1, ONE("n1", "N1", ("g",)), ONE("n2", "N2", ("g",)), ONE("n3", "N3", ("n1", "n2"))], "N1", {"n3": T},
+     {"member": {"A", "N1"}}, {"n2", "n3"}),
     # ---- the edge: a count that omits an acceptance its signers have seen -----------------------------------------------
     (EDGE, "a count by three at the invitation that omits N's acceptance (its signers have seen it) and needs the smaller "
            "base: three of four is met. It is what they could do a moment before the acceptance arrived (the next case): "
@@ -326,8 +404,9 @@ PLANTS = (("count_heads_unread", ST.MUT), ("all_heads_read", ST.MUT), ("head_any
           ("changes_any_object", ST.MUT), ("over_allowed", ST.MUT), ("authored_heads", ST.MUT), ("lone_exempt", ST.MUT),
           ("ends_at_heads_unread", ST.MUT), ("resign_exempt", ST.MUT), ("line_concurrent", CP.MUT), ("versions_concurrent", CP.MUT),
           ("cut_before_line", ST.MUT), ("line_void_unlisted", ST.MUT), ("line_after_cut", ST.MUT), ("acks_only", CP.MUT),
-          ("ack_excuses_none", ST.MUT), ("election_by_line", ST.MUT),
-          ("acceptance_unread", ST.MUT), ("acceptance_ends_unread", ST.MUT))
+          ("ack_excuses_none", ST.MUT), ("election_exempt", ST.MUT),
+          ("acceptance_unread", ST.MUT), ("acceptance_ends_unread", ST.MUT),
+          ("lone_offer_unread", ST.MUT), ("lone_offer_same_scope", ST.MUT), ("fold_acceptance_unread", ST.MUT))
 
 
 import contextlib  # noqa: E402

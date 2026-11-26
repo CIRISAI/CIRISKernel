@@ -378,9 +378,28 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
 - **H8, no caller-synthesised heads.** A row of no object, a note, or a cosignature naming itself is no head of a
   count. A store presents its real rows (the founding record and its counted changes) and names the newest
   counted changes. `examples/persist_paths.rs` presents a ballot so.
-- **An election's seating** (`seat::is_election`: an offer, `Conf::Group`, policy `Policy::Ranked`) names no
-  head. It is exempt from H1, H4 and the line, and every later counted row must name it. roster-kinds'
-  election2 replaces the predicate.
+- **An election's seating** (`seat::is_election`: an offer, `Conf::Group`, policy `Policy::Ranked`) is a roster
+  change. H4 applies: it names the newest counted changes over the room in its own past as its heads, or concludes
+  nothing. It sits on the reader's line by those heads, by the ordinary rule. Only H1's reading of the count at the
+  heads does not apply: its count is its election's (election2 fixes the electorate by the election's id and
+  vacancy). Every later counted row must name it. Ballots, their withdrawals, declines and receipts change no
+  roster and name no head.
+- **What a counted change is.** A roster-changing row that concludes under the policy the room's record binds to
+  its act, however many voices that policy needs (`seat::change`). Besides a `Conf::Group` offer or unseat naming a
+  head: a duty holder's own conferral of a duty over the room (`Conf::Own` or `Conf::Seat`, the lone holder's, on
+  one voice), and, with the acts table on, a self-admission concluded under the room's declared protocol. Each is a
+  head that later rows name, and counts read its seat (with (a)). H3 is unchanged: a one-key row under a policy it
+  states itself meets no bound policy. A seat placed by a row that is no counted change is read by no count until
+  a counted change has it in its past.
+- **A lone duty holder with an offer of a duty seat standing confers no other alone until that offer is accepted
+  or withdrawn** (`lone_offer_stands`). The offer is of any duty scope, to a key that has neither signed nor
+  accepted it, and no withdrawal ends it. It counts for the lone test only: the key offered holds nothing until it
+  accepts. Two holders at once are conferred by one row naming both. The lone-offer rule binds the honest line: A
+  cannot confer alone twice without forking its own line. The reader's line covers the fork for every reader that
+  acknowledged the first holder's seat. The two rows are the evidence a later count of the room can cite. Outside
+  an election a fork has no automatic effect.
+- **The fold at tips reads acceptances.** A tip's line holds the acceptances concluded after the tip that complete
+  an offer at it (`Seats::tips_fold`, `tips_common`), so a seat completed after a fork is not lost at the fold.
 - **Acceptances: a seat is two consents** (the ruling of 2026-11-26, (a), confirmed by the Constitution). A count
   is taken of the members at the newest named heads, plus each seat placed by an offer in those heads' past whose
   holder's own acceptance of it is in the counted row's own past, less every leaving or laying down in the row's
@@ -406,20 +425,27 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
   four, where with the newcomer three of five is short), concludes. It does nothing its signers could not do a
   moment before the acceptance arrived: the acceptance is no counted change and moves no head. The newcomer's own
   line (H6) does not hold the count behind, since it names the newest counted change the newcomer acknowledged.
-- Cases: `models/causal_kernel/check_count_heads.py`, rewritten: 54 cases by rule, 5 of them EDGE, 9 on
-  acceptances and the edge; three of roster versions; the line read directly; 20 planted breaks. Attack 35 reads them; the fixtures carry them, each with
+  (iii) A room of one that invites two people by two concurrent proposals admits both, each on the inviter's
+  voice and the newcomer's yes; a count naming both tips is then taken over their intersection, the inviter alone,
+  for a reader with no row. For each newcomer the other's admission is behind its line (H6).
+- Cases: `models/causal_kernel/check_count_heads.py`, rewritten: 69 cases by rule, 7 of them EDGE, on
+  acceptances, the lone offer, the self-fork and a room of one besides H1 to H8; three of roster versions; the line
+  read directly; 23 planted breaks. Attack 35 reads them; the fixtures carry them, each with
   its reader. Existing cases rewritten so that every counted row and every seat's end names the newest counted
   changes (`seat.honest`): `check_agent_removal`, `check_duty_seats` (the version and self-`of` heads now hold
   nothing), `check_room_keys` (a merge is a counted change), `check_readmit`, `check_removal_in_force`, attack 6
   and the checkpoint price. `check_removal_in_force`: five rows now conclude nothing with the roster unchanged
-  (their signer holds no `moderate` at the newest counted change they must name), listed in its `NOW_NOTHING`.
+  (their signer holds no `moderate` at the newest counted change they must name), listed in its `NOW_NOTHING`;
+  the two no-cascade rows that have x in their past and not the laying down that puts x out of force conclude
+  nothing (a row's standing is read from its own past), each with a sibling that has the laying down in its past
+  and is in force.
   `check_room_keys` gains two acceptance cases (bounds 2 and 3). Crate: `tests/fold.rs` and `tests/policies.rs`
   name counted heads, and a unit test of the line in `line.rs`. The generators of `tests/fast_paths.rs` (`ballot`,
   `seat_world`) and `examples/persist_paths.rs` (`ballot`) present real rows: a founding record declaring a
   `consensus_protocol`, every other seat a counted admission under it or under `community_invite` (signed by the
   joiner, or completed by its own acceptance), and heads at the newest counted change, with no version rows;
-  `group_count`'s comparison takes its members and voices from the generator, not from the rows. Twenty-one crate
-  plants.
+  `group_count`'s comparison takes its members and voices from the generator, not from the rows. A crate plant
+  for each rule above (`tools/kernel_crate_plants.sh`).
 
 **The act-to-policy binding, step 3: the refusal, and the room's declared protocol** (the Constitution's
 `governance_policy_acts.tsv`).
