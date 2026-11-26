@@ -22,6 +22,8 @@ public, and seats identity keys.
                 past). Beside a counted removal it does not seat: the cut voids it, and a later row adding the key is
                 refused. Beside a resignation it seats as built: OPEN, sent to the Constitution.
     a second seat row   OPEN (#224: "what a second seat row of one room key does"). The text does not say.
+    two admissions      the kernel seats both (CC 3.1.3.2: "no door refuses a widening for either, since no rule of
+                standing reads a binding"). What the text owes about it is OPEN (#224).
 
 Part 1. Cases, each a hand-written answer: which rows conclude, the roster (members and agents), and standings asked
 by name; every case is read in arrival orders. Each names the ledger row it closes.
@@ -202,6 +204,31 @@ OPEN += [
      ("the second row is refused, so the case does not arise",
       "a withdrawal of one seat row by its key ends the key's stay, and every seat row of it",
       "each seat row is a stay of its own, as built")),
+]
+# two admissions of one person at once: the kernel's answer is decided (CC 3.1.3.2: "Both checks are the cosigner's
+# own, and no door refuses a widening for either, since no rule of standing reads a binding"); what the text says of
+# the second voice is not
+TWO = PV + [rejoin("ak1", "k1", ("ag",)), rejoin("ak2", "k2", ("ag",))]
+# a later head with both admissions in its past (a count over two concurrent heads reads the keys common to both)
+HEAD = ST.cosign("h", "m1", "h", ("ak1", "ak2"))
+XQ2 = lambda signers: remove("xq", "q", signers, ("h",))
+CASES += [
+    ("two admissions of one person at once, under two room keys: both seat. No rule of standing reads a binding, so "
+     "the kernel cannot tell them from two persons", TWO_ROW, TWO, {"ak1": T, "ak2": T}, M4 | {"q", "AG", "k1", "k2"},
+     [("k1", "member", T), ("k2", "member", T)]),
+    ("each is a voice in the room's count: a removal signed by three members and both keys is met (5 of 7)", TWO_ROW,
+     TWO + [HEAD, XQ2(("m1", "m2", "m3", "k1", "k2"))], {"xq": T}, M4 | {"AG", "k1", "k2"}, []),
+    ("and without the second key's signature it is not (4 of 7)", TWO_ROW,
+     TWO + [HEAD, XQ2(("m1", "m2", "m3", "k1"))], {"xq": F}, M4 | {"q", "AG", "k1", "k2"}, []),
+]
+OPEN += [
+    ("two admissions of one person at once both seat (the case above): what the text says of the second voice", TWO_ROW,
+     TWO, {"ak1": T, "ak2": T}, M4 | {"q", "AG", "k1", "k2"}, [],
+     ("the sentence 'a person gains a second voice only where every signer of that admission failed to check' is restated: "
+      "it does not hold for two admissions at once (formal/binding_carriage finding 2)",
+      "a checking signer refuses a person it holds another binding of, seated or not (a cosigner's duty, read by no door; "
+      "a checking duty holder then closes it, and without one two admissions whose checkers share no binding still seat)",
+      "a residual named in the ledger")),
 ]
 PLANTS = ("room_key_unread", "public_final", "lone_final", "resign_not_final", "reaccept_reseats")
 

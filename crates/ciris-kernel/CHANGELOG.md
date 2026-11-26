@@ -62,8 +62,14 @@ admission", of any end of the seat, a resignation included; CC 3.1.3.2: "a membe
 does not say what it does. OPEN, as built: a second seat row of a key already seated concludes and the key is one
 key on the roster; the key's withdrawal of one of two seat rows leaves the other seating it.
 
+**Two admissions of one person at once** (CIRISConstitution#224): no answer changes. Built as cases, since the text
+decides the kernel's part (CC 3.1.3.2: "no door refuses a widening for either, since no rule of standing reads a
+binding"): two admissions under two room keys at concurrent heads both seat, and each key is a voice in the room's
+count. OPEN: what the text says of the second voice ("a person gains a second voice only where every signer of that
+admission failed to check" does not hold for two admissions at once).
+
 The reference: `seat._revoked_before`, `seat.room_key_ended`, `seat.private_room` in `models/causal_kernel/seat.py`;
-`check_room_keys.py` has 20 cases and 6 OPEN rows in every arrival order (up to six rows, else 41 orders) and five
+`check_room_keys.py` has 23 cases and 7 OPEN rows in every arrival order (up to six rows, else 41 orders) and five
 planted breaks; `roomkey.py` states the finding of re-admission under the same key for a public room and the refusal
 for the same room declared private. Five plants in `tools/kernel_crate_plants.sh`.
 
