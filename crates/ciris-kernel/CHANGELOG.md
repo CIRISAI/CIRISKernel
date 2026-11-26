@@ -473,7 +473,14 @@ told what act it is by the policy a row states.
     and removes nothing (a founder, a node), and an amendment seating a founder, a widening by that count, is none.
     3/4 is live only at four founders, as 2/3 at three.
   - A founder's removal is an ordinary counted removal by M founders, and a resignation the founder's own; both leave
-    the word as it is (its N documentary, its M binding).
+    the word as it is (its N documentary, its M binding). A lawful removal may leave the room stalled (3/4 down to
+    three founders): the text's own consequence. 3/5 changed to 2/3 lowers M, refused stalled or live.
+  - **Concurrent founders' amendments** (CC 2.7.8's wait, ruled): two concurrent amendments are concurrent versions of
+    the record. Over a past holding both, no founders' count concludes (no removal, widening or node seating) until a
+    version names both: a founders' amendment signed by every key the two seated, restating `quorum:{M}/{N}` for the
+    founders it leaves (M not lowered), counted at the present M over the founders common to the two. The fold's
+    roster at such tips is the kernel's usual fold (it is the counts that wait).
+  - An own offer of a `founder` seat over infrastructure seats nothing.
   - **Recovery when stalled**: the one row admitted without the founders' count (`SeatRow::bundle()`) is UNDECIDED:
     `seat::stalled_recovery` answers `stalled_recovery_needs_bundle`, with the checks listed for when the trust root's
     fold is in the kernel.
@@ -510,10 +517,29 @@ told what act it is by the policy a row states.
   - **No last-founder refusal**: a resignation is never refused, nor a removal that leaves members and no founder.
     Under `founder_only` the family can then do nothing (its members can still leave, and it dissolves when the
     last has); the way out is a founder promoting another before leaving (F2).
-- **Entrenchment** (F5, every group): new `SeatRow::protocol_entrenched()` (`consensus_protocol_entrenched`). On an
+- **The contested pair** (CC 2.7.7 rule 5; CC 2.6.1.9, 2.6.1.11; ruled): counted removals that each remove a voice the
+  other needs, concurrently, are both out of force, and every seat stays: a voice concurrent with its own removal is
+  no voice (`contested_out`, the well-founded fixed point over the end rule, carried into the readings of a line like
+  the lone removals out of force). Two family founders removing or demoting each other stay; four infrastructure
+  founders under 3 stay four. A stuck family is not reachable by two members acting in good faith at the same moment.
+  The one-sided case is no pair: of five under 3, f1, f2, f3 removing f4 and f1, f2, f5 removing f3, the second needs
+  nothing the first removes and stands, and the first falls. A contested pair of counted removals leaves the roster as
+  it was, and a later count that names both decides (pending the head rules' reading of a past holding both). Read
+  for a family's and an infrastructure community's counts, where it is ruled; a community's and a self roster's
+  counted removals keep the cut's reading (both in force) until the Constitution rules there.
+- **A family founder's leaving ends its role** in a row with the leaving in its past, whatever head that row names;
+  `role: founder` is read only on a counted admission of the member seat in a family (and on an infrastructure
+  founders' amendment), never on an own or uncounted offer and never elsewhere (a row carrying it elsewhere
+  concludes nothing).
+- **Entrenchment** (F5, every group): new `SeatRow::protocol_entrenched()` (`consensus_protocol_entrenched`, an
+  `Option<bool>`: a change that states none leaves the flag as it is). Under `weighted` the weights and threshold
+  are the protocol: on an entrenched record restating either concludes nothing; where not entrenched, a restatement
+  is a protocol change counted under the weights in force. On an
   entrenched record in force, a change of `consensus_protocol`, or of the flag, concludes nothing; every other
   amendment (a rename, a role, metadata) concludes under the protocol; admission and removal are unaffected.
-- **Dissolution** (the act `dissolve`, family and community, with a record change's policy): new
+- **Dissolution** (the act `dissolve`, family and community, with a record change's policy; read through the reader's
+  line once the head rules give it: a stale-head dissolution is void for a reader that acknowledged a later change,
+  pending): new
   `SeatRow::dissolves()` (`dissolved_at`). A dissolution is counted at the newest heads in its own past; once it is
   concluded every seat over the group ends and no row over it concludes (the text's `group_dissolved`).
   `Seats::dissolved(o)` also answers a dissolution with no signer: every member has an end of their seat.
@@ -530,7 +556,8 @@ told what act it is by the policy a row states.
   removal by its `removal_rule`, any other act by whether its count set is the members), the `cosigned_act` half of
   an `&` is no condition, and the other policy governs alone, never with fewer voices than the community floor
   (`SeatLaw::community_floor`, the policy table's `min_count.community`, two). So an open room changes its record
-  under `default_standing`: two thirds of its members, never fewer than two.
+  under `default_standing`: two thirds of its members, never fewer than two. BREAKING: `SeatLaw` gains the public
+  field `community_floor`; a struct literal without `..Default::default()` adds it.
 - **The body an act counts is the act's own** (the read's N2), never the row's `counted()`: the members for an
   admission, a removal, the recall, the lift, the election and a change of the record; all the duty holders (`duty`)
   for a duty's or a detector seat's conferral and withdrawal; an infrastructure community's founders; an accord's

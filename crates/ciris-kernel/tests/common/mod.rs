@@ -517,8 +517,8 @@ impl SeatRow for TRow {
     fn admission_quorum_basis(&self) -> Option<&String> {
         self.admission_quorum_basis.as_ref()
     }
-    fn protocol_entrenched(&self) -> bool {
-        self.f("consensus_protocol_entrenched").is_some_and(|x| x.b())
+    fn protocol_entrenched(&self) -> Option<bool> {
+        self.f("consensus_protocol_entrenched").map(|x| x.b())
     }
     fn dissolves(&self) -> bool {
         self.f("dissolved_at").is_some()

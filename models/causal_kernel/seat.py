@@ -584,6 +584,11 @@ def in_force(r, by):
             ok = infrastructure_rule(w) if a[2] == "infrastructure" and "infra_record_simple_majority" not in MUT \
                 else community_rule(w, r.get("need"), r.get("weights"))
             if ok is None: return REFUSED
+        # `role: founder` is read on a family's admission of the member seat and on an infrastructure community's
+        # founders' amendment, and nowhere else
+        if r.get("role") is not None and not ((a[2] == "family" and r.get("scope") == "member") or (
+                a[2] == "infrastructure" and r.get("scope") == "record")) and "role_on_own_offer" not in MUT:
+            return REFUSED
         # an entrenched record (`consensus_protocol_entrenched`): a change of its protocol, or of the flag itself,
         # concludes nothing (F5); every other amendment concludes under the protocol
         if a[0] == "record_change" and not entrenchment_allows(r, by): return REFUSED
@@ -638,6 +643,12 @@ def entrenchment_allows(r, by):
         return r.get("consensus_protocol") is None or r.get("consensus_protocol_entrenched") is True
     if "entrenched_whole_record" in MUT: return False             # MUTATION: every amendment refused
     if r.get("consensus_protocol") is None: return r.get("consensus_protocol_entrenched", True) is True
+    # under `weighted`, the weights and threshold are the protocol: restating either is a change of it
+    pr = protocol_rule(rec.get("consensus_protocol"))
+    if pr is not None and pr[0] == "weighted" and "entrenched_weights_free" not in MUT and (
+            r.get("need") != rec.get("need") or frozenset(map(tuple, r.get("weights") or ())) !=
+            frozenset(map(tuple, rec.get("weights") or ()))):
+        return False
     return r["consensus_protocol"] == rec.get("consensus_protocol") and r.get("consensus_protocol_entrenched") is True
 
 
@@ -833,9 +844,12 @@ def seat_scopes(o, k):
     and where it carries a `duty_holders` map, in each duty whose entry names it."""
     if o["obj"] != o["id"]:
         # an admission carrying `role: founder` (a family's one-row founder admission) seats the founder role too
-        if o.get("role") == "founder" and o["scope"] == "member" and "role_unread" not in MUT: return ("member", "founder")
+        # (only on a counted row: an own or uncounted offer's role seats nothing, MUTATION role_on_own_offer)
+        counted = o.get("conf") == "group" or "role_on_own_offer" in MUT
+        if o.get("role") == "founder" and o["scope"] == "member" and counted and "role_unread" not in MUT:
+            return ("member", "founder")
         # a founders' amendment of an infrastructure record seats its keys as founders (CC 3.1.3.2)
-        if o.get("role") == "founder" and o["scope"] == "record": return ("founder",)
+        if o.get("role") == "founder" and o["scope"] == "record" and counted: return ("founder",)
         return (o["scope"],)
     # a founding row seats by the signatures on it, with or without a map (CC 3.1.3.2: a listed key that did not sign
     # is `membership_founding_member_unsigned`; it joins by an ordinary admission)
@@ -1062,8 +1076,13 @@ class Seats:
         # one line of it (the tips, the fold) or of the set with every removal taken as made (`frozenset()`)
         if drop is None:
             drop = out_of_force(S, unseats, holds, confers, depth, own, checkpoint) if "end_unread" not in MUT else frozenset()
-        self.dropped = drop
         unseats = [u for u in unseats if u["id"] not in drop]
+        # CC 2.7.7 rule 5: counted removals that remove each other's voices concurrently are contested, and neither is
+        # in force (a voice concurrent with its own removal is no voice). Judged over the whole set, and carried with
+        # the lone removals out of force into a reading of one line of it (the tips, the fold)
+        contested = contested_out(S, unseats)
+        unseats = [u for u in unseats if u["id"] not in contested]
+        self.dropped = drop | contested
 
         left = stay_ends(wd, S.by, holds)                       # the holders' own ends of a stay as a member
         gone = {(k, g) for _, k, g in left}
@@ -1523,6 +1542,47 @@ def removal_in_force(S, x, unseats, now, not_ends=frozenset(), lone_ids=frozense
     return True
 
 
+def contested_out(S, unseats):
+    """The counted removals among `unseats` that are out of force as contested (CC 2.7.7 rule 5: "Two cuts by keys of
+    equal standing that undo each other stay contested. A voice that the other cannot remove settles them"; CC 2.6.1.9,
+    2.6.1.11). A voice of a counted removal u is no voice where another counted removal over the same group, concurrent
+    with u (neither in the other's past) and in force, removes it; u is in force only if its count is still met
+    without those voices. Read as the well-founded fixed point: two removals that each need a voice the other
+    removes are both out of force (the roster stays as it was, and a later count that names both decides); one that
+    needs nothing the other removes stands, and the other falls (the one-sided case). Nothing here is special: it is
+    the end rule (a removed key's voice counts only where its removal is in that row's past) read for counted rows."""
+    if "contested_both_out" in MUT: return frozenset()
+    # ruled for a family and an infrastructure community (the founders' counts); a community's and a self roster's
+    # counted removals keep the cut's reading until the Constitution rules there
+    grp_u = [u for u in unseats if u.get("conf") == "group" and kind_of(S.by, u.get("obj")) in ("family", "infrastructure")]
+    if len(grp_u) < 2: return frozenset()
+    conc = lambda a, b: a["id"] not in S.anc[b["id"]] and b["id"] not in S.anc[a["id"]]
+    pasts = {u["id"]: [q for q in S.Cs if q["id"] in S.anc[u["id"]]] for u in grp_u}
+    threats = {}
+    for u in grp_u:
+        vs = voices(u, pasts[u["id"]])
+        t = [(u2["id"], frozenset(u2["to"]) & vs) for u2 in grp_u
+             if u2 is not u and u2.get("obj") == u.get("obj") and conc(u, u2) and frozenset(u2["to"]) & vs]
+        if t: threats[u["id"]] = t
+    if not threats: return frozenset()
+    past = lambda a, b: a in S.anc[b]
+    memo = {}
+
+    def holds(u, live):
+        if u["id"] not in threats: return True
+        void = frozenset(k for i, ks in threats[u["id"]] if i in live for k in ks)
+        key = (u["id"], void)
+        if key not in memo: memo[key] = count_met(dict(u, void_voices=void), pasts[u["id"]], past)
+        return memo[key]
+    d, pos = frozenset(), frozenset(u["id"] for u in grp_u)
+    while True:
+        d2 = frozenset(u["id"] for u in grp_u if holds(u, pos))
+        p2 = frozenset(u["id"] for u in grp_u if holds(u, d))
+        if (d2, p2) == (d, pos): break
+        d, pos = d2, p2
+    return frozenset(u["id"] for u in grp_u if u["id"] not in d)
+
+
 def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
     """The lone removals among `unseats` the end rule holds out of force over S."""
     acts = [u for u in unseats if u.get("scope") == AGENT and lone_act(u, S)]
@@ -1691,7 +1751,10 @@ def count_left(P, past, obj, scope):
     a count over duty holders, the end of the key's stay as a member. A count over another scope is as it was."""
     out = left_in_past(P, obj, scope, past)
     by = {q["id"]: q for q in P}
-    return out | stay_ended_in_past(P, past, obj) if is_duty(scope, declared(by, obj)) else out
+    # a family's founder role ends with any leaving of the key (its member seat, or the founding row) in the row's
+    # past, whatever head that row names (MUTATION founder_role_survives_leave)
+    role = scope == "founder" and kind_of(by, obj) == "family" and "founder_role_survives_leave" not in MUT
+    return out | stay_ended_in_past(P, past, obj) if is_duty(scope, declared(by, obj)) or role else out
 
 
 def voices(r, P):
@@ -1841,10 +1904,28 @@ def _count_under(r, P, past, by, table=None):
     mem, vot = counted_keys(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
     left = count_left(P, past, r.get("over", r["obj"]), r.get("counted", "member"))
     mem, vot = mem - left, vot - left
-    # an infrastructure community's change of the record states the founders' quorum at its own heads: N the founder
-    # seats there, M their strict majority (P1, Q5)
+    vot = vot - r.get("void_voices", frozenset())    # voices voided by a concurrent counted removal (contested_out)
     if r.get("infra_mn") is not None:
         m, n = r["infra_mn"]
+        # CC 2.7.8's wait for founders' amendments: two concurrent ones are concurrent versions of the record. Until a
+        # version names both (and restates the word for the founders it leaves), no founders' count concludes over a
+        # past holding both; that version is itself a founders' amendment, counted at the present M over the founders
+        # common to the two (the founders at its heads) and signed by every key the two seated
+        seating = [q for q in P if is_amendment(q, r["obj"]) and q.get("role") == "founder" and q.get("to")]
+        pairs = [(a, b) for i, a in enumerate(seating) for b in seating[i + 1:]
+                 if not past(a["id"], b["id"]) and not past(b["id"], a["id"])
+                 and not any(past(a["id"], q["id"]) and past(b["id"], q["id"]) for q in P if is_amendment(q, r["obj"]))]
+        if pairs and "concurrent_amendments_free" not in MUT:
+            if r.get("scope") != "record": return False
+            pair_keys = frozenset(k for a, b in pairs for q in (a, b) for k in q["to"])
+            if not pair_keys <= voices(r, P): return False
+            mem, vot = mem - pair_keys, vot - pair_keys
+            union = mem | pair_keys
+            pr = infrastructure_rule(r.get("consensus_protocol")) if r.get("consensus_protocol") else None
+            new_r = frozenset(r.get("to", ())) - union if k == "offer" else frozenset()
+            if pr is None or pr[2] != len(union) + len(new_r) or pr[1] < m: return False
+            if not new_r <= voices(r, P): return False
+            return met("P:quorum", len(voices(r, P) & vot), len(mem), m)
         if "infra_m_recomputed" in MUT: r = dict(r, need=len(mem) // 2 + 1)   # MUTATION: M computed from the founders
         # stalled (fewer than M + 1 active founders): the founders' count admits and removes nothing
         if r.get("scope") != "record" and len(mem) < m + 1 and "infra_stalled_admits" not in MUT: return False
@@ -1867,7 +1948,8 @@ def _count_under(r, P, past, by, table=None):
     # a family under founder_only: a removal takes an active founder other than the one it names
     if r.get("exclude_target"): vot = vot - frozenset(r.get("to", ()))
     # a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
-    if r.get("no_self_removal") and voices(r, P) <= frozenset(r.get("to", ())): return False
+    if r.get("no_self_removal") and voices(r, P) - r.get("void_voices", frozenset()) <= frozenset(r.get("to", ())):
+        return False
     # the community floor, where a policy row governs alone in place of a protocol that states no rule (the `&` reading)
     if r.get("floor") is not None and len(voices(r, P) & vot) < r["floor"]: return False
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
@@ -1916,6 +1998,9 @@ def seat_rule(r, P, past, table=None, other=None):
         if k == "unseat" and conf == "group" and not duty_over(r, by): return False  # and over which room
         if conf == "self":
             if r["obj"] == r["id"]: return k == "offer"          # a founding row is its own object
+            # over infrastructure a founder seat comes only by a founders' amendment: an own offer of one seats nothing
+            if r.get("scope") == "founder" and kind_of(by, r["obj"]) == "infrastructure" and "role_on_own_offer" not in MUT:
+                return False
             if k == "unseat" and founding_many(by, r["obj"]): return False    # among several founding keys, ending a seat takes the count
             return r["signer"] in own_keys(by, r["obj"])
         if conf == "seat":

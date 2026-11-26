@@ -208,11 +208,11 @@ pub trait SeatRow: Row {
     fn group_kind(&self) -> Option<&Self::Word> {
         None
     }
-    /// A group's record: `consensus_protocol_entrenched`. On the record in force, a change of its
-    /// `consensus_protocol`, or of this flag, concludes nothing (F5); every other amendment concludes under the
-    /// protocol. Default `false`.
-    fn protocol_entrenched(&self) -> bool {
-        false
+    /// A group's record: `consensus_protocol_entrenched`, or `None` where the row states none (a change that
+    /// states none leaves the flag as it is). On the record in force, a change of its `consensus_protocol`, or of
+    /// this flag, concludes nothing (F5); every other amendment concludes under the protocol. Default `None`.
+    fn protocol_entrenched(&self) -> Option<bool> {
+        None
     }
     /// An infrastructure record's `admission_quorum_basis` (`founders`): a change moving it away concludes nothing
     /// (no weakening, CC 3.2). Default `None`, read as `founders`.
@@ -445,7 +445,8 @@ impl RoomProtocol {
         }
     }
     /// Whether the protocol states a rule for an act, as the protocol sheet (`consensus_protocols.tsv`) gives it:
-    /// an admission by its `rule` cell, a removal by its `removal_rule` cell (`unstated` for `open:self_admit`), and
+    /// an admission by its `rule` cell, a removal by its `removal_rule` cell (`unstated` for `open:self_admit` alone),
+    /// and
     /// any other act counted under it (a change of the record) by a DERIVED column, as the sheet has none: a
     /// protocol whose count set is the members states a rule; the joiner's own signature (`open:self_admit`) and the
     /// founder role (`founder_only`) do not. Where the protocol states none,
@@ -454,6 +455,8 @@ impl RoomProtocol {
     pub fn states(self, act: Act) -> bool {
         match act {
             Act::Admit => true,
+            // the sheet at rc23 2b509c8 gives founder_only a removal rule (`founder-target`, `role_at:founder:1`)
+            Act::Remove => self != RoomProtocol::SelfAdmit,
             _ => !matches!(self, RoomProtocol::FounderOnly | RoomProtocol::SelfAdmit),
         }
     }
@@ -1032,6 +1035,16 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
                         }
                     }
                 }
+                // `role: founder` is read on a family's admission of the member seat and on an infrastructure
+                // community's founders' amendment, and nowhere else
+                if r.role().is_some()
+                    && !matches!(
+                        (kind, r.scope().map(|s| s.as_ref())),
+                        (CommunityKind::Family, Some("member")) | (CommunityKind::Infrastructure, Some("record"))
+                    )
+                {
+                    return Err(());
+                }
                 // an entrenched record: a change of its protocol, or of the flag, concludes nothing (F5)
                 if act == Act::RecordChange && !entrenchment_allows(law, p, r) {
                     return Err(());
@@ -1100,7 +1113,7 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
 fn entrenchment_allows<R: SeatRow>(law: &SeatLaw, p: &Past<'_, '_, R>, r: &R) -> bool {
     let Some(obj) = r.obj() else { return true };
     let Some(rec) = protocol_record(p, &obj) else { return true };
-    if !rec.protocol_entrenched() {
+    if rec.protocol_entrenched() != Some(true) {
         return true;
     }
     if kind_of(law, &|i| p.get(i), &obj) == Some(CommunityKind::Infrastructure) {
@@ -1109,12 +1122,17 @@ fn entrenchment_allows<R: SeatRow>(law: &SeatLaw, p: &Past<'_, '_, R>, r: &R) ->
         if r.admission_quorum_basis().is_some_and(|b| b.as_ref() != "founders") {
             return false;
         }
-        return r.consensus_protocol().is_none() || r.protocol_entrenched();
+        return r.consensus_protocol().is_none() || r.protocol_entrenched() == Some(true);
     }
-    match r.consensus_protocol() {
-        None => true,
-        Some(w) => rec.consensus_protocol().map(|x| x.as_ref()) == Some(w.as_ref()) && r.protocol_entrenched(),
+    let Some(w) = r.consensus_protocol() else { return r.protocol_entrenched() != Some(false) };
+    // under `weighted`, the weights and threshold are the protocol: restating either is a change of it
+    let set = |q: &R| q.weights().iter().map(|(k, n)| (k.clone(), *n)).collect::<BTreeSet<_>>();
+    let weighted =
+        rec.consensus_protocol().and_then(|x| RoomProtocol::parse(x.as_ref())) == Some(RoomProtocol::Weighted);
+    if weighted && (r.need() != rec.need() || set(r) != set(rec)) {
+        return false;
     }
+    rec.consensus_protocol().map(|x| x.as_ref()) == Some(w.as_ref()) && r.protocol_entrenched() == Some(true)
 }
 
 /// A dissolution of the group: a counted offer of scope `record` carrying `dissolved_at` (the act dissolve).
@@ -1188,7 +1206,7 @@ fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> R
         let (m, n) = (usize::try_from(m).map_err(|_| ())?, usize::try_from(n).map_err(|_| ())?);
         // its record MUST be entrenched; its founding word states N = the founders it seats; and a founder seat is
         // added only by a founders' amendment (or the stalled recovery widening): a plain founder widening is none
-        if !founding.protocol_entrenched() {
+        if founding.protocol_entrenched() != Some(true) {
             return Err(());
         }
         if core::ptr::eq(rec, founding) && founders_of(get, &obj) != n {
@@ -1444,7 +1462,8 @@ fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<Sc<'a,
     if !founding(o) {
         // an admission carrying `role: founder` (a family's one-row founder admission) seats the founder role too; a
         // founders' amendment of an infrastructure record (scope `record`) seats its keys as founders
-        if let Some(role) = o.role().filter(|x| x.as_ref() == "founder") {
+        // (only on a counted row: an own or uncounted offer's role seats nothing)
+        if let Some(role) = o.role().filter(|x| x.as_ref() == "founder" && o.conf() == Some(Conf::Group)) {
             match own.as_ref() {
                 "member" => return alloc::vec![Sc::Row(own), Sc::Row(role)],
                 "record" => return alloc::vec![Sc::Row(role)],
@@ -1714,7 +1733,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         // a moderator's lone removal is an act under its `moderate` standing, live only while the end rule
         // says it is in force
         let local = MembersAt::<R>::default();
-        let dropped = match drop {
+        let mut dropped = match drop {
             Some(d) => d.clone(),
             None => out_of_force(c, law, spec, own, &by, &unseats, cache.unwrap_or(&local)),
         };
@@ -1723,6 +1742,16 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         } else {
             unseats.into_iter().filter(|(u, _)| !dropped.contains(g.row(*u).id())).collect()
         };
+        // CC 2.7.7 rule 5: counted removals that remove each other's voices concurrently are contested, and neither
+        // is in force (a voice concurrent with its own removal is no voice). Judged over the whole set, and carried
+        // with the lone removals out of force into a reading of one line of it (the tips, the fold)
+        let contested = contested_out(c, law, spec, &unseats);
+        let unseats: Vec<(usize, Option<ObjOf<R>>)> = if contested.is_empty() {
+            unseats
+        } else {
+            unseats.into_iter().filter(|(u, _)| !contested.contains(g.row(*u).id())).collect()
+        };
+        dropped.extend(contested);
         // a removal from the roster: of a member's seat, or of any seat the law names the roster's own
         let member = |s: Option<&R::Word>| {
             s.is_some_and(|x| x.as_ref() == "member" || law.roster_seats.iter().any(|r| r == x.as_ref()))
@@ -3081,6 +3110,76 @@ pub fn met_wide(policy: Option<Policy>, y: u128, n: u128, declared: Option<u128>
     }
 }
 
+/// The counted removals among `unseats` that are out of force as contested (CC 2.7.7 rule 5: "Two cuts by keys of equal
+/// standing that undo each other stay contested. A voice that the other cannot remove settles them"; CC 2.6.1.9,
+/// 2.6.1.11). A voice of a counted removal `u` is no voice where another counted removal over the same group,
+/// concurrent with `u` and in force, removes it; `u` is in force only if its count is still met without those voices.
+/// Read as the well-founded fixed point: two removals that each need a voice the other removes are both out of force
+/// (the roster stays as it was); one that needs nothing the other removes stands, and the other falls. It is the end
+/// rule (a removed key's voice counts only where its removal is in that row's past) read for counted rows.
+fn contested_out<'a, R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'a, R>,
+    law: &SeatLaw,
+    spec: &S,
+    unseats: &[(usize, Option<ObjOf<R>>)],
+) -> BTreeSet<R::Id> {
+    let g = &c.g;
+    // ruled for a family and an infrastructure community (the founders' counts); a community's and a self roster's
+    // counted removals keep the cut's reading until the Constitution rules there
+    let get = |i: &R::Id| g.idx(i).map(|j| g.row(j));
+    let grp: Vec<usize> = unseats
+        .iter()
+        .map(|(u, _)| *u)
+        .filter(|&u| g.row(u).conf() == Some(Conf::Group))
+        .filter(|&u| {
+            g.row(u).obj().is_some_and(|o| {
+                matches!(kind_of(law, &get, &o), Some(CommunityKind::Family | CommunityKind::Infrastructure))
+            })
+        })
+        .collect();
+    if grp.len() < 2 {
+        return BTreeSet::new();
+    }
+    let past_of = |u: usize| -> Vec<usize> { c.cs().iter().copied().filter(|&q| g.in_past(q, u)).collect() };
+    let mut threats: BTreeMap<usize, Vec<(usize, BTreeSet<R::Key>)>> = BTreeMap::new();
+    for &u in &grp {
+        let ur = g.row(u);
+        let anc = past_of(u);
+        let vs = voices(ur, &Past::new(g, u, &anc));
+        let t: Vec<(usize, BTreeSet<R::Key>)> = grp
+            .iter()
+            .copied()
+            .filter(|&u2| u2 != u && g.row(u2).obj() == ur.obj() && !g.in_past(u, u2) && !g.in_past(u2, u))
+            .map(|u2| (u2, g.row(u2).to().iter().filter(|k| vs.contains(*k)).cloned().collect::<BTreeSet<_>>()))
+            .filter(|(_, ks)| !ks.is_empty())
+            .collect();
+        if !t.is_empty() {
+            threats.insert(u, t);
+        }
+    }
+    if threats.is_empty() {
+        return BTreeSet::new();
+    }
+    let holds = |u: usize, live: &BTreeSet<usize>| -> bool {
+        let Some(t) = threats.get(&u) else { return true };
+        let void: BTreeSet<R::Key> =
+            t.iter().filter(|(u2, _)| live.contains(u2)).flat_map(|(_, ks)| ks.iter().cloned()).collect();
+        let anc = past_of(u);
+        count_met_void(&Past::new(g, u, &anc), law, spec, None, &void)
+    };
+    let (mut d, mut pos): (BTreeSet<usize>, BTreeSet<usize>) = (BTreeSet::new(), grp.iter().copied().collect());
+    loop {
+        let d2: BTreeSet<usize> = grp.iter().copied().filter(|&u| holds(u, &pos)).collect();
+        let p2: BTreeSet<usize> = grp.iter().copied().filter(|&u| holds(u, &d)).collect();
+        if d2 == d && p2 == pos {
+            break;
+        }
+        d = d2;
+        pos = p2;
+    }
+    grp.iter().copied().filter(|u| !d.contains(u)).map(|u| g.row(u).id().clone()).collect()
+}
+
 /// The conclusion rule of the seat: was an offer, unseat, acceptance or withdrawal validly made, at the
 /// head it names. `p` gives the row's concluded ancestors; `other` concludes a row the seat does not read.
 pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
@@ -3223,7 +3322,14 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
         Obj::Row(i) => p.get(i).map_or(Vec::new(), |g| g.duties().iter().map(|d| d.as_ref()).collect()),
         Obj::Key(_) => Vec::new(),
     };
-    if !mem.is_empty() && law.is_duty(counted, &duties) {
+    // and a family's founder role ends with any leaving of the key (its member seat, or the founding row) in the
+    // row's past, whatever head that row names
+    let role = counted == "founder"
+        && match &over {
+            Obj::Row(i) => p.get(i).is_some_and(|g| g.group_kind().is_some_and(|k| k.as_ref() == "family")),
+            Obj::Key(_) => false,
+        };
+    if !mem.is_empty() && (law.is_duty(counted, &duties) || role) {
         for k in stay_ended_in_past(p, law, &over) {
             mem.remove(&k);
         }
@@ -3307,10 +3413,21 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
     spec: &S,
     cache: Option<&MembersAt<R>>,
 ) -> bool {
+    count_met_void(p, law, spec, cache, &BTreeSet::new())
+}
+
+/// [`count_met`] with the voices `void` taken out (a concurrent counted removal's: [`contested_out`]).
+fn count_met_void<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    cache: Option<&MembersAt<R>>,
+    void: &BTreeSet<R::Key>,
+) -> bool {
     // the count reads the policy in force (the acts table, the room's protocol), never the stated one; policies the
     // table joins by `&` are each met (a change of the record: the protocol in force and the standing default)
     let Ok(fs) = policy_in_force(law, p, p.row()) else { return false };
-    !fs.is_empty() && fs.iter().all(|f| count_under(p, law, spec, cache, f))
+    !fs.is_empty() && fs.iter().all(|f| count_under(p, law, spec, cache, f, void))
 }
 
 /// [`count_met`]'s count under one policy in force `f`.
@@ -3320,6 +3437,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     spec: &S,
     cache: Option<&MembersAt<R>>,
     f: &InForce<'_, R>,
+    void: &BTreeSet<R::Key>,
 ) -> bool {
     let r = p.row();
     let is_offer = r.seat_kind() == SeatKind::Offer;
@@ -3338,6 +3456,52 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     }
     let mem = count_members_with(p, law, spec, cache);
     if let Some((m, _)) = f.infra {
+        // CC 2.7.8's wait for founders' amendments: two concurrent ones are concurrent versions of the record. Until a
+        // version names both (and restates the word for the founders it leaves), no founders' count concludes over a
+        // past holding both; that version is itself a founders' amendment, counted at the present M over the
+        // founders common to the two (the founders at its heads) and signed by every key the two seated
+        let amends: Vec<&R> = p.rows().filter(|q| is_amendment(*q, &obj)).collect();
+        let seating: Vec<&R> = amends
+            .iter()
+            .copied()
+            .filter(|q| q.role().is_some_and(|x| x.as_ref() == "founder") && !q.to().is_empty())
+            .collect();
+        let mut pair_keys: BTreeSet<R::Key> = BTreeSet::new();
+        for (i, a) in seating.iter().enumerate() {
+            for b in &seating[i + 1..] {
+                let (ai, bi) = (a.id(), b.id());
+                if p.past(ai, bi) || p.past(bi, ai) || amends.iter().any(|q| p.past(ai, q.id()) && p.past(bi, q.id())) {
+                    continue;
+                }
+                pair_keys.extend(a.to().iter().cloned());
+                pair_keys.extend(b.to().iter().cloned());
+            }
+        }
+        if !pair_keys.is_empty() {
+            if !r.scope().is_some_and(|s| s.as_ref() == "record") {
+                return false;
+            }
+            let v = voices(r, p);
+            if !pair_keys.iter().all(|k| v.contains(k)) {
+                return false;
+            }
+            let common: BTreeSet<R::Key> = mem.iter().filter(|k| !pair_keys.contains(*k)).cloned().collect();
+            let union: BTreeSet<R::Key> = common.iter().chain(pair_keys.iter()).cloned().collect();
+            let new_r: Vec<&R::Key> =
+                if is_offer { r.to().iter().filter(|k| !union.contains(*k)).collect() } else { Vec::new() };
+            let Some(RoomProtocol::Quorum(m2, n2)) =
+                r.consensus_protocol().and_then(|w| RoomProtocol::parse_in(w.as_ref(), true))
+            else {
+                return false;
+            };
+            if usize::try_from(n2) != Ok(union.len() + new_r.len()) || !usize::try_from(m2).is_ok_and(|m2| m2 >= m) {
+                return false;
+            }
+            if !new_r.iter().all(|k| v.contains(*k)) {
+                return false;
+            }
+            return v.iter().filter(|k| common.contains(*k) && !void.contains(*k)).count() >= m;
+        }
         // stalled (fewer than M + 1 active founders): the founders' count admits and removes nothing
         if !r.scope().is_some_and(|s| s.as_ref() == "record") && mem.len() < m + 1 {
             return false;
@@ -3375,11 +3539,9 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         }
     }
     // a family under founder_only: a removal takes an active founder other than the one it names
-    let v: BTreeSet<R::Key> = if f.exclude_target {
-        voices(r, p).into_iter().filter(|k| !r.to().contains(k)).collect()
-    } else {
-        voices(r, p)
-    };
+    // voices voided by a concurrent counted removal ([`contested_out`]) are none
+    let v: BTreeSet<R::Key> =
+        voices(r, p).into_iter().filter(|k| !void.contains(k) && !(f.exclude_target && r.to().contains(k))).collect();
     // a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
     if f.no_self_removal && v.iter().all(|k| r.to().contains(k)) {
         return false;
@@ -3469,6 +3631,12 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                 Some(Conf::Own) => {
                     if obj == Obj::Row(r.id().clone()) {
                         return is_offer; // a founding row is its own object
+                    }
+                    // over infrastructure a founder seat comes only by a founders' amendment: an own offer seats none
+                    if r.scope().is_some_and(|s| s.as_ref() == "founder")
+                        && kind_of(law, &|i| p.get(i), &obj) == Some(CommunityKind::Infrastructure)
+                    {
+                        return false;
                     }
                     if !is_offer && founding_many(&by, &obj) {
                         return false; // among several founding keys, ending a seat takes the count

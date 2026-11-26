@@ -67,6 +67,11 @@ Planted breaks, each of which must change a case's answer:
     self_removal_as_leave         a removal naming only its own signer, on that signature alone, concludes (F3)
     role_unread                   an admission's `role: founder` is not read: the one-row founder admission seats no founder
     role_outlives_stay            a founder role conferred after founding outlives the member's stay
+    contested_both_out            counted removals that remove each other's voices concurrently are both in force
+    founder_role_survives_leave   a family founder's leaving leaves its role in a row naming an older head (FA4b)
+    role_on_own_offer             `role: founder` is read on an own or uncounted offer, or outside a family
+    entrenched_weights_free       an entrenched weighted record's weights and threshold may be restated (E1)
+    concurrent_amendments_free    concurrent founders' amendments do not freeze the founders' count (L1)
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
@@ -249,6 +254,8 @@ GU = dict(GM4, consensus_protocol="unanimous")
 GF = ST.offer("g", "A", ("A", "B", "C"), "founder", "@", "self", cosigners=("B", "C"), consensus_protocol="founder_only")
 GW = dict(GM4, consensus_protocol="weighted:stake", need=5, weights=(("A", 3), ("B", 2), ("C", 1), ("D", 1)))
 GO = dict(GM4, consensus_protocol="open:self_admit")
+GWE = dict(GW, consensus_protocol_entrenched=True)
+W_NEW = (("A", 3), ("B", 1), ("C", 1), ("D", 1))
 GO3 = ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", "C"), consensus_protocol="open:self_admit")
 GO2 = ST.offer("g", "A", ("A", "B"), "member", "@", "self", cosigners=("B",), consensus_protocol="open:self_admit")
 GO1 = ST.offer("g", "A", ("A",), "member", "@", "self", consensus_protocol="open:self_admit")
@@ -272,6 +279,8 @@ GI9 = ST.offer("g", "f1", tuple("f%d" % i for i in range(1, 10)), "founder", "@"
                cosigners=tuple("f%d" % i for i in range(2, 10)), cohort_subkind="infrastructure",
                consensus_protocol="quorum:5/9", consensus_protocol_entrenched=True)                  # nine founders
 GIU = {k: v for k, v in GI.items() if k != "consensus_protocol_entrenched"}                         # not entrenched
+# L1: two concurrent founders' amendments over four founders (3/4), and the version that reconciles them
+L1 = None   # set below, once GI4 is built
 # the growth 2/3 -> 3/4 -> 3/5 -> 4/6, each amendment counted at the previous M
 GROW = [GI, IAM("quorum:3/4", i="a4", seat=("f4",)),
         IAM("quorum:3/5", i="a5", heads=("a4",), cosigners=("f2", "f3"), seat=("f5",)),
@@ -287,8 +296,13 @@ RECOVER = lambda heads=("g",): grp("rv", "offer", "f4", "founder", None, heads=h
 GI4 = ST.offer("g", "f1", ("f1", "f2", "f3", "f4"), "founder", "@", "self", cosigners=("f2", "f3", "f4"),
                cohort_subkind="infrastructure", consensus_protocol="quorum:3/4",
                consensus_protocol_entrenched=True)                                                   # four founders
+L1 = [GI4, IAM("quorum:3/5", i="a5", cosigners=("f2", "f3"), seat=("f5",)),
+      IAM("quorum:3/5", i="a6", signer="f2", cosigners=("f3", "f4"), seat=("f6",))]
+L1X1 = grp("x1", "unseat", "f1", "founder", None, heads=("a5", "a6"), signer="f4", cosigners=("f5", "f6"), counted="founder")
+L1X2 = grp("x2", "unseat", "f4", "founder", None, heads=("a5", "a6"), signer="f1", cosigners=("f2", "f3"), counted="founder")
+L1RC = IAM("quorum:4/6", i="rc", heads=("a5", "a6"), cosigners=("f2", "f3", "f5", "f6"))
 RM_A = lambda heads: grp("x", "unseat", "D", "member", "community_remove", heads=heads, cosigners=("B",))   # A and B
-CONTESTED = (False, False)        # the contested pair's answer, stated: see TIPS
+CONTESTED = (True, True)          # the contested pair: neither removal in force, both stay (CC 2.7.7 rule 5)
 CONCLUDE = [
     ("an admission stating accord_halt (one voice) is no admission's policy: with the table it concludes nothing",
      [GM4, grp("r", "offer", "E", "member", "accord_halt", cosigners=("E",))], "r", False, True),
@@ -362,6 +376,23 @@ CONCLUDE = [
      GROW + [ST.withdraw("w6", "f6", "a6", ("a6",)), INODE(("f1", "f2", "f3"), heads=("w6",))], "r", False, False),
     ("and four do", GROW + [ST.withdraw("w6", "f6", "a6", ("a6",)), INODE(("f1", "f2", "f3", "f4"), heads=("w6",))], "r",
      True, False),
+    ("M is never lowered, stalled or live (L5): of five (3/5), f1, f2, f3 do not change the record to quorum:2/3",
+     [GI5, IAM("quorum:2/3", cosigners=("f2", "f3"))], "am", False, False),
+    ("nor after two leave and the room is stalled",
+     [GI5, W4, ST.withdraw("w5", "f5", "g", ("w4",)), IAM("quorum:2/3", heads=("w5",), cosigners=("f2", "f3"))], "am",
+     False, False),
+    ("a lawful removal may leave the room stalled (S3): of four (3/4), f1, f2, f3 remove f4",
+     [GI4, FRMF("f4", ("f1", "f2", "f3"))], "x", True, False),
+    ("and then the three seat no node", [GI4, FRMF("f4", ("f1", "f2", "f3")), INODE(("f1", "f2", "f3"), heads=("x",))], "r",
+     False, False),
+    ("concurrent founders' amendments (L1): of four (3/4), f1, f2, f3 seat f5 while f2, f3, f4 seat f6, each restating "
+     "3/5; over both, no founders' count concludes: f4, f5, f6 do not remove f1", L1 + [L1X1], "x1", False, False),
+    ("nor f1, f2, f3 remove f4", L1 + [L1X2], "x2", False, False),
+    ("the reconciling version names both, signed by f5 and f6, restating 4/6, counted at 3 over the common four",
+     L1 + [L1RC], "rc", True, False),
+    ("and missing f6's signature it concludes nothing", L1 + [dict(L1RC, cosigners=("f2", "f3", "f5"))], "rc", False, False),
+    ("after it, a removal at the new M (4) concludes: f1, f2, f3, f5 remove f6",
+     L1 + [L1RC, FRMF("f6", ("f1", "f2", "f3", "f5"), heads=("rc",))], "x", True, False),
     ("M is at least two: a room founded under quorum:1/1 does not act", [GI1, INODE(("f1",))], "r", False, False),
     ("an infrastructure record must be entrenched: a founding without the flag concludes nothing",
      [GIU, INODE(("f1", "f2"))], "r", False, False),
@@ -491,6 +522,11 @@ CONCLUDE = [
     ("a row's own weights and threshold are not read: D stating weight 9 and need 1 does not admit E",
      [GW, grp("r", "offer", "E", "member", "cosigned_act", signer="D", cosigners=("E",), need=1, weights=(("D", 9),))], "r",
      False, False),
+    ("under weighted, the weights and threshold are the protocol: on an entrenched record, restating them concludes "
+     "nothing (E1)", [GWE, REC("am", "weighted:stake", cosigners=("B", "C"), need=4, weights=W_NEW,
+                               consensus_protocol_entrenched=True)], "am", False, False),
+    ("not entrenched, the restatement is a protocol change counted under the weights in force (A, B, C: six of five)",
+     [GW, REC("am", "weighted:stake", cosigners=("B", "C"), need=4, weights=W_NEW)], "am", True, False),
     ("a weighted record that weighs one key twice states no weights: A and B admit nobody",
      [dict(GW, weights=(("A", 3), ("A", 2), ("B", 2), ("C", 1), ("D", 1))),
       grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "E"))], "r", False, False),
@@ -517,6 +553,10 @@ CONCLUDE = [
      False, False),
     ("every other amendment concludes under the protocol: a rename", [FAME, FREC("am", None, name="the Smiths")], "am", True, False),
     ("and admission is unaffected", [FAME, FADM("r", "D")], "r", True, False),
+    ("a founder's leaving ends its role in a row with the leaving in its past, whatever head it names (FA4b)",
+     [FAM2, ST.withdraw("lv", "B", "g", ("g",)), dict(FADM("r", "D", signer="B"), names=("g", "lv"))], "r", False, False),
+    ("a role outside a family is read nowhere: a community's admission carrying role founder concludes nothing",
+     [GM4, grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "C", "E"), role="founder")], "r", False, True),
     ("a resigned founder holds no authority: after A's resignation A does not admit D",
      [FAM, ST.withdraw("wa", "A", "g", ("g",)), FADM("r", "D", heads=("wa",))], "r", False, False),
     ("with the last founder gone nothing concludes: B and C (members) do not admit D under founder_only",
@@ -618,8 +658,23 @@ TIPS = [
      "`founder`, and f3 holds no seat there", [GI, grp("x", "unseat", "f3", "founder", None, signer="f1", cosigners=("f2",),
                                                     counted="founder")],
      [("f3", "founder", False), ("f3", "member", False), ("f1", "founder", True)]),
-    ("two founders removing each other concurrently (CC 2.7.7 rule 5, the contested pair)",
+    ("two founders removing each other concurrently (CC 2.7.7 rule 5, the contested pair): neither is in force, and "
+     "both stay; a stuck family is not reachable by two members acting in good faith at the same moment",
      [FAM2, FREM("xa", "A", signer="B"), FREM("xb", "B")], [("A", "member", CONTESTED[0]), ("B", "member", CONTESTED[1])]),
+    ("two founders demoting each other concurrently: both stay founders (FA5)",
+     [FAM2, FREM("da", "B", scope="founder"), FREM("db", "A", signer="B", scope="founder")],
+     [("A", "founder", True), ("B", "founder", True)]),
+    ("an infrastructure pair (S4): of four (3/4), f1, f2, f3 remove f4 while f1, f2, f4 remove f3; neither is in force",
+     [GI4, FRMF("f4", ("f1", "f2", "f3")), dict(FRMF("f3", ("f1", "f2", "f4")), id="x2")],
+     [("f3", "founder", True), ("f4", "founder", True)]),
+    ("the one-sided variant is no pair: of five (3/5), X (f1, f2, f3) removes f4 and Y (f1, f2, f5) removes f3; Y needs "
+     "nothing X removes and stands, X loses f3's voice and falls",
+     [GI5, FRMF("f4", ("f1", "f2", "f3")), dict(FRMF("f3", ("f1", "f2", "f5")), id="x2")],
+     [("f3", "founder", False), ("f4", "founder", True)]),
+    ("a role on an own offer seats nothing: B's own offer of member to X carrying role founder (FA1b)",
+     [FAM, ST.offer("o", "B", "X", "member", OBJ, "self", ("g",), cosigners=("X",), role="founder")], [("X", "founder", False)]),
+    ("over infrastructure an own offer of a founder seat seats nothing (L6; P1-3)",
+     [GI, ST.offer("o", "f1", "X", "founder", OBJ, "self", ("g",), cosigners=("X",))], [("X", "founder", False)]),
     ("a node's seat over an infrastructure community stands on the founders' count alone, by scope and kind",
      [GI, grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2",), counted="founder")], [("n1", "node", True)]),
     ("every other seat needs the seated key's own consent: a flag `consent` on a counted admission waives nothing",
@@ -696,8 +751,13 @@ PENDING = [
      "seat F under it, and F alone does not remove C", _LINE, [(k, "member", k in "CDEG") for k in "ABCDEFG"]),
     ("A3: one founder's own offer seats no key in a room of several founders",
      [GM4, ST.offer("o", "A", "X", "member", OBJ, "self", ("g",), cosigners=("X",))], [("X", "member", False)]),
-    ("P1-3: one founder's own offer of `founder` seats no key in an infrastructure community (A3's class)",
-     [GI, ST.offer("o", "f1", "X", "founder", OBJ, "self", ("g",), cosigners=("X",))], [("X", "founder", False)]),
+    ("the settling count (S4): a removal written forward naming both contested rows as its heads, f1, f2, f3 removing "
+     "f4, concludes (neither earlier row in force there): needs the heads' reading of a past holding both",
+     [GI4, FRMF("f4", ("f1", "f2", "f3")), dict(FRMF("f3", ("f1", "f2", "f4")), id="x2"),
+      dict(FRMF("f4", ("f1", "f2", "f3"), heads=("x", "x2")), id="xs")], [("f4", "founder", False), ("f3", "founder", True)]),
+    ("FA6: a dissolution at an old head is void for a reader that acknowledged a later change (A demoted B; B "
+     "dissolves at g): the reader's line, with the head rules",
+     [FAM2, FREM("dm", "B", scope="founder"), FDIS("d", signer="B")], [("A", "member", True), ("C", "member", True)]),
 ]
 # Q4: a change of the record names the record in force as its head (N5's rows: am2 names only a row that did not
 # conclude, so it lacks am's head): the head rules' H1. (name, rows, the row asked, concludes)
@@ -718,7 +778,9 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "record_change_either_policy", "one_voice_community_protocol", "founder_only_community",
           "unstated_cosigned_blocks", "unstated_floor_unread", "founders_all_signers", "weights_twice_at_change",
           "family_founders_fixed", "family_floor_two", "family_last_founder_refused", "entrenched_amendable",
-          "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "dissolve_any_heads", "self_removal_as_leave", "role_unread", "role_outlives_stay")
+          "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "dissolve_any_heads", "self_removal_as_leave", "role_unread", "role_outlives_stay",
+          "contested_both_out", "founder_role_survives_leave", "role_on_own_offer", "entrenched_weights_free",
+          "concurrent_amendments_free")
 
 
 @contextlib.contextmanager

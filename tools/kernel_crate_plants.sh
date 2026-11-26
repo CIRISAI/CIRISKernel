@@ -185,7 +185,8 @@ plant "at tips a duty seat does not follow the folded roster" src/seat.rs '!self
 plant "the founding seat is no member seat" src/seat.rs 'let own = (o.obj() == Some(Obj::Row(o.id().clone())) && o.scope().map(|x| x.as_ref()) == Some(s)) || roster;' 'let own = roster;'
 plant "every seat over a community asks for membership" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty(sc, &declared(by, &obj))' 'community(by, &obj) && !founding(o) && !roster'
 plant "the duty-seat rule reaches duty rooms only" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty' 'duty_room(by, &obj) && !founding(o) && !roster && law.is_duty'
-plant "a duty count counts a holder whose resignation is in its past" src/seat.rs 'if !mem.is_empty() && law.is_duty(counted, &duties) {' 'if false {'
+plant "a duty count counts a holder whose resignation is in its past" src/seat.rs 'if !mem.is_empty() && (law.is_duty(counted, &duties) || role) {' 'if false {'
+plant "a family founder's role survives its leaving"     src/seat.rs 'if !mem.is_empty() && (law.is_duty(counted, &duties) || role) {' 'if !mem.is_empty() && law.is_duty(counted, &duties) {'
 plant "a holder admitted again stays out of the duty count" src/seat.rs 'if !seated_after(p, obj, k, w.id(), |m| roster_offer(law, m)) {' 'if true {'
 plant "a founding record's duty holders unread" src/seat.rs '    if o.duty_holders().is_empty() {
         return alloc::vec![Sc::Row(own)];' '    if true {
@@ -321,7 +322,7 @@ plant "an act's body the row's"                          src/seat.rs 'if r.over(
 plant 'an infrastructure community counted over its members' src/seat.rs '        if counted != "founder" {' '        if counted != "founder" && counted != "member" {'
 plant "an infrastructure community's M recomputed from the founders" src/seat.rs 'need: f.need };' 'need: f.infra.map_or(f.need, |_| Some(mem.len() / 2 + 1)) };'
 plant "an infrastructure founding word's N free"        src/seat.rs 'if core::ptr::eq(rec, founding) && founders_of(get, &obj) != n {' 'if false {'
-plant 'an infrastructure record not entrenched'          src/seat.rs '        if !founding.protocol_entrenched() {' '        if false {'
+plant 'an infrastructure record not entrenched'          src/seat.rs '        if founding.protocol_entrenched() != Some(true) {' '        if false {'
 plant 'an infrastructure founder seat by a plain widening' src/seat.rs '        if r.seat_kind() == SeatKind::Offer && r.scope().is_some_and(|s| s.as_ref() == "founder") {' '        if false {'
 plant "an infrastructure amendment's N free"             src/seat.rs '                    if usize::try_from(n2) != Ok(mem.len() + new.len()) {' '                    if false {'
 plant 'an infrastructure amendment lowers M'             src/seat.rs '                    if !usize::try_from(m2).is_ok_and(|m2| m2 >= m) {' '                    if false {'
@@ -331,11 +332,18 @@ plant 'a stalled infrastructure room admits and removes' src/seat.rs '&& mem.len
 # retired: "an infrastructure room's N caps nothing" (the cap is gone: founder seats come by amendment)
 plant 'a new founder need not sign its amendment'       src/seat.rs '            if !new.iter().all(|k| v.contains(*k)) {' '            if false {'
 # retired: 'a recovery widening counted as a widening' (no founder widening concludes now: dead)
-plant "an admission's role unread"                        src/seat.rs '        if let Some(role) = o.role().filter(|x| x.as_ref() == "founder") {' '        if let Some(role) = o.role().filter(|_| false) {'
+plant "an admission's role unread"                        src/seat.rs '        if let Some(role) = o.role().filter(|x| x.as_ref() == "founder" && o.conf() == Some(Conf::Group)) {' '        if let Some(role) = o.role().filter(|_| false) {'
+plant 'a role read on an own offer'                      src/seat.rs '        if let Some(role) = o.role().filter(|x| x.as_ref() == "founder" && o.conf() == Some(Conf::Group)) {' '        if let Some(role) = o.role().filter(|x| x.as_ref() == "founder") {'
+plant 'a role read outside a family'                     src/seat.rs '                if r.role().is_some()
+                    && !matches!(' '                if false
+                    && !matches!('
+plant 'an own offer of an infrastructure founder seat'   src/seat.rs '                    if r.scope().is_some_and(|s| s.as_ref() == "founder")
+                        && kind_of(' '                    if false
+                        && kind_of('
 plant 'a conferred founder role outlives the stay'       src/seat.rs '    sc == "founder"
         && !founding(o)' '    false
         && !founding(o)'
-plant "a change of the record meets either joined policy" src/seat.rs '!fs.is_empty() && fs.iter().all(|f| count_under(p, law, spec, cache, f))' '!fs.is_empty() && fs.iter().any(|f| count_under(p, law, spec, cache, f))'
+plant "a change of the record meets either joined policy" src/seat.rs '!fs.is_empty() && fs.iter().all(|f| count_under(p, law, spec, cache, f, void))' '!fs.is_empty() && fs.iter().any(|f| count_under(p, law, spec, cache, f, void))'
 plant 'the cosigned_act half blocks where the protocol states no rule' src/seat.rs '    let dropped = unstated().is_some();' '    let dropped = unstated().is_some() && false;'
 plant 'a policy governing alone takes no floor'          src/seat.rs '    if f.floor > 0 && v.iter().filter(|k| mem.contains(*k)).count() < f.floor {' '    if false {'
 plant "the founders all the founding row's signers"     src/seat.rs '.filter(|k| g.to().contains(*k))' '.filter(|_| true)'
@@ -343,19 +351,24 @@ plant 'a change may weigh one key twice'                 src/seat.rs 'if weights
 plant 'a family takes the two-voice floor'               src/seat.rs '        RoomProtocol::parse(word.as_ref()).ok_or(())?
     } else {' '        community_protocol(word.as_ref(), rec.need(), rec.weights()).ok_or(())?
     } else {'
-plant 'an entrenched protocol amendable'                 src/seat.rs '    if !rec.protocol_entrenched() {
-        return true;' '    if !rec.protocol_entrenched() || true {
+plant 'an entrenched protocol amendable'                 src/seat.rs '    if rec.protocol_entrenched() != Some(true) {
+        return true;' '    if true {
         return true;'
-plant 'an entrenched record refuses every amendment'     src/seat.rs '        None => true,
-        Some(w) => rec.consensus_protocol()' '        None => false,
-        Some(w) => rec.consensus_protocol()'
+plant 'an entrenched record refuses every amendment'     src/seat.rs '    let Some(w) = r.consensus_protocol() else { return r.protocol_entrenched() != Some(false) };' '    let Some(w) = r.consensus_protocol() else { return false };'
+plant "an entrenched weighted record's weights free"    src/seat.rs '    if weighted && (r.need() != rec.need() || set(r) != set(rec)) {' '    if false {'
+plant 'concurrent counted removals both in force'        src/seat.rs '    if grp.len() < 2 {
+        return BTreeSet::new();' '    if true {
+        return BTreeSet::new();'
+plant "concurrent founders' amendments free"             src/seat.rs '        if !pair_keys.is_empty() {
+            if !r.scope()' '        if false {
+            if !r.scope()'
 plant 'a dissolution leaves the seats'                   src/seat.rs '            if !gone.is_empty() && o.obj().is_some_and(|ob| gone.contains(&ob)) {' '            if false {'
 plant 'a row over a dissolved group concludes'           src/seat.rs '            if !founding(r) && r.obj().is_some_and(|o| dissolved_in(p, &o)) {' '            if false {'
 plant 'a dissolution at any heads'                       src/seat.rs '                if stale {
                     return false;' '                if stale && false {
                     return false;'
 plant 'a self-removal read as the leaving'               src/seat.rs '    if f.no_self_removal && v.iter().all(|k| r.to().contains(k)) {' '    if false {'
-plant "a family's founder_only removal by its target"    src/seat.rs '    let v: BTreeSet<R::Key> = if f.exclude_target {' '    let v: BTreeSet<R::Key> = if false {'
+plant "a family's founder_only removal by its target"    src/seat.rs '!void.contains(k) && !(f.exclude_target && r.to().contains(k))' '!void.contains(k)'
 plant 'a family with a duty map'                         src/seat.rs '        if p.get(i).ok_or(())?.duty_holders().iter().any(|(d, _)| d.as_ref() != "founder") {' '        if false {'
 plant 'a family read as a community'                     src/seat.rs '    if g.group_kind().is_some_and(|k| k.as_ref() == "family") {' '    if false {'
 plant 'a one-voice community protocol'                   src/seat.rs 'RoomProtocol::FounderOnly | RoomProtocol::Quorum(1, _) => None,' 'RoomProtocol::FounderOnly => None,'
