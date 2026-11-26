@@ -19,7 +19,7 @@ accord (holders)	the halt fuse (window.py halt cases): one holder fires, lapses 
 community (public, members are persons)	Inv_CoercedCannotRemoveHonest, with the floor of two voices under every protocol	holds with floor=2 (the table's min_count)
 community (public, members are persons)	Inv_DeclineTerminal, Inv_LeavingNotUndone (leaving = withdrawing the acceptance)	holds
 community (public, members are persons)	Inv_JoinerConsented	holds
-community (public, members are persons)	Inv_LeavingNotUndone, leaving read as a withdrawal of the seat	does NOT hold
+community (public, members are persons)	Inv_LeavingNotUndone, leaving read as a withdrawal of the seat	holds
 community (public, members are persons)	Inv_LeavingNotUndone, leaving read as a withdrawal of the seat, with the stated parameter	holds with spent (CC 3.1.3.2 admission (5): 'P has not already seated K')
 community (public, members are persons)	Inv_NoSelfAdmission	holds
 community (public, members are persons)	Inv_ResignationEnabled	holds
@@ -40,7 +40,7 @@ community (public, members are persons)	where there are two holders, no duty sea
 community, with the stated parameter spent on (does it break anything else?)	Inv_CoercedCannotRemoveHonest, with the floor of two voices under every protocol	holds with floor=2 (the table's min_count)
 community, with the stated parameter spent on (does it break anything else?)	Inv_DeclineTerminal, Inv_LeavingNotUndone (leaving = withdrawing the acceptance)	holds
 community, with the stated parameter spent on (does it break anything else?)	Inv_JoinerConsented	holds
-community, with the stated parameter spent on (does it break anything else?)	Inv_LeavingNotUndone, leaving read as a withdrawal of the seat	does NOT hold
+community, with the stated parameter spent on (does it break anything else?)	Inv_LeavingNotUndone, leaving read as a withdrawal of the seat	holds
 community, with the stated parameter spent on (does it break anything else?)	Inv_LeavingNotUndone, leaving read as a withdrawal of the seat, with the stated parameter	holds with spent (CC 3.1.3.2 admission (5): 'P has not already seated K')
 community, with the stated parameter spent on (does it break anything else?)	Inv_NoSelfAdmission	holds
 community, with the stated parameter spent on (does it break anything else?)	Inv_ResignationEnabled	holds
@@ -56,7 +56,7 @@ infrastructure community (operators' keys)	roster_fork M0 (tips wait): quorum2 o
 private room (members are voices)	Inv_CoercedCannotRemoveHonest, with the floor of two voices under every protocol	holds with floor=2 (the table's min_count)
 private room (members are voices)	Inv_DeclineTerminal, Inv_LeavingNotUndone (leaving = withdrawing the acceptance)	holds
 private room (members are voices)	Inv_JoinerConsented	holds
-private room (members are voices)	Inv_LeavingNotUndone, leaving read as a withdrawal of the seat	does NOT hold
+private room (members are voices)	Inv_LeavingNotUndone, leaving read as a withdrawal of the seat	holds
 private room (members are voices)	Inv_LeavingNotUndone, leaving read as a withdrawal of the seat, with the stated parameter	holds with spent (CC 3.1.3.2 admission (5): 'P has not already seated K')
 private room (members are voices)	Inv_NoSelfAdmission	holds
 private room (members are voices)	Inv_ResignationEnabled	holds

@@ -388,7 +388,8 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
             if w.get("scope") is not None:
                 if "window_scope_roster_only" in MUT:
                     if w["scope"] not in ST.ROSTER_SEATS: continue
-                elif not any(g == p["obj"] for _, _, g in ST.stay_ends([w], S.by)): continue
+                elif not any(g == p["obj"] for _, _, g in ST.stay_ends(
+                        [w], S.by, lambda a, w: bool(S.C.get(a["id"])) and a["id"] in S.anc[w["id"]])): continue
             o = S.by.get(w["target"])
             if o is not None and o["kind"] == "offer" and o["obj"] == p["obj"]:
                 gone.append((frozenset({w["signer"]}) if w["signer"] in o["to"] else frozenset(o["to"]), w))

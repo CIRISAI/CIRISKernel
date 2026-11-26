@@ -168,6 +168,8 @@ def instances(protocol="majority", private=False):
 # ---- rows ---------------------------------------------------------------------------------------------------
 def found(spec, keys, scope=None, **kw):
     keys = tuple(keys)
+    if spec.name == "infra":                   # CC 3.2: an infrastructure community's founding record says so
+        kw.setdefault("cohort_subkind", "infrastructure")
     return ST.offer(spec.obj, keys[0], keys, scope or spec.scope, "@", "self", cosigners=keys[1:], **kw)
 
 

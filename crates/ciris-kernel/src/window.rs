@@ -644,7 +644,9 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
         // the stay; one naming `member` of an offer that seats no member ends nothing
         if wr.scope().is_some() {
             let by = by.get_or_insert_with(|| g.rows().iter().map(|r| (r.id(), *r)).collect());
-            if seat::stay_end(law, by, wr).as_ref() != Some(&obj) {
+            if seat::stay_end(law, by, wr, &|a| c.concluded_id(a.id()) && g.id_in_past(a.id(), wi)).as_ref()
+                != Some(&obj)
+            {
                 continue;
             }
         }
@@ -769,6 +771,7 @@ mod tests {
         obj: Option<Obj<u32, u32>>,
         conf: Option<Conf>,
         head: Vec<u32>,
+        policy: Option<String>,
         of: Option<u32>,
         win: Option<WinKind>,
         window: Option<String>,
@@ -791,6 +794,7 @@ mod tests {
                 obj: None,
                 conf: None,
                 head: vec![],
+                policy: None,
                 of: None,
                 win: None,
                 window: None,
@@ -841,6 +845,9 @@ mod tests {
         }
         fn head(&self) -> &[u32] {
             &self.head
+        }
+        fn policy(&self) -> Option<&String> {
+            self.policy.as_ref()
         }
         fn of(&self) -> Option<&u32> {
             self.of.as_ref()
@@ -929,7 +936,10 @@ mod tests {
     /// the same whether the scopes the table reads are walked at once or each when first asked.
     #[test]
     fn prefilled_scopes_answer_as_scopes_read_when_asked() {
-        let law = SeatLaw::default();
+        // a roster seat over a group is placed by the founding record or a counted row: the members are seated by
+        // the founding record, and the agent's key by the room's counted admission
+        let mut law = SeatLaw::default();
+        law.policy.insert("community_invite".into(), Policy::AtLeast(2, 3));
         let mut g = Lcg(3);
         let mut h = Lcg(17);
         let (mut cases, mut bad, mut landed) = (0usize, 0usize, 0usize);
@@ -946,6 +956,13 @@ mod tests {
             for k in 1..=n {
                 for sc in SCOPES {
                     if (sc == "member" && k == 1) || g.next(3) == 0 {
+                        continue;
+                    }
+                    if sc == "member" {
+                        // the founding record lists and is signed by the member (the draw order is as before)
+                        rows[0].to.push(k);
+                        rows[0].cosigners.push(k);
+                        id += 1;
                         continue;
                     }
                     let mut o = W::new(id, vec![0], 1);
@@ -966,10 +983,14 @@ mod tests {
                 let mut o = W::new(id, vec![0], 1);
                 o.kind = SeatKind::Offer;
                 o.to = vec![n];
-                o.cosigners = vec![n];
+                // the room's counted admission: every member signs it (key 1 is the signer), and the agent's own
+                // signature is its consent
+                o.cosigners = rows[0].to.iter().copied().filter(|&k| k != 1).chain([n]).collect();
                 o.scope = Some(AGENT.into());
                 o.obj = Some(Obj::Row(0));
-                o.conf = Some(Conf::Own);
+                o.conf = Some(Conf::Group);
+                o.head = vec![0];
+                o.policy = Some("community_invite".into());
                 rows.push(o);
             }
             let v = W::new(100, rows.iter().map(|r| r.id).collect(), 1);

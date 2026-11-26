@@ -29,6 +29,13 @@ public, and seats identity keys.
                 standing reads a binding"). A residual: the kernel counts voices as presented, and which keys are
                 one person's is the binding, the caller's to collapse.
 
+    the review  (derived from CC 3.1.3.2, CC 3.2 and CC 4.5.13 on #224) an ended stay bars every roster seat of the key
+                in a private room (F1); a scope holding `member` is a roster seat (F2); seats are compared by what they
+                hold (F3); a key's own end voids its own consents that do not have it in their past (F4); a decline
+                is no end of a stay (F5), the consent read from the withdrawal's own concluded past (N1, N2); a roster seat over a community needs the key's own consent (RK1) and is
+                placed only by a counted row, the founding record or the key's own end (RK2); a counted row concludes
+                whole or not at all (R-a).
+
 Part 1. Cases, each a hand-written answer: which rows conclude, the roster (members and agents), and standings asked
 by name; every case is read in arrival orders. Each names the ledger row it closes.
 Part 2. OPEN: rows the text does not decide, with the answer as built and the candidates. None is left: each was
@@ -42,6 +49,22 @@ Part 3. Planted breaks (seat.MUT), each of which must change a case's answer:
     own_end_unread     a key's own end voids none of its concurrent voices: a re-admission racing a resignation seats
     own_end_any_seat   a key's own end of one seat voids its concurrent voices on its other roster seats too
     stay_one_row       a resignation ends the row it names only: a second seat row keeps the key seated
+    class_by_name      seats compared by name: a founding `duty` seat and a member seat are two presences (F3)
+    decline_ends_stay  a withdrawal of an offer the key never consented to is an end of its stay (F5)
+    earlier_consent_kept  a consent before the key's own end survives it (F4)
+    end_scope_bound    an end bars the same scope only: a removed member is admitted as an agent (F1)
+    ended_unread       an unseat of a seat the key never held is read as an end
+    (roster_by_name, retired: since the act-to-policy binding, a counted row of a scope that holds `member` but is
+    no roster seat, `founder` included, is no act over a community and concludes nothing, so F2's routing has no
+    row left to show; the routing stays, and the F2 case states the binding's answer)
+    own_roster_row     one key's own row places a roster seat over a community (RK2)
+    (retired at the merge: consent_one_any, an offer waiving the key's consent: no flag waives an acceptance in the
+    seat walk (seat.py, A6), so RK1 holds without the branch it broke; RK1 stays a case)
+    own_void_any_key   one key's end voids another key's concurrent voices
+    resigned_any_key   one key's resignation ends another key's seats in its past
+    second_row_refused a second seat row of a seated key is refused (K1)
+    batch_by_key       one barred key does not bar a batch admission (R-a)
+    consent_any_row    the consent a withdrawal ends is read from any row, not its own concluded past (N1, N2)
 
 Not here: a room that moved from private to public (no seat row carries the move; a voice seated before it stays a
 voice, and whether its end is then final is not stated); the key roster of a voice (#224's derived item "a device key
@@ -201,10 +224,10 @@ CASES += [
      "signature on the re-admission is concurrent with its own end, so the re-admission lacks its consent and seats nobody",
      OWN_ROW, PV + [WQ, rejoin("aq2", "q", ("ag",))], {"wq": T, "aq2": T}, M4 | {"AG"}, [("q", "member", F)]),
     ("private: then a row names both: q stays out", OWN_ROW,
-     PV + [WQ, rejoin("aq2", "q", ("ag",)), merge(("wq", "aq2"))], {"h": T}, M4 | {"AG"},
+     PV + [WQ, rejoin("aq2", "q", ("ag",)), merge(("aq2",), ("wq",))], {"h": T}, M4 | {"AG"},
      [("q", "member", F)]),
     ("private: and a later admission naming that row concludes nothing", OWN_ROW,
-     PV + [WQ, rejoin("aq2", "q", ("ag",)), merge(("wq", "aq2")), rejoin("aq3", "q", ("h",))],
+     PV + [WQ, rejoin("aq2", "q", ("ag",)), merge(("aq2",), ("wq",)), rejoin("aq3", "q", ("h",))],
      {"aq3": F}, M4 | {"AG"}, [("q", "member", F)]),
     ("private: q withdraws its acceptance beside a second acceptance of the same offer: the second concludes and seats "
      "nobody (omitting its own withdrawal does not dodge the end)", OWN_ROW,
@@ -213,7 +236,7 @@ CASES += [
     ("public: the same race: the rule is every room's, and q is out", OWN_ROW,
      PB + [WQ, rejoin("aq2", "q", ("ag",))], {"wq": T, "aq2": T}, M4 | {"AG"}, [("q", "member", F)]),
     ("public: and after a row naming both, a later admission of q seats it (no finality in a public room)", OWN_ROW,
-     PB + [WQ, rejoin("aq2", "q", ("ag",)), merge(("wq", "aq2")), rejoin("aq3", "q", ("h",))],
+     PB + [WQ, rejoin("aq2", "q", ("ag",)), merge(("aq2",), ("wq",)), rejoin("aq3", "q", ("h",))],
      {"aq3": T}, M4 | {"AG", "q"}, [("q", "member", T)]),
     ("private: another key's admission concurrent with q's resignation is untouched: it seats", OWN_ROW,
      PV + [WQ, rejoin("az", "z", ("ag",))], {"az": T}, M4 | {"AG", "z"}, [("z", "member", T)]),
@@ -224,6 +247,89 @@ CASES += [
      "waits on a member seat q no longer holds", OWN_ROW,
      PV + [WQ, ST.offer("cq", "m1", "q", "moderate", OBJ, "group", ("ag",), head=("ag",), policy="duty_confer",
                         counted="duty", cosigners=("m2", "m3", "q"))], {"cq": T}, M4 | {"AG"}, [("q", "moderate", F)]),
+]
+
+# ---- the review of room-keys (derived from CC 3.1.3.2 and CC 4.5.13 on CIRISConstitution#224) ----------------------
+REV = L + "review of room-keys: "
+GD = ST.found("g", "m1", ("m1", "m2", "m3", "m4"), cosigners=("m2", "m3", "m4"), scope="duty", membership="private")
+A3 = admit("a3", "m3", ("m1", "m2", "m4"), ("g",))                      # a founder of scope duty admitted as member too
+SA = ST.accept("sa", "q", None, ("ag",), scope="member", obj=OBJ)        # q's standing acceptance, before its resignation
+WQS = ST.withdraw("wq", "q", "aq", ("sa",))
+RAS = ST.offer("ra", "m1", "q", "member", OBJ, "group", ("sa",), head=("sa",), policy="community_invite",
+               cosigners=("m2", "m3", "m4"))                              # names sa, concurrent with wq; q does not cosign
+G1 = ST.found("g", "f", ("f",), membership="private")                    # a room of one
+CASES += [
+    ("F1: the room's count removes q's member seat; an admission of q as an agent concludes nothing (a room key is one "
+     "presence in one room)", REV + "F1", PV + [XQ, rejoin("ra", "q", ("xq",), "agent")], {"ra": F}, M4 | {"AG"},
+     [("q", "agent", F)]),
+    ("F1: the room's count removes the agent's key; an admission of it as a member concludes nothing", REV + "F1",
+     PV + [XA, rejoin("am", "AG", ("xa",))], {"am": F}, M4 | {"q"}, [("AG", "member", F)]),
+    ("F1: the agent's key resigns its agent seat; an admission of it as a member concludes nothing", REV + "F1",
+     PV + [ST.withdraw("wg", "AG", "ag", ("ag",)), rejoin("am", "AG", ("wg",))], {"am": F}, M4 | {"q"}, [("AG", "member", F)]),
+    ("F2: after the room's count removes q, a counted admission of q as `founder` concludes nothing (finality reads a "
+     "scope that holds `member` as a roster seat; the binding gives a founder over a community no act as well)", REV + "F2",
+     PV + [XQ, ST.offer("of", "m1", "q", "founder", OBJ, "group", ("xq",), head=("xq",), policy="community_invite",
+                        cosigners=("m2", "m3", "m4", "q"))], {"of": F}, M4 | {"AG"}, [("q", "founder", F)]),
+    ("F3: a founder of scope `duty` admitted as a member too: both are one presence (the founding duty seat holds "
+     "`member`); its withdrawal of the founding row ends both", REV + "F3", [GD, A3, ST.withdraw("w3", "m3", "g", ("a3",))],
+     {"w3": T}, {"m1", "m2", "m4"}, [("m3", "member", F), ("m3", "duty", F)]),
+    ("F3: and its withdrawal of its member row ends both too; a later admission of it concludes nothing", REV + "F3",
+     [GD, A3, ST.withdraw("w3", "m3", "a3", ("a3",)), admit("a4", "m3", ("m1", "m2", "m4"), ("w3",))], {"a4": F},
+     {"m1", "m2", "m4"}, [("m3", "member", F), ("m3", "duty", F)]),
+    ("F4: q's standing acceptance before its resignation is a consent its own end ends: a re-admission concurrent with "
+     "the resignation that names it seats nobody (private)", REV + "F4", PV + [SA, WQS, RAS], {"sa": T, "wq": T, "ra": T},
+     M4 | {"AG"}, [("q", "member", F)]),
+    ("F4: the same in a public room: nobody", REV + "F4", PB + [SA, WQS, RAS], {"ra": T}, M4 | {"AG"}, [("q", "member", F)]),
+    ("RK1: an admission waiving q's consent (`consent` `one`) concurrent with its resignation seats nobody: a roster "
+     "seat over a community needs the key's own consent under every protocol (since the binding no flag waives an "
+     "acceptance: the offer concludes as an offer and waits on q's acceptance, which q's own end voids)", REV + "RK1",
+     PV + [WQ, ST.offer("c1", "m1", "q", "member", OBJ, "group", ("ag",), head=("ag",), policy="community_invite",
+                        cosigners=("m2", "m3", "m4"), consent="one")], {"wq": T, "c1": T}, M4 | {"AG"}, [("q", "member", F)]),
+    ("F5: z declines (withdraws an offer it never accepted): no end of a stay; a later admission seats it", REV + "F5",
+     PV + [admit("oz", "z", ("m1", "m2", "m3", "m4"), ("ag",), joiner=False), ST.withdraw("wz", "z", "oz", ("oz",)),
+           admit("oz2", "z", ("m1", "m2", "m3", "m4"), ("wz",))], {"wz": T, "oz2": T}, M4 | {"AG", "q", "z"},
+     [("z", "member", T)]),
+    ("F5: a listed founding member who did not sign withdraws the founding row: no end of a stay; a counted admission "
+     "seats it", REV + "F5",
+     [ST.found("g", "m1", ("m1", "m2", "m3", "m4", "u"), cosigners=("m2", "m3", "m4"), membership="private"),
+      ST.withdraw("wu", "u", "g", ("g",)), admit("au", "u", ("m1", "m2", "m3", "m4"), ("wu",))], {"wu": T, "au": T},
+     M4 | {"u"}, [("u", "member", T)]),
+    ("RK2: a member's own row (`self`) admitting a fresh key concludes nothing: a roster seat over a community is placed "
+     "by a counted row, the founding record or the key's own end", REV + "RK2",
+     PV + [ST.offer("om", "m1", "z", "member", OBJ, "self", ("ag",), cosigners=("z",))], {"om": F}, M4 | {"AG", "q"},
+     [("z", "member", F)]),
+    ("RK2: a lone founder's own admission and own removal conclude nothing", REV + "RK2",
+     [G1, ST.offer("a7", "f", "q", "member", OBJ, "self", ("g",), cosigners=("q",)),
+      ST.unseat("x7", "f", "q", "member", OBJ, "self", ("a7",))], {"a7": F, "x7": F}, {"f"}, [("q", "member", F)]),
+    ("RK2: a room of one grows by its member's counted proposal and the newcomer's acceptance (its cosignature)",
+     REV + "RK2", [G1, ST.offer("a7", "f", "q", "member", OBJ, "group", ("g",), head=("g",), policy="community_invite",
+                                cosigners=("q",))], {"a7": T}, {"f", "q"}, [("q", "member", T)]),
+    ("R-a: a counted admission naming two keys, one of whose stays has ended, concludes nothing for either (private)",
+     REV + "R-a", PV + [XQ, ST.offer("ab", "m1", ("q", "z"), "member", OBJ, "group", ("xq",), head=("xq",),
+                                     policy="community_invite", cosigners=("m2", "m3", "m4", "q", "z"))], {"ab": F},
+     M4 | {"AG"}, [("z", "member", F), ("q", "member", F)]),
+    ("N1: m4 withdraws its standing acceptance that no offer used; an outsider's offer naming it, which concludes "
+     "nothing, does not make that a resignation: m4 keeps its seats (private)", REV + "N1",
+     PV + [ST.accept("sa", "m4", None, ("ag",), scope="member", obj=OBJ), ST.withdraw("w", "m4", "sa", ("sa",)),
+           ST.offer("xo", "X", "m4", "member", OBJ, "self", ("sa",))], {"w": T, "xo": F}, M4 | {"AG", "q"},
+     [("m4", "member", T), ("m4", "moderate", T)]),
+    ("N1: the same in a public room", REV + "N1",
+     PB + [ST.accept("sa", "m4", None, ("ag",), scope="member", obj=OBJ), ST.withdraw("w", "m4", "sa", ("sa",)),
+           ST.offer("xo", "X", "m4", "member", OBJ, "self", ("sa",))], {"xo": F}, M4 | {"AG", "q"},
+     [("m4", "member", T), ("m4", "moderate", T)]),
+    ("N2: z declines an offer, then accepts it afterwards (it seats nothing): the decline is still no end, and a later "
+     "admission seats z (private)", REV + "N2",
+     PV + [admit("oz", "z", ("m1", "m2", "m3", "m4"), ("ag",), joiner=False), ST.withdraw("wz", "z", "oz", ("oz",)),
+           ST.accept("az", "z", "oz", ("wz",)), admit("oz2", "z", ("m1", "m2", "m3", "m4"), ("az",))],
+     {"wz": T, "oz2": T}, M4 | {"AG", "q", "z"}, [("z", "member", T)]),
+    ("room of two: the founder alone cannot remove the other (a count needs two voices, and the removed member is a "
+     "voice; the old one-key route is gone, RK2), the same edge as no lift in a room of two", REV + "RK2",
+     [G1, ST.offer("a7", "f", "q", "member", OBJ, "group", ("g",), head=("g",), policy="community_invite", cosigners=("q",)),
+      ST.unseat("x7", "f", "q", "member", OBJ, "group", ("a7",), head=("a7",), policy="community_remove")],
+     {"a7": T, "x7": F}, {"f", "q"}, [("q", "member", T)]),
+    ("R-a: the same batch with no ended key seats both", REV + "R-a",
+     PV + [ST.offer("ab", "m1", ("y", "z"), "member", OBJ, "group", ("ag",), head=("ag",), policy="community_invite",
+                    cosigners=("m2", "m3", "m4", "y", "z"))], {"ab": T}, M4 | {"AG", "q", "y", "z"}, [("z", "member", T)]),
 ]
 
 # ---- OPEN: what the text does not decide. (name, ledger row, rows, {row: concludes}, roster, asks, candidates) ----
@@ -284,7 +390,9 @@ CASES += [
      TWO + [HEAD, XQ2(("m1", "m2", "k1"))], {"xq": F}, M4 | {"q", "AG", "k1", "k2"}, []),
 ]
 PLANTS = ("room_key_unread", "public_final", "lone_final", "resign_not_final", "reaccept_reseats", "own_end_unread",
-          "own_end_any_seat", "stay_one_row")
+          "own_end_any_seat", "stay_one_row", "class_by_name", "decline_ends_stay", "earlier_consent_kept",
+          "end_scope_bound", "ended_unread", "own_roster_row", "own_void_any_key",
+          "resigned_any_key", "second_row_refused", "batch_by_key", "consent_any_row")
 
 
 def read(S, case):

@@ -496,9 +496,12 @@ def check_room(spec, inst, private):
                       "an acceptance with no `of` is not spent by the widening that used it (CC 3.1.3.2 admission (5))" if b["fails"] else ""))
     with mutated(params={"spent"}):
         b2 = run(spec, lw, c2)
+    # The plant that compared this with the kernel as it is ("spent off") is retired: since a key's own end voids its
+    # own consents that do not have it in their past (derived on CIRISConstitution#224, F4), the kernel without
+    # `spent` already holds here, so no break remains to catch; the property is run with the parameter as before.
     res.append(result(inst, "Inv_LeavingNotUndone, leaving read as a withdrawal of the seat, with the stated parameter", src,
                       verdict_of(b2, param="spent (CC 3.1.3.2 admission (5): 'P has not already seated K')"), b2,
-                      "plant: spent off (the kernel as it is)", b))
+                      None, None))
 
     # C3 Inv_NoSelfAdmission
     worlds = [world("X, not a member, offers itself a seat counted over the room", [g, RS.accept(spec, "ax", "X", ("g",)), RS.add(spec, "w", ("g",), "X", ("X",), names=("ax",))])]
@@ -748,7 +751,9 @@ def check_infra(spec, inst):
     # a node's seat (scope `node`) over an infrastructure community needs no acceptance, by its scope and the kind
     node = RS.add(spec, "n1", ("I",), "node1", ("f1", "f2"), scope="node")
     aj = RS.accept(spec, "aj", "J", ("I",), scope="member")
-    # I1 a node is seated with no acceptance and never votes
+    # I1 a node is seated with no acceptance and never votes. EXPECTED TO PASS ONLY AFTER the binding's A5/A6 fix (kind_of
+    # total over founding rows: this founding row, of scope `founder` with cohort_subkind `infrastructure`, is an
+    # infrastructure community); until then kind_of reads no kind here and this case reads "does NOT hold"
     worlds = [("founders seat node1; node1 and f1 widen J", [g, node, aj, RS.add(spec, "w", ("n1",), "J", ("f1", "node1"), names=("aj",))])]
     def i1(S, rows, n):
         if "node1" not in nodes(S): return "node not seated"

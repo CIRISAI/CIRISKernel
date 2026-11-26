@@ -71,7 +71,9 @@ Planted breaks, each of which must change a case's answer:
     (retired: self_removal_as_leave, F3's self-only removal concluding: the member a removal names is no voice of it
     now (removal_counts_target), so the F3 refusal is that rule's consequence and the plant breaks nothing a case sees)
     role_unread                   an admission's `role: founder` is not read: the one-row founder admission seats no founder
-    role_outlives_stay            a founder role conferred after founding outlives the member's stay
+    (role_outlives_stay, retired at the room-keys merge: a founder role conferred after founding outliving the member's
+    stay; room-keys' F3 compares seats by what they hold, and `founder` holds `member`, so the member's end of its stay
+    ends the role by that rule too, and no case can tell the plant from the tree)
     contested_both_out            counted removals that remove each other's voices concurrently are both in force
     role_on_own_offer             `role: founder` is read on an own or uncounted offer, or outside a family
     entrenched_weights_free       an entrenched weighted record's weights and threshold may be restated (E1)
@@ -862,7 +864,7 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "record_change_either_policy", "one_voice_community_protocol", "founder_only_community",
           "unstated_cosigned_blocks", "unstated_floor_unread", "founders_all_signers", "weights_twice_at_change",
           "family_founders_fixed", "family_floor_two", "family_last_founder_refused", "entrenched_amendable",
-          "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "role_unread", "role_outlives_stay",
+          "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "role_unread",
           "contested_both_out", "role_on_own_offer", "entrenched_weights_free",
           "concurrent_amendments_free", "infra_word_restated_always", "contested_scoped_to_kinds",
           "contested_voice_everywhere", "negative_weight", "removal_counts_target", "removal_floor_unread")
