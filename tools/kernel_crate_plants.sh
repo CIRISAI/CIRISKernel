@@ -289,7 +289,7 @@ plant "C5: no election closes" src/seat/election.rs '        let seats = self.se
         if true {'
 plant "C5: a receipt counts though its seating did not stand in its past" src/seat/election.rs 'if self.standing(&here).contains(&s) {' 'if true {'
 plant "C5: concurrent receipts of different sets a say" src/seat/election.rs 'if sets.len() != 1 {' 'if sets.is_empty() {'
-plant "C5: a leaver kept in the closing base" src/seat/election.rs '                    base.remove(&k);' '                    let _ = k;'
+plant "C5: a leaver kept in the closing base" src/seat/election.rs '            base.retain(|k| !gone.contains(k));' ''
 plant "C5: a rival of a closed election stands" src/seat/election.rs 'Some(grp) => el.iter().copied().filter(|&q| self.view(q).2 == grp).collect(),' 'Some(_) => self.standing(el),'
 plant "C3, C5: any row named as an election is one" src/seat/election.rs 'if Obj::Row(e.id().clone()) == obj {' 'if true {'
 plant "an election's set holds rows signed outside its electorate" src/seat/election.rs '        if !el.contains(q.signer()) {' '        if false {'
@@ -302,7 +302,7 @@ plant "the fold counts an election's seating as a plain count" src/seat.rs 'Some
 plant "E3: an unclosed seating that stood and ended names no next election" src/seat/election.rs 'self.standing(&here).contains(&ei) && self.vacancy(ei, p, None).is_some()' 'false'
 plant "E3, C3: an election superseded by its ended seating still takes rows" src/seat/election.rs 'if !cx.valid_id(ei, ri, &past) || cx.superseded(ei, &past) {' 'if !cx.valid_id(ei, ri, &past) {'
 plant "(2): a fork keeps the forker in the closing base" src/seat/election.rs '            base.retain(|k| !fork.contains(k));' ''
-plant "(2): a fork reopens the close for all (the old E2)" src/seat/election.rs 'let fork = self.forkers(ek, rows, obj, &BTreeSet::new());' 'let fork = self.forkers(ek, rows, obj, &BTreeSet::new());
+plant "(2): a fork reopens the close for all (the old E2)" src/seat/election.rs 'let fork = self.forkers(ek, rows, rows, obj, &BTreeSet::new());' 'let fork = self.forkers(ek, rows, rows, obj, &BTreeSet::new());
         if !fork.is_empty() {
             return None;
         }'
@@ -324,6 +324,14 @@ plant "(1): a row the key only cosigns read as part of a fork" src/seat/election
                 }
             }'
 plant "(4): a device label the row body states read as the signing key" tests/common/mod.rs '        match self.m.get("dev") {' '        match self.m.get("device_label").or(self.m.get("dev")) {'
+plant "(ii): of two closes over the rows held, the first stands" src/seat/election.rs '            _ => return None,' '            _ => return Some(met[0].clone()),'
+plant "G1: a counted unseat read as its signer's election row" src/seat/election.rs '        ends.retain(|e| self.idx(e).is_some_and(|i| self.row(i).seat_kind() == SeatKind::Withdraw));' ''
+plant "G2: the closing base read per group, over its receipts' pasts" src/seat/election.rs '            base.retain(|k| !gone.contains(k));' '            for &a in rs {
+                let p = self.past(a);
+                for k in self.departed(a, &p, obj) {
+                    base.remove(&k);
+                }
+            }'
 plant "act_of: the election's seating read as a conferral" src/seat.rs '                if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {' '                if false {'
 plant 'act_of: a detector seat read as no act'          src/seat.rs '            if sc == "detect" || sc.starts_with("detect:") {' '            if false {'
 plant 'act_of: the recall read as the withdrawal'       src/seat.rs 'let act = if law.is_duty(counted, &declared) { Act::DutyWithdraw } else { Act::Recall };' 'let act = Act::DutyWithdraw;'

@@ -96,6 +96,8 @@ migrations, and the local operational store.
   fork is per verified signing key: return from `SeatRow::signing_key` the key whose signature the door verified
   (the room key in a private room), never a client-supplied value; return `None` where the signer signed;
 - a decline as `SeatKind::Decline`, `of()` its election;
+- (guidance, not a rule) a client builds every row a key signs in a room on that key's own tips, so the rule above
+  holds whatever later becomes an election row;
 - the winner's own seating: an Offer of `moderate`, `Conf::Group`, policy `moderator_election`, signed by the
   winner, `to()` the winner, `of()` its election, naming its whole set: the ballots, the voters' own withdrawals
   of their ballots, the declines, the leavings it reads, and the end or ends of the last holder's seat it reads

@@ -30,26 +30,30 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
 - C4: CONTAINS replaces LARGER: a seating stands only where its set contains every other seating's set of its
   election (equal sets one seat: the holder's withdrawal of either ends it, and an election named by either is one
   election); sets not nested seat nobody until a seating over the union.
-- C5, E1: the causal close: a strict majority of the electorate, the winner and the departed (left, or removed,
-  read in each receipt's past) apart, receipting one seating that stood under C4 in each receipt's own past; one
-  say per person read causally. With everyone but the winner gone the seating closes itself.
+- C5, E1: the causal close: a strict majority of the electorate, the winner and the departed apart, receipting one
+  seating that stood under C4 in each receipt's own past; one say per person read causally. One base per election
+  for a reader: the departed (left, or removed, not seated again) are read over the rows held, for every group
+  alike, and a departed key's receipt counts for nothing. With everyone but the winner gone the seating closes
+  itself. (ii), the rule and the backstop: where more than one group of an election meets its close over the rows
+  held, none is closed; nothing is picked by order.
 - The self-fork (replacing E2's "an equivocator reopens a close for all"): two rows by one key over ONE election,
   neither in the other's past, are that key saying two things. The election's own rows only, authored by the key:
-  a ballot, a withdrawal of one, a decline, a receipt, a lay-down read as its vacancy, a seating (a seating is its
-  signer's say, like a receipt: a winner that receipts a rival has said two things). A row the key only cosigns is
-  never part of a fork; rows in two rooms, or of two elections, are never a fork. The fork is per verified signing
-  key: `SeatRow::signing_key` (new, default `None`) is the key whose signature verified the row, as checked by the
-  door, never a value the row states; a voice's rows through two room keys are two keys' rows, one say per voice
-  reading its duplicate ballots. With none, the signer is the key, so concurrent rows of one signer fork unless
-  chained; a device label in the row body is never read. With a seating a say, no two seatings of one election
-  both close over the rows held (the receipters are disjoint and both winners out), shown by the partition and a
-  room of four. For a reader holding both rows the key is no voice (and no candidate) and out of that election's
-  close base, as a leaver; the honest receipters keep their receipts, and a close that still holds a majority of
-  the remaining base stands. It reaches no count already determined: a seating counts only its named set, and a
-  key whose two forked rows are both in the set is no ballot there. It is not a roster rule: outside an election a
-  fork is evidence and the reader's line, with no automatic effect. The edge: a minimal close on an odd base can
-  still fail (three of five becomes two of four), and F3's cost then applies: it is rarer, not gone. There is no
-  carve-out for an honest self-fork (a device restored from an old backup): that key is out of that election.
+  a ballot, a withdrawal of one, a decline, a receipt, a holder's own lay-down read as its vacancy (a counted
+  unseat, others' act too, never forks its signer), a seating (a seating is its signer's say, like a receipt: a
+  winner that receipts a rival has said two things). A row the key only cosigns is never part of a fork; rows in
+  two rooms, or of two elections, are never a fork. The fork is per verified signing key: `SeatRow::signing_key`
+  (new, default `None`) is the key whose signature verified the row, as checked by the door, never a value the row
+  states; a voice's rows through two room keys are two keys' rows, one say per voice reading its duplicate
+  ballots. With none, the signer is the key, so concurrent rows of one signer fork unless chained; a device label
+  in the row body is never read. With a seating a say, no two seatings of one election both close over the rows
+  held (the receipters are disjoint and both winners out), shown by the partition and a room of four. For a reader
+  holding both rows the key is no voice (and no candidate) and out of that election's close base, as a leaver; the
+  honest receipters keep their receipts, and a close that still holds a majority of the remaining base stands. It
+  reaches no count already determined: a seating counts only its named set, and a key whose two forked rows are
+  both in the set is no ballot there. It is not a roster rule: outside an election a fork is evidence and the
+  reader's line, with no automatic effect. The edge: a minimal close on an odd base can still fail (three of five
+  becomes two of four), and F3's cost then applies: it is rarer, not gone. There is no carve-out for an honest
+  self-fork (a device restored from an old backup): that key is out of that election.
 - F3: a next election stands only while its id row stands, for the rows held: beating or un-standing a seating
   takes with it every election named on it (a late superset of election 1's set beats its seating, and election 2,
   named on it, falls).
@@ -65,9 +69,9 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   stands and both next elections fall (F3): nobody until a seating over the union.
 - Clients must present each election row a key signs with that key's earlier rows of that election in its past
   (an honest client builds on its own tips); otherwise the key has said two things, a restored device included.
-- The reference: `models/causal_kernel/check_election.py`, 94 cases, 20 of the close read directly
-  (`seat::election_closed`), 3 of the line, 1 pending the head rules, every one in arrival orders and in the `seat`
-  fixture; 34 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
+- The reference: `models/causal_kernel/check_election.py`, 103 cases, 22 of the close read directly
+  (`seat::election_closed`), 3 of the line, 2 pending the head rules, every one in arrival orders and in the `seat`
+  fixture; 37 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
 
 **A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
 

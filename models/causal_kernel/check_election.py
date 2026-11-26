@@ -405,11 +405,12 @@ CLOSE_CASES += [
      [G3, LM, ballot("bb", "B", "C"), ballot("bc", "C", "C"), elect("ec", "C", ("bb", "bc")), leave("la", "A", "g", ("ec",))],
      "ec", F),
     ("E2: closed by A, B and D", [G5, LM] + H5 + [EC, elect("es", "B", ("ba", "bb"))] + CLOSE, "ec", T),
-    ("E2: D's concurrent receipt of a rival: no say, and D stays in the base: A and B are two of four, not closed", EQV, "ec", F),
-    ("E2, the way back: the room removes D by count, its two receipts as evidence; E receipts C's seating after: D is "
-     "out of the base in E's receipt's past, and A, B and E close it",
+    ("(2) on the E2 rows: D's two receipts, and B's seating beside its receipt of C's, are each two things: both out "
+     "of the base, A alone of A and E, not closed", EQV, "ec", F),
+    ("the way back: the room removes D by count, its two receipts as evidence, and E receipts C's seating: A and E "
+     "of A and E close it",
      EQV + [RMD, ack("k5", "E", "ec", ("rd",))], "ec", T),
-    ("E2: the removal alone, read in A's and B's receipts' past (where D is no leaver), does not close it",
+    ("the removal alone: A alone of A and E, not closed",
      EQV + [RMD], "ec", F),
 ]
 # The third read (r51c, b1 to b6) and the rulings F1 to F4
@@ -659,6 +660,66 @@ CLOSE_CASES += [
      [G5, LM] + H5 + [EC, elect("es", "B", ("ba", "bb")), ack("k4", "D", "es", ("bd",)), ack("j4", "D", "ec", ("k4",)),
                       ack("k2", "B", "ec"), ack("k5", "E", "ec")], "ec", F),
 ]
+# The fifth read. G2: one base per election for a reader (departed read over the rows held, not per group), and (ii)
+# as a rule. Eight members: B's seating (A, B) and C's (C, D); D, E, F and G receipt C's and then leave, on rows that
+# do not hold it; A and H receipt B's naming those leavings. With one base ({A, B, H} less the winner, D to G gone),
+# B's group is A and H of A and H... and C's group is none (its receipters have left): B; never two closes
+G8 = room(8)
+G2R = [G8, LM, ballot("ba", "A", "B"), ballot("bb", "B", "B"), elect("s1", "B", ("ba", "bb")),
+       ballot("bc", "C", "C"), ballot("bd", "D", "C"), elect("s2", "C", ("bc", "bd"))] \
+    + [ack("k" + k.lower(), k, "s2", ("bd",)) for k in "DEFG"] + [leave("l" + k.lower(), k, "g", ("lm",)) for k in "DEFG"] \
+    + [ack("ka", "A", "s1", tuple("l" + k.lower() for k in "DEFG")), ack("kh", "H", "s1", tuple("l" + k.lower() for k in "DEFG"))]
+# G1: B signs a counted recall of A (rc) beside lm, and its ballot; E's second ballot names rc as an end
+RCB = ST.unseat("rc", "B", "A", "moderate", OBJ, "group", ("g",), head=("g",), policy="moderator_recall", cosigners=("C", "D"))
+HG1 = [ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "B"), ballot("bd", "D", "C"), ballot("be", "E", "C")]
+IDG1 = tuple(b["id"] for b in HG1)
+CLOSE_CASES += [
+    ("G2: one base per election: D to G have left over the rows held, so their receipts of C's seating count for "
+     "nothing, and B's closes on A and H", G2R, "s1", T),
+    ("G2: and C's does not close (one close at most)", G2R, "s2", F),
+]
+CASES += [
+    ("G2 (200 orders): the room of eight: B", G2R, MOD("B") + NOMOD("C"), "G2"),
+    ("G2, a reader of C's side only (C's seating, its receipts and the leavings; no row of B's): C's receipters left "
+     "in the rows held, so it does not close; C stands by C4 alone", [G8, LM] + G2R[5:12]
+     + [leave("l" + k.lower(), k, "g", ("lm",)) for k in "DEFG"], MOD("C"), "G2"),
+    ("G2, a reader holding both seatings, C's receipts and the leavings, but not A's and H's receipts: not nested, "
+     "neither closed: nobody", G2R[:12] + [leave("l" + k.lower(), k, "g", ("lm",)) for k in "DEFG"], NOMOD("B", "C"), "G2"),
+    ("G2, a reader of B's side only (A's and H's receipts, which hold the leavings): B and C's seatings are not nested, "
+     "but B's closed: B", G2R[:8] + [leave("l" + k.lower(), k, "g", ("lm",)) for k in "DEFG"] + G2R[-2:],
+     MOD("B") + NOMOD("C"), "G2"),
+    ("G1 (G1c): honest, B wins three to two", [G5, LM, RCB] + HG1 + [elect("eb", "B", IDG1)], MOD("B"), "G1"),
+    ("G1 (G1d): E names B's recall row as an end: a counted unseat is never its signer's election row, so B is no "
+     "fork; the containing seating counts B and is B's count, so C's concludes nothing: B",
+     [G5, LM, RCB] + HG1 + [elect("eb", "B", IDG1), ballot("be2", "E", "C", ("lm", "rc", "be")),
+                           elect("ecx", "C", IDG1 + ("be2",), vac=("lm", "rc"))], MOD("B") + NOMOD("C"), "G1"),
+    ("G1, control: a holder's own two concurrent lay-downs of the seat still fork it: A lays moderate down twice, both "
+     "ends named, A no ballot; A's ballot for B void, and B and C tie: nobody",
+     [G5, LM, ST.withdraw("lm0", "A", "g", ("g",), scope="moderate")]
+     + [ballot("ba", "A", "B", ("lm", "lm0")), ballot("bb", "B", "B", ("lm", "lm0")), ballot("bc", "C", "C", ("lm", "lm0")),
+        ballot("bd", "D", "C", ("lm", "lm0")), ballot("be", "E", "B", ("lm", "lm0"))]
+     + [elect("ec", "C", ("ba", "bb", "bc", "bd", "be"), vac=("lm", "lm0"))], NOMOD("B", "C"), "G1"),
+]
+# (ii) is a rule and a backstop: with (i) no two groups of one election meet their close over the rows held, so it is
+# shown with (i) taken away (the premise `seating_not_a_say`): the room of four, both held, then closes neither
+BACKSTOP = [
+    ("(ii), the backstop: the room of four, both held, with a seating no say: each seating meets its close (two of "
+     "three); neither is closed, and their sets are not nested: nobody", R4 + R4A + R4B, NOMOD("A", "B"), "(ii)"),
+]
+# G3 (held: the long-range class): N1 as a race the close stops. A resigns at the newest row (lm2) and all seven rank
+# D; A then backdates lm1 from the founding row, and B and C re-ballot naming both ends
+G3H = [ballot("b" + k.lower(), k, "D", ("lm2",)) for k in "ABCDEFG"]
+G3I = tuple(b["id"] for b in G3H)
+G3X = [ballot("xb", "B", "B", ("lm1", "lm2", "bb")), ballot("xc", "C", "B", ("lm1", "lm2", "bc")),
+       ST.withdraw("wbb", "B", "bb", ("xb",)), ST.withdraw("wbc", "C", "bc", ("xc",))]
+G3B = elect("eb", "B", G3I + ("xb", "xc", "wbb", "wbc"), vac=("lm2", "lm1"))
+G3ED = elect("ed", "D", G3I, vac=("lm2",))
+CASES += [
+    ("G3c (held): E, F and G receipt D's seating before holding B's: closed; D", N1R + [N1L2] + G3H + [G3ED]
+     + [ack("k" + k.lower(), k, "ed") for k in "EFG"] + [N1L1] + G3X + [G3B], MOD("D") + NOMOD("B"), "G3"),
+    ("G3d (held): the same receipts made after B's seating: not nested, nobody", N1R + [N1L2] + G3H + [G3ED, N1L1] + G3X
+     + [G3B] + [ack("k" + k.lower(), k, "ed", ("eb",)) for k in "EFG"], NOMOD("B", "D"), "G3"),
+]
 # b5: the old-head removal reaching the election is the head rules' (H1 to H7); this tree does not read it. Kept as a
 # case the merged tree must pass once `heads` lands: PENDING until then
 GB5 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("C",)}, cosigners=("B", "C"))
@@ -686,6 +747,9 @@ LINE_CASES = [
      + [elect("ed", "D", IDS5 + ("wa", "ba2", "wb", "bb2", "wd", "bd2"), head=("g",))], None, MOD("D") + NOMOD("C")),
 ]
 PENDING = [
+    ("G3b, PENDING the head rules: B and C name A's backdated end in new ballots (electorate A, B, C); lm1, a "
+     "resignation, is held to the newest heads (H4) and falls behind a reader's line that acknowledged aG",
+     N1R + [N1L2] + G3H + [G3ED, N1L1] + G3X + [G3B], MOD("D") + NOMOD("B"), "G3b"),
     ("b5, PENDING the head rules: A and B remove C at the founding head (two of three there) and elect A: the removal "
      "names an old head, so it concludes nothing and C keeps the seat",
      B5 + [XC5, ballot("ba", "A", "A", ("xc",)), ballot("bb", "B", "A", ("xc",)), elect("ea", "A", ("ba", "bb"), vac=("xc",))],
@@ -710,7 +774,8 @@ PLANTS = ("vacancy_founding", "vacancy_first_end", "electorate_at_seating", "lea
           "ballot_nonmember_ranked", "ballot_ranks_unbounded", "seating_any_signer", "twin_ids_apart",
           "fold_ranked_counted", "fork_reopens_close", "fork_base_kept", "fork_across_objects", "superseded_unread", "wait_close", "id_cascade_unread",
           "vacancy_unnamed", "set_inputs_unread", "void_seating_read", "seating_not_a_say", "fork_per_voice",
-          "fork_cosigned", "fork_by_stated_device",
+          "fork_cosigned", "fork_by_stated_device", "two_closes_both_stand",
+          "counted_end_forks_signer", "base_per_group",
           "leaving_before_vacancy_read")
 
 
@@ -750,11 +815,25 @@ def main():
         got = answers(rows, asks)
         if got != want:
             problems.append("%s: got %s, expected %s" % (name, got, want))
-        for p in orders(rows, 40):
+        for p in orders(rows, 200 if name.startswith("G2 (200") else 40):
             n_orders += 1
             if answers([rows[0]] + list(p), asks, arrive=True) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in p]))
                 break
+    for name, rows, asks, _item in BACKSTOP:
+        ST.MUT.add("seating_not_a_say")
+        try:
+            want = [w for _, _, w in asks]
+            got = answers(rows, asks)
+            if got != want:
+                problems.append("%s: got %s, expected %s" % (name, got, want))
+            for p in orders(rows, 40):
+                n_orders += 1
+                if answers([rows[0]] + list(p), asks, arrive=True) != got:
+                    problems.append("%s: order %s differs" % (name, [r["id"] for r in p]))
+                    break
+        finally:
+            ST.MUT.discard("seating_not_a_say")
     for name, rows, own, asks in LINE_CASES:
         want = [w for _, _, w in asks]
         got = answers(rows, asks, own=own)
@@ -782,6 +861,12 @@ def main():
         hit = [name for name, rows, asks, _ in CASES if answers(rows, asks, plant) != [w for _, _, w in asks]]
         hit += [name for name, rows, sq, want in CLOSE_CASES if closed(rows, sq, plant) != want]
         hit += [name for name, rows, own, asks in LINE_CASES if answers(rows, asks, plant, own=own) != [w for _, _, w in asks]]
+        ST.MUT.add("seating_not_a_say")
+        try:
+            if plant != "seating_not_a_say":
+                hit += [name for name, rows, asks, _ in BACKSTOP if answers(rows, asks, plant) != [w for _, _, w in asks]]
+        finally:
+            ST.MUT.discard("seating_not_a_say")
         caught += bool(hit)
         print("  plant %-24s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0][:90]) if hit else "NOT CAUGHT"))
         if not hit:

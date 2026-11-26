@@ -333,7 +333,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         }
         let mut says: BTreeMap<BTreeSet<R::Id>, Vec<usize>> = BTreeMap::new();
         // (2): a key that said two things in the election, for this reader, is no voice and is out of the base
-        let fork = self.forkers(ek, rows, obj, &BTreeSet::new());
+        let fork = self.forkers(ek, rows, rows, obj, &BTreeSet::new());
         for (p, rs) in &by_p {
             if fork.contains(*p) {
                 continue;
@@ -360,34 +360,38 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                 }
             }
         }
-        for (group, rs) in &says {
-            let Some(&s) = seats.iter().find(|&&q| self.view(q).2 == *group) else { continue };
-            let el = self.view(s).1;
-            let Some(winner) = self.row(s).to().first() else { continue };
-            let mut base = el.clone();
-            base.remove(winner);
-            base.retain(|k| !fork.contains(k));
-            // E1: a key departed (left, or removed, and not seated again) in a receipt's past is out of the base
-            for &a in rs {
-                let p = self.past(a);
-                for k in self.departed(a, &p, obj) {
-                    base.remove(&k);
-                }
-            }
-            let yes = rs.iter().map(|&a| self.row(a).signer()).filter(|k| base.contains(*k)).collect::<BTreeSet<_>>();
-            if base.is_empty() || 2 * yes.len() > base.len() {
-                return Some(group.clone());
-            }
-        }
-        // a room of one, or one whose every other elector has departed (E1, the limit): a standing seating closes
-        // itself
-        let st = self.standing(&seats);
+        // E1 (the fifth read, G2): one base per election for a reader: a key departed (left, or removed, not seated
+        // again) over the rows held is out of it for every group alike, and its receipts count for nothing.
         // `departed` reads exactly the rows of `rows` (`Past::rows` is the slice given); the anchor only places the
         // reading and adds no row, so this is the reference's `departed(rows)`
         let mut gone = match rows.last() {
             Some(&anchor) => self.departed(anchor, rows, obj),
             None => BTreeSet::new(),
         };
+        let mut met: Vec<&BTreeSet<R::Id>> = Vec::new();
+        for (group, rs) in &says {
+            let Some(&s) = seats.iter().find(|&&q| self.view(q).2 == *group) else { continue };
+            let el = self.view(s).1;
+            let Some(winner) = self.row(s).to().first() else { continue };
+            let mut base = el.clone();
+            base.remove(winner);
+            base.retain(|k| !gone.contains(k));
+            base.retain(|k| !fork.contains(k));
+            let yes = rs.iter().map(|&a| self.row(a).signer()).filter(|k| base.contains(*k)).collect::<BTreeSet<_>>();
+            if base.is_empty() || 2 * yes.len() > base.len() {
+                met.push(group);
+            }
+        }
+        // (ii), the rule: where more than one group meets its close over the rows held, none is closed; nothing is
+        // picked by order
+        match met.len() {
+            1 => return Some(met[0].clone()),
+            0 => {}
+            _ => return None,
+        }
+        // a room of one, or one whose every other elector has departed (E1, the limit): a standing seating closes
+        // itself
+        let st = self.standing(&seats);
         gone.extend(fork.iter().cloned());
         for &q in &seats {
             let v = self.view(q);
@@ -408,6 +412,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         &self,
         ek: &EKey<R::Id, R::Key>,
         rows: &[usize],
+        resolve: &[usize],
         obj: &ObjOf<R>,
         ends0: &BTreeSet<R::Id>,
     ) -> BTreeSet<R::Key> {
@@ -418,7 +423,12 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         for &q in &seats {
             ends.extend(self.view(q).3);
         }
-        let named = |b: &R| b.of().and_then(|e| self.idx(e)).is_some_and(|e| self.ekey(e) == *ek);
+        // G1: a counted unseat (a room act others cosign) is never its signer's election row: only a holder's own
+        // lay-down of the seat is
+        ends.retain(|e| self.idx(e).is_some_and(|i| self.row(i).seat_kind() == SeatKind::Withdraw));
+        // a row's election is resolved over the rows given for that (the seating's past, or the rows held)
+        let at = |id: &R::Id| self.idx(id).filter(|i| resolve.binary_search(i).is_ok());
+        let named = |b: &R| b.of().and_then(at).is_some_and(|e| self.ekey(e) == *ek);
         // (4): the fork is per verified signing key (the signer where none is given): a voice's rows signed through two
         // room keys are two keys' rows
         let mut mine: BTreeMap<(&R::Key, &R::Key), Vec<usize>> = BTreeMap::new();
@@ -430,9 +440,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                 SeatKind::Withdraw => {
                     ends.contains(r.id())
                         || r.target()
-                            .and_then(|t| self.idx(t))
+                            .and_then(at)
                             .map(|t| self.row(t))
-                            .is_some_and(|t| t.seat_kind() == SeatKind::Ballot && named(t))
+                            .is_some_and(|t| t.seat_kind() == SeatKind::Ballot && t.signer() == r.signer() && named(t))
                 }
                 _ => sids.contains(r.id()) || ends.contains(r.id()),
             };
@@ -442,6 +452,12 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         }
         mine.into_iter()
             .filter(|(_, rs)| {
+                // a key whose rows form one chain (each, by level, in the next one's past) said one thing: no pairs
+                let mut by_level = rs.clone();
+                by_level.sort_by_key(|&q| (g.level(q), q));
+                if by_level.windows(2).all(|w| g.in_past(w[0], w[1])) {
+                    return false;
+                }
                 rs.iter().enumerate().any(|(i, &a)| rs[i + 1..].iter().any(|&b| !g.in_past(a, b) && !g.in_past(b, a)))
             })
             .map(|((k, _), _)| k.clone())
@@ -638,7 +654,7 @@ pub(super) fn count<R: SeatRow, S: CutSpec<R>>(
     let voters: BTreeSet<R::Key> = el.iter().filter(|k| !left.contains(k)).cloned().collect();
     // (2): a key whose two forked rows are both in the set is no ballot (the set alone decides: F1)
     let set_rows: Vec<usize> = past.iter().copied().filter(|&q| mine.contains(sub.g.row(q).id())).collect();
-    let fork = cx.forkers(&ek, &set_rows, &obj, &mine_ends);
+    let fork = cx.forkers(&ek, &set_rows, &past, &obj, &mine_ends);
     let voters: BTreeSet<R::Key> = voters.into_iter().filter(|k| !fork.contains(k)).collect();
     let gone: BTreeSet<&R::Id> = rows
         .iter()
