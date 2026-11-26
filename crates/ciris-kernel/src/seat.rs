@@ -843,6 +843,15 @@ impl<R: SeatRow> LineSpec<R> for SeatLine {
             None
         }
     }
+    /// H6: every row `own` signed or cosigned (its seating or acceptance, a counted row, a cosignature, its
+    /// withdrawal, a window's row, an acknowledgement, content) is over the object [`object_of`] reads.
+    fn acknowledges<'r>(&self, r: &'r R, own: &R::Key, get: &dyn Fn(&R::Id) -> Option<&'r R>) -> Option<Self::Obj> {
+        if r.signer() == own || r.cosigners().contains(own) {
+            object_of(r, get)
+        } else {
+            None
+        }
+    }
 }
 
 /// The scope of an AI agent's seat over a room (CC 4.5.13): on the roster, and in no count.
@@ -1134,9 +1143,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     ) -> Self {
         // the reader's line is read before the cut: a counted act void for this reader (behind its line, or built
         // on such an act, every row taken as counting) cuts nothing for it (CC 2.7.8)
-        // a lift is read by the line as before (concurrent acts only), pending the lift follow-up
-        let lift = |i: usize| law.policy_of(c.g.row(i).policy().map(|x| x.as_ref())) == Some(Policy::Lift);
-        let behind = if own.is_some() { line::void_with(c, &SeatLine, own, |_| true, lift) } else { BTreeSet::new() };
+        // an election's seating is read at its election's vacancy, and the line never holds it behind
+        let seating = |i: usize| is_election(law, c.g.row(i));
+        let behind =
+            if own.is_some() { line::void_with(c, &SeatLine, own, |_| true, seating) } else { BTreeSet::new() };
         let cut = Cut::new_without(c, spec, &behind);
         let g = &c.g;
         let by: BTreeMap<&'a R::Id, &'a R> = g.rows().iter().map(|r| (r.id(), *r)).collect();
@@ -1173,7 +1183,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     && w.scope().is_none_or(|ws| ws.as_ref() == sc.s())
             })
         };
-        let mut stale = line::void_with(c, &SeatLine, own, |i| cut.counts(i) && !behind.contains(&i), lift);
+        let mut stale = line::void_with(c, &SeatLine, own, |i| cut.counts(i) && !behind.contains(&i), seating);
         stale.extend(behind.iter().copied());
         // each unseat that counts, with its object read once
         let unseats: Vec<(usize, Option<ObjOf<R>>)> = cs
@@ -1660,7 +1670,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 let anc: Vec<usize> = self.c.cs().iter().copied().filter(|&q| g.in_past(q, i)).collect();
                 let p = Past::new(g, i, &anc);
                 let Some(obj) = r.obj() else { return false };
-                let over = r.over().unwrap_or(obj);
+                let over = obj; // H2: a counted row is counted over its own object
                 let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
                 let ok = if over == *o && counted == s { Some(seated.clone()) } else { self.tips_fold(counted, &over) };
                 let mut mem = count_members_with(&p, self.law, self.spec, Some(&members));
@@ -2202,34 +2212,49 @@ fn authored_head<R: SeatRow>(law: &SeatLaw, r: &R) -> bool {
         && r.to()[0] == *r.signer()
 }
 
-/// The heads a count is read over: the heads named, with each authored head replaced by the heads it names in
-/// turn, and then only the newest of them (one that is in another's past is dropped). Several concurrent
-/// newest heads (tips) stay, and are intersected. Unchanged where no head named is an authored one or in the
-/// past of another.
+/// The heads a count is read over: the newest of the heads named (one in another named head's past is
+/// dropped). Several concurrent newest heads (tips) stay, and are intersected. An authored head is no head a
+/// count may name (H3, the heads ruling of 2026-11-26): it is not read through, and [`newer_head_in_past`]
+/// refuses a count naming one.
 fn counted_heads<'r, 'h, R: SeatRow + 'r>(
-    law: &SeatLaw,
+    _law: &SeatLaw,
     heads: &'h [R::Id],
-    row: &dyn Fn(&R::Id) -> Option<&'r R>,
+    _row: &dyn Fn(&R::Id) -> Option<&'r R>,
     past: &dyn Fn(&R::Id, &R::Id) -> bool,
 ) -> alloc::borrow::Cow<'h, [R::Id]> {
     let behind_another = |a: &R::Id| heads.iter().any(|b| a != b && past(a, b));
-    if !heads.iter().any(|h| row(h).is_some_and(|r| authored_head(law, r)) || behind_another(h)) {
+    if !heads.iter().any(behind_another) {
         return alloc::borrow::Cow::Borrowed(heads); // the usual case: nothing is copied
     }
-    let mut todo: Vec<R::Id> = heads.to_vec();
-    let mut seen: BTreeSet<R::Id> = BTreeSet::new();
-    let mut kept: Vec<R::Id> = Vec::new();
-    while let Some(h) = todo.pop() {
-        if !seen.insert(h.clone()) {
-            continue;
+    alloc::borrow::Cow::Owned(heads.iter().filter(|a| !behind_another(a)).cloned().collect())
+}
+
+/// An election's seating: an offer conferred by a count ([`Conf::Group`]) whose policy reads as
+/// [`Policy::Ranked`]. It names no head: its electorate and candidates are read at its election's vacancy. It
+/// is exempt from the newest-heads rule and from the reader's line, and is a counted change every later
+/// counted row must name. (roster-kinds' election2 replaces this predicate with "a seating names its
+/// election's id row".)
+pub fn is_election<R: SeatRow>(law: &SeatLaw, r: &R) -> bool {
+    r.seat_kind() == SeatKind::Offer
+        && r.conf() == Some(Conf::Group)
+        && law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked)
+}
+
+/// The object a row is over: its object, its room, or the object of the row its `of` or `target` names (an
+/// acceptance, a cosignature, a withdrawal, a window's answer). `None` where none is read.
+pub(crate) fn object_of<'r, R: SeatRow + 'r>(r: &'r R, get: &dyn Fn(&R::Id) -> Option<&'r R>) -> Option<ObjOf<R>> {
+    let mut r = r;
+    for _ in 0..8 {
+        if let Some(o) = r.obj().or_else(|| r.room()) {
+            return Some(o);
         }
-        match row(&h) {
-            Some(r) if authored_head(law, r) => todo.extend(r.head().iter().cloned()),
-            _ => kept.push(h),
+        let next = if r.seat_kind() == SeatKind::Withdraw { r.target() } else { r.of() };
+        match next.filter(|t| *t != r.id()).and_then(get) {
+            Some(n) => r = n,
+            None => return None,
         }
     }
-    let newest: Vec<R::Id> = kept.iter().filter(|a| !kept.iter().any(|b| *a != b && past(a, b))).cloned().collect();
-    alloc::borrow::Cow::Owned(newest)
+    None
 }
 
 fn concluded_over<'a, R: Row>(rows: impl IntoIterator<Item = &'a R>) -> Concluded<'a, R> {
@@ -2438,6 +2463,14 @@ fn lone_removal<R: SeatRow, S: CutSpec<R>>(
     if !agent || !members_at_with(p, law, spec, &obj, r.head(), AGENT, cache).contains(&r.to()[0]) {
         return false;
     }
+    // the signer holds `moderate` at the newest heads it names, less a laying down of it in the removal's own past
+    // (read where the removal is the row concluded; a removal in a later row's past concluded so already)
+    if r.id() == p.row().id()
+        && (left_in_past(p, &obj, "moderate").contains(r.signer())
+            || stay_ended_in_past(p, law, &obj).contains(r.signer()))
+    {
+        return false;
+    }
     members_at_with(p, law, spec, &obj, r.head(), "moderate", cache).contains(r.signer())
 }
 
@@ -2470,8 +2503,10 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
     if r.seat_kind() != SeatKind::Offer || !lone_removal(rem, p, law, spec, cache) {
         return None;
     }
-    if rem.obj() != r.obj() || rem.scope() != r.scope() || rem.to() != r.to() || rem.head() != r.head() {
-        return None; // the same seat, at the head the removal names
+    // the same seat; the re-seating names the newest counted changes in its own past as every roster row does (H4),
+    // and is counted at the head the removal names (count_met)
+    if rem.obj() != r.obj() || rem.scope() != r.scope() || rem.to() != r.to() {
+        return None;
     }
     let mut v = BTreeSet::new();
     for n in r.names() {
@@ -2642,7 +2677,7 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
 ) -> BTreeSet<R::Key> {
     let r = p.row();
     let Some(obj) = r.obj() else { return BTreeSet::new() };
-    let over = r.over().unwrap_or(obj);
+    let over = obj; // H2: a counted row is counted over its own object
     let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
     let mut mem = persons_at_with(p, law, spec, &over, r.head(), counted, cache);
     for k in left_in_past(p, &over, counted) {
@@ -2675,10 +2710,6 @@ fn duty_gate<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, p: &Past<'_, 
     if !community(by, &obj) || !law.is_duty(s.as_ref(), &declared) {
         return true;
     }
-    // the duty holders' count is over the room it confers in
-    if r.over().is_some_and(|o| o != obj) {
-        return false;
-    }
     // the gate reads the policy in force (the acts table's, where it binds: a fixed act's row may state none)
     let Ok(pol) = policy_in_force(law, p, r) else { return false };
     if pol == Some(Policy::Ranked) {
@@ -2688,63 +2719,63 @@ fn duty_gate<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, p: &Past<'_, 
     r.counted().is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)
 }
 
-/// Row `h` is of object `obj`'s own line: `obj`'s founding row, a row whose object is `obj` (an offer, an
-/// unseat, a standing acceptance, a counted receipt), a withdrawal, acceptance or receipt of such a row, or a
-/// row of no object of its own that names one (a version of the roster, as persist presents a ballot's head). A
-/// row whose object is another is of that other's line. A counted row's heads are each of its own object's line
-/// (the review of #54: a count is over the room it acts in, so it names that room's heads).
-fn on_object<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, h: &R::Id, obj: &ObjOf<R>) -> bool {
-    on_object_n(by, h, obj, 0)
+/// A counted change over `obj`: what the reader's line reads as a counted act ([`SeatLine`]'s `counted_act`),
+/// an offer or unseat conferred by a count ([`Conf::Group`]) on `obj` that names a head, of any scope (an
+/// admission or removal, a duty conferral or withdrawal, a recall, a lift), and no authored row (a
+/// self-admission is no head a count may name, H3).
+fn change<R: SeatRow>(law: &SeatLaw, q: &R, obj: &ObjOf<R>) -> bool {
+    LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj) && !authored_head(law, q)
 }
 
-fn on_object_n<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, h: &R::Id, obj: &ObjOf<R>, n: usize) -> bool {
-    let Some(r) = by.get(h).copied() else { return false };
-    if n > 8 {
+/// H7: counted change `q` is behind an acknowledgement, in `p`, by one of `keys` (the row's own signers): a
+/// row `s` of `p` such a key signed or cosigned over `obj`, with `q` not in its past, and `q` naming only heads
+/// strictly in the past of a counted change in `s`'s past (or `s` itself). It is `q` itself that is excused,
+/// never a row built on it.
+fn acked_behind<R: SeatRow>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    q: &R,
+    keys: &BTreeSet<R::Key>,
+    obj: &ObjOf<R>,
+) -> bool {
+    if q.head().is_empty() {
         return false;
     }
-    if Obj::Row(r.id().clone()) == *obj || r.obj().as_ref() == Some(obj) {
-        return true;
-    }
-    if r.obj().is_some() {
-        return false;
-    }
-    let next = if r.seat_kind() == SeatKind::Withdraw { r.target() } else { r.of() };
-    // a row whose `of` names itself (a merge head presented as its own cosignature) refers to nothing else: it is
-    // read by the rows it names
-    match next.filter(|t| *t != r.id()) {
-        Some(t) => on_object_n(by, t, obj, n + 1),
-        None => r.names().iter().any(|m| on_object_n(by, m, obj, n + 1)),
-    }
+    p.rows().any(|s| {
+        (keys.contains(s.signer()) || s.cosigners().iter().any(|k| keys.contains(k)))
+            && s.id() != q.id()
+            && !p.past(q.id(), s.id())
+            && object_of(s, &|i| p.get(i)).as_ref() == Some(obj)
+            && q.head().iter().all(|h| {
+                p.rows()
+                    .any(|a| (a.id() == s.id() || p.past(a.id(), s.id())) && change(law, a, obj) && p.past(h, a.id()))
+            })
+    })
 }
 
-/// A counted unseat of a duty scope over a community (the holders' withdrawal of a duty, the members' recall) is
-/// counted over the room it ends the seat in: [`SeatRow::over`] absent or that room.
-fn duty_over<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, r: &R) -> bool {
-    let (Some(obj), Some(s)) = (r.obj(), r.scope()) else { return true };
-    if !community(by, &obj) || !law.is_duty(s.as_ref(), &declared(by, &obj)) {
-        return true;
-    }
-    r.over().is_none_or(|o| o == obj)
-}
-
-/// Whether `p` (a counted row's concluded past) holds a counted change of `obj`'s roster that is neither one of
-/// `heads` nor in the past of one: a newer counted head than the heads named. A counted change is what the
-/// reader's line reads as a counted act ([`SeatLine`]'s `counted_act`): an offer or unseat conferred by a count
-/// ([`Conf::Group`]) on `obj` that names a head, of any scope (a member admission or removal, a duty
-/// conferral or withdrawal, a recall). A counted row over a roster concludes only at the newest counted heads
-/// of that roster in its own past (CC 2.7.8). A cosignature needs no reading of its own: it is a voice only
+/// Whether the newest heads named are not the newest counted changes over `obj` in `p`, a counted row's
+/// concluded past (H1): a counted change over `obj` ([`change`]) in `p` that is neither one of them nor in the
+/// past of one, nor behind an acknowledgement by one of `keys` ([`acked_behind`], H7); or one of them that is
+/// neither such a change nor `obj`'s founding row (H3, H8: no other row, a version row, a note or a row
+/// naming itself, is a head of a count). A counted row over a roster concludes only at the newest counted
+/// changes over it in its own past (CC 2.7.8). A cosignature needs no reading of its own: it is a voice only
 /// where the row names it, so the row's past holds the cosignature's.
-///
-/// `heads` are read as the newest of those named (one in the past of another named head is dropped; an
-/// authored head stands as itself here, though the count reads through it, [`counted_heads`]), and each
-/// must be such a counted change or `obj`'s founding row: a head that is any other row is no head of the count.
-fn newer_head_in_past<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>, heads: &[R::Id]) -> bool {
-    let changes = |q: &R| LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj);
+fn newer_head_in_past<R: SeatRow>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    obj: &ObjOf<R>,
+    heads: &[R::Id],
+    keys: &BTreeSet<R::Key>,
+) -> bool {
     let heads: Vec<&R::Id> = heads.iter().filter(|&a| !heads.iter().any(|b| a != b && p.past(a, b))).collect();
-    if heads.iter().any(|&h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(changes)) {
+    if heads.iter().any(|&h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(|q| change(law, q, obj))) {
         return true;
     }
-    p.rows().any(|q| changes(q) && !heads.iter().any(|&h| h == q.id() || p.past(q.id(), h)))
+    p.rows().any(|q| {
+        change(law, q, obj)
+            && !heads.iter().any(|&h| h == q.id() || p.past(q.id(), h))
+            && !acked_behind(p, law, q, keys, obj)
+    })
 }
 
 /// A counted row's count ([`Conf::Group`]), met over `p`: the lift, the ranked tally, the duty count, or the
@@ -2767,16 +2798,12 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
         // a lift restores and does not admit: the removal it cites is a lone removal, so the key held its
         // agent's seat at that head (lone_removal)
         let Some((author, v)) = lift_voices_with(p, law, spec, cache) else { return false };
-        // the members are persons: the key removed is an agent's, no voice and not counted over
-        let mut mem = persons_at_with(p, law, spec, &obj, r.head(), "member", cache);
+        // the members are persons: the key removed is an agent's, no voice and not counted over; at the head the
+        // removal names
+        let at = r.content().and_then(|c| p.get(c)).map_or(r.head(), |rem| rem.head());
+        let mut mem = persons_at_with(p, law, spec, &obj, at, "member", cache);
         mem.remove(&author); // the author is not among the members the majority is taken of
         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
-    }
-    // read at the newest counted heads of the roster in its own past. A lift (above) is exempt, pending the lift
-    // follow-up: it is counted at the head its act names
-    // the object the count is taken over
-    if newer_head_in_past(p, &r.over().unwrap_or(obj.clone()), r.head()) {
-        return false;
     }
     let mem = count_members_with(p, law, spec, cache);
     if pol == Some(Policy::Ranked) {
@@ -2853,14 +2880,18 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     r.under().and_then(|u| by.get(u)).is_some_and(|u| u.to().contains(r.signer()))
                 }
                 Some(Conf::Group) => {
-                    if !r.head().iter().all(|h| on_object(&by, h, &obj)) {
-                        return false; // a count names its own room's heads
+                    // H2: a counted row is counted over its own object; one stating another concludes nothing
+                    if r.over().is_some_and(|o| o != obj) {
+                        return false;
                     }
                     if is_offer && !duty_gate(law, &by, p, r) {
                         return false; // CC 4.5.4: a duty is placed by its holders' count or an election
                     }
-                    if !is_offer && !duty_over(law, &by, r) {
-                        return false; // and its seat is ended by a count over the room it is held in
+                    // H1, H4: every counted row names the newest counted changes over its object in its own past, a
+                    // lone removal, a self-admission and a lift included; an election's seating is read at its
+                    // election's vacancy instead
+                    if !is_election(law, r) && newer_head_in_past(p, law, &obj, r.head(), &signers(r)) {
+                        return false;
                     }
                     if !is_offer && lone_removal(r, p, law, spec, cache) {
                         return true; // CC 4.5.13: a moderator, an agent's key
@@ -2876,7 +2907,27 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
             Some(o) => by.get(o).is_some_and(|o| o.to().contains(r.signer())),
         },
         SeatKind::Withdraw => match r.target().and_then(|t| by.get(t)) {
-            Some(t) => signed_by(*t, r.signer()) || (t.seat_kind() == SeatKind::Offer && t.to().contains(r.signer())),
+            Some(t) => {
+                if !(signed_by(*t, r.signer()) || (t.seat_kind() == SeatKind::Offer && t.to().contains(r.signer()))) {
+                    return false;
+                }
+                // H4: a withdrawal of a seat over a community (a resignation, a laying down) names the newest
+                // counted changes over the room in its own past among the rows it names
+                if !matches!(t.seat_kind(), SeatKind::Offer | SeatKind::Accept) {
+                    return true;
+                }
+                let Some(room) = object_of(*t, &|i| by.get(i).copied()) else { return true };
+                if !community(&by, &room) {
+                    return true;
+                }
+                let named: Vec<R::Id> = r
+                    .names()
+                    .iter()
+                    .filter(|n| room == Obj::Row((*n).clone()) || by.get(*n).is_some_and(|q| change(law, *q, &room)))
+                    .cloned()
+                    .collect();
+                !newer_head_in_past(p, law, &room, &named, &signers(r))
+            }
             None => false,
         },
         SeatKind::Cosign => true,

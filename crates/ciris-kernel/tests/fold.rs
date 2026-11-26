@@ -204,14 +204,17 @@ fn the_fold_at_tips() {
         ("abcdz", "abc", true),
         "an outsider's own admission on an old head seats it and takes nobody out",
     );
-    // a version naming both: counted over the newest counted head's members, d among them, not over the old head's
-    let m = change("m", &["x1", "s1"], true, &["e"], &["a", "b", "d"], "three", Some(3));
+    // a version with both in its past, at the newest counted change: an authored head is no head a count may name
+    // (H3, the heads ruling of 2026-11-26), so it names x1 as its head and the self-admission among its rows
+    let mut m = change("m", &["x1"], true, &["e"], &["a", "b", "d"], "three", Some(3));
+    m.names.push("s1".into());
     t(
         read(&[g.clone(), d.clone(), z.clone(), m], "m"),
         ("abcdez", "one tip", true),
         "an authored head narrows no count: d's voice counts in the version that names both",
     );
-    let m2 = change("m", &["x1", "s1"], true, &["e"], &["a", "b", "z"], "three", Some(3));
+    let mut m2 = change("m", &["x1"], true, &["e"], &["a", "b", "z"], "three", Some(3));
+    m2.names.push("s1".into());
     t(
         read(&[g, d, z, m2], "m"),
         ("abcdz", "abc", false),

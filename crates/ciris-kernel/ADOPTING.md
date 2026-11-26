@@ -155,7 +155,16 @@ trusting an adapter.
   given as `Conf::Own` under a signer with no founding seat seats nobody and is not a tip, with no error.
 - A restating version is Offers for the keys it adds and Unseats for the keys it drops. Do not offer again a
   member who carries over: an Unseat ends the offers in its past, so a re-offer after it seats the removed key.
-- Each node names the heads it extends in `names` and in `head`.
+- Each node names the heads it extends in `names` and in `head`. **How a store presents a count (the heads ruling
+  of 2026-11-26):** by its real rows, the founding record and the counted changes over the room. A counted
+  row's `head` is exactly the newest counted changes over its own object in its own past (or the founding row
+  where there are none), and it names them. A counted change is a `Conf::Group` offer or unseat on the object
+  that names a head; a self-admission is none. A row of no object (a synthesised version row), a note, an
+  acceptance, a withdrawal or a cosignature naming itself is no head, and a count naming one concludes nothing.
+  `over` is not read for a count: a counted row stating another object concludes nothing. A moderator's lone
+  removal, a self-admission, a resignation (a withdrawal of a seat over a room) and a lift name the newest
+  counted changes too. A reader's line is drawn from every row the reader signed or cosigned over the room, so
+  pass `own` for a member reading its own roster.
 - Each counted node carries its real voices (signer, cosigners, cosign rows it names), its policy word and its
   threshold. `members_at` does not read them; `Seats::tips_fold` does, for every addition not common to the
   tips, and an addition with no member's voice waits.
@@ -195,11 +204,11 @@ trusting an adapter.
   holders, not one duty's), `policy()` `duty_confer`, and `over()` absent or the room it confers in. Any other
   counted offer of a duty scope concludes nothing (CIRISConstitution#241): a members' admission count
   (`community_invite`, `counted()` `member`), a count under another policy, a count over another room. A
-  counted unseat of a duty scope is likewise counted over the room (`over()` absent or the room). Where no
+  counted unseat of a duty scope is likewise counted over the room (`over()` is read for no count). Where no
   holder is left, present the election.
-- Every head a counted row names is of its own object's line: the object's founding row, a row whose `obj()` is
-  the object, a withdrawal, acceptance or receipt of one, or a version row with no `obj()` that names one. A
-  count naming another room's row as a head concludes nothing.
+- Every head a counted row names is a counted change over its own object, or its founding row (see "How a
+  store presents a count" above). A count naming another room's row, or any other row, as a head concludes
+  nothing.
 - A community, for every rule that asks (the duty gate, the duty room, the one-founder room, a lone removal): an
   object that names a held offer whose object is itself. A moderator's lone removal of an agent's key is read
   only over a community; elsewhere present the removal as the room's counted unseat.

@@ -126,16 +126,23 @@ fn admits(
         ..Default::default()
     }];
     if !founders.is_empty() {
+        // the founders' seats, placed by a counted change of the room (a head of a count is a counted change or
+        // the founding row: the heads ruling of 2026-11-26), every member signing and each founder its own yes
         let f = s(founders);
+        let mut co: Vec<String> = m[1..].to_vec();
+        co.extend(f.iter().filter(|k| !m[..1].contains(k)).cloned());
         rows.push(K {
             id: "gf".into(),
             names: s(&["g"]),
-            signer: f[0].clone(),
+            signer: m[0].clone(),
             kind: Some(SeatKind::Offer),
             to: f.clone(),
-            cosigners: f[1..].to_vec(),
+            cosigners: co,
             scope: Some("founder".into()),
-            conf: Some(Conf::Own),
+            conf: Some(Conf::Group),
+            head: s(&["g"]),
+            policy: Some("all".into()),
+            counted: Some("member".into()),
             ..Default::default()
         });
     }
@@ -159,6 +166,7 @@ fn admits(
     let mut law = SeatLaw { depth: 5, roster_seats: s(&["member"]), ..Default::default() };
     law.holds.insert("founder".into(), s(&["member"]));
     law.policy.insert("p".into(), policy);
+    law.policy.insert("all".into(), Policy::AtLeast(1, 1));
     let c = conclude(kept(&rows, |_| true), |q| seat_rule(q, &law, &Slots, &|_| true), None);
     c.concluded(c.g.idx(&"x".to_string()).unwrap())
 }

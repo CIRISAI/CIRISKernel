@@ -58,18 +58,25 @@ plant "a cut at a concurrent head reaches the act"     src/head.rs 'if !self.lat
 plant "a key's end read inclusively"                   src/lib.rs 'until.is_none_or(|u| *t < u)' 'until.is_none_or(|u| *t <= u)'
 plant "a record whose end is its own instant is kept"    src/key_end.rs 'x.from >= u || u - x.from > ceil' 'x.from > u || u - x.from > ceil'
 plant "the reader's line ignored"                      src/line.rs '(built_ok && !mine.iter().any(|&m| behind(r, m)))' 'built_ok'
-plant "a count read at its named heads whatever is in its past" src/seat.rs 'if newer_head_in_past(p, &r.over().unwrap_or(obj.clone()), r.head()) {' 'if false {'
-plant "a count read at every head it names, not the newest" src/seat.rs '|| behind_another(h)) {' ') {'
-plant "a named head may be any row"                    src/seat.rs 'if heads.iter().any(|&h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(changes)) {' 'if false {'
-plant "the newest heads tested on the row's own object" src/seat.rs 'if newer_head_in_past(p, &r.over().unwrap_or(obj.clone()), r.head()) {' 'if newer_head_in_past(p, &obj, r.head()) {'
-plant "the reader's line voids only concurrent acts"   src/line.rs 'let beside = if old_line(r) { c.g.concurrent(r, m) } else { !c.g.in_past(r, m) };' 'let beside = c.g.concurrent(r, m);'
-plant "the new line reads the lift too"                src/line.rs 'let beside = if old_line(r) { c.g.concurrent(r, m) } else { !c.g.in_past(r, m) };' 'let beside = !c.g.in_past(r, m);'
-plant "a roster version behind the line only where concurrent" src/line.rs 'let beside = i != j && !past(j).contains(&i);' 'let beside = i != j && !past(j).contains(&i) && !past(i).contains(&j);'
-plant "a counted change of any object moves the head"  src/seat.rs 'LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj)' 'LineSpec::<R>::counted_act(&SeatLine, q).is_some()'
-plant "a counted change behind a named head moves it"  src/seat.rs '!heads.iter().any(|&h| h == q.id() || p.past(q.id(), h))' '!heads.iter().any(|&h| h == q.id())'
-plant "the acts behind the line not listed as void"    src/seat.rs 'stale.extend(behind.iter().copied());' ''
-plant "the line's first pass reads the cut"            src/seat.rs 'line::void_with(c, &SeatLine, own, |_| true, lift)' '{ let c0 = Cut::new(c, spec); line::void_with(c, &SeatLine, own, |i| c0.counts(i), lift) }'
-plant "the newest-heads test ahead of the lone removal" src/seat.rs 'if !is_offer && lone_removal(r, p, law, spec, cache) {' 'if !is_offer && !newer_head_in_past(p, &r.over().unwrap_or(obj.clone()), r.head()) && lone_removal(r, p, law, spec, cache) {'
+plant "a count read at its named heads whatever is in its past (H1)" src/seat.rs 'if !is_election(law, r) && newer_head_in_past(p, law, &obj, r.head(), &signers(r)) {' 'if false {'
+plant "a count read at every head it names, not the newest (H1)" src/seat.rs '    if !heads.iter().any(behind_another) {' '    if true {'
+plant "a named head may be any row (H1, H3, H8)" src/seat.rs 'if heads.iter().any(|&h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(|q| change(law, q, obj))) {' 'if false {'
+plant "a counted change of any object moves the head (H1)" src/seat.rs 'LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj) && !authored_head(law, q)' 'LineSpec::<R>::counted_act(&SeatLine, q).is_some() && !authored_head(law, q)'
+plant "a counted change behind a named head moves it (H1)" src/seat.rs '&& !heads.iter().any(|&h| h == q.id() || p.past(q.id(), h))' '&& !heads.iter().any(|&h| h == q.id())'
+plant "a self-admission is a counted change (H3)"      src/seat.rs 'LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj) && !authored_head(law, q)' 'LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj)'
+plant "a count over another room concludes (H2)"       src/seat.rs '                    if r.over().is_some_and(|o| o != obj) {
+                        return false;
+                    }' ''
+plant "a lone removal read before the newest-heads rule (H4)" src/seat.rs 'if !is_election(law, r) && newer_head_in_past(p, law, &obj, r.head(), &signers(r)) {' 'if !is_election(law, r) && !(!is_offer && lone_removal(r, p, law, spec, cache)) && newer_head_in_past(p, law, &obj, r.head(), &signers(r)) {'
+plant "a lone removal after its signer laid moderate down (H4)" src/seat.rs '        && (left_in_past(p, &obj, "moderate").contains(r.signer())' '        && false && (left_in_past(p, &obj, "moderate").contains(r.signer())'
+plant "a resignation that names no newest change (H4)" src/seat.rs '                !newer_head_in_past(p, law, &room, &named, &signers(r))' '                true'
+plant "the reader's line voids only concurrent acts (H5)" src/line.rs '        let beside = !c.g.in_past(r, m);' '        let beside = c.g.concurrent(r, m);'
+plant "a roster version behind the line only where concurrent (H5)" src/line.rs 'let beside = i != j && !past(j).contains(&i);' 'let beside = i != j && !past(j).contains(&i) && !past(i).contains(&j);'
+plant "the acts behind the line not listed as void (H5)" src/seat.rs 'stale.extend(behind.iter().copied());' ''
+plant "the line's first pass reads the cut (H5)"       src/seat.rs 'line::void_with(c, &SeatLine, own, |_| true, seating)' '{ let c0 = Cut::new(c, spec); line::void_with(c, &SeatLine, own, |i| c0.counts(i), seating) }'
+plant "a reader's line read from explicit acks only (H6)" src/line.rs '        if spec.acknowledges(r, own, &get).is_some_and(|o| o == *obj) {' '        if false {'
+plant "a change behind a signer's acknowledgement is not excused (H7)" src/seat.rs '            && !acked_behind(p, law, q, keys, obj)' ''
+plant "an election's seating held behind by the line" src/line.rs '        m != r && beside && !never_behind(r) && older(' '        m != r && beside && older('
 plant "the cut read before the reader's line"          src/seat.rs 'let cut = Cut::new_without(c, spec, &behind);' 'let cut = Cut::new(c, spec);'
 plant "a met count is read only by a landing" src/window.rs 'return if got == "open" { Outcome::Open } else { Outcome::Landed(got) };' 'return Outcome::Open;'
 plant "a withdrawal takes back the proposer's approval" src/window.rs 'let by = ops::group_by(answers.iter().copied().filter(|a| voters.contains(a.signer()) && !is_wd(a)), |a| {' 'let by = ops::group_by(answers.iter().copied().filter(|a| voters.contains(a.signer())), |a| {'
@@ -147,16 +154,8 @@ plant "a removal at a later head than the end counts" src/seat.rs '!g.in_past(e,
 plant "a members' count confers a duty (the gate removed)" src/seat.rs 'if is_offer && !duty_gate(law, &by, p, r) {' 'if false {'
 plant "the duty gate reads counted off the room" src/seat.rs 'r.counted().is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)' 'row_of(by, &obj).and_then(|g| g.counted()).is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)'
 plant "one duty's holders pass the duty gate" src/seat.rs 'r.counted().is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)' 'r.counted().is_some_and(|c| law.is_duty(c.as_ref(), &declared)) && pol == Some(Policy::DutyConfer)'
-plant "a duty conferred by a count over another room" src/seat.rs '    if r.over().is_some_and(|o| o != obj) {
-        return false;
-    }
-    // the gate reads the policy in force' '    // the gate reads the policy in force'
-plant "a duty withdrawn by a count over another room" src/seat.rs '    r.over().is_none_or(|o| o == obj)
-}' '    true
-}'
 plant "the lone founder's word read as another scope than moderate" src/seat.rs 'Sc::Moderate => R::word("moderate"),' 'Sc::Moderate => R::word("review"),'
 plant "the window takes a withdrawal's scope at its word" src/window.rs '            if seat::stay_end(law, by, wr).as_ref() != Some(&obj) {' '            if !law.roster_seats.iter().any(|r| Some(r.as_str()) == wr.scope().map(|s| s.as_ref())) {'
-plant "a count naming another object's heads" src/seat.rs '                    if !r.head().iter().all(|h| on_object(&by, h, &obj)) {' '                    if false {'
 plant "a lone removal over an object that is no community" src/seat.rs '    if !community(&by, &obj) {
         return false;
     }
@@ -234,7 +233,6 @@ plant "the tips read as their common members" src/seat.rs 'let t = self.fold_of(
 plant "the fold counts a voice it does not seat" src/seat.rs 'let ok = if over == *o && counted == s { Some(seated.clone()) } else { self.tips_fold(counted, &over) };' 'let ok: Option<BTreeSet<R::Key>> = None;'
 plant "a member another tip removed stays in the fold" src/seat.rs 'union.iter().filter(|k| !common.contains(*k) && survives(k)).cloned().collect();' 'union.iter().filter(|k| !common.contains(*k)).cloned().collect();'
 plant "tips that differ in policy are folded" src/seat.rs 'if regimes.len() > 1 {' 'if false {'
-plant "an authored head narrows a count" src/seat.rs 'if !heads.iter().any(|h| row(h).is_some_and(|r| authored_head(law, r)) || behind_another(h)) {' 'if true {'
 plant "a key admits itself"                           src/seat.rs 'let yes = || v.intersection(mem).filter(move |k| !(is_offer || unanimous) || !to.contains(k));' 'let yes = || v.intersection(mem).filter(move |k| unanimous && !to.contains(k));'
 plant "the member removed is no voice of its removal"  src/seat.rs 'let yes = || v.intersection(mem).filter(move |k| !(is_offer || unanimous) || !to.contains(k));' 'let yes = || v.intersection(mem).filter(move |k| !to.contains(k));'
 plant "a self-admit removal counts the member named"   src/seat.rs 'v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).count() >= 2' 'v.iter().filter(|k| mem.contains(*k)).count() >= 2'

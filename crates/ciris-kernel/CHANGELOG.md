@@ -327,85 +327,68 @@ changes.
   `window_adversary.tsv` (112 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
   (those rows in arrival orders, eleven planted breaks, the OPEN list). Eleven new crate plants in
   `tools/kernel_crate_plants.sh`.
-**A count is read at the newest counted heads in its own past; one reader's line; the line before the cut.**
-Additive: three public functions (`cut::Cut::new_without`, `line::settle_with`, `line::void_with`). One public
-function returns something else: `Seats::cut()` is the reader's cut where `own` is set (solved without the acts
-behind that reader's line), and the cut over the set only where it is not. Several answers change; each is
-listed below.
+**The heads of a count, and the reader's line** (the heads ruling of 2026-11-26, H1 to H8). The mesh is
+rebuilt fresh, so no old row has to keep concluding: many answers change, each listed here. Public API:
+`seat::is_election` and `line::LineSpec::acknowledges` (a default method) are new; `line::settle_with` and
+`line::void_with` take `never_behind` (the acts the line never holds behind); `cut::Cut::new_without` is new;
+`Seats::cut()` is the reader's cut where `own` is set.
 
-- A counted row over a roster concludes only at the newest counted heads of that roster in its own past
-  (`seat::seat_rule`, the count arm). A counted change is what the reader's line reads as a counted act
-  (`SeatLine`'s `counted_act`): an offer or unseat conferred by a count ([`Conf::Group`]) on the same object
-  that names a head, of any scope. That covers an admission, a removal, a duty conferral or withdrawal and a
-  recall. A counted offer or unseat concludes nothing in any of three cases:
-  - its own past holds such a change that is neither one of the newest heads it names nor in the past of one;
-  - one of those newest heads is neither such a change nor the roster's founding row (a note, an acceptance or
-    a withdrawal is no head of a count);
-  - either of the above holds over the object the count is taken over (`over`, else the row's object).
+- **H1, the newest heads.** A count is read at the newest of the heads it names (`seat::counted_heads`: a named
+  head in another named head's past is dropped). Each must be a counted change over the row's own object, or
+  its founding row. They must be exactly the newest counted changes over that object in the row's own past
+  (`newer_head_in_past`). A counted change is what the reader's line reads as a counted act (an offer or
+  unseat with `Conf::Group` on the object, naming a head, of any scope), and no self-admission. Concurrent tips
+  are intersected. **Answers change:** a counted row now concludes nothing where
+  - it names a head older than a counted change in its own past;
+  - it names an old head beside the newest;
+  - it names a head that is no counted change: an acceptance, a withdrawal, a note, a version row.
 
-  The count is read at the newest of the heads named: `seat::counted_heads` (Python `seat.newest`) drops a
-  named head that is in the past of another named head, and `members_at` reads only those. Several concurrent
-  newest heads (tips) are intersected as before. A head one key wrote (an outsider's own admission,
-  `open:self_admit`) is read through to the heads it names, in the reference as in the crate (the reference
-  gains that policy). A row that has not seen the newer head (one concurrent with it) concludes as before; the
-  line and the fold read it.
+  Rows that were honest under the old rule are refused too: a counted change of any scope moves the head. A
+  duty withdrawal written at the head before the conferral it ends is one. Such rows are signed again at the
+  newer head.
+- **H2, no `over`.** A counted row is counted over its own object, and one stating another object (`over`)
+  concludes nothing. The duty-only checks of the field (`duty_over`, the duty gate's) and `on_object` are gone:
+  this rule and H1 cover them.
+- **H3, no read-through.** A self-admission is no head a count may name, and no counted change a count must
+  name. `counted_heads` no longer reads an authored head through. **Answers change:** a count naming a
+  self-admission concludes nothing.
+- **H4, no exemption.** Every row that changes a roster names the newest counted changes over its object in its
+  own past, or concludes nothing:
+  - a moderator's lone removal, whose signer must hold `moderate` at those heads, less a laying down of it in the
+    removal's own past;
+  - a self-admission;
+  - a resignation or laying down: a withdrawal of a seat over a community, among the rows it names;
+  - the members' lift. It names the removal (the newest change in its past), cites it, and is counted over the
+    members at the head the removal names. `lift_voices` no longer asks the lift to name the removal's head.
 
-  Read as before: a lift (`Policy::Lift`), pending the lift follow-up (it is to name the newest counted heads
-  in its own past and be counted over the members seated both at the act's head and at its own, the author
-  apart); and a moderator's lone removal. A cosignature needs no reading of its own: it is a voice only where
-  the row names it, so the row's past holds the cosignature's.
-
-  **Answers change:** each of these concluded before and concludes nothing now:
-  - a counted row naming a head older than a counted change in its own past;
-  - a counted row naming an old head beside the newest one (heads `(g, aG)` or `(aD, aG)`), which before was
-    counted over the intersection, the older roster;
-  - a counted row naming as its head a row that is no counted change;
-  - a counted row in one room counted over another room's roster at an old head of that roster.
-- The reader's line is the text's (CC 2.7.8: "holds void every counted act that names an older head and is
-  not in that head's past"): `line::settle` no longer asks that the act be concurrent with the act of the
-  line. This is the rule `head::View` reads. A lift is read by the line as before (void only where concurrent
-  with an act of the line), pending the same follow-up: `line::settle_with` and `line::void_with` take the acts
-  read so. **Answers change** for a counted act that has an act of the line in its own past and names a head
-  older than it. With the rule above (the newest named heads, each a counted change), the only such act that
-  concludes is a moderator's lone removal at an older head; before that rule, any counted row of that shape was
-  one.
-- `line::versions` (Python `checkpoint.versions`) is the same rule: no test of concurrency. Where a version's
-  past is the closure of the versions it extends (roster_fork's rule M0, and every fixture of `versions.json`
-  before this change), the answers are the same. Where a version may have in its past a version it does not
-  extend (roster_fork's set-aside rule M), **answers change**. On rule M's worlds (every set of up to three
-  versions, every reader), 50,868 of 330,909 answers differ, each in holding more versions void for the reader.
-  In 46,508 of them the roster of the tips is the same. In 4,135 a member is listed who was not: the voided
-  version removed that member. In 225 a member is not listed who was: the voided version admitted that member.
-  In every class the version is void until it is signed again at the newer head. Three cases in
-  `check_count_heads.py`, one per class, and in `versions.json`.
-- The line is read before the cut (`seat::Seats`): a counted act void for a reader cuts nothing for that
-  reader. For a reader with an acknowledgement, the cut is solved without the acts behind its line
-  (`cut::Cut::new_without`), and `Seats::cut()` returns that cut. **Answers change:** a counted removal
-  concurrent with the head a reader acknowledged, behind that reader's line, no longer takes the key off the
-  roster for that reader. The line is read with every row counting, so an acknowledged act that a removal
-  would cut still leaves its siblings behind for that reader; this is asked of the Constitution. With every
-  head a counted change, such a removal is itself concurrent with the acknowledged act and named over an act
-  behind it, so it is void for that reader and cuts nothing. A case states both forms. For a reader with no
-  acknowledgement nothing changes: a removal at a tip is read by the fold as before.
-- Cases: `models/causal_kernel/check_count_heads.py` (29 cases in arrival orders and three of roster versions, thirteen planted breaks; each
-  case states its answer before the change), attack 35 in `attacks.py`, and the fixture `seat.json`, which
-  carries them. The cases include two of a moderator who lays down its seat and then removes an agent's key
-  alone, naming the head where it held the seat: the end rule holds the removal not in force, with the
-  withdrawal in its past or concurrent with it. A case of the lift states today's answer for a reader that
-  acknowledged the removal, for the follow-up to change.
-
-  Existing cases rewritten to name the newest counted head (each fact holds again). In the first two the roster
-  counted over had NOT changed: the old rows were honest. This rule refuses them because a counted change of any
-  scope (a duty conferral here) moves the head. **An answer changes** for rows of that shape already written:
-  they conclude nothing and are signed again at the newer head.
-  - `roomkey.py`, "the enabling is revocable": the withdrawal names the conferral it ends;
-  - `attacks.py` test 3, "conferred by the count, then f1 withdrawn by the others": the withdrawal names the
-    conferral;
-  - `attacks.py` test 7: J's conferral named K's acceptance and now names K's conferral;
-  - `check_rosters.py` T7: the stalled widening named a withdrawal and now names the founding row, with the
-    withdrawal in its past.
-
-  Thirteen crate plants.
+  **Answers change:** a lone removal at an old head, or after its signer laid `moderate` down, concludes
+  nothing (it concluded and was held out of force); a lift at the removal's head concludes nothing.
+- **H5, the text's line.** `line::settle`, `line::void` and `line::versions` have no test of concurrency, and
+  the line is read before the cut (`Seats`, `Cut::new_without`). **Answers change** on roster_fork's set-aside
+  worlds: more versions are void for a reader until they are signed again.
+- **H6, a reader's own rows are its acknowledgements.** `own_line` reads, besides explicit acknowledgements,
+  every concluded row the reader signed or cosigned over the object (`LineSpec::acknowledges`; `SeatLine` reads
+  the row's object, its room, or the object of the row its `of` or `target` names). Each acknowledges the
+  counted acts in its own past. **Answers change:** a member that wrote no acknowledgement holds a fork from an
+  old past void, behind its own admission.
+- **H7, narrow liveness.** A counted change in a row's past that is behind an acknowledgement, also in that
+  past, by one of the row's own signers is no head the row must name (`acked_behind`). It never extends to a
+  row built on that change.
+- **H8, no caller-synthesised heads.** A row of no object, a note, or a cosignature naming itself is no head of a
+  count. A store presents its real rows (the founding record and its counted changes) and names the newest
+  counted changes. `examples/persist_paths.rs` presents a ballot so.
+- **An election's seating** (`seat::is_election`: an offer, `Conf::Group`, policy `Policy::Ranked`) names no
+  head. It is exempt from H1, H4 and the line, and every later counted row must name it. roster-kinds'
+  election2 replaces the predicate.
+- Still open, for a reader with no row over the room: concurrent tips intersect. A cheap tip from the old past,
+  named beside the newest head, counts over the old roster for such a reader (two cases, marked OPEN).
+- Cases: `models/causal_kernel/check_count_heads.py`, rewritten: 45 cases by rule, 2 of them OPEN; three of roster
+  versions; the line read directly; 18 planted breaks. Attack 35 reads them; the fixtures carry them, each with
+  its reader. Existing cases rewritten so that every counted row and every seat's end names the newest counted
+  changes (`seat.honest`): `check_agent_removal`, `check_duty_seats` (the version and self-`of` heads now hold
+  nothing), `check_room_keys` (a merge is a counted change), `check_readmit`, `check_removal_in_force`, attack 6
+  and the checkpoint price. Crate: `tests/fold.rs` and `tests/policies.rs` name counted heads, and a unit test
+  of the line in `line.rs`. Seventeen crate plants.
 
 **The act-to-policy binding, step 3: the refusal, and the room's declared protocol** (the Constitution's
 `governance_policy_acts.tsv`).

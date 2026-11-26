@@ -28,6 +28,13 @@ pub trait LineSpec<R: Row> {
     fn counted_act<'r>(&self, r: &'r R) -> Option<(Self::Obj, &'r [R::Id])>;
     /// The object and heads a reader's acknowledgement names, when `r` is an acknowledgement signed by `own`.
     fn ack_by<'r>(&self, r: &'r R, own: &R::Key) -> Option<(Self::Obj, &'r [R::Id])>;
+    /// The object a row `own` signed or cosigned is over, where the row is one of its acknowledgements: a
+    /// reader's own signed rows acknowledge the counted acts in their past (the heads ruling of 2026-11-26,
+    /// H6). `get` reads a row of the set by id. By default none: only [`LineSpec::ack_by`] is read.
+    fn acknowledges<'r>(&self, r: &'r R, own: &R::Key, get: &dyn Fn(&R::Id) -> Option<&'r R>) -> Option<Self::Obj> {
+        let _ = (r, own, get);
+        None
+    }
 }
 
 fn older<R: Row>(c: &Concluded<'_, R>, heads: &[R::Id], than: &[R::Id]) -> bool {
@@ -39,7 +46,9 @@ pub fn counted_acts<R: Row, L: LineSpec<R>>(c: &Concluded<'_, R>, spec: &L, obj:
     c.cs().iter().copied().filter(|&i| spec.counted_act(c.g.row(i)).is_some_and(|(o, _)| o == *obj)).collect()
 }
 
-/// The counted acts on `obj` this reader has acknowledged, with the counted acts in their past.
+/// The counted acts on `obj` this reader has acknowledged, with the counted acts in their past: the heads its
+/// explicit acknowledgements name ([`LineSpec::ack_by`]), and every row it signed or cosigned over `obj`
+/// ([`LineSpec::acknowledges`], H6) with the counted acts in that row's past.
 pub fn own_line<R: Row, L: LineSpec<R>>(
     c: &Concluded<'_, R>,
     spec: &L,
@@ -48,18 +57,26 @@ pub fn own_line<R: Row, L: LineSpec<R>>(
 ) -> Vec<usize> {
     let Some(own) = own else { return Vec::new() };
     let mut acked: BTreeSet<&R::Id> = BTreeSet::new();
+    let mut signed: Vec<usize> = Vec::new();
+    let get = |i: &R::Id| c.g.idx(i).map(|i| c.g.row(i));
     for &a in c.cs() {
-        if let Some((o, hs)) = spec.ack_by(c.g.row(a), own) {
+        let r = c.g.row(a);
+        if let Some((o, hs)) = spec.ack_by(r, own) {
             if o == *obj {
                 acked.extend(hs.iter());
             }
+        }
+        if spec.acknowledges(r, own, &get).is_some_and(|o| o == *obj) {
+            signed.push(a);
         }
     }
     counted_acts(c, spec, obj)
         .into_iter()
         .filter(|&r| {
             let id = c.g.row(r).id();
-            acked.contains(id) || acked.iter().any(|h| c.g.idx(h).is_some_and(|h| c.g.in_past(r, h)))
+            acked.contains(id)
+                || acked.iter().any(|h| c.g.idx(h).is_some_and(|h| c.g.in_past(r, h)))
+                || signed.iter().any(|&s| s == r || c.g.in_past(r, s))
         })
         .collect()
 }
@@ -75,15 +92,15 @@ pub fn settle<R: Row, L: LineSpec<R>>(
     settle_with(c, spec, obj, own, cut_counts, |_| false)
 }
 
-/// [`settle`], with `old_line(i)` naming the acts the line reads as before 0.5.0: void only where concurrent
-/// with an act of the line (the members' lift, pending its follow-up; `seat::Seats` passes it).
+/// [`settle`], with `never_behind(i)` naming the acts the line never leaves behind (an election's seating, read
+/// at its election's vacancy; `seat::Seats` passes it).
 pub fn settle_with<R: Row, L: LineSpec<R>>(
     c: &Concluded<'_, R>,
     spec: &L,
     obj: &L::Obj,
     own: Option<&R::Key>,
     cut_counts: impl Fn(usize) -> bool,
-    old_line: impl Fn(usize) -> bool,
+    never_behind: impl Fn(usize) -> bool,
 ) -> BTreeSet<usize> {
     let acts = counted_acts(c, spec, obj);
     let line: BTreeSet<&R::Id> = acts.iter().map(|&i| c.g.row(i).id()).collect();
@@ -98,8 +115,8 @@ pub fn settle_with<R: Row, L: LineSpec<R>>(
     // than `m` is void too. This is the rule `head::View` reads (an act not in an acknowledged head's past that
     // names only heads strictly in it).
     let behind = |r: usize, m: usize| {
-        let beside = if old_line(r) { c.g.concurrent(r, m) } else { !c.g.in_past(r, m) };
-        m != r && beside && older(c, heads(r), core::slice::from_ref(c.g.row(m).id()))
+        let beside = !c.g.in_past(r, m);
+        m != r && beside && !never_behind(r) && older(c, heads(r), core::slice::from_ref(c.g.row(m).id()))
     };
     let mut out: BTreeSet<usize> = BTreeSet::new();
     let mut out_ids: BTreeSet<&R::Id> = BTreeSet::new();
@@ -124,18 +141,18 @@ pub fn void<R: Row, L: LineSpec<R>>(
     void_with(c, spec, own, cut_counts, |_| false)
 }
 
-/// [`void`], with `old_line` as in [`settle_with`].
+/// [`void`], with `never_behind` as in [`settle_with`].
 pub fn void_with<R: Row, L: LineSpec<R>>(
     c: &Concluded<'_, R>,
     spec: &L,
     own: Option<&R::Key>,
     cut_counts: impl Fn(usize) -> bool,
-    old_line: impl Fn(usize) -> bool,
+    never_behind: impl Fn(usize) -> bool,
 ) -> BTreeSet<usize> {
     let objs: BTreeSet<L::Obj> = c.cs().iter().filter_map(|&i| spec.counted_act(c.g.row(i)).map(|(o, _)| o)).collect();
     let mut out = BTreeSet::new();
     for obj in &objs {
-        let ok = settle_with(c, spec, obj, own, &cut_counts, &old_line);
+        let ok = settle_with(c, spec, obj, own, &cut_counts, &never_behind);
         for i in counted_acts(c, spec, obj) {
             if cut_counts(i) && !ok.contains(&i) {
                 out.insert(i);
@@ -184,4 +201,60 @@ pub fn versions(
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::layers::conclude;
+    use alloc::vec;
+
+    struct Rw {
+        id: u32,
+        names: Vec<u32>,
+        signer: u32,
+        head: Vec<u32>,
+        ack: bool,
+    }
+    impl Row for Rw {
+        type Id = u32;
+        type Key = u32;
+        fn id(&self) -> &u32 {
+            &self.id
+        }
+        fn names(&self) -> &[u32] {
+            &self.names
+        }
+        fn signer(&self) -> &u32 {
+            &self.signer
+        }
+    }
+    struct Spec;
+    impl LineSpec<Rw> for Spec {
+        type Obj = u32;
+        fn counted_act<'r>(&self, r: &'r Rw) -> Option<(u32, &'r [u32])> {
+            (!r.ack && !r.head.is_empty()).then_some((0, r.head.as_slice()))
+        }
+        fn ack_by<'r>(&self, r: &'r Rw, own: &u32) -> Option<(u32, &'r [u32])> {
+            (r.ack && r.signer == *own).then_some((0, r.head.as_slice()))
+        }
+    }
+
+    /// CC 2.7.8: the line holds void every counted act that names an older head and is not in that head's
+    /// past, however many rows it has: an act with the acknowledged act in its own past, naming a head older
+    /// than it, is void for that reader (no test of concurrency, the heads ruling of 2026-11-26).
+    #[test]
+    fn the_line_voids_a_descendant_that_names_an_older_head() {
+        let row = |id, names: Vec<u32>, signer, head: Vec<u32>, ack| Rw { id, names, signer, head, ack };
+        let rows = vec![
+            row(0, vec![], 1, vec![], false),
+            row(1, vec![0], 1, vec![0], false),    // a1, at the founding row
+            row(2, vec![0, 1], 1, vec![0], false), // a2, at the founding row, with a1 in its past
+            row(3, vec![1], 9, vec![1], true),     // the reader 9 acknowledges a1
+        ];
+        let c = conclude(rows.iter(), |_| true, None);
+        let void = super::void(&c, &Spec, Some(&9), |_| true);
+        assert_eq!(void.into_iter().map(|i| c.g.row(i).id).collect::<Vec<_>>(), vec![2]);
+        assert!(super::void(&c, &Spec, None, |_| true).is_empty());
+    }
 }

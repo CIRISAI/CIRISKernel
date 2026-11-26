@@ -242,9 +242,10 @@ def check_rows(rows, problems, where):
                 problems.append("%s: %s %s slots %r, builder gives %r" % (where, r["kind"], r["id"], got, want))
 
 
-def seat_answers(S, ST, WN, CUT, CP):
+def seat_answers(S, ST, WN, CUT, CP, readers=()):
     C = CUT.Cut(S)
-    readers = [None] + sorted({r["signer"] for r in S.rows if r["kind"] == "ack"})
+    # each acknowledgement's signer, and any reader a case names (a member whose own rows are its line, H6)
+    readers = [None] + sorted({r["signer"] for r in S.rows if r["kind"] == "ack"} | set(readers))
     objs = sorted({r["obj"] for r in S.rows if r["kind"] in ("offer", "unseat") and isinstance(r.get("obj"), str)})
     out = {"kept": [r["id"] for r in S.rows], "c": [S.C[r["id"]] for r in S.rows],
            "cut": [C.status(r) for r in S.rows], "readers": {}}
@@ -315,7 +316,7 @@ def seat_cases():
     rules = {id(A.SEAT): "seat", id(A.WIN): "window", id(A.ROUTE): "route"}
     seen, scen, skipped = {}, [], {"rules": 0}
 
-    def record(rows, rule, asks=None, table=None):
+    def record(rows, rule, asks=None, table=None, readers=()):
         """`asks`: (key, scope, object) the scenario also states `stands` for. `table`: read under another HOLDS
         (check_duty_seats.py's `persist`); the scenario then carries its own `holds`."""
         name = rules.get(id(rule))
@@ -324,8 +325,11 @@ def seat_cases():
             return
         key = (name, table, json.dumps([row_enc(r) for r in rows], sort_keys=True))
         if key not in seen:
-            seen[key] = True
-            scen.append((name, list(rows), list(asks or ()), table))
+            seen[key] = len(scen)
+            scen.append((name, list(rows), list(asks or ()), table, tuple(readers)))
+        elif readers:                                # the same rows named again with a reader: read it too
+            n, r0, a0, t0, rd = scen[seen[key]]
+            scen[seen[key]] = (n, r0, a0, t0, tuple(sorted(set(rd) | set(readers))))
 
     orig_conc = A.conc
 
@@ -379,8 +383,8 @@ def seat_cases():
     # a count is read at the newest counted heads in its own past; one reader's line; the line before the cut:
     # check_count_heads.py's cases, under the seat rule (each reader an ack's signer)
     import check_count_heads as CH
-    for _name, rows, *_ in CH.CASES:
-        record(rows, A.SEAT)
+    for _rule, _name, rows, own, *_ in CH.CASES:
+        record(rows, A.SEAT, readers=(own,) if own else ())
     # a moderator's lone removal is in force only while the end rule says so: check_removal_in_force.py's cases
     import check_removal_in_force as RF
     for _name, rows, _concl, _roster, asks in RF.CASES:
@@ -410,12 +414,12 @@ def seat_cases():
         record(rows, A.SEAT)
     rulefn = {"seat": A.SEAT, "window": A.WIN, "route": A.ROUTE}
     problems, out = [], []
-    for i, (name, rows, asks, tab) in enumerate(scen):
+    for i, (name, rows, asks, tab, rdrs) in enumerate(scen):
         check_rows(rows, problems, "scenario %d" % i)
         with DS.table(tab):
             S = CK.concluded(CK.kept(list(rows)), rulefn[name])
             refs = {}
-            e = {"rule": name, "rows": with_refs(rows, refs), "refs": refs, "a": enc(seat_answers(S, ST, WN, CUT, CP))}
+            e = {"rule": name, "rows": with_refs(rows, refs), "refs": refs, "a": enc(seat_answers(S, ST, WN, CUT, CP, rdrs))}
             if asks:
                 Q = ST.Seats(S)
                 e["stands"] = [[k, sc, o, Q.stands(k, sc, o)] for k, sc, o in asks]
