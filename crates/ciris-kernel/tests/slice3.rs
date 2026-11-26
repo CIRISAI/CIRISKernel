@@ -66,6 +66,9 @@ const OWNER: &str = "owner";
 
 impl SeatRow for T {
     type Word = String;
+    fn word(s: &'static str) -> String {
+        s.into()
+    }
     fn seat_kind(&self) -> SeatKind {
         self.kind
     }

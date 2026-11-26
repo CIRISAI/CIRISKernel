@@ -90,7 +90,7 @@ plant "the count's receipt over any room" src/seat.rs 'if qr.obj().as_ref() != S
 plant "the count's receipt at an older head" src/seat.rs 'if qr.head().is_empty() || !qr.head().iter().all(fresh) {' 'if qr.head().is_empty() {'
 plant "the remover a voice of the count's receipt" src/seat.rs '    v.remove(xr.signer());
     let yes' '    let yes'
-plant "a founding duty read as the offer's scope" src/seat.rs '            && (seat_scopes(m, k, signed_by(m, k)).contains(&us)' '            && (m.scope() == Some(us)'
+plant "a founding duty read as the offer's scope" src/seat.rs '            && (seat_scopes(m, k, signed_by(m, k)).iter().any(|s| s.s() == us.as_ref())' '            && (m.scope() == Some(us)'
 plant "an agent's receipt keeps a lone removal" src/seat.rs '    duty.retain(|k| !agents.contains(k));
 ' ''
 plant "a receipt after the unseat keeps" src/seat.rs '                    && !g.in_past(q, *u)
@@ -114,6 +114,9 @@ plant "a members' count confers a duty (the gate removed)" src/seat.rs 'if is_of
 plant "the duty gate reads counted off the room" src/seat.rs 'let counted = r.counted().map_or("member", |c| c.as_ref());' 'let counted = row_of(by, &obj).and_then(|g| g.counted()).map_or("member", |c| c.as_ref());'
 plant "an ordered pair read as mutual" src/seat.rs ' && !g.in_past(y, x) && yr.to().first() == Some(xr.signer())' ' && yr.to().first() == Some(xr.signer())'
 plant "a key's own offer of a duty ungated outside a duty room" src/seat.rs '&& (duty_seat(law, &by, r) || own_duty())' '&& duty_seat(law, &by, r)'
+plant "a lone founder holds no duty" src/seat.rs '    if lone_founding(o) {
+        let mut out' '    if false {
+        let mut out'
 plant "two live owners still give an owner"          src/standing.rs 'Ok(true) => drop(out.insert(x.id().clone(), Answer::Nobody(Nobody::TwoOwners))),' 'Ok(true) => at.push((x, b)),'
 plant "a remover seated again revives its removal"   src/seat.rs '    if now.stands(m, "moderate", &obj, None)
         && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s))' '    if now.stands(m, "moderate", &obj, None)
@@ -127,29 +130,30 @@ plant "an owner's revocation ends another owner's seat"  src/seat.rs 'if own { r
 plant "one of two live owners revokes alone"            src/seat.rs 'sole.one(us.as_ref(), &obj).as_ref() == Some(r.signer())' 'sole.stands(r.signer(), us.as_ref(), &obj, None)'
 plant "a duty seat stands on a key that is not a member" src/seat.rs 'if held.contains(&true) {' 'if false {'
 plant "a resignation ends no duty seat by its past (revival)" src/seat.rs 'if !off_ended(o, k, sc) && !unseated(oi, k, sc) && !resigned(oi, k, sc) {' 'if !off_ended(o, k, sc) && !unseated(oi, k, sc) {'
-plant "a removal from the roster cuts the member seat only (revival)" src/seat.rs '                    && (ur.scope() == Some(sc)
-                        || (dutyish' '                    && (ur.scope() == Some(sc)
+plant "a removal from the roster cuts the member seat only (revival)" src/seat.rs '                    && (ur.scope().map(|x| x.as_ref()) == Some(sc.s())
+                        || (dutyish' '                    && (ur.scope().map(|x| x.as_ref()) == Some(sc.s())
                         || (false'
 plant "a holder's end of its stay ends another key's duty seats" src/seat.rs '*k2 == k && oo.as_ref() == Some(room) && g.in_past(oi, *w)' 'oo.as_ref() == Some(room) && g.in_past(oi, *w)'
 plant "at tips a duty seat does not follow the folded roster" src/seat.rs '!self.duty[i]
             || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))' 'true || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))'
 plant "the founding seat is no member seat" src/seat.rs 'let own = (o.obj() == Some(Obj::Row(o.id().clone())) && o.scope().map(|x| x.as_ref()) == Some(s)) || roster;' 'let own = roster;'
-plant "every seat over a community asks for membership" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty(sc.as_ref(), &declared(by, &obj))' 'community(by, &obj) && !founding(o) && !roster'
+plant "every seat over a community asks for membership" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty(sc, &declared(by, &obj))' 'community(by, &obj) && !founding(o) && !roster'
 plant "the duty-seat rule reaches duty rooms only" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty' 'duty_room(by, &obj) && !founding(o) && !roster && law.is_duty'
 plant "a duty count counts a holder whose resignation is in its past" src/seat.rs 'if !mem.is_empty() && law.is_duty(counted, &duties) {' 'if false {'
 plant "a holder admitted again stays out of the duty count" src/seat.rs 'if !back {' 'if true {'
 plant "a founding record's duty holders unread" src/seat.rs '    if o.duty_holders().is_empty() {
-        return alloc::vec![own];' '    if true {
-        return alloc::vec![own];'
+        return alloc::vec![Sc::Row(own)];' '    if true {
+        return alloc::vec![Sc::Row(own)];'
 plant "a founding row with no map seats an unsigned key that accepts later" src/seat.rs '    if !founding(o) {
-        return alloc::vec![own];' '    if !founding(o) || o.duty_holders().is_empty() {
-        return alloc::vec![own];'
+        return alloc::vec![Sc::Row(own)];' '    if !founding(o) || (o.duty_holders().is_empty() && !lone_founding(o)) {
+        return alloc::vec![Sc::Row(own)];'
 plant "a listed member who did not sign the record is seated" src/seat.rs '    if !signed {
         return Vec::new();' '    if false {
         return Vec::new();'
-plant "a withdrawal's scope unread (laying down a duty ends every seat)" src/seat.rs '&& w.scope().is_none_or(|ws| ws == sc)' ''
+plant "a withdrawal's scope unread (laying down a duty ends every seat)" src/seat.rs '&& w.scope().is_none_or(|ws| ws.as_ref() == sc.s())' ''
 plant "a roster cut ends duty seats of a key that holds no such seat" src/seat.rs '                            && oo.as_ref().is_some_and(|x| holds_roster(c, law, u, k, x))));' '                            && oo.is_some()));'
-plant "a withdrawal naming a roster scope ends the stay whatever its target gives" src/seat.rs '|| !seat_scopes(t, k, signed_by(t, k)).contains(&ws) {' '{'
+plant "a withdrawal naming a roster scope ends the stay whatever its target gives" src/seat.rs '            || !seat_scopes(t, k, signed_by(t, k)).iter().any(|s| s.s() == ws.as_ref())
+' ''
 plant "E7 read from any standing now" src/seat.rs '        && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s))
     {' '        && !standing.is_empty() && !live.is_empty() && !ended.is_empty() && false
     {'

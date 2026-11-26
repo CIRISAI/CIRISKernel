@@ -280,6 +280,16 @@ def lists_holders(g):
     return any(ks for _, ks in g.get("duty_holders") or ())
 
 
+def lone_founding(o):
+    """A founding record one person signs with no `duty_holders` map (CC 4.5.4: "A record one person signs MAY name
+    none, and that person then holds every declared duty"): a community's founding row (scope `member`; a key's or a
+    voice's own roster founded alone is no community) whose `to` is one key, signed by that key, no other key signing
+    it. The older presentation, a lone founder's row of scope `duty`, holds the law's duties through HOLDS and is read
+    as before."""
+    return o.get("obj") == o["id"] and not o.get("duty_holders") and len(o["to"]) == 1 and o["scope"] == "member" \
+        and signers(o) == frozenset(o["to"]) and "lone_founder_unread" not in MUT
+
+
 def seat_scopes(o, k):
     """The scopes offer `o` seats key k in. One, the offer's own scope, for every offer but a founding row. A founding
     row seats by the signatures on it, with or without a map: a listed member who did not sign it is seated in nothing,
@@ -290,13 +300,17 @@ def seat_scopes(o, k):
     # is `membership_founding_member_unsigned`; it joins by an ordinary admission)
     if "unsigned_no_map" in MUT and not o.get("duty_holders"): return (o["scope"],)   # MUTATION: the old exception
     if k not in signers(o) and "unsigned_seated" not in MUT: return ()       # MUTATION: a listed member who did not sign is seated
+    if lone_founding(o):
+        # the lone signer holds `moderate` always ("a duty every community's record declares") and each duty its record
+        # declares (`duties`); not the law's other named duties (CIRISConstitution#241)
+        return (o["scope"], "moderate") + tuple(d for d in o.get("duties", ()) if d not in (o["scope"], "moderate"))
     if not o.get("duty_holders") or "holders_unread" in MUT: return (o["scope"],)
     return (o["scope"],) + tuple(d for d, ks in o["duty_holders"] if k in ks and d != o["scope"])
 
 
 def founding_duty(o, sc):
     """A duty seat a founding row gives by its `duty_holders` map."""
-    return bool(o.get("duty_holders")) and o["obj"] == o["id"] and sc != o["scope"]
+    return (bool(o.get("duty_holders")) or lone_founding(o)) and o["obj"] == o["id"] and sc != o["scope"]
 
 
 def duty_seat(by, o):
@@ -321,7 +335,8 @@ def duty_room(by, obj):
     """obj is a community whose founding row seats duty holders (the only place the duty rules engage): a founding row
     of scope `duty`, or one whose `duty_holders` map names a holder."""
     g = by.get(obj)
-    return g is not None and g["kind"] == "offer" and g["obj"] == g["id"] and (g["scope"] == "duty" or lists_holders(g))
+    return g is not None and g["kind"] == "offer" and g["obj"] == g["id"] and (g["scope"] == "duty" or lists_holders(g)
+                                                                             or lone_founding(g))
 
 
 def roster_seat(o, holds=None, sc=None):

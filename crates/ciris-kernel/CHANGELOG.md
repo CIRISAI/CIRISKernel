@@ -37,7 +37,25 @@ holders. No signature changes.
   hangs under and its plant; and the two cases of a conferrer's own end lifting receipts (CC 2.4.1.1 (iii)), with
   that branch of `lifts` and its plants (a conferrer's withdrawal of a duty seat ends nothing, where the record
   seats duty holders, and no single key's own offer places one elsewhere).
-Plants: `duty_gate_off`, `duty_gate_wrong_row` and `own_duty_ungated` in the reference and the crate.
+- **The one-founder room** (CC 4.5.4: "A record one person signs MAY name none, and that person then holds every
+  declared duty"). A community's founding row (scope `member`) whose `to` is one key, signed by that key alone,
+  with no `duty_holders` map, seats that key as a member and as holder of `moderate` always, and of each duty its
+  record declares (`SeatRow::duties`), not the law's other named duties. Such a room is one where the duty rules
+  engage. A one-signer record with a map: the map decides, as before. Several signers and no map: members and no
+  duty, as before. **Breaking:** `SeatRow::word(s: &'static str) -> Self::Word`, required, the caller's word for
+  a scope the crate names itself (only `moderate`, for this seat). For a `String` word:
+  `fn word(s: &'static str) -> String { s.into() }`; for a `&'a str` word: `fn word(s: &'static str) -> &'a str
+  { s }`. Changed answers: only the duty holders read off a room founded by one key with no map, in the seat
+  fixture (four scenarios of `check_removal_in_force.py`'s reviewer rows over the room `h`, and one of
+  `attacks.py` over a room `z`): that key now holds `moderate` there. No case's stated answer changes.
+  The older presentation, a lone founder's row of scope `duty` with no map, still holds the law's named duties
+  through `holds["duty"]`; it is left as it is (three cases of `check_duty_seats.py`, two tests of `attacks.py`
+  and one world of `window.py` use it; seven scenarios of the seat fixture).
+- The seat reads a lift only on a counted unseat: CC 2.4.1.1's case (iii), a conferrer ending its own offer, has
+  no seat rows that reach it (a conferrer's withdrawal of a duty seat ends nothing where the record seats duty
+  holders, and no single key's own offer places one elsewhere). `conferral` keeps it for conferrals.
+Plants: `duty_gate_off`, `duty_gate_wrong_row`, `own_duty_ungated` and `lone_founder_unread` in the reference and
+the crate.
 
 **A moderator's lone removal: the four receipt items** (CIRISConstitution#218, pin list). New: one trait method,
 `SeatRow::lifts` (default `false`), additive. Answers change only for rows no case had before:

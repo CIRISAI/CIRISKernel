@@ -144,6 +144,12 @@ pub trait SeatRow: Row {
     type Word: Ord + Clone + AsRef<str>;
     /// What the row is.
     fn seat_kind(&self) -> SeatKind;
+    /// The caller's word for scope `s`. **Required.** The crate names one scope itself: `moderate`, which the
+    /// lone signer of a founding record with no `duty_holders` map holds (CC 4.5.4: "A record one person signs
+    /// MAY name none, and that person then holds every declared duty"; `moderate` is a duty every record
+    /// declares). For a `String` word: `fn word(s: &'static str) -> String { s.into() }`; for a `&'a str` word:
+    /// `fn word(s: &'static str) -> &'a str { s }`.
+    fn word(s: &'static str) -> Self::Word;
     /// The keys an offer or unseat names.
     fn to(&self) -> &[Self::Key] {
         &[]
@@ -352,7 +358,7 @@ type MembersMemo<R> = BTreeMap<(Vec<<R as Row>::Id>, ObjOf<R>, String), BTreeSet
 type Line<R> = (Vec<usize>, BTreeMap<<R as Row>::Key, BTreeSet<<R as Row>::Id>>);
 type CommonMemo<R> = RefCell<BTreeMap<(String, ObjOf<R>), Option<BTreeSet<<R as Row>::Key>>>>;
 type Step<'r, R> = (
-    (&'r <R as Row>::Id, &'r <R as Row>::Key, &'r <R as SeatRow>::Word),
+    (&'r <R as Row>::Id, &'r <R as Row>::Key, Sc<'r, <R as SeatRow>::Word>),
     (usize, Root<<R as Row>::Id, <R as Row>::Key>),
 );
 
@@ -447,30 +453,75 @@ fn founding<R: SeatRow>(o: &R) -> bool {
     o.obj() == Some(Obj::Row(o.id().clone()))
 }
 
+/// The scope of a seat the walk holds: a word a row carries, or `moderate`, which the lone signer of a founding
+/// record holds whatever the record carries ([`SeatRow::word`] makes it when a seat is read out).
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Sc<'a, W> {
+    /// A word of a row.
+    Row(&'a W),
+    /// `moderate`, held by a lone founder.
+    Moderate,
+}
+
+impl<W> Clone for Sc<'_, W> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<W> Copy for Sc<'_, W> {}
+
+impl<W: AsRef<str>> Sc<'_, W> {
+    fn s(&self) -> &str {
+        match self {
+            Sc::Row(w) => w.as_ref(),
+            Sc::Moderate => "moderate",
+        }
+    }
+}
+
+/// A founding record one person signs with no `duty_holders` map (CC 4.5.4): a community's founding row (scope
+/// `member`) whose `to` is one key, signed by that key and by no other. The older presentation, a lone
+/// founder's row of scope `duty`, is read as before.
+fn lone_founding<R: SeatRow>(o: &R) -> bool {
+    founding(o)
+        && o.duty_holders().is_empty()
+        && o.scope().map(|s| s.as_ref()) == Some("member")
+        && o.to().len() == 1
+        && *o.signer() == o.to()[0]
+        && o.cosigners().iter().all(|c| c == o.signer())
+}
+
 /// The scopes offer `o` seats key `k` in (`signed`: k signed it). One, the offer's own scope, for every offer
 /// but a founding row. A founding row seats by the signatures on it (CC 3.1.3.2: a listed key that did not sign
 /// is `membership_founding_member_unsigned`, and joins by an ordinary admission): a listed member who did not
 /// sign it in nothing, whatever it accepts later; one who signed it in its own scope, and where it has a
-/// `duty_holders` map, in each duty whose entry names it.
-fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<&'a R::Word> {
+/// `duty_holders` map, in each duty whose entry names it. The lone signer of a record with no map holds
+/// `moderate` and each duty its record declares ([`SeatRow::duties`]), not the law's other named duties.
+fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<Sc<'a, R::Word>> {
     let Some(own) = o.scope() else { return Vec::new() };
     if !founding(o) {
-        return alloc::vec![own];
+        return alloc::vec![Sc::Row(own)];
     }
     if !signed {
         return Vec::new();
     }
-    if o.duty_holders().is_empty() {
-        return alloc::vec![own];
+    if lone_founding(o) {
+        let mut out = alloc::vec![Sc::Row(own), Sc::Moderate];
+        out.extend(o.duties().iter().filter(|d| *d != own && d.as_ref() != "moderate").map(Sc::Row));
+        return out;
     }
-    let mut out = alloc::vec![own];
-    out.extend(o.duty_holders().iter().filter(|(d, ks)| ks.contains(k) && d != own).map(|(d, _)| d));
+    if o.duty_holders().is_empty() {
+        return alloc::vec![Sc::Row(own)];
+    }
+    let mut out = alloc::vec![Sc::Row(own)];
+    out.extend(o.duty_holders().iter().filter(|(d, ks)| ks.contains(k) && d != own).map(|(d, _)| Sc::Row(d)));
     out
 }
 
-/// A duty seat a founding row gives by its `duty_holders` map: a seat of that row in a scope not its own.
-fn founding_duty<R: SeatRow>(o: &R, sc: &R::Word) -> bool {
-    !o.duty_holders().is_empty() && founding(o) && o.scope() != Some(sc)
+/// A duty seat a founding row gives by its `duty_holders` map, or to its lone signer: a seat of that row in a
+/// scope not its own.
+fn founding_duty<R: SeatRow>(o: &R, sc: &str) -> bool {
+    (!o.duty_holders().is_empty() || lone_founding(o)) && founding(o) && o.scope().map(|x| x.as_ref()) != Some(sc)
 }
 
 /// A seat placed over a community by its duty holders: the object is a founding row seating duty holders,
@@ -490,7 +541,7 @@ fn duty_room<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, obj: &ObjOf<R>) -> bool {
     row_of(by, obj).is_some_and(|g| {
         g.seat_kind() == SeatKind::Offer
             && founding(g)
-            && (g.scope().map(|s| s.as_ref()) == Some("duty") || lists_holders(g))
+            && (g.scope().map(|s| s.as_ref()) == Some("duty") || lists_holders(g) || lone_founding(g))
     })
 }
 
@@ -505,13 +556,13 @@ fn community<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, obj: &ObjOf<R>) -> bool {
 /// no roster seat and makes its holder a duty holder, or a duty seat a founding row gives by its
 /// `duty_holders` map. The seat the membership rule reaches, in every community. (Who may confer it is
 /// [`duty_seat`]'s, and that is unchanged.)
-fn duty_held<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, o: &R, sc: &R::Word) -> bool {
+fn duty_held<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, o: &R, sc: &str) -> bool {
     if founding_duty(o, sc) {
         return true;
     }
     let Some(obj) = o.obj() else { return false };
     let roster = o.scope().is_some_and(|s| law.roster_seats.iter().any(|x| x == s.as_ref()));
-    community(by, &obj) && !founding(o) && !roster && law.is_duty(sc.as_ref(), &declared(by, &obj))
+    community(by, &obj) && !founding(o) && !roster && law.is_duty(sc, &declared(by, &obj))
 }
 
 /// The seat of offer `o` in scope `s` is the roster's own over a community: a scope its duty holders do not
@@ -538,7 +589,9 @@ fn stay_end<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, w: &R) -> Opti
     // and one naming a roster scope ends the stay only where its target gives the signer that seat
     if let Some(ws) = w.scope() {
         let offer = t.seat_kind() == SeatKind::Offer;
-        if !(offer && roster_seat(law, t, ws.as_ref())) || !seat_scopes(t, k, signed_by(t, k)).contains(&ws) {
+        if !(offer && roster_seat(law, t, ws.as_ref()))
+            || !seat_scopes(t, k, signed_by(t, k)).iter().any(|s| s.s() == ws.as_ref())
+        {
             return None;
         }
     }
@@ -653,11 +706,11 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let ended = |row: &R| !wd_of(row.id()).is_empty();
         let eq = |o: &R| duty_seat(law, &by, o);
         // a withdrawal that names a scope ends that one seat of the row it withdraws
-        let off_ended = |o: &R, k: &R::Key, sc: &R::Word| {
+        let off_ended = |o: &R, k: &R::Key, sc: Sc<'a, R::Word>| {
             wd_of(o.id()).iter().any(|w| {
                 w.target() == Some(o.id())
                     && (w.signer() == k || (!o.to().contains(w.signer()) && o.conf() != Some(Conf::Group) && !eq(o)))
-                    && w.scope().is_none_or(|ws| ws == sc)
+                    && w.scope().is_none_or(|ws| ws.as_ref() == sc.s())
             })
         };
         let stale = line::void(c, &SeatLine, own, |i| cut.counts(i));
@@ -684,18 +737,18 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let member = |s: Option<&R::Word>| {
             s.is_some_and(|x| x.as_ref() == "member" || law.roster_seats.iter().any(|r| r == x.as_ref()))
         };
-        let unseated = |oi: usize, k: &R::Key, sc: &R::Word| {
+        let unseated = |oi: usize, k: &R::Key, sc: Sc<'a, R::Word>| {
             if unseats.is_empty() {
                 return false;
             }
             let o = g.row(oi);
-            let dutyish = law.is_duty(sc.as_ref(), &[]) || duty_seat(law, &by, o) || founding_duty(o, sc);
+            let dutyish = law.is_duty(sc.s(), &[]) || duty_seat(law, &by, o) || founding_duty(o, sc.s());
             let oo = o.obj();
             unseats.iter().any(|(u, uo)| {
                 let (u, ur) = (*u, g.row(*u));
                 let same = ur.to().contains(k) && *uo == oo;
                 let held = same
-                    && (ur.scope() == Some(sc)
+                    && (ur.scope().map(|x| x.as_ref()) == Some(sc.s())
                         || (dutyish
                             && member(ur.scope())
                             && oo.as_ref().is_some_and(|x| holds_roster(c, law, u, k, x))));
@@ -703,13 +756,13 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             })
         };
         // a duty seat whose offer is in the past of its holder's own end of its stay as a member is ended by it
-        let resigned = |oi: usize, k: &R::Key, sc: &R::Word| {
+        let resigned = |oi: usize, k: &R::Key, sc: Sc<'a, R::Word>| {
             if left.is_empty() {
                 return false;
             }
             let o = g.row(oi);
             let oo = o.obj();
-            duty_held(law, &by, o, sc)
+            duty_held(law, &by, o, sc.s())
                 && left.iter().any(|(w, k2, room)| *k2 == k && oo.as_ref() == Some(room) && g.in_past(oi, *w))
         };
         // `signed`: whether k signed the offer, read by the caller once per offer's signer set
@@ -736,7 +789,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             })
         };
         // keys and scopes are borrowed from the rows through the walk, and copied once into each live seat
-        let mut base: Vec<(usize, &'a R::Key, &'a R::Word)> = Vec::new();
+        let mut base: Vec<(usize, &'a R::Key, Sc<'a, R::Word>)> = Vec::new();
         for &oi in cs {
             let o = g.row(oi);
             if o.seat_kind() != SeatKind::Offer || !cut.counts(oi) || stale.contains(&oi) {
@@ -759,10 +812,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             }
         }
         // one link per pass: at most `depth` links below a root
-        type At<'r, I, K, W> = BTreeMap<(&'r I, &'r K, &'r W), (usize, Root<I, K>)>;
+        type At<'r, I, K, W> = BTreeMap<(&'r I, &'r K, Sc<'r, W>), (usize, Root<I, K>)>;
         // per (offer, key), the least depth any of its seats is at: what a seat conferred under it reads
         type Held<'r, I, K> = BTreeMap<(&'r I, &'r K), (usize, Root<I, K>)>;
-        let walk = |base: &[(usize, &'a R::Key, &'a R::Word)]| {
+        let walk = |base: &[(usize, &'a R::Key, Sc<'a, R::Word>)]| {
             let mut at: At<'a, R::Id, R::Key, R::Word> = BTreeMap::new();
             let mut held: Held<'a, R::Id, R::Key> = BTreeMap::new();
             for _ in 0..(law.depth + 1) {
@@ -826,7 +879,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         // a duty seat stands only where its holder holds the roster's seat over the same community at this
         // reading. The walk is run again without the duty seats of keys that are not members, until none is
         // left (a seat under one falls too). Where no offer is a duty seat proper, nothing is run again.
-        let held: Vec<bool> = base.iter().map(|&(oi, _, sc)| duty_held(law, &by, g.row(oi), sc)).collect();
+        let held: Vec<bool> = base.iter().map(|&(oi, _, sc)| duty_held(law, &by, g.row(oi), sc.s())).collect();
         if held.contains(&true) {
             let mut on: Vec<bool> = base.iter().map(|_| true).collect();
             loop {
@@ -834,7 +887,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     .keys()
                     .filter_map(|&(oid, k, sc)| {
                         let o = by[oid];
-                        if roster_seat(law, o, sc.as_ref()) {
+                        if roster_seat(law, o, sc.s()) {
                             o.obj().map(|x| (x, k))
                         } else {
                             None
@@ -851,7 +904,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 if !dropped {
                     break;
                 }
-                let kept: Vec<(usize, &'a R::Key, &'a R::Word)> =
+                let kept: Vec<(usize, &'a R::Key, Sc<'a, R::Word>)> =
                     base.iter().zip(&on).filter(|(_, keep)| **keep).map(|(b, _)| *b).collect();
                 at = walk(&kept);
             }
@@ -860,10 +913,15 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             .into_iter()
             .filter_map(|((oid, k, sc), (depth, root))| {
                 let o = by[oid];
-                Some(Live { offer: oid.clone(), k: k.clone(), scope: sc.clone(), obj: o.obj()?, depth, root })
+                let scope = match sc {
+                    Sc::Row(w) => w.clone(),
+                    Sc::Moderate => R::word("moderate"),
+                };
+                Some(Live { offer: oid.clone(), k: k.clone(), scope, obj: o.obj()?, depth, root })
             })
             .collect();
-        let duty = recs.iter().map(|r| by.get(&r.offer).is_some_and(|o| duty_held(law, &by, *o, &r.scope))).collect();
+        let duty =
+            recs.iter().map(|r| by.get(&r.offer).is_some_and(|o| duty_held(law, &by, *o, r.scope.as_ref()))).collect();
         Seats {
             c,
             cut,
@@ -1236,7 +1294,7 @@ fn holds_roster<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, u: usize, k: &R
             && m.obj().as_ref() == Some(obj)
             && m.to().contains(k)
             && g.in_past(q, u)
-            && (seat_scopes(m, k, signed_by(m, k)).contains(&us)
+            && (seat_scopes(m, k, signed_by(m, k)).iter().any(|s| s.s() == us.as_ref())
                 || (us.as_ref() == "member" && founding(m) && roster_offer(law, m)))
     })
 }
@@ -2387,6 +2445,9 @@ mod tests {
 
     impl SeatRow for T {
         type Word = String;
+        fn word(s: &'static str) -> String {
+            s.into()
+        }
         fn seat_kind(&self) -> SeatKind {
             self.kind
         }

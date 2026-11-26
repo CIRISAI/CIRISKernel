@@ -237,7 +237,7 @@ listed member who did not sign is seated in nothing, and so is a key an entry na
 The seats end separately: a founder's withdrawal of the record naming one duty ends that seat only, and one
 naming no seat ends its stay and every duty seat it held. A seat the duty
 holders place that makes its holder no duty holder (a node's detector seat) is not asked for membership.
-**run** (`models/causal_kernel/check_duty_seats.py`): 65 cases in every arrival order, thirteen planted breaks
+**run** (`models/causal_kernel/check_duty_seats.py`): 70 cases in every arrival order, fourteen planted breaks
 caught. **open**: the members' check (`moderation_overturn`) counts the objection of the duty holder whose act it is, now that
 the duty holder is a member, and the sentence that it has no say in the lift is not a rule of the table.
 **run**: five properties, each with a deliberate break that is caught. `owner` and the steward of an agent are one

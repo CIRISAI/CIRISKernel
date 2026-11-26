@@ -156,6 +156,11 @@ trusting an adapter.
   `SeatLaw::holds["duty"]` containing `member` that seat is its membership, so its withdrawal ends both.
 - A duty conferred after the founding is a counted row: an Offer, `Conf::Group`, policy `duty_confer`, counted
   `duty`, over the head it extends. Its holder lays it down by withdrawing that offer.
+- **Breaking (0.5.0):** implement `SeatRow::word(s: &'static str) -> Self::Word`, the crate's way to name the one
+  scope it seats itself (`moderate`, for a lone founder). For a `String` word `fn word(s: &'static str) -> String
+  { s.into() }`; for a `&'a str` word `fn word(s: &'static str) -> &'a str { s }`.
+- A founding record one key signs with no `duty_holders` map seats that key in `member`, `moderate`, and each duty
+  its `duties()` declares. Where the record has a map, the map decides.
 - A duty is placed by the founding record, a counted Offer counted over the duty holders (`counted()` a duty,
   `duty_confer`), or an election's acceptance (`Policy::Ranked`). A members' admission count (`community_invite`,
   `counted()` `member`) of a duty scope concludes nothing (CIRISConstitution#241), whether or not a duty holder

@@ -675,6 +675,9 @@ mod tests {
 
     impl SeatRow for W {
         type Word = String;
+        fn word(s: &'static str) -> String {
+            s.into()
+        }
         fn seat_kind(&self) -> SeatKind {
             self.kind
         }

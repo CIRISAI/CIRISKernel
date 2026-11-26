@@ -61,6 +61,7 @@ Planted breaks, each of which must change a case's answer:
     unsigned_no_map     a founding row with no map seats a listed key that did not sign and accepts later
     duty_gate_off       a members' admission count confers a duty (CIRISConstitution#241)
     duty_gate_wrong_row the gate reads `counted` off the room's founding row, not the offer
+    lone_founder_unread a record one person signs with no map seats that person in no duty
     own_duty_ungated    a single key's own offer of a duty concludes outside a duty room though it is no lone holder
 
 Not here: the count that confers or withdraws a duty seat (check_rosters.py, the duty instance); a count over a scope
@@ -127,6 +128,10 @@ DG = "CIRISConstitution#241: a duty is conferred by its holders, the founding re
 # a room whose founding record names A its one moderator, and A has laid the duty down: no duty holder is left
 GV = [ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C")),
       ST.withdraw("la", "A", "g", ("g",), scope="moderate")]
+
+
+LF = ST.found("g", "A", ("A",), {})                                       # a record one person signs, no map
+LFR = dict(LF, duties=("review",))                                         # and declaring review
 
 
 def ELECT(i, k, heads):
@@ -313,12 +318,24 @@ CASES = [
      [("D", "moderate", T)], None),
     (DG + "a holder's own offer of a duty where it is not the lone holder concludes nothing",
      [G, MD, ST.offer("cs", "A", "D", "moderate", OBJ, "self", ("md",), cosigners=("D",))], [("D", "moderate", F)], None),
+    # ---- a record one person signs, with no map (CIRISConstitution#241) ---------------------------------------------
+    (DG + "a lone founder, no list: a member, and the holder of moderate", [LF],
+     [("A", "member", T), ("A", "moderate", T), ("A", "duty", T), ("A", "review", F)], None),
+    (DG + "a lone founder whose record declares review: moderate and review, not slash", [LFR],
+     [("A", "moderate", T), ("A", "review", T), ("A", "slash", F)], None),
+    (DG + "the lone founder lays moderate down: no holder is left, and an election seats a member",
+     [LF, ST.withdraw("la", "A", "g", ("g",), scope="moderate"), admit("mb", "B", ("A",), ("la",)),
+      admit("mc", "C", ("A", "B"), ("mb",))] + ELECT("ce", "B", ("mc",)),
+     [("A", "moderate", F), ("A", "member", T), ("B", "moderate", T)], None),
+    (DG + "a lone founder's record naming a map: the map decides", [ST.found("g", "A", ("A",), {"review": ("A",)})],
+     [("A", "review", T), ("A", "moderate", F)], None),
+    (DG + "several signers and no map: members, no duty", [GM], [("A", "moderate", F), ("A", "member", T), ("A", "duty", F)], None),
     ("not reached: a seat the duty holders place that is no duty (a node's detector seat) stands on a key that is no member, and makes it no duty holder",
      [G, confer("cn", "N", "detect:list1", ("A", "B"), ("g",))], [("N", "detect:list1", T), ("N", "member", F), ("N", "duty", F)], None),
 ]
 PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_only", "duty_fold_unread", "holders_unread",
           "unsigned_seated", "scope_unread", "member_rule_duty_rooms_only",
-          "unsigned_no_map", "duty_gate_off", "duty_gate_wrong_row", "own_duty_ungated")
+          "unsigned_no_map", "duty_gate_off", "duty_gate_wrong_row", "own_duty_ungated", "lone_founder_unread")
 
 
 @contextlib.contextmanager
