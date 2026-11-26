@@ -54,11 +54,13 @@ jobs:
   # test job and ci.yml's ./check.sh, and on the slower runners took the latter past its 75 minutes. The
   # shards between them run every plant once (tools/kernel_crate_plants.sh, PLANTS_SHARD). A reviewer's
   # ./check.sh still runs them all. Six shards since 2026-11-25: at about 120 plants a shard of four ran 34 to
-  # 36 minutes and one passed its 45.
+  # 36 minutes and one passed its 45. 2026-11-26: at about 160 plants, each near 100 s on a runner, a shard of
+  # six ran 41 minutes and was cancelled at its 45 with no plant run long (#48, shard 3): the limit is 70 (the
+  # job names, and so any required checks, are unchanged).
   plants:
     name: plants (shard ${{ matrix.shard }} of 6)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 70
     strategy:
       fail-fast: false
       matrix:
