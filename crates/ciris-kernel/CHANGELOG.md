@@ -76,7 +76,9 @@ beyond the ballot count").
   `reexpress.py`'s reference), every standing option with no first choice is struck at once, before the weakest is
   sought. "A tie for weakest seats nobody" is then about options that hold ballots. Every one of the 480 cases of
   the `reexpress` fixture keeps its winner, rounds and order, declared and not. In the runoff order, a group struck
-  together is ordered by the declared order, and with none the order stops above it. **The election's candidates
+  together is ordered by the declared order, and with none the order stops above it. The election always counts
+  with no declared order, whatever order its row lists (CC 4.5.13: "An election declares no order"; #241 L1), so
+  a decline does not pass into a group struck together: it passes to nobody, and the room elects again. **The election's candidates
   are the roster at the heads** (CC 4.5.13: "The ballot is the roster, every member a candidate"): the base, which
   is the persons less a key whose own leaving is in the row's past. The seating's `options()` are not read. **Answers
   change**: a room of five whose two members no ballot names now elects. Four cases (a room of ten at 4/3/3 seats

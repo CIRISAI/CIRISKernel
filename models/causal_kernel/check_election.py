@@ -122,6 +122,8 @@ def admit(i, k, signers, heads, scope="member"):
 
 
 ELECT8 = _elect8()
+# A wins at once and declines; B to E hold no ballot (DEC5)
+DEC5 = [G5, LM, ballot("ba", "A", "A"), ballot("bb", "B", "A"), ballot("bc", "C", "A"), CK.row("da", "decline", "A", ("lm",))]
 # two seatings of one election over equal sets (EQ4), and over a smaller and a larger (LG5)
 EQ4 = [ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
        elect("eb", "B", ("ba", "bb"), ("A", "B", "C", "D")), elect("ec", "C", ("bc", "bd"), ("A", "B", "C", "D"))]
@@ -258,7 +260,7 @@ CASES = [
      [G3, LM, ballot("ba", "A", "C"), ballot("ba2", "A", "B"), ballot("bb", "B", "B"), ST.withdraw("wa", "A", "ba", ("ba",)),
       elect("el", "B", ("ba", "ba2", "bb", "wa"), M3)],
      MOD("B") + NOMOD("A", "C"), "the fold"),
-    ("a withdrawal beside the seating (not in its past) is not read by it: B is seated",
+    ("a withdrawal beside the seating (not in its past) is not read by it: B is seated (#241 L6)",
      [G3, LM, ballot("ba", "A", "B"), ballot("bb", "B", "B"), ST.withdraw("wa", "A", "ba", ("ba",)),
       elect("el", "B", ("ba", "bb"), M3)],
      MOD("B"), "the fold"),
@@ -283,7 +285,7 @@ CASES = [
       ballot("bc", "C", "C", ("wm",)), elect("el", "C", ("bb", "bc"), M3, heads=("wm",))],
      NOMOD("A", "C") + MOD("B"), "a vacancy"),
     ("an AI agent's key holding moderate is no holder: A, the lone holder, confers moderate on the agent X and lays "
-     "its own down; the room, no person holding a duty, elects B",
+     "its own down; the room, no person holding a duty, elects B (#241 L5: the vacancy is over every duty, by person)",
      [G3, admit("ax", "X", ("A", "B"), ("g",), "agent"),
       ST.offer("cx", "A", "X", "moderate", OBJ, "group", ("ax",), head=("ax",), policy="duty_confer", counted="duty",
                cosigners=("X",)),
@@ -306,7 +308,8 @@ CASES = [
     ("a decline by a key the count does not yield first passes nothing: C declines, A is seated",
      ELECT8 + [CK.row("dc", "decline", "C", ("lm",)), elect("ea", "A", B8 + ("dc",), M3)],
      MOD("A") + NOMOD("C"), "a decline"),
-    ("where a tie after the majority leaves the order below the winner unknown, a decline passes to nobody: of five, "
+    ("where a tie after the majority leaves the order below the winner unknown, a decline passes to nobody (#241 L2; "
+     "CC 4.5.13 'An election declares no order, so a tie there seats nobody'): of five, "
      "A has three, B and C one each; A declines, and the seating of B concludes nothing",
      [G5, LM, ballot("ba", "A", "A"), ballot("bd", "D", "A"), ballot("be", "E", "A"), ballot("bb", "B", "B"),
       ballot("bc", "C", "C"), CK.row("da", "decline", "A", ("lm",)),
@@ -318,9 +321,10 @@ CASES = [
      [G4, LM, LM] + EQ4 + [admit("ax", "X", ("A", "B", "C"), ("eb", "ec"))], NOMOD("B", "C") + [("X", "member", T)],
      "several acceptances"),
     ("the same two, read while they are two tips: neither stands", [G4, LM, LM] + EQ4, NOMOD("B", "C"), "several acceptances"),
-    ("the seating over the larger set stands: B over two ballots, C over all five",
+    ("the seating over the larger set stands, the set counted in rows (#241 L3; CC 4.5.13 'the one counted over the "
+     "larger set stands, a larger set being a count'): B over two ballots, C over all five",
      [G5, LM, LM] + LG5 + [admit("ax", "X", ("A", "B", "C", "D"), ("eb", "ec"))], NOMOD("B") + MOD("C"), "several acceptances"),
-    ("and at the two tips, C's seat waits as any seat at two tips does (until a row names both)",
+    ("and at the two tips, C's seat waits as any seat at two tips does, until a row names both (#241 L4)",
      [G5, LM, LM] + LG5, NOMOD("B", "C"), "several acceptances"),
     ("a tie ended by a seating over a larger set (the union and E's ballot): C stands",
      [G5, LM, LM] + EQ4 + [ballot("be", "E", "C"), elect("eu", "C", ("ba", "bb", "bc", "bd", "be"), M5),
@@ -336,6 +340,12 @@ CASES = [
       ST.withdraw("wb", "B", "e1", ("e1",)), ballot("ba2", "A", "C", ("wb",)), ballot("bc2", "C", "C", ("wb",)),
       elect("e2", "C", ("ba2", "bc2"), M3, heads=("wb",))],
      NOMOD("B") + MOD("C"), "the election id"),
+    ("a decline does not pass into options struck together (#241 L1; CC 4.5.13 'An election declares no order'): "
+     "of five, A has three first choices and the others none, so B to E go out together; A declines, and the "
+     "seating of B concludes nothing",
+     DEC5 + [elect("eb", "B", ("ba", "bb", "bc", "da"), M5)], NOMOD("A", "B"), "a decline"),
+    ("a seating that lists its options in an order gets the same answer: nothing",
+     DEC5 + [elect("eb", "B", ("ba", "bb", "bc", "da"), ("B", "C", "D", "E", "A"))], NOMOD("A", "B"), "a decline"),
     # ---- a recall --------------------------------------------------------------------------------------------------------
     ("a recall cosigned by exactly two thirds does not recall (CC 4.5.13 'more than two thirds of the standing roster'; "
      "#241 O5): B and C of three",
