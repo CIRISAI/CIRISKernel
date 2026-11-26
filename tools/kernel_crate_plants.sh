@@ -102,18 +102,21 @@ plant "a receipt after the unseat keeps" src/seat.rs '                    && !g.
 '
 plant "a lone removal lifts" src/seat.rs 'SeatKind::Unseat => er.conf() == Some(Conf::Group) && !lone.contains(&e),' 'SeatKind::Unseat => er.conf() == Some(Conf::Group),'
 plant "the holder's own end lifts" src/seat.rs '.is_some_and(|t| t.seat_kind() == SeatKind::Offer && !t.to().contains(er.signer())),' '.is_some_and(|t| t.seat_kind() == SeatKind::Offer),'
-plant "an ordered pair read as mutual" src/seat.rs '                        && !g.in_past(y, x)
-' ''
+plant "an ordered pair read as mutual" src/seat.rs '(0..n).map(|i| (0..n).filter(|&j| dep(i, j) && !after[i].contains(&j)).collect()).collect();' '(0..n).map(|i| (0..n).filter(|&j| dep(i, j)).collect()).collect();'
+plant "an act decided before an earlier act in its past (cascade through an ordered pair)" src/seat.rs '(0..n).map(|i| (0..n).filter(|&j| dep(i, j) && !after[i].contains(&j)).collect()).collect();' '(0..n).map(|i| (0..n).filter(|&j| dep(i, j) && !g.in_past(acts[j], acts[i])).collect()).collect();'
 plant "the remover left in the count's receipt's base" src/seat.rs '    mem.remove(xr.signer());
     let mut v = voices(qr, &p);' '    let mut v = voices(qr, &p);'
 plant "a seat the remover's moderate hangs under not waited for" src/seat.rs '                    keys.insert(r.signer());' '                    let _ = r;'
-plant "a mutual pair decided one then the other" src/seat.rs '                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone);' '                let excl: BTreeSet<usize> =
-                    out.iter().chain(got.iter().filter(|(_, v)| !*v).map(|(j, _)| j)).map(|&j| acts[j]).collect();
-                let drop2: BTreeSet<R::Id> = excl.iter().map(|&y| g.row(y).id().clone()).collect();
+plant "a mutual pair decided one then the other" src/seat.rs '                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &ex, &lone);' '                let ex: BTreeSet<usize> =
+                    ex.iter().copied().chain(got.iter().filter(|(_, v)| !*v).map(|(j, _)| acts[*j])).collect();
+                let drop2: BTreeSet<R::Id> = ex.iter().map(|&y| g.row(y).id().clone()).collect();
                 let now = nows
                     .entry(drop2.clone())
                     .or_insert_with(|| Seats::build(c, law, spec, own, Some(&drop2), Some(cache)));
-                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone);'
+                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &ex, &lone);'
+plant "the count's receipt read by its row's policy" src/seat.rs '    // the members'"'"' check of one member'"'"'s act, whatever policy or need the row states
+    room_count(yes, mem.len())' '    met(law.policy_of(qr.policy().map(|w| w.as_ref())), yes, mem.len(), qr.need())'
+plant "the members' check with no floor of two"     src/seat.rs '    2 * yes > base && yes >= 2' '    2 * yes > base'
 plant "a count end's lifts unread" src/seat.rs '(counted || e.is_none_or(|e| !lifts(e)))' '(counted || true)'
 plant "a receipt after the end keeps a removal"     src/seat.rs 'acks.iter().any(|&(q, counted)| e.is_none_or(|e| !g.in_past(e, q)) &&' 'acks.iter().any(|&(q, counted)| true &&'
 plant "a removal at a later head than the end counts" src/seat.rs '!g.in_past(e, x) && !later(head_of(e)) && kept(Some(e))' '!g.in_past(e, x) && kept(Some(e))'

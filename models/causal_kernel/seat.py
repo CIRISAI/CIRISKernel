@@ -418,6 +418,13 @@ def lift_voices(r, P, past, by):
     return v if "author_voice" in MUT else v - {rem["signer"]}      # MUTATION author_voice: the author's objection counts
 
 
+def room_count(yes, base):
+    """The members' check of one member's act (the overturn, the lift, the count's receipt of a lone removal): more
+    than half of the base, never fewer than two voices (MUTATION lift_no_floor: no floor). Whatever policy or need a
+    row states, these counts are read by this rule alone."""
+    return 2 * len(yes) > len(base) and (len(yes) >= 2 or "lift_no_floor" in MUT)
+
+
 def lift_count(r, P, past, by):
     """The overturn's count (window.py, moderation_overturn) over the objections a re-seating row names: a strict
     majority of the members at the head, the removal's author apart and the key seated apart (each no voice, and
@@ -432,7 +439,7 @@ def lift_count(r, P, past, by):
     mem, vot = counted_keys(P, past, r["obj"], heads)
     yes = v & vot
     if "lift_over_all" not in MUT: mem = mem - {by[r["content"]]["signer"]}    # MUTATION lift_over_all: the author counted over
-    return 2 * len(yes) > len(mem) and (len(yes) >= 2 or "lift_no_floor" in MUT)
+    return room_count(yes, mem)
 
 
 def founding_many(by, obj):
@@ -674,7 +681,7 @@ class Seats:
                     v = lift_voices(r, P, past, {q["id"]: q for q in P}) or frozenset()
                     yes = v & mem
                     if v: mem = mem - {S.by[r["content"]]["signer"]}   # the author apart (the key removed is an agent's: in no count)
-                    if not (2 * len(yes) > len(mem) and len(yes) >= 2): return False
+                    if not room_count(yes, mem): return False
                 elif not met(r.get("policy"), len(yes), len(mem), r.get("need")): return False
             return True
 
@@ -777,7 +784,10 @@ def standing_ends(S, x, standing, unseats, not_ends=frozenset()):
 def count_receipt(S, q, x):
     """The room's count's receipt of lone removal x (CIRISConstitution#218): a count over the persons of x's room,
     whatever room or scope the row states otherwise, at heads none older than x's (each is x's head or has it in its
-    past), the remover no voice of it (as it is no receipter); its count met by the row's policy."""
+    past), the remover no voice of it (as it is no receipter). Its count is the members' check of one member's act
+    (room_count): more than half of the persons of the room less the remover, never fewer than two, whatever policy or
+    need the row states (a row's own `accord_halt`, or a declared need of none, is no receipt; MUTATION
+    receipt_row_policy: the row's policy read)."""
     obj, hx = x["obj"], tuple(x.get("head", ()))
     if "count_receipt_unchecked" not in MUT:                    # MUTATION: room, heads and remover not read
         if q.get("obj") != obj or q.get("over", obj) != obj: return False
@@ -794,7 +804,8 @@ def count_receipt(S, q, x):
     # the room less the remover, in the base as in the voices (R5: one rule for a count that judges one member's act,
     # as the overturn and the lift; MUTATION remover_counted_over)
     if "remover_counted_over" not in MUT: mem = mem - {x["signer"]}
-    return met(q.get("policy"), len(yes), len(mem), q.get("need"))
+    if "receipt_row_policy" in MUT: return met(q.get("policy"), len(yes), len(mem), q.get("need"))
+    return room_count(yes, mem)
 
 
 def receipts_of(S, x, duty, unseats, not_ends):
@@ -912,17 +923,28 @@ def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
     lone_ids = frozenset(x["id"] for x in acts)
     by = {x["id"]: x for x in acts}
     # No cascade (CIRISConstitution#218, pin list: no cascade): a lone removal out of force ends no standing. (It
-    # voids no receipt either, since a receipter is a person and a lone removal removes only an agent.) An act x
-    # waits for every other lone removal y that could end its remover's standing (y removes x's signer), unless y
-    # is in x's past: an act
-    # ordered after another is decided first, the earlier one read as an end of it (E4), and the earlier then reads
-    # the later's verdict. The acts are decided one strongly connected component at a time, in rounds: every
-    # component whose waits are decided, against what the rounds before decided out of force. A component of two or
-    # more (agent moderators removing each other at one head, a pair or a ring) is decided together, each read as an
-    # end of another's: CC 2.7.7 rule 5, "Two cuts by keys of equal standing that undo each other stay contested. A
-    # voice that the other cannot remove settles them", read for a set (a person's receipt, or the count's).
-    waits = {x["id"]: {y["id"] for y in acts if y is not x and y["obj"] == x["obj"] and y["id"] not in S.anc[x["id"]]
-                       and y["to"][0] in standing_keys(S, x)} for x in acts}
+    # voids no receipt either, since a receipter is a person and a lone removal removes only an agent.) So an act's
+    # verdict waits for the verdict of every other lone removal y that could end its remover's standing (y removes a
+    # key of standing_keys), whether y is in its past (an end it reads under E4 only if y is in force), concurrent
+    # with it, or after it (E8). One exception, an ordered pair: where y has x in its past and x could end y's
+    # standing too, y is in force only if x is not (x, in force, is an end in y's past), so y cannot be what puts x
+    # out of force. x is decided first, without y (y no end of it and no cut in its reading), and y then reads x's
+    # verdict: x in force ends y's standing; x out of force ends nothing (MUTATION ordered_pair_cascade: the old
+    # order, y decided first with x read as an end before x's own verdict was known). The acts are decided one
+    # strongly connected component at a time, in rounds: every component whose waits are decided, against what the
+    # rounds before decided out of force. A component of two or more (agent moderators removing each other at one
+    # head, a pair or a ring) is decided together, each read as an end of another's: CC 2.7.7 rule 5, "Two cuts by
+    # keys of equal standing that undo each other stay contested. A voice that the other cannot remove settles them",
+    # read for a set (a person's receipt, or the count's).
+    keys = {x["id"]: standing_keys(S, x) for x in acts}
+    dep = lambda x, y: y is not x and y["obj"] == x["obj"] and y["to"][0] in keys[x["id"]]     # y could end x's standing
+    after = {x["id"]: frozenset(y["id"] for y in acts if dep(x, y) and dep(y, x) and x["id"] in S.anc[y["id"]])
+             for x in acts}                                       # the ordered pairs x opens
+    if "ordered_pair_cascade" in MUT:
+        waits = {x["id"]: {y["id"] for y in acts if dep(x, y) and y["id"] not in S.anc[x["id"]]} for x in acts}
+        after = {i: frozenset() for i in after}
+    else:
+        waits = {x["id"]: {y["id"] for y in acts if dep(x, y) and y["id"] not in after[x["id"]]} for x in acts}
     decided, out = {}, set()
     while len(decided) < len(acts):
         pend = [x["id"] for x in acts if x["id"] not in decided]
@@ -945,7 +967,8 @@ def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
             for i in sorted(comp):
                 if "cycle_one_then_other" in MUT:                    # MUTATION: a component decided in turn
                     excl = frozenset(out | {k for k, v in got.items() if not v})
-                got[i] = removal_in_force(S, by[i], unseats, now(excl), excl, lone_ids)
+                ex = excl | after[i]                                 # an ordered pair's later act is no end of the earlier
+                got[i] = removal_in_force(S, by[i], unseats, now(ex), ex, lone_ids)
         decided.update(got)
         out |= {i for i, v in got.items() if not v}
     return frozenset(i for i, v in decided.items() if not v)

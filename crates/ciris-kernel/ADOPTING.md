@@ -194,9 +194,10 @@ trusting an adapter.
   receipt as a `SeatKind::Ack` row with `of()` the removal and no `room()`, signed by a person duty holder other
   than the moderator; an agent's receipt keeps nothing. A reader's acknowledgement of a head keeps `room()` and `head()` as before. The room's count's
   receipt is the same row with `conf()` `Conf::Group`, `obj()` the removal's room, `head()` (each the removal's
-  head or later) and `policy()`, and the counting persons as signer and cosigners; it keeps the removal where its
-  count over the room's persons less the remover is met (the remover is no voice of it and not counted over). Any other room, an older head, or a
-  `counted()` scope other than the persons, and it keeps nothing. A duty holder's receipt
+  head or later), and the counting persons as signer and cosigners; it keeps the removal where more than half of
+  the room's persons less the remover sign it, never fewer than two (the remover is no voice of it and not
+  counted over). That rule is fixed: the row's `policy()` and `need()` are not read. Any other room, an older
+  head, or a `counted()` scope other than the persons, and it keeps nothing. A duty holder's receipt
   is void where a counted unseat of a seat that holder holds does not have the receipt in its past. An end of
   the moderator's standing that lifts receipts states `SeatRow::lifts()`: a counted end, or a conferrer's
   withdrawal of its own offer; then only the count's receipt keeps. The holder's own end never lifts
