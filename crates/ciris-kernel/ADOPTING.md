@@ -284,7 +284,8 @@ names (`models/causal_kernel/roomkey.py`, `rule`).
   counted row, the founding record, the key's own end, or (an agent's key) a moderator's lone removal: a
   `Conf::Own` or `Conf::Seat` row of such a seat concludes nothing, offer and unseat alike. A roster seat needs the
   key's own consent: `SeatRow::consent_one` places one only for a node's seat over an infrastructure community
-  (its founding row's scope `founder`, `CommunityKind::Infrastructure` in `SeatLaw::kinds`), never a founder's seat.
+  (read, until the binding's batch gives `kind_of` the founding record's `cohort_subkind`, as a group that is no
+  community by its kind), never a founder's seat.
   Present a lone founder's later admissions as counted rows (a room of one grows by its member's proposal and the
   newcomer's acceptance).
 - The kernel counts voices as presented. Which keys are one person's is the binding, never a row, so collapsing

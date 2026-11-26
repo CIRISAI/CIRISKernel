@@ -211,8 +211,7 @@ ACTS = acts_table()     # read by policy_in_force (the refusal), with the bindin
 
 # The kind of an object (the acts table's `community_kind`, the policy table's `corridor` reading), from its founding row's
 # scope. A key object is a self roster. An object with no kind has no act.
-KINDS = {"member": "community", "duty": "community", "holder": "accord", "self": "self", "key": "self",
-         "founder": "infrastructure"}
+KINDS = {"member": "community", "duty": "community", "holder": "accord", "self": "self", "key": "self"}
 
 
 def kind_of(by, obj, is_key=False):
@@ -1429,7 +1428,10 @@ def roster_placement(r, by):
     if not community(by, obj) or seat_class(r, r.get("scope")) is None: return True
     if r.get("conf") in ("self", "seat") and "own_roster_row" not in MUT: return False   # MUTATION own_roster_row: RK2 unread
     if r["kind"] == "offer" and r.get("consent") == "one" and "consent_one_any" not in MUT:  # MUTATION consent_one_any: RK1 unread
-        return kind_of(by, obj) == "infrastructure" and r.get("scope") != "founder"
+        # MARKED: until kind_of reads the founding record's `cohort_subkind` (the binding's batch, with the `node` scope),
+        # consent "one" is allowed only over a group that is no community by its kind (an infrastructure group, founded
+        # in `founder`); then it is `kind_of(by, obj) == "infrastructure" and r["scope"] == "node"`
+        return kind_of(by, obj) != "community" and r.get("scope") != "founder"
     return True
 
 
