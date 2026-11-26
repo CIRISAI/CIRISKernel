@@ -494,10 +494,15 @@ class Seats:
         gone = {(k, g) for _, k, g in left}
 
         def resigned(o, k, sc):
-            """A duty seat whose offer is in the past of its holder's own end of its stay as a member is ended by it."""
-            if "duty_revives" in MUT or "resign_keeps_duty" in MUT or not duty_held(S.by, o, sc): return False
+            """A seat whose offer is in the past of its holder's own end of its stay is ended by it: a duty seat (the end
+            of the stay as a member ends it), and every seat of the key in the roster scope the end ends, whatever row
+            seated it (an end is of the key's stay in that scope, not of a row; as a counted removal's cut reaches
+            every offer on the slot in its past)."""
+            duty = duty_held(S.by, o, sc) and not ("duty_revives" in MUT or "resign_keeps_duty" in MUT)
+            stay = "stay_one_row" not in MUT                  # MUTATION stay_one_row: a resignation ends the row it names only
+            if not duty and not stay: return False
             return any(k2 == k and g == o["obj"] and ((pos[o["id"]] < pos[w["id"]]) if by_arrival else (o["id"] in S.anc[w["id"]]))
-                       for w, k2, g in left)
+                       and (duty or end_scope(S.by, w) == sc) for w, k2, g in left)
 
         def unseated(o, k, sc):
             for u in unseats:
@@ -945,7 +950,8 @@ def voices(r, P):
 
 def private_room(by, obj):
     """obj is a private room: a community whose founding row declares `membership` `private` (CC 3.1.3.2). A founding
-    row with no `membership` reads public. A later version that moves the room to public is not read here."""
+    row with no `membership` reads public. A room is private or public by its founding row, and no record change moves
+    it (people found a new room). A seating this refuses is the text's `membership_room_key_ended`."""
     if "public_final" in MUT: return community(by, obj)          # MUTATION: room-key finality reaches a public room
     return community(by, obj) and by[obj].get("membership") == "private"
 

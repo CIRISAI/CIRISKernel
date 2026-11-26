@@ -204,14 +204,19 @@ voice's, check that the room key is a live `key` seat of the voice at the head o
 names (`models/causal_kernel/roomkey.py`, `rule`).
 - Give the founding row's `membership` as `SeatRow::private_room` (true for `private`; default false, read
   public). Over a private room the room key's seat is final once its end stands (unreleased; see the CHANGELOG):
-  a re-admission of a removed or resigned room key, or its acceptance of the same offer again, concludes nothing.
-  Keep `SeatLaw::final_scopes` as the table gives it (`registered`, `member`, `agent`). The refusal has no name in
-  the crate; the text's name is the door's to give. A room that moved to public is not read: the crate reads the
-  founding row only.
+  a re-admission of a removed or resigned room key, or its acceptance of the same offer again, concludes nothing:
+  the text's refusal is `membership_room_key_ended` (a seating of a room key whose stay in that room has ended),
+  the door's to name. Keep `SeatLaw::final_scopes` as the table gives it (`registered`, `member`, `agent`). A room
+  is private or public by its founding row, and no record change moves it (people found a new room): give
+  `private_room` from the founding row only.
+- An end is the key's end of its stay in a scope, not of a row: one resignation or one counted removal ends every
+  seating of the key in that scope in the end's past. A second seat row of a key already seated is a second basis
+  for the same seat: one key, one voice.
 - In every room, a key's own signature on an offer of a roster seat, or its acceptance of one, that is concurrent
   with its own end of its stay there is no voice (`Seats`): present the rows as they are; nothing to mark.
-- A second seat row of a room key already seated, and two admissions of one person under two room keys, are
-  seated as any rows are (OPEN in `check_room_keys.py`); the cosigners' checks of the binding are the caller's.
+- The kernel counts voices as presented. Which keys are one person's is the binding, never a row, so collapsing
+  them (two admissions of one person under two room keys both seat) is the caller's until the voice's own key
+  roster is built; the cosigners' checks of the binding are the caller's too.
 
 **A delegation chain**, for `Seats::stands`.
 - The counted grant: an Offer, `Conf::Group`, counted over the holders, `sub()` true where it carries

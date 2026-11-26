@@ -22,14 +22,17 @@ public, and seats identity keys.
                 past). Beside a counted removal it does not seat: the cut voids it, and a later row adding the key is
                 refused. Beside a resignation the key's own signature or acceptance on it is no voice (ruled: a key's own
                 rows concurrent with its own end of the seat are no voice, in every room), so it seats nobody.
-    a second seat row   OPEN (#224: "what a second seat row of one room key does"). The text does not say.
+    a second seat row   derived from CC 3.1.3.2 on #224: a second basis for the same seat (one key, one voice, no
+                refusal). An end is the key's end of its stay in that scope, not of a row: one resignation or one
+                counted removal ends every seating of the key in that scope in the end's past.
     two admissions      the kernel seats both (CC 3.1.3.2: "no door refuses a widening for either, since no rule of
-                standing reads a binding"). What the text owes about it is OPEN (#224).
+                standing reads a binding"). A residual: the kernel counts voices as presented, and which keys are
+                one person's is the binding, the caller's to collapse.
 
 Part 1. Cases, each a hand-written answer: which rows conclude, the roster (members and agents), and standings asked
 by name; every case is read in arrival orders. Each names the ledger row it closes.
-Part 2. OPEN: rows the text does not decide. Each records the kernel's answer as built and the candidate answers; the
-check asserts the answer as built only so that a change to it is seen, and decides nothing.
+Part 2. OPEN: rows the text does not decide, with the answer as built and the candidates. None is left: each was
+ruled or derived from CC 3.1.3.2 on #224 and is a case of Part 1.
 Part 3. Planted breaks (seat.MUT), each of which must change a case's answer:
     room_key_unread    room-key finality is not read: a removed room key is seated again
     public_final       finality reaches a public room: a counted re-admission there is refused
@@ -38,11 +41,14 @@ Part 3. Planted breaks (seat.MUT), each of which must change a case's answer:
     reaccept_reseats   the same offer accepted again after a resignation re-seats
     own_end_unread     a key's own end voids none of its concurrent voices: a re-admission racing a resignation seats
     own_end_any_seat   a key's own end of one seat voids its concurrent voices on its other roster seats too
+    stay_one_row       a resignation ends the row it names only: a second seat row keeps the key seated
 
 Not here: a room that moved from private to public (no seat row carries the move; a voice seated before it stays a
 voice, and whether its end is then final is not stated); the key roster of a voice (#224's derived item "a device key
 of a voice ended by the voice's own count is final for that device key": a voice is a key object with no founding
-row, so nothing in the seat rows says it is a private room's); the name of the refusal (the text's to give).
+row, so nothing in the seat rows says it is a private room's). A room is private or public by its founding row, and no
+record change moves it (a rule), so no later version is read. The text's refusal is `membership_room_key_ended`; the
+kernel concludes nothing and names no refusal.
 
     python3 -I check_room_keys.py      exit 1 on any difference
 """
@@ -144,9 +150,15 @@ CASES = [
      "concludes nothing", FINAL_ROW,
      [PV[0], admit("aq", "q", ("m1", "m2", "m3"), ("g",), joiner=False), ST.accept("acq", "q", "aq"),
       ST.withdraw("wa", "q", "acq"), ST.accept("acq2", "q", "aq", ("wa",))], {"acq": T, "wa": T, "acq2": F}, M4, [("q", "member", F)]),
-    ("public: the same offer accepted again seats", FINAL_ROW,
+    ("public: the same offer accepted again concludes and seats nothing: q's withdrawal of its acceptance ends its stay "
+     "in that scope, and the offer is in that end's past (derived from CC 3.1.3.2 on #224: an end is of the stay, not of "
+     "a row)", FINAL_ROW,
      [PB[0], admit("aq", "q", ("m1", "m2", "m3"), ("g",), joiner=False), ST.accept("acq", "q", "aq"),
-      ST.withdraw("wa", "q", "acq"), ST.accept("acq2", "q", "aq", ("wa",))], {"acq2": T}, M4 | {"q"}, [("q", "member", T)]),
+      ST.withdraw("wa", "q", "acq"), ST.accept("acq2", "q", "aq", ("wa",))], {"acq2": T}, M4, [("q", "member", F)]),
+    ("public: a new admission after it seats q again", FINAL_ROW,
+     [PB[0], admit("aq", "q", ("m1", "m2", "m3"), ("g",), joiner=False), ST.accept("acq", "q", "aq"),
+      ST.withdraw("wa", "q", "acq"), admit("aq2", "q", ("m1", "m2", "m3", "m4"), ("wa",))], {"aq2": T}, M4 | {"q"},
+     [("q", "member", T)]),
     ("private: a founder ends its stay (withdraws the founding row naming no seat); its admission again concludes nothing",
      FINAL_ROW, PV + [ST.withdraw("w4", "m4", "g", ("ag",)), admit("a4", "m4", ("m1", "m2", "m3"), ("w4",))],
      {"w4": T, "a4": F}, {"m1", "m2", "m3", "q", "AG"}, [("m4", "member", F), ("m4", "moderate", F)]),
@@ -207,50 +219,43 @@ CASES += [
 
 # ---- OPEN: what the text does not decide. (name, ledger row, rows, {row: concludes}, roster, asks, candidates) ----
 OPEN = []
-# a second seat row of one room key
-OPEN += [
-    ("a second seat row of a room key already seated: as built it concludes, and the key is one key on the roster",
-     SECOND_ROW, PV + [admit("aq2", "q", ("m1", "m2", "m3", "m4"), ("ag",))], {"aq2": T}, M4 | {"q", "AG"}, [("q", "member", T)],
-     ("the second row concludes nothing: a room key has one seat row, its own record (a refusal the text would name)",
-      "it stands, and a binding is taken that opens either commitment (formal/binding_carriage finding 3: the fork the "
-      "commitment was added to stop returns)",
-      "it stands, and the key takes no binding: nothing forks, no node counts persons, and the key's holder stalls every "
-      "count alone (the same finding)")),
-    ("a second seat row, then the key withdraws its first: as built the second still seats it, so the resignation ends "
-     "nothing for the roster", SECOND_ROW,
-     PV + [admit("aq2", "q", ("m1", "m2", "m3", "m4"), ("ag",)), ST.withdraw("wq", "q", "aq", ("aq2",))], {"aq2": T, "wq": T},
-     M4 | {"q", "AG"}, [("q", "member", T)],
-     ("the second row is refused, so the case does not arise",
-      "a withdrawal of one seat row by its key ends the key's stay, and every seat row of it",
-      "each seat row is a stay of its own, as built")),
+# a second seat row of one room key (derived from CC 3.1.3.2 on #224): a second basis for the same seat, one key and
+# one voice, no refusal; and an end is the key's end of its stay in that scope, not of a row: one resignation or one
+# counted removal ends every seating of the key in that scope in the end's past
+SR = PV + [admit("aq2", "q", ("m1", "m2", "m3", "m4"), ("ag",))]          # q's second seat row, while aq seats it
+SR_H = ST.cosign("h", "m1", "h", ("aq2",))                                  # a later head with both rows in its past
+CASES += [
+    ("a second seat row of a room key already seated is a second basis for the same seat: it concludes, and the key is "
+     "one key and one voice", SECOND_ROW, SR, {"aq2": T}, M4 | {"q", "AG"}, [("q", "member", T)]),
+    ("two seat rows, one resignation (q withdraws the first, with both in its past): q is out; the end is of its stay "
+     "in that scope, not of a row", SECOND_ROW, SR + [ST.withdraw("wq", "q", "aq", ("aq2",))], {"aq2": T, "wq": T},
+     M4 | {"AG"}, [("q", "member", F)]),
+    ("two seat rows, one counted removal with both in its past: q is out (the cut reaches every offer on the slot)",
+     SECOND_ROW, SR + [SR_H, remove("xq", "q", ("m1", "m2", "m3", "m4"), ("h",))], {"xq": T}, M4 | {"AG"}, [("q", "member", F)]),
+    ("public: two seat rows, one resignation, then a re-admission naming it seats q again", SECOND_ROW,
+     PB + [admit("aq2", "q", ("m1", "m2", "m3", "m4"), ("ag",)), ST.withdraw("wq", "q", "aq", ("aq2",)),
+           rejoin("aq3", "q", ("wq",))], {"aq3": T}, M4 | {"AG", "q"}, [("q", "member", T)]),
+    ("private: the same re-admission is refused (membership_room_key_ended)", SECOND_ROW,
+     SR + [ST.withdraw("wq", "q", "aq", ("aq2",)), rejoin("aq3", "q", ("wq",))], {"aq3": F}, M4 | {"AG"}, [("q", "member", F)]),
 ]
-# two admissions of one person at once: the kernel's answer is decided (CC 3.1.3.2: "Both checks are the cosigner's
-# own, and no door refuses a widening for either, since no rule of standing reads a binding"); what the text says of
-# the second voice is not
+# two admissions of one person at once (derived from CC 3.1.3.2 on #224, a residual): the kernel counts voices as
+# presented; which keys are one person's is the binding, never a row, so the collapse is the caller's until the voice's
+# own key roster is built ("no door refuses a widening for either, since no rule of standing reads a binding")
 TWO = PV + [rejoin("ak1", "k1", ("ag",)), rejoin("ak2", "k2", ("ag",))]
 # a later head with both admissions in its past (a count over two concurrent heads reads the keys common to both)
 HEAD = ST.cosign("h", "m1", "h", ("ak1", "ak2"))
 XQ2 = lambda signers: remove("xq", "q", signers, ("h",))
 CASES += [
     ("two admissions of one person at once, under two room keys: both seat. No rule of standing reads a binding, so "
-     "the kernel cannot tell them from two persons", TWO_ROW, TWO, {"ak1": T, "ak2": T}, M4 | {"q", "AG", "k1", "k2"},
+     "the kernel cannot tell them from two persons (a residual: the collapse is the caller's)", TWO_ROW, TWO, {"ak1": T, "ak2": T}, M4 | {"q", "AG", "k1", "k2"},
      [("k1", "member", T), ("k2", "member", T)]),
     ("each is a voice in the room's count: a removal signed by three members and both keys is met (5 of 7)", TWO_ROW,
      TWO + [HEAD, XQ2(("m1", "m2", "m3", "k1", "k2"))], {"xq": T}, M4 | {"AG", "k1", "k2"}, []),
     ("and without the second key's signature it is not (4 of 7)", TWO_ROW,
      TWO + [HEAD, XQ2(("m1", "m2", "m3", "k1"))], {"xq": F}, M4 | {"q", "AG", "k1", "k2"}, []),
 ]
-OPEN += [
-    ("two admissions of one person at once both seat (the case above): what the text says of the second voice", TWO_ROW,
-     TWO, {"ak1": T, "ak2": T}, M4 | {"q", "AG", "k1", "k2"}, [],
-     ("the sentence 'a person gains a second voice only where every signer of that admission failed to check' is restated: "
-      "it does not hold for two admissions at once (formal/binding_carriage finding 2)",
-      "a checking signer refuses a person it holds another binding of, seated or not (a cosigner's duty, read by no door; "
-      "a checking duty holder then closes it, and without one two admissions whose checkers share no binding still seat)",
-      "a residual named in the ledger")),
-]
 PLANTS = ("room_key_unread", "public_final", "lone_final", "resign_not_final", "reaccept_reseats", "own_end_unread",
-          "own_end_any_seat")
+          "own_end_any_seat", "stay_one_row")
 
 
 def read(S, case):

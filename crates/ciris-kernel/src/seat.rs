@@ -252,7 +252,8 @@ pub trait SeatRow: Row {
     }
     /// A founding row that declares its community's `membership` `private` (CC 3.1.3.2): a private room, whose
     /// roster seats room keys. Read on a founding row only. Default false: a founding row with no `membership`
-    /// reads public. A later version that moves the room to public is not read.
+    /// reads public. A room is private or public by its founding row, and no record change moves it (people
+    /// found a new room). A seating finality refuses there is the text's `membership_room_key_ended`.
     fn private_room(&self) -> bool {
         false
     }
@@ -720,14 +721,21 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             })
         };
         // a duty seat whose offer is in the past of its holder's own end of its stay as a member is ended by it
+        // and so is every seat of the key in the roster scope its end ends, whatever row seated it: an end is of the
+        // key's stay in that scope, not of a row, as a counted removal's cut reaches every offer on the slot in its past
         let resigned = |oi: usize, k: &R::Key, sc: &R::Word| {
             if left.is_empty() {
                 return false;
             }
             let o = g.row(oi);
             let oo = o.obj();
-            duty_held(law, &by, o, sc)
-                && left.iter().any(|(w, k2, room)| *k2 == k && oo.as_ref() == Some(room) && g.in_past(oi, *w))
+            let duty = duty_held(law, &by, o, sc);
+            left.iter().any(|(w, k2, room)| {
+                *k2 == k
+                    && oo.as_ref() == Some(room)
+                    && g.in_past(oi, *w)
+                    && (duty || end_scope(&by, g.row(*w)) == Some(sc))
+            })
         };
         // a key's own row on a roster seat concurrent with its own end of its stay there (neither in the other's
         // past) is no voice: its signature on the offer, or its acceptance of it (CIRISConstitution#224, ruled: the
@@ -2147,8 +2155,8 @@ fn duty_count_keys<K: Ord>(withdraw: bool, to: &[K], yes: &BTreeSet<&K>, mem: &B
 /// Finality ([`SeatLaw::final_scopes`]): offer or acceptance `r` would seat a key again in a scope whose end is
 /// final, with that end in its past. A scope that is no roster seat (`registered`): a concluded unseat of the same
 /// key, scope and object in the offer's past. A roster seat, a room key's seat over a private room
-/// ([`SeatRow::private_room`]): [`room_key_ended`]; an acceptance of an offer seating the key is read as the offer
-/// is. A row concurrent with the end is not refused (a removal's cut voids it; a resignation does not reach it).
+/// ([`SeatRow::private_room`]): [`room_key_ended`] (the text's refusal `membership_room_key_ended`); an acceptance of
+/// an offer seating the key is read as the offer is. A row concurrent with the end is not refused (a removal's cut voids it; a resignation does not reach it).
 fn revoked_before<R: SeatRow, S: CutSpec<R>>(
     law: &SeatLaw,
     spec: &S,

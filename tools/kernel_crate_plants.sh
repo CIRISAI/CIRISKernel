@@ -100,7 +100,11 @@ plant "a resignation ends no duty seat by its past (revival)" src/seat.rs 'if !o
 plant "a removal from the roster cuts the member seat only (revival)" src/seat.rs '                    && (ur.scope() == Some(sc)
                         || (dutyish' '                    && (ur.scope() == Some(sc)
                         || (false'
-plant "a holder's end of its stay ends another key's duty seats" src/seat.rs '*k2 == k && oo.as_ref() == Some(room) && g.in_past(oi, *w)' 'oo.as_ref() == Some(room) && g.in_past(oi, *w)'
+plant "a holder's end of its stay ends another key's duty seats" src/seat.rs '                *k2 == k
+                    && oo.as_ref() == Some(room)
+                    && g.in_past(oi, *w)' '                (*k2 == k || duty)
+                    && oo.as_ref() == Some(room)
+                    && g.in_past(oi, *w)'
 plant "at tips a duty seat does not follow the folded roster" src/seat.rs '!self.duty[i]
             || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))' 'true || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))'
 plant "the founding seat is no member seat" src/seat.rs 'let own = (o.obj() == Some(Obj::Row(o.id().clone())) && o.scope().map(|x| x.as_ref()) == Some(s)) || roster;' 'let own = roster;'
@@ -132,6 +136,7 @@ plant "a key's own end voids none of its concurrent voices" src/seat.rs '&& g.co
             })' '&& g.concurrent(row, *w) && false
             })'
 plant "a key's own end of one seat voids its voices on another" src/seat.rs '&& end_scope(&by, g.row(*w)) == o.scope() &&' '&&'
+plant "a resignation ends the row it names only" src/seat.rs '&& (duty || end_scope(&by, g.row(*w)) == Some(sc))' '&& duty'
 plant "a room key's offer accepted again re-seats it" src/seat.rs 'SeatKind::Accept if revoked_before(law, spec, r, p, &by, cache) => false,' 'SeatKind::Accept if false => false,'
 plant "a window's base read when asked keeps the agents" src/window.rs '            m = persons(m, &agents);' ''
 plant "two bindings one in the other's past read as one stint" src/standing.rs 'if rebinds(*c, b, rows) || rebinds(b, *c, rows) {' 'if past.in_past(c.id(), b.id())? || past.in_past(b.id(), c.id())? {'
