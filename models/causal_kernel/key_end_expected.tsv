@@ -33,6 +33,8 @@ attack	K7 a renewal read as activity to track an anonymous holder	CONCEDED	facts
 attack	K8 another voice revives an ended key	HOLDS	facts hold
 attack	K9 a stranger rotates a key it does not hold	HOLDS	facts hold
 attack	K10 a row signed after its key's held end	HOLDS	facts hold
+attack	K11 a row, a rotation or a record placed exactly at an end	HOLDS	facts hold
+plant	end_closed	caught
 numbers	no end (today), after one year	770150 rows, growing 2110 a day for ever
 numbers	no end (today), after five years	3850750 rows, growing 2110 a day for ever
 numbers	default end, 365 days	steady state m*e*r = 770150 rows (83950.0 keys)

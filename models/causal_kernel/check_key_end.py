@@ -82,6 +82,17 @@ def world(vuA, ren, ren2, rot, at_a, edg, extra):
     return rows
 
 
+# the end of a record, exactly: worlds no generated one reaches (CC 2.6.2, half-open; ledger row: the store's
+# pin list on CIRISConstitution#218, "the half-open end of a key record")
+BOUNDARY = [
+    ("a rotation whose old-key instant is the old record's end", [pX, rec("pA", "A", 0, 10), rec("qB", "B", 10, 18, names=("pA",), succ_of="A", at_old=10)]),
+    ("a rotation one instant before the old record's end", [pX, rec("pA", "A", 0, 10), rec("qB", "B", 9, 17, names=("pA",), succ_of="A", at_old=9)]),
+    ("a row whose own instant is its record's end", [pX, rec("pA", "A", 0, 10), att("a1", "A", 10, "pA", about="X")]),
+    ("a row one instant before its record's end", [pX, rec("pA", "A", 0, 10), att("a1", "A", 9, "pA", about="X")]),
+    ("a record whose end is its own instant", [pX, rec("pA", "A", 0, 10), rec("pD", "D", 12, 12)]),
+]
+
+
 def worlds():
     for args in itertools.product((5, 10, 12), REN, (False, True), ROT, (2, 7, 15), (None, "names", "plain"), EXTRA):
         yield args, world(*args)
@@ -471,6 +482,31 @@ def k10():
             [("the late row concludes nothing", not S.C.get("late"))])
 
 
+@attack("K11 a row, a rotation or a record placed exactly at an end")
+def k11():
+    B = dict(BOUNDARY)
+    st = lambda n: KE.state(B[n])
+    at_end, before = st("a rotation whose old-key instant is the old record's end"), st("a rotation one instant before the old record's end")
+    row_end, row_before = st("a row whose own instant is its record's end"), st("a row one instant before its record's end")
+    eq = st("a record whose end is its own instant")
+    return ("HOLDS", "nobody",
+            "a record covers vf <= t < vu (CC 2.6.2): the end is outside it, for a rotation's old-key instant (CC 2.4.1.1), for a row's own instant and for the record's own",
+            [("a rotation at the old record's end concludes nothing and names no successor", not at_end.C.get("qB") and KE.successor(at_end, "A") is None),
+             ("a rotation one instant before it concludes", bool(before.C.get("qB")) and KE.successor(before, "A") == "B"),
+             ("a row at its record's end concludes nothing", not row_end.C.get("a1")),
+             ("a row one instant before it concludes", bool(row_before.C.get("a1"))),
+             ("a record whose end is its own instant is not kept", all(r["id"] != "pD" for r in eq.rows))])
+
+
+def boundary_plant():
+    """The planted break end_closed (the end read as inside the record) must change K11."""
+    KE.MUT.add("end_closed")
+    try:
+        return any(not v for _, v in k11()[3])
+    finally:
+        KE.MUT.discard("end_closed")
+
+
 # ---- numbers ---------------------------------------------------------------------------------------------------
 def numbers():
     m, atts = 230, 1650
@@ -532,6 +568,10 @@ def main():
             say("      %s %s" % ("ok " if v else "NOT", t))
         ok = ok and not bad
         lines.append("attack\t%s\t%s\t%s" % (name, cls, "facts hold" if not bad else "a fact does not hold"))
+    caught = boundary_plant()
+    say("  plant end_closed %s" % ("caught" if caught else "NOT CAUGHT"))
+    lines.append("plant\tend_closed\t%s" % ("caught" if caught else "not caught"))
+    ok = ok and caught
     say("NUMBERS (formulas over stated rates; the rates are shape, not measured here)")
     for label, v in numbers():
         say("  %s: %s" % (label, v))
