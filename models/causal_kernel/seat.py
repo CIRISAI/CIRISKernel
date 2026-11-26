@@ -1456,10 +1456,13 @@ def count_met(r, P, past, table=None):
         # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
         return k == "offer" and bool(ballots) and RANKED(ballots, list(r["options"]), declared=False)[0] == r["to"][0]
     if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
-    if k == "unseat" and K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "recall" and "recall_as_strictfloor" not in MUT:
+    # the recall is told by its act where the binding reads one (act_of: an unseat of a duty counted over the
+    # members), by its policy otherwise; Policy::Recall is only the threshold its fixed row maps to
+    is_recall = (a[0] == "recall") if a is not None else \
+        K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "recall"
+    if k == "unseat" and is_recall and "recall_as_strictfloor" not in MUT:
         # the recall judges one holder: counted over the members less the holder it recalls, and that holder no voice
-        # of it, as the lift is counted over the room less the one it judges. A row is a recall when its policy reads
-        # as the `recall` count (the table's `moderator_recall`)
+        # of it, as the lift is counted over the room less the one it judges
         judged = frozenset(r["to"])
         base = mem if "recall_holder_in_base" in MUT else mem - judged
         yes = (voices(r, P) & vot) - (frozenset() if "recall_holder_voice" in MUT else judged)

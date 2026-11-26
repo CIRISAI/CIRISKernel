@@ -2753,6 +2753,14 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
         // the one ranked row is the election, which declares no order: a tie for weakest seats nobody
         return is_offer && !ballots.is_empty() && ranked(&ballots, r.options(), 2, false).0.as_ref() == r.to().first();
     }
+    // the recall is told by its act where the binding reads one (an unseat of a duty counted over the members), by
+    // its policy otherwise: the base exclusion of the holder follows Act::Recall, and Policy::Recall is only the
+    // threshold its fixed row maps to
+    let pol = match (law.acts.as_ref().and_then(|_| act_of(law, &|i| p.get(i), r)), pol) {
+        (Some((Act::Recall, _, _)), Some(Policy::StrictFloor(n, d, l))) => Some(Policy::Recall(n, d, l)),
+        (Some((a, _, _)), Some(Policy::Recall(n, d, l))) if a != Act::Recall => Some(Policy::StrictFloor(n, d, l)),
+        (_, pol) => pol,
+    };
     let v = voices(r, p);
     let count = GroupCount { policy: pol, offer: is_offer, to: r.to(), members: &mem, voices: &v, need: r.need() };
     // a ranked count was answered above, so the count answers

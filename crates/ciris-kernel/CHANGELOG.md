@@ -384,8 +384,13 @@ told what act it is by the policy a row states.
   the fold at tips. With no acts table, or over an object with no kind, it is told by its policy, as before.
 - The duty gate reads the policy in force, not the stated one. A duty conferral stating no policy is counted under
   its act's fixed row, `duty_confer`. **An answer changes**: before, the gate refused such a conferral.
-- Unchanged, and the one exception: the election's seating is still told by `Policy::Ranked` (see step 3). The
-  recall's exclusion keys on `Policy::Recall`, the threshold the fixed `moderator_recall` row maps to.
+- The recall is told by its act: an unseat of a duty counted over the members (`counted()`, the body the row
+  counts), as against the duty holders' withdrawal. The exclusion of the recalled holder from its base and voices
+  keys on `Act::Recall`, and `Policy::Recall` is only the threshold the fixed `moderator_recall` row maps to.
+  Under the table the two always coincide, because the table fixes each act's policy: a duty holders' unseat
+  stating `moderator_recall`, or a members' unseat stating another policy, concludes nothing. So no planted break
+  can tell them apart; the keying matters for a law whose table maps the acts otherwise.
+- Unchanged, and the one exception: the election's seating is still told by `Policy::Ranked` (see step 3).
 - One case in `check_acts.py`, one planted break in `seat.py`, two in the crate. No other answer of any case
   changes.
 
@@ -400,7 +405,8 @@ told what act it is by the policy a row states.
   nothing under `cosigned_act` or `community_remove`. A seat outlasts a change of protocol (CC 4.5.4): no seat is
   judged again under the new one. The notice `hard_case:community_consensus_protocol_change` is the caller's to
   emit.
-- **The regime.** A counted row's regime is the room's protocol in force in its past, once the binding reads it.
+- **The regime** (the reading: the room's protocol in force in the row's past; the act's policy is already fixed
+  by the table). A counted row's regime is the room's protocol in force in its past, once the binding reads it.
   Each act's own policy is fixed by the table, so it is no part of the room's regime.
   - Tips that differ in it wait at the fold: tips on either side of a change of protocol do not fold, and tips
     of an admission and a conferral do.

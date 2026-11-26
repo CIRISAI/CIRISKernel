@@ -144,6 +144,7 @@ QUERIES = [
 # The refusal (step 3): (name, rows, the row asked, concludes with the acts table, concludes with none)
 GM4 = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"))      # two thirds
 GMJ = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), consensus_protocol="majority")
+FH4 = ST.found("g", "A", ("A", "B", "C", "D"), {"moderate": ("A",)}, cosigners=("B", "C", "D"))     # A holds moderate
 GN = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), consensus_protocol=None)
 AM1 = grp("am", "offer", (), "record", "cosigned_act", cosigners=("B", "C"), consensus_protocol="one")   # to "one"
 RM_A = lambda heads: grp("x", "unseat", "D", "member", "community_remove", heads=heads)                # A alone
@@ -183,6 +184,18 @@ CONCLUDE = [
       grp("r", "offer", "f4", "founder", None, signer="f1", cosigners=("n1", "f4"), heads=("na",))], "r", False, False),
     ("a node's seat over a community concludes nothing (the table binds it over infrastructure only)",
      [GM4, grp("r", "offer", "n1", "node", "community_invite", cosigners=("B", "C"))], "r", False, True),
+    # ---- the recall told by its act ------------------------------------------------------------------------------
+    ("a members' unseat of a duty is the recall, counted over the members less the holder: B and C of A, B, C, D "
+     "(two of three others) do not recall A",
+     [FH4, grp("r", "unseat", "A", "moderate", "moderator_recall", signer="B", cosigners=("C",))], "r", False, False),
+    ("and B, C and D do", [FH4, grp("r", "unseat", "A", "moderate", "moderator_recall", signer="B", cosigners=("C", "D"))],
+     "r", True, True),
+    ("a duty holders' unseat stating moderator_recall is no recall (its act is the withdrawal, fixed duty_withdraw): "
+     "with the table it concludes nothing",
+     [FH4, grp("r", "unseat", "A", "moderate", "moderator_recall", signer="B", counted="duty", cosigners=("C", "D"))],
+     "r", False, False),
+    ("a members' unseat of a duty stating another policy (community_remove) is refused: the recall's row is fixed",
+     [FH4, grp("r", "unseat", "A", "moderate", "community_remove", signer="B", cosigners=("C", "D"))], "r", False, True),
     # ---- step 5: the protocol change ------------------------------------------------------------------------------
     ("a change of the record's protocol (record_change) is counted under the protocol in force in its own past: three "
      "of four, two thirds, change it to one", [GM4, AM1], "am", True, True),
