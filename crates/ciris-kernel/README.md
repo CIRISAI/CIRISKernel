@@ -77,21 +77,22 @@ unless marked as the parent's.
 `tools/kernel_fixtures.py` imports the Python models, runs their own cases and writes every answer to
 `tests/fixtures/`. The Rust tests rebuild the same rows and compare answer by answer. Each run prints its
 name, its cases and its disagreements, and the step fails if a listed run does not report. The figures below
-are the script's output when this table was last written (main after PR #29); the script is the authority:
+are the `conformance` lines of CI's `cargo test --release` on commit 69920cf (PR #45), sorted; the script is the authority:
 
 | Run, as `tools/kernel_conformance.sh` names it | Cases | Disagreements |
 |---|---|---|
-| TLC's reachable states of Door.tla, replayed through the crate's door | 3,072 | 0 |
 | a key's own end (check_key_end.py worlds) | 215,460 | 0 |
+| a signer's claim by what its rows name (the rule's cases and every order of seven rows) | 5,053 | 0 |
 | a view of a store with cycles of names, against what kept keeps | 3,000 | 0 |
 | a weighted count with a further voice | 12 | 0 |
 | causal (check.py worlds) | 60,016 | 0 |
-| checkpoint and purge (check_purge.py replays) | 1,768 | 0 |
+| checkpoint and purge (check_purge.py replays) | 2,122 | 0 |
 | conclude over rows with cycles of names, against conclude over what kept keeps | 54,160 | 0 |
 | cut (check_cut.py worlds) | 20,985 | 0 |
 | fold default (CC 3.5.1 rules and every order of six rows) | 724 | 0 |
 | group_count against the seat rule over the ballot's rows and the count it replaced | 40,000 | 0 |
-| head::View read through its indexes against the scanned one (purge.json histories) | 4,912 | 0 |
+| head::View read through its indexes against the scanned one (purge.json histories) | 5,980 | 0 |
+| held_view::differential over purge.json histories (in order, reversed, shuffled; resumed) | 1,456 | 0 |
 | kernel_lib operators | 7,968 | 0 |
 | key_end::retained against the per-row reading of ended | 18,000 | 0 |
 | lazy closure against the eager closure | 301,219 | 0 |
@@ -99,26 +100,30 @@ are the script's output when this table was last written (main after PR #29); th
 | line::versions (roster_fork worlds, every set to three versions, every reader) | 77,402 | 0 |
 | members at a head, count_members and seat::conclude against the rows | 40,875 | 0 |
 | one offer seating many: its consenting keys | 2,000 | 0 |
+| one row under a root grant and an owner binding (check_conferral_two.py case table, acc) | 52 | 0 |
+| one row under a root grant and an owner binding, one row not held (undecided, never a wrong bit) | 161 | 0 |
 | recorded rules: other_rules | 848 | 0 |
-| recorded rules: rosters | 52,132 | 0 |
+| recorded rules: rosters | 52,238 | 0 |
 | recorded rules: witnesses | 484 | 0 |
 | reexpress.py decisions over the operators | 17,886 | 0 |
-| seat, line, tips, window (attacks.py and window.py scenarios) | 3,556 | 0 |
+| room content after a seat ends (conferral_content.py case table) | 172 | 0 |
+| room content, folded row by row with changed | 34,751 | 0 |
+| room content, histories built row by row (conferral_content.py) | 37,643 | 0 |
+| room content, one row not held (undecided, never a wrong bit) | 382 | 0 |
+| room content with no end held (counted where seated; in force unless retracted) | 37,643 | 0 |
+| seat, line, tips, window (attacks.py and window.py scenarios) | 7,944 | 0 |
 | the counts CC 3.3.4 and CC 4.4.3.6 state, on their own cases | 24 | 0 |
 | the cycle reading: a walk that passes no key twice, against the Lean walk | 46,800 | 0 |
+| the end of a conferral (conferral_end.py case table) | 127 | 0 |
+| the end of a conferral: one receipt naming several acts, presented as one row per act | 9 | 0 |
+| the end of a conferral, one row not held (undecided, never a wrong bit) | 336 | 0 |
+| the fold at tips: self-admission, a head one key wrote, tips that differ in policy | 7 | 0 |
 | the frontier's walk against the pairwise frontier; duplicate ids | 24,373 | 0 |
+| TLC's reachable states of Door.tla, replayed through the crate's door | 3,072 | 0 |
+| trust::reaches and derived::reach against the walks they replaced | 6,012,046 | 0 |
 | trust walk against the Lean walk | 127,008 | 0 |
 | trust walk, TrustSet.lean worked world | 7 | 0 |
-| trust::reaches and derived::reach against the walks they replaced | 6,012,046 | 0 |
-| held_view::differential over purge.json histories (in order, reversed, shuffled; resumed) | 1,168 | 0 |
-| the end of a conferral (conferral_end.py case table) | 106 | 0 |
-| the end of a conferral, one row not held (undecided, never a wrong bit) | 194 | 0 |
-| room content after a seat ends (conferral_content.py case table) | 169 | 0 |
-| room content, one row not held (undecided, never a wrong bit) | 373 | 0 |
-| room content, histories built row by row (conferral_content.py) | 37,643 | 0 |
-| room content, folded row by row with changed | 34,751 | 0 |
-| room content with no end held (counted where seated; in force unless retracted) | 37,643 | 0 |
-| **total, 37 runs** | **7,260,784** | **0** |
+| **total, 42 runs** | **7,272,445** | **0** |
 
 A **recorded rule** is how a world whose conclusion rule belongs to the instance is brought in. The rule of
 a witness or a roster instance is table data and the model's own code, not the kernel. So the model's verdict
@@ -127,7 +132,7 @@ ask no question the table lacks. What these runs check is the kernel's door, rec
 derived answers over the model's conclusions. The answers the witnesses compute are per-case functions of
 the model and are not ported.
 
-`tools/kernel_crate_plants.sh` plants 98 breaks, one at a time on a copy of the crate, and each must fail a
+`tools/kernel_crate_plants.sh` plants 136 breaks, one at a time on a copy of the crate, and each must fail a
 test. Count them with `grep -c '^plant' tools/kernel_crate_plants.sh`; the script prints how many were caught.
 
 **The cycle reading.** "A cycle is visited once" (CC 2.7.5) has two readings. Under the first, a walk never
@@ -155,7 +160,7 @@ an edge) are in seven of those cases. The TLA+ spec has one deputy edge and does
 ### One row under a root grant and an owner binding
 
 `standing::answers` is checked against the case table of `models/causal_kernel/check_conferral_two.py`
-(`tests/fixtures/conferral_two.json`; 21 cases under its reading `acc`, rows as listed and in reverse): per
+(`tests/fixtures/conferral_two.json`; 27 cases, 21 under its reading `acc` and 6 of two owners, rows as listed and in reverse): per
 act and owner whether it counts and is in force, the binding it stands under and the rule that decides under
 each record, or why it counts for nobody. A second run withholds one row at a time. Cases only: the Python
 run of every state checks the reference, not the crate.

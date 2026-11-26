@@ -210,7 +210,7 @@ def chain_answers(rows, reader_acks=(), role=None):
     `under` are the rules conferral_end.answers gives under the grant and under that binding; otherwise it says
     why the act counts for nobody, or is "undecided" with the row to fetch in `binding`."""
     role = role or ROLE
-    by = {r["id"]: r for r in rows}
+    by, anc = CE._past(rows)
 
     def where(x):
         on = x.get("on")
@@ -232,7 +232,33 @@ def chain_answers(rows, reader_acks=(), role=None):
             return "acceptance_names_no_binding", None
         if a["signer"] != by[b]["owner"]:
             return "not_the_owners_acceptance", None
+        if two_owners(x, by[b]):
+            return "two_owners", None
         return "stands", b
+
+    def rebinds(c, b):
+        """c is b, or re-binds b through a chain of re-bindings (`on`)."""
+        seen = set()
+        while c is not None and c["id"] not in seen:
+            if c["id"] == b["id"]:
+                return True
+            seen.add(c["id"])
+            c = by.get(c.get("on")) if c.get("on") else None
+        return False
+
+    def two_owners(x, b):
+        """CC 3.2: a key with two live owner-bindings naming different owners has no owner ("two owners is none";
+        seat.Seats.one). A binding of the node held that names another owner, neither binding in the other's
+        past, and not ended in the act's past (no re-binding of it there), leaves the act standing on nobody."""
+        for c in rows:
+            if c["kind"] != "binding" or c["id"] == b["id"] or c.get("owner") == b.get("owner"):
+                continue
+            if rebinds(c, b) or rebinds(b, c):
+                continue                                                     # one ends the other: a stint, not a rival
+            if any(e["kind"] == "binding" and e.get("on") == c["id"] and e["id"] in anc(x["id"]) for e in rows):
+                continue
+            return True
+        return False
 
     def record(kind_of, signer_of):
         """The rows as conferral_end reads one record: every row, so that the past is the one the rows name."""
@@ -373,6 +399,37 @@ CASES = [
      {"x1": {"O1": (T, T), "O2": (F, F)}, "x2": {"O1": (T, T), "O2": (F, F)}},
      dict(G1, heads={"x2": "G1"}, eg_names=["G1"])),
 ]
+# Two owners is none (CC 3.2). Rows written out: G0 the bundle, B0 the binding to O1 and A0 O1's acceptance under it, C0
+# a second binding of the node, concurrent with B0 (neither names the other), C1 a re-binding of C0, x1 the act.
+def _two(c0_owner="O2", c1=False, x_names=("G0", "A0"), b_names_c=False):
+    rows = [{"id": "G0", "kind": "bundle", "signer": "count", "names": []},
+            {"id": "C0", "kind": "binding", "signer": "N", "names": [], "owner": c0_owner, "on": None},
+            {"id": "B0", "kind": "binding", "signer": "N", "names": ["C0"] if b_names_c else [], "owner": "O1", "on": None},
+            {"id": "A0", "kind": "acceptance", "signer": "O1", "names": ["B0"], "on": "B0"}]
+    if c1:
+        rows.append({"id": "C1", "kind": "binding", "signer": "N", "names": ["C0"], "owner": "O1", "on": "C0"})
+    rows.append({"id": "x1", "kind": "act", "signer": "N", "names": list(x_names), "head": "G0", "on": "A0"})
+    return rows
+
+
+# (name, about, rows, {act: {owner: (counted, in_force)}}, {act: reason})
+TWO_CASES = [
+    ("two_owners", "two concurrent bindings of the node, to O1 and to O2, both live: the node has no owner, and an "
+     "act on O1's acceptance counts for nobody", _two(), {"x1": NOBODY}, {"x1": "two_owners"}),
+    ("two_owners_act_names_both", "the same, and the act has both bindings in its past: nobody",
+     _two(x_names=("G0", "A0", "C0")), {"x1": NOBODY}, {"x1": "two_owners"}),
+    ("two_bindings_one_owner", "two concurrent bindings of the node, both to O1: one owner; the act stands under "
+     "the binding its acceptance names", _two("O1"), {"x1": {"O1": (T, T), "O2": (F, F)}}, {"x1": "stands"}),
+    ("two_owners_one_rebound_in_the_acts_past", "O2's binding is re-bound to O1 (C1 names C0), and the act has "
+     "that re-binding in its past: O2's binding is ended there, and the act stands on O1",
+     _two(c1=True, x_names=("G0", "A0", "C1")), {"x1": {"O1": (T, T), "O2": (F, F)}}, {"x1": "stands"}),
+    ("two_owners_one_in_the_others_past", "O1's binding names O2's in its past but does not re-bind it (no `on`): "
+     "both are live, so two owners, none; the act counts for nobody", _two(b_names_c=True), {"x1": NOBODY},
+     {"x1": "two_owners"}),
+    ("two_owners_rebinding_held_not_in_the_acts_past", "the same re-binding held by the reader, not in the act's "
+     "past: O2's binding is not ended in the act's past, so at the act two owners were live; nobody",
+     _two(c1=True), {"x1": NOBODY}, {"x1": "two_owners"}),
+]
 ROW_KIND = {"G": ("bundle", "count"), "B": ("binding", None), "A": ("acceptance", None), "E": ("end", "count"),
             "x": ("act", "N")}
 # The one kind of difference between `judge` (a ledger per record, each act placed by its head alone) and
@@ -449,6 +506,12 @@ def check_cases():
     """Every case: the rule gives the hand-written answer, and so do the ledgers, but where the case says how
     the ledgers differ (`ledgers`), and there they must give exactly that."""
     problems = []
+    for name, _, rows, want, why in TWO_CASES:
+        ans = chain_answers(rows)
+        got = per_owner(ans)
+        exp = {x: {o: {"counted": c, "in_force": f} for o, (c, f) in w.items()} for x, w in want.items()}
+        if got != exp or {x: a["reason"] for x, a in ans.items()} != why:
+            problems.append("case %s: the rule gives %s, expected %s, %s" % (name, ans, exp, why))
     for case in CASES:
         name, _, chain, extra, named, want = case[:6]
         opt = case[6] if len(case) > 6 else {}
@@ -477,6 +540,10 @@ def fixture():
         answers, why = case_answers(case)
         cases.append({"name": name, "about": about, "rows": rows, "reader_acks": list(opt.get("acks", [])),
                       "answers": answers, "why": why})
+    for name, about, rows, _, _ in TWO_CASES:
+        ans = chain_answers(rows)
+        cases.append({"name": name, "about": about, "rows": rows, "reader_acks": [], "answers": per_owner(ans),
+                      "why": {x: {k: a[k] for k in ("reason", "binding", "grant", "under")} for x, a in ans.items()}})
     return {"about": "one row that needs two standings, an owner binding and a root grant (CC 3.1.2.1): "
                      "models/tla/CONFERRAL_END.md section J; generated from "
                      "models/causal_kernel/check_conferral_two.py under its reading `acc`",
@@ -493,7 +560,8 @@ def fixture():
                    "`binding` is that binding, `grant` and `under` the conferral-end rules that decide it "
                    "under the grant and under the binding) or why it counts for nobody: `no_acceptance`, "
                    "`names_binding`, `not_an_acceptance`, `acceptance_names_no_binding`, "
-                   "`not_the_owners_acceptance`",
+                   "`not_the_owners_acceptance`, `two_owners` (a second live binding of the node to another owner, "
+                   "concurrent with the one the acceptance names and not re-bound in the act's past)",
             "cases": cases}
 
 
@@ -575,7 +643,8 @@ def main():
             print("%-9s breaks %-9s %s" % (r, p, broke[r][p]))
         if not broke[r]:
             print("%-9s holds %s" % (r, ", ".join(PROPS)))
-    print("%d cases under acc; %d true histories, %d (reading, held set) states" % (len(CASES), n_worlds, n_states))
+    print("%d cases under acc and %d of two owners; %d true histories, %d (reading, held set) states"
+          % (len(CASES), len(TWO_CASES), n_worlds, n_states))
     print("the rule over the held rows against the ledgers, every state of acc: %d answers differ, each a "
           "backdated act with the end of its binding in its past (%s); %d other differences"
           % (n_differ, DIFFERS, len(chain_problems)))

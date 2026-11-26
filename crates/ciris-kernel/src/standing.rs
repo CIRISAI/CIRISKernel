@@ -11,7 +11,8 @@
 //! (the binding as the only head, a re-binding of it as the end). It joins the two bit by bit: the act
 //! **counts** for the binding's owner when it counts under both, and is **in force** when it is in force under
 //! both. An act that names a binding row itself, or the bundle alone, stands on no acceptance and counts for
-//! nobody.
+//! nobody. Where the node has two live owners (a binding to another owner held, neither re-binding the other,
+//! and that one not re-bound in the act's past) it has none, and the act counts for nobody.
 //!
 //! The past is the caller's ([`Past`]), read as the rows name it. An act that names the first owner's
 //! acceptance and reaches a re-binding through another row it names (its signer's previous act) has that end in
@@ -98,6 +99,10 @@ pub enum Nobody {
     AcceptanceNamesNoBinding,
     /// The acceptance it names is not signed by its binding's owner.
     NotTheOwnersAcceptance,
+    /// The node has two live owners, so none (CC 3.2: "two owners is none"; `seat::Seats::one`): a binding
+    /// of it to another owner is held, neither re-binds the other (one in the other's past without re-binding it
+    /// is still live), and no re-binding of that one is in the act's past.
+    TwoOwners,
 }
 
 impl Nobody {
@@ -109,6 +114,7 @@ impl Nobody {
             Nobody::NotAnAcceptance => "not_an_acceptance",
             Nobody::AcceptanceNamesNoBinding => "acceptance_names_no_binding",
             Nobody::NotTheOwnersAcceptance => "not_the_owners_acceptance",
+            Nobody::TwoOwners => "two_owners",
         }
     }
 }
@@ -202,6 +208,41 @@ fn stands_on<'a, R: StandingRow>(x: &'a R, rows: &[&'a R]) -> Result<Result<&'a 
     Ok(Ok(b))
 }
 
+// `c` is `b`, or re-binds `b` through a chain of re-bindings (`on`), among the rows held
+fn rebinds<R: StandingRow>(c: &R, b: &R, rows: &[&R]) -> bool {
+    let mut at = Some(c);
+    for _ in 0..=rows.len() {
+        let Some(r) = at else { return false };
+        if r.id() == b.id() {
+            return true;
+        }
+        at = r.on().and_then(|o| rows.iter().copied().find(|q| q.id() == o && q.kind() == Kind::Binding));
+    }
+    false
+}
+
+// two owners is none: a binding of the node to another owner than `b`'s is held, neither re-binding the other
+// (one in the other's past without re-binding it is still live), and no re-binding of it is in act `x`'s past.
+// Several live bindings to the same owner are one owner.
+fn two_owners<R: StandingRow, P: Past<R::Id>>(x: &R, b: &R, rows: &[&R], past: &P) -> Result<bool, R::Id> {
+    for c in rows.iter().filter(|c| c.kind() == Kind::Binding && c.id() != b.id() && c.owner() != b.owner()) {
+        if rebinds(*c, b, rows) || rebinds(b, *c, rows) {
+            continue; // one ends the other: a stint, not a rival
+        }
+        let mut ended = false;
+        for e in rows.iter().filter(|e| e.kind() == Kind::Binding && e.on() == Some(c.id())) {
+            if past.in_past(e.id(), x.id())? {
+                ended = true;
+                break;
+            }
+        }
+        if !ended {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 /// For every act among `rows`: the binding it stands under and that binding's owner, whether it counts and is
 /// in force for that owner, and the rule that decides under each record; or why it counts for nobody; or the
 /// row that must be held to tell.
@@ -225,7 +266,11 @@ pub fn answers<R: StandingRow, P: Past<R::Id>>(
     let mut at: Vec<(&R, &R)> = Vec::new();
     for &x in &acts {
         match stands_on(x, rows) {
-            Ok(Ok(b)) => at.push((x, b)),
+            Ok(Ok(b)) => match two_owners(x, b, rows, past) {
+                Ok(false) => at.push((x, b)),
+                Ok(true) => drop(out.insert(x.id().clone(), Answer::Nobody(Nobody::TwoOwners))),
+                Err(i) => drop(out.insert(x.id().clone(), Answer::Undecided(i))),
+            },
             Ok(Err(why)) => drop(out.insert(x.id().clone(), Answer::Nobody(why))),
             Err(i) => drop(out.insert(x.id().clone(), Answer::Undecided(i))),
         }

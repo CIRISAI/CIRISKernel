@@ -231,9 +231,10 @@ def seat_answers(S, ST, WN, CUT, CP):
         Q = ST.Seats(S, own=own)
         rd = {"recs": sorted([[r["offer"], r["k"], r["scope"], r["obj"], r["depth"],
                                r["root"] if isinstance(r["root"], str) else ["group", r["root"][1]]] for r in Q.recs]),
-              "stale": sorted(Q.stale), "holders": {}, "tips": {}, "duty": {}}
+              "stale": sorted(Q.stale), "holders": {}, "tips": {}, "duty": {}, "roster": {}}
         for o in objs:
             rd["holders"][o] = sorted(Q.holders("member", o))
+            rd["roster"][o] = sorted(Q.roster(o))
             rd["duty"][o] = sorted(Q.holders("duty", o))
             rd["tips"][o] = sorted(x["id"] for x in Q.tips(o))
         out["readers"]["-" if own is None else own] = rd
@@ -278,6 +279,9 @@ def with_refs(rows, table):
 
 def K_sel(rows, kind):
     return [r for r in rows if r["kind"] == kind]
+
+
+CHAIN = 32        # the lone removals in the seat fixture's chain
 
 
 def seat_cases():
@@ -332,6 +336,15 @@ def seat_cases():
     import check_agent_removal as AR
     for _name, rows, _concl, _roster, _wins in AR.CASES:
         record(rows, A.WIN)
+    # an AI agent's key has a seat of its own kind, on the roster and in no count (CC 4.5.13): check_agent_seat.py's
+    # cases, under the window rule, each with the standing it asks for
+    import check_agent_seat as AS
+    for _name, rows, _concl, _mem, _roster, asks, _wins in AS.CASES:
+        record(rows, A.WIN, [(k, sc, AS.OBJ) for k, sc, _ in asks])
+    # a moderator's lone removal is in force only while the end rule says so: check_removal_in_force.py's cases
+    import check_removal_in_force as RF
+    for _name, rows, _concl, _roster, asks in RF.CASES:
+        record(rows, A.WIN, [(k, sc, RF.OBJ) for k, sc, _ in asks])
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
@@ -372,7 +385,13 @@ def seat_cases():
     for t in WN.adversary_table():
         adversary.append({"window": t["window"], "case": t["case"], "recount": t["outcome"]["recount"],
                           "landing_concluded": t["landing_concluded"]})
-    return {"law": law, "windows": windows, "scenarios": out, "adversary": adversary,
+    # a chain of lone removals, each naming the one before (the review of 2026-11-25): read in polynomial time
+    rows = [AS.G3] + AS.chain(CHAIN)
+    S = CK.concluded(CK.kept(list(rows)), A.WIN)
+    refs = {}
+    chain = {"n": CHAIN, "rows": with_refs(rows, refs), "refs": refs, "c": [S.C[r["id"]] for r in S.rows],
+             "roster": sorted(ST.Seats(S).roster(AS.OBJ))}
+    return {"law": law, "windows": windows, "scenarios": out, "adversary": adversary, "chain": chain,
             "skipped_other_rules": skipped["rules"], "problems": problems}
 
 

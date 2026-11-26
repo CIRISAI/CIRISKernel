@@ -68,12 +68,26 @@ plant "the fallback counted over silent members"        src/window.rs 'yes * den
 plant "the fallback read without its floor"             src/window.rs 'yes * den > num * (yes + no) && yes >= *least' 'yes * den > num * (yes + no)'
 plant "a vote beside a moderator's answer unsays it"    src/window.rs 'let moot = |a: &R| acted.contains(a.signer()) && duty_word(a).is_none();' 'let moot = |_a: &R| false;'
 plant "an act that opens its own window skips the seat" src/window.rs 'if matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && !seat_rule(p, law, spec, &|_| true) {' 'if false {'
-plant "a moderator removes any key alone"               src/seat.rs '|| r.conf() != Some(Conf::Group) || !r.removes_agent() || r.to().len() != 1 {' '|| r.conf() != Some(Conf::Group) || r.to().len() != 1 {'
-plant "any key removes an agent's key alone"            src/seat.rs '        && members_at_with(p, law, spec, &obj, r.head(), "moderate", cache).contains(r.signer())' ''
+plant "a moderator's lone removal reaches a person's seat" src/seat.rs 'let agent = scope.as_ref() == AGENT;' 'let agent = law.roster_seats.iter().any(|s| s == scope.as_ref());'
+plant "any key removes an agent's key alone"            src/seat.rs '    members_at_with(p, law, spec, &obj, r.head(), "moderate", cache).contains(r.signer())
+}' '    true
+}'
 plant "the re-seating counts the author over"           src/seat.rs 'mem.remove(&author); // the author is not among the members the majority is taken of' ''
-plant "the removed key is counted over in its re-seating" src/seat.rs 'mem.retain(|k| !r.to().contains(k)); // nor is the key removed: an agent has no vote' ''
-plant "the removed key is counted over in the lift"     src/window.rs 'others.retain(|k| !self.removed.contains(k));' ''
-plant "a re-seating admits a key never seated"          src/seat.rs 'if !r.to().iter().all(|k| mem.contains(k)) {' 'if false {'
+plant "an agent's key is counted over in a count"     src/seat.rs '    persons(m, &agents_at_with(p, law, spec, obj, heads, cache))' '    let mut m = m;
+    m.extend(agents_at_with(p, law, spec, obj, heads, cache));
+    m'
+plant "an agent's key is counted over in a window"    src/window.rs 'let mut others = persons(sets[0].clone(), &agents);' 'let mut others: BTreeSet<R::Key> = sets[0].union(&agents).cloned().collect();'
+plant "an agent holding a duty bars the lone holder" src/seat.rs '    let held = persons(seats.holders("duty", &obj, None), &seats.holders(AGENT, &obj, None));' '    let held = seats.holders("duty", &obj, None);'
+plant "the roster leaves out the agents"              src/seat.rs '        m.extend(self.holders(AGENT, o, None));' ''
+plant "a lone removal's end unread"                 src/seat.rs 'None => out_of_force(c, law, spec, own, &by, &unseats, cache.unwrap_or(&local)),' 'None => BTreeSet::new(),'
+plant "a remover's own receipt keeps its removal"   src/seat.rs 'duty.remove(m); // never the remover'"'"'s own receipt' ''
+plant "a receipt after the end keeps a removal"     src/seat.rs 'acks.iter().any(|&q| e.is_none_or(|e| !g.in_past(e, q)))' '!acks.is_empty() || e.is_none()'
+plant "a removal at a later head than the end counts" src/seat.rs '!g.in_past(e, x) && !later(head_of(e)) && kept(Some(e))' '!g.in_past(e, x) && kept(Some(e))'
+plant "two live owners still give an owner"          src/standing.rs 'Ok(true) => drop(out.insert(x.id().clone(), Answer::Nobody(Nobody::TwoOwners))),' 'Ok(true) => at.push((x, b)),'
+plant "a remover seated again revives its removal"   src/seat.rs '    if now.stands(m, "moderate", &obj, None)
+        && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s))' '    if now.stands(m, "moderate", &obj, None)
+        && (standing.is_empty() || !live.is_empty() || !ended.is_empty())'
+plant "a lone removal reaches a key with no agent's seat (a re-seating then admits a key never seated)" src/seat.rs 'if !agent || !members_at_with(p, law, spec, &obj, r.head(), AGENT, cache).contains(&r.to()[0]) {' 'if !agent {'
 plant "an election's tie broken by list order"         src/ranked.rs 'back: if declared { -(index(o) as i64) } else { 0 }' 'back: -(index(o) as i64)'
 plant "a version counts though what it builds on does not" src/line.rs 'if builds_on(i).iter().all(|e| out.contains(e)) {' 'if true {'
 plant "the lazy closure skips a past it already knows"  src/graph.rs 'Some(pa) => b.union(pa),' 'Some(_) => {}'
@@ -81,14 +95,37 @@ plant "a row is concluded before what it names"         src/layers.rs 'order.sor
 plant "an owner's revocation ends another owner's seat"  src/seat.rs 'if own { r.to()[0] != *r.signer() } else { Obj::Key(r.to()[0].clone()) != obj }' 'if own { false } else { Obj::Key(r.to()[0].clone()) != obj }'
 plant "one of two live owners revokes alone"            src/seat.rs 'sole.one(us.as_ref(), &obj).as_ref() == Some(r.signer())' 'sole.stands(r.signer(), us.as_ref(), &obj, None)'
 plant "a duty seat stands on a key that is not a member" src/seat.rs 'if held.contains(&true) {' 'if false {'
-plant "a resignation ends no duty seat by its past (revival)" src/seat.rs '&& !unseated(oi, k) && !resigned(oi, k) {' '&& !unseated(oi, k) {'
-plant "a removal from the roster cuts the member seat only (revival)" src/seat.rs 'let held = same && (ur.scope() == o.scope() || (dutyish && member(ur.scope())));' 'let held = same && ur.scope() == o.scope();'
+plant "a resignation ends no duty seat by its past (revival)" src/seat.rs 'if !off_ended(o, k, sc) && !unseated(oi, k, sc) && !resigned(oi, k, sc) {' 'if !off_ended(o, k, sc) && !unseated(oi, k, sc) {'
+plant "a removal from the roster cuts the member seat only (revival)" src/seat.rs '                    && (ur.scope() == Some(sc)
+                        || (dutyish' '                    && (ur.scope() == Some(sc)
+                        || (false'
 plant "a holder's end of its stay ends another key's duty seats" src/seat.rs '*k2 == k && oo.as_ref() == Some(room) && g.in_past(oi, *w)' 'oo.as_ref() == Some(room) && g.in_past(oi, *w)'
-plant "at tips a duty seat does not follow the folded roster" src/seat.rs '!self.duty[i] || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))' 'true'
-plant "the founding seat is no member seat" src/seat.rs 'let own = o.obj() == Some(Obj::Row(o.id().clone())) || law.roster_seats.iter().any(|x| x == s);' 'let own = law.roster_seats.iter().any(|x| x == s);'
-plant "every seat the duty holders place asks for membership" src/seat.rs 'duty_seat(law, by, o) && law.is_duty(s.as_ref(), &declared(by, &obj))' 'duty_seat(law, by, o)'
+plant "at tips a duty seat does not follow the folded roster" src/seat.rs '!self.duty[i]
+            || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))' 'true || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))'
+plant "the founding seat is no member seat" src/seat.rs 'let own = (o.obj() == Some(Obj::Row(o.id().clone())) && o.scope().map(|x| x.as_ref()) == Some(s)) || roster;' 'let own = roster;'
+plant "every seat over a community asks for membership" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty(sc.as_ref(), &declared(by, &obj))' 'community(by, &obj) && !founding(o) && !roster'
+plant "the duty-seat rule reaches duty rooms only" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty' 'duty_room(by, &obj) && !founding(o) && !roster && law.is_duty'
 plant "a duty count counts a holder whose resignation is in its past" src/seat.rs 'if !mem.is_empty() && law.is_duty(counted, &duties) {' 'if false {'
 plant "a holder admitted again stays out of the duty count" src/seat.rs 'if !back {' 'if true {'
+plant "a founding record's duty holders unread" src/seat.rs '    if o.duty_holders().is_empty() {
+        return alloc::vec![own];' '    if true {
+        return alloc::vec![own];'
+plant "a founding row with no map seats an unsigned key that accepts later" src/seat.rs '    if !founding(o) {
+        return alloc::vec![own];' '    if !founding(o) || o.duty_holders().is_empty() {
+        return alloc::vec![own];'
+plant "a listed member who did not sign the record is seated" src/seat.rs '    if !signed {
+        return Vec::new();' '    if false {
+        return Vec::new();'
+plant "a withdrawal's scope unread (laying down a duty ends every seat)" src/seat.rs '&& w.scope().is_none_or(|ws| ws == sc)' ''
+plant "a roster cut ends duty seats of a key that holds no such seat" src/seat.rs '                            && oo.as_ref().is_some_and(|x| holds_roster(c, law, u, k, x))));' '                            && oo.is_some()));'
+plant "a withdrawal naming a roster scope ends the stay whatever its target gives" src/seat.rs '|| !seat_scopes(t, k, signed_by(t, k)).contains(&ws) {' '{'
+plant "E7 read from any standing now" src/seat.rs '        && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s))
+    {' '        && !standing.is_empty() && !live.is_empty() && !ended.is_empty() && false
+    {'
+plant "a removal the count carries is read as a lone act" src/seat.rs '&& !count_met(&p, law, spec, Some(cache))' ''
+plant "a window's base read when asked keeps the agents" src/window.rs '            m = persons(m, &agents);' ''
+plant "two bindings one in the other's past read as one stint" src/standing.rs 'if rebinds(*c, b, rows) || rebinds(b, *c, rows) {' 'if past.in_past(c.id(), b.id())? || past.in_past(b.id(), c.id())? {'
+plant "a One clause over a duty leaves out an agent's act" src/window.rs '        let keys = if cl.how == How::One { x.held(&cl.over) } else { x.base(&cl.over) };' '        let keys = x.base(&cl.over);'
 plant "the tips read as their common members" src/seat.rs 'let t = self.fold_of(s, o, &at);' 'let t = self.tips_common(s, o);'
 plant "the fold counts a voice it does not seat" src/seat.rs 'let ok = if over == *o && counted == s { Some(seated.clone()) } else { self.tips_fold(counted, &over) };' 'let ok: Option<BTreeSet<R::Key>> = None;'
 plant "a member another tip removed stays in the fold" src/seat.rs 'union.iter().filter(|k| !common.contains(*k) && survives(k)).cloned().collect();' 'union.iter().filter(|k| !common.contains(*k)).cloned().collect();'
@@ -115,7 +152,7 @@ plant "any withdrawal ends every acceptance"            src/seat.rs 'let ended =
 plant "kept tips answer for another object"             src/seat.rs 'if let Some(t) = self.tips_memo.borrow().get(o) {' 'if let Some(t) = self.tips_memo.borrow().values().next() {'
 plant "kept folded holders answer for another scope"    src/seat.rs 'let at = (String::from(s), o.clone());' 'let at = (String::new(), o.clone());'
 plant "the members at a head leave out the head"        src/seat.rs 'anc.iter().filter(|&&q| q == hi || past.has(q))' 'anc.iter().filter(|&&q| past.has(q))'
-plant "a window's counted scope read as moderate"       src/window.rs 'cache.insert("all".into(), sets[0].clone());' 'cache.insert("all".into(), sets[1].clone());'
+plant "a window's counted scope read as moderate"       src/window.rs 'cache.insert("all".into(), persons(sets[0].clone(), &agents));' 'cache.insert("all".into(), persons(sets[1].clone(), &agents));'
 plant "the trust walk's index skips a key's own edges" src/trust.rs 'let lo = by_src.partition_point(|&x| edges[x].src < k);' 'let lo = by_src.partition_point(|&x| edges[x].src <= k);'
 plant "reach walks one layer too many"                  src/derived.rs '    for _ in 0..depth {' '    for _ in 0..=depth {'
 plant "a key's end read from any key"                   src/key_end.rs 'let ended = |k: &R::Key| rev.get(k).is_some_and(|a| now >= *a) || !open.contains(k);' 'let ended = |k: &R::Key| rev.get(k).is_some_and(|a| now >= *a) || open.is_empty();'

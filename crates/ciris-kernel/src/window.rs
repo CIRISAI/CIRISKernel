@@ -18,7 +18,7 @@
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
 use crate::ops;
-use crate::seat::{members_in, members_in_scopes, seat_rule, Obj, SeatKind, SeatLaw, SeatRow};
+use crate::seat::{members_in, members_in_scopes, persons, seat_rule, Obj, SeatKind, SeatLaw, SeatRow, AGENT};
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
@@ -91,14 +91,16 @@ pub enum How {
 /// Which keys a clause counts over.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Base {
-    /// The window's counted scope at the opener's head.
+    /// The window's counted scope at the opener's head, less the agents there (every count of a room is by
+    /// person: an AI agent's key, seated in [`AGENT`], is no voice and is not counted over).
     All,
     /// The same, less the opener's signer: out of the voices and out of the size counted over (the members'
     /// check: a strict majority of the members seated at the head the act names, the act's author apart).
-    /// Where the opener is a removal of an AI agent's key ([`SeatRow::removes_agent`]), the key it removes is
-    /// apart too, on every path: the count with no landing, a landing's, and the recount.
+    /// Where the opener is a moderator's lone removal of an agent's key, the key it removes is an agent's and
+    /// so in no count, on every path: the count with no landing, a landing's, and the recount.
     Others,
-    /// Another scope at the opener's head.
+    /// Another scope at the opener's head, less the agents there (in no count, for every scope), except in a
+    /// clause one holder's act resolves ([`How::One`]), which reads an agent holder's act.
     Scope(String),
     /// The opener's signer alone: the proposer's own voice (its withdrawal of an open proposal).
     Opener,
@@ -170,25 +172,16 @@ struct Ctx<'x, R: WindowRow, S: CutSpec<R>> {
     obj: ObjOf<R>,
     head: &'x [R::Id],
     opener_signer: R::Key,
-    /// The key the opener removes, where the opener is a removal of an AI agent's key: apart from
-    /// [`Base::Others`] with the opener's signer.
-    removed: &'x [R::Key],
     w: &'x WindowSpec<R::T>,
     cache: core::cell::RefCell<BTreeMap<String, BTreeSet<R::Key>>>,
 }
 
-/// The key an opener removes, where the opener is a removal of an AI agent's key
-/// ([`SeatRow::removes_agent`]). An agent "acts under its own key and has no vote" (CC 4.5.13): in the lift of
-/// its own removal it is no voice and is not counted over.
-fn removed_agent<R: WindowRow>(o: &R) -> &[R::Key] {
-    if o.seat_kind() == SeatKind::Unseat && o.removes_agent() {
-        o.to()
-    } else {
-        &[]
-    }
-}
-
 impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
+    /// Whether any row read holds a seat of [`AGENT`] scope: without one, no key is an agent's here.
+    fn has_agents(&self) -> bool {
+        self.rows.iter().any(|q| q.scope().is_some_and(|s| s.as_ref() == AGENT))
+    }
+
     fn base(&self, b: &Base) -> BTreeSet<R::Key> {
         let (name, scope) = match b {
             Base::Opener => return core::iter::once(self.opener_signer.clone()).collect(),
@@ -200,11 +193,30 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
             return m.clone();
         }
         let mut m = members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, scope);
+        if scope != AGENT && self.has_agents() {
+            // in no count: the agents at the head are out of the base and the voices for every scope a clause
+            // reads, a named one (`moderate`) included
+            let agents = members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, AGENT);
+            m = persons(m, &agents);
+        }
         if matches!(b, Base::Others) {
             m.remove(&self.opener_signer);
-            m.retain(|k| !self.removed.contains(k));
         }
         self.cache.borrow_mut().insert(name.into(), m.clone());
+        m
+    }
+
+    /// The keys a clause one holder's act resolves ([`How::One`]) reads over `b`: for a named scope its
+    /// holders, agents included (an agent acts under its seat by the acts one signature resolves); for any
+    /// other base, [`Ctx::base`].
+    fn held(&self, b: &Base) -> BTreeSet<R::Key> {
+        let Base::Scope(s) = b else { return self.base(b) };
+        let key = alloc::format!("held|{s}");
+        if let Some(m) = self.cache.borrow().get(&key) {
+            return m.clone();
+        }
+        let m = members_in(self.rows, self.past, self.law, self.spec, &self.obj, self.head, s);
+        self.cache.borrow_mut().insert(key, m.clone());
         m
     }
 
@@ -226,18 +238,24 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
         if named.iter().any(|s| *s == "all" || *s == "others") {
             return extra.map(read);
         }
-        let mut scopes: Vec<&str> = alloc::vec![w.counted.as_str(), "moderate"];
+        let mut scopes: Vec<&str> = alloc::vec![w.counted.as_str(), "moderate", AGENT];
         scopes.extend(named.iter().copied());
         scopes.extend(extra);
         let mut sets = members_in_scopes(self.rows, self.past, self.law, self.spec, &self.obj, self.head, &scopes);
         let got = extra.and_then(|_| sets.pop());
         let mut cache = self.cache.borrow_mut();
-        let mut others = sets[0].clone();
+        // a count of the room is by person: the agents at the head are no voice and not counted over
+        let at_head = sets[2].clone();
+        let agents = if w.counted == AGENT { BTreeSet::new() } else { at_head.clone() };
+        let mut others = persons(sets[0].clone(), &agents);
         others.remove(&self.opener_signer);
-        others.retain(|k| !self.removed.contains(k));
         cache.insert("others".into(), others);
-        cache.insert("all".into(), sets[0].clone());
+        cache.insert("all".into(), persons(sets[0].clone(), &agents));
         for (scope, set) in scopes.iter().zip(sets).skip(1) {
+            // a named scope's base leaves its agents out too; its holders, agents included, are what a clause
+            // one holder's act resolves reads
+            cache.insert(alloc::format!("held|{scope}"), set.clone());
+            let set = if *scope == AGENT { set } else { persons(set, &at_head) };
             cache.insert((*scope).into(), set);
         }
         got
@@ -254,7 +272,7 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
     let w = x.w;
     let tv: BTreeSet<R::Key> = if w.target_votes { target.cloned().into_iter().collect() } else { BTreeSet::new() };
     let mut voters = x.base(&Base::All);
-    voters.extend(x.base(&Base::Scope("moderate".into())));
+    voters.extend(x.held(&Base::Scope("moderate".into())));
     voters.extend(tv.iter().cloned());
     // the proposer's withdrawal is its own voice on the opener's clause, and never replaces what it said by opening
     let is_wd = |a: &&R| *a.signer() == x.opener_signer && a.says().is_some_and(|w| w.as_ref() == "withdraw");
@@ -272,7 +290,7 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         .iter()
         .copied()
         .filter(|a| voters.contains(a.signer()) && !is_wd(a))
-        .filter(|a| duty_word(a).is_some_and(|b| x.base(b).contains(a.signer())))
+        .filter(|a| duty_word(a).is_some_and(|b| x.held(b).contains(a.signer())))
         .map(|a| a.signer())
         .collect();
     let moot = |a: &R| acted.contains(a.signer()) && duty_word(a).is_none();
@@ -294,7 +312,8 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         if cl.over == Base::Opener {
             return if cl.value == "withdraw" { withdrawn } else { said.get(&x.opener_signer) == Some(&cl.value) };
         }
-        let keys = x.base(&cl.over);
+        // a count (a fraction, a floor) leaves the agents out; a clause one holder's act resolves reads them
+        let keys = if cl.how == How::One { x.held(&cl.over) } else { x.base(&cl.over) };
         let yes = said
             .iter()
             .filter(|(s, v)| {
@@ -396,7 +415,6 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         obj: obj.clone(),
         head: o.head(),
         opener_signer: o.signer().clone(),
-        removed: removed_agent(o),
         w: &w,
         cache: Default::default(),
     };
@@ -478,7 +496,6 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
         obj: obj.clone(),
         head: p.head(),
         opener_signer: p.signer().clone(),
-        removed: removed_agent(p),
         w: &w,
         cache: Default::default(),
     };
@@ -511,7 +528,7 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
     }
     let late = |r: usize| gone.iter().any(|(ks, x)| ks.contains(g.row(r).signer()) && !g.in_past(r, *x));
     let mut voters = x.base(&Base::All);
-    voters.extend(x.base(&Base::Scope("moderate".into())));
+    voters.extend(x.held(&Base::Scope("moderate".into())));
     if w.target_votes {
         voters.extend(p.target_key().cloned());
     }
@@ -768,6 +785,17 @@ mod tests {
                     rows.push(o);
                     id += 1;
                 }
+            }
+            // now and then the last key holds an agent's seat as well: every base leaves it out, read either way
+            if (id + n).is_multiple_of(4) {
+                let mut o = W::new(id, vec![0], 1);
+                o.kind = SeatKind::Offer;
+                o.to = vec![n];
+                o.cosigners = vec![n];
+                o.scope = Some(AGENT.into());
+                o.obj = Some(Obj::Row(0));
+                o.conf = Some(Conf::Own);
+                rows.push(o);
             }
             let v = W::new(100, rows.iter().map(|r| r.id).collect(), 1);
             rows.push(v);

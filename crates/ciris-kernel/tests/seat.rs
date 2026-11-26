@@ -145,6 +145,8 @@ fn seat_scenarios() {
                     sorted_ids(&q.holders("duty", &ob, None)) == rd.at("duty").at(o).strs(),
                     format!("duty holders of {o} for {reader}"),
                 );
+                // the whole roster: members and agents (CC 4.5.13)
+                cmp(sorted_ids(&q.roster(&ob)) == rd.at("roster").at(o).strs(), format!("roster of {o} for {reader}"));
                 let tips = sorted_ids(q.tips(&ob).iter().map(|&i| &c.g.row(i).id));
                 cmp(tips == rd.at("tips").at(o).strs(), format!("tips of {o} for {reader}"));
             }
@@ -200,4 +202,26 @@ fn a_reference_is_typed_by_its_form() {
     assert_eq!(Obj::<usize, usize>::from_reference(Reference::Text("g"), row, key), None);
     assert_eq!(Obj::<usize, usize>::from_reference(Reference::Text(&ok_key[..ok_key.len() - 1]), row, key), None);
     assert_eq!(Obj::<usize, usize>::from_reference(Reference::Text(&ok_key.replace('A', "+")), row, key), None);
+}
+
+/// A moderator's chain of lone removals, each naming the one before as its head (fixture `chain`, 32 of them):
+/// concluded and read in polynomial time. Before the members at a head were kept for the builds below a build,
+/// each removal re-read every earlier one, about six times the work per row.
+#[test]
+fn a_chain_of_lone_removals_is_read_in_time() {
+    let fx = fixture("seat.json");
+    let w = World { law: law_of(fx.at("law")), windows: windows_of(fx.at("windows")) };
+    let ch = fx.at("chain");
+    let refs: BTreeMap<String, String> =
+        ch.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+    let rows = rows_with_refs(ch.at("rows").arr(), &refs);
+    let t = std::time::Instant::now();
+    let c = conclude(kept(&rows, |_| true), |p| w.rule("window", p), None);
+    let want: Vec<bool> = ch.at("c").arr().iter().map(|x| x.b()).collect();
+    assert_eq!((0..c.g.len()).map(|i| c.concluded(i)).collect::<Vec<_>>(), want);
+    let q = Seats::new(&c, &w.law, &DictCut, None);
+    assert_eq!(sorted_ids(&q.roster(&obj_named(&rows, "g"))), ch.at("roster").strs());
+    let secs = t.elapsed().as_secs_f64();
+    eprintln!("  a chain of {} lone removals: {secs:.2} s", ch.at("n").i());
+    assert!(secs < 20.0, "{secs:.1} s for the chain");
 }

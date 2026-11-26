@@ -223,17 +223,20 @@ covers 18 of them, three are read off the row judged (`author`, `self`, `subject
 founding record seats the duty holders who sign it, and they are equals (CC 4.5.4). A duty seat is conferred
 by a strict majority of the duty holders, or by the lone holder with the new holder's acceptance. It is
 withdrawn by a strict majority of the others, never on fewer than two voices where there are two holders.
-A duty seat stands only on a member: it stands only where its holder holds the roster's seat over the same
-community at the same reading, so a conferral on a key that is not a member seats nobody and is no voice in a
+A duty seat stands only on a member, in every room whatever its founding row seats: it stands only where its
+holder holds the roster's seat over the same community at the same reading, so a conferral on a key that is not a member seats nobody and is no voice in a
 duty count, and it stands with no further row when the key's widening lands. An end of the holder's stay as a
 member, its own resignation or a counted removal, ends the duty seats whose offers are in that end's past, and
 a later admission revives none of them; a conferral that is not in the end's past waits for the next
-admission. At tips the duty seat follows the folded roster. The founding seat holds `member`, so a founding
-holder's membership is its founding duty seat unless a member seat is presented beside it. A seat the duty
+admission. At tips the duty seat follows the folded roster. The founding record lists the members and names
+the duty holders in `duty_holders`, a map from a duty to the members who hold it: one row seats each listed
+member who signed it in `member` and each named holder in its duty, with no count, however many found it. A
+listed member who did not sign is seated in nothing, and so is a key an entry names that is no listed signer.
+The seats end separately: a founder's withdrawal of the record naming one duty ends that seat only, and one
+naming no seat ends its stay and every duty seat it held. A seat the duty
 holders place that makes its holder no duty holder (a node's detector seat) is not asked for membership.
-**run** (`models/causal_kernel/check_duty_seats.py`): 37 cases in every arrival order, five planted breaks
-caught. **open**: two founders have no presentation in which either lays down its duty and stays a member;
-the members' check (`moderation_overturn`) counts the objection of the duty holder whose act it is, now that
+**run** (`models/causal_kernel/check_duty_seats.py`): 58 cases in every arrival order, ten planted breaks
+caught. **open**: the members' check (`moderation_overturn`) counts the objection of the duty holder whose act it is, now that
 the duty holder is a member, and the sentence that it has no say in the lift is not a rule of the table.
 **run**: five properties, each with a deliberate break that is caught. `owner` and the steward of an agent are one
 seat. `member`, an accord holder and a key of a self roster are one counted seat over three objects. `serve` is
@@ -470,6 +473,23 @@ again (`readmission_needed`). Two concurrent versions of one head are not decide
 The members at a head stay by past under CC 2.4.1.1: a withdrawal, unseat or resignation takes out of force, or
 at a later head uncounts, the acts exercised under the seat (section 6), never the members at a head or n
 (`rows_outside_change_nothing`).
+
+**An AI agent's key is on the roster and in no count** (CC 4.5.13: an agent "acts under its own key and has no
+vote"; "a recall and an election count its persons alone"). Its key is seated over the room in a scope of its own,
+`agent`, by an admission the room's persons count. The roster (`seat::Seats::roster`) is the members and the
+agents, and it is what content, wraps and audience read; the members (`holders("member", ..)`) are persons. Every
+count of the room is taken of persons, so an agent's key is no voice and is not counted over in an admission, a
+removal, a duty conferral or withdrawal, or a window, whatever other seat it holds. An agent may hold a duty by
+its own duty seat, which stands on its `agent` seat, and acts alone within it. The room's count removes an agent's
+key as any key; a moderator removes it alone, read from the seat's scope. **run**
+(`models/causal_kernel/check_agent_seat.py`): 28 cases in arrival orders, seven planted breaks caught; the
+moderator's lone removal and its lift in `check_agent_removal.py`. That removal is an act under the moderator's
+`moderate` standing, and the seat walk counts it only while the end rule of section 6 (E2 to E8) gives it in force
+over the rows held: an end of the standing (the moderator's own laying down, a counted removal of it, the other
+holders' counted withdrawal of its duty) takes it out of force from the end's head on unless another duty holder's
+receipt of it is held, and the agent's key is seated again for a reader holding that end. **run**
+(`models/causal_kernel/check_removal_in_force.py`): 26 cases in arrival orders, four planted breaks caught.
+Nothing puts such a removal back in force: a moderator seated again signs it again.
 
 An adversary holding the count of an old head signs a valid version alone. A witnessed lineage answers that
 (CC 3.2 T6), and it is each reader's own trust that decides whose witnesses count.
