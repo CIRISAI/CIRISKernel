@@ -140,7 +140,8 @@ CASES = [
      [GM, AGM, AMM, MDM, WDM, XLW(("md",))], None, {"xl": T, "wd": T}, {"moderate": set(), "agent": {"AG"}}, set(), None),
     # the lift, read as before, pending the lift follow-up (it is to name the newest counted heads in its own past and
     # be counted over the members seated both at the act's head and at its own, the author apart): today, for a
-    # reader that acknowledged the removal, the re-seating counts and the agent's key is back
+    # reader that acknowledged the removal, the re-seating counts and the agent's key is back. The new line without the
+    # exemption (plant lift_exemption_off) gave: the re-seating stale for that reader, and the agent's key off its roster
     ("the members' lift of a lone removal, for a reader that acknowledged the removal (pending the lift follow-up)",
      AR.A + [AR.XA, AR.O1, AR.O2, AR.RSA, ack("ak", "m1", "x")], "m1", {"rs": T}, {"agent": {"AG"}}, set(), None),
 ]
