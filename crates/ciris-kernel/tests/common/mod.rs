@@ -294,6 +294,7 @@ pub struct TRow {
     pub scope: Option<String>,
     pub policy: Option<String>,
     pub consensus_protocol: Option<String>,
+    pub regime: Option<String>,
     pub cohort_subkind: Option<String>,
     pub counted: Option<String>,
     pub of: Option<String>,
@@ -376,6 +377,7 @@ impl TRow {
             scope: opt(&m, "scope"),
             policy: opt(&m, "policy"),
             consensus_protocol: opt(&m, "consensus_protocol"),
+            regime: opt(&m, "regime"),
             cohort_subkind: opt(&m, "cohort_subkind"),
             counted: opt(&m, "counted"),
             of: opt(&m, "of"),
@@ -490,6 +492,9 @@ impl SeatRow for TRow {
     }
     fn cohort_subkind(&self) -> Option<&String> {
         self.cohort_subkind.as_ref()
+    }
+    fn regime(&self) -> Option<&String> {
+        self.regime.as_ref()
     }
     fn counted(&self) -> Option<&String> {
         self.counted.as_ref()
