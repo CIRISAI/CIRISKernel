@@ -1119,10 +1119,6 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 };
                 match pol {
                     Some(Policy::Ranked) => true, // an election's ballots are read by the seat rule alone
-                    Some(Policy::DutyConfer) | Some(Policy::DutyWithdraw) => {
-                        let yes: BTreeSet<&R::Key> = v.iter().filter(|x| mem.contains(*x)).collect();
-                        duty_count_keys(pol == Some(Policy::DutyWithdraw), r.to(), &yes, &mem)
-                    }
                     _ => count_of(pol, true, r.to(), &mem, &v, r.need(), |x| {
                         r.weights().iter().find(|(w, _)| w == x).map_or(0, |(_, n)| *n)
                     }),

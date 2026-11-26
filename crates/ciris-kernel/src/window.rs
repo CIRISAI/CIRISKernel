@@ -18,7 +18,9 @@
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
 use crate::ops;
-use crate::seat::{members_in, members_in_scopes, persons, seat_rule, Obj, SeatKind, SeatLaw, SeatRow, AGENT};
+use crate::seat::{
+    self, members_in, members_in_scopes, persons, seat_rule, Obj, Policy, SeatKind, SeatLaw, SeatRow, AGENT,
+};
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
@@ -319,18 +321,23 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
             .filter(|(s, v)| {
                 **v == cl.value && (keys.contains(*s) || (floor && tv.contains(*s) && cl.value == "approve"))
             })
-            .count() as u64;
-        let n = keys.len() as u64;
+            .count();
+        // CC 4.5.13: two comparisons (strictly more than a fraction, at least a fraction), each read by the
+        // seat's count, with a floor in voices and a choice of base
+        let n = keys.len();
+        let more = |num, den, base| seat::met(Some(Policy::Strict(num, den)), yes, base, None);
         match &cl.how {
-            &How::AtLeast(num, den, least) => yes >= core::cmp::max(least, (num * n).div_ceil(den)),
-            &How::More(num, den) => yes * den > num * n,
-            &How::MoreAtLeast(num, den, least) => yes * den > num * n && yes >= least,
-            How::MoreOfVoted(num, den, least, against) => {
-                let no = said.iter().filter(|(s, v)| *v == against && keys.contains(*s)).count() as u64;
-                yes * den > num * (yes + no) && yes >= *least
+            &How::AtLeast(num, den, least) => {
+                seat::met(Some(Policy::AtLeast(num, den)), yes, n, None) && yes as u64 >= least
             }
-            How::One => yes >= 1,
-            How::Strict => 2 * yes > n,
+            &How::More(num, den) => more(num, den, n),
+            &How::MoreAtLeast(num, den, least) => more(num, den, n) && yes as u64 >= least,
+            How::MoreOfVoted(num, den, least, against) => {
+                let no = said.iter().filter(|(s, v)| *v == against && keys.contains(*s)).count();
+                more(*num, *den, yes + no) && yes as u64 >= *least
+            }
+            How::One => seat::met(Some(Policy::One), yes, n, None),
+            How::Strict => more(1, 2, n),
         }
     };
     for cl in &w.at_once {

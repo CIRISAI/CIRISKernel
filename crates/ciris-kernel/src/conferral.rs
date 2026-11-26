@@ -238,7 +238,7 @@ type Bits<I> = Result<(bool, bool, Rule), I>;
 pub type Answers<I> = BTreeMap<I, Answer<I>>;
 
 // `any` over a three-way answer: yes if any is yes; else the first row that must be held; else no.
-fn any3<T, I>(items: impl Iterator<Item = T>, mut f: impl FnMut(T) -> Result<bool, I>) -> Result<bool, I> {
+pub(crate) fn any3<T, I>(items: impl Iterator<Item = T>, mut f: impl FnMut(T) -> Result<bool, I>) -> Result<bool, I> {
     let mut need = None;
     for t in items {
         match f(t) {
@@ -251,6 +251,24 @@ fn any3<T, I>(items: impl Iterator<Item = T>, mut f: impl FnMut(T) -> Result<boo
         Some(i) => Err(i),
         None => Ok(false),
     }
+}
+
+// head `h` is later than head `he`: it has `he` in its past
+pub(crate) fn later<I, P: Past<I>>(past: &P, h: Option<&I>, he: Option<&I>) -> Result<bool, I> {
+    match (h, he) {
+        (Some(h), Some(he)) => past.in_past(he, h),
+        _ => Ok(false),
+    }
+}
+
+// an end is stale: a head in its past is later than the head it names
+pub(crate) fn stale_head<'i, I: 'i, P: Past<I>>(
+    past: &P,
+    heads: impl Iterator<Item = &'i I>,
+    end: &I,
+    end_head: Option<&I>,
+) -> Result<bool, I> {
+    any3(heads, |h| Ok(past.in_past(h, end)? && later(past, Some(h), end_head)?))
 }
 
 struct Ctx<'a, R: ConferralRow, P> {
@@ -277,17 +295,12 @@ impl<'a, R: ConferralRow, P: Past<R::Id>> Ctx<'a, R, P> {
 
     // head `h` is later than head `he`: it has `he` in its past
     fn later(&self, h: Option<&R::Id>, he: Option<&R::Id>) -> Result<bool, R::Id> {
-        match (h, he) {
-            (Some(h), Some(he)) => self.past.in_past(he, h),
-            _ => Ok(false),
-        }
+        later(self.past, h, he)
     }
 
     // the rule that makes the end conclude nothing for this reader, if one does
     fn end_void(&self, e: &R) -> Result<Option<Rule>, R::Id> {
-        let stale = any3(self.of_kind(Kind::Head), |h| {
-            Ok(self.past.in_past(h.id(), e.id())? && self.later(Some(h.id()), e.head())?)
-        })?;
+        let stale = stale_head(self.past, self.of_kind(Kind::Head).map(|h| h.id()), e.id(), e.head())?;
         if stale {
             return Ok(Some(Rule::EndVoidStaleHead));
         }

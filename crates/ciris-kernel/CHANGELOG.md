@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**One of each** (no public name changes; the fixtures and conformance runs are unchanged).
+
+- `content` reads `conferral`'s three-way `any`, later-head test and stale-head test; its own copies are gone.
+- `trust::reaches` and `EdgeIndex::reaches` are one walk over two sources of a key's edges.
+- `window`'s thresholds are the seat's two comparisons (CC 4.5.13: strictly more than a fraction, at least a
+  fraction), read by `seat::met`, each with a floor in voices and a choice of base. One answer changes in
+  principle: `How::AtLeast` over an empty base is never met (before, a floor of zero was met by nobody). No
+  case of the reference or the fixtures takes one. The fold's duty arm goes through the seat rule's count.
+- `key_end::live` reads `covers_at`.
+- `kernel/TEXT.md` was a copy of CC 2.7 at 1.0-rc19 and is a pointer to the Constitution's section.
+
 ## [0.4.0]
 
 The first tag of the 0.4 line (`kernel-v0.4.0`), after `kernel-v0.3.0`. Several answers change, one public
