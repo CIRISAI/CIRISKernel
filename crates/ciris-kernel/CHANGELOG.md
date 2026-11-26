@@ -481,7 +481,9 @@ told what act it is by the policy a row states.
     the record. Over a past holding both, no founders' count concludes (no removal, widening or node seating) until a
     version names both: a founders' amendment signed by every key the two seated, restating `quorum:{M}/{N}` for the
     founders it leaves (M not lowered), counted at the present M over the founders common to the two. The fold's
-    roster at such tips is the kernel's usual fold (it is the counts that wait).
+    roster at such tips is the kernel's usual fold (it is the counts that wait). Below N, two concurrent seatings
+    each keep the word and together may exceed N: a reader holding both reads the founders common to them (pending
+    the head rules' reader-dependent conclusion); each line alone acts (the residual).
   - An own offer of a `founder` seat over infrastructure seats nothing.
   - **Recovery when stalled**: the one row admitted without the founders' count (`SeatRow::bundle()`) is UNDECIDED:
     `seat::stalled_recovery` answers `stalled_recovery_needs_bundle`, with the checks listed for when the trust root's
@@ -581,8 +583,9 @@ told what act it is by the policy a row states.
   members, over the room). A row counting another body, or over another object (`over()`), concludes nothing where
   the binding is on (before, the one moderator alone admitted a key counting over
   `moderate`, and an accord holder counted over a scope it had given itself).
-- **Weights** are compared as a set of pairs, and a record that weighs one key twice states no weights (a weighted
-  count under it concludes nothing). An authored head (an outsider's own admission to an open room, read from a
+- **Weights** are compared as a set of pairs, and a record that weighs one key twice, or one key below zero, states
+  no weights (a weighted count under it, or a change to it, concludes nothing; the crate's `u64` weight cannot be
+  negative). An authored head (an outsider's own admission to an open room, read from a
   stated `open:self_admit` count) is read with the binding off only, as the reference reads none.
 - **A change of the record names the record in force as its head** (Q4): it is a counted change, and the head rules
   (H1) ask it; built with `heads` (a pending case in `check_acts.py` until then).

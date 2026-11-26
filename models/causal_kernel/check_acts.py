@@ -75,6 +75,7 @@ Planted breaks, each of which must change a case's answer:
     infra_word_restated_always    an infrastructure amendment seating a founder must restate the word, even at or below N
     contested_scoped_to_kinds     the contested pair is read for a family and an infrastructure community only
     contested_voice_everywhere    a removal voids a voice whatever head the other row names (not from its own head on)
+    negative_weight               a weighted record may weigh a key below zero
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
@@ -539,6 +540,11 @@ CONCLUDE = [
                                consensus_protocol_entrenched=True)], "am", False, False),
     ("not entrenched, the restatement is a protocol change counted under the weights in force (A, B, C: six of five)",
      [GW, REC("am", "weighted:stake", cosigners=("B", "C"), need=4, weights=W_NEW)], "am", True, False),
+    ("a weight is a whole number: a record weighing D at -5 states no weights, and nothing concludes under it",
+     [dict(GW, weights=(("A", 3), ("B", 2), ("C", 1), ("D", -5))), grp("r", "offer", "E", "member", "cosigned_act",
+                                                                       cosigners=("B", "E"))], "r", False, False),
+    ("nor does a change to such a record", [GW, REC("am", "weighted:stake", cosigners=("B", "C"), need=4,
+                                                     weights=(("A", 3), ("B", 2), ("C", 1), ("D", -5)))], "am", False, False),
     ("a weighted record that weighs one key twice states no weights: A and B admit nobody",
      [dict(GW, weights=(("A", 3), ("A", 2), ("B", 2), ("C", 1), ("D", 1))),
       grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "E"))], "r", False, False),
@@ -780,6 +786,34 @@ PENDING = [
      "dissolves at g): the reader's line, with the head rules",
      [FAM2, FREM("dm", "B", scope="founder"), FDIS("d", signer="B")], [("A", "member", True), ("C", "member", True)]),
 ]
+# review-54 on 091b14d (r62): rule 5 contests only among removals not void for the row or reader (the head rules'
+# S''), and a reader holding two concurrent below-N seatings reads the founders common to them (reader_state)
+GK = ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", "C"), consensus_protocol="majority")
+_kadm = lambda i, k, signers, heads: grp(i, "offer", k, "member", "cosigned_act", heads=heads, signer=signers[0],
+                                         cosigners=tuple(signers[1:]) + (k,))
+_krem = lambda i, k, signers, heads: grp(i, "unseat", k, "member", None, heads=heads, signer=signers[0],
+                                         cosigners=tuple(signers[1:]))
+KL = [GK, _kadm("ad", "D", ("A", "B", "C"), ("g",)), _kadm("ae", "E", ("A", "B", "C", "D"), ("ad",))]
+G6M = ST.offer("g", "A", tuple("ABCDEF"), "member", "@", "self", cosigners=tuple("BCDEF"))
+T5H = grp("h", "offer", "Q", "member", "cosigned_act", signer="A", cosigners=("B", "C", "D", "Q"))
+C1A = IAM(None, i="a", heads=("w9",), cosigners=SEAT5, seat=("X1", "X2", "X3"))
+C1B = IAM(None, i="b", heads=("w9",), signer="f2", cosigners=("f3", "f4", "f5", "f6"), seat=("Y1", "Y2", "Y3"))
+C2XA = grp("xa", "unseat", "f3", "founder", None, heads=("a",), signer="X1", cosigners=("X2", "X3", "f1", "f2"), counted="founder")
+C2XB = grp("xb", "unseat", "f1", "founder", None, heads=("b",), signer="Y1", cosigners=("Y2", "Y3", "f3", "f4"), counted="founder")
+PENDING += [
+    ("K2: a forged removal (A with removed C) at the old head g is void for every reader holding ae (S''), so the "
+     "honest removal of C stands and B is kept",
+     KL + [_krem("x", "C", ("B", "D", "E"), ("ae",)), _krem("z", "B", ("A", "C"), ("g",))],
+     [("C", "member", False), ("B", "member", True)]),
+    ("T5: y1 (A, B, C, D at g, all of whom signed the later h) is behind h, so y2 at h stands: A out, E kept",
+     [G6M, T5H, _krem("y1", "E", "ABCD", ("g",)), _krem("y2", "A", "BCDE", ("h",))], [("A", "member", False), ("E", "member", True)]),
+    ("T5b: swapped, y2 at g (E did not sign h) is not behind h; y2 stands, y1' falls: A out, E kept (as today)",
+     [G6M, T5H, _krem("y1", "E", "ABCD", ("h",)), _krem("y2", "A", "BCDE", ("g",))], [("A", "member", False), ("E", "member", True)]),
+    ("C1: a reader holding two concurrent below-N seatings reads the founders common to them: X1 to X3 and Y1 to Y3 "
+     "are no founders for it", GI9_6 + [C1A, C1B], [(k, "founder", False) for k in ("X1", "X2", "X3", "Y1", "Y2", "Y3")]),
+    ("C2: for that reader neither line's later removal stands: f3 and f1 are kept",
+     GI9_6 + [C1A, C1B, C2XA, C2XB], [("f3", "founder", True), ("f1", "founder", True)]),
+]
 # Q4: a change of the record names the record in force as its head (N5's rows: am2 names only a row that did not
 # conclude, so it lacks am's head): the head rules' H1. (name, rows, the row asked, concludes)
 PENDING_CONCLUDE = [
@@ -802,7 +836,7 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "dissolve_any_heads", "self_removal_as_leave", "role_unread", "role_outlives_stay",
           "contested_both_out", "founder_role_survives_leave", "role_on_own_offer", "entrenched_weights_free",
           "concurrent_amendments_free", "infra_word_restated_always", "contested_scoped_to_kinds",
-          "contested_voice_everywhere")
+          "contested_voice_everywhere", "negative_weight")
 
 
 @contextlib.contextmanager

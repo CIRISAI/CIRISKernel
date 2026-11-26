@@ -478,6 +478,8 @@ def community_rule(word, need=None, weights=None):
     if pr[0] == "weighted":
         keys = [k for k, _ in (weights or ())]
         if len(keys) != len(set(keys)) and "weights_twice_at_change" not in MUT: return None   # a key weighed twice
+        # a weight is a whole number: a negative one states no weights (the crate's u64 cannot express one)
+        if any(w < 0 for _, w in (weights or ())) and "negative_weight" not in MUT: return None
         if need is not None and any(w >= need for _, w in (weights or ())): return None
     return pr
 
@@ -540,6 +542,7 @@ def _protocol_part(r, by, need, weights):
         need, weights = rec.get("need"), rec.get("weights")
         keys = [k for k, _ in (weights or ())]
         if len(keys) != len(set(keys)): return REFUSED          # a record weighing one key twice states no weights
+        if any(w < 0 for _, w in (weights or ())) and "negative_weight" not in MUT: return REFUSED
     out = dict(policy="P:" + kind, need=need, weights=weights)
     # a family's removal naming only its own signer, on that signature alone, is no leaving (F3: the resignation is)
     if family and r["kind"] == "unseat" and "self_removal_as_leave" not in MUT: out["no_self_removal"] = True
