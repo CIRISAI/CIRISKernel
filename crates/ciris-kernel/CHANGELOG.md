@@ -267,6 +267,103 @@ no answer of any case changes.
   `acts` fixture, which `tests/acts.rs` replays. Seven plants in the crate. Every existing scenario of every
   fixture is unchanged; the seat law gains `acts` and `kinds` only.
 
+**A deputy under two standings** (CIRISConstitution#218, in no issue). New: `StandingRow::via` (default `None`)
+and `StandingRow::sub_delegation` (default `false`), additive. `standing::answers` now judges a deputy's act:
+- It stands on its deputy edge (`via`), the node's own act that names the owner's acceptance; it names no
+  acceptance itself, and stands where its edges' root stands (or on no acceptance, for a cycle of edges).
+- Both records read it with its edges through conferral's own deputy walk (E6.depth, E6.no_sub, E6.upstream);
+  no second walk. It counts for the binding's owner where it and its edges count under the grant and under the
+  binding, and is in force likewise.
+- A re-binding of the node reaches the deputy's act as it reaches the edge: with the re-binding in its past it
+  does not count for the old owner (E4 under the binding); concurrent with it, it counts and is not in force
+  unless receipted under the binding by its owner. Because E6 passes both bits down, the act is in force only
+  where its edge is too: a receipt of the act alone does not keep it.
+- Two owners is none for the edge, and so for every act under it.
+- The module header's "Not read here: a deputy edge under such an act" is gone.
+- A root edge (an act standing directly on an acceptance, with no `via`) counts only where its signer is the
+  grant's grantee (`Role::Grantee` under the grant's `role`); another key's root-shaped act counts for nobody:
+  `Nobody::NotTheGrantee` (`"not_the_grantee"`), new. Without it a deputy skipped E6 by naming the acceptance
+  itself. This is also the check that the node's own acts are the grantee's.
+- A `via` naming a held row that is no act: `Nobody::EdgeNotAnAct` (`"edge_not_an_act"`), new (before: undecided on
+  a row already held). A chain longer than the deputy depth by more than one hop: `Nobody::TooDeep`
+  (`"too_deep"`), new; the walk to the root edge is at most `deputy_depth + 1` lookups in an index of the rows, so
+  `answers` is O(acts · deputy_depth · log rows) for this walk. A cycle of edges stands on no acceptance.
+- **Breaking:** `standing::Nobody` gains three variants.
+- The reference: conferral_end.py's deputy walk is bounded as the crate's is (it hung on a cycle of `via`) and an
+  edge not held is undecided there (it raised).
+The reference: `chain_answers` in `check_conferral_two.py`, with fifteen cases (`DEPUTY_CASES`, in the
+`conferral_two` fixture, read as listed and in reverse; the plants compare reasons as well as bits) and four
+planted breaks; four crate plants (142 after merging main). `tests/conferral_two.rs` now withholds any row, a deputy edge among them, and
+reads an undecided act as the fixture does.
+
+**The moderation windows land by signed rows; the fallback's vote is a ballot** (CIRISConstitution#221). One
+public enum gains a variant (`window::Base::Stated`: an exhaustive match breaks); five public functions; no name
+changes.
+
+- The ruling on #221: a member's vote on a moderation action where no moderator acts is a ballot of
+  `ballot:moderation_action` (dimension `ballot:moderation_action:v1`), `for` or `against`. A contrary voice is a
+  vote against. There is one ballot a person, folded as `ballot:moderator` is. The family is the caller's, so the
+  name is in the reference's table (`WINDOWS["moderation_fallback"]["ballot"]`) and the fixtures, not in crate
+  logic. The fallback's at-close clause reads `for` where it read `act`: **an answer changes** for a caller whose
+  table still says `act` (an `act` answer is then no ballot). The reference's cases, `attacks.py` and
+  `roomkey.py` now say `for`.
+- New: `window::unwithdrawn`, `window::own_withdrawals` and `window::ballot_words`. A ballot is an answer that a
+  `How::MoreOfVoted` clause reads (its value or its `against`). A ballot whose own signer withdrew it is no
+  ballot. The withdrawal is a seat withdrawal naming the ballot. Another key's withdrawal withdraws nothing. A
+  cosigner's withdrawal of the ballot does conclude (the seat rule reads every signer of the row it names); only
+  the match on the ballot's own signer (`own_withdrawals`) refuses it. A case and a plant in each language cover
+  it. The fold of what is left is `ops::one` per signer: agreeing ballots are
+  one, and disagreeing ones say nothing. This is the rule `ranked.rs` writes inline for `ballot:moderator`. A
+  withdrawal concurrent with a landing is recounted with it, as an answer is. **Answers change** only where a
+  ballot is withdrawn: no case before this one had such a withdrawal. Only a ballot is read so (ruled): an
+  objection or an approval its signer withdrew is still a voice.
+- One landing family for every window (ruling W1): the receipt is `window:held` and the landing `window:landed`,
+  which states the outcome. These are the caller's table entries. The crate reads a row's `WinKind`, never its
+  family, and checks none. No code here reads them.
+- Who signs (ruling W2): the fallback's landing by any member at the opener's head; the overturn's by any member
+  but the act's author. New: `window::author_apart`. Where every counted clause of a table is over
+  `Base::Others`, the opener's signer concludes no receipt and no landing of that window. **An answer changes:** an
+  overturn's receipt or landing by the act's author concluded before. No earlier case had one. New cases show that
+  a key with no seat at the head lands nothing.
+- `halt_fuse` is the holders' confirmation of a halt, a count (CC 4.2.1.1); the halted node's own fuse, on its own clock with no landing, is the node's and is not read here (ruling W3, as corrected). A met confirmation count gives `confirmed` with no
+  landing, and a concurrent `lapsed` landing does not undo it. The table's answers are unchanged, and it is
+  marked so in `window.py`, `window.rs` and ADOPTING.md. The name `halt_fuse` is a misnomer, kept for now: the
+  adversary table and the fixtures carry it.
+- `head::View::window(now)` is a per-node reading that decides nothing that counts (ruling W5). This is in its doc
+  comment only; the code is unchanged.
+- W4, the overturn's landing binding the objections it was counted over, was tried and is withdrawn. Two rows of
+  the adversary table break under it ("a majority's objections are not overridden by a landing"). Today's reading
+  stands: an objection concurrent with the landing is recounted with it, and one that names the landing counts
+  for nothing.
+- New: `window::Base::Stated(n)`, the base `active` above the base law's `k`: the caller's stated count, the
+  census's figure (CC 6.1.9), which the kernel takes and does not check. The voices are those of `Base::All`. The
+  size counted over is `n` where `n` is larger than the members at the head, and never smaller. With it,
+  `default_content`, `default_standing`, `default_irreversible` and `community_invite` are expressible above `k`
+  as the self roster's lone path, by the same shape. Only `default_content` has a table and cases: the reference
+  has `("stated", n)` and the spec `default_content@active` (a room of thirteen members counted over twenty), with
+  five cases, one of them on the clamp. The crate also has a unit test of the size computation past `u32::MAX`.
+- The count is read in `u128` on every target. New: `seat::met_wide`, which is `seat::met` over `u128` counts;
+  `met` calls it. A window's thresholds read the members, the voices and a stated `u64` through it, so no cast
+  truncates: a 32-bit target (wasm32, thumbv7em) reads a stated 2^32 as 2^32, not as 0. Two cases (a stated 2^32
+  and 2^32 + 13, thirteen members, nine approvals: open) and a plant on a 32-bit cast cover it. The unit test
+  that compares reading the scopes walked at once with reading each when asked now also draws clauses counted
+  over those who voted, stated bases (some past 32 bits) and withdrawals.
+- `window::author_apart` assumes that a table every counted clause of which is over `others` is a judgment of its
+  opener's signer. That holds for the members' check, where the act opens its own window. Nothing ties the opener
+  to an act. Two cases of a table built for it (`proposal@others`, whose opener proposes) show what the code gives:
+  the proposer concludes nothing, and another member lands it. ADOPTING states the assumption.
+- A table built to reach the path with no landing (`ballot@once`, a ballot count met at once) shows a ballot's
+  withdrawal read there too. No policy row's table has such a clause.
+- A withdrawn ballot stays withdrawn (ruling C2): a withdrawal of the withdrawal revives nothing, and the way back
+  is a new ballot. Two cases (a withdrawal of a withdrawal; a withdrawal and then a new ballot) and a plant in
+  each language cover it.
+- A poll is outside the kernel (a tally whose rule and close its own opening row states). ADOPTING.md says so.
+- OPEN: the door model (the Constitution's `door.py`, not in this repository).
+- The reference: `window.unwithdrawn`, `window.ballot_words` and `window.author_apart`; 31 new rows of
+  `window_adversary.tsv` (112 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
+  (those rows in arrival orders, eleven planted breaks, the OPEN list). Eleven new crate plants in
+  `tools/kernel_crate_plants.sh`.
+
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
 - `content` reads `conferral`'s three-way `any`, later-head test and stale-head test; its own copies are gone.
@@ -289,6 +386,69 @@ reached one, so no earlier fixture answer moves.
 - One test, `covers_at`, for a key's liveness, a row's own instant and a rotation's; `key_end`'s closed test is
   gone. Reference: `key_end.covers`; five boundary worlds (`check_key_end.BOUNDARY`, in the `key_end` fixture),
   attack K11, plant `end_closed`; one crate plant on the door.
+
+**A removed room key is not seated again** (CIRISConstitution#224, the steward's decision of 2026-11-25: "a removed
+room key is not seated again. A person removed from a private room returns only under a new room key, by a new
+admission", of any end of the seat, a resignation included; CC 3.1.3.2: "a member admitted again makes a fresh one").
+
+- New: `SeatRow::private_room` (default false), the founding row's `membership` `private`. A founding row with no
+  `membership` reads public.
+- `SeatLaw::final_scopes` names `member` and `agent` as well as `registered` (the fixtures' law). A roster seat
+  named there is final over a private room only, by an end that stands: a counted unseat of that seat (its count
+  met over its own past, or not counted) with an offer seating the key in that scope in its past, or the key's own
+  end of its stay (its withdrawal of the offer, of its acceptance, or of the founding row). The one mechanism,
+  `revoked_before`, reads it; a scope that is no roster seat (`registered`) reads as before.
+- **Answers that change**, over a private room only: an offer that seats such a key again in that seat with the
+  end in its past concludes nothing (a re-admission after a counted removal of a person's or an agent's room key,
+  after a resignation, after a founder's end of its stay); an acceptance of an offer seating the key with the end
+  in its past concludes nothing (before, accepting the same offer again after withdrawing the acceptance re-seated
+  the key). No existing case of the reference or the fixtures has a private room, so no existing answer changes.
+- Unchanged: a public room's re-admission stands; a moderator's lone removal of an agent's key is never final (ruled
+  on #224: finality is of a counted end or the holder's own end): the members' lift restores the same key and
+  concludes, out of force the key is seated with no row, and a counted admission of the key under a lone removal in
+  force and not lifted seats it; a duty laid down may be conferred again (a duty seat is not the room key's seat in
+  the room: a reading).
+- A row concurrent with the end concludes (the rule is by past). Beside a counted removal it does not seat: the cut
+  voids it, a row naming both leaves the key out, and a later admission naming that row concludes nothing.
+- Not built: the move of a room from private to public (no seat row carries it; whether a voice seated before the
+  move keeps a final end is not stated); the voice's own key roster (#224: "a device key of a voice ended by the
+  voice's own count is final for that device key"; a voice is a key object with no founding row, so no seat row
+  says it is a private room's). The text's name for the refusal is `membership_room_key_ended`; the crate concludes
+  nothing and names no refusal. A room is private or public by its founding row (a rule: no record change moves
+  it), so no later version is read.
+- **A key's own end voids its own concurrent voices**, in every room (ruled on #224: the rule a removed key's
+  concurrent rows have, read for the key's own end). In `Seats`, a key's signature on an offer of a roster seat, or
+  its acceptance of one, that is concurrent with its own end of its stay in that room (neither in the other's past)
+  is no voice: the offer lacks that key's consent and seats nobody. The end is of one seat (the scope the withdrawal
+  names, else its target's): the key's voices on its other roster seats are untouched, as are other keys' rows. **Answers that
+  change**: a re-admission concurrent with the key's resignation concludes and seats nobody (before, it seated the
+  key, also after a row naming both); a second acceptance of the same offer concurrent with the withdrawal of the
+  first seats nobody (before, it seated: the key un-resigned by not naming its own withdrawal). The test is by past,
+  never by what a row names. No existing case of the reference or the fixtures moves (every room was compared).
+
+**A second seat row of one room key** (derived from CC 3.1.3.2 on CIRISConstitution#224). A second seat row of a key
+already seated is a second basis for the same seat: one key, one voice, no refusal (as built). An end is the key's end
+of its stay in that scope, not of a row: one resignation, like one counted removal, ends every seating of the key in
+that scope in the end's past (`Seats`; the duty-seat reading of a resignation, read for the roster seat's own scope).
+A seating concurrent with the key's own end is void by the rule above; one concurrent with a counted removal is cut,
+as before; in a private room the end is final. **Answers that change**: a key seated by two rows that withdraws one
+of them is out (before, the other kept it seated); a key that withdraws its acceptance and accepts the same offer
+again seats nothing, in every room (the offer is in the end's past), and returns by a new admission (a public room)
+or not at all under that key (a private room). A counted removal already cut every offer on the slot in its past. No
+existing case of the reference or the fixtures moves (every room was compared).
+
+**Two admissions of one person at once** (derived from CC 3.1.3.2 on CIRISConstitution#224, a residual): no answer
+changes. Two admissions under two room keys at concurrent heads both seat, and each key is a voice in the room's count.
+The kernel counts voices as presented; which keys are one person's is the binding, never a row, so the collapse is
+the caller's until the voice's own key roster is built (ADOPTING.md).
+
+A counted row concludes whole or not at all: an admission naming several keys, one of whose stays has ended, concludes
+nothing for any of them.
+
+The reference: `seat._revoked_before`, `seat.room_key_ended`, `seat.private_room` in `models/causal_kernel/seat.py`;
+`check_room_keys.py` has 38 cases and no OPEN row in every arrival order (up to six rows, else 41 orders) and eight
+planted breaks; `roomkey.py` states the finding of re-admission under the same key for a public room and the refusal
+for the same room declared private. Eight plants in `tools/kernel_crate_plants.sh`.
 
 ## [0.4.0]
 

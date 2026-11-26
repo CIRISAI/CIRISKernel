@@ -71,6 +71,10 @@ migrations, and the local operational store.
 - **An agent's owner on its duty seat.** The kernel does not read the owner's statement on an agent's duty seat
   yet (CC 4.5.4, `founding_duty_holder_agent_owner_unsigned`). Until it does, a caller must not present an
   agent's duty seat without the owner's statement having been checked at the door.
+- **A proposal's stated end** (`expires_at`). The kernel reads none: it is a door check on the acceptance row,
+  not a window rule.
+- **A poll** (CC 4.5.13, CC 6.1.9). A poll is a tally signed by the period's tally member: its rule and its close
+  are stated by its own opening row. It is not a window here.
 
 **The act-to-policy binding** (unreleased; steps 1 and 2: read by no rule yet).
 - `SeatLaw::acts` is the Constitution's `governance_policy_acts.tsv` as `ActRule`s, and `SeatLaw::kinds` maps a
@@ -255,6 +259,21 @@ trusting an adapter.
 members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
 voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row
 names (`models/causal_kernel/roomkey.py`, `rule`).
+- Give the founding row's `membership` as `SeatRow::private_room` (true for `private`; default false, read
+  public). Over a private room the room key's seat is final once its end stands (unreleased; see the CHANGELOG):
+  a re-admission of a removed or resigned room key, or its acceptance of the same offer again, concludes nothing:
+  the text's refusal is `membership_room_key_ended` (a seating of a room key whose stay in that room has ended),
+  the door's to name. Keep `SeatLaw::final_scopes` as the table gives it (`registered`, `member`, `agent`). A room
+  is private or public by its founding row, and no record change moves it (people found a new room): give
+  `private_room` from the founding row only.
+- An end is the key's end of its stay in a scope, not of a row: one resignation or one counted removal ends every
+  seating of the key in that scope in the end's past. A second seat row of a key already seated is a second basis
+  for the same seat: one key, one voice.
+- In every room, a key's own signature on an offer of a roster seat, or its acceptance of one, that is concurrent
+  with its own end of its stay there is no voice (`Seats`): present the rows as they are; nothing to mark.
+- The kernel counts voices as presented. Which keys are one person's is the binding, never a row, so collapsing
+  them (two admissions of one person under two room keys both seat) is the caller's until the voice's own key
+  roster is built; the cosigners' checks of the binding are the caller's too.
 
 **A delegation chain**, for `Seats::stands`.
 - The counted grant: an Offer, `Conf::Group`, counted over the holders, `sub()` true where it carries
@@ -278,6 +297,12 @@ past without re-binding it. `Nobody::TwoOwners` is a new variant: an exhaustive 
 founder laying down a duty); `None` ends every seat the target gives its signer. A scope naming a roster seat
 ends the stay only where the target gives the signer that seat. `Live::scope` is the seat's own scope: one
 founding record gives one `Live` per seat, with the same `offer`.
+
+**A deputy under two standings**, for `standing::answers`: present the node's edge as its own act with `on()` the
+owner's acceptance, and a deputy's act with `via()` its edge and no `on()`; `sub_delegation()` on an edge that
+may be passed on. For the deputy's act to stay in force after a re-binding, the old owner receipts the act and
+its edge. An act on the acceptance itself (no `via`) must be the grantee's: a deputy's act presented so stands on
+nothing (`Nobody::NotTheGrantee`).
 
 **A deputy edge**, for `conferral::answers`. This is the deputy of an exercised standing, not the delegation
 chain of `Seats::stands` above.
@@ -317,4 +342,19 @@ chain of `Seats::stands` above.
 content row that names it as its head is read as naming a head at which the member is out.
 
 **Windows.** A `WindowSpec` literal states `opener` (`None` unless the opener's signer holds another scope than
-the counted one). `window::outcome` answers a met at-once count with no landing row.
+the counted one). `window::outcome` answers a met at-once count with no landing row. A ballot (an answer a
+`How::MoreOfVoted` clause reads; the fallback's `ballot:moderation_action`, `for` or `against`) withdrawn by its
+own signer is a seat withdrawal naming it (`SeatKind::Withdraw`, `target()`): `window::unwithdrawn` reads it.
+Every window's receipt is a `window:held` row and its landing a `window:landed` row stating the outcome
+(CIRISConstitution#221). Those names are entries of the caller's table: the crate reads a row's `WinKind` and
+never its family, and checks no family. Where every counted clause is over `Base::Others` (the members' check), the opener's
+signer is no concluder (`window::author_apart`). A table for the accord's halt is the holders' confirmation of a
+halt, a count (CC 4.2.1.1); the halted node's own fuse, on its own clock with no landing, is the node's and is not
+read through `window::outcome`. A clause over
+`Base::Stated(n)` (the base `active` above the base law's `k`) takes `n` from the caller: it is the census's
+figure (CC 6.1.9), and the kernel does not check it (a stated `n` below the members at the head counts as those members).
+`Base::Stated` is a new variant of a public enum: a caller's exhaustive `match` on `window::Base` breaks and needs
+an arm for it. `window::author_apart` takes the opener's signer out of the concluders of a table every counted
+clause of which is over `others`: such a table is a judgment of its opener's signer (the members' check, where the
+act opens its own window). Present an opener whose signer is a proposer, and not the subject, under a table that
+counts some clause over another base.

@@ -3,15 +3,15 @@
 
 mod common;
 use ciris_kernel::seat::{act_of, policy_for, Act, Choice, CommunityKind, ScopeClass, SeatLaw};
-use common::{acts_of, fixture, report, rows_with_refs};
+use common::{fixture, law_of, report, rows_with_refs};
 use std::collections::BTreeMap;
 
 #[test]
 fn acts_replay() {
     let fx = fixture("acts.json");
-    let mut law =
-        SeatLaw { roster_seats: fx.at("roster_seats").strs(), duties: fx.at("duties").strs(), ..Default::default() };
-    acts_of(&fx, &mut law);
+    // the seat fixture's law: its policy map (the one act read from a stated policy reads it), roster seats,
+    // duties, and the acts and kinds tables
+    let law = law_of(fixture("seat.json").at("law"));
     assert!(law.acts.is_some(), "the fixture's law carries the acts table");
     let (mut cases, mut bad) = (0, 0);
     for c in fx.at("cases").arr() {

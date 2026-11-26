@@ -19,6 +19,8 @@ struct SRow {
     head: Option<String>,
     on: Option<String>,
     owner: Option<String>,
+    via: Option<String>,
+    sub_delegation: bool,
 }
 
 impl StandingRow for SRow {
@@ -42,6 +44,12 @@ impl StandingRow for SRow {
     fn owner(&self) -> Option<&String> {
         self.owner.as_ref()
     }
+    fn via(&self) -> Option<&String> {
+        self.via.as_ref()
+    }
+    fn sub_delegation(&self) -> bool {
+        self.sub_delegation
+    }
 }
 
 fn row(j: &J) -> SRow {
@@ -62,6 +70,8 @@ fn row(j: &J) -> SRow {
         head: opt("head"),
         on: opt("on"),
         owner: opt("owner"),
+        via: opt("via"),
+        sub_delegation: j.get("sub_delegation").is_some_and(|x| x.b()),
     }
 }
 
@@ -119,7 +129,8 @@ fn show(a: &Answer<String, String>) -> Shown {
             (per, ("stands".into(), Some(s.binding.clone()), rule(s.grant.rule), rule(s.under.rule)))
         }
         Answer::Nobody(why) => (per, (why.as_str().into(), None, None, None)),
-        Answer::Undecided(i) => panic!("undecided, needs {i}"),
+        // the row to fetch, as the reference names it
+        Answer::Undecided(i) => (per, ("undecided".into(), Some(i.clone()), None, None)),
     }
 }
 
@@ -167,7 +178,8 @@ fn a_row_not_held() {
     for c in fx.at("cases").arr() {
         let rows: Vec<SRow> = c.at("rows").arr().iter().map(row).collect();
         let acks = c.at("reader_acks").strs();
-        for h in rows.iter().filter(|r| r.kind != Kind::Act) {
+        // any row withheld, a deputy edge among them
+        for h in rows.iter() {
             let held: Vec<&SRow> = rows.iter().filter(|r| r.id != h.id).collect();
             let dark = run(&held, &acks, Some(&h.id)).expect("one end");
             // the same rows with a past that stops at the missing row and says no
@@ -176,7 +188,8 @@ fn a_row_not_held() {
                 n += 1;
                 match a {
                     Answer::Undecided(i) if *i == h.id => undecided += 1,
-                    Answer::Stands(_) | Answer::Nobody(_) if plain.get(x) == Some(a) => {}
+                    // answered as over the rows held (an edge the case itself does not hold stays undecided)
+                    _ if plain.get(x) == Some(a) => {}
                     other => {
                         bad += 1;
                         eprintln!("{}: without {}, {x} is {other:?}; plain {:?}", c.at("name").s(), h.id, plain.get(x));

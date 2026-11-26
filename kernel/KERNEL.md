@@ -295,8 +295,8 @@ of time, so those five stay without a meaning. **open**.
 A count that is met needs no clock and no concluder: where no landing has concluded, the outcome is the one an
 at-once count gives over the answers held, and short of it the window is open. A landing that states an outcome its own past does not give concludes nothing. An answer concurrent with the
 landing is **recounted**: it is counted with the landing's past, and the landing stands only if the table still
-gives the outcome it stated. **run** (`models/causal_kernel/window_adversary.tsv`): against the five windows
-of the text (the members' check of CC 4.5.13 and the self roster's addition were added on 2026-11-23; on 2026-11-25 the members' check was counted over the members less the act's author and the moderation fallback over the members who voted), seventy-one checks of what each exists to prevent. Recount breaks none. The check that a thief does
+gives the outcome it stated. **run** (`models/causal_kernel/window_adversary.tsv`): against the six windows
+of the text (the members' check of CC 4.5.13 and the self roster's addition were added on 2026-11-23; on 2026-11-25 the members' check was counted over the members less the act's author and the moderation fallback over the members who voted; then the fallback's ballot and its withdrawal and the two moderation landings, CIRISConstitution#221), one hundred checks of what each exists to prevent. Recount breaks none. The check that a thief does
 not evict alone holds against an owner who signs anything inside the window; an owner who signs nothing
 looks lost. A landing that voids concurrent
 answers breaks twelve, a thief evicting alone among them. An answer that contests any landing breaks two.
@@ -492,6 +492,14 @@ holders' counted withdrawal of its duty) takes it out of force from the end's he
 receipt of it is held, and the agent's key is seated again for a reader holding that end. **run**
 (`models/causal_kernel/check_removal_in_force.py`): 71 cases in arrival orders, sixteen planted breaks caught.
 Nothing puts such a removal back in force: a moderator seated again signs it again.
+
+A room key's seat in a private room (a community whose founding row declares `membership` `private`, CC 3.1.3.2)
+is final once its end stands: a counted removal of it, or the key's own end of its stay. An offer that seats the key
+again in that seat, or an acceptance of an offer that does, with the end in its past concludes nothing; a person
+returns under a new room key. A moderator's lone removal is never final: the members' lift restores the same key,
+out of force the key is seated with no row, and a counted admission seats it. A public room is read as before. In every room a key's own signature or acceptance concurrent with its own end of its stay is no voice, as a removed key's concurrent rows are none. **run**
+(`models/causal_kernel/check_room_keys.py`): 38 cases in arrival orders (no row left OPEN), eight
+planted breaks caught.
 
 An adversary holding the count of an old head signs a valid version alone. A witnessed lineage answers that
 (CC 3.2 T6), and it is each reader's own trust that decides whose witnesses count.

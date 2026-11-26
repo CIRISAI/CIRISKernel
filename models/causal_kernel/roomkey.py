@@ -122,9 +122,9 @@ def room_world(nm):
     # the moderation fallback: B opens it, C and J act, the moderator is silent, B lands it
     W = WN.secs("moderation_fallback")
     p = in_room(WN.opener("p", B, "moderation_fallback", "g", ("wj",)))
-    a1 = in_room(WN.answer("a1", C2, "p", "act"))
-    a2 = in_room(WN.answer("a2", J, "p", "act"))
-    a3 = in_room(WN.answer("a3", B, "p", "act"))
+    a1 = in_room(WN.answer("a1", C2, "p", "for"))
+    a2 = in_room(WN.answer("a2", J, "p", "for"))
+    a3 = in_room(WN.answer("a3", B, "p", "for"))
     rc = in_room(WN.receipt("rc", B, "p", 0))
     L = in_room(WN.landing("L", B, "p", "rc", "fallback", W, ("a1", "a2", "a3")))
     late = in_room(WN.answer("late", A, "p", "answered"))       # the moderator answers, concurrent with the landing
@@ -537,9 +537,15 @@ def interactions(mech="two_encap"):
     # --- removal, re-admission -----------------------------------------------------------------------------
     facts.append(("removal by causal past: C's row in the removal's past counts, C's row concurrent with it is void",
                   status["m2"] == "counts" and status["m4"] == "void"))
-    facts.append(("FINDING, re-admission under the SAME key: the kernel seats it again and counts it, so both stints are one key's and are linked "
-                  "by any holder of the rows (the rule is a fresh room key; see section 7)",
+    facts.append(("FINDING, re-admission under the SAME key in a room that does not declare itself private: the kernel seats it again and counts "
+                  "it, so both stints are one key's and are linked by any holder of the rows (the rule is a fresh room key; see section 7)",
                   C in Q.holders("member", ROOM) and status["m7"] == "counts" and status["m4"] == "void"))
+    private = lambda rs: [dict(r, membership="private") if r["id"] == "g" else r for r in rs]
+    Sp, Sf = state_of(private(rows)), state_of(private(room_world(dict(nm, C2="rk:y"))))
+    facts.append(("the same room declared private: the re-admission under the same key concludes nothing, a removed room key is not seated again "
+                  "(CIRISConstitution#224, the steward's decision of 2026-11-25); under a fresh room key it concludes and seats",
+                  not Sp.C["w2"] and C not in ST.Seats(Sp).holders("member", ROOM)
+                  and Sf.C["w2"] and "rk:y" in ST.Seats(Sf).holders("member", ROOM) and C not in ST.Seats(Sf).holders("member", ROOM)))
     # --- the later joiner --------------------------------------------------------------------------------
     bs = all_bindings(mech, PERSONS, nm)
     b_for = lambda who, about: [f for f in bs if f["person"] == about and (f["to"] == who or f["to"] is None)]

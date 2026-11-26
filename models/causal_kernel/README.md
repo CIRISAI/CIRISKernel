@@ -43,9 +43,11 @@ checked by `check_lock.py`).
   strict majority of the others, never on fewer than two voices.
 - **The window.** A receipt, a landing, and three rules for an answer concurrent with the landing, run against
   the self-roster lone path, the moderation fallback and the halt fuse. `window_adversary.tsv` is the table:
-  recount breaks none of seventy-one checks over five windows (the members' check of CC 4.5.13 and the self roster's addition were added;
+  recount breaks none of one hundred checks over six windows (the members' check of CC 4.5.13 and the self roster's addition were added;
   the members' check is counted over the members less the act's author, and the fallback over the members who voted).
   `check_agent_removal.py` reads the table and plants the clauses these replaced.
+  The fallback's vote is a ballot of `ballot:moderation_action` (`for` or `against`, one a person, a ballot its signer
+  withdrew no ballot) and both moderation windows land by a signed row (CIRISConstitution#221): `check_window_rows.py`.
 - **Copying as need.** A party given only its routed rows concludes the same as one given everything; a
   stranger is routed nothing.
 - **A writer's keys.** The key plane re-read from rows on the writer's own chain agrees with

@@ -212,7 +212,22 @@ def chain_answers(rows, reader_acks=(), role=None):
     role = role or ROLE
     by, anc = CE._past(rows)
 
-    def where(x):
+    def where(x, seen=(), orig=None):
+        # a deputy's act stands on its deputy edge (`via`), the node's own act that names the acceptance: it
+        # stands where its edge's root stands (MUTATION deputy_unread: a deputy's act is read as standing alone).
+        # The walk stops at deputy_depth + 1 hops (further down conferral's E6.depth counts nothing anyway)
+        orig = orig or x
+        if x.get("via") and "deputy_unread" not in PLANT:
+            v = x["via"]
+            if v not in by:
+                return "undecided", v
+            if by[v]["kind"] != "act":
+                return "edge_not_an_act", None                   # held, and no act: no edge
+            if v in seen or v == x["id"]:
+                return "no_acceptance", None                     # a cycle of edges names no acceptance
+            if len(seen) + 1 > CE.DEPUTY_DEPTH + 1:
+                return "too_deep", None
+            return where(by[v], seen + (x["id"],), orig)
         on = x.get("on")
         if on is None:
             return "no_acceptance", None
@@ -232,7 +247,12 @@ def chain_answers(rows, reader_acks=(), role=None):
             return "acceptance_names_no_binding", None
         if a["signer"] != by[b]["owner"]:
             return "not_the_owners_acceptance", None
-        if two_owners(x, by[b]):
+        # a root edge (an act standing directly on an acceptance) is the grantee's own act: any other key's
+        # root-shaped act stands on nothing (MUTATION grantee_unread)
+        if role.get(x["signer"]) != CE.GRANTEE and "grantee_unread" not in PLANT:
+            return "not_the_grantee", None
+        # two owners is read on the root edge, for it and every act under it (MUTATION two_owners_on_act)
+        if two_owners(orig if "two_owners_on_act" in PLANT else x, by[b]):
             return "two_owners", None
         return "stands", b
 
@@ -268,6 +288,8 @@ def chain_answers(rows, reader_acks=(), role=None):
             row = {"id": r["id"], "kind": k, "signer": signer_of(r["signer"]), "names": r["names"]}
             if k in ("act", "end"):
                 row["head"] = head
+            if k == "act" and "via_unpassed" not in PLANT:          # MUTATION via_unpassed: conferral's walk not run
+                row.update({f: r[f] for f in ("via", "sub_delegation") if r.get(f)})
             if k == "receipt":
                 row["of"] = r["on"]
             if k == "removal":
@@ -305,6 +327,9 @@ def chain_answers(rows, reader_acks=(), role=None):
                   "under": under[x]["rule"], "counted": g[x]["counted"] and under[x]["counted"],
                   "in_force": g[x]["in_force"] and under[x]["in_force"]}
     return out
+
+
+PLANT = set()        # planted breaks of the deputy cases, switched on by check_cases
 
 
 def per_owner(ans):
@@ -430,6 +455,104 @@ TWO_CASES = [
      "past: O2's binding is not ended in the act's past, so at the act two owners were live; nobody",
      _two(c1=True), {"x1": NOBODY}, {"x1": "two_owners"}),
 ]
+# A deputy under two standings (CIRISConstitution#218, in no issue): the node's edge s1 is its own act, at G0, on
+# O1's acceptance A0; the deputy C's act c1 stands on it (`via`) and names no acceptance. Optional: s1 carries
+# sub_delegation and C's onward edge s2 carries C2's act c2; the grant's end EG; a re-binding B1 of B0 to O2;
+# a second binding C0 to O2 beside B0; O1's receipts of c1 and s1.
+def _dep(sub=False, two=False, eg=False, b1=False, c_names_b1=False, qc=False, qs=False, c0=False):
+    rows = [{"id": "G0", "kind": "bundle", "signer": "count", "names": []}]
+    if c0:
+        rows.append({"id": "C0", "kind": "binding", "signer": "N", "names": [], "owner": "O2", "on": None})
+    rows += [{"id": "B0", "kind": "binding", "signer": "N", "names": [], "owner": "O1", "on": None},
+             {"id": "A0", "kind": "acceptance", "signer": "O1", "names": ["B0"], "on": "B0"},
+             dict({"id": "s1", "kind": "act", "signer": "N", "names": ["G0", "A0"], "head": "G0", "on": "A0"},
+                  **({"sub_delegation": True} if sub else {}))]
+    if b1:
+        rows.append({"id": "B1", "kind": "binding", "signer": "N", "names": ["B0"], "owner": "O2", "on": "B0"})
+    rows.append({"id": "c1", "kind": "act", "signer": "C", "names": ["G0", "s1"] + (["B1"] if c_names_b1 else []),
+                 "head": "G0", "on": None, "via": "s1"})
+    if two:
+        rows += [{"id": "s2", "kind": "act", "signer": "C", "names": ["G0", "s1"], "head": "G0", "on": None, "via": "s1"},
+                 {"id": "c2", "kind": "act", "signer": "C2", "names": ["G0", "s2"], "head": "G0", "on": None, "via": "s2"}]
+    if eg:
+        rows.append({"id": "EG", "kind": "end", "signer": "count", "names": ["G0"], "head": "G0"})
+    if qc:
+        rows.append({"id": "qc", "kind": "receipt", "signer": "O1", "names": ["c1"], "on": "c1"})
+    if qs:
+        rows.append({"id": "qs", "kind": "receipt", "signer": "O1", "names": ["s1"], "on": "s1"})
+    return rows
+
+
+DPIN = "CIRISConstitution#218, in no issue: a deputy under two standings: "
+O1_TT, O1_TF = {"O1": (T, T), "O2": (F, F)}, {"O1": (T, F), "O2": (F, F)}
+# (name, about, rows, {act: {owner: (counted, in_force)}}, {act: reason})
+DEPUTY_CASES = [
+    (DPIN + "depth one", "C's act on the node's edge, under a live binding: it counts for O1 and is in force",
+     _dep(), {"s1": O1_TT, "c1": O1_TT}, {"s1": "stands", "c1": "stands"}),
+    (DPIN + "depth two", "the edge carries sub-delegation; C's onward edge s2 and C2's act on it count for O1",
+     _dep(sub=True, two=True), {"s1": O1_TT, "c1": O1_TT, "s2": O1_TT, "c2": O1_TT},
+     {"s1": "stands", "c1": "stands", "s2": "stands", "c2": "stands"}),
+    (DPIN + "the gate", "the edge above s2 carries no sub-delegation: C2's act does not count (E6.no_sub)",
+     _dep(two=True), {"s1": O1_TT, "c1": O1_TT, "s2": O1_TT, "c2": NOBODY},
+     {"s1": "stands", "c1": "stands", "s2": "stands", "c2": "stands"}),
+    (DPIN + "the grant's end", "the count ends the grant: the edge and C's act count at G0 and are not in force",
+     _dep(eg=True), {"s1": O1_TF, "c1": O1_TF}, {"s1": "stands", "c1": "stands"}),
+    (DPIN + "a re-binding in the deputy act's past", "C's act names the re-binding of the node: it does not count "
+     "for the old owner (E4 under the binding); the edge before it counts and is not in force",
+     _dep(b1=True, c_names_b1=True), {"s1": O1_TF, "c1": NOBODY}, {"s1": "stands", "c1": "stands"}),
+    (DPIN + "a re-binding concurrent with it", "the re-binding held, not in C's act's past: it counts for O1 at its "
+     "head and is not in force", _dep(b1=True), {"s1": O1_TF, "c1": O1_TF}, {"s1": "stands", "c1": "stands"}),
+    (DPIN + "a re-binding concurrent with it, the old owner receipting the act only", "O1 receipts C's act: still "
+     "not in force, since its edge is not (E6 passes both bits down)",
+     _dep(b1=True, qc=True), {"s1": O1_TF, "c1": O1_TF}, {"s1": "stands", "c1": "stands"}),
+    (DPIN + "a re-binding concurrent with it, the old owner receipting the act and its edge", "O1 receipts both: "
+     "both are in force", _dep(b1=True, qc=True, qs=True), {"s1": O1_TT, "c1": O1_TT}, {"s1": "stands", "c1": "stands"}),
+    (DPIN + "two owners", "a second live binding to O2 beside B0: the edge, and so C's act, count for nobody",
+     _dep(c0=True), {"s1": NOBODY, "c1": NOBODY}, {"s1": "two_owners", "c1": "two_owners"}),
+]
+def _chain(n):
+    """The node's edge s1 and n onward edges, each a deputy's act on the one before, each carrying sub-delegation."""
+    rows = _dep(sub=True)[:-1]
+    prev = "s1"
+    for i in range(2, n + 2):
+        rows.append({"id": "s%d" % i, "kind": "act", "signer": "C%d" % i, "names": ["G0", prev], "head": "G0", "on": None,
+                     "via": prev, "sub_delegation": True})
+        prev = "s%d" % i
+    return rows
+
+
+DREV = "CIRISConstitution#218, in no issue: a deputy under two standings, review of #49: "
+_two_c = _dep(two=True)
+DEPUTY_CASES += [
+    (DREV + "a deputy naming the acceptance itself", "C2 signs an act on A0 with no via: a root-shaped act by a key "
+     "that is not the grantee stands on nothing (not_the_grantee); C2's act under its edge still fails E6.no_sub",
+     _two_c + [{"id": "c2x", "kind": "act", "signer": "C2", "names": ["G0", "A0"], "head": "G0", "on": "A0"}],
+     {"s1": O1_TT, "c1": O1_TT, "s2": O1_TT, "c2": NOBODY, "c2x": NOBODY},
+     {"s1": "stands", "c1": "stands", "s2": "stands", "c2": "stands", "c2x": "not_the_grantee"}),
+    (DREV + "a cycle of edges", "c1 on s3 and s3 on c1: a cycle names no acceptance; both stand on nothing",
+     _dep()[:-1] + [{"id": "c1", "kind": "act", "signer": "C", "names": ["G0"], "head": "G0", "on": None, "via": "s3"},
+                    {"id": "s3", "kind": "act", "signer": "C", "names": ["G0"], "head": "G0", "on": None, "via": "c1"}],
+     {"s1": O1_TT, "c1": NOBODY, "s3": NOBODY}, {"s1": "stands", "c1": "no_acceptance", "s3": "no_acceptance"}),
+    (DREV + "an edge not held", "C's act names an edge zz the rows do not hold: undecided, with zz the row to fetch",
+     _dep()[:-1] + [dict(_dep()[-1], via="zz", names=["G0", "zz"])], {"s1": O1_TT, "c1": NOBODY},
+     {"s1": "stands", "c1": "undecided"}),
+    (DREV + "two owners read on the root edge", "a rival binding C0 to O2, re-bound by EC in C's act's past but not "
+     "in the edge's: the edge has two owners, so the edge and the act under it count for nobody",
+     [r if r["id"] != "c1" else dict(r, names=r["names"] + ["EC"]) for r in _dep(c0=True)] +
+     [{"id": "EC", "kind": "binding", "signer": "N", "names": ["C0"], "owner": "O1", "on": "C0"}],
+     {"s1": NOBODY, "c1": NOBODY}, {"s1": "two_owners", "c1": "two_owners"}),
+    (DREV + "an edge that is no act", "C's act names the acceptance as its edge: a held row that is no act is no edge",
+     _dep()[:-1] + [dict(_dep()[-1], via="A0", names=["G0", "A0"])], {"s1": O1_TT, "c1": NOBODY},
+     {"s1": "stands", "c1": "edge_not_an_act"}),
+    (DREV + "a chain past the cap", "seven onward edges, each carrying sub-delegation: the walk stops at the cap's "
+     "next hop; the acts six and seven hops down count for nobody",
+     _chain(7), {"s1": O1_TT, "s2": O1_TT, "s3": O1_TT, "s4": O1_TT, "s5": O1_TT, "s6": O1_TT, "s7": NOBODY, "s8": NOBODY},
+     {"s1": "stands", "s2": "stands", "s3": "stands", "s4": "stands", "s5": "stands", "s6": "stands", "s7": "stands",
+      "s8": "too_deep"}),
+]
+DEPUTY_PLANTS = ("deputy_unread", "via_unpassed", "grantee_unread", "two_owners_on_act")
+
+
 ROW_KIND = {"G": ("bundle", "count"), "B": ("binding", None), "A": ("acceptance", None), "E": ("end", "count"),
             "x": ("act", "N")}
 # The one kind of difference between `judge` (a ledger per record, each act placed by its head alone) and
@@ -512,6 +635,27 @@ def check_cases():
         exp = {x: {o: {"counted": c, "in_force": f} for o, (c, f) in w.items()} for x, w in want.items()}
         if got != exp or {x: a["reason"] for x, a in ans.items()} != why:
             problems.append("case %s: the rule gives %s, expected %s, %s" % (name, ans, exp, why))
+    for name, _, rows, want, why in DEPUTY_CASES:
+        ans = chain_answers(rows)
+        got = per_owner(ans)
+        exp = {x: {o: {"counted": c, "in_force": f} for o, (c, f) in w.items()} for x, w in want.items()}
+        if got != exp or {x: a["reason"] for x, a in ans.items()} != why:
+            problems.append("case %s: the rule gives %s, expected %s, %s" % (name, ans, exp, why))
+        rev = chain_answers(list(reversed(rows)))
+        if rev != ans:
+            problems.append("case %s: the rows in reverse give %s" % (name, rev))
+    for plant in DEPUTY_PLANTS:
+        PLANT.add(plant)
+        try:
+            def differs(rows, want, why):
+                ans = chain_answers(rows)
+                return per_owner(ans) != {x: {o: {"counted": c, "in_force": f} for o, (c, f) in w.items()}
+                                          for x, w in want.items()} or {x: a["reason"] for x, a in ans.items()} != why
+            hit = [n for n, _, rows, want, why in DEPUTY_CASES if differs(rows, want, why)]
+        finally:
+            PLANT.discard(plant)
+        if not hit:
+            problems.append("plant %s not caught by a deputy case" % plant)
     for case in CASES:
         name, _, chain, extra, named, want = case[:6]
         opt = case[6] if len(case) > 6 else {}
@@ -540,7 +684,7 @@ def fixture():
         answers, why = case_answers(case)
         cases.append({"name": name, "about": about, "rows": rows, "reader_acks": list(opt.get("acks", [])),
                       "answers": answers, "why": why})
-    for name, about, rows, _, _ in TWO_CASES:
+    for name, about, rows, _, _ in TWO_CASES + DEPUTY_CASES:
         ans = chain_answers(rows)
         cases.append({"name": name, "about": about, "rows": rows, "reader_acks": [], "answers": per_owner(ans),
                       "why": {x: {k: a[k] for k in ("reason", "binding", "grant", "under")} for x, a in ans.items()}})

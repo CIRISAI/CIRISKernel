@@ -54,8 +54,10 @@ step "check_election (C1 to C5)"          election  python3 -I models/causal_ker
 step "check_acts (act to policy)"        acts      python3 -I models/causal_kernel/check_acts.py
 step "check_resignation (wrap, dissolved)" resign   python3 -I models/causal_kernel/check_resignation.py
 step "check_agent_removal (the lift)"     agent     python3 -I models/causal_kernel/check_agent_removal.py
+step "check_window_rows (#221 ballots)"  winrows   python3 -I models/causal_kernel/check_window_rows.py
 step "check_agent_seat (no count)"         agentseat python3 -I models/causal_kernel/check_agent_seat.py
 step "check_removal_in_force (an end)"     inforce   python3 -I models/causal_kernel/check_removal_in_force.py
+step "check_room_keys (a room key's end)"  roomkeys  python3 -I models/causal_kernel/check_room_keys.py
 step "check_rosters (one roster)"         rosters   python3 -I models/causal_kernel/check_rosters.py
 step "check_attacks (34 attacks)"         attacks   python3 -I models/causal_kernel/check_attacks.py
 step "check (order-freeness)"             check     python3 -I models/causal_kernel/check.py

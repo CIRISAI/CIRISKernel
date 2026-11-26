@@ -269,6 +269,13 @@ pub trait SeatRow: Row {
     fn room(&self) -> Option<Obj<Self::Id, Self::Key>> {
         None
     }
+    /// A founding row that declares its community's `membership` `private` (CC 3.1.3.2): a private room, whose
+    /// roster seats room keys. Read on a founding row only. Default false: a founding row with no `membership`
+    /// reads public. A room is private or public by its founding row, and no record change moves it (people
+    /// found a new room). A seating finality refuses there is the text's `membership_room_key_ended`.
+    fn private_room(&self) -> bool {
+        false
+    }
 }
 
 /// A count, read from the policy table.
@@ -336,7 +343,11 @@ pub struct SeatLaw {
     pub confers: BTreeMap<String, (Vec<String>, Over)>,
     /// What the holder of a seat over an object may end over that object, by scope.
     pub ends: BTreeMap<String, Vec<String>>,
-    /// Scopes whose ending is final: no offer re-seats the key once such an unseat is in its past.
+    /// Scopes whose ending is final: no offer re-seats the key once such an unseat is in its past. A roster
+    /// seat named here (`member`, [`AGENT`]: a room key's seat) is final over a private room only
+    /// ([`SeatRow::private_room`]), by any end that stands: a counted removal of the seat, or the key's own end
+    /// of its stay; an acceptance of an offer seating the key is refused as the offer is. A moderator's lone
+    /// removal is never final.
     pub final_scopes: Vec<String>,
     /// The seats over a community its duty holders do not place (the roster's own: `member`).
     pub roster_seats: Vec<String>,
@@ -894,6 +905,22 @@ pub(crate) fn stay_end<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, w: 
     (community(by, &obj) && roster_offer(law, t)).then_some(obj)
 }
 
+/// The roster seat a key's own end of its stay ([`stay_end`]) ends: the scope the withdrawal names, or else the
+/// scope of the offer it withdraws (through an acceptance, the offer accepted, or a standing acceptance's own).
+fn end_scope<'a, R: SeatRow>(by: &BTreeMap<&R::Id, &'a R>, w: &'a R) -> Option<&'a R::Word> {
+    if let Some(s) = w.scope() {
+        return Some(s);
+    }
+    let t = *by.get(w.target()?)?;
+    match (t.seat_kind(), t.of()) {
+        (SeatKind::Accept, Some(of)) => {
+            let o: &'a R = *by.get(of)?;
+            o.scope()
+        }
+        _ => t.scope(),
+    }
+}
+
 fn founding_many<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, obj: &ObjOf<R>) -> bool {
     row_of(by, obj).is_some_and(|g| {
         g.seat_kind() == SeatKind::Offer && g.obj() == Some(Obj::Row(g.id().clone())) && g.to().len() > 1
@@ -1067,19 +1094,38 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             })
         };
         // a duty seat whose offer is in the past of its holder's own end of its stay as a member is ended by it
+        // and so is every seat of the key in the roster scope its end ends, whatever row seated it: an end is of the
+        // key's stay in that scope, not of a row, as a counted removal's cut reaches every offer on the slot in its past
         let resigned = |oi: usize, k: &R::Key, sc: Sc<'a, R::Word>| {
             if left.is_empty() {
                 return false;
             }
             let o = g.row(oi);
             let oo = o.obj();
-            duty_held(law, &by, o, sc.s())
-                && left.iter().any(|(w, k2, room)| *k2 == k && oo.as_ref() == Some(room) && g.in_past(oi, *w))
+            let duty = duty_held(law, &by, o, sc.s());
+            left.iter().any(|(w, k2, room)| {
+                *k2 == k
+                    && oo.as_ref() == Some(room)
+                    && g.in_past(oi, *w)
+                    && (duty || end_scope(&by, g.row(*w)).map(|x| x.as_ref()) == Some(sc.s()))
+            })
+        };
+        // a key's own row on a roster seat concurrent with its own end of its stay there (neither in the other's
+        // past) is no voice: its signature on the offer, or its acceptance of it (CIRISConstitution#224, ruled: the
+        // rule a removed key's concurrent rows have, read for the key's own end). Other keys' rows are untouched.
+        let own_void = |row: usize, o: &R, k: &R::Key| {
+            if left.is_empty() || !roster_offer(law, o) {
+                return false;
+            }
+            let oo = o.obj();
+            left.iter().any(|(w, k2, room)| {
+                *k2 == k && oo.as_ref() == Some(room) && end_scope(&by, g.row(*w)) == o.scope() && g.concurrent(row, *w)
+            })
         };
         // `signed`: whether k signed the offer, read by the caller once per offer's signer set
-        let accepted = |o: &R, k: &R::Key, signed: bool| {
+        let accepted = |oi: usize, o: &R, k: &R::Key, signed: bool| {
             if signed {
-                return true;
+                return !own_void(oi, o, k);
             }
             if o.consent_one() {
                 return o.conf() != Some(Conf::Seat);
@@ -1095,7 +1141,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                             && o.names().contains(ar.id())
                             && ar.scope() == o.scope()
                             && ar.obj().is_none_or(|x| Some(x) == o.obj()));
-                    paired && !ended(ar) && cut.counts(a)
+                    paired && !ended(ar) && cut.counts(a) && !own_void(a, o, k)
                 })
             })
         };
@@ -1112,7 +1158,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 if many { o.cosigners().iter().chain(core::iter::once(o.signer())).collect() } else { BTreeSet::new() };
             for k in o.to() {
                 let signed = if many { sig.contains(k) } else { signed_by(o, k) };
-                if !accepted(o, k, signed) {
+                if !accepted(oi, o, k, signed) {
                     continue;
                 }
                 for sc in seat_scopes(o, k, signed) {
@@ -1601,15 +1647,17 @@ impl<'c, 'a, R: SeatRow + crate::Dated, S: CutSpec<R>> Seats<'c, 'a, R, S> {
 fn holds_roster<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, u: usize, k: &R::Key, obj: &ObjOf<R>) -> bool {
     let g = &c.g;
     let Some(us) = g.row(u).scope() else { return false };
-    c.cs().iter().copied().any(|q| {
-        let m = g.row(q);
-        m.seat_kind() == SeatKind::Offer
-            && m.obj().as_ref() == Some(obj)
-            && m.to().contains(k)
-            && g.in_past(q, u)
-            && (seat_scopes(m, k, signed_by(m, k)).iter().any(|s| s.s() == us.as_ref())
-                || (us.as_ref() == "member" && founding(m) && roster_offer(law, m)))
-    })
+    c.cs().iter().copied().any(|q| seated_by(law, g.row(q), us, k, obj) && g.in_past(q, u))
+}
+
+/// Offer `m` seats key `k` over `obj` in roster scope `us` ([`holds_roster`] of one row): one of the scopes it
+/// gives `k` (a founding record's several seats included), or the founding row holding `member`.
+fn seated_by<R: SeatRow>(law: &SeatLaw, m: &R, us: &R::Word, k: &R::Key, obj: &ObjOf<R>) -> bool {
+    m.seat_kind() == SeatKind::Offer
+        && m.obj().as_ref() == Some(obj)
+        && m.to().contains(k)
+        && (seat_scopes(m, k, signed_by(m, k)).iter().any(|s| s.s() == us.as_ref())
+            || (us.as_ref() == "member" && founding(m) && roster_offer(law, m)))
 }
 
 /// The room's count's receipt `q` of lone removal `x` (CIRISConstitution#218): a count over the persons of
@@ -2302,19 +2350,25 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
 
 /// Whether a count is met: `yes` voices of `n`, under `policy`.
 pub fn met(policy: Option<Policy>, yes: usize, n: usize, declared: Option<usize>) -> bool {
+    met_wide(policy, yes as u128, n as u128, declared.map(|d| d as u128))
+}
+
+/// [`met`] over counts wider than a `usize`: a base a caller states as a `u64` (`window::Base::Stated`) is
+/// read whole on every target, 32-bit ones included. `usize` and `u64` widen to `u128` without loss, so the
+/// answer is the same on every target.
+pub fn met_wide(policy: Option<Policy>, y: u128, n: u128, declared: Option<u128>) -> bool {
     // the recall's threshold is the strict fraction with a floor; its base is read by the count
     if let Some(Policy::Recall(num, den, least)) = policy {
-        return met(Some(Policy::StrictFloor(num, den, least)), yes, n, declared);
+        return met_wide(Some(Policy::StrictFloor(num, den, least)), y, n, declared);
     }
-    let (y, n) = (yes as u128, n as u128);
     // strictly more than `num / den` of n
     let strict = |num: u64, den: u64| y * den as u128 > num as u128 * n;
     match policy {
         Some(Policy::AtLeast(num, den)) => n > 0 && y * den as u128 >= num as u128 * n,
         Some(Policy::Strict(num, den)) => strict(num, den),
         Some(Policy::StrictFloor(num, den, least)) => strict(num, den) && y >= least as u128,
-        Some(Policy::One) => yes >= 1,
-        Some(Policy::Declared) => declared.is_some_and(|d| yes >= d),
+        Some(Policy::One) => y >= 1,
+        Some(Policy::Declared) => declared.is_some_and(|d| y >= d),
         _ => false,
     }
 }
@@ -2580,8 +2634,8 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
         SeatKind::Offer | SeatKind::Unseat => {
             let is_offer = r.seat_kind() == SeatKind::Offer;
             let conf = r.conf();
-            if is_offer && revoked_before(law, r, p) {
-                return false; // a revoked key does not re-seat itself
+            if is_offer && revoked_before(law, spec, r, p, &by, cache) {
+                return false; // a revoked key does not re-seat itself; a room key whose seat's end stands is not seated again
             }
             // a single key's own offer of a duty (or one under its seat) concludes only where that key is the lone
             // person duty holder: "or by the lone holder with the new holder's acceptance" (CC 4.5.4), in every
@@ -2635,6 +2689,7 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                 None => false,
             }
         }
+        SeatKind::Accept if revoked_before(law, spec, r, p, &by, cache) => false, // the same offer accepted again
         SeatKind::Accept => match r.of() {
             None => true,
             Some(o) => by.get(o).is_some_and(|o| o.to().contains(r.signer())),
@@ -2773,14 +2828,96 @@ fn duty_count_keys<K: Ord>(withdraw: bool, to: &[K], yes: &BTreeSet<&K>, mem: &B
     2 * y > base.len() && (y >= 2 || mem.len() < 2)
 }
 
-fn revoked_before<R: SeatRow>(law: &SeatLaw, r: &R, p: &Past<'_, '_, R>) -> bool {
-    p.rows().any(|q| {
-        q.seat_kind() == SeatKind::Unseat
-            && q.scope().is_some_and(|s| law.final_scopes.iter().any(|f| f == s.as_ref()))
-            && q.scope() == r.scope()
-            && q.obj() == r.obj()
-            && q.to().iter().any(|k| r.to().contains(k))
+/// Finality ([`SeatLaw::final_scopes`]): offer or acceptance `r` would seat a key again in a scope whose end is
+/// final, with that end in its past. A scope that is no roster seat (`registered`): a concluded unseat of the same
+/// key, scope and object in the offer's past. A roster seat, a room key's seat over a private room
+/// ([`SeatRow::private_room`]): [`room_key_ended`] (the text's refusal `membership_room_key_ended`); an acceptance of
+/// an offer seating the key is read as the offer is. A row concurrent with the end is not refused (a removal's cut voids it; a resignation does not reach it).
+fn revoked_before<R: SeatRow, S: CutSpec<R>>(
+    law: &SeatLaw,
+    spec: &S,
+    r: &R,
+    p: &Past<'_, '_, R>,
+    by: &BTreeMap<&R::Id, &R>,
+    cache: Option<&MembersAt<R>>,
+) -> bool {
+    let fin = |s: &str| law.final_scopes.iter().any(|f| f == s);
+    let roster = |s: &str| law.roster_seats.iter().any(|x| x == s);
+    let (o, keys): (&R, Vec<&R::Key>) = match r.seat_kind() {
+        SeatKind::Accept => match r.of().and_then(|o| by.get(o)) {
+            Some(o) if o.seat_kind() == SeatKind::Offer => (*o, alloc::vec![r.signer()]),
+            _ => return false,
+        },
+        _ => {
+            if founding(r) {
+                return false; // a founding row has no past
+            }
+            if !r.scope().is_some_and(|s| roster(s.as_ref())) {
+                return p.rows().any(|q| {
+                    q.seat_kind() == SeatKind::Unseat
+                        && q.scope().is_some_and(|s| fin(s.as_ref()))
+                        && q.scope() == r.scope()
+                        && q.obj() == r.obj()
+                        && q.to().iter().any(|k| r.to().contains(k))
+                });
+            }
+            (r, r.to().iter().collect())
+        }
+    };
+    let Some(obj) = o.obj() else { return false };
+    if !row_of(by, &obj).is_some_and(|g| community(by, &obj) && g.private_room()) {
+        return false;
+    }
+    keys.into_iter().any(|k| {
+        // a roster seat is a word the row carries (the lone founder's `moderate` is no roster seat)
+        seat_scopes(o, k, signed_by(o, k))
+            .into_iter()
+            .filter_map(|sc| match sc {
+                Sc::Row(w) => Some(w),
+                Sc::Moderate => None,
+            })
+            .any(|sc| roster(sc.as_ref()) && fin(sc.as_ref()) && room_key_ended(law, spec, p, by, k, sc, &obj, cache))
     })
+}
+
+/// The end of key `k`'s roster seat `sc` over `obj` is among `p` (a row's concluded past), and it stands: a removal
+/// that is no moderator's lone act (an unseat of that seat whose count is met over its own past, or that is not
+/// counted at all) with an offer seating `k` in `sc` in its past; or `k`'s own end of its stay ([`stay_end`]). A
+/// moderator's lone removal is never final: the members may lift it, and out of force it ends nothing.
+#[allow(clippy::too_many_arguments)]
+fn room_key_ended<R: SeatRow, S: CutSpec<R>>(
+    law: &SeatLaw,
+    spec: &S,
+    p: &Past<'_, '_, R>,
+    by: &BTreeMap<&R::Id, &R>,
+    k: &R::Key,
+    sc: &R::Word,
+    obj: &ObjOf<R>,
+    cache: Option<&MembersAt<R>>,
+) -> bool {
+    let removed = p.rows().any(|q| {
+        if q.seat_kind() != SeatKind::Unseat
+            || q.obj().as_ref() != Some(obj)
+            || q.scope() != Some(sc)
+            || !q.to().contains(k)
+        {
+            return false;
+        }
+        if !p.rows().any(|m| seated_by(law, m, sc, k, obj) && p.past(m.id(), q.id())) {
+            return false; // it ended no seat of k's
+        }
+        if q.conf() != Some(Conf::Group) {
+            return true;
+        }
+        let g = p.graph();
+        let Some(u) = g.idx(q.id()) else { return false };
+        let anc: Vec<usize> = p.ancestors().iter().copied().filter(|&x| g.in_past(x, u)).collect();
+        count_met(&Past::new(g, u, &anc), law, spec, cache)
+    });
+    removed
+        || p.rows().any(|w| {
+            w.seat_kind() == SeatKind::Withdraw && w.signer() == k && stay_end(law, by, w).as_ref() == Some(obj)
+        })
 }
 
 fn lone<R: SeatRow, S: CutSpec<R>>(

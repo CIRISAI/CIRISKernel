@@ -382,6 +382,11 @@ def seat_cases():
     import check_removal_in_force as RF
     for _name, rows, _concl, _roster, asks in RF.CASES:
         record(rows, A.WIN, [(k, sc, RF.OBJ) for k, sc, _ in asks])
+    # the membership plane of a private room (CIRISConstitution#224): check_room_keys.py's cases and its OPEN rows,
+    # each with the answer as built
+    import check_room_keys as RKC
+    for case in RKC.CASES + RKC.OPEN:
+        record(case[2], A.WIN, [(k, sc, RKC.OBJ) for k, sc, _ in case[5]])
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
