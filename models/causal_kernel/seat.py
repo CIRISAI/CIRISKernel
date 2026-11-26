@@ -947,8 +947,14 @@ def count_met(r, P, past, table=None):
     mem, vot = mem - left, vot - left
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
         # the count is the ranked tally: the ballots the row names, one voice each, and the row seats the winner
+        # a ballot its signer withdrew in the row's past is none (CC 4.5.13: "Disagreeing ballots neither withdrawn are
+        # no ballot until a withdrawal leaves one"; the ballot's way back is its author's withdrawal)
+        gone = frozenset() if "ballot_withdrawal_unread" in MUT else frozenset(
+            w["target"] for w in K.sel(P, kind="withdraw")
+            if w["target"] in by and by[w["target"]]["kind"] == "ballot" and w["signer"] == by[w["target"]]["signer"])
         ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot")
-                   if (b["id"] in r["names"] or "ballot_unnamed" in MUT) and (b["signer"] in vot or "ballot_any_signer" in MUT)]
+                   if (b["id"] in r["names"] or "ballot_unnamed" in MUT) and (b["signer"] in vot or "ballot_any_signer" in MUT)
+                   and b["id"] not in gone]
         # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
         won = RANKED(ballots, list(r["options"]), declared="election_declared" in MUT)[0]
         if "election_any_winner" in MUT: return k == "offer" and bool(ballots) and won is not None

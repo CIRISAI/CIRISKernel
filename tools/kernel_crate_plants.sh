@@ -173,6 +173,7 @@ plant "an election counts any signer's ballot"           src/seat.rs ' && mem.co
 plant 'an election counts a ballot it does not name'     src/seat.rs 'SeatKind::Ballot && r.names().contains(b.id()) &&' 'SeatKind::Ballot &&'
 plant "an election's tie broken by its options' order"    src/seat.rs 'ranked(&ballots, r.options(), 2, false)' 'ranked(&ballots, r.options(), 2, true)'
 plant 'an election seats whoever its row names'          src/seat.rs '.0.as_ref() == r.to().first();' '.0.is_some();'
+plant 'an election counts a ballot its signer withdrew'  src/seat.rs '.filter(|b| !gone(b))' '.filter(|_| true)'
 plant 'a row'"'"'s concluded past read as its first row' src/layers.rs 'self.p.binary_search(&q).is_ok()' 'self.p.first() == Some(&q)'
 plant "voices counts a cosignature the row does not name"  src/seat.rs 'for n in r.names() {' 'for n in p.rows().map(|q| q.id()) {'
 plant "a cycle of names walked without its stack"       src/graph.rs '                    if l >= WAITING {' '                    if l == WAITING {'

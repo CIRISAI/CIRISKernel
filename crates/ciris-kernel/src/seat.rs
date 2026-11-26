@@ -1912,9 +1912,16 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
     }
     let mem = count_members_with(p, law, spec, cache);
     if pol == Some(Policy::Ranked) {
+        // a ballot its signer withdrew in the row's past is none (CC 4.5.13: "Disagreeing ballots neither withdrawn
+        // are no ballot until a withdrawal leaves one")
+        let gone = |b: &R| {
+            p.rows()
+                .any(|w| w.seat_kind() == SeatKind::Withdraw && w.target() == Some(b.id()) && w.signer() == b.signer())
+        };
         let ballots: Vec<(R::Key, Vec<R::Key>)> = p
             .rows()
             .filter(|b| b.seat_kind() == SeatKind::Ballot && r.names().contains(b.id()) && mem.contains(b.signer()))
+            .filter(|b| !gone(b))
             .map(|b| (b.signer().clone(), b.ranking().to_vec()))
             .collect();
         // the one ranked row is the election, which declares no order: a tie for weakest seats nobody

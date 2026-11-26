@@ -12,6 +12,12 @@ beyond the ballot count").
   arrival order, and one row the text does not decide (OPEN: every member a candidate, two with no first choice
   tie for weakest). All are in the `seat` fixture, so `tests/seat.rs` replays them. No answer changes. Four
   planted breaks in each language.
+- **A withdrawn ballot is none** (CC 4.5.13: "Disagreeing ballots neither withdrawn are no ballot until a
+  withdrawal leaves one"; a ballot's way back is its author's withdrawal). A ballot whose signer's withdrawal of it
+  is among the counted row's concluded ancestors is not counted. **An answer changes**: before, a withdrawn ballot
+  counted, so a seating over it could conclude (and one with a withdrawn disagreeing ballot could not). A
+  withdrawal beside the row, not in its past, is not read; another key's withdrawal of a ballot concludes nothing.
+  Four cases; one plant in each language.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

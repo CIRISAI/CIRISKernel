@@ -14,7 +14,7 @@ then stands as any duty seat does, only while its holder is a member (check_duty
 What is counted (seat.count_met, its ranked arm):
     the ballots the row names, each from a key the count is over (the persons at the head the row names, less a
     key whose own leaving is in the row's past): an agent's ballot, a non-member's and an unnamed one count for
-    nothing; one ballot per key (two different rankings by one key are none, CC 4.5.13 "a person whose ballots
+    nothing; a ballot whose signer's withdrawal of it is in the row's past is none; one ballot per key (two different rankings by one key are none, CC 4.5.13 "a person whose ballots
     disagree has none"); the floor is two ballots, or fewer where there are fewer options; a tie for weakest seats
     nobody (an election declares no order).
 
@@ -29,6 +29,7 @@ Planted breaks, each of which must change a case's answer:
     ballot_unnamed      a ballot in the row's past counts though the row does not name it
     election_declared   the election's count breaks a tie for weakest by the order of the row's options
     election_any_winner the row concludes where the count yields any winner, not the key it seats
+    ballot_withdrawal_unread  a ballot its signer withdrew in the row's past still counts
 
     python3 -I check_election.py      exit 1 on any difference
 """
@@ -139,6 +140,23 @@ CASES = [
      [G3, ballot("ba", "A", "B"), ballot("ba2", "A", "B"), ballot("bb", "B", "B"),
       elect("el", "B", ("ba", "ba2", "bb"), M3)],
      MOD("B"), "the fold"),
+    # ---- a withdrawal -------------------------------------------------------------------------------------------------
+    ("a ballot its signer withdrew, the withdrawal in the seating's past, is none: one ballot is under the floor",
+     [G3, ballot("ba", "A", "B"), ballot("bb", "B", "B"), ST.withdraw("wa", "A", "ba", ("ba",)),
+      elect("el", "B", ("ba", "bb", "wa"), M3)],
+     NOMOD("A", "B"), "the fold"),
+    ("of two disagreeing ballots, one withdrawn: the other stands, and B is seated",
+     [G3, ballot("ba", "A", "C"), ballot("ba2", "A", "B"), ballot("bb", "B", "B"), ST.withdraw("wa", "A", "ba", ("ba",)),
+      elect("el", "B", ("ba", "ba2", "bb", "wa"), M3)],
+     MOD("B") + NOMOD("A", "C"), "the fold"),
+    ("a withdrawal beside the seating (not in its past) is not read by it: B is seated",
+     [G3, ballot("ba", "A", "B"), ballot("bb", "B", "B"), ST.withdraw("wa", "A", "ba", ("ba",)),
+      elect("el", "B", ("ba", "bb"), M3)],
+     MOD("B"), "the fold"),
+    ("another key's withdrawal of A's ballot withdraws nothing: B is seated",
+     [G3, ballot("ba", "A", "B"), ballot("bb", "B", "B"), ST.withdraw("wa", "B", "ba", ("ba",)),
+      elect("el", "B", ("ba", "bb", "wa"), M3)],
+     MOD("B"), "the fold"),
     # ---- the seat ----------------------------------------------------------------------------------------------------
     ("a seating signed by another key seats the winner only with the winner's acceptance: none here",
      [G3, ballot("ba", "A", "B"), ballot("bb", "B", "B"), elect("el", "B", ("ba", "bb"), M3, signer="A")],
@@ -180,7 +198,7 @@ def planted(plant):
         ST.MUT.clear(); ST.MUT |= saved
 
 
-PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_any_winner")
+PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_any_winner", "ballot_withdrawal_unread")
 
 
 def answers(rows, asks, plant=None, arrive=False):
