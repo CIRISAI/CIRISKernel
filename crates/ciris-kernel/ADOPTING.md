@@ -97,8 +97,8 @@ migrations, and the local operational store.
   (the room key in a private room), never a client-supplied value; return `None` where the signer signed;
 - a decline as `SeatKind::Decline`, `of()` its election;
 - a holder's lay-down of `moderate` (its withdrawal of its own seat) is a roster change: once the head rules land
-  it names the newest heads, as any roster change (H4); one withdrawal of a seat only, a second with the first in
-  its past is no end;
+  it names the newest heads, as any roster change (H4). A seat ends once: an end (a lay-down, a counted recall, a
+  withdrawal of the offer) with an end of the same seat in its past concludes nothing;
 - GUIDANCE (not a rule): build every other row a key signs on that key's own tips, so the rule above holds
   whatever later becomes an election row;
 - the winner's own seating: an Offer of `moderate`, `Conf::Group`, policy `moderator_election`, signed by the

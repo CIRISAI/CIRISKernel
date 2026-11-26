@@ -1760,9 +1760,38 @@ def count_met(r, P, past, table=None):
     return met(r.get("policy"), len(voices(r, P) & vot), len(mem), r.get("need"), table)
 
 
+def ends_of(r, by):
+    """The seats (key, scope, object) row r ends: an unseat, each key it names in its scope; a withdrawal, of the seat
+    its target gives (its signer's own where it holds it, else every key the target seats), in end_scope's scope.
+    A removal of an agent's key is none here: a lone one may be lifted or fall out of force, and then it ended nothing."""
+    if r["kind"] == "unseat":
+        return () if r["scope"] == AGENT else tuple((k, r["scope"], r["obj"]) for k in r["to"])
+    if r["kind"] != "withdraw": return ()
+    t = by.get(r.get("target"))
+    if t is None: return ()
+    sc = end_scope(by, r)
+    if t["kind"] == "accept":
+        o = by.get(t["of"]) if t.get("of") is not None else t
+        return ((r["signer"], sc, o.get("obj")),) if o is not None and t["signer"] == r["signer"] else ()
+    if t["kind"] != "offer": return ()
+    return tuple((k, sc, t["obj"]) for k in ((r["signer"],) if r["signer"] in t["to"] else t["to"]))
+
+
+def end_of_ended(r, P, past, by):
+    """(2): an end of a seat that has an end of that seat in its own past is no end, whoever signed either: a lay-down,
+    a counted unseat, a withdrawal of the offer. Every seat r ends has a concluded end in r's past with no seating of
+    the key in that scope after it there (MUTATION end_of_ended_seat; end_reseat_unread: a re-seating not read, so a
+    re-admitted key's second leaving ends nothing)."""
+    seats = ends_of(r, by)
+    if not seats or "end_of_ended_seat" in MUT: return False
+    return all(any((k, sc, o) in ends_of(q, by) and ("end_reseat_unread" in MUT or not seated_after(
+        P, past, o, k, q, lambda m: sc in seat_scopes(m, k))) for q in P) for k, sc, o in seats)
+
+
 def seat_rule(r, P, past, table=None, other=None):
     """The conclusion rule. P: r's concluded ancestors."""
     k, by = r["kind"], {q["id"]: q for q in P}
+    if k in ("unseat", "withdraw") and end_of_ended(r, P, past, by): return False   # (2): no second end of a seat
     if k in ("offer", "unseat"):
         conf = r["conf"]
         if k == "offer" and _revoked_before(r, P, past): return False   # a revoked key does not re-seat itself (FINAL)
@@ -1791,12 +1820,6 @@ def seat_rule(r, P, past, table=None, other=None):
         return r["of"] is None or (r["of"] in by and r["signer"] in by[r["of"]].get("to", ()))
     if k == "withdraw":
         t = by.get(r["target"])
-        # (2): an end of a seat that has an end of that seat in its own past is no end: a second withdrawal by its
-        # signer of the same row and the same seat concludes nothing (MUTATION end_of_ended_seat)
-        if "end_of_ended_seat" not in MUT and any(
-                w["kind"] == "withdraw" and w["signer"] == r["signer"] and w.get("target") == r["target"]
-                and w.get("scope") == r.get("scope") for w in P):
-            return False
         return t is not None and (r["signer"] in signers(t) or (t["kind"] == "offer" and r["signer"] in t["to"]))
     if k == "cosign":
         return True

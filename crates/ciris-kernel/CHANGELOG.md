@@ -59,8 +59,13 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   reader's line, with no automatic effect. The edge: a minimal close on an odd base can still fail (three of five
   becomes two of four), and F3's cost then applies: it is rarer, not gone. There is no carve-out for an honest
   self-fork (a device restored from an old backup): that key is out of that election.
-- No second end: an end of a seat that has an end of that seat in its own past is no end and concludes nothing (a
-  withdrawal by its signer of the same row and scope as one already in its past). Plant `end_of_ended_seat`.
+- No second end: an end of a seat that has any end of that seat in its own past is no end and concludes nothing,
+  whoever signed either: a holder's lay-down with a counted recall of the seat in its past, a counted recall with
+  the lay-down in its past, a second counted recall with the first, a second withdrawal. An end read so is a
+  withdrawal of a row seating the key (its own, or the conferrer's of the offer) or an unseat, with no seating of
+  the key in that scope after it in the row's past (a re-admitted member's second leaving is an end). A removal
+  of an agent's key is not read as an earlier end (a moderator's lone one may be lifted or fall out of force).
+  Plants `end_of_ended_seat` and `end_reseat_unread`, in both languages.
 - A lay-down is a roster change: with the head rules (`heads`) it names the newest heads and is held to H4, and a
   lay-down behind a reader's line is no end for it; until then two cases wait on them (H2b and G3c with a reader
   that acknowledged the newcomers, D for both). The stated residual, no-acknowledgement reader: a backdated

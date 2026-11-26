@@ -784,12 +784,23 @@ CASES += [
      "no end; lm1 concludes nothing, F's seating reads no vacancy: C",
      J1HON + [ST.withdraw("lm1", "A", "g", ("aI", "lm2"), scope="moderate")] + J1X, MOD("C") + NOMOD("F"), "J1, (2)"),
 ]
-# (2), read by conclusion: (name, rows, row, concludes)
+# (2), read by conclusion: (name, rows, row, concludes). An end of a seat with any end of that seat in its own past
+# (a lay-down, a counted unseat, a withdrawal of the offer, whoever signed it) is no end
+RC2 = ST.unseat("rc", "B", "A", "moderate", OBJ, "group", ("g",), head=("g",), policy="moderator_recall", cosigners=("C", "D"))
 CONCL_CASES = [
     ("J1, (2): lm1, with A's own lay-down of the same seat (lm2) in its past, concludes nothing",
      J1HON + [ST.withdraw("lm1", "A", "g", ("aI", "lm2"), scope="moderate")] + J1X, "lm1", F),
     ("J1: lm1 with no end of the seat in its past concludes",
      J1HON + [ST.withdraw("lm1", "A", "g", ("aI",), scope="moderate")] + J1X, "lm1", T),
+    ("(2), any end: A's lay-down with B, C and D's counted recall of A's seat in its past concludes nothing",
+     [G5, RC2, ST.withdraw("lm", "A", "g", ("rc",), scope="moderate")], "lm", F),
+    ("(2), any end: the counted recall with A's own lay-down of the seat in its past concludes nothing",
+     [G5, LM, ST.unseat("rc", "B", "A", "moderate", OBJ, "group", ("lm",), head=("lm",), policy="moderator_recall",
+                        cosigners=("C", "D"))], "rc", F),
+    ("(2), any end: a second counted recall with the first in its past concludes nothing",
+     [G5, RC2, ST.unseat("rc2", "C", "A", "moderate", OBJ, "group", ("rc",), head=("rc",), policy="moderator_recall",
+                         cosigners=("B", "D"))], "rc2", F),
+    ("(2), the control: the counted recall with no end of the seat in its past concludes", [G5, RC2], "rc", T),
 ]
 # b5: the old-head removal reaching the election is the head rules' (H1 to H7); this tree does not read it. Kept as a
 # case the merged tree must pass once `heads` lands: PENDING until then

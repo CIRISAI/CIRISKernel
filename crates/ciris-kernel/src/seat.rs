@@ -2632,6 +2632,9 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
 ) -> bool {
     let r = p.row();
     let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
+    if end_of_ended(p, &by, r) {
+        return false; // (2): no second end of a seat
+    }
     match r.seat_kind() {
         SeatKind::Offer | SeatKind::Unseat => {
             let is_offer = r.seat_kind() == SeatKind::Offer;
@@ -2696,18 +2699,6 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
             None => true,
             Some(o) => by.get(o).is_some_and(|o| o.to().contains(r.signer())),
         },
-        // (2): an end of a seat that has an end of that seat in its own past is no end: a second withdrawal by its
-        // signer of the same row and the same seat concludes nothing
-        SeatKind::Withdraw
-            if p.rows().any(|w| {
-                w.seat_kind() == SeatKind::Withdraw
-                    && w.signer() == r.signer()
-                    && w.target() == r.target()
-                    && w.scope() == r.scope()
-            }) =>
-        {
-            false
-        }
         SeatKind::Withdraw => match r.target().and_then(|t| by.get(t)) {
             Some(t) => signed_by(*t, r.signer()) || (t.seat_kind() == SeatKind::Offer && t.to().contains(r.signer())),
             None => false,
@@ -2715,6 +2706,60 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
         SeatKind::Cosign => true,
         _ => other(p),
     }
+}
+
+/// A seat a row ends, for rule (2): the key, the scope, the object.
+type EndedSeat<'a, R> = (&'a <R as Row>::Key, Option<&'a str>, Option<ObjOf<R>>);
+
+/// The seats row `r` ends (rule (2)): an unseat, each key it names in its scope; a withdrawal, the seat its
+/// target gives (its signer's own where it holds it, else every key the target seats), in [`end_scope`]'s
+/// scope. A removal of an agent's key is none here: a lone one may be lifted or fall out of force, and then it
+/// ended nothing.
+fn ends_of<'a, R: SeatRow>(by: &BTreeMap<&R::Id, &'a R>, r: &'a R) -> Vec<EndedSeat<'a, R>> {
+    match r.seat_kind() {
+        SeatKind::Unseat => {
+            let sc = r.scope().map(|s| s.as_ref());
+            if sc == Some(AGENT) {
+                return Vec::new();
+            }
+            r.to().iter().map(|k| (k, sc, r.obj())).collect()
+        }
+        SeatKind::Withdraw => {
+            let Some(t) = r.target().and_then(|t| by.get(t)).copied() else { return Vec::new() };
+            let sc = end_scope(by, r).map(|s| s.as_ref());
+            match t.seat_kind() {
+                SeatKind::Accept if t.signer() == r.signer() => {
+                    let o = match t.of() {
+                        Some(of) => by.get(of).copied(),
+                        None => Some(t),
+                    };
+                    o.map(|o| alloc::vec![(r.signer(), sc, o.obj())]).unwrap_or_default()
+                }
+                SeatKind::Offer if t.to().contains(r.signer()) => alloc::vec![(r.signer(), sc, t.obj())],
+                SeatKind::Offer => t.to().iter().map(|k| (k, sc, t.obj())).collect(),
+                _ => Vec::new(),
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// (2): an end of a seat that has an end of that seat in its own past is no end, whoever signed either (a
+/// lay-down, a counted unseat, a withdrawal of the offer): every seat `r` ends has a concluded end in `r`'s
+/// past with no seating of the key in that scope after it there.
+fn end_of_ended<R: SeatRow>(p: &Past<'_, '_, R>, by: &BTreeMap<&R::Id, &R>, r: &R) -> bool {
+    let seats = ends_of(by, r);
+    !seats.is_empty()
+        && seats.iter().all(|(k, sc, obj)| {
+            p.rows().any(|q| {
+                ends_of(by, q).iter().any(|e| e.0 == *k && e.1 == *sc && e.2 == *obj)
+                    && !obj.as_ref().is_some_and(|o| {
+                        seated_after(p, o, k, q.id(), |m| {
+                            seat_scopes(m, k, signed_by(m, k)).iter().any(|x| Some(x.s()) == *sc)
+                        })
+                    })
+            })
+        })
 }
 
 /// What a group's count reads, once the caller has resolved it: the count the policy row names, whether the

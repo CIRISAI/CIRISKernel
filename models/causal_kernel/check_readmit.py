@@ -16,6 +16,8 @@ Every case is a hand-written answer, read in every arrival order of its rows abo
 
 Planted breaks, each of which must change a case's answer:
     readmit_unread      a seating after the leaving is not read (the 0.4.0 reading): the key is out for ever
+    end_reseat_unread   rule (2), no second end of a seat, does not read a seating after the first end: a re-admitted
+                        key's second leaving is no end
 
     python3 -I check_readmit.py      exit 1 on any difference
 """
@@ -82,7 +84,7 @@ CASES = [
      [G4, WC, AC4, admit("ax", "X", "ABC", ("ac",))], [("X", "member", T)], "a voice"),
 ]
 
-PLANTS = ("readmit_unread",)
+PLANTS = ("readmit_unread", "end_reseat_unread")
 
 
 @contextlib.contextmanager

@@ -335,10 +335,10 @@ plant "G2: the closing base read per group, over its receipts' pasts" src/seat/e
 plant "H1: a leaving that holds its receipt voids it" src/seat/election.rs 'let held = |k: &R::Key, d: usize| by_p.get(k).is_some_and(|rs| rs.iter().any(|&a| g.in_past(a, d)));' 'let held = |_k: &R::Key, _d: usize| false;'
 plant "the closing base read from each seating's own electorate" src/seat/election.rs '            let el = common.clone();' '            let el = self.view(s).1;'
 plant "the close's base the union of the election's electorates" src/seat/election.rs 'let common: BTreeSet<R::Key> = els.fold(first, |acc, e| acc.intersection(&e).cloned().collect());' 'let common: BTreeSet<R::Key> = els.fold(first, |acc, e| acc.union(&e).cloned().collect());'
-plant "(2): an end of an ended seat concludes" src/seat.rs '                    && w.scope() == r.scope()
-            }) =>' '                    && w.scope() == r.scope()
-                    && false
-            }) =>'
+plant "(2): an end of an ended seat concludes" src/seat.rs '    !seats.is_empty()
+        && seats.iter().all(' '    false
+        && seats.iter().all('
+plant "(2): a re-seating after the first end not read" src/seat.rs '                    && !obj.as_ref().is_some_and(|o| {' '                    && !obj.as_ref().is_some_and(|o| false && {'
 plant "act_of: the election's seating read as a conferral" src/seat.rs '                if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {' '                if false {'
 plant 'act_of: a detector seat read as no act'          src/seat.rs '            if sc == "detect" || sc.starts_with("detect:") {' '            if false {'
 plant 'act_of: the recall read as the withdrawal'       src/seat.rs 'let act = if law.is_duty(counted, &declared) { Act::DutyWithdraw } else { Act::Recall };' 'let act = Act::DutyWithdraw;'
