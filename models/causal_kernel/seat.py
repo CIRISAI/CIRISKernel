@@ -718,6 +718,8 @@ class Seats:
         # (MUTATION line_after_cut: the first pass reads the cut, not every row as counting)
         first = CUT.Cut(S) if "line_after_cut" in MUT else CP.EVERY
         L = CP.void(S, first, own, checkpoint) if own is not None and "cut_before_line" not in MUT else frozenset()
+        if own is not None and "rline" in PROTO and "fold" in PROTO:
+            L = L | reader_refused(S, own, L)
         self.cut = C = CUT.Cut(S, without=L)
         Cs = S.Cs
         wd = K.sel(Cs, kind="withdraw")
@@ -1282,7 +1284,8 @@ def stands(S, root, k, s, o, **kw):
 PROTO = set(w for w in __import__("os").environ.get("CK_PROTO", "").split(",") if w)
 if "plain" in PROTO: MUT.add("plain_fold")         # F1: the plain fold (every surviving change applied, no count re-read)
 _VOID = [frozenset()]
-_DROPV = [(None, frozenset())]        # (row, voices that do not count for it): V2
+_DROPV = [(None, frozenset())]
+_RVOID = [frozenset()]                # the reader's own void changes, left out of a counting row's fold ("rline")        # (row, voices that do not count for it): V2
 
 
 def _v3_conflicts(S, acts):
@@ -1300,6 +1303,41 @@ def _built_closure(acts, void):
             if q["id"] not in out and any(h in out for h in q["head"]):
                 out.add(q["id"]); changed = True
     return out
+
+
+def reader_void(S, own):
+    """The counted changes void for reader `own` by its line ("rline"): the text's line (checkpoint.void), or with
+    "rsib" the sibling-safe one (a change behind an acknowledged change c only where every head it names is strictly in
+    the past of c's own heads)."""
+    if "rsib" not in PROTO: return CP.void(S, CP.EVERY, own)
+    out = set()
+    for obj in {r["obj"] for r in S.Cs if CP.is_counted_act(r, r.get("obj"))}:
+        acts = CP.counted_acts(S, obj)
+        line = CP.own_line(S, own, obj)
+        mine = {c["id"] for c in line}
+        for q in acts:
+            if q["id"] in mine: continue
+            if any(c["id"] != q["id"] and q["id"] not in S.anc[c["id"]] and CP.older(S, q["head"], c["head"]) for c in line):
+                out.add(q["id"])
+        out |= _built_closure(acts, out)
+    return frozenset(out)
+
+
+def reader_refused(S, own, L):
+    """The counted acts that conclude but conclude nothing for reader `own` once the changes void for it are left out of
+    their folds too (the reader-line exclusion), read oldest first (a refused act is void for the acts after it)."""
+    RV = set(reader_void(S, own)) | set(L)
+    out = set()
+    for r in sorted((q for q in S.Cs if CP.is_counted_act(q, q.get("obj")) and q["id"] not in RV), key=lambda q: len(S.anc[q["id"]])):
+        P = [q for q in S.Cs if q["id"] in S.anc[r["id"]]]
+        past = lambda a, b: a in S.anc.get(b, ())
+        _RVOID.append(frozenset(RV | out))
+        try:
+            ok = seat_rule(r, P, past)
+        finally:
+            _RVOID.pop()
+        if not ok: out.add(r["id"])
+    return frozenset(out)
 
 
 def signers_void(r, P):
@@ -1380,6 +1418,16 @@ def signers_void(r, P):
             return any((p["id"] == q["id"] or past(q["id"], p["id"])) and (info[p["id"]][0] - forkers - seated_on) & mem_q
                        for p in acts)
         void = {i for i in out if not rescued(S.by[i])}
+        if "tie" in PROTO:
+            # S'': a self-forked, unrescued change is kept where every change it is behind (by its voices'
+            # acknowledgements) is itself on a chain that is void-eligible with no rescuer: two chains that would void
+            # each other with no single-chain member on either side are both kept
+            elig = _built_closure(acts, void)
+            def makers(q):
+                qP = [x for x in P if past(x["id"], q["id"])]
+                return [c for k in info[q["id"]][0] for c in CP.own_line(S, k, obj)
+                        if c["id"] != q["id"] and not past(q["id"], c["id"]) and CP.older(S, q["head"], c["head"])]
+            void = {i for i in void if any(c["id"] not in elig for c in makers(S.by[i]))}
         changed = True
         while changed:
             changed = False
@@ -1422,7 +1470,7 @@ def members_at(P, past, obj, heads, scope="member"):
 def _members_fold(P, past, obj, heads, scope):
     """(2): the members at the heads, the void ones apart, read over the union of their pasts: one head reads as
     before; several are folded by Seats (KERNEL.md 7, the fold at tips), not intersected."""
-    void = _VOID[-1]
+    void = _VOID[-1] | _RVOID[-1]
     hs = tuple(h for h in count_heads(heads, P, past) if h not in void)
     if not hs: return frozenset()
     ids = {q["id"] for q in P}
@@ -1694,7 +1742,7 @@ def newer_head_in_past(heads, of, P, past, obj, keys=frozenset()):
     # the named heads are an antichain: a named head in another named head's past is refused, not dropped (MUTATION
     # heads_not_antichain: it is dropped, and the count read at the newest)
     if "heads_not_antichain" not in MUT and any(h != o and past(h, o) for h in heads for o in heads): return True
-    void = _VOID[-1] if "fold" in PROTO else frozenset()
+    void = (_VOID[-1] | _RVOID[-1]) if "fold" in PROTO else frozenset()
     hs = tuple(h for h in newest(heads, past) if h not in void)
     by = {q["id"]: q for q in P}
     # MUTATION head_any_row: a named head may be any row
