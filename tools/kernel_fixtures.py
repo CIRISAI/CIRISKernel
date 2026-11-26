@@ -150,7 +150,9 @@ def reexpress_cases():
                     rows.append((rows[0][0], list(rankings[(combo[0] + 1) % len(rankings)])))
                 for declared in (True, False):
                     w, rounds = RX.ranked([(p, tuple(r)) for p, r in rows], opts, 2, declared)
-                    out["ranked"].append({"rows": rows, "options": opts, "declared": declared, "winner": w, "rounds": rounds})
+                    order = list(RX.runoff([(p, tuple(r)) for p, r in rows], opts, 2, declared))
+                    out["ranked"].append({"rows": rows, "options": opts, "declared": declared, "winner": w, "rounds": rounds,
+                                          "order": order})
     hk = [("header", "i1", "d1", 0), ("header", "i1", "d2", 1), ("header", "i2", "d1", 5)]
     lk = [("leaf", "i1", "d1", 2), ("leaf", "i1", "d2", 3), ("leaf", "i2", "d1", 9)]
     for n in range(0, 4):

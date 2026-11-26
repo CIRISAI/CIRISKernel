@@ -68,28 +68,51 @@ def guardianship(H, band):
 def ranked(rows, options, floor=2, declared=True):
     """rows: (person, ranking). Returns (winner or None, rounds). declared=False: the election's count, with no
     declared order, where a tie for weakest is refused by the reducer and seats nobody (CC 4.5.13)."""
+    winner, rounds, _order = _runoff(rows, options, floor, declared, False)
+    return winner, rounds
+
+
+def runoff(rows, options, floor=2, declared=True):
+    """The runoff order of the count (CC 4.5.13: a decline "passes the duty to the next in runoff order"): the winner,
+    then the options in the reverse of the order they were eliminated, the count run on past a majority "until one
+    remains". Only the part a tie leaves known: a tie for weakest after a majority leaves the winner alone; one before
+    it, or no count, leaves nothing. Its first is `ranked`'s winner."""
+    return _runoff(rows, options, floor, declared, True)[2]
+
+
+def _runoff(rows, options, floor, declared, to_end):
+    """The one count. to_end: run on past a majority, eliminating, until one option stands or a tie for weakest."""
     ballots = K.group([{"person": p, "ranking": r, "t": 0} for p, r in rows], "person", "one", "ranking")
-    if not K.in_range(len(ballots), min(floor, max(len(options), 1))): return None, 0
+    if not K.in_range(len(ballots), min(floor, max(len(options), 1))): return None, 0, ()
     marks = [{"person": p, "option": o, "rank": i, "t": 0} for p, r in ballots.items() for i, o in enumerate(r)]
 
     def round_(state):
-        standing, winner, done, rounds = state
+        standing, winner, done, rounds, out, top = state
         if done: return state
         tops = K.group(K.sel(marks, option=set(standing)), "person", "least", "rank")
         first = K.group(list(tops.values()), "option", "count", "person")
-        if not tops: return standing, None, True, rounds
+        if not tops: return standing, winner, True, rounds, out, (winner,) if winner is not None else ()
         table = [{"o": o, "n": first.get(o, 0), "back": -options.index(o) if declared else 0} for o in standing]
-        top = K.group(table, None, "max", "n")
-        if K.in_range(2 * top, len(tops) + 1) or len(standing) == 1:
-            return standing, K.group(K.sel(table, n=top), None, "one", "o"), True, rounds
+        top_n = K.group(table, None, "max", "n")
+        if winner is None and (K.in_range(2 * top_n, len(tops) + 1) or len(standing) == 1):
+            w = K.group(K.sel(table, n=top_n), None, "one", "o")
+            if not to_end or len(standing) == 1:
+                return standing, w, True, rounds, out, (w,) if w is not None else ()
+            winner = w
+        if len(standing) == 1:
+            return standing, winner, True, rounds, out, (standing[0],)
         try:
             weakest = K.group(table, None, "least", ("n", "back"))
         except K.Tie:
-            return standing, None, True, rounds                   # no declared order: a tie for weakest seats nobody
-        return tuple(o for o in standing if o != weakest["o"]), None, False, rounds + 1
+            # no declared order: a tie for weakest seats nobody, or (past a majority) leaves the order below the winner
+            return standing, winner, True, rounds, out, (winner,) if winner is not None else ()
+        return (tuple(o for o in standing if o != weakest["o"]), winner, False, rounds + (winner is None),
+                out + (weakest["o"],), top)
 
-    _, winner, _, rounds = K.fix(round_, (tuple(options), None, False, 0), len(options) + 1)
-    return winner, rounds
+    end = K.fix(round_, (tuple(options), None, False, 0, (), ()), len(options) + 1)
+    _, winner, _, rounds, out, top = end
+    order = top + tuple(reversed(out)) if len(top) == 1 and len(end[0]) == 1 else top
+    return winner, rounds, order
 
 
 # ---- set_item (formal/set_item/set_item_model.py: item_counts, the reading `both`) ----------------------

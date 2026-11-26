@@ -129,6 +129,7 @@ import checkpoint as CP     # noqa: E402
 K, R = CK.K, CK.row
 sys.path.insert(0, os.path.join(ROOT, "models", "kernel_lib"))
 from reexpress import ranked as RANKED  # noqa: E402   the ranked count, already written over the library
+from reexpress import runoff as RUNOFF  # noqa: E402   its runoff order, the same count run on
 DEPTH = 5                                       # CC 3.4.7: a delegation chain is at most five links
 
 # ---- table data ----------------------------------------------------------------------------------------
@@ -977,7 +978,10 @@ def count_met(r, P, past, table=None):
                    and b["id"] not in gone and (set(b["ranking"]) <= roster or "ballot_nonmember_ranked" in MUT)
                    and (len(b["ranking"]) <= ELECTION_RANKS or "ballot_ranks_unbounded" in MUT)]
         # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
-        won = RANKED(ballots, list(r["options"]), declared="election_declared" in MUT)[0]
+        # the count yields the first in the set's runoff order who has not declined, the declines being those the row
+        # names (CC 4.5.13; a decline is the winner's own row, `ballot:moderator_decline`, #241 O4)
+        declined = set() if "decline_unread" in MUT else {d["signer"] for d in K.sel(P, kind="decline") if d["id"] in r["names"]}
+        won = next((o for o in RUNOFF(ballots, list(r["options"]), declared="election_declared" in MUT) if o not in declined), None)
         if "election_any_winner" in MUT: return k == "offer" and bool(ballots) and won is not None
         return k == "offer" and bool(ballots) and won == r["to"][0]
     if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)

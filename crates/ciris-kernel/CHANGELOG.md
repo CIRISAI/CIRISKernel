@@ -46,15 +46,24 @@ beyond the ballot count").
   one plant in each language. The holders are read by person (CIRISConstitution#241 B3, derived: "only while >= 1
   member holds the live `moderate` duty"): an AI agent's key holding a duty is no holder, and a room whose only
   holder is an agent elects. One case; one plant in each language.
-- Not built, each a row of `check_election.py`'s OPEN list with the model's answer now: the text decides two of
-  them, and the crate cannot hold them yet. (1) Several seatings: "the one counted over the larger set stands", and
-  two over equal sets of different ballots seat nobody until one is counted over their union. The rows carry no
-  election id, so the crate cannot tell which seatings belong to one election. While two seatings are two tips,
-  neither stands; once a row names both, both stand. The text does not decide the other two: (2) the decline and
-  "the next in runoff order" (striking the decliner and counting again, or the order of the first count, give
-  different winners in the case); (3) every member a candidate: two members whom no ballot names tie for weakest and seat nobody. Not
-  built, and outside these rows: the lock (nobody posts, admits or acts until a moderator is seated) and the
-  node's 24 h since it first held the lock.
+- **A decline passes the duty to the next in runoff order** (CC 4.5.13: "The count yields the first in the set's
+  runoff order who has not declined"; CIRISConstitution#241 O4). New: `ranked::runoff`, the runoff order of the
+  same count (one loop with `ranked::ranked`, whose answers are unchanged). It gives the winner, then the options
+  in the reverse of their elimination, with the count run on past a majority "until one remains". It is only the
+  part a tie leaves known: a tie for weakest after the majority leaves the winner alone. New: `SeatRow::decline`
+  (default false), a decline row (`ballot:moderator_decline`). The seating yields the first in that order whose
+  decline it names. It is not a rerun: the case's winner after a decline differs from a count without the
+  decliner. The `reexpress` fixture carries each case's order, and `tests/lib_ops.rs` replays `runoff`. Six
+  cases; a plant in `seat.py` and two in the crate.
+- Not the kernel's (the caller's, ADOPTING.md): the lock, a `may` answer the caller carries; the node's 24 h
+  since it first held the lock; and the winner's grace. These are node clocks, and the kernel answers the rows'
+  half only.
+- Not built, each a row of `check_election.py`'s OPEN list carrying the model's answer now. (1) Several
+  seatings (the text decides): "the one counted over the larger set stands", and two seatings over equal sets of
+  different ballots seat nobody until one is counted over their union. While the two seatings are two tips,
+  neither stands; once a row names both, both stand. (2) The two-voice floor of a recall (the text decides; a
+  public change). (3) Every member a candidate (not decided): two members whom no ballot names tie for weakest
+  and seat nobody.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

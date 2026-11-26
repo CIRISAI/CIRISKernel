@@ -168,6 +168,22 @@ trusting an adapter.
   withdrawal's past too.
 - Cases: `models/causal_kernel/check_duty_seats.py`, all in the `seat` fixture.
 
+**The moderator election**, for the seat rule (unreleased; see the CHANGELOG).
+- A ballot (`ballot:moderator`) is a row of `SeatKind::Ballot`, `ranking()` its keys best first (at most
+  `seat::ELECTION_RANKS`). Its withdrawal is a `SeatKind::Withdraw` by its signer, `target()` the ballot.
+- The acceptance (`ballot:moderator_acceptance`) is one Offer of scope `moderate` over the room, `Conf::Group`,
+  `policy()` the table's `moderator_election` row (`Policy::Ranked`), `to()` the winner, `options()` the
+  candidates, `head()` the head counted at. It names every ballot, withdrawal and decline of its set. The winner
+  signs it, or accepts it.
+- A decline (`ballot:moderator_decline`) is a row whose `SeatRow::decline()` is true (default false), signed by
+  the key declining. The count yields the first in the runoff order (`ranked::runoff`) whose decline the
+  acceptance does not name.
+- The table's `moderator_recall` row is `Policy::Strict(2, 3)`: more than two thirds.
+- The caller's, not the kernel's: the lock (nobody posts, admits or acts until a moderator is seated: a `may`
+  answer the caller carries), the node's 24 h since it first held the lock, and the grace a silent winner has
+  (`election_grace_secs`). These are node clocks, and the kernel answers only the rows' half.
+- Cases: `models/causal_kernel/check_election.py`, all in the `seat` fixture.
+
 **An AI agent's key**, for `seat::Seats` and the counts (unreleased; see the CHANGELOG).
 - Seat an agent's key over the room in scope `agent` (`seat::AGENT`): an Offer, `Conf::Group`, by the room's
   count (`community_invite` or the room's protocol), the agent cosigning its own acceptance. Its signature on

@@ -46,7 +46,7 @@ use crate::cut::{Cut, CutSpec};
 use crate::graph::Graph;
 use crate::layers::{Concluded, Past};
 use crate::line::{self, LineSpec};
-use crate::ranked::ranked;
+use crate::ranked::runoff;
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
@@ -245,6 +245,11 @@ pub trait SeatRow: Row {
     /// A ballot's ranking.
     fn ranking(&self) -> &[Self::Key] {
         &[]
+    }
+    /// A decline (`ballot:moderator_decline`, CC 4.5.13): the signer's own row declining the seat an election's
+    /// count would give it. The election's seating names the declines it was counted with.
+    fn decline(&self) -> bool {
+        false
     }
     /// An acknowledgement: the object (room) whose head it acknowledges.
     fn room(&self) -> Option<Obj<Self::Id, Self::Key>> {
@@ -1949,7 +1954,12 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
             .map(|b| (b.signer().clone(), b.ranking().to_vec()))
             .collect();
         // the one ranked row is the election, which declares no order: a tie for weakest seats nobody
-        return is_offer && !ballots.is_empty() && ranked(&ballots, r.options(), 2, false).0.as_ref() == r.to().first();
+        // the count yields the first in the set's runoff order who has not declined, the declines being those the
+        // row names (CC 4.5.13: a decline "passes the duty to the next in runoff order")
+        let declined: BTreeSet<&R::Key> =
+            p.rows().filter(|d| d.decline() && r.names().contains(d.id())).map(|d| d.signer()).collect();
+        let won = runoff(&ballots, r.options(), 2, false).into_iter().find(|o| !declined.contains(o));
+        return is_offer && !ballots.is_empty() && won.as_ref() == r.to().first();
     }
     let v = voices(r, p);
     let count = GroupCount { policy: pol, offer: is_offer, to: r.to(), members: &mem, voices: &v, need: r.need() };

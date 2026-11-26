@@ -505,6 +505,9 @@ impl SeatRow for TRow {
     fn ranking(&self) -> &[String] {
         &self.ranking
     }
+    fn decline(&self) -> bool {
+        self.kind == "decline"
+    }
     fn room(&self) -> Option<Obj<String, String>> {
         self.room.clone()
     }

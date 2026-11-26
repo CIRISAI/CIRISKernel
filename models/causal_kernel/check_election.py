@@ -41,6 +41,7 @@ Planted breaks, each of which must change a case's answer:
     candidates_roster         the candidates are the member seats at the heads, a leaver among them
     ballot_ranks_unbounded    a ballot ranking more than three counts
     recall_at_least           the recall read as at least two thirds (the table's cell), not more than
+    decline_unread            a decline the seating names is not read: the count yields its winner
 
     python3 -I check_election.py      exit 1 on any difference
 """
@@ -69,6 +70,10 @@ G4 = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=(
 G5 = ST.offer("g", "A", ("A", "B", "C", "D", "E"), "member", "@", "self", cosigners=("B", "C", "D", "E"))
 G8 = ST.offer("g", "A", tuple("ABCDEFGH"), "member", "@", "self", cosigners=tuple("BCDEFGH"))
 
+# the eight ballots of the decline cases: A four first choices, C three, B one (B's next choice A)
+B8 = ("ba", "bd", "be", "bf", "bb", "bc", "bg", "bh")
+DA = CK.row("da", "decline", "A", ("g",))                      # A's decline (`ballot:moderator_decline`)
+
 # rooms whose founding record seats duty holders: A alone holds moderate (FH), A and B do (FH2)
 FH = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"))
 FH2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B")}, cosigners=("B", "C"))
@@ -88,6 +93,11 @@ def ballot(i, k, ranking, names=("g",)):
     return CK.row(i, "ballot", k, tuple(names), ranking=tuple(ranking))
 
 
+def _elect8():
+    return [G8, ballot("ba", "A", "AB"), ballot("bd", "D", "AB"), ballot("be", "E", "AB"), ballot("bf", "F", "AB"),
+            ballot("bb", "B", "BA"), ballot("bc", "C", "C"), ballot("bg", "G", "C"), ballot("bh", "H", "C")]
+
+
 def elect(i, k, ballots, members, signer=None, heads=("g",), cites=()):
     """The seating of `k` by the election, counted over the ballots it names at `heads`; `members` its options."""
     return ST.offer(i, signer or k, k, "moderate", OBJ, "group", tuple(ballots) + tuple(heads) + tuple(cites),
@@ -100,6 +110,7 @@ def admit(i, k, signers, heads, scope="member"):
                     cosigners=tuple(signers[1:]) + ((k,) if k not in signers else ()))
 
 
+ELECT8 = _elect8()
 M3, M4, M5 = ("A", "B", "C"), ("A", "B", "C", "D"), ("A", "B", "C", "D", "E")
 MOD = lambda *ks: [(k, "moderate", T) for k in ks]
 NOMOD = lambda *ks: [(k, "moderate", F) for k in ks]
@@ -239,6 +250,28 @@ CASES = [
                counted="member", cosigners=("B", "X")),
       ballot("bb", "B", "B", ("cx",)), ballot("bc", "C", "B", ("cx",)), elect("el", "B", ("bb", "bc"), M3, heads=("cx",))],
      [("X", "moderate", T)] + MOD("B"), "a vacancy"),
+    # ---- a decline ---------------------------------------------------------------------------------------------------
+    ("a winner who declines passes the duty to the next in runoff order (CC 4.5.13; #241 O4): of eight, A has four "
+     "first choices, C three, B one; B goes out first and its ballot to A, who wins and declines; run on, C goes out "
+     "next, so the order is A, C, B, and the seating of C stands",
+     ELECT8 + [DA, elect("ec", "C", B8 + ("da",), M3)], MOD("C") + NOMOD("A", "B"), "a decline"),
+    ("not a rerun: the seating of B (A's four ballots passing to B in a count without A) concludes nothing",
+     ELECT8 + [DA, elect("eb", "B", B8 + ("da",), M3)], NOMOD("A", "B", "C"), "a decline"),
+    ("a decline in the seating's past that it does not name is not read: the count yields A, and the seating of C concludes nothing",
+     ELECT8 + [DA, CK.row("nx", "note", "B", ("da",)), elect("ec", "C", B8, M3, cites=("nx",))],
+     NOMOD("A", "B", "C"), "a decline"),
+    ("A and C decline: the next in runoff order is B",
+     ELECT8 + [DA, CK.row("dc", "decline", "C", ("g",)), elect("eb", "B", B8 + ("da", "dc"), M3)],
+     MOD("B") + NOMOD("A", "C"), "a decline"),
+    ("a decline by a key the count does not yield first passes nothing: C declines, A is seated",
+     ELECT8 + [CK.row("dc", "decline", "C", ("g",)), elect("ea", "A", B8 + ("dc",), M3)],
+     MOD("A") + NOMOD("C"), "a decline"),
+    ("where a tie after the majority leaves the order below the winner unknown, a decline passes to nobody: of five, "
+     "A has three, B and C one each; A declines, and the seating of B concludes nothing",
+     [G5, ballot("ba", "A", "A"), ballot("bd", "D", "A"), ballot("be", "E", "A"), ballot("bb", "B", "B"),
+      ballot("bc", "C", "C"), CK.row("da", "decline", "A", ("g",)),
+      elect("eb", "B", ("ba", "bd", "be", "bb", "bc", "da"), M3)],
+     NOMOD("A", "B", "C"), "a decline"),
     # ---- a recall --------------------------------------------------------------------------------------------------------
     ("a recall cosigned by exactly two thirds does not recall (CC 4.5.13 'more than two thirds of the standing roster'; "
      "#241 O5): B and C of three",
@@ -276,19 +309,6 @@ OPEN = [
      "roster) | C (the members no ballot names are no standing candidates, and the count runs as over A, B and C). "
      "Over a roster of n with every member voting and no first-round majority, two members with no first choice is "
      "the common case, so under the first reading a runoff seldom decides."),
-    ("OPEN: a winner who declines: of eight, A has four first choices, C three, B one, and B's ballot passes to A, "
-     "who wins and declines; one seating names B and one C, each over the ballots and the decline",
-     [G8, ballot("ba", "A", "AB"), ballot("bd", "D", "AB"), ballot("be", "E", "AB"), ballot("bf", "F", "AB"),
-      ballot("bb", "B", "BA"), ballot("bc", "C", "C"), ballot("bg", "G", "C"), ballot("bh", "H", "C"),
-      CK.row("da", "decline", "A", ("g",)),
-      elect("eb", "B", ("ba", "bd", "be", "bf", "bb", "bc", "bg", "bh", "da"), M3),
-      elect("ec", "C", ("ba", "bd", "be", "bf", "bb", "bc", "bg", "bh", "da"), M3)],
-     NOMOD("A", "B", "C"), "a decline",
-     "C (the next in runoff order read as the order the original count ranks them: A, then C, the last standing "
-     "beside it, then B) | B (the count run again with the decliners struck: A's four ballots pass to B, five of "
-     "eight). The text: 'passes the duty to the next in runoff order'; 'The count yields the first in the set's "
-     "runoff order who has not declined'. The model reads no decline (a row of no seat kind) and seats nobody. "
-     "Silence past `election_grace_secs` is a node's clock, no row."),
     ("NOT BUILT (the text decides): a recall in a room of one by its one voice: the model recalls",
      [FH1, recall("rc", "A", ("A",), ("g",))], NOMOD("A"), "a recall",
      "not recalled (CC 4.5.13: 'The floor is two voices'). Not built: the seat's count has no floor for a fraction "
@@ -330,7 +350,8 @@ def planted(plant):
 
 PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_any_winner", "ballot_withdrawal_unread",
           "ballot_nonmember_ranked", "election_beside_holder", "election_agent_holder",
-          "candidates_roster", "ballot_ranks_unbounded", "recall_at_least")
+          "candidates_roster", "ballot_ranks_unbounded", "recall_at_least",
+          "decline_unread")
 
 
 def answers(rows, asks, plant=None, arrive=False):
