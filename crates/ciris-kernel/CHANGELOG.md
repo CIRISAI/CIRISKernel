@@ -29,8 +29,10 @@ follows #48. **Answers of 0.4.0 change.** **Breaking:** one required trait metho
   `fn word(s: &'static str) -> String { s.into() }`; for a `&'a str` word: `fn word(s: &'static str) -> &'a str
   { s }`.
 - A counted row (offer or unseat, `Conf::Group`) whose heads are not each of its own object's line concludes
-  nothing: a head is of object `o`'s line where it is `o`'s founding row, a row whose `obj()` is `o`, or a
-  withdrawal (`target()`), acceptance or receipt (`of()`) of such a row. No answer of a case changes.
+  nothing: a head is of object `o`'s line where it is `o`'s founding row, a row whose `obj()` is `o`, a
+  withdrawal (`target()`), acceptance or receipt (`of()`) of such a row, or a row of no object of its own that
+  names one (a version of the roster, as persist's `consensus::ballot_rows` presents a ballot's head). A row
+  whose `obj()` is another object is of that object's line. No answer of a case changes.
 - A moderator's lone removal exists only over a community (CC 4.5.13: a room's moderator, an agent's key in
   that room). Over any other object (a key's own roster) a moderator's unseat of an agent's key is an ordinary
   counted unseat. The one test of a community, read by the duty gate, the duty-room rule, the one-founder rule

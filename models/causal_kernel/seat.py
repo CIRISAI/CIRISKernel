@@ -1108,12 +1108,15 @@ def _ender(r, P, by):
 
 def on_object(by, h, obj, n=0):
     """Row h is a row of object obj's own line: obj's founding row, a row whose object is obj (an offer, an unseat,
-    a standing acceptance, a counted receipt), or a withdrawal, acceptance, receipt, answer, ballot or cosignature of
-    such a row."""
+    a standing acceptance, a counted receipt), a withdrawal, acceptance, receipt, answer, ballot or cosignature of
+    such a row, or a row of no object of its own that names one (a version of the roster, as persist presents a
+    ballot's head: `consensus::ballot_rows`). A row whose object is another is of that other's line."""
     if h is None or n > 8: return False
     if h["id"] == obj or h.get("obj") == obj: return True
+    if h.get("obj") is not None: return False
     ref = h.get("target") if h["kind"] == "withdraw" else h.get("of")
-    return ref is not None and on_object(by, by.get(ref), obj, n + 1)
+    if ref is not None: return on_object(by, by.get(ref), obj, n + 1)
+    return any(on_object(by, by.get(m), obj, n + 1) for m in h.get("names", ()))
 
 
 def heads_on_object(r, by):

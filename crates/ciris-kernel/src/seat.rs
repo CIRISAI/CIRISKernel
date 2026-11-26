@@ -2175,20 +2175,30 @@ fn duty_gate<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, r: &R) -> boo
 }
 
 /// Row `h` is of object `obj`'s own line: `obj`'s founding row, a row whose object is `obj` (an offer, an
-/// unseat, a standing acceptance, a counted receipt), or a withdrawal, acceptance or receipt of such a row. A
-/// counted row's heads are each of its own object's line (the review of #54: a count is over the room it acts
-/// in, so it names that room's heads).
+/// unseat, a standing acceptance, a counted receipt), a withdrawal, acceptance or receipt of such a row, or a
+/// row of no object of its own that names one (a version of the roster, as persist presents a ballot's head). A
+/// row whose object is another is of that other's line. A counted row's heads are each of its own object's line
+/// (the review of #54: a count is over the room it acts in, so it names that room's heads).
 fn on_object<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, h: &R::Id, obj: &ObjOf<R>) -> bool {
-    let mut cur = by.get(h).copied();
-    for _ in 0..=8 {
-        let Some(r) = cur else { return false };
-        if Obj::Row(r.id().clone()) == *obj || r.obj().as_ref() == Some(obj) {
-            return true;
-        }
-        let next = if r.seat_kind() == SeatKind::Withdraw { r.target() } else { r.of() };
-        cur = next.and_then(|n| by.get(n).copied());
+    on_object_n(by, h, obj, 0)
+}
+
+fn on_object_n<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, h: &R::Id, obj: &ObjOf<R>, n: usize) -> bool {
+    let Some(r) = by.get(h).copied() else { return false };
+    if n > 8 {
+        return false;
     }
-    false
+    if Obj::Row(r.id().clone()) == *obj || r.obj().as_ref() == Some(obj) {
+        return true;
+    }
+    if r.obj().is_some() {
+        return false;
+    }
+    let next = if r.seat_kind() == SeatKind::Withdraw { r.target() } else { r.of() };
+    match next {
+        Some(t) => on_object_n(by, t, obj, n + 1),
+        None => r.names().iter().any(|m| on_object_n(by, m, obj, n + 1)),
+    }
 }
 
 /// A counted unseat of a duty scope over a community (the holders' withdrawal of a duty, the members' recall) is
