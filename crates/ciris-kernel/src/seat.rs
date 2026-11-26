@@ -2917,7 +2917,11 @@ fn newer_head_in_past<R: SeatRow>(
     heads: &[R::Id],
     keys: &BTreeSet<R::Key>,
 ) -> bool {
-    let heads: Vec<&R::Id> = heads.iter().filter(|&a| !heads.iter().any(|b| a != b && p.past(a, b))).collect();
+    // the named heads are an antichain: a named head in another named head's past is refused, not dropped
+    if heads.iter().any(|a| heads.iter().any(|b| a != b && p.past(a, b))) {
+        return true;
+    }
+    let heads: Vec<&R::Id> = heads.iter().collect();
     let room = room_in(p, obj);
     if heads.iter().any(|&h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(|q| change(law, q, obj, room))) {
         return true;
@@ -3113,6 +3117,9 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     })
                     .cloned()
                     .collect();
+                // the rows a withdrawal names are no declared heads: the newest of them are read, as a count's heads
+                let named: Vec<R::Id> =
+                    named.iter().filter(|a| !named.iter().any(|b| *a != b && p.past(a, b))).cloned().collect();
                 !newer_head_in_past(p, law, &room, &named, &signers(r))
             }
             None => false,

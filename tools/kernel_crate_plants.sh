@@ -60,6 +60,10 @@ plant "a record whose end is its own instant is kept"    src/key_end.rs 'x.from 
 plant "the reader's line ignored"                      src/line.rs '(built_ok && !mine.iter().any(|&m| behind(r, m)))' 'built_ok'
 plant "a count read at its named heads whatever is in its past (H1)" src/seat.rs 'if newer_head_in_past(p, law, &obj, r.head(), &signers(r)) {' 'if false {'
 plant "an election's seating names no head (H4)" src/seat.rs 'if newer_head_in_past(p, law, &obj, r.head(), &signers(r)) {' 'if !is_election(law, r) && newer_head_in_past(p, law, &obj, r.head(), &signers(r)) {'
+plant "named heads that are no antichain: the older dropped, not refused (H1)" src/seat.rs '    if heads.iter().any(|a| heads.iter().any(|b| a != b && p.past(a, b))) {
+        return true;
+    }
+    let heads: Vec<&R::Id> = heads.iter().collect();' '    let heads: Vec<&R::Id> = heads.iter().filter(|&a| !heads.iter().any(|b| a != b && p.past(a, b))).collect();'
 plant "a lone holder's standing duty offer unread" src/seat.rs '    if pol == Some(Policy::DutyConfer) && mem.len() < 2 && lone_offer_stands(law, p, r, &mem) {' '    if false {'
 plant "a lone holder's standing duty offer read for its own scope only" src/seat.rs '            && o.scope().is_some_and(|s| law.is_duty(s.as_ref(), &declared))' '            && o.scope() == r.scope()'
 plant "a duty holder's own conferral is no counted change" src/seat.rs '    room && own_conferral(law, q, obj)' '    false && room && own_conferral(law, q, obj)'

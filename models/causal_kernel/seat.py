@@ -1521,6 +1521,9 @@ def newer_head_in_past(heads, of, P, past, obj, keys=frozenset()):
     neither one of them nor in the past of one, nor behind an acknowledgement by one of `keys` (H7); or one of them
     that is neither such a counted change nor obj's founding row (H3, H8: no other row is a head of a count)."""
     if "count_heads_unread" in MUT: return False
+    # the named heads are an antichain: a named head in another named head's past is refused, not dropped (MUTATION
+    # heads_not_antichain: it is dropped, and the count read at the newest)
+    if "heads_not_antichain" not in MUT and any(h != o and past(h, o) for h in heads for o in heads): return True
     hs = newest(heads, past)
     by = {q["id"]: q for q in P}
     # MUTATION head_any_row: a named head may be any row
@@ -1721,7 +1724,8 @@ def seat_rule(r, P, past, table=None, other=None):
         # over the room in its own past among the rows it names (MUTATION resign_exempt: it need not)
         room = CP.object_of(t, by) if t["kind"] in ("offer", "accept") else None     # a seat's end, not a ballot's
         if room is not None and room in by and community(by, room) and "resign_exempt" not in MUT:
-            named = tuple(n for n in r["names"] if n == room or (n in by and change(by[n], room, by)))
+            # (the rows a withdrawal names are no declared heads: the newest of them are read, as a count's heads)
+            named = newest(tuple(n for n in r["names"] if n == room or (n in by and change(by[n], room, by))), past)
             if newer_head_in_past(named, None, P, past, room, signers(r)): return False
         return True
     if k == "cosign":

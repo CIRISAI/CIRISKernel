@@ -126,6 +126,16 @@ def conf(i, to, heads, cites=(), scope="moderate", signers=("A",), joins=True):
                     policy="duty_confer", counted="duty", cosigners=tuple(signers[1:]) + (to if joins else ()))
 
 
+# an infrastructure room: f1, f2 and f3 found it; the founders admit f4 and then f5 under the room's protocol
+GI5 = [ST.offer("g", "f1", ("f1", "f2", "f3"), "member", "@", "self", cosigners=("f2", "f3"), cohort_subkind="infrastructure"),
+       ST.offer("a4", "f1", "f4", "founder", OBJ, "group", ("g",), head=("g",), policy="cosigned_act", cosigners=("f2", "f3", "f4")),
+       ST.offer("a5", "f1", "f5", "founder", OBJ, "group", ("a4",), head=("a4",), policy="cosigned_act",
+                cosigners=("f2", "f3", "f4", "f5"))]
+FIVE_F = frozenset(("f1", "f2", "f3", "f4", "f5"))
+IX = lambda i, heads, signers, cites=(): ST.unseat(i, signers[0], "f3", "founder", OBJ, "group", tuple(heads) + tuple(cites),
+                                                   head=tuple(heads), policy="cosigned_act", cosigners=tuple(signers[1:]))
+
+
 # a room of one: A founds it alone (its lone founder, holding `moderate`), and invites under `community_invite`
 G1 = ST.found("g", "A", ("A",), {})
 ONE = lambda i, k, heads, signers=("A",): ST.offer(i, signers[0], k, "member", OBJ, "group", tuple(heads), head=tuple(heads),
@@ -182,6 +192,18 @@ CASES = [
      ROOM + [ST.found("h", "A", ("A",), {}),
              ST.offer("ah", "A", "B", "member", "h", "group", ("h",), head=("h",), policy="community_invite", cosigners=("B",)),
              remove("xg", "G", FIVE, ("aG",), ("ah",))], None, {"ah": T, "xg": T}, {"member": SEVEN - {"G"}}, set()),
+    # an infrastructure room, its founder body (the binding's: the founding record's members, then founders admitted
+    # by the founders' count under the room's protocol), f1 to f5 (review-54, r59/tools/e2.py)
+    (H1, "infrastructure: a removal of f3 by f1 and f2 at the old head g (three founders there), the newest admission "
+         "in its past: it concludes nothing",
+     GI5 + [IX("x", ("g",), ("f1", "f2"), ("a5",))], None, {"a4": T, "a5": T, "x": F}, {"member": FIVE_F}, set()),
+    (H1, "infrastructure: the same removal naming both the current head a5 and the old head g: the named heads are no "
+         "antichain (g is in a5's past), and it concludes nothing",
+     GI5 + [IX("x", ("a5", "g"), ("f1", "f2"))], None, {"x": F}, {"member": FIVE_F}, set()),
+    (H1, "infrastructure: four of the five naming a5 and g: met at a5, and still refused, the named heads no antichain",
+     GI5 + [IX("x", ("a5", "g"), ("f1", "f2", "f4", "f5"))], None, {"x": F}, {"member": FIVE_F}, set()),
+    (H1, "infrastructure: four of the five at a5 alone: it concludes",
+     GI5 + [IX("x", ("a5",), ("f1", "f2", "f4", "f5"))], None, {"x": T}, {}, set()),
     # ---- H2 ---------------------------------------------------------------------------------------------------------
     (H2, "an admission in a second room stating that it is counted over the first room's roster",
      ROOM + [ST.found("h", "A", ("A",), {}),
@@ -406,7 +428,8 @@ PLANTS = (("count_heads_unread", ST.MUT), ("all_heads_read", ST.MUT), ("head_any
           ("cut_before_line", ST.MUT), ("line_void_unlisted", ST.MUT), ("line_after_cut", ST.MUT), ("acks_only", CP.MUT),
           ("ack_excuses_none", ST.MUT), ("election_exempt", ST.MUT),
           ("acceptance_unread", ST.MUT), ("acceptance_ends_unread", ST.MUT),
-          ("lone_offer_unread", ST.MUT), ("lone_offer_same_scope", ST.MUT), ("fold_acceptance_unread", ST.MUT))
+          ("lone_offer_unread", ST.MUT), ("lone_offer_same_scope", ST.MUT), ("fold_acceptance_unread", ST.MUT),
+          ("heads_not_antichain", ST.MUT))
 
 
 import contextlib  # noqa: E402

@@ -181,7 +181,9 @@ def check_keys(spec, inst):
                 h = (spec.obj,) if stale else ("E1",)
                 p2_ = RS.lone_open(spec, "p2", keep, "evict", h, second, names=("E1",) if stale else ())
                 rows += [p2_, WN.receipt("r2", keep, "p2", 0), WN.landing("L2", keep, "p2", "r2", "landed", W), RS.effect(spec, "E2", keep, "L2", p2_)]
-                rows += [RS.add(spec, "a4", ("E1", "E2") if stale else ("E2",), k4, (keep, k4))]
+                # the re-widening names E2 alone: E1 is in E2's past (p2 names it), and the named heads are an
+                # antichain (H1: a head in another named head's past is refused)
+                rows += [RS.add(spec, "a4", ("E2",), k4, (keep, k4))]
                 worlds.append(("keep %s, evict %s then %s%s" % (keep, first, second, ", second on the old head" if stale else ""), rows, keep))
     def p2(S, rows, name):
         keep = next(x for n, _, x in worlds if n == name)

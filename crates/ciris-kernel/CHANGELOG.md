@@ -340,7 +340,8 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
   unseat with `Conf::Group` on the object, naming a head, of any scope), and no self-admission. Concurrent tips
   are intersected. **Answers change:** a counted row now concludes nothing where
   - it names a head older than a counted change in its own past;
-  - it names an old head beside the newest;
+  - it names an old head beside the newest: the named heads must be an antichain, and a named head in another
+    named head's past is refused, not dropped (adding an older head would otherwise narrow the body counted over);
   - it names a head that is no counted change: an acceptance, a withdrawal, a note, a version row.
 
   Rows that were honest under the old rule are refused too: a counted change of any scope moves the head. A
