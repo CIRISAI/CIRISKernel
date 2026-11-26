@@ -25,8 +25,8 @@
 //!   equivocator has no say and stays in the base). Once closed, no rival seating counts.
 //! - F3: a next election stands only while its id row stands, for the rows held.
 use super::{
-    concluded_over, founding, left_in_past, persons_at_with, roster_offer, roster_word, seat_scopes, signed_by,
-    stay_end, Conf, MembersAt, Obj, ObjOf, Policy, SeatKind, SeatLaw, SeatRow, Seats, AGENT,
+    concluded_over, founding, persons_at_with, roster_offer, roster_word, seat_scopes, signed_by, stay_end, Conf,
+    MembersAt, Obj, ObjOf, Policy, SeatKind, SeatLaw, SeatRow, Seats, AGENT,
 };
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
@@ -361,17 +361,22 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             }
         }
         // E1 (the fifth read, G2): one base per election for a reader: a key departed (left, or removed, not seated
-        // again) over the rows held is out of it for every group alike, and its receipts count for nothing.
-        // `departed` reads exactly the rows of `rows` (`Past::rows` is the slice given); the anchor only places the
-        // reading and adds no row, so this is the reference's `departed(rows)`
-        let mut gone = match rows.last() {
-            Some(&anchor) => self.departed(anchor, rows, obj),
-            None => BTreeSet::new(),
-        };
+        // again) over the rows held (the reference's `departures(rows)`) is out of it for every group alike, and its
+        // receipts count for nothing. H1: unless the key's leaving (or removal) holds its receipt, which then counts, the key staying in the base
+        let deps = self.departures(rows, obj);
+        let held = |k: &R::Key, d: usize| by_p.get(k).is_some_and(|rs| rs.iter().any(|&a| g.in_past(a, d)));
+        let mut gone: BTreeSet<R::Key> = deps
+            .iter()
+            .filter(|(k, _)| !deps.iter().any(|(k2, d2)| k2 == k && held(k2, *d2)))
+            .map(|(k, _)| k.clone())
+            .collect();
+        // H2: the base is the UNION of the members at every end any seating of the election names, over the rows
+        // held (each seating still counts its own electorate)
+        let union: BTreeSet<R::Key> = seats.iter().flat_map(|&q| self.view(q).1).collect();
         let mut met: Vec<&BTreeSet<R::Id>> = Vec::new();
         for (group, rs) in &says {
             let Some(&s) = seats.iter().find(|&&q| self.view(q).2 == *group) else { continue };
-            let el = self.view(s).1;
+            let el = union.clone();
             let Some(winner) = self.row(s).to().first() else { continue };
             let mut base = el.clone();
             base.remove(winner);
@@ -464,34 +469,37 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             .collect()
     }
 
-    /// The keys that have left the room (their own leaving) or been removed from its roster (a counted unseat of
-    /// their roster seat) among `p`, and not been seated again after it there. `anchor`: a row of the set whose
-    /// past `p` is read as (only `p` is read).
-    fn departed(&self, anchor: usize, p: &[usize], obj: &ObjOf<R>) -> BTreeSet<R::Key> {
+    /// Each leaving of the room (the key's own end of its stay) or counted removal from its roster among `p`, with
+    /// the row, the key not seated again after it there.
+    fn departures(&self, p: &[usize], obj: &ObjOf<R>) -> Vec<(R::Key, usize)> {
         let g = &self.c.g;
-        let mut out = left_in_past(&Past::new(g, anchor, p), obj, "member");
-        for &u in p {
-            let ur = self.row(u);
-            let roster = ur.scope().is_some_and(|s| self.law.roster_seats.iter().any(|x| x == s.as_ref()));
-            if ur.seat_kind() != SeatKind::Unseat
-                || ur.obj().as_ref() != Some(obj)
-                || !roster
-                || ur.conf() != Some(Conf::Group)
-            {
-                continue;
-            }
-            for k in ur.to() {
-                let again = p.iter().any(|&m| {
-                    let mr = self.row(m);
-                    mr.seat_kind() == SeatKind::Offer
-                        && mr.obj().as_ref() == Some(obj)
-                        && mr.to().contains(k)
-                        && roster_offer(self.law, mr)
-                        && g.in_past(u, m)
-                });
-                if !again {
-                    out.insert(k.clone());
+        let by: BTreeMap<&R::Id, &R> = p.iter().map(|&i| (self.row(i).id(), self.row(i))).collect();
+        let again = |k: &R::Key, d: usize| {
+            p.iter().any(|&m| {
+                let mr = self.row(m);
+                mr.seat_kind() == SeatKind::Offer
+                    && mr.obj().as_ref() == Some(obj)
+                    && mr.to().contains(k)
+                    && roster_offer(self.law, mr)
+                    && g.in_past(d, m)
+            })
+        };
+        let mut out = Vec::new();
+        for &w in p {
+            let wr = self.row(w);
+            match wr.seat_kind() {
+                SeatKind::Withdraw => {
+                    if stay_end(self.law, &by, wr).as_ref() == Some(obj) && !again(wr.signer(), w) {
+                        out.push((wr.signer().clone(), w));
+                    }
                 }
+                SeatKind::Unseat => {
+                    let roster = wr.scope().is_some_and(|s| self.law.roster_seats.iter().any(|x| x == s.as_ref()));
+                    if wr.obj().as_ref() == Some(obj) && roster && wr.conf() == Some(Conf::Group) {
+                        out.extend(wr.to().iter().filter(|k| !again(k, w)).map(|k| (k.clone(), w)));
+                    }
+                }
+                _ => {}
             }
         }
         out

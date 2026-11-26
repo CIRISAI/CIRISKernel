@@ -776,12 +776,20 @@ def closure(Ek, rows, past, obj):
                 says.setdefault(view(seat_ids[a["of"]])[2], []).append(a)
                 if "say_any_receipt" not in MUT: break
     # E1 (the fifth read, G2): one base per election for a reader: a key departed (left, or removed, not seated
-    # again) over the rows held is out of it for every group alike, and its receipts count for nothing
-    gone = frozenset() if "close_leavers_kept" in MUT else departed(rows, past, obj)
+    # again) over the rows held is out of it for every group alike, and its receipts count for nothing; H1: unless
+    # its leaving (or removal) holds its receipt, which then counts, the key staying in the base (MUTATION
+    # leaving_after_receipt_voids)
+    def held_receipt(k, d):
+        return "leaving_after_receipt_voids" not in MUT and any(past(a["id"], d["id"]) for a in by_p.get(k, ()))
+    gone = frozenset() if "close_leavers_kept" in MUT else frozenset(
+        k for k, d in departures(rows, past, obj) if not any(held_receipt(k, d2) for k2, d2 in departures(rows, past, obj) if k2 == k))
+    # H2: the base is the UNION of the members at every end any seating of the election names, over the rows held
+    # (each seating still counts its own electorate, C1/F2) (MUTATION base_per_seating_electorate)
+    union = frozenset().union(*[view(q)[1] for q in seat_ids.values()])
     met_ = []
     for group, rs in sorted(says.items(), key=lambda x: sorted(x[0])):
         S = next(q for q in seat_ids.values() if view(q)[2] == group)
-        el, winner = view(S)[1], S["to"][0]
+        el, winner = (view(S)[1] if "base_per_seating_electorate" in MUT else union), S["to"][0]
         base = el - {winner} - gone
         if "base_per_group" in MUT:              # MUTATION: departed read per group, over its receipts' pasts
             base = el - {winner} - set().union(*[departed(_past_of(rows, past, a), past, obj) for a in rs])
@@ -840,6 +848,22 @@ def forkers(Ek, rows, past, obj, by, ends0=frozenset()):
     out = {k for k, rs in mine.items()
            if any(not past(a["id"], b["id"]) and not past(b["id"], a["id"]) for i, a in enumerate(rs) for b in rs[i + 1:])}
     return frozenset(k if isinstance(k, str) else k[0] for k in out)
+
+
+def departures(P, past, obj):
+    """[(key, row)]: each leaving of the room (the key's own end of its stay) or counted removal from its roster in P,
+    the key not seated again after it there."""
+    by = {q["id"]: q for q in P}
+    out = []
+    again = lambda k, d: any(m["kind"] == "offer" and m.get("obj") == obj and k in m["to"] and roster_seat(m)
+                             and past(d["id"], m["id"]) for m in P)
+    for w in P:
+        if w["kind"] == "withdraw":
+            for _, k, g in stay_ends([w], by):
+                if g == obj and not again(k, w): out.append((k, w))
+        elif w["kind"] == "unseat" and w.get("obj") == obj and w.get("scope") in ROSTER_SEATS and w.get("conf") == "group":
+            out += [(k, w) for k in w["to"] if not again(k, w)]
+    return out
 
 
 def departed(P, past, obj):

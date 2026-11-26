@@ -603,7 +603,8 @@ CASES += [
 # (5) the room of four: winners A (S1, signed by A) and B (S2, signed by B), voters C and D; B and C receipt S1, A and
 # D receipt S2. A seating is its signer's say (i): a winner that receipts the rival has said two things. Without (i)
 # nobody forks (each winner is outside its own seating's base) and both close two of three. With (i), over the ONE base
-# the election has for a reader (the electorate less the departed and the forkers over the rows held, n keys), no
+# the election has for a reader (the union of the members at every end any of its seatings names, less the departed
+# whose leaving does not hold their receipt and the forkers, over the rows held: n keys), no
 # two seatings of one election both close: a key receipting both forks, and a winner receipting the rival forks, so
 # the two receipter sets are disjoint and hold neither winner; each must be more than half of that base less its own
 # winner (n - 1), and two such sets do not fit in the n - 2 keys left. (ii) is the rule backstop: where two groups
@@ -721,6 +722,45 @@ CASES += [
     ("G3d (held): the same receipts made after B's seating: not nested, nobody", N1R + [N1L2] + G3H + [G3ED, N1L1] + G3X
      + [G3B] + [ack("k" + k.lower(), k, "ed", ("eb",)) for k in "EFG"], NOMOD("B", "D"), "G3"),
 ]
+# The sixth read. H1: an honest leaving after the close does not reopen it: a receipt counts, and its signer stays in
+# the base, where the key's leaving (or a counted removal of it) has that receipt in its past
+G6H = room(6)
+H1S2 = [ballot("ba", "A", "B"), ballot("bb", "B", "B"), elect("s2", "B", ("ba", "bb"))]
+H1S1 = [ballot("bc", "C", "C"), ballot("bd", "D", "C"), ballot("be", "E", "C"), ballot("bf", "F", "C"),
+        elect("s1", "C", ("bc", "bd", "be", "bf"))]
+H1CL = [ack("kd", "D", "s1", ("bd",)), ack("ke", "E", "s1", ("be",)), ack("kf", "F", "s1", ("bf",))]
+H1B = [G6H, LM] + H1S2 + H1S1 + H1CL
+H1NX = [ST.withdraw("wc", "C", "s1", ("kd", "ke", "kf")), ballot("n1", "A", "A", ("wc",), of="s1"),
+        ballot("n2", "D", "A", ("wc",), of="s1"), elect("en", "A", ("n1", "n2"), of="s1", vac=("wc",))]
+# H2: one base per election, the UNION of the members at every end any of its seatings names; nine members, A
+# resigns at lm2 and six rank D; A then backdates lm1, and B and C re-ballot naming both ends
+GH2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"))
+H2R = [GH2]
+_prev, _mem = "g", ["A", "B", "C"]
+for _k in "DEFGHI":
+    H2R.append(admit("a" + _k, _k, tuple(_mem), (_prev,))); _mem.append(_k); _prev = "a" + _k
+H2L2 = ST.withdraw("lm2", "A", "g", ("aI",), scope="moderate")
+H2H = [ballot("b" + k.lower(), k, "D", ("lm2",)) for k in "DEFGHI"]
+H2HON = H2R + [H2L2] + H2H + [elect("s1", "D", tuple(b["id"] for b in H2H), vac=("lm2",))] \
+    + [ack("k" + k.lower(), k, "s1", ("b" + k.lower(),)) for k in "EFGHI"]
+H2ATK = [ST.withdraw("lm1", "A", "g", ("g",), scope="moderate"), ballot("xb", "B", "B", ("lm1", "lm2")),
+         ballot("xc", "C", "B", ("lm1", "lm2")), elect("s2", "B", ("xb", "xc"), vac=("lm1", "lm2")), ack("kc", "C", "s2", ("xc",))]
+CASES += [
+    ("H1 (H1b): C's seating closed three of five (D, E, F); F leaves after, its leaving holding its receipt: the "
+     "receipt counts and F stays in the base: C", H1B + [leave("lf", "F", "g", ("kf",))], MOD("C") + NOMOD("B"), "H1"),
+    ("H1 (H1d): the chain (C resigns, A elected next on C's seating), then F leaves: the chain holds: A",
+     H1B + H1NX + [leave("lf", "F", "g", ("en",))], MOD("A"), "H1"),
+    ("H1: a counted removal of a receipter that holds its receipt leaves the close standing: C",
+     H1B + [ST.unseat("xf", "A", "F", "member", OBJ, "group", ("kf",), head=("lm",), policy="community_remove",
+                      cosigners=("B", "C", "D", "E"))], MOD("C") + NOMOD("B"), "H1"),
+    ("H1, control: a leaving that does not hold the receipt still voids it: F leaves on a row beside its receipt; two "
+     "of four, not closed, and the sets are not nested: nobody", H1B + [leave("lf", "F", "g", ("lm",))],
+     NOMOD("B", "C"), "H1"),
+    ("H2 (H2a): honest, D closed by E to I", H2HON, MOD("D"), "H2"),
+    ("H2 (H2b): B's seating over the founders' electorate (A, B, C at both ends) receipted by C: over the union base "
+     "of the election (A to I, the winner apart, A forked out) it is one of seven, and D's is five of seven: D",
+     H2HON + H2ATK, MOD("D") + NOMOD("B"), "H2"),
+]
 # b5: the old-head removal reaching the election is the head rules' (H1 to H7); this tree does not read it. Kept as a
 # case the merged tree must pass once `heads` lands: PENDING until then
 GB5 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("C",)}, cosigners=("B", "C"))
@@ -777,6 +817,7 @@ PLANTS = ("vacancy_founding", "vacancy_first_end", "electorate_at_seating", "lea
           "vacancy_unnamed", "set_inputs_unread", "void_seating_read", "seating_not_a_say", "fork_per_voice",
           "fork_cosigned", "fork_by_stated_device", "two_closes_both_stand",
           "counted_end_forks_signer", "base_per_group",
+          "leaving_after_receipt_voids", "base_per_seating_electorate",
           "leaving_before_vacancy_read")
 
 

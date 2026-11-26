@@ -32,8 +32,11 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   election); sets not nested seat nobody until a seating over the union.
 - C5, E1: the causal close: a strict majority of the electorate, the winner and the departed apart, receipting one
   seating that stood under C4 in each receipt's own past; one say per person read causally. One base per election
-  for a reader: the departed (left, or removed, not seated again) are read over the rows held, for every group
-  alike, and a departed key's receipt counts for nothing. With everyone but the winner gone the seating closes
+  for a reader: the union of the members at every end any seating of the election names, over the rows held (each
+  seating still counts its own electorate), less the departed and the forkers. The departed (left, or removed, not
+  seated again) are read over the rows held, for every group alike, and a departed key's receipt counts for
+  nothing, unless its leaving or removal holds that receipt: then the receipt counts and the key stays in the base
+  (an honest leaving after the close does not reopen it). With everyone but the winner gone the seating closes
   itself. (ii), the rule and the backstop: where more than one group of an election meets its close over the rows
   held, none is closed; nothing is picked by order.
 - The self-fork (replacing E2's "an equivocator reopens a close for all"): two rows by one key over ONE election,
@@ -70,9 +73,9 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
 - Rule for clients: each election row a key signs builds on that key's earlier rows of that election; a row that
   does not is the key saying two things, and the key is out of the election, a restored device included. Guidance
   (not a rule): build every other row a key signs on that key's own tips.
-- The reference: `models/causal_kernel/check_election.py`, 103 cases, 22 of the close read directly
+- The reference: `models/causal_kernel/check_election.py`, 109 cases, 22 of the close read directly
   (`seat::election_closed`), 3 of the line, 2 pending the head rules, every one in arrival orders and in the `seat`
-  fixture; 37 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
+  fixture; 39 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
 
 **A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
 
