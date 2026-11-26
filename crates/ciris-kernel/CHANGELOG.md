@@ -354,12 +354,13 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
   self-admission concludes nothing.
 - **H4, no exemption.** Every row that changes a roster names the newest counted changes over its object in its
   own past, or concludes nothing:
-  - a moderator's lone removal, whose signer must hold `moderate` at those heads, less a laying down of it in the
-    removal's own past;
+  - a moderator's lone removal, whose signer must hold `moderate` at those heads, read with the withdrawals in the
+    removal's own past (its laying down there);
   - a self-admission;
   - a resignation or laying down: a withdrawal of a seat over a community, among the rows it names;
-  - the members' lift. It names the removal (the newest change in its past), cites it, and is counted over the
-    members at the head the removal names. `lift_voices` no longer asks the lift to name the removal's head.
+  - the members' lift. It names the newest counted changes in its own past (the removal, as a rule) and cites the
+    removal. `lift_voices` no longer asks the lift to name the removal's head (the test `rem.head() == r.head()` is
+    gone). Its count is still taken over the members at the lift's own heads; the base is roster-kinds' follow-up.
 
   **Answers change:** a lone removal at an old head, or after its signer laid `moderate` down, concludes
   nothing (it concluded and was held out of force); a lift at the removal's head concludes nothing.
@@ -380,15 +381,45 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
 - **An election's seating** (`seat::is_election`: an offer, `Conf::Group`, policy `Policy::Ranked`) names no
   head. It is exempt from H1, H4 and the line, and every later counted row must name it. roster-kinds'
   election2 replaces the predicate.
-- Still open, for a reader with no row over the room: concurrent tips intersect. A cheap tip from the old past,
-  named beside the newest head, counts over the old roster for such a reader (two cases, marked OPEN).
-- Cases: `models/causal_kernel/check_count_heads.py`, rewritten: 45 cases by rule, 2 of them OPEN; three of roster
-  versions; the line read directly; 18 planted breaks. Attack 35 reads them; the fixtures carry them, each with
+- **Acceptances: a seat is two consents** (the ruling of 2026-11-26, (a), confirmed by the Constitution). A count
+  is taken of the members at the newest named heads, plus each seat placed by an offer in those heads' past whose
+  holder's own acceptance of it is in the counted row's own past, less every leaving or laying down in the row's
+  past. `members_at`, `members_in_scopes` and the standing `removal_in_force` reads at a lone removal's heads read
+  those acceptances with the heads' rows (`completing`). The bounds, each with a case:
+  1. the offer is in the heads' past (an offer outside it is not among the rows read, so no seat is created from
+     outside the heads);
+  2. the offer is not ended in the row's past: a withdrawal of it or of the acceptance, a counted removal of the
+     key with the offer in its past, the key's own end of its stay with the offer in its past;
+  3. in a private room, an acceptance by a key whose stay there ended completes nothing;
+  4. the acceptance is the key's own row, never a cosignature.
+
+  The withdrawals in a counted row's own past are read with its heads too (a withdrawal is no counted change, so
+  no head is read through). This replaces the lone removal's own subtraction of a laying down. A leaving ends the
+  one seat it withdraws: a second live seat of the key in that scope stands (`left_in_past`, `seated_otherwise`).
+  A duty laid down and taken up again by the holder's own acceptance of the same offer, in a lone removal's past,
+  is its standing there. **Answers change:** a newcomer whose acceptance a count has in its past is in the count's
+  base (three of five where it was three of four).
+- **The edge, stated.** Two readings are the stated weak-subjectivity edge, not holes the rules leave (marked
+  EDGE). (i) For a reader with no row over the room, concurrent tips intersect: a cheap tip from the old past,
+  named beside the newest head, counts over the old roster for such a reader. A member is never such a reader, by
+  H6. (ii) A count that omits a newcomer's acceptance its signers have seen, and needs the smaller base (three of
+  four, where with the newcomer three of five is short), concludes. It does nothing its signers could not do a
+  moment before the acceptance arrived: the acceptance is no counted change and moves no head. The newcomer's own
+  line (H6) does not hold the count behind, since it names the newest counted change the newcomer acknowledged.
+- Cases: `models/causal_kernel/check_count_heads.py`, rewritten: 54 cases by rule, 5 of them EDGE, 9 on
+  acceptances and the edge; three of roster versions; the line read directly; 20 planted breaks. Attack 35 reads them; the fixtures carry them, each with
   its reader. Existing cases rewritten so that every counted row and every seat's end names the newest counted
   changes (`seat.honest`): `check_agent_removal`, `check_duty_seats` (the version and self-`of` heads now hold
   nothing), `check_room_keys` (a merge is a counted change), `check_readmit`, `check_removal_in_force`, attack 6
-  and the checkpoint price. Crate: `tests/fold.rs` and `tests/policies.rs` name counted heads, and a unit test
-  of the line in `line.rs`. Seventeen crate plants.
+  and the checkpoint price. `check_removal_in_force`: five rows now conclude nothing with the roster unchanged
+  (their signer holds no `moderate` at the newest counted change they must name), listed in its `NOW_NOTHING`.
+  `check_room_keys` gains two acceptance cases (bounds 2 and 3). Crate: `tests/fold.rs` and `tests/policies.rs`
+  name counted heads, and a unit test of the line in `line.rs`. The generators of `tests/fast_paths.rs` (`ballot`,
+  `seat_world`) and `examples/persist_paths.rs` (`ballot`) present real rows: a founding record declaring a
+  `consensus_protocol`, every other seat a counted admission under it or under `community_invite` (signed by the
+  joiner, or completed by its own acceptance), and heads at the newest counted change, with no version rows;
+  `group_count`'s comparison takes its members and voices from the generator, not from the rows. Twenty-one crate
+  plants.
 
 **The act-to-policy binding, step 3: the refusal, and the room's declared protocol** (the Constitution's
 `governance_policy_acts.tsv`).

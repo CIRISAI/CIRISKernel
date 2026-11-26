@@ -499,7 +499,7 @@ PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone"
           "removed_receipt_kept", "lifts_unread", "conferrer_lift_unread", "cycle_one_then_other", "count_receipt_unchecked",
           "founding_duty_unread", "agent_receipt_kept", "remover_counted_over", "lone_lifts", "own_end_lifts", "receipt_before_kept",
           "failed_count_is_signers", "receipt_row_policy", "ordered_pair_cascade",
-          "lift_no_floor", "lone_any_object")
+          "lift_no_floor", "lone_any_object", "leaving_ends_key", "reaccept_unread")
 
 
 def read(S, case):
@@ -516,6 +516,28 @@ def want(case):
 # every counted row of these cases names the newest counted changes over the room in its own past (H1, H4, the heads
 # ruling of 2026-11-26): what a signer that holds its own past writes. Rows written at an older head conclude nothing.
 CASES = [(c[0], ST.honest(c[1])) + tuple(c[2:]) for c in CASES]
+
+# Rows that now conclude nothing, the roster unchanged. Each names the newest counted change in its own past (H1, H4),
+# and at that head its signer holds no `moderate`: its own laying down is in the removal's own past (the two E4
+# cases), or the newest counted change is a lone removal of the signer's own seat in force there (O4, and the ordered
+# pairs with no laying down). Before the heads ruling these rows named an older head and concluded, uncounted (E4) or
+# out of force; either way they change no seat.
+NOW_NOTHING = {
+    "the removal names the remover's laying down, at the head before it": "x",
+    "the same with another holder's receipt of it: still not counted (E4)": "x",
+    "CIRISConstitution#218, review of #48: O4, an ordered pair": "x2",
+    "CIRISConstitution#218, pin list: no cascade (review of #54): the ordered pair with no laying down": "y",
+    "CIRISConstitution#218, pin list: no cascade (review of #54): the same with x in force": "z",
+}
+
+
+def _now_nothing(c):
+    hit = [i for n, i in NOW_NOTHING.items() if c[0].startswith(n)]
+    return c if not hit else (c[0], c[1], {**c[2], **{i: F for i in hit}}) + tuple(c[3:])
+
+
+assert all(sum(c[0].startswith(n) for c in CASES) == 1 for n in NOW_NOTHING)
+CASES = [_now_nothing(c) for c in CASES]
 
 
 def answers(case):

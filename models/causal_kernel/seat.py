@@ -625,11 +625,9 @@ def lone_removal(r, P, past):
     # restores_unseated, the same break seen from the lift)
     if not MUT & {"lone_any_key", "restores_unseated"} and r["to"][0] not in members_at(P, past, r["obj"], heads, AGENT):
         return False
-    # the signer holds `moderate` at the newest heads it names, less a laying down of it in the removal's own past
-    # (MUTATION lone_leaving_unread: the laying down not read)
-    Pr = [q for q in P if past(q["id"], r["id"])] if any(q["id"] == r["id"] for q in P) else P    # the removal's own past
-    gone = frozenset() if "lone_leaving_unread" in MUT else left_in_past(Pr, r["obj"], "moderate") | stay_ended_in_past(Pr, past, r["obj"])
-    return r["signer"] in members_at(P, past, r["obj"], heads, "moderate") - gone
+    # the signer holds `moderate` at the newest heads it names, read with the withdrawals in the row's own past (its
+    # laying down of the seat there: members_at, MUTATION ends_at_heads_unread)
+    return r["signer"] in members_at(P, past, r["obj"], heads, "moderate")
 
 
 def lift_voices(r, P, past, by):
@@ -637,8 +635,8 @@ def lift_voices(r, P, past, by):
     removal it cites, less that removal's author."""
     rem = by.get(r.get("content"))
     if r["kind"] != "offer" or rem is None or rem["kind"] != "unseat" or not lone_removal(rem, P, past): return None
-    # the same seat. The re-seating names the newest counted changes in its own past, as every roster row does (H4);
-    # it is counted at the head the removal names (lift_count)
+    # the same seat. The re-seating names the newest counted changes in its own past, as every roster row does (H4),
+    # so it no longer names the removal's head (its base, the members at both heads, is roster-kinds' follow-up)
     if (rem["obj"], rem["scope"], tuple(rem["to"])) != (r["obj"], r["scope"], tuple(r["to"])):
         return None
     v = frozenset(a["signer"] for a in P if a["kind"] == "answer" and a.get("of") == rem["id"] and a.get("says") == "object"
@@ -659,7 +657,7 @@ def lift_count(r, P, past, by):
     not counted over); never fewer than two."""
     v = lift_voices(r, P, past, by)
     if v is None: return False
-    heads = by[r["content"]].get("head", ())              # counted at the head the removal names
+    heads = r.get("head", ())                             # the base is roster-kinds' follow-up; read at the lift's heads
     # a lift restores: the key held its `agent` seat at the head the removal names, since the removal is a lone
     # removal only of such a key (lone_removal). So a moderator's "removal" of a key never seated, and a strict
     # majority's objections, admit nothing past the room's own protocol
@@ -1129,9 +1127,13 @@ def removal_in_force(S, x, unseats, now, not_ends=frozenset(), lone_ids=frozense
     (it fell with a seat above it), E2 and E8 with no end."""
     M, obj = x["signer"], x["obj"]
     standing, duty, agents = set(), None, None
+    # the seats at each head x names, with the acceptances in x's own past that complete an offer there (a seat is
+    # two consents: the ruling of 2026-11-26 on acceptances, (a))
+    Px = [q for q in S.Cs if q["id"] in S.anc.get(x["id"], ())]
     for h in x.get("head", ()):
         sub = [q for q in S.Cs if q["id"] == h or q["id"] in S.anc.get(h, ())]
-        Q = seats_of(sub)
+        ids = frozenset(q["id"] for q in sub)
+        Q = seats_of(sub + [S.by[a] for a in completing(ids, Px, S.by, obj, lambda a, b: a in S.anc.get(b, ()))])
         standing |= {(r["offer"], r["scope"]) for r in Q.recs if r["k"] == M and r["obj"] == obj and Q._has(r, "moderate")}
         d = Q.holders("duty", obj)
         duty = d if duty is None else duty & d
@@ -1146,8 +1148,13 @@ def removal_in_force(S, x, unseats, now, not_ends=frozenset(), lone_ids=frozense
     kept = lambda E: any((E is None or E["id"] not in S.anc[q["id"]]) and (counted or E is None or not lifts_receipts(E, lone_ids, S.by))
                          for q, counted in acks)
     # an end in the past of the head x names did not end the standing live there (a seat taken up again after it)
+    # and an end that the remover's own acceptance in x's past has in its past did not end the seat that acceptance
+    # takes up again (MUTATION reaccept_unread)
+    again = lambda E, sc: "reaccept_unread" not in MUT and any(
+        a["kind"] == "accept" and a["signer"] == M and E["id"] in S.anc.get(a["id"], ()) and any(a.get("of") == o for o, _ in sc)
+        for a in Px)
     found = [(E, sc) for E, sc in standing_ends(S, x, standing, unseats, not_ends)
-             if not all(E["id"] == h or E["id"] in S.anc.get(h, ()) for h in x.get("head", ()))]
+             if not all(E["id"] == h or E["id"] in S.anc.get(h, ()) for h in x.get("head", ())) and not again(E, sc)]
     ended = frozenset().union(*(sc for _, sc in found)) if found else frozenset()
     live = {(r["offer"], r["scope"]) for r in now.recs if r["k"] == M and r["obj"] == obj}
     if now.stands(M, "moderate", obj) and ("reseat_revives" in MUT or any(s in live and s not in ended for s in standing)):
@@ -1231,12 +1238,51 @@ def members_at(P, past, obj, heads, scope="member"):
     """The live `scope` seats over obj, read from the rows in the past of the heads only. Several heads: the
     keys common to all of them (KERNEL.md section 7)."""
     out = None
+    by = None
     for h in count_heads(heads, P, past):              # the count is read at the newest heads named
         sub = [q for q in P if q["id"] == h or past(q["id"], h)]
         if not any(q["id"] == h for q in sub): return frozenset()
-        m = seats_of(sub).holders(scope, obj)
+        by = by or {q["id"]: q for q in P}
+        ids = {q["id"] for q in sub}
+        # a lone removal at the heads that the remover's own ending, in the counted row's past, puts out of force is
+        # read so there: the withdrawals in that past are read with the heads (a withdrawal is no counted change, so
+        # no head is read through; MUTATION ends_at_heads_unread)
+        ends = [] if "ends_at_heads_unread" in MUT else [w for w in P if w["kind"] == "withdraw" and w["id"] not in ids]
+        m = seats_of(sub + ends + [by[a] for a in completing(ids, P, by, obj, past)]).holders(scope, obj)
         out = m if out is None else out & m
     return out or frozenset()
+
+
+def completing(sub_ids, P, by, obj, past):
+    """The acceptances in a counted row's own past P that complete a seat placed at its heads (a seat is two
+    consents: the ruling of 2026-11-26 on acceptances, (a)), read with the heads' rows: each signed by the key the
+    offer seats (bound (4): never a cosignature, never another key's row), of an offer in the heads' past (bound (1):
+    no seat is created from outside the heads), the offer not ended in P (bound (2): a withdrawal of it or of the
+    acceptance, a counted removal of the key with the offer in its past, or the key's own end of its stay with the
+    offer in its past; bound (3): in a private room a key whose stay ended completes nothing). The leavings in P are
+    read with the heads too (members_at). MUTATIONS acceptance_unread; acceptance_ends_unread (an ended offer
+    completed)."""
+    if "acceptance_unread" in MUT: return []
+    stays = None
+    out = set()
+    for a in P:
+        if a["id"] in sub_ids: continue
+        if a["kind"] != "accept": continue
+        o = by.get(a.get("of"))
+        if o is None or o["kind"] != "offer": continue
+        if o["id"] not in sub_ids: continue
+        for k in ([a["signer"]] if a["signer"] in o["to"] else []):
+            if "acceptance_ends_unread" not in MUT:
+                if any(w["kind"] == "withdraw" and w["target"] in (o["id"], a["id"]) for w in P): continue
+                if any(u["kind"] == "unseat" and k in u["to"] and u.get("obj") == o.get("obj") and past(o["id"], u["id"])
+                       for u in P): continue
+                stays = stay_ends(P, by) if stays is None else stays
+                # the key's own end of its stay ends every seating of it in that scope in the end's past (check_room_keys,
+                # a second seat row); in a private room a key whose stay ended completes nothing at all
+                private = private_room(by, obj)
+                if any(k2 == k and g == obj and (private or past(o["id"], w["id"])) for w, k2, g in stays): continue
+            out.add(a["id"])
+    return sorted(out)
 
 
 _SEATS_OF = {}
@@ -1308,9 +1354,37 @@ def left_in_past(P, obj, scope="member", past=None):
         ts = w["scope"] if w.get("scope") is not None and "scope_unread" not in MUT else t.get("scope") if t else None
         if t is None or t.get("obj") not in (obj, None) or ts not in (scope, None): continue
         if (t["kind"] == "accept" and t["signer"] == w["signer"]) or (t["kind"] == "offer" and w["signer"] in t["to"]):
-            if not seated_after(P, past, obj, w["signer"], w, lambda m: m["scope"] == scope):
-                out.add(w["signer"])
+            k = w["signer"]
+            if seated_after(P, past, obj, k, w, lambda m: m["scope"] == scope): continue
+            # a leaving ends the one seat it withdraws: an acceptance of an offer in that scope by the key after the
+            # leaving seats it again (the offer stands), and another seat of the key in that scope, not withdrawn in
+            # P, still stands (MUTATION leaving_ends_key: a leaving of one seat ends every seat of the key)
+            if "leaving_ends_key" not in MUT and _seated_otherwise(P, by, past, obj, k, w, t, scope): continue
+            out.add(k)
     return frozenset(out)
+
+
+def _seated_otherwise(P, by, past, obj, k, w, t, scope):
+    """Whether k holds a seat in `scope` over obj in P other than the one the leaving w withdraws (t): k's own
+    acceptance, after w, of an offer seating it in that duty (a duty laid down and taken up again; a roster seat's end
+    is the end of the key's stay, which ends every seating of it in the end's past, check_room_keys); or another such
+    offer, accepted or signed by k, that no
+    withdrawal in P ends."""
+    def offer_for(m):
+        return m is not None and m["kind"] == "offer" and m.get("obj") == obj and k in m.get("to", ()) and m["scope"] == scope
+    gone = {x["target"] for x in P if x["kind"] == "withdraw"}
+    for a in P:
+        if a["kind"] == "accept" and a["signer"] == k and offer_for(by.get(a.get("of"))) and a["id"] not in gone \
+                and a.get("of") not in gone and past(w["id"], a["id"]) and scope not in ROSTER_SEATS:
+            return True
+    t_offer = t["id"] if t["kind"] == "offer" else t.get("of")
+    for m in P:
+        # an offer after the leaving is a seating again, read by seated_after
+        if not offer_for(m) or m["id"] in (t_offer, t["id"]) or m["id"] in gone or past(w["id"], m["id"]): continue
+        if k in signers(m) or any(a["kind"] == "accept" and a["signer"] == k and a.get("of") == m["id"] and a["id"] not in gone
+                                  for a in P):
+            return True
+    return False
 
 
 def stay_ended_in_past(P, past, obj):
@@ -1395,7 +1469,7 @@ def honest(rows, ids=None):
     out = []
     for r in rows:
         if ids is None or r["id"] in ids:
-            if r.get("conf") == "group" and r.get("head") and not is_election(r):
+            if r["kind"] in ("offer", "unseat") and r.get("conf") == "group" and r.get("head") and not is_election(r):
                 hs = newest_in(r, r["obj"]) or (r["obj"],)
                 r = dict(r, head=hs, names=tuple(dict.fromkeys(tuple(r["names"]) + hs)))
             elif r["kind"] == "withdraw" and by.get(r["target"], {}).get("kind") in ("offer", "accept"):

@@ -164,13 +164,16 @@ trusting an adapter.
   `over` is not read for a count: a counted row stating another object concludes nothing. A moderator's lone
   removal, a self-admission, a resignation (a withdrawal of a seat over a room) and a lift name the newest
   counted changes too. A reader's line is drawn from every row the reader signed or cosigned over the room, so
-  pass `own` for a member reading its own roster.
+  pass `own` for a member reading its own roster. A seat is two consents: an admission the joiner does not sign
+  seats it where its own acceptance (a `SeatKind::Accept` by the joiner, `of` the admission) is in the counted
+  row's past, even when the acceptance is in no head's past. Present the acceptance as the joiner's own row; a
+  cosignature is no acceptance.
 - Each counted node carries its real voices (signer, cosigners, cosign rows it names), its policy word and its
   threshold. `members_at` does not read them; `Seats::tips_fold` does, for every addition not common to the
   tips, and an addition with no member's voice waits.
 - A resignation is a `SeatKind::Withdraw` by the member, targeting the offer that seats it or its own
-  acceptance. It is no tip. It takes effect at a head only where some node in that head's past names it; a
-  node extending the same head does not have it in its past.
+  acceptance, and naming the newest counted changes. It is no tip and no head. A counted row with it in its own
+  past reads it with the heads it names; a row that does not have it in its past does not.
 - A founder is whatever scope the caller seats it in. `members_at(.., scope)` answers for the scope asked.
 - `SeatRow::regime`: the protocol and policy in force at each counted act, on every counted act.
 

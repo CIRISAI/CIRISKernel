@@ -45,6 +45,7 @@ struct S {
     rec: Option<(u32, i64, Option<i64>)>,
     revokes: Option<(u32, i64)>,
     room: Option<Obj<u32, u32>>,
+    protocol: Option<String>,
 }
 
 impl S {
@@ -69,6 +70,7 @@ impl S {
             rec: None,
             revokes: None,
             room: None,
+            protocol: None,
         }
     }
 }
@@ -128,6 +130,9 @@ impl SeatRow for S {
     fn target(&self) -> Option<&u32> {
         self.target.as_ref()
     }
+    fn consensus_protocol(&self) -> Option<&String> {
+        self.protocol.as_ref()
+    }
     fn weights(&self) -> &[(u32, u64)] {
         &self.weights
     }
@@ -183,13 +188,54 @@ const POLICIES: &[(&str, Policy)] = &[
     ("not_a_count", Policy::NotACount),
 ];
 
+/// The protocols a generated room's founding record may declare: each met when every member signs.
+const PROTOCOLS: &[&str] = &["one", "strict", "atleast", "unanimous"];
+
 fn law() -> SeatLaw {
+    // the admissions' policies besides the counted rows': under the room's declared protocol, or the invitation's
+    let admit = [("cosigned_act", Policy::Protocol), ("community_invite", Policy::AtLeast(2, 3))];
     SeatLaw {
         roster_seats: vec!["member".into(), "founder".into()],
         depth: 1,
-        policy: POLICIES.iter().map(|(w, p)| (w.to_string(), *p)).collect(),
+        policy: POLICIES.iter().chain(admit.iter()).map(|(w, p)| (w.to_string(), *p)).collect(),
         ..Default::default()
     }
+}
+
+/// A counted admission of `k` to `scope` over the room (row 0) at `head`, signed by `by` and `signers`: under the
+/// room's declared protocol, or under `community_invite`. `joins`: `k` signs it too (its own yes); otherwise its
+/// own acceptance completes the seat.
+fn admission(id: u32, k: u32, scope: &str, by: u32, signers: &[u32], head: u32, joins: bool, protocol: bool) -> S {
+    let mut o = S::new(id, vec![head], by, SeatKind::Offer);
+    o.to = vec![k];
+    o.scope = Some(scope.into());
+    o.obj = Some(Obj::Row(0));
+    o.conf = Some(Conf::Group);
+    o.cosigners = signers.iter().copied().filter(|&x| x != by && x != k).collect();
+    if joins && k != by {
+        o.cosigners.push(k);
+    }
+    o.head = vec![head];
+    o.policy = Some(if protocol { "cosigned_act" } else { "community_invite" }.into());
+    o
+}
+
+/// A withdrawal by `k` of the seat row `t`, naming the newest counted change in its past (`newest`).
+fn leaving(id: u32, k: u32, t: u32, newest: u32) -> S {
+    let mut w = S::new(id, if t == newest { vec![t] } else { vec![t, newest] }, k, SeatKind::Withdraw);
+    w.target = Some(t);
+    w
+}
+
+/// The founding record of the room (row 0): key 1, its founder, and the room's declared `consensus_protocol`.
+fn founding_row(g: &mut Lcg) -> S {
+    let mut f = S::new(0, Vec::new(), 1, SeatKind::Offer);
+    f.to = vec![1];
+    f.scope = Some("member".into());
+    f.obj = Some(Obj::Row(0));
+    f.conf = Some(Conf::Own);
+    f.protocol = Some(PROTOCOLS[pick(g, PROTOCOLS.len() as u64) as usize].into());
+    f
 }
 
 fn pick(g: &mut Lcg, n: u64) -> u64 {
@@ -212,85 +258,82 @@ fn ballot(g: &mut Lcg) -> Ballot {
     let n = 1 + pick(g, 9) as u32; // members 1..=n; key 1 founds the group
     let founders: BTreeSet<u32> = (1..=n).filter(|_| pick(g, 3) == 0).collect();
     let counted = if pick(g, 3) == 0 { "founder" } else { "member" };
-    let mut rows = Vec::new();
-    let mut gr = S::new(0, Vec::new(), 1, SeatKind::Offer);
-    gr.to = vec![1];
-    gr.scope = Some("member".into());
-    gr.obj = Some(Obj::Row(0));
-    gr.conf = Some(Conf::Own);
-    rows.push(gr);
-    let seat = |id: u32, k: u32, scope: &str| {
-        let mut o = S::new(id, vec![0], 1, SeatKind::Offer);
-        o.to = vec![k];
-        o.scope = Some(scope.into());
-        o.obj = Some(Obj::Row(0));
-        o.conf = Some(Conf::Own);
-        if k != 1 {
-            o.cosigners = vec![k];
-        }
-        o
-    };
-    for k in 2..=n {
-        rows.push(seat(100 + k, k, "member"));
-    }
-    for &f in &founders {
-        rows.push(seat(200 + f, f, "founder"));
-    }
-    let mut version: Vec<u32> = rows.iter().map(|r| r.id).collect();
+    // the founding record declares the room's protocol; every other seat is a counted admission in one chain,
+    // each at the newest counted change before it and signed by every member seated there (so met under any
+    // protocol listed), under that protocol or under `community_invite`; the joiner signs it, or accepts it by its
+    // own row, named by the next admission or only by the counted row (a seat is two consents: its acceptance in
+    // the counted row's past completes it there)
+    let mut rows = vec![founding_row(g)];
     let mut in_c: Vec<u32> = Vec::new();
-    // some keys leave a seat: a withdrawal by the key of the offer that seats it, in the head's past or only
-    // in the counted row's
+    let mut seated: Vec<u32> = vec![1];
+    let mut head = 0u32;
+    let mut pending: Vec<u32> = Vec::new(); // rows for the next admission to name
     let mut left: BTreeSet<u32> = BTreeSet::new();
-    for k in 1..=n {
+    // some keys leave a seat: a withdrawal by the key of the row that seats it, naming the newest counted change
+    // (H4), in the next admission's past or only in the counted row's (key 1 signs every admission, and leaves
+    // only in the counted row's past)
+    let mut late: Vec<(u32, u32, u32)> = Vec::new(); // (withdrawal, key, row withdrawn), named by the counted row
+    let mut leaves = |g: &mut Lcg, k: u32, t: u32, founder_seat: bool, last: bool, rows: &mut Vec<S>, head: u32| {
         if pick(g, 5) != 0 {
-            continue;
+            return None;
         }
-        let founder_seat = founders.contains(&k) && pick(g, 2) == 0;
-        let t = if founder_seat {
-            200 + k
-        } else if k == 1 {
-            0
-        } else {
-            100 + k
-        };
-        let mut w = S::new(300 + k, vec![t], k, SeatKind::Withdraw);
-        w.target = Some(t);
-        rows.push(w);
         if (founder_seat && counted == "founder") || (!founder_seat && counted == "member") {
             left.insert(k);
         }
-        // key 1, which signs the head, keeps its seat in the head's past
-        if pick(g, 2) == 0 && k != 1 {
-            version.push(300 + k);
+        let id = if founder_seat { 500 + k } else { 300 + k };
+        if !last && k != 1 && pick(g, 2) == 0 {
+            rows.push(leaving(id, k, t, head));
+            Some(id)
         } else {
-            in_c.push(300 + k);
+            late.push((id, k, t));
+            None
+        }
+    };
+    let mut seatings: Vec<(u32, u32, &str)> = (2..=n).map(|k| (100 + k, k, "member")).collect();
+    seatings.extend(founders.iter().map(|&f| (200 + f, f, "founder")));
+    let m = seatings.len();
+    if let Some(id) = leaves(g, 1, 0, false, m == 0, &mut rows, head) {
+        pending.push(id);
+    }
+    for (j, (id, k, scope)) in seatings.into_iter().enumerate() {
+        // a founder's seat is always signed by its holder (a unanimous count of members needs the member's yes)
+        let joins = scope == "founder" || pick(g, 3) != 0;
+        let mut a = admission(id, k, scope, 1, &seated, head, joins, pick(g, 2) == 0);
+        a.names.append(&mut pending);
+        rows.push(a);
+        head = id;
+        if scope == "member" {
+            seated.push(k);
+        }
+        if !joins {
+            let mut acc = S::new(400 + k, vec![id], k, SeatKind::Accept);
+            acc.of = Some(id);
+            rows.push(acc);
+            if pick(g, 2) == 0 {
+                pending.push(400 + k);
+            } else {
+                in_c.push(400 + k);
+            }
+        }
+        if let Some(w) = leaves(g, k, id, scope == "founder", j + 1 == m, &mut rows, head) {
+            pending.push(w);
+            if scope == "member" {
+                seated.retain(|&x| x != k); // no longer a member: it signs no later admission
+            }
         }
     }
-    // the head: counted changes of the roster, since a counted row is read only at the newest counted heads in
-    // its own past, each a counted change or the founding row. 1000 names the seats and 1001 the withdrawals
-    // the head has in its past; each is signed by every key and met on one voice (key 1's)
-    let all: Vec<u32> = (2..=n).collect();
-    let head_row = |id: u32, names: Vec<u32>, head: u32| {
-        let mut h = S::new(id, names, 1, SeatKind::Offer);
-        h.to = vec![1];
-        h.scope = Some("version".into());
-        h.obj = Some(Obj::Row(0));
-        h.conf = Some(Conf::Group);
-        h.cosigners = all.clone();
-        h.head = vec![head];
-        h.policy = Some("one".into());
-        h
-    };
-    let (wds, seats): (Vec<u32>, Vec<u32>) = version.iter().partition(|&&i| (300..400).contains(&i));
-    rows.push(head_row(1000, seats, 0));
-    rows.push(head_row(1001, [vec![1000], wds].concat(), 1000));
+    for (id, k, t) in late {
+        rows.push(leaving(id, k, t, head));
+        in_c.push(id);
+    }
+    in_c.append(&mut pending);
     // the voices: members and keys of no seat (50, 51)
     let mut voices: Vec<u32> = (1..=n).chain([50, 51]).filter(|_| pick(g, 2) == 0).collect();
     // a cosignature row naming the head, a voice for the counted row
     let mut cosig = None;
     if pick(g, 3) == 0 {
         let k = 1 + pick(g, n as u64 + 1) as u32;
-        let mut c = S::new(3000, vec![1001], k, SeatKind::Cosign);
+        let mut c = S::new(3000, vec![head], k, SeatKind::Cosign);
         c.of = Some(2000);
         rows.push(c);
         in_c.push(3000);
@@ -317,13 +360,13 @@ fn ballot(g: &mut Lcg) -> Ballot {
     }
     let offer = pick(g, 3) != 0;
     let mut c =
-        S::new(2000, [vec![1001], in_c].concat(), signer, if offer { SeatKind::Offer } else { SeatKind::Unseat });
+        S::new(2000, [vec![head], in_c].concat(), signer, if offer { SeatKind::Offer } else { SeatKind::Unseat });
     c.to = to.clone();
     c.scope = Some("member".into());
     c.obj = Some(Obj::Row(0));
     c.conf = Some(Conf::Group);
     c.cosigners = voices.clone();
-    c.head = vec![1001];
+    c.head = vec![head];
     c.policy = Some(word.into());
     c.counted = Some(counted.into());
     c.need = need;
@@ -735,73 +778,80 @@ fn settle_equals_the_settle_it_replaced() {
     assert_eq!(bad, 0);
 }
 
-/// A group with member and founder seats (some offers by a key that is no own key of the group, which do not
-/// conclude), two versions, leavings in a version's past or only in a counted row's, and up to four counted
-/// rows over one or both versions in either order, counting either scope.
+/// A group with member and founder seats: counted admissions in two concurrent chains from the founding record
+/// (some signed by a key that is no member, which do not conclude), some completed by the joiner's own
+/// acceptance; two later counted admissions, 1000 at the first chain's newest and 1001 at 1000 and the second
+/// chain's (concurrent tips, intersected); leavings in the past of either or only in a counted row's; and up to
+/// four counted rows over one or both in either order, counting either scope.
 fn seat_world(g: &mut Lcg) -> Vec<S> {
     let n = 2 + pick(g, 7) as u32;
-    let mut f = S::new(0, Vec::new(), 1, SeatKind::Offer);
-    f.to = vec![1];
-    f.scope = Some("member".into());
-    f.obj = Some(Obj::Row(0));
-    f.conf = Some(Conf::Own);
-    let mut rows = vec![f];
-    let seat = |id: u32, k: u32, scope: &str, by: u32| {
-        let mut o = S::new(id, vec![0], by, SeatKind::Offer);
-        o.to = vec![k];
-        o.scope = Some(scope.into());
-        o.obj = Some(Obj::Row(0));
-        o.conf = Some(Conf::Own);
-        if k != by {
-            o.cosigners = vec![k];
-        }
-        o
-    };
+    let mut rows = vec![founding_row(g)];
+    let mut tips = [0u32, 0u32];
+    let mut seated: [Vec<u32>; 2] = [vec![1], vec![1]];
+    // the rows each of 1000 and 1001 names besides its heads, and those only a counted row names
+    let (mut v1, mut v2, mut late): (Vec<u32>, Vec<u32>, Vec<u32>) = (vec![], vec![], vec![]);
+    let mut seats: Vec<(u32, u32, usize)> = Vec::new(); // (row, key, chain)
     for k in 2..=n {
-        // by 1, the group's own key; or by 7, no own key of it: that offer does not conclude
-        rows.push(seat(100 + k, k, "member", if pick(g, 5) == 0 { 7 } else { 1 }));
-        if pick(g, 2) == 0 {
-            rows.push(seat(200 + k, k, "founder", if pick(g, 6) == 0 { 7 } else { 1 }));
+        for (base, scope) in [(100, "member"), (200, "founder")] {
+            if scope == "founder" && pick(g, 2) != 0 {
+                continue;
+            }
+            let b = (pick(g, 3) == 0) as usize;
+            let id = base + k;
+            let joins = scope == "founder" || pick(g, 3) != 0;
+            if pick(g, 5) == 0 {
+                // signed by 7 alone, no member: it does not conclude, and no admission builds on it
+                let a = admission(id, k, scope, 7, &[], tips[b], true, pick(g, 2) == 0);
+                rows.push(a);
+                if b == 0 {
+                    v1.push(id);
+                } else {
+                    v2.push(id);
+                }
+                continue;
+            }
+            let a = admission(id, k, scope, 1, &seated[b], tips[b], joins, pick(g, 2) == 0);
+            rows.push(a);
+            tips[b] = id;
+            if scope == "member" {
+                seated[b].push(k);
+            }
+            seats.push((id, k, b));
+            if !joins {
+                let mut acc = S::new(400 + k, vec![id], k, SeatKind::Accept);
+                acc.of = Some(id);
+                rows.push(acc);
+                match (b, pick(g, 3)) {
+                    (0, 0) => v1.push(400 + k),
+                    (_, 1) => v2.push(400 + k),
+                    _ => late.push(400 + k),
+                }
+            }
         }
     }
-    let (mut v1, mut v2, mut late): (Vec<u32>, Vec<u32>, Vec<u32>) = (vec![0], vec![], vec![]);
-    for r in rows.iter().skip(1) {
-        if pick(g, 3) == 0 {
-            v2.push(r.id)
-        } else {
-            v1.push(r.id)
-        }
-    }
-    for k in 2..=n {
+    // leavings, each naming the newest counted change of its chain (H4)
+    for &(t, k, b) in &seats {
         if pick(g, 4) != 0 {
             continue;
         }
-        let t = if rows.iter().any(|r| r.id == 200 + k) && pick(g, 2) == 0 { 200 + k } else { 100 + k };
-        let mut w = S::new(300 + k, vec![t], k, SeatKind::Withdraw);
-        w.target = Some(t);
-        rows.push(w);
-        match pick(g, 3) {
-            0 => v1.push(300 + k),
-            1 => v2.push(300 + k),
-            _ => late.push(300 + k),
+        let id = 600 + t;
+        rows.push(leaving(id, k, t, tips[b]));
+        match (b, pick(g, 3)) {
+            (0, 0) => v1.push(id),
+            (_, 1) => v2.push(id),
+            _ => late.push(id),
         }
     }
-    // the two versions are counted changes of the roster (a count is read only at the newest counted heads in
-    // its own past, each a counted change or the founding row): signed by every key, met on key 1's voice
-    let version = |id: u32, names: Vec<u32>, head: u32| {
-        let mut h = S::new(id, names, 1, SeatKind::Offer);
-        h.to = vec![1];
-        h.scope = Some("version".into());
-        h.obj = Some(Obj::Row(0));
-        h.conf = Some(Conf::Group);
-        h.cosigners = (2..=n).collect();
-        h.head = vec![head];
-        h.policy = Some("one".into());
-        h
-    };
-    rows.push(version(1000, v1, 0));
-    v2.push(1000);
-    rows.push(version(1001, v2, 1000));
+    // the two later counted changes: admissions of keys 8 and 9 by every key, under the room's protocol
+    let all: Vec<u32> = (1..=n).collect();
+    let mut a1 = admission(1000, 8, "member", 1, &all, tips[0], true, true);
+    a1.names.extend(v1);
+    rows.push(a1);
+    let h2: Vec<u32> = if tips[1] == 0 { vec![1000] } else { vec![1000, tips[1]] };
+    let mut a2 = admission(1001, 9, "member", 1, &[all.clone(), vec![8]].concat(), 1000, true, true);
+    a2.head = h2.clone();
+    a2.names = [h2, v2].concat();
+    rows.push(a2);
     // cosignatures for the counted rows: at one version, both, or none; some for another row
     let mut cosigs: Vec<u32> = Vec::new();
     for i in 0..pick(g, 6) as u32 {

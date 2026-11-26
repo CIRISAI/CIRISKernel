@@ -24,8 +24,13 @@ check_count_heads.py: the heads of a count, and the reader's line (the heads rul
     predicate with "a seating names its election's id row".)
 
 Each case is read as one batch and in arrival orders of its rows (every order up to six rows above the founding one,
-else the batch order, its reverse and forty shuffles). A case marked OPEN states what the rules give and is a hole the
-rules leave (for a reader with no row of its own). Each rule has a planted break, which must change a case's answer.
+else the batch order, its reverse and forty shuffles). A case marked EDGE states what the rules give at the stated
+weak-subjectivity edge: a reader with no row over the room (a member is never such a reader, by H6), and a count that
+omits an acceptance its signers have seen (it does only what they could do a moment before the acceptance arrived).
+The acceptance cases read the ruling of 2026-11-26 (a): the members at the newest named heads, plus each seat placed
+by an offer in those heads' past whose holder's own acceptance of it is in the counted row's own past, less every
+leaving in the row's past; the bounds (1) to (4) each have a case (bound (3), a private room, is check_room_keys').
+Each rule has a planted break, which must change a case's answer.
 
     python3 -I check_count_heads.py      exit 1 on any difference
 """
@@ -103,7 +108,22 @@ def elect(i, k, heads):
                           policy="moderator_election", options=(k, "C"), cosigners=(k,))]
 
 
-H1, H2, H3, H4, H5, H6, H7, H8, EL, OPEN = ("H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "election", "OPEN")
+H1, H2, H3, H4, H5, H6, H7, H8, EL, AC, EDGE = ("H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "election", "acceptance",
+                                               "EDGE")
+
+# world N: A, B and C found the room and admit D (four members); the four invite N by a counted offer N does not sign,
+# at the newest head, and N accepts it by its own row. The invitation is the newest counted change; N's acceptance is no
+# counted change and no head. A count of three: at least two thirds of four (3 of 4) is met, of five (3 of 5) is not.
+WN = [G, admit("aD", "D", ("A", "B", "C"), ("g",)),
+      ST.offer("oN", "A", "N", "member", OBJ, "group", ("aD",), head=("aD",), policy="community_invite", cosigners=("B", "C", "D"))]
+ACN = ST.accept("acN", "N", "oN")
+FOUR = frozenset("ABCD")
+
+
+def invite(i, k, signers, heads, cites=()):
+    """A counted invitation of k that k does not sign: a seat when k's own acceptance completes it."""
+    return ST.offer(i, signers[0], k, "member", OBJ, "group", tuple(heads) + tuple(cites), head=tuple(heads),
+                    policy="community_invite", cosigners=tuple(signers[1:]))
 # (rule, name, rows, reader, {row: concludes}, {scope: holders}, stale)
 CASES = [
     # ---- H1 ---------------------------------------------------------------------------------------------------------
@@ -223,12 +243,47 @@ CASES = [
     (EL, "a later admission at the newest admission, leaving the seating unnamed in its past (it names the ballots)",
      ROOM + [ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)) +
      [admit("ax", "X", FIVE, ("aG",), ("se",))], None, {"se": T, "ax": F}, {"moderate": {"D"}, "member": SEVEN}, set()),
-    # ---- holes the rules leave: OPEN, for a reader with no row of its own ---------------------------------------------
-    (OPEN, "the cheap tip and the removal by two at (tip, newest), for a reader with no row: concurrent tips intersect "
+    # ---- acceptances: the members at the heads, plus each seat placed by an offer in the heads' past whose holder's
+    # own acceptance of it is in the counted row's own past (the ruling of 2026-11-26, (a)) ---------------------------
+    (AC, "an invitation accepted, and a count by three at the invitation naming the acceptance: N counts, and three of "
+         "five is short of two thirds",
+     WN + [ACN, invite("aP", "P", ("A", "B", "C"), ("oN",), ("acN",))], None, {"oN": T, "acN": T, "aP": F},
+     {"member": FOUR | {"N"}}, set()),
+    (AC, "the same count by four of the five: met",
+     WN + [ACN, invite("aP", "P", ("A", "B", "C", "D"), ("oN",), ("acN",))], None, {"aP": T}, {"member": FOUR | {"N"}}, set()),
+    (AC, "the newcomer's acceptance completes its seat for its own count: N and three others, four of five",
+     WN + [ACN, invite("aP", "P", ("N", "A", "B", "C"), ("oN",), ("acN",))], None, {"aP": T}, {"member": FOUR | {"N"}}, set()),
+    (AC, "(1) two concurrent invitations, each accepted, and a count by three naming both tips: each seat is placed at "
+         "one tip only, so neither newcomer counts there (intersected): three of four",
+     WN[:2] + [invite("oN", "N", ("A", "B", "C", "D"), ("aD",)), invite("oM", "M", ("A", "B", "C", "D"), ("aD",)),
+               ST.accept("acN", "N", "oN"), ST.accept("acM", "M", "oM"),
+               invite("aP", "P", ("A", "B", "C"), ("oN", "oM"), ("acN", "acM"))], None, {"aP": T},
+     {"member": FOUR | {"N", "M"}}, set()),
+    (AC, "(2) the invitation withdrawn by its conferrer before the count, the acceptance in the count's past: the offer is "
+         "ended there and completes nothing, three of four",
+     WN + [ACN, ST.withdraw("wo", "A", "oN", ("acN",)), invite("aP", "P", ("A", "B", "C"), ("oN",), ("wo",))], None,
+     {"aP": T}, {}, set()),
+    (AC, "(4) a cosignature by N of the invitation is no acceptance: N is not seated and does not count, three of four",
+     WN + [ST.R("csN", "cosign", "N", ("oN",), of="oN"), invite("aP", "P", ("A", "B", "C"), ("oN",), ("csN",))], None,
+     {"aP": T}, {"member": FOUR}, set()),
+    # ---- the edge: a count that omits an acceptance its signers have seen -----------------------------------------------
+    (EDGE, "a count by three at the invitation that omits N's acceptance (its signers have seen it) and needs the smaller "
+           "base: three of four is met. It is what they could do a moment before the acceptance arrived (the next case): "
+           "the acceptance is no counted change and moves no head, so no rule tells the omission from not having seen it",
+     WN + [ACN, invite("aP", "P", ("A", "B", "C"), ("oN",))], None, {"acN": T, "aP": T},
+     {"member": FOUR | {"N"}}, set()),
+    (EDGE, "the same count with no acceptance yet: the same answer",
+     WN + [invite("aP", "P", ("A", "B", "C"), ("oN",))], None, {"aP": T}, {"member": FOUR}, set()),
+    (EDGE, "the omitting count read by N, whose acceptance is its own acknowledgement (H6): the count names the newest "
+           "counted change N acknowledged, so it is not behind N's line, and it stands for N too",
+     WN + [ACN, invite("aP", "P", ("A", "B", "C"), ("oN",))], "N", {"acN": T, "aP": T},
+     {"member": FOUR | {"N"}}, set()),
+    # ---- holes the rules leave: the stated weak-subjectivity edge (a member is never such a reader, by H6) ----------
+    (EDGE, "the cheap tip and the removal by two at (tip, newest), for a reader with no row: concurrent tips intersect "
            "to the founders' roster, and G is out",
      ROOM + [DC("dc", "B", ("g",)), remove("xg", "G", ("A", "B"), ("dc", "aG"))], None, {"dc": T, "xg": T},
      {"member": SEVEN - {"G"}}, set()),
-    (OPEN, "the packed removal of D, for a reader with no row",
+    (EDGE, "the packed removal of D, for a reader with no row",
      ROOM + [admit("p1", "X1", ("A", "B"), ("g",)), admit("p2", "X2", ("A", "B", "X1"), ("p1",)),
              remove("xd", "D", ("A", "B", "X1", "X2"), ("aG", "p2"))], None, {"p1": T, "p2": T, "xd": T},
      {"member": (SEVEN | {"X1", "X2"}) - {"D"}}, set()),
@@ -269,9 +324,26 @@ def line_answer():
 
 PLANTS = (("count_heads_unread", ST.MUT), ("all_heads_read", ST.MUT), ("head_any_row", ST.MUT), ("past_disjunct_off", ST.MUT),
           ("changes_any_object", ST.MUT), ("over_allowed", ST.MUT), ("authored_heads", ST.MUT), ("lone_exempt", ST.MUT),
-          ("lone_leaving_unread", ST.MUT), ("resign_exempt", ST.MUT), ("line_concurrent", CP.MUT), ("versions_concurrent", CP.MUT),
+          ("ends_at_heads_unread", ST.MUT), ("resign_exempt", ST.MUT), ("line_concurrent", CP.MUT), ("versions_concurrent", CP.MUT),
           ("cut_before_line", ST.MUT), ("line_void_unlisted", ST.MUT), ("line_after_cut", ST.MUT), ("acks_only", CP.MUT),
-          ("ack_excuses_none", ST.MUT), ("election_by_line", ST.MUT))
+          ("ack_excuses_none", ST.MUT), ("election_by_line", ST.MUT),
+          ("acceptance_unread", ST.MUT), ("acceptance_ends_unread", ST.MUT))
+
+
+import contextlib  # noqa: E402
+
+
+@contextlib.contextmanager
+def setting(rule):
+    """H3's cases run with the act-to-policy binding off: the binding has no act for a self-admission (the acts
+    table names none), so in the reference with it on a self-admission concludes nothing at all and H3 has nothing
+    to read. The crate's own cases (tests/fold.rs) read H3 under the self-admit policy."""
+    on = rule == H3 and "binding_off" not in ST.MUT
+    if on: ST.MUT.add("binding_off")
+    try:
+        yield
+    finally:
+        if on: ST.MUT.discard("binding_off")
 
 
 def answer(S, own, concl, holds):
@@ -296,8 +368,14 @@ def want(concl, holds, stale):
     return (dict(concl), {sc: frozenset(v) for sc, v in holds.items()}, frozenset(stale))
 
 
+def read_case(rule, rows, own, concl, holds, arrive=None):
+    with setting(rule):
+        S = CK.arrive([rows[0]] + arrive, RULE) if arrive is not None else CK.concluded(CK.kept(list(rows)), RULE)
+        return answer(S, own, concl, holds)
+
+
 def run_all():
-    return [answer(CK.concluded(CK.kept(list(rows)), RULE), own, concl, holds) for _, _, rows, own, concl, holds, _ in CASES] + \
+    return [read_case(rule, rows, own, concl, holds) for rule, _, rows, own, concl, holds, _ in CASES] + \
         [(version_answer(E, past, a), version_roster(past, R, version_answer(E, past, a))) for _, E, past, R, a, *_ in VERSIONS] + \
         [line_answer()]
 
@@ -305,12 +383,12 @@ def run_all():
 def main():
     problems, n = [], 0
     for rule, name, rows, own, concl, holds, stale in CASES:
-        got = answer(CK.concluded(CK.kept(list(rows)), RULE), own, concl, holds)
+        got = read_case(rule, rows, own, concl, holds)
         if got != want(concl, holds, stale):
             problems.append("%s %s: got %s" % (rule, name, got))
         for p in orders(rows):
             n += 1
-            if answer(CK.arrive([rows[0]] + p, RULE), own, concl, holds) != got:
+            if read_case(rule, rows, own, concl, holds, p) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in p]))
                 break
     for name, E, past, R, a, want_t, want_r in VERSIONS:
@@ -333,9 +411,9 @@ def main():
             problems.append("plant %s not caught" % p)
     for p in problems:
         print(p)
-    print("RESULT: %s: %d cases (%d OPEN), %d of roster versions, the line read directly, %d arrival orders, %d of %d planted "
+    print("RESULT: %s: %d cases (%d EDGE), %d of roster versions, the line read directly, %d arrival orders, %d of %d planted "
           "breaks caught" % ("ok" if not problems else "%d problems" % len(problems), len(CASES),
-                             sum(c[0] == OPEN for c in CASES), len(VERSIONS), n, caught, len(PLANTS)))
+                             sum(c[0] == EDGE for c in CASES), len(VERSIONS), n, caught, len(PLANTS)))
     return 1 if problems else 0
 
 

@@ -1287,20 +1287,21 @@ def t35(t):
     import check_count_heads as CH
     opens = []
     for rule, name, rows, own, concl, holds, stale in CH.CASES:
-        ref, bad = free(rows, SEAT, lambda S: CH.answer(S, own, concl, holds)); t.order(bad)
+        with CH.setting(rule):
+            ref, bad = free(rows, SEAT, lambda S: CH.answer(S, own, concl, holds)); t.order(bad)
         ok = ref == CH.want(concl, holds, stale)
-        if rule == CH.OPEN:
+        if rule == CH.EDGE:
             opens.append(name)
-            t.note("OPEN (%s): %s" % ("as stated" if ok else "NOT as stated", name))
+            t.note("EDGE (%s): %s" % ("as stated" if ok else "NOT as stated", name))
         else:
             t.fact("%s: %s" % (rule, name), ok)
     ok = all(v for _, v in t.facts)
-    return dict(cls="HOLDS" if ok else "BROKEN", who="nobody, for a reader with a row of its own over the room; for a reader with none, see the OPEN notes",
+    return dict(cls="HOLDS" if ok else "BROKEN", who="nobody, for a reader with a row of its own over the room (a member is never a reader with none, by H6); the stated weak-subjectivity edge in the EDGE notes",
                 witness="g(A,B,C) aD..aG (counted admissions to seven). ax(A+B admit X, head g, naming aG): concludes nothing (H1). "
                         "xg(A+B remove G, heads g and aG): concludes nothing (H1). A cheap tip dc (A confers moderate at g) and "
                         "xg(A+B, heads dc and aG): void for every member, whose own rows are its line (H6).",
                 protects="seat.newer_head_in_past (H1-H4, H7), seat.honest; checkpoint.acknowledgements (H6), settle and versions (H5); Seats, the line before the cut. "
-                         "Open: for a reader with no row over the room, concurrent tips intersect (%d notes)." % len(opens),
+                         "The edge, stated: for a reader with no row over the room concurrent tips intersect; a count that omits an acceptance its signers have seen does only what they could do before it arrived (%d notes)." % len(opens),
                 fix="")
 
 
