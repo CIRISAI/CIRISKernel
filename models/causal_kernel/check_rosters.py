@@ -452,7 +452,14 @@ def check_room(spec, inst, private):
     base = run(spec, worlds, c1)
     mw = [(n, [dict(r, consent="one") if r["kind"] == "offer" and r["id"] != r["obj"] else r for r in rows]) for n, rows in worlds]
     mw[2] = world("founding lists J (mutation: the founding row seats every listed key)", [ST.offer("g", "A", ("A", "B", "C", "J"), "member", "@", "self", cosigners=("B", "C", "J"))])
-    res.append(result(inst, "Inv_JoinerConsented", src, verdict_of(base), base, "no acceptance needed (consent='one')", run(spec, mw, c1, orders=False)))
+    # the plant: a row's consent='one' waives the acceptance (seat.py consent_one_waives; no flag waives it in the rule)
+    saved = set(ST.MUT)
+    ST.MUT.add("consent_one_waives")
+    try:
+        m = run(spec, mw, c1, orders=False)
+    finally:
+        ST.MUT.clear(); ST.MUT |= saved
+    res.append(result(inst, "Inv_JoinerConsented", src, verdict_of(base), base, "no acceptance needed (a row's consent='one' waives it)", m))
 
     # C2 Inv_DeclineTerminal and Inv_LeavingNotUndone
     dec = ST.withdraw("dec", "J", "ac")
@@ -719,21 +726,28 @@ def check_accord(spec, inst):
 def check_infra(spec, inst):
     res = []
     src = "CC 3.2 'Infrastructure does not vote', T6, T7"
-    g = RS.found(spec, ("f1", "f2", "f3"), scope="founder")
+    g = RS.found(spec, ("f1", "f2", "f3"), scope="founder", cohort_subkind="infrastructure")
     members = lambda S: ST.Seats(S).holders("member", "I")
     founders = lambda S: ST.Seats(S).holders("founder", "I")
-    node = RS.add(spec, "n1", ("I",), "node1", ("f1", "f2"), consent="one")
+    nodes = lambda S: ST.Seats(S).holders("node", "I")
+    # a node's seat (scope `node`) over an infrastructure community needs no acceptance, by its scope and the kind
+    node = RS.add(spec, "n1", ("I",), "node1", ("f1", "f2"), scope="node")
     aj = RS.accept(spec, "aj", "J", ("I",), scope="member")
     # I1 a node is seated with no acceptance and never votes
     worlds = [("founders seat node1; node1 and f1 widen J", [g, node, aj, RS.add(spec, "w", ("n1",), "J", ("f1", "node1"), names=("aj",))])]
     def i1(S, rows, n):
-        if "node1" not in members(S): return "node not seated"
+        if "node1" not in nodes(S): return "node not seated"
         if "J" in members(S): return "a node's voice counted"
     base = run(spec, worlds, i1)
-    with mutated(spec_attr={("I", "counted"): "member"}):
-        m = run(spec, [(n, [dict(r, counted="member") if r.get("counted") == "founder" else r for r in rows]) for n, rows in worlds], i1, orders=False)
-    res.append(result(inst, "a node is seated without consent and is never counted", src, verdict_of(base, param="counted=founder, consent=one for nodes"),
-                      base, "the count is over every member", m))
+    # the node's seat is its own scope, in no count: the plant makes its signature a voice of the founders' count
+    saved = set(ST.MUT)
+    ST.MUT.add("agent_voice")
+    try:
+        m = run(spec, worlds, i1, orders=False)
+    finally:
+        ST.MUT.clear(); ST.MUT |= saved
+    res.append(result(inst, "a node is seated without consent and is never counted", src, verdict_of(base, param="counted=founder, a node's seat by scope and kind"),
+                      base, "a node's signature is a voice of the founders' count", m))
     # I2 no single founder admits
     worlds = [("f1 alone widens J", [g, aj, RS.add(spec, "w", ("I",), "J", ("f1",), names=("aj",))]),
               ("f1 and f2 widen J", [g, aj, RS.add(spec, "w", ("I",), "J", ("f1", "f2"), names=("aj",))])]
@@ -1092,6 +1106,13 @@ def task(name):
 
 
 def main():
+    # the instances are not bound to acts (Spec.bound): the seat rule this file reads through seat.py directly reads
+    # them with the binding off, stated here and not by importing roster.py
+    with ST.binding(False):
+        return _main()
+
+
+def _main():
     t0 = time.time()
     print("== the five instances, read from the policy table")
     for name, s in RS.instances().items():

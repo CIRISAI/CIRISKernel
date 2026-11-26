@@ -418,6 +418,52 @@ told what act it is by the policy a row states.
 - The reference: `check_acts.py` has seven protocol-change cases, two tip cases, four planted breaks, and an act
   case and a query for `record_change`; all are in the fixtures. Four plants in the crate.
 
+**The act-to-policy binding: the independent read's fixes.** Fresh mesh: answers change, and the cases are rewritten.
+
+- **The protocol set is closed** (the Constitution's `consensus_protocols.tsv`, copied into `data/` at rc23
+  3670faa). A room's protocol is one of `founder_only`, `unanimous`, `majority`, `quorum:{m}/{n}` (`1 <= m <= n`,
+  whole numbers of one to nine digits, no leading zero), `weighted:{rubric}` and `open:self_admit`: new
+  `seat::RoomProtocol` (`parse`, `body`) and `seat::PROTOCOL_KINDS`. A word outside the set is no protocol: a
+  protocol row counted under it concludes nothing, and a change of the record naming it (`accord_halt`, say)
+  concludes nothing. The law's policy map no longer reads a protocol word. `two_thirds` and `one` are no protocols.
+- **A quorum's number is the record's**: `quorum:{m}/{n}` counts `m` voices, read from the word; a weighted protocol
+  reads the weights and the threshold of the record that declares it (`SeatRow::weights`, `SeatRow::need` on that
+  record). A counted row's own `need()` is never read under the room's protocol (before, one key stating `need = 1`
+  admitted or removed under `quorum`).
+- **The body of a count under the protocol is the protocol's**: the members, or the founders for `founder_only`. A
+  protocol row whose `counted()` (default `member`) is another body concludes nothing. `founder_only` states no
+  removal, so a removal under it concludes nothing.
+- **The body of a recall and a withdrawal is the act's** (CC 4.5.4 (iv), 4.5.13): an unseat of a duty counted over
+  `duty` is the duty holders' withdrawal, one counted over `member` (or none) is the recall, and one counting any
+  other body (`agent`, one duty's holders) is no act, so it concludes nothing where the binding is on. Before,
+  three agents recalled a person moderator, and two of a duty's own holders withdrew it.
+- **`kind_of` is total over founding rows**: a founding row whose scope the kinds map does not name founds a
+  community (before, `club`, `founder` or `owner` gave no kind, and the binding was off in that room). `None` only
+  for an object with no founding row.
+- **A node's seat stands by scope and kind**: a counted seat of scope `node` over an infrastructure community
+  needs no acceptance. Every other seat needs the seated key's own. `SeatRow::consent_one` is removed (it waived
+  the acceptance for any offer): an adopter implementing it deletes the method.
+- **The election seats `moderate` alone**: a ranked offer of another duty is that duty's conferral (and concludes
+  nothing under the ranked policy, which the conferral's fixed row does not take). The reference's `act_of` answers
+  no act for a counted row with no scope, as the crate does (it raised).
+- **The protocol in force** (`seat::protocol_record`, new; `protocol_of` reads it): the order among changes of the
+  record is read over the concluded rows of the row's past alone. A change naming only a row that did not conclude
+  is concurrent with what that row names (before, the crate read the whole graph and the reference the concluded
+  rows: the read found a removal one concluded and the other refused). Two newest changes agree when they state
+  the same protocol with the same numbers.
+- **The roster instances' binding is a parameter** (`roster.Spec.bound`, False for the five; `seat.binding`):
+  importing `roster.py` no longer switches the binding off process-wide.
+- **Not changed, and stated**: whether an infrastructure community may change its record (P1 to the Constitution):
+  this tag gives it no act (`record_change` is bound over a community only), so it cannot. A concurrent minority
+  change of the protocol freezes removals (two disagreeing changes: no protocol in force) until a row names both;
+  asked of the Constitution, left as is.
+- The reference: `check_acts.py` has 34 act cases, 53 refusal cases, 5 stand cases, 27 protocol words, 26 planted
+  breaks (11 new); two of the read's rows (A1: an old head's record change by removed members; A3: one founder's
+  own offer) are listed as pending the head rules and `room-keys-fix`. `check_room_keys.py`'s two-key count and
+  `check_rosters.py`'s infrastructure instance (I1: the node in scope `node`, founding record `infrastructure`) are
+  restated. Crate tests `protocol_set_replay` and `the_recall_is_told_by_its_act` (a law mapping `moderator_recall`
+  to a plain threshold: the recall is told by its act). Fourteen plants in the crate.
+
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
 - `content` reads `conferral`'s three-way `any`, later-head test and stale-head test; its own copies are gone.

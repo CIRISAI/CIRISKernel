@@ -24,6 +24,8 @@ the kernel's mechanism, unchanged. What this file adds is the PARAMETERS, and th
     recovery   the accord: a version signed by a holder's committed recovery key alone, changing only that seat
     body       infra: a conferring body that may sign one founder-adding widening while the roster is stalled
     witnessed  T6: a witnessed lineage refuses a rival head that is not witnessed (a reader-side parameter)
+    bound      the seat rule reads the act-to-policy binding for the instance's rows (False for every instance here:
+               their policies are their own names, R:..., which no act of the acts table takes)
 
 Instances are built from manifests/governance_policy.json by `instances()`.
 """
@@ -41,9 +43,10 @@ import cut as CUT      # noqa: E402
 import fork as FK      # noqa: E402
 
 CK, K, R = ST.CK, ST.K, ST.R
-# The roster instances register their own policy names (R:...) and are not bound to acts yet (a gap): the seat rule
-# reads them with the binding off, as the tables fixture's law carries no acts table.
-ST.BOUND = False
+# The roster instances register their own policy names (R:...) and are not bound to acts (a gap): each Spec says so
+# (`bound`, False for the five), and the rule and the roster here read the seat rule with the binding its spec states
+# (seat.binding). Importing this file changes nothing in seat.py: a check that reads these rows through seat.py itself
+# states the binding it reads them under, as check_rosters.py and the tables fixture (whose law carries no acts) do.
 POL = json.load(open(os.path.join(HERE, "..", "..", "data", "governance_policy.json"), encoding="utf-8"))
 TABLE = {f["family"]: f for f in POL["families"]}
 MIN_COUNT = POL["min_count"]
@@ -103,12 +106,14 @@ def window_from_table(name, family, counted, evict, declared_enact=None):
 # ---- the parameters -------------------------------------------------------------------------------------
 class Spec:
     def __init__(self, name, obj, scope, add, remove, counted=None, unit="key", floor=1, consent="own", lone=None,
-                 margin=0, need=None, recovery=False, body=None, witnessed=False, protocol_name=None, tables=(), note=""):
+                 margin=0, need=None, recovery=False, body=None, witnessed=False, protocol_name=None, tables=(), note="",
+                 bound=False):
         self.name, self.obj, self.scope, self.add, self.remove = name, obj, scope, add, remove
         self.counted = counted or scope
         self.unit, self.floor, self.consent, self.lone = unit, floor, consent, dict(lone or {})
         self.margin, self.need, self.recovery, self.body, self.witnessed = margin, need, recovery, body, witnessed
         self.protocol_name, self.tables, self.note = protocol_name, tables, note
+        self.bound = bound          # the seat rule reads the acts table for this instance's rows (none of the five does)
 
     def params(self):
         kind = lambda p: ST.POLICY.get(p)
@@ -249,6 +254,13 @@ def _recovery_commit(P, obj):
 
 
 def rule(r, P, past):
+    """The instance's rule, read with the binding its spec states (Spec.bound); a row of no instance as the caller has it."""
+    spec = SPECS.get(r.get("obj"))
+    with ST.binding(spec.bound if spec is not None else ST.BOUND):
+        return _rule(r, P, past)
+
+
+def _rule(r, P, past):
     if "dev" in r and r["dev"] not in ST.members_at(P, past, r["signer"], r["vhead"], "key"):
         return False                                                   # a nested member speaks only through a live key
     spec = SPECS.get(r.get("obj"))
@@ -344,7 +356,8 @@ def arrived(order):
 
 
 def roster(S, spec, scope=None):
-    return ST.Seats(S).holders(scope or spec.scope, spec.obj)
+    with ST.binding(spec.bound):
+        return ST.Seats(S).holders(scope or spec.scope, spec.obj)
 
 
 def snapshot(S, spec, windows=()):

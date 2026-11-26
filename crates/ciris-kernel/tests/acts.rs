@@ -83,6 +83,78 @@ fn refusal_replay() {
     assert_eq!(bad, 0);
 }
 
+/// The protocol set: the kinds the crate parses are the Constitution's table's (`consensus_protocols.tsv`, as
+/// `check_acts.py` reads it), and each word reads as seat.py's `protocol_rule` reads it.
+#[test]
+fn protocol_set_replay() {
+    use ciris_kernel::seat::{RoomProtocol, PROTOCOL_KINDS};
+    let fx = fixture("acts.json");
+    assert_eq!(fx.at("protocol_kinds").strs(), PROTOCOL_KINDS.map(String::from).to_vec());
+    let (mut cases, mut bad) = (0, 0);
+    for w in fx.at("protocol_words").arr() {
+        let word = w.arr()[0].s();
+        let want = (!w.arr()[1].is_null()).then(|| {
+            let a = w.arr()[1].arr();
+            (a[0].s().to_string(), (!a[1].is_null()).then(|| a[1].i() as u64))
+        });
+        let got = RoomProtocol::parse(word).map(|p| match p {
+            RoomProtocol::FounderOnly => ("founder_only".to_string(), None),
+            RoomProtocol::Unanimous => ("unanimous".to_string(), None),
+            RoomProtocol::Majority => ("majority".to_string(), None),
+            RoomProtocol::Quorum(m, _) => ("quorum".to_string(), Some(m)),
+            RoomProtocol::Weighted => ("weighted".to_string(), None),
+            RoomProtocol::SelfAdmit => ("open:self_admit".to_string(), None),
+            _ => ("?".to_string(), None),
+        });
+        cases += 1;
+        if got != want {
+            bad += 1;
+            eprintln!("protocol word {word:?}: got {got:?}, want {want:?}");
+        }
+    }
+    report("the protocol set against check_acts.py", cases, bad);
+    assert_eq!(bad, 0);
+}
+
+/// The recall is told by its act, not by the policy its fixed row maps to (the review of the binding): under a law
+/// that maps `moderator_recall` to a plain threshold (`StrictFloor`, the recall's own numbers), a members' unseat of a
+/// duty is still counted as the recall, over the members less the holder, the holder no voice. A, B and C of A, B,
+/// C, D sign the recall of A: as the recall, two of the three others are not more than two thirds; as a plain count,
+/// three of four would be.
+#[test]
+fn the_recall_is_told_by_its_act() {
+    use ciris_kernel::layers::{conclude, kept};
+    use ciris_kernel::seat::{seat_rule, Policy};
+    use common::DictCut;
+    let fx = fixture("acts.json");
+    let fixed = law_of(fixture("seat.json").at("law"));
+    let Some(Policy::Recall(n, d, l)) = fixed.policy.get("moderator_recall").copied() else {
+        panic!("the fixture's law maps moderator_recall to the recall")
+    };
+    let mut plain = fixed.clone();
+    plain.policy.insert("moderator_recall".into(), Policy::StrictFloor(n, d, l));
+    let c = fx
+        .at("conclude")
+        .arr()
+        .iter()
+        .find(|c| c.at("name").s().starts_with("a members' unseat of a duty is the recall"))
+        .expect("the recall case");
+    let refs: BTreeMap<String, String> =
+        c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+    let mut rows = rows_with_refs(c.at("rows").arr(), &refs);
+    let at = rows.iter().position(|r| r.id == "r").expect("the recall");
+    for (signers, want) in [(["B", "C", "A"], false), (["B", "C", "D"], true)] {
+        rows[at].signer = signers[0].into();
+        rows[at].cosigners = signers[1..].iter().map(|k| k.to_string()).collect();
+        for law in [&fixed, &plain] {
+            let k = kept(&rows, |_| true);
+            let cc = conclude(k, |p| seat_rule(p, law, &DictCut, &|_| true), None);
+            let i = cc.g.rows().iter().position(|r| r.id == "r").expect("the recall");
+            assert_eq!(cc.concluded(i), want, "the recall signed by {signers:?}");
+        }
+    }
+}
+
 #[test]
 fn no_table_binds_nothing() {
     let law = SeatLaw::default();

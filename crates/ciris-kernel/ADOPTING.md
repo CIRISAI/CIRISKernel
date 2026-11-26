@@ -83,22 +83,37 @@ migrations, and the local operational store.
 - `seat::act_of(law, get, row)` is the act a counted row is, and `seat::policy_for(law, act, scope, kind)` the
   policy rows it may take: ask these rather than keeping a list of your own.
 - With `acts: Some(..)`, the seat rule refuses a counted row whose stated policy its act may not take
-  (`act_of`, `policy_for`). A fixed act's row may state its one policy or none. A protocol row (`cosigned_act`,
-  `community_remove`, `Policy::Protocol`) is counted under the room's declared protocol.
-- Present a community's founding record with its declared protocol (`SeatRow::consensus_protocol()`), a word
-  your law's policy map names, and its `cohort_subkind()` (`infrastructure` for an infrastructure community). With none, the room concludes no removal and no
-  `cosigned_act` admission. Read it with `seat::protocol_of(p, obj)` (the row's past) rather than from any other
-  row: it gives the newest change of the record there (a counted `record` offer carrying `consensus_protocol`),
-  or the founding record's. Emit the notice `hard_case:community_consensus_protocol_change` for a change.
+  (`act_of`, `policy_for`). A fixed act refuses a different stated policy and accepts its own or none; a row's
+  choice (`row`) is one of those listed, stated. A protocol row (`cosigned_act`, `community_remove`,
+  `wa_adjudication`: `Policy::Protocol`) is counted under the room's protocol in force, over the protocol's body
+  (the members; the founders for `founder_only`): a row counting another body concludes nothing.
+- You MUST implement `SeatRow::consensus_protocol()` on a community's records. It defaults to `None`, and with
+  `None` no room has a protocol: no removal and no admission under the room's protocol concludes in any room.
+  Present the founding record with its protocol, a word of the closed set (`seat::RoomProtocol::parse`:
+  `founder_only`, `unanimous`, `majority`, `quorum:{m}/{n}`, `weighted:{rubric}`, `open:self_admit`), and its
+  `cohort_subkind()` (`infrastructure` for an infrastructure community). A quorum's `m` is the word's; a weighted
+  protocol's weights and threshold are the declaring record's `weights()` and `need()`. A counted row's `need()`
+  is never read under the protocol. Read the protocol with `seat::protocol_of(p, obj)` or `seat::protocol_record`
+  (the row's past) rather than from any other row: it gives the newest change of the record there (a counted
+  `record` offer carrying `consensus_protocol`, ordered over the concluded rows), or the founding record's. Emit
+  the notice `hard_case:community_consensus_protocol_change` for a change.
+- An infrastructure community cannot change its record in this tag (no `record_change` row binds over it; asked of
+  the Constitution). A concurrent minority change of a room's protocol leaves no protocol in force, so removals
+  wait, until a row names both changes.
+- An unseat of a duty counts over `duty` (the holders' withdrawal) or `member` (the recall), exactly: any other
+  `counted()` concludes nothing.
 - A counted row's `regime()`, where you state one, must be the protocol in force in its past, or it concludes
   nothing; the kernel derives the regime it waits on at tips.
-- A node's seat (`seat::NODE`) over an infrastructure community is on the roster, no voice and in no base.
+- A node's seat (`seat::NODE`) over an infrastructure community is on the roster, no voice and in no base. A
+  counted seat of scope `node` there stands on the founders' count alone (no acceptance asked); every other seat
+  needs the seated key's own consent. `SeatRow::consent_one` is gone: no flag on a row waives an acceptance.
+- `seat::kind_of` gives every founding row a kind: a scope `SeatLaw::kinds` does not name founds a community.
 - The store's query: `seat::policy_for(law, act, scope, kind)` gives the policy rows an act may take and whether
   the row chooses. `seat::act_of(law, get, row)` gives a row's act; `seat::kind_of` gives an object's kind.
 - The windows' specs (`window::WindowSpec`, chosen by a row's `window()` name) stay the caller's: no act binding
   reads them in this tag.
-- The election's seating is the one act read from the policy the row states (`Policy::Ranked`). The election is
-  not answered safely by this tag: a caller must not rely on a ranked seating.
+- The election's seating is the one act read from the policy the row states (`Policy::Ranked`), and of
+  `moderate` only. The election is not answered safely by this tag: a caller must not rely on a ranked seating.
 
 ## Points to settle before adoption
 

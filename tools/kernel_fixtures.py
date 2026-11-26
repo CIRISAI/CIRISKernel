@@ -484,7 +484,6 @@ def table_cases():
     import seat as ST
     import window as WN
     import cut as CUT
-    ST.BOUND = False           # the roster instances are not bound to acts yet: this law carries no acts table
     out = {"witnesses": [], "rosters": [], "other_rules": []}
     for c in WIT.CASES:
         worlds = [("main", c["rows"])] + [("variant " + v[0], v[1]) for v in c["variants"]] + \
@@ -693,7 +692,8 @@ def acts_cases():
         conclude.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "bound": wb, "unbound": wu})
     return {"acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS),
             "roster_seats": list(ST.ROSTER_SEATS), "duties": list(ST.DUTIES), "cases": cases, "queries": queries,
-            "conclude": conclude}
+            "conclude": conclude, "protocol_kinds": list(ST.PROTOCOL_KINDS),
+            "protocol_words": [[w, list(ST.protocol_rule(w)) if ST.protocol_rule(w) else None] for w, _ in AC.PROTOCOL_WORDS]}
 
 
 def main():
@@ -709,9 +709,9 @@ def main():
         return 1
     dump("seat.json", seat, out)
     dump("purge.json", purge_cases(), out)
-    dump("tables.json", table_cases(), out)
     import seat as _ST
-    _ST.BOUND = True           # every later fixture reads the seat rule with the binding on
+    with _ST.binding(False):   # the roster instances are not bound to acts (Spec.bound): this law carries no acts table
+        dump("tables.json", table_cases(), out)
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
     dump("acts.json", acts_cases(), out)

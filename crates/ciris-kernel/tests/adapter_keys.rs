@@ -7,8 +7,10 @@ mod common;
 use common::{fixture, J};
 use std::collections::BTreeSet;
 
-/// Keys no rule reads by design: the model's own bookkeeping, carried for the reader of the fixture.
-const IGNORED: [&str; 2] = ["family", "id"];
+/// Keys no rule reads by design: the model's own bookkeeping, carried for the reader of the fixture; and `consent`,
+/// a flag no rule reads (no flag on a row waives the seated key's acceptance: the cases carry it to show it waives
+/// nothing).
+const IGNORED: [&str; 3] = ["consent", "family", "id"];
 
 /// Each fixture whose rows a crate rule reads, with the sources of the adapters that read them. (`tables.json`
 /// replays recorded verdicts, not its rows.)

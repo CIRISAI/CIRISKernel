@@ -45,3 +45,4 @@ one row under a root grant and an owner binding (check_conferral_two.py case tab
 one row under a root grant and an owner binding, one row not held (undecided, never a wrong bit)
 act_of and policy_for against check_acts.py
 the act-to-policy refusal against check_acts.py
+the protocol set against check_acts.py

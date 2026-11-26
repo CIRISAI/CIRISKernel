@@ -255,10 +255,10 @@ CASES += [
     ("two admissions of one person at once, under two room keys: both seat. No rule of standing reads a binding, so "
      "the kernel cannot tell them from two persons (a residual: the collapse is the caller's)", TWO_ROW, TWO, {"ak1": T, "ak2": T}, M4 | {"q", "AG", "k1", "k2"},
      [("k1", "member", T), ("k2", "member", T)]),
-    ("each is a voice in the room's count: a removal signed by three members and both keys is met (5 of 7)", TWO_ROW,
-     TWO + [HEAD, XQ2(("m1", "m2", "m3", "k1", "k2"))], {"xq": T}, M4 | {"AG", "k1", "k2"}, []),
-    ("and without the second key's signature it is not (4 of 7)", TWO_ROW,
-     TWO + [HEAD, XQ2(("m1", "m2", "m3", "k1"))], {"xq": F}, M4 | {"q", "AG", "k1", "k2"}, []),
+    ("each is a voice in the room's count: a removal signed by two members and both keys is met (4 of 7, the room's "
+     "majority)", TWO_ROW, TWO + [HEAD, XQ2(("m1", "m2", "k1", "k2"))], {"xq": T}, M4 | {"AG", "k1", "k2"}, []),
+    ("and without the second key's signature it is not (3 of 7)", TWO_ROW,
+     TWO + [HEAD, XQ2(("m1", "m2", "k1"))], {"xq": F}, M4 | {"q", "AG", "k1", "k2"}, []),
 ]
 PLANTS = ("room_key_unread", "public_final", "lone_final", "resign_not_final", "reaccept_reseats", "own_end_unread",
           "own_end_any_seat", "stay_one_row")

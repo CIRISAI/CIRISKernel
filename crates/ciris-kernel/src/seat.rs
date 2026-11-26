@@ -180,10 +180,6 @@ pub trait SeatRow: Row {
     fn subjects(&self) -> &[Self::Key] {
         &[]
     }
-    /// An offer that waives the acceptance (a node has no agency); refused under [`Conf::Seat`].
-    fn consent_one(&self) -> bool {
-        false
-    }
     /// The grant carries sub-delegation: it may confer the same or narrower.
     fn sub(&self) -> bool {
         false
@@ -192,9 +188,12 @@ pub trait SeatRow: Row {
     fn head(&self) -> &[Self::Id] {
         &[]
     }
-    /// A community's founding record: the protocol its record declares (CC 3.3.4: its `consensus_protocol`), a
-    /// word the law's policy map reads. The protocol rows of the policy table (`cosigned_act`, `community_remove`:
-    /// [`Policy::Protocol`]) are counted under it ([`protocol_of`]). Read on the founding record only.
+    /// A community's record: the protocol it declares (CC 3.3.4: its `consensus_protocol`), a word of the closed
+    /// set ([`RoomProtocol::parse`]; a word outside it is no protocol). Read on the founding record and on a change
+    /// of the record (a counted offer of scope `record`). The protocol rows of the policy table (`cosigned_act`,
+    /// `community_remove`, `wa_adjudication`: [`Policy::Protocol`]) are counted under the one in force
+    /// ([`protocol_record`]). An adopter MUST implement it: with the default `None` no room has a protocol, so no
+    /// removal and no admission under the room's protocol concludes in any room.
     fn consensus_protocol(&self) -> Option<&Self::Word> {
         None
     }
@@ -228,7 +227,9 @@ pub trait SeatRow: Row {
     fn over(&self) -> Option<Obj<Self::Id, Self::Key>> {
         None
     }
-    /// A declared threshold.
+    /// A declared threshold: a counted row's, read under a policy row it states with the binding off; on a record
+    /// declaring a `weighted:{rubric}` protocol, that protocol's threshold. Never read from a row counted under the
+    /// room's protocol (a quorum's number is its word's).
     fn need(&self) -> Option<usize> {
         None
     }
@@ -260,7 +261,9 @@ pub trait SeatRow: Row {
     fn duty_holders(&self) -> &[(Self::Word, Vec<Self::Key>)] {
         &[]
     }
-    /// The whole-number weights a `weighted` count reads, from the group's signed record.
+    /// A record's whole-number weights, read by a `weighted:{rubric}` protocol on the record that declares it
+    /// ([`protocol_record`]; a counted row's own weights are read only under a policy row the row states, binding
+    /// off).
     fn weights(&self) -> &[(Self::Key, u64)] {
         &[]
     }
@@ -303,9 +306,9 @@ pub enum Policy {
     One,
     /// The threshold the row declares.
     Declared,
-    /// The room's declared protocol: the count its founding record's [`SeatRow::consensus_protocol`] names
-    /// ([`protocol_of`]); the policy table's protocol rows (`cosigned_act`, `community_remove`). Met by nothing where
-    /// the record declares none.
+    /// The room's declared protocol: the count its record in force declares ([`protocol_record`],
+    /// [`RoomProtocol`]); the policy table's protocol rows (`cosigned_act`, `community_remove`, `wa_adjudication`).
+    /// Met by nothing where no protocol of the set is in force.
     Protocol,
     /// The ranked tally: the ballots the row names, and the row seats the winner.
     Ranked,
@@ -332,6 +335,73 @@ pub enum Policy {
     Lift,
     /// Not a count (a seat, not a threshold).
     NotACount,
+}
+
+/// A room's declared protocol (CC 3.3.4: its record's `consensus_protocol`), one of the closed set of the
+/// Constitution's `consensus_protocols.tsv` (copied into `data/`): who is counted and the rule the count meets. A word
+/// outside the set is no protocol: a protocol row counted under it concludes nothing, and a change of the record naming
+/// it changes nothing. A quorum's number, and a weighted count's weights and threshold, are the record's (the word, and
+/// the record row that states it: [`SeatRow::weights`], [`SeatRow::need`]), never a counted row's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RoomProtocol {
+    /// `founder_only`: one founder signs an admission, counted over the founders (scope `founder`); the set states no
+    /// removal under it, so a removal concludes nothing.
+    FounderOnly,
+    /// `unanimous`: every member signs an admission; a removal is signed by every member but the one it names, and
+    /// those signers are a strict majority of the roster ([`Policy::Unanimous`]).
+    Unanimous,
+    /// `majority`: more than half of the members sign.
+    Majority,
+    /// `quorum:{m}/{n}`: any `m` members sign, `m` an absolute count, `1 <= m <= n`.
+    Quorum(u64, u64),
+    /// `weighted:{rubric}`: the sum of the signing members' weights reaches the threshold, both on the record.
+    Weighted,
+    /// `open:self_admit`: an admission is the joiner's own signature ([`Policy::SelfAdmit`]).
+    SelfAdmit,
+}
+
+/// The kinds of the protocol set, as `consensus_protocols.tsv` writes them, in its order.
+pub const PROTOCOL_KINDS: [&str; 6] =
+    ["founder_only", "unanimous", "majority", "quorum:{m}/{n}", "weighted:{rubric}", "open:self_admit"];
+
+/// A whole number of a protocol word: one to nine digits, no leading zero (one spelling per number).
+fn protocol_count(w: &str) -> Option<u64> {
+    let ok = (1..=9).contains(&w.len()) && w.bytes().all(|b| b.is_ascii_digit()) && !w.starts_with('0');
+    if ok {
+        w.parse().ok()
+    } else {
+        None
+    }
+}
+
+impl RoomProtocol {
+    /// The protocol a record's word names, or `None` for a word outside the set.
+    pub fn parse(w: &str) -> Option<RoomProtocol> {
+        match w {
+            "founder_only" => return Some(RoomProtocol::FounderOnly),
+            "unanimous" => return Some(RoomProtocol::Unanimous),
+            "majority" => return Some(RoomProtocol::Majority),
+            "open:self_admit" => return Some(RoomProtocol::SelfAdmit),
+            _ => {}
+        }
+        if let Some(q) = w.strip_prefix("quorum:") {
+            let (m, n) = q.split_once('/')?;
+            let (m, n) = (protocol_count(m)?, protocol_count(n)?);
+            return (m <= n).then_some(RoomProtocol::Quorum(m, n));
+        }
+        match w.strip_prefix("weighted:") {
+            Some(rubric) if !rubric.is_empty() => Some(RoomProtocol::Weighted),
+            _ => None,
+        }
+    }
+    /// The body a count under it is taken over: the founders for `founder_only`, the members otherwise.
+    pub fn body(self) -> &'static str {
+        match self {
+            RoomProtocol::FounderOnly => "founder",
+            _ => "member",
+        }
+    }
 }
 
 /// Where a conferred scope lies.
@@ -372,8 +442,9 @@ pub struct SeatLaw {
     /// concludes nothing, and one over an object with a kind whose act has no row concludes nothing. The seat
     /// fixture's law carries `Some`.
     pub acts: Option<Vec<ActRule>>,
-    /// The kind of an object, from its founding row's scope (`member` and `duty`: a community; `holder`: an
-    /// accord; `self`: a self roster). A key object is a self roster. An object with no kind has no act.
+    /// The kind of an object, from its founding row's scope (`holder`: an accord; `self`: a self roster; `member`,
+    /// `duty`, and every scope the map does not name: a community). A key object is a self roster. An object with no
+    /// founding row has no kind and no act.
     pub kinds: BTreeMap<String, CommunityKind>,
 }
 
@@ -503,7 +574,8 @@ words! {
 words! {
     /// Whether the counted row states its policy (`row`, one of those listed) or the act fixes it (`fixed`).
     Choice {
-        /// The act takes its one row, and the counted row states none.
+        /// The act takes its one row: the counted row states it or none, and a row stating another policy
+        /// concludes nothing.
         Fixed = "fixed",
         /// The counted row states one of the rows listed.
         Row = "row",
@@ -522,12 +594,13 @@ pub struct ActRule {
     pub kind: CommunityKind,
     /// The policy rows it may take.
     pub policies: Vec<String>,
-    /// Whether the row states one, or the act fixes it.
+    /// Whether the row states one of them, or the act fixes its one (stated or not; another stated is refused).
     pub choice: Choice,
 }
 
-/// The kind of `obj`: a self roster for a key object; otherwise its founding row's scope read through
-/// [`SeatLaw::kinds`]; `None` where no founding row of it is held or its scope names no kind.
+/// The kind of `obj`: a self roster for a key object; otherwise, for a founding row, its scope read through
+/// [`SeatLaw::kinds`], a community where the map names none (the binding reaches every room, whatever scope founds
+/// it); `None` where no founding row of it is held.
 pub fn kind_of<'r, R: SeatRow + 'r>(
     law: &SeatLaw,
     get: &dyn Fn(&R::Id) -> Option<&'r R>,
@@ -541,7 +614,7 @@ pub fn kind_of<'r, R: SeatRow + 'r>(
     if g.seat_kind() != SeatKind::Offer || !founding(g) {
         return None;
     }
-    let kind = law.kinds.get(g.scope()?.as_ref()).copied()?;
+    let kind = g.scope().and_then(|sc| law.kinds.get(sc.as_ref()).copied()).unwrap_or(CommunityKind::Community);
     // a community's record says whether it is an infrastructure community: `cohort_subkind`
     if kind == CommunityKind::Community && g.cohort_subkind().is_some_and(|c| c.as_ref() == "infrastructure") {
         return Some(CommunityKind::Infrastructure);
@@ -557,10 +630,11 @@ pub fn kind_of<'r, R: SeatRow + 'r>(
 ///   lift, of that seat's scope class (the table binds the agent's); an offer or unseat of a roster seat
 ///   ([`SeatLaw::roster_seats`]) is an admission or a removal of that seat; one of a detector seat
 ///   (`detect:*`) is the holders' conferral or withdrawal of that seat; an offer of a duty under the ranked count
-///   ([`Policy::Ranked`]) is the election's seating, THE ONE ACT READ FROM THE STATED POLICY in this tag (the
-///   election is not answered safely by it: a caller must not rely on a ranked seating); another offer of a duty
-///   is the duty holders' conferral; an unseat of a duty counted over a duty (`counted()`: the body the row
-///   counts) is their withdrawal, and one counted over the members is the recall. Any other scope is no act.
+///   ([`Policy::Ranked`]) of `moderate` is the election's seating, THE ONE ACT READ FROM THE STATED POLICY in this
+///   tag (the election is not answered safely by it: a caller must not rely on a ranked seating); another offer of
+///   a duty is the duty holders' conferral; an unseat of a duty counted over all the duty holders (`counted()`
+///   `duty`) is their withdrawal, and one counted over the members (`member`, or none) is the recall; an unseat of
+///   a duty counting any other body is no act. Any other scope, or none, is no act.
 /// - Over an accord: any counted row is a standing act.
 /// - Over a self roster: an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
 ///
@@ -617,15 +691,21 @@ pub fn act_of<'r, R: SeatRow + 'r>(
             }
             if offer {
                 // THE ONE ACT READ FROM THE STATED POLICY: the election is not answered safely by this tag, and a
-                // caller must not rely on a ranked seating
-                if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {
+                // caller must not rely on a ranked seating. The election seats `moderate` alone (CC 4.5.13): a ranked
+                // offer of another duty is that duty's conferral
+                if sc == "moderate" && law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {
                     return Some((Act::ElectionSeating, ScopeClass::Moderate, kind));
                 }
                 return Some((Act::DutyConfer, ScopeClass::Duty, kind));
             }
-            let counted = r.counted().map_or("member", |c| c.as_ref());
-            let act = if law.is_duty(counted, &declared) { Act::DutyWithdraw } else { Act::Recall };
-            Some((act, ScopeClass::Duty, kind))
+            // the body counted is the act's (CC 4.5.4 (iv), 4.5.13): the duty holders exactly (`duty`) withdraw a
+            // duty, the members exactly (persons: agents and nodes are in no base) recall its holder; any other body
+            // is no act
+            match r.counted().map_or("member", |c| c.as_ref()) {
+                "duty" => Some((Act::DutyWithdraw, ScopeClass::Duty, kind)),
+                "member" => Some((Act::Recall, ScopeClass::Duty, kind)),
+                _ => None,
+            }
         }
         CommunityKind::Infrastructure => {
             // the founders' own roster, and a node's seat (placed and removed by the founders' count)
@@ -663,13 +743,29 @@ fn is_amendment<R: SeatRow>(q: &R, obj: &ObjOf<R>) -> bool {
         && q.consensus_protocol().is_some()
 }
 
-/// The room's declared protocol in force in a row's past `p`: the `consensus_protocol` of the newest change of the
-/// record there (a counted change of the object: a row with it in its past has it in force), or the founding
-/// record's ([`SeatRow::consensus_protocol`]). `None` where the founding record states none, or where the newest
-/// changes disagree (two concurrent changes naming different protocols: none is in force). A seat outlasts a
-/// change of protocol: no seat is judged again under the new one (CC 4.5.4). The one read of a room's protocol:
-/// the binding's refusal and the room-key rules call it.
-pub fn protocol_of<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> Option<&'a R::Word> {
+/// The ids row `from` names, and those they name, through the rows of `by` alone: an id named and not held is in
+/// the answer and is followed no further (a row not concluded carries nothing).
+fn concluded_anc<'a, R: SeatRow>(by: &BTreeMap<&'a R::Id, &'a R>, from: &'a R) -> BTreeSet<&'a R::Id> {
+    let mut out: BTreeSet<&'a R::Id> = BTreeSet::new();
+    let mut stack: Vec<&'a R::Id> = from.names().iter().collect();
+    while let Some(i) = stack.pop() {
+        if out.insert(i) {
+            if let Some(&q) = by.get(i) {
+                stack.extend(q.names().iter());
+            }
+        }
+    }
+    out
+}
+
+/// The record row whose `consensus_protocol` is in force in a row's past `p`: the newest change of the record there
+/// (a counted change of the object: a row with it in its past has it in force), or the founding record. The order
+/// among the changes is read over the concluded rows of `p` alone (a row not concluded carries nothing: a change
+/// naming only such a row is concurrent with what that row names). `None` where `obj` has no founding row, or where
+/// the newest changes disagree (two concurrent changes stating different protocols, or the same with different
+/// numbers: none is in force). A seat outlasts a change of protocol: no seat is judged again under the new one (CC
+/// 4.5.4). The one read of a room's protocol: the binding's refusal, the count and the room-key rules call it.
+pub fn protocol_record<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> Option<&'a R> {
     let Obj::Row(i) = obj else { return None };
     let g = p.get(i)?;
     if g.seat_kind() != SeatKind::Offer || !founding(g) {
@@ -677,26 +773,48 @@ pub fn protocol_of<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> Optio
     }
     let am: Vec<&'a R> = p.rows().filter(|q| is_amendment(*q, obj)).collect();
     if am.is_empty() {
-        return g.consensus_protocol();
+        return Some(g);
     }
-    let newest: Vec<&'a R> =
-        am.iter().copied().filter(|q| !am.iter().any(|x| x.id() != q.id() && p.past(q.id(), x.id()))).collect();
-    let words: BTreeSet<&str> = newest.iter().filter_map(|q| q.consensus_protocol()).map(|w| w.as_ref()).collect();
-    if words.len() == 1 {
-        newest.first().and_then(|q| q.consensus_protocol())
-    } else {
-        None
-    }
+    let by: BTreeMap<&'a R::Id, &'a R> = p.rows().map(|q| (q.id(), q)).collect();
+    let anc: Vec<BTreeSet<&'a R::Id>> = am.iter().map(|&q| concluded_anc(&by, q)).collect();
+    let newest: Vec<&'a R> = am.iter().copied().filter(|q| !anc.iter().any(|a| a.contains(q.id()))).collect();
+    let first = newest.iter().copied().min_by(|a, b| a.id().cmp(b.id()))?;
+    let stated = |q: &'a R| {
+        let w: BTreeSet<(&'a R::Key, u64)> = q.weights().iter().map(|(k, n)| (k, *n)).collect();
+        (q.consensus_protocol().map(|x| x.as_ref()), q.need(), w)
+    };
+    let one = stated(first);
+    newest.iter().all(|q| stated(*q) == one).then_some(first)
+}
+
+/// The room's declared protocol in force in a row's past `p`: [`protocol_record`]'s `consensus_protocol` (`None`
+/// where it states none, or where no record is in force).
+pub fn protocol_of<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> Option<&'a R::Word> {
+    protocol_record(p, obj).and_then(|g| g.consensus_protocol())
+}
+
+/// What a counted row is counted under ([`policy_in_force`]).
+struct InForce<'a, R: SeatRow> {
+    /// The policy.
+    pol: Option<Policy>,
+    /// The threshold a declared or weighted count reads: the record's under the room's protocol (a quorum's `m`, a
+    /// weighted count's threshold), the row's own otherwise.
+    need: Option<usize>,
+    /// The row whose weights a weighted count reads: the record under the room's protocol, `None` for the row's own.
+    weights: Option<&'a R>,
 }
 
 /// The policy a counted row is counted under, or `Err(())`: the row concludes nothing. With the binding on
-/// ([`SeatLaw::acts`] `Some`), from the row's act ([`act_of`]) and the acts table: a fixed act's one row (the row
-/// may state it or none), or the row's own choice among those listed; a counted row over an object with a kind
-/// whose act has no row, or that states a policy its act may not take, concludes nothing. A protocol row
-/// ([`Policy::Protocol`]) is counted under the founding record's protocol ([`protocol_of`]), never one the row
-/// states, and concludes nothing where the record states none. With the binding off, the row's own policy, a
-/// protocol row read the same way.
-fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> Result<Option<Policy>, ()> {
+/// ([`SeatLaw::acts`] `Some`), from the row's act ([`act_of`]) and the acts table: a fixed act refuses a different
+/// stated policy and accepts its own or none; a row's choice is one of those listed, stated. A counted row over an
+/// object with a kind whose act has no row, or that states a policy its act may not take, concludes nothing; so does a
+/// change of the record naming a word outside the protocol set ([`RoomProtocol::parse`]). A protocol row
+/// ([`Policy::Protocol`]) is counted under the room's protocol in force in the row's past ([`protocol_record`]), never
+/// one the row states, over the protocol's own body ([`RoomProtocol::body`]: the row's `counted()`, default `member`,
+/// must be it) and with the record's numbers, never the row's `need()`; it concludes nothing where no protocol of the
+/// set is in force, where the row counts another body, or for a removal under `founder_only` (the set states none).
+/// With the binding off, the row's own policy and need, a protocol row read the same way.
+fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> Result<InForce<'a, R>, ()> {
     let get = |i: &R::Id| p.get(i);
     let get: &dyn Fn(&R::Id) -> Option<&'a R> = &get;
     let stated = r.policy().map(|x| x.as_ref());
@@ -729,15 +847,34 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
                 if r.regime().is_some_and(|g| r.obj().and_then(|o| protocol_of(p, &o)) != Some(g)) {
                     return Err(());
                 }
+                // a change of the record that states a protocol names one of the set, or concludes nothing
+                if act == Act::RecordChange
+                    && r.consensus_protocol().is_some_and(|w| RoomProtocol::parse(w.as_ref()).is_none())
+                {
+                    return Err(());
+                }
             }
         }
     }
     let pol = law.policy_of(word);
-    if pol == Some(Policy::Protocol) {
-        let proto = r.obj().and_then(|o| protocol_of(p, &o)).ok_or(())?;
-        return Ok(law.policy_of(Some(proto.as_ref())));
+    if pol != Some(Policy::Protocol) {
+        return Ok(InForce { pol, need: r.need(), weights: None });
     }
-    Ok(pol)
+    let rec = r.obj().and_then(|o| protocol_record(p, &o)).ok_or(())?;
+    let proto = rec.consensus_protocol().and_then(|w| RoomProtocol::parse(w.as_ref())).ok_or(())?;
+    if r.counted().map_or("member", |c| c.as_ref()) != proto.body() {
+        return Err(());
+    }
+    let (pol, need) = match proto {
+        RoomProtocol::FounderOnly if r.seat_kind() != SeatKind::Offer => return Err(()),
+        RoomProtocol::FounderOnly => (Policy::One, None),
+        RoomProtocol::Unanimous => (Policy::Unanimous, None),
+        RoomProtocol::Majority => (Policy::Strict(1, 2), None),
+        RoomProtocol::Quorum(m, _) => (Policy::Declared, Some(usize::try_from(m).map_err(|_| ())?)),
+        RoomProtocol::Weighted => (Policy::Weighted, rec.need()),
+        RoomProtocol::SelfAdmit => (Policy::SelfAdmit, None),
+    };
+    Ok(InForce { pol: Some(pol), need, weights: Some(rec) })
 }
 
 /// Whether counted row `r` is the members' lift: its act ([`act_of`]) where the binding is on and the object has a
@@ -1240,12 +1377,18 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             })
         };
         // `signed`: whether k signed the offer, read by the caller once per offer's signer set
+        let by_get = |i: &R::Id| by.get(i).copied();
         let accepted = |oi: usize, o: &R, k: &R::Key, signed: bool| {
             if signed {
                 return !own_void(oi, o, k);
             }
-            if o.consent_one() {
-                return o.conf() != Some(Conf::Seat);
+            // a node's seat over an infrastructure community stands on the founders' count alone (a node has no
+            // agency): by its scope and the object's kind; every other seat needs the seated key's own acceptance
+            if o.conf() == Some(Conf::Group)
+                && o.scope().is_some_and(|x| x.as_ref() == NODE)
+                && o.obj().is_some_and(|ob| kind_of(law, &by_get, &ob) == Some(CommunityKind::Infrastructure))
+            {
+                return true;
             }
             acc.get(k).is_some_and(|accs| {
                 accs.iter().any(|&a| {
@@ -1660,7 +1803,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 if let Some(ok) = ok {
                     mem.retain(|m| ok.contains(m));
                 }
-                let Ok(pol) = policy_in_force(self.law, &p, r) else { return false };
+                let Ok(f) = policy_in_force(self.law, &p, r) else { return false };
+                let pol = f.pol;
                 // a re-seating's voices (its act the lift) are the objections it names, counted over the members
                 // the fold seats
                 let v = if is_lift(self.law, &|i| p.get(i), r, pol) {
@@ -1674,9 +1818,13 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 };
                 match pol {
                     Some(Policy::Ranked) => true, // an election's ballots are read by the seat rule alone
-                    _ => count_of(pol, true, r.to(), &mem, &v, r.need(), |x| {
-                        r.weights().iter().find(|(w, _)| w == x).map_or(0, |(_, n)| *n)
-                    }),
+                    _ => {
+                        // the threshold and the weights in force (the record's under the room's protocol)
+                        let wr: &R = f.weights.unwrap_or(r);
+                        count_of(pol, true, r.to(), &mem, &v, f.need, |x| {
+                            wr.weights().iter().find(|(w, _)| w == x).map_or(0, |(_, n)| *n)
+                        })
+                    }
                 }
             })
         };
@@ -2671,7 +2819,8 @@ fn duty_gate<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, p: &Past<'_, 
         return false;
     }
     // the gate reads the policy in force (the acts table's, where it binds: a fixed act's row may state none)
-    let Ok(pol) = policy_in_force(law, p, r) else { return false };
+    let Ok(f) = policy_in_force(law, p, r) else { return false };
+    let pol = f.pol;
     if pol == Some(Policy::Ranked) {
         return true;
     }
@@ -2731,7 +2880,8 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
     let is_offer = r.seat_kind() == SeatKind::Offer;
     let Some(obj) = r.obj() else { return false };
     // the count reads the policy in force (the acts table, the room's protocol), never the stated one
-    let Ok(pol) = policy_in_force(law, p, r) else { return false };
+    let Ok(f) = policy_in_force(law, p, r) else { return false };
+    let pol = f.pol;
     // the lift is told by its act where the binding is on and the object has a kind, by its policy otherwise
     if is_lift(law, &|i| p.get(i), r, pol) {
         // the overturn's count over the objections the row names, at the head the removal names
@@ -2762,9 +2912,11 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
         (_, pol) => pol,
     };
     let v = voices(r, p);
-    let count = GroupCount { policy: pol, offer: is_offer, to: r.to(), members: &mem, voices: &v, need: r.need() };
+    // the threshold and the weights in force: the record's under the room's protocol, the row's otherwise
+    let count = GroupCount { policy: pol, offer: is_offer, to: r.to(), members: &mem, voices: &v, need: f.need };
+    let wr: &R = f.weights.unwrap_or(r);
     // a ranked count was answered above, so the count answers
-    group_count(&count, |k| r.weights().iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x)).unwrap_or(false)
+    group_count(&count, |k| wr.weights().iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x)).unwrap_or(false)
 }
 
 fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(

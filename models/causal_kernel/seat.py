@@ -18,7 +18,9 @@ The conferrer is one parameter with three values (`conf` on the offer):
 Pairing. The acceptance names the offer (`of`), or the offer names the acceptance: the text has both orders
 (a widening names the joiner's acceptance; a trust acceptance names the root's charter). A key that signed the
 offer itself, as signer or as one of `cosigners` (several signatures on one row), has accepted by that.
-`consent="one"` on an offer waives the acceptance (a node has no agency); it is refused under conf=seat.
+A node's seat (scope `node`) over an infrastructure community, placed by the founders' count, needs no acceptance (a
+node has no agency): by its scope and the object's kind alone. Every other seat needs the seated key's own consent; no
+flag on a row waives it.
 
 A cosignature is a voice for an offer or an unseat only when it names every head that row is counted over. A
 voice given once is not a voice for a later row of the same content at another head.
@@ -197,7 +199,8 @@ POLICY = policy_table()
 
 def acts_table(path=None):
     """The act-to-policy binding (data/governance_policy_acts.tsv): one row per (act, scope, community kind), the policy
-    rows it may take, and whether the counted row states one of them (`row`) or the act fixes it (`fixed`)."""
+    rows it may take, and whether the counted row states one of them (`row`) or the act fixes it (`fixed`: the row
+    states it or none, and a row stating another policy concludes nothing)."""
     path = path or os.path.join(ROOT, "data", "governance_policy_acts.tsv")
     out = []
     for line in open(path, encoding="utf-8"):
@@ -210,17 +213,20 @@ def acts_table(path=None):
 ACTS = acts_table()     # read by policy_in_force (the refusal), with the binding on (BOUND)
 
 # The kind of an object (the acts table's `community_kind`, the policy table's `corridor` reading), from its founding row's
-# scope. A key object is a self roster. An object with no kind has no act.
+# scope: the scopes named here found an accord or a self roster; every other founding row founds a community. A key
+# object is a self roster. An object with no founding row has no kind and no act.
 KINDS = {"member": "community", "duty": "community", "holder": "accord", "self": "self", "key": "self"}
 
 
 def kind_of(by, obj, is_key=False):
-    """The kind of obj: `self` for a key object; else its founding row's scope read through KINDS; None otherwise."""
+    """The kind of obj: `self` for a key object; else, for a founding row, its scope read through KINDS, a community
+    where KINDS names none (the binding reaches every room, whatever scope founds it); None for an object with no
+    founding row held."""
     if is_key: return "self" if "key_kind_unread" not in MUT else None
     g = by.get(obj)
     if g is None or g["kind"] != "offer" or g.get("obj") != g["id"]: return None
     if "kind_unread" in MUT: return "community"                  # MUTATION: every founding row a community
-    k = KINDS.get(g["scope"])
+    k = KINDS.get(g["scope"]) if "kind_partial" in MUT else KINDS.get(g["scope"], "community")   # MUTATION kind_partial
     # a community's record says whether it is an infrastructure community: `cohort_subkind` (any other value, or none,
     # is a community)
     if k == "community" and g.get("cohort_subkind") == "infrastructure" and "subkind_unread" not in MUT:
@@ -234,11 +240,12 @@ def act_of(r, by, is_key=False):
         community  an offer whose `content` names an unseat of the same seat (object, scope, keys) is the lift, of
                    that seat's scope (the table binds the agent's); an offer or unseat of a roster seat is an admission
                    or a removal of that seat; one of a detector seat (`detect:*`) is the holders' conferral or
-                   withdrawal of that seat; an offer of a duty under the ranked count is the election's seating (THE
-                   ONE ACT READ FROM THE STATED POLICY, for this tag: the election is not answered safely by it);
-                   another offer of a duty is the duty holders' conferral; an unseat of a duty counted over a duty
-                   (`counted`, the body the row counts) is their withdrawal, and one counted over the members is the
-                   recall. Any other scope is no act.
+                   withdrawal of that seat; an offer of `moderate` under the ranked count is the election's seating
+                   (THE ONE ACT READ FROM THE STATED POLICY, for this tag: the election is not answered safely by it);
+                   another offer of a duty is the duty holders' conferral; an unseat of a duty counted over all the
+                   duty holders (`counted` `duty`) is their withdrawal, one counted over the members (`member`, or
+                   none) is the recall, and one counting any other body is no act. Any other scope, or none, is no
+                   act.
         accord     any counted row is a standing act.
         self       an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
     A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's."""
@@ -246,6 +253,7 @@ def act_of(r, by, is_key=False):
     obj, sc, offer = r.get("obj"), r.get("scope"), r["kind"] == "offer"
     kind = kind_of(by, obj, is_key)
     if kind is None: return None
+    if sc is None and kind != "accord": return None    # no scope: no act (as the crate)
     if kind == "community":
         c = by.get(r.get("content"))
         if offer and c is not None and c["kind"] == "unseat" and c.get("obj") == obj and c.get("scope") == sc \
@@ -262,19 +270,54 @@ def act_of(r, by, is_key=False):
         if offer:
             # THE ONE ACT READ FROM THE STATED POLICY: the election is not answered safely by this tag, and a caller must
             # not rely on a ranked seating (CIRISConstitution#241: the election is out of 0.5.0)
-            if K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "ranked" and "election_unread" not in MUT:
+            # the election seats `moderate` alone (CC 4.5.13): a ranked offer of another duty is that duty's conferral
+            if K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "ranked" and "election_unread" not in MUT \
+                    and (sc == "moderate" or "election_any_duty" in MUT):
                 return ("election_seating", "moderate", kind)
             return ("duty_confer", "duty", kind)
-        holders = is_duty(r.get("counted", "member"), dec) if "recall_by_policy" not in MUT else \
-            K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "duty"
-        return ("duty_withdraw" if holders else "recall", "duty", kind)
+        if "recall_by_policy" in MUT:
+            holders = K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "duty"
+            return ("duty_withdraw" if holders else "recall", "duty", kind)
+        # the body counted is the act's (CC 4.5.4 (iv), 4.5.13): the duty holders exactly (`duty`) withdraw a duty, the
+        # members exactly (persons: agents and nodes are in no base) recall its holder; any other body is no act
+        counted = r.get("counted", "member")
+        if "body_free" in MUT: return ("duty_withdraw" if is_duty(counted, dec) else "recall", "duty", kind)
+        if counted == "duty": return ("duty_withdraw", "duty", kind)
+        if counted == "member": return ("recall", "duty", kind)
+        return None
     if kind == "infrastructure":
         # the founders' own roster, and a node's seat (placed and removed by the founders' count; no voice, no base)
         return ("admit" if offer else "remove", sc, kind) if sc in ("founder", NODE) else None
     if kind == "accord": return ("standing_act", "any", kind)
     if kind == "self":
         own = by.get(obj, {}).get("scope")
-        return ("admit" if offer else "remove", "key", kind) if sc in ("key", own) else None
+        return ("admit" if offer else "remove", "key", kind) if sc is not None and sc in ("key", own) else None
+    return None
+
+
+# The closed set of protocols a community's record may declare (CC 3.3.4; data/consensus_protocols.tsv, its `kind`
+# column): each a count over a body, for an admission and for a removal. A word outside the set is no protocol. A
+# quorum's number, and a weighted count's weights and threshold, are the RECORD's (the word, and the record row that
+# states it), never a counted row's. The kind each word parses to, read by met()/count_of() as a policy row is.
+PROTOCOL_KINDS = ("founder_only", "unanimous", "majority", "quorum:{m}/{n}", "weighted:{rubric}", "open:self_admit")
+
+
+def _count(w):
+    """A whole number of the protocol word: one to nine digits, no leading zero (one spelling per number)."""
+    return int(w) if 1 <= len(w) <= 9 and w.isascii() and w.isdigit() and w[0] != "0" else None
+
+
+def protocol_rule(word):
+    """The protocol a record's word names: (kind, m) with kind one of PROTOCOL_KINDS' heads and m a quorum's number
+    (None otherwise), or None for a word outside the set."""
+    if not isinstance(word, str): return None
+    if word in ("founder_only", "unanimous", "majority", "open:self_admit"): return (word, None)
+    if "protocol_set_open" in MUT: return (word, None)           # MUTATION: any word is a protocol (read as majority)
+    if word.startswith("quorum:") and word.count("/") == 1:
+        m, n = (_count(x) for x in word[len("quorum:"):].split("/"))
+        if m is not None and n is not None and m <= n: return ("quorum", m)
+        return None
+    if word.startswith("weighted:") and len(word) > len("weighted:"): return ("weighted", None)
     return None
 
 
@@ -285,20 +328,31 @@ def is_amendment(q, obj):
         and q.get("consensus_protocol") is not None
 
 
-def protocol_of(by, obj):
-    """The room's declared protocol in force in a row's past (`by`: the concluded rows of that past): the
-    `consensus_protocol` of the newest amendment of the record there (a counted change of the object, so a row that
-    has it in its past has it in force), or the founding record's. None where the founding record states none, or
-    where the newest amendments disagree (two concurrent changes naming different protocols: none is in force).
-    A seat outlasts a change of protocol: no seat is judged again under the new one (CC 4.5.4)."""
+def protocol_record(by, obj):
+    """The record row whose consensus_protocol is in force in a row's past (`by`: the concluded rows of that past, and
+    the order among them read over those rows alone: a row not concluded carries nothing): the newest amendment of the
+    record there (a counted change of the object, so a row that has it in its past has it in force), or the founding
+    record. None where obj has no founding row, or where the newest amendments disagree (two concurrent changes naming
+    different protocols: none is in force). A seat outlasts a change of protocol: no seat is judged again under the new
+    one (CC 4.5.4)."""
     g = by.get(obj)
     if g is None or g["kind"] != "offer" or g.get("obj") != g["id"]: return None
     am = [q for q in by.values() if is_amendment(q, obj)] if "amendment_unread" not in MUT else []
-    if not am: return g.get("consensus_protocol")
+    if not am: return g
+    if "any_amendment" in MUT: return am[0]                    # MUTATION: any change in the past, not the newest
     anc = {q["id"]: K.ancestors(by, q["id"]) for q in am}
     newest = [q for q in am if not any(q["id"] in anc[x["id"]] for x in am)]
-    words = {q["consensus_protocol"] for q in newest}
-    return words.pop() if len(words) == 1 else None
+    # the newest changes agree when they state the same protocol, with the same numbers (a weighted count's own)
+    words = {(q["consensus_protocol"], q.get("need"), repr(sorted((q.get("weights") or {}).items()))) for q in newest}
+    if len(words) != 1 and "disagreeing_first" not in MUT: return None   # MUTATION: one of the disagreeing changes
+    return min(newest, key=lambda q: q["id"])
+
+
+def protocol_of(by, obj):
+    """The room's declared protocol in force in a row's past: protocol_record's consensus_protocol (None where it is
+    none, or where no record is in force)."""
+    rec = protocol_record(by, obj)
+    return None if rec is None else rec.get("consensus_protocol")
 
 
 def regime_of(r, by):
@@ -310,24 +364,40 @@ def regime_of(r, by):
     return protocol_of(by, r.get("obj"))
 
 
-BOUND = True            # the seat rule reads the acts table; the roster instances (roster.py) are not bound yet
+BOUND = True            # the seat rule reads the acts table (roster.py runs its instances with it off: Spec.bound)
 REFUSED = object()      # policy_in_force: the row concludes nothing
 
 
-def policy_in_force(r, by):
-    """The policy a counted row is counted under (a word of POLICY), or REFUSED. With the binding on (BOUND), from the
-    row's act (act_of) and the acts table: a fixed act's one row (the row may state it or none), or the row's own
-    choice among those listed; a counted row over an object with a kind whose act has no row, or that states another
-    policy, is REFUSED. A protocol row (cosigned_act, community_remove) is counted under the founding record's protocol
-    (protocol_of), never one the row states, and REFUSED where the record states none. With the binding off, the row's
-    own policy, a protocol row read the same way."""
+class binding:
+    """`with binding(flag):` the seat rule reads the acts table (True) or not (False) inside the block, as it was after."""
+    def __init__(self, flag): self.flag = flag
+    def __enter__(self):
+        global BOUND
+        self.saved, BOUND = BOUND, self.flag
+    def __exit__(self, *a):
+        global BOUND
+        BOUND = self.saved
+
+
+def in_force(r, by):
+    """What a counted row is counted under: {policy, need, weights} (a word of POLICY, the threshold a declared count
+    reads, the weights a weighted count reads), or REFUSED.
+    With the binding on (BOUND), the policy is the row's act's (act_of) in the acts table: a fixed act refuses a
+    different stated policy and accepts its own or none; a row's choice is one of those listed, stated. A counted row
+    over an object with a kind whose act has no row, or that states another policy, is REFUSED; so is a change of the
+    record naming a word outside the protocol set. A protocol row (cosigned_act, community_remove, wa_adjudication) is
+    counted under the room's protocol in force in the row's past (protocol_record), never one the row states, over the
+    protocol's own body (the members; the founders for founder_only) and with the record's numbers (a quorum's m, a
+    weighted count's weights and threshold), never the row's `need`. REFUSED where no protocol of the set is in force,
+    where the row counts another body, or for a removal under a protocol that states none (founder_only). With the
+    binding off, the row's own policy and need, a protocol row read the same way."""
     stated = r.get("policy")
-    word = stated
+    word, need, weights = stated, r.get("need"), r.get("weights")
     if BOUND and "binding_off" not in MUT:
         is_key = r.get("obj") is not None and r.get("obj") not in by
         a = act_of(r, by, is_key)
         if a is None:
-            return REFUSED if kind_of(by, r.get("obj"), is_key) is not None else stated
+            return REFUSED if kind_of(by, r.get("obj"), is_key) is not None else dict(policy=stated, need=need, weights=weights)
         rule = policy_for(*a)
         if rule is None: return REFUSED
         pols, choice = rule
@@ -340,11 +410,31 @@ def policy_in_force(r, by):
         # a stated regime is a consistency check: it must be the room's protocol in force in the row's past
         if r.get("regime") is not None and r.get("regime") != protocol_of(by, r.get("obj")) and "regime_unread" not in MUT:
             return REFUSED
+        # a change of the record that states a protocol names one of the set, or concludes nothing
+        if a[0] == "record_change" and r.get("consensus_protocol") is not None \
+                and protocol_rule(r.get("consensus_protocol")) is None and "protocol_set_open" not in MUT:
+            return REFUSED
     if K.rule(POLICY, word, ("unknown",))[0] == "protocol" and "protocol_unread" not in MUT:
-        proto = protocol_of(by, r.get("obj"))
-        if proto is None: return REFUSED
-        word = proto
-    return word
+        rec = protocol_record(by, r.get("obj"))
+        if "record_by_founding" in MUT and r.get("scope") == "record": rec = by.get(r.get("obj"))   # MUTATION
+        pr = protocol_rule(rec.get("consensus_protocol")) if rec is not None else None
+        if pr is None: return REFUSED
+        kind, m = pr
+        body = "founder" if kind == "founder_only" else "member"
+        if r.get("counted", "member") != body and "protocol_body_free" not in MUT: return REFUSED
+        if kind == "founder_only" and r["kind"] != "offer": return REFUSED     # the set states no removal under it
+        need, weights = None, None
+        if "row_need" in MUT: need = r.get("need")                 # MUTATION: the row's need, not the record's number
+        elif kind == "quorum": need = m
+        elif kind == "weighted": need, weights = rec.get("need"), rec.get("weights")
+        word = "P:" + kind
+    return dict(policy=word, need=need, weights=weights)
+
+
+def policy_in_force(r, by):
+    """The policy a counted row is counted under (a word of POLICY), or REFUSED: in_force's policy."""
+    f = in_force(r, by)
+    return REFUSED if f is REFUSED else f["policy"]
 
 
 def policy_for(act, scope, kind, acts=ACTS):
@@ -362,13 +452,36 @@ POLICY["moderation_overturn"] = ("lift", 1, 2)
 # CC 4.5.13: "A recall is one row cosigned by more than two thirds of the standing roster ... The floor is two voices"
 # (the table's cell reads 2/3): strictly more, with the floor, counted over the roster less the holder it recalls
 POLICY["moderator_recall"] = ("recall", 2, 3, 2)
-# A room's declared protocol (CC 3.3.4: its `consensus_protocol`), as the founding record states it: a word the policy
-# map reads like a policy row. The protocol rows of the table (`protocol` in their enact cell: cosigned_act,
-# community_remove, wa_adjudication) are counted under the founding record's protocol, never one a row states.
-PROTOCOLS = {"majority": ("strict", 1, 2), "two_thirds": ("atleast", 2, 3), "one": ("one", 1, 1), "quorum": ("declared", 0, 0)}
+# The count each protocol of the set is read as (in_force names it `P:{kind}`): the protocol rows of the table
+# (`protocol` in their enact cell: cosigned_act, community_remove, wa_adjudication) are counted under the room's protocol
+# in force, never one a row states. A quorum's m and a weighted count's threshold reach met()/count_of() as `need`.
+PROTOCOLS = {"P:majority": ("strict", 1, 2), "P:unanimous": ("unanimous", 0, 0), "P:quorum": ("declared", 0, 0),
+             "P:weighted": ("weighted", 0, 0), "P:open:self_admit": ("self_admit", 0, 0), "P:founder_only": ("one", 1, 1)}
 POLICY.update(PROTOCOLS)
-# the cases' communities declare two thirds on their founding records (the builders' default below)
-DEFAULT_PROTOCOL = "two_thirds"
+# the cases' communities declare a strict majority on their founding records (the builders' default below)
+DEFAULT_PROTOCOL = "majority"
+
+
+def count_of(policy, is_offer, to, mem, v, need=None, weights=None, table=None, signed=None):
+    """A count met by voices v (read over the voters) over the members mem, under policy: the crate's count_of. The
+    protocols' own kinds (unanimous, open:self_admit, weighted) are read here; every other kind by met(). `signed`: every
+    key that signed the row (open:self_admit reads the joiner's own signature, the joiner no member yet)."""
+    kind = K.rule(table or POLICY, policy, ("unknown", 0, 0))[0]
+    to = tuple(to)
+    if kind == "self_admit":
+        # the joiner's own signature is the group's side; a removal takes two voices besides the member it names
+        if is_offer and len(to) == 1 and to[0] not in mem: return to[0] in (v if signed is None else signed)
+        return len([k for k in v if k in mem and k not in to]) >= 2
+    if kind in ("unanimous", "weighted"):
+        # no key admits itself; under unanimous the member a removal names is no voice either
+        yes = [k for k in v & mem if not (is_offer or kind == "unanimous") or k not in to]
+        if kind == "weighted":
+            w = weights or {}
+            return need is not None and need > 0 and sum(w.get(k, 0) for k in yes) >= need
+        others = len([k for k in mem if k not in to])
+        if is_offer: return bool(mem) and len(yes) == others and all(k not in mem or k in v for k in to)
+        return len(yes) == others and 2 * len(yes) > len(mem)
+    return met(policy, len(v), len(mem), need, table)              # the caller has read v over its voters
 
 
 def met(policy, yes, n, declared=None, table=None):
@@ -739,7 +852,12 @@ class Seats:
 
         def accepted(o, k):
             if k in signers(o): return not own_void(o, o, k)
-            if o.get("consent") == "one": return o["conf"] != "seat"
+            # a node's seat over an infrastructure community stands on the founders' count alone (a node has no agency):
+            # by its scope and the object's kind; every other seat needs the seated key's own acceptance
+            if o["scope"] == NODE and o.get("conf") == "group" and "node_consent_asked" not in MUT \
+                    and kind_of(S.by, o["obj"]) == "infrastructure":
+                return True
+            if o.get("consent") == "one" and "consent_one_waives" in MUT: return o["conf"] != "seat"   # MUTATION
             for a in K.sel(Cs, kind="accept", signer=k):
                 paired = (a["of"] == o["id"]) or (a["of"] is None and a["id"] in o["names"] and a["scope"] == o["scope"]
                                                  and a["obj"] in (None, o["obj"]))
@@ -901,9 +1019,9 @@ class Seats:
                     continue
                 P = [q for q in S.Cs if q["id"] in S.anc[off]]
                 past = lambda a, b: a in S.anc[b]
-                pol = policy_in_force(r, {q["id"]: q for q in P})
-                if pol is REFUSED: return False
-                r = dict(r, policy=pol)                              # the count reads the policy in force
+                f = in_force(r, {q["id"]: q for q in P})
+                if f is REFUSED: return False
+                r = dict(r, **f)                                     # the count reads the policy in force
                 over, counted = r.get("over", r["obj"]), r.get("counted", "member")
                 if (over, counted) == (o, s): ok = seated if "one_step" not in MUT else (union - out_keys)
                 else: ok = self.tips_fold(counted, over)                 # another scope's own fold; None: one tip there
@@ -919,7 +1037,9 @@ class Seats:
                     yes = v & mem
                     if v: mem = mem - {S.by[r["content"]]["signer"]}   # the author apart (the key removed is an agent's: in no count)
                     if not room_count(yes, mem): return False
-                elif not met(r.get("policy"), len(yes), len(mem), r.get("need")): return False
+                elif not count_of(r.get("policy"), True, r.get("to", ()), mem, yes, r.get("need"), r.get("weights"),
+                                  signed=voices(r, P)):
+                    return False
             return True
 
         memo[(s, o)] = common                                   # a count over this scope asked meanwhile reads the common keys
@@ -1440,9 +1560,9 @@ def count_met(r, P, past, table=None):
     """A counted row's count (conf=group), met over its concluded ancestors P: the lift, the ranked tally, the duty
     count, or the policy's threshold over the persons at the heads it names."""
     k, by, heads = r["kind"], {q["id"]: q for q in P}, r.get("head", ())
-    pol = policy_in_force(r, by)
-    if pol is REFUSED: return False                  # its act may not take the policy it states (the acts table)
-    r = dict(r, policy=pol)                          # the count reads the policy in force, never the stated one
+    f = in_force(r, by)
+    if f is REFUSED: return False                    # its act may not take the policy it states (the acts table)
+    r = dict(r, **f)                                 # the count reads the policy in force, never the stated one
     # the lift is told by its act where the object has a kind (act_of), by its policy otherwise
     a = act_of(r, by, r.get("obj") is not None and r.get("obj") not in by) if BOUND else None
     if (a[0] == "lift" if a is not None else K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "lift"):
@@ -1467,7 +1587,8 @@ def count_met(r, P, past, table=None):
         base = mem if "recall_holder_in_base" in MUT else mem - judged
         yes = (voices(r, P) & vot) - (frozenset() if "recall_holder_voice" in MUT else judged)
         return met(r.get("policy"), len(yes), len(base), r.get("need"), table)
-    return met(r.get("policy"), len(voices(r, P) & vot), len(mem), r.get("need"), table)
+    return count_of(r.get("policy"), k == "offer", r.get("to", ()), mem, voices(r, P) & vot, r.get("need"),
+                    r.get("weights"), table, signed=voices(r, P))
 
 
 def seat_rule(r, P, past, table=None, other=None):

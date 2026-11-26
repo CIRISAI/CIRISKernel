@@ -7,14 +7,16 @@ touching `constitution/governance_policy.tsv`; the branch head was `efc31033dbf1
 table's own pin, `policy_sha256` in the two manifests, is `8d58a472cc09beda6a962a4f579da6d5fcf5a3c63fbcd62f8db81aa84c20b873`:
 a content hash of the table, not a commit. `governance_policy_acts.tsv` is copied from rc23 at commit
 `4c165f86dcb1b47aba48e6fd59985e51ebd0f9ae` (an infrastructure community's kind and a node's seat); the other three
-are unchanged there. The parent generates most
+are unchanged there. `consensus_protocols.tsv` is copied unchanged from rc23 at commit
+`3670faa01a0c228b302a8653756bb953c246df97` (the last commit touching it). The parent generates most
 of them from its rule tables; the generators are not carried, so treat these as fixed inputs.
 
 | File | What it is | Read by | From (parent) |
 |---|---|---|---|
 | `governance_policy.tsv` | the governance policy table: one row per decision family (who may decide, the counts to enact, cancel and floor, the window and its length, whether the act is irreversible). The authored source | people | `constitution/governance_policy.tsv` |
 | `governance_policy.json` | the same table as data, with each rule parsed | `seat.py`, `window.py`, `roster.py` | `manifests/governance_policy.json` |
-| `governance_policy_acts.tsv` | which row of the policy table governs which counted act: one row per (act, scope, community kind), the policy rows it may take and whether the row chooses (`row`) or the act fixes it (`fixed`). The authored source | `seat.py` (`ACTS`), into the seat fixture's law | `constitution/governance_policy_acts.tsv` |
+| `governance_policy_acts.tsv` | which row of the policy table governs which counted act: one row per (act, scope, community kind), the policy rows it may take and whether the row chooses (`row`) or the act fixes it (`fixed`: the counted row states it or none; another stated policy concludes nothing). The authored source | `seat.py` (`ACTS`), into the seat fixture's law | `constitution/governance_policy_acts.tsv` |
+| `consensus_protocols.tsv` | the closed set of `consensus_protocol` words a community's record may declare (CC 3.3.4): per kind, who is counted and the rule the count meets, for an admission and for a removal. A word outside it is no protocol | `seat.py` (`PROTOCOL_KINDS`, checked by `check_acts.py`); the crate's `seat::RoomProtocol` | `constitution/consensus_protocols.tsv` |
 | `governance_policy_vectors.json` | test vectors for the policy table: inputs and the verdict each row gives | the parent's `check_door.py` (not carried); here for reading | `manifests/governance_policy_vectors.json` |
 | `transitions.json` | the transition table: for each family, the acts, the scopes and what each does, including the key effect of each membership act | `key_plane_model.py` | `manifests/transitions.json` |
 | `witnesses.tsv` | seventeen cases where judging each row on arrival gives two results from one set of rows, with both orders and both results | `check.py` | `formal/derivation/order/witnesses.tsv` |

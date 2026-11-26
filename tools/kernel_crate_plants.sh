@@ -270,13 +270,14 @@ plant "a recall's holder a voice of it"                  src/seat.rs 'let yes = 
 plant "a runoff step's tie goes on"                      src/ranked.rs 'let Some(w) = ranked(ballots, &opts, floor, declared).0 else { break };' 'let Some(w) = ranked(ballots, &opts, floor, declared).0 else { opts.remove(0); continue };'
 plant 'the runoff order stops at its winner'             src/ranked.rs 'opts.retain(|o| *o != w);' 'opts.clear();'
 plant 'options holding no ballot eliminated one by one'  src/ranked.rs 'if s.standing.iter().any(|o| n(o) == 0) {' 'if false {'
-plant 'the duty gate reads the stated policy'           src/seat.rs '    let Ok(pol) = policy_in_force(law, p, r) else { return false };
+plant 'the duty gate reads the stated policy'           src/seat.rs '    let Ok(f) = policy_in_force(law, p, r) else { return false };
+    let pol = f.pol;
     if pol == Some(Policy::Ranked) {' '    let pol = law.policy_of(r.policy().map(|x| x.as_ref()));
     if pol == Some(Policy::Ranked) {'
 plant 'the lift told by its policy only'                src/seat.rs '        Some((act, _, _)) => act == Act::Lift,' '        Some(_) => pol == Some(Policy::Lift),'
 plant "a change of the record's protocol unread"         src/seat.rs '    if am.is_empty() {
-        return g.consensus_protocol();' '    if true {
-        return g.consensus_protocol();'
+        return Some(g);' '    if true {
+        return Some(g);'
 plant 'a change of the record no act'                   src/seat.rs '            if offer && sc == "record" {' '            if false {'
 plant 'a stated regime unread'                          src/seat.rs '                if r.regime().is_some_and(|g| r.obj().and_then(|o| protocol_of(p, &o)) != Some(g)) {' '                if false {'
 plant 'tips read by their stated regime'                src/seat.rs '                if self.law.acts.is_none() {
@@ -287,13 +288,29 @@ plant 'the acts table read by no count'                  src/seat.rs '    if law
         match (act_of(law, get, r), r.obj()) {'
 plant "a fixed act's stated policy unread"               src/seat.rs 'if stated.is_some_and(|s| s != one.as_str()) {' 'if false {'
 plant "a row's choice not held to its act's rows"        src/seat.rs 'if !stated.is_some_and(|s| pols.iter().any(|p| p == s)) {' 'if false {'
-plant 'a protocol row counted with no protocol'         src/seat.rs '    if pol == Some(Policy::Protocol) {' '    if false {'
+plant 'a protocol row counted with no protocol'         src/seat.rs '    if pol != Some(Policy::Protocol) {' '    if true {'
 plant 'act_of: the lift read as an admission'          src/seat.rs '                if lift {' '                if false {'
 plant 'act_of: a roster seat read as a duty'            src/seat.rs '            if law.roster_seats.iter().any(|x| x == sc) {' '            if false {'
-plant "act_of: the election's seating read as a conferral" src/seat.rs '                if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {' '                if false {'
+plant "act_of: the election's seating read as a conferral" src/seat.rs '                if sc == "moderate" && law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {' '                if false {'
+plant "act_of: a ranked offer of any duty the election"  src/seat.rs 'if sc == "moderate" && law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {' 'if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {'
 plant 'act_of: a detector seat read as no act'          src/seat.rs '            if sc == "detect" || sc.starts_with("detect:") {' '            if false {'
-plant 'act_of: the recall read as the withdrawal'       src/seat.rs 'let act = if law.is_duty(counted, &declared) { Act::DutyWithdraw } else { Act::Recall };' 'let act = Act::DutyWithdraw;'
-plant 'act_of: every founding row a community'          src/seat.rs '    let kind = law.kinds.get(g.scope()?.as_ref()).copied()?;' '    let kind = CommunityKind::Community;'
+plant 'act_of: the recall read as the withdrawal'       src/seat.rs '"member" => Some((Act::Recall, ScopeClass::Duty, kind)),' '"member" => Some((Act::DutyWithdraw, ScopeClass::Duty, kind)),'
+plant 'act_of: a recall or withdrawal counts any body'  src/seat.rs '                "member" => Some((Act::Recall, ScopeClass::Duty, kind)),
+                _ => None,' '                "member" => Some((Act::Recall, ScopeClass::Duty, kind)),
+                _ => Some((Act::Recall, ScopeClass::Duty, kind)),'
+plant 'act_of: every founding row a community'          src/seat.rs '    let kind = g.scope().and_then(|sc| law.kinds.get(sc.as_ref()).copied()).unwrap_or(CommunityKind::Community);' '    let kind = CommunityKind::Community;'
+plant 'kind_of: a founding scope the map names not no kind' src/seat.rs '    let kind = g.scope().and_then(|sc| law.kinds.get(sc.as_ref()).copied()).unwrap_or(CommunityKind::Community);' '    let kind = law.kinds.get(g.scope()?.as_ref()).copied()?;'
+plant 'the protocol set open: any word read as majority' src/seat.rs '    let proto = rec.consensus_protocol().and_then(|w| RoomProtocol::parse(w.as_ref())).ok_or(())?;' '    let proto = rec.consensus_protocol().and_then(|w| RoomProtocol::parse(w.as_ref()).or(Some(RoomProtocol::Majority))).ok_or(())?;'
+plant 'a change of the record may name any word'        src/seat.rs '&& r.consensus_protocol().is_some_and(|w| RoomProtocol::parse(w.as_ref()).is_none())' '&& false'
+plant "a quorum's number read from the row's need"       src/seat.rs 'RoomProtocol::Quorum(m, _) => (Policy::Declared, Some(usize::try_from(m).map_err(|_| ())?)),' 'RoomProtocol::Quorum(..) => (Policy::Declared, r.need()),'
+plant "a weighted protocol reads the row's weights"      src/seat.rs 'Ok(InForce { pol: Some(pol), need, weights: Some(rec) })' 'Ok(InForce { pol: Some(pol), need, weights: None })'
+plant "the protocol's body unread"                      src/seat.rs 'if r.counted().map_or("member", |c| c.as_ref()) != proto.body() {' 'if false {'
+plant 'founder_only states a removal'                   src/seat.rs 'RoomProtocol::FounderOnly if r.seat_kind() != SeatKind::Offer => return Err(()),' 'RoomProtocol::FounderOnly if false => return Err(()),'
+plant 'the order of changes read over the whole graph'  src/seat.rs 'let newest: Vec<&'"'"'a R> = am.iter().copied().filter(|q| !anc.iter().any(|a| a.contains(q.id()))).collect();' 'let newest: Vec<&'"'"'a R> = am.iter().copied().filter(|q| !am.iter().any(|x| x.id() != q.id() && p.past(q.id(), x.id()))).collect();'
+plant 'of disagreeing changes one in force'              src/seat.rs 'newest.iter().all(|q| stated(*q) == one).then_some(first)' 'Some(first)'
+plant 'any change of the record in force, not the newest' src/seat.rs 'newest.iter().all(|q| stated(*q) == one).then_some(first)' 'Some(am[0])'
+plant 'a change of the record counted under the founding protocol' src/seat.rs '    let rec = r.obj().and_then(|o| protocol_record(p, &o)).ok_or(())?;' '    let rec = r.obj().and_then(|o| match o { Obj::Row(i) if r.scope().is_some_and(|s| s.as_ref() == "record") => p.get(&i), o => protocol_record(p, &o) }).ok_or(())?;'
+plant "a node's seat waits for the node's acceptance"    src/seat.rs '&& o.scope().is_some_and(|x| x.as_ref() == NODE)' '&& false'
 plant "act_of: a record's cohort_subkind unread"         src/seat.rs '    if kind == CommunityKind::Community && g.cohort_subkind().is_some_and(|c| c.as_ref() == "infrastructure") {' '    if false {'
 plant 'act_of: a key object of no kind'                 src/seat.rs '        Obj::Key(_) => return Some(CommunityKind::SelfRoster),' '        Obj::Key(_) => return None,'
 plant 'a row'"'"'s concluded past read as its first row' src/layers.rs 'self.p.binary_search(&q).is_ok()' 'self.p.first() == Some(&q)'

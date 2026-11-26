@@ -287,6 +287,8 @@ pub struct TRow {
     pub duties: Vec<String>,
     /// A founding record's `duty_holders`: (duty, keys) pairs.
     pub duty_holders: Vec<(String, Vec<String>)>,
+    /// A record's `weights` (a weighted protocol's): key -> whole-number weight.
+    pub weights: Vec<(String, u64)>,
     pub sigs: Vec<String>,
     pub obj: Option<Obj<String, String>>,
     pub over: Option<Obj<String, String>>,
@@ -369,6 +371,11 @@ impl TRow {
             duty_holders: m
                 .get("duty_holders")
                 .map(|x| x.arr().iter().map(|e| (e.arr()[0].s().to_string(), e.arr()[1].strs())).collect())
+                .unwrap_or_default(),
+            weights: m
+                .get("weights")
+                .filter(|x| matches!(x, J::Obj(_)))
+                .map(|x| x.obj().iter().map(|(k, v)| (k.clone(), v.i() as u64)).collect())
                 .unwrap_or_default(),
             sigs: strs(&m, "sigs"),
             obj: o("obj"),
@@ -472,9 +479,6 @@ impl SeatRow for TRow {
     fn subjects(&self) -> &[String] {
         &self.subjects
     }
-    fn consent_one(&self) -> bool {
-        self.fs("consent") == Some("one")
-    }
     fn sub(&self) -> bool {
         self.f("sub").is_some_and(|x| x.b())
     }
@@ -516,6 +520,9 @@ impl SeatRow for TRow {
     }
     fn duties(&self) -> &[String] {
         &self.duties
+    }
+    fn weights(&self) -> &[(String, u64)] {
+        &self.weights
     }
     fn duty_holders(&self) -> &[(String, Vec<String>)] {
         &self.duty_holders
