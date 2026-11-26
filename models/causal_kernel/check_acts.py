@@ -10,10 +10,11 @@ is; each query case names (act, scope class, kind) and the policy rows and choic
 
 Planted breaks, each of which must change a case's answer:
     lift_unread         an offer naming a removal of the same seat is read as an admission, not the lift
-    election_unread     an offer of moderate naming its election is read as the duty holders' conferral
+    election_unread     an offer of a duty under the ranked count is read as the duty holders' conferral
     recall_by_policy    an unseat of a duty is told recall from withdrawal by the policy it states, not by `counted`
     kind_unread         every founding row is a community (an accord's row an admission, and so on)
     key_kind_unread     a key object has no kind
+    detect_unread       a detector seat's conferral is no act
 
     python3 -I check_acts.py      exit 1 on any difference
 """
@@ -50,7 +51,7 @@ CASES = [
     ("a removal of an agent (a lone removal by its shape)", [GM, REM], "xr", ("remove", "agent", "community")),
     ("the lift: an offer naming a removal of the same seat", [GM, REM, grp("r", "offer", "X", "agent", "moderation_overturn",
                                                                           cites=("xr",), content="xr")],
-     "r", ("lift", "act", "community")),
+     "r", ("lift", "agent", "community")),
     ("an offer naming a removal of another key's seat is an admission", [GM, REM, grp("r", "offer", "Y", "agent", "community_invite",
                                                                                         cites=("xr",), content="xr")],
      "r", ("admit", "agent", "community")),
@@ -60,16 +61,22 @@ CASES = [
      ("duty_confer", "duty", "community")),
     ("a members' count conferring moderate (no election named) is a conferral by its shape, whatever it states",
      [GM, grp("r", "offer", "B", "moderate", "community_invite")], "r", ("duty_confer", "duty", "community")),
-    ("the election's seating: an offer of moderate naming its election", [GM, grp("r", "offer", "B", "moderate", "community_invite", of="g")],
-     "r", ("election_seating", "moderate", "community")),
-    ("an offer of review naming a row is a conferral (only moderate is elected)",
-     [FH, grp("r", "offer", "B", "review", "duty_confer", counted="duty", of="g")], "r", ("duty_confer", "duty", "community")),
+    ("the election's seating: an offer of a duty under the ranked count (the one act read from the stated policy, for "
+     "this tag: the election is not answered safely by it)",
+     [GM, grp("r", "offer", "B", "moderate", "moderator_election")], "r", ("election_seating", "moderate", "community")),
+    ("an offer of moderate naming a row, under an admission's policy, is a conferral by its shape (no structural "
+     "election in this tag)",
+     [GM, grp("r", "offer", "B", "moderate", "community_invite", of="g")], "r", ("duty_confer", "duty", "community")),
     ("the holders' withdrawal: an unseat of a duty counted over the duty holders",
      [FH, grp("r", "unseat", "A", "moderate", "moderator_recall", counted="duty")], "r", ("duty_withdraw", "duty", "community")),
     ("the recall: an unseat of a duty counted over the members, whatever it states",
      [FH, grp("r", "unseat", "A", "moderate", "duty_withdraw")], "r", ("recall", "duty", "community")),
-    ("a seat the holders place that makes its holder no duty holder (a detector seat) is no act, until ruled",
-     [FH, grp("r", "offer", "N", "detect:list1", "duty_confer", counted="duty")], "r", None),
+    ("the holders' conferral of a detector seat (CC 4.5.7)",
+     [FH, grp("r", "offer", "N", "detect:list1", "duty_confer", counted="duty")], "r", ("seat_confer", "detect", "community")),
+    ("the holders' withdrawal of a detector seat (CC 4.5.7: 'withdrawn by the count of (iv)')",
+     [FH, grp("r", "unseat", "N", "detect:list1", "duty_withdraw", counted="duty")], "r", ("seat_withdraw", "detect", "community")),
+    ("another scope that is no duty and no roster seat is no act",
+     [FH, grp("r", "offer", "N", "verify2", "duty_confer", counted="duty")], "r", None),
     ("an accord's counted row is a standing act", [GA, grp("r", "offer", "h4", "holder", "accord_majority", counted="holder")], "r",
      ("standing_act", "any", "accord")),
     ("an accord's grant of another scope too", [GA, grp("r", "offer", "A2", "infra", "accord_majority", counted="holder")], "r",
@@ -93,6 +100,9 @@ QUERIES = [
     (("duty_withdraw", "duty", "community"), (("duty_withdraw",), "fixed")),
     (("recall", "duty", "community"), (("moderator_recall",), "fixed")),
     (("lift", "act", "community"), (("moderation_overturn",), "fixed")),
+    (("lift", "agent", "community"), (("moderation_overturn",), "fixed")),
+    (("seat_confer", "detect", "community"), (("duty_confer",), "fixed")),
+    (("seat_withdraw", "detect", "community"), (("duty_withdraw",), "fixed")),
     (("election_seating", "moderate", "community"), (("moderator_election",), "fixed")),
     (("standing_act", "any", "accord"), (("accord_majority",), "fixed")),
     (("admit", "key", "self"), (("self_roster_add",), "fixed")),
@@ -101,7 +111,7 @@ QUERIES = [
     (("recall", "duty", "self"), None),
 ]
 
-PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread")
+PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread")
 
 
 @contextlib.contextmanager

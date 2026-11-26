@@ -80,6 +80,8 @@ migrations, and the local operational store.
   policy rows it may take: ask these rather than keeping a list of your own.
 - The windows' specs (`window::WindowSpec`, chosen by a row's `window()` name) stay the caller's: no act binding
   reads them in this tag.
+- The election's seating is the one act read from the policy the row states (`Policy::Ranked`). The election is
+  not answered safely by this tag: a caller must not rely on a ranked seating.
 
 ## Points to settle before adoption
 

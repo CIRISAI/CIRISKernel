@@ -2,7 +2,7 @@
 //! act may take (`seat::policy_for`), replayed from `models/causal_kernel/check_acts.py` (fixture `acts.json`).
 
 mod common;
-use ciris_kernel::seat::{act_of, policy_for, Act, Choice, Kind, ScopeClass, SeatLaw};
+use ciris_kernel::seat::{act_of, policy_for, Act, Choice, CommunityKind, ScopeClass, SeatLaw};
 use common::{acts_of, fixture, report, rows_with_refs};
 use std::collections::BTreeMap;
 
@@ -35,7 +35,7 @@ fn acts_replay() {
         let (act, sc, kd) = (
             Act::from_word(&a[0]).expect("an act"),
             ScopeClass::from_word(&a[1]).expect("a scope class"),
-            Kind::from_word(&a[2]).expect("a kind"),
+            CommunityKind::from_word(&a[2]).expect("a kind"),
         );
         let got = policy_for(&law, act, sc, kd).map(|(p, ch)| (p.to_vec(), ch));
         let want = q
@@ -55,5 +55,5 @@ fn acts_replay() {
 #[test]
 fn no_table_binds_nothing() {
     let law = SeatLaw::default();
-    assert_eq!(policy_for(&law, Act::Admit, ScopeClass::Member, Kind::Community), None);
+    assert_eq!(policy_for(&law, Act::Admit, ScopeClass::Member, CommunityKind::Community), None);
 }

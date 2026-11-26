@@ -711,7 +711,7 @@ pub fn law_of(j: &J) -> SeatLaw {
 
 /// The acts table and the kinds table a law carries (`acts`, `kinds`), where it carries them.
 pub fn acts_of(j: &J, law: &mut SeatLaw) {
-    use ciris_kernel::seat::{Act, ActRule, Choice, Kind as ObjKind, ScopeClass};
+    use ciris_kernel::seat::{Act, ActRule, Choice, CommunityKind as ObjKind, ScopeClass};
     if let Some(a) = j.get("acts") {
         law.acts = Some(
             a.arr()

@@ -223,13 +223,14 @@ def kind_of(by, obj, is_key=False):
 def act_of(r, by, is_key=False):
     """The act a counted row is, decided from its kind, its scope and its object, never from the policy it states:
     (act, scope class, kind) as the acts table writes them, or None (not a counted act, or an object with no kind).
-        community  an offer whose `content` names an unseat of the same seat (object, scope, keys) is the lift (the
-                   table's scope `act`: the seat re-seated); an offer or unseat of a roster seat is an admission or a
-                   removal of that seat; an offer of `moderate` naming its election (`of`) is the election's seating;
+        community  an offer whose `content` names an unseat of the same seat (object, scope, keys) is the lift, of
+                   that seat's scope (the table binds the agent's); an offer or unseat of a roster seat is an admission
+                   or a removal of that seat; one of a detector seat (`detect:*`) is the holders' conferral or
+                   withdrawal of that seat; an offer of a duty under the ranked count is the election's seating (THE
+                   ONE ACT READ FROM THE STATED POLICY, for this tag: the election is not answered safely by it);
                    another offer of a duty is the duty holders' conferral; an unseat of a duty counted over a duty
-                   (`counted`, the body counting) is their withdrawal, and one counted over the members is the recall.
-                   Any other scope (a seat the holders place that makes its holder no duty holder) is no act here:
-                   None, until ruled.
+                   (`counted`, the body the row counts) is their withdrawal, and one counted over the members is the
+                   recall. Any other scope is no act.
         accord     any counted row is a standing act.
         self       an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
     A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's."""
@@ -241,12 +242,17 @@ def act_of(r, by, is_key=False):
         c = by.get(r.get("content"))
         if offer and c is not None and c["kind"] == "unseat" and c.get("obj") == obj and c.get("scope") == sc \
                 and tuple(c.get("to", ())) == tuple(r.get("to", ())) and "lift_unread" not in MUT:
-            return ("lift", "act", kind)
+            return ("lift", sc, kind)                        # the seat re-seated: the table's row is of scope `agent`
         if sc in ROSTER_SEATS: return ("admit" if offer else "remove", sc, kind)
+        # a detector seat (CC 4.5.7: `detect:{list id}`, conferred and "withdrawn by the count of (iv)"): no declared duty
+        if (sc == "detect" or sc.startswith("detect:")) and "detect_unread" not in MUT:
+            return ("seat_confer" if offer else "seat_withdraw", "detect", kind)
         dec = declared(by, obj)
         if not is_duty(sc, dec): return None
         if offer:
-            if sc == "moderate" and r.get("of") is not None and "election_unread" not in MUT:
+            # THE ONE ACT READ FROM THE STATED POLICY: the election is not answered safely by this tag, and a caller must
+            # not rely on a ranked seating (CIRISConstitution#241: the election is out of 0.5.0)
+            if K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "ranked" and "election_unread" not in MUT:
                 return ("election_seating", "moderate", kind)
             return ("duty_confer", "duty", kind)
         holders = is_duty(r.get("counted", "member"), dec) if "recall_by_policy" not in MUT else \

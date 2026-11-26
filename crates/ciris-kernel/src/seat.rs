@@ -340,7 +340,7 @@ pub struct SeatLaw {
     pub acts: Option<Vec<ActRule>>,
     /// The kind of an object, from its founding row's scope (`member` and `duty`: a community; `holder`: an
     /// accord; `self`: a self roster). A key object is a self roster. An object with no kind has no act.
-    pub kinds: BTreeMap<String, Kind>,
+    pub kinds: BTreeMap<String, CommunityKind>,
 }
 
 impl SeatLaw {
@@ -383,6 +383,10 @@ words! {
         DutyConfer = "duty_confer",
         /// The other duty holders' withdrawal of a duty (CC 4.5.4 (iv)).
         DutyWithdraw = "duty_withdraw",
+        /// The duty holders' conferral of a detector seat (CC 4.5.7).
+        SeatConfer = "seat_confer",
+        /// The duty holders' withdrawal of a detector seat (CC 4.5.7).
+        SeatWithdraw = "seat_withdraw",
         /// The members' recall of a duty holder (CC 4.5.13).
         Recall = "recall",
         /// The members' lift of a moderator's act: the seat re-seated (CC 4.5.13).
@@ -417,6 +421,8 @@ words! {
         Agent = "agent",
         /// A duty seat.
         Duty = "duty",
+        /// A detector seat (`detect:{list id}`, CC 4.5.7): no declared duty.
+        Detect = "detect",
         /// The seat of `moderate`, by election.
         Moderate = "moderate",
         /// A key of a self roster.
@@ -438,7 +444,7 @@ words! {
 
 words! {
     /// The kind of an object (the acts table's `community_kind`).
-    Kind {
+    CommunityKind {
         /// A community.
         Community = "community",
         /// A self roster.
@@ -473,7 +479,7 @@ pub struct ActRule {
     /// Its scope class.
     pub scope: ScopeClass,
     /// The kind of object.
-    pub kind: Kind,
+    pub kind: CommunityKind,
     /// The policy rows it may take.
     pub policies: Vec<String>,
     /// Whether the row states one, or the act fixes it.
@@ -486,9 +492,9 @@ pub fn kind_of<'r, R: SeatRow + 'r>(
     law: &SeatLaw,
     get: &dyn Fn(&R::Id) -> Option<&'r R>,
     obj: &ObjOf<R>,
-) -> Option<Kind> {
+) -> Option<CommunityKind> {
     let id = match obj {
-        Obj::Key(_) => return Some(Kind::SelfRoster),
+        Obj::Key(_) => return Some(CommunityKind::SelfRoster),
         Obj::Row(i) => i,
     };
     let g = get(id)?;
@@ -503,12 +509,13 @@ pub fn kind_of<'r, R: SeatRow + 'r>(
 /// kind). `get` looks a row up among those the caller holds (the row's past).
 ///
 /// - Over a community: an offer whose `content()` names an unseat of the same seat (object, scope, keys) is the
-///   lift (the table's scope `act`: the seat re-seated); an offer or unseat of a roster seat
-///   ([`SeatLaw::roster_seats`]) is an admission or a removal of that seat; an offer of `moderate` naming its
-///   election (`of()`) is the election's seating; another offer of a duty is the duty holders' conferral; an
-///   unseat of a duty counted over a duty (`counted()`: the body counting) is their withdrawal, and one counted
-///   over the members is the recall. Any other scope (a seat the holders place that makes its holder no duty
-///   holder) is no act here, until ruled.
+///   lift, of that seat's scope class (the table binds the agent's); an offer or unseat of a roster seat
+///   ([`SeatLaw::roster_seats`]) is an admission or a removal of that seat; one of a detector seat
+///   (`detect:*`) is the holders' conferral or withdrawal of that seat; an offer of a duty under the ranked count
+///   ([`Policy::Ranked`]) is the election's seating, THE ONE ACT READ FROM THE STATED POLICY in this tag (the
+///   election is not answered safely by it: a caller must not rely on a ranked seating); another offer of a duty
+///   is the duty holders' conferral; an unseat of a duty counted over a duty (`counted()`: the body the row
+///   counts) is their withdrawal, and one counted over the members is the recall. Any other scope is no act.
 /// - Over an accord: any counted row is a standing act.
 /// - Over a self roster: an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
 ///
@@ -517,7 +524,7 @@ pub fn act_of<'r, R: SeatRow + 'r>(
     law: &SeatLaw,
     get: &dyn Fn(&R::Id) -> Option<&'r R>,
     r: &R,
-) -> Option<(Act, ScopeClass, Kind)> {
+) -> Option<(Act, ScopeClass, CommunityKind)> {
     let offer = match r.seat_kind() {
         SeatKind::Offer => true,
         SeatKind::Unseat => false,
@@ -530,7 +537,7 @@ pub fn act_of<'r, R: SeatRow + 'r>(
     let kind = kind_of(law, get, &obj)?;
     let sc = r.scope().map(|s| s.as_ref());
     match kind {
-        Kind::Community => {
+        CommunityKind::Community => {
             if offer {
                 let lift = r.content().and_then(get).is_some_and(|c| {
                     c.seat_kind() == SeatKind::Unseat
@@ -539,13 +546,18 @@ pub fn act_of<'r, R: SeatRow + 'r>(
                         && c.to() == r.to()
                 });
                 if lift {
-                    return Some((Act::Lift, ScopeClass::Act, kind));
+                    // the seat re-seated: the table binds the agent's
+                    return Some((Act::Lift, ScopeClass::from_word(sc?)?, kind));
                 }
             }
             let sc = sc?;
             if law.roster_seats.iter().any(|x| x == sc) {
                 let class = ScopeClass::from_word(sc)?;
                 return Some((if offer { Act::Admit } else { Act::Remove }, class, kind));
+            }
+            // a detector seat (CC 4.5.7: `detect:{list id}`, conferred and "withdrawn by the count of (iv)")
+            if sc == "detect" || sc.starts_with("detect:") {
+                return Some((if offer { Act::SeatConfer } else { Act::SeatWithdraw }, ScopeClass::Detect, kind));
             }
             let declared: Vec<&str> = match &obj {
                 Obj::Row(i) => get(i).map_or(Vec::new(), |g| g.duties().iter().map(|d| d.as_ref()).collect()),
@@ -555,7 +567,9 @@ pub fn act_of<'r, R: SeatRow + 'r>(
                 return None;
             }
             if offer {
-                if sc == "moderate" && r.of().is_some() {
+                // THE ONE ACT READ FROM THE STATED POLICY: the election is not answered safely by this tag, and a
+                // caller must not rely on a ranked seating
+                if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {
                     return Some((Act::ElectionSeating, ScopeClass::Moderate, kind));
                 }
                 return Some((Act::DutyConfer, ScopeClass::Duty, kind));
@@ -564,8 +578,8 @@ pub fn act_of<'r, R: SeatRow + 'r>(
             let act = if law.is_duty(counted, &declared) { Act::DutyWithdraw } else { Act::Recall };
             Some((act, ScopeClass::Duty, kind))
         }
-        Kind::Accord => Some((Act::StandingAct, ScopeClass::Any, kind)),
-        Kind::SelfRoster => {
+        CommunityKind::Accord => Some((Act::StandingAct, ScopeClass::Any, kind)),
+        CommunityKind::SelfRoster => {
             let sc = sc?;
             let own = match &obj {
                 Obj::Row(i) => get(i).and_then(|g| g.scope()).map(|s| s.as_ref() == sc),
@@ -584,7 +598,7 @@ pub fn act_of<'r, R: SeatRow + 'r>(
 /// The policy rows an act may take over a scope class and a kind of object, and whether the counted row chooses
 /// one of them ([`Choice::Row`]) or the act fixes it ([`Choice::Fixed`]): the acts table's row, or `None` (no row,
 /// or a law that binds no act: [`SeatLaw::acts`] `None`). What a store asks so that it keeps no list of its own.
-pub fn policy_for(law: &SeatLaw, act: Act, scope: ScopeClass, kind: Kind) -> Option<(&[String], Choice)> {
+pub fn policy_for(law: &SeatLaw, act: Act, scope: ScopeClass, kind: CommunityKind) -> Option<(&[String], Choice)> {
     law.acts
         .as_ref()?
         .iter()

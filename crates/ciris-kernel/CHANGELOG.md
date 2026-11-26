@@ -9,28 +9,30 @@ no answer of any case changes.
   adds two rows, `duty_confer` and `duty_withdraw`, and changes the wording of `moderator_recall`'s base, a
   `moderator_election` floor rule, and two `self_roster_*` `at_window` cells. No rule reads the changed cells, and
   the fixture law is unchanged: `seat.py` already reads the two duty rows as the duty counts.
-- `data/governance_policy_acts.tsv` is new: which policy rows each counted act may take. `seat.py` loads it
+- `data/governance_policy_acts.tsv` is new (rc23 at `dd358a3`): which policy rows each counted act may take. `seat.py` loads it
   (`ACTS`), and the seat fixture's law carries it (`acts`). No rule reads it yet.
-- New, read by no rule yet: `seat::Act`, `seat::ScopeClass`, `seat::Kind`, `seat::Choice` (each
+- New, read by no rule yet: `seat::Act`, `seat::ScopeClass`, `seat::CommunityKind`, `seat::Choice` (each
   `#[non_exhaustive]`, with `word()` and `from_word()`), `seat::ActRule`, `seat::kind_of`, `seat::act_of` and
-  `seat::policy_for`. `act_of` decides a counted row's act from its kind, scope and object, never from the
-  policy it states:
-  - the lift: an offer naming a removal of the same seat;
+  `seat::policy_for`. `act_of` decides a counted row's act from its kind, scope and object:
+  - the lift: an offer naming a removal of the same seat; the table binds the agent's re-seating;
   - an admission or a removal: of a roster seat;
-  - the election's seating: `moderate`, naming its election;
+  - the holders' conferral or withdrawal of a detector seat: `detect:*` (CC 4.5.7);
   - a conferral: another duty;
-  - a withdrawal or a recall: by `counted()`, the body counting.
-  An accord's rows are standing acts; a self roster's rows admit or remove a key. A seat the holders place that
-  makes its holder no duty holder is no act until ruled. `policy_for(law, act, scope, kind)` is the store's
-  query: the policy rows an act may take, and whether the row chooses.
+  - a withdrawal or a recall: by `counted()`, the body the row counts (the duty holders, or the members).
+  An accord's rows are standing acts; a self roster's rows admit or remove a key. Any other scope is no act.
+  `policy_for(law, act, scope, kind)` is the store's query: the policy rows an act may take, and whether the row
+  chooses.
+- **The one act read from the stated policy**: an offer of a duty under the ranked count (`Policy::Ranked`) is the
+  election's seating. **The election is not answered safely by this tag, and a caller must not rely on a ranked
+  seating** (CIRISConstitution#241: the election is out of 0.5.0).
 - **BREAKING for an exhaustive struct literal of `SeatLaw`**: two new fields. `acts: Option<Vec<ActRule>>` is
   `None` where a law binds no act to a policy: the behaviour before, with the binding left to the caller.
   `kinds` maps a founding row's scope to an object's kind. The seat fixture's law carries `Some(acts)` and the
   kinds. A literal with `..Default::default()` is unaffected.
 - Gap: the roster instances of `roster.py` (the `tables` fixture's `R:...` policy names) are not bound to acts
   yet; their law carries `None`. The windows' specs stay the caller's.
-- The reference: `models/causal_kernel/check_acts.py`, with 21 cases and 12 queries, five planted breaks, and the
-  `acts` fixture, which `tests/acts.rs` replays. Six plants in the crate. Every existing scenario of every
+- The reference: `models/causal_kernel/check_acts.py`, with 23 cases and 15 queries, six planted breaks, and the
+  `acts` fixture, which `tests/acts.rs` replays. Seven plants in the crate. Every existing scenario of every
   fixture is unchanged; the seat law gains `acts` and `kinds` only.
 
 **A duty is conferred by its holders, the founding record or an election** (CC 4.5.4; CIRISConstitution#241). This
