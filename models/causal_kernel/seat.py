@@ -947,9 +947,12 @@ def count_met(r, P, past, table=None):
     mem, vot = mem - left, vot - left
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
         # the count is the ranked tally: the ballots the row names, one voice each, and the row seats the winner
-        ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot") if b["id"] in r["names"] and b["signer"] in vot]
+        ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot")
+                   if (b["id"] in r["names"] or "ballot_unnamed" in MUT) and (b["signer"] in vot or "ballot_any_signer" in MUT)]
         # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
-        return k == "offer" and bool(ballots) and RANKED(ballots, list(r["options"]), declared=False)[0] == r["to"][0]
+        won = RANKED(ballots, list(r["options"]), declared="election_declared" in MUT)[0]
+        if "election_any_winner" in MUT: return k == "offer" and bool(ballots) and won is not None
+        return k == "offer" and bool(ballots) and won == r["to"][0]
     if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
     return met(r.get("policy"), len(voices(r, P) & vot), len(mem), r.get("need"), table)
 

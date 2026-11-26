@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**The moderator election, read by the seat rule** (CC 4.5.13; CIRISConstitution#218, waits list: "the election
+beyond the ballot count").
+
+- The seat rule's ranked arm (`Policy::Ranked`: a counted offer of `moderate` naming its ballots, which concludes
+  where the ranked count over them yields its `to`) had no case in either language. `check_election.py` has 19
+  hand-written cases (the count, a transfer, ties, the floor in a room of one and of three, a non-member's and an
+  agent's ballot, an unnamed ballot, one ballot a person, the winner's consent, the seat on a member) in every
+  arrival order, and one row the text does not decide (OPEN: every member a candidate, two with no first choice
+  tie for weakest). All are in the `seat` fixture, so `tests/seat.rs` replays them. No answer changes. Four
+  planted breaks in each language.
+
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
 - `content` reads `conferral`'s three-way `any`, later-head test and stale-head test; its own copies are gone.
