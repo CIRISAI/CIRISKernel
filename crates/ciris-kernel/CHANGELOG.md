@@ -29,24 +29,28 @@ beyond the ballot count").
 - **A ballot ranking more than three is void**, the whole ballot (CC 4.5.13: "Each person ranks up to three";
   CIRISConstitution#241 O3). New: `seat::ELECTION_RANKS` (3). **An answer changes**: before, every rank counted.
   Two cases; one plant in each language.
-- **A recall is strictly more than two thirds, with a floor of two voices** (CC 4.5.13: "A recall is one row
-  cosigned by more than two thirds of the standing roster ... The floor is two voices"; CIRISConstitution#241
-  O5). **BREAKING for an exhaustive match on `seat::Policy`**: a new variant, `Policy::StrictFloor(num, den,
-  least)`, meaning strictly more than `num / den` of the base and never fewer than `least` voices. `seat::met`
-  reads it with the comparison `Policy::Strict` reads. The reference's table reads `moderator_recall` as
-  `StrictFloor(2, 3, 2)` (the data's cell is `2/3`, read before as at least), and the fixture's law carries it.
-  **The recall judges one holder** (CIRISConstitution#241 C1, derived from the lift's ruling). It is counted over
-  the members at the head the row names, less the holder it recalls, and that holder is no voice of it. This is
-  the rule the lift reads: the room less the one it judges. `count_of` knows a row is a recall when it is a
-  removal (an Unseat) under `Policy::StrictFloor`, the count only the table's `moderator_recall` row names. Every
-  other removal still counts the member removed as a voice (CC 2.7.5). **Answers change** (holder A):
+- **A recall is strictly more than two thirds, with a floor of two voices, over the roster less the holder it
+  recalls** (CC 4.5.13: "A recall is one row cosigned by more than two thirds of the standing roster ... The floor
+  is two voices"; CIRISConstitution#241 O5, and C1, derived from the lift's ruling). **BREAKING for an exhaustive
+  match on `seat::Policy`**: two new variants.
+  - `Policy::StrictFloor(num, den, least)` is a plain threshold: strictly more than `num / den` of the base, and
+    never fewer than `least` voices. `seat::met` reads it with `Policy::Strict`'s comparison, and the removed
+    member is a voice as on any plain count.
+  - `Policy::Recall(num, den, least)` uses the same comparison and floor (`met` delegates to StrictFloor), but it
+    judges one holder. `count_of` counts it over the members less the key it removes, and that key is no voice. The
+    exclusion keys on the variant, beside `unanimous`, `open:self_admit` and the duty withdrawal. It does not key on
+    a threshold's shape.
+  The reference's table reads `moderator_recall` as `Recall(2, 3, 2)` (the data's cell is `2/3`, read before as at
+  least), and the fixture's law carries it. An adopter's table must give `moderator_recall` as
+  `Policy::Recall(2, 3, 2)`. **Answers change** (holder A):
   - one or two members: no recall is possible;
   - three: both others recall;
   - four: all three others recall, and two of three do not;
   - five: three of four;
   - six: four of five;
-  - seven: five of six. An adopter's table must
-  give `moderator_recall` as `Policy::StrictFloor(2, 3, 2)`. Fourteen cases; four plants in each language.
+  - seven: five of six.
+  One case shows the difference: of three, B and C do not remove A under StrictFloor(2, 3, 2) and do recall it
+  under Recall(2, 3, 2). Sixteen cases; five plants in each language.
 - **The room elects only where no duty holder is left** (CC 4.5.4 (v): "With no duty holder left the room locks, and
   the members' count seats one"; rule 2: "While another duty holder remains, a vacant seat is conferred under line
   (iv), and the community does not lock"). A ranked row concludes nothing where a key holds a duty seat at the heads

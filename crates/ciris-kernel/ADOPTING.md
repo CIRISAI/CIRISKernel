@@ -178,8 +178,9 @@ trusting an adapter.
 - A decline (`ballot:moderator_decline`) is a row whose `SeatRow::decline()` is true (default false), signed by
   the key declining. The count yields the first in the runoff order (`ranked::runoff`) whose decline the
   acceptance does not name.
-- The table's `moderator_recall` row is `Policy::StrictFloor(2, 3, 2)`: more than two thirds, and never fewer than
-  two voices. BREAKING for an exhaustive match on `Policy`: `StrictFloor` is a new variant.
+- The table's `moderator_recall` row is `Policy::Recall(2, 3, 2)`: more than two thirds of the members less the
+  holder it recalls (that holder no voice), and never fewer than two voices. `Policy::StrictFloor` is the same
+  threshold as a plain count. BREAKING for an exhaustive match on `Policy`: both are new variants.
 - The caller's, not the kernel's: the lock (nobody posts, admits or acts until a moderator is seated: a `may`
   answer the caller carries), the node's 24 h since it first held the lock, and the grace a silent winner has
   (`election_grace_secs`). These are node clocks, and the kernel answers only the rows' half.

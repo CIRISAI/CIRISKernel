@@ -50,6 +50,7 @@ Planted breaks, each of which must change a case's answer:
     zero_strike_off           options holding no ballot are not struck together (reexpress.py)
     recall_holder_in_base     the recall counted over the members with the holder it recalls
     recall_holder_voice       the holder a recall judges is a voice of it
+    recall_as_strictfloor     the recall read as the plain StrictFloor count, its holder in the base and a voice
 
     python3 -I check_election.py      exit 1 on any difference
 """
@@ -93,6 +94,9 @@ FH2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B")}, cosigners=("
 FH4 = ST.found("g", "A", ("A", "B", "C", "D"), {"moderate": ("A",)}, cosigners=("B", "C", "D"))
 FH1 = ST.found("g", "A", ("A",), {"moderate": ("A",)})
 ROOM = lambda n: ST.found("g", "A", tuple("ABCDEFG"[:n]), {"moderate": ("A",)}, cosigners=tuple("BCDEFG"[:n - 1]))
+# a plain count with the recall's threshold, for the one case that shows the recall's base (a policy name of these cases)
+PLAIN_FLOOR = "strict_two_thirds_floor_two"
+ST.POLICY.setdefault(PLAIN_FLOOR, ("strictfloor", 2, 3, 2))
 FH2M = ST.found("g", "A", ("A", "B"), {"moderate": ("A",)}, cosigners=("B",))
 
 
@@ -354,6 +358,12 @@ CASES = [
      [FH4, recall("rc", "A", ("B", "C", "D"), ("g",)), ballot("bb", "B", "B", ("rc",)), ballot("bc", "C", "B", ("rc",)),
       elect("el", "B", ("bb", "bc"), M4, heads=("rc",))],
      NOMOD("A") + MOD("B"), "a recall"),
+    ("the recall against a plain count with the same threshold: of three, B and C remove A's moderate seat under "
+     "StrictFloor(2, 3, 2), A in the base and a voice: 2 of 3 is not more than two thirds, and A stays",
+     [ROOM(3), ST.unseat("rc", "B", "A", "moderate", OBJ, "group", ("g",), head=("g",), policy=PLAIN_FLOOR,
+                         cosigners=("C",))], MOD("A"), "a recall"),
+    ("and the same rows under Recall(2, 3, 2): A out of the base and no voice, 2 of 2, and A is recalled",
+     [ROOM(3), recall("rc", "A", ("B", "C"), ("g",))], NOMOD("A"), "a recall"),
     ("a room of one: no recall (no other member, and the floor is two voices)",
      [FH1, recall("rc", "A", ("A",), ("g",))], MOD("A"), "a recall"),
     ("two members: no recall possible: the one other is below the floor of two (#241 C1: the recall is counted over "
@@ -417,7 +427,8 @@ PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_
           "candidates_roster", "ballot_ranks_unbounded", "recall_at_least",
           "decline_unread", "larger_set_unread", "election_id_unread",
           "candidates_options", "floor_unread", "runoff_forward", "zero_strike_off",
-          "recall_holder_in_base", "recall_holder_voice")
+          "recall_holder_in_base", "recall_holder_voice",
+          "recall_as_strictfloor")
 RX_PLANTS = ("runoff_forward", "zero_strike_off")        # planted in reexpress.py, the ranked count's reference
 
 

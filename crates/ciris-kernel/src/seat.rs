@@ -271,6 +271,9 @@ pub enum Policy {
     /// `yes / n > num / den`, and never fewer than `least` voices (`StrictFloor(num, den, least)`): the recall,
     /// "more than two thirds of the standing roster", "The floor is two voices" (CC 4.5.13).
     StrictFloor(u64, u64, u64),
+    /// The recall (CC 4.5.13; CIRISConstitution#241 C1): [`Policy::StrictFloor`]'s comparison and floor, counted
+    /// over the base less the key it removes, that key no voice (it judges one holder, as the lift does).
+    Recall(u64, u64, u64),
     /// One voice.
     One,
     /// The threshold the row declares.
@@ -1830,6 +1833,10 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
 
 /// Whether a count is met: `yes` voices of `n`, under `policy`.
 pub fn met(policy: Option<Policy>, yes: usize, n: usize, declared: Option<usize>) -> bool {
+    // the recall's threshold is the strict fraction with a floor; its base is read by the count
+    if let Some(Policy::Recall(num, den, least)) = policy {
+        return met(Some(Policy::StrictFloor(num, den, least)), yes, n, declared);
+    }
     let (y, n) = (yes as u128, n as u128);
     // strictly more than `num / den` of n
     let strict = |num: u64, den: u64| y * den as u128 > num as u128 * n;
@@ -2153,7 +2160,7 @@ pub struct GroupCount<'a, K> {
     pub offer: bool,
     /// The keys the row seats or removes (`SeatRow::to`).
     /// A key the row seats is no voice of its count; a key it removes is a voice like any other, except
-    /// under `unanimous`, `open:self_admit`, the duty withdrawal and the recall (`Policy::StrictFloor`), whose
+    /// under `unanimous`, `open:self_admit`, the duty withdrawal and the recall (`Policy::Recall`), whose
     /// text excludes it.
     pub to: &'a [K],
     /// The members at the head, less those whose own leaving is in the row's past.
@@ -2210,9 +2217,8 @@ fn count_of<K: Ord>(
     }
     // the recall judges one holder: it is counted over the members less the holder it recalls, and that holder
     // is no voice of it, as the lift is counted over the room less the one it judges (CIRISConstitution#241 C1). A
-    // row is a recall when it is a removal under `Policy::StrictFloor`, the count the table's `moderator_recall`
-    // row names; no other policy is that count
-    if !is_offer && matches!(pol, Some(Policy::StrictFloor(..))) {
+    // row is a recall when its policy reads as `Policy::Recall` (the table's `moderator_recall`)
+    if !is_offer && matches!(pol, Some(Policy::Recall(..))) {
         let base = mem.iter().filter(|k| !to.contains(k)).count();
         let yes = v.intersection(mem).filter(|k| !to.contains(k)).count();
         return met(pol, yes, base, need);

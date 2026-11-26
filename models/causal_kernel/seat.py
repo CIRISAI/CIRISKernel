@@ -201,7 +201,7 @@ POLICY.update({k: ("duty", 0, 0) for k in DUTY_POLICY})          # CC 4.5.4 (iv)
 POLICY["moderation_overturn"] = ("lift", 1, 2)
 # CC 4.5.13: "A recall is one row cosigned by more than two thirds of the standing roster" (the table writes 2/3):
 # strictly more, with the floor of two voices (CIRISConstitution#241 O5)
-POLICY["moderator_recall"] = ("strictfloor", 2, 3, 2)           # and "The floor is two voices"
+POLICY["moderator_recall"] = ("recall", 2, 3, 2)                # and "The floor is two voices"; less the holder judged
 if POLICY.get("community_remove", ("", 0, 0))[0] == "declared":
     POLICY["community_remove"] = ("atleast", 2, 3)
 
@@ -212,7 +212,8 @@ def met(policy, yes, n, declared=None, table=None):
     if kind == "atleast": return n > 0 and yes * den >= num * n
     if kind == "strict": return yes * den > num * n
     # strictly more than a fraction, and never fewer than `least` voices (the recall: more than two thirds, floor two)
-    if kind == "strictfloor": return yes * den > num * n and (yes >= e[3] or "floor_unread" in MUT)
+    # the recall: the same comparison and floor; its base (less the holder it recalls) is read by count_met
+    if kind in ("strictfloor", "recall"): return yes * den > num * n and (yes >= e[3] or "floor_unread" in MUT)
     if kind == "one": return yes >= 1
     if kind == "declared": return declared is not None and yes >= declared
     return False
@@ -1029,10 +1030,10 @@ def count_met(r, P, past, table=None):
         if "election_any_winner" in MUT: return k == "offer" and bool(ballots) and won is not None
         return k == "offer" and bool(ballots) and won == r["to"][0]
     if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
-    if k == "unseat" and K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "strictfloor":
+    if k == "unseat" and K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "recall" and "recall_as_strictfloor" not in MUT:
         # the recall judges one holder: counted over the members less the holder it recalls, and that holder no voice
         # of it, as the lift is counted over the room less the one it judges (CIRISConstitution#241 C1). A row is a
-        # recall when it is a removal under the `strictfloor` count, which the table's `moderator_recall` alone names
+        # recall when its policy reads as the `recall` count (the table's `moderator_recall`)
         judged = frozenset(r["to"])
         base = mem if "recall_holder_in_base" in MUT else mem - judged
         yes = (voices(r, P) & vot) - (frozenset() if "recall_holder_voice" in MUT else judged)
