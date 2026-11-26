@@ -31,8 +31,10 @@ changes.
   `Base::Others`, the opener's signer concludes no receipt and no landing of that window. **An answer changes:** an
   overturn's receipt or landing by the act's author concluded before. No earlier case had one. New cases show that
   a key with no seat at the head lands nothing.
-- `halt_fuse` is not the fuse (ruling W3). The accord's fuse is the halted node's own reading (CC 4.2.1.1). The
-  table is kept with its answers unchanged and is marked so in `window.py`, `window.rs` and ADOPTING.md.
+- `halt_fuse` is the holders' confirmation of a halt, a count (CC 4.2.1.1); the halted node's own fuse, on its own clock with no landing, is the node's and is not read here (ruling W3, as corrected). A met confirmation count gives `confirmed` with no
+  landing, and a concurrent `lapsed` landing does not undo it. The table's answers are unchanged, and it is
+  marked so in `window.py`, `window.rs` and ADOPTING.md. The name `halt_fuse` is a misnomer, kept for now: the
+  adversary table and the fixtures carry it.
 - `head::View::window(now)` is a per-node reading that decides nothing that counts (ruling W5). This is in its doc
   comment only; the code is unchanged.
 - W4, the overturn's landing binding the objections it was counted over, was tried and is withdrawn. Two rows of

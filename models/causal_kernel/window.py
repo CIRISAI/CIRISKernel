@@ -79,8 +79,9 @@ The fallback's is signed by any member at the opener's head. The overturn's is s
 act's author (W2): a key no clause counts is no concluder of the window, so where every counted clause is over
 `others` (author_apart) the opener's signer signs no receipt and no landing of it.
 
-`halt_fuse` is NOT the accord's fuse (W3). The fuse is the halted node's own reading (CC 4.2.1.1, reactions.json
-`fuse local, late closed`); this window, landed by a holder, is a model of the halt's count kept for its cases.
+`halt_fuse` is the holders' confirmation of a halt, a count (CC 4.2.1.1); the halted node's own fuse, on its own
+clock with no landing, is the node's and is not read here (reactions.json `fuse local, late closed`). The name is a
+misnomer kept for now: the adversary table and the fixtures carry it.
 
 A duty holder's single-signature answer (a value an at-once clause reads as "one" over a named scope, said by a
 holder of that scope) is what that key said: a vote the same key also cast is moot, and does not make its answer
@@ -124,8 +125,8 @@ WINDOWS = {
                             "ballot": "ballot:moderation_action",
                             "at_once": (("answered", "one", "moderate", "answered"),),
                             "silent": None, "at_close": (("for", ("voted", 1, 2, 2, "against"), "all", "fallback"),), "default": "lapsed"},
-    # CC 4.2.1.1: one holder fires at once; the halt lapses at the fuse unless a strict majority confirms. NOT the fuse:
-    # the fuse is the halted node's own reading (CIRISConstitution#221, W3); this window lands by a holder
+    # CC 4.2.1.1: one holder fires at once; the holders' confirmation of the halt, a count (a strict majority). The
+    # halted node's own fuse, on its own clock with no landing, is the node's and is not read here (the name misleads)
     "halt_fuse": {"policy": "accord_halt", "counted": "holder", "concluder": "holder", "opener_says": "confirm",
                   "at_once": (("confirm", "strict", "all", "confirmed"),),
                   "silent": None, "at_close": (), "default": "lapsed"},

@@ -30,8 +30,9 @@
 //! there but the act's author (W2): a key no clause counts is no concluder, so where every counted clause of
 //! the table is over [`Base::Others`] ([`author_apart`]) the opener's signer signs no receipt and no landing.
 //!
-//! A table modelling the accord's halt (`halt_fuse` in the reference) is **not the fuse** (W3): the fuse is the
-//! halted node's own reading (CC 4.2.1.1), not a window landed by a holder.
+//! A table modelling the accord's halt (`halt_fuse` in the reference) is the holders' confirmation of a halt, a
+//! count (CC 4.2.1.1); the halted node's own fuse, on its own clock with no landing, is the node's and is not
+//! read here.
 
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};

@@ -71,6 +71,8 @@ migrations, and the local operational store.
 - **An agent's owner on its duty seat.** The kernel does not read the owner's statement on an agent's duty seat
   yet (CC 4.5.4, `founding_duty_holder_agent_owner_unsigned`). Until it does, a caller must not present an
   agent's duty seat without the owner's statement having been checked at the door.
+- **A proposal's stated end** (`expires_at`). The kernel reads none: it is a door check on the acceptance row,
+  not a window rule.
 - **A poll** (CC 4.5.13, CC 6.1.9). A poll is a tally signed by the period's tally member: its rule and its close
   are stated by its own opening row. It is not a window here.
 
@@ -272,8 +274,9 @@ own signer is a seat withdrawal naming it (`SeatKind::Withdraw`, `target()`): `w
 Every window's receipt is a `window:held` row and its landing a `window:landed` row stating the outcome
 (CIRISConstitution#221). Those names are entries of the caller's table: the crate reads a row's `WinKind` and
 never its family, and checks no family. Where every counted clause is over `Base::Others` (the members' check), the opener's
-signer is no concluder (`window::author_apart`). A table for the accord's halt is not the fuse: the fuse is the
-halted node's own reading (CC 4.2.1.1), and a node does not read it through `window::outcome`. A clause over
+signer is no concluder (`window::author_apart`). A table for the accord's halt is the holders' confirmation of a
+halt, a count (CC 4.2.1.1); the halted node's own fuse, on its own clock with no landing, is the node's and is not
+read through `window::outcome`. A clause over
 `Base::Stated(n)` (the base `active` above the base law's `k`) takes `n` from the caller: it is the census's
 figure (CC 6.1.9), and the kernel does not check it (a stated `n` below the members at the head counts as those members).
 `Base::Stated` is a new variant of a public enum: a caller's exhaustive `match` on `window::Base` breaks and needs
