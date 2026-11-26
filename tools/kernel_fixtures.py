@@ -356,6 +356,8 @@ def seat_cases():
         record(rows, A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks])
     for _name, rows, _own, _asks in EL.READER_CASES:            # the reader's seats are in every scenario's answers
         record(rows, A.SEAT)
+    for _name, rows, _tips in EL.TIP_CASES:                     # and so are the tips
+        record(rows, A.SEAT)
     # a member who left and was re-admitted counts: check_readmit.py's cases, under the seat rule
     import check_readmit as RA
     for _name, rows, asks, _item in RA.CASES:

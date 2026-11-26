@@ -771,6 +771,8 @@ class Seats:
                 mem = counted_keys(P, past, over, r.get("head", ()), counted)[0] - count_left(P, past, over, counted)
                 if ok is not None: mem = mem & ok
                 yes = voices(r, P) & mem
+                if K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "ranked" and "fold_ranked_counted" not in MUT:
+                    continue                    # an election's ballots are read by the seat rule alone (as seat.rs reads it)
                 if r.get("policy") in DUTY_POLICY:
                     if not duty_count(r, P, yes, mem): return False
                 elif K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "lift":

@@ -56,6 +56,7 @@ Planted breaks, each of which must change a case's answer:
     ballot_any_election       a ballot of another election counts
     seating_any_signer        a seating signed by another key than the winner concludes
     beaten_tip                an outvoted seating is a tip, so the standing one waits on it
+    fold_ranked_counted       at tips, the fold counts an election's seating as a plain count (which it never meets)
     zero_strike_off           options holding no ballot are not struck together (reexpress.py)
     recall_holder_in_base     the recall counted over the members with the holder it recalls
     recall_holder_voice       the holder a recall judges is a voice of it
@@ -490,6 +491,10 @@ CASES = [
      [G3, LM, ballot("ba", "A", "AB"), ballot("bb", "B", "AB"), decline("da", "A"), CK.row("nx", "note", "B", ("da",)),
       elect("ea", "A", ("ba", "bb"), M3, cites=("nx",))],
      MOD("A"), "a decline"),
+    ("at two tips, an election's seating beside an admission: the fold takes the seating as concluded (its ballots are "
+     "read by the seat rule alone, as the crate reads it), so C stands (the case of the first Rust/Python disagreement)",
+     [G5, LM] + HONEST + [EC, admit("ax", "X", ("A", "B", "C", "D"), ("lm",))], MOD("C") + [("X", "member", T)],
+     "the seating"),
     # ---- a recall --------------------------------------------------------------------------------------------------------
     ("a recall that leaves no holder: the room elects at a head after it",
      [FH4, recall("rc", "A", ("B", "C", "D"), ("g",)), ballot("bb", "B", "B", ("rc",)), ballot("bc", "C", "B", ("rc",)),
@@ -554,6 +559,13 @@ RUNOFF_CASES = [
      [("a%d" % i, ("A",)) for i in range(3)] + [("b", ("B",)), ("c", ("C",))], list("ABC"), ("A",)),
 ]
 
+# the tips of the room (#241 A7: an outvoted seating is no tip): (name, rows, tips)
+TIP_CASES = [
+    ("B's seating, outvoted by C's, is no tip: the one tip is C's", [G5, LM] + LG5, ("ec",)),
+    ("two seatings of equal size and different sets are both outvoted: the tip is the founding row",
+     [G4, LM] + EQ4, ("g",)),
+]
+
 # a reader's acknowledged line (#241 E-A2): (name, rows, reader, [(key, scope, stands)])
 READER_CASES = [
     ("a reader that acknowledged B's seating holds C's rival at the same older head void (behind its line): B "
@@ -587,7 +599,8 @@ PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_
           "decline_unread", "larger_set_unread", "election_id_unread",
           "candidates_options", "floor_unread", "runoff_from_eliminations", "runoff_tie_continues", "zero_strike_off",
           "recall_holder_in_base", "recall_holder_voice",
-          "recall_as_strictfloor", "size_any_row", "election_id_any", "holders_left_unread", "decline_unnamed", "floor_one", "ballot_any_election", "seating_any_signer", "beaten_tip")
+          "recall_as_strictfloor", "size_any_row", "election_id_any", "holders_left_unread", "decline_unnamed", "floor_one", "ballot_any_election", "seating_any_signer", "beaten_tip",
+          "fold_ranked_counted")
 RX_PLANTS = ("runoff_from_eliminations", "runoff_tie_continues", "zero_strike_off")        # planted in reexpress.py, the ranked count's reference
 
 
@@ -601,6 +614,15 @@ def answers(rows, asks, plant=None, arrive=False, own=None):
 def runoff_answers(plant=None):
     with planted(plant):
         return [RX.runoff(b, o, 2, False) for _, b, o, _ in RUNOFF_CASES]
+
+
+def tip_answers(plant=None):
+    out = []
+    with planted(plant):
+        for _, rows, _ in TIP_CASES:
+            S = CK.concluded(CK.kept(list(rows)), RULE)
+            out.append(tuple(sorted(x["id"] for x in ST.Seats(S).tips(OBJ))))
+    return out
 
 
 def reader_answers(plant=None, arrive_order=None):
@@ -648,6 +670,9 @@ def main():
     for (name, _b, _o, want), got in zip(RUNOFF_CASES, runoff_answers()):
         if tuple(got) != want:
             problems.append("runoff %s: got %s, expected %s" % (name, got, want))
+    for (name, _rows, want), got in zip(TIP_CASES, tip_answers()):
+        if got != tuple(sorted(want)):
+            problems.append("tips %s: got %s, expected %s" % (name, got, want))
     want_r = [[w for _, _, w in asks] for _, _, _, asks in READER_CASES]
     if reader_answers() != want_r:
         problems.append("reader cases: got %s, expected %s" % (reader_answers(), want_r))
@@ -662,6 +687,7 @@ def main():
         hit = [name for name, rows, asks, _ in CASES if answers(rows, asks, plant) != [w for _, _, w in asks]]
         hit += ["runoff: " + c[0] for c, got in zip(RUNOFF_CASES, runoff_answers(plant)) if tuple(got) != c[3]]
         hit += ["reader: " + c[0] for c, got, w in zip(READER_CASES, reader_answers(plant), want_r) if got != w]
+        hit += ["tips: " + c[0] for c, got in zip(TIP_CASES, tip_answers(plant)) if got != tuple(sorted(c[2]))]
         caught += bool(hit)
         print("  plant %-20s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0]) if hit else "NOT CAUGHT"))
         if not hit:

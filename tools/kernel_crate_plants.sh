@@ -182,6 +182,7 @@ plant 'every seating of an election stands'              src/seat.rs '        ou
 plant 'every ranked seating is of one election'          src/seat.rs 'groups.entry((o.obj(), o.of().cloned())).or_default().push(i);' 'groups.entry((o.obj(), o.obj().and(None))).or_default().push(i);'
 plant 'what counts toward the size of a set'             src/seat.rs '        if !elect.contains(q.signer()) {' '        if false {'
 plant "an election row's later seating unread"           src/seat.rs '    if later {' '    if false {'
+plant "the fold counts an election's seating"           src/seat.rs 'Some(Policy::Ranked) => true, // an election' 'Some(Policy::Ranked) => false, // an election'
 plant 'an outvoted seating is a tip'                     src/seat.rs '                    && !self.beaten.contains(&i)' ''
 plant "a runoff step's tie goes on"                      src/ranked.rs 'let Some(w) = ranked(ballots, &opts, floor, declared).0 else { break };' 'let Some(w) = ranked(ballots, &opts, floor, declared).0 else { opts.remove(0); continue };'
 plant 'the runoff order stops at its winner'             src/ranked.rs 'opts.retain(|o| *o != w);' 'opts.clear();'

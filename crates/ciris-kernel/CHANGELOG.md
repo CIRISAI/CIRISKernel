@@ -57,6 +57,10 @@ name.
   union's valid rows are at least each set's on both counts, so no subset beats a seating over the union.
 - A seating of an election whose row is itself outvoted does not stand either.
 - An outvoted seating is no tip (`Seats::tips`), so the standing one does not wait on it (#241 A7).
+- At tips, the fold takes an election's seating as concluded: its ballots are read by the seat rule alone. The
+  crate already read it so. The reference fell through to the plain threshold, which a ranked policy never meets,
+  so it left the seat out. That was the one Rust/Python disagreement on this branch (seat fixture scenario 313 on
+  a41dae9), and the reference is fixed.
 - An election's seating is a counted row, and a reader's acknowledged line voids a rival at an older head behind
   it (`Seats::stale`, `line::void`; #241 E-A2). There is no new rule for this; two cases pin it.
 - Cost: seatings are grouped by election and each group sorted once by size: O(s log s) for s seatings of one
