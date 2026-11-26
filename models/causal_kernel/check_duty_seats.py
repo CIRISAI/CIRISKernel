@@ -365,6 +365,12 @@ CASES = [
      [GA, MDA, HD2, gate_offer("A", ("B", "D"), head=("h",), names=("h",))], [("D", "moderate", F)]),
     ("the same count at a head of g's line (D's admission): D holds moderate", [GA, MDA, HD2, gate_offer("A", ("B", "D"))],
      [("D", "moderate", T)]),
+    ("a version of g's roster as the head (a row of no object naming g's rows, as persist presents a ballot's head): "
+     "a head of g's line, and D holds moderate",
+     [GA, MDA, ST.R("v", "note", "A", ("md",)), gate_offer("A", ("B", "D"), head=("v",), names=("v",))], [("D", "moderate", T)]),
+    ("a version naming only h's founding row is no head of g: no duty",
+     [GA, MDA, HD2, ST.R("v", "note", "D", ("h",)), gate_offer("A", ("B", "D"), head=("v",), names=("v",))],
+     [("D", "moderate", F)]),
     ("the duty holders' count over the room itself, two of the three: D holds moderate",
      [GA, MDA, gate_offer("A", ("B", "D"))], [("D", "moderate", T)]),
     ("a withdrawal of a duty counted over another room ends nothing: D's count over h of A's moderate over g",
