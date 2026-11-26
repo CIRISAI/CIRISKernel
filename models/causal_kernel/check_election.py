@@ -42,6 +42,8 @@ Planted breaks, each of which must change a case's answer:
     ballot_ranks_unbounded    a ballot ranking more than three counts
     recall_at_least           the recall read as at least two thirds (the table's cell), not more than
     decline_unread            a decline the seating names is not read: the count yields its winner
+    larger_set_unread         every concluded seating stands, whatever the sets of its election's others
+    election_id_unread        every ranked seating over the room is of one election
 
     python3 -I check_election.py      exit 1 on any difference
 """
@@ -111,6 +113,12 @@ def admit(i, k, signers, heads, scope="member"):
 
 
 ELECT8 = _elect8()
+# two seatings of one election over equal sets (EQ4), and over a smaller and a larger (LG5)
+EQ4 = [ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
+       elect("eb", "B", ("ba", "bb"), ("A", "B", "C", "D")), elect("ec", "C", ("bc", "bd"), ("A", "B", "C", "D"))]
+LG5 = [ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
+       ballot("be", "E", "C"), elect("eb", "B", ("ba", "bb"), ("A", "B", "C", "D", "E")),
+       elect("ec", "C", ("ba", "bb", "bc", "bd", "be"), ("A", "B", "C", "D", "E"))]
 M3, M4, M5 = ("A", "B", "C"), ("A", "B", "C", "D"), ("A", "B", "C", "D", "E")
 MOD = lambda *ks: [(k, "moderate", T) for k in ks]
 NOMOD = lambda *ks: [(k, "moderate", F) for k in ks]
@@ -272,6 +280,30 @@ CASES = [
       ballot("bc", "C", "C"), CK.row("da", "decline", "A", ("g",)),
       elect("eb", "B", ("ba", "bd", "be", "bb", "bc", "da"), M3)],
      NOMOD("A", "B", "C"), "a decline"),
+    # ---- several acceptances of one election ------------------------------------------------------------------------
+    ("two seatings of one election over different sets of equal size are a tie, and neither seats anyone (CC 4.5.13; "
+     "#241 N2): B over A's and B's ballots, C over C's and D's, then an admission naming both",
+     [G4] + EQ4 + [admit("ax", "X", ("A", "B", "C"), ("eb", "ec"))], NOMOD("B", "C") + [("X", "member", T)],
+     "several acceptances"),
+    ("the same two, read while they are two tips: neither stands", [G4] + EQ4, NOMOD("B", "C"), "several acceptances"),
+    ("the seating over the larger set stands: B over two ballots, C over all five",
+     [G5] + LG5 + [admit("ax", "X", ("A", "B", "C", "D"), ("eb", "ec"))], NOMOD("B") + MOD("C"), "several acceptances"),
+    ("and at the two tips, C's seat waits as any seat at two tips does (until a row names both)",
+     [G5] + LG5, NOMOD("B", "C"), "several acceptances"),
+    ("a tie ended by a seating over a larger set (the union and E's ballot): C stands",
+     [G5] + EQ4 + [ballot("be", "E", "C"), elect("eu", "C", ("ba", "bb", "bc", "bd", "be"), M5),
+                   admit("ax", "X", ("A", "B", "C", "D"), ("eb", "ec", "eu"))],
+     NOMOD("B") + MOD("C"), "several acceptances"),
+    ("two seatings over the same set are one answer: both seat B",
+     [G3, ballot("ba", "A", "B"), ballot("bb", "B", "B"), elect("e1", "B", ("ba", "bb"), M3),
+      elect("e2", "B", ("ba", "bb"), M3, signer="A"), ST.accept("ab", "B", "e2"), admit("ax", "X", ("A", "B"), ("e1", "ab"))],
+     MOD("B"), "several acceptances"),
+    ("a seating of the next election (its past holds the last seating) is not outvoted by the last one's larger set: "
+     "B seated over three ballots, then B resigns its duty and C is seated over two",
+     [G3, ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "B"), elect("e1", "B", ("ba", "bb", "bc"), M3),
+      ST.withdraw("wb", "B", "e1", ("e1",)), ballot("ba2", "A", "C", ("wb",)), ballot("bc2", "C", "C", ("wb",)),
+      elect("e2", "C", ("ba2", "bc2"), M3, heads=("wb",))],
+     NOMOD("B") + MOD("C"), "the election id"),
     # ---- a recall --------------------------------------------------------------------------------------------------------
     ("a recall cosigned by exactly two thirds does not recall (CC 4.5.13 'more than two thirds of the standing roster'; "
      "#241 O5): B and C of three",
@@ -313,24 +345,6 @@ OPEN = [
      [FH1, recall("rc", "A", ("A",), ("g",))], NOMOD("A"), "a recall",
      "not recalled (CC 4.5.13: 'The floor is two voices'). Not built: the seat's count has no floor for a fraction "
      "(`seat::met` reads none), and a floor per policy needs a field of `SeatLaw` or a `Policy` variant."),
-    ("NOT BUILT (the text decides): two seatings over different ballot sets of equal size, then an admission naming "
-     "both: the model seats both (while the two seatings are two tips, each waits, and neither stands)",
-     [G4, ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
-      elect("eb", "B", ("ba", "bb"), M4), elect("ec", "C", ("bc", "bd"), M4), admit("ax", "X", ("A", "B", "C"), ("eb", "ec"))],
-     MOD("B", "C"), "several acceptances",
-     "neither (CC 4.5.13: 'Two acceptances over different sets of equal size are a tie, and neither seats anyone. "
-     "The tie ends when the node holds an acceptance counted over the union of the two sets.'). Not built: the rows "
-     "carry no election id (the digest of the community and the last seating row), so the crate cannot tell which "
-     "seatings are one election's."),
-    ("NOT BUILT (the text decides): a seating over a larger set beside one over a smaller, then an admission naming "
-     "both: the model seats both",
-     [G5, ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
-      ballot("be", "E", "C"), elect("eb", "B", ("ba", "bb"), M5), elect("ec", "C", ("ba", "bb", "bc", "bd", "be"), M5),
-      admit("ax", "X", ("A", "B", "C", "D"), ("eb", "ec"))],
-     MOD("B", "C"), "several acceptances",
-     "C only (CC 4.5.13: 'Among the valid acceptances a node holds, the one counted over the larger set stands, a "
-     "larger set being a count'). Not built, as above. Read so here: 'larger' by the number of rows in the set, "
-     "which covers the ballot, withdrawal and decline rows."),
 ]
 
 
@@ -351,7 +365,7 @@ def planted(plant):
 PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_any_winner", "ballot_withdrawal_unread",
           "ballot_nonmember_ranked", "election_beside_holder", "election_agent_holder",
           "candidates_roster", "ballot_ranks_unbounded", "recall_at_least",
-          "decline_unread")
+          "decline_unread", "larger_set_unread", "election_id_unread")
 
 
 def answers(rows, asks, plant=None, arrive=False):

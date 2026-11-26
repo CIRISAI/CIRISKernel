@@ -58,12 +58,20 @@ beyond the ballot count").
 - Not the kernel's (the caller's, ADOPTING.md): the lock, a `may` answer the caller carries; the node's 24 h
   since it first held the lock; and the winner's grace. These are node clocks, and the kernel answers the rows'
   half only.
-- Not built, each a row of `check_election.py`'s OPEN list carrying the model's answer now. (1) Several
-  seatings (the text decides): "the one counted over the larger set stands", and two seatings over equal sets of
-  different ballots seat nobody until one is counted over their union. While the two seatings are two tips,
-  neither stands; once a row names both, both stand. (2) The two-voice floor of a recall (the text decides; a
-  public change). (3) Every member a candidate (not decided): two members whom no ballot names tie for weakest
-  and seat nobody.
+- **Of one election's seatings, the one over the larger set stands** (CC 4.5.13: "Among the valid acceptances a
+  node holds, the one counted over the larger set stands ... Two acceptances over different sets of equal size are
+  a tie, and neither seats anyone. The tie ends when the node holds an acceptance counted over the union";
+  CIRISConstitution#241 N1, N2). The election is read from what a seating names, and no digest is taken: its
+  election is the latest concluded rows in its past that seat `moderate` over its room, or the room's founding
+  row (#241 N1, derived), and two seatings are of one election when these are the same. The seating's set is the
+  ballot, withdrawal and decline rows it names. `seat::Seats` leaves out a seating whose election has another
+  over a larger set, or over a different set of the same size. Two seatings over the same set both stand. This is
+  a reading over the concluded rows, like the fold at tips; each seating still concludes on its own past. At two
+  tips the seat waits, as any seat does, until a row names both. **An answer changes**: before, two concluded
+  seatings both seated, once a row named both. Seven cases; two plants in each language.
+- Not built, each a row of `check_election.py`'s OPEN list carrying the model's answer now. (1) The two-voice
+  floor of a recall (the text decides; a public change). (2) Every member a candidate (not decided): two members
+  whom no ballot names tie for weakest and seat nobody.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

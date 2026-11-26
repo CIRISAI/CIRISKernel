@@ -173,6 +173,8 @@ plant "an election counts any signer's ballot"           src/seat.rs ' && mem.co
 plant 'an election counts a ballot it does not name'     src/seat.rs 'SeatKind::Ballot && r.names().contains(b.id()) &&' 'SeatKind::Ballot &&'
 plant "an election's tie broken by its options' order"    src/seat.rs 'runoff(&ballots, r.options(), 2, false)' 'runoff(&ballots, r.options(), 2, true)'
 plant 'an election seats whoever its row names'          src/seat.rs '&& won.as_ref() == r.to().first();' '&& won.is_some();'
+plant 'every seating of an election stands'             src/seat.rs '        if lost {' '        if lost && false {'
+plant 'every ranked seating is of one election'          src/seat.rs '.any(|(x, (e2, b2))| x != a && e2 == e && ' '.any(|(x, (e2, b2))| x != a && (e2 == e || true) && '
 plant 'a decline read by no election'                   src/seat.rs '.filter(|d| d.decline() && r.names().contains(d.id()))' '.filter(|_| false)'
 plant 'the runoff order read forward'                    src/ranked.rs 'end.top.iter().cloned().chain(end.out.iter().rev().cloned()).collect()' 'end.top.iter().cloned().chain(end.out.iter().cloned()).collect()'
 plant 'an election counts a ballot its signer withdrew'  src/seat.rs '.filter(|b| !gone(b))' '.filter(|_| true)'

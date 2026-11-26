@@ -455,6 +455,43 @@ def own_keys(by, obj):
 
 
 # ---- derived: the live seats ---------------------------------------------------------------------------
+def election_of(S, o):
+    """The election a seating counted by the ranked count belongs to (CC 4.5.13: its id is "the digest of the community
+    id and of the last seating row or, for a room never yet seated, the genesis of the roster"), read from what the row
+    names: the latest rows in its past that seat `moderate` over its room, or the room's founding row. Two seatings
+    are of one election when these are the same rows (#241 N1, derived: no digest; the rows named)."""
+    past = S.anc[o["id"]]
+    seat = [q for q in S.Cs if q["id"] in past and q["kind"] == "offer" and q["obj"] == o["obj"]
+            and (q["id"] == o["obj"] or q["scope"] == "moderate")]
+    return frozenset(q["id"] for q in seat if not any(q["id"] in S.anc[x["id"]] for x in seat))
+
+
+def ballot_set(S, o):
+    """The set a seating was counted over: the ballot, withdrawal and decline rows it names (CC 4.5.13)."""
+    return frozenset(n for n in o["names"] if n in S.by and (S.by[n]["kind"] in ("ballot", "decline") or (
+        S.by[n]["kind"] == "withdraw" and S.by.get(S.by[n]["target"], {}).get("kind") == "ballot")))
+
+
+def outvoted(S, offers):
+    """The ranked seatings that do not stand (CC 4.5.13: "Among the valid acceptances a node holds, the one counted over
+    the larger set stands ... Two acceptances over different sets of equal size are a tie, and neither seats anyone.
+    The tie ends when the node holds an acceptance counted over the union of the two sets"): of one election, each
+    seating over a set smaller than another's, or of the same size and different (#241 N2). A reading over the
+    concluded rows, as the fold at tips is; each seating still concludes on its own past."""
+    if "larger_set_unread" in MUT: return frozenset()
+    el = [o for o in offers if o["conf"] == "group" and K.rule(POLICY, o.get("policy"), ("unknown",))[0] == "ranked"]
+    if len(el) < 2: return frozenset()
+    of = {o["id"]: (election_of(S, o), ballot_set(S, o)) for o in el}
+    out = set()
+    for o in el:
+        e, b = of[o["id"]]
+        for x in el:
+            e2, b2 = of[x["id"]]
+            if x is not o and (e2 == e or "election_id_unread" in MUT) and (len(b2) > len(b) or (len(b2) == len(b) and b2 != b)):
+                out.add(o["id"])
+    return frozenset(out)
+
+
 class Seats:
     def __init__(self, S, holds=HOLDS, confers=CONFERS, depth=DEPTH, by_arrival=False, own=None, checkpoint=False, drop=None):
         self.S, self.holds, self.confers, self.own = S, holds, confers, own
@@ -514,7 +551,8 @@ class Seats:
                 if paired and not ended(a) and C.counts(a): return True
             return False
 
-        base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V
+        beaten = outvoted(S, [o for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V])
+        base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V and o["id"] not in beaten
                 for k in o["to"] if accepted(o, k) for sc in seat_scopes(o, k)
                 if not off_ended(o, k, sc) and not unseated(o, k, sc) and not resigned(o, k, sc)]
 
