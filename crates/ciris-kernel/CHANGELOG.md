@@ -101,6 +101,30 @@ beyond the ballot count").
 - `window`'s `How::MoreAtLeast` arm will read `Policy::StrictFloor` once the windows PR (#52) merges. Until
   then it keeps its own floor check.
 
+**A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
+
+- `seat::left_in_past` read a key's own leaving and ignored a later admission, unlike `stay_ended_in_past`. So
+  a member who resigned and was re-admitted stood as a member, but was in no count's base and no voice of any
+  count, for ever. Now a key is out of a count by its leaving only while no seating of it in that scope after the
+  leaving is in the counted row's past: no offer seating the key that has the leaving in its own past. The test
+  is one function, `seated_after`, read by both `left_in_past` and `stay_ended_in_past` (the scope's own seat for
+  the one, the roster's seat for the other). No public name changes.
+- **Answers change** (0.4.0 answers), each where a member resigned and the room re-admitted it before the
+  counted row:
+  - the member's voice counts: of six, an admission signed by A, B, C (re-admitted) and D, 4 of 6, concludes;
+    before it read 3 of 5 and did not;
+  - the member is in the base: of four, an admission or removal signed by A and B alone, 2 of 4, does not
+    conclude; before it read 2 of 3 and did;
+  - a removal: of six, F removed by A, B, C and D concludes; before it did not.
+  The same holds for every count that reads `left_in_past`: `count_members`, `group_count` callers that subtract
+  it, and the duty counts.
+- Not changed: a re-admission beside the counted row (not in its past) is not read by it; a leaving after the
+  re-admission puts the key out again. A counted removal followed by re-admission was never affected, since the
+  removal acts through `members_at` at the head. A window's clause reads no leaving and was never affected.
+  Private rooms are not special-cased: room-key finality refuses the re-admission there.
+- The reference: `models/causal_kernel/check_readmit.py`, 10 hand-written cases in every arrival order, all in
+  the `seat` fixture, and one planted break. Two plants in the crate.
+
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
 - `content` reads `conferral`'s three-way `any`, later-head test and stale-head test; its own copies are gone.
@@ -111,6 +135,18 @@ beyond the ballot count").
   case of the reference or the fixtures takes one. The fold's duty arm goes through the seat rule's count.
 - `key_end::live` reads `covers_at`.
 - `kernel/TEXT.md` was a copy of CC 2.7 at 1.0-rc19 and is a pointer to the Constitution's section.
+
+**The end of a key record is outside it** (CC 2.6.2: "covers an instant t when its `asserted_at` <= t < its
+`valid_until` ... an equal one covers nothing"; CC 2.4.1.1 on a rotation: "at or after its `asserted_at` and
+before its `valid_until`"). Three answers change, all at the exact end; no generated world of the reference
+reached one, so no earlier fixture answer moves.
+
+- A rotation whose old-key instant equals the old record's end concluded and now does not (it names no
+  successor). A row whose own instant equals the end of the record it names concluded and now does not.
+- The door refuses a record whose end equals its own instant (`well_formed`: `from < until`; it was `<=`).
+- One test, `covers_at`, for a key's liveness, a row's own instant and a rotation's; `key_end`'s closed test is
+  gone. Reference: `key_end.covers`; five boundary worlds (`check_key_end.BOUNDARY`, in the `key_end` fixture),
+  attack K11, plant `end_closed`; one crate plant on the door.
 
 ## [0.4.0]
 

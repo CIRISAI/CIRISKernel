@@ -17,7 +17,7 @@ Sources (all under models/):
     seat      causal_kernel/attacks.py (every scenario its 34 tests conclude, with the seat, window and route rules)
               and causal_kernel/window.py (the adversary table): conclusions, the cut, live seats, the reader's
               line, holders, tips and window outcomes; with the cases of check_delegation.py and
-              check_agent_removal.py and check_election.py
+              check_agent_removal.py, check_election.py and check_readmit.py
     purge     causal_kernel/purge.py: every replay check_purge.py runs, under both readings
     key_end   causal_kernel/check_key_end.py: every generated world at every instant
     conferral_end causal_kernel/conferral_end.py: the case table of the end of a conferral (CC 2.4.1.1, CC 4.5.5),
@@ -337,6 +337,10 @@ def seat_cases():
     import check_election as EL
     for _name, rows, asks, _item in EL.CASES + [o[:4] for o in EL.OPEN]:
         record(rows, A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks])
+    # a member who left and was re-admitted counts: check_readmit.py's cases, under the seat rule
+    import check_readmit as RA
+    for _name, rows, asks, _item in RA.CASES:
+        record(rows, A.SEAT, [(k, sc, RA.OBJ) for k, sc, _ in asks])
     # a moderator's lone removal of an agent's key and the members' lift (CC 4.5.13): check_agent_removal.py's cases,
     # under the window rule (the removal is the opener of its own window; every other row goes to the seat rule)
     import check_agent_removal as AR
@@ -622,7 +626,7 @@ def key_end_cases():
         if k not in at:
             at[k] = len(pool); pool.append(row_enc(r))
         return at[k]
-    for args, rows in CKE.worlds():
+    for args, rows in itertools.chain(CKE.worlds(), ((None, rows) for _, rows in CKE.BOUNDARY)):
         S = KE.state(rows)
         ans = []
         for now in CKE.NOWS:
