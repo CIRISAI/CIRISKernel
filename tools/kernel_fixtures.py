@@ -26,6 +26,8 @@ Sources (all under models/):
     conferral_content causal_kernel/conferral_content.py: room content after a member's seat ends, where the end
               names the rows held good: its case table, and (conferral_content_worlds) histories built row by
               row as check_conferral_content.py builds them. tests/content.rs replays both through content::answers.
+    acts      causal_kernel/check_acts.py: the act each counted row is and the policy rows each act may take (the
+              act-to-policy table). tests/acts.rs replays it through seat::act_of and seat::policy_for.
     conferral_two causal_kernel/check_conferral_two.py: one row that needs two standings (an owner binding and a
               root grant), and a later bundle version: its case table, per act and owner, with why.
               tests/conferral_two.rs replays it through standing::answers; it is also for Verify's standing
@@ -380,7 +382,7 @@ def seat_cases():
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
            "policy": {k: list(v) for k, v in ST.POLICY.items()},
-           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS]}
+           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
     windows = {k: dict(enc(v), secs=WN.secs(k)) for k, v in WN.WINDOWS.items()}
     adversary = []
     for t in WN.adversary_table():
@@ -635,6 +637,21 @@ def key_end_cases():
             "pool": pool, "worlds": worlds}
 
 
+def acts_cases():
+    """check_acts.py: the act each counted row is (seat.act_of) and the policy rows each act may take (seat.policy_for),
+    with the acts table and the kinds table they read."""
+    import seat as ST
+    import check_acts as AC
+    cases = []
+    for name, rows, rid, want in AC.CASES:
+        refs = {}
+        cases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid,
+                      "act": list(want) if want else None})
+    queries = [{"ask": list(q), "policies": list(w[0]) if w else None, "choice": w[1] if w else None} for q, w in AC.QUERIES]
+    return {"acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS),
+            "roster_seats": list(ST.ROSTER_SEATS), "duties": list(ST.DUTIES), "cases": cases, "queries": queries}
+
+
 def main():
     out = {}
     dump("lib.json", lib_cases(), out)
@@ -651,6 +668,7 @@ def main():
     dump("tables.json", table_cases(), out)
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
+    dump("acts.json", acts_cases(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution

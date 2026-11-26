@@ -72,6 +72,15 @@ migrations, and the local operational store.
   yet (CC 4.5.4, `founding_duty_holder_agent_owner_unsigned`). Until it does, a caller must not present an
   agent's duty seat without the owner's statement having been checked at the door.
 
+**The act-to-policy binding** (unreleased; steps 1 and 2: read by no rule yet).
+- `SeatLaw::acts` is the Constitution's `governance_policy_acts.tsv` as `ActRule`s, and `SeatLaw::kinds` maps a
+  founding row's scope to its object's kind. A law with `acts: None` binds no act to a policy; the binding is
+  then the caller's, as before.
+- `seat::act_of(law, get, row)` is the act a counted row is, and `seat::policy_for(law, act, scope, kind)` the
+  policy rows it may take: ask these rather than keeping a list of your own.
+- The windows' specs (`window::WindowSpec`, chosen by a row's `window()` name) stay the caller's: no act binding
+  reads them in this tag.
+
 ## Points to settle before adoption
 
 - **Persons and voices.** The adapter presents each signing key as its person's voice (`PersonsAt::voice`) and

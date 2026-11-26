@@ -205,6 +205,66 @@ def acts_table(path=None):
 
 
 ACTS = acts_table()     # read by no rule yet: the binding is built in steps (CIRISConstitution: the act-to-policy table)
+
+# The kind of an object (the acts table's `community_kind`, the policy table's `corridor` reading), from its founding row's
+# scope. A key object is a self roster. An object with no kind has no act.
+KINDS = {"member": "community", "duty": "community", "holder": "accord", "self": "self", "key": "self"}
+
+
+def kind_of(by, obj, is_key=False):
+    """The kind of obj: `self` for a key object; else its founding row's scope read through KINDS; None otherwise."""
+    if is_key: return "self" if "key_kind_unread" not in MUT else None
+    g = by.get(obj)
+    if g is None or g["kind"] != "offer" or g.get("obj") != g["id"]: return None
+    if "kind_unread" in MUT: return "community"                  # MUTATION: every founding row a community
+    return KINDS.get(g["scope"])
+
+
+def act_of(r, by, is_key=False):
+    """The act a counted row is, decided from its kind, its scope and its object, never from the policy it states:
+    (act, scope class, kind) as the acts table writes them, or None (not a counted act, or an object with no kind).
+        community  an offer whose `content` names an unseat of the same seat (object, scope, keys) is the lift (the
+                   table's scope `act`: the seat re-seated); an offer or unseat of a roster seat is an admission or a
+                   removal of that seat; an offer of `moderate` naming its election (`of`) is the election's seating;
+                   another offer of a duty is the duty holders' conferral; an unseat of a duty counted over a duty
+                   (`counted`, the body counting) is their withdrawal, and one counted over the members is the recall.
+                   Any other scope (a seat the holders place that makes its holder no duty holder) is no act here:
+                   None, until ruled.
+        accord     any counted row is a standing act.
+        self       an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
+    A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's."""
+    if r["kind"] not in ("offer", "unseat") or r.get("conf") != "group": return None
+    obj, sc, offer = r.get("obj"), r.get("scope"), r["kind"] == "offer"
+    kind = kind_of(by, obj, is_key)
+    if kind is None: return None
+    if kind == "community":
+        c = by.get(r.get("content"))
+        if offer and c is not None and c["kind"] == "unseat" and c.get("obj") == obj and c.get("scope") == sc \
+                and tuple(c.get("to", ())) == tuple(r.get("to", ())) and "lift_unread" not in MUT:
+            return ("lift", "act", kind)
+        if sc in ROSTER_SEATS: return ("admit" if offer else "remove", sc, kind)
+        dec = declared(by, obj)
+        if not is_duty(sc, dec): return None
+        if offer:
+            if sc == "moderate" and r.get("of") is not None and "election_unread" not in MUT:
+                return ("election_seating", "moderate", kind)
+            return ("duty_confer", "duty", kind)
+        holders = is_duty(r.get("counted", "member"), dec) if "recall_by_policy" not in MUT else \
+            K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "duty"
+        return ("duty_withdraw" if holders else "recall", "duty", kind)
+    if kind == "accord": return ("standing_act", "any", kind)
+    if kind == "self":
+        own = by.get(obj, {}).get("scope")
+        return ("admit" if offer else "remove", "key", kind) if sc in ("key", own) else None
+    return None
+
+
+def policy_for(act, scope, kind, acts=ACTS):
+    """The policy rows an act may take, and whether the counted row chooses (`row`) or the act fixes it (`fixed`):
+    the acts table's row for (act, scope class, kind), or None."""
+    for a, sc, kd, pol, ch in acts:
+        if (a, sc, kd) == (act, scope, kind): return pol, ch
+    return None
 # A removal runs under the room's own declared protocol (CC 3.3.4; the table's cell is `protocol`). The rooms of
 # these scenarios declare two thirds. roster.py runs the other protocols.
 POLICY.update({k: ("duty", 0, 0) for k in DUTY_POLICY})          # CC 4.5.4 (iv), read by duty_count, not by met()
