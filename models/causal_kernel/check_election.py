@@ -134,6 +134,11 @@ WC = ST.withdraw("wc", "C", "ec", ("k1", "k2", "k4"))            # C lays the se
 N2 = [ballot("na", "A", "B", ("wc",), of="ec"), ballot("nb", "B", "B", ("wc",), of="ec"), ballot("nd", "D", "B", ("wc",), of="ec")]
 EN = elect("en", "B", tuple(b["id"] for b in N2), of="ec", vac=("wc",))
 
+# seven members, C four to three over B (C, D, E, F; A, B, G)
+H7C = [ballot("b" + k.lower(), k, r) for k, r in zip("ABCDEFG", "BBCCCCB")]
+IDS7C = tuple(b["id"] for b in H7C)
+EC7C = elect("ec", "C", IDS7C)
+
 CASES = [
     # ---- the count, carried over -------------------------------------------------------------------------------------
     ("the count: three of five rank C first, C is seated", [G5, LM] + H5 + [EC], MOD("C") + NOMOD("A", "B"), "the count"),
@@ -209,10 +214,13 @@ CASES = [
      [G5, LM] + H5 + [EC, ack("k1", "A", "ec"), ack("k2", "B", "ec"), ST.withdraw("wc", "C", "ec", ("k1", "k2"))]
      + [ballot("na", "A", "B", ("wc",), of="ec"), ballot("nb", "B", "B", ("wc",), of="ec"), ballot("nd", "D", "B", ("wc",), of="ec"),
         elect("en", "B", ("na", "nb", "nd"), of="ec", vac=("wc",))], MOD("B") + NOMOD("C"), "E3"),
-    ("C5: once closed, a concurrent rival over a containing set counts for nothing: C stands",
+    ("C5, (2), the edge: closed by A, B and D (three of four); a concurrent rival over a containing set, made by D's "
+     "and E's changed ballots and seated by B: D (its change beside its receipt) and B (its seating beside its "
+     "receipt) each said two things, so both are out of the base and no voice: A alone of A and E does not hold the "
+     "close, and the rival, containing C's set, stands",
      [G5, LM] + H5 + [EC] + CLOSE + [ST.withdraw("wd", "D", "bd", ("bd",)), ballot("bd2", "D", "B", ("wd",)),
                                       ST.withdraw("we", "E", "be", ("be",)), ballot("be2", "E", "B", ("we",)),
-                                      elect("eb", "B", IDS5 + ("wd", "bd2", "we", "be2"))], MOD("C") + NOMOD("B"), "C5"),
+                                      elect("eb", "B", IDS5 + ("wd", "bd2", "we", "be2"))], MOD("B") + NOMOD("C"), "C5, (2)"),
     ("C5: the same rival with no close: it contains C's set and stands",
      [G5, LM] + H5 + [EC, ST.withdraw("wd", "D", "bd", ("bd",)), ballot("bd2", "D", "B", ("wd",)),
                       ST.withdraw("we", "E", "be", ("be",)), ballot("be2", "E", "B", ("we",)),
@@ -221,11 +229,17 @@ CASES = [
      "with C's containing seating in its past, close nothing; C stands",
      [G5, LM] + H5 + [EC, elect("eb", "B", ("ba", "bb")), ack("k1", "A", "eb", ("ec",)), ack("k3", "C", "eb", ("ec",)),
                       ack("k4", "D", "eb", ("ec",))], MOD("C") + NOMOD("B"), "C5"),
-    ("C5: receipts of B's subset seating made before C's was seen close the election for B: C's containing seating "
-     "is a rival of a closed election",
+    ("C5, (2): receipts of B's subset seating by A, C and D, none with C's seating in its past: C's receipt beside its "
+     "own seating, and D's beside its own ballot (not in B's set), are each two things, so C and D are out of the base; "
+     "A alone of A and E does not close it, and C's containing seating stands",
      [G5, LM] + H5 + [EC, elect("eb", "B", ("ba", "bb")), ack("k1", "A", "eb"), ack("k3", "C", "eb"), ack("k4", "D", "eb")],
-     MOD("B") + NOMOD("C"), "C5"),
-    ("C5: one say: D receipts C's seating and, concurrently, B's: no say, and A and B alone do not close",
+     MOD("C") + NOMOD("B"), "C5, (2)"),
+    ("C5: receipts of B's subset seating by voters each with its own ballot in its past (A, whose ballot B's set holds, "
+     "and E, naming its own): two of the four others is no close, and C's containing seating stands",
+     [G5, LM] + H5 + [EC, elect("eb", "B", ("ba", "bb")), ack("k1", "A", "eb"), ack("k5", "E", "eb", ("be",))],
+     MOD("C") + NOMOD("B"), "C5"),
+    ("C5, (2): D receipts C's seating and, concurrently, B's: D said two things, no voice and out of the base; A and B "
+     "of A, B, E hold the close, and C stands",
      [G5, LM] + H5 + [EC, elect("eb", "B", ("ba", "bb")), ack("k1", "A", "ec"), ack("k2", "B", "ec"), ack("k4", "D", "ec"),
                       ack("j4", "D", "eb")], MOD("C") + NOMOD("B"), "C5"),
     ("C5, not monotone: C's election closed by A, B and D is reopened by D's concurrent receipt of a rival over a "
@@ -234,11 +248,21 @@ CASES = [
                                       ST.withdraw("we", "E", "be", ("be",)), ballot("be2", "E", "B", ("we",)),
                                       elect("eb", "B", IDS5 + ("wd", "bd2", "we", "be2")), ack("j4", "D", "eb")],
      MOD("B") + NOMOD("C"), "C5, point 4"),
-    ("C5: a later receipt by D of the rival, with its first in its past, counts for nothing: still closed for C",
-     [G5, LM] + H5 + [EC] + CLOSE + [ST.withdraw("wd", "D", "bd", ("bd",)), ballot("bd2", "D", "B", ("wd",)),
-                                      ST.withdraw("we", "E", "be", ("be",)), ballot("be2", "E", "B", ("we",)),
-                                      elect("eb", "B", IDS5 + ("wd", "bd2", "we", "be2")), ack("j4", "D", "eb", ("k4",))],
-     MOD("C") + NOMOD("B"), "C5"),
+    ("C5: a later receipt by D of a rival, with its first in its past, counts for nothing: the rival seated by E (who "
+     "receipted nothing) over a containing set changed by E alone does not unseat C, the close (A, B, D) holding",
+     [G5, LM] + H5 + [EC] + CLOSE + [ST.withdraw("we", "E", "be", ("be",)), ballot("be2", "E", "E", ("we",)),
+                                      elect("ee", "E", IDS5 + ("we", "be2")), ack("j4", "D", "ee", ("k4",))],
+     MOD("C") + NOMOD("E"), "C5"),
+    ("C5, (2): a close that still holds a majority of the remaining base stands: of seven, C won four to three; A, D, "
+     "E and F receipt it; D then changes its ballot for B beside its receipt (two things: out of the base), and B's "
+     "rival over a containing set wins four to three: A, E and F are three of the five left, so the close holds, and "
+     "B's rival counts for nothing",
+     [room(7), LM] + H7C + [EC7C, ack("r1", "A", "ec"), ack("r4", "D", "ec"), ack("r5", "E", "ec"), ack("r6", "F", "ec"),
+                            ST.withdraw("wd", "D", "bd", ("bd",)), ballot("bd2", "D", "B", ("wd",)),
+                            elect("eb", "B", IDS7C + ("wd", "bd2"))], MOD("C") + NOMOD("B"), "C5, (2)"),
+    ("C5, (2): the same rival with no close: it contains C's set and stands",
+     [room(7), LM] + H7C + [EC7C, ST.withdraw("wd", "D", "bd", ("bd",)), ballot("bd2", "D", "B", ("wd",)),
+                            elect("eb", "B", IDS7C + ("wd", "bd2"))], MOD("B") + NOMOD("C"), "C5, (2)"),
     ("C5, point 2: a leaver is out of the closing base: E leaves; A and B of A, B, D close",
      [G5, LM] + H5 + [EC, leave("le", "E", "g", ("ec",)), ack("k1", "A", "ec", ("le",)), ack("k2", "B", "ec", ("le",)),
                       ST.withdraw("wc", "C", "ec", ("k1", "k2"))] + N2 + [EN], MOD("B"), "C5, point 2"),
@@ -267,8 +291,9 @@ CASES += [
     ("A6: a seating of election 1 with election 2's seating in its past: nothing (C2), C holds",
      [G5, LM] + E1 + E2 + [ballot("bd", "D", "D", ("e2",)), ballot("be", "E", "D", ("e2",)),
                            elect("e1y", "D", ("bd", "be"))], MOD("C") + NOMOD("D"), "C2, A6"),
-    ("atk 1: B's padded seating over its own duplicate ballots is not nested with the honest set: nobody",
-     [G5, LM] + H5 + PADB + [EC, elect("eb", "B", ("ba", "bb") + tuple(b["id"] for b in PADB))], NOMOD("B", "C"), "C4, atk 1"),
+    ("atk 1, (2): B's padded seating over its own concurrent duplicate ballots: B said two things in its own set, so "
+     "it is no ballot there, and the padding concludes nothing; C",
+     [G5, LM] + H5 + PADB + [EC, elect("eb", "B", ("ba", "bb") + tuple(b["id"] for b in PADB))], MOD("C") + NOMOD("B"), "C4, atk 1"),
     ("atk 1: and a seating over the union, B's duplicates one say, seats C",
      [G5, LM] + H5 + PADB + [EC, elect("eb", "B", ("ba", "bb") + tuple(b["id"] for b in PADB)),
                              elect("eu", "C", IDS5 + tuple(b["id"] for b in PADB))], MOD("C") + NOMOD("B"), "C4, atk 1"),
@@ -297,8 +322,8 @@ CASES += [
 # the recall's past only. A seating holding only lm reads E a voice; one holding both does not
 RC = ST.unseat("rc", "B", "A", "moderate", OBJ, "group", ("le",), head=("le",), policy="moderator_recall",
                cosigners=("C", "D"))
-CE = [G5, LM, leave("le", "E", "g", ("g",)), RC, ballot("ba", "A", "B", ("g",)),
-      ballot("bc", "C", "C", ("g",)), ballot("bd", "D", "C", ("g",)), ballot("be", "E", "B", ("g",))]
+CE = [G5, LM, leave("le", "E", "g", ("g",)), RC, ballot("ba", "A", "B", ("lm", "rc")),
+      ballot("bc", "C", "C", ("lm", "rc")), ballot("bd", "D", "C", ("lm", "rc")), ballot("be", "E", "B", ("lm",))]
 CASES += [
     ("C1, concurrent ends: a seating holding lm and the recall (E's leaving in its past) reads E no voice: C wins two "
      "to one", CE + [elect("ec", "C", ("ba", "bc", "bd", "be"), vac=("lm", "rc"), cites=("le",))], MOD("C"), "C1, point 1"),
@@ -307,11 +332,12 @@ CASES += [
      [G5, LM, admit("ax", "X", tuple("ABCDE"), ("g",)),
       ST.unseat("rc", "B", "A", "moderate", OBJ, "group", ("ax",), head=("ax",), policy="moderator_recall",
                 cosigners=("C", "D", "E")),
-      ballot("bx", "X", "X", ("g",)), ballot("ba", "A", "X", ("g",)), ballot("bc", "C", "C", ("g",)), ballot("bd", "D", "C", ("g",)),
+      ballot("bx", "X", "X", ("rc",)), ballot("ba", "A", "X", ("lm", "rc")), ballot("bc", "C", "C", ("lm", "rc")),
+      ballot("bd", "D", "C", ("lm", "rc")),
       elect("ec", "C", ("bx", "ba", "bc", "bd"), vac=("lm", "rc"))], MOD("C"), "C1, point 1"),
     ("C1, concurrent ends: a seating holding lm alone reads E a voice: two to two, nobody (the two reads differ)",
-     [G5, LM, ballot("ba", "A", "B", ("g",)), ballot("bc", "C", "C", ("g",)), ballot("bd", "D", "C", ("g",)),
-      ballot("be", "E", "B", ("g",)), elect("ec", "C", ("ba", "bc", "bd", "be"))], NOMOD("C", "B"), "C1, point 1"),
+     [G5, LM, ballot("ba", "A", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
+      ballot("be", "E", "B"), elect("ec", "C", ("ba", "bc", "bd", "be"))], NOMOD("C", "B"), "C1, point 1"),
 ]
 
 # E3 (ruled): once its holder's seat has ended, a seating that stood and never closed names the next election, C3
@@ -337,7 +363,7 @@ CASES += [
     ("E3, C3: a rerun of election 1 after C's seating stood and ended concludes nothing (the next election is named "
      "by C's seating): X never votes there, and B is not seated by it", OC + RERUN, NOMOD("B", "C", "X"), "E3, C3"),
     ("E3: the room whose first electorate has all left elects again, named by B's laid-down seating",
-     LOCK + [ballot("bx", "X", "Y", ("lb",), of="eb"), ballot("by", "Y", "Y", ("lb",), of="eb"),
+     LOCK + [ballot("bx", "X", "Y", ("wb", "lb"), of="eb"), ballot("by", "Y", "Y", ("wb", "lb"), of="eb"),
              elect("ey", "Y", ("bx", "by"), of="eb", vac=("wb",))], MOD("Y"), "E3"),
     ("F3, the stated cost: C's and B's seatings of election 1, concurrent, each laid down on its own line, each line "
      "opening a next election: a reader of either line alone is in that line's next election; where both are held C4 "
@@ -421,15 +447,21 @@ CASES += [
      + [elect("eb", "B", IDS7, cites=("nt",))], MOD("C") + NOMOD("B"), "F1"),
     ("F1: a seating that names the withdrawals counts them, and contains C's: before the close it stands, B",
      [room(7), LM] + H7 + [EC7] + WFG + [elect("eb", "B", IDS7 + ("wf", "wg"))], MOD("B") + NOMOD("C"), "F1"),
-    ("F2 (b2): F's seating names lm2 (F a member there), C's names lm1 (F no member there): different vacancies are "
-     "different sets, not nested: nobody",
+    ("F2, (3) (b2 re-checked): the voters named lm2; C's seating names lm1, which no counted ballot names, so lm1 is "
+     "part of no set: C's seating reads no vacancy and concludes nothing, and F's stands",
      [G5, LM1, AF, LM2] + HB2 + [elect("ef", "F", IDB2, vac=("lm2",)), elect("ec", "C", IDB2, vac=("lm1",))],
-     NOMOD("F", "C"), "F2"),
+     MOD("F") + NOMOD("C"), "F2, (3)"),
     ("F2 (b2): F's seating alone (the end at lm2): F", [G5, AF, LM2] + HB2 + [elect("ef", "F", IDB2, vac=("lm2",))],
      MOD("F"), "F2"),
-    ("F2: and a seating over the union, naming both ends: the members at both leave F out, the ballots for F are void: C",
-     [G5, LM1, AF, LM2] + HB2 + [elect("ef", "F", IDB2, vac=("lm2",)), elect("ec", "C", IDB2, vac=("lm1",)),
-                                  elect("eu", "C", IDB2, vac=("lm1", "lm2"))], NOMOD("F") + MOD("C"), "F2"),
+    ("F2, (3): a seating naming both ends, lm1 named by no ballot, has the same set as F's: F's count, so C's "
+     "concludes nothing: F",
+     [G5, LM1, AF, LM2] + HB2 + [elect("ef", "F", IDB2, vac=("lm2",)), elect("eu", "C", IDB2, vac=("lm1", "lm2"))],
+     MOD("F") + NOMOD("C"), "F2, (3)"),
+    ("F2, (3): honest concurrent ends: D and E saw lm1 and name it beside lm2; the union seating names both and reads "
+     "the members at both, F no member at lm1: the ballots for F are void, C",
+     [G5, LM1, AF, LM2] + [ballot("ba", "A", "F", ("lm2",)), ballot("bb", "B", "F", ("lm2",)), ballot("bc", "C", "F", ("lm2",)),
+                           ballot("bd", "D", "C", ("lm1", "lm2")), ballot("be", "E", "C", ("lm1", "lm2"))]
+     + [elect("ef", "F", IDB2, vac=("lm2",)), elect("eu", "C", IDB2, vac=("lm1", "lm2"))], MOD("C") + NOMOD("F"), "F2, (3)"),
     ("F3 (b3), one side: B's seating closed by A, C and E: B", [G5, LM] + AL, MOD("B"), "F3"),
     ("F3 (b3), both sides held: E said two things, neither closes; the sets are not nested, so nobody is seated "
      "until a seating over their union (a close holds while no receipter it needs has said two things; when it fails "
@@ -495,12 +527,98 @@ CASES += [
      [G5, LM] + [ballot("ba", "A", "C"), ballot("bb", "B", "E"), ballot("bc", "C", "C"), ballot("be", "E", "E"),
                  leave("le", "E", "g", ("lm",)), elect("ec", "C", ("ba", "bb", "bc", "be", "le"))], MOD("C"), "N2"),
 ]
+# The rulings on N1, N3 and N4 (the fourth read). (1) A self-fork: two rows by one key over ONE election, neither in
+# the other's past, are that key saying two things; rows in two rooms are never a fork. (2) Scoped to the election's
+# own rows only (ballot, ballot withdrawal, decline, receipt, a lay-down read as its vacancy, seating): for a reader
+# holding both rows the key is no voice (and no candidate, as a leaver) and out of that election's close base, the
+# honest receipters keeping theirs. It is NOT a general roster rule: outside an election a fork is evidence and the
+# reader's line, with no automatic effect (the guard case below). (3) A vacancy end is in a set only where a counted
+# ballot of the set names it.
+F3E1 = [ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "B"), elect("e1", "B", ("ba", "bb", "bc"))]
+F3E2 = [ballot("a2", "A", "C", ("wb",), of="e1"), ballot("c2", "C", "C", ("wb",), of="e1"), ballot("d2", "D", "C", ("wb",), of="e1"),
+        elect("e2", "C", ("a2", "c2", "d2"), of="e1", vac=("wb",)),
+        ack("q1", "A", "e2", ("a2",)), ack("q2", "B", "e2"), ack("q3", "D", "e2", ("d2",))]
+F3E3 = [ST.withdraw("wc", "C", "e2", ("q1", "q2", "q3")), ballot("a3", "A", "D", ("wc",), of="e2"),
+        ballot("d3", "D", "D", ("wc",), of="e2"), elect("e3", "D", ("a3", "d3"), of="e2", vac=("wc",))]
+CHAIN2 = [G5, LM] + F3E1 + [ack("p1", "A", "e1"), ack("p3", "C", "e1"), ack("p4", "D", "e1"),
+                            ST.withdraw("wb", "B", "e1", ("p1", "p3", "p4"))] + F3E2 + F3E3
+RIV = [ballot("bd0", "D", "D"), ballot("be0", "E", "D"), elect("r1", "D", ("bd0", "be0")), ack("p4x", "D", "r1")]
+G6 = room(6)
+CHAIN6 = [G6, LM] + F3E1 + [ack("p1", "A", "e1"), ack("p3", "C", "e1"), ack("p4", "D", "e1"),
+                            ST.withdraw("wb", "B", "e1", ("p1", "p3", "p4"))] + F3E2 + F3E3
+CHAIN = [G5, LM] + F3E1 + [ST.withdraw("wb", "B", "e1", ("e1",))] + F3E2 + F3E3
+# N1: seven members, A resigns at the newest row (lm2) and seven vote, D five to two; A then backdates a second end
+# from the founding row (lm1)
+GN1 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"))
+N1R = [GN1]
+_prev, _mem = "g", ["A", "B", "C"]
+for _k in "DEFG":
+    N1R.append(admit("a" + _k, _k, tuple(_mem), (_prev,))); _mem.append(_k); _prev = "a" + _k
+N1L2 = ST.withdraw("lm2", "A", "g", ("aG",), scope="moderate")
+N1H = [ballot("b" + k.lower(), k, r, ("lm2",)) for k, r in zip("ABCDEFG", "BBDDDDD")]
+N1I = tuple(b["id"] for b in N1H)
+N1L1 = ST.withdraw("lm1", "A", "g", ("g",), scope="moderate")
+# a founding row with two duty seats: A moderates, B reviews; both lay down at the newest row, and B backdates
+GN2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",), "review": ("B",)}, cosigners=("B", "C"))
+N2R = [GN2]
+_prev, _mem = "g", ["A", "B", "C"]
+for _k in "DE":
+    N2R.append(admit("a" + _k, _k, tuple(_mem), (_prev,))); _mem.append(_k); _prev = "a" + _k
+N2LA = ST.withdraw("la", "A", "g", ("aE",), scope="moderate")
+N2LB = ST.withdraw("lb", "B", "g", ("la",), scope="review")
+N2H = [ballot("b" + k.lower(), k, r, ("la", "lb")) for k, r in zip("ABCDE", "BBDDD")]
+CASES += [
+    ("N3 (F3a): the chain e1 (B, unclosed), e2 (C, closed), e3 (D): D", CHAIN, MOD("D") + NOMOD("B", "C"), "N3"),
+    ("N3 (F3c): e1 closed by A, C and D, then the chain: D", CHAIN2, MOD("D"), "N3"),
+    ("N3 (F3d): D, a needed receipter of e1, later receipts a rival seating it made with E's ballot: D said two things "
+     "in election 1, so it is no voice and out of e1's base; A and C are two of the three left, the close holds, and "
+     "the chain stands: D", CHAIN2 + RIV, MOD("D"), "N3"),
+    ("N3, the edge: the same in a room of six, e1 closed three of five (A, C, D); D's fork leaves two of four, the close "
+     "fails, e1 and D's rival are not nested, so neither stands, and every election named on e1 falls (F3): nobody",
+     CHAIN6 + RIV, NOMOD("A", "B", "C", "D", "E", "F"), "N3, the edge"),
+    ("N4 (F3e): B, the resigned winner, forks from lm (no e1 in its past): its new ballot beside its seating and its "
+     "first ballot is two things, so B is no ballot and no candidate in its own superset seating, which concludes "
+     "nothing; the closed successor stands: D", CHAIN + [ballot("bb2", "B", "B"), elect("e1x", "B", ("ba", "bb", "bc", "bb2"))],
+     MOD("D") + NOMOD("B"), "N4"),
+    ("N1, (3): A backdates a second end (lm1); B's seating names both ends, but no counted ballot names lm1, so lm1 is "
+     "out of its set: its count is at lm2, D's, and it concludes nothing; D stands",
+     N1R + [N1L2] + N1H + [elect("ed", "D", N1I, vac=("lm2",)), N1L1, elect("eb", "B", N1I, vac=("lm2", "lm1"))],
+     MOD("D") + NOMOD("B"), "N1, (3)"),
+    ("N1, (1): B forks a ballot naming lm1 beside its first: B said two things, no voice; B's seating over the union "
+     "reads the members at both ends (A, B, C), B out: one ballot (A's for B), under the floor: nothing; D stands",
+     N1R + [N1L2] + N1H + [elect("ed", "D", N1I, vac=("lm2",)), N1L1, ballot("bb2", "B", "B", ("lm1",)),
+                           elect("eb", "B", N1I + ("bb2",), vac=("lm2", "lm1"))], MOD("D") + NOMOD("B"), "N1, (1)"),
+    ("N1, several duty seats: A moderates and B reviews; both lay down, five vote naming both ends, D; B backdates a "
+     "second end of its seat; a seating naming it beside the honest ends, no ballot naming it, is the honest set: D",
+     N2R + [N2LA, N2LB] + N2H + [elect("ed", "D", tuple(b["id"] for b in N2H), vac=("la", "lb")),
+                                 ST.withdraw("lb2", "B", "g", ("g",), scope="review"),
+                                 elect("eb", "B", tuple(b["id"] for b in N2H), vac=("la", "lb", "lb2"))],
+     MOD("D") + NOMOD("B"), "N1"),
+    ("(2), the guard: D forks two ballots in the election; outside it, D's cosignature on an admission is a voice as "
+     "ever (a fork is no general roster rule): X, admitted by A, B, C and D (four of five), is a member",
+     [G5, LM, ballot("bd", "D", "C"), ballot("bd2", "D", "B"), admit("ax", "X", ("A", "B", "C", "D"), ("lm",))],
+     [("X", "member", T), ("D", "member", T)], "(2), the guard"),
+]
 # b6: twins over equal sets count alike under F1, so the close's base is read the same from either: (regression)
 B6 = [G5, LM1, AF, LM2] + HB2 + [elect("ef", "F", IDB2, vac=("lm2",)), elect("ef2", "F", IDB2, vac=("lm2",)),
                                  ack("ka", "A", "ef"), ack("kb", "B", "ef"), ack("kc", "C", "ef2"), ack("kd", "D", "ef2")]
 CLOSE_CASES += [
     ("b6 (regression): twins over one set, receipted two and two: one seat, one base, closed by four of five", B6, "ef", T),
     ("b6: the same asked of the other twin", B6, "ef2", T),
+]
+# (1): rows in two rooms are never a fork: A receipts C's seating in g and, concurrently, votes in room h's election;
+# a minimal close (two of three) holds
+G4X = room(4)
+H4 = [ballot("ba", "A", "C"), ballot("bb", "B", "C"), ballot("bc", "C", "C"), ballot("bd", "D", "B")]
+HR = ST.found("h", "A", ("A",), {})
+CLOSE_CASES += [
+    ("(1): A's receipt in room g and its concurrent ballot in room h's election are no fork: A and B, two of three, close it",
+     [G4X, LM, HR] + H4 + [elect("ec", "C", tuple(b["id"] for b in H4)), ack("k1", "A", "ec"), ack("k2", "B", "ec"),
+                           ballot("ha", "A", "A", ("h",), of="h")], "ec", T),
+    ("C5: a later receipt, with the first in its past, counts for nothing: D's say is B's subset seating's; C's has B "
+     "and E of four, not closed",
+     [G5, LM] + H5 + [EC, elect("es", "B", ("ba", "bb")), ack("k4", "D", "es", ("bd",)), ack("j4", "D", "ec", ("k4",)),
+                      ack("k2", "B", "ec"), ack("k5", "E", "ec")], "ec", F),
 ]
 # b5: the old-head removal reaching the election is the head rules' (H1 to H7); this tree does not read it. Kept as a
 # case the merged tree must pass once `heads` lands: PENDING until then
@@ -551,7 +669,7 @@ PLANTS = ("vacancy_founding", "vacancy_first_end", "electorate_at_seating", "lea
           "c2_later_unread", "contains_unread", "twin_withdrawal_unread", "close_unread", "receipt_standing_unread",
           "say_any_receipt", "close_leavers_kept", "closed_rivals_count", "election_id_any", "set_any_signer",
           "ballot_nonmember_ranked", "ballot_ranks_unbounded", "seating_any_signer", "twin_ids_apart",
-          "fold_ranked_counted", "equivocator_out", "superseded_unread", "wait_close", "id_cascade_unread",
+          "fold_ranked_counted", "fork_reopens_close", "fork_base_kept", "fork_across_objects", "superseded_unread", "wait_close", "id_cascade_unread",
           "vacancy_unnamed", "set_inputs_unread", "void_seating_read",
           "leaving_before_vacancy_read")
 

@@ -14,7 +14,10 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   placement only and are not read for the count. A receipt of a seating is a `SeatKind::Ack` whose `of()` is it.
 - C1, F2: the electorate (persons) and the candidates are read at the vacancy the seating names: the ends of the
   id row's seat it names (the members at all of them); the founding row itself where it gives no seat. A member
-  admitted after the vacancy neither votes nor stands. Different vacancies are different sets.
+  admitted after the vacancy neither votes nor stands. Different vacancies are different sets. An end is in a set
+  only where a counted ballot of the set names it (a ballot names the end it votes on, beside the election's id):
+  an end no such ballot names (a backdated lay-down) is part of no set. Honest concurrent ends: the voters name what
+  they saw, and the union seating names both ends and reads the members at both.
 - F1: every input to the count comes from the set: a withdrawal or a leaving counts only where the seating names it,
   so seatings over equal sets count alike (C4's "one seat" is sound). A named leaving strikes a key only in the
   election's window: one in the past of the vacancy end the seating reads is settled there (a member removed or
@@ -27,12 +30,19 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
 - C4: CONTAINS replaces LARGER: a seating stands only where its set contains every other seating's set of its
   election (equal sets one seat: the holder's withdrawal of either ends it, and an election named by either is one
   election); sets not nested seat nobody until a seating over the union.
-- C5, E1, E2: the causal close: a strict majority of the electorate, the winner and the departed (left, or removed,
+- C5, E1: the causal close: a strict majority of the electorate, the winner and the departed (left, or removed,
   read in each receipt's past) apart, receipting one seating that stood under C4 in each receipt's own past; one
-  say per person read causally. An equivocator (two concurrent receipts of different sets) has no say and stays in
-  the base: a close holds while no receipter it needs has said two things; when it fails over non-nested sets
-  nobody is seated until a seating over their union. The way back is to remove the equivocator by count; a receipt
-  after the removal reads it out of the base. With everyone but the winner gone the seating closes itself.
+  say per person read causally. With everyone but the winner gone the seating closes itself.
+- The self-fork (replacing E2's "an equivocator reopens a close for all"): two rows by one key over ONE election,
+  neither in the other's past, are that key saying two things. The election's own rows only: a ballot, a withdrawal
+  of one, a decline, a receipt, a lay-down read as its vacancy, a seating. Rows in two rooms, or of two elections,
+  are never a fork. For a reader holding both rows the key is no voice (and no candidate) and out of that election's
+  close base, as a leaver; the honest receipters keep their receipts, and a close that still holds a majority of
+  the remaining base stands. It reaches no count already determined: a seating counts only its named set, and a
+  key whose two forked rows are both in the set is no ballot there. It is not a roster rule: outside an election a
+  fork is evidence and the reader's line, with no automatic effect. The edge: a minimal close on an odd base can
+  still fail (three of five becomes two of four), and F3's cost then applies: it is rarer, not gone. There is no
+  carve-out for an honest self-fork (a device restored from an old backup): that key is out of that election.
 - F3: a next election stands only while its id row stands, for the rows held: beating or un-standing a seating
   takes with it every election named on it (a late superset of election 1's set beats its seating, and election 2,
   named on it, falls).
@@ -46,9 +56,9 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   an election (the third read's b5) is theirs, a case pending them.
 - Two concurrent seatings of election 1 not nested, each line opening a next election: where both are held neither
   stands and both next elections fall (F3): nobody until a seating over the union.
-- The reference: `models/causal_kernel/check_election.py`, 73 cases, 17 of the close read directly
+- The reference: `models/causal_kernel/check_election.py`, 86 cases, 19 of the close read directly
   (`seat::election_closed`), 3 of the line, 1 pending the head rules, every one in arrival orders and in the `seat`
-  fixture; 28 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
+  fixture; 30 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
 
 **A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
 

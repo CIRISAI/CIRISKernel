@@ -623,8 +623,9 @@ def is_election(o, table=None):
         K.rule(table or POLICY, o.get("policy"), ("unknown",))[0] == "ranked"
 
 
-def _memo(tag, row, f):
-    key = (tag, id(row), frozenset(MUT))
+def _memo(tag, row, f, rows=()):
+    # keyed by the row and the rows it is read over (one row object may stand in two sets of rows)
+    key = (tag, id(row), frozenset(MUT), frozenset(id(x) for x in rows))
     got = _EMEMO.get(key)
     if got is None or got[0] is not row:
         got = _EMEMO[key] = (row, f())
@@ -710,14 +711,22 @@ def seating_view(S, P, past):
     def f():
         by = {q["id"]: q for q in P}
         E = by.get(S.get("of"))
-        if E is None: return (None, frozenset(), frozenset())
+        if E is None: return (None, frozenset(), frozenset(), frozenset())
         Ek = ekey(E, P, past)
         named = frozenset(S["names"])
+        # (3): an end of the seat is in the set only where a ballot of the set names it, the ballot's signer a member
+        # there (it votes on that end); an end no such ballot names is part of no set (MUTATION end_unnamed_by_ballot)
+        if "end_unnamed_by_ballot" not in MUT:
+            bal = [by[n] for n in named if n in by and by[n]["kind"] == "ballot" and by[n].get("of") == E["id"]]
+            cand = vacancy(E, P, past, named) or ()
+            named = frozenset(n for n in named if n not in cand or n == E["id"] or any(
+                n in b["names"] and b["signer"] in counted_keys(P, past, S["obj"], (n,))[0] for b in bal))
         el = electorate(E, P, past, S["obj"], named)
         v = vacancy(E, P, past, named) or ()
         rows = {n for n in S["names"] if election_rows(by.get(n), Ek, el, by, P, past, S["obj"], v)}
-        return (Ek, el, frozenset(rows | (set(v) & named)))
-    return _memo("view", S, f)
+        ends = frozenset(set(v) & named)
+        return (Ek, el, frozenset(rows | ends), ends)
+    return _memo("view", S, f, P)
 
 
 def c4_standing(seatings, sets):
@@ -749,13 +758,15 @@ def closure(Ek, rows, past, obj):
     if not seat_ids: return None
     view = lambda q: _view(rows, past, q)
     acks = [a for a in rows if a["kind"] == "ack" and a.get("of") in seat_ids]
+    # (2): a key that said two things in the election, for this reader, is no voice and is out of the base
+    fork = forkers(Ek, rows, past, obj, {q["id"]: q for q in rows})
+    if fork and "fork_reopens_close" in MUT: return None      # MUTATION: the old E2, a fork reopens the close for all
     by_p = {}
     for a in acks: by_p.setdefault(a["signer"], []).append(a)
-    says, mute = {}, set()
+    says = {}
     for p, rs in by_p.items():
         first = rs if "say_any_receipt" in MUT else [a for a in rs if not any(past(b["id"], a["id"]) for b in rs if b is not a)]
-        if len({view(seat_ids[a["of"]])[2] for a in first}) != 1 and "say_any_receipt" not in MUT:
-            mute.add(p)                # E2: no say, and still in the base (MUTATION equivocator_out)
+        if p in fork or (len({view(seat_ids[a["of"]])[2] for a in first}) != 1 and "say_any_receipt" not in MUT):
             continue
         for a in first:
             A = _past_of(rows, past, a)
@@ -763,7 +774,7 @@ def closure(Ek, rows, past, obj):
             st = c4_standing(here, {x["id"]: view(x)[2] for x in here})
             if a["of"] in st or "receipt_standing_unread" in MUT:
                 says.setdefault(view(seat_ids[a["of"]])[2], []).append(a)
-                break
+                if "say_any_receipt" not in MUT: break
     for group, rs in says.items():
         S = next(q for q in seat_ids.values() if view(q)[2] == group)
         el, winner = view(S)[1], S["to"][0]
@@ -772,18 +783,40 @@ def closure(Ek, rows, past, obj):
         for a in rs:
             gone |= departed(_past_of(rows, past, a), past, obj)
         base = el - {winner} - (frozenset() if "close_leavers_kept" in MUT else gone)
-        if "equivocator_out" in MUT: base = base - mute
+        if "fork_base_kept" not in MUT: base = base - fork
         yes = {a["signer"] for a in rs} & base
         if 2 * len(yes) > len(base) or not base: return group
     # a room of one, or one whose every other elector has departed (E1, the limit): a standing seating closes itself
     here = list(seat_ids.values())
     st = c4_standing(here, {x["id"]: view(x)[2] for x in here})
     gone = frozenset() if "close_leavers_kept" in MUT else departed(rows, past, obj)
+    if "fork_base_kept" not in MUT: gone = gone | fork
     for q in here:
         el = view(q)[1]
         if q["id"] in st and el and not (el - {q["to"][0]} - gone):
             return view(q)[2]
     return None
+
+
+def forkers(Ek, rows, past, obj, by, ends0=frozenset()):
+    """(2): the keys that said two things in election Ek among rows: two rows of the election's own, signed by the key,
+    neither in the other's past. The election's own rows: a ballot or decline naming it, a withdrawal of such a
+    ballot, a receipt of one of its seatings, one of its seatings, a lay-down read as its vacancy (an end in a set of
+    one of its seatings). Rows in two rooms, or of two elections, are never a fork (MUTATION fork_across_objects: any
+    two rows of these kinds by the key)."""
+    across = "fork_across_objects" in MUT
+    seats = [q for q in rows if is_election(q) and (across or (q.get("obj") == obj and _view(rows, past, q)[0] == Ek))]
+    sids = {q["id"] for q in seats}
+    ends = set(ends0).union(*[_view(rows, past, q)[3] for q in seats])
+    named = lambda b: across or (b.get("of") in by and ekey(by[b["of"]], rows, past) == Ek)
+    mine = {}
+    for q in rows:
+        own = (q["kind"] in ("ballot", "decline") and named(q)) or q["id"] in sids or q["id"] in ends or \
+            (q["kind"] == "ack" and (q.get("of") in sids or (across and q.get("of") in by and is_election(by[q["of"]])))) or \
+            (q["kind"] == "withdraw" and q.get("target") in by and by[q["target"]]["kind"] == "ballot" and named(by[q["target"]]))
+        if own: mine.setdefault(q["signer"], []).append(q)
+    return frozenset(k for k, rs in mine.items()
+                     if any(not past(a["id"], b["id"]) and not past(b["id"], a["id"]) for i, a in enumerate(rs) for b in rs[i + 1:]))
 
 
 def departed(P, past, obj):
@@ -863,7 +896,7 @@ def election_count(r, P, past, by):
     # C2: no person holds a duty over the room in the seats over the whole past
     Q = seats_of(P)
     if "c2_holder_unread" not in MUT and Q.holders("duty", obj) - Q.holders(AGENT, obj): return False
-    Ek, el, mine = seating_view(r, P, past)
+    Ek, el, mine, mine_ends = seating_view(r, P, past)
     # C2: no row of a later election (one named by a seating of this election) in the past
     later = {ekey(q, P, past) for q in _seatings_of(Ek, P, past, obj)}
     if "c2_later_unread" not in MUT and any(q.get("of") in by and ekey(by[q["of"]], P, past) in later
@@ -876,8 +909,11 @@ def election_count(r, P, past, by):
     # F1: the leavings and the withdrawals read are the set's
     named = [q for q in P if q["id"] in mine] if "set_inputs_unread" not in MUT else P
     left = {k for w in named if w["kind"] == "withdraw" for _, k, g in stay_ends([w], by) if g == obj} | \
-        {k for u in named if u["kind"] == "unseat" and u.get("obj") == obj and u.get("scope") in ROSTER_SEATS for k in u["to"]}
+        {k for u in named if u["kind"] == "unseat" and u.get("conf") == "group" and u.get("obj") == obj
+         and u.get("scope") in ROSTER_SEATS for k in u["to"]}
     voters = el - (frozenset() if "leaver_voice" in MUT else left)
+    # (2): a key whose two forked rows are both in the set is no ballot (the set alone decides: F1)
+    voters = voters - forkers(Ek, named, past, obj, by, mine_ends)
     gone = {w["target"] for w in named if w["kind"] == "withdraw" and w["target"] in by
             and by[w["target"]]["kind"] == "ballot" and w["signer"] == by[w["target"]]["signer"]}
     declined = {d["signer"] for d in K.sel(P, kind="decline") if d["id"] in mine and d["signer"] in el}

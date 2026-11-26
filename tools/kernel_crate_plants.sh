@@ -301,8 +301,13 @@ plant "a seating signed by another than the winner concludes" src/seat/election.
 plant "the fold counts an election's seating as a plain count" src/seat.rs 'Some(Policy::Ranked) => true, // an election' 'Some(Policy::Ranked) => false, // an election'
 plant "E3: an unclosed seating that stood and ended names no next election" src/seat/election.rs 'self.standing(&here).contains(&ei) && self.vacancy(ei, p, None).is_some()' 'false'
 plant "E3, C3: an election superseded by its ended seating still takes rows" src/seat/election.rs 'if !cx.valid_id(ei, ri, &past) || cx.superseded(ei, &past) {' 'if !cx.valid_id(ei, ri, &past) {'
-plant "E2: an equivocator out of the closing base" src/seat/election.rs '            base.remove(winner);' '            base.remove(winner);
-            base.retain(|k| !mute.contains(k));'
+plant "(2): a fork keeps the forker in the closing base" src/seat/election.rs '            base.retain(|k| !fork.contains(k));' ''
+plant "(2): a fork reopens the close for all (the old E2)" src/seat/election.rs 'let fork = self.forkers(ek, rows, obj, &BTreeSet::new());' 'let fork = self.forkers(ek, rows, obj, &BTreeSet::new());
+        if !fork.is_empty() {
+            return None;
+        }'
+plant "(1): rows of two elections read as a fork" src/seat/election.rs 'SeatKind::Ballot | SeatKind::Decline => named(r),' 'SeatKind::Ballot | SeatKind::Decline => true,'
+plant "(3): an end named by no ballot of the set read as its vacancy" src/seat/election.rs 'if !ballots.iter().any(|b| b.names().contains(&e) && at.contains(b.signer())) {' 'if false {'
 plant "F3: a next election stands though its id row is beaten" src/seat/election.rs '            if add.is_empty() {' '            if true {'
 plant "F2: an end the seating does not name read as its vacancy" src/seat/election.rs ' || named.is_some_and(|n| !n.contains(wr.id()))' ''
 plant "F1: the count reads leavings and withdrawals off the seating's past, not its set" src/seat/election.rs 'let rows: Vec<&R> = all.iter().copied().filter(|q| mine.contains(q.id())).collect();' 'let rows: Vec<&R> = all.clone();'

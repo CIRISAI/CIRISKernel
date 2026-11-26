@@ -88,7 +88,11 @@ migrations, and the local operational store.
 
 **The moderator election** (C1 to C5, E1 to E3, F1 to F4; CHANGELOG). Present:
 - each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` its election's id row: the
-  room's founding row for the first election, then the seating of the one before;
+  room's founding row for the first election, then the seating of the one before; naming the end of the last
+  holder's seat it votes on;
+- every row a key signs in an election (ballot, withdrawal, decline, receipt, seating) naming that key's newest own
+  row of the election: two such rows neither in the other's past are the key saying two things, and the key is out
+  of that election (a device restored from an old backup included);
 - a decline as `SeatKind::Decline`, `of()` its election;
 - the winner's own seating: an Offer of `moderate`, `Conf::Group`, policy `moderator_election`, signed by the
   winner, `to()` the winner, `of()` its election, naming its whole set: the ballots, the voters' own withdrawals
