@@ -33,6 +33,10 @@ counted withdrawal of its duty).
 Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     end_unread       the end is not read: a lone removal stays in force whatever ends its standing
     remover_receipt  a receipt by the remover itself keeps its own removal in force
+    cascade          a lone removal out of force is still an end of the standing of the key it removes
+    count_receipt_unread  the room's counted receipt is not read
+    removed_receipt_kept  a receipt by a key whose seat a counted unseat beside it ends still keeps
+    lifts_unread     a count end's `lifts` is not read
     count_unread_lone a removal the room's count carries is read as the moderator's lone act
     reseat_revives   the remover holding `moderate` again (its re-acceptance, a new conferral) puts its removal
                      back in force
@@ -103,8 +107,53 @@ WQ = W + [admit("aq", "q", ("p1", "p2", "p3"), ("ag",)),
           ST.accept("acq", "q", "cq"), lone("x", "q", "AG", ("acq",))]
 PQ = P3 | {"q"}
 
+PIN = "CIRISConstitution#218, pin list: "
+# two agents' keys, A1 and A2, admitted by one row; A1 (and in the mutual case A2) conferred `moderate`
+AGS = ST.offer("ags", "p1", ("A1", "A2"), "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
+               cosigners=("p2", "p3", "A1", "A2"))
+CM1 = ST.offer("cm1", "p1", "A1", "moderate", OBJ, "group", ("ags",), head=("ags",), policy="duty_confer", counted="duty",
+               cosigners=("p2", "A1"))
+CM2 = ST.offer("cm2", "p1", "A2", "moderate", OBJ, "group", ("cm1",), head=("cm1",), policy="duty_confer", counted="duty",
+               cosigners=("p2", "A2"))
+WA = [G, AGS, CM1]
+XA = lone("x", "A1", "A2", ("cm1",))                      # the agent moderator A1 removes A2 alone
+YA = lone("y", "p1", "A1", ("x",))                        # p1 removes A1 alone, after x
+LAYY = ST.withdraw("wm", "p1", "g", ("y",), scope="moderate")
+
+
+def counted_receipt(i, signers, act, head):
+    """The room's count's receipt of an act: an `ack` naming it, counted over the persons at its head."""
+    return R(i, "ack", signers[0], (act,) + tuple(h for h in head if h != act), of=act, conf="group", obj=OBJ,
+             head=tuple(head), policy="accord_majority", cosigners=tuple(signers[1:]))
+
+
 # (name, rows, {row: concludes}, roster, [(key, scope, stands)])
 CASES = [
+    # ---- CIRISConstitution#218, pin list -----------------------------------------------------------------------------
+    (PIN + "no cascade: p1 removes the agent moderator A1 alone, then lays down moderate: that removal is out of "
+     "force and ends no standing, so A1's own removal of A2 stays in force",
+     WA + [XA, YA, LAYY], {"x": T, "y": T}, P3 | {"A1"}, [("A1", "moderate", T), ("A2", "agent", F)]),
+    (PIN + "no cascade: the same with p1's removal of A1 in force: A1's standing ended at it, and A1's removal of A2 is "
+     "out of force", WA + [XA, YA], {"x": T, "y": T}, P3 | {"A2"}, [("A1", "agent", F), ("A2", "agent", T)]),
+    (PIN + "no cascade, OPEN: two agent moderators remove each other concurrently. Read as built: each removal is an "
+     "end of the other's standing, so both are out of force and both keys stay. The Constitution is asked",
+     [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",))], {"x1": T, "x2": T},
+     P3 | {"A1", "A2"}, []),
+    (PIN + "a count's own receipt: the room's count (p2 and p3 of three) receipts the removal; it stays in force after "
+     "p1 lays down moderate", W + [X, counted_receipt("qc", ("p2", "p3"), "x", ("x",)), LAY], {"x": T}, P3, []),
+    (PIN + "a count's own receipt: one person's counted receipt is no count (one of three), and keeps nothing",
+     W + [X, counted_receipt("qc", ("p2",), "x", ("x",)), LAY], {"x": T}, P3 | {"AG"}, []),
+    (PIN + "a receipt by a key removed at the same time: p2's receipt, and the room's removal of p2 beside it: void",
+     W + [X, receipt("q2", "p2", "x"), LAY, remove("xp2", "p2", ("p1", "p3"), ("x",))], {"x": T, "xp2": T}, {"p1", "p3", "AG"},
+     []),
+    (PIN + "a receipt by a key removed later: p2's removal has the receipt in its past, and the receipt keeps",
+     W + [X, receipt("q2", "p2", "x"), LAY, remove("xp2", "p2", ("p1", "p3"), ("q2",))], {"x": T, "xp2": T}, {"p1", "p3"}, []),
+    (PIN + "a count end that lifts receipts: the room's count removes p1 stating `lifts`: p2's receipt keeps nothing",
+     W + [X, receipt("q2", "p2", "x"), dict(OUT, lifts=True)], {"x": T, "xp": T}, P23 | {"AG"}, []),
+    (PIN + "a count end that lifts receipts: the count's own receipt still keeps",
+     W + [X, counted_receipt("qc", ("p2", "p3"), "x", ("x",)), dict(OUT, lifts=True)], {"x": T, "xp": T}, P23, []),
+    (PIN + "a self end cannot lift: p1's laying down stating `lifts` leaves p2's receipt keeping",
+     W + [X, receipt("q2", "p2", "x"), dict(LAY, lifts=True)], {"x": T}, P3, []),
     ("the removal with no end held: in force, the agent out", W + [X], {"x": T}, P3, [("p1", "moderate", T)]),
     # ---- the remover lays down its duty ---------------------------------------------------------------------------
     ("the remover lays down moderate after its removal: out of force, the agent seated again",
@@ -176,7 +225,8 @@ CASES = [
     ("two tips with a receipt of the removal by another holder: in force",
      W + [X, receipt("q2", "p2", "x"), remove("xp", "p1", ("p2", "p3"), ("ag",))], {"x": T, "xp": T}, P23, []),
 ]
-PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone")
+PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone", "cascade", "count_receipt_unread",
+          "removed_receipt_kept", "lifts_unread")
 
 
 def read(S, case):

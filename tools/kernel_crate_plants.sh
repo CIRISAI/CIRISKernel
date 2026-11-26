@@ -80,8 +80,13 @@ plant "an agent's key is counted over in a window"    src/window.rs 'let mut oth
 plant "an agent holding a duty bars the lone holder" src/seat.rs '    let held = persons(seats.holders("duty", &obj, None), &seats.holders(AGENT, &obj, None));' '    let held = seats.holders("duty", &obj, None);'
 plant "the roster leaves out the agents"              src/seat.rs '        m.extend(self.holders(AGENT, o, None));' ''
 plant "a lone removal's end unread"                 src/seat.rs 'None => out_of_force(c, law, spec, own, &by, &unseats, cache.unwrap_or(&local)),' 'None => BTreeSet::new(),'
-plant "a remover's own receipt keeps its removal"   src/seat.rs 'duty.remove(m); // never the remover'"'"'s own receipt' ''
-plant "a receipt after the end keeps a removal"     src/seat.rs 'acks.iter().any(|&q| e.is_none_or(|e| !g.in_past(e, q)))' '!acks.is_empty() || e.is_none()'
+plant "a remover's own receipt keeps its removal"   src/seat.rs '    duty.remove(m);
+' ''
+plant "a lone removal out of force still ends a standing (cascade)" src/seat.rs 'let excl: BTreeSet<usize> = deps[j].iter().copied().filter(|y| decided.get(y) == Some(&false)).collect();' 'let excl: BTreeSet<usize> = deps[j].iter().copied().filter(|_| false).collect();'
+plant "the room's counted receipt unread" src/seat.rs 'return count_met(&Past::new(g, q, &anc), law, spec, Some(cache)).then_some((q, true));' 'return None;'
+plant "a removed key's receipt keeps" src/seat.rs '            (!cut).then_some((q, false))' '            Some((q, false))'
+plant "a count end's lifts unread" src/seat.rs '(counted || e.is_none_or(|e| !lifts(e)))' '(counted || true)'
+plant "a receipt after the end keeps a removal"     src/seat.rs 'acks.iter().any(|&(q, counted)| e.is_none_or(|e| !g.in_past(e, q)) &&' 'acks.iter().any(|&(q, counted)| true &&'
 plant "a removal at a later head than the end counts" src/seat.rs '!g.in_past(e, x) && !later(head_of(e)) && kept(Some(e))' '!g.in_past(e, x) && kept(Some(e))'
 plant "two live owners still give an owner"          src/standing.rs 'Ok(true) => drop(out.insert(x.id().clone(), Answer::Nobody(Nobody::TwoOwners))),' 'Ok(true) => at.push((x, b)),'
 plant "a remover seated again revives its removal"   src/seat.rs '    if now.stands(m, "moderate", &obj, None)
