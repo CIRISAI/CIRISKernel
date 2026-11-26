@@ -230,6 +230,17 @@ CASES = [
      "neither is in force: both agents stay seated and keep moderate",
      [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",))], {"x1": T, "x2": T},
      P3 | {"A1", "A2"}, [("A1", "moderate", T), ("A2", "moderate", T)]),
+    (PIN + "the mutual pair for a reader with an acknowledgement (CC 4.5.13; CC 2.7.7 rule 5): p3 has acknowledged the "
+     "pair's common head (cm2), and reads as one with none: neither removal in force, both agent seats kept",
+     [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("k3", "p3", "cm2")],
+     {"x1": T, "x2": T}, P3 | {"A1", "A2"}, [("A1", "moderate", T), ("A2", "moderate", T)], "p3"),
+    (PIN + "an agent's receipt is no receipt: A1 receipts its own removal of A2; the pair stays contested",
+     [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("q1", "A1", "x1")],
+     {"x1": T, "x2": T}, P3 | {"A1", "A2"}, [("A1", "moderate", T), ("A2", "moderate", T)]),
+    (PIN + "a person's receipt settles it for that one, for a reader with an acknowledgement too",
+     [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("q1", "p2", "x1"),
+      receipt("k3", "p3", "cm2")],
+     {"x1": T, "x2": T}, P3 | {"A1"}, [("A1", "moderate", T), ("A2", "moderate", F), ("A2", "agent", F)], "p3"),
     (PIN + "no cascade, a mutual pair settled by a voice neither can remove: a person moderator receipts x1 only. x1 is in "
      "force, A2's agent seat and its duty end, and x2 is out of force",
      [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("q1", "p2", "x1")],
@@ -503,13 +514,13 @@ PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone"
 
 
 def read(S, case):
-    _, _, concl, _, asks = case
-    Q = ST.Seats(S)
+    _, _, concl, _, asks = case[:5]
+    Q = ST.Seats(S, own=case[5] if len(case) > 5 else None)     # a sixth element: the reader, with its acknowledgements
     return {i: bool(S.C.get(i)) for i in concl}, set(Q.roster(OBJ)), [Q.stands(k, sc, OBJ) for k, sc, _ in asks]
 
 
 def want(case):
-    _, _, concl, roster, asks = case
+    _, _, concl, roster, asks = case[:5]
     return concl, set(roster), [x for _, _, x in asks]
 
 

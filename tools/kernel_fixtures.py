@@ -378,7 +378,8 @@ def seat_cases():
         record(rows, A.WIN, [(k, sc, AS.OBJ) for k, sc, _ in asks])
     # a moderator's lone removal is in force only while the end rule says so: check_removal_in_force.py's cases
     import check_removal_in_force as RF
-    for _name, rows, _concl, _roster, asks in RF.CASES:
+    for case in RF.CASES:
+        _name, rows, _concl, _roster, asks = case[:5]           # (a sixth element, the reader, is read by the check)
         record(rows, A.WIN, [(k, sc, RF.OBJ) for k, sc, _ in asks])
     # the membership plane of a private room (CIRISConstitution#224): check_room_keys.py's cases and its OPEN rows,
     # each with the answer as built

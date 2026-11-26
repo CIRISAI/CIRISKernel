@@ -537,8 +537,12 @@ told what act it is by the policy a row states.
   counter-removal by a seated key with a removed key's old voice, at the head of that key's removal, no longer
   unlists the member it targets: the two removals contest each other, so for a reader with no acknowledgement the
   removed key is listed again until a count naming both, or a receipt by a voice neither removes, settles it. That
-  suspension is the forgery's cost now (it was an unlisted honest member); a reader that acknowledged the honest
-  head is not moved.
+  suspension is the forgery's cost now (it was an unlisted honest member): the counter-removal only contests where it
+  meets the room's count itself, so in a room of any size it takes a real share of the room to do it. A reader that
+  acknowledged the honest head is not moved. Two agent moderators' lone removals of each other at one head are rule
+  5's pair too (CC 4.5.13), judged by the receipts' path: neither in force and both agent seats kept, for a reader
+  with an acknowledgement and one without; an agent's receipt is no receipt; a person's receipt settles it for the
+  one it receipts.
 - **A family founder's leaving ends its role** in a row with the leaving in its past, whatever head that row names;
   `role: founder` is read only on a counted admission of the member seat in a family (and on an infrastructure
   founders' amendment), never on an own or uncounted offer and never elsewhere (a row carrying it elsewhere
