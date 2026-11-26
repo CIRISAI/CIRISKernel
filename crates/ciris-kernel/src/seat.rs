@@ -1745,7 +1745,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         // CC 2.7.7 rule 5: counted removals that remove each other's voices concurrently are contested, and neither
         // is in force (a voice concurrent with its own removal is no voice). Judged over the whole set, and carried
         // with the lone removals out of force into a reading of one line of it (the tips, the fold)
-        let contested = contested_out(c, law, spec, &unseats);
+        let contested = contested_out(c, law, spec, &unseats, cache.unwrap_or(&local));
         let unseats: Vec<(usize, Option<ObjOf<R>>)> = if contested.is_empty() {
             unseats
         } else {
@@ -3122,20 +3122,15 @@ fn contested_out<'a, R: SeatRow, S: CutSpec<R>>(
     law: &SeatLaw,
     spec: &S,
     unseats: &[(usize, Option<ObjOf<R>>)],
+    cache: &MembersAt<R>,
 ) -> BTreeSet<R::Id> {
     let g = &c.g;
-    // ruled for a family and an infrastructure community (the founders' counts); a community's and a self roster's
-    // counted removals keep the cut's reading until the Constitution rules there
-    let get = |i: &R::Id| g.idx(i).map(|j| g.row(j));
+    // every group (CC 2.7.7 is not scoped by kind); a moderator's lone removal is judged by the end rule and its
+    // receipts (out_of_force), not here
     let grp: Vec<usize> = unseats
         .iter()
         .map(|(u, _)| *u)
-        .filter(|&u| g.row(u).conf() == Some(Conf::Group))
-        .filter(|&u| {
-            g.row(u).obj().is_some_and(|o| {
-                matches!(kind_of(law, &get, &o), Some(CommunityKind::Family | CommunityKind::Infrastructure))
-            })
-        })
+        .filter(|&u| g.row(u).conf() == Some(Conf::Group) && !lone_act(c, u, law, spec, cache))
         .collect();
     if grp.len() < 2 {
         return BTreeSet::new();
@@ -3150,6 +3145,14 @@ fn contested_out<'a, R: SeatRow, S: CutSpec<R>>(
             .iter()
             .copied()
             .filter(|&u2| u2 != u && g.row(u2).obj() == ur.obj() && !g.in_past(u, u2) && !g.in_past(u2, u))
+            // a removed key's concurrent voice counts at its own head and is not in force from the removal's head
+            // on: u2 voids a voice of u only where u counts from u2's heads on (each head of u2 a head of u, or in
+            // the past of one)
+            .filter(|&u2| {
+                g.row(u2).head().iter().all(|h2| {
+                    ur.head().iter().any(|h| h == h2 || g.idx(h2).zip(g.idx(h)).is_some_and(|(a, b)| g.in_past(a, b)))
+                })
+            })
             .map(|u2| (u2, g.row(u2).to().iter().filter(|k| vs.contains(*k)).cloned().collect::<BTreeSet<_>>()))
             .filter(|(_, ks)| !ks.is_empty())
             .collect();

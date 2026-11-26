@@ -270,8 +270,14 @@ def check_keys(spec, inst):
             pt, WN.receipt("rq", k2, "q", 0), RS.speak(spec, "o", k1, (spec.obj,)), WN.landing("Lq", k2, "q", "rq", "landed", W), RS.effect(spec, "Eq", k2, "Lq", pt)]
     stal = lambda S, rows, n: "stalemate: roster %s" % sorted(RS.roster(S, spec)) if RS.roster(S, spec) == {k1, k2} else None
     b = run(spec, [("two keys, one stolen, both active", rows)], stal, windows=wins)
+    # The two-sided stalemate now holds twice over: by the silence condition, and by CC 2.7.7 rule 5 (two evictions
+    # that each remove the other's signer, concurrently, are contested: neither in force, seat.contested_out), until a
+    # key the thief cannot evict or the owner's recovery path settles it. So the silence plant is read on the
+    # one-sided world, where silence alone keeps the active key seated (a case, not a weaker plant).
+    one = [g2, pe, WN.receipt("r", k1, "p", 0), RS.speak(spec, "t", k2, (spec.obj,)), WN.landing("L", k1, "p", "r", "landed", W),
+           RS.effect(spec, "E", k1, "L", pe)]
     with mutated(windows={lone_ev: lambda w: dict(w, silent=None)}):
-        pl = run(spec, [("same", rows)], stal, orders=False)
+        pl = run(spec, [("one-sided: k1 evicts the active k2", one)], stal, orders=False)
     res.append(result(inst, "combined2_stolen: two keys, one stolen, is a stalemate", src, verdict_of(b, False), b,
                       "plant: no silence condition (the bound must vanish)", {"fails": [] if pl["fails"] else [("plant", "roster changes: no stalemate")]}))
     g3 = RS.found(spec, (k1, k2, k3))

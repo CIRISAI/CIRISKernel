@@ -357,6 +357,8 @@ plant 'an entrenched protocol amendable'                 src/seat.rs '    if rec
         return true;'
 plant 'an entrenched record refuses every amendment'     src/seat.rs '    let Some(w) = r.consensus_protocol() else { return r.protocol_entrenched() != Some(false) };' '    let Some(w) = r.consensus_protocol() else { return false };'
 plant "an entrenched weighted record's weights free"    src/seat.rs '    if weighted && (r.need() != rec.need() || set(r) != set(rec)) {' '    if false {'
+plant 'the contested pair scoped to two kinds'          src/seat.rs '.filter(|&u| g.row(u).conf() == Some(Conf::Group) && !lone_act(c, u, law, spec, cache))' '.filter(|&u| g.row(u).conf() == Some(Conf::Group) && !lone_act(c, u, law, spec, cache) && g.row(u).obj().is_some_and(|o| matches!(kind_of(law, &|i: &R::Id| g.idx(i).map(|j| g.row(j)), &o), Some(CommunityKind::Family | CommunityKind::Infrastructure))))'
+plant "a removal voids a voice at any head"             src/seat.rs 'g.row(u2).head().iter().all(|h2| {' 'true || g.row(u2).head().iter().all(|h2| {'
 plant 'concurrent counted removals both in force'        src/seat.rs '    if grp.len() < 2 {
         return BTreeSet::new();' '    if true {
         return BTreeSet::new();'

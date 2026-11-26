@@ -1552,17 +1552,23 @@ def contested_out(S, unseats):
     needs nothing the other removes stands, and the other falls (the one-sided case). Nothing here is special: it is
     the end rule (a removed key's voice counts only where its removal is in that row's past) read for counted rows."""
     if "contested_both_out" in MUT: return frozenset()
-    # ruled for a family and an infrastructure community (the founders' counts); a community's and a self roster's
-    # counted removals keep the cut's reading until the Constitution rules there
-    grp_u = [u for u in unseats if u.get("conf") == "group" and kind_of(S.by, u.get("obj")) in ("family", "infrastructure")]
+    # every group (CC 2.7.7 is not scoped by kind; MUTATION contested_scoped_to_kinds: the old family/infrastructure scope)
+    # a moderator's lone removal is judged by the end rule and its receipts (out_of_force), not here
+    grp_u = [u for u in unseats if u.get("conf") == "group" and not lone_act(u, S) and (
+        "contested_scoped_to_kinds" not in MUT or kind_of(S.by, u.get("obj")) in ("family", "infrastructure"))]
     if len(grp_u) < 2: return frozenset()
     conc = lambda a, b: a["id"] not in S.anc[b["id"]] and b["id"] not in S.anc[a["id"]]
+    # a removed key's concurrent voice counts at its own head and is not in force from the removal's head on: u2's
+    # removal voids a voice of u only where u counts from u2's heads on (each head of u2 is a head of u or in its past)
+    at_or_after = lambda u, u2: "contested_voice_everywhere" in MUT or all(
+        any(h2 == h or h2 in S.anc.get(h, ()) for h in u.get("head", ())) for h2 in u2.get("head", ()))
     pasts = {u["id"]: [q for q in S.Cs if q["id"] in S.anc[u["id"]]] for u in grp_u}
     threats = {}
     for u in grp_u:
         vs = voices(u, pasts[u["id"]])
         t = [(u2["id"], frozenset(u2["to"]) & vs) for u2 in grp_u
-             if u2 is not u and u2.get("obj") == u.get("obj") and conc(u, u2) and frozenset(u2["to"]) & vs]
+             if u2 is not u and u2.get("obj") == u.get("obj") and conc(u, u2) and at_or_after(u, u2)
+             and frozenset(u2["to"]) & vs]
         if t: threats[u["id"]] = t
     if not threats: return frozenset()
     past = lambda a, b: a in S.anc[b]

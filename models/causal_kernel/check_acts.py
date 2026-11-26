@@ -73,6 +73,8 @@ Planted breaks, each of which must change a case's answer:
     entrenched_weights_free       an entrenched weighted record's weights and threshold may be restated (E1)
     concurrent_amendments_free    concurrent founders' amendments do not freeze the founders' count (L1)
     infra_word_restated_always    an infrastructure amendment seating a founder must restate the word, even at or below N
+    contested_scoped_to_kinds     the contested pair is read for a family and an infrastructure community only
+    contested_voice_everywhere    a removal voids a voice whatever head the other row names (not from its own head on)
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
@@ -677,6 +679,15 @@ TIPS = [
     ("an infrastructure pair (S4): of four (3/4), f1, f2, f3 remove f4 while f1, f2, f4 remove f3; neither is in force",
      [GI4, FRMF("f4", ("f1", "f2", "f3")), dict(FRMF("f3", ("f1", "f2", "f4")), id="x2")],
      [("f3", "founder", True), ("f4", "founder", True)]),
+    ("a contested pair in a community too (CC 2.7.7 governs every group): of four, A, B, C remove D while A, B, D remove "
+     "C at one head; neither is in force", [GM4, grp("x", "unseat", "D", "member", None, cosigners=("B", "C")),
+                                           grp("x2", "unseat", "C", "member", None, cosigners=("B", "D"))],
+     [("C", "member", True), ("D", "member", True)]),
+    ("a pair at different heads is read from the head each cut names: of four (3/4), X (f1, f2, f3) removes f4 at g "
+     "while Y (f1, f2, f4) removes f3 at the later head r; f3's voice counts at X's own head, so X stands, and f4's is "
+     "void from X's head on, so Y falls",
+     [GI4, INODE(("f1", "f2", "f3")), FRMF("f4", ("f1", "f2", "f3")), dict(FRMF("f3", ("f1", "f2", "f4"), heads=("r",)), id="x2")],
+     [("f4", "founder", False), ("f3", "founder", True)]),
     ("the one-sided variant is no pair: of five (3/5), X (f1, f2, f3) removes f4 and Y (f1, f2, f5) removes f3; Y needs "
      "nothing X removes and stands, X loses f3's voice and falls",
      [GI5, FRMF("f4", ("f1", "f2", "f3")), dict(FRMF("f3", ("f1", "f2", "f5")), id="x2")],
@@ -790,7 +801,8 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "family_founders_fixed", "family_floor_two", "family_last_founder_refused", "entrenched_amendable",
           "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "dissolve_any_heads", "self_removal_as_leave", "role_unread", "role_outlives_stay",
           "contested_both_out", "founder_role_survives_leave", "role_on_own_offer", "entrenched_weights_free",
-          "concurrent_amendments_free", "infra_word_restated_always")
+          "concurrent_amendments_free", "infra_word_restated_always", "contested_scoped_to_kinds",
+          "contested_voice_everywhere")
 
 
 @contextlib.contextmanager

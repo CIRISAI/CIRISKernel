@@ -526,9 +526,19 @@ told what act it is by the policy a row states.
   founders under 3 stay four. A stuck family is not reachable by two members acting in good faith at the same moment.
   The one-sided case is no pair: of five under 3, f1, f2, f3 removing f4 and f1, f2, f5 removing f3, the second needs
   nothing the first removes and stands, and the first falls. A contested pair of counted removals leaves the roster as
-  it was, and a later count that names both decides (pending the head rules' reading of a past holding both). Read
-  for a family's and an infrastructure community's counts, where it is ruled; a community's and a self roster's
-  counted removals keep the cut's reading (both in force) until the Constitution rules there.
+  it was, and a later count that names both decides (pending the head rules' reading of a past holding both). It
+  governs every group (CC 2.7.7 is not scoped by kind; rules 4 and 5 together: "both in force" by the cut alone let
+  each cut remove the voice that made the other count). A removed key's concurrent voice counts at its own head and
+  is not in force from the removal's head on: a removal voids a voice of another only where that other counts from
+  the removal's heads on, so a pair at one head is contested, and at different heads the earlier stands (a case). A
+  moderator's lone removal is judged by the end rule and its receipts, not here. **Answers that change**: a
+  self roster's two keys evicting each other (the stolen-key stalemate) is a stalemate by rule 5 as well as by the
+  silence condition, until a key the thief cannot evict or the owner's recovery path settles it; and a forged
+  counter-removal by a seated key with a removed key's old voice, at the head of that key's removal, no longer
+  unlists the member it targets: the two removals contest each other, so for a reader with no acknowledgement the
+  removed key is listed again until a count naming both, or a receipt by a voice neither removes, settles it. That
+  suspension is the forgery's cost now (it was an unlisted honest member); a reader that acknowledged the honest
+  head is not moved.
 - **A family founder's leaving ends its role** in a row with the leaving in its past, whatever head that row names;
   `role: founder` is read only on a counted admission of the member seat in a family (and on an infrastructure
   founders' amendment), never on an own or uncounted offer and never elsewhere (a row carrying it elsewhere
