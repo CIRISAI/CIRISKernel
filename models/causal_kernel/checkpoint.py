@@ -39,6 +39,7 @@ sys.dont_write_bytecode = True
 import causal_kernel as CK  # noqa: E402
 
 K = CK.K
+MUT = set()            # planted breaks, switched on by a check
 
 
 def older(S, heads, than):
@@ -46,8 +47,14 @@ def older(S, heads, than):
     return bool(heads) and all(any(h in S.anc[t] for t in than) for h in heads)
 
 
+def is_counted_act(r, obj):
+    """A counted act on obj: an offer or an unseat conferred by a count, naming the head it is counted over. The one
+    definition of a counted change of obj's roster: the reader's line reads it, and so does seat.newer_head_in_past."""
+    return r["kind"] in ("offer", "unseat") and r.get("conf") == "group" and r.get("obj") == obj and bool(r.get("head"))
+
+
 def counted_acts(S, obj):
-    return [r for r in S.Cs if r["kind"] in ("offer", "unseat") and r.get("conf") == "group" and r.get("obj") == obj and r.get("head")]
+    return [r for r in S.Cs if is_counted_act(r, obj)]
 
 
 def own_line(S, own, obj):
@@ -71,7 +78,11 @@ def settle(S, C, obj, own=None, group=False):
     built = {r["id"]: [h for h in r["head"] if h in line] for r in live}          # the counted acts it is built on
     mine = {r["id"] for r in own_line(S, own, obj)} & {r["id"] for r in live}
     # the reader's line: r names only heads strictly in the past of the line's act c (CC 2.7.8)
-    line_behind = lambda r, c: c["id"] != r["id"] and S.concurrent(r["id"], c["id"]) and older(S, r["head"], [c["id"]])
+    # CC 2.7.8: "holds void every counted act that names an older head and is not in that head's past, however many rows
+    # it has": no test of concurrency, so a row with c in its own past that names a head older than c is void too
+    # (MUTATION line_concurrent: the line voids only rows concurrent with c, the rule until 0.5.0)
+    line_behind = lambda r, c: c["id"] != r["id"] and r["id"] not in S.anc[c["id"]] and older(S, r["head"], [c["id"]]) \
+        and ("line_concurrent" not in MUT or S.concurrent(r["id"], c["id"]))
     # the refused group checkpoint (group=True only): r's heads strictly older than the heads c names
     behind = lambda r, c: c["id"] != r["id"] and S.concurrent(r["id"], c["id"]) and older(S, r["head"], c["head"])
 
@@ -96,6 +107,11 @@ def checkpoints(S, C, obj, own=None, group=False):
     """The counted acts on obj that certainly count."""
     T, _ = settle(S, C, obj, own, group)
     return [r for r in counted_acts(S, obj) if r["id"] in T]
+
+
+class EVERY:
+    """A cut under which every row counts: the reader's line read before the cut (seat.Seats)."""
+    counts = staticmethod(lambda r: True)
 
 
 def void(S, C, own=None, group=False):

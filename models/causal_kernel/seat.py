@@ -452,7 +452,11 @@ def own_keys(by, obj):
 class Seats:
     def __init__(self, S, holds=HOLDS, confers=CONFERS, depth=DEPTH, by_arrival=False, own=None, checkpoint=False, drop=None):
         self.S, self.holds, self.confers, self.own = S, holds, confers, own
-        self.cut = C = CUT.Cut(S)
+        # the reader's line is read before the cut: a counted act void for this reader cuts nothing for it (CC 2.7.8).
+        # L: the acts behind the reader's line and those built on them, every row taken as counting; then the cut
+        # without them, and the acts built on one the cut voids (MUTATION cut_before_line: the cut reads them too)
+        L = CP.void(S, CP.EVERY, own, checkpoint) if own is not None and "cut_before_line" not in MUT else frozenset()
+        self.cut = C = CUT.Cut(S, without=L)
         Cs = S.Cs
         wd = K.sel(Cs, kind="withdraw")
         pos = {r["id"]: i for i, r in enumerate(S.rows)}
@@ -467,7 +471,7 @@ class Seats:
         # a withdrawal that names a scope ends that one seat of the row it withdraws (a founding holder lays down a duty)
         off_ended = lambda o, k, sc: any(w["target"] == o["id"] and (w["signer"] == k or (w["signer"] not in o["to"] and o["conf"] != "group" and not eq(o)))
                                          and (w.get("scope") in (None, sc) or "scope_unread" in MUT) and not late(w, o) for w in wd)
-        self.stale = V = CP.void(S, C, own, checkpoint)         # counted acts built on one that does not count, or behind the reader's line
+        self.stale = V = L | CP.void(S, C, own, checkpoint)     # counted acts built on one that does not count, or behind the reader's line
         unseats = [u for u in K.sel(Cs, kind="unseat") if C.counts(u) and u["id"] not in V]
         # a moderator's lone removal is an act under its `moderate` standing, in force only while the end rule says so
         # (out_of_force). `drop`: the lone removals already judged out of force over the whole set, for a reading of
@@ -909,12 +913,24 @@ def count_left(P, past, obj, scope):
     return out | stay_ended_in_past(P, past, obj) if is_duty(scope, declared(by, obj)) else out
 
 
-def voices(r, P):
+def voices(r, P, past=None):
     """The keys that signed r: its signer, its cosigners, and the signers of the cosign rows it names that themselves
-    name every head r is counted over."""
+    name every head r is counted over. (A cosign row counts only where r names it, so r's own past holds the cosign's:
+    a cosign whose past holds a newer counted head than r names leaves r itself with that head in its past, and r then
+    concludes nothing by newer_head_in_past. No separate reading of the cosign's past is needed.)"""
     heads = set(r.get("head", ()))
     return signers(r) | frozenset(c["signer"] for c in K.sel(P, kind="cosign", of=r.get("content", r["id"]))
                                   if c["id"] in r["names"] and heads <= set(c["names"]))
+
+
+def newer_head_in_past(heads, of, P, past, obj):
+    """A counted change of obj's roster (checkpoint.is_counted_act) among P, in the past of row `of` (every row of P
+    where `of` is None), that is neither one of `heads` nor in the past of one: a newer counted head than the heads
+    named. A counted row over a roster concludes only at the newest counted heads of that roster in its own past."""
+    if "count_heads_unread" in MUT: return False
+    hs = tuple(heads)
+    return any(CP.is_counted_act(q, obj) and (of is None or past(q["id"], of)) and q["id"] not in hs
+               and not any(past(q["id"], h) for h in hs) for q in P)
 
 
 def _revoked_before(r, P):
@@ -942,6 +958,8 @@ def count_met(r, P, past, table=None):
     count, or the policy's threshold over the persons at the heads it names."""
     k, by, heads = r["kind"], {q["id"]: q for q in P}, r.get("head", ())
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "lift": return lift_count(r, P, past, by)
+    # read at the newest counted heads of the roster in its own past (a lift is counted at the head its act names)
+    if newer_head_in_past(heads, None, P, past, r["obj"]): return False
     mem, vot = counted_keys(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
     left = count_left(P, past, r.get("over", r["obj"]), r.get("counted", "member"))
     mem, vot = mem - left, vot - left

@@ -51,8 +51,9 @@ step "check_resignation (wrap, dissolved)" resign   python3 -I models/causal_ker
 step "check_agent_removal (the lift)"     agent     python3 -I models/causal_kernel/check_agent_removal.py
 step "check_agent_seat (no count)"         agentseat python3 -I models/causal_kernel/check_agent_seat.py
 step "check_removal_in_force (an end)"     inforce   python3 -I models/causal_kernel/check_removal_in_force.py
+step "check_count_heads (newest heads)"    cheads    python3 -I models/causal_kernel/check_count_heads.py
 step "check_rosters (one roster)"         rosters   python3 -I models/causal_kernel/check_rosters.py
-step "check_attacks (34 attacks)"         attacks   python3 -I models/causal_kernel/check_attacks.py
+step "check_attacks (35 attacks)"         attacks   python3 -I models/causal_kernel/check_attacks.py
 step "check (order-freeness)"             check     python3 -I models/causal_kernel/check.py
 step "check_cut (the cut)"                cut       python3 -I models/causal_kernel/check_cut.py
 step "check_roomkey (private rooms)"      roomkey   python3 -I models/causal_kernel/check_roomkey.py

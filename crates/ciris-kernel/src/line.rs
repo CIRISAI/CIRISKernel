@@ -4,8 +4,8 @@
 //! * **Built on.** A counted act counts only if every counted act among the heads it names counts. A row
 //!   built on a counted act that does not count is void, down the whole line.
 //! * **The reader's line.** A reader's own acknowledgement of a head makes the acknowledged act, and every
-//!   counted act in its past, that reader's line. For that reader the line counts, and a counted act
-//!   concurrent with an act of the line that names only heads strictly in that act's past does not count
+//!   counted act in its past, that reader's line. For that reader the line counts, and a counted act not in
+//!   the past of an act of the line that names only heads strictly in that act's past does not count
 //!   (CC 2.7.8: "holds void every counted act that names an older head and is not in that head's past";
 //!   `Reader.line_voids_old_fork`). So a sibling of the acknowledged act is void for this reader, and so is
 //!   a row built on it. For a reader with no acknowledgement on that line, two versions of one head wait as
@@ -80,9 +80,12 @@ pub fn settle<R: Row, L: LineSpec<R>>(
     // own_line returns counted acts on obj only, so one of them is live exactly when the cut lets it count
     let mine: BTreeSet<usize> = own_line(c, spec, own, obj).into_iter().filter(|&i| cut_counts(i)).collect();
     let heads = |i: usize| spec.counted_act(c.g.row(i)).map(|(_, h)| h).unwrap_or(&[]);
-    let behind = |r: usize, m: usize| {
-        m != r && c.g.concurrent(r, m) && older(c, heads(r), core::slice::from_ref(c.g.row(m).id()))
-    };
+    // CC 2.7.8: "holds void every counted act that names an older head and is not in that head's past, however
+    // many rows it has": no test of concurrency, so an act with `m` in its own past that names a head older
+    // than `m` is void too. This is the rule `head::View` reads (an act not in an acknowledged head's past that
+    // names only heads strictly in it).
+    let behind =
+        |r: usize, m: usize| m != r && !c.g.in_past(r, m) && older(c, heads(r), core::slice::from_ref(c.g.row(m).id()));
     let mut out: BTreeSet<usize> = BTreeSet::new();
     let mut out_ids: BTreeSet<&R::Id> = BTreeSet::new();
     for &r in &live {

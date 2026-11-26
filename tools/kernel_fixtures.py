@@ -14,7 +14,7 @@ Sources (all under models/):
     reexpress kernel_lib/reexpress.py: the six re-expressed decisions over small input spaces (generated here)
     causal    causal_kernel/check.py: every set of up to six rows of its two pools (its section 1 worlds)
     cut       causal_kernel/check_cut.py: its section 1 worlds, at its own bounds
-    seat      causal_kernel/attacks.py (every scenario its 34 tests conclude, with the seat, window and route rules)
+    seat      causal_kernel/attacks.py (every scenario its 35 tests conclude, with the seat, window and route rules)
               and causal_kernel/window.py (the adversary table): conclusions, the cut, live seats, the reader's
               line, holders, tips and window outcomes; with the cases of check_delegation.py and
               check_agent_removal.py
@@ -341,6 +341,11 @@ def seat_cases():
     import check_agent_seat as AS
     for _name, rows, _concl, _mem, _roster, asks, _wins in AS.CASES:
         record(rows, A.WIN, [(k, sc, AS.OBJ) for k, sc, _ in asks])
+    # a count is read at the newest counted heads in its own past; one reader's line; the line before the cut:
+    # check_count_heads.py's cases, under the seat rule (each reader an ack's signer)
+    import check_count_heads as CH
+    for _name, rows, *_ in CH.CASES:
+        record(rows, A.SEAT)
     # a moderator's lone removal is in force only while the end rule says so: check_removal_in_force.py's cases
     import check_removal_in_force as RF
     for _name, rows, _concl, _roster, asks in RF.CASES:
@@ -452,7 +457,7 @@ def table_cases():
             refs = {}
             out["witnesses"].append({"case": c["id"], "world": name, "rows": with_refs(rows, refs), "refs": refs, "table": table,
                                      "kept": [r["id"] for r in S.rows], "c": [S.C[r["id"]] for r in S.rows], "arrivals": arr})
-    # the 34 attack tests: scenarios concluded under a rule other than the seat, window and route rules
+    # the 35 attack tests: scenarios concluded under a rule other than the seat, window and route rules
     import attacks as A
     known = {id(A.SEAT), id(A.WIN), id(A.ROUTE)}
     seen, scen = set(), []

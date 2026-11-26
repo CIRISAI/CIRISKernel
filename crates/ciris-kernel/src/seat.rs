@@ -615,7 +615,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         drop: Option<&BTreeSet<R::Id>>,
         cache: Option<&MembersAt<R>>,
     ) -> Self {
-        let cut = Cut::new(c, spec);
+        // the reader's line is read before the cut: a counted act void for this reader (behind its line, or built
+        // on such an act, every row taken as counting) cuts nothing for it (CC 2.7.8)
+        let behind = if own.is_some() { line::void(c, &SeatLine, own, |_| true) } else { BTreeSet::new() };
+        let cut = Cut::new_without(c, spec, &behind);
         let g = &c.g;
         let by: BTreeMap<&'a R::Id, &'a R> = g.rows().iter().map(|r| (r.id(), *r)).collect();
         let cs = c.cs();
@@ -651,7 +654,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     && w.scope().is_none_or(|ws| ws == sc)
             })
         };
-        let stale = line::void(c, &SeatLine, own, |i| cut.counts(i));
+        let mut stale = line::void(c, &SeatLine, own, |i| cut.counts(i) && !behind.contains(&i));
+        stale.extend(behind.iter().copied());
         // each unseat that counts, with its object read once
         let unseats: Vec<(usize, Option<ObjOf<R>>)> = cs
             .iter()
@@ -1887,6 +1891,20 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
     mem
 }
 
+/// Whether `p` (a counted row's concluded past) holds a counted change of `obj`'s roster that is neither one of
+/// `heads` nor in the past of one: a newer counted head than the heads named. A counted change is what the
+/// reader's line reads as a counted act ([`SeatLine`]'s `counted_act`): an offer or unseat conferred by a count
+/// ([`Conf::Group`]) on `obj` that names a head, of any scope (a member admission or removal, a duty
+/// conferral or withdrawal, a recall). A counted row over a roster concludes only at the newest counted heads
+/// of that roster in its own past (CC 2.7.8). A cosignature needs no reading of its own: it is a voice only
+/// where the row names it, so the row's past holds the cosignature's.
+fn newer_head_in_past<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>, heads: &[R::Id]) -> bool {
+    p.rows().any(|q| {
+        LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj)
+            && !heads.iter().any(|h| h == q.id() || p.past(q.id(), h))
+    })
+}
+
 /// A counted row's count ([`Conf::Group`]), met over `p`: the lift, the ranked tally, the duty count, or the
 /// policy's threshold over the persons at the heads the row names. [`seat_rule`]'s group arm, after a
 /// moderator's lone removal is read.
@@ -1909,6 +1927,11 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
         let mut mem = persons_at_with(p, law, spec, &obj, r.head(), "member", cache);
         mem.remove(&author); // the author is not among the members the majority is taken of
         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
+    }
+    // read at the newest counted heads of the roster in its own past (a lift, above, is counted at the head its
+    // act names)
+    if newer_head_in_past(p, &obj, r.head()) {
+        return false;
     }
     let mem = count_members_with(p, law, spec, cache);
     if pol == Some(Policy::Ranked) {
