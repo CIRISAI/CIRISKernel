@@ -65,6 +65,9 @@ def guardianship(H, band):
 
 
 # ---- ranked_choice (formal/ranked_choice/ranked_choice_model.py: winner = finish . summary . dedupe) ----
+MUT = set()   # named mutations, switched on by a check (models/causal_kernel/check_election.py)
+
+
 def ranked(rows, options, floor=2, declared=True):
     """rows: (person, ranking). Returns (winner or None, rounds). declared=False: the election's count, with no
     declared order, where a tie for weakest is refused by the reducer and seats nobody (CC 4.5.13)."""
@@ -104,7 +107,7 @@ def _runoff(rows, options, floor, declared, to_end):
         # the options holding no ballot are eliminated together (no ballot passes when one goes, so their order
         # cannot change the count); a tie for weakest is then among options that hold ballots
         none = tuple(o for o in standing if first.get(o, 0) == 0)
-        if none:
+        if none and "zero_strike_off" not in MUT:
             return (tuple(o for o in standing if o not in none), winner, False, rounds + (winner is None),
                     out + (none,), top)
         try:
@@ -122,7 +125,7 @@ def _runoff(rows, options, floor, declared, to_end):
     # is weaker)
     order = top
     if len(top) == 1 and len(end[0]) == 1:
-        for grp in reversed(out):
+        for grp in (out if "runoff_forward" in MUT else reversed(out)):
             if len(grp) == 1:
                 order += grp
             elif declared:

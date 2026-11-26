@@ -200,16 +200,19 @@ POLICY.update({k: ("duty", 0, 0) for k in DUTY_POLICY})          # CC 4.5.4 (iv)
 # lift_count, not by met(): a counted row of this policy that is no such re-seating concludes nothing.
 POLICY["moderation_overturn"] = ("lift", 1, 2)
 # CC 4.5.13: "A recall is one row cosigned by more than two thirds of the standing roster" (the table writes 2/3):
-# strictly more (CIRISConstitution#241 O5)
-POLICY["moderator_recall"] = ("strict", 2, 3)
+# strictly more, with the floor of two voices (CIRISConstitution#241 O5)
+POLICY["moderator_recall"] = ("strictfloor", 2, 3, 2)           # and "The floor is two voices"
 if POLICY.get("community_remove", ("", 0, 0))[0] == "declared":
     POLICY["community_remove"] = ("atleast", 2, 3)
 
 
 def met(policy, yes, n, declared=None, table=None):
-    kind, num, den = K.rule(table or POLICY, policy, ("unknown", 0, 0))
+    e = K.rule(table or POLICY, policy, ("unknown", 0, 0))
+    kind, num, den = e[:3]
     if kind == "atleast": return n > 0 and yes * den >= num * n
     if kind == "strict": return yes * den > num * n
+    # strictly more than a fraction, and never fewer than `least` voices (the recall: more than two thirds, floor two)
+    if kind == "strictfloor": return yes * den > num * n and (yes >= e[3] or "floor_unread" in MUT)
     if kind == "one": return yes >= 1
     if kind == "declared": return declared is not None and yes >= declared
     return False

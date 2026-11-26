@@ -268,6 +268,9 @@ pub enum Policy {
     AtLeast(u64, u64),
     /// `yes / n > num / den`.
     Strict(u64, u64),
+    /// `yes / n > num / den`, and never fewer than `least` voices (`StrictFloor(num, den, least)`): the recall,
+    /// "more than two thirds of the standing roster", "The floor is two voices" (CC 4.5.13).
+    StrictFloor(u64, u64, u64),
     /// One voice.
     One,
     /// The threshold the row declares.
@@ -1828,9 +1831,12 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
 /// Whether a count is met: `yes` voices of `n`, under `policy`.
 pub fn met(policy: Option<Policy>, yes: usize, n: usize, declared: Option<usize>) -> bool {
     let (y, n) = (yes as u128, n as u128);
+    // strictly more than `num / den` of n
+    let strict = |num: u64, den: u64| y * den as u128 > num as u128 * n;
     match policy {
         Some(Policy::AtLeast(num, den)) => n > 0 && y * den as u128 >= num as u128 * n,
-        Some(Policy::Strict(num, den)) => y * den as u128 > num as u128 * n,
+        Some(Policy::Strict(num, den)) => strict(num, den),
+        Some(Policy::StrictFloor(num, den, least)) => strict(num, den) && y >= least as u128,
         Some(Policy::One) => yes >= 1,
         Some(Policy::Declared) => declared.is_some_and(|d| yes >= d),
         _ => false,

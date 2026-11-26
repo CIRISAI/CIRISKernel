@@ -29,14 +29,16 @@ beyond the ballot count").
 - **A ballot ranking more than three is void**, the whole ballot (CC 4.5.13: "Each person ranks up to three";
   CIRISConstitution#241 O3). New: `seat::ELECTION_RANKS` (3). **An answer changes**: before, every rank counted.
   Two cases; one plant in each language.
-- **A recall is strictly more than two thirds** (CC 4.5.13: "A recall is one row cosigned by more than two thirds
-  of the standing roster"; CIRISConstitution#241 O5). The reference's policy table reads `moderator_recall` as
-  `strict 2/3` (the data's cell is `2/3`, read before as at least), so the fixture's law gives
-  `Policy::Strict(2, 3)`. **An answer changes**: a recall cosigned by exactly two thirds recalls nobody. An adopter's
-  own table must give `moderator_recall` as `Policy::Strict(2, 3)`. Not built: the floor of two voices. `seat::met`
-  reads no floor for a fraction, so a room of one still recalls by its one voice (a NOT BUILT row); a floor per
-  policy needs a `SeatLaw` field or a `Policy` variant, which is a public change. Three cases; a plant in each
-  language.
+- **A recall is strictly more than two thirds, with a floor of two voices** (CC 4.5.13: "A recall is one row
+  cosigned by more than two thirds of the standing roster ... The floor is two voices"; CIRISConstitution#241
+  O5). **BREAKING for an exhaustive match on `seat::Policy`**: a new variant, `Policy::StrictFloor(num, den,
+  least)`, meaning strictly more than `num / den` of the base and never fewer than `least` voices. `seat::met`
+  reads it with the comparison `Policy::Strict` reads. The reference's table reads `moderator_recall` as
+  `StrictFloor(2, 3, 2)` (the data's cell is `2/3`, read before as at least), and the fixture's law carries it.
+  The recall's base, as built, is the members at the head the row names, the holder recalled among them, and the
+  holder is a voice as on any removal (CC 2.7.5). **Answers change**: of three, two recall nobody and all three
+  recall; of two, one does not and both do; a room of one does not recall by its one voice. An adopter's table must
+  give `moderator_recall` as `Policy::StrictFloor(2, 3, 2)`. Seven cases; two plants in each language.
 - **The room elects only where no duty holder is left** (CC 4.5.4 (v): "With no duty holder left the room locks, and
   the members' count seats one"; rule 2: "While another duty holder remains, a vacant seat is conferred under line
   (iv), and the community does not lock"). A ranked row concludes nothing where a key holds a duty seat at the heads
@@ -82,8 +84,8 @@ beyond the ballot count").
 - The election's rooms in `check_election.py` are founded by a record that names one holder of `moderate`, who
   lays it down before the election. A founding with members only is refused at the door by the text, so no case
   stands on one. The answers are as before.
-- Not built, each a row of `check_election.py`'s OPEN list carrying the model's answer now. The two-voice floor of a
-  recall (the text decides; a public change).
+- `window`'s `How::MoreAtLeast` arm will read `Policy::StrictFloor` once the windows PR (#52) merges. Until
+  then it keeps its own floor check.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

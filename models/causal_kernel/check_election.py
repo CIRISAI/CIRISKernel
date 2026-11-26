@@ -45,6 +45,9 @@ Planted breaks, each of which must change a case's answer:
     larger_set_unread         every concluded seating stands, whatever the sets of its election's others
     election_id_unread        every ranked seating over the room is of one election
     candidates_options        the candidates are the options the seating lists, not the roster at its head
+    floor_unread              the recall's floor of two voices is not read
+    runoff_forward            the runoff order read in the order of elimination, not its reverse (reexpress.py)
+    zero_strike_off           options holding no ballot are not struck together (reexpress.py)
 
     python3 -I check_election.py      exit 1 on any difference
 """
@@ -58,6 +61,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True
 sys.path.insert(0, HERE)
 import seat as ST  # noqa: E402
+import reexpress as RX  # noqa: E402   (on the path seat.py sets)
 
 CK = ST.CK
 T, F = True, False
@@ -86,6 +90,7 @@ FH2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B")}, cosigners=("
 
 FH4 = ST.found("g", "A", ("A", "B", "C", "D"), {"moderate": ("A",)}, cosigners=("B", "C", "D"))
 FH1 = ST.found("g", "A", ("A",), {"moderate": ("A",)})
+FH2M = ST.found("g", "A", ("A", "B"), {"moderate": ("A",)}, cosigners=("B",))
 
 
 def recall(i, k, signers, heads):
@@ -341,6 +346,14 @@ CASES = [
      [FH4, recall("rc", "A", ("B", "C", "D"), ("g",)), ballot("bb", "B", "B", ("rc",)), ballot("bc", "C", "B", ("rc",)),
       elect("el", "B", ("bb", "bc"), M4, heads=("rc",))],
      NOMOD("A") + MOD("B"), "a recall"),
+    ("a room of one does not recall its holder by its one voice (CC 4.5.13 'The floor is two voices')",
+     [FH1, recall("rc", "A", ("A",), ("g",))], MOD("A"), "a recall"),
+    ("of two, B alone does not recall A (one voice of two is not more than two thirds)",
+     [FH2M, recall("rc", "A", ("B",), ("g",))], MOD("A"), "a recall"),
+    ("of two, both recall A (the holder recalled is a voice, as on any removal, CC 2.7.5)",
+     [FH2M, recall("rc", "A", ("A", "B"), ("g",))], NOMOD("A"), "a recall"),
+    ("of three, all three recall A, its own voice among them",
+     [FH, recall("rc", "A", ("A", "B", "C"), ("g",))], NOMOD("A"), "a recall"),
     # ---- the seat ----------------------------------------------------------------------------------------------------
     ("a seating signed by another key seats the winner only with the winner's acceptance: none here",
      [G3, LM, ballot("ba", "A", "B"), ballot("bb", "B", "B"), elect("el", "B", ("ba", "bb"), M3, signer="A")],
@@ -358,19 +371,16 @@ CASES = [
 # Rows the text does not decide: each carries the answer the model gives now and the candidate answers. Read like the
 # cases (the answer now, in every arrival order), so a change to it is seen; the answer is no ruling.
 # (name, rows, [(key, scope, stands now)], ledger item, the candidate answers)
-OPEN = [
-    ("NOT BUILT (the text decides): a recall in a room of one by its one voice: the model recalls",
-     [FH1, recall("rc", "A", ("A",), ("g",))], NOMOD("A"), "a recall",
-     "not recalled (CC 4.5.13: 'The floor is two voices'). Not built: the seat's count has no floor for a fraction "
-     "(`seat::met` reads none), and a floor per policy needs a field of `SeatLaw` or a `Policy` variant."),
-]
+OPEN = []
 
 
 @contextlib.contextmanager
 def planted(plant):
-    saved, pol = set(ST.MUT), dict(ST.POLICY)
+    saved, pol, rx = set(ST.MUT), dict(ST.POLICY), set(RX.MUT)
     if plant == "recall_at_least":
         ST.POLICY["moderator_recall"] = ("atleast", 2, 3)       # the table's 2/3 read as at least
+    elif plant in RX_PLANTS:
+        RX.MUT.add(plant)
     elif plant:
         ST.MUT.add(plant)
     try:
@@ -378,13 +388,15 @@ def planted(plant):
     finally:
         ST.MUT.clear(); ST.MUT |= saved
         ST.POLICY.clear(); ST.POLICY.update(pol)
+        RX.MUT.clear(); RX.MUT |= rx
 
 
 PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_any_winner", "ballot_withdrawal_unread",
           "ballot_nonmember_ranked", "election_beside_holder", "election_agent_holder",
           "candidates_roster", "ballot_ranks_unbounded", "recall_at_least",
           "decline_unread", "larger_set_unread", "election_id_unread",
-          "candidates_options")
+          "candidates_options", "floor_unread", "runoff_forward", "zero_strike_off")
+RX_PLANTS = ("runoff_forward", "zero_strike_off")        # planted in reexpress.py, the ranked count's reference
 
 
 def answers(rows, asks, plant=None, arrive=False):
