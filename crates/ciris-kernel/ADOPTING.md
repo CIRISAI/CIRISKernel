@@ -195,8 +195,10 @@ trusting an adapter.
   moderator. A reader's acknowledgement of a head keeps `room()` and `head()` as before. The room's count's
   receipt is the same row with `conf()` `Conf::Group`, `obj()` the room, `head()` and `policy()`, and the
   counting persons as signer and cosigners; it keeps the removal where its count is met. A duty holder's receipt
-  is void where a counted unseat of a seat that holder holds does not have the receipt in its past. A counted end
-  of the moderator's standing that lifts receipts states `SeatRow::lifts()`; then only the count's receipt keeps.
+  is void where a counted unseat of a seat that holder holds does not have the receipt in its past. An end of
+  the moderator's standing that lifts receipts states `SeatRow::lifts()`: a counted end, or a conferrer's
+  withdrawal of its own offer; then only the count's receipt keeps. The holder's own end never lifts
+  (`lifts_on_own_end`): refuse such a row at the door; handed one, the kernel reads no lift.
 - `content::answers` reads no seat row: the caller marks each roster version (`ContentRow::seat`, `SeatAt`)
   for the author. For an agent's rows mark it by its `agent` seat (in `Seats::roster`), as a member's by its
   member seat; its stay begins at the version that admits it in `agent` and ends at its removal or

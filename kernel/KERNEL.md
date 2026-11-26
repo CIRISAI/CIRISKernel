@@ -488,7 +488,7 @@ moderator's lone removal and its lift in `check_agent_removal.py`. That removal 
 over the rows held: an end of the standing (the moderator's own laying down, a counted removal of it, the other
 holders' counted withdrawal of its duty) takes it out of force from the end's head on unless another duty holder's
 receipt of it is held, and the agent's key is seated again for a reader holding that end. **run**
-(`models/causal_kernel/check_removal_in_force.py`): 37 cases in arrival orders, eight planted breaks caught.
+(`models/causal_kernel/check_removal_in_force.py`): 39 cases in arrival orders, ten planted breaks caught.
 Nothing puts such a removal back in force: a moderator seated again signs it again.
 
 An adversary holding the count of an old head signs a valid version alone. A witnessed lineage answers that

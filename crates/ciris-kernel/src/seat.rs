@@ -1412,10 +1412,23 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
             (!cut).then_some((q, false))
         })
         .collect();
-    // a counted end stating `lifts` lifts every receipt but the count's own; a self end and a lone removal cannot
+    // an end stating `lifts` lifts every receipt but the count's own, in CC 2.4.1.1's cases: (i) a counted end;
+    // (iii) a conferrer ending its own offer (its withdrawal of an offer seating another), counted or not. (ii) The
+    // holder's own end never lifts (`lifts_on_own_end`, refused at the door; handed one, no lift is read), and a
+    // moderator's lone removal lifts nothing.
     let lifts = |e: usize| {
         let er = g.row(e);
-        er.lifts() && er.seat_kind() == SeatKind::Unseat && er.conf() == Some(Conf::Group) && !lone.contains(&e)
+        if !er.lifts() {
+            return false;
+        }
+        match er.seat_kind() {
+            SeatKind::Unseat => er.conf() == Some(Conf::Group) && !lone.contains(&e),
+            SeatKind::Withdraw => er
+                .target()
+                .and_then(|t| by.get(t))
+                .is_some_and(|t| t.seat_kind() == SeatKind::Offer && !t.to().contains(er.signer())),
+            _ => false,
+        }
     };
     let kept = |e: Option<usize>| {
         acks.iter().any(|&(q, counted)| e.is_none_or(|e| !g.in_past(e, q)) && (counted || e.is_none_or(|e| !lifts(e))))

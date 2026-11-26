@@ -37,6 +37,8 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     count_receipt_unread  the room's counted receipt is not read
     removed_receipt_kept  a receipt by a key whose seat a counted unseat beside it ends still keeps
     lifts_unread     a count end's `lifts` is not read
+    conferrer_lift_unread  a conferrer's withdrawal of its own offer stating `lifts` lifts nothing
+    cycle_one_then_other   a mutual pair of lone removals decided one after the other, not together
     count_unread_lone a removal the room's count carries is read as the moderator's lone act
     reseat_revives   the remover holding `moderate` again (its re-acceptance, a new conferral) puts its removal
                      back in force
@@ -121,6 +123,14 @@ YA = lone("y", "p1", "A1", ("x",))                        # p1 removes A1 alone,
 LAYY = ST.withdraw("wm", "p1", "g", ("y",), scope="moderate")
 
 
+# a room founded with members only, its founder p1 conferring moderate on MOD and on p2 by offers of its own
+MG = ST.offer("g", "p1", ("p1", "p2", "MOD"), "member", "@", "self", cosigners=("p2", "MOD"))
+MOR = [MG, ST.offer("cm", "p1", "MOD", "moderate", OBJ, "self", ("g",), cosigners=("MOD",)),
+       ST.offer("cp", "p1", "p2", "moderate", OBJ, "self", ("g",), cosigners=("p2",)),
+       ST.offer("ag", "p1", "AG", "agent", OBJ, "group", ("cm", "cp"), head=("g",), policy="community_invite",
+                cosigners=("p2", "MOD", "AG"))]
+
+
 def counted_receipt(i, signers, act, head):
     """The room's count's receipt of an act: an `ack` naming it, counted over the persons at its head."""
     return R(i, "ack", signers[0], (act,) + tuple(h for h in head if h != act), of=act, conf="group", obj=OBJ,
@@ -157,7 +167,16 @@ CASES = [
      W + [X, receipt("q2", "p2", "x"), dict(OUT, lifts=True)], {"x": T, "xp": T}, P23 | {"AG"}, []),
     (PIN + "a count end that lifts receipts: the count's own receipt still keeps",
      W + [X, counted_receipt("qc", ("p2", "p3"), "x", ("x",)), dict(OUT, lifts=True)], {"x": T, "xp": T}, P23, []),
-    (PIN + "a self end cannot lift: p1's laying down stating `lifts` leaves p2's receipt keeping",
+    (PIN + "a conferrer that ends its own offer may lift (CC 2.4.1.1): in a room founded with members only, p1 "
+     "confers moderate on MOD and on p2 by its own offers; MOD removes the agent alone, p2 receipts it, and p1 "
+     "withdraws MOD's offer stating `lifts`: the receipt keeps nothing",
+     MOR + [lone("x", "MOD", "AG", ("ag",)), receipt("q2", "p2", "x"), dict(ST.withdraw("wc", "p1", "cm", ("x",)), lifts=True)],
+     {"x": T, "wc": T}, {"p1", "p2", "MOD", "AG"}, [("MOD", "moderate", F)]),
+    (PIN + "the same withdrawal not stating `lifts`: p2's receipt keeps the removal in force",
+     MOR + [lone("x", "MOD", "AG", ("ag",)), receipt("q2", "p2", "x"), ST.withdraw("wc", "p1", "cm", ("x",))],
+     {"x": T, "wc": T}, {"p1", "p2", "MOD"}, [("MOD", "moderate", F)]),
+    (PIN + "a self end cannot lift (`lifts_on_own_end`, refused at the door; read as no lift): p1's laying down "
+     "stating `lifts` leaves p2's receipt keeping",
      W + [X, receipt("q2", "p2", "x"), dict(LAY, lifts=True)], {"x": T}, P3, []),
     ("the removal with no end held: in force, the agent out", W + [X], {"x": T}, P3, [("p1", "moderate", T)]),
     # ---- the remover lays down its duty ---------------------------------------------------------------------------
@@ -231,7 +250,7 @@ CASES = [
      W + [X, receipt("q2", "p2", "x"), remove("xp", "p1", ("p2", "p3"), ("ag",))], {"x": T, "xp": T}, P23, []),
 ]
 PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone", "cascade", "count_receipt_unread",
-          "removed_receipt_kept", "lifts_unread")
+          "removed_receipt_kept", "lifts_unread", "conferrer_lift_unread", "cycle_one_then_other")
 
 
 def read(S, case):

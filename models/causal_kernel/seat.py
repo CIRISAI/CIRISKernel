@@ -797,12 +797,17 @@ def receipts_of(S, x, duty, unseats, not_ends):
     return out
 
 
-def lifts_receipts(E, lone_ids):
-    """A counted end that states it lifts the receipts of acts under the ended standing (`lifts`; conferral's word):
-    then only the count's own receipt keeps (CIRISConstitution#218, pin list: a count end that lifts receipts). A
-    self end and a lone removal cannot lift."""
-    return bool(E.get("lifts")) and E["kind"] == "unseat" and E.get("conf") == "group" and E["id"] not in lone_ids \
-        and "lifts_unread" not in MUT
+def lifts_receipts(E, lone_ids, by=None):
+    """An end that states it lifts the receipts of acts under the ended standing (`lifts`; conferral's word): then only
+    the count's own receipt keeps (CIRISConstitution#218, pin list: a count end that lifts receipts). CC 2.4.1.1, "What
+    stays in force", names three cases: (i) a counted end may lift; (iii) a conferrer that ends its own offer may lift,
+    counted or not (its withdrawal of an offer that seats another); (ii) the holder's own end never lifts (its own
+    withdrawal, its resignation; the text refuses such a row at the door, `lifts_on_own_end`, and the kernel, handed
+    one, reads no lift). A moderator's lone removal lifts nothing."""
+    if not E.get("lifts") or "lifts_unread" in MUT: return False
+    if E["kind"] == "unseat": return E.get("conf") == "group" and E["id"] not in lone_ids
+    t = (by or {}).get(E.get("target")) if E["kind"] == "withdraw" else None
+    return t is not None and t["kind"] == "offer" and E["signer"] not in t["to"] and "conferrer_lift_unread" not in MUT
 
 
 def removal_in_force(S, x, unseats, now, not_ends=frozenset(), lone_ids=frozenset()):
@@ -830,7 +835,7 @@ def removal_in_force(S, x, unseats, now, not_ends=frozenset(), lone_ids=frozense
         duty = d if duty is None else duty & d
     duty = (duty or frozenset()) - (frozenset() if "remover_receipt" in MUT else {M})
     acks = receipts_of(S, x, duty, unseats, not_ends)
-    kept = lambda E: any((E is None or E["id"] not in S.anc[q["id"]]) and (counted or E is None or not lifts_receipts(E, lone_ids))
+    kept = lambda E: any((E is None or E["id"] not in S.anc[q["id"]]) and (counted or E is None or not lifts_receipts(E, lone_ids, S.by))
                          for q, counted in acks)
     # an end in the past of the head x names did not end the standing live there (a seat taken up again after it)
     found = [(E, sc) for E, sc in standing_ends(S, x, standing, unseats, not_ends)
@@ -871,6 +876,7 @@ def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
         for x in ready:
             excl = frozenset() if "cascade" in MUT else frozenset(y for y in deps[x["id"]] if decided.get(y) is False)
             got[x["id"]] = removal_in_force(S, x, unseats, now(excl), excl, lone_ids)
+            if "cycle_one_then_other" in MUT: decided[x["id"]] = got[x["id"]]   # MUTATION: a cycle decided in turn
         decided.update(got)
         pending = [x for x in pending if x["id"] not in decided]
     return frozenset(i for i, v in decided.items() if not v)

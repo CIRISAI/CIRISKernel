@@ -85,6 +85,10 @@ plant "a remover's own receipt keeps its removal"   src/seat.rs '    duty.remove
 plant "a lone removal out of force still ends a standing (cascade)" src/seat.rs 'let excl: BTreeSet<usize> = deps[j].iter().copied().filter(|y| decided.get(y) == Some(&false)).collect();' 'let excl: BTreeSet<usize> = deps[j].iter().copied().filter(|_| false).collect();'
 plant "the room's counted receipt unread" src/seat.rs 'return count_met(&Past::new(g, q, &anc), law, spec, Some(cache)).then_some((q, true));' 'return None;'
 plant "a removed key's receipt keeps" src/seat.rs '            (!cut).then_some((q, false))' '            Some((q, false))'
+plant "a conferrer's own end lifts nothing" src/seat.rs '                .is_some_and(|t| t.seat_kind() == SeatKind::Offer && !t.to().contains(er.signer())),' '                .is_some_and(|_| false),'
+plant "a mutual pair decided one then the other" src/seat.rs '            got.push((acts[j], removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone)));' '            let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone);
+            decided.insert(acts[j], v);
+            got.push((acts[j], v));'
 plant "a count end's lifts unread" src/seat.rs '(counted || e.is_none_or(|e| !lifts(e)))' '(counted || true)'
 plant "a receipt after the end keeps a removal"     src/seat.rs 'acks.iter().any(|&(q, counted)| e.is_none_or(|e| !g.in_past(e, q)) &&' 'acks.iter().any(|&(q, counted)| true &&'
 plant "a removal at a later head than the end counts" src/seat.rs '!g.in_past(e, x) && !later(head_of(e)) && kept(Some(e))' '!g.in_past(e, x) && kept(Some(e))'

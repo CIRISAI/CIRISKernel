@@ -15,12 +15,16 @@
   heads, keeps it in force where its count is met, beside a duty holder's receipt.
 - A receipt by a key removed at the same time is void: a duty holder's receipt keeps nothing where a counted
   unseat of a seat that holder holds over the room does not have the receipt in its past (conferral's key_cut).
-- A count end that lifts receipts: a counted unseat ending the moderator's standing with `lifts()` true lifts
-  every receipt but the count's own. A self end and a lone removal cannot lift (conferral's `lifts`).
+- A count end that lifts receipts (`lifts()`, conferral's word), in CC 2.4.1.1's three cases: (i) a counted unseat
+  ending the moderator's standing may lift, and (iii) a conferrer ending its own offer (its withdrawal of an offer
+  that seats the moderator, counted or not) may lift; then every receipt but the count's own keeps nothing.
+  (ii) The holder's own end never lifts: the text refuses such a row at the door (`lifts_on_own_end`), and the
+  kernel, handed one, reads no lift. A moderator's lone removal lifts nothing.
+- A counted receipt that fails its count keeps nothing, and is not read as its signer's own receipt (confirmed).
 - Not built: the owner's statement on an agent's duty seat (CC 4.5.4).
 
-The reference: `seat.receipts_of`, `lifts_receipts` and the ordering in `out_of_force`; eleven cases and four
-planted breaks in `check_removal_in_force.py`, each named for its row of the pin list. Four crate plants.
+The reference: `seat.receipts_of`, `lifts_receipts` and the ordering in `out_of_force`; thirteen cases and six
+planted breaks in `check_removal_in_force.py`, each named for its row of the pin list. Six crate plants.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
