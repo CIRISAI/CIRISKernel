@@ -160,11 +160,18 @@ trusting an adapter.
   scope it seats itself (`moderate`, for a lone founder). For a `String` word `fn word(s: &'static str) -> String
   { s.into() }`; for a `&'a str` word `fn word(s: &'static str) -> &'a str { s }`.
 - A founding record one key signs with no `duty_holders` map seats that key in `member`, `moderate`, and each duty
-  its `duties()` declares. Where the record has a map, the map decides.
-- A duty is placed by the founding record, a counted Offer counted over the duty holders (`counted()` a duty,
-  `duty_confer`), or an election's acceptance (`Policy::Ranked`). A members' admission count (`community_invite`,
-  `counted()` `member`) of a duty scope concludes nothing (CIRISConstitution#241), whether or not a duty holder
-  lives. Where no holder is left, present the election.
+  its `duties()` declares. Where the record has a map, the map decides. A record's `duties()` never name a roster
+  scope: an entry `member` or `agent` is ignored.
+- A duty is placed by the founding record, by the duty holders' count, or by an election's acceptance
+  (`Policy::Ranked`). The duty holders' count is a counted Offer with `counted()` exactly `duty` (all the duty
+  holders, not one duty's), `policy()` `duty_confer`, and `over()` absent or the room it confers in. Any other
+  counted offer of a duty scope concludes nothing (CIRISConstitution#241): a members' admission count
+  (`community_invite`, `counted()` `member`), a count under another policy, a count over another room. A
+  counted unseat of a duty scope is likewise counted over the room (`over()` absent or the room). Where no
+  holder is left, present the election.
+- A single key's own offer of a duty (`Conf::Own`, or `Conf::Seat` under its own seat) concludes only where its
+  signer is then the lone person duty holder over the room (an agent holding a duty is not counted), with the new
+  holder's acceptance, in every community. Where there are two holders or more, present the holders' count.
 - A duty seat is live only on a member, in every room, whatever its founding row seats (a room founded with
   members only included). Present the widening that admits a key before, or with, the conferral
   on it: a conferral on a key that is not yet a member seats nobody, with no error, and is live once the

@@ -507,7 +507,12 @@ fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<Sc<'a,
     }
     if lone_founding(o) {
         let mut out = alloc::vec![Sc::Row(own), Sc::Moderate];
-        out.extend(o.duties().iter().filter(|d| *d != own && d.as_ref() != "moderate").map(Sc::Row));
+        out.extend(
+            o.duties()
+                .iter()
+                .filter(|d| *d != own && d.as_ref() != "moderate" && !roster_word(d.as_ref()))
+                .map(Sc::Row),
+        );
         return out;
     }
     if o.duty_holders().is_empty() {
@@ -582,7 +587,7 @@ fn roster_offer<R: SeatRow>(law: &SeatLaw, o: &R) -> bool {
 /// Whether withdrawal `w` is its signer's own end of a stay as a member, and of which community: a withdrawal
 /// by a key of an offer of the roster's seat that names it, or of its own acceptance of one (the offer the
 /// acceptance names, or a standing acceptance's own scope and object). Read from the rows alone.
-fn stay_end<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, w: &R) -> Option<ObjOf<R>> {
+pub(crate) fn stay_end<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, w: &R) -> Option<ObjOf<R>> {
     let k = w.signer();
     let mut t = *by.get(w.target()?)?;
     // a withdrawal that names a duty seat lays down that seat, and the stay goes on
@@ -633,7 +638,13 @@ fn own_keys<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, obj: &ObjOf<R>) -> BTreeSet<R
 }
 
 fn declared<'a, R: SeatRow>(by: &BTreeMap<&R::Id, &'a R>, obj: &ObjOf<R>) -> Vec<&'a str> {
-    row_of(by, obj).map_or(Vec::new(), |g| g.duties().iter().map(|d| d.as_ref()).collect())
+    row_of(by, obj).map_or(Vec::new(), |g| g.duties().iter().map(|d| d.as_ref()).filter(|d| !roster_word(d)).collect())
+}
+
+/// A roster scope (a member's, an agent's): never a duty a record declares, so a record's entry naming one is
+/// ignored.
+fn roster_word(d: &str) -> bool {
+    d == "member" || d == AGENT
 }
 
 /// The live seats over a concluded set, for reader `own` (the reader's line), with the cut the caller's
@@ -2128,18 +2139,38 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
 
 /// CC 4.5.4: a duty seat is placed only by the founding record, by "the duty holders of C, counted under line
 /// (iv)", or by "the members' count under line (v)", which "is the election of rule 2". So a counted offer of a
-/// duty scope over a community concludes only where it is counted over the duty holders ([`SeatRow::counted`] a
-/// duty) or is an election's acceptance ([`Policy::Ranked`]). A members' count under an admission-style policy
-/// confers no duty, whether or not a duty holder lives (CIRISConstitution#241). A seat that makes its holder no
-/// duty holder (a node's detector seat) is not reached.
+/// duty scope over a community concludes only where it is the duty holders' count or an election's acceptance
+/// ([`Policy::Ranked`]). The duty holders' count is over all the duty holders of the room it confers in:
+/// [`SeatRow::counted`] the duty holders' scope itself (`duty`), under [`Policy::DutyConfer`], with
+/// [`SeatRow::over`] absent or the room. A members' count under an admission-style policy, one duty's holders, a
+/// policy such as `accord_halt`, or a count over another room confers no duty (CIRISConstitution#241). A seat
+/// that makes its holder no duty holder (a node's detector seat) is not reached.
 fn duty_gate<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, r: &R) -> bool {
     let (Some(obj), Some(s)) = (r.obj(), r.scope()) else { return true };
     let declared = declared(by, &obj);
     if !community(by, &obj) || !law.is_duty(s.as_ref(), &declared) {
         return true;
     }
-    let counted = r.counted().map_or("member", |c| c.as_ref());
-    law.is_duty(counted, &declared) || law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked)
+    // the duty holders' count is over the room it confers in
+    if r.over().is_some_and(|o| o != obj) {
+        return false;
+    }
+    let pol = law.policy_of(r.policy().map(|x| x.as_ref()));
+    if pol == Some(Policy::Ranked) {
+        return true;
+    }
+    // over all the duty holders (one duty's holders are not all of them), under the duty policy
+    r.counted().is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)
+}
+
+/// A counted unseat of a duty scope over a community (the holders' withdrawal of a duty, the members' recall) is
+/// counted over the room it ends the seat in: [`SeatRow::over`] absent or that room.
+fn duty_over<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, r: &R) -> bool {
+    let (Some(obj), Some(s)) = (r.obj(), r.scope()) else { return true };
+    if !community(by, &obj) || !law.is_duty(s.as_ref(), &declared(by, &obj)) {
+        return true;
+    }
+    r.over().is_none_or(|o| o == obj)
 }
 
 /// A counted row's count ([`Conf::Group`]), met over `p`: the lift, the ranked tally, the duty count, or the
@@ -2234,6 +2265,9 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                 Some(Conf::Group) => {
                     if is_offer && !duty_gate(law, &by, r) {
                         return false; // CC 4.5.4: a duty is placed by its holders' count or an election
+                    }
+                    if !is_offer && !duty_over(law, &by, r) {
+                        return false; // and its seat is ended by a count over the room it is held in
                     }
                     if !is_offer && lone_removal(r, p, law, spec, cache) {
                         return true; // CC 4.5.13: a moderator, an agent's key

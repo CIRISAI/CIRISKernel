@@ -63,6 +63,10 @@ Planted breaks, each of which must change a case's answer:
     duty_gate_wrong_row the gate reads `counted` off the room's founding row, not the offer
     lone_founder_unread a record one person signs with no map seats that person in no duty
     own_duty_ungated    a single key's own offer of a duty concludes outside a duty room though it is no lone holder
+    duty_over_unread    a duty's count over another room (`over`) confers or withdraws it (review of #54)
+    gate_counted_any_duty  a count over one duty's holders passes the gate as the duty holders' count
+    gate_policy_unread  a count over the duty holders under any policy passes the gate (accord_halt, one of n)
+    declared_roster_kept  a record's declared duty naming a roster scope (`member`, `agent`) is read as a duty
 
 Not here: the count that confers or withdraws a duty seat (check_rosters.py, the duty instance); a count over a scope
 that is no duty; the term of a seat; an act done under a duty seat after it ends (conferral_end.py).
@@ -132,6 +136,18 @@ GV = [ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", 
 
 LF = ST.found("g", "A", ("A",), {})                                       # a record one person signs, no map
 LFR = dict(LF, duties=("review",))                                         # and declaring review
+
+
+RV54 = "CIRISConstitution#241, review of #54: "
+GA = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",), "review": ("B", "C")}, cosigners=("B", "C"))
+MDA = admit("md", "D", ("A", "B", "C"), ("g",))
+HD = ST.found("h", "D", ("D",), {})                                        # a room D founds alone
+
+
+def gate_offer(signer, cosigners, names=("md",), head=("md",), **kw):
+    """A counted offer of moderate over g to D, by default the duty holders' count over g at md."""
+    kw = dict(dict(policy="duty_confer", counted="duty"), **kw)
+    return ST.offer("c1", signer, "D", "moderate", OBJ, "group", names, head=head, cosigners=tuple(cosigners), **kw)
 
 
 def ELECT(i, k, heads):
@@ -330,12 +346,53 @@ CASES = [
     (DG + "a lone founder's record naming a map: the map decides", [ST.found("g", "A", ("A",), {"review": ("A",)})],
      [("A", "review", T), ("A", "moderate", F)], None),
     (DG + "several signers and no map: members, no duty", [GM], [("A", "moderate", F), ("A", "member", T), ("A", "duty", F)], None),
+    # ---- the review of #54: the gate's room, count and policy; a record's declared duties ------------------------
+] + [(RV54 + n, rows, asks, None) for n, rows, asks in (
+    ("a count over another room confers no duty: D, admitted to g, founds h alone and confers moderate over g on "
+     "itself counted over h's duty holders", [GA, MDA, HD, gate_offer("D", ("D",), over="h", head=("h",), names=("md", "h"))],
+     [("D", "moderate", F), ("D", "member", T)]),
+    ("the same with h founded in the older presentation (scope duty)",
+     [GA, MDA, ST.offer("h", "D", ("D",), "duty", "@", "self"), gate_offer("D", ("D",), over="h", head=("h",), names=("md", "h"))],
+     [("D", "moderate", F)]),
+    ("the duty holders' count over the room itself, two of the three: D holds moderate",
+     [GA, MDA, gate_offer("A", ("B", "D"))], [("D", "moderate", T)]),
+    ("a withdrawal of a duty counted over another room ends nothing: D's count over h of A's moderate over g",
+     [GA, MDA, HD, ST.unseat("u", "D", "A", "moderate", OBJ, "group", ("md", "h"), head=("h",), policy="duty_withdraw",
+                              counted="duty", over="h")], [("A", "moderate", T)]),
+    ("one duty's holders are not all of them: A, the only holder of moderate of three duty holders, confers alone "
+     "counted over `moderate`", [GA, MDA, gate_offer("A", ("D",), counted="moderate")], [("D", "moderate", F)]),
+    ("a policy that is not the duty count confers nothing: B alone, counted over the duty holders, under accord_halt "
+     "(one of n)", [GA, MDA, gate_offer("B", ("D",), policy="accord_halt")], [("D", "moderate", F)]),
+    ("a record's declared duties are never a roster scope: several signers declaring `member` a duty have no duty "
+     "holders, and the members' count confers no moderate",
+     [dict(GM, duties=("member",)), admit("md", "D", ("A", "B", "C"), ("g",)), MCD("mc", "D", ("md",))],
+     [("D", "moderate", F), ("A", "duty", F), ("D", "member", T)]),
+    ("a lone founder declaring `agent` holds no agent seat; its admission of B stands",
+     [dict(LF, duties=("agent",)), admit("mb", "B", ("A",), ("g",))], [("A", "agent", F), ("A", "moderate", T), ("B", "member", T)]),
+    ("a lone founder declaring `member` a duty: the room's admission is an admission still",
+     [dict(LF, duties=("member",)), admit("mb", "B", ("A",), ("g",))], [("B", "member", T), ("B", "duty", F)]),
+    ("the one-founder room reads a seat its holders place as a map-founded room does: the founder's own offer of "
+     "`author` to B, then its withdrawal of that offer, leaves B its seat (a seat the duty holders place ends by its "
+     "holder or a count; `author` is no duty, so B is no duty holder)",
+     [LF, admit("mb", "B", ("A",), ("g",)), ST.offer("au", "A", "B", "author", OBJ, "self", ("mb",), cosigners=("B",)),
+      ST.withdraw("wa", "A", "au", ("au",))], [("B", "author", T), ("B", "duty", F)]),
+    ("the same in a room whose record names A its one moderator", [ST.found("g", "A", ("A",), {"moderate": ("A",)}),
+      admit("mb", "B", ("A",), ("g",)), ST.offer("au", "A", "B", "author", OBJ, "self", ("mb",), cosigners=("B",)),
+      ST.withdraw("wa", "A", "au", ("au",))], [("B", "author", T), ("B", "duty", F)]),
+    ("the founder of a one-founder room holds moderate, so it removes an agent's key alone (changed from 0.4.0, where "
+     "it held no duty and the removal took the room's count)",
+     [LF, admit("mb", "B", ("A",), ("g",)), admit("mc", "C", ("A", "B"), ("mb",)),
+      ST.offer("ag", "A", "AG", "agent", OBJ, "group", ("mc",), head=("mc",), policy="community_invite", cosigners=("B", "C", "AG")),
+      ST.unseat("x", "A", "AG", "agent", OBJ, "group", ("ag",), head=("ag",), policy="community_remove")],
+     [("AG", "agent", F), ("A", "moderate", T)]),
+)] + [
     ("not reached: a seat the duty holders place that is no duty (a node's detector seat) stands on a key that is no member, and makes it no duty holder",
      [G, confer("cn", "N", "detect:list1", ("A", "B"), ("g",))], [("N", "detect:list1", T), ("N", "member", F), ("N", "duty", F)], None),
 ]
 PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_only", "duty_fold_unread", "holders_unread",
           "unsigned_seated", "scope_unread", "member_rule_duty_rooms_only",
-          "unsigned_no_map", "duty_gate_off", "duty_gate_wrong_row", "own_duty_ungated", "lone_founder_unread")
+          "unsigned_no_map", "duty_gate_off", "duty_gate_wrong_row", "own_duty_ungated", "lone_founder_unread",
+          "duty_over_unread", "gate_counted_any_duty", "gate_policy_unread", "declared_roster_kept")
 
 
 @contextlib.contextmanager

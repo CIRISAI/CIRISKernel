@@ -262,8 +262,14 @@ def is_duty(scope, declared=()):
 
 
 def declared(by, obj):
+    """The duties the community's record declares (its founding row's `duties`). A record's declared duty is never a
+    roster scope (`member`, `agent`): such an entry is ignored (MUTATION declared_roster_kept)."""
     g = by.get(obj)
-    return tuple((g or {}).get("duties", ()))
+    return record_duties(g or {})
+
+
+def record_duties(g):
+    return tuple(d for d in g.get("duties", ()) if d not in ("member", "agent") or "declared_roster_kept" in MUT)
 
 
 # the seats over a community its duty holders do NOT place: membership is the roster's own seat, placed by the count
@@ -303,7 +309,7 @@ def seat_scopes(o, k):
     if lone_founding(o):
         # the lone signer holds `moderate` always ("a duty every community's record declares") and each duty its record
         # declares (`duties`); not the law's other named duties (CIRISConstitution#241)
-        return (o["scope"], "moderate") + tuple(d for d in o.get("duties", ()) if d not in (o["scope"], "moderate"))
+        return (o["scope"], "moderate") + tuple(d for d in record_duties(o) if d not in (o["scope"], "moderate"))
     if not o.get("duty_holders") or "holders_unread" in MUT: return (o["scope"],)
     return (o["scope"],) + tuple(d for d, ks in o["duty_holders"] if k in ks and d != o["scope"])
 
@@ -1094,14 +1100,29 @@ def _ender(r, P, by):
 def duty_gate(r, by, table=None):
     """CC 4.5.4: a duty seat is placed only by the founding record, by "the duty holders of C, counted under line
     (iv)", or by "the members' count under line (v)", which "is the election of rule 2". So a counted offer of a duty
-    scope over a community concludes only where it is counted over the duty holders (`counted` a duty) or is an
-    election's acceptance (the ranked tally). A members' count under an admission-style policy confers no duty,
-    whether or not a duty holder lives (CIRISConstitution#241). A seat that makes its holder no duty holder (a node's
-    detector seat) is not reached. (MUTATION duty_gate_off; duty_gate_wrong_row: `counted` read off the room.)"""
+    scope over a community concludes only where it is the duty holders' count, or is an election's acceptance (the
+    ranked tally). The duty holders' count is the count over all the duty holders of the room it confers in:
+    `counted` the duty holders' scope itself (`duty`; one duty's holders are not all of them), under the duty policy
+    `duty_confer` (a strict majority of the holders, never fewer than two unless one; a policy the row states
+    otherwise, `accord_halt` say, is not that count), over the room itself (`over` absent or the room). A members'
+    count under an admission-style policy confers no duty, whether or not a duty holder lives (CIRISConstitution#241).
+    A seat that makes its holder no duty holder (a node's detector seat) is not reached. (MUTATIONS duty_gate_off;
+    duty_gate_wrong_row: `counted` read off the room; gate_counted_any_duty: one duty's holders pass; gate_policy_unread:
+    any policy passes; duty_over_unread: a count over another room passes.)"""
     if "duty_gate_off" in MUT or not community(by, r["obj"]) or not is_duty(r["scope"], declared(by, r["obj"])): return True
+    if r.get("over", r["obj"]) != r["obj"] and "duty_over_unread" not in MUT: return False
+    if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked": return True
     src = by.get(r["obj"], {}) if "duty_gate_wrong_row" in MUT else r
-    if is_duty(src.get("counted", "member"), declared(by, r["obj"])): return True
-    return K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked"
+    counted = src.get("counted", "member")
+    if not (counted == "duty" or ("gate_counted_any_duty" in MUT and is_duty(counted, declared(by, r["obj"])))): return False
+    return r.get("policy") == "duty_confer" or "gate_policy_unread" in MUT
+
+
+def duty_over(r, by):
+    """A counted unseat of a duty scope over a community (the holders' withdrawal of a duty, the members' recall) is
+    counted over the room it ends the seat in: `over` absent or the room (MUTATION duty_over_unread)."""
+    if "duty_over_unread" in MUT or not community(by, r["obj"]) or not is_duty(r["scope"], declared(by, r["obj"])): return True
+    return r.get("over", r["obj"]) == r["obj"]
 
 
 def count_met(r, P, past, table=None):
@@ -1134,10 +1155,11 @@ def seat_rule(r, P, past, table=None, other=None):
                 "own_duty_ungated" not in MUT and community(by, r["obj"]) and is_duty(r["scope"], declared(by, r["obj"])))) \
                 and not _lone(r, P, by): return False
         if k == "offer" and conf == "group" and not duty_gate(r, by): return False   # CC 4.5.4: who places a duty
+        if k == "unseat" and conf == "group" and not duty_over(r, by): return False  # and over which room
         if conf == "self":
             if r["obj"] == r["id"]: return k == "offer"          # a founding row is its own object
             if k == "unseat" and founding_many(by, r["obj"]): return False    # among several founding keys, ending a seat takes the count
-            return r["signer"] in own_keys(by, r["obj"]) and (r["obj"] not in by or True)
+            return r["signer"] in own_keys(by, r["obj"])
         if conf == "seat":
             if k == "unseat": return _ender(r, P, by)
             return k == "offer" and r.get("under") in by and r["signer"] in by[r["under"]]["to"]

@@ -36,6 +36,8 @@ Part 2. Planted breaks in the seat rule, each of which must change a case's answ
                        lone removal's own test that the key holds an agent's seat there, seen from the lift)
     agent_counted_over an agent is counted over, in the window and in the re-seating (the removed key with it)
     lift_no_floor      the re-seating has no floor of two voices
+    window_scope_roster_only  the window takes a withdrawal's scope at its word: a roster scope departs its signer
+                       and any other does not (laying down a founding seat of scope `duty` departs no one)
 
 Part 3. The window adversary table (window.adversary_table) under recount reads no property broken, and planted
 breaks in the tables, each of which must break a row of it:
@@ -224,8 +226,30 @@ CASES = [
      C + [remove("x", "m1", "AG", "ag"), O2, reseat("rs", "m2", "AG", "x", "ag", ("o2",))], {"x": T, "rs": F},
      {"m1", "m2", "m3"}, {"x": "open"}),
 ]
+# The review of #54, item 8: in the window a withdrawal that names a scope departs its signer only where it ends the
+# signer's stay as a member (seat.stay_ends), whatever scope it names. World C is in the older presentation, its
+# founding row of scope `duty`: m2 laying down that founding seat (scope `duty`) ends its stay, so its objection after
+# that is late. And a withdrawal naming `member` of an offer that seats no member (m2's `author`, conferred by the
+# holders' count) ends no stay: m2's objection after it is a voice
+WL = ST.withdraw("wl", "m2", "g", ("x",), scope="duty")
+AU = ST.offer("au", "m1", "m2", "author", OBJ, "group", ("ag",), head=("ag",), policy="duty_confer", counted="duty",
+              cosigners=("m3", "m2"))
+WMA = ST.withdraw("wa", "m2", "au", ("x",), scope="member")
+O3 = obj("o3", "m3")
+CASES += [
+    ("C: m2 lays down its founding seat of scope duty after the removal (the older presentation: that seat holds "
+     "member, so its stay ends); its objection after that is late, and one voice of the two does not lift",
+     C + [remove("x", "m1", "AG", "ag"), WL, WN.answer("o2", "m2", "x", "object", ("wl",)), O3], {"x": T, "wl": T},
+     {"m1", "m3"}, {"x": "open"}),
+    ("C: the same two objections with no laying down: lifted", C + [remove("x", "m1", "AG", "ag"), O2, O3], {"x": T},
+     {"m1", "m2", "m3"}, {"x": "lifted"}),
+    ("C: m2 withdraws `member` of its `author` offer (a seat that is no member's): no stay ends, so its objection "
+     "after that is a voice, and the two lift", C + [AU, remove("x", "m1", "AG", "au"), WMA,
+                                                    WN.answer("o2", "m2", "x", "object", ("wa",)), O3],
+     {"x": T, "au": T, "wa": T}, {"m1", "m2", "m3"}, {"x": "lifted"}),
+]
 SEAT_PLANTS = ("agent_unread", "moderator_unread", "author_voice", "agent_voice", "lift_over_all", "restores_unseated", "agent_counted_over",
-               "lift_no_floor")
+               "lift_no_floor", "window_scope_roster_only")
 
 
 def read(S, concl, wins):
@@ -291,11 +315,11 @@ def main():
                 break
     caught = 0
     for plant in SEAT_PLANTS:
-        ST.MUT.add(plant)
+        ST.MUT.add(plant); WN.MUT.add(plant)
         try:
             hit = [name for name, rows, concl, roster, wins in CASES if answers(rows, concl, wins) != (concl, roster, wins)]
         finally:
-            ST.MUT.discard(plant)
+            ST.MUT.discard(plant); WN.MUT.discard(plant)
         caught += bool(hit)
         print("  plant %-18s %s" % (plant, "caught by: %s" % hit[0] if hit else "NOT CAUGHT"))
         if not hit:

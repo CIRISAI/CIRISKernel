@@ -517,15 +517,21 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
             gone.push((ur.to().iter().cloned().collect(), u));
         }
     }
+    let mut by: Option<BTreeMap<&R::Id, &R>> = None;
     for &wi in c.cs() {
         let wr = g.row(wi);
         if wr.seat_kind() != SeatKind::Withdraw {
             continue;
         }
-        // a withdrawal naming a duty lays that seat down: the key's seat on the roster, and so its voice, stands
-        let roster = |s: &str| s == "member" || law.roster_seats.iter().any(|r| r == s);
-        if wr.scope().is_some_and(|s| !roster(s.as_ref())) {
-            continue;
+        // a withdrawal that names a scope ends the signer's seat on the roster only where it ends its stay as a
+        // member over the object (seat::stay_end): one naming a duty lays that seat down, and the key's voice
+        // stands; the older presentation's founding seat of scope `duty` holds `member`, so laying it down ends
+        // the stay; one naming `member` of an offer that seats no member ends nothing
+        if wr.scope().is_some() {
+            let by = by.get_or_insert_with(|| g.rows().iter().map(|r| (r.id(), *r)).collect());
+            if seat::stay_end(law, by, wr).as_ref() != Some(&obj) {
+                continue;
+            }
         }
         if let Some(o) = wr.target().and_then(|t| g.idx(t)).map(|t| g.row(t)) {
             if o.seat_kind() == SeatKind::Offer && o.obj().as_ref() == Some(&obj) {

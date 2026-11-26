@@ -3,59 +3,69 @@
 ## Unreleased
 
 **A duty is conferred by its holders, the founding record or an election** (CC 4.5.4; CIRISConstitution#241). This
-follows #48. **Answers of 0.4.0 change.** `seat::seat_rule`: a counted offer of a duty scope over a community
-concludes only where it is counted over the duty holders (`SeatRow::counted` a duty) or is an election's acceptance
-(`Policy::Ranked`). A members' count under an admission-style policy (`community_invite`, counted `member`) confers
-no duty, whether or not a duty holder lives. A conferral under a holder's own seat (`Conf::Seat`, `Conf::Own`) is no
-count and is not reached by this gate; but a single key's own offer of a duty (`Conf::Own`, or one under its seat,
-`Conf::Seat`) concludes only where its signer is the lone person duty holder, with the new holder's acceptance ("or
-by the lone holder with the new holder's acceptance"), in every community, not only where the record seats duty
-holders. No signature changes.
-- Changed answers, `check_duty_seats.py`: "the same conferral on a member seats it" (a member-only room's members'
-  count of moderate on D) seated D and now seats nobody; the member-only cases that rested on it ("that member
-  resigns", "re-admitted after that, nothing revives", "a counted removal from the roster ends the member's
-  moderate seat") are rebuilt on a room whose one founding moderator has laid the duty down, where an election
-  seats a member and the members' count seats none. One member-only case stays, stated as "handed one".
-- `check_agent_removal.py` world A: its moderator was conferred `moderate` by the members' count; it is now the
-  founding moderator's own count (`duty_confer`), the founder then laying its duty down. No answer of world A
-  changes.
-- `check_removal_in_force.py`: the two cases of a moderate seat hanging under another (Z's) were built on
-  members' counts; they are now built on a member-only room's founder's own offers (handed one). In a room whose
-  record names its holders the chain cannot arise: a conferral under one's own seat there is the lone holder's,
-  and an agent is no holder that rule reads. Their answers are unchanged.
-- `check_rosters.py`: the property "when no duty holder is left the members' count seats one (and one member
-  does not)" is now "when no duty holder is left an election seats one, and the members' admission count none
-  (and one ballot does not)".
-- `window::outcome`: a withdrawal naming a duty (a founder laying it down) no longer marks its signer's later
-  answers as a departed key's: its roster seat stands. No case had one before.
-- Not built: a founding record one key signs that names no duty holder (the text: that signer holds every
-  declared duty) seats that key in `member` and no duty, as before.
-- Changed by the own-offer rule: "a member-only founding, handed one: a founder's own offer of moderate seats a
-  member" seated D and now seats nobody (no lone holder there); a member-only room places a duty by an election
-  only. Removed as unreachable: the two cases of a moderate seat hanging under an agent's seat (a seat conferred
-  under one's own seat is the lone person holder's, and an agent is none), with the wait on the seats a standing
-  hangs under and its plant; and the two cases of a conferrer's own end lifting receipts (CC 2.4.1.1 (iii)), with
-  that branch of `lifts` and its plants (a conferrer's withdrawal of a duty seat ends nothing, where the record
-  seats duty holders, and no single key's own offer places one elsewhere).
+follows #48. **Answers of 0.4.0 change.** **Breaking:** one required trait method (`SeatRow::word`, below).
+- The gate, `seat::seat_rule`: a counted offer of a duty scope over a community concludes only where it is the duty
+  holders' count or an election's acceptance (`Policy::Ranked`). The duty holders' count is over all the duty
+  holders of the room it confers in: `SeatRow::counted` the duty holders' scope itself (`duty`; one duty's holders,
+  `moderate` say, are not all of them), under `duty_confer`, and `SeatRow::over` absent or the room. A members'
+  count under an admission-style policy (`community_invite`, counted `member`), a count under another policy
+  (`accord_halt`, one of n), and a count over another room (one a key founded alone, say) confer no duty, whether
+  or not a duty holder lives. A counted unseat of a duty scope over a community is likewise counted over that
+  room (`over` absent or the room).
+- The own-offer rule: a single key's own offer of a duty (`Conf::Own`, or one under its seat, `Conf::Seat`)
+  concludes only where its signer is the lone person duty holder, with the new holder's acceptance ("or by the
+  lone holder with the new holder's acceptance"), in every community, not only where the record seats duty
+  holders.
 - **The one-founder room** (CC 4.5.4: "A record one person signs MAY name none, and that person then holds every
   declared duty"). A community's founding row (scope `member`) whose `to` is one key, signed by that key alone,
   with no `duty_holders` map, seats that key as a member and as holder of `moderate` always, and of each duty its
   record declares (`SeatRow::duties`), not the law's other named duties. Such a room is one where the duty rules
   engage. A one-signer record with a map: the map decides, as before. Several signers and no map: members and no
-  duty, as before. **Breaking:** `SeatRow::word(s: &'static str) -> Self::Word`, required, the caller's word for
-  a scope the crate names itself (only `moderate`, for this seat). For a `String` word:
+  duty, as before. The older presentation, a lone founder's row of scope `duty` with no map, still holds the
+  law's named duties through `holds["duty"]`; it is left as it is (three cases of `check_duty_seats.py`, two
+  tests of `attacks.py` and one world of `window.py` use it; seven scenarios of the seat fixture).
+- **Breaking:** `SeatRow::word(s: &'static str) -> Self::Word`, required, the caller's word for a scope the crate
+  names itself (only `moderate`, for the one-founder room's seat). For a `String` word:
   `fn word(s: &'static str) -> String { s.into() }`; for a `&'a str` word: `fn word(s: &'static str) -> &'a str
-  { s }`. Changed answers: only the duty holders read off a room founded by one key with no map, in the seat
-  fixture (four scenarios of `check_removal_in_force.py`'s reviewer rows over the room `h`, and one of
-  `attacks.py` over a room `z`): that key now holds `moderate` there. No case's stated answer changes.
-  The older presentation, a lone founder's row of scope `duty` with no map, still holds the law's named duties
-  through `holds["duty"]`; it is left as it is (three cases of `check_duty_seats.py`, two tests of `attacks.py`
-  and one world of `window.py` use it; seven scenarios of the seat fixture).
-- The seat reads a lift only on a counted unseat: CC 2.4.1.1's case (iii), a conferrer ending its own offer, has
-  no seat rows that reach it (a conferrer's withdrawal of a duty seat ends nothing where the record seats duty
-  holders, and no single key's own offer places one elsewhere). `conferral` keeps it for conferrals.
-Plants: `duty_gate_off`, `duty_gate_wrong_row`, `own_duty_ungated` and `lone_founder_unread` in the reference and
-the crate.
+  { s }`.
+- A record's declared duties (`SeatRow::duties`) are never a roster scope: an entry `member` or `agent` is
+  ignored (before, several signers declaring `member` made every member a duty holder, and a lone founder
+  declaring `agent` held an agent's seat).
+- `window::outcome`: a withdrawal that names a scope departs its signer (its later answers are a departed key's)
+  only where it ends the signer's stay as a member over the object, as `Seats` reads a stay's end: one naming a
+  duty (a founder laying it down) leaves its roster seat and its voice; the older presentation's founding seat of
+  scope `duty`, laid down by a withdrawal naming `duty`, ends the stay, and so departs it; one naming `member` of
+  an offer that seats no member (an `author` seat) ends no stay, and departs no one (before 0.5.0 it did).
+- Changed answers of 0.4.0, `check_duty_seats.py`: "the same conferral on a member seats it" (a member-only
+  room's members' count of moderate on D) seated D and now seats nobody; the member-only cases that rested on it
+  ("that member resigns", "re-admitted after that, nothing revives", "a counted removal from the roster ends the
+  member's moderate seat") are rebuilt on a room whose one founding moderator has laid the duty down, where an
+  election seats a member and the members' count seats none. One member-only case stays, stated as "handed
+  one". "A member-only founding, handed one: a founder's own offer of moderate seats a member" seated D and now
+  seats nobody (no lone holder there).
+- Changed answers of 0.4.0, the one-founder room. Its founder holds `moderate`, so it removes an agent's key
+  alone, at once (in 0.4.0 it held no duty there, and the removal took the room's count). Its own offer of a
+  seat the duty holders place (any scope but the roster's, `author` included, as in a room whose record names its
+  holders) concludes only while it is the lone person duty holder, and its withdrawal of such an offer no longer
+  ends the seat (the holders are equals: the seat ends by its holder or a count). `author` is no duty: its holder
+  is no duty holder. And the duty holders read off a room founded by one key with no map, in the seat fixture
+  (four scenarios of `check_removal_in_force.py`'s reviewer rows over the room `h`, and one of `attacks.py` over a
+  room `z`): that key now holds `moderate` there.
+- `check_agent_removal.py` world A: its moderator was conferred `moderate` by the members' count; it is now the
+  founding moderator's own count (`duty_confer`), the founder then laying its duty down. No answer of world A
+  changes.
+- `check_removal_in_force.py`: the two cases of a moderate seat hanging under another (Z's) were built on
+  members' counts. Inside a community the chain cannot arise (a seat conferred under one's own seat is the lone
+  person holder's, and an agent is none); they are removed, with the wait on the seats a standing hangs under
+  and its plant. CC 2.4.1.1 (iii), a conferrer ending its own offer, is reachable: in a room whose record seats
+  no duty holder, an elected moderator, then the lone person holder, confers `moderate` by its own offer, and its
+  withdrawal of that offer ends the seat. Its cases are rebuilt on that room.
+- `check_rosters.py`: the property "when no duty holder is left the members' count seats one (and one member
+  does not)" is now "when no duty holder is left an election seats one, and the members' admission count none
+  (and one ballot does not)".
+Plants: `duty_gate_off`, `duty_gate_wrong_row`, `own_duty_ungated`, `lone_founder_unread`, `duty_over_unread`,
+`gate_counted_any_duty`, `gate_policy_unread`, `declared_roster_kept` and `window_scope_roster_only` in the
+reference, each with a crate plant; and the crate's `SeatRow::word` read as another scope than `moderate`.
 
 **A moderator's lone removal: the four receipt items** (CIRISConstitution#218, pin list). New: one trait method,
 `SeatRow::lifts` (default `false`), additive. Answers change only for rows no case had before:
@@ -70,9 +80,9 @@ the crate.
   heads, keeps it in force where its count is met, beside a duty holder's receipt.
 - A receipt by a key removed at the same time is void: a duty holder's receipt keeps nothing where a counted
   unseat of a seat that holder holds over the room does not have the receipt in its past (conferral's key_cut).
-- A count end that lifts receipts (`lifts()`, conferral's word): a counted unseat ending the moderator's standing
-  may lift (CC 2.4.1.1 (i)); then every receipt but the count's own keeps nothing. Case (iii), a conferrer ending
-  its own offer, does not arise for a moderator's standing (see "A duty is conferred by its holders" above).
+- A count end that lifts receipts (`lifts()`, conferral's word), in CC 2.4.1.1's three cases: (i) a counted unseat
+  ending the moderator's standing may lift, and (iii) a conferrer ending its own offer (its withdrawal of an offer
+  that seats the moderator, counted or not) may lift; then every receipt but the count's own keeps nothing.
   (ii) The holder's own end never lifts: the text refuses such a row at the door (`lifts_on_own_end`), and the
   kernel, handed one, reads no lift. A moderator's lone removal lifts nothing.
 - A counted receipt that fails its count keeps nothing, and is not read as its signer's own receipt (confirmed).
