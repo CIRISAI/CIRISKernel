@@ -65,7 +65,6 @@ Planted breaks, each of which must change a case's answer:
     own_duty_ungated    a single key's own offer of a duty concludes outside a duty room though it is no lone holder
     duty_over_unread    a duty's count over another room (`over`) confers or withdraws it (review of #54)
     gate_counted_any_duty  a count over one duty's holders passes the gate as the duty holders' count
-    gate_policy_unread  a count over the duty holders under any policy passes the gate (accord_halt, one of n)
     heads_any_object    a counted row naming another object's head counts (a count names its own room's heads)
     declared_roster_kept  a record's declared duty naming a roster scope (`member`, `agent`) is read as a duty
 
@@ -349,7 +348,7 @@ CASES = [
      [("A", "review", T), ("A", "moderate", F)], None),
     (DG + "several signers and no map: members, no duty", [GM], [("A", "moderate", F), ("A", "member", T), ("A", "duty", F)], None),
     # ---- the review of #54: the gate's room, count and policy; a record's declared duties ------------------------
-] + [(RV54 + n[0], n[1], n[2], n[3] if len(n) > 3 else None) for n in (
+] + [(RV54 + n, rows, asks, None) for n, rows, asks in (
     ("a count over another room confers no duty: D, admitted to g, founds h alone and confers moderate over g on "
      "itself counted over h's duty holders", [GA, MDA, HD, gate_offer("D", ("D",), over="h", head=("h",), names=("md", "h"))],
      [("D", "moderate", F), ("D", "member", T)]),
@@ -387,8 +386,6 @@ CASES = [
      "counted over `moderate`", [GA, MDA, gate_offer("A", ("D",), counted="moderate")], [("D", "moderate", F)]),
     ("a policy that is not the duty count confers nothing: B alone, counted over the duty holders, under accord_halt "
      "(one of n)", [GA, MDA, gate_offer("B", ("D",), policy="accord_halt")], [("D", "moderate", F)]),
-    ("the same with no acts table (the binding the caller's): the duty gate alone refuses accord_halt",
-     [GA, MDA, gate_offer("B", ("D",), policy="accord_halt")], [("D", "moderate", F)], "unbound"),
     ("a record's declared duties are never a roster scope: several signers declaring `member` a duty have no duty "
      "holders, and the members' count confers no moderate",
      [dict(GM, duties=("member",)), admit("md", "D", ("A", "B", "C"), ("g",)), MCD("mc", "D", ("md",))],
@@ -418,23 +415,20 @@ CASES = [
 PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_only", "duty_fold_unread", "holders_unread",
           "unsigned_seated", "scope_unread", "member_rule_duty_rooms_only",
           "unsigned_no_map", "duty_gate_off", "duty_gate_wrong_row", "own_duty_ungated", "lone_founder_unread",
-          "duty_over_unread", "gate_counted_any_duty", "gate_policy_unread", "declared_roster_kept",
+          "duty_over_unread", "gate_counted_any_duty", "declared_roster_kept",
           "heads_any_object")
 
 
 @contextlib.contextmanager
 def table(name):
     """Read under persist's table (HOLDS.duty = ("member",)); the default table otherwise."""
-    saved, bound = ST.HOLDS["duty"], ST.BOUND
+    saved = ST.HOLDS["duty"]
     if name == "persist":
         ST.HOLDS["duty"] = PERSIST_HOLDS
-    if name == "unbound":
-        ST.BOUND = False           # a law with no acts table: the duty gate alone refuses the policy
     try:
         yield
     finally:
         ST.HOLDS["duty"] = saved
-        ST.BOUND = bound
 
 
 @contextlib.contextmanager

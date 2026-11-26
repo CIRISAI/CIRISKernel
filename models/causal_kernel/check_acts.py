@@ -19,6 +19,7 @@ Planted breaks, each of which must change a case's answer:
     stated_policy_free  a row's stated policy is not held to its act's rows (a fixed act's, or the row's choice)
     protocol_unread     a protocol row (cosigned_act, community_remove) is counted as a row-declared threshold
     gate_reads_stated   the duty gate reads the stated policy, not the one in force (step 4)
+    subkind_unread      a community record's cohort_subkind is not read: no infrastructure community
 
     python3 -I check_acts.py      exit 1 on any difference
 """
@@ -38,11 +39,15 @@ GM = ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", 
 FH = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"), duties=("verify",))
 GA = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))       # an accord
 GS = ST.offer("g", "d1", ("d1", "d2", "d3"), "self", "@", "self", cosigners=("d2", "d3"))         # a self roster
+GI = ST.offer("g", "f1", ("f1", "f2", "f3"), "member", "@", "self", cosigners=("f2", "f3"),
+              cohort_subkind="infrastructure")                                                     # an infrastructure community
 
 
 def grp(i, kind, k, scope, policy, heads=("g",), obj=OBJ, **kw):
     mk = ST.offer if kind == "offer" else ST.unseat
-    return mk(i, "A", k, scope, obj, "group", tuple(heads) + tuple(kw.pop("cites", ())), head=tuple(heads), policy=policy, **kw)
+    signer = kw.pop("signer", "A")
+    return mk(i, signer, k, scope, obj, "group", tuple(heads) + tuple(kw.pop("cites", ())), head=tuple(heads), policy=policy,
+              **kw)
 
 
 REM = grp("xr", "unseat", "X", "agent", "community_remove", window="moderation_overturn")
@@ -91,6 +96,16 @@ CASES = [
      ("remove", "key", "self")),
     ("a counted row over a key object is the self roster's", [grp("r", "offer", "K2", "key", "self_roster_add", heads=(), obj="KY")], "r",
      ("admit", "key", "self")),
+    ("an infrastructure community's admission of a founder (the record's cohort_subkind)",
+     [GI, grp("r", "offer", "f4", "founder", "cosigned_act", cosigners=("f2", "f4"))], "r", ("admit", "founder", "infrastructure")),
+    ("its seating of a node", [GI, grp("r", "offer", "n1", "node", "cosigned_act", cosigners=("f2",))], "r",
+     ("admit", "node", "infrastructure")),
+    ("its removal of a node", [GI, grp("r", "unseat", "n1", "node", "cosigned_act", cosigners=("f2",))], "r",
+     ("remove", "node", "infrastructure")),
+    ("a member's seat over an infrastructure community is no act there (founders and nodes only)",
+     [GI, grp("r", "offer", "m1", "member", "community_invite", cosigners=("f2", "m1"))], "r", None),
+    ("a node's seat over a community is the community's admission of a roster seat, which the table does not bind",
+     [GM, grp("r", "offer", "n1", "node", "community_invite", cosigners=("B",))], "r", ("admit", "node", "community")),
     ("a row that is not counted is no act", [GM, ST.offer("r", "A", "D", "member", OBJ, "seat", ("g",), under="g")], "r", None),
     ("an object that is a row and no founding row has no kind",
      [CK.row("q", "note", "A", ()), grp("r", "offer", "D", "member", "community_invite", heads=(), obj="q", cites=("q",))], "r", None),
@@ -111,14 +126,17 @@ QUERIES = [
     (("standing_act", "any", "accord"), (("accord_majority",), "fixed")),
     (("admit", "key", "self"), (("self_roster_add",), "fixed")),
     (("remove", "member", "affiliation"), (("affiliation_member_action", "cosigned_act"), "row")),
+    (("admit", "founder", "infrastructure"), (("cosigned_act",), "fixed")),
+    (("remove", "node", "infrastructure"), (("cosigned_act",), "fixed")),
+    (("admit", "node", "community"), None),
     (("admit", "member", "accord"), None),
     (("recall", "duty", "self"), None),
 ]
 
 # The refusal (step 3): (name, rows, the row asked, concludes with the acts table, concludes with none)
 GM4 = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"))      # two thirds
-GMJ = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), protocol="majority")
-GN = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), protocol=None)
+GMJ = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), consensus_protocol="majority")
+GN = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), consensus_protocol=None)
 CONCLUDE = [
     ("an admission stating accord_halt (one voice) is no admission's policy: with the table it concludes nothing",
      [GM4, grp("r", "offer", "E", "member", "accord_halt", cosigners=("E",))], "r", False, True),
@@ -146,12 +164,22 @@ CONCLUDE = [
     ("a duty conferral stating no policy is counted under duty_confer, its act's fixed row (step 4: the duty gate "
      "reads the policy in force); with no table the gate wants duty_confer stated",
      [FH, grp("r", "offer", "B", "review", None, counted="duty", cosigners=("B",))], "r", True, False),
+    ("a node's seat over an infrastructure community, under the founders' protocol (two thirds): two of three "
+     "founders seat it, its own signature not asked",
+     [GI, grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2",))], "r", True, False),
+    ("a node is no voice in the founders' count (its seat holds no member's): f1 and the node n1 do not admit a "
+     "founder (one of three founders)",
+     [GI, grp("na", "offer", "n1", "node", None, signer="f1", cosigners=("f2",)),
+      grp("r", "offer", "f4", "founder", None, signer="f1", cosigners=("n1", "f4"), heads=("na",))], "r", False, False),
+    ("a node's seat over a community concludes nothing (the table binds it over infrastructure only)",
+     [GM4, grp("r", "offer", "n1", "node", "community_invite", cosigners=("B", "C"))], "r", False, True),
     ("an accord's counted row stating none is a standing act, counted under accord_majority",
      [GA, grp("r", "offer", "h4", "holder", None, counted="holder", cosigners=("h1", "h2", "h4"))], "r", True, False),
 ]
 
 PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread",
-          "binding_off", "stated_policy_free", "protocol_unread", "gate_reads_stated")
+          "binding_off", "stated_policy_free", "protocol_unread", "gate_reads_stated",
+          "subkind_unread")
 
 
 @contextlib.contextmanager

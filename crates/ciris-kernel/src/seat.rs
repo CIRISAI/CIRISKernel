@@ -195,7 +195,12 @@ pub trait SeatRow: Row {
     /// A community's founding record: the protocol its record declares (CC 3.3.4: its `consensus_protocol`), a
     /// word the law's policy map reads. The protocol rows of the policy table (`cosigned_act`, `community_remove`:
     /// [`Policy::Protocol`]) are counted under it ([`protocol_of`]). Read on the founding record only.
-    fn protocol(&self) -> Option<&Self::Word> {
+    fn consensus_protocol(&self) -> Option<&Self::Word> {
+        None
+    }
+    /// A community's founding record: its `cohort_subkind`. `infrastructure` makes the object an
+    /// [`CommunityKind::Infrastructure`] community ([`kind_of`]); any other value, or none, a community.
+    fn cohort_subkind(&self) -> Option<&Self::Word> {
         None
     }
     /// A counted act: the protocol and policy in force at it, as one value the caller compares by equality.
@@ -298,7 +303,7 @@ pub enum Policy {
     One,
     /// The threshold the row declares.
     Declared,
-    /// The room's declared protocol: the count its founding record's [`SeatRow::protocol`] names
+    /// The room's declared protocol: the count its founding record's [`SeatRow::consensus_protocol`] names
     /// ([`protocol_of`]); the policy table's protocol rows (`cosigned_act`, `community_remove`). Met by nothing where
     /// the record declares none.
     Protocol,
@@ -448,6 +453,10 @@ words! {
         Member = "member",
         /// An AI agent's seat.
         Agent = "agent",
+        /// A founder's seat over an infrastructure community.
+        Founder = "founder",
+        /// A node's seat over an infrastructure community (no voice, in no base).
+        Node = "node",
         /// A duty seat.
         Duty = "duty",
         /// A detector seat (`detect:{list id}`, CC 4.5.7): no declared duty.
@@ -476,6 +485,8 @@ words! {
     CommunityKind {
         /// A community.
         Community = "community",
+        /// An infrastructure community (its record's `cohort_subkind`): founders and nodes' seats.
+        Infrastructure = "infrastructure",
         /// A self roster.
         SelfRoster = "self",
         /// The accord.
@@ -530,7 +541,12 @@ pub fn kind_of<'r, R: SeatRow + 'r>(
     if g.seat_kind() != SeatKind::Offer || !founding(g) {
         return None;
     }
-    law.kinds.get(g.scope()?.as_ref()).copied()
+    let kind = law.kinds.get(g.scope()?.as_ref()).copied()?;
+    // a community's record says whether it is an infrastructure community: `cohort_subkind`
+    if kind == CommunityKind::Community && g.cohort_subkind().is_some_and(|c| c.as_ref() == "infrastructure") {
+        return Some(CommunityKind::Infrastructure);
+    }
+    Some(kind)
 }
 
 /// The act a counted row is, decided from its kind, its scope and its object, never from the policy it states:
@@ -607,6 +623,15 @@ pub fn act_of<'r, R: SeatRow + 'r>(
             let act = if law.is_duty(counted, &declared) { Act::DutyWithdraw } else { Act::Recall };
             Some((act, ScopeClass::Duty, kind))
         }
+        CommunityKind::Infrastructure => {
+            // the founders' own roster, and a node's seat (placed and removed by the founders' count)
+            let class = match sc? {
+                "founder" => ScopeClass::Founder,
+                "node" => ScopeClass::Node,
+                _ => return None,
+            };
+            Some((if offer { Act::Admit } else { Act::Remove }, class, kind))
+        }
         CommunityKind::Accord => Some((Act::StandingAct, ScopeClass::Any, kind)),
         CommunityKind::SelfRoster => {
             let sc = sc?;
@@ -624,7 +649,7 @@ pub fn act_of<'r, R: SeatRow + 'r>(
     }
 }
 
-/// The room's declared protocol in a row's past: the [`SeatRow::protocol`] its founding record states, looked up
+/// The room's declared protocol in a row's past: the [`SeatRow::consensus_protocol`] its founding record states, looked up
 /// through `get` (the rows of that past), or `None`. A later change of the record is not read (`record_change` is
 /// not built). The one read of a room's protocol: the binding's refusal and the room-key rules call it.
 pub fn protocol_of<'r, R: SeatRow + 'r>(get: &dyn Fn(&R::Id) -> Option<&'r R>, obj: &ObjOf<R>) -> Option<&'r R::Word> {
@@ -633,7 +658,7 @@ pub fn protocol_of<'r, R: SeatRow + 'r>(get: &dyn Fn(&R::Id) -> Option<&'r R>, o
     if g.seat_kind() != SeatKind::Offer || !founding(g) {
         return None;
     }
-    g.protocol()
+    g.consensus_protocol()
 }
 
 /// The policy a counted row is counted under, or `Err(())`: the row concludes nothing. With the binding on
@@ -792,6 +817,9 @@ impl<R: SeatRow> LineSpec<R> for SeatLine {
 
 /// The scope of an AI agent's seat over a room (CC 4.5.13): on the roster, and in no count.
 pub const AGENT: &str = "agent";
+/// The seat of a node over an infrastructure community: on the roster, no voice and in no base, as an agent's
+/// seat ([`persons`] leaves its holders out of every count).
+pub const NODE: &str = "node";
 
 /// `m` less the agents' keys: every count of a room is by person.
 pub fn persons<K: Ord + Clone>(m: BTreeSet<K>, agents: &BTreeSet<K>) -> BTreeSet<K> {
@@ -1409,12 +1437,13 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         any && self.tips_fold(s, o).is_none_or(|c| c.contains(k))
     }
 
-    /// The room's whole roster over `o`: the keys holding `member` and the keys holding [`AGENT`] (CC 4.5.13).
+    /// The room's whole roster over `o`: the keys holding `member`, [`AGENT`] (CC 4.5.13) and [`NODE`].
     /// Content, wraps and audience read it. No count reads it: a count is taken of the members (or the scope
     /// it names) less the agents.
     pub fn roster(&self, o: &ObjOf<R>) -> BTreeSet<R::Key> {
         let mut m = self.holders("member", o, None);
         m.extend(self.holders(AGENT, o, None));
+        m.extend(self.holders(NODE, o, None));
         m
     }
 
@@ -2526,10 +2555,13 @@ fn agents_at_with<R: SeatRow, S: CutSpec<R>>(
     heads: &[R::Id],
     cache: Option<&MembersAt<R>>,
 ) -> BTreeSet<R::Key> {
-    if !p.rows().any(|q| q.scope().is_some_and(|s| s.as_ref() == AGENT)) {
-        return BTreeSet::new();
+    let mut out = BTreeSet::new();
+    for sc in [AGENT, NODE] {
+        if p.rows().any(|q| q.scope().is_some_and(|s| s.as_ref() == sc)) {
+            out.extend(members_at_with(p, law, spec, obj, heads, sc, cache));
+        }
     }
-    members_at_with(p, law, spec, obj, heads, AGENT, cache)
+    out
 }
 
 /// [`members_at`] of `scope` less the agents at the same heads: the keys a count of the room is taken of.

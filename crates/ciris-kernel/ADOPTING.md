@@ -85,9 +85,10 @@ migrations, and the local operational store.
 - With `acts: Some(..)`, the seat rule refuses a counted row whose stated policy its act may not take
   (`act_of`, `policy_for`). A fixed act's row may state its one policy or none. A protocol row (`cosigned_act`,
   `community_remove`, `Policy::Protocol`) is counted under the room's declared protocol.
-- Present a community's founding record with its declared protocol (`SeatRow::protocol()`, the record's
-  `consensus_protocol`), a word your law's policy map names. With none, the room concludes no removal and no
+- Present a community's founding record with its declared protocol (`SeatRow::consensus_protocol()`), a word
+  your law's policy map names, and its `cohort_subkind()` (`infrastructure` for an infrastructure community). With none, the room concludes no removal and no
   `cosigned_act` admission. Read it with `seat::protocol_of(get, obj)` rather than from any other row.
+- A node's seat (`seat::NODE`) over an infrastructure community is on the roster, no voice and in no base.
 - The store's query: `seat::policy_for(law, act, scope, kind)` gives the policy rows an act may take and whether
   the row chooses. `seat::act_of(law, get, row)` gives a row's act; `seat::kind_of` gives an object's kind.
 - The windows' specs (`window::WindowSpec`, chosen by a row's `window()` name) stay the caller's: no act binding

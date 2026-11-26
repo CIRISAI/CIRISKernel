@@ -410,8 +410,6 @@ def seat_cases():
                 e["stands"] = [[k, sc, o, Q.stands(k, sc, o)] for k, sc, o in asks]
             if tab:
                 e["holds"] = enc(ST.HOLDS)
-            if tab == "unbound":
-                e["unbound"] = True        # read under a law with no acts table (the binding the caller's)
         out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,

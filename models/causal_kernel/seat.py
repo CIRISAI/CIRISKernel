@@ -220,7 +220,12 @@ def kind_of(by, obj, is_key=False):
     g = by.get(obj)
     if g is None or g["kind"] != "offer" or g.get("obj") != g["id"]: return None
     if "kind_unread" in MUT: return "community"                  # MUTATION: every founding row a community
-    return KINDS.get(g["scope"])
+    k = KINDS.get(g["scope"])
+    # a community's record says whether it is an infrastructure community: `cohort_subkind` (any other value, or none,
+    # is a community)
+    if k == "community" and g.get("cohort_subkind") == "infrastructure" and "subkind_unread" not in MUT:
+        return "infrastructure"
+    return k
 
 
 def act_of(r, by, is_key=False):
@@ -261,6 +266,9 @@ def act_of(r, by, is_key=False):
         holders = is_duty(r.get("counted", "member"), dec) if "recall_by_policy" not in MUT else \
             K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "duty"
         return ("duty_withdraw" if holders else "recall", "duty", kind)
+    if kind == "infrastructure":
+        # the founders' own roster, and a node's seat (placed and removed by the founders' count; no voice, no base)
+        return ("admit" if offer else "remove", sc, kind) if sc in ("founder", NODE) else None
     if kind == "accord": return ("standing_act", "any", kind)
     if kind == "self":
         own = by.get(obj, {}).get("scope")
@@ -269,11 +277,11 @@ def act_of(r, by, is_key=False):
 
 
 def protocol_of(by, obj):
-    """The room's declared protocol in a row's past (`by`: the rows of that past): the `protocol` its founding record
-    states, or None. A later change of the record is not read (record_change is not built)."""
+    """The room's declared protocol in a row's past (`by`: the rows of that past): the `consensus_protocol` its founding
+    record states, or None. A later change of the record is not read (the protocol change is step 5)."""
     g = by.get(obj)
     if g is None or g["kind"] != "offer" or g.get("obj") != g["id"]: return None
-    return g.get("protocol")
+    return g.get("consensus_protocol")
 
 
 BOUND = True            # the seat rule reads the acts table; the roster instances (roster.py) are not bound yet
@@ -354,7 +362,7 @@ def _slots(to, scope, obj):
 
 def offer(id, signer, to, scope, obj, conf, names=(), **kw):
     if obj == "@" and KINDS.get(scope) == "community":
-        kw.setdefault("protocol", DEFAULT_PROTOCOL)  # a community's founding record declares its protocol (CC 3.3.4)
+        kw.setdefault("consensus_protocol", DEFAULT_PROTOCOL)   # a community's record declares its protocol (CC 3.3.4)
     obj = id if obj == "@" else obj                 # "@": the object is this row (a group is its founding row)
     return R(id, "offer", signer, names, to=(to,) if isinstance(to, str) else tuple(to), scope=scope, obj=obj,
              conf=conf, on=_slots(to, scope, obj), **kw)
@@ -417,10 +425,11 @@ def record_duties(g):
 # the seats over a community its duty holders do NOT place: membership is the roster's own seat, placed by the count
 # of the group's consensus_protocol and the joiner's yes (CC 3.1.3.2, CC 3.3.4). Every other seat they place over the
 # community is placed by them under CC 4.5.4 (iv), whatever its scope.
-ROSTER_SEATS = ("member", "agent")
+ROSTER_SEATS = ("member", "agent", "node")
 # CC 4.5.13: an AI agent "acts under its own key and has no vote"; "a recall and an election count its persons alone".
 # An agent's key is seated in a scope of its own: on the roster (content, wraps, audience), and in no count.
 AGENT = "agent"
+NODE = "node"           # a node's seat over an infrastructure community: no voice and in no base, as an agent's
 
 
 def lists_holders(g):
@@ -768,9 +777,9 @@ class Seats:
         return fold is None or k in fold
 
     def roster(self, o):
-        """The room's whole roster over o: its members and its agents (CC 4.5.13). Content, wraps and audience read it;
+        """The room's whole roster over o: its members, its agents (CC 4.5.13) and its nodes (an infrastructure community). Content, wraps and audience read it;
         no count does (a count reads `member`, or the scope it names, less the agents)."""
-        return self.holders("member", o) | self.holders(AGENT, o)
+        return self.holders("member", o) | self.holders(AGENT, o) | self.holders(NODE, o)
 
     def holders(self, s, o, root=None):
         got = frozenset(r["k"] for r in K.sel(self.recs, obj=o) if self._has(r, s) and (root is None or r["root"] == root) and self._member(r))
@@ -1196,9 +1205,13 @@ def seats_of(rows):
 
 
 def agents_at(P, past, obj, heads):
-    """The keys holding an AI agent's seat over obj at the heads (`agent`): on the roster, in no count."""
-    if not any(q.get("scope") == AGENT for q in P): return frozenset()
-    return members_at(P, past, obj, heads, AGENT)
+    """The keys holding an AI agent's seat over obj at the heads (`agent`), or a node's seat (`node`, over an
+    infrastructure community): on the roster, in no count."""
+    out = frozenset()
+    for sc in (AGENT, NODE):
+        if any(q.get("scope") == sc for q in P):
+            out |= members_at(P, past, obj, heads, sc)
+    return out
 
 
 def counted_keys(P, past, obj, heads, scope="member"):
@@ -1369,8 +1382,8 @@ def duty_gate(r, by, table=None):
     otherwise, `accord_halt` say, is not that count), over the room itself (`over` absent or the room). A members'
     count under an admission-style policy confers no duty, whether or not a duty holder lives (CIRISConstitution#241).
     A seat that makes its holder no duty holder (a node's detector seat) is not reached. (MUTATIONS duty_gate_off;
-    duty_gate_wrong_row: `counted` read off the room; gate_counted_any_duty: one duty's holders pass; gate_policy_unread:
-    any policy passes; duty_over_unread: a count over another room passes.)"""
+    duty_gate_wrong_row: `counted` read off the room; gate_counted_any_duty: one duty's holders pass;
+    duty_over_unread: a count over another room passes.)"""
     if "duty_gate_off" in MUT or not community(by, r["obj"]) or not is_duty(r["scope"], declared(by, r["obj"])): return True
     if r.get("over", r["obj"]) != r["obj"] and "duty_over_unread" not in MUT: return False
     # the gate reads the policy in force (the acts table's, where it binds: a fixed act's row may state none)
@@ -1381,7 +1394,8 @@ def duty_gate(r, by, table=None):
     src = by.get(r["obj"], {}) if "duty_gate_wrong_row" in MUT else r
     counted = src.get("counted", "member")
     if not (counted == "duty" or ("gate_counted_any_duty" in MUT and is_duty(counted, declared(by, r["obj"])))): return False
-    return r.get("policy") == "duty_confer" or "gate_policy_unread" in MUT
+    # a law with the acts table refuses every other policy first (policy_in_force); with none, the gate does
+    return r.get("policy") == "duty_confer"
 
 
 def duty_over(r, by):

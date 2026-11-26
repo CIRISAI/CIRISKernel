@@ -341,9 +341,11 @@ changes.
   - A law with `acts: None` leaves the binding to the caller, as before. The `tables` fixture's law is such a law:
     the roster instances (`roster.py`'s `R:...` names) are not bound to acts yet.
 - **The room's declared protocol.**
-  - New: `SeatRow::protocol()` (default `None`), the protocol a community's founding record declares (CC 3.3.4:
-    its `consensus_protocol`), read on the founding record only. New: `seat::protocol_of(get, obj)`, the one read
-    of it, for the refusal and the room-key rules.
+  - New: `SeatRow::consensus_protocol()` (default `None`), the protocol a community's founding record declares
+    (CC 3.3.4), read on the founding record only. New: `seat::protocol_of(get, obj)`, the one read of it, for the
+    refusal and the room-key rules. The door refuses a record that declares none, or one outside the protocol
+    table (`federation_community_consensus_protocol_violation`); handed one, the kernel concludes nothing under
+    `cosigned_act`.
   - **BREAKING for an exhaustive match on `seat::Policy`**: `Policy::Protocol` is new. It is the policy table's
     protocol rows (`cosigned_act`, `community_remove`, `wa_adjudication`, whose enact cell reads `protocol`),
     counted under the founding record's protocol and never one a row states. Where the record declares none,
@@ -359,15 +361,25 @@ changes.
   - a room whose record declares no protocol concludes no removal and no `cosigned_act` admission;
   - a counted row of a scope that is no act (a seat no act names) concludes nothing.
   `check_agent_removal.py`'s case of a non-member seat presents that seat as a detector seat (`detect:author`),
-  the one such seat the table binds. Its answers are unchanged. `check_duty_seats.py` gains one case read with no
-  acts table (the duty gate alone refusing `accord_halt`). The seat fixture carries `unbound` for such a case.
+  the one such seat the table binds. Its answers are unchanged. `check_duty_seats.py`'s `gate_policy_unread` and
+  the crate's "the duty gate reads no policy" are retired: with the table the refusal does that work first.
+- **An infrastructure community** (the acts table at rc23 `4c165f8`):
+  - New: `SeatRow::cohort_subkind()` (default `None`), on a community's founding record. `infrastructure` makes
+    the object `CommunityKind::Infrastructure` (new); any other value, or none, makes it a community.
+  - Its acts are the admission and removal of a founder's seat (`ScopeClass::Founder`) and of a node's seat
+    (`ScopeClass::Node`), each under the group's declared protocol, fixed.
+  - New: `seat::NODE` (`node`), a roster seat of its own. It is on the roster (`Seats::roster`), no voice, and
+    in no base, as an agent's seat is.
+  - A node's seat over a community is no act the table binds: it concludes nothing there. Whether a node's seat
+    needs its own consent is the room-key lane's rule.
 - **Not built:**
   - a later change of a room's protocol: `record_change` is not built, and only the founding record is read;
   - `SeatRow::regime()`, which is the protocol and policy in force as ONE value a counted row states, compared at
     tips, is not yet compared with the record's protocol.
   - The duty gate's own policy check and the other narrow gates stay as they are until step 4.
-- The reference: `check_acts.py`'s 12 refusal cases, each with the table and without, and three planted breaks in
-  `seat.py`. `tests/acts.rs` replays them. Four plants in the crate.
+- The reference: `check_acts.py`'s 16 refusal cases, each with the table and without, and four planted breaks in
+  `seat.py` (the binding, the stated policy, the protocol, the cohort_subkind). `tests/acts.rs` replays them.
+  Five plants in the crate.
 
 **The act-to-policy binding, step 4: the dispatch reads the act.** Where the law binds acts, the count is no longer
 told what act it is by the policy a row states.

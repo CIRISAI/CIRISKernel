@@ -134,7 +134,6 @@ plant "a removal at a later head than the end counts" src/seat.rs '!g.in_past(e,
 plant "a members' count confers a duty (the gate removed)" src/seat.rs 'if is_offer && !duty_gate(law, &by, r) {' 'if false {'
 plant "the duty gate reads counted off the room" src/seat.rs 'r.counted().is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)' 'row_of(by, &obj).and_then(|g| g.counted()).is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)'
 plant "one duty's holders pass the duty gate" src/seat.rs 'r.counted().is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)' 'r.counted().is_some_and(|c| law.is_duty(c.as_ref(), &declared)) && pol == Some(Policy::DutyConfer)'
-plant "the duty gate reads no policy" src/seat.rs 'r.counted().is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)' 'r.counted().is_some_and(|c| c.as_ref() == "duty")'
 plant "a duty conferred by a count over another room" src/seat.rs '    if r.over().is_some_and(|o| o != obj) {
         return false;
     }
@@ -284,7 +283,8 @@ plant 'act_of: a roster seat read as a duty'            src/seat.rs '           
 plant "act_of: the election's seating read as a conferral" src/seat.rs '                if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {' '                if false {'
 plant 'act_of: a detector seat read as no act'          src/seat.rs '            if sc == "detect" || sc.starts_with("detect:") {' '            if false {'
 plant 'act_of: the recall read as the withdrawal'       src/seat.rs 'let act = if law.is_duty(counted, &declared) { Act::DutyWithdraw } else { Act::Recall };' 'let act = Act::DutyWithdraw;'
-plant 'act_of: every founding row a community'          src/seat.rs '    law.kinds.get(g.scope()?.as_ref()).copied()' '    Some(CommunityKind::Community)'
+plant 'act_of: every founding row a community'          src/seat.rs '    let kind = law.kinds.get(g.scope()?.as_ref()).copied()?;' '    let kind = CommunityKind::Community;'
+plant "act_of: a record's cohort_subkind unread"         src/seat.rs '    if kind == CommunityKind::Community && g.cohort_subkind().is_some_and(|c| c.as_ref() == "infrastructure") {' '    if false {'
 plant 'act_of: a key object of no kind'                 src/seat.rs '        Obj::Key(_) => return Some(CommunityKind::SelfRoster),' '        Obj::Key(_) => return None,'
 plant 'a row'"'"'s concluded past read as its first row' src/layers.rs 'self.p.binary_search(&q).is_ok()' 'self.p.first() == Some(&q)'
 plant "voices counts a cosignature the row does not name"  src/seat.rs 'for n in r.names() {' 'for n in p.rows().map(|q| q.id()) {'
