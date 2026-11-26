@@ -1270,7 +1270,91 @@ def stands(S, root, k, s, o, **kw):
 
 
 # ---- concluded: was the offer, the unseat, the withdrawal validly made, at the head it names -------------
+# ---- PROTOTYPE (the review of 58b): the tips rule redesigned, switched on by PROTO = {"fold"} ---------------------
+# (1) a counting row's own signers' lines void, for it, every counted change in its past behind any of them, and every
+#     counted change built on a void one; a void change is no head and adds nothing to the row's members;
+# (2) the remaining tips are folded (Seats.tips_fold over the union of the heads' pasts), not intersected.
+PROTO = set(w for w in __import__("os").environ.get("CK_PROTO", "").split(",") if w)
+_VOID = [frozenset()]
+
+
+def signers_void(r, P):
+    """(1): the counted changes in r's past P void for r: behind the line of one of r's signers (its own rows in P are
+    its acknowledgements, H6), or built on such a change (checkpoint.void, every row taken as counting)."""
+    if not P or "novoid" in PROTO: return frozenset()
+    S = CK.State(list(P), {q["id"]: True for q in P})
+    if "self" in PROTO:
+        # variant "self" (review-58b's): a counted change in r's past whose counted voices (its signers who are
+        # members at its heads) have each, in r's past, acknowledged a counted change it is behind (every head it names
+        # strictly in the past of that change's heads, and it not in that change's past): a self-forked change; then
+        # every change built on a void one. r's own signers are not read
+        obj = r["obj"]
+        acts = CP.counted_acts(S, obj)
+        past = lambda a, b: a in S.anc.get(b, ())
+        out = set()
+        for q in acts:
+            qP = [x for x in P if past(x["id"], q["id"])]
+            voices_q = voices(q, qP) & (members_at(qP, past, obj, q.get("head", ())) if q.get("head") else frozenset())
+            if not voices_q: continue
+            def forked(k):
+                return any(c["id"] != q["id"] and not past(q["id"], c["id"]) and CP.older(S, q["head"], c["head"])
+                           for c in CP.own_line(S, k, obj))
+            if all(forked(k) for k in voices_q): out.add(q["id"])
+        changed = True
+        while changed:
+            changed = False
+            for q in acts:
+                if q["id"] not in out and any(h in out for h in q["head"]):
+                    out.add(q["id"]); changed = True
+        return frozenset(out)
+    if "sib" not in PROTO:
+        out = set()
+        for k in signers(r):
+            out |= CP.void(S, CP.EVERY, k)
+        return frozenset(out)
+    # variant "sib": a change is behind a signer's acknowledged change c where every head it names is strictly in the
+    # past of c's own heads and it is not in c's past (a sibling at c's own head is not behind), the signer's own
+    # changes apart; then every change built on a void one
+    obj = r["obj"]
+    acts = CP.counted_acts(S, obj)
+    out = set()
+    for k in signers(r):
+        line = CP.own_line(S, k, obj)
+        mine = {c["id"] for c in acts if c["signer"] == k or k in c.get("cosigners", ())}
+        for q in acts:
+            if q["id"] in mine: continue
+            if any(c["id"] != q["id"] and q["id"] not in S.anc[c["id"]] and CP.older(S, q["head"], c["head"]) for c in line):
+                out.add(q["id"])
+    changed = True
+    while changed:
+        changed = False
+        for q in acts:
+            if q["id"] not in out and any(h in out for h in q["head"]):
+                out.add(q["id"]); changed = True
+    return frozenset(out)
+
+
 def members_at(P, past, obj, heads, scope="member"):
+    if "fold" in PROTO: return _members_fold(P, past, obj, heads, scope)
+    return _members_meet(P, past, obj, heads, scope)
+
+
+def _members_fold(P, past, obj, heads, scope):
+    """(2): the members at the heads, the void ones apart, read over the union of their pasts: one head reads as
+    before; several are folded by Seats (KERNEL.md 7, the fold at tips), not intersected."""
+    void = _VOID[-1]
+    hs = tuple(h for h in count_heads(heads, P, past) if h not in void)
+    if not hs: return frozenset()
+    ids = {q["id"] for q in P}
+    if any(h not in ids for h in hs): return frozenset()
+    sub = [q for q in P if q["id"] not in void and any(q["id"] == h or past(q["id"], h) for h in hs)]
+    sids = {q["id"] for q in sub}
+    by = {q["id"]: q for q in P}
+    ends = [] if "ends_at_heads_unread" in MUT else [w for w in P if w["kind"] == "withdraw" and w["id"] not in sids]
+    return seats_of(sub + ends + [by[a] for a in completing(sids, P, by, obj, past)]).holders(scope, obj)
+
+
+def _members_meet(P, past, obj, heads, scope="member"):
     """The live `scope` seats over obj, read from the rows in the past of the heads only. Several heads: the
     keys common to all of them (KERNEL.md section 7)."""
     out = None
@@ -1528,7 +1612,8 @@ def newer_head_in_past(heads, of, P, past, obj, keys=frozenset()):
     # the named heads are an antichain: a named head in another named head's past is refused, not dropped (MUTATION
     # heads_not_antichain: it is dropped, and the count read at the newest)
     if "heads_not_antichain" not in MUT and any(h != o and past(h, o) for h in heads for o in heads): return True
-    hs = newest(heads, past)
+    void = _VOID[-1] if "fold" in PROTO else frozenset()
+    hs = tuple(h for h in newest(heads, past) if h not in void)
     by = {q["id"]: q for q in P}
     # MUTATION head_any_row: a named head may be any row
     if "head_any_row" not in MUT and any(h != obj and not (h in by and change(by[h], obj, by)) for h in hs):
@@ -1538,7 +1623,7 @@ def newer_head_in_past(heads, of, P, past, obj, keys=frozenset()):
     of_obj = (lambda q: CP.is_counted_act(q, q.get("obj"))) if "changes_any_object" in MUT else (lambda q: change(q, obj, by))
     behind = (lambda q: False) if "past_disjunct_off" in MUT else (lambda q: any(past(q["id"], h) for h in hs))
     return any(of_obj(q) and (of is None or past(q["id"], of)) and q["id"] not in hs and not behind(q)
-               and not acked_behind(q, keys, P, past, obj) for q in P)
+               and q["id"] not in void and not acked_behind(q, keys, P, past, obj) for q in P)
 
 
 
@@ -1712,11 +1797,16 @@ def seat_rule(r, P, past, table=None, other=None):
             # a self-admission, a lift and an election's seating included (a seating's count reads its election, never
             # its heads: its heads place it; MUTATION election_exempt: a seating names no head)
             # (MUTATION lone_exempt: a lone removal read before the rule, as before 0.5.0)
-            if not ("election_exempt" in MUT and is_election(r)) \
-                    and not ("lone_exempt" in MUT and k == "unseat" and lone_removal(r, P, past)) \
-                    and newer_head_in_past(r.get("head", ()), None, P, past, r["obj"], signers(r)): return False
-            if k == "unseat" and lone_removal(r, P, past): return True          # CC 4.5.13: a moderator, an agent's key
-            return count_met(r, P, past, table)
+            # (the prototype: the row's signers' lines void, for it, the changes behind them)
+            _VOID.append(signers_void(r, P) if "fold" in PROTO else frozenset())
+            try:
+                if not ("election_exempt" in MUT and is_election(r)) \
+                        and not ("lone_exempt" in MUT and k == "unseat" and lone_removal(r, P, past)) \
+                        and newer_head_in_past(r.get("head", ()), None, P, past, r["obj"], signers(r)): return False
+                if k == "unseat" and lone_removal(r, P, past): return True          # CC 4.5.13: a moderator, an agent's key
+                return count_met(r, P, past, table)
+            finally:
+                _VOID.pop()
         return False
     if k == "accept":
         if _revoked_before(r, P, past): return False           # a room key whose seat's end stands is not seated again (FINAL)
