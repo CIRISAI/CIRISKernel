@@ -83,7 +83,14 @@ pub struct Cut<'c, 'a, R: Row, S: CutSpec<R>> {
 impl<'c, 'a, R: Row, S: CutSpec<R>> Cut<'c, 'a, R, S> {
     /// Solve the cut by the well-founded fixed point.
     pub fn new(c: &'c Concluded<'a, R>, spec: &'c S) -> Self {
-        let cuts: Vec<usize> = c.cs().iter().copied().filter(|&i| !spec.cuts_of(c.g.row(i)).is_empty()).collect();
+        Self::new_without(c, spec, &BTreeSet::new())
+    }
+
+    /// [`Cut::new`], with the rows of `without` cutting nothing (a counted act void for a reader: the reader's
+    /// line is read before the cut, `seat::Seats`).
+    pub fn new_without(c: &'c Concluded<'a, R>, spec: &'c S, without: &BTreeSet<usize>) -> Self {
+        let cuts: Vec<usize> =
+            c.cs().iter().copied().filter(|&i| !without.contains(&i) && !spec.cuts_of(c.g.row(i)).is_empty()).collect();
         let memo = (0..c.g.len()).map(|_| OnceCell::new()).collect();
         let mut me = Cut { c, spec, cuts, lo: BTreeSet::new(), hi: BTreeSet::new(), memo };
         let bound = me.cuts.len() + 2;

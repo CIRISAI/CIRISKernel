@@ -39,15 +39,23 @@ sys.dont_write_bytecode = True
 import causal_kernel as CK  # noqa: E402
 
 K = CK.K
+MUT = set()            # planted breaks, switched on by a check
 
 
 def older(S, heads, than):
-    """Every row of `heads` is strictly in the past of one of `than`."""
+    """Every row of `heads` is strictly in the past of one of `than`. (Read over the newest of the heads it is the
+    same: a named head in the past of another named head is in the past of whatever that one is.)"""
     return bool(heads) and all(any(h in S.anc[t] for t in than) for h in heads)
 
 
+def is_counted_act(r, obj):
+    """A counted act on obj: an offer or an unseat conferred by a count, naming the head it is counted over. The one
+    definition of a counted change of obj's roster: the reader's line reads it, and so does seat.newer_head_in_past."""
+    return r["kind"] in ("offer", "unseat") and r.get("conf") == "group" and r.get("obj") == obj and bool(r.get("head"))
+
+
 def counted_acts(S, obj):
-    return [r for r in S.Cs if r["kind"] in ("offer", "unseat") and r.get("conf") == "group" and r.get("obj") == obj and r.get("head")]
+    return [r for r in S.Cs if is_counted_act(r, obj)]
 
 
 def own_line(S, own, obj):
@@ -57,7 +65,7 @@ def own_line(S, own, obj):
     return [r for r in counted_acts(S, obj) if r["id"] in acked or any(r["id"] in S.anc[h] for h in acked if h in S.anc)]
 
 
-def settle(S, C, obj, own=None, group=False):
+def settle(S, C, obj, own=None, group=False, old_line=lambda r: False):
     """(certain, possible): the ids of the counted acts on obj that count for reader `own`.
 
     A counted act counts iff the cut lets it count, EVERY COUNTED ACT AMONG THE HEADS IT NAMES ITSELF COUNTS, and no
@@ -71,7 +79,13 @@ def settle(S, C, obj, own=None, group=False):
     built = {r["id"]: [h for h in r["head"] if h in line] for r in live}          # the counted acts it is built on
     mine = {r["id"] for r in own_line(S, own, obj)} & {r["id"] for r in live}
     # the reader's line: r names only heads strictly in the past of the line's act c (CC 2.7.8)
-    line_behind = lambda r, c: c["id"] != r["id"] and S.concurrent(r["id"], c["id"]) and older(S, r["head"], [c["id"]])
+    # CC 2.7.8: "holds void every counted act that names an older head and is not in that head's past, however many rows
+    # it has": no test of concurrency, so a row with c in its own past that names a head older than c is void too
+    # (MUTATION line_concurrent: the line voids only rows concurrent with c, the rule until 0.5.0)
+    # `old_line(r)`: an act the line reads as before, only where it is concurrent with c (a lift, pending the lift
+    # follow-up: the lift is counted at the head its act names; seat.Seats passes it)
+    line_behind = lambda r, c: c["id"] != r["id"] and r["id"] not in S.anc[c["id"]] and older(S, r["head"], [c["id"]]) \
+        and (("line_concurrent" not in MUT and not old_line(r)) or S.concurrent(r["id"], c["id"]))
     # the refused group checkpoint (group=True only): r's heads strictly older than the heads c names
     behind = lambda r, c: c["id"] != r["id"] and S.concurrent(r["id"], c["id"]) and older(S, r["head"], c["head"])
 
@@ -98,12 +112,17 @@ def checkpoints(S, C, obj, own=None, group=False):
     return [r for r in counted_acts(S, obj) if r["id"] in T]
 
 
-def void(S, C, own=None, group=False):
+class EVERY:
+    """A cut under which every row counts: the reader's line read before the cut (seat.Seats)."""
+    counts = staticmethod(lambda r: True)
+
+
+def void(S, C, own=None, group=False, old_line=lambda r: False):
     """The ids of the counted acts the cut lets count that do not count for reader `own`: left behind by its
     acknowledged line, or built on a counted act that does not count."""
     out = set()
     for obj in {r["obj"] for r in S.Cs if r["kind"] in ("offer", "unseat") and r.get("conf") == "group" and r.get("head")}:
-        _, U = settle(S, C, obj, own, group)
+        _, U = settle(S, C, obj, own, group, old_line)
         out |= {r["id"] for r in counted_acts(S, obj) if C.counts(r) and r["id"] not in U}
     return frozenset(out)
 
@@ -121,8 +140,10 @@ def versions(ids, builds_on, past, valid, ack=None, group=False):
     conc = lambda i, j: i != j and i not in past[j] and j not in past[i]
     # the refused group checkpoint (group=True only): i's heads strictly older than the heads j extends
     stale = lambda i, j: conc(i, j) and bool(builds_on[j]) and bool(builds_on[i]) and all(any(e in past[h] for h in builds_on[j]) for e in builds_on[i])
-    # the reader's line: i extends only versions strictly in the past of j, an act of the line (CC 2.7.8)
-    behind = lambda i, j: conc(i, j) and bool(builds_on[i]) and all(e in past[j] for e in builds_on[i])
+    # the reader's line: i is not in the past of j, an act of the line, and extends only versions strictly in j's past
+    # (CC 2.7.8; no test of concurrency, as settle; MUTATION versions_concurrent: only versions concurrent with j)
+    behind = lambda i, j: i != j and i not in past[j] and ("versions_concurrent" not in MUT or j not in past[i]) \
+        and bool(builds_on[i]) and all(e in past[j] for e in builds_on[i])
     P = [i for i in ids if valid(i)]
     mine = frozenset() if ack is None else frozenset({ack}) | frozenset(past[ack])       # the reader checkpoint: its acknowledged line
     P = sorted((i for i in P if i in mine or not any(behind(i, a) for a in mine)), key=lambda i: len(past[i]))

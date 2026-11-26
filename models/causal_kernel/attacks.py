@@ -1,5 +1,5 @@
 """
-attacks.py: the thirty-three tests of the prior-art attack list, and a thirty-fourth found by the proof of the checkpoint, run against the kernel modules in this folder
+attacks.py: the thirty-three tests of the prior-art attack list, a thirty-fourth found by the proof of the checkpoint, and a thirty-fifth found by a read of the reference, run against the kernel modules in this folder
 (seat.py, window.py, route.py, checkpoint.py, cut.py, causal_kernel.py) and formal/roster_fork.
 
 Each test builds the smallest world that expresses the attack, runs it in every arrival order (all of them up to
@@ -244,10 +244,12 @@ def t03(t):
     t.fact("one duty holder of three confers alone: K holds moderate = %s (CC 4.5.4 (iv): only a lone holder confers alone)" % ref, ref is False)
     d = ST.offer("d", "f1", "K", "moderate", "g", "group", ("mk",), head=("mk",), policy="duty_confer", counted="duty", cosigners=("f2",))
     ak = ST.accept("ak", "K", "d")
-    xf_after = dict(xf, names=("mk", "c3", "ak"))
+    # counted at the conferral, the newest counted head of the room in its past (its cosignature names that head too)
+    c3_after = dict(c3, names=("d",))
+    xf_after = dict(xf, names=("d", "c3", "ak"), head=("d",))
     ref, bad = free([g, dict(d, names=("g",), head=("g",)), ak], SEAT, lambda S: ST.Seats(S).stands("K", "moderate", "g")); t.order(bad)
     t.fact("conferred by the count on a key that is not a member: K holds moderate = %s (a duty seat stands only on a member)" % ref, ref is False)
-    for label, rows, want in (("conferred by the count, then f1 withdrawn by the others, naming it", [g, mk, d, ak, c3, xf_after], True),
+    for label, rows, want in (("conferred by the count, then f1 withdrawn by the others, naming it", [g, mk, d, ak, c3_after, xf_after], True),
                               ("conferred by the count, backdated, concurrent with f1's withdrawal", [g, mk, d, ak, c3, xf], False)):
         ref, bad = free(rows, SEAT, lambda S: ST.Seats(S).stands("K", "moderate", "g")); t.order(bad)
         t.fact("%s: K holds moderate = %s (%s)" % (label, ref, "holders are equals: nothing falls with a voice of its count" if want
@@ -395,7 +397,8 @@ def t07(t):
     mk = ST.offer("mk", "f1", ("K", "J"), "member", "g", "group", ("g",), head=("g",), policy="community_invite", cosigners=("f2", "f3", "K", "J"))
     d = ST.offer("d", "f1", "K", "duty", "g", "group", ("mk",), head=("mk",), policy="duty_confer", counted="duty", cosigners=("f2",))
     ak = ST.accept("ak", "K", "d")
-    d2 = ST.offer("d2", "K", "J", "moderate:spam", "g", "group", ("ak",), head=("ak",), policy="duty_confer", counted="duty", cosigners=("J", "f2", "f3"))
+    # counted at K's conferral, the newest counted head in its past (its acceptance ak is no counted change)
+    d2 = ST.offer("d2", "K", "J", "moderate:spam", "g", "group", ("ak", "d"), head=("d",), policy="duty_confer", counted="duty", cosigners=("J", "f2", "f3"))
     c3 = ST.cosign("c3", "f3", "xf", ("mk",))
     xf = ST.unseat("xf", "f2", "f1", "duty", "g", "group", ("mk", "c3"), head=("mk",), policy="duty_withdraw", content="xf", counted="duty")
     ans = lambda S: tuple(ST.Seats(S).stands(k, s, "g") for k, s in (("f1", "duty"), ("K", "duty"), ("J", "moderate:spam")))
@@ -1273,6 +1276,41 @@ def t34(t):
                 protects="checkpoint.settle: a counted act counts only if every counted act among the heads it names counts, and no line outranks another. A forged line falls whole with its first row for any reader whose acknowledged line "
                          "leaves that row behind. For a reader with none it is plain tips-wait (KERNEL 7): the members are the keys common to the tips, which is the forger alone when it sits on both lines, "
                          "and no counted row the honest members can sign ends that. The forger gains an unlisting, never a listing. This is the old count of tests 4 and 18 and nothing more.",
+                fix="")
+
+
+@test(35, "A count read at a head older than one in its own past", "found by a read of the reference (the seat's line against CC 2.7.8)",
+      "A counted row concludes only at the newest counted heads of its roster in its own past; the reader's line is the text's; a row void for a reader cuts nothing for it.")
+def t35(t):
+    import check_count_heads as CH
+    by = {c[0]: c for c in CH.CASES}
+    def seen(name):
+        _, rows, own, concl, holds, stale, _ = by[name]
+        ref, bad = free(rows, SEAT, lambda S: CH.answer(S, own, concl, holds)); t.order(bad)
+        return ref == CH.want(concl, holds, stale), ref
+    for name in ("a counted admission names the founding head and has the newest admission in its own past",
+                 "a counted removal names the founding head and has the newest admission in its own past",
+                 "a duty conferral by the lone holder names the founding head and has the newest admission in its own past",
+                 "a recall of the moderator names the founding head and has the newest admission in its own past"):
+        ok, ref = seen(name)
+        t.fact("%s: it concludes nothing; %s" % (name, " ".join("%s %s" % (sc, fs(v)) for sc, v in sorted(ref[1].items()))), ok)
+    ok, ref = seen("the same removal at the newest head, by five of the seven")
+    t.fact("the same removal at the newest head, by five of the seven: it concludes; members %s" % fs(ref[1]["member"]), ok)
+    ok, ref = seen("a removal at the founding head that has not seen the admissions (concurrent with them) concludes; no reader")
+    t.fact("a removal at the founding head concurrent with the admissions concludes; for a reader with no acknowledgement the key is out (%s): "
+           "the fold at tips, read as before" % fs(ref[1]["member"]), ok)
+    ok, ref = seen("the same, for a reader that acknowledged the newest head: the removal is behind its line and cuts nothing for it")
+    t.fact("for a reader that acknowledged the newest head it is behind the line (stale: %s) and cuts nothing: members %s"
+           % (",".join(sorted(ref[2])), fs(ref[1]["member"])), ok)
+    ok, ref = seen("the same, for a reader that acknowledged the later admission: the removal names an older head and is not in the "
+                   "admission's past, so it is behind the line, and cuts nothing for that reader")
+    t.fact("a moderator's lone removal at an older head with a later admission in its past is behind the line of a reader that acknowledged "
+           "that admission (stale: %s), whatever its concurrency" % ",".join(sorted(ref[2])), ok)
+    ok = all(v for _, v in t.facts)
+    return dict(cls="HOLDS" if ok else "BROKEN", who="nobody",
+                witness="g(A,B,C) aD..aG (counted admissions to seven) ax(A+B admit X, head g, naming aG): concludes nothing. "
+                        "xg(A+B remove G, head g, concurrent with aD..aG), a reader that acknowledged aG: stale, G a member.",
+                protects="seat.newer_head_in_past (W1); checkpoint.settle, the line without a concurrency test (W2); Seats, the line read before the cut (W3).",
                 fix="")
 
 

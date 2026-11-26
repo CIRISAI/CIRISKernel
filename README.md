@@ -159,7 +159,7 @@ by an independent implementation or a deployment under partition.
 |---|---|---|
 | three kinds of finality, exact threshold, say rule, checkpoint: [`Settled.lean`](proofs/Settled.lean) | purge equals keeping everything, eight plants caught: [`check_purge.py`](models/causal_kernel/check_purge.py) | least set of rows to keep |
 | one kept set in every arrival order: [`Causal.lean`](proofs/Causal.lean), [`Order.lean`](proofs/Order.lean) | one answer in every arrival order: [`check.py`](models/causal_kernel/check.py), [`check_cut.py`](models/causal_kernel/check_cut.py) | withdrawn receipt |
-| a seat is two consents; one signature never removes: [`Consent.lean`](proofs/Consent.lean), [`RosterHead.lean`](proofs/RosterHead.lean) | thirty-four attacks, classed: [`check_attacks.py`](models/causal_kernel/check_attacks.py) | many acts purged at once |
+| a seat is two consents; one signature never removes: [`Consent.lean`](proofs/Consent.lean), [`RosterHead.lean`](proofs/RosterHead.lean) | thirty-five attacks, classed: [`check_attacks.py`](models/causal_kernel/check_attacks.py) | many acts purged at once |
 | a reader's own line: [`Reader.lean`](proofs/Reader.lean) | one roster, five instances: [`check_rosters.py`](models/causal_kernel/check_rosters.py) | independent implementation; deployment |
 
 Every theorem in plain words: [`proofs/README.md`](proofs/README.md). Every open item: [`REVIEW.md`](REVIEW.md).

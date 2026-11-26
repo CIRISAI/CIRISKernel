@@ -1043,7 +1043,8 @@ def detection_in_room():
     facts.append(("a detector's seat tied to the node's public key would name the node's owner to any holder of the detection",
                   proves(pub)[0] == frozenset({"id:A"}) or "id:A" in proves(pub)[1]))
     wd = in_room(ST.withdraw("wd", A, "en", ("en",)))
-    xw = ST.unseat("xw", A, NODE, LIST, "g", "group", ("en",), head=("g",), policy="duty_withdraw", counted="duty", cosigners=(B,), room=ROOM)
+    # counted at the head of the enabling it ends, the newest counted head of the room in its past
+    xw = ST.unseat("xw", A, NODE, LIST, "g", "group", ("en",), head=("en",), policy="duty_withdraw", counted="duty", cosigners=(B,), room=ROOM)
     facts.append(("the enabling is revocable: withdrawn by the count of the room's duty holders, the node holds no detector's seat; "
                   "one holder's withdrawal of its own signature ends nothing (CC 4.5.4)",
                   seats(rows + [xw]).holders(LIST, "g") == frozenset() and seats(rows + [wd]).holders(LIST, "g") == frozenset({NODE})))
