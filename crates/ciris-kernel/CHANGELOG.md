@@ -28,6 +28,17 @@ follows #48. **Answers of 0.4.0 change.** **Breaking:** one required trait metho
   names itself (only `moderate`, for the one-founder room's seat). For a `String` word:
   `fn word(s: &'static str) -> String { s.into() }`; for a `&'a str` word: `fn word(s: &'static str) -> &'a str
   { s }`.
+- A counted row (offer or unseat, `Conf::Group`) whose heads are not each of its own object's line concludes
+  nothing: a head is of object `o`'s line where it is `o`'s founding row, a row whose `obj()` is `o`, or a
+  withdrawal (`target()`), acceptance or receipt (`of()`) of such a row. No answer of a case changes.
+- A moderator's lone removal exists only over a community (CC 4.5.13: a room's moderator, an agent's key in
+  that room). Over any other object (a key's own roster) a moderator's unseat of an agent's key is an ordinary
+  counted unseat. The one test of a community, read by the duty gate, the duty-room rule, the one-founder rule
+  and lone removal: an object that names a held offer whose object is itself (a founding row), whatever its
+  scope.
+- `moderate` is always a declared duty of a community ("a duty every community's record declares", CC 4.5.4),
+  whatever `SeatLaw::duties` names: under a law that omits it, the one-founder room's founder still holds a
+  duty.
 - A record's declared duties (`SeatRow::duties`) are never a roster scope: an entry `member` or `agent` is
   ignored (before, several signers declaring `member` made every member a duty holder, and a lone founder
   declaring `agent` held an agent's seat).
@@ -64,8 +75,9 @@ follows #48. **Answers of 0.4.0 change.** **Breaking:** one required trait metho
   does not)" is now "when no duty holder is left an election seats one, and the members' admission count none
   (and one ballot does not)".
 Plants: `duty_gate_off`, `duty_gate_wrong_row`, `own_duty_ungated`, `lone_founder_unread`, `duty_over_unread`,
-`gate_counted_any_duty`, `gate_policy_unread`, `declared_roster_kept` and `window_scope_roster_only` in the
-reference, each with a crate plant; and the crate's `SeatRow::word` read as another scope than `moderate`.
+`gate_counted_any_duty`, `gate_policy_unread`, `declared_roster_kept`, `heads_any_object`, `lone_any_object` and
+`window_scope_roster_only` in the reference, each with a crate plant; and the crate's `SeatRow::word` read as
+another scope than `moderate`.
 
 **A moderator's lone removal: the four receipt items** (CIRISConstitution#218, pin list). New: one trait method,
 `SeatRow::lifts` (default `false`), additive. Answers change only for rows no case had before:

@@ -169,6 +169,12 @@ trusting an adapter.
   (`community_invite`, `counted()` `member`), a count under another policy, a count over another room. A
   counted unseat of a duty scope is likewise counted over the room (`over()` absent or the room). Where no
   holder is left, present the election.
+- Every head a counted row names is of its own object's line: the object's founding row, a row whose `obj()` is
+  the object, or a withdrawal, acceptance or receipt of one. A count naming another room's row as a head
+  concludes nothing.
+- A community, for every rule that asks (the duty gate, the duty room, the one-founder room, a lone removal): an
+  object that names a held offer whose object is itself. A moderator's lone removal of an agent's key is read
+  only over a community; elsewhere present the removal as the room's counted unseat.
 - A single key's own offer of a duty (`Conf::Own`, or `Conf::Seat` under its own seat) concludes only where its
   signer is then the lone person duty holder over the room (an agent holding a duty is not counted), with the new
   holder's acceptance, in every community. Where there are two holders or more, present the holders' count.
