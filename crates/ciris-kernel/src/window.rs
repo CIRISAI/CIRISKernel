@@ -350,11 +350,7 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         // every count is read in u128: a `usize` and a stated `u64` widen without loss, so no target (a
         // 32-bit one included) reads another count than a 64-bit one
         let y = yes as u128;
-        let mut n = keys.len() as u128;
-        if let Base::Stated(s) = &cl.over {
-            // the stated count, never fewer than the members at the head
-            n = n.max(*s as u128);
-        }
+        let n = base_size(keys.len(), &cl.over);
         let more = |num, den, base| seat::met_wide(Some(Policy::Strict(num, den)), y, base, None);
         match &cl.how {
             &How::AtLeast(num, den, least) => {
@@ -391,9 +387,24 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
     w.default.clone()
 }
 
+/// The size a clause counts over: the members its base reads, or for [`Base::Stated`] the stated count where it
+/// is larger, never smaller. In `u128`, so that a stated count past `u32::MAX` is read whole on every target.
+fn base_size(members: usize, over: &Base) -> u128 {
+    let m = members as u128;
+    match over {
+        Base::Stated(s) => m.max(*s as u128),
+        _ => m,
+    }
+}
+
 /// Whether no clause of `w` counts the opener's signer: every counted clause (one not over [`Base::Opener`]) is
 /// over [`Base::Others`], as the members' check is. The opener's signer is then no concluder of the window
 /// (CIRISConstitution#221, W2: the overturn's landing is signed by any member but the act's author).
+///
+/// The assumption: a table every counted clause of which is over `others` is a judgment of its opener's
+/// signer. It holds for the members' check because the act opens its own window, so the opener's signer is the
+/// act's author. Nothing ties the opener to an act: a table over `others` whose opener is a proposer, and not
+/// the subject, also leaves the opener's signer no concluder (the reference's `proposal@others` cases).
 pub fn author_apart<T>(w: &WindowSpec<T>) -> bool {
     let mut over = w.at_once.iter().chain(&w.at_close).map(|c| &c.over).filter(|b| **b != Base::Opener).peekable();
     over.peek().is_some() && over.all(|b| *b == Base::Others)
@@ -709,6 +720,22 @@ mod tests {
             self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
             (self.0 >> 33) % n.max(1)
         }
+    }
+
+    /// The size a stated base counts over is read whole past `u32::MAX` (no truncation on a 32-bit target) and
+    /// never below the members the rows seat.
+    #[test]
+    fn a_stated_base_is_read_whole_and_never_below_the_members() {
+        let big = u32::MAX as u64 + 1;
+        assert_eq!(base_size(13, &Base::Stated(big)), big as u128);
+        assert_eq!(base_size(13, &Base::Stated(big + 13)), big as u128 + 13);
+        assert_eq!(base_size(13, &Base::Stated(5)), 13);
+        assert_eq!(base_size(13, &Base::All), 13);
+        // nine approvals of thirteen members over a stated 2^32 meet no 2/3 count, nor over 2^32 + 13
+        for s in [big, big + 13] {
+            assert!(!seat::met_wide(Some(Policy::AtLeast(2, 3)), 9, base_size(13, &Base::Stated(s)), None));
+        }
+        assert!(seat::met_wide(Some(Policy::AtLeast(2, 3)), 9, base_size(13, &Base::Stated(5)), None));
     }
 
     #[derive(Clone, Debug)]

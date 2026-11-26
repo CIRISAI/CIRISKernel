@@ -43,21 +43,28 @@ changes.
   census's figure (CC 6.1.9), which the kernel takes and does not check. The voices are those of `Base::All`. The
   size counted over is `n` where `n` is larger than the members at the head, and never smaller. With it,
   `default_content`, `default_standing`, `default_irreversible` and `community_invite` are expressible above `k`
-  as the self roster's lone path. The reference has `("stated", n)` and the spec `default_content@active` (a room
-  of thirteen members counted over twenty), with five cases, one of them on the clamp.
+  as the self roster's lone path, by the same shape. Only `default_content` has a table and cases: the reference
+  has `("stated", n)` and the spec `default_content@active` (a room of thirteen members counted over twenty), with
+  five cases, one of them on the clamp. The crate also has a unit test of the size computation past `u32::MAX`.
 - The count is read in `u128` on every target. New: `seat::met_wide`, which is `seat::met` over `u128` counts;
   `met` calls it. A window's thresholds read the members, the voices and a stated `u64` through it, so no cast
   truncates: a 32-bit target (wasm32, thumbv7em) reads a stated 2^32 as 2^32, not as 0. Two cases (a stated 2^32
   and 2^32 + 13, thirteen members, nine approvals: open) and a plant on a 32-bit cast cover it. The unit test
   that compares reading the scopes walked at once with reading each when asked now also draws clauses counted
   over those who voted, stated bases (some past 32 bits) and withdrawals.
+- `window::author_apart` assumes that a table every counted clause of which is over `others` is a judgment of its
+  opener's signer. That holds for the members' check, where the act opens its own window. Nothing ties the opener
+  to an act. Two cases of a table built for it (`proposal@others`, whose opener proposes) show what the code gives:
+  the proposer concludes nothing, and another member lands it. ADOPTING states the assumption.
+- A table built to reach the path with no landing (`ballot@once`, a ballot count met at once) shows a ballot's
+  withdrawal read there too. No policy row's table has such a clause.
 - OPEN: a signer withdraws its own withdrawal of a ballot. Today the ballot stays withdrawn: a withdrawal is read
   wherever it concludes. The Constitution has been asked.
 - A poll is outside the kernel (a tally whose rule and close its own opening row states). ADOPTING.md says so.
 - OPEN: the door model (the Constitution's `door.py`, not in this repository).
-- The reference: `window.unwithdrawn`, `window.ballot_words` and `window.author_apart`; 26 new rows of
-  `window_adversary.tsv` (107 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
-  (those rows in arrival orders, eight planted breaks, the OPEN list). Eight new crate plants in
+- The reference: `window.unwithdrawn`, `window.ballot_words` and `window.author_apart`; 30 new rows of
+  `window_adversary.tsv` (111 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
+  (those rows in arrival orders, ten planted breaks, the OPEN list). Ten new crate plants in
   `tools/kernel_crate_plants.sh`.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).

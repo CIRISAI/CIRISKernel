@@ -159,6 +159,15 @@ for _n in (2 ** 32, 2 ** 32 + 13):
         WINDOWS["default_content@active"],
         at_once=tuple((v, h, ("stated", _n), o) for v, h, _, o in WINDOWS["default_content@active"]["at_once"]),
         at_close=tuple((v, h, ("stated", _n), o) for v, h, _, o in WINDOWS["default_content@active"]["at_close"]))
+# two tables built to reach a path no policy row's table reaches, read by their cases only:
+#   ballot@once      a ballot count met at once, with no landing: a ballot's withdrawal read on that path
+#   proposal@others  a table counted over `others` whose opener is a proposer, not the subject of a judgment
+WINDOWS["ballot@once"] = {"policy": "moderation_action", "counted": "member", "concluder": "member", "opener_says": None,
+                          "at_once": (("for", ("voted", 1, 2, 2, "against"), "all", "carried"),), "silent": None,
+                          "at_close": (), "default": "lapsed"}
+WINDOWS["proposal@others"] = {"policy": "moderation_action", "counted": "member", "concluder": "member", "opener_says": None,
+                              "at_once": (("object", ("more", 1, 2, 2), "others", "refused"),), "silent": None,
+                              "at_close": (), "default": "landed"}
 SECS = None
 MUT = set()            # planted breaks, switched on by a check
 BASES = ("all", "others", "opener")
@@ -216,7 +225,8 @@ def table_outcome(spec, p, answers, inside, base, elapsed):
         if over == "opener": return withdrawn if value == "withdraw" else said.get(p["signer"]) == value
         stated = over[1] if isinstance(over, tuple) and over[0] == "stated" else None
         if stated is not None and "stated_truncates" in MUT: stated %= 2 ** 32   # MUTATION: a 32-bit cast of the count
-        if stated is not None: over = "all"                     # the voices of the stated base are the members at the head
+        # the voices of the stated base are the members at the head (MUTATION stated_voices_others: the opener apart)
+        if stated is not None: over = "others" if "stated_voices_others" in MUT else "all"
         # a count (a fraction, a floor) leaves the agents out; a clause one holder's act resolves reads them
         keys = voice = base.raw(over) if how == "one" else base(over)
         # MUTATION overturn_whole_roster: the opener's signer is no voice and is still counted over
@@ -295,7 +305,10 @@ def unwithdrawn(spec, answers, rows):
 
 def author_apart(spec):
     """No clause counts the opener's signer: every counted clause is over `others` (the members' check). The author is
-    then no concluder of the window (CIRISConstitution#221, W2)."""
+    then no concluder of the window (CIRISConstitution#221, W2). The assumption: a table every counted clause of which is
+    over `others` is a judgment of its opener's signer (the overturn's act opens its own window, so its signer is the
+    act's author). Nothing ties the opener to an act: a table over `others` whose opener is a proposer and not the
+    subject also leaves the opener's signer no concluder (a case below shows it)."""
     if "author_concludes" in MUT: return False
     over = [c[2] for c in spec["at_once"] + spec["at_close"] if c[2] != "opener"]
     return bool(over) and all(o == "others" for o in over)
@@ -365,8 +378,10 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
     if not Ls:
         # no landing has concluded: a count that is met needs no clock and no concluder, so the table's at-once
         # outcome over the answers held is the outcome; short of it the window is open
-        held = voices_of(unwithdrawn(spec, [a for a in K.sel(S.Cs, kind="answer", of=pid) if not late(a)],
-                                     [w for w in S.Cs if not late(w)]), p, past)
+        held = [a for a in K.sel(S.Cs, kind="answer", of=pid) if not late(a)]
+        # (MUTATION no_landing_withdrawal_unread: a ballot's withdrawal not read on this path)
+        if "no_landing_withdrawal_unread" not in MUT: held = unwithdrawn(spec, held, [w for w in S.Cs if not late(w)])
+        held = voices_of(held, p, past)
         return table_outcome(spec, p, held, [], base, False)
     said = []
     for L in K.frontier(S.anc, Ls):                             # a landing that a later landing names is answered by it
@@ -612,6 +627,11 @@ def moderation_world():
         ("OPEN: a member withdraws its vote for and then withdraws that withdrawal, the landing naming all",
          b4 + acts + [wd("w1", "m1", "x1"), wd("w2", "m1", "w1"), fb("x1", "x3", "w1", "w2")],
          "(OPEN CIRISConstitution#221: a withdrawal of a ballot's withdrawal; today the ballot stays withdrawn)", None),
+        ("a ballot count met at once (ballot@once): two vote for and one of them withdraws its vote, no landing",
+         [g4, am4, md4, opener("p", "m2", "ballot@once", "g", ("md",))] + acts + [wd("w1", "m1", "x1")],
+         B221 + ", a ballot's withdrawal is read with no landing too", "open"),
+        ("a ballot count met at once (ballot@once): two vote for, no landing",
+         [g4, am4, md4, opener("p", "m2", "ballot@once", "g", ("md",))] + acts, B221 + ", a ballot count met at once", "carried"),
         ("a member withdraws its vote for after the landing, naming it",
          b4 + acts + [fb("x1", "x3"), wd("w1", "m1", "x1", ("L",))], B221 + ", a withdrawal that names the landing came after it", "fallback"),
         ("a key with no seat at the head lands the fallback over two votes for",
@@ -717,6 +737,16 @@ def overturn_world():
          base + [o1, receipt("rM", "MOD", "p", 0), landing("LM", "MOD", "p", "rM", "stands", W, ("o1",)), r3,
                  landing("L", "m3", "p", "r", "stands", W, ("o1", "LM"))],
          "CIRISConstitution#221: the overturn's landing is signed by any member but the act's author", "stands"),
+        # the assumption of author_apart made visible: a table counted over `others` whose opener proposes and is not
+        # judged (proposal@others); what the code gives
+        ("a table over others whose opener proposes: the proposer lands its own proposal at the close",
+         [g, am, opener("p", "m1", "proposal@others", "g", ("am",)), receipt("rp", "m1", "p", 0),
+          landing("L", "m1", "p", "rp", "landed", W)],
+         "(author_apart's assumption: a table over others is a judgment of its opener's signer; the code gives: the proposer concludes nothing, open)", None),
+        ("a table over others whose opener proposes: another member lands it at the close",
+         [g, am, opener("p", "m1", "proposal@others", "g", ("am",)), receipt("r", "m2", "p", 0),
+          landing("L", "m2", "p", "r", "landed", W)],
+         "(author_apart's assumption: the code gives: another member lands it)", None),
         ("a member other than the act's author lands 'stands' over no objection",
          base + [receipt("r", "m2", "p", 0), landing("L", "m2", "p", "r", "stands", W)],
          "CIRISConstitution#221: the overturn's landing is signed by any member but the act's author", "stands"),

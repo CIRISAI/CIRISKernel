@@ -33,6 +33,8 @@ Part 2. Planted breaks, each of which must break a row of Part 1:
     stated_truncates           a stated base read through a 32-bit cast
     withdrawal_id_only         a withdrawal matched to a ballot by the ballot's id alone, not its signer
     any_word_withdrawn         every answer read as withdrawn, not only a ballot
+    no_landing_withdrawal_unread  a ballot's withdrawal not read where no landing has concluded
+    stated_voices_others       a stated base's voices read without the opener's signer
     ballot_word_act            the fallback's ballot says `act` (the word before the ruling)
 
 The base `active` above k (the ruling on #221, W6): the caller's stated count, the census's figure, which the kernel
@@ -113,6 +115,8 @@ PLANTS = (
     ("stated_truncates", lambda: WN.MUT.add("stated_truncates")),
     ("withdrawal_id_only", lambda: WN.MUT.add("withdrawal_id_only")),
     ("any_word_withdrawn", lambda: WN.MUT.add("any_word_withdrawn")),
+    ("no_landing_withdrawal_unread", lambda: WN.MUT.add("no_landing_withdrawal_unread")),
+    ("stated_voices_others", lambda: WN.MUT.add("stated_voices_others")),
     ("ballot_word_act", lambda: WN.WINDOWS["moderation_fallback"].update(
         at_close=tuple(("act",) + c[1:] for c in WN.WINDOWS["moderation_fallback"]["at_close"]))),
 )

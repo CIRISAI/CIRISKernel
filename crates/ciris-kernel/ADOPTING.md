@@ -276,3 +276,8 @@ signer is no concluder (`window::author_apart`). A table for the accord's halt i
 halted node's own reading (CC 4.2.1.1), and a node does not read it through `window::outcome`. A clause over
 `Base::Stated(n)` (the base `active` above the base law's `k`) takes `n` from the caller: it is the census's
 figure (CC 6.1.9), and the kernel does not check it (a stated `n` below the members at the head counts as those members).
+`Base::Stated` is a new variant of a public enum: a caller's exhaustive `match` on `window::Base` breaks and needs
+an arm for it. `window::author_apart` takes the opener's signer out of the concluders of a table every counted
+clause of which is over `others`: such a table is a judgment of its opener's signer (the members' check, where the
+act opens its own window). Present an opener whose signer is a proposer, and not the subject, under a table that
+counts some clause over another base.
