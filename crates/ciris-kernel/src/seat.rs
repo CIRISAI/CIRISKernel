@@ -2505,12 +2505,12 @@ fn built_closure<R: SeatRow>(
 /// - self-forked: every counted voice of `q` (its signers who are members at its heads) has, in `p`, acknowledged a
 ///   counted change `q` is behind (every head `q` names strictly in the past of that change's own heads, `q` not in
 ///   its past);
-/// - rescued: a counted change in `p` that has `q` in its past (or `q` itself) has a counted voice that is no forker
-///   (no counted voice of a self-forked change), was a member at `q`'s own heads, and was not seated by a change of
-///   the plain closure; a rescued `q` is not void, and the closure stops there;
-/// - tie: a self-forked, unrescued `q` every change it is behind lies on such a chain too is kept (two chains that
-///   would void each other, with no single-chain member on either side, are both kept);
-/// - built on: a counted change naming a void head is void, unless rescued.
+/// - T at the fork point: a self-forked `q` is void only where, of the members seated at its heads, those who
+///   signed only the other side (the rows without `q` in their past on a line through a change `q` is behind)
+///   outnumber those who signed only `q`'s side (`q` and the rows built on it); equal, none on either side included,
+///   neither is void, so depth decides nothing; a key's own acceptance, and its yes on an offer seating it, count it
+///   for neither side; a merge of both lines is on neither;
+/// - built on: a counted change naming a void head is void, but a merge of both lines.
 fn void_changes<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
     law: &SeatLaw,
@@ -2579,7 +2579,6 @@ fn void_changes_in<R: SeatRow, S: CutSpec<R>>(
             .flat_map(|a| acts.iter().copied().filter(move |&c| (c == a || g.in_past(c, a)) && behind(q, c)))
             .collect()
     };
-    let makers = |q: usize| -> Vec<usize> { info[&q].0.iter().flat_map(|k| forked_by(q, k)).collect() };
     let forked = |q: usize| {
         let v = &info[&q].0;
         !v.is_empty() && v.iter().all(|k| !forked_by(q, k).is_empty())
@@ -2588,47 +2587,60 @@ fn void_changes_in<R: SeatRow, S: CutSpec<R>>(
     if out.is_empty() {
         return BTreeSet::new();
     }
-    let forkers: BTreeSet<&R::Key> = out.iter().flat_map(|q| info[q].0.iter()).collect();
-    let seated_of = |set: &BTreeSet<usize>| -> BTreeSet<R::Key> {
-        built_closure(g, &acts, set, &|_| false).iter().flat_map(|&i| g.row(i).to().iter().cloned()).collect()
-    };
-    let seated_on = seated_of(&out);
-    // the keys that signed the other chain: the counted voices of the roots' makers and of their chain back to the
-    // fork point (the counted changes in their past that are not in q's own), who cannot rescue q
-    let both = |q: usize, roots: &[usize]| -> BTreeSet<R::Key> {
-        let mk: Vec<usize> = roots.iter().flat_map(|&f| makers(f)).collect();
-        let chain: BTreeSet<usize> = acts
+    // the changes q is behind (the other side's line)
+    let line = |q: usize| -> Vec<usize> { acts.iter().copied().filter(|&c| behind(q, c)).collect() };
+    // T at q's fork point: of the members seated at q's heads, those who signed only the other side against those who
+    // signed only q's side; the beneficiary of a row (a key's own acceptance, its yes on an offer seating it) is no
+    // evidence for its side, and a merge of both lines is on neither
+    let ben = true;
+    let t_void = |q: usize| {
+        let mem = &info[&q].1;
+        let qr = g.row(q);
+        let hs: Vec<usize> = qr.head().iter().filter_map(|h| g.idx(h)).collect();
+        let lq = line(q);
+        let rows: Vec<usize> = anc
             .iter()
             .copied()
-            .filter(|&c| mk.contains(&c) || (c != q && !g.in_past(c, q) && mk.iter().any(|&m| g.in_past(c, m))))
+            .filter(|&a| {
+                !hs.iter().any(|&h| a == h || g.in_past(a, h))
+                    && object_of(g.row(a), &|i| by.get(i).copied()).as_ref() == Some(obj)
+            })
             .collect();
-        chain.iter().flat_map(|c| info[c].0.iter().cloned()).collect()
+        let keys = |a: usize| -> BTreeSet<R::Key> {
+            let r = g.row(a);
+            if ben && r.seat_kind() == SeatKind::Accept {
+                return BTreeSet::new();
+            }
+            let mut ks = signers(r);
+            if ben && r.seat_kind() == SeatKind::Offer {
+                for k in r.to() {
+                    ks.remove(k);
+                }
+            }
+            ks.into_iter().filter(|k| mem.contains(k)).collect()
+        };
+        let mut km: BTreeSet<R::Key> = BTreeSet::new();
+        let mut ko: BTreeSet<R::Key> = BTreeSet::new();
+        for &a in &rows {
+            let mine = (a == q || g.in_past(q, a)) && !lq.iter().any(|&c| g.in_past(c, a));
+            let other = a != q
+                && !g.in_past(q, a)
+                && !g.in_past(a, q)
+                && lq.iter().any(|&c| a == c || g.in_past(c, a) || g.in_past(a, c));
+            if mine {
+                km.extend(keys(a));
+            } else if other {
+                ko.extend(keys(a));
+            }
+        }
+        ko.difference(&km).count() > km.difference(&ko).count()
     };
-    let rescued_by = |q: usize, roots: &[usize], seated: &BTreeSet<R::Key>| {
-        let mem_q = &info[&q].1;
-        let other = both(q, roots);
-        acts.iter().any(|&p2| {
-            (p2 == q || g.in_past(q, p2))
-                && info[&p2]
-                    .0
-                    .iter()
-                    .any(|k| !forkers.contains(k) && !seated.contains(k) && !other.contains(k) && mem_q.contains(k))
-        })
-    };
-    // the self-forked changes first, each against its own makers
-    let mut void: BTreeSet<usize> = out.iter().copied().filter(|&q| !rescued_by(q, &[q], &seated_on)).collect();
-    // the tie: kept where every change it is behind is void-eligible with no rescuer too
-    let elig = built_closure(g, &acts, &void, &|_| false);
-    void.retain(|&q| makers(q).iter().any(|c| !elig.contains(c)));
-    // then a change built on a void one, against the makers of the void self-forked changes in its past; the keys
-    // seated by the void chains rescue nothing built on them
-    let seated_void = seated_of(&void);
-    let roots: Vec<usize> = void.iter().copied().collect();
-    let rescued = |q: usize| {
-        let mine: Vec<usize> = roots.iter().copied().filter(|&f| f == q || g.in_past(f, q)).collect();
-        rescued_by(q, &mine, &seated_void)
-    };
-    built_closure(g, &acts, &void, &rescued).into_iter().map(|i| g.row(i).id().clone()).collect()
+    let tv: BTreeSet<usize> = out.iter().copied().filter(|&q| t_void(q)).collect();
+    // a change built on a void one is void, but a merge of both lines (a change the void one is behind in its past
+    // too), which reads its count without the void change, as any counting row does
+    let lines: BTreeMap<usize, Vec<usize>> = tv.iter().map(|&f| (f, line(f))).collect();
+    let merge = |b: usize| lines.iter().any(|(&f, l)| g.in_past(f, b) && l.iter().any(|&c| g.in_past(c, b)));
+    built_closure(g, &acts, &tv, &merge).into_iter().map(|i| g.row(i).id().clone()).collect()
 }
 
 /// S'' over the rows a reader's roster holds (`c`'s concluded rows), for each object a counted act is over, as if

@@ -178,8 +178,12 @@ trusting an adapter.
   count as in force for that reader, and say that a reader with no acknowledgement of its own reads it otherwise.
   The line is sibling-safe: a row at the head of the reader's acknowledged change is no row behind it. The members
   at several heads are the fold of their lines, and a counted change self-forked by all its voices is void for a
-  count that has it in its past (S''): that is the only automatic effect of a key signing two things outside an
-  election, and it voids a change, never a key.
+  count that has it in its past (S'') where T at its fork point says so: of the members seated at its heads, those
+  who signed only the other side outnumber those who signed only its side (a key's own acceptance, or its yes on an
+  offer seating it, counts it for neither; a tie, none on either side included, voids neither, so depth decides
+  nothing). That is the only automatic effect of a key signing two things outside an election, and it voids a
+  change, never a key. A lone holder's window is closed for a reader by any later counted change that reader has
+  acknowledged, and for every reader once the lone holder itself signs a later change.
   **Acknowledging never un-voids** (CC 2.7.9: an acknowledgement closes older heads, and nothing reopens them): a
   row the reader signs acknowledges only the changes in its past not already void for its line, so naming a change
   as a head adopts nothing. A client does not build on a change that is void for it: its next row names only the
@@ -191,8 +195,8 @@ trusting an adapter.
   strength of one line.
   A reader's roster (`Seats::new`, `Seats::for_reader`) reads S'' over the rows it holds: a change self-forked
   there neither adds nor removes members. The readings of one line inside the kernel do not.
-  **The residual, stated:** one residual, in three shapes, each only for a reader with no row of its own: (1) a fork
-  point with no member who signed only one chain (a room founded by one key; every founder colluding); (2) a silent
+  **The residual, stated:** one residual, in three shapes, each only for a reader with no row of its own: (1) no member
+  seated at the fork point signed exactly one chain (a room founded by one key; every founder colluding); (2) a silent
   colluder's packing chain under the same protocol; (3) a newcomer admitted on the fork, which takes its past from its
   admitter (CC 3.3.4). A store serving such a reader gives it the past of the member that admitted it.
   A seat is two consents: an admission the joiner does not sign

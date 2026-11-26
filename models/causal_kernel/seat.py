@@ -1316,13 +1316,12 @@ def void_changes(r, P):
         self-forked  every counted voice of q (its signers who are members at its heads) has, in P, acknowledged a
                      counted change q is behind (checkpoint.behind: every head q names strictly in the past of that
                      change's own heads, q not in its past); MUTATION self_fork_unread: nothing is void
-        rescued      a counted change in P that has q in its past (or q itself) has a counted voice that is no forker
-                     (no counted voice of a self-forked change), was a member at q's own heads, and was not seated by a
-                     change of the plain closure (a key the fork seated rescues nothing); a rescued q is not void, and
-                     the closure stops there; MUTATION rescue_unread
-        tie          a self-forked, unrescued q every change it is behind lies on such a chain too (two chains that would
-                     void each other, with no single-chain member on either side) is kept: both are; MUTATION tie_unread
-        built on     a counted change naming a void head is void, unless rescued."""
+        T            a self-forked q is void only where, of the members seated at its fork point (its heads), those
+                     who signed only the other side outnumber those who signed only q's side (t_void); equal, none on
+                     either side included, neither is void: depth decides nothing; MUTATION t_unread: a self-forked
+                     change is void; MUTATION fork_by_depth: the S' form, void unless a change it is behind is
+                     self-forked too
+        built on     a counted change naming a void head is void, but a merge of both lines."""
     if not P or "self_fork_unread" in MUT: return frozenset()
     key = (r["id"], r.get("obj"), frozenset(id(q) for q in P), frozenset(MUT), _RVOID[-1])
     got = _VOID_MEMO.get(key)
@@ -1356,43 +1355,58 @@ def _void_changes(r, P):
         """The changes q is behind that k acknowledged by a row without q in its past."""
         return [c for a in signed(k) if a["id"] != q["id"] and not past(q["id"], a["id"])
                 for c in acts if (c["id"] == a["id"] or c["id"] in S.anc[a["id"]]) and CP.behind(S, q, c)]
-    def makers(q):
-        return [c for k in info[q["id"]][0] for c in forked_by(q, k)]
     def forked(q):
         v = info[q["id"]][0]
         return bool(v) and all(forked_by(q, k) for k in v)
     out = {q["id"] for q in acts if forked(q)}
     if not out: return frozenset()
-    forkers = set().union(*[info[i][0] for i in out])
-    plain = _built_closure(acts, out)
-    seated_on = set().union(*[set(S.by[i].get("to", ())) for i in plain])
-    def both(q, roots):
-        """The keys that signed the other chain: the counted voices of the makers of `roots` (q itself where it is
-        self-forked; for a change built on a void one, the void self-forked changes in its past) and of their chain
-        back to the fork point (the counted changes in their past that are not in q's own), who cannot rescue q
-        (MUTATION rescuer_signed_both: they can)."""
-        if "rescuer_signed_both" in MUT: return set()
-        mk = [c for f in roots for c in makers(f)]
-        chain = {c["id"] for c in mk} | {c["id"] for c in acts if c["id"] != q["id"] and not past(c["id"], q["id"])
-                                         and any(past(c["id"], m["id"]) for m in mk)}
-        return set().union(*[info[i][0] for i in chain]) if chain else set()
-    def rescued_by(q, roots, seated):
-        if "rescue_unread" in MUT: return False
-        mem_q = info[q["id"]][1]
-        other = both(q, roots)
-        return any((p["id"] == q["id"] or past(q["id"], p["id"])) and (info[p["id"]][0] - forkers - seated - other) & mem_q
-                   for p in acts)
-    # the self-forked changes first, each against its own makers; then a change built on a void one, against the
-    # makers of the void self-forked changes in its past
-    void = {i for i in out if not rescued_by(S.by[i], [S.by[i]], seated_on)}
-    if "tie_unread" not in MUT:
-        elig = _built_closure(acts, void)
-        void = {i for i in void if any(c["id"] not in elig for c in makers(S.by[i]))}
-    roots = set(void)
-    # the keys seated by the void chains (not by a rescued one) rescue nothing built on them
-    seated_void = set().union(*[set(S.by[i].get("to", ())) for i in _built_closure(acts, roots)]) if roots else set()
-    rescued = lambda q: rescued_by(q, [S.by[f] for f in roots if f == q["id"] or past(f, q["id"])], seated_void)
-    return frozenset(_built_closure(acts, void, rescued))
+    if "fork_by_depth" in MUT:
+        # the S' form (MUTATION): a self-forked change is void unless a change it is behind is self-forked too, so the
+        # side with the longer chain wins where the same voices signed both
+        tv = {i for i in out if not any(c["id"] in out for c in acts if CP.behind(S, S.by[i], c))}
+    else:
+        tv = {i for i in out if t_void(S, P, obj, acts, past, info, S.by[i])}
+    # a change built on a void one is void, but a merge of both lines (a change the void one is behind in its past
+    # too), which reads its count without the void change, as any counting row does
+    line = {i: [c["id"] for c in acts if c["id"] != i and not past(i, c["id"]) and CP.behind(S, S.by[i], c)] for i in tv}
+    merge = lambda b: any(past(f, b["id"]) and any(past(c, b["id"]) for c in line[f]) for f in tv)
+    return frozenset(_built_closure(acts, tv, merge))
+
+
+def _tuple(x):
+    return () if x is None else (x,) if isinstance(x, str) else tuple(x)
+
+
+def t_void(S, P, obj, acts, past, info, q):
+    """T at q's fork point (CC: "where two changes at one fork point would each be void by voices that signed both
+    chains, the chain stands that the members seated at the fork point who signed only one chain built on; where there
+    are none, neither is void"). The fork point is q's heads; its members are those seated there. q's side is q and the
+    rows with q in their past; the other side is the rows without q in their past, after the fork point, on a line
+    through a change q is behind. q is void where the fork-point members who signed only the other side outnumber
+    those who signed only q's side; equal (none on either side included), neither is void. A merge of both lines (a
+    row with q and a change q is behind in its past) is on neither side. MUTATION t_unread: a
+    self-forked change is void."""
+    if "t_unread" in MUT: return True
+    qid = q["id"]
+    mem = info[qid][1]
+    fp = set(q["head"]) | {x for h in q["head"] for x in S.anc.get(h, ())}
+    rows = [a for a in P if CP.object_of(a, S.by) == obj and a["id"] not in fp]
+    behind = [c for c in acts if c["id"] != qid and not past(qid, c["id"]) and CP.behind(S, q, c)]
+    def on_line(a):
+        return any(a["id"] == c["id"] or past(c["id"], a["id"]) or past(a["id"], c["id"]) for c in behind)
+    mine = [a for a in rows if (a["id"] == qid or past(qid, a["id"])) and not any(past(c["id"], a["id"]) for c in behind)]
+    other = [a for a in rows if a["id"] != qid and not past(qid, a["id"]) and not past(a["id"], qid) and on_line(a)]
+    def keys(rs):
+        # the beneficiary of a row is no evidence for its side: a key's own acceptance, and its yes on a change that
+        # seats it, count it for neither (MUTATION t_counts_beneficiary: they count)
+        ben = "t_counts_beneficiary" not in MUT
+        out = set()
+        for a in rs:
+            if ben and a.get("kind") == "accept": continue
+            out |= {a["signer"], *a.get("cosigners", ())} - (set(_tuple(a.get("to"))) if ben and a.get("kind") == "offer" else set())
+        return out & mem
+    km, ko = keys(mine), keys(other)
+    return len(ko - km) > len(km - ko)
 
 
 def roster_void(S):

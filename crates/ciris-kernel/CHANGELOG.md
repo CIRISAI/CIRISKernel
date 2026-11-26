@@ -418,10 +418,32 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
   A duty laid down and taken up again by the holder's own acceptance of the same offer, in a lone removal's past,
   is its standing there. **Answers change:** a newcomer whose acceptance a count has in its past is in the count's
   base (three of five where it was three of four).
+- **T at the fork point** (the third attack; the Constitution: "where two changes at one fork point would each be
+  void by voices that signed both chains, the chain stands that the members seated at the fork point who signed only
+  one chain built on; where there are none, neither is void"). It replaces S''’s rescue and tie, under which the
+  longer side won where the same voices signed both (HC4: three keys erased an admission below the removal
+  threshold by writing two rows beside it; HC1, the honest form, lost the admission too). A self-forked change `q` is
+  void only where, of the members seated at its heads (its fork point), those who signed only the other side (the
+  rows without `q` in their past, after the fork point, on a line through a change `q` is behind) outnumber those
+  who signed only `q`'s side (`q` and the rows built on it). Equal, none on either side included: neither is void,
+  and the fold and the reader decide. Depth decides nothing. A key that signed both sides is in neither count; a
+  packed key, not seated at the fork point, is in none; a member that has since left still counts by what it signed
+  while seated. The beneficiary of a row is no evidence for its side: a key's own acceptance, and its yes on an offer
+  seating it, count it for neither. A merge of both lines is on neither side, and is not void for being built on a
+  void change: it reads its count without it, as any counting row does. **Answers change:** HC1, HC2 and HC4 keep the
+  admission (a tie); honest merges naming a cheap tip or a packing chain beside the newest head conclude (they were
+  cut by the closure); a room founded by one key whose founder admits alone from its founding head keeps the
+  admission (residual (1)); two concurrent invitations by the same four both stand ((1′), honest concurrency); the
+  cheap tip whose only other voices are the keys it seats is void, and the removal beside it concludes; the window
+  row whose closer is concurrent with the siblings keeps them (C, D and E signed only their side). Plants
+  `t_unread`, `fork_by_depth` (the S′ form) and `t_counts_beneficiary`, each with a crate plant; retired:
+  `rescue_unread`, `tie_unread`, `rescuer_signed_both`. Cases: HC1, HC2, HC4, HC6, the packed keys on a long fork, a
+  single-chain member that has since left, and the window's closers (wc).
 - **The residual, stated** (as of the tips ruling below). ONE residual, in three shapes, each only for a reader with
   no row of its own over the room (a member is never such a reader, by H6):
-  1. a fork point with no member who signed only one chain (a room founded by one key; every founder colluding): the
-     tie keeps both chains, and only a reader's acknowledgement decides;
+  1. no member seated at the fork point signed exactly one chain (a room founded by one key; every founder
+     colluding; a fork-point member that signed neither chain counts for neither): T is a tie, both chains are kept,
+     and only a reader's acknowledgement decides;
   2. a silent colluder's packing chain under the same protocol (a fork whose voices never acknowledged the honest
      line, so nothing is self-forked): the fold seats the chain's admissions, and a long enough chain outvotes;
   3. a newcomer admitted on the fork, which acknowledges the fork and holds the honest rows behind its line: it takes
@@ -434,7 +456,9 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
   smaller base, concludes: it does nothing its signers could not do a moment before the acceptance arrived. And the
   lone holder's window: a lone holder that forks at the head of its own first conferral is one key that said two
   things; the sibling is behind no line until a reader acknowledges a change built on the first, and the two rows are
-  the evidence a later count can cite.
+  the evidence a later count can cite. The window is closed for a reader by any later counted change that reader has
+  acknowledged, and for every reader once the lone holder itself signs a later change; a change concurrent with the
+  siblings closes nothing (and the siblings are then read by T, like any self-fork).
   "A sibling that meets its count is lawful" is weak where one key is the whole count (a lone holder, a room of one, a
   self-admission): there siblings cost nothing to write; the lone-offer rule covers the honest line, the fork is
   evidence, and the next counted change closes it.
@@ -499,10 +523,8 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
   the members it names for a reader with no row; a packing chain's keys are not listed. Plant `void_cuts_in_roster`.
 - **A self-fork is a row signed without the change in its past.** A voice of q forked against q where a row it
   signed WITHOUT q in its past acknowledges a change q is behind; a merge naming both lines is no fork.
-- **The rescuer signed one chain only.** A key that is a counted voice of q's makers (or of their chain back to the
-  fork point) does not rescue q (the Constitution's T: a key that signed only one chain). For a change built on a void
-  one, the makers read are those of the void self-forked changes in its past, and the keys seated by the void chains
-  rescue nothing. Plant `rescuer_signed_both`.
+- **The rescuer signed one chain only** (superseded by T at the fork point, above). A key that is a counted voice of
+  q's makers (or of their chain back to the fork point) did not rescue q. Plant `rescuer_signed_both`, retired.
 - **A founder's seating is a regime of its own.** A tip that changes the record's protocol OR its founder set (a
   founder's seating) splits regimes, so concurrent founders' seatings wait at their common members; a rename or other
   record change does not. Plant `regime_protocol_only`.
@@ -513,8 +535,9 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
   removal arm alone (52,530 not listing a member, 2,035 listing one a tip added, 61,855 the same roster).
 - **The lone holder's window, stated.** A lone holder may add lone conferrals beside its first until the room's next
   counted change; each is a row by one key that said two things at one head, and the two rows are the evidence a recall
-  cites (the members recall any duty holder, however seated, CC 4.5.13). The window closes at the next counted change by
-  anyone: a later lone sibling at the old head is behind it for every reader that acknowledged it.
+  cites (the members recall any duty holder, however seated, CC 4.5.13). The window is closed for a reader by any later
+  counted change that reader has acknowledged, and for every reader once the lone holder itself signs a later change;
+  a change concurrent with the siblings closes nothing.
 - **Acknowledging never un-voids** (CC 2.7.9; `checkpoint.own_line`, `line::own_line_with`). A row the reader signed
   acknowledges the counted acts in its past that are not already void for the line its earlier rows (in its own past)
   drew, nor void for the row itself. Naming a change as a head adopts nothing. Plant `ack_unvoids`.

@@ -1311,7 +1311,7 @@ def t35(t):
                         "xg(A+B remove G, heads g and aG): concludes nothing (H1). A cheap tip dc (A confers moderate at g) and "
                         "xg(A+B, heads dc and aG): void for every member, whose own rows are its line (H6).",
                 protects="seat.newer_head_in_past (H1-H4, H7), seat.honest; checkpoint.acknowledgements (H6), settle and versions (H5); Seats, the line before the cut. "
-                         "The residual, stated: ONE residual in three shapes, each only for a reader with no row of its own: (1) a fork point with no member who signed only one chain; (2) a silent colluder's packing chain under the same protocol; (3) a newcomer admitted on the fork, which takes its past from its admitter (CC 3.3.4). Beside it: a count that omits an acceptance its signers have seen does only what they could do before it arrived (%d notes)." % len(opens),
+                         "The residual, stated: ONE residual in three shapes, each only for a reader with no row of its own: (1) no member seated at the fork point signed exactly one chain; (2) a silent colluder's packing chain under the same protocol; (3) a newcomer admitted on the fork, which takes its past from its admitter (CC 3.3.4). Beside it: a count that omits an acceptance its signers have seen does only what they could do before it arrived (%d notes)." % len(opens),
                 fix="")
 
 
