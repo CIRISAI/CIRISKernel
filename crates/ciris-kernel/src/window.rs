@@ -24,7 +24,8 @@
 //! before, withdrawn or not.
 //!
 //! **The landing** of every window is one family (CIRISConstitution#221, W1): the receipt is a `window:held`
-//! row and the landing a `window:landed` row stating the outcome; the families are the caller's. The
+//! row and the landing a `window:landed` row stating the outcome. The family names are the caller's table
+//! entries: the crate reads a row's [`WinKind`], never its family, and checks no family. The
 //! moderation fallback's landing is signed by any member at the opener's head; the overturn's by any member
 //! there but the act's author (W2): a key no clause counts is no concluder, so where every counted clause of
 //! the table is over [`Base::Others`] ([`author_apart`]) the opener's signer signs no receipt and no landing.
@@ -346,23 +347,26 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
             .count();
         // CC 4.5.13: two comparisons (strictly more than a fraction, at least a fraction), each read by the
         // seat's count, with a floor in voices and a choice of base
-        let mut n = keys.len();
+        // every count is read in u128: a `usize` and a stated `u64` widen without loss, so no target (a
+        // 32-bit one included) reads another count than a 64-bit one
+        let y = yes as u128;
+        let mut n = keys.len() as u128;
         if let Base::Stated(s) = &cl.over {
             // the stated count, never fewer than the members at the head
-            n = n.max(*s as usize);
+            n = n.max(*s as u128);
         }
-        let more = |num, den, base| seat::met(Some(Policy::Strict(num, den)), yes, base, None);
+        let more = |num, den, base| seat::met_wide(Some(Policy::Strict(num, den)), y, base, None);
         match &cl.how {
             &How::AtLeast(num, den, least) => {
-                seat::met(Some(Policy::AtLeast(num, den)), yes, n, None) && yes as u64 >= least
+                seat::met_wide(Some(Policy::AtLeast(num, den)), y, n, None) && y >= least as u128
             }
             &How::More(num, den) => more(num, den, n),
-            &How::MoreAtLeast(num, den, least) => more(num, den, n) && yes as u64 >= least,
+            &How::MoreAtLeast(num, den, least) => more(num, den, n) && y >= least as u128,
             How::MoreOfVoted(num, den, least, against) => {
                 let no = said.iter().filter(|(s, v)| *v == against && keys.contains(*s)).count();
-                more(*num, *den, yes + no) && yes as u64 >= *least
+                more(*num, *den, y + no as u128) && y >= *least as u128
             }
-            How::One => seat::met(Some(Policy::One), yes, n, None),
+            How::One => seat::met_wide(Some(Policy::One), y, n, None),
             How::Strict => more(1, 2, n),
         }
     };
@@ -408,9 +412,11 @@ pub fn ballot_words<T>(w: &WindowSpec<T>) -> BTreeSet<&str> {
 }
 
 /// Each (row, signer) a withdrawal among `rows` names: a row `r` is withdrawn by its own signer iff
-/// `(r.id(), r.signer())` is in the set. Pass concluded rows (the seat rule concludes a withdrawal of a row
-/// only by that row's signer or, for an offer, a key it seats). The one reading of a ballot's withdrawal: the
-/// window's ballots here, and any count of ballots of its own (an election's) may read it.
+/// `(r.id(), r.signer())` is in the set. Pass concluded rows. The seat rule concludes a withdrawal by any
+/// signer of the row it names, a cosigner included (and, for an offer, by a key it seats), so the match on the
+/// signer is what makes it the row's own: a cosigner's withdrawal of a ballot withdraws nothing. The one
+/// reading of a ballot's withdrawal: the window's ballots here, and any count of ballots of its own (an
+/// election's) may read it. A withdrawal is read wherever it concludes, itself withdrawn or not.
 pub fn own_withdrawals<'a, R: SeatRow + 'a>(
     rows: impl IntoIterator<Item = &'a R>,
 ) -> BTreeSet<(&'a R::Id, &'a R::Key)> {
@@ -422,7 +428,8 @@ pub fn own_withdrawals<'a, R: SeatRow + 'a>(
 
 /// The rows of `answers` less each one saying a word of `words` that its own signer withdrew by a
 /// withdrawal among `rows` (one ballot a person, folded as `ballot:moderator`: a withdrawn ballot is no
-/// ballot; CC 2.4.1.1 rule 1). Pass the concluded rows: a withdrawal by another key does not conclude. The
+/// ballot; CC 2.4.1.1 rule 1). Pass the concluded rows: a withdrawal by another key withdraws nothing, even a
+/// cosigner's, which concludes ([`own_withdrawals`] matches the signer). The
 /// fold of the ballots left is [`ops::one`] per signer. Any caller folding ballots of its own (an election's)
 /// may read its withdrawals here.
 pub fn unwithdrawn<'r, R: SeatRow>(
@@ -722,6 +729,7 @@ mod tests {
         says: Option<String>,
         receipt: Option<u32>,
         at: Option<i64>,
+        target: Option<u32>,
     }
 
     impl W {
@@ -743,6 +751,7 @@ mod tests {
                 says: None,
                 receipt: None,
                 at: None,
+                target: None,
             }
         }
     }
@@ -787,6 +796,9 @@ mod tests {
         fn of(&self) -> Option<&u32> {
             self.of.as_ref()
         }
+        fn target(&self) -> Option<&u32> {
+            self.target.as_ref()
+        }
     }
 
     impl WindowRow for W {
@@ -827,8 +839,10 @@ mod tests {
     const SCOPES: [&str; 5] = ["member", "moderate", "all", "others", "concl"];
     const OUTS: [&str; 3] = ["enact", "cancel", "open"];
 
-    fn clauses(g: &mut Lcg) -> Vec<Clause> {
-        (0..g.next(3))
+    /// Clauses drawn from `g`, and from `h` (a second stream, so that `g` draws what it drew before) a clause
+    /// counted over those who voted and a stated base, now and then one past 32 bits.
+    fn clauses(g: &mut Lcg, h: &mut Lcg) -> Vec<Clause> {
+        let mut out: Vec<Clause> = (0..g.next(3))
             .map(|_| Clause {
                 value: if g.next(3) == 0 { "no".into() } else { "approve".into() },
                 how: match g.next(4) {
@@ -847,16 +861,28 @@ mod tests {
                 },
                 out: OUTS[g.next(2) as usize].into(),
             })
-            .collect()
+            .collect();
+        for cl in &mut out {
+            if h.next(5) == 0 {
+                cl.how =
+                    How::MoreOfVoted(1, 2, h.next(3), if cl.value == "no" { "approve".into() } else { "no".into() });
+            }
+            if h.next(6) == 0 {
+                cl.over = Base::Stated(if h.next(8) == 0 { (1u64 << 32) + h.next(9) } else { h.next(15) });
+            }
+        }
+        out
     }
 
-    /// A group with seats in five scopes (two named `all` and `others`), an opener at its version, answers,
-    /// the concluder's receipt and landings, under a generated table: every conclusion and the outcome are
+    /// A group with seats in five scopes (two named `all` and `others`), an opener at its version, answers
+    /// (some withdrawn, by their signer or another key), the concluder's receipt and landings, under a generated
+    /// table (some clauses counted over those who voted, some over a stated base): every conclusion and the outcome are
     /// the same whether the scopes the table reads are walked at once or each when first asked.
     #[test]
     fn prefilled_scopes_answer_as_scopes_read_when_asked() {
         let law = SeatLaw::default();
         let mut g = Lcg(3);
+        let mut h = Lcg(17);
         let (mut cases, mut bad, mut landed) = (0usize, 0usize, 0usize);
         for _ in 0..3_000 {
             let n = 2 + g.next(6) as u32;
@@ -912,7 +938,16 @@ mod tests {
                 a.of = Some(200);
                 a.says = Some(if g.next(3) == 0 { "no".into() } else { "approve".into() });
                 answers.push(a.id);
+                // now and then its signer, or another key, withdraws it (drawn from `h`)
+                let wd = (h.next(4) == 0).then(|| {
+                    let by = if h.next(3) == 0 { 1 + h.next(n as u64) as u32 } else { a.signer };
+                    let mut w = W::new(600 + j, vec![a.id], by);
+                    w.kind = SeatKind::Withdraw;
+                    w.target = Some(a.id);
+                    w
+                });
                 rows.push(a);
+                rows.extend(wd);
             }
             let c_key = 1 + g.next(n as u64) as u32;
             let mut rc = W::new(400, vec![200], c_key);
@@ -935,9 +970,9 @@ mod tests {
                 concluder: if g.next(2) == 0 { "concl".into() } else { "member".into() },
                 opener: None,
                 opener_says: if g.next(2) == 0 { Some("approve".into()) } else { None },
-                at_once: clauses(&mut g),
+                at_once: clauses(&mut g, &mut h),
                 silent: None,
-                at_close: clauses(&mut g),
+                at_close: clauses(&mut g, &mut h),
                 default: "cancel".into(),
                 target_votes: false,
                 secs: 50,

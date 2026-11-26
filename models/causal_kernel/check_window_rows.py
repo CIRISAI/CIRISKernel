@@ -13,9 +13,11 @@ ballots are one, and disagreeing unwithdrawn ballots are none until a withdrawal
                    (ranked.rs: "a person with two different rankings has no ballot"); this file adds no second fold
     a withdrawal   window.unwithdrawn: a `withdraw` row naming a ballot, signed by that ballot's signer, makes it no
                    ballot (CC 2.4.1.1 rule 1; `ballot:moderator`'s undo is its signer's withdrawal). Another key's
-                   withdrawal of it does not conclude (seat.seat_rule), so it withdraws nothing. A withdrawal
+                   withdrawal of it withdraws nothing: a cosigner's concludes (seat.seat_rule reads every signer
+                   of the row), and only the match on the ballot's own signer refuses it. A withdrawal
                    concurrent with a landing is recounted with it, as an answer is (CC 2.7.5)
-    the landing    a `window:landed` row naming the signer's `window:held` row (W1), of a key of the concluder's
+    the landing    a landing naming the signer's receipt (W1: `window:landed` and `window:held`, families of the
+                   caller's table; nothing here reads them), of a key of the concluder's
                    scope at the opener's head; a key with no seat there lands nothing; the overturn's author is no
                    concluder (W2: out of its count)
 
@@ -28,6 +30,9 @@ Part 2. Planted breaks, each of which must break a row of Part 1:
     withdrawal_not_recounted   a withdrawal concurrent with a landing is not read with it
     author_concludes           the act's author signs the overturn's receipt and landing (W2: it is no concluder)
     stated_shrinks             a stated base smaller than the members at the head is read as stated
+    stated_truncates           a stated base read through a 32-bit cast
+    withdrawal_id_only         a withdrawal matched to a ballot by the ballot's id alone, not its signer
+    any_word_withdrawn         every answer read as withdrawn, not only a ballot
     ballot_word_act            the fallback's ballot says `act` (the word before the ruling)
 
 The base `active` above k (the ruling on #221, W6): the caller's stated count, the census's figure, which the kernel
@@ -58,6 +63,9 @@ CK, K = WN.CK, WN.K
 LEDGER = "CIRISConstitution#221"
 
 OPEN = (
+    ("a withdrawal of a ballot's withdrawal", "a signer withdraws its own withdrawal of its ballot (w2 names w1). "
+     "Today the ballot stays withdrawn: a withdrawal is read wherever it concludes, withdrawn or not. Asked of the "
+     "Constitution"),
     ("the door model", "formal/causal_kernel/door.py and door_text.tsv are the Constitution's, not this repository's"),
 )
 
@@ -102,6 +110,9 @@ PLANTS = (
     ("withdrawal_not_recounted", lambda: WN.MUT.add("withdrawal_not_recounted")),
     ("author_concludes", lambda: WN.MUT.add("author_concludes")),
     ("stated_shrinks", lambda: WN.MUT.add("stated_shrinks")),
+    ("stated_truncates", lambda: WN.MUT.add("stated_truncates")),
+    ("withdrawal_id_only", lambda: WN.MUT.add("withdrawal_id_only")),
+    ("any_word_withdrawn", lambda: WN.MUT.add("any_word_withdrawn")),
     ("ballot_word_act", lambda: WN.WINDOWS["moderation_fallback"].update(
         at_close=tuple(("act",) + c[1:] for c in WN.WINDOWS["moderation_fallback"]["at_close"]))),
 )

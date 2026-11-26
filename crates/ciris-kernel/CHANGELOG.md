@@ -3,7 +3,7 @@
 ## Unreleased
 
 **The moderation windows land by signed rows; the fallback's vote is a ballot** (CIRISConstitution#221). One
-public enum gains a variant (`window::Base::Stated`: an exhaustive match breaks); four public functions; no name
+public enum gains a variant (`window::Base::Stated`: an exhaustive match breaks); five public functions; no name
 changes.
 
 - The ruling on #221: a member's vote on a moderation action where no moderator acts is a ballot of
@@ -15,14 +15,17 @@ changes.
   `roomkey.py` now say `for`.
 - New: `window::unwithdrawn`, `window::own_withdrawals` and `window::ballot_words`. A ballot is an answer that a
   `How::MoreOfVoted` clause reads (its value or its `against`). A ballot whose own signer withdrew it is no
-  ballot. The withdrawal is a seat withdrawal naming the ballot. Another key's withdrawal does not conclude under
-  the seat rule, so it withdraws nothing. The fold of what is left is `ops::one` per signer: agreeing ballots are
+  ballot. The withdrawal is a seat withdrawal naming the ballot. Another key's withdrawal withdraws nothing. A
+  cosigner's withdrawal of the ballot does conclude (the seat rule reads every signer of the row it names); only
+  the match on the ballot's own signer (`own_withdrawals`) refuses it. A case and a plant in each language cover
+  it. The fold of what is left is `ops::one` per signer: agreeing ballots are
   one, and disagreeing ones say nothing. This is the rule `ranked.rs` writes inline for `ballot:moderator`. A
   withdrawal concurrent with a landing is recounted with it, as an answer is. **Answers change** only where a
   ballot is withdrawn: no case before this one had such a withdrawal. Only a ballot is read so (ruled): an
   objection or an approval its signer withdrew is still a voice.
 - One landing family for every window (ruling W1): the receipt is `window:held` and the landing `window:landed`,
-  which states the outcome. The reference's tables name both (`held`, `landing`).
+  which states the outcome. These are the caller's table entries. The crate reads a row's `WinKind`, never its
+  family, and checks none. No code here reads them.
 - Who signs (ruling W2): the fallback's landing by any member at the opener's head; the overturn's by any member
   but the act's author. New: `window::author_apart`. Where every counted clause of a table is over
   `Base::Others`, the opener's signer concludes no receipt and no landing of that window. **An answer changes:** an
@@ -42,11 +45,19 @@ changes.
   `default_content`, `default_standing`, `default_irreversible` and `community_invite` are expressible above `k`
   as the self roster's lone path. The reference has `("stated", n)` and the spec `default_content@active` (a room
   of thirteen members counted over twenty), with five cases, one of them on the clamp.
+- The count is read in `u128` on every target. New: `seat::met_wide`, which is `seat::met` over `u128` counts;
+  `met` calls it. A window's thresholds read the members, the voices and a stated `u64` through it, so no cast
+  truncates: a 32-bit target (wasm32, thumbv7em) reads a stated 2^32 as 2^32, not as 0. Two cases (a stated 2^32
+  and 2^32 + 13, thirteen members, nine approvals: open) and a plant on a 32-bit cast cover it. The unit test
+  that compares reading the scopes walked at once with reading each when asked now also draws clauses counted
+  over those who voted, stated bases (some past 32 bits) and withdrawals.
+- OPEN: a signer withdraws its own withdrawal of a ballot. Today the ballot stays withdrawn: a withdrawal is read
+  wherever it concludes. The Constitution has been asked.
 - A poll is outside the kernel (a tally whose rule and close its own opening row states). ADOPTING.md says so.
 - OPEN: the door model (the Constitution's `door.py`, not in this repository).
-- The reference: `window.unwithdrawn`, `window.ballot_words` and `window.author_apart`; 22 new rows of
-  `window_adversary.tsv` (103 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
-  (those rows in arrival orders, five planted breaks, the OPEN list). Five new crate plants in
+- The reference: `window.unwithdrawn`, `window.ballot_words` and `window.author_apart`; 26 new rows of
+  `window_adversary.tsv` (107 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
+  (those rows in arrival orders, eight planted breaks, the OPEN list). Eight new crate plants in
   `tools/kernel_crate_plants.sh`.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).

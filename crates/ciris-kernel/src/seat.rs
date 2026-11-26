@@ -1731,12 +1731,18 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
 
 /// Whether a count is met: `yes` voices of `n`, under `policy`.
 pub fn met(policy: Option<Policy>, yes: usize, n: usize, declared: Option<usize>) -> bool {
-    let (y, n) = (yes as u128, n as u128);
+    met_wide(policy, yes as u128, n as u128, declared.map(|d| d as u128))
+}
+
+/// [`met`] over counts wider than a `usize`: a base a caller states as a `u64` (`window::Base::Stated`) is
+/// read whole on every target, 32-bit ones included. `usize` and `u64` widen to `u128` without loss, so the
+/// answer is the same on every target.
+pub fn met_wide(policy: Option<Policy>, y: u128, n: u128, declared: Option<u128>) -> bool {
     match policy {
         Some(Policy::AtLeast(num, den)) => n > 0 && y * den as u128 >= num as u128 * n,
         Some(Policy::Strict(num, den)) => y * den as u128 > num as u128 * n,
-        Some(Policy::One) => yes >= 1,
-        Some(Policy::Declared) => declared.is_some_and(|d| yes >= d),
+        Some(Policy::One) => y >= 1,
+        Some(Policy::Declared) => declared.is_some_and(|d| y >= d),
         _ => false,
     }
 }

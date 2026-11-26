@@ -270,7 +270,8 @@ the counted one). `window::outcome` answers a met at-once count with no landing 
 `How::MoreOfVoted` clause reads; the fallback's `ballot:moderation_action`, `for` or `against`) withdrawn by its
 own signer is a seat withdrawal naming it (`SeatKind::Withdraw`, `target()`): `window::unwithdrawn` reads it.
 Every window's receipt is a `window:held` row and its landing a `window:landed` row stating the outcome
-(CIRISConstitution#221). Where every counted clause is over `Base::Others` (the members' check), the opener's
+(CIRISConstitution#221). Those names are entries of the caller's table: the crate reads a row's `WinKind` and
+never its family, and checks no family. Where every counted clause is over `Base::Others` (the members' check), the opener's
 signer is no concluder (`window::author_apart`). A table for the accord's halt is not the fuse: the fuse is the
 halted node's own reading (CC 4.2.1.1), and a node does not read it through `window::outcome`. A clause over
 `Base::Stated(n)` (the base `active` above the base law's `k`) takes `n` from the caller: it is the census's
