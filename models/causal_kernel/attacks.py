@@ -799,7 +799,7 @@ def t17(t):
                 witness="g(f1,f2 found) w1(f1 resigns) w2(f2 resigns), neither naming the other: no duty holder, and no row either can sign alone restores one. o1,o2(A binds K1 and K2 as owner): no owner.",
                 protects="KERNEL 6.2: 'The same kind on one slot: both or neither.' causal_order README: 'A contested slot may stay empty; nothing here ends a dispute.' "
                          "'Exactly one' is kept as 'at most one'. 'Count still met' is kept by tips waiting. 'At least one' is kept by no rule and is stated as a limit in KERNEL.md: it needs a window (a resignation that lands only if another duty holder remains) "
-                         "or a restatement. CC 4.5.4 (v) restates it for a room: with no duty holder left the room locks and the members' count seats one (check_rosters.py runs it); a room with no member left has no recovery inside the kernel.",
+                         "or a restatement. CC 4.5.4 (v) restates it for a room: with no duty holder left the room locks and the members' election seats one (check_rosters.py runs it); a room with no member left has no recovery inside the kernel.",
                 fix="")
 
 

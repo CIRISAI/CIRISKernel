@@ -39,6 +39,9 @@ impl Row for K {
 }
 impl SeatRow for K {
     type Word = String;
+    fn word(s: &'static str) -> String {
+        s.into()
+    }
     fn seat_kind(&self) -> SeatKind {
         self.kind.unwrap_or(SeatKind::Other)
     }

@@ -47,12 +47,12 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     founding_duty_unread     a receipter's duty from a founding record not read as a seat a counted unseat ends
     agent_receipt_kept       an agent duty holder's receipt keeps a lone removal (ruled: an agent's receipt is no receipt)
     remover_counted_over     the remover left in the denominator of the count's receipt (ruled R5: the room less it)
-    upstream_unread          a lone removal of a key whose seat the remover's moderate hangs under is not waited for
     lone_lifts / own_end_lifts  a lone removal, or the holder's own end, lifts receipts
     receipt_before_kept      a receipt made after a counted unseat of its signer's seat keeps
     failed_count_is_signers  a counted receipt that fails its count is read as its signer's own
     ordered_pair_cascade     an act decided before the verdict of an earlier act in its past that could end its
                              standing, that earlier act read as an end (cascade through an ordered pair)
+    lone_any_object          a moderator's lone removal read over an object that is no community (a key's own)
     lift_no_floor            the members' check of one member's act (the lift, the count's receipt) with no floor
                              of two voices
     receipt_row_policy       the count's receipt read by the policy and need its row states (ruled: one fixed rule,
@@ -136,14 +136,6 @@ B2 = [G, AGS, CM1, CM2]                                    # both agents moderat
 XA = lone("x", "A1", "A2", ("cm1",))                      # the agent moderator A1 removes A2 alone
 YA = lone("y", "p1", "A1", ("x",))                        # p1 removes A1 alone, after x
 LAYY = ST.withdraw("wm", "p1", "g", ("y",), scope="moderate")
-
-
-# a room founded with members only, its founder p1 conferring moderate on MOD and on p2 by offers of its own
-MG = ST.offer("g", "p1", ("p1", "p2", "MOD"), "member", "@", "self", cosigners=("p2", "MOD"))
-MOR = [MG, ST.offer("cm", "p1", "MOD", "moderate", OBJ, "self", ("g",), cosigners=("MOD",)),
-       ST.offer("cp", "p1", "p2", "moderate", OBJ, "self", ("g",), cosigners=("p2",)),
-       ST.offer("ag", "p1", "AG", "agent", OBJ, "group", ("cm", "cp"), head=("g",), policy="community_invite",
-                cosigners=("p2", "MOD", "AG"))]
 
 
 def counted_receipt(i, signers, act, head):
@@ -255,14 +247,6 @@ CASES = [
      W + [X, receipt("q2", "p2", "x"), dict(OUT, lifts=True)], {"x": T, "xp": T}, P23 | {"AG"}, []),
     (PIN + "a count end that lifts receipts: the count's own receipt still keeps",
      W + [X, counted_receipt("qc", ("p2", "p3"), "x", ("x",)), dict(OUT, lifts=True)], {"x": T, "xp": T}, P23, []),
-    (PIN + "a conferrer that ends its own offer may lift (CC 2.4.1.1): in a room founded with members only, p1 "
-     "confers moderate on MOD and on p2 by its own offers; MOD removes the agent alone, p2 receipts it, and p1 "
-     "withdraws MOD's offer stating `lifts`: the receipt keeps nothing",
-     MOR + [lone("x", "MOD", "AG", ("ag",)), receipt("q2", "p2", "x"), dict(ST.withdraw("wc", "p1", "cm", ("x",)), lifts=True)],
-     {"x": T, "wc": T}, {"p1", "p2", "MOD", "AG"}, [("MOD", "moderate", F)]),
-    (PIN + "the same withdrawal not stating `lifts`: p2's receipt keeps the removal in force",
-     MOR + [lone("x", "MOD", "AG", ("ag",)), receipt("q2", "p2", "x"), ST.withdraw("wc", "p1", "cm", ("x",))],
-     {"x": T, "wc": T}, {"p1", "p2", "MOD"}, [("MOD", "moderate", F)]),
     (PIN + "a self end cannot lift (`lifts_on_own_end`, refused at the door; read as no lift): p1's laying down "
      "stating `lifts` leaves p2's receipt keeping",
      W + [X, receipt("q2", "p2", "x"), dict(LAY, lifts=True)], {"x": T}, P3, []),
@@ -337,19 +321,10 @@ CASES = [
     ("two tips with a receipt of the removal by another holder: in force",
      W + [X, receipt("q2", "p2", "x"), remove("xp", "p1", ("p2", "p3"), ("ag",))], {"x": T, "xp": T}, P23, []),
 ]
-# a room founded with members only: Z (an agent) is conferred moderate by the members' count with sub-delegation,
-# and confers moderate on the agent M under that seat; p1 is conferred moderate too
+
+
 R5 = [ST.found("g", "p1", ("p1", "p2", "p3", "p4"), {"moderate": ("p1",)}, cosigners=("p2", "p3", "p4")),
       admit("ag", "AG", ("p1", "p2", "p3", "p4"), ("g",), "agent"), lone("x", "p1", "AG", ("ag",))]
-MG3 = ST.offer("g", "p1", ("p1", "p2", "p3"), "member", "@", "self", cosigners=("p2", "p3"))
-UP = [MG3, ST.offer("ags", "p1", ("Z", "M", "AG"), "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
-                    cosigners=("p2", "p3", "Z", "M", "AG")),
-      ST.offer("cz", "p1", "Z", "moderate", OBJ, "group", ("ags",), head=("ags",), policy="community_invite",
-               cosigners=("p2", "p3", "Z"), sub=True),
-      ST.offer("cp", "p1", "p1", "moderate", OBJ, "group", ("cz",), head=("cz",), policy="community_invite",
-               cosigners=("p2", "p3")),
-      ST.offer("cm", "Z", "M", "moderate", OBJ, "seat", ("cp",), under="cz", cosigners=("M",))]
-UPX = [lone("x", "M", "AG", ("cm",)), lone("y", "p1", "Z", ("cm",))]
 
 
 # The reviewer's rows for the review of #48 (its script, s48/cases.py), each a case named with its ledger row.
@@ -415,12 +390,6 @@ def _review():
 
 
 CASES += [
-    (RV + "a removal out of force that is no end still cuts nothing: M's moderate hangs under Z's seat; p1 removes Z "
-     "alone beside M's removal of AG, then lays down its moderate: p1's removal is out of force, Z keeps its seat, M "
-     "its moderate, and M's removal stands", UP + UPX + [ST.withdraw("wp", "p1", "cp", ("y",))],
-     {"x": T, "y": T}, {"p1", "p2", "p3", "Z", "M"}, [("M", "moderate", T), ("Z", "moderate", T)]),
-    (RV + "the same with p1's removal of Z in force: M's moderate falls with Z's seat, and M's removal is out of force",
-     UP + UPX, {"x": T, "y": T}, {"p1", "p2", "p3", "M", "AG"}, [("M", "moderate", F), ("Z", "agent", F)]),
     (RV + "R5, the count's receipt is the room less the remover: four persons, two of the other three confirm",
      R5 + [counted_receipt("qc", ("p2", "p3"), "x", ("x",)), ST.withdraw("wm", "p1", "g", ("x",), scope="moderate")],
      {"x": T}, {"p1", "p2", "p3", "p4"}, []),
@@ -466,6 +435,46 @@ CASES += [
                                     admit("ag", "AG", ("p1", "p2"), ("g",), "agent"), X,
                                     counted_receipt("qc", ("p2",), "x", ("x",)), LAY], {"x": T}, {"p1", "p2", "AG"}, []),
 ]
+# CC 2.4.1.1 (iii), a conferrer that ends its own offer may lift (CIRISConstitution#218, pin list: a count end that
+# lifts receipts; review of #54): a room founded with members only (no duty holder), an election seats p2 to
+# moderate, and p2, then the lone person duty holder, confers moderate on p3 by its own offer. That room's record
+# seats no duty holder, so the conferrer's withdrawal ends p3's seat
+MG3 = ST.offer("g", "p1", ("p1", "p2", "p3"), "member", "@", "self", cosigners=("p2", "p3"))
+EL = [MG3, R("b1", "ballot", "p1", ("g",), ranking=("p2", "p3")), R("b3", "ballot", "p3", ("g",), ranking=("p2", "p3")),
+      ST.offer("el", "p1", "p2", "moderate", OBJ, "group", ("g", "b1", "b3"), head=("g",), policy="moderator_election",
+               options=("p2", "p3"), cosigners=("p2",)),
+      admit("ag", "AG", ("p1", "p2", "p3"), ("el",), "agent"),
+      ST.offer("oc", "p2", "p3", "moderate", OBJ, "self", ("ag",), cosigners=("p3",)),
+      lone("x", "p3", "AG", ("oc",)), receipt("q2", "p2", "x")]
+CASES += [
+    (PIN + "a conferrer that ends its own offer may lift (CC 2.4.1.1 (iii)): an elected p2 confers moderate on p3 by "
+     "its own offer; p3 removes the agent alone, p2 receipts it, and p2 withdraws p3's offer stating `lifts`: the "
+     "receipt keeps nothing", EL + [dict(ST.withdraw("wo", "p2", "oc", ("x", "q2")), lifts=True)],
+     {"el": T, "oc": T, "x": T, "wo": T}, P3 | {"AG"}, [("p3", "moderate", F), ("p2", "moderate", T)]),
+    (PIN + "the same withdrawal not stating `lifts`: p2's receipt keeps the removal in force",
+     EL + [ST.withdraw("wo", "p2", "oc", ("x", "q2"))], {"x": T, "wo": T}, P3, [("p3", "moderate", F)]),
+    (PIN + "p3's own withdrawal of the offer stating `lifts` is the holder's own end and lifts nothing",
+     EL + [dict(ST.withdraw("wo", "p3", "oc", ("x", "q2")), lifts=True)], {"x": T, "wo": T}, P3, [("p3", "moderate", F)]),
+]
+# The review of #54, item 5 (ruled: a moderator's lone removal exists only over a community; CC 4.5.13 speaks of a
+# room's moderator and an agent's key in that room): the reviewer's a6 rows over a key's own object `g` (no row is
+# named g, so g is a key, and its own offers seat what it likes). There a "lone removal" is an ordinary counted unseat
+# whose count is not met (no member seat over g): neither concludes, and nothing is removed
+KO = [R("k0", "note", "g", ()),
+      ST.offer("oa", "g", ("AG", "Z"), "agent", OBJ, "self", ("k0",)),
+      ST.offer("om", "g", ("p1", "Z"), "moderate", OBJ, "self", ("k0",), sub=True),
+      ST.accept("a1", "AG", "oa"), ST.accept("a2", "Z", "oa"), ST.accept("a3", "p1", "om"), ST.accept("a4", "Z", "om"),
+      ST.offer("mz", "Z", "M", "moderate", OBJ, "seat", ("a4",), under="om"), ST.accept("a5", "M", "mz"),
+      R("hd", "ack", "g", ("a1", "a2", "a3", "a4", "a5"), of="oa")]            # a head on g's own line
+KX = ST.unseat("x", "M", "AG", "agent", OBJ, "group", ("hd",), head=("hd",), policy="community_remove", window=OV)
+KY = ST.unseat("y", "p1", "Z", "agent", OBJ, "group", ("hd",), head=("hd",), policy="community_remove", window=OV)
+CASES += [
+    ("review of #54, item 5: over a key's own object a moderator's unseat of an agent's key is no lone removal; its "
+     "count is not met, so it does not conclude", KO + [KX], {"x": F}, {"AG", "Z"}, [("AG", "agent", T), ("M", "moderate", T)]),
+    ("review of #54, item 5: the reviewer's x and y, and p1's laying down: none removes anything",
+     KO + [KX, KY, ST.withdraw("lp", "p1", "a3", ("y",))], {"x": F, "y": F}, {"AG", "Z"},
+     [("AG", "agent", T), ("Z", "agent", T), ("M", "moderate", T)]),
+]
 # The review of #54 (CIRISConstitution#218, pin list: no cascade): an act decided before an earlier act's own verdict
 # is known reads that earlier act as an end; x, out of force, ends nothing, so an act after it that it would end is in
 # force. A1 and A2 are agent moderators; A1 lays its moderate down after x
@@ -488,9 +497,9 @@ CASES += [
 ]
 PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone", "cascade", "count_receipt_unread",
           "removed_receipt_kept", "lifts_unread", "conferrer_lift_unread", "cycle_one_then_other", "count_receipt_unchecked",
-          "founding_duty_unread", "agent_receipt_kept", "remover_counted_over", "upstream_unread", "lone_lifts", "own_end_lifts", "receipt_before_kept",
+          "founding_duty_unread", "agent_receipt_kept", "remover_counted_over", "lone_lifts", "own_end_lifts", "receipt_before_kept",
           "failed_count_is_signers", "receipt_row_policy", "ordered_pair_cascade",
-          "lift_no_floor")
+          "lift_no_floor", "lone_any_object")
 
 
 def read(S, case):

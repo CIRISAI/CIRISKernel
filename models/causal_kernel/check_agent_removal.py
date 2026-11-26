@@ -36,6 +36,8 @@ Part 2. Planted breaks in the seat rule, each of which must change a case's answ
                        lone removal's own test that the key holds an agent's seat there, seen from the lift)
     agent_counted_over an agent is counted over, in the window and in the re-seating (the removed key with it)
     lift_no_floor      the re-seating has no floor of two voices
+    window_scope_roster_only  the window takes a withdrawal's scope at its word: a roster scope departs its signer
+                       and any other does not (laying down a founding seat of scope `duty` departs no one)
 
 Part 3. The window adversary table (window.adversary_table) under recount reads no property broken, and planted
 breaks in the tables, each of which must break a row of it:
@@ -91,18 +93,20 @@ def reseat(i, by, who, removal, head, objections, accepted=True, cite=True):
                     cosigners=(who,) if accepted else (), **({"content": removal} if cite else {}))
 
 
-# ---- world A: a room founded with members only. Members m1 and m2, the agent's key AG, and MOD, admitted and then
-# conferred `moderate` by the members' count: a duty seat stands only on a member in every room (CC 4.5.4), so MOD is
-# a member. World B has the duty-founded case.
-GA = ST.offer("g", "m1", ("m1", "m2"), "member", "@", "self", cosigners=("m2",))
+# ---- world A: members m1 and m2, the agent's key AG, and MOD. The founding record names m1 the one moderator; m1, the
+# lone holder, confers `moderate` on MOD once admitted, and then lays its own down (lm): MOD is the one moderator, a
+# member. A duty is conferred by its holders, the founding record or an election, not by the members' admission count
+# (CIRISConstitution#241), so world A no longer confers it by that count. World B has the four-holder case.
+GA = ST.found("g", "m1", ("m1", "m2"), {"moderate": ("m1",)}, cosigners=("m2",))
 AGA = admit("ag", "AG", ("m1", "m2"), "g", "agent")
 AMA = admit("am", "MOD", ("m1", "m2"), "ag")
-MDA = ST.offer("md", "m1", "MOD", "moderate", OBJ, "group", ("am",), head=("am",), policy="community_invite",
-               cosigners=("m2", "MOD"))
-A = [GA, AGA, AMA, MDA]
-XA = remove("x", "MOD", "AG", "md")
+MDA = ST.offer("md", "m1", "MOD", "moderate", OBJ, "group", ("am",), head=("am",), policy="duty_confer", counted="duty",
+               cosigners=("MOD",))
+LMA = ST.withdraw("lm", "m1", "g", ("md",), scope="moderate")
+A = [GA, AGA, AMA, MDA, LMA]
+XA = remove("x", "MOD", "AG", "lm")
 O1, O2, OA, OM = obj("o1", "m1"), obj("o2", "m2"), obj("oA", "AG"), obj("oM", "MOD")
-RSA = reseat("rs", "m1", "AG", "x", "md", ("o1", "o2"))
+RSA = reseat("rs", "m1", "AG", "x", "lm", ("o1", "o2"))
 X2 = remove("x2", "MOD", "AG", "rs")
 
 # ---- world B: the moderator is on the roster. Duty holders m1..m4 (each a member and a moderator) and AG: five ----
@@ -133,19 +137,19 @@ CASES = [
     ("A: a moderator removes an agent's key alone: out at once, and its window is open",
      A + [XA], {"x": T}, {"m1", "m2", "MOD"}, {"x": "open"}),
     ("A: a moderator removes a person's key alone: nothing",
-     A + [remove("x", "MOD", "m2", "md", scope="member")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
+     A + [remove("x", "MOD", "m2", "lm", scope="member")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
     ("A: a moderator's unseat of the agent's key in scope member (a seat it does not hold): nothing",
-     A + [remove("x", "MOD", "AG", "md", scope="member")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
+     A + [remove("x", "MOD", "AG", "lm", scope="member")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
     ("A: a member who is no moderator removes an agent's key alone: nothing",
-     A + [remove("x", "m1", "AG", "md")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
+     A + [remove("x", "m1", "AG", "lm")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
     ("A: the same row naming no window, read by the seat rule alone: nothing",
-     A + [remove("x", "m1", "AG", "md", window=False)], {"x": F}, {"m1", "m2", "MOD", "AG"}, {}),
+     A + [remove("x", "m1", "AG", "lm", window=False)], {"x": F}, {"m1", "m2", "MOD", "AG"}, {}),
     ("A: a moderator's removal naming no window concludes all the same",
-     A + [remove("x", "MOD", "AG", "md", window=False)], {"x": T}, {"m1", "m2", "MOD"}, {}),
+     A + [remove("x", "MOD", "AG", "lm", window=False)], {"x": T}, {"m1", "m2", "MOD"}, {}),
     ("A: a key with no seat removes an agent's key alone: nothing",
-     A + [remove("x", "z", "AG", "md")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
+     A + [remove("x", "z", "AG", "lm")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
     ("A: a former moderator, at a head after its own withdrawal: nothing",
-     A + [ST.withdraw("wm", "MOD", "md", ("md",)), remove("x", "MOD", "AG", "wm")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
+     A + [ST.withdraw("wm", "MOD", "lm", ("lm",)), remove("x", "MOD", "AG", "wm")], {"x": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
     ("A: one of the two persons objects, one of two: the window is open, the key out",
      A + [XA, O1], {"x": T}, {"m1", "m2", "MOD"}, {"x": "open"}),
     ("A: both persons object, two of two: the window reads lifted, and the key is still out",
@@ -153,9 +157,9 @@ CASES = [
     ("A: the re-seating row naming those two objections concludes and the key is seated again",
      A + [XA, O1, O2, RSA], {"x": T, "rs": T}, {"m1", "m2", "MOD", "AG"}, {"x": "lifted"}),
     ("A: a re-seating row naming one objection of the two does not conclude",
-     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "md", ("o1",))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
+     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "lm", ("o1",))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
     ("A: the removed key's own objection is no voice: of the window with no landing, nor of the re-seating",
-     A + [XA, O1, OA, reseat("rs", "m1", "AG", "x", "md", ("o1", "oA"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "open"}),
+     A + [XA, O1, OA, reseat("rs", "m1", "AG", "x", "lm", ("o1", "oA"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "open"}),
     ("A: nor of a landing: a member lands 'lifted' naming its own objection and the removed key's",
      A + [XA, O1, OA, WN.receipt("r", "m1", "x", 0), WN.landing("L", "m1", "x", "r", "lifted", 0, ("o1", "oA"))],
      {"x": T, "L": F}, {"m1", "m2", "MOD"}, {"x": "open"}),
@@ -163,19 +167,19 @@ CASES = [
      A + [XA, O1, WN.receipt("r", "m2", "x", 0), WN.landing("L", "m2", "x", "r", "stands", WN.secs(OV), ("o1",)), OA],
      {"x": T, "L": T}, {"m1", "m2", "MOD"}, {"x": "stands"}),
     ("A: the removed key objects beside both persons: lifted on the two, as without it",
-     A + [XA, O1, O2, OA, reseat("rs", "m1", "AG", "x", "md", ("o1", "o2", "oA"))], {"rs": T}, {"m1", "m2", "MOD", "AG"}, {"x": "lifted"}),
+     A + [XA, O1, O2, OA, reseat("rs", "m1", "AG", "x", "lm", ("o1", "o2", "oA"))], {"rs": T}, {"m1", "m2", "MOD", "AG"}, {"x": "lifted"}),
     ("A: the moderator's own objection is no voice (it is the act's author)",
-     A + [XA, O1, OM, reseat("rs", "m1", "AG", "x", "md", ("o1", "oM"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "open"}),
+     A + [XA, O1, OM, reseat("rs", "m1", "AG", "x", "lm", ("o1", "oM"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "open"}),
     ("A: a re-seating row that does not cite the removal does not conclude",
-     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "md", ("o1", "o2"), cite=False)], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
+     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "lm", ("o1", "o2"), cite=False)], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
     ("A: a re-seating row at another head than the removal names does not conclude",
      A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "x", ("o1", "o2"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
     ("A: a re-seating row seating another key than the one removed does not conclude",
-     A + [XA, O1, O2, reseat("rs", "m1", "Q", "x", "md", ("o1", "o2"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
+     A + [XA, O1, O2, reseat("rs", "m1", "Q", "x", "lm", ("o1", "o2"))], {"rs": F}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
     ("A: a re-seating row without the key's own signature concludes and seats nobody (two consents)",
-     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "md", ("o1", "o2"), accepted=False)], {"rs": T}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
+     A + [XA, O1, O2, reseat("rs", "m1", "AG", "x", "lm", ("o1", "o2"), accepted=False)], {"rs": T}, {"m1", "m2", "MOD"}, {"x": "lifted"}),
     ("A: objections to a removal that did not conclude re-seat nothing and remove nothing",
-     A + [remove("x", "m1", "AG", "md"), O1, O2, RSA], {"x": F, "rs": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
+     A + [remove("x", "m1", "AG", "lm"), O1, O2, RSA], {"x": F, "rs": F}, {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
     ("A: after the lift the moderator removes the key again, naming the re-seating: out, and a new window is open",
      A + [XA, O1, O2, RSA, X2], {"x": T, "rs": T, "x2": T}, {"m1", "m2", "MOD"}, {"x": "lifted", "x2": "open"}),
     ("A: after the lift an admission at the re-seating's head signed by one person and the agent concludes nothing: the agent is no voice",
@@ -187,12 +191,12 @@ CASES = [
      {"x": "lifted", "x2": "open"}),
     ("A: a moderator 'removes' a key that was never seated: no agent's seat at that head, so nothing concludes, and "
      "objections and a re-seating admit nothing",
-     A + [remove("x", "MOD", "Q", "md"), O1, O2, reseat("rs", "m1", "Q", "x", "md", ("o1", "o2"))], {"x": F, "rs": F},
+     A + [remove("x", "MOD", "Q", "lm"), O1, O2, reseat("rs", "m1", "Q", "x", "lm", ("o1", "o2"))], {"x": F, "rs": F},
      {"m1", "m2", "MOD", "AG"}, {"x": "none"}),
     ("A: at tips, an admission at the removal beside the re-seating: the fold seats the key on its two objectors' voices",
      A + [XA, O1, O2, RSA, admit("j", "N", ("m1", "m2"), "x")], {"rs": T, "j": T}, {"m1", "m2", "MOD", "AG", "N"}, {"x": "lifted"}),
     ("A: at tips, the same admission beside a re-seating that does not conclude: the key stays out",
-     A + [XA, O1, reseat("rs", "m1", "AG", "x", "md", ("o1",)), admit("j", "N", ("m1", "m2"), "x")], {"rs": F, "j": T},
+     A + [XA, O1, reseat("rs", "m1", "AG", "x", "lm", ("o1",)), admit("j", "N", ("m1", "m2"), "x")], {"rs": F, "j": T},
      {"m1", "m2", "MOD", "N"}, {"x": "open"}),
     ("B: a duty holder removes an agent's key alone: out at once",
      B + [XB], {"x": T}, {"m1", "m2", "m3", "m4"}, {"x": "open"}),
@@ -222,8 +226,30 @@ CASES = [
      C + [remove("x", "m1", "AG", "ag"), O2, reseat("rs", "m2", "AG", "x", "ag", ("o2",))], {"x": T, "rs": F},
      {"m1", "m2", "m3"}, {"x": "open"}),
 ]
+# The review of #54, item 8: in the window a withdrawal that names a scope departs its signer only where it ends the
+# signer's stay as a member (seat.stay_ends), whatever scope it names. World C is in the older presentation, its
+# founding row of scope `duty`: m2 laying down that founding seat (scope `duty`) ends its stay, so its objection after
+# that is late. And a withdrawal naming `member` of an offer that seats no member (m2's `author`, conferred by the
+# holders' count) ends no stay: m2's objection after it is a voice
+WL = ST.withdraw("wl", "m2", "g", ("x",), scope="duty")
+AU = ST.offer("au", "m1", "m2", "author", OBJ, "group", ("ag",), head=("ag",), policy="duty_confer", counted="duty",
+              cosigners=("m3", "m2"))
+WMA = ST.withdraw("wa", "m2", "au", ("x",), scope="member")
+O3 = obj("o3", "m3")
+CASES += [
+    ("C: m2 lays down its founding seat of scope duty after the removal (the older presentation: that seat holds "
+     "member, so its stay ends); its objection after that is late, and one voice of the two does not lift",
+     C + [remove("x", "m1", "AG", "ag"), WL, WN.answer("o2", "m2", "x", "object", ("wl",)), O3], {"x": T, "wl": T},
+     {"m1", "m3"}, {"x": "open"}),
+    ("C: the same two objections with no laying down: lifted", C + [remove("x", "m1", "AG", "ag"), O2, O3], {"x": T},
+     {"m1", "m2", "m3"}, {"x": "lifted"}),
+    ("C: m2 withdraws `member` of its `author` offer (a seat that is no member's): no stay ends, so its objection "
+     "after that is a voice, and the two lift", C + [AU, remove("x", "m1", "AG", "au"), WMA,
+                                                    WN.answer("o2", "m2", "x", "object", ("wa",)), O3],
+     {"x": T, "au": T, "wa": T}, {"m1", "m2", "m3"}, {"x": "lifted"}),
+]
 SEAT_PLANTS = ("agent_unread", "moderator_unread", "author_voice", "agent_voice", "lift_over_all", "restores_unseated", "agent_counted_over",
-               "lift_no_floor")
+               "lift_no_floor", "window_scope_roster_only")
 
 
 def read(S, concl, wins):
@@ -289,11 +315,11 @@ def main():
                 break
     caught = 0
     for plant in SEAT_PLANTS:
-        ST.MUT.add(plant)
+        ST.MUT.add(plant); WN.MUT.add(plant)
         try:
             hit = [name for name, rows, concl, roster, wins in CASES if answers(rows, concl, wins) != (concl, roster, wins)]
         finally:
-            ST.MUT.discard(plant)
+            ST.MUT.discard(plant); WN.MUT.discard(plant)
         caught += bool(hit)
         print("  plant %-18s %s" % (plant, "caught by: %s" % hit[0] if hit else "NOT CAUGHT"))
         if not hit:

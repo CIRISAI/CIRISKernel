@@ -423,6 +423,9 @@ impl Row for TRow {
 
 impl SeatRow for TRow {
     type Word = String;
+    fn word(s: &'static str) -> String {
+        s.into()
+    }
     fn seat_kind(&self) -> SeatKind {
         match self.kind.as_str() {
             "offer" => SeatKind::Offer,

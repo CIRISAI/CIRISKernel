@@ -156,6 +156,28 @@ trusting an adapter.
   `SeatLaw::holds["duty"]` containing `member` that seat is its membership, so its withdrawal ends both.
 - A duty conferred after the founding is a counted row: an Offer, `Conf::Group`, policy `duty_confer`, counted
   `duty`, over the head it extends. Its holder lays it down by withdrawing that offer.
+- **Breaking (0.5.0):** implement `SeatRow::word(s: &'static str) -> Self::Word`, the crate's way to name the one
+  scope it seats itself (`moderate`, for a lone founder). For a `String` word `fn word(s: &'static str) -> String
+  { s.into() }`; for a `&'a str` word `fn word(s: &'static str) -> &'a str { s }`.
+- A founding record one key signs with no `duty_holders` map seats that key in `member`, `moderate`, and each duty
+  its `duties()` declares. Where the record has a map, the map decides. A record's `duties()` never name a roster
+  scope: an entry `member` or `agent` is ignored.
+- A duty is placed by the founding record, by the duty holders' count, or by an election's acceptance
+  (`Policy::Ranked`). The duty holders' count is a counted Offer with `counted()` exactly `duty` (all the duty
+  holders, not one duty's), `policy()` `duty_confer`, and `over()` absent or the room it confers in. Any other
+  counted offer of a duty scope concludes nothing (CIRISConstitution#241): a members' admission count
+  (`community_invite`, `counted()` `member`), a count under another policy, a count over another room. A
+  counted unseat of a duty scope is likewise counted over the room (`over()` absent or the room). Where no
+  holder is left, present the election.
+- Every head a counted row names is of its own object's line: the object's founding row, a row whose `obj()` is
+  the object, or a withdrawal, acceptance or receipt of one. A count naming another room's row as a head
+  concludes nothing.
+- A community, for every rule that asks (the duty gate, the duty room, the one-founder room, a lone removal): an
+  object that names a held offer whose object is itself. A moderator's lone removal of an agent's key is read
+  only over a community; elsewhere present the removal as the room's counted unseat.
+- A single key's own offer of a duty (`Conf::Own`, or `Conf::Seat` under its own seat) concludes only where its
+  signer is then the lone person duty holder over the room (an agent holding a duty is not counted), with the new
+  holder's acceptance, in every community. Where there are two holders or more, present the holders' count.
 - A duty seat is live only on a member, in every room, whatever its founding row seats (a room founded with
   members only included). Present the widening that admits a key before, or with, the conferral
   on it: a conferral on a key that is not yet a member seats nobody, with no error, and is live once the
@@ -199,8 +221,8 @@ trusting an adapter.
   counted over). That rule is fixed: the row's `policy()` and `need()` are not read. Any other room, an older
   head, or a `counted()` scope other than the persons, and it keeps nothing. A duty holder's receipt
   is void where a counted unseat of a seat that holder holds does not have the receipt in its past. An end of
-  the moderator's standing that lifts receipts states `SeatRow::lifts()`: a counted end, or a conferrer's
-  withdrawal of its own offer; then only the count's receipt keeps. The holder's own end never lifts
+  the moderator's standing that lifts receipts states `SeatRow::lifts()`: a counted end (a conferrer's
+  withdrawal of a duty seat ends nothing, so it lifts nothing); then only the count's receipt keeps. The holder's own end never lifts
   (`lifts_on_own_end`): refuse such a row at the door; handed one, the kernel reads no lift.
 - `content::answers` reads no seat row: the caller marks each roster version (`ContentRow::seat`, `SeatAt`)
   for the author. For an agent's rows mark it by its `agent` seat (in `Seats::roster`), as a member's by its

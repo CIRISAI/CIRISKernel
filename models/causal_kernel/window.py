@@ -272,6 +272,15 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
         # the rows that ended a seat over the object, with the keys each ended
         gone = [(frozenset(u["to"]), u) for u in K.sel(S.Cs, kind="unseat") if u["obj"] == p["obj"] and C.counts(u)]
         for w in K.sel(S.Cs, kind="withdraw"):
+            # a withdrawal that names a scope ends the signer's seat on the roster only where it ends its stay as a
+            # member over the object (seat.stay_ends): one naming a duty lays that seat down, and the key's voice
+            # stands; the older presentation's founding seat of scope `duty` holds `member`, so laying it down ends
+            # the stay; one naming `member` of an offer that seats no member ends nothing (MUTATION
+            # window_scope_roster_only: the scope taken at its word, a roster scope departs and any other does not)
+            if w.get("scope") is not None:
+                if "window_scope_roster_only" in MUT:
+                    if w["scope"] not in ST.ROSTER_SEATS: continue
+                elif not any(g == p["obj"] for _, _, g in ST.stay_ends([w], S.by)): continue
             o = S.by.get(w["target"])
             if o is not None and o["kind"] == "offer" and o["obj"] == p["obj"]:
                 gone.append((frozenset({w["signer"]}) if w["signer"] in o["to"] else frozenset(o["to"]), w))
