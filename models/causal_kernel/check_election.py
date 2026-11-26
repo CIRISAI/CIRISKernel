@@ -48,6 +48,8 @@ Planted breaks, each of which must change a case's answer:
     floor_unread              the recall's floor of two voices is not read
     runoff_forward            the runoff order read in the order of elimination, not its reverse (reexpress.py)
     zero_strike_off           options holding no ballot are not struck together (reexpress.py)
+    recall_holder_in_base     the recall counted over the members with the holder it recalls
+    recall_holder_voice       the holder a recall judges is a voice of it
 
     python3 -I check_election.py      exit 1 on any difference
 """
@@ -90,6 +92,7 @@ FH2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B")}, cosigners=("
 
 FH4 = ST.found("g", "A", ("A", "B", "C", "D"), {"moderate": ("A",)}, cosigners=("B", "C", "D"))
 FH1 = ST.found("g", "A", ("A",), {"moderate": ("A",)})
+ROOM = lambda n: ST.found("g", "A", tuple("ABCDEFG"[:n]), {"moderate": ("A",)}, cosigners=tuple("BCDEFG"[:n - 1]))
 FH2M = ST.found("g", "A", ("A", "B"), {"moderate": ("A",)}, cosigners=("B",))
 
 
@@ -347,23 +350,31 @@ CASES = [
     ("a seating that lists its options in an order gets the same answer: nothing",
      DEC5 + [elect("eb", "B", ("ba", "bb", "bc", "da"), ("B", "C", "D", "E", "A"))], NOMOD("A", "B"), "a decline"),
     # ---- a recall --------------------------------------------------------------------------------------------------------
-    ("three members: two cannot recall the third. B and C of three are exactly two thirds, the holder A in the base "
-     "and a voice as on any removal (CC 4.5.13 'more than two thirds of the standing roster'; #241 O5)",
-     [FH, recall("rc", "A", ("B", "C"), ("g",))], MOD("A"), "a recall"),
-    ("more than two thirds recalls: B, C and D of four, and the room has no holder",
-     [FH4, recall("rc", "A", ("B", "C", "D"), ("g",))], NOMOD("A") + [("A", "member", T)], "a recall"),
     ("a recall that leaves no holder: the room elects at a head after it",
      [FH4, recall("rc", "A", ("B", "C", "D"), ("g",)), ballot("bb", "B", "B", ("rc",)), ballot("bc", "C", "B", ("rc",)),
       elect("el", "B", ("bb", "bc"), M4, heads=("rc",))],
      NOMOD("A") + MOD("B"), "a recall"),
-    ("a room of one does not recall its holder by its one voice (CC 4.5.13 'The floor is two voices')",
+    ("a room of one: no recall (no other member, and the floor is two voices)",
      [FH1, recall("rc", "A", ("A",), ("g",))], MOD("A"), "a recall"),
-    ("of two, B alone does not recall A (one voice of two is not more than two thirds)",
-     [FH2M, recall("rc", "A", ("B",), ("g",))], MOD("A"), "a recall"),
-    ("of two, both recall A (the holder recalled is a voice, as on any removal, CC 2.7.5)",
-     [FH2M, recall("rc", "A", ("A", "B"), ("g",))], NOMOD("A"), "a recall"),
-    ("of three, all three recall A, its own voice among them",
-     [FH, recall("rc", "A", ("A", "B", "C"), ("g",))], NOMOD("A"), "a recall"),
+    ("two members: no recall possible: the one other is below the floor of two (#241 C1: the recall is counted over "
+     "the roster less the holder it recalls, who is no voice of it)",
+     [ROOM(2), recall("rc", "A", ("B",), ("g",))], MOD("A"), "a recall"),
+    ("two members: the holder's own voice is none, so A and B together do not recall A either",
+     [ROOM(2), recall("rc", "A", ("A", "B"), ("g",))], MOD("A"), "a recall"),
+    ("three members: both others recall (2 of 2)", [ROOM(3), recall("rc", "A", ("B", "C"), ("g",))], NOMOD("A"), "a recall"),
+    ("three members: one other does not", [ROOM(3), recall("rc", "A", ("B",), ("g",))], MOD("A"), "a recall"),
+    ("four members: all three others recall", [ROOM(4), recall("rc", "A", ("B", "C", "D"), ("g",))], NOMOD("A"), "a recall"),
+    ("four members: two of the three others do not (2 of 3 is not strictly more than two thirds), the holder's own "
+     "voice beside them none", [ROOM(4), recall("rc", "A", ("A", "B", "C"), ("g",))], MOD("A"), "a recall"),
+    ("five members: three of the four others recall", [ROOM(5), recall("rc", "A", ("B", "C", "D"), ("g",))], NOMOD("A"),
+     "a recall"),
+    ("five members: two of four do not", [ROOM(5), recall("rc", "A", ("B", "C"), ("g",))], MOD("A"), "a recall"),
+    ("six members: four of the five others recall", [ROOM(6), recall("rc", "A", ("B", "C", "D", "E"), ("g",))], NOMOD("A"),
+     "a recall"),
+    ("six members: three of five do not", [ROOM(6), recall("rc", "A", ("B", "C", "D"), ("g",))], MOD("A"), "a recall"),
+    ("seven members: five of the six others recall", [ROOM(7), recall("rc", "A", ("B", "C", "D", "E", "F"), ("g",))],
+     NOMOD("A"), "a recall"),
+    ("seven members: four of six do not", [ROOM(7), recall("rc", "A", ("B", "C", "D", "E"), ("g",))], MOD("A"), "a recall"),
     # ---- the seat ----------------------------------------------------------------------------------------------------
     ("a seating signed by another key seats the winner only with the winner's acceptance: none here",
      [G3, LM, ballot("ba", "A", "B"), ballot("bb", "B", "B"), elect("el", "B", ("ba", "bb"), M3, signer="A")],
@@ -405,7 +416,8 @@ PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_
           "ballot_nonmember_ranked", "election_beside_holder", "election_agent_holder",
           "candidates_roster", "ballot_ranks_unbounded", "recall_at_least",
           "decline_unread", "larger_set_unread", "election_id_unread",
-          "candidates_options", "floor_unread", "runoff_forward", "zero_strike_off")
+          "candidates_options", "floor_unread", "runoff_forward", "zero_strike_off",
+          "recall_holder_in_base", "recall_holder_voice")
 RX_PLANTS = ("runoff_forward", "zero_strike_off")        # planted in reexpress.py, the ranked count's reference
 
 

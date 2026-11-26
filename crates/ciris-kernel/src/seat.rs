@@ -2153,7 +2153,8 @@ pub struct GroupCount<'a, K> {
     pub offer: bool,
     /// The keys the row seats or removes (`SeatRow::to`).
     /// A key the row seats is no voice of its count; a key it removes is a voice like any other, except
-    /// under `unanimous`, `open:self_admit` and the duty withdrawal, whose text excludes it.
+    /// under `unanimous`, `open:self_admit`, the duty withdrawal and the recall (`Policy::StrictFloor`), whose
+    /// text excludes it.
     pub to: &'a [K],
     /// The members at the head, less those whose own leaving is in the row's past.
     pub members: &'a BTreeSet<K>,
@@ -2207,10 +2208,19 @@ fn count_of<K: Ord>(
         let yes = v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).count();
         return is_offer && 2 * yes > mem.len() && yes >= 2;
     }
+    // the recall judges one holder: it is counted over the members less the holder it recalls, and that holder
+    // is no voice of it, as the lift is counted over the room less the one it judges (CIRISConstitution#241 C1). A
+    // row is a recall when it is a removal under `Policy::StrictFloor`, the count the table's `moderator_recall`
+    // row names; no other policy is that count
+    if !is_offer && matches!(pol, Some(Policy::StrictFloor(..))) {
+        let base = mem.iter().filter(|k| !to.contains(k)).count();
+        let yes = v.intersection(mem).filter(|k| !to.contains(k)).count();
+        return met(pol, yes, base, need);
+    }
     // no key admits itself (CC 2.7.5): a key the row seats is no voice of its count. On a removal the member
     // removed is a voice like any other unless the policy's own text excludes it: `unanimous` (below),
-    // `open:self_admit` and the duty withdrawal (above) do. The voices that are members, ascending and each
-    // once, read off the two sorted sets with no set built.
+    // `open:self_admit`, the duty withdrawal and the recall (above) do. The voices that are members, ascending
+    // and each once, read off the two sorted sets with no set built.
     let unanimous = pol == Some(Policy::Unanimous);
     let yes = || v.intersection(mem).filter(move |k| !(is_offer || unanimous) || !to.contains(k));
     if pol == Some(Policy::Weighted) {

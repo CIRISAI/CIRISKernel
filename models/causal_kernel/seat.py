@@ -1029,6 +1029,14 @@ def count_met(r, P, past, table=None):
         if "election_any_winner" in MUT: return k == "offer" and bool(ballots) and won is not None
         return k == "offer" and bool(ballots) and won == r["to"][0]
     if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
+    if k == "unseat" and K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "strictfloor":
+        # the recall judges one holder: counted over the members less the holder it recalls, and that holder no voice
+        # of it, as the lift is counted over the room less the one it judges (CIRISConstitution#241 C1). A row is a
+        # recall when it is a removal under the `strictfloor` count, which the table's `moderator_recall` alone names
+        judged = frozenset(r["to"])
+        base = mem if "recall_holder_in_base" in MUT else mem - judged
+        yes = (voices(r, P) & vot) - (frozenset() if "recall_holder_voice" in MUT else judged)
+        return met(r.get("policy"), len(yes), len(base), r.get("need"), table)
     return met(r.get("policy"), len(voices(r, P) & vot), len(mem), r.get("need"), table)
 
 

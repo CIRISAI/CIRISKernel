@@ -35,10 +35,18 @@ beyond the ballot count").
   least)`, meaning strictly more than `num / den` of the base and never fewer than `least` voices. `seat::met`
   reads it with the comparison `Policy::Strict` reads. The reference's table reads `moderator_recall` as
   `StrictFloor(2, 3, 2)` (the data's cell is `2/3`, read before as at least), and the fixture's law carries it.
-  The recall's base, as built, is the members at the head the row names, the holder recalled among them, and the
-  holder is a voice as on any removal (CC 2.7.5). **Answers change**: of three, two recall nobody and all three
-  recall; of two, one does not and both do; a room of one does not recall by its one voice. An adopter's table must
-  give `moderator_recall` as `Policy::StrictFloor(2, 3, 2)`. Seven cases; two plants in each language.
+  **The recall judges one holder** (CIRISConstitution#241 C1, derived from the lift's ruling). It is counted over
+  the members at the head the row names, less the holder it recalls, and that holder is no voice of it. This is
+  the rule the lift reads: the room less the one it judges. `count_of` knows a row is a recall when it is a
+  removal (an Unseat) under `Policy::StrictFloor`, the count only the table's `moderator_recall` row names. Every
+  other removal still counts the member removed as a voice (CC 2.7.5). **Answers change** (holder A):
+  - one or two members: no recall is possible;
+  - three: both others recall;
+  - four: all three others recall, and two of three do not;
+  - five: three of four;
+  - six: four of five;
+  - seven: five of six. An adopter's table must
+  give `moderator_recall` as `Policy::StrictFloor(2, 3, 2)`. Fourteen cases; four plants in each language.
 - **The room elects only where no duty holder is left** (CC 4.5.4 (v): "With no duty holder left the room locks, and
   the members' count seats one"; rule 2: "While another duty holder remains, a vacant seat is conferred under line
   (iv), and the community does not lock"). A ranked row concludes nothing where a key holds a duty seat at the heads

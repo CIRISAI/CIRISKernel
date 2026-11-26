@@ -181,6 +181,8 @@ plant 'options holding no ballot eliminated one by one'  src/ranked.rs 'if !none
 plant 'an election counts a ballot its signer withdrew'  src/seat.rs '.filter(|b| !gone(b))' '.filter(|_| true)'
 plant 'an election counts a ballot ranking a non-member' src/seat.rs '.filter(|b| b.ranking().iter().all(|k| mem.contains(k)))' '.filter(|_| true)'
 plant 'a strict fraction read as at least'              src/seat.rs 'let strict = |num: u64, den: u64| y * den as u128 > num as u128 * n;' 'let strict = |num: u64, den: u64| y * den as u128 >= num as u128 * n;'
+plant 'a recall counted over its holder'                src/seat.rs 'let base = mem.iter().filter(|k| !to.contains(k)).count();' 'let base = mem.len();'
+plant "a recall's holder a voice of it"                  src/seat.rs 'let yes = v.intersection(mem).filter(|k| !to.contains(k)).count();' 'let yes = v.intersection(mem).count();'
 plant "a recall's floor unread"                          src/seat.rs '=> strict(num, den) && y >= least as u128,' '=> strict(num, den),'
 plant 'an election counts a ballot ranking four'        src/seat.rs '.filter(|b| b.ranking().len() <= ELECTION_RANKS)' '.filter(|_| true)'
 plant 'an election seats beside a live duty holder'     src/seat.rs 'if !holders.is_empty() {' 'if false {'
