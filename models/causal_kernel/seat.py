@@ -859,8 +859,10 @@ def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
     lone_ids = frozenset(x["id"] for x in acts)
     # No cascade (CIRISConstitution#218, pin list: no cascade): a lone removal out of force ends no standing. So an
     # act is decided after the lone removals that could end its remover's standing (those of its signer's key), in
-    # that order. Where those form a cycle (two agent moderators remove each other) the rest is decided at once, a
-    # removal of the cycle read as an end: that reading is open (the Constitution is asked), and the case says so.
+    # that order. Where those form a cycle (two agent moderators remove each other at one head) the rest is decided
+    # at once, a removal of the cycle read as an end of the other's standing: CC 2.7.7 rule 5, "Two cuts by keys of
+    # equal standing that undo each other stay contested. A voice that the other cannot remove settles them": each
+    # counts at its own head and neither is in force, until a person's receipt of one, or the count, settles it.
     deps = {x["id"]: [y["id"] for y in acts if y is not x and y["to"][0] == x["signer"] and y["obj"] == x["obj"]] for x in acts}
     decided, pending = {}, list(acts)
     while pending:

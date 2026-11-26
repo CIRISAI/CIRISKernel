@@ -6,8 +6,11 @@
 `SeatRow::lifts` (default `false`), additive. Answers change only for rows no case had before:
 - No cascade: a lone removal that is out of force ends no standing. A moderator's lone removal whose signer is an
   agent removed in turn by a lone removal out of force stays in force. The acts are decided after the lone
-  removals of their signers' keys; where two agent moderators remove each other the two are decided together,
-  each read as an end of the other's standing (both out of force). That reading is open.
+  removals of their signers' keys. Where two agent moderators remove each other at one head the two are decided
+  together, each an end of the other's standing (CC 2.7.7 rule 5: "Two cuts by keys of equal standing that undo
+  each other stay contested. A voice that the other cannot remove settles them"): each counts at its own head,
+  neither is in force, and both agents stay seated and keep their duty, until a person holding the duty
+  receipts one of them (or removes one), or the members' count does.
 - A count's own receipt: a `SeatKind::Ack` naming the removal with `Conf::Group`, counted over the persons at its
   heads, keeps it in force where its count is met, beside a duty holder's receipt.
 - A receipt by a key removed at the same time is void: a duty holder's receipt keeps nothing where a counted
@@ -16,7 +19,7 @@
   every receipt but the count's own. A self end and a lone removal cannot lift (conferral's `lifts`).
 - Not built: the owner's statement on an agent's duty seat (CC 4.5.4).
 
-The reference: `seat.receipts_of`, `lifts_receipts` and the ordering in `out_of_force`; ten cases and four
+The reference: `seat.receipts_of`, `lifts_receipts` and the ordering in `out_of_force`; eleven cases and four
 planted breaks in `check_removal_in_force.py`, each named for its row of the pin list. Four crate plants.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).

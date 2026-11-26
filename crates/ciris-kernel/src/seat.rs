@@ -1276,8 +1276,9 @@ fn out_of_force<R: SeatRow, S: CutSpec<R>>(
     let lone: BTreeSet<usize> = acts.iter().copied().collect();
     // No cascade (CIRISConstitution#218): a lone removal out of force ends no standing. So an act is decided after
     // the lone removals of its signer's key, which could end its standing. Where those form a cycle (two agent
-    // moderators remove each other) the rest is decided at once, a removal of the cycle read as an end: that
-    // reading is open.
+    // moderators remove each other at one head) the rest is decided at once, each read as an end of the other's
+    // standing: CC 2.7.7 rule 5, two cuts by keys of equal standing that undo each other stay contested, and
+    // neither is in force until a voice neither can remove (a person's receipt, the count) settles them.
     let deps: Vec<Vec<usize>> = acts
         .iter()
         .map(|&x| {

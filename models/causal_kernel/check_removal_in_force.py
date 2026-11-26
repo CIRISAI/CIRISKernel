@@ -135,10 +135,15 @@ CASES = [
      WA + [XA, YA, LAYY], {"x": T, "y": T}, P3 | {"A1"}, [("A1", "moderate", T), ("A2", "agent", F)]),
     (PIN + "no cascade: the same with p1's removal of A1 in force: A1's standing ended at it, and A1's removal of A2 is "
      "out of force", WA + [XA, YA], {"x": T, "y": T}, P3 | {"A2"}, [("A1", "agent", F), ("A2", "agent", T)]),
-    (PIN + "no cascade, OPEN: two agent moderators remove each other concurrently. Read as built: each removal is an "
-     "end of the other's standing, so both are out of force and both keys stay. The Constitution is asked",
+    (PIN + "no cascade, a mutual pair (CC 2.7.7 rule 5: two cuts by keys of equal standing that undo each other stay "
+     "contested): two agent moderators remove each other concurrently, unreceipted. Each counts at its own head, "
+     "neither is in force: both agents stay seated and keep moderate",
      [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",))], {"x1": T, "x2": T},
-     P3 | {"A1", "A2"}, []),
+     P3 | {"A1", "A2"}, [("A1", "moderate", T), ("A2", "moderate", T)]),
+    (PIN + "no cascade, a mutual pair settled by a voice neither can remove: a person moderator receipts x1 only. x1 is in "
+     "force, A2's agent seat and its duty end, and x2 is out of force",
+     [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("q1", "p2", "x1")],
+     {"x1": T, "x2": T}, P3 | {"A1"}, [("A1", "moderate", T), ("A2", "moderate", F), ("A2", "agent", F)]),
     (PIN + "a count's own receipt: the room's count (p2 and p3 of three) receipts the removal; it stays in force after "
      "p1 lays down moderate", W + [X, counted_receipt("qc", ("p2", "p3"), "x", ("x",)), LAY], {"x": T}, P3, []),
     (PIN + "a count's own receipt: one person's counted receipt is no count (one of three), and keeps nothing",
