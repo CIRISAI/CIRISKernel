@@ -827,13 +827,15 @@ def superseded(E, r, P, past, by):
     return any(vacancy(x, P, past) is not None for x in here if x["id"] in st)
 
 
-def election_beaten(rows, past):
+def election_beaten(rows, past, void=frozenset()):
     """The seatings among rows (a causally closed set) that do not stand: per election, every one but the closed set's
-    where it closed (C5), else every one but those C4 stands."""
-    out = set()
+    where it closed (C5), else every one but those C4 stands. `void`: the counted acts behind the reader's line; a
+    seating among them does not stand for that reader and takes no part in C4 (MUTATION void_seating_read)."""
+    if "void_seating_read" in MUT: void = frozenset()
+    out = {q["id"] for q in rows if is_election(q) and q["id"] in void}
     groups = {}
     for q in rows:
-        if is_election(q): groups.setdefault((q.get("obj"), _view(rows, past, q)[0]), []).append(q)
+        if is_election(q) and q["id"] not in void: groups.setdefault((q.get("obj"), _view(rows, past, q)[0]), []).append(q)
     for (obj, Ek), el in groups.items():
         sets = {x["id"]: _view(rows, past, x)[2] for x in el}
         grp = closure(Ek, rows, past, obj)
@@ -844,8 +846,9 @@ def election_beaten(rows, past):
             out |= {x["id"] for x in el if x["id"] not in st}
     # F3: a next election stands only while its id row stands, for the rows held (MUTATION id_cascade_unread)
     more = "id_cascade_unread" not in MUT
+    every = [q for q in rows if is_election(q)]
     while more:
-        add = {q["id"] for el in groups.values() for q in el if q["id"] not in out and q.get("of") in out}
+        add = {q["id"] for q in every if q["id"] not in out and q.get("of") in out}
         more = bool(add); out |= add
     return frozenset(out)
 
@@ -915,7 +918,7 @@ class Seats:
                                          and (w.get("scope") in (None, sc) or "scope_unread" in MUT) and not late(w, o) for w in wd)
         self.stale = V = CP.void(S, C, own, checkpoint)         # counted acts built on one that does not count, or behind the reader's line
         # the election's seatings that do not stand (C4, C5): read over the concluded rows, as the fold at tips is
-        self.beaten = beaten = election_beaten(Cs, past_) if any(is_election(o) for o in Cs) else frozenset()
+        self.beaten = beaten = election_beaten(Cs, past_, V) if any(is_election(o) for o in Cs) else frozenset()
         unseats = [u for u in K.sel(Cs, kind="unseat") if C.counts(u) and u["id"] not in V]
         # a moderator's lone removal is an act under its `moderate` standing, in force only while the end rule says so
         # (out_of_force). `drop`: the lone removals already judged out of force over the whole set, for a reading of

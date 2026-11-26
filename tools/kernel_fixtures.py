@@ -368,6 +368,8 @@ def seat_cases():
         record(rows, A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks])
     for _name, rows, seating, _want in EL.CLOSE_CASES:
         record(rows, A.SEAT, closed=seating)
+    for _name, rows, _own, _asks in EL.LINE_CASES:
+        record(rows, A.SEAT)
     # a moderator's lone removal of an agent's key and the members' lift (CC 4.5.13): check_agent_removal.py's cases,
     # under the window rule (the removal is the opener of its own window; every other row goes to the seat rule)
     import check_agent_removal as AR

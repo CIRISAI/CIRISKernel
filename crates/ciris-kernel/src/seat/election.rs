@@ -421,18 +421,22 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
 
     /// The seatings among the concluded rows that do not stand: per election, every one but the closed set's where
     /// it closed (C5), else every one but those C4 stands.
-    pub(super) fn beaten(&self) -> BTreeSet<usize> {
+    pub(super) fn beaten(&self, void: &BTreeSet<usize>) -> BTreeSet<usize> {
         let rows: Vec<usize> = self.c.cs().to_vec();
         let mut groups: Groups<R> = BTreeMap::new();
+        let mut out: BTreeSet<usize> =
+            rows.iter().copied().filter(|&q| void.contains(&q) && is_election(self.law, self.row(q))).collect();
         for &q in &rows {
             let r = self.row(q);
+            if void.contains(&q) {
+                continue;
+            }
             if let (true, Some(obj)) = (is_election(self.law, r), r.obj()) {
                 if let Some(ek) = self.view(q).0 {
                     groups.entry((obj, ek)).or_default().push(q);
                 }
             }
         }
-        let mut out = BTreeSet::new();
         for ((obj, ek), el) in &groups {
             let keep = match self.closure(ek, &rows, obj) {
                 Some(grp) => el.iter().copied().filter(|&q| self.view(q).2 == grp).collect(),
@@ -442,10 +446,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         }
         // F3: a next election stands only while its id row stands, for the rows held
         loop {
-            let add: Vec<usize> = groups
-                .values()
-                .flatten()
+            let add: Vec<usize> = rows
+                .iter()
                 .copied()
+                .filter(|&q| is_election(self.law, self.row(q)))
                 .filter(|q| {
                     !out.contains(q) && self.row(*q).of().and_then(|e| self.idx(e)).is_some_and(|e| out.contains(&e))
                 })

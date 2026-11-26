@@ -1025,12 +1025,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         // the election (C4, C5): the seatings that do not stand, and per seating its twins (the seatings over its
         // set of its election: one seat, so its holder's withdrawal of any of them ends it)
         let local_e = MembersAt::<R>::default();
-        let (beaten, twins) = if cs.iter().any(|&i| election::is_election(law, g.row(i))) {
-            let cx = election::Ctx { c, law, spec, memo: cache.unwrap_or(&local_e) };
-            (cx.beaten(), cx.twins())
-        } else {
-            (BTreeSet::new(), BTreeMap::new())
-        };
+        let elections = cs.iter().any(|&i| election::is_election(law, g.row(i)));
+        let ecx = election::Ctx { c, law, spec, memo: cache.unwrap_or(&local_e) };
+        let twins = if elections { ecx.twins() } else { BTreeMap::new() };
         let twin_ids: BTreeMap<&R::Id, Vec<&R::Id>> = twins
             .iter()
             .map(|(&q, ts)| (g.row(q).id(), ts.iter().filter(|&&t| t != q).map(|&t| g.row(t).id()).collect()))
@@ -1048,6 +1045,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             wd_of(o.id()).iter().any(own) || twin_ids.get(o.id()).unwrap_or(&none_ids).iter().any(twin)
         };
         let stale = line::void(c, &SeatLine, own, |i| cut.counts(i));
+        // a seating behind the reader's line does not stand for it and takes no part in C4
+        let beaten = if elections { ecx.beaten(&stale) } else { BTreeSet::new() };
         // each unseat that counts, with its object read once
         let unseats: Vec<(usize, Option<ObjOf<R>>)> = cs
             .iter()

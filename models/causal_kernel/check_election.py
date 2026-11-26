@@ -96,13 +96,14 @@ def decline(i, k, names=("lm",), of="g"):
     return R(i, "decline", k, tuple(names), of=of)
 
 
-def elect(i, k, rows, of="g", cites=(), signer=None, vac=None):
+def elect(i, k, rows, of="g", cites=(), signer=None, vac=None, head=()):
     """The seating of k (its acceptance, signed by k) over the rows named, of election `of`, naming the end or ends of
     the seat it reads the electorate at (`vac`, F2: `lm` for the founding election of these rooms); `cites` rows it
     names beside its set."""
     vac = ("lm",) if vac is None and of == "g" else tuple(vac or ())
-    return ST.offer(i, signer or k, k, "moderate", OBJ, "group", tuple(rows) + vac + tuple(cites),
-                    policy="moderator_election", of=of)
+    kw = {"head": tuple(head)} if head else {}
+    return ST.offer(i, signer or k, k, "moderate", OBJ, "group", tuple(rows) + vac + tuple(cites) + tuple(head),
+                    policy="moderator_election", of=of, **kw)
 
 
 def ack(i, k, seating, names=()):
@@ -454,6 +455,24 @@ CASES += [
                       ST.withdraw("wc", "C", "ec", ("ec",)), ballot("na", "A", "A", ("wc",), of="ec"),
                       elect("er", "B", IDS5 + ("wd", "bd2"), cites=("na", "wb3"))], NOMOD("B", "C"), "C2"),
 ]
+# F3: two concurrent seatings of election 1 over sets not nested, each laid down on its own line, each line opening
+# a next election: neither stands where both are held, so both next elections fall: nobody until a seating over the
+# union. (Under the candidate rule E3 replaced, no next election opened on an unclosed seating at all, and a room
+# whose first electorate had all left was locked; that rule is gone, kept only as the planted break `wait_close`.)
+S2N = elect("eb", "B", ("ba", "bb"))
+SCN = elect("ec", "C", ("bc", "bd", "be"))
+COSTN = [G5, LM] + H5 + [SCN, S2N, ST.withdraw("wc", "C", "ec", ("ec",)), ST.withdraw("wb", "B", "eb", ("eb",)),
+                         ballot("pa", "A", "D", ("wc",), of="ec"), ballot("pd", "D", "D", ("wc",), of="ec"),
+                         elect("n1", "D", ("pa", "pd"), of="ec", vac=("wc",)),
+                         ballot("qb", "B", "E", ("wb",), of="eb"), ballot("qe", "E", "E", ("wb",), of="eb"),
+                         elect("n2", "E", ("qb", "qe"), of="eb", vac=("wb",))]
+CASES += [
+    ("F3: two concurrent seatings of election 1 not nested, each line opening a next election: where both are held "
+     "neither id stands, and both next elections fall: nobody", COSTN, NOMOD("B", "C", "D", "E"), "F3, the cost"),
+    ("F3: either line alone seats its next election's winner", [G5, LM] + H5 + [SCN, ST.withdraw("wc", "C", "ec", ("ec",)),
+     ballot("pa", "A", "D", ("wc",), of="ec"), ballot("pd", "D", "D", ("wc",), of="ec"),
+     elect("n1", "D", ("pa", "pd"), of="ec", vac=("wc",))], MOD("D"), "F3, the cost"),
+]
 # b6: twins over equal sets count alike under F1, so the close's base is read the same from either: (regression)
 B6 = [G5, LM1, AF, LM2] + HB2 + [elect("ef", "F", IDB2, vac=("lm2",)), elect("ef2", "F", IDB2, vac=("lm2",)),
                                  ack("ka", "A", "ef"), ack("kb", "B", "ef"), ack("kc", "C", "ef2"), ack("kd", "D", "ef2")]
@@ -469,6 +488,24 @@ _prev, _mem = "g", ["A", "B", "C"]
 for _k in "DEFG":
     B5.append(admit("a" + _k, _k, tuple(_mem), (_prev,))); _mem.append(_k); _prev = "a" + _k
 XC5 = ST.unseat("xc", "A", "C", "member", OBJ, "group", ("g", "aG"), head=("g",), policy="community_remove", cosigners=("B",))
+# A seating names the newest counted changes over the room as its heads, for its place on a reader's line only (H4,
+# the correction to F4): (name, rows, reader, [(key, scope, stands)])
+AFX = admit("aF", "F", tuple("ABCDE"), ("lm",))
+FORK = [ST.withdraw("wa", "A", "ba", ("ba",)), ballot("ba2", "A", "D", ("wa",)), ST.withdraw("wb", "B", "bb", ("bb",)),
+        ballot("bb2", "B", "D", ("wb",)), ST.withdraw("wd", "D", "bd", ("bd",)), ballot("bd2", "D", "D", ("wd",))]
+LINE_CASES = [
+    ("the line: the room admits F by count while the election is open, a reader acknowledges that admission, and "
+     "C's seating written after it (its heads the admission) concludes and is not behind: C",
+     [G5, LM, AFX] + H5 + [R("ak", "ack", "R", ("aF",), room=OBJ, head=("aF",)), elect("ec", "C", IDS5, head=("aF",))],
+     "R", MOD("C")),
+    ("the line: D's late seating forked from the old head (a set containing C's) is behind a reader that acknowledged "
+     "C's seating: void for it, and C stands for it",
+     [G5, LM] + H5 + [elect("ec", "C", IDS5, head=("g",)), R("ak", "ack", "R", ("ec",), room=OBJ, head=("ec",))] + FORK
+     + [elect("ed", "D", IDS5 + ("wa", "ba2", "wb", "bb2", "wd", "bd2"), head=("g",))], "R", MOD("C") + NOMOD("D")),
+    ("the line: the same set of rows for a reader with no acknowledgement: D's seating contains C's, D",
+     [G5, LM] + H5 + [elect("ec", "C", IDS5, head=("g",)), R("ak", "ack", "R", ("ec",), room=OBJ, head=("ec",))] + FORK
+     + [elect("ed", "D", IDS5 + ("wa", "ba2", "wb", "bb2", "wd", "bd2"), head=("g",))], None, MOD("D") + NOMOD("C")),
+]
 PENDING = [
     ("b5, PENDING the head rules: A and B remove C at the founding head (two of three there) and elect A: the removal "
      "names an old head, so it concludes nothing and C keeps the seat",
@@ -493,13 +530,13 @@ PLANTS = ("vacancy_founding", "vacancy_first_end", "electorate_at_seating", "lea
           "say_any_receipt", "close_leavers_kept", "closed_rivals_count", "election_id_any", "set_any_signer",
           "ballot_nonmember_ranked", "ballot_ranks_unbounded", "seating_any_signer", "twin_ids_apart",
           "fold_ranked_counted", "equivocator_out", "superseded_unread", "wait_close", "id_cascade_unread",
-          "vacancy_unnamed", "set_inputs_unread")
+          "vacancy_unnamed", "set_inputs_unread", "void_seating_read")
 
 
-def answers(rows, asks, plant=None, arrive=False):
+def answers(rows, asks, plant=None, arrive=False, own=None):
     with planted(plant):
         S = CK.arrive(list(rows), RULE) if arrive else CK.concluded(CK.kept(list(rows)), RULE)
-        Q = ST.Seats(S)
+        Q = ST.Seats(S, own=own)
         return [Q.stands(k, s, OBJ) for k, s, _ in asks]
 
 
@@ -537,6 +574,16 @@ def main():
             if answers([rows[0]] + list(p), asks, arrive=True) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in p]))
                 break
+    for name, rows, own, asks in LINE_CASES:
+        want = [w for _, _, w in asks]
+        got = answers(rows, asks, own=own)
+        if got != want:
+            problems.append("%s: got %s, expected %s" % (name, got, want))
+        for p in orders(rows, 40):
+            n_orders += 1
+            if answers([rows[0]] + list(p), asks, arrive=True, own=own) != got:
+                problems.append("%s: order %s differs" % (name, [r["id"] for r in p]))
+                break
     for name, rows, seating, want in CLOSE_CASES:
         got = closed(rows, seating)
         if got != want:
@@ -553,14 +600,16 @@ def main():
     for plant in PLANTS:
         hit = [name for name, rows, asks, _ in CASES if answers(rows, asks, plant) != [w for _, _, w in asks]]
         hit += [name for name, rows, sq, want in CLOSE_CASES if closed(rows, sq, plant) != want]
+        hit += [name for name, rows, own, asks in LINE_CASES if answers(rows, asks, plant, own=own) != [w for _, _, w in asks]]
         caught += bool(hit)
         print("  plant %-24s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0][:90]) if hit else "NOT CAUGHT"))
         if not hit:
             problems.append("plant %s not caught" % plant)
     for p in problems:
         print(p)
-    print("RESULT: %s: %d cases, %d of the close, %d pending the head rules, %d orders, %d of %d planted breaks caught (%.0fs)"
-          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), len(CLOSE_CASES), len(PENDING),
+    print("RESULT: %s: %d cases, %d of the close, %d of the line, %d pending the head rules, %d orders, %d of %d planted "
+          "breaks caught (%.0fs)"
+          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), len(CLOSE_CASES), len(LINE_CASES), len(PENDING),
              n_orders, caught, len(PLANTS), time.time() - t0))
     return 1 if problems else 0
 

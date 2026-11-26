@@ -38,11 +38,15 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   void, the whole ballot; a decline strikes its signer; the floor of two ballots; a tie for weakest seats nobody.
 - Removed: the LARGER reading (sizes by persons and rows), the seating's options, and the test that no holder
   outside the election's seatings is live (C2 replaces it).
-- Pending the head rules (`heads`): a seating names the newest counted changes over the room as its heads (H4) and
-  sits on a reader's line by them; the old-head removal reaching an election (the third read's b5) is theirs.
-- The reference: `models/causal_kernel/check_election.py`, 67 cases, 17 of the close read directly
-  (`seat::election_closed`), 1 pending the head rules, every one in arrival orders and in the `seat` fixture; 26
-  planted breaks, each with a crate plant. The rule is `seat/election.rs`.
+- A seating names the newest counted changes over the room as its heads, for its place on a reader's line only:
+  a seating behind the reader's line does not stand for that reader and takes no part in C4 there (and an election
+  named on it falls with it, F3). The head rules (`heads`) will hold a seating to H4; the old-head removal reaching
+  an election (the third read's b5) is theirs, a case pending them.
+- Two concurrent seatings of election 1 not nested, each line opening a next election: where both are held neither
+  stands and both next elections fall (F3): nobody until a seating over the union.
+- The reference: `models/causal_kernel/check_election.py`, 69 cases, 17 of the close read directly
+  (`seat::election_closed`), 3 of the line, 1 pending the head rules, every one in arrival orders and in the `seat`
+  fixture; 27 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
 
 **A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
 
