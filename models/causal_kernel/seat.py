@@ -1275,7 +1275,26 @@ def stands(S, root, k, s, o, **kw):
 #     counted change built on a void one; a void change is no head and adds nothing to the row's members;
 # (2) the remaining tips are folded (Seats.tips_fold over the union of the heads' pasts), not intersected.
 PROTO = set(w for w in __import__("os").environ.get("CK_PROTO", "").split(",") if w)
+if "plain" in PROTO: MUT.add("plain_fold")         # F1: the plain fold (every surviving change applied, no count re-read)
 _VOID = [frozenset()]
+_DROPV = [(None, frozenset())]        # (row, voices that do not count for it): V2
+
+
+def _v3_conflicts(S, acts):
+    """V3's stale pairs among a row's past: (q, p) with q concurrent with p and every head q names strictly in p's past."""
+    return [(q["id"], p["id"]) for q in acts for p in acts
+            if q["id"] != p["id"] and S.concurrent(q["id"], p["id"]) and CP.older(S, q["head"], [p["id"]])]
+
+
+def _built_closure(acts, void):
+    out = set(void)
+    changed = True
+    while changed:
+        changed = False
+        for q in acts:
+            if q["id"] not in out and any(h in out for h in q["head"]):
+                out.add(q["id"]); changed = True
+    return out
 
 
 def signers_void(r, P):
@@ -1283,6 +1302,35 @@ def signers_void(r, P):
     its acknowledgements, H6), or built on such a change (checkpoint.void, every row taken as counting)."""
     if not P or "novoid" in PROTO: return frozenset()
     S = CK.State(list(P), {q["id"]: True for q in P})
+    if "v3" in PROTO:
+        # V3: r's own past is its acknowledgement: q is void where it is stale against a counted change p of r's past
+        # (concurrent with p, every head it names strictly in p's past), and every change built on a void one. "v3":
+        # every stale pair voids (p's own standing unread); "v3fix": the least fixed point read from the oldest rows
+        # (a void row voids nothing), see the harness for its uniqueness
+        obj = r["obj"]
+        acts = CP.counted_acts(S, obj)
+        pairs = _v3_conflicts(S, acts)
+        if "v3fix" not in PROTO:
+            return frozenset(_built_closure(acts, {q for q, _ in pairs}))
+        order = sorted(acts, key=lambda a: len(S.anc[a["id"]]))
+        void = set()
+        for q in order:
+            if q["id"] in void: continue
+            if any(h in void for h in q["head"]) or any(qq == q["id"] and pp not in void for qq, pp in pairs):
+                void.add(q["id"])
+        return frozenset(void)
+    if "v2" in PROTO:
+        # V2: a voice of r counts only where r's heads are not behind that voice's own line; the changes void for the
+        # voices that count are void for r (their union). The voices that do not count are dropped from r's count
+        obj = r["obj"]
+        counting, out = set(), set()
+        for k in signers(r):
+            line = CP.own_line(S, k, obj)
+            behind = any(CP.older(S, r.get("head", ()), [c["id"]]) for c in line)
+            if not behind:
+                counting.add(k); out |= CP.void(S, CP.EVERY, k)
+        _DROPV.append((r["id"], frozenset(signers(r)) - counting))
+        return frozenset(out)
     if "self" in PROTO:
         # variant "self" (review-58b's): a counted change in r's past whose counted voices (its signers who are
         # members at its heads) have each, in r's past, acknowledged a counted change it is behind (every head it names
@@ -1504,8 +1552,10 @@ def voices(r, P, past=None):
     a cosign whose past holds a newer counted head than r names leaves r itself with that head in its past, and r then
     concludes nothing by newer_head_in_past. No separate reading of the cosign's past is needed.)"""
     heads = set(r.get("head", ()))
-    return signers(r) | frozenset(c["signer"] for c in K.sel(P, kind="cosign", of=r.get("content", r["id"]))
-                                  if c["id"] in r["names"] and heads <= set(c["names"]))
+    v = signers(r) | frozenset(c["signer"] for c in K.sel(P, kind="cosign", of=r.get("content", r["id"]))
+                               if c["id"] in r["names"] and heads <= set(c["names"]))
+    rid, drop = _DROPV[-1]
+    return v - drop if rid == r["id"] else v
 
 
 def newest(heads, past):
@@ -1798,6 +1848,7 @@ def seat_rule(r, P, past, table=None, other=None):
             # its heads: its heads place it; MUTATION election_exempt: a seating names no head)
             # (MUTATION lone_exempt: a lone removal read before the rule, as before 0.5.0)
             # (the prototype: the row's signers' lines void, for it, the changes behind them)
+            nd = len(_DROPV)
             _VOID.append(signers_void(r, P) if "fold" in PROTO else frozenset())
             try:
                 if not ("election_exempt" in MUT and is_election(r)) \
@@ -1807,6 +1858,7 @@ def seat_rule(r, P, past, table=None, other=None):
                 return count_met(r, P, past, table)
             finally:
                 _VOID.pop()
+                del _DROPV[nd:]
         return False
     if k == "accept":
         if _revoked_before(r, P, past): return False           # a room key whose seat's end stands is not seated again (FINAL)
