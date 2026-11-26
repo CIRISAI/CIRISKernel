@@ -113,6 +113,12 @@ OBJS = [WN.answer("o%d" % n, "m%d" % n, "x", "object") for n in (2, 3, 4)]
 WQ = ST.withdraw("wq", "q", "aq", ("ag",))                                    # q resigns: it withdraws the offer that seats it
 
 
+def merge(names):
+    """A later head with the named rows in its past: a row of no object and no `of` that names them (a merge head,
+    as persist's version row)."""
+    return R("h", "note", "m1", tuple(names))
+
+
 def rejoin(i, who, heads, scope="member"):
     return admit(i, who, ("m1", "m2", "m3", "m4"), heads, scope)
 
@@ -129,10 +135,10 @@ CASES = [
     ("private: an admission of the same key concurrent with the removal is void by the cut, not refused", FINAL_ROW,
      PV + [XQ, rejoin("aq2", "q", ("ag",))], {"xq": T, "aq2": T}, M4 | {"AG"}, [("q", "member", F)]),
     ("private: then a row names both (the removal and the concurrent re-admission): the key stays out", FINAL_ROW,
-     PV + [XQ, rejoin("aq2", "q", ("ag",)), ST.cosign("h", "m1", "h", ("xq", "aq2"))], {"xq": T, "aq2": T, "h": T},
+     PV + [XQ, rejoin("aq2", "q", ("ag",)), merge(("xq", "aq2"))], {"xq": T, "aq2": T, "h": T},
      M4 | {"AG"}, [("q", "member", F)]),
     ("private: and a later admission of the key naming that row concludes nothing", FINAL_ROW,
-     PV + [XQ, rejoin("aq2", "q", ("ag",)), ST.cosign("h", "m1", "h", ("xq", "aq2")), rejoin("aq3", "q", ("h",))],
+     PV + [XQ, rejoin("aq2", "q", ("ag",)), merge(("xq", "aq2")), rejoin("aq3", "q", ("h",))],
      {"aq2": T, "aq3": F}, M4 | {"AG"}, [("q", "member", F)]),
     ("private: the room's count removes the agent's key; its admission again concludes nothing", FINAL_ROW,
      PV + [XA, rejoin("ag2", "AG", ("xa",), "agent")], {"xa": T, "ag2": F}, M4 | {"q"}, [("AG", "agent", F)]),
@@ -192,10 +198,10 @@ CASES += [
      "signature on the re-admission is concurrent with its own end, so the re-admission lacks its consent and seats nobody",
      OWN_ROW, PV + [WQ, rejoin("aq2", "q", ("ag",))], {"wq": T, "aq2": T}, M4 | {"AG"}, [("q", "member", F)]),
     ("private: then a row names both: q stays out", OWN_ROW,
-     PV + [WQ, rejoin("aq2", "q", ("ag",)), ST.cosign("h", "m1", "h", ("wq", "aq2"))], {"h": T}, M4 | {"AG"},
+     PV + [WQ, rejoin("aq2", "q", ("ag",)), merge(("wq", "aq2"))], {"h": T}, M4 | {"AG"},
      [("q", "member", F)]),
     ("private: and a later admission naming that row concludes nothing", OWN_ROW,
-     PV + [WQ, rejoin("aq2", "q", ("ag",)), ST.cosign("h", "m1", "h", ("wq", "aq2")), rejoin("aq3", "q", ("h",))],
+     PV + [WQ, rejoin("aq2", "q", ("ag",)), merge(("wq", "aq2")), rejoin("aq3", "q", ("h",))],
      {"aq3": F}, M4 | {"AG"}, [("q", "member", F)]),
     ("private: q withdraws its acceptance beside a second acceptance of the same offer: the second concludes and seats "
      "nobody (omitting its own withdrawal does not dodge the end)", OWN_ROW,
@@ -204,7 +210,7 @@ CASES += [
     ("public: the same race: the rule is every room's, and q is out", OWN_ROW,
      PB + [WQ, rejoin("aq2", "q", ("ag",))], {"wq": T, "aq2": T}, M4 | {"AG"}, [("q", "member", F)]),
     ("public: and after a row naming both, a later admission of q seats it (no finality in a public room)", OWN_ROW,
-     PB + [WQ, rejoin("aq2", "q", ("ag",)), ST.cosign("h", "m1", "h", ("wq", "aq2")), rejoin("aq3", "q", ("h",))],
+     PB + [WQ, rejoin("aq2", "q", ("ag",)), merge(("wq", "aq2")), rejoin("aq3", "q", ("h",))],
      {"aq3": T}, M4 | {"AG", "q"}, [("q", "member", T)]),
     ("private: another key's admission concurrent with q's resignation is untouched: it seats", OWN_ROW,
      PV + [WQ, rejoin("az", "z", ("ag",))], {"az": T}, M4 | {"AG", "z"}, [("z", "member", T)]),
@@ -223,7 +229,7 @@ OPEN = []
 # one voice, no refusal; and an end is the key's end of its stay in that scope, not of a row: one resignation or one
 # counted removal ends every seating of the key in that scope in the end's past
 SR = PV + [admit("aq2", "q", ("m1", "m2", "m3", "m4"), ("ag",))]          # q's second seat row, while aq seats it
-SR_H = ST.cosign("h", "m1", "h", ("aq2",))                                  # a later head with both rows in its past
+SR_H = merge(("aq2",))                                  # a later head with both rows in its past
 CASES += [
     ("a second seat row of a room key already seated is a second basis for the same seat: it concludes, and the key is "
      "one key and one voice", SECOND_ROW, SR, {"aq2": T}, M4 | {"q", "AG"}, [("q", "member", T)]),
@@ -243,7 +249,7 @@ CASES += [
 # own key roster is built ("no door refuses a widening for either, since no rule of standing reads a binding")
 TWO = PV + [rejoin("ak1", "k1", ("ag",)), rejoin("ak2", "k2", ("ag",))]
 # a later head with both admissions in its past (a count over two concurrent heads reads the keys common to both)
-HEAD = ST.cosign("h", "m1", "h", ("ak1", "ak2"))
+HEAD = merge(("ak1", "ak2"))
 XQ2 = lambda signers: remove("xq", "q", signers, ("h",))
 CASES += [
     ("two admissions of one person at once, under two room keys: both seat. No rule of standing reads a binding, so "
