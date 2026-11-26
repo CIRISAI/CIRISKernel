@@ -58,14 +58,39 @@ def counted_acts(S, obj):
     return [r for r in S.Cs if is_counted_act(r, obj)]
 
 
+def object_of(r, by, n=0):
+    """The object a row is over: its `obj` (a founding row, `@`, is its own), its `room`, or the object of the row its
+    `of` or `target` names (an acceptance, a cosignature, a withdrawal, a window's answer, receipt or landing)."""
+    if n > 8: return None
+    if r.get("obj") == "@": return r["id"]
+    if r.get("obj") is not None: return r["obj"]
+    if r.get("room") is not None: return r["room"]
+    t = by.get(r.get("of")) if r.get("of") is not None else by.get(r.get("target"))
+    return object_of(t, by, n + 1) if t is not None and t is not r else None
+
+
+def acknowledgements(S, own, obj, rows=None):
+    """A reader's acknowledgements over obj (the ruling of 2026-11-26, H6): every concluded row `own` signed or
+    cosigned over obj, of any kind (its own seating or acceptance, a counted row it signed or cosigned, a
+    cosignature, its withdrawal, a window's opener, answer, receipt or landing, its explicit `ack`, a row of content).
+    Each acknowledges the counted acts in its own past. MUTATION acks_only: explicit `ack` rows only (before 0.5.0)."""
+    rows = S.Cs if rows is None else rows
+    if "acks_only" in MUT:
+        return [a for a in rows if a["kind"] == "ack" and a["signer"] == own and a.get("room") == obj]
+    return [a for a in rows if (a["signer"] == own or own in a.get("cosigners", ())) and object_of(a, S.by) == obj]
+
+
 def own_line(S, own, obj):
-    """The counted acts on obj this reader has acknowledged, with the counted acts in their past."""
+    """The counted acts on obj this reader has acknowledged, with the counted acts in their past: those in the past of
+    (or equal to) any of its acknowledgements, and any head an explicit `ack` names."""
     if own is None: return []
-    acked = {h for a in K.sel(S.Cs, kind="ack", signer=own) if a.get("room") == obj for h in a.get("head", ())}
-    return [r for r in counted_acts(S, obj) if r["id"] in acked or any(r["id"] in S.anc[h] for h in acked if h in S.anc)]
+    acks = acknowledgements(S, own, obj)
+    named = {h for a in acks if a["kind"] == "ack" for h in a.get("head", ())}
+    return [r for r in counted_acts(S, obj) if r["id"] in named or any(r["id"] == a["id"] or r["id"] in S.anc[a["id"]] for a in acks)
+            or any(r["id"] in S.anc[h] for h in named if h in S.anc)]
 
 
-def settle(S, C, obj, own=None, group=False, old_line=lambda r: False):
+def settle(S, C, obj, own=None, group=False, never_behind=lambda r: False):
     """(certain, possible): the ids of the counted acts on obj that count for reader `own`.
 
     A counted act counts iff the cut lets it count, EVERY COUNTED ACT AMONG THE HEADS IT NAMES ITSELF COUNTS, and no
@@ -82,10 +107,10 @@ def settle(S, C, obj, own=None, group=False, old_line=lambda r: False):
     # CC 2.7.8: "holds void every counted act that names an older head and is not in that head's past, however many rows
     # it has": no test of concurrency, so a row with c in its own past that names a head older than c is void too
     # (MUTATION line_concurrent: the line voids only rows concurrent with c, the rule until 0.5.0)
-    # `old_line(r)`: an act the line reads as before, only where it is concurrent with c (a lift, pending the lift
-    # follow-up: the lift is counted at the head its act names; seat.Seats passes it)
+    # `never_behind(r)`: an act the line never leaves behind (an election's seating, read at its election's vacancy;
+    # seat.Seats passes it)
     line_behind = lambda r, c: c["id"] != r["id"] and r["id"] not in S.anc[c["id"]] and older(S, r["head"], [c["id"]]) \
-        and (("line_concurrent" not in MUT and not old_line(r)) or S.concurrent(r["id"], c["id"]))
+        and not never_behind(r) and ("line_concurrent" not in MUT or S.concurrent(r["id"], c["id"]))
     # the refused group checkpoint (group=True only): r's heads strictly older than the heads c names
     behind = lambda r, c: c["id"] != r["id"] and S.concurrent(r["id"], c["id"]) and older(S, r["head"], c["head"])
 
@@ -117,12 +142,12 @@ class EVERY:
     counts = staticmethod(lambda r: True)
 
 
-def void(S, C, own=None, group=False, old_line=lambda r: False):
+def void(S, C, own=None, group=False, never_behind=lambda r: False):
     """The ids of the counted acts the cut lets count that do not count for reader `own`: left behind by its
     acknowledged line, or built on a counted act that does not count."""
     out = set()
     for obj in {r["obj"] for r in S.Cs if r["kind"] in ("offer", "unseat") and r.get("conf") == "group" and r.get("head")}:
-        _, U = settle(S, C, obj, own, group, old_line)
+        _, U = settle(S, C, obj, own, group, never_behind)
         out |= {r["id"] for r in counted_acts(S, obj) if C.counts(r) and r["id"] not in U}
     return frozenset(out)
 

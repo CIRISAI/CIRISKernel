@@ -114,9 +114,10 @@ WQ = ST.withdraw("wq", "q", "aq", ("ag",))                                    # 
 
 
 def merge(names):
-    """A later head with the named rows in its past: a row of no object and no `of` that names them (a merge head,
-    as persist's version row)."""
-    return R("h", "note", "m1", tuple(names))
+    """A later head with the named rows in its past: a counted row naming them as its heads, the four founders
+    re-stating m1's seat (H8, the heads ruling of 2026-11-26: a row of no object is no head of a count, so a merge is a
+    counted change; it was a note naming them, as persist's version row)."""
+    return admit("h", "m1", ("m1", "m2", "m3", "m4"), tuple(names))
 
 
 def rejoin(i, who, heads, scope="member"):
@@ -289,6 +290,11 @@ def orders(rows):
         rnd.shuffle(p)
         out.append(p)
     return out
+
+
+# every counted row and every seat's end of these cases names the newest counted changes over the room in its own
+# past (H1, H4, the heads ruling of 2026-11-26): what a signer that holds its own past writes
+CASES = [(c[0], c[1], ST.honest(c[2])) + tuple(c[3:]) for c in CASES]
 
 
 def main():

@@ -513,6 +513,11 @@ def want(case):
     return concl, set(roster), [x for _, _, x in asks]
 
 
+# every counted row of these cases names the newest counted changes over the room in its own past (H1, H4, the heads
+# ruling of 2026-11-26): what a signer that holds its own past writes. Rows written at an older head conclude nothing.
+CASES = [(c[0], ST.honest(c[1])) + tuple(c[2:]) for c in CASES]
+
+
 def answers(case):
     return read(CK.concluded(CK.kept(list(case[1])), RULE), case)
 

@@ -85,6 +85,11 @@ CASES = [
 PLANTS = ("readmit_unread",)
 
 
+# every counted row and every seat's end names the newest counted changes over the room in its own past (H1, H4, the
+# heads ruling of 2026-11-26): a resignation is no head of a count, so a count after one names the change before it
+CASES = [(c[0], ST.honest(c[1])) + tuple(c[2:]) for c in CASES]
+
+
 @contextlib.contextmanager
 def planted(plant):
     saved = set(ST.MUT)

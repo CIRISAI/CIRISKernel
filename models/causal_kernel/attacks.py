@@ -364,11 +364,13 @@ def t06(t):
     a2 = ST.accept("a2", "K", "o2")                                             # join again
     wd3 = ST.withdraw("wd3", "K", "o1")                                         # leave, on the old branch: names only the first offer
     ans = lambda S: ST.Seats(S).stands("K", "moderate", "g")
-    ref, bad = free([g, mk, o1, a1, wd1, o2, a2, wd3], SEAT, ans); t.order(bad)
+    # each leave names the newest counted change over the room in its own past (H4: a resignation names it), mk
+    H = ST.honest
+    ref, bad = free(H([g, mk, o1, a1, wd1, o2, a2, wd3]), SEAT, ans); t.order(bad)
     t.fact("leave, join, then a leave that names only the first offer: K is in = %s (a withdrawal ends the offer it names and no other)" % ref, ref is True)
-    ref, bad = free([g, mk, o1, a1, wd1, o2, a2, wd3, ST.withdraw("wd4", "K", "a2")], SEAT, ans); t.order(bad)
+    ref, bad = free(H([g, mk, o1, a1, wd1, o2, a2, wd3, ST.withdraw("wd4", "K", "a2")]), SEAT, ans); t.order(bad)
     t.fact("with a leave that names the second acceptance: K is in = %s" % ref, ref is False)
-    ref, bad = free([g, mk, o1, a1, wd1, ST.offer("o3", "A", "K", "moderate", "g", "seat", ("wd1",), under="g", consent="one")], SEAT, ans); t.order(bad)
+    ref, bad = free(H([g, mk, o1, a1, wd1, ST.offer("o3", "A", "K", "moderate", "g", "seat", ("wd1",), under="g", consent="one")]), SEAT, ans); t.order(bad)
     t.fact("the conferrer cannot put a key that left back in without its acceptance, even claiming single consent: %s" % ref, ref is False)
     base = room_rows(*ROOM)
     ac2 = in_room(ST.accept("ac2", "C", None, ("x",), scope="member", obj="g"))
@@ -1279,38 +1281,26 @@ def t34(t):
                 fix="")
 
 
-@test(35, "A count read at a head older than one in its own past", "found by a read of the reference (the seat's line against CC 2.7.8)",
-      "A counted row concludes only at the newest counted heads of its roster in its own past; the reader's line is the text's; a row void for a reader cuts nothing for it.")
+@test(35, "A count read at a head older than one in its own past, and the heads a count may name", "found by reads of the reference (the seat's line against CC 2.7.8; the reviews of the heads work)",
+      "A row that changes a roster names the newest counted changes over its object in its own past; a reader's own rows are its line; the line is the text's, read before the cut.")
 def t35(t):
     import check_count_heads as CH
-    by = {c[0]: c for c in CH.CASES}
-    def seen(name):
-        _, rows, own, concl, holds, stale, _ = by[name]
+    opens = []
+    for rule, name, rows, own, concl, holds, stale in CH.CASES:
         ref, bad = free(rows, SEAT, lambda S: CH.answer(S, own, concl, holds)); t.order(bad)
-        return ref == CH.want(concl, holds, stale), ref
-    for name in ("a counted admission names the founding head and has the newest admission in its own past",
-                 "a counted removal names the founding head and has the newest admission in its own past",
-                 "a duty conferral by the lone holder names the founding head and has the newest admission in its own past",
-                 "a recall of the moderator names the founding head and has the newest admission in its own past"):
-        ok, ref = seen(name)
-        t.fact("%s: it concludes nothing; %s" % (name, " ".join("%s %s" % (sc, fs(v)) for sc, v in sorted(ref[1].items()))), ok)
-    ok, ref = seen("the same removal at the newest head, by five of the seven")
-    t.fact("the same removal at the newest head, by five of the seven: it concludes; members %s" % fs(ref[1]["member"]), ok)
-    ok, ref = seen("a removal at the founding head that has not seen the admissions (concurrent with them) concludes; no reader")
-    t.fact("a removal at the founding head concurrent with the admissions concludes; for a reader with no acknowledgement the key is out (%s): "
-           "the fold at tips, read as before" % fs(ref[1]["member"]), ok)
-    ok, ref = seen("the same, for a reader that acknowledged the newest head: the removal is behind its line and cuts nothing for it")
-    t.fact("for a reader that acknowledged the newest head it is behind the line (stale: %s) and cuts nothing: members %s"
-           % (",".join(sorted(ref[2])), fs(ref[1]["member"])), ok)
-    ok, ref = seen("the same, for a reader that acknowledged the later admission: the removal names an older head and is not in the "
-                   "admission's past, so it is behind the line, and cuts nothing for that reader")
-    t.fact("a moderator's lone removal at an older head with a later admission in its past is behind the line of a reader that acknowledged "
-           "that admission (stale: %s), whatever its concurrency" % ",".join(sorted(ref[2])), ok)
+        ok = ref == CH.want(concl, holds, stale)
+        if rule == CH.OPEN:
+            opens.append(name)
+            t.note("OPEN (%s): %s" % ("as stated" if ok else "NOT as stated", name))
+        else:
+            t.fact("%s: %s" % (rule, name), ok)
     ok = all(v for _, v in t.facts)
-    return dict(cls="HOLDS" if ok else "BROKEN", who="nobody",
-                witness="g(A,B,C) aD..aG (counted admissions to seven) ax(A+B admit X, head g, naming aG): concludes nothing. "
-                        "xg(A+B remove G, head g, concurrent with aD..aG), a reader that acknowledged aG: stale, G a member.",
-                protects="seat.newer_head_in_past (W1); checkpoint.settle, the line without a concurrency test (W2); Seats, the line read before the cut (W3).",
+    return dict(cls="HOLDS" if ok else "BROKEN", who="nobody, for a reader with a row of its own over the room; for a reader with none, see the OPEN notes",
+                witness="g(A,B,C) aD..aG (counted admissions to seven). ax(A+B admit X, head g, naming aG): concludes nothing (H1). "
+                        "xg(A+B remove G, heads g and aG): concludes nothing (H1). A cheap tip dc (A confers moderate at g) and "
+                        "xg(A+B, heads dc and aG): void for every member, whose own rows are its line (H6).",
+                protects="seat.newer_head_in_past (H1-H4, H7), seat.honest; checkpoint.acknowledgements (H6), settle and versions (H5); Seats, the line before the cut. "
+                         "Open: for a reader with no row over the room, concurrent tips intersect (%d notes)." % len(opens),
                 fix="")
 
 
@@ -1334,10 +1324,12 @@ def checkpoint_price():
     mg = ST.offer("mg", "A", "H", "member", "g", "group", ("q2", "hm", "mgB", "mgC", "mga"), head=("q2", "hm"), policy="community_invite", content="mg", room="g")
     (m3_, s3_, t3_), bad = reader_view(pre + [hmc, hma, hm] + line + mgc + [mga, mg]); t.order(bad)
     t.fact("one counted row naming both tips, counted over the three keys common to them, makes one head and lists everyone both lines admitted: %s" % fs(m3_), m3_ == {"A", "B", "C", "E", "F", "G", "H"} and len(t3_) == 1)
-    (m4_, s4_, t4_), bad = reader_view(pre + [hmc, hma, hm] + line + [RT.msg("mm", "A", "g", ("q2",)), RT.ack("kk", "B", "g", "mm", ("q2",))], own="B"); t.order(bad)
+    # the reader is E, admitted on the newer line: B cosigned the offline admission and the merge, so under H6 (a reader's own
+    # rows are its acknowledgements) both are of B's own line
+    (m4_, s4_, t4_), bad = reader_view(pre + [hmc, hma, hm] + line + [RT.msg("mm", "A", "g", ("q2",)), RT.ack("kk", "E", "g", "mm", ("q2",))], own="E"); t.order(bad)
     t.fact("for a reader that had acknowledged the newer head, the offline admission is behind its line (void: %s) and its roster is %s: that reader and one with no acknowledgement differ (%s)"
            % ("hm" in s4_, fs(m4_), fs(m2_)), "hm" in s4_ and m4_ == {"A", "B", "C", "E", "G"})
-    (m5_, s5_, t5_), bad = reader_view(pre + [hmc, hma, hm] + line + [RT.msg("mm", "A", "g", ("q2",)), RT.ack("kk", "B", "g", "mm", ("q2",))] + mgc + [mga, mg], own="B"); t.order(bad)
+    (m5_, s5_, t5_), bad = reader_view(pre + [hmc, hma, hm] + line + [RT.msg("mm", "A", "g", ("q2",)), RT.ack("kk", "E", "g", "mm", ("q2",))] + mgc + [mga, mg], own="E"); t.order(bad)
     t.fact("but for that reader the merge is built on a row behind its line, so the merge is void for it too (%s) and its roster stays %s: a reader whose acknowledgement outran a late honest row cannot take the merge that names it; "
            "the late row has to be signed again on the newer head" % (",".join(sorted(s5_)), fs(m5_)), {"hm", "mg"} <= s5_ and m5_ == {"A", "B", "C", "E", "G"})
     md2 = ST.offer("md2", "A", "B", "detect:x", "g", "group", ("g",), head=("g",), policy="duty_confer", counted="duty", cosigners=("B",), room="g")
