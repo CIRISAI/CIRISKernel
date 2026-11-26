@@ -419,7 +419,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             ends.extend(self.view(q).3);
         }
         let named = |b: &R| b.of().and_then(|e| self.idx(e)).is_some_and(|e| self.ekey(e) == *ek);
-        let mut mine: BTreeMap<&R::Key, Vec<usize>> = BTreeMap::new();
+        // (4): the fork is per key: a voice's rows signed through two room or device keys are two keys' rows
+        let mut mine: BTreeMap<(&R::Key, Option<&R::Key>), Vec<usize>> = BTreeMap::new();
         for &q in rows {
             let r = self.row(q);
             let own = match r.seat_kind() {
@@ -435,14 +436,14 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                 _ => sids.contains(r.id()) || ends.contains(r.id()),
             };
             if own {
-                mine.entry(r.signer()).or_default().push(q);
+                mine.entry((r.signer(), r.device())).or_default().push(q);
             }
         }
         mine.into_iter()
             .filter(|(_, rs)| {
                 rs.iter().enumerate().any(|(i, &a)| rs[i + 1..].iter().any(|&b| !g.in_past(a, b) && !g.in_past(b, a)))
             })
-            .map(|(k, _)| k.clone())
+            .map(|((k, _), _)| k.clone())
             .collect()
     }
 

@@ -265,6 +265,11 @@ pub trait SeatRow: Row {
     fn ranking(&self) -> &[Self::Key] {
         &[]
     }
+    /// The room or device key that signed, where the signer is a voice signing through one (CC 4.5.13's
+    /// election reads a fork per key: two keys of one voice are two keys). `None`: the signer signed.
+    fn device(&self) -> Option<&Self::Key> {
+        None
+    }
     /// An acknowledgement: the object (room) whose head it acknowledges.
     fn room(&self) -> Option<Obj<Self::Id, Self::Key>> {
         None

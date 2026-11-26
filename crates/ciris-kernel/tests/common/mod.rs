@@ -450,6 +450,12 @@ impl SeatRow for TRow {
     fn obj(&self) -> Option<Obj<String, String>> {
         self.obj.clone()
     }
+    fn device(&self) -> Option<&String> {
+        match self.m.get("dev") {
+            Some(J::Str(d)) => Some(d),
+            _ => None,
+        }
+    }
     fn conf(&self) -> Option<Conf> {
         match self.fs("conf") {
             Some("self") => Some(Conf::Own),

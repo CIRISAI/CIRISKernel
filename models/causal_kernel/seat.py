@@ -809,14 +809,23 @@ def forkers(Ek, rows, past, obj, by, ends0=frozenset()):
     sids = {q["id"] for q in seats}
     ends = set(ends0).union(*[_view(rows, past, q)[3] for q in seats])
     named = lambda b: across or (b.get("of") in by and ekey(by[b["of"]], rows, past) == Ek)
+    if "seating_not_a_say" in MUT: sids = set()        # MUTATION: a seating is no say of its signer's
     mine = {}
+    # (4): the fork is per key: a voice's rows signed through two room or device keys (`dev`) are two keys' rows
+    # (MUTATION fork_per_voice: one voice, one key)
+    key = (lambda q: q["signer"]) if "fork_per_voice" in MUT else (lambda q: (q["signer"], q.get("dev")))
     for q in rows:
         own = (q["kind"] in ("ballot", "decline") and named(q)) or q["id"] in sids or q["id"] in ends or \
             (q["kind"] == "ack" and (q.get("of") in sids or (across and q.get("of") in by and is_election(by[q["of"]])))) or \
             (q["kind"] == "withdraw" and q.get("target") in by and by[q["target"]]["kind"] == "ballot" and named(by[q["target"]]))
-        if own: mine.setdefault(q["signer"], []).append(q)
-    return frozenset(k for k, rs in mine.items()
-                     if any(not past(a["id"], b["id"]) and not past(b["id"], a["id"]) for i, a in enumerate(rs) for b in rs[i + 1:]))
+        if own: mine.setdefault(key(q), []).append(q)
+        # a row the key only cosigns is never part of a fork (MUTATION fork_cosigned: it is)
+        if "fork_cosigned" in MUT and q.get("obj") == obj:
+            for c in q.get("cosigners", ()):
+                mine.setdefault(c if "fork_per_voice" in MUT else (c, None), []).append(q)
+    out = {k for k, rs in mine.items()
+           if any(not past(a["id"], b["id"]) and not past(b["id"], a["id"]) for i, a in enumerate(rs) for b in rs[i + 1:])}
+    return frozenset(k if isinstance(k, str) else k[0] for k in out)
 
 
 def departed(P, past, obj):

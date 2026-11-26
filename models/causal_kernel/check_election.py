@@ -599,6 +599,31 @@ CASES += [
      [G5, LM, ballot("bd", "D", "C"), ballot("bd2", "D", "B"), admit("ax", "X", ("A", "B", "C", "D"), ("lm",))],
      [("X", "member", T), ("D", "member", T)], "(2), the guard"),
 ]
+# (5) the room of four: winners A (S1) and B (S2), voters C and D; B and C receipt S1, A and D receipt S2. Each winner
+# signed its own seating, and a seating is its signer's say (i): a winner that receipts the rival has said two things
+G4F = room(4)
+R4 = [G4F, LM, ballot("bx", "C", "A"), ballot("bw2", "B", "A"), elect("s1", "A", ("bx", "bw2")),
+      ballot("by", "D", "B"), ballot("bw1", "A", "B"), elect("s2", "B", ("by", "bw1"))]
+R4A = [ack("r1", "B", "s1", ("bw2",)), ack("r2", "C", "s1", ("bx",))]
+R4B = [ack("r3", "A", "s2", ("bw1",)), ack("r4", "D", "s2", ("by",))]
+CASES += [
+    ("(5), the room of four, a reader of side 1 only: S1 closed by B and C: A", R4[:5] + R4A, MOD("A") + NOMOD("B"), "(5)"),
+    ("(5), the room of four, a reader of side 2 only: S2 closed by A and D: B", R4[:2] + R4[5:] + R4B, MOD("B") + NOMOD("A"), "(5)"),
+    ("(5), the room of four, both held: each winner signed its seating and receipted the rival (two things, (i)), so "
+     "each close falls to one of two; the sets are not nested: nobody. (ii), the guard: no two seatings of one "
+     "election both close over the rows held (the receipters are disjoint and both winners are out)",
+     R4 + R4A + R4B, NOMOD("A", "B"), "(5), (i), (ii)"),
+    ("(5), b3 a reader of side 2 only: C", [G5, LM] + BE, MOD("C") + NOMOD("B"), "(5)"),
+    ("(4): two devices of one voice: E's ballots through two room keys, concurrent, the same ranking, are two keys' "
+     "rows, no fork; one say per voice: C three to two",
+     [G5, LM] + H5[:4] + [dict(ballot("be1", "E", "C"), dev="e1"), dict(ballot("be2", "E", "C"), dev="e2"),
+                          elect("ec", "C", IDS5[:4] + ("be1", "be2"))], MOD("C"), "(4)"),
+    ("(1): a row the key only cosigns is no part of a fork: D's ballot and its concurrent cosignature on X's admission: "
+     "D's voice counts, C", [G5, LM] + H5 + [admit("ax", "X", ("A", "B", "C", "D"), ("lm",)), EC], MOD("C"), "(1)"),
+    ("(3), the honest self-fork: E, restored from an old backup, signs a second ballot without its first in its past: "
+     "E has said two things and is out of the election: with both in the set E is no ballot, and A, B against C, D "
+     "tie: nobody", [G5, LM] + H5 + [ballot("be2", "E", "C"), elect("ec", "C", IDS5 + ("be2",))], NOMOD("B", "C"), "(3)"),
+]
 # b6: twins over equal sets count alike under F1, so the close's base is read the same from either: (regression)
 B6 = [G5, LM1, AF, LM2] + HB2 + [elect("ef", "F", IDB2, vac=("lm2",)), elect("ef2", "F", IDB2, vac=("lm2",)),
                                  ack("ka", "A", "ef"), ack("kb", "B", "ef"), ack("kc", "C", "ef2"), ack("kd", "D", "ef2")]
@@ -615,6 +640,10 @@ CLOSE_CASES += [
     ("(1): A's receipt in room g and its concurrent ballot in room h's election are no fork: A and B, two of three, close it",
      [G4X, LM, HR] + H4 + [elect("ec", "C", tuple(b["id"] for b in H4)), ack("k1", "A", "ec"), ack("k2", "B", "ec"),
                            ballot("ha", "A", "A", ("h",), of="h")], "ec", T),
+    ("(1): a row the key only cosigns is no part of a fork: A and D receipt C's seating, and D cosigns X's admission "
+     "concurrently: two of three close it",
+     [G4X, LM] + H4 + [elect("ec", "C", tuple(b["id"] for b in H4)), ack("k1", "A", "ec"), ack("k4", "D", "ec"),
+                       admit("ax", "X", ("A", "C", "D"), ("lm",))], "ec", T),
     ("C5: a later receipt, with the first in its past, counts for nothing: D's say is B's subset seating's; C's has B "
      "and E of four, not closed",
      [G5, LM] + H5 + [EC, elect("es", "B", ("ba", "bb")), ack("k4", "D", "es", ("bd",)), ack("j4", "D", "ec", ("k4",)),
@@ -670,7 +699,8 @@ PLANTS = ("vacancy_founding", "vacancy_first_end", "electorate_at_seating", "lea
           "say_any_receipt", "close_leavers_kept", "closed_rivals_count", "election_id_any", "set_any_signer",
           "ballot_nonmember_ranked", "ballot_ranks_unbounded", "seating_any_signer", "twin_ids_apart",
           "fold_ranked_counted", "fork_reopens_close", "fork_base_kept", "fork_across_objects", "superseded_unread", "wait_close", "id_cascade_unread",
-          "vacancy_unnamed", "set_inputs_unread", "void_seating_read",
+          "vacancy_unnamed", "set_inputs_unread", "void_seating_read", "seating_not_a_say", "fork_per_voice",
+          "fork_cosigned",
           "leaving_before_vacancy_read")
 
 
