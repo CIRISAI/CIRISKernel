@@ -1292,7 +1292,9 @@ def on_object(by, h, obj, n=0):
     if h["id"] == obj or h.get("obj") == obj: return True
     if h.get("obj") is not None: return False
     ref = h.get("target") if h["kind"] == "withdraw" else h.get("of")
-    if ref is not None: return on_object(by, by.get(ref), obj, n + 1)
+    # a row whose `of` names itself (a merge head presented as its own cosignature) refers to nothing else: read it
+    # by the rows it names
+    if ref is not None and ref != h["id"]: return on_object(by, by.get(ref), obj, n + 1)
     return any(on_object(by, by.get(m), obj, n + 1) for m in h.get("names", ()))
 
 
