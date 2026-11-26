@@ -58,6 +58,8 @@ The lists give the stronger checks.
 
 The seat's lone-removal end rule re-expresses conferral's E2 to E8. To be one copy: conferral takes the end's heads as a set and a row-level counted receipt, and the seat calls it.
 
+The seat re-expresses CC 2.7.7 rule 5 for a mutual pair of lone removals; cut's contest reading does not see the pair because a removal sits on its signer's key slot.
+
 **Counts**, by row of the table:
 
 | Class | Rows |
