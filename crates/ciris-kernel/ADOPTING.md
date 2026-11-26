@@ -41,6 +41,28 @@ come from `governance_policy.json` and the family tables that persist already ve
 | `purge_finalize` (`engine.rs:9415`, `federation/steward_purge.rs:2423`) | `head::purge` says which rows may become stubs; `head::View` answers over the stubs | persist keeps the bytes, the deletion and the duties' enforcement; the kernel says what a stub must keep |
 | key liveness against `valid_until` (`KeyRecord`, `federation/types.rs:1365`) | `key_end::well_formed`, `conclude_rule`, `live`, `ended`, `retained` | a row of an ended key lapses only when no live row has it in its past |
 
+### Three questions the store asked, and where each is already answered
+
+- **Ownership read by naming only, with no instant.** `standing::answers` reads no instant: `StandingRow` has
+  no accessor for one. Which binding an act stands under, whether that binding is live, and whether the node
+  has two owners are read from what the rows name (`on`, `head`) and from the caller's `Past`. A binding's
+  stated instants decide nothing here; a store that compared them to choose an owner deletes that comparison.
+- **The depth-two deputy.** `conferral::answers` walks `via`: the grantee deputizes C, C deputizes C2. The
+  first hop needs no sub-delegation, an onward hop needs it on the edge above (`E6.no_sub`), at most
+  `Standing::deputy_depth` edges (`E6.depth`), and a deputy ends with the seat (`E6.upstream`). The cases are
+  `deputy_chain_*` in `conferral_end.py` (in the `conferral_end` fixture): depth two before and after the end,
+  no sub-delegation at the first edge, and at the second.
+- **A grant under a superseded bundle.** Present every bundle version as `standing::Kind::Bundle`. An act
+  naming the later version counts and is in force with no new grant; an act naming the earlier version counts
+  at it (nothing refuses a row for naming an older version; the reader's acknowledged versions decide what
+  counts for that reader); the grant's end at either version is read by E1 to E8. The cases are `later_bundle_*`
+  in `check_conferral_two.py` (in the `conferral_two` fixture).
+
+Not one call yet: a deputy edge UNDER an act that needs two standings (a root grant and an owner binding).
+`standing::answers` judges the node's own acts; `conferral::answers` judges deputies under one standing. A
+caller with both presents the deputy rows to `conferral::answers` under the grant and takes the node's edge
+from `standing::answers`.
+
 ## What persist would delete, and what it keeps
 
 Delete, once each family's rule runs through the crate: the gates that refuse for what another row says (the
