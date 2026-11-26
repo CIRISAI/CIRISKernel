@@ -155,8 +155,11 @@ CONFERS = {  # scope held -> (scopes it may confer, "same": over the same object
 # owned by any of them" (CC 3.2), so with two live owners neither alone revokes (derived from those two sentences).
 ENDS = {"owner": ("owner",)}
 # seats whose ending is final: a revocation is "never withdrawn" (CC 2.4.1.1), so no offer re-seats the same key in the
-# same scope over the same object once a concluded revocation of that slot is in its past
-FINAL = ("registered",)
+# same scope over the same object once a concluded revocation of that slot is in its past.
+# A roster seat named here (a room key's seat: `member`, `agent`) is final over a private room only (CC 3.1.3.2: "a
+# member admitted again makes a fresh one"; the steward's decision of 2026-11-25 on CIRISConstitution#224: "a removed
+# room key is not seated again", of any end of the seat, a resignation included). See _revoked_before.
+FINAL = ("registered", "member", "agent")
 # CC 4.5.4 (iv): "A duty seat is conferred by a strict majority of the duty holders, and withdrawn by a strict majority
 # of the other duty holders, the holder concerned not counted. Where there are two holders or more, neither takes fewer
 # than two voices. A lone duty holder confers alone, with the new holder's acceptance." Two policy names, counted
@@ -712,9 +715,14 @@ def holds_roster(S, u, k, obj, r):
     """Unseat u cuts a roster seat key k holds: an offer in u's past seats k over obj in roster scope r (a member's
     seat, the founding seat where it holds `member`, an agent's seat). A cut of a roster scope the key does not hold
     ends no stay, and so no duty seat. (MUTATION roster_cut_any_scope: not read.)"""
+    return seated_before([m for m in S.Cs if m["id"] in S.anc[u["id"]]], k, obj, r)
+
+
+def seated_before(rows, k, obj, r):
+    """holds_roster over `rows`, the concluded rows in the unseat's past."""
     if "roster_cut_any_scope" in MUT: return True
-    return any(m["kind"] == "offer" and m.get("obj") == obj and k in m["to"] and m["id"] in S.anc[u["id"]]
-               and (m["scope"] == r or (r == "member" and m["id"] == obj and roster_seat(m))) for m in S.Cs)
+    return any(m["kind"] == "offer" and m.get("obj") == obj and k in m["to"]
+               and (m["scope"] == r or (r == "member" and m["id"] == obj and roster_seat(m))) for m in rows)
 
 
 def lone_act(u, S):
@@ -917,9 +925,49 @@ def voices(r, P):
                                   if c["id"] in r["names"] and heads <= set(c["names"]))
 
 
-def _revoked_before(r, P):
+def private_room(by, obj):
+    """obj is a private room: a community whose founding row declares `membership` `private` (CC 3.1.3.2). A founding
+    row with no `membership` reads public. A later version that moves the room to public is not read here."""
+    if "public_final" in MUT: return community(by, obj)          # MUTATION: room-key finality reaches a public room
+    return community(by, obj) and by[obj].get("membership") == "private"
+
+
+def room_key_ended(k, sc, obj, P, past, by):
+    """The end of key k's roster seat sc over obj is among P (a row's concluded past), and it stands: a removal that
+    is no moderator's lone act (an unseat of that seat whose count is met over its own past, or not counted at all),
+    with an offer seating k in sc in its past; or k's own end of its stay (stay_ends: its withdrawal of the offer, of
+    its acceptance, or of the founding row). A moderator's lone removal is never final (the members may lift it; out
+    of force it ends nothing), so a re-seating with one in its past is a lift or a seating, never refused here."""
+    for q in P:
+        if q["kind"] != "unseat" or q.get("obj") != obj or q.get("scope") != sc or k not in q["to"]: continue
+        Pq = [x for x in P if past(x["id"], q["id"])]
+        if not seated_before(Pq, k, obj, sc): continue           # it ended no seat of k's
+        if q.get("conf") != "group" or "lone_final" in MUT or count_met(q, Pq, past):   # MUTATION lone_final: a lone removal is final
+            return True
+    if "resign_not_final" in MUT: return False                   # MUTATION: a resignation is no end of the seat
+    return any(k2 == k and g == obj for _, k2, g in stay_ends(P, by))
+
+
+def _revoked_before(r, P, past):
+    """Finality (FINAL): offer or acceptance r would seat a key again in a scope whose end is final, with that end in
+    its past. A scope that is no roster seat (`registered`): a concluded unseat of the slot in r's past. A roster seat
+    (a room key's seat in a private room): room_key_ended, and an acceptance of an offer seating the key is read as
+    the offer is (accepting the same offer again after a resignation seats nothing). A row concurrent with the end is
+    not refused: the cut voids it (a removal), or it seats (a resignation it does not have in its past)."""
     if "reseat" in MUT: return False
-    return any(q["kind"] == "unseat" and q["scope"] in FINAL and set(q["cuts"]) & set(r.get("on", ())) for q in P)
+    by = {q["id"]: q for q in P}
+    if r["kind"] == "accept":
+        if "reaccept_reseats" in MUT: return False              # MUTATION: the same offer accepted again re-seats
+        o = by.get(r.get("of"))
+        if o is None or o["kind"] != "offer": return False
+        obj, seats = o["obj"], [(r["signer"], sc) for sc in seat_scopes(o, r["signer"])]
+    else:
+        if r["obj"] == r["id"]: return False                    # a founding row has no past
+        if r["scope"] not in ROSTER_SEATS:
+            return any(q["kind"] == "unseat" and q["scope"] in FINAL and set(q["cuts"]) & set(r.get("on", ())) for q in P)
+        obj, seats = r["obj"], [(k, r["scope"]) for k in r["to"]]
+    if "room_key_unread" in MUT or not private_room(by, obj): return False     # MUTATION: room-key finality unread
+    return any(sc in ROSTER_SEATS and sc in FINAL and room_key_ended(k, sc, obj, P, past, by) for k, sc in seats)
 
 
 def _ender(r, P, by):
@@ -959,7 +1007,7 @@ def seat_rule(r, P, past, table=None, other=None):
     k, by = r["kind"], {q["id"]: q for q in P}
     if k in ("offer", "unseat"):
         conf = r["conf"]
-        if k == "offer" and _revoked_before(r, P): return False   # a revoked key does not re-seat itself (FINAL)
+        if k == "offer" and _revoked_before(r, P, past): return False   # a revoked key does not re-seat itself (FINAL)
         if k == "offer" and conf in ("self", "seat") and duty_seat(by, r) and not _lone(r, P, by): return False
         if conf == "self":
             if r["obj"] == r["id"]: return k == "offer"          # a founding row is its own object
@@ -973,6 +1021,7 @@ def seat_rule(r, P, past, table=None, other=None):
             return count_met(r, P, past, table)
         return False
     if k == "accept":
+        if _revoked_before(r, P, past): return False           # a room key whose seat's end stands is not seated again (FINAL)
         return r["of"] is None or (r["of"] in by and r["signer"] in by[r["of"]].get("to", ()))
     if k == "withdraw":
         t = by.get(r["target"])

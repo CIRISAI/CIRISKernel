@@ -25,6 +25,44 @@ reached one, so no earlier fixture answer moves.
   gone. Reference: `key_end.covers`; five boundary worlds (`check_key_end.BOUNDARY`, in the `key_end` fixture),
   attack K11, plant `end_closed`; one crate plant on the door.
 
+**A removed room key is not seated again** (CIRISConstitution#224, the steward's decision of 2026-11-25: "a removed
+room key is not seated again. A person removed from a private room returns only under a new room key, by a new
+admission", of any end of the seat, a resignation included; CC 3.1.3.2: "a member admitted again makes a fresh one").
+
+- New: `SeatRow::private_room` (default false), the founding row's `membership` `private`. A founding row with no
+  `membership` reads public.
+- `SeatLaw::final_scopes` names `member` and `agent` as well as `registered` (the fixtures' law). A roster seat
+  named there is final over a private room only, by an end that stands: a counted unseat of that seat (its count
+  met over its own past, or not counted) with an offer seating the key in that scope in its past, or the key's own
+  end of its stay (its withdrawal of the offer, of its acceptance, or of the founding row). The one mechanism,
+  `revoked_before`, reads it; a scope that is no roster seat (`registered`) reads as before.
+- **Answers that change**, over a private room only: an offer that seats such a key again in that seat with the
+  end in its past concludes nothing (a re-admission after a counted removal of a person's or an agent's room key,
+  after a resignation, after a founder's end of its stay); an acceptance of an offer seating the key with the end
+  in its past concludes nothing (before, accepting the same offer again after withdrawing the acceptance re-seated
+  the key). No existing case of the reference or the fixtures has a private room, so no existing answer changes.
+- Unchanged: a public room's re-admission stands; a moderator's lone removal of an agent's key is never final (ruled
+  on #224: finality is of a counted end or the holder's own end): the members' lift restores the same key and
+  concludes, out of force the key is seated with no row, and a counted admission of the key under a lone removal in
+  force and not lifted seats it; a duty laid down may be conferred again (a duty seat is not the room key's seat in
+  the room: a reading).
+- A row concurrent with the end concludes (the rule is by past). Beside a counted removal it does not seat: the cut
+  voids it, a row naming both leaves the key out, and a later admission naming that row concludes nothing.
+- Not built: the move of a room from private to public (no seat row carries it; whether a voice seated before the
+  move keeps a final end is not stated); the voice's own key roster (#224: "a device key of a voice ended by the
+  voice's own count is final for that device key"; a voice is a key object with no founding row, so no seat row
+  says it is a private room's); the refusal's name (the text's).
+- OPEN, recorded as built with the candidate answers in `check_room_keys.py` and the seat fixture: a re-admission,
+  or a second acceptance of the same offer, concurrent with the key's resignation concludes and, as built, seats the
+  key, and keeps it seated after a row naming both (a withdrawal ends its own target by past, and is no cut and no
+  tip). The other candidate is that the key is out, as beside a counted removal; building it needs a resignation
+  that ends rows concurrent with it, which seat.rs and seat.py do not have.
+
+The reference: `seat._revoked_before`, `seat.room_key_ended`, `seat.private_room` in `models/causal_kernel/seat.py`;
+`check_room_keys.py` has 20 cases and 4 OPEN rows in every arrival order (up to six rows, else 41 orders) and five
+planted breaks; `roomkey.py` states the finding of re-admission under the same key for a public room and the refusal
+for the same room declared private. Five plants in `tools/kernel_crate_plants.sh`.
+
 ## [0.4.0]
 
 The first tag of the 0.4 line (`kernel-v0.4.0`), after `kernel-v0.3.0`. Several answers change, one public

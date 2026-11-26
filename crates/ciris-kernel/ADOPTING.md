@@ -202,6 +202,12 @@ trusting an adapter.
 members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
 voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row
 names (`models/causal_kernel/roomkey.py`, `rule`).
+- Give the founding row's `membership` as `SeatRow::private_room` (true for `private`; default false, read
+  public). Over a private room the room key's seat is final once its end stands (unreleased; see the CHANGELOG):
+  a re-admission of a removed or resigned room key, or its acceptance of the same offer again, concludes nothing.
+  Keep `SeatLaw::final_scopes` as the table gives it (`registered`, `member`, `agent`). The refusal has no name in
+  the crate; the text's name is the door's to give. A room that moved to public is not read: the crate reads the
+  founding row only.
 
 **A delegation chain**, for `Seats::stands`.
 - The counted grant: an Offer, `Conf::Group`, counted over the holders, `sub()` true where it carries
