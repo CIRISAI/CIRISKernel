@@ -52,6 +52,37 @@ fn acts_replay() {
     assert_eq!(bad, 0);
 }
 
+/// The refusal (step 3): a counted row whose act may not take the policy it states concludes nothing; a protocol
+/// row is counted under the founding record's protocol. Each case under the seat fixture's law and under the same
+/// law with no acts table.
+#[test]
+fn refusal_replay() {
+    use ciris_kernel::layers::{conclude, kept};
+    use ciris_kernel::seat::seat_rule;
+    use common::DictCut;
+    let fx = fixture("acts.json");
+    let bound = law_of(fixture("seat.json").at("law"));
+    let unbound = SeatLaw { acts: None, ..bound.clone() };
+    let (mut cases, mut bad) = (0, 0);
+    for c in fx.at("conclude").arr() {
+        let refs: BTreeMap<String, String> =
+            c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rows = rows_with_refs(c.at("rows").arr(), &refs);
+        for (law, want) in [(&bound, c.at("bound").b()), (&unbound, c.at("unbound").b())] {
+            let k = kept(&rows, |_| true);
+            let cc = conclude(k, |p| seat_rule(p, law, &DictCut, &|_| true), None);
+            let i = cc.g.rows().iter().position(|r| r.id == c.at("row").s()).expect("the row asked");
+            cases += 1;
+            if cc.concluded(i) != want {
+                bad += 1;
+                eprintln!("refusal {} (table: {}): got {}, want {}", c.at("name").s(), law.acts.is_some(), !want, want);
+            }
+        }
+    }
+    report("the act-to-policy refusal against check_acts.py", cases, bad);
+    assert_eq!(bad, 0);
+}
+
 #[test]
 fn no_table_binds_nothing() {
     let law = SeatLaw::default();

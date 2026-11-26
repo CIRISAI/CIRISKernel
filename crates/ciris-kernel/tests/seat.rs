@@ -86,9 +86,14 @@ fn seat_scenarios() {
             sc.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
         let rows = rows_with_refs(sc.at("rows").arr(), &refs);
         let a = sc.at("a");
-        // a scenario read under another table of what a seat holds carries it (`holds`)
+        // a scenario read under another table of what a seat holds carries it (`holds`); one read under a law with
+        // no acts table says so (`unbound`)
         let own_law = sc.get("holds").map(|h| World {
-            law: SeatLaw { holds: h.obj().iter().map(|(k, v)| (k.clone(), v.strs())).collect(), ..w.law.clone() },
+            law: SeatLaw {
+                holds: h.obj().iter().map(|(k, v)| (k.clone(), v.strs())).collect(),
+                acts: if sc.get("unbound").is_some() { None } else { w.law.acts.clone() },
+                ..w.law.clone()
+            },
             windows: w.windows.clone(),
         });
         let w = own_law.as_ref().unwrap_or(&w);

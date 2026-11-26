@@ -192,6 +192,12 @@ pub trait SeatRow: Row {
     fn head(&self) -> &[Self::Id] {
         &[]
     }
+    /// A community's founding record: the protocol its record declares (CC 3.3.4: its `consensus_protocol`), a
+    /// word the law's policy map reads. The protocol rows of the policy table (`cosigned_act`, `community_remove`:
+    /// [`Policy::Protocol`]) are counted under it ([`protocol_of`]). Read on the founding record only.
+    fn protocol(&self) -> Option<&Self::Word> {
+        None
+    }
     /// A counted act: the protocol and policy in force at it, as one value the caller compares by equality.
     /// Tips whose values differ do not fold ([`Seats::tips_fold`]). `None` where the caller states none.
     fn regime(&self) -> Option<&Self::Word> {
@@ -292,6 +298,10 @@ pub enum Policy {
     One,
     /// The threshold the row declares.
     Declared,
+    /// The room's declared protocol: the count its founding record's [`SeatRow::protocol`] names
+    /// ([`protocol_of`]); the policy table's protocol rows (`cosigned_act`, `community_remove`). Met by nothing where
+    /// the record declares none.
+    Protocol,
     /// The ranked tally: the ballots the row names, and the row seats the winner.
     Ranked,
     /// CC 4.5.4 (iv): conferral by a strict majority of the duty holders.
@@ -353,7 +363,8 @@ pub struct SeatLaw {
     pub policy: BTreeMap<String, Policy>,
     /// The act-to-policy binding (the Constitution's `governance_policy_acts.tsv`): which policy rows each counted
     /// act may take. `None`: this law binds no act to a policy, and the binding is the caller's (the behaviour
-    /// before it). `Some(rows)`: the binding is on. No rule reads it yet (steps 1 and 2 of the binding); the seat
+    /// before it). `Some(rows)`: the binding is on: a counted row whose stated policy its act may not take
+    /// concludes nothing, and one over an object with a kind whose act has no row concludes nothing. The seat
     /// fixture's law carries `Some`.
     pub acts: Option<Vec<ActRule>>,
     /// The kind of an object, from its founding row's scope (`member` and `duty`: a community; `holder`: an
@@ -611,6 +622,67 @@ pub fn act_of<'r, R: SeatRow + 'r>(
         }
         _ => None,
     }
+}
+
+/// The room's declared protocol in a row's past: the [`SeatRow::protocol`] its founding record states, looked up
+/// through `get` (the rows of that past), or `None`. A later change of the record is not read (`record_change` is
+/// not built). The one read of a room's protocol: the binding's refusal and the room-key rules call it.
+pub fn protocol_of<'r, R: SeatRow + 'r>(get: &dyn Fn(&R::Id) -> Option<&'r R>, obj: &ObjOf<R>) -> Option<&'r R::Word> {
+    let Obj::Row(i) = obj else { return None };
+    let g = get(i)?;
+    if g.seat_kind() != SeatKind::Offer || !founding(g) {
+        return None;
+    }
+    g.protocol()
+}
+
+/// The policy a counted row is counted under, or `Err(())`: the row concludes nothing. With the binding on
+/// ([`SeatLaw::acts`] `Some`), from the row's act ([`act_of`]) and the acts table: a fixed act's one row (the row
+/// may state it or none), or the row's own choice among those listed; a counted row over an object with a kind
+/// whose act has no row, or that states a policy its act may not take, concludes nothing. A protocol row
+/// ([`Policy::Protocol`]) is counted under the founding record's protocol ([`protocol_of`]), never one the row
+/// states, and concludes nothing where the record states none. With the binding off, the row's own policy, a
+/// protocol row read the same way.
+fn policy_in_force<'r, R: SeatRow + 'r>(
+    law: &SeatLaw,
+    get: &dyn Fn(&R::Id) -> Option<&'r R>,
+    r: &R,
+) -> Result<Option<Policy>, ()> {
+    let stated = r.policy().map(|x| x.as_ref());
+    let mut word = stated;
+    if law.acts.is_some() {
+        match (act_of(law, get, r), r.obj()) {
+            (None, Some(obj)) => {
+                if kind_of(law, get, &obj).is_some() {
+                    return Err(());
+                }
+            }
+            (None, None) => {}
+            (Some((act, sc, kind)), _) => {
+                let (pols, choice) = policy_for(law, act, sc, kind).ok_or(())?;
+                match choice {
+                    Choice::Fixed => {
+                        let one = pols.first().ok_or(())?;
+                        if stated.is_some_and(|s| s != one.as_str()) {
+                            return Err(());
+                        }
+                        word = Some(one.as_str());
+                    }
+                    Choice::Row => {
+                        if !stated.is_some_and(|s| pols.iter().any(|p| p == s)) {
+                            return Err(());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let pol = law.policy_of(word);
+    if pol == Some(Policy::Protocol) {
+        let proto = r.obj().and_then(|o| protocol_of(get, &o)).ok_or(())?;
+        return Ok(law.policy_of(Some(proto.as_ref())));
+    }
+    Ok(pol)
 }
 
 /// The policy rows an act may take over a scope class and a kind of object, and whether the counted row chooses
@@ -1503,7 +1575,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 if let Some(ok) = ok {
                     mem.retain(|m| ok.contains(m));
                 }
-                let pol = self.law.policy_of(r.policy().map(|x| x.as_ref()));
+                let Ok(pol) = policy_in_force(self.law, &|i| p.get(i), r) else { return false };
                 // a re-seating's voices are the objections it names, counted over the members the fold seats
                 let v = if pol == Some(Policy::Lift) {
                     let Some((author, v)) = lift_voices_with(&p, self.law, self.spec, Some(&members)) else {
@@ -2568,7 +2640,8 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
     let r = p.row();
     let is_offer = r.seat_kind() == SeatKind::Offer;
     let Some(obj) = r.obj() else { return false };
-    let pol = law.policy_of(r.policy().map(|x| x.as_ref()));
+    // the count reads the policy in force (the acts table, the room's protocol), never the stated one
+    let Ok(pol) = policy_in_force(law, &|i| p.get(i), r) else { return false };
     if pol == Some(Policy::Lift) {
         // the overturn's count over the objections the row names, at the head the removal names
         // a lift restores and does not admit: the removal it cites is a lone removal, so the key held its

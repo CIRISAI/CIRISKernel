@@ -328,6 +328,47 @@ changes.
   (those rows in arrival orders, eleven planted breaks, the OPEN list). Eleven new crate plants in
   `tools/kernel_crate_plants.sh`.
 
+**The act-to-policy binding, step 3: the refusal, and the room's declared protocol** (the Constitution's
+`governance_policy_acts.tsv`).
+
+- **The refusal.** With a law that carries the acts table (`SeatLaw::acts` `Some`), a counted row is counted
+  under the policy its act may take, never one it states otherwise (`seat_rule`'s count and the fold at tips read
+  it through one function). The act comes from `act_of`.
+  - For a `fixed` act the row may state the one row or none, and is counted under that row.
+  - For a `row` act it must state one of the rows listed.
+  - A counted row over an object with a kind whose act has no row, or that states another policy, concludes
+    nothing.
+  - A law with `acts: None` leaves the binding to the caller, as before. The `tables` fixture's law is such a law:
+    the roster instances (`roster.py`'s `R:...` names) are not bound to acts yet.
+- **The room's declared protocol.**
+  - New: `SeatRow::protocol()` (default `None`), the protocol a community's founding record declares (CC 3.3.4:
+    its `consensus_protocol`), read on the founding record only. New: `seat::protocol_of(get, obj)`, the one read
+    of it, for the refusal and the room-key rules.
+  - **BREAKING for an exhaustive match on `seat::Policy`**: `Policy::Protocol` is new. It is the policy table's
+    protocol rows (`cosigned_act`, `community_remove`, `wa_adjudication`, whose enact cell reads `protocol`),
+    counted under the founding record's protocol and never one a row states. Where the record declares none,
+    they conclude nothing.
+  - A counted admission or removal over a community therefore concludes only under `community_invite` (the
+    two-path) or the room's declared protocol. The protocol words are policy words of the law (`majority`,
+    `two_thirds`, `one`, `quorum` in the reference).
+  - The reference's communities declare `two_thirds` on their founding records (the builders' default). Before,
+    `seat.py` read `community_remove` as two thirds for every room.
+- **Answers change:**
+  - an admission or removal stating a policy its act may not take (`accord_halt`, say) concludes nothing;
+  - a removal is counted under the room's own protocol: of four under `majority`, three remove and two do not;
+  - a room whose record declares no protocol concludes no removal and no `cosigned_act` admission;
+  - a counted row of a scope that is no act (a seat no act names) concludes nothing.
+  `check_agent_removal.py`'s case of a non-member seat presents that seat as a detector seat (`detect:author`),
+  the one such seat the table binds. Its answers are unchanged. `check_duty_seats.py` gains one case read with no
+  acts table (the duty gate alone refusing `accord_halt`). The seat fixture carries `unbound` for such a case.
+- **Not built:**
+  - a later change of a room's protocol: `record_change` is not built, and only the founding record is read;
+  - `SeatRow::regime()`, which is the protocol and policy in force as ONE value a counted row states, compared at
+    tips, is not yet compared with the record's protocol.
+  - The duty gate's own policy check and the other narrow gates stay as they are until step 4.
+- The reference: `check_acts.py`'s 12 refusal cases, each with the table and without, and three planted breaks in
+  `seat.py`. `tests/acts.rs` replays them. Four plants in the crate.
+
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
 - `content` reads `conferral`'s three-way `any`, later-head test and stale-head test; its own copies are gone.

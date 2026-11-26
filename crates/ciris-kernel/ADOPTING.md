@@ -76,12 +76,20 @@ migrations, and the local operational store.
 - **A poll** (CC 4.5.13, CC 6.1.9). A poll is a tally signed by the period's tally member: its rule and its close
   are stated by its own opening row. It is not a window here.
 
-**The act-to-policy binding** (unreleased; steps 1 and 2: read by no rule yet).
+**The act-to-policy binding** (unreleased).
 - `SeatLaw::acts` is the Constitution's `governance_policy_acts.tsv` as `ActRule`s, and `SeatLaw::kinds` maps a
   founding row's scope to its object's kind. A law with `acts: None` binds no act to a policy; the binding is
   then the caller's, as before.
 - `seat::act_of(law, get, row)` is the act a counted row is, and `seat::policy_for(law, act, scope, kind)` the
   policy rows it may take: ask these rather than keeping a list of your own.
+- With `acts: Some(..)`, the seat rule refuses a counted row whose stated policy its act may not take
+  (`act_of`, `policy_for`). A fixed act's row may state its one policy or none. A protocol row (`cosigned_act`,
+  `community_remove`, `Policy::Protocol`) is counted under the room's declared protocol.
+- Present a community's founding record with its declared protocol (`SeatRow::protocol()`, the record's
+  `consensus_protocol`), a word your law's policy map names. With none, the room concludes no removal and no
+  `cosigned_act` admission. Read it with `seat::protocol_of(get, obj)` rather than from any other row.
+- The store's query: `seat::policy_for(law, act, scope, kind)` gives the policy rows an act may take and whether
+  the row chooses. `seat::act_of(law, get, row)` gives a row's act; `seat::kind_of` gives an object's kind.
 - The windows' specs (`window::WindowSpec`, chosen by a row's `window()` name) stay the caller's: no act binding
   reads them in this tag.
 - The election's seating is the one act read from the policy the row states (`Policy::Ranked`). The election is

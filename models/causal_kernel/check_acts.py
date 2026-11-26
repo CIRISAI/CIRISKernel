@@ -15,6 +15,9 @@ Planted breaks, each of which must change a case's answer:
     kind_unread         every founding row is a community (an accord's row an admission, and so on)
     key_kind_unread     a key object has no kind
     detect_unread       a detector seat's conferral is no act
+    binding_off         the acts table is not read: a counted row is counted under any policy it states
+    stated_policy_free  a row's stated policy is not held to its act's rows (a fixed act's, or the row's choice)
+    protocol_unread     a protocol row (cosigned_act, community_remove) is counted as a row-declared threshold
 
     python3 -I check_acts.py      exit 1 on any difference
 """
@@ -111,7 +114,40 @@ QUERIES = [
     (("recall", "duty", "self"), None),
 ]
 
-PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread")
+# The refusal (step 3): (name, rows, the row asked, concludes with the acts table, concludes with none)
+GM4 = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"))      # two thirds
+GMJ = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), protocol="majority")
+GN = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), protocol=None)
+CONCLUDE = [
+    ("an admission stating accord_halt (one voice) is no admission's policy: with the table it concludes nothing",
+     [GM4, grp("r", "offer", "E", "member", "accord_halt", cosigners=("E",))], "r", False, True),
+    ("a removal stating cosigned_act: the removal's policy is fixed (community_remove), so nothing with the table; "
+     "without it the room's protocol counts it (three of four)",
+     [GM4, grp("r", "unseat", "D", "member", "cosigned_act", cosigners=("B", "C"))], "r", False, True),
+    ("a removal stating none is counted under community_remove, the room's protocol: two thirds, three of four",
+     [GM4, grp("r", "unseat", "D", "member", None, cosigners=("B", "C"))], "r", True, False),
+    ("a removal under community_remove in a room of majority: A and B, two of four, are not more than half",
+     [GMJ, grp("r", "unseat", "D", "member", "community_remove", cosigners=("B",))], "r", False, False),
+    ("and A, B and C are: the room's protocol, not two thirds or one the row states",
+     [GMJ, grp("r", "unseat", "D", "member", "community_remove", cosigners=("B", "C"))], "r", True, True),
+    ("a removal in a room whose record declares no protocol concludes nothing, with the table or without",
+     [GN, grp("r", "unseat", "D", "member", "community_remove", cosigners=("B", "C", "D"))], "r", False, False),
+    ("an admission under cosigned_act is counted under the room's protocol (majority: three of four)",
+     [GMJ, grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "C", "E"))], "r", True, True),
+    ("an admission under cosigned_act where the record declares no protocol concludes nothing",
+     [GN, grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "C", "D", "E"))], "r", False, False),
+    ("an admission under community_invite (the two-path) is its own count: two thirds",
+     [GMJ, grp("r", "offer", "E", "member", "community_invite", cosigners=("B", "C", "E"))], "r", True, True),
+    ("a counted row of a scope that is no act over a community concludes nothing with the table",
+     [FH, grp("r", "offer", "N", "verify2", "accord_halt")], "r", False, True),
+    ("a detector seat's conferral stating accord_halt is refused (its policy is fixed: duty_confer)",
+     [FH, grp("r", "offer", "N", "detect:list1", "accord_halt", counted="duty")], "r", False, True),
+    ("an accord's counted row stating none is a standing act, counted under accord_majority",
+     [GA, grp("r", "offer", "h4", "holder", None, counted="holder", cosigners=("h1", "h2", "h4"))], "r", True, False),
+]
+
+PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread",
+          "binding_off", "stated_policy_free", "protocol_unread")
 
 
 @contextlib.contextmanager
@@ -132,8 +168,23 @@ def answer(rows, rid, plant=None):
         return ST.act_of(r, by, is_key=r.get("obj") is not None and r.get("obj") not in by)
 
 
+def concludes(rows, rid, bound, plant=None):
+    saved = ST.BOUND
+    ST.BOUND = bound
+    try:
+        with planted(plant):
+            S = CK.concluded(CK.kept(list(rows)), lambda r, P, past: ST.seat_rule(r, P, past))
+            return bool(S.C.get(rid))
+    finally:
+        ST.BOUND = saved
+
+
 def main():
     problems = []
+    for name, rows, rid, wb, wu in CONCLUDE:
+        got = (concludes(rows, rid, True), concludes(rows, rid, False))
+        if got != (wb, wu):
+            problems.append("%s: got %s, expected %s" % (name, got, (wb, wu)))
     for name, rows, rid, want in CASES:
         got = answer(rows, rid)
         if got != want:
@@ -145,14 +196,16 @@ def main():
     caught = 0
     for plant in PLANTS:
         hit = [name for name, rows, rid, want in CASES if answer(rows, rid, plant) != want]
+        hit += [c[0] for c in CONCLUDE if concludes(c[1], c[2], True, plant) != c[3]]
         caught += bool(hit)
         print("  plant %-16s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0]) if hit else "NOT CAUGHT"))
         if not hit:
             problems.append("plant %s not caught" % plant)
     for p in problems:
         print(p)
-    print("RESULT: %s: %d cases, %d queries, %d of %d planted breaks caught"
-          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), len(QUERIES), caught, len(PLANTS)))
+    print("RESULT: %s: %d cases, %d queries, %d refusal cases, %d of %d planted breaks caught"
+          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), len(QUERIES), len(CONCLUDE), caught,
+             len(PLANTS)))
     return 1 if problems else 0
 
 

@@ -232,7 +232,9 @@ CASES = [
 # that is late. And a withdrawal naming `member` of an offer that seats no member (m2's `author`, conferred by the
 # holders' count) ends no stay: m2's objection after it is a voice
 WL = ST.withdraw("wl", "m2", "g", ("x",), scope="duty")
-AU = ST.offer("au", "m1", "m2", "author", OBJ, "group", ("ag",), head=("ag",), policy="duty_confer", counted="duty",
+# a seat the duty holders place that holds no member: a detector seat (CC 4.5.7; the acts table binds its conferral;
+# a scope no act names is no counted act, so the seat is presented as the one such seat the table knows)
+AU = ST.offer("au", "m1", "m2", "detect:author", OBJ, "group", ("ag",), head=("ag",), policy="duty_confer", counted="duty",
               cosigners=("m3", "m2"))
 WMA = ST.withdraw("wa", "m2", "au", ("x",), scope="member")
 O3 = obj("o3", "m3")
@@ -243,7 +245,7 @@ CASES += [
      {"m1", "m3"}, {"x": "open"}),
     ("C: the same two objections with no laying down: lifted", C + [remove("x", "m1", "AG", "ag"), O2, O3], {"x": T},
      {"m1", "m2", "m3"}, {"x": "lifted"}),
-    ("C: m2 withdraws `member` of its `author` offer (a seat that is no member's): no stay ends, so its objection "
+    ("C: m2 withdraws `member` of its detector seat's offer (a seat that is no member's): no stay ends, so its objection "
      "after that is a voice, and the two lift", C + [AU, remove("x", "m1", "AG", "au"), WMA,
                                                     WN.answer("o2", "m2", "x", "object", ("wa",)), O3],
      {"x": T, "au": T, "wa": T}, {"m1", "m2", "m3"}, {"x": "lifted"}),

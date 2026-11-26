@@ -41,6 +41,9 @@ import cut as CUT      # noqa: E402
 import fork as FK      # noqa: E402
 
 CK, K, R = ST.CK, ST.K, ST.R
+# The roster instances register their own policy names (R:...) and are not bound to acts yet (a gap): the seat rule
+# reads them with the binding off, as the tables fixture's law carries no acts table.
+ST.BOUND = False
 POL = json.load(open(os.path.join(HERE, "..", "..", "data", "governance_policy.json"), encoding="utf-8"))
 TABLE = {f["family"]: f for f in POL["families"]}
 MIN_COUNT = POL["min_count"]

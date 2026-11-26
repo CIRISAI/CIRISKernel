@@ -349,7 +349,7 @@ CASES = [
      [("A", "review", T), ("A", "moderate", F)], None),
     (DG + "several signers and no map: members, no duty", [GM], [("A", "moderate", F), ("A", "member", T), ("A", "duty", F)], None),
     # ---- the review of #54: the gate's room, count and policy; a record's declared duties ------------------------
-] + [(RV54 + n, rows, asks, None) for n, rows, asks in (
+] + [(RV54 + n[0], n[1], n[2], n[3] if len(n) > 3 else None) for n in (
     ("a count over another room confers no duty: D, admitted to g, founds h alone and confers moderate over g on "
      "itself counted over h's duty holders", [GA, MDA, HD, gate_offer("D", ("D",), over="h", head=("h",), names=("md", "h"))],
      [("D", "moderate", F), ("D", "member", T)]),
@@ -387,6 +387,8 @@ CASES = [
      "counted over `moderate`", [GA, MDA, gate_offer("A", ("D",), counted="moderate")], [("D", "moderate", F)]),
     ("a policy that is not the duty count confers nothing: B alone, counted over the duty holders, under accord_halt "
      "(one of n)", [GA, MDA, gate_offer("B", ("D",), policy="accord_halt")], [("D", "moderate", F)]),
+    ("the same with no acts table (the binding the caller's): the duty gate alone refuses accord_halt",
+     [GA, MDA, gate_offer("B", ("D",), policy="accord_halt")], [("D", "moderate", F)], "unbound"),
     ("a record's declared duties are never a roster scope: several signers declaring `member` a duty have no duty "
      "holders, and the members' count confers no moderate",
      [dict(GM, duties=("member",)), admit("md", "D", ("A", "B", "C"), ("g",)), MCD("mc", "D", ("md",))],
@@ -423,13 +425,16 @@ PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_onl
 @contextlib.contextmanager
 def table(name):
     """Read under persist's table (HOLDS.duty = ("member",)); the default table otherwise."""
-    saved = ST.HOLDS["duty"]
+    saved, bound = ST.HOLDS["duty"], ST.BOUND
     if name == "persist":
         ST.HOLDS["duty"] = PERSIST_HOLDS
+    if name == "unbound":
+        ST.BOUND = False           # a law with no acts table: the duty gate alone refuses the policy
     try:
         yield
     finally:
         ST.HOLDS["duty"] = saved
+        ST.BOUND = bound
 
 
 @contextlib.contextmanager

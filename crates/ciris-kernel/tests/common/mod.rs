@@ -293,6 +293,7 @@ pub struct TRow {
     pub room: Option<Obj<String, String>>,
     pub scope: Option<String>,
     pub policy: Option<String>,
+    pub protocol: Option<String>,
     pub counted: Option<String>,
     pub of: Option<String>,
     pub target: Option<String>,
@@ -373,6 +374,7 @@ impl TRow {
             room: o("room"),
             scope: opt(&m, "scope"),
             policy: opt(&m, "policy"),
+            protocol: opt(&m, "protocol"),
             counted: opt(&m, "counted"),
             of: opt(&m, "of"),
             target: if m.get("target").is_some_and(|t| matches!(t, J::Str(_))) { opt(&m, "target") } else { None },
@@ -480,6 +482,9 @@ impl SeatRow for TRow {
     }
     fn policy(&self) -> Option<&String> {
         self.policy.as_ref()
+    }
+    fn protocol(&self) -> Option<&String> {
+        self.protocol.as_ref()
     }
     fn counted(&self) -> Option<&String> {
         self.counted.as_ref()
@@ -702,6 +707,7 @@ pub fn law_of(j: &J) -> SeatLaw {
             "recall" => Policy::Recall(num, den, a[3].i() as u64),
             "one" => Policy::One,
             "declared" => Policy::Declared,
+            "protocol" => Policy::Protocol,
             "ranked" => Policy::Ranked,
             "duty" if k == "duty_confer" => Policy::DutyConfer,
             "duty" if k == "duty_withdraw" => Policy::DutyWithdraw,

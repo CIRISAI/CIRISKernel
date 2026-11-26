@@ -410,6 +410,8 @@ def seat_cases():
                 e["stands"] = [[k, sc, o, Q.stands(k, sc, o)] for k, sc, o in asks]
             if tab:
                 e["holds"] = enc(ST.HOLDS)
+            if tab == "unbound":
+                e["unbound"] = True        # read under a law with no acts table (the binding the caller's)
         out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
@@ -478,6 +480,7 @@ def table_cases():
     import seat as ST
     import window as WN
     import cut as CUT
+    ST.BOUND = False           # the roster instances are not bound to acts yet: this law carries no acts table
     out = {"witnesses": [], "rosters": [], "other_rules": []}
     for c in WIT.CASES:
         worlds = [("main", c["rows"])] + [("variant " + v[0], v[1]) for v in c["variants"]] + \
@@ -680,8 +683,13 @@ def acts_cases():
         cases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid,
                       "act": list(want) if want else None})
     queries = [{"ask": list(q), "policies": list(w[0]) if w else None, "choice": w[1] if w else None} for q, w in AC.QUERIES]
+    conclude = []
+    for name, rows, rid, wb, wu in AC.CONCLUDE:
+        refs = {}
+        conclude.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "bound": wb, "unbound": wu})
     return {"acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS),
-            "roster_seats": list(ST.ROSTER_SEATS), "duties": list(ST.DUTIES), "cases": cases, "queries": queries}
+            "roster_seats": list(ST.ROSTER_SEATS), "duties": list(ST.DUTIES), "cases": cases, "queries": queries,
+            "conclude": conclude}
 
 
 def main():
@@ -698,6 +706,8 @@ def main():
     dump("seat.json", seat, out)
     dump("purge.json", purge_cases(), out)
     dump("tables.json", table_cases(), out)
+    import seat as _ST
+    _ST.BOUND = True           # every later fixture reads the seat rule with the binding on
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
     dump("acts.json", acts_cases(), out)

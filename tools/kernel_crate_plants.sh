@@ -271,6 +271,12 @@ plant "a recall's holder a voice of it"                  src/seat.rs 'let yes = 
 plant "a runoff step's tie goes on"                      src/ranked.rs 'let Some(w) = ranked(ballots, &opts, floor, declared).0 else { break };' 'let Some(w) = ranked(ballots, &opts, floor, declared).0 else { opts.remove(0); continue };'
 plant 'the runoff order stops at its winner'             src/ranked.rs 'opts.retain(|o| *o != w);' 'opts.clear();'
 plant 'options holding no ballot eliminated one by one'  src/ranked.rs 'if s.standing.iter().any(|o| n(o) == 0) {' 'if false {'
+plant 'the acts table read by no count'                  src/seat.rs '    if law.acts.is_some() {
+        match (act_of(law, get, r), r.obj()) {' '    if false {
+        match (act_of(law, get, r), r.obj()) {'
+plant "a fixed act's stated policy unread"               src/seat.rs 'if stated.is_some_and(|s| s != one.as_str()) {' 'if false {'
+plant "a row's choice not held to its act's rows"        src/seat.rs 'if !stated.is_some_and(|s| pols.iter().any(|p| p == s)) {' 'if false {'
+plant 'a protocol row counted with no protocol'         src/seat.rs '    if pol == Some(Policy::Protocol) {' '    if false {'
 plant 'act_of: the lift read as an admission'          src/seat.rs '                if lift {' '                if false {'
 plant 'act_of: a roster seat read as a duty'            src/seat.rs '            if law.roster_seats.iter().any(|x| x == sc) {' '            if false {'
 plant "act_of: the election's seating read as a conferral" src/seat.rs '                if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {' '                if false {'
