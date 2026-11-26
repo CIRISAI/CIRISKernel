@@ -560,6 +560,22 @@ fn stay_end<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, w: &R) -> Opti
     (community(by, &obj) && roster_offer(law, t)).then_some(obj)
 }
 
+/// The roster seat a key's own end of its stay ([`stay_end`]) ends: the scope the withdrawal names, or else the
+/// scope of the offer it withdraws (through an acceptance, the offer accepted, or a standing acceptance's own).
+fn end_scope<'a, R: SeatRow>(by: &BTreeMap<&R::Id, &'a R>, w: &'a R) -> Option<&'a R::Word> {
+    if let Some(s) = w.scope() {
+        return Some(s);
+    }
+    let t = *by.get(w.target()?)?;
+    match (t.seat_kind(), t.of()) {
+        (SeatKind::Accept, Some(of)) => {
+            let o: &'a R = *by.get(of)?;
+            o.scope()
+        }
+        _ => t.scope(),
+    }
+}
+
 fn founding_many<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, obj: &ObjOf<R>) -> bool {
     row_of(by, obj).is_some_and(|g| {
         g.seat_kind() == SeatKind::Offer && g.obj() == Some(Obj::Row(g.id().clone())) && g.to().len() > 1
@@ -713,10 +729,22 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             duty_held(law, &by, o, sc)
                 && left.iter().any(|(w, k2, room)| *k2 == k && oo.as_ref() == Some(room) && g.in_past(oi, *w))
         };
+        // a key's own row on a roster seat concurrent with its own end of its stay there (neither in the other's
+        // past) is no voice: its signature on the offer, or its acceptance of it (CIRISConstitution#224, ruled: the
+        // rule a removed key's concurrent rows have, read for the key's own end). Other keys' rows are untouched.
+        let own_void = |row: usize, o: &R, k: &R::Key| {
+            if left.is_empty() || !roster_offer(law, o) {
+                return false;
+            }
+            let oo = o.obj();
+            left.iter().any(|(w, k2, room)| {
+                *k2 == k && oo.as_ref() == Some(room) && end_scope(&by, g.row(*w)) == o.scope() && g.concurrent(row, *w)
+            })
+        };
         // `signed`: whether k signed the offer, read by the caller once per offer's signer set
-        let accepted = |o: &R, k: &R::Key, signed: bool| {
+        let accepted = |oi: usize, o: &R, k: &R::Key, signed: bool| {
             if signed {
-                return true;
+                return !own_void(oi, o, k);
             }
             if o.consent_one() {
                 return o.conf() != Some(Conf::Seat);
@@ -732,7 +760,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                             && o.names().contains(ar.id())
                             && ar.scope() == o.scope()
                             && ar.obj().is_none_or(|x| Some(x) == o.obj()));
-                    paired && !ended(ar) && cut.counts(a)
+                    paired && !ended(ar) && cut.counts(a) && !own_void(a, o, k)
                 })
             })
         };
@@ -749,7 +777,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 if many { o.cosigners().iter().chain(core::iter::once(o.signer())).collect() } else { BTreeSet::new() };
             for k in o.to() {
                 let signed = if many { sig.contains(k) } else { signed_by(o, k) };
-                if !accepted(o, k, signed) {
+                if !accepted(oi, o, k, signed) {
                     continue;
                 }
                 for sc in seat_scopes(o, k, signed) {

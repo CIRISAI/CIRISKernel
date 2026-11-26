@@ -20,7 +20,8 @@ public, and seats identity keys.
                 that seat (its count met over its own past, or no count at all) with an offer seating the key in
                 its past, or the key's own end of its stay (stay_ends). A row concurrent with the end concludes (the rule is by
                 past). Beside a counted removal it does not seat: the cut voids it, and a later row adding the key is
-                refused. Beside a resignation it seats as built: OPEN, sent to the Constitution.
+                refused. Beside a resignation the key's own signature or acceptance on it is no voice (ruled: a key's own
+                rows concurrent with its own end of the seat are no voice, in every room), so it seats nobody.
     a second seat row   OPEN (#224: "what a second seat row of one room key does"). The text does not say.
     two admissions      the kernel seats both (CC 3.1.3.2: "no door refuses a widening for either, since no rule of
                 standing reads a binding"). What the text owes about it is OPEN (#224).
@@ -35,6 +36,8 @@ Part 3. Planted breaks (seat.MUT), each of which must change a case's answer:
     lone_final         a moderator's lone removal is read as final: the members' lift is refused
     resign_not_final   a resignation is no end of the seat: a room key that left is seated again
     reaccept_reseats   the same offer accepted again after a resignation re-seats
+    own_end_unread     a key's own end voids none of its concurrent voices: a re-admission racing a resignation seats
+    own_end_any_seat   a key's own end of one seat voids its concurrent voices on its other roster seats too
 
 Not here: a room that moved from private to public (no seat row carries the move; a voice seated before it stays a
 voice, and whether its end is then final is not stated); the key roster of a voice (#224's derived item "a device key
@@ -168,26 +171,42 @@ CASES = [
      + [lift("rs", "m2", "AG", "xa", ("ag",), ("o2", "o3", "o4"))], {"xa": T, "rs": F}, M4 | {"q"}, []),
 ]
 
+# a key's own end voids its own concurrent voices (ruled on #224, the rule a removed key's concurrent rows have, read
+# for the key's own end; stated for every room): its signature on an offer, or its acceptance, that is concurrent with
+# its own end of its stay is no voice. Rows of other keys are untouched.
+OWN_ROW = FINAL_ROW + "; a key's own end voids its own concurrent voices"
+CASES += [
+    ("private: q resigns beside a re-admission of the same key (neither names the other): both conclude, and q's "
+     "signature on the re-admission is concurrent with its own end, so the re-admission lacks its consent and seats nobody",
+     OWN_ROW, PV + [WQ, rejoin("aq2", "q", ("ag",))], {"wq": T, "aq2": T}, M4 | {"AG"}, [("q", "member", F)]),
+    ("private: then a row names both: q stays out", OWN_ROW,
+     PV + [WQ, rejoin("aq2", "q", ("ag",)), ST.cosign("h", "m1", "h", ("wq", "aq2"))], {"h": T}, M4 | {"AG"},
+     [("q", "member", F)]),
+    ("private: and a later admission naming that row concludes nothing", OWN_ROW,
+     PV + [WQ, rejoin("aq2", "q", ("ag",)), ST.cosign("h", "m1", "h", ("wq", "aq2")), rejoin("aq3", "q", ("h",))],
+     {"aq3": F}, M4 | {"AG"}, [("q", "member", F)]),
+    ("private: q withdraws its acceptance beside a second acceptance of the same offer: the second concludes and seats "
+     "nobody (omitting its own withdrawal does not dodge the end)", OWN_ROW,
+     [PV[0], admit("aq", "q", ("m1", "m2", "m3", "m4"), ("g",), joiner=False), ST.accept("acq", "q", "aq"),
+      ST.withdraw("wa", "q", "acq"), ST.accept("acq2", "q", "aq", ("acq",))], {"wa": T, "acq2": T}, M4, [("q", "member", F)]),
+    ("public: the same race: the rule is every room's, and q is out", OWN_ROW,
+     PB + [WQ, rejoin("aq2", "q", ("ag",))], {"wq": T, "aq2": T}, M4 | {"AG"}, [("q", "member", F)]),
+    ("public: and after a row naming both, a later admission of q seats it (no finality in a public room)", OWN_ROW,
+     PB + [WQ, rejoin("aq2", "q", ("ag",)), ST.cosign("h", "m1", "h", ("wq", "aq2")), rejoin("aq3", "q", ("h",))],
+     {"aq3": T}, M4 | {"AG", "q"}, [("q", "member", T)]),
+    ("private: another key's admission concurrent with q's resignation is untouched: it seats", OWN_ROW,
+     PV + [WQ, rejoin("az", "z", ("ag",))], {"az": T}, M4 | {"AG", "z"}, [("z", "member", T)]),
+    ("private: the end is of one seat: q's resignation of its member seat leaves its own concurrent consent to a seat "
+     "in another roster scope (an agent's seat) a voice, and that seat stands", OWN_ROW,
+     PV + [WQ, rejoin("ax", "q", ("ag",), "agent")], {"ax": T}, M4 | {"AG", "q"}, [("q", "agent", T), ("q", "member", F)]),
+    ("private: q's acceptance of a duty conferral concurrent with its resignation: the duty is no roster seat, and it "
+     "waits on a member seat q no longer holds", OWN_ROW,
+     PV + [WQ, ST.offer("cq", "m1", "q", "moderate", OBJ, "group", ("ag",), head=("ag",), policy="duty_confer",
+                        counted="duty", cosigners=("m2", "m3", "q"))], {"cq": T}, M4 | {"AG"}, [("q", "moderate", F)]),
+]
+
 # ---- OPEN: what the text does not decide. (name, ledger row, rows, {row: concludes}, roster, asks, candidates) ----
 OPEN = []
-RACE = ("seated by the concurrent row, as built: a resignation ends its own target by past, and is no cut and no tip",
-        "out, as a counted removal's race is: the key is off the roster at the tips, and no later row adds it")
-OPEN += [
-    ("private: q resigns beside a re-admission of the same key (neither names the other): both conclude, and as built "
-     "the re-admission seats q", FINAL_ROW, PV + [WQ, rejoin("aq2", "q", ("ag",))], {"wq": T, "aq2": T}, M4 | {"AG", "q"},
-     [("q", "member", T)], RACE),
-    ("private: then a row names both: as built q stays seated", FINAL_ROW,
-     PV + [WQ, rejoin("aq2", "q", ("ag",)), ST.cosign("h", "m1", "h", ("wq", "aq2"))], {"h": T}, M4 | {"AG", "q"},
-     [("q", "member", T)], RACE),
-    ("private: and a later admission naming that row concludes nothing; as built q stays seated by the concurrent row",
-     FINAL_ROW, PV + [WQ, rejoin("aq2", "q", ("ag",)), ST.cosign("h", "m1", "h", ("wq", "aq2")), rejoin("aq3", "q", ("h",))],
-     {"aq3": F}, M4 | {"AG", "q"}, [("q", "member", T)], RACE),
-    ("private: q withdraws its acceptance beside a second acceptance of the same offer: as built the second concludes and "
-     "seats q", FINAL_ROW,
-     [PV[0], admit("aq", "q", ("m1", "m2", "m3", "m4"), ("g",), joiner=False), ST.accept("acq", "q", "aq"),
-      ST.withdraw("wa", "q", "acq"), ST.accept("acq2", "q", "aq", ("acq",))], {"wa": T, "acq2": T}, M4 | {"q"},
-     [("q", "member", T)], RACE),
-]
 # a second seat row of one room key
 OPEN += [
     ("a second seat row of a room key already seated: as built it concludes, and the key is one key on the roster",
@@ -230,7 +249,8 @@ OPEN += [
       "a checking duty holder then closes it, and without one two admissions whose checkers share no binding still seat)",
       "a residual named in the ledger")),
 ]
-PLANTS = ("room_key_unread", "public_final", "lone_final", "resign_not_final", "reaccept_reseats")
+PLANTS = ("room_key_unread", "public_final", "lone_final", "resign_not_final", "reaccept_reseats", "own_end_unread",
+          "own_end_any_seat")
 
 
 def read(S, case):

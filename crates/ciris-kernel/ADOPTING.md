@@ -208,6 +208,8 @@ names (`models/causal_kernel/roomkey.py`, `rule`).
   Keep `SeatLaw::final_scopes` as the table gives it (`registered`, `member`, `agent`). The refusal has no name in
   the crate; the text's name is the door's to give. A room that moved to public is not read: the crate reads the
   founding row only.
+- In every room, a key's own signature on an offer of a roster seat, or its acceptance of one, that is concurrent
+  with its own end of its stay there is no voice (`Seats`): present the rows as they are; nothing to mark.
 - A second seat row of a room key already seated, and two admissions of one person under two room keys, are
   seated as any rows are (OPEN in `check_room_keys.py`); the cosigners' checks of the binding are the caller's.
 

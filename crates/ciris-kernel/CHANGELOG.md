@@ -52,11 +52,15 @@ admission", of any end of the seat, a resignation included; CC 3.1.3.2: "a membe
   move keeps a final end is not stated); the voice's own key roster (#224: "a device key of a voice ended by the
   voice's own count is final for that device key"; a voice is a key object with no founding row, so no seat row
   says it is a private room's); the refusal's name (the text's).
-- OPEN, recorded as built with the candidate answers in `check_room_keys.py` and the seat fixture: a re-admission,
-  or a second acceptance of the same offer, concurrent with the key's resignation concludes and, as built, seats the
-  key, and keeps it seated after a row naming both (a withdrawal ends its own target by past, and is no cut and no
-  tip). The other candidate is that the key is out, as beside a counted removal; building it needs a resignation
-  that ends rows concurrent with it, which seat.rs and seat.py do not have.
+- **A key's own end voids its own concurrent voices**, in every room (ruled on #224: the rule a removed key's
+  concurrent rows have, read for the key's own end). In `Seats`, a key's signature on an offer of a roster seat, or
+  its acceptance of one, that is concurrent with its own end of its stay in that room (neither in the other's past)
+  is no voice: the offer lacks that key's consent and seats nobody. The end is of one seat (the scope the withdrawal
+  names, else its target's): the key's voices on its other roster seats are untouched, as are other keys' rows. **Answers that
+  change**: a re-admission concurrent with the key's resignation concludes and seats nobody (before, it seated the
+  key, also after a row naming both); a second acceptance of the same offer concurrent with the withdrawal of the
+  first seats nobody (before, it seated: the key un-resigned by not naming its own withdrawal). The test is by past,
+  never by what a row names. No existing case of the reference or the fixtures moves (every room was compared).
 
 **A second seat row of one room key** (CIRISConstitution#224): no answer changes, and nothing is built. The text
 does not say what it does. OPEN, as built: a second seat row of a key already seated concludes and the key is one
@@ -69,9 +73,9 @@ count. OPEN: what the text says of the second voice ("a person gains a second vo
 admission failed to check" does not hold for two admissions at once).
 
 The reference: `seat._revoked_before`, `seat.room_key_ended`, `seat.private_room` in `models/causal_kernel/seat.py`;
-`check_room_keys.py` has 23 cases and 7 OPEN rows in every arrival order (up to six rows, else 41 orders) and five
+`check_room_keys.py` has 32 cases and 3 OPEN rows in every arrival order (up to six rows, else 41 orders) and seven
 planted breaks; `roomkey.py` states the finding of re-admission under the same key for a public room and the refusal
-for the same room declared private. Five plants in `tools/kernel_crate_plants.sh`.
+for the same room declared private. Seven plants in `tools/kernel_crate_plants.sh`.
 
 ## [0.4.0]
 

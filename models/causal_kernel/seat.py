@@ -362,6 +362,16 @@ def stay_ends(rows, by, holds=None):
     return out
 
 
+def end_scope(by, w):
+    """The roster seat a key's own end of its stay (stay_ends) ends: the scope the withdrawal names, or else the scope
+    of the offer it withdraws (through an acceptance, the offer accepted, or a standing acceptance's own)."""
+    if w.get("scope") is not None: return w["scope"]
+    t = by.get(w.get("target"))
+    if t is None: return None
+    if t["kind"] == "accept" and t.get("of") is not None: return (by.get(t["of"]) or {}).get("scope")
+    return t.get("scope")
+
+
 def duty_held(by, o, sc=None):
     """A duty seat proper: a seat the duty holders place over their community (duty_seat) whose scope makes its holder a
     duty holder, or a duty seat a founding row gives by its `duty_holders` map. The seat the membership rule reaches."""
@@ -502,13 +512,21 @@ class Seats:
                 if (pos[o["id"]] < pos[u["id"]]) if by_arrival else (o["id"] in S.anc[u["id"]]): return True
             return False
 
+        def own_void(row, o, k):
+            """A key's own row on a roster seat that is concurrent with its own end of its stay there (neither in the
+            other's past) is no voice: its signature on the offer or its acceptance of it (CIRISConstitution#224, ruled:
+            the rule a removed key's concurrent rows have, read for the key's own end). Rows of other keys are untouched."""
+            if "own_end_unread" in MUT or not roster_seat(o, holds): return False   # MUTATION: the key's own end voids nothing
+            return any(k2 == k and g == o["obj"] and ("own_end_any_seat" in MUT or end_scope(S.by, w) == o["scope"]) and S.concurrent(w["id"], row["id"])
+                       for w, k2, g in left)
+
         def accepted(o, k):
-            if k in signers(o): return True
+            if k in signers(o): return not own_void(o, o, k)
             if o.get("consent") == "one": return o["conf"] != "seat"
             for a in K.sel(Cs, kind="accept", signer=k):
                 paired = (a["of"] == o["id"]) or (a["of"] is None and a["id"] in o["names"] and a["scope"] == o["scope"]
                                                  and a["obj"] in (None, o["obj"]))
-                if paired and not ended(a) and C.counts(a): return True
+                if paired and not ended(a) and C.counts(a) and not own_void(a, o, k): return True
             return False
 
         base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V
