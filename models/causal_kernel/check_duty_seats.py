@@ -368,6 +368,9 @@ CASES = [
     ("a version of g's roster as the head (a row of no object naming g's rows, as persist presents a ballot's head): "
      "a head of g's line, and D holds moderate",
      [GA, MDA, ST.R("v", "note", "A", ("md",)), gate_offer("A", ("B", "D"), head=("v",), names=("v",))], [("D", "moderate", T)]),
+    ("a merge head presented as a cosignature whose `of` is itself, naming g's rows: a head of g's line, and D "
+     "holds moderate", [GA, MDA, ST.R("v", "cosign", "A", ("md",), of="v"),
+                       gate_offer("A", ("B", "D"), head=("v",), names=("v",))], [("D", "moderate", T)]),
     ("a version naming only h's founding row is no head of g: no duty",
      [GA, MDA, HD2, ST.R("v", "note", "D", ("h",)), gate_offer("A", ("B", "D"), head=("v",), names=("v",))],
      [("D", "moderate", F)]),
