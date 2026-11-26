@@ -79,6 +79,9 @@ beyond the ballot count").
   is the persons less a key whose own leaving is in the row's past. The seating's `options()` are not read. **Answers
   change**: a room of five whose two members no ballot names now elects. Four cases (a room of ten at 4/3/3 seats
   nobody; at 5/3/2 it seats A); a plant in `seat.py` and one in the crate.
+- The election's rooms in `check_election.py` are founded by a record that names one holder of `moderate`, who
+  lays it down before the election. A founding with members only is refused at the door by the text, so no case
+  stands on one. The answers are as before.
 - Not built, each a row of `check_election.py`'s OPEN list carrying the model's answer now. The two-voice floor of a
   recall (the text decides; a public change).
 
