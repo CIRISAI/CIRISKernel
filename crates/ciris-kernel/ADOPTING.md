@@ -71,6 +71,10 @@ migrations, and the local operational store.
 - **An agent's owner on its duty seat.** The kernel does not read the owner's statement on an agent's duty seat
   yet (CC 4.5.4, `founding_duty_holder_agent_owner_unsigned`). Until it does, a caller must not present an
   agent's duty seat without the owner's statement having been checked at the door.
+- **A proposal's stated end** (`expires_at`). The kernel reads none: it is a door check on the acceptance row,
+  not a window rule.
+- **A poll** (CC 4.5.13, CC 6.1.9). A poll is a tally signed by the period's tally member: its rule and its close
+  are stated by its own opening row. It is not a window here.
 
 **The act-to-policy binding** (unreleased; steps 1 and 2: read by no rule yet).
 - `SeatLaw::acts` is the Constitution's `governance_policy_acts.tsv` as `ActRule`s, and `SeatLaw::kinds` maps a
@@ -312,4 +316,19 @@ chain of `Seats::stands` above.
 content row that names it as its head is read as naming a head at which the member is out.
 
 **Windows.** A `WindowSpec` literal states `opener` (`None` unless the opener's signer holds another scope than
-the counted one). `window::outcome` answers a met at-once count with no landing row.
+the counted one). `window::outcome` answers a met at-once count with no landing row. A ballot (an answer a
+`How::MoreOfVoted` clause reads; the fallback's `ballot:moderation_action`, `for` or `against`) withdrawn by its
+own signer is a seat withdrawal naming it (`SeatKind::Withdraw`, `target()`): `window::unwithdrawn` reads it.
+Every window's receipt is a `window:held` row and its landing a `window:landed` row stating the outcome
+(CIRISConstitution#221). Those names are entries of the caller's table: the crate reads a row's `WinKind` and
+never its family, and checks no family. Where every counted clause is over `Base::Others` (the members' check), the opener's
+signer is no concluder (`window::author_apart`). A table for the accord's halt is the holders' confirmation of a
+halt, a count (CC 4.2.1.1); the halted node's own fuse, on its own clock with no landing, is the node's and is not
+read through `window::outcome`. A clause over
+`Base::Stated(n)` (the base `active` above the base law's `k`) takes `n` from the caller: it is the census's
+figure (CC 6.1.9), and the kernel does not check it (a stated `n` below the members at the head counts as those members).
+`Base::Stated` is a new variant of a public enum: a caller's exhaustive `match` on `window::Base` breaks and needs
+an arm for it. `window::author_apart` takes the opener's signer out of the concluders of a table every counted
+clause of which is over `others`: such a table is a judgment of its opener's signer (the members' check, where the
+act opens its own window). Present an opener whose signer is a proposer, and not the subject, under a table that
+counts some clause over another base.

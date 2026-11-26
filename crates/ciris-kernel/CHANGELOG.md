@@ -260,6 +260,74 @@ The reference: `chain_answers` in `check_conferral_two.py`, with fifteen cases (
 planted breaks; four crate plants (142 after merging main). `tests/conferral_two.rs` now withholds any row, a deputy edge among them, and
 reads an undecided act as the fixture does.
 
+**The moderation windows land by signed rows; the fallback's vote is a ballot** (CIRISConstitution#221). One
+public enum gains a variant (`window::Base::Stated`: an exhaustive match breaks); five public functions; no name
+changes.
+
+- The ruling on #221: a member's vote on a moderation action where no moderator acts is a ballot of
+  `ballot:moderation_action` (dimension `ballot:moderation_action:v1`), `for` or `against`. A contrary voice is a
+  vote against. There is one ballot a person, folded as `ballot:moderator` is. The family is the caller's, so the
+  name is in the reference's table (`WINDOWS["moderation_fallback"]["ballot"]`) and the fixtures, not in crate
+  logic. The fallback's at-close clause reads `for` where it read `act`: **an answer changes** for a caller whose
+  table still says `act` (an `act` answer is then no ballot). The reference's cases, `attacks.py` and
+  `roomkey.py` now say `for`.
+- New: `window::unwithdrawn`, `window::own_withdrawals` and `window::ballot_words`. A ballot is an answer that a
+  `How::MoreOfVoted` clause reads (its value or its `against`). A ballot whose own signer withdrew it is no
+  ballot. The withdrawal is a seat withdrawal naming the ballot. Another key's withdrawal withdraws nothing. A
+  cosigner's withdrawal of the ballot does conclude (the seat rule reads every signer of the row it names); only
+  the match on the ballot's own signer (`own_withdrawals`) refuses it. A case and a plant in each language cover
+  it. The fold of what is left is `ops::one` per signer: agreeing ballots are
+  one, and disagreeing ones say nothing. This is the rule `ranked.rs` writes inline for `ballot:moderator`. A
+  withdrawal concurrent with a landing is recounted with it, as an answer is. **Answers change** only where a
+  ballot is withdrawn: no case before this one had such a withdrawal. Only a ballot is read so (ruled): an
+  objection or an approval its signer withdrew is still a voice.
+- One landing family for every window (ruling W1): the receipt is `window:held` and the landing `window:landed`,
+  which states the outcome. These are the caller's table entries. The crate reads a row's `WinKind`, never its
+  family, and checks none. No code here reads them.
+- Who signs (ruling W2): the fallback's landing by any member at the opener's head; the overturn's by any member
+  but the act's author. New: `window::author_apart`. Where every counted clause of a table is over
+  `Base::Others`, the opener's signer concludes no receipt and no landing of that window. **An answer changes:** an
+  overturn's receipt or landing by the act's author concluded before. No earlier case had one. New cases show that
+  a key with no seat at the head lands nothing.
+- `halt_fuse` is the holders' confirmation of a halt, a count (CC 4.2.1.1); the halted node's own fuse, on its own clock with no landing, is the node's and is not read here (ruling W3, as corrected). A met confirmation count gives `confirmed` with no
+  landing, and a concurrent `lapsed` landing does not undo it. The table's answers are unchanged, and it is
+  marked so in `window.py`, `window.rs` and ADOPTING.md. The name `halt_fuse` is a misnomer, kept for now: the
+  adversary table and the fixtures carry it.
+- `head::View::window(now)` is a per-node reading that decides nothing that counts (ruling W5). This is in its doc
+  comment only; the code is unchanged.
+- W4, the overturn's landing binding the objections it was counted over, was tried and is withdrawn. Two rows of
+  the adversary table break under it ("a majority's objections are not overridden by a landing"). Today's reading
+  stands: an objection concurrent with the landing is recounted with it, and one that names the landing counts
+  for nothing.
+- New: `window::Base::Stated(n)`, the base `active` above the base law's `k`: the caller's stated count, the
+  census's figure (CC 6.1.9), which the kernel takes and does not check. The voices are those of `Base::All`. The
+  size counted over is `n` where `n` is larger than the members at the head, and never smaller. With it,
+  `default_content`, `default_standing`, `default_irreversible` and `community_invite` are expressible above `k`
+  as the self roster's lone path, by the same shape. Only `default_content` has a table and cases: the reference
+  has `("stated", n)` and the spec `default_content@active` (a room of thirteen members counted over twenty), with
+  five cases, one of them on the clamp. The crate also has a unit test of the size computation past `u32::MAX`.
+- The count is read in `u128` on every target. New: `seat::met_wide`, which is `seat::met` over `u128` counts;
+  `met` calls it. A window's thresholds read the members, the voices and a stated `u64` through it, so no cast
+  truncates: a 32-bit target (wasm32, thumbv7em) reads a stated 2^32 as 2^32, not as 0. Two cases (a stated 2^32
+  and 2^32 + 13, thirteen members, nine approvals: open) and a plant on a 32-bit cast cover it. The unit test
+  that compares reading the scopes walked at once with reading each when asked now also draws clauses counted
+  over those who voted, stated bases (some past 32 bits) and withdrawals.
+- `window::author_apart` assumes that a table every counted clause of which is over `others` is a judgment of its
+  opener's signer. That holds for the members' check, where the act opens its own window. Nothing ties the opener
+  to an act. Two cases of a table built for it (`proposal@others`, whose opener proposes) show what the code gives:
+  the proposer concludes nothing, and another member lands it. ADOPTING states the assumption.
+- A table built to reach the path with no landing (`ballot@once`, a ballot count met at once) shows a ballot's
+  withdrawal read there too. No policy row's table has such a clause.
+- A withdrawn ballot stays withdrawn (ruling C2): a withdrawal of the withdrawal revives nothing, and the way back
+  is a new ballot. Two cases (a withdrawal of a withdrawal; a withdrawal and then a new ballot) and a plant in
+  each language cover it.
+- A poll is outside the kernel (a tally whose rule and close its own opening row states). ADOPTING.md says so.
+- OPEN: the door model (the Constitution's `door.py`, not in this repository).
+- The reference: `window.unwithdrawn`, `window.ballot_words` and `window.author_apart`; 31 new rows of
+  `window_adversary.tsv` (112 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
+  (those rows in arrival orders, eleven planted breaks, the OPEN list). Eleven new crate plants in
+  `tools/kernel_crate_plants.sh`.
+
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
 - `content` reads `conferral`'s three-way `any`, later-head test and stale-head test; its own copies are gone.

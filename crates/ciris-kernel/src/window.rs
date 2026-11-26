@@ -14,6 +14,25 @@
 //!
 //! The two rejected rules (the landing voids concurrent answers; any concurrent answer contests it) are not
 //! implemented; KERNEL.md runs them only as the reason.
+//!
+//! **A ballot** (CIRISConstitution#221) is an answer a [`How::MoreOfVoted`] clause reads: its value or its
+//! `against` (the moderation fallback's `ballot:moderation_action`, `for` or `against`; the family is the
+//! caller's). One ballot a person, folded as `ballot:moderator` is: agreeing ballots are one and disagreeing
+//! ones say nothing ([`ops::one`], the fold every answer has here). A ballot its own signer withdrew (a
+//! withdrawal row naming it, concluded by the seat rule) is no ballot ([`unwithdrawn`]); a withdrawal
+//! concurrent with a landing is recounted with it, as an answer is. An answer that is no ballot is read as
+//! before, withdrawn or not.
+//!
+//! **The landing** of every window is one family (CIRISConstitution#221, W1): the receipt is a `window:held`
+//! row and the landing a `window:landed` row stating the outcome. The family names are the caller's table
+//! entries: the crate reads a row's [`WinKind`], never its family, and checks no family. The
+//! moderation fallback's landing is signed by any member at the opener's head; the overturn's by any member
+//! there but the act's author (W2): a key no clause counts is no concluder, so where every counted clause of
+//! the table is over [`Base::Others`] ([`author_apart`]) the opener's signer signs no receipt and no landing.
+//!
+//! A table modelling the accord's halt (`halt_fuse` in the reference) is the holders' confirmation of a halt, a
+//! count (CC 4.2.1.1); the halted node's own fuse, on its own clock with no landing, is the node's and is not
+//! read here.
 
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
@@ -106,6 +125,11 @@ pub enum Base {
     Scope(String),
     /// The opener's signer alone: the proposer's own voice (its withdrawal of an open proposal).
     Opener,
+    /// The base `active` above the base law's `k` (CIRISConstitution#221): the caller's stated count, the
+    /// census's figure (CC 6.1.9), which the kernel takes and does not check. The voices are those of
+    /// [`Base::All`]; the size counted over is the stated count where it is larger than the members
+    /// [`Base::All`] reads, and never smaller (a caller cannot shrink a base below the members the rows seat).
+    Stated(u64),
 }
 
 /// One clause of a window's table: if `value` is said by enough of `over`, the outcome is `out`.
@@ -187,7 +211,7 @@ impl<'x, R: WindowRow, S: CutSpec<R>> Ctx<'x, R, S> {
     fn base(&self, b: &Base) -> BTreeSet<R::Key> {
         let (name, scope) = match b {
             Base::Opener => return core::iter::once(self.opener_signer.clone()).collect(),
-            Base::All => ("all", self.w.counted.as_str()),
+            Base::All | Base::Stated(_) => ("all", self.w.counted.as_str()),
             Base::Others => ("others", self.w.counted.as_str()),
             Base::Scope(s) => (s.as_str(), s.as_str()),
         };
@@ -324,19 +348,22 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
             .count();
         // CC 4.5.13: two comparisons (strictly more than a fraction, at least a fraction), each read by the
         // seat's count, with a floor in voices and a choice of base
-        let n = keys.len();
-        let more = |num, den, base| seat::met(Some(Policy::Strict(num, den)), yes, base, None);
+        // every count is read in u128: a `usize` and a stated `u64` widen without loss, so no target (a
+        // 32-bit one included) reads another count than a 64-bit one
+        let y = yes as u128;
+        let n = base_size(keys.len(), &cl.over);
+        let more = |num, den, base| seat::met_wide(Some(Policy::Strict(num, den)), y, base, None);
         match &cl.how {
             &How::AtLeast(num, den, least) => {
-                seat::met(Some(Policy::AtLeast(num, den)), yes, n, None) && yes as u64 >= least
+                seat::met_wide(Some(Policy::AtLeast(num, den)), y, n, None) && y >= least as u128
             }
             &How::More(num, den) => more(num, den, n),
-            &How::MoreAtLeast(num, den, least) => more(num, den, n) && yes as u64 >= least,
+            &How::MoreAtLeast(num, den, least) => more(num, den, n) && y >= least as u128,
             How::MoreOfVoted(num, den, least, against) => {
                 let no = said.iter().filter(|(s, v)| *v == against && keys.contains(*s)).count();
-                more(*num, *den, yes + no) && yes as u64 >= *least
+                more(*num, *den, y + no as u128) && y >= *least as u128
             }
-            How::One => seat::met(Some(Policy::One), yes, n, None),
+            How::One => seat::met_wide(Some(Policy::One), y, n, None),
             How::Strict => more(1, 2, n),
         }
     };
@@ -359,6 +386,80 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         }
     }
     w.default.clone()
+}
+
+/// The size a clause counts over: the members its base reads, or for [`Base::Stated`] the stated count where it
+/// is larger, never smaller. In `u128`, so that a stated count past `u32::MAX` is read whole on every target.
+fn base_size(members: usize, over: &Base) -> u128 {
+    let m = members as u128;
+    match over {
+        Base::Stated(s) => m.max(*s as u128),
+        _ => m,
+    }
+}
+
+/// Whether no clause of `w` counts the opener's signer: every counted clause (one not over [`Base::Opener`]) is
+/// over [`Base::Others`], as the members' check is. The opener's signer is then no concluder of the window
+/// (CIRISConstitution#221, W2: the overturn's landing is signed by any member but the act's author).
+///
+/// The assumption: a table every counted clause of which is over `others` is a judgment of its opener's
+/// signer. It holds for the members' check because the act opens its own window, so the opener's signer is the
+/// act's author. Nothing ties the opener to an act: a table over `others` whose opener is a proposer, and not
+/// the subject, also leaves the opener's signer no concluder (the reference's `proposal@others` cases).
+pub fn author_apart<T>(w: &WindowSpec<T>) -> bool {
+    let mut over = w.at_once.iter().chain(&w.at_close).map(|c| &c.over).filter(|b| **b != Base::Opener).peekable();
+    over.peek().is_some() && over.all(|b| *b == Base::Others)
+}
+
+/// The words a ballot says: the value and the `against` of each [`How::MoreOfVoted`] clause of `w`.
+pub fn ballot_words<T>(w: &WindowSpec<T>) -> BTreeSet<&str> {
+    let mut out = BTreeSet::new();
+    for cl in w.at_once.iter().chain(&w.at_close) {
+        if let How::MoreOfVoted(_, _, _, against) = &cl.how {
+            out.insert(cl.value.as_str());
+            out.insert(against.as_str());
+        }
+    }
+    out
+}
+
+/// Each (row, signer) a withdrawal among `rows` names: a row `r` is withdrawn by its own signer iff
+/// `(r.id(), r.signer())` is in the set. Pass concluded rows. The seat rule concludes a withdrawal by any
+/// signer of the row it names, a cosigner included (and, for an offer, by a key it seats), so the match on the
+/// signer is what makes it the row's own: a cosigner's withdrawal of a ballot withdraws nothing. The one
+/// reading of a ballot's withdrawal: the window's ballots here, and any count of ballots of its own (an
+/// election's) may read it. A withdrawal is read wherever it concludes, itself withdrawn or not: a withdrawn
+/// ballot stays withdrawn, and the way back is a new ballot (CIRISConstitution#221, ruling C2).
+pub fn own_withdrawals<'a, R: SeatRow + 'a>(
+    rows: impl IntoIterator<Item = &'a R>,
+) -> BTreeSet<(&'a R::Id, &'a R::Key)> {
+    rows.into_iter()
+        .filter(|w| w.seat_kind() == SeatKind::Withdraw)
+        .filter_map(|w| w.target().map(|t| (t, w.signer())))
+        .collect()
+}
+
+/// The rows of `answers` less each one saying a word of `words` that its own signer withdrew by a
+/// withdrawal among `rows` (one ballot a person, folded as `ballot:moderator`: a withdrawn ballot is no
+/// ballot; CC 2.4.1.1 rule 1). Pass the concluded rows: a withdrawal by another key withdraws nothing, even a
+/// cosigner's, which concludes ([`own_withdrawals`] matches the signer). The
+/// fold of the ballots left is [`ops::one`] per signer. Any caller folding ballots of its own (an election's)
+/// may read its withdrawals here.
+pub fn unwithdrawn<'r, R: SeatRow>(
+    answers: Vec<&'r R>,
+    rows: &[&R],
+    words: &BTreeSet<&str>,
+    says: impl Fn(&R) -> Option<&str>,
+) -> Vec<&'r R> {
+    let wd: BTreeSet<(&R::Id, &R::Key)> = own_withdrawals(rows.iter().copied());
+    answers
+        .into_iter()
+        .filter(|a| !says(*a).is_some_and(|v| words.contains(v)) || !wd.contains(&(a.id(), a.signer())))
+        .collect()
+}
+
+fn says_of<R: WindowRow>(a: &R) -> Option<&str> {
+    a.says().map(|s| s.as_ref())
 }
 
 /// The answers that are voices: an approval that has the proposer's withdrawal in its past approves nothing.
@@ -433,6 +534,9 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
     if !concluders.contains(r.signer()) {
         return Some(false);
     }
+    if r.signer() == o.signer() && author_apart(&w) {
+        return Some(false); // out of every count of the window, so no concluder of it
+    }
     if k == WinKind::Receipt {
         // a receipt puts no row of the target before the window: none in its past that the opener's past does
         // not hold
@@ -444,7 +548,12 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         return Some(false);
     }
     let answers: Vec<&R> = voices_of(
-        rows.iter().copied().filter(|q| q.win_kind() == Some(WinKind::Answer) && q.of() == Some(o.id())).collect(),
+        unwithdrawn(
+            rows.iter().copied().filter(|q| q.win_kind() == Some(WinKind::Answer) && q.of() == Some(o.id())).collect(),
+            &rows,
+            &ballot_words(&w),
+            says_of,
+        ),
         o.signer(),
         &past,
     );
@@ -560,6 +669,8 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
             .filter(|&r| g.row(r).win_kind() == Some(WinKind::Answer) && g.row(r).of() == Some(p.id()) && !late(r))
             .map(|r| g.row(r))
             .collect();
+        let counted: Vec<&R> = c.cs().iter().copied().filter(|&r| !late(r)).map(|r| g.row(r)).collect();
+        let held = unwithdrawn(held, &counted, &ballot_words(&w), says_of);
         let got = table_outcome(&x, p.target_key(), &voices_of(held, p.signer(), &past), &[], false);
         return if got == "open" { Outcome::Open } else { Outcome::Landed(got) };
     }
@@ -590,7 +701,9 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
             .filter(|q| q.win_kind() == Some(WinKind::Answer) && q.of() == Some(p.id()))
             .collect();
         answers.extend(ans);
-        let answers = voices_of(answers, p.signer(), &past);
+        // a withdrawal of a ballot concurrent with the landing is recounted with it, as an answer is
+        let wrows: Vec<&R> = mine.iter().chain(&conc).map(|&q| g.row(q)).collect();
+        let answers = voices_of(unwithdrawn(answers, &wrows, &ballot_words(&w), says_of), p.signer(), &past);
         let elapsed = match (lr.at(), g.row(rec).at()) {
             (Some(a), Some(b)) => a >= b && a - b >= w.secs,
             _ => false,
@@ -622,6 +735,22 @@ mod tests {
         }
     }
 
+    /// The size a stated base counts over is read whole past `u32::MAX` (no truncation on a 32-bit target) and
+    /// never below the members the rows seat.
+    #[test]
+    fn a_stated_base_is_read_whole_and_never_below_the_members() {
+        let big = u32::MAX as u64 + 1;
+        assert_eq!(base_size(13, &Base::Stated(big)), big as u128);
+        assert_eq!(base_size(13, &Base::Stated(big + 13)), big as u128 + 13);
+        assert_eq!(base_size(13, &Base::Stated(5)), 13);
+        assert_eq!(base_size(13, &Base::All), 13);
+        // nine approvals of thirteen members over a stated 2^32 meet no 2/3 count, nor over 2^32 + 13
+        for s in [big, big + 13] {
+            assert!(!seat::met_wide(Some(Policy::AtLeast(2, 3)), 9, base_size(13, &Base::Stated(s)), None));
+        }
+        assert!(seat::met_wide(Some(Policy::AtLeast(2, 3)), 9, base_size(13, &Base::Stated(5)), None));
+    }
+
     #[derive(Clone, Debug)]
     struct W {
         id: u32,
@@ -640,6 +769,7 @@ mod tests {
         says: Option<String>,
         receipt: Option<u32>,
         at: Option<i64>,
+        target: Option<u32>,
     }
 
     impl W {
@@ -661,6 +791,7 @@ mod tests {
                 says: None,
                 receipt: None,
                 at: None,
+                target: None,
             }
         }
     }
@@ -708,6 +839,9 @@ mod tests {
         fn of(&self) -> Option<&u32> {
             self.of.as_ref()
         }
+        fn target(&self) -> Option<&u32> {
+            self.target.as_ref()
+        }
     }
 
     impl WindowRow for W {
@@ -748,8 +882,10 @@ mod tests {
     const SCOPES: [&str; 5] = ["member", "moderate", "all", "others", "concl"];
     const OUTS: [&str; 3] = ["enact", "cancel", "open"];
 
-    fn clauses(g: &mut Lcg) -> Vec<Clause> {
-        (0..g.next(3))
+    /// Clauses drawn from `g`, and from `h` (a second stream, so that `g` draws what it drew before) a clause
+    /// counted over those who voted and a stated base, now and then one past 32 bits.
+    fn clauses(g: &mut Lcg, h: &mut Lcg) -> Vec<Clause> {
+        let mut out: Vec<Clause> = (0..g.next(3))
             .map(|_| Clause {
                 value: if g.next(3) == 0 { "no".into() } else { "approve".into() },
                 how: match g.next(4) {
@@ -768,16 +904,28 @@ mod tests {
                 },
                 out: OUTS[g.next(2) as usize].into(),
             })
-            .collect()
+            .collect();
+        for cl in &mut out {
+            if h.next(5) == 0 {
+                cl.how =
+                    How::MoreOfVoted(1, 2, h.next(3), if cl.value == "no" { "approve".into() } else { "no".into() });
+            }
+            if h.next(6) == 0 {
+                cl.over = Base::Stated(if h.next(8) == 0 { (1u64 << 32) + h.next(9) } else { h.next(15) });
+            }
+        }
+        out
     }
 
-    /// A group with seats in five scopes (two named `all` and `others`), an opener at its version, answers,
-    /// the concluder's receipt and landings, under a generated table: every conclusion and the outcome are
+    /// A group with seats in five scopes (two named `all` and `others`), an opener at its version, answers
+    /// (some withdrawn, by their signer or another key), the concluder's receipt and landings, under a generated
+    /// table (some clauses counted over those who voted, some over a stated base): every conclusion and the outcome are
     /// the same whether the scopes the table reads are walked at once or each when first asked.
     #[test]
     fn prefilled_scopes_answer_as_scopes_read_when_asked() {
         let law = SeatLaw::default();
         let mut g = Lcg(3);
+        let mut h = Lcg(17);
         let (mut cases, mut bad, mut landed) = (0usize, 0usize, 0usize);
         for _ in 0..3_000 {
             let n = 2 + g.next(6) as u32;
@@ -833,7 +981,16 @@ mod tests {
                 a.of = Some(200);
                 a.says = Some(if g.next(3) == 0 { "no".into() } else { "approve".into() });
                 answers.push(a.id);
+                // now and then its signer, or another key, withdraws it (drawn from `h`)
+                let wd = (h.next(4) == 0).then(|| {
+                    let by = if h.next(3) == 0 { 1 + h.next(n as u64) as u32 } else { a.signer };
+                    let mut w = W::new(600 + j, vec![a.id], by);
+                    w.kind = SeatKind::Withdraw;
+                    w.target = Some(a.id);
+                    w
+                });
                 rows.push(a);
+                rows.extend(wd);
             }
             let c_key = 1 + g.next(n as u64) as u32;
             let mut rc = W::new(400, vec![200], c_key);
@@ -856,9 +1013,9 @@ mod tests {
                 concluder: if g.next(2) == 0 { "concl".into() } else { "member".into() },
                 opener: None,
                 opener_says: if g.next(2) == 0 { Some("approve".into()) } else { None },
-                at_once: clauses(&mut g),
+                at_once: clauses(&mut g, &mut h),
                 silent: None,
-                at_close: clauses(&mut g),
+                at_close: clauses(&mut g, &mut h),
                 default: "cancel".into(),
                 target_votes: false,
                 secs: 50,
