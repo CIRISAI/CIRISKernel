@@ -1316,7 +1316,8 @@ fn beaten_among<K: Ord + Clone, I: Ord>(mut sized: Vec<(K, Size<I>)>) -> BTreeSe
     if sized.len() < 2 {
         return out;
     }
-    sized.sort_by(|a, b| (b.1 .0, b.1 .1).cmp(&(a.1 .0, a.1 .1)));
+    // largest first; the order among equal sizes decides nothing (every seating at the top is read alike)
+    sized.sort_by_key(|x| core::cmp::Reverse((x.1 .0, x.1 .1)));
     let top = (sized[0].1 .0, sized[0].1 .1);
     let tops: Vec<&(K, Size<I>)> = sized.iter().filter(|x| (x.1 .0, x.1 .1) == top).collect();
     let split = tops.iter().any(|x| x.1 .2 != tops[0].1 .2);
