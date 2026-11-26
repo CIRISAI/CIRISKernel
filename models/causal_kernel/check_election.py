@@ -347,8 +347,8 @@ CASES = [
     ("a seating that lists its options in an order gets the same answer: nothing",
      DEC5 + [elect("eb", "B", ("ba", "bb", "bc", "da"), ("B", "C", "D", "E", "A"))], NOMOD("A", "B"), "a decline"),
     # ---- a recall --------------------------------------------------------------------------------------------------------
-    ("a recall cosigned by exactly two thirds does not recall (CC 4.5.13 'more than two thirds of the standing roster'; "
-     "#241 O5): B and C of three",
+    ("three members: two cannot recall the third. B and C of three are exactly two thirds, the holder A in the base "
+     "and a voice as on any removal (CC 4.5.13 'more than two thirds of the standing roster'; #241 O5)",
      [FH, recall("rc", "A", ("B", "C"), ("g",))], MOD("A"), "a recall"),
     ("more than two thirds recalls: B, C and D of four, and the room has no holder",
      [FH4, recall("rc", "A", ("B", "C", "D"), ("g",))], NOMOD("A") + [("A", "member", T)], "a recall"),
