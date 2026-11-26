@@ -66,6 +66,7 @@ Planted breaks, each of which must change a case's answer:
     duty_over_unread    a duty's count over another room (`over`) confers or withdraws it (review of #54)
     gate_counted_any_duty  a count over one duty's holders passes the gate as the duty holders' count
     gate_policy_unread  a count over the duty holders under any policy passes the gate (accord_halt, one of n)
+    heads_any_object    a counted row naming another object's head counts (a count names its own room's heads)
     declared_roster_kept  a record's declared duty naming a roster scope (`member`, `agent`) is read as a duty
 
 Not here: the count that confers or withdraws a duty seat (check_rosters.py, the duty instance); a count over a scope
@@ -142,6 +143,7 @@ RV54 = "CIRISConstitution#241, review of #54: "
 GA = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",), "review": ("B", "C")}, cosigners=("B", "C"))
 MDA = admit("md", "D", ("A", "B", "C"), ("g",))
 HD = ST.found("h", "D", ("D",), {})                                        # a room D founds alone
+HD2 = ST.found("h", "D", ("D",), {}, names=("md",))                         # the same, after D's admission to g
 
 
 def gate_offer(signer, cosigners, names=("md",), head=("md",), **kw):
@@ -354,11 +356,24 @@ CASES = [
     ("the same with h founded in the older presentation (scope duty)",
      [GA, MDA, ST.offer("h", "D", ("D",), "duty", "@", "self"), gate_offer("D", ("D",), over="h", head=("h",), names=("md", "h"))],
      [("D", "moderate", F)]),
+    ("the same count over h at a head of g's own line with h in its past (E's admission, citing h): still no duty "
+     "(the count is over the room it confers in)",
+     [GA, MDA, HD, admit("me", "E", ("A", "B", "C"), ("md",), ("h",)),
+      gate_offer("D", ("D",), over="h", head=("me",), names=("me",))], [("D", "moderate", F)]),
+    ("a count naming another room's founding row as its head confers no duty, whatever it is counted over: a count "
+     "names its own room's heads (h, founded by D after its admission, has g's rows in its past)",
+     [GA, MDA, HD2, gate_offer("A", ("B", "D"), head=("h",), names=("h",))], [("D", "moderate", F)]),
+    ("the same count at a head of g's line (D's admission): D holds moderate", [GA, MDA, HD2, gate_offer("A", ("B", "D"))],
+     [("D", "moderate", T)]),
     ("the duty holders' count over the room itself, two of the three: D holds moderate",
      [GA, MDA, gate_offer("A", ("B", "D"))], [("D", "moderate", T)]),
     ("a withdrawal of a duty counted over another room ends nothing: D's count over h of A's moderate over g",
      [GA, MDA, HD, ST.unseat("u", "D", "A", "moderate", OBJ, "group", ("md", "h"), head=("h",), policy="duty_withdraw",
                               counted="duty", over="h")], [("A", "moderate", T)]),
+    ("the same withdrawal at a head of g's own line with h in its past: it ends nothing still",
+     [GA, MDA, HD, admit("me", "E", ("A", "B", "C"), ("md",), ("h",)),
+      ST.unseat("u", "D", "A", "moderate", OBJ, "group", ("me",), head=("me",), policy="duty_withdraw",
+                counted="duty", over="h")], [("A", "moderate", T)]),
     ("one duty's holders are not all of them: A, the only holder of moderate of three duty holders, confers alone "
      "counted over `moderate`", [GA, MDA, gate_offer("A", ("D",), counted="moderate")], [("D", "moderate", F)]),
     ("a policy that is not the duty count confers nothing: B alone, counted over the duty holders, under accord_halt "
@@ -392,7 +407,8 @@ CASES = [
 PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_only", "duty_fold_unread", "holders_unread",
           "unsigned_seated", "scope_unread", "member_rule_duty_rooms_only",
           "unsigned_no_map", "duty_gate_off", "duty_gate_wrong_row", "own_duty_ungated", "lone_founder_unread",
-          "duty_over_unread", "gate_counted_any_duty", "gate_policy_unread", "declared_roster_kept")
+          "duty_over_unread", "gate_counted_any_duty", "gate_policy_unread", "declared_roster_kept",
+          "heads_any_object")
 
 
 @contextlib.contextmanager

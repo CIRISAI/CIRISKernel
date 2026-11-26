@@ -463,6 +463,9 @@ enum Sc<'a, W> {
     Moderate,
 }
 
+/// A seat the walk starts from: the offer's index, the key it seats, and the scope.
+type BaseSeat<'a, R> = (usize, &'a <R as Row>::Key, Sc<'a, <R as SeatRow>::Word>);
+
 impl<W> Clone for Sc<'_, W> {
     fn clone(&self) -> Self {
         *self
@@ -543,11 +546,9 @@ fn duty_seat<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, o: &R) -> boo
 /// A community whose founding row seats duty holders: the only place the duty rules engage. A founding row
 /// of scope `duty`, or one whose `duty_holders` map names a holder.
 fn duty_room<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, obj: &ObjOf<R>) -> bool {
-    row_of(by, obj).is_some_and(|g| {
-        g.seat_kind() == SeatKind::Offer
-            && founding(g)
-            && (g.scope().map(|s| s.as_ref()) == Some("duty") || lists_holders(g) || lone_founding(g))
-    })
+    community(by, obj)
+        && row_of(by, obj)
+            .is_some_and(|g| g.scope().map(|s| s.as_ref()) == Some("duty") || lists_holders(g) || lone_founding(g))
 }
 
 /// A community: an object that is its own founding row. The duty-seat rule (a duty seat stands only on the
@@ -638,7 +639,11 @@ fn own_keys<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, obj: &ObjOf<R>) -> BTreeSet<R
 }
 
 fn declared<'a, R: SeatRow>(by: &BTreeMap<&R::Id, &'a R>, obj: &ObjOf<R>) -> Vec<&'a str> {
-    row_of(by, obj).map_or(Vec::new(), |g| g.duties().iter().map(|d| d.as_ref()).filter(|d| !roster_word(d)).collect())
+    let Some(g) = row_of(by, obj) else { return Vec::new() };
+    // `moderate` is "a duty every community's record declares" (CC 4.5.4), whatever the law's own list names: the
+    // one-founder room's founder holds it, and holds it as a duty
+    let every = community(by, obj).then_some("moderate");
+    every.into_iter().chain(g.duties().iter().map(|d| d.as_ref()).filter(|d| !roster_word(d))).collect()
 }
 
 /// A roster scope (a member's, an agent's): never a duty a record declares, so a record's entry naming one is
@@ -800,7 +805,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             })
         };
         // keys and scopes are borrowed from the rows through the walk, and copied once into each live seat
-        let mut base: Vec<(usize, &'a R::Key, Sc<'a, R::Word>)> = Vec::new();
+        let mut base: Vec<BaseSeat<'a, R>> = Vec::new();
         for &oi in cs {
             let o = g.row(oi);
             if o.seat_kind() != SeatKind::Offer || !cut.counts(oi) || stale.contains(&oi) {
@@ -826,7 +831,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         type At<'r, I, K, W> = BTreeMap<(&'r I, &'r K, Sc<'r, W>), (usize, Root<I, K>)>;
         // per (offer, key), the least depth any of its seats is at: what a seat conferred under it reads
         type Held<'r, I, K> = BTreeMap<(&'r I, &'r K), (usize, Root<I, K>)>;
-        let walk = |base: &[(usize, &'a R::Key, Sc<'a, R::Word>)]| {
+        let walk = |base: &[BaseSeat<'a, R>]| {
             let mut at: At<'a, R::Id, R::Key, R::Word> = BTreeMap::new();
             let mut held: Held<'a, R::Id, R::Key> = BTreeMap::new();
             for _ in 0..(law.depth + 1) {
@@ -915,7 +920,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 if !dropped {
                     break;
                 }
-                let kept: Vec<(usize, &'a R::Key, Sc<'a, R::Word>)> =
+                let kept: Vec<BaseSeat<'a, R>> =
                     base.iter().zip(&on).filter(|(_, keep)| **keep).map(|(b, _)| *b).collect();
                 at = walk(&kept);
             }
@@ -1924,6 +1929,12 @@ fn lone_removal<R: SeatRow, S: CutSpec<R>>(
         return false;
     }
     let (Some(scope), Some(obj)) = (r.scope(), r.obj()) else { return false };
+    // a room's moderator, over the room (CC 4.5.13): over an object that is no community (a key's own roster) an
+    // unseat is an ordinary counted row
+    let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
+    if !community(&by, &obj) {
+        return false;
+    }
     // an unseat of an agent's seat, of a key that holds one at the head the row names: a person's key is not
     // removed so, whatever scope the row states. This is also what makes a lift restore and not admit.
     let agent = scope.as_ref() == AGENT;
@@ -2163,6 +2174,23 @@ fn duty_gate<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, r: &R) -> boo
     r.counted().is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)
 }
 
+/// Row `h` is of object `obj`'s own line: `obj`'s founding row, a row whose object is `obj` (an offer, an
+/// unseat, a standing acceptance, a counted receipt), or a withdrawal, acceptance or receipt of such a row. A
+/// counted row's heads are each of its own object's line (the review of #54: a count is over the room it acts
+/// in, so it names that room's heads).
+fn on_object<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, h: &R::Id, obj: &ObjOf<R>) -> bool {
+    let mut cur = by.get(h).copied();
+    for _ in 0..=8 {
+        let Some(r) = cur else { return false };
+        if Obj::Row(r.id().clone()) == *obj || r.obj().as_ref() == Some(obj) {
+            return true;
+        }
+        let next = if r.seat_kind() == SeatKind::Withdraw { r.target() } else { r.of() };
+        cur = next.and_then(|n| by.get(n).copied());
+    }
+    false
+}
+
 /// A counted unseat of a duty scope over a community (the holders' withdrawal of a duty, the members' recall) is
 /// counted over the room it ends the seat in: [`SeatRow::over`] absent or that room.
 fn duty_over<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, r: &R) -> bool {
@@ -2263,6 +2291,9 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     r.under().and_then(|u| by.get(u)).is_some_and(|u| u.to().contains(r.signer()))
                 }
                 Some(Conf::Group) => {
+                    if !r.head().iter().all(|h| on_object(&by, h, &obj)) {
+                        return false; // a count names its own room's heads
+                    }
                     if is_offer && !duty_gate(law, &by, r) {
                         return false; // CC 4.5.4: a duty is placed by its holders' count or an election
                     }

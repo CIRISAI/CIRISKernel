@@ -265,7 +265,9 @@ def declared(by, obj):
     """The duties the community's record declares (its founding row's `duties`). A record's declared duty is never a
     roster scope (`member`, `agent`): such an entry is ignored (MUTATION declared_roster_kept)."""
     g = by.get(obj)
-    return record_duties(g or {})
+    # `moderate` is "a duty every community's record declares" (CC 4.5.4), whatever the law's list names (the crate
+    # reads a law; here DUTIES names it already)
+    return (("moderate",) if community(by, obj) else ()) + record_duties(g or {})
 
 
 def record_duties(g):
@@ -332,8 +334,13 @@ def community(by, obj):
     """obj is a community: an object that is its own founding row. The duty-seat rule (a duty seat stands only on
     the roster's seat; an end of the stay ends the duty seats before it) reaches every community, whatever its
     founding row seats (CC 4.5.4: "a non-member holds no duty")."""
-    g = by.get(obj)
     if "member_rule_duty_rooms_only" in MUT: return duty_room(by, obj)   # MUTATION: the rule reaches duty rooms only
+    return founding_row(by, obj)
+
+
+def founding_row(by, obj):
+    """The one test of a community: obj names a held offer whose object is itself (a founding row), whatever its scope."""
+    g = by.get(obj)
     return g is not None and g["kind"] == "offer" and g["obj"] == g["id"]
 
 
@@ -341,8 +348,7 @@ def duty_room(by, obj):
     """obj is a community whose founding row seats duty holders (the only place the duty rules engage): a founding row
     of scope `duty`, or one whose `duty_holders` map names a holder."""
     g = by.get(obj)
-    return g is not None and g["kind"] == "offer" and g["obj"] == g["id"] and (g["scope"] == "duty" or lists_holders(g)
-                                                                             or lone_founding(g))
+    return founding_row(by, obj) and (g["scope"] == "duty" or lists_holders(g) or lone_founding(g))
 
 
 def roster_seat(o, holds=None, sc=None):
@@ -417,6 +423,9 @@ def lone_removal(r, P, past):
     the head the row names."""
     if not agent_removal(r) or r.get("conf") != "group": return False
     if "moderator_unread" in MUT: return True                       # MUTATION: any key removes an agent's key alone
+    # a room's moderator, over the room (CC 4.5.13): over an object that is no community (a key's own roster) an unseat
+    # is an ordinary counted row (MUTATION lone_any_object)
+    if "lone_any_object" not in MUT and not community({q["id"]: q for q in P}, r["obj"]): return False
     heads = r.get("head", ())
     # the key removed holds an agent's seat at the head the row names: a person's key is not removed so, whatever
     # scope the unseat states (MUTATION lone_any_key: the key's seat not read)
@@ -1097,6 +1106,24 @@ def _ender(r, P, by):
     return sole.one(up["scope"], r["obj"]) == r["signer"]
 
 
+def on_object(by, h, obj, n=0):
+    """Row h is a row of object obj's own line: obj's founding row, a row whose object is obj (an offer, an unseat,
+    a standing acceptance, a counted receipt), or a withdrawal, acceptance, receipt, answer, ballot or cosignature of
+    such a row."""
+    if h is None or n > 8: return False
+    if h["id"] == obj or h.get("obj") == obj: return True
+    ref = h.get("target") if h["kind"] == "withdraw" else h.get("of")
+    return ref is not None and on_object(by, by.get(ref), obj, n + 1)
+
+
+def heads_on_object(r, by):
+    """A counted row's heads are heads of its own object (CC 4.5.4 and the review of #54: a count is over the room
+    it acts in, so it names that room's heads): each head a row of the object's own line (on_object). MUTATION
+    heads_any_object: a head of another object's line counts."""
+    if "heads_any_object" in MUT: return True
+    return all(on_object(by, by.get(h), r["obj"]) for h in r.get("head", ()))
+
+
 def duty_gate(r, by, table=None):
     """CC 4.5.4: a duty seat is placed only by the founding record, by "the duty holders of C, counted under line
     (iv)", or by "the members' count under line (v)", which "is the election of rule 2". So a counted offer of a duty
@@ -1154,6 +1181,7 @@ def seat_rule(r, P, past, table=None, other=None):
         if k == "offer" and conf in ("self", "seat") and r["obj"] != r["id"] and (duty_seat(by, r) or (
                 "own_duty_ungated" not in MUT and community(by, r["obj"]) and is_duty(r["scope"], declared(by, r["obj"])))) \
                 and not _lone(r, P, by): return False
+        if conf == "group" and not heads_on_object(r, by): return False       # a count names its own room's heads
         if k == "offer" and conf == "group" and not duty_gate(r, by): return False   # CC 4.5.4: who places a duty
         if k == "unseat" and conf == "group" and not duty_over(r, by): return False  # and over which room
         if conf == "self":

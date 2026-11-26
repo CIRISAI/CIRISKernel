@@ -52,6 +52,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     failed_count_is_signers  a counted receipt that fails its count is read as its signer's own
     ordered_pair_cascade     an act decided before the verdict of an earlier act in its past that could end its
                              standing, that earlier act read as an end (cascade through an ordered pair)
+    lone_any_object          a moderator's lone removal read over an object that is no community (a key's own)
     lift_no_floor            the members' check of one member's act (the lift, the count's receipt) with no floor
                              of two voices
     receipt_row_policy       the count's receipt read by the policy and need its row states (ruled: one fixed rule,
@@ -449,6 +450,25 @@ CASES += [
     (PIN + "p3's own withdrawal of the offer stating `lifts` is the holder's own end and lifts nothing",
      EL + [dict(ST.withdraw("wo", "p3", "oc", ("x", "q2")), lifts=True)], {"x": T, "wo": T}, P3, [("p3", "moderate", F)]),
 ]
+# The review of #54, item 5 (ruled: a moderator's lone removal exists only over a community; CC 4.5.13 speaks of a
+# room's moderator and an agent's key in that room): the reviewer's a6 rows over a key's own object `g` (no row is
+# named g, so g is a key, and its own offers seat what it likes). There a "lone removal" is an ordinary counted unseat
+# whose count is not met (no member seat over g): neither concludes, and nothing is removed
+KO = [R("k0", "note", "g", ()),
+      ST.offer("oa", "g", ("AG", "Z"), "agent", OBJ, "self", ("k0",)),
+      ST.offer("om", "g", ("p1", "Z"), "moderate", OBJ, "self", ("k0",), sub=True),
+      ST.accept("a1", "AG", "oa"), ST.accept("a2", "Z", "oa"), ST.accept("a3", "p1", "om"), ST.accept("a4", "Z", "om"),
+      ST.offer("mz", "Z", "M", "moderate", OBJ, "seat", ("a4",), under="om"), ST.accept("a5", "M", "mz"),
+      R("hd", "ack", "g", ("a1", "a2", "a3", "a4", "a5"), of="oa")]            # a head on g's own line
+KX = ST.unseat("x", "M", "AG", "agent", OBJ, "group", ("hd",), head=("hd",), policy="community_remove", window=OV)
+KY = ST.unseat("y", "p1", "Z", "agent", OBJ, "group", ("hd",), head=("hd",), policy="community_remove", window=OV)
+CASES += [
+    ("review of #54, item 5: over a key's own object a moderator's unseat of an agent's key is no lone removal; its "
+     "count is not met, so it does not conclude", KO + [KX], {"x": F}, {"AG", "Z"}, [("AG", "agent", T), ("M", "moderate", T)]),
+    ("review of #54, item 5: the reviewer's x and y, and p1's laying down: none removes anything",
+     KO + [KX, KY, ST.withdraw("lp", "p1", "a3", ("y",))], {"x": F, "y": F}, {"AG", "Z"},
+     [("AG", "agent", T), ("Z", "agent", T), ("M", "moderate", T)]),
+]
 # The review of #54 (CIRISConstitution#218, pin list: no cascade): an act decided before an earlier act's own verdict
 # is known reads that earlier act as an end; x, out of force, ends nothing, so an act after it that it would end is in
 # force. A1 and A2 are agent moderators; A1 lays its moderate down after x
@@ -473,7 +493,7 @@ PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone"
           "removed_receipt_kept", "lifts_unread", "conferrer_lift_unread", "cycle_one_then_other", "count_receipt_unchecked",
           "founding_duty_unread", "agent_receipt_kept", "remover_counted_over", "lone_lifts", "own_end_lifts", "receipt_before_kept",
           "failed_count_is_signers", "receipt_row_policy", "ordered_pair_cascade",
-          "lift_no_floor")
+          "lift_no_floor", "lone_any_object")
 
 
 def read(S, case):

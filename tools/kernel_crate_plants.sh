@@ -132,6 +132,11 @@ plant "a duty withdrawn by a count over another room" src/seat.rs '    r.over().
 }'
 plant "the lone founder's word read as another scope than moderate" src/seat.rs 'Sc::Moderate => R::word("moderate"),' 'Sc::Moderate => R::word("review"),'
 plant "the window takes a withdrawal's scope at its word" src/window.rs '            if seat::stay_end(law, by, wr).as_ref() != Some(&obj) {' '            if !law.roster_seats.iter().any(|r| Some(r.as_str()) == wr.scope().map(|s| s.as_ref())) {'
+plant "a count naming another object's heads" src/seat.rs '                    if !r.head().iter().all(|h| on_object(&by, h, &obj)) {' '                    if false {'
+plant "a lone removal over an object that is no community" src/seat.rs '    if !community(&by, &obj) {
+        return false;
+    }
+    // an unseat of an agent' '    // an unseat of an agent'
 plant "a record's declared roster scope read as a duty" src/seat.rs '    d == "member" || d == AGENT
 }' '    false
 }'
