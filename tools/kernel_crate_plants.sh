@@ -175,6 +175,7 @@ plant "an election's tie broken by its options' order"    src/seat.rs 'ranked(&b
 plant 'an election seats whoever its row names'          src/seat.rs '.0.as_ref() == r.to().first();' '.0.is_some();'
 plant 'an election counts a ballot its signer withdrew'  src/seat.rs '.filter(|b| !gone(b))' '.filter(|_| true)'
 plant 'an election counts a ballot ranking a non-member' src/seat.rs '.filter(|b| b.ranking().iter().all(|k| mem.contains(k)))' '.filter(|_| true)'
+plant 'a strict fraction read as at least'              src/seat.rs 'Some(Policy::Strict(num, den)) => y * den as u128 > num as u128 * n,' 'Some(Policy::Strict(num, den)) => y * den as u128 >= num as u128 * n,'
 plant 'an election counts a ballot ranking four'        src/seat.rs '.filter(|b| b.ranking().len() <= ELECTION_RANKS)' '.filter(|_| true)'
 plant 'an election seats beside a live duty holder'     src/seat.rs 'if !holders.is_empty() {' 'if false {'
 plant "an agent's duty seat stops an election"          src/seat.rs 'let mut holders = persons_at_with(p, law, spec, &over, r.head(), "duty", cache);' 'let mut holders = members_at_with(p, law, spec, &over, r.head(), "duty", cache);'

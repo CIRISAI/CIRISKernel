@@ -40,6 +40,7 @@ Planted breaks, each of which must change a case's answer:
     election_agent_holder     an AI agent's key holding a duty is read as a holder, and the room does not elect
     candidates_roster         the candidates are the member seats at the heads, a leaver among them
     ballot_ranks_unbounded    a ballot ranking more than three counts
+    recall_at_least           the recall read as at least two thirds (the table's cell), not more than
 
     python3 -I check_election.py      exit 1 on any difference
 """
@@ -71,6 +72,15 @@ G8 = ST.offer("g", "A", tuple("ABCDEFGH"), "member", "@", "self", cosigners=tupl
 # rooms whose founding record seats duty holders: A alone holds moderate (FH), A and B do (FH2)
 FH = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"))
 FH2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B")}, cosigners=("B", "C"))
+
+FH4 = ST.found("g", "A", ("A", "B", "C", "D"), {"moderate": ("A",)}, cosigners=("B", "C", "D"))
+FH1 = ST.found("g", "A", ("A",), {"moderate": ("A",)})
+
+
+def recall(i, k, signers, heads):
+    """The members' recall of `k`'s moderate seat (`moderator_recall`), counted over the members at `heads`."""
+    return ST.unseat(i, signers[0], k, "moderate", OBJ, "group", tuple(heads), head=tuple(heads), policy="moderator_recall",
+                     cosigners=tuple(signers[1:]))
 
 
 def ballot(i, k, ranking, names=("g",)):
@@ -229,6 +239,16 @@ CASES = [
                counted="member", cosigners=("B", "X")),
       ballot("bb", "B", "B", ("cx",)), ballot("bc", "C", "B", ("cx",)), elect("el", "B", ("bb", "bc"), M3, heads=("cx",))],
      [("X", "moderate", T)] + MOD("B"), "a vacancy"),
+    # ---- a recall --------------------------------------------------------------------------------------------------------
+    ("a recall cosigned by exactly two thirds does not recall (CC 4.5.13 'more than two thirds of the standing roster'; "
+     "#241 O5): B and C of three",
+     [FH, recall("rc", "A", ("B", "C"), ("g",))], MOD("A"), "a recall"),
+    ("more than two thirds recalls: B, C and D of four, and the room has no holder",
+     [FH4, recall("rc", "A", ("B", "C", "D"), ("g",))], NOMOD("A") + [("A", "member", T)], "a recall"),
+    ("a recall that leaves no holder: the room elects at a head after it",
+     [FH4, recall("rc", "A", ("B", "C", "D"), ("g",)), ballot("bb", "B", "B", ("rc",)), ballot("bc", "C", "B", ("rc",)),
+      elect("el", "B", ("bb", "bc"), M4, heads=("rc",))],
+     NOMOD("A") + MOD("B"), "a recall"),
     # ---- the seat ----------------------------------------------------------------------------------------------------
     ("a seating signed by another key seats the winner only with the winner's acceptance: none here",
      [G3, ballot("ba", "A", "B"), ballot("bb", "B", "B"), elect("el", "B", ("ba", "bb"), M3, signer="A")],
@@ -269,6 +289,10 @@ OPEN = [
      "eight). The text: 'passes the duty to the next in runoff order'; 'The count yields the first in the set's "
      "runoff order who has not declined'. The model reads no decline (a row of no seat kind) and seats nobody. "
      "Silence past `election_grace_secs` is a node's clock, no row."),
+    ("NOT BUILT (the text decides): a recall in a room of one by its one voice: the model recalls",
+     [FH1, recall("rc", "A", ("A",), ("g",))], NOMOD("A"), "a recall",
+     "not recalled (CC 4.5.13: 'The floor is two voices'). Not built: the seat's count has no floor for a fraction "
+     "(`seat::met` reads none), and a floor per policy needs a field of `SeatLaw` or a `Policy` variant."),
     ("NOT BUILT (the text decides): two seatings over different ballot sets of equal size, then an admission naming "
      "both: the model seats both (while the two seatings are two tips, each waits, and neither stands)",
      [G4, ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("bd", "D", "C"),
@@ -292,18 +316,21 @@ OPEN = [
 
 @contextlib.contextmanager
 def planted(plant):
-    saved = set(ST.MUT)
-    if plant:
+    saved, pol = set(ST.MUT), dict(ST.POLICY)
+    if plant == "recall_at_least":
+        ST.POLICY["moderator_recall"] = ("atleast", 2, 3)       # the table's 2/3 read as at least
+    elif plant:
         ST.MUT.add(plant)
     try:
         yield
     finally:
         ST.MUT.clear(); ST.MUT |= saved
+        ST.POLICY.clear(); ST.POLICY.update(pol)
 
 
 PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_any_winner", "ballot_withdrawal_unread",
           "ballot_nonmember_ranked", "election_beside_holder", "election_agent_holder",
-          "candidates_roster", "ballot_ranks_unbounded")
+          "candidates_roster", "ballot_ranks_unbounded", "recall_at_least")
 
 
 def answers(rows, asks, plant=None, arrive=False):

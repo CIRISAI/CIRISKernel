@@ -29,6 +29,14 @@ beyond the ballot count").
 - **A ballot ranking more than three is void**, the whole ballot (CC 4.5.13: "Each person ranks up to three";
   CIRISConstitution#241 O3). New: `seat::ELECTION_RANKS` (3). **An answer changes**: before, every rank counted.
   Two cases; one plant in each language.
+- **A recall is strictly more than two thirds** (CC 4.5.13: "A recall is one row cosigned by more than two thirds
+  of the standing roster"; CIRISConstitution#241 O5). The reference's policy table reads `moderator_recall` as
+  `strict 2/3` (the data's cell is `2/3`, read before as at least), so the fixture's law gives
+  `Policy::Strict(2, 3)`. **An answer changes**: a recall cosigned by exactly two thirds recalls nobody. An adopter's
+  own table must give `moderator_recall` as `Policy::Strict(2, 3)`. Not built: the floor of two voices. `seat::met`
+  reads no floor for a fraction, so a room of one still recalls by its one voice (a NOT BUILT row); a floor per
+  policy needs a `SeatLaw` field or a `Policy` variant, which is a public change. Three cases; a plant in each
+  language.
 - **The room elects only where no duty holder is left** (CC 4.5.4 (v): "With no duty holder left the room locks, and
   the members' count seats one"; rule 2: "While another duty holder remains, a vacant seat is conferred under line
   (iv), and the community does not lock"). A ranked row concludes nothing where a key holds a duty seat at the heads

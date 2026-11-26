@@ -198,6 +198,9 @@ POLICY.update({k: ("duty", 0, 0) for k in DUTY_POLICY})          # CC 4.5.4 (iv)
 # CC 4.5.13, the members' check as a counted row: the re-seating of an agent's key a moderator removed alone. Read by
 # lift_count, not by met(): a counted row of this policy that is no such re-seating concludes nothing.
 POLICY["moderation_overturn"] = ("lift", 1, 2)
+# CC 4.5.13: "A recall is one row cosigned by more than two thirds of the standing roster" (the table writes 2/3):
+# strictly more (CIRISConstitution#241 O5)
+POLICY["moderator_recall"] = ("strict", 2, 3)
 if POLICY.get("community_remove", ("", 0, 0))[0] == "declared":
     POLICY["community_remove"] = ("atleast", 2, 3)
 
