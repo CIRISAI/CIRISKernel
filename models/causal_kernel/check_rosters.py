@@ -731,7 +731,9 @@ def check_infra(spec, inst):
     node = RS.add(spec, "n1", ("I",), "node1", ("f1", "f2"), scope="node", consent="one")
     nodes = lambda S: ST.Seats(S).holders("node", "I")
     aj = RS.accept(spec, "aj", "J", ("I",), scope="member")
-    # I1 a node is seated with no acceptance and never votes
+    # I1 a node is seated with no acceptance and never votes. EXPECTED TO PASS ONLY AFTER the binding's A5/A6 fix (kind_of
+    # total over founding rows: this founding row, of scope `founder` with cohort_subkind `infrastructure`, is an
+    # infrastructure community); until then kind_of reads no kind here and this case reads "does NOT hold"
     worlds = [("founders seat node1; node1 and f1 widen J", [g, node, aj, RS.add(spec, "w", ("n1",), "J", ("f1", "node1"), names=("aj",))])]
     def i1(S, rows, n):
         if "node1" not in nodes(S) and "node1" not in members(S): return "node not seated"

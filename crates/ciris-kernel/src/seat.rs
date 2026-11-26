@@ -3061,11 +3061,8 @@ fn roster_placement<R: SeatRow>(law: &SeatLaw, r: &R, by: &BTreeMap<&R::Id, &R>)
         return false;
     }
     if r.seat_kind() == SeatKind::Offer && r.consent_one() {
-        // MARKED: a node's seat (`node`) over an infrastructure community. Until `kind_of` reads the founding record's
-        // `cohort_subkind` (the binding's batch; the reference reads that field here), the crate has no accessor for
-        // it and takes a group that is no community by its kind (an infrastructure group, founded in `founder`)
         let get = |i: &R::Id| by.get(i).copied();
-        return kind_of(law, &get, &obj) != Some(CommunityKind::Community) && sc.as_ref() == "node";
+        return kind_of(law, &get, &obj) == Some(CommunityKind::Infrastructure) && sc.as_ref() == NODE;
     }
     true
 }

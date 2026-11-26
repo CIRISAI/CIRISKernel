@@ -1434,8 +1434,7 @@ def roster_placement(r, by):
     if not community(by, obj) or seat_class(r, r.get("scope")) is None: return True
     if r.get("conf") in ("self", "seat") and "own_roster_row" not in MUT: return False   # MUTATION own_roster_row: RK2 unread
     if r["kind"] == "offer" and r.get("consent") == "one" and "consent_one_any" not in MUT:  # MUTATION consent_one_any: RK1 unread
-        # MARKED: the founding record's `cohort_subkind`, read here until kind_of reads it (the binding's batch)
-        return by[obj].get("cohort_subkind") == "infrastructure" and r.get("scope") == "node"
+        return kind_of(by, obj) == "infrastructure" and r.get("scope") == NODE
     return True
 
 

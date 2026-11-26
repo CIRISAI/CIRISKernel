@@ -54,7 +54,9 @@ Part 3. Planted breaks (seat.MUT), each of which must change a case's answer:
     earlier_consent_kept  a consent before the key's own end survives it (F4)
     end_scope_bound    an end bars the same scope only: a removed member is admitted as an agent (F1)
     ended_unread       an unseat of a seat the key never held is read as an end
-    roster_by_name     only `member` and `agent` by name are roster seats: `founder` skips finality (F2)
+    (roster_by_name, retired: since the act-to-policy binding, a counted row of a scope that holds `member` but is
+    no roster seat, `founder` included, is no act over a community and concludes nothing, so F2's routing has no
+    row left to show; the routing stays, and the F2 case states the binding's answer)
     own_roster_row     one key's own row places a roster seat over a community (RK2)
     consent_one_any    an offer waiving the key's consent places a roster seat over a community (RK1)
     own_void_any_key   one key's end voids another key's concurrent voices
@@ -260,8 +262,8 @@ CASES += [
      PV + [XA, rejoin("am", "AG", ("xa",))], {"am": F}, M4 | {"q"}, [("AG", "member", F)]),
     ("F1: the agent's key resigns its agent seat; an admission of it as a member concludes nothing", REV + "F1",
      PV + [ST.withdraw("wg", "AG", "ag", ("ag",)), rejoin("am", "AG", ("wg",))], {"am": F}, M4 | {"q"}, [("AG", "member", F)]),
-    ("F2: a scope that holds `member` (`founder`) is a roster seat: after the room's count removes q, a counted admission "
-     "of q as `founder` concludes nothing", REV + "F2",
+    ("F2: after the room's count removes q, a counted admission of q as `founder` concludes nothing (finality reads a "
+     "scope that holds `member` as a roster seat; the binding gives a founder over a community no act as well)", REV + "F2",
      PV + [XQ, ST.offer("of", "m1", "q", "founder", OBJ, "group", ("xq",), head=("xq",), policy="community_invite",
                         cosigners=("m2", "m3", "m4", "q"))], {"of": F}, M4 | {"AG"}, [("q", "founder", F)]),
     ("F3: a founder of scope `duty` admitted as a member too: both are one presence (the founding duty seat holds "
@@ -364,7 +366,7 @@ CASES += [
 ]
 PLANTS = ("room_key_unread", "public_final", "lone_final", "resign_not_final", "reaccept_reseats", "own_end_unread",
           "own_end_any_seat", "stay_one_row", "class_by_name", "decline_ends_stay", "earlier_consent_kept",
-          "end_scope_bound", "ended_unread", "roster_by_name", "own_roster_row", "consent_one_any", "own_void_any_key",
+          "end_scope_bound", "ended_unread", "own_roster_row", "consent_one_any", "own_void_any_key",
           "resigned_any_key", "second_row_refused", "batch_by_key", "consent_any_row")
 
 

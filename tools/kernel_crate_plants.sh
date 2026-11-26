@@ -226,10 +226,11 @@ plant "an offer that used a standing acceptance read from any row" src/seat.rs '
 ' ''
 plant "a standing acceptance withdrawn before any offer used it ends a stay" src/seat.rs '&& used).then_some(obj)' ' && (used || !used)).then_some(obj)'
 plant "an ended stay does not bar an agent seat" src/seat.rs '.any(|sc| seat_class(law, o, sc.s()).is_some_and(fin) && room_key_ended(' '.any(|sc| sc.s() != AGENT && seat_class(law, o, sc.s()).is_some_and(fin) && room_key_ended('
-plant "only member and agent by name are roster seats for finality" src/seat.rs 'if !r.scope().is_some_and(|s| seat_class(law, r, s.as_ref()).is_some()) {' 'if !r.scope().is_some_and(|s| law.roster_seats.iter().any(|x| x == s.as_ref())) {'
+# retired: "only member and agent by name are roster seats for finality" (since the act-to-policy binding a counted
+# row of a scope that holds `member` but is no roster seat is no act over a community, so no fixture row shows it)
 plant "an unseat of a seat the key never held is an end" src/seat.rs 'if !p.rows().any(|m| seated_by(law, m, qs, k, obj) && p.past(m.id(), q.id())) {' 'if false {'
 plant "one key's own row places a roster seat over a community" src/seat.rs 'if matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat)) {' 'if false {'
-plant "an offer waiving the key's consent places a roster seat over a community" src/seat.rs 'return kind_of(law, &get, &obj) != Some(CommunityKind::Community) && sc.as_ref() == "node";' 'return kind_of(law, &get, &obj).is_some() || true;'
+plant "an offer waiving the key's consent places a roster seat over a community" src/seat.rs 'return kind_of(law, &get, &obj) == Some(CommunityKind::Infrastructure) && sc.as_ref() == NODE;' 'return kind_of(law, &get, &obj).is_some() || true;'
 plant "a second seat row of a seated key is refused" src/seat.rs '    removed
         || p.rows().any(|w| {' '    removed
         || p.rows().any(|m| m.seat_kind() == SeatKind::Offer && m.obj().as_ref() == Some(obj) && m.to().contains(k) && !founding(m))
