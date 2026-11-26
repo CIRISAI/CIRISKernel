@@ -528,9 +528,9 @@ def check_room(spec, inst, private):
         return ST.offer(id, signers[0], B_, "moderate", "g", "group", ("g",) + tuple(names), head=("g",),
                         policy=spec.add, counted="member", cosigners=tuple(signers[1:]))
     def elect(id, voters, names=()):
-        ballots = [ST.R("b" + v, "ballot", v, ("g",), ranking=(B_, "C")) for v in voters]
-        return ballots + [ST.offer(id, voters[0], B_, "moderate", "g", "group", ("g",) + tuple(names) + tuple(b["id"] for b in ballots),
-                                   head=("g",), policy="moderator_election", options=(B_, "C"))]
+        ballots = [ST.R("b" + v, "ballot", v, ("g",), ranking=(B_, P("C")), of="g") for v in voters]
+        return ballots + [ST.offer(id, B_, B_, "moderate", "g", "group", tuple(names) + tuple(b["id"] for b in ballots),
+                                   policy="moderator_election", of="g")]
     am = ST.accept("am", "B", None, ("g",), scope="moderate", obj="g")
     worlds = [world("an election seats B to moderate", [g, am] + elect("m", ("A", "C"), ("am",))),
               world("one ballot does not", [g, am] + elect("m", ("A",), ("am",))),

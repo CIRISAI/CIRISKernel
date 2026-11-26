@@ -440,9 +440,8 @@ CASES += [
 # moderate, and p2, then the lone person duty holder, confers moderate on p3 by its own offer. That room's record
 # seats no duty holder, so the conferrer's withdrawal ends p3's seat
 MG3 = ST.offer("g", "p1", ("p1", "p2", "p3"), "member", "@", "self", cosigners=("p2", "p3"))
-EL = [MG3, R("b1", "ballot", "p1", ("g",), ranking=("p2", "p3")), R("b3", "ballot", "p3", ("g",), ranking=("p2", "p3")),
-      ST.offer("el", "p1", "p2", "moderate", OBJ, "group", ("g", "b1", "b3"), head=("g",), policy="moderator_election",
-               options=("p2", "p3"), cosigners=("p2",)),
+EL = [MG3, R("b1", "ballot", "p1", ("g",), ranking=("p2", "p3"), of="g"), R("b3", "ballot", "p3", ("g",), ranking=("p2", "p3"), of="g"),
+      ST.offer("el", "p2", "p2", "moderate", OBJ, "group", ("b1", "b3"), policy="moderator_election", of="g"),
       admit("ag", "AG", ("p1", "p2", "p3"), ("el",), "agent"),
       ST.offer("oc", "p2", "p3", "moderate", OBJ, "self", ("ag",), cosigners=("p3",)),
       lone("x", "p3", "AG", ("oc",)), receipt("q2", "p2", "x")]
