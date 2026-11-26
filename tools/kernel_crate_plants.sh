@@ -105,7 +105,7 @@ plant "the count's receipt over any room" src/seat.rs 'if qr.obj().as_ref() != S
 plant "the count's receipt at an older head" src/seat.rs 'if qr.head().is_empty() || !qr.head().iter().all(fresh) {' 'if qr.head().is_empty() {'
 plant "the remover a voice of the count's receipt" src/seat.rs '    v.remove(xr.signer());
     let yes' '    let yes'
-plant "a founding duty read as the offer's scope" src/seat.rs '            && (seat_scopes(m, k, signed_by(m, k)).iter().any(|s| s.s() == us.as_ref())' '            && (m.scope() == Some(us)'
+plant "a founding duty read as the offer's scope" src/seat.rs '        && (seat_scopes(m, k, signed_by(m, k)).iter().any(|s| s.s() == us.as_ref())' '        && (m.scope() == Some(us)'
 plant "an agent's receipt keeps a lone removal" src/seat.rs '    duty.retain(|k| !agents.contains(k));
 ' ''
 plant "a receipt after the unseat keeps" src/seat.rs '                    && !g.in_past(q, *u)
@@ -176,7 +176,11 @@ plant "a resignation ends no duty seat by its past (revival)" src/seat.rs 'if !o
 plant "a removal from the roster cuts the member seat only (revival)" src/seat.rs '                    && (ur.scope().map(|x| x.as_ref()) == Some(sc.s())
                         || (dutyish' '                    && (ur.scope().map(|x| x.as_ref()) == Some(sc.s())
                         || (false'
-plant "a holder's end of its stay ends another key's duty seats" src/seat.rs '*k2 == k && oo.as_ref() == Some(room) && g.in_past(oi, *w)' 'oo.as_ref() == Some(room) && g.in_past(oi, *w)'
+plant "a holder's end of its stay ends another key's duty seats" src/seat.rs '                *k2 == k
+                    && oo.as_ref() == Some(room)
+                    && g.in_past(oi, *w)' '                (*k2 == k || duty)
+                    && oo.as_ref() == Some(room)
+                    && g.in_past(oi, *w)'
 plant "at tips a duty seat does not follow the folded roster" src/seat.rs '!self.duty[i]
             || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))' 'true || self.tips_fold("member", &r.obj).is_none_or(|c| c.contains(&r.k))'
 plant "the founding seat is no member seat" src/seat.rs 'let own = (o.obj() == Some(Obj::Row(o.id().clone())) && o.scope().map(|x| x.as_ref()) == Some(s)) || roster;' 'let own = roster;'
@@ -201,6 +205,16 @@ plant "E7 read from any standing now" src/seat.rs '        && standing.iter().an
     {' '        && !standing.is_empty() && !live.is_empty() && !ended.is_empty() && false
     {'
 plant "a removal the count carries is read as a lone act" src/seat.rs '&& !count_met(&p, law, spec, Some(cache))' ''
+plant "room-key finality unread (a removed room key seated again)" src/seat.rs 'if !row_of(by, &obj).is_some_and(|g| community(by, &obj) && g.private_room()) {' 'if true {'
+plant "room-key finality reaches a public room" src/seat.rs '|g| community(by, &obj) && g.private_room())' '|_| community(by, &obj))'
+plant "a moderator's lone removal of a room key is final" src/seat.rs '        count_met(&Past::new(g, u, &anc), law, spec, cache)' '        { let _ = (spec, cache, Past::new(g, u, &anc)); true }'
+plant "a resignation is no end of a room key's seat" src/seat.rs 'w.seat_kind() == SeatKind::Withdraw && w.signer() == k && stay_end' 'false && w.signer() == k && stay_end'
+plant "a key's own end voids none of its concurrent voices" src/seat.rs '&& g.concurrent(row, *w)
+            })' '&& g.concurrent(row, *w) && false
+            })'
+plant "a key's own end of one seat voids its voices on another" src/seat.rs '&& end_scope(&by, g.row(*w)) == o.scope() &&' '&&'
+plant "a resignation ends the row it names only" src/seat.rs '&& (duty || end_scope(&by, g.row(*w)).map(|x| x.as_ref()) == Some(sc.s()))' '&& duty'
+plant "a room key's offer accepted again re-seats it" src/seat.rs 'SeatKind::Accept if revoked_before(law, spec, r, p, &by, cache) => false,' 'SeatKind::Accept if false => false,'
 plant "a window's base read when asked keeps the agents" src/window.rs '            m = persons(m, &agents);' ''
 plant "two bindings one in the other's past read as one stint" src/standing.rs 'if rebinds(*c, b, rows) || rebinds(b, *c, rows) {' 'if past.in_past(c.id(), b.id())? || past.in_past(b.id(), c.id())? {'
 plant "a One clause over a duty leaves out an agent's act" src/window.rs '        let keys = if cl.how == How::One { x.held(&cl.over) } else { x.base(&cl.over) };' '        let keys = x.base(&cl.over);'

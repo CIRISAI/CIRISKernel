@@ -514,6 +514,9 @@ impl SeatRow for TRow {
     fn room(&self) -> Option<Obj<String, String>> {
         self.room.clone()
     }
+    fn private_room(&self) -> bool {
+        self.fs("membership") == Some("private")
+    }
 }
 
 impl WindowRow for TRow {

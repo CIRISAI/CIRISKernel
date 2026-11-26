@@ -351,6 +351,69 @@ reached one, so no earlier fixture answer moves.
   gone. Reference: `key_end.covers`; five boundary worlds (`check_key_end.BOUNDARY`, in the `key_end` fixture),
   attack K11, plant `end_closed`; one crate plant on the door.
 
+**A removed room key is not seated again** (CIRISConstitution#224, the steward's decision of 2026-11-25: "a removed
+room key is not seated again. A person removed from a private room returns only under a new room key, by a new
+admission", of any end of the seat, a resignation included; CC 3.1.3.2: "a member admitted again makes a fresh one").
+
+- New: `SeatRow::private_room` (default false), the founding row's `membership` `private`. A founding row with no
+  `membership` reads public.
+- `SeatLaw::final_scopes` names `member` and `agent` as well as `registered` (the fixtures' law). A roster seat
+  named there is final over a private room only, by an end that stands: a counted unseat of that seat (its count
+  met over its own past, or not counted) with an offer seating the key in that scope in its past, or the key's own
+  end of its stay (its withdrawal of the offer, of its acceptance, or of the founding row). The one mechanism,
+  `revoked_before`, reads it; a scope that is no roster seat (`registered`) reads as before.
+- **Answers that change**, over a private room only: an offer that seats such a key again in that seat with the
+  end in its past concludes nothing (a re-admission after a counted removal of a person's or an agent's room key,
+  after a resignation, after a founder's end of its stay); an acceptance of an offer seating the key with the end
+  in its past concludes nothing (before, accepting the same offer again after withdrawing the acceptance re-seated
+  the key). No existing case of the reference or the fixtures has a private room, so no existing answer changes.
+- Unchanged: a public room's re-admission stands; a moderator's lone removal of an agent's key is never final (ruled
+  on #224: finality is of a counted end or the holder's own end): the members' lift restores the same key and
+  concludes, out of force the key is seated with no row, and a counted admission of the key under a lone removal in
+  force and not lifted seats it; a duty laid down may be conferred again (a duty seat is not the room key's seat in
+  the room: a reading).
+- A row concurrent with the end concludes (the rule is by past). Beside a counted removal it does not seat: the cut
+  voids it, a row naming both leaves the key out, and a later admission naming that row concludes nothing.
+- Not built: the move of a room from private to public (no seat row carries it; whether a voice seated before the
+  move keeps a final end is not stated); the voice's own key roster (#224: "a device key of a voice ended by the
+  voice's own count is final for that device key"; a voice is a key object with no founding row, so no seat row
+  says it is a private room's). The text's name for the refusal is `membership_room_key_ended`; the crate concludes
+  nothing and names no refusal. A room is private or public by its founding row (a rule: no record change moves
+  it), so no later version is read.
+- **A key's own end voids its own concurrent voices**, in every room (ruled on #224: the rule a removed key's
+  concurrent rows have, read for the key's own end). In `Seats`, a key's signature on an offer of a roster seat, or
+  its acceptance of one, that is concurrent with its own end of its stay in that room (neither in the other's past)
+  is no voice: the offer lacks that key's consent and seats nobody. The end is of one seat (the scope the withdrawal
+  names, else its target's): the key's voices on its other roster seats are untouched, as are other keys' rows. **Answers that
+  change**: a re-admission concurrent with the key's resignation concludes and seats nobody (before, it seated the
+  key, also after a row naming both); a second acceptance of the same offer concurrent with the withdrawal of the
+  first seats nobody (before, it seated: the key un-resigned by not naming its own withdrawal). The test is by past,
+  never by what a row names. No existing case of the reference or the fixtures moves (every room was compared).
+
+**A second seat row of one room key** (derived from CC 3.1.3.2 on CIRISConstitution#224). A second seat row of a key
+already seated is a second basis for the same seat: one key, one voice, no refusal (as built). An end is the key's end
+of its stay in that scope, not of a row: one resignation, like one counted removal, ends every seating of the key in
+that scope in the end's past (`Seats`; the duty-seat reading of a resignation, read for the roster seat's own scope).
+A seating concurrent with the key's own end is void by the rule above; one concurrent with a counted removal is cut,
+as before; in a private room the end is final. **Answers that change**: a key seated by two rows that withdraws one
+of them is out (before, the other kept it seated); a key that withdraws its acceptance and accepts the same offer
+again seats nothing, in every room (the offer is in the end's past), and returns by a new admission (a public room)
+or not at all under that key (a private room). A counted removal already cut every offer on the slot in its past. No
+existing case of the reference or the fixtures moves (every room was compared).
+
+**Two admissions of one person at once** (derived from CC 3.1.3.2 on CIRISConstitution#224, a residual): no answer
+changes. Two admissions under two room keys at concurrent heads both seat, and each key is a voice in the room's count.
+The kernel counts voices as presented; which keys are one person's is the binding, never a row, so the collapse is
+the caller's until the voice's own key roster is built (ADOPTING.md).
+
+A counted row concludes whole or not at all: an admission naming several keys, one of whose stays has ended, concludes
+nothing for any of them.
+
+The reference: `seat._revoked_before`, `seat.room_key_ended`, `seat.private_room` in `models/causal_kernel/seat.py`;
+`check_room_keys.py` has 38 cases and no OPEN row in every arrival order (up to six rows, else 41 orders) and eight
+planted breaks; `roomkey.py` states the finding of re-admission under the same key for a public room and the refusal
+for the same room declared private. Eight plants in `tools/kernel_crate_plants.sh`.
+
 ## [0.4.0]
 
 The first tag of the 0.4 line (`kernel-v0.4.0`), after `kernel-v0.3.0`. Several answers change, one public

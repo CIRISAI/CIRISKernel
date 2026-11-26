@@ -493,6 +493,14 @@ receipt of it is held, and the agent's key is seated again for a reader holding 
 (`models/causal_kernel/check_removal_in_force.py`): 71 cases in arrival orders, sixteen planted breaks caught.
 Nothing puts such a removal back in force: a moderator seated again signs it again.
 
+A room key's seat in a private room (a community whose founding row declares `membership` `private`, CC 3.1.3.2)
+is final once its end stands: a counted removal of it, or the key's own end of its stay. An offer that seats the key
+again in that seat, or an acceptance of an offer that does, with the end in its past concludes nothing; a person
+returns under a new room key. A moderator's lone removal is never final: the members' lift restores the same key,
+out of force the key is seated with no row, and a counted admission seats it. A public room is read as before. In every room a key's own signature or acceptance concurrent with its own end of its stay is no voice, as a removed key's concurrent rows are none. **run**
+(`models/causal_kernel/check_room_keys.py`): 38 cases in arrival orders (no row left OPEN), eight
+planted breaks caught.
+
 An adversary holding the count of an old head signs a valid version alone. A witnessed lineage answers that
 (CC 3.2 T6), and it is each reader's own trust that decides whose witnesses count.
 
