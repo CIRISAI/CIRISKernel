@@ -223,7 +223,9 @@ covers 18 of them, three are read off the row judged (`author`, `self`, `subject
 founding record seats the duty holders who sign it, and they are equals (CC 4.5.4). A duty seat is conferred
 by a strict majority of the duty holders, or by the lone holder with the new holder's acceptance. It is
 withdrawn by a strict majority of the others, never on fewer than two voices where there are two holders.
-A duty seat stands only on a member, in every room whatever its founding row seats: it stands only where its
+A duty is placed only by the founding record, by the duty holders' count, or by the members' election (CC 4.5.4,
+"The members' count that seats a holder is the election of rule 2"): a members' admission count confers none
+(CIRISConstitution#241). A duty seat stands only on a member, in every room whatever its founding row seats: it stands only where its
 holder holds the roster's seat over the same community at the same reading, so a conferral on a key that is not a member seats nobody and is no voice in a
 duty count, and it stands with no further row when the key's widening lands. An end of the holder's stay as a
 member, its own resignation or a counted removal, ends the duty seats whose offers are in that end's past, and
@@ -235,7 +237,7 @@ listed member who did not sign is seated in nothing, and so is a key an entry na
 The seats end separately: a founder's withdrawal of the record naming one duty ends that seat only, and one
 naming no seat ends its stay and every duty seat it held. A seat the duty
 holders place that makes its holder no duty holder (a node's detector seat) is not asked for membership.
-**run** (`models/causal_kernel/check_duty_seats.py`): 58 cases in every arrival order, ten planted breaks
+**run** (`models/causal_kernel/check_duty_seats.py`): 70 cases in every arrival order, fourteen planted breaks
 caught. **open**: the members' check (`moderation_overturn`) counts the objection of the duty holder whose act it is, now that
 the duty holder is a member, and the sentence that it has no say in the lift is not a rule of the table.
 **run**: five properties, each with a deliberate break that is caught. `owner` and the steward of an agent are one
@@ -293,8 +295,8 @@ of time, so those five stay without a meaning. **open**.
 A count that is met needs no clock and no concluder: where no landing has concluded, the outcome is the one an
 at-once count gives over the answers held, and short of it the window is open. A landing that states an outcome its own past does not give concludes nothing. An answer concurrent with the
 landing is **recounted**: it is counted with the landing's past, and the landing stands only if the table still
-gives the outcome it stated. **run** (`models/causal_kernel/window_adversary.tsv`): against the five windows
-of the text (the members' check of CC 4.5.13 and the self roster's addition were added on 2026-11-23; on 2026-11-25 the members' check was counted over the members less the act's author and the moderation fallback over the members who voted), seventy-one checks of what each exists to prevent. Recount breaks none. The check that a thief does
+gives the outcome it stated. **run** (`models/causal_kernel/window_adversary.tsv`): against the six windows
+of the text (the members' check of CC 4.5.13 and the self roster's addition were added on 2026-11-23; on 2026-11-25 the members' check was counted over the members less the act's author and the moderation fallback over the members who voted; then the fallback's ballot and its withdrawal and the two moderation landings, CIRISConstitution#221), one hundred checks of what each exists to prevent. Recount breaks none. The check that a thief does
 not evict alone holds against an owner who signs anything inside the window; an owner who signs nothing
 looks lost. A landing that voids concurrent
 answers breaks twelve, a thief evicting alone among them. An answer that contests any landing breaks two.
@@ -488,8 +490,16 @@ moderator's lone removal and its lift in `check_agent_removal.py`. That removal 
 over the rows held: an end of the standing (the moderator's own laying down, a counted removal of it, the other
 holders' counted withdrawal of its duty) takes it out of force from the end's head on unless another duty holder's
 receipt of it is held, and the agent's key is seated again for a reader holding that end. **run**
-(`models/causal_kernel/check_removal_in_force.py`): 26 cases in arrival orders, four planted breaks caught.
+(`models/causal_kernel/check_removal_in_force.py`): 71 cases in arrival orders, sixteen planted breaks caught.
 Nothing puts such a removal back in force: a moderator seated again signs it again.
+
+A room key's seat in a private room (a community whose founding row declares `membership` `private`, CC 3.1.3.2)
+is final once its end stands: a counted removal of it, or the key's own end of its stay. An offer that seats the key
+again in that seat, or an acceptance of an offer that does, with the end in its past concludes nothing; a person
+returns under a new room key. A moderator's lone removal is never final: the members' lift restores the same key,
+out of force the key is seated with no row, and a counted admission seats it. A public room is read as before. In every room a key's own signature or acceptance concurrent with its own end of its stay is no voice, as a removed key's concurrent rows are none. **run**
+(`models/causal_kernel/check_room_keys.py`): 38 cases in arrival orders (no row left OPEN), eight
+planted breaks caught.
 
 An adversary holding the count of an old head signs a valid version alone. A witnessed lineage answers that
 (CC 3.2 T6), and it is each reader's own trust that decides whose witnesses count.
@@ -654,7 +664,7 @@ What that leaves, each **run** with its witness:
 | A landing over an objection that never reached the concluder | a relay between objector and concluder; no key | as long as the eclipse; ends when any concluder lands naming both |
 | The concluder's own clock | any one key holding the concluder's seat | a lone window has no length against a lying concluder; ends when the target or a counted key signs and a landing names both |
 | A stale proposal forcing the tips to wait | a member below the count holding a stale honest proposal on any past head | one flood per pocketed proposal; each ends with a merge by the count; a reader that acknowledged a merge is not moved by a later flood from below it |
-| An invariant of the form "at least one" | two honest keys acting concurrently | 'at least one' is kept by no rule of the kernel; for a community the text gives the way back: with no duty holder left the room locks and the members' count seats one (CC 4.5.4) |
+| An invariant of the form "at least one" | two honest keys acting concurrently | 'at least one' is kept by no rule of the kernel; for a community the text gives the way back: with no duty holder left the room locks and the members' election seats one (CC 4.5.4) |
 | A fork by the count of an old head | keys that met the count at an old head, signing one version | only against a reader with no acknowledgement of its own: its roster is the keys common to the two lines (nobody), for good |
 | The same, by leaked keys of removed members | whoever holds removed keys that once met a count | only against a reader with no acknowledgement of its own, as test 18 |
 | A new reader's first view | whoever controls a new reader's first view | until the reader withdraws its own rows; its own acknowledgement makes the wrong head stick |

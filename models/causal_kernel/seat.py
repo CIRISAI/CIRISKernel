@@ -60,11 +60,11 @@ What ends a seat.
                `member` over the community. Nothing revives: a later admission does not seat an offer so ended. A
                conferral that is not in the end's past (made after it, or beside it) waits for the next admission
                like any conferral on a non-member. At tips the duty seat follows the folded roster.
-               Over every community, whatever its founding row seats (a room founded with members only, whose
-               members' count confers a duty, included), and only a seat that makes its holder a duty holder
-               (`duty`, a named duty, a duty the record declares): another seat, a node's detector seat for one,
-               is not asked for membership. Who may confer a duty is unchanged: the duty holders' count or the
-               lone holder where the founding row seats duty holders (duty_seat), the room's count otherwise.
+               Over every community, whatever its founding row seats, and only a seat that makes its holder a duty
+               holder (`duty`, a named duty, a duty the record declares): another seat, a node's detector seat for
+               one, is not asked for membership. Who may place a duty (CC 4.5.4): the founding record, the duty
+               holders' count (or the lone holder, duty_seat), or the members' election (the ranked tally); a
+               members' admission count places none (duty_gate, CIRISConstitution#241).
 
 An AI agent's key (CC 4.5.13). An agent "acts under its own key and has no vote"; "a recall and an election count
 its persons alone". "No single key removes a member alone, and no duty holder removes another from the roster
@@ -155,8 +155,11 @@ CONFERS = {  # scope held -> (scopes it may confer, "same": over the same object
 # owned by any of them" (CC 3.2), so with two live owners neither alone revokes (derived from those two sentences).
 ENDS = {"owner": ("owner",)}
 # seats whose ending is final: a revocation is "never withdrawn" (CC 2.4.1.1), so no offer re-seats the same key in the
-# same scope over the same object once a concluded revocation of that slot is in its past
-FINAL = ("registered",)
+# same scope over the same object once a concluded revocation of that slot is in its past.
+# A roster seat named here (a room key's seat: `member`, `agent`) is final over a private room only (CC 3.1.3.2: "a
+# member admitted again makes a fresh one"; the steward's decision of 2026-11-25 on CIRISConstitution#224: "a removed
+# room key is not seated again", of any end of the seat, a resignation included). See _revoked_before.
+FINAL = ("registered", "member", "agent")
 # CC 4.5.4 (iv): "A duty seat is conferred by a strict majority of the duty holders, and withdrawn by a strict majority
 # of the other duty holders, the holder concerned not counted. Where there are two holders or more, neither takes fewer
 # than two voices. A lone duty holder confers alone, with the new holder's acceptance." Two policy names, counted
@@ -181,7 +184,7 @@ def policy_table(path=None):
         elif e.get("kind") == "one_of_n":
             out[f["family"]] = ("one", 1, 1)
         elif e.get("kind") == "protocol":
-            out[f["family"]] = ("declared", 0, 0)
+            out[f["family"]] = ("protocol", 0, 0)               # the room's declared protocol: its founding record's
         elif e.get("kind") == "ranked_irv":
             out[f["family"]] = ("ranked", 0, 0)                  # the count is the ranked tally (formal/ranked_choice)
         else:
@@ -190,20 +193,192 @@ def policy_table(path=None):
 
 
 POLICY = policy_table()
+
+
+def acts_table(path=None):
+    """The act-to-policy binding (data/governance_policy_acts.tsv): one row per (act, scope, community kind), the policy
+    rows it may take, and whether the counted row states one of them (`row`) or the act fixes it (`fixed`)."""
+    path = path or os.path.join(ROOT, "data", "governance_policy_acts.tsv")
+    out = []
+    for line in open(path, encoding="utf-8"):
+        if line.startswith("#") or not line.strip() or line.startswith("act\t"): continue
+        act, scope, kind, policy, choice = line.rstrip("\n").split("\t")[:5]
+        out.append((act, scope, kind, tuple(policy.split("|")), choice))
+    return tuple(out)
+
+
+ACTS = acts_table()     # read by policy_in_force (the refusal), with the binding on (BOUND)
+
+# The kind of an object (the acts table's `community_kind`, the policy table's `corridor` reading), from its founding row's
+# scope. A key object is a self roster. An object with no kind has no act.
+KINDS = {"member": "community", "duty": "community", "holder": "accord", "self": "self", "key": "self"}
+
+
+def kind_of(by, obj, is_key=False):
+    """The kind of obj: `self` for a key object; else its founding row's scope read through KINDS; None otherwise."""
+    if is_key: return "self" if "key_kind_unread" not in MUT else None
+    g = by.get(obj)
+    if g is None or g["kind"] != "offer" or g.get("obj") != g["id"]: return None
+    if "kind_unread" in MUT: return "community"                  # MUTATION: every founding row a community
+    k = KINDS.get(g["scope"])
+    # a community's record says whether it is an infrastructure community: `cohort_subkind` (any other value, or none,
+    # is a community)
+    if k == "community" and g.get("cohort_subkind") == "infrastructure" and "subkind_unread" not in MUT:
+        return "infrastructure"
+    return k
+
+
+def act_of(r, by, is_key=False):
+    """The act a counted row is, decided from its kind, its scope and its object, never from the policy it states:
+    (act, scope class, kind) as the acts table writes them, or None (not a counted act, or an object with no kind).
+        community  an offer whose `content` names an unseat of the same seat (object, scope, keys) is the lift, of
+                   that seat's scope (the table binds the agent's); an offer or unseat of a roster seat is an admission
+                   or a removal of that seat; one of a detector seat (`detect:*`) is the holders' conferral or
+                   withdrawal of that seat; an offer of a duty under the ranked count is the election's seating (THE
+                   ONE ACT READ FROM THE STATED POLICY, for this tag: the election is not answered safely by it);
+                   another offer of a duty is the duty holders' conferral; an unseat of a duty counted over a duty
+                   (`counted`, the body the row counts) is their withdrawal, and one counted over the members is the
+                   recall. Any other scope is no act.
+        accord     any counted row is a standing act.
+        self       an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
+    A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's."""
+    if r["kind"] not in ("offer", "unseat") or r.get("conf") != "group": return None
+    obj, sc, offer = r.get("obj"), r.get("scope"), r["kind"] == "offer"
+    kind = kind_of(by, obj, is_key)
+    if kind is None: return None
+    if kind == "community":
+        c = by.get(r.get("content"))
+        if offer and c is not None and c["kind"] == "unseat" and c.get("obj") == obj and c.get("scope") == sc \
+                and tuple(c.get("to", ())) == tuple(r.get("to", ())) and "lift_unread" not in MUT:
+            return ("lift", sc, kind)                        # the seat re-seated: the table's row is of scope `agent`
+        if sc in ROSTER_SEATS: return ("admit" if offer else "remove", sc, kind)
+        # a detector seat (CC 4.5.7: `detect:{list id}`, conferred and "withdrawn by the count of (iv)"): no declared duty
+        if (sc == "detect" or sc.startswith("detect:")) and "detect_unread" not in MUT:
+            return ("seat_confer" if offer else "seat_withdraw", "detect", kind)
+        # a change of the community's record (its consensus_protocol, say): the act record_change
+        if sc == "record" and offer and "record_unread" not in MUT: return ("record_change", "record", kind)
+        dec = declared(by, obj)
+        if not is_duty(sc, dec): return None
+        if offer:
+            # THE ONE ACT READ FROM THE STATED POLICY: the election is not answered safely by this tag, and a caller must
+            # not rely on a ranked seating (CIRISConstitution#241: the election is out of 0.5.0)
+            if K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "ranked" and "election_unread" not in MUT:
+                return ("election_seating", "moderate", kind)
+            return ("duty_confer", "duty", kind)
+        holders = is_duty(r.get("counted", "member"), dec) if "recall_by_policy" not in MUT else \
+            K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "duty"
+        return ("duty_withdraw" if holders else "recall", "duty", kind)
+    if kind == "infrastructure":
+        # the founders' own roster, and a node's seat (placed and removed by the founders' count; no voice, no base)
+        return ("admit" if offer else "remove", sc, kind) if sc in ("founder", NODE) else None
+    if kind == "accord": return ("standing_act", "any", kind)
+    if kind == "self":
+        own = by.get(obj, {}).get("scope")
+        return ("admit" if offer else "remove", "key", kind) if sc in ("key", own) else None
+    return None
+
+
+def is_amendment(q, obj):
+    """A change of community obj's record that states its consensus_protocol: a counted offer of scope `record` over
+    obj (the act record_change), carrying the new protocol."""
+    return q["kind"] == "offer" and q.get("conf") == "group" and q.get("obj") == obj and q.get("scope") == "record" \
+        and q.get("consensus_protocol") is not None
+
+
+def protocol_of(by, obj):
+    """The room's declared protocol in force in a row's past (`by`: the concluded rows of that past): the
+    `consensus_protocol` of the newest amendment of the record there (a counted change of the object, so a row that
+    has it in its past has it in force), or the founding record's. None where the founding record states none, or
+    where the newest amendments disagree (two concurrent changes naming different protocols: none is in force).
+    A seat outlasts a change of protocol: no seat is judged again under the new one (CC 4.5.4)."""
+    g = by.get(obj)
+    if g is None or g["kind"] != "offer" or g.get("obj") != g["id"]: return None
+    am = [q for q in by.values() if is_amendment(q, obj)] if "amendment_unread" not in MUT else []
+    if not am: return g.get("consensus_protocol")
+    anc = {q["id"]: K.ancestors(by, q["id"]) for q in am}
+    newest = [q for q in am if not any(q["id"] in anc[x["id"]] for x in am)]
+    words = {q["consensus_protocol"] for q in newest}
+    return words.pop() if len(words) == 1 else None
+
+
+def regime_of(r, by):
+    """The regime a counted row is counted under, once the binding reads it: the room's protocol in force in its past
+    (protocol_of). Each act's own policy is fixed by the acts table, so it is no part of the room's regime: tips of an
+    admission and a conferral fold, and tips on either side of a change of protocol do not. With the binding off, the
+    row's stated `regime`."""
+    if not BOUND or "regime_stated" in MUT: return r.get("regime")
+    return protocol_of(by, r.get("obj"))
+
+
+BOUND = True            # the seat rule reads the acts table; the roster instances (roster.py) are not bound yet
+REFUSED = object()      # policy_in_force: the row concludes nothing
+
+
+def policy_in_force(r, by):
+    """The policy a counted row is counted under (a word of POLICY), or REFUSED. With the binding on (BOUND), from the
+    row's act (act_of) and the acts table: a fixed act's one row (the row may state it or none), or the row's own
+    choice among those listed; a counted row over an object with a kind whose act has no row, or that states another
+    policy, is REFUSED. A protocol row (cosigned_act, community_remove) is counted under the founding record's protocol
+    (protocol_of), never one the row states, and REFUSED where the record states none. With the binding off, the row's
+    own policy, a protocol row read the same way."""
+    stated = r.get("policy")
+    word = stated
+    if BOUND and "binding_off" not in MUT:
+        is_key = r.get("obj") is not None and r.get("obj") not in by
+        a = act_of(r, by, is_key)
+        if a is None:
+            return REFUSED if kind_of(by, r.get("obj"), is_key) is not None else stated
+        rule = policy_for(*a)
+        if rule is None: return REFUSED
+        pols, choice = rule
+        if choice == "fixed":
+            if stated not in (None, pols[0]) and "stated_policy_free" not in MUT: return REFUSED
+            word = pols[0]
+        else:
+            if stated not in pols and "stated_policy_free" not in MUT: return REFUSED
+            word = stated
+        # a stated regime is a consistency check: it must be the room's protocol in force in the row's past
+        if r.get("regime") is not None and r.get("regime") != protocol_of(by, r.get("obj")) and "regime_unread" not in MUT:
+            return REFUSED
+    if K.rule(POLICY, word, ("unknown",))[0] == "protocol" and "protocol_unread" not in MUT:
+        proto = protocol_of(by, r.get("obj"))
+        if proto is None: return REFUSED
+        word = proto
+    return word
+
+
+def policy_for(act, scope, kind, acts=ACTS):
+    """The policy rows an act may take, and whether the counted row chooses (`row`) or the act fixes it (`fixed`):
+    the acts table's row for (act, scope class, kind), or None."""
+    for a, sc, kd, pol, ch in acts:
+        if (a, sc, kd) == (act, scope, kind): return pol, ch
+    return None
 # A removal runs under the room's own declared protocol (CC 3.3.4; the table's cell is `protocol`). The rooms of
 # these scenarios declare two thirds. roster.py runs the other protocols.
 POLICY.update({k: ("duty", 0, 0) for k in DUTY_POLICY})          # CC 4.5.4 (iv), read by duty_count, not by met()
 # CC 4.5.13, the members' check as a counted row: the re-seating of an agent's key a moderator removed alone. Read by
 # lift_count, not by met(): a counted row of this policy that is no such re-seating concludes nothing.
 POLICY["moderation_overturn"] = ("lift", 1, 2)
-if POLICY.get("community_remove", ("", 0, 0))[0] == "declared":
-    POLICY["community_remove"] = ("atleast", 2, 3)
+# CC 4.5.13: "A recall is one row cosigned by more than two thirds of the standing roster ... The floor is two voices"
+# (the table's cell reads 2/3): strictly more, with the floor, counted over the roster less the holder it recalls
+POLICY["moderator_recall"] = ("recall", 2, 3, 2)
+# A room's declared protocol (CC 3.3.4: its `consensus_protocol`), as the founding record states it: a word the policy
+# map reads like a policy row. The protocol rows of the table (`protocol` in their enact cell: cosigned_act,
+# community_remove, wa_adjudication) are counted under the founding record's protocol, never one a row states.
+PROTOCOLS = {"majority": ("strict", 1, 2), "two_thirds": ("atleast", 2, 3), "one": ("one", 1, 1), "quorum": ("declared", 0, 0)}
+POLICY.update(PROTOCOLS)
+# the cases' communities declare two thirds on their founding records (the builders' default below)
+DEFAULT_PROTOCOL = "two_thirds"
 
 
 def met(policy, yes, n, declared=None, table=None):
-    kind, num, den = K.rule(table or POLICY, policy, ("unknown", 0, 0))
+    e = K.rule(table or POLICY, policy, ("unknown", 0, 0))
+    kind, num, den = e[:3]
     if kind == "atleast": return n > 0 and yes * den >= num * n
     if kind == "strict": return yes * den > num * n
+    # strictly more than a fraction and never fewer than `least` voices; the recall's threshold (its base, less the
+    # holder it recalls, is read by count_met)
+    if kind in ("strictfloor", "recall"): return yes * den > num * n and (yes >= e[3] or "floor_unread" in MUT)
     if kind == "one": return yes >= 1
     if kind == "declared": return declared is not None and yes >= declared
     return False
@@ -215,6 +390,8 @@ def _slots(to, scope, obj):
 
 
 def offer(id, signer, to, scope, obj, conf, names=(), **kw):
+    if obj == "@" and KINDS.get(scope) == "community":
+        kw.setdefault("consensus_protocol", DEFAULT_PROTOCOL)   # a community's record declares its protocol (CC 3.3.4)
     obj = id if obj == "@" else obj                 # "@": the object is this row (a group is its founding row)
     return R(id, "offer", signer, names, to=(to,) if isinstance(to, str) else tuple(to), scope=scope, obj=obj,
              conf=conf, on=_slots(to, scope, obj), **kw)
@@ -262,22 +439,41 @@ def is_duty(scope, declared=()):
 
 
 def declared(by, obj):
+    """The duties the community's record declares (its founding row's `duties`). A record's declared duty is never a
+    roster scope (`member`, `agent`): such an entry is ignored (MUTATION declared_roster_kept)."""
     g = by.get(obj)
-    return tuple((g or {}).get("duties", ()))
+    # `moderate` is "a duty every community's record declares" (CC 4.5.4), whatever the law's list names (the crate
+    # reads a law; here DUTIES names it already)
+    return (("moderate",) if community(by, obj) else ()) + record_duties(g or {})
+
+
+def record_duties(g):
+    return tuple(d for d in g.get("duties", ()) if d not in ("member", "agent") or "declared_roster_kept" in MUT)
 
 
 # the seats over a community its duty holders do NOT place: membership is the roster's own seat, placed by the count
 # of the group's consensus_protocol and the joiner's yes (CC 3.1.3.2, CC 3.3.4). Every other seat they place over the
 # community is placed by them under CC 4.5.4 (iv), whatever its scope.
-ROSTER_SEATS = ("member", "agent")
+ROSTER_SEATS = ("member", "agent", "node")
 # CC 4.5.13: an AI agent "acts under its own key and has no vote"; "a recall and an election count its persons alone".
 # An agent's key is seated in a scope of its own: on the roster (content, wraps, audience), and in no count.
 AGENT = "agent"
+NODE = "node"           # a node's seat over an infrastructure community: no voice and in no base, as an agent's
 
 
 def lists_holders(g):
     """A founding row that names its duty holders (CC 4.5.4): a `duty_holders` map that names at least one key."""
     return any(ks for _, ks in g.get("duty_holders") or ())
+
+
+def lone_founding(o):
+    """A founding record one person signs with no `duty_holders` map (CC 4.5.4: "A record one person signs MAY name
+    none, and that person then holds every declared duty"): a community's founding row (scope `member`; a key's or a
+    voice's own roster founded alone is no community) whose `to` is one key, signed by that key, no other key signing
+    it. The older presentation, a lone founder's row of scope `duty`, holds the law's duties through HOLDS and is read
+    as before."""
+    return o.get("obj") == o["id"] and not o.get("duty_holders") and len(o["to"]) == 1 and o["scope"] == "member" \
+        and signers(o) == frozenset(o["to"]) and "lone_founder_unread" not in MUT
 
 
 def seat_scopes(o, k):
@@ -290,13 +486,17 @@ def seat_scopes(o, k):
     # is `membership_founding_member_unsigned`; it joins by an ordinary admission)
     if "unsigned_no_map" in MUT and not o.get("duty_holders"): return (o["scope"],)   # MUTATION: the old exception
     if k not in signers(o) and "unsigned_seated" not in MUT: return ()       # MUTATION: a listed member who did not sign is seated
+    if lone_founding(o):
+        # the lone signer holds `moderate` always ("a duty every community's record declares") and each duty its record
+        # declares (`duties`); not the law's other named duties (CIRISConstitution#241)
+        return (o["scope"], "moderate") + tuple(d for d in record_duties(o) if d not in (o["scope"], "moderate"))
     if not o.get("duty_holders") or "holders_unread" in MUT: return (o["scope"],)
     return (o["scope"],) + tuple(d for d, ks in o["duty_holders"] if k in ks and d != o["scope"])
 
 
 def founding_duty(o, sc):
     """A duty seat a founding row gives by its `duty_holders` map."""
-    return bool(o.get("duty_holders")) and o["obj"] == o["id"] and sc != o["scope"]
+    return (bool(o.get("duty_holders")) or lone_founding(o)) and o["obj"] == o["id"] and sc != o["scope"]
 
 
 def duty_seat(by, o):
@@ -312,8 +512,13 @@ def community(by, obj):
     """obj is a community: an object that is its own founding row. The duty-seat rule (a duty seat stands only on
     the roster's seat; an end of the stay ends the duty seats before it) reaches every community, whatever its
     founding row seats (CC 4.5.4: "a non-member holds no duty")."""
-    g = by.get(obj)
     if "member_rule_duty_rooms_only" in MUT: return duty_room(by, obj)   # MUTATION: the rule reaches duty rooms only
+    return founding_row(by, obj)
+
+
+def founding_row(by, obj):
+    """The one test of a community: obj names a held offer whose object is itself (a founding row), whatever its scope."""
+    g = by.get(obj)
     return g is not None and g["kind"] == "offer" and g["obj"] == g["id"]
 
 
@@ -321,7 +526,7 @@ def duty_room(by, obj):
     """obj is a community whose founding row seats duty holders (the only place the duty rules engage): a founding row
     of scope `duty`, or one whose `duty_holders` map names a holder."""
     g = by.get(obj)
-    return g is not None and g["kind"] == "offer" and g["obj"] == g["id"] and (g["scope"] == "duty" or lists_holders(g))
+    return founding_row(by, obj) and (g["scope"] == "duty" or lists_holders(g) or lone_founding(g))
 
 
 def roster_seat(o, holds=None, sc=None):
@@ -357,6 +562,16 @@ def stay_ends(rows, by, holds=None):
         if t is None or t["kind"] != "offer" or k not in t["to"]: continue
         if community(by, t["obj"]) and roster_seat(t, holds): out.append((w, k, t["obj"]))
     return out
+
+
+def end_scope(by, w):
+    """The roster seat a key's own end of its stay (stay_ends) ends: the scope the withdrawal names, or else the scope
+    of the offer it withdraws (through an acceptance, the offer accepted, or a standing acceptance's own)."""
+    if w.get("scope") is not None: return w["scope"]
+    t = by.get(w.get("target"))
+    if t is None: return None
+    if t["kind"] == "accept" and t.get("of") is not None: return (by.get(t["of"]) or {}).get("scope")
+    return t.get("scope")
 
 
 def duty_held(by, o, sc=None):
@@ -396,6 +611,9 @@ def lone_removal(r, P, past):
     the head the row names."""
     if not agent_removal(r) or r.get("conf") != "group": return False
     if "moderator_unread" in MUT: return True                       # MUTATION: any key removes an agent's key alone
+    # a room's moderator, over the room (CC 4.5.13): over an object that is no community (a key's own roster) an unseat
+    # is an ordinary counted row (MUTATION lone_any_object)
+    if "lone_any_object" not in MUT and not community({q["id"]: q for q in P}, r["obj"]): return False
     heads = r.get("head", ())
     # the key removed holds an agent's seat at the head the row names: a person's key is not removed so, whatever
     # scope the unseat states (MUTATION lone_any_key: the key's seat not read)
@@ -418,6 +636,13 @@ def lift_voices(r, P, past, by):
     return v if "author_voice" in MUT else v - {rem["signer"]}      # MUTATION author_voice: the author's objection counts
 
 
+def room_count(yes, base):
+    """The members' check of one member's act (the overturn, the lift, the count's receipt of a lone removal): more
+    than half of the base, never fewer than two voices (MUTATION lift_no_floor: no floor). Whatever policy or need a
+    row states, these counts are read by this rule alone."""
+    return 2 * len(yes) > len(base) and (len(yes) >= 2 or "lift_no_floor" in MUT)
+
+
 def lift_count(r, P, past, by):
     """The overturn's count (window.py, moderation_overturn) over the objections a re-seating row names: a strict
     majority of the members at the head, the removal's author apart and the key seated apart (each no voice, and
@@ -432,7 +657,7 @@ def lift_count(r, P, past, by):
     mem, vot = counted_keys(P, past, r["obj"], heads)
     yes = v & vot
     if "lift_over_all" not in MUT: mem = mem - {by[r["content"]]["signer"]}    # MUTATION lift_over_all: the author counted over
-    return 2 * len(yes) > len(mem) and (len(yes) >= 2 or "lift_no_floor" in MUT)
+    return room_count(yes, mem)
 
 
 def founding_many(by, obj):
@@ -481,10 +706,15 @@ class Seats:
         gone = {(k, g) for _, k, g in left}
 
         def resigned(o, k, sc):
-            """A duty seat whose offer is in the past of its holder's own end of its stay as a member is ended by it."""
-            if "duty_revives" in MUT or "resign_keeps_duty" in MUT or not duty_held(S.by, o, sc): return False
+            """A seat whose offer is in the past of its holder's own end of its stay is ended by it: a duty seat (the end
+            of the stay as a member ends it), and every seat of the key in the roster scope the end ends, whatever row
+            seated it (an end is of the key's stay in that scope, not of a row; as a counted removal's cut reaches
+            every offer on the slot in its past)."""
+            duty = duty_held(S.by, o, sc) and not ("duty_revives" in MUT or "resign_keeps_duty" in MUT)
+            stay = "stay_one_row" not in MUT                  # MUTATION stay_one_row: a resignation ends the row it names only
+            if not duty and not stay: return False
             return any(k2 == k and g == o["obj"] and ((pos[o["id"]] < pos[w["id"]]) if by_arrival else (o["id"] in S.anc[w["id"]]))
-                       for w, k2, g in left)
+                       and (duty or end_scope(S.by, w) == sc) for w, k2, g in left)
 
         def unseated(o, k, sc):
             for u in unseats:
@@ -499,13 +729,21 @@ class Seats:
                 if (pos[o["id"]] < pos[u["id"]]) if by_arrival else (o["id"] in S.anc[u["id"]]): return True
             return False
 
+        def own_void(row, o, k):
+            """A key's own row on a roster seat that is concurrent with its own end of its stay there (neither in the
+            other's past) is no voice: its signature on the offer or its acceptance of it (CIRISConstitution#224, ruled:
+            the rule a removed key's concurrent rows have, read for the key's own end). Rows of other keys are untouched."""
+            if "own_end_unread" in MUT or not roster_seat(o, holds): return False   # MUTATION: the key's own end voids nothing
+            return any(k2 == k and g == o["obj"] and ("own_end_any_seat" in MUT or end_scope(S.by, w) == o["scope"]) and S.concurrent(w["id"], row["id"])
+                       for w, k2, g in left)
+
         def accepted(o, k):
-            if k in signers(o): return True
+            if k in signers(o): return not own_void(o, o, k)
             if o.get("consent") == "one": return o["conf"] != "seat"
             for a in K.sel(Cs, kind="accept", signer=k):
                 paired = (a["of"] == o["id"]) or (a["of"] is None and a["id"] in o["names"] and a["scope"] == o["scope"]
                                                  and a["obj"] in (None, o["obj"]))
-                if paired and not ended(a) and C.counts(a): return True
+                if paired and not ended(a) and C.counts(a) and not own_void(a, o, k): return True
             return False
 
         base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V
@@ -568,9 +806,9 @@ class Seats:
         return fold is None or k in fold
 
     def roster(self, o):
-        """The room's whole roster over o: its members and its agents (CC 4.5.13). Content, wraps and audience read it;
+        """The room's whole roster over o: its members, its agents (CC 4.5.13) and its nodes (an infrastructure community). Content, wraps and audience read it;
         no count does (a count reads `member`, or the scope it names, less the agents)."""
-        return self.holders("member", o) | self.holders(AGENT, o)
+        return self.holders("member", o) | self.holders(AGENT, o) | self.holders(NODE, o)
 
     def holders(self, s, o, root=None):
         got = frozenset(r["k"] for r in K.sel(self.recs, obj=o) if self._has(r, s) and (root is None or r["root"] == root) and self._member(r))
@@ -608,7 +846,8 @@ class Seats:
             in       a key some tip adds is in where the counted offer that adds it meets its count on the voices
                      of keys the fold seats, over the members at its heads that the fold seats: a least fixed
                      point from the common keys;
-            wait     tips that differ in protocol or policy (a counted row's `regime`, where the caller states one)
+            wait     tips that differ in protocol or policy (regime_of: the protocol in force in a tip's past and its
+                     policy in force, once the binding reads them; with the binding off, a row's stated `regime`)
                      do not fold: the answer is then the common keys, as tips_common gives."""
         tp = self.tips(o)
         if len(tp) <= 1: return None
@@ -626,7 +865,8 @@ class Seats:
             lines.append((t, sub, {q["id"] for q in sub}, seated))
         common = frozenset.intersection(*[frozenset(sd) for _, _, _, sd in lines])
         union = frozenset.union(*[frozenset(sd) for _, _, _, sd in lines])
-        if len({t.get("regime") for t, _, _, _ in lines}) > 1 and "regime_folds" not in MUT:
+        if len({regime_of(t, {q["id"]: q for q in sub if q["id"] != t["id"]}) for t, sub, _, _ in lines}) > 1 \
+                and "regime_folds" not in MUT:
             memo[(s, o)] = common
             return common
 
@@ -661,6 +901,9 @@ class Seats:
                     continue
                 P = [q for q in S.Cs if q["id"] in S.anc[off]]
                 past = lambda a, b: a in S.anc[b]
+                pol = policy_in_force(r, {q["id"]: q for q in P})
+                if pol is REFUSED: return False
+                r = dict(r, policy=pol)                              # the count reads the policy in force
                 over, counted = r.get("over", r["obj"]), r.get("counted", "member")
                 if (over, counted) == (o, s): ok = seated if "one_step" not in MUT else (union - out_keys)
                 else: ok = self.tips_fold(counted, over)                 # another scope's own fold; None: one tip there
@@ -669,12 +912,13 @@ class Seats:
                 yes = voices(r, P) & mem
                 if r.get("policy") in DUTY_POLICY:
                     if not duty_count(r, P, yes, mem): return False
-                elif K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "lift":
-                    # a re-seating: its voices are the objections it names, over the members the fold seats
+                elif (lambda a: a[0] == "lift" if a is not None else K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "lift")(
+                        act_of(r, {q["id"]: q for q in P}, r.get("obj") not in {q["id"] for q in P}) if BOUND else None):
+                    # a re-seating (its act the lift): its voices are the objections it names, over the members the fold seats
                     v = lift_voices(r, P, past, {q["id"]: q for q in P}) or frozenset()
                     yes = v & mem
                     if v: mem = mem - {S.by[r["content"]]["signer"]}   # the author apart (the key removed is an agent's: in no count)
-                    if not (2 * len(yes) > len(mem) and len(yes) >= 2): return False
+                    if not room_count(yes, mem): return False
                 elif not met(r.get("policy"), len(yes), len(mem), r.get("need")): return False
             return True
 
@@ -712,9 +956,15 @@ def holds_roster(S, u, k, obj, r):
     """Unseat u cuts a roster seat key k holds: an offer in u's past seats k over obj in roster scope r (a member's
     seat, the founding seat where it holds `member`, an agent's seat). A cut of a roster scope the key does not hold
     ends no stay, and so no duty seat. (MUTATION roster_cut_any_scope: not read.)"""
+    return seated_before([m for m in S.Cs if m["id"] in S.anc[u["id"]]], k, obj, r)
+
+
+def seated_before(rows, k, obj, r):
+    """holds_roster over `rows`, the concluded rows in the unseat's past."""
     if "roster_cut_any_scope" in MUT: return True
-    return any(m["kind"] == "offer" and m.get("obj") == obj and k in m["to"] and m["id"] in S.anc[u["id"]]
-               and (m["scope"] == r or (r == "member" and m["id"] == obj and roster_seat(m))) for m in S.Cs)
+    return any(m["kind"] == "offer" and m.get("obj") == obj and k in m["to"]
+               and ((m["scope"] == r if "founding_duty_unread" in MUT else r in seat_scopes(m, k))   # MUTATION: the offer's scope
+                    or (r == "member" and m["id"] == obj and roster_seat(m))) for m in rows)
 
 
 def lone_act(u, S):
@@ -743,7 +993,7 @@ def later(S, hx, he):
     return bool(he) and any(h in S.anc and all(e in S.anc[h] for e in he) for h in hx)
 
 
-def standing_ends(S, x, standing, unseats):
+def standing_ends(S, x, standing, unseats, not_ends=frozenset()):
     """The rows held that end the remover's standing: a withdrawal of a standing offer by its holder (or by the
     conferrer of an offer that is not counted), of the holder's acceptance of one, or of the holder's stay; a counted
     unseat that cuts the holder's standing seat or its roster seat with a standing offer in its past. Each with the
@@ -765,6 +1015,7 @@ def standing_ends(S, x, standing, unseats):
             out.append((w, of({o for o in ids if o in S.anc[w["id"]]})))
     for u in unseats:
         if u["id"] == x["id"] or M not in u["to"] or u["obj"] != obj or not any(o in S.anc[u["id"]] for o in ids): continue
+        if u["id"] in not_ends: continue                    # a lone removal out of force ends no standing (no cascade)
         if any(("seat", M, r, obj) in u["cuts"] and holds_roster(S, u, M, obj, r) for r in ROSTER_SEATS):
             out.append((u, of({o for o in ids if o in S.anc[u["id"]]})))
         elif any(("seat", M, sc, obj) in u["cuts"] for _, sc in standing):
@@ -772,7 +1023,76 @@ def standing_ends(S, x, standing, unseats):
     return out
 
 
-def removal_in_force(S, x, unseats, now):
+def count_receipt(S, q, x):
+    """The room's count's receipt of lone removal x (CIRISConstitution#218): a count over the persons of x's room,
+    whatever room or scope the row states otherwise, at heads none older than x's (each is x's head or has it in its
+    past), the remover no voice of it (as it is no receipter). Its count is the members' check of one member's act
+    (room_count): more than half of the persons of the room less the remover, never fewer than two, whatever policy or
+    need the row states (a row's own `accord_halt`, or a declared need of none, is no receipt; MUTATION
+    receipt_row_policy: the row's policy read)."""
+    obj, hx = x["obj"], tuple(x.get("head", ()))
+    if "count_receipt_unchecked" not in MUT:                    # MUTATION: room, heads and remover not read
+        if q.get("obj") != obj or q.get("over", obj) != obj: return False
+        if not q.get("head") or not all(any(h == e or e in S.anc.get(h, ()) for e in hx) for h in q["head"]): return False
+    P = [r for r in S.Cs if r["id"] in S.anc[q["id"]]]
+    past = lambda a, b: a in S.anc[b]
+    over = q.get("obj") if "count_receipt_unchecked" in MUT else obj
+    scope = q.get("counted", "member") if "count_receipt_unchecked" in MUT else "member"
+    mem, vot = counted_keys(P, past, over, tuple(q.get("head", ())), scope)
+    left = left_in_past(P, over, scope)
+    mem, vot = mem - left, vot - left
+    yes = voices(q, P) & vot
+    if "count_receipt_unchecked" not in MUT: yes = yes - {x["signer"]}
+    # the room less the remover, in the base as in the voices (R5: one rule for a count that judges one member's act,
+    # as the overturn and the lift; MUTATION remover_counted_over)
+    if "remover_counted_over" not in MUT: mem = mem - {x["signer"]}
+    if "receipt_row_policy" in MUT: return met(q.get("policy"), len(yes), len(mem), q.get("need"))
+    return room_count(yes, mem)
+
+
+def receipts_of(S, x, duty, unseats, not_ends):
+    """The receipts of lone removal x held that may keep it in force, each with whether it is the count's: an `ack`
+    whose `of` is x, by a duty holder at x's head other than the remover, or counted (`conf` group) and met over the
+    persons at the heads it names (the room's count, the conferrer: CIRISConstitution#218, pin list: a count's own
+    receipt). A single key's receipt is void where a counted unseat of a seat that key holds over the room does not
+    have the receipt in its past (concurrent with it, or before it): conferral's key_cut (CIRISConstitution#218, pin
+    list: a receipt by a key removed at the same time)."""
+    out = []
+    for q in S.Cs:
+        if q["kind"] != "ack" or q.get("of") != x["id"]: continue
+        if q.get("conf") == "group":
+            if "count_receipt_unread" in MUT: continue          # MUTATION: the count's receipt is not read
+            if count_receipt(S, q, x): out.append((q, True))
+            elif "failed_count_is_signers" in MUT and q["signer"] in duty: out.append((q, False))   # MUTATION
+            continue
+        if q["signer"] not in duty: continue
+        cut = any(q["signer"] in u["to"] and u.get("obj") == x["obj"] and u["id"] not in not_ends
+                  and q["id"] not in S.anc[u["id"]] and ("receipt_before_kept" not in MUT or u["id"] not in S.anc[q["id"]])
+                  and holds_roster(S, u, q["signer"], x["obj"], u["scope"])
+                  for u in unseats)
+        if cut and "removed_receipt_kept" not in MUT: continue   # MUTATION: a removed key's receipt keeps
+        out.append((q, False))
+    return out
+
+
+def lifts_receipts(E, lone_ids, by):
+    """An end that states it lifts the receipts of acts under the ended standing (`lifts`; conferral's word): then only
+    the count's own receipt keeps (CIRISConstitution#218, pin list: a count end that lifts receipts). CC 2.4.1.1, "What
+    stays in force", names three cases: (i) a counted end may lift; (iii) a conferrer that ends its own offer may lift,
+    counted or not (its withdrawal of an offer that seats another); (ii) the holder's own end never lifts (its own
+    withdrawal, its resignation; the text refuses such a row at the door, `lifts_on_own_end`, and the kernel, handed
+    one, reads no lift). A moderator's lone removal lifts nothing."""
+    if not E.get("lifts") or "lifts_unread" in MUT: return False
+    if E["kind"] == "unseat": return E.get("conf") == "group" and (E["id"] not in lone_ids or "lone_lifts" in MUT)
+    # (iii): in a room whose record seats duty holders they are equals and a conferrer's withdrawal ends no duty seat;
+    # in one whose record seats none, the lone person duty holder's own offer of `moderate` (an elected moderator's,
+    # say) is ended by its withdrawal, and that withdrawal may lift
+    t = by.get(E.get("target")) if E["kind"] == "withdraw" else None
+    return t is not None and t["kind"] == "offer" and (E["signer"] not in t["to"] or "own_end_lifts" in MUT) \
+        and "conferrer_lift_unread" not in MUT
+
+
+def removal_in_force(S, x, unseats, now, not_ends=frozenset(), lone_ids=frozenset()):
     """CC 4.5.13 read with the end rule (CC 2.4.1.1, CC 4.5.5; conferral_end.py): a moderator's lone removal x is an
     act under its `moderate` standing.
         E7      a seat that gave the remover `moderate` at the head x names is live now (`now`, the seats with every
@@ -788,18 +1108,25 @@ def removal_in_force(S, x, unseats, now):
     With several ends held, in force only where each keeps it. Where the standing is gone and no end of it is held
     (it fell with a seat above it), E2 and E8 with no end."""
     M, obj = x["signer"], x["obj"]
-    standing, duty = set(), None
+    standing, duty, agents = set(), None, None
     for h in x.get("head", ()):
         sub = [q for q in S.Cs if q["id"] == h or q["id"] in S.anc.get(h, ())]
         Q = seats_of(sub)
         standing |= {(r["offer"], r["scope"]) for r in Q.recs if r["k"] == M and r["obj"] == obj and Q._has(r, "moderate")}
         d = Q.holders("duty", obj)
         duty = d if duty is None else duty & d
+        a = Q.holders(AGENT, obj)
+        agents = a if agents is None else agents & a
     duty = (duty or frozenset()) - (frozenset() if "remover_receipt" in MUT else {M})
-    acks = [q for q in S.Cs if q["kind"] == "ack" and q.get("of") == x["id"] and q["signer"] in duty]
-    kept = lambda E: any(E is None or E["id"] not in S.anc[q["id"]] for q in acks)
+    # an agent's receipt is no receipt (CC 2.4.1.1: never the act's own signer's and never a node's; keeping
+    # another's act in force is a voice, which an agent does not have): only a person duty holder receipts, for
+    # every lone removal, a mutual pair's included (MUTATION agent_receipt_kept)
+    if "agent_receipt_kept" not in MUT: duty = duty - (agents or frozenset())
+    acks = receipts_of(S, x, duty, unseats, not_ends)
+    kept = lambda E: any((E is None or E["id"] not in S.anc[q["id"]]) and (counted or E is None or not lifts_receipts(E, lone_ids, S.by))
+                         for q, counted in acks)
     # an end in the past of the head x names did not end the standing live there (a seat taken up again after it)
-    found = [(E, sc) for E, sc in standing_ends(S, x, standing, unseats)
+    found = [(E, sc) for E, sc in standing_ends(S, x, standing, unseats, not_ends)
              if not all(E["id"] == h or E["id"] in S.anc.get(h, ()) for h in x.get("head", ()))]
     ended = frozenset().union(*(sc for _, sc in found)) if found else frozenset()
     live = {(r["offer"], r["scope"]) for r in now.recs if r["k"] == M and r["obj"] == obj}
@@ -817,8 +1144,62 @@ def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
     """The lone removals among `unseats` the end rule holds out of force over S."""
     acts = [u for u in unseats if u.get("scope") == AGENT and lone_act(u, S)]
     if not acts: return frozenset()
-    now = Seats(S, holds, confers, depth, own=own, checkpoint=checkpoint, drop=frozenset())
-    return frozenset(x["id"] for x in acts if not removal_in_force(S, x, unseats, now))
+    nows = {}
+
+    def now(drop):
+        if drop not in nows: nows[drop] = Seats(S, holds, confers, depth, own=own, checkpoint=checkpoint, drop=drop)
+        return nows[drop]
+    lone_ids = frozenset(x["id"] for x in acts)
+    by = {x["id"]: x for x in acts}
+    # No cascade (CIRISConstitution#218, pin list: no cascade): a lone removal out of force ends no standing. (It
+    # voids no receipt either, since a receipter is a person and a lone removal removes only an agent.) So an act's
+    # verdict waits for the verdict of every other lone removal y that could end its remover's standing (y removes
+    # its signer), whether y is in its past (an end it reads under E4 only if y is in force), concurrent
+    # with it, or after it (E8). One exception, an ordered pair: where y has x in its past and x could end y's
+    # standing too, y is in force only if x is not (x, in force, is an end in y's past), so y cannot be what puts x
+    # out of force. x is decided first, without y (y no end of it and no cut in its reading), and y then reads x's
+    # verdict: x in force ends y's standing; x out of force ends nothing (MUTATION ordered_pair_cascade: the old
+    # order, y decided first with x read as an end before x's own verdict was known). The acts are decided one
+    # strongly connected component at a time, in rounds: every component whose waits are decided, against what the
+    # rounds before decided out of force. A component of two or more (agent moderators removing each other at one
+    # head, a pair or a ring) is decided together, each read as an end of another's: CC 2.7.7 rule 5, "Two cuts by
+    # keys of equal standing that undo each other stay contested. A voice that the other cannot remove settles them",
+    # read for a set (a person's receipt, or the count's).
+    dep = lambda x, y: y is not x and y["obj"] == x["obj"] and y["to"][0] == x["signer"]     # y could end x's standing
+    after = {x["id"]: frozenset(y["id"] for y in acts if dep(x, y) and dep(y, x) and x["id"] in S.anc[y["id"]])
+             for x in acts}                                       # the ordered pairs x opens
+    if "ordered_pair_cascade" in MUT:
+        waits = {x["id"]: {y["id"] for y in acts if dep(x, y) and y["id"] not in S.anc[x["id"]]} for x in acts}
+        after = {i: frozenset() for i in after}
+    else:
+        waits = {x["id"]: {y["id"] for y in acts if dep(x, y) and y["id"] not in after[x["id"]]} for x in acts}
+    decided, out = {}, set()
+    while len(decided) < len(acts):
+        pend = [x["id"] for x in acts if x["id"] not in decided]
+        reach = {}
+        for i in pend:
+            seen, todo = set(), [i]
+            while todo:
+                for j in waits[todo.pop()]:
+                    if j not in decided and j not in seen:
+                        seen.add(j); todo.append(j)
+            reach[i] = seen
+        comps = []
+        for i in pend:
+            comp = frozenset({i} | {j for j in reach[i] if i in reach[j]})
+            if comp not in comps and all(j in decided or j in comp for m in comp for j in waits[m]):
+                comps.append(comp)
+        excl = frozenset() if "cascade" in MUT else frozenset(out)
+        got = {}
+        for comp in comps:
+            for i in sorted(comp):
+                if "cycle_one_then_other" in MUT:                    # MUTATION: a component decided in turn
+                    excl = frozenset(out | {k for k, v in got.items() if not v})
+                ex = excl | after[i]                                 # an ordered pair's later act is no end of the earlier
+                got[i] = removal_in_force(S, by[i], unseats, now(ex), ex, lone_ids)
+        decided.update(got)
+        out |= {i for i, v in got.items() if not v}
+    return frozenset(i for i, v in decided.items() if not v)
 
 
 def stands(S, root, k, s, o, **kw):
@@ -855,9 +1236,13 @@ def seats_of(rows):
 
 
 def agents_at(P, past, obj, heads):
-    """The keys holding an AI agent's seat over obj at the heads (`agent`): on the roster, in no count."""
-    if not any(q.get("scope") == AGENT for q in P): return frozenset()
-    return members_at(P, past, obj, heads, AGENT)
+    """The keys holding an AI agent's seat over obj at the heads (`agent`), or a node's seat (`node`, over an
+    infrastructure community): on the roster, in no count."""
+    out = frozenset()
+    for sc in (AGENT, NODE):
+        if any(q.get("scope") == sc for q in P):
+            out |= members_at(P, past, obj, heads, sc)
+    return out
 
 
 def counted_keys(P, past, obj, heads, scope="member"):
@@ -872,12 +1257,29 @@ def counted_keys(P, past, obj, heads, scope="member"):
     return over, voters
 
 
-def left_in_past(P, obj, scope="member"):
-    """The keys whose own leaving is among P (a version's past): a concluded withdrawal, signed by the key, of the
-    acceptance or offer that seats it in `scope` over obj. KERNEL.md 6 and 7; RosterHead.lean leaving_binds_by_past:
-    a version that has a key's leaving in its own past does not count that key, whatever head it names."""
+def seated_after(P, past, obj, k, w, seats):
+    """Whether P (a counted row's past) holds an offer over obj seating k, by `seats`, that has the leaving w in its own
+    past: a seating of the key after its leaving. The one test of a re-admission, read by left_in_past and
+    stay_ended_in_past."""
+    if "readmit_unread" in MUT: return False
+    return any(m["kind"] == "offer" and m.get("obj") == obj and k in m.get("to", ()) and seats(m) and past(w["id"], m["id"])
+               for m in P)
+
+
+def _past_in(P):
+    by = {q["id"]: q for q in P}
+    return lambda a, b: a in K.ancestors(by, b)
+
+
+def left_in_past(P, obj, scope="member", past=None):
+    """The keys whose own leaving is among P (a version's past) with no seating of the key in that scope after it
+    there: a concluded withdrawal, signed by the key, of the acceptance or offer that seats it in `scope` over obj.
+    KERNEL.md 6 and 7; RosterHead.lean leaving_binds_by_past: a version that has a key's leaving in its own past does
+    not count that key, whatever head it names, unless a re-admission of the key after that leaving is in that past
+    too (CIRISConstitution#218, pin list: a re-admitted member counts)."""
     if "leaving_unread" in MUT: return frozenset()
     by = {q["id"]: q for q in P}
+    past = past or _past_in(P)
     out = set()
     for w in P:
         if w["kind"] != "withdraw": continue
@@ -886,7 +1288,8 @@ def left_in_past(P, obj, scope="member"):
         ts = w["scope"] if w.get("scope") is not None and "scope_unread" not in MUT else t.get("scope") if t else None
         if t is None or t.get("obj") not in (obj, None) or ts not in (scope, None): continue
         if (t["kind"] == "accept" and t["signer"] == w["signer"]) or (t["kind"] == "offer" and w["signer"] in t["to"]):
-            out.add(w["signer"])
+            if not seated_after(P, past, obj, w["signer"], w, lambda m: m["scope"] == scope):
+                out.add(w["signer"])
     return frozenset(out)
 
 
@@ -897,14 +1300,13 @@ def stay_ended_in_past(P, past, obj):
     if "leaving_unread" in MUT or "resign_keeps_duty" in MUT: return frozenset()
     by = {q["id"]: q for q in P}
     if not community(by, obj): return frozenset()
-    back = lambda w, k: any(m["kind"] == "offer" and m["obj"] == obj and k in m["to"] and roster_seat(m) and past(w["id"], m["id"]) for m in P)
-    return frozenset(k for w, k, g in stay_ends(P, by) if g == obj and not back(w, k))
+    return frozenset(k for w, k, g in stay_ends(P, by) if g == obj and not seated_after(P, past, obj, k, w, roster_seat))
 
 
 def count_left(P, past, obj, scope):
     """The keys a count over `scope` at obj leaves out for a leaving in its row's past: the leaving of that seat, and for
     a count over duty holders, the end of the key's stay as a member. A count over another scope is as it was."""
-    out = left_in_past(P, obj, scope)
+    out = left_in_past(P, obj, scope, past)
     by = {q["id"]: q for q in P}
     return out | stay_ended_in_past(P, past, obj) if is_duty(scope, declared(by, obj)) else out
 
@@ -917,9 +1319,50 @@ def voices(r, P):
                                   if c["id"] in r["names"] and heads <= set(c["names"]))
 
 
-def _revoked_before(r, P):
+def private_room(by, obj):
+    """obj is a private room: a community whose founding row declares `membership` `private` (CC 3.1.3.2). A founding
+    row with no `membership` reads public. A room is private or public by its founding row, and no record change moves
+    it (people found a new room). A seating this refuses is the text's `membership_room_key_ended`."""
+    if "public_final" in MUT: return community(by, obj)          # MUTATION: room-key finality reaches a public room
+    return community(by, obj) and by[obj].get("membership") == "private"
+
+
+def room_key_ended(k, sc, obj, P, past, by):
+    """The end of key k's roster seat sc over obj is among P (a row's concluded past), and it stands: a removal that
+    is no moderator's lone act (an unseat of that seat whose count is met over its own past, or not counted at all),
+    with an offer seating k in sc in its past; or k's own end of its stay (stay_ends: its withdrawal of the offer, of
+    its acceptance, or of the founding row). A moderator's lone removal is never final (the members may lift it; out
+    of force it ends nothing), so a re-seating with one in its past is a lift or a seating, never refused here."""
+    for q in P:
+        if q["kind"] != "unseat" or q.get("obj") != obj or q.get("scope") != sc or k not in q["to"]: continue
+        Pq = [x for x in P if past(x["id"], q["id"])]
+        if not seated_before(Pq, k, obj, sc): continue           # it ended no seat of k's
+        if q.get("conf") != "group" or "lone_final" in MUT or count_met(q, Pq, past):   # MUTATION lone_final: a lone removal is final
+            return True
+    if "resign_not_final" in MUT: return False                   # MUTATION: a resignation is no end of the seat
+    return any(k2 == k and g == obj for _, k2, g in stay_ends(P, by))
+
+
+def _revoked_before(r, P, past):
+    """Finality (FINAL): offer or acceptance r would seat a key again in a scope whose end is final, with that end in
+    its past. A scope that is no roster seat (`registered`): a concluded unseat of the slot in r's past. A roster seat
+    (a room key's seat in a private room): room_key_ended, and an acceptance of an offer seating the key is read as
+    the offer is (accepting the same offer again after a resignation seats nothing). A row concurrent with the end is
+    not refused: the cut voids it (a removal), or it seats (a resignation it does not have in its past)."""
     if "reseat" in MUT: return False
-    return any(q["kind"] == "unseat" and q["scope"] in FINAL and set(q["cuts"]) & set(r.get("on", ())) for q in P)
+    by = {q["id"]: q for q in P}
+    if r["kind"] == "accept":
+        if "reaccept_reseats" in MUT: return False              # MUTATION: the same offer accepted again re-seats
+        o = by.get(r.get("of"))
+        if o is None or o["kind"] != "offer": return False
+        obj, seats = o["obj"], [(r["signer"], sc) for sc in seat_scopes(o, r["signer"])]
+    else:
+        if r["obj"] == r["id"]: return False                    # a founding row has no past
+        if r["scope"] not in ROSTER_SEATS:
+            return any(q["kind"] == "unseat" and q["scope"] in FINAL and set(q["cuts"]) & set(r.get("on", ())) for q in P)
+        obj, seats = r["obj"], [(k, r["scope"]) for k in r["to"]]
+    if "room_key_unread" in MUT or not private_room(by, obj): return False     # MUTATION: room-key finality unread
+    return any(sc in ROSTER_SEATS and sc in FINAL and room_key_ended(k, sc, obj, P, past, by) for k, sc in seats)
 
 
 def _ender(r, P, by):
@@ -937,11 +1380,73 @@ def _ender(r, P, by):
     return sole.one(up["scope"], r["obj"]) == r["signer"]
 
 
+def on_object(by, h, obj, n=0):
+    """Row h is a row of object obj's own line: obj's founding row, a row whose object is obj (an offer, an unseat,
+    a standing acceptance, a counted receipt), a withdrawal, acceptance, receipt, answer, ballot or cosignature of
+    such a row, or a row of no object of its own that names one (a version of the roster, as persist presents a
+    ballot's head: `consensus::ballot_rows`). A row whose object is another is of that other's line."""
+    if h is None or n > 8: return False
+    if h["id"] == obj or h.get("obj") == obj: return True
+    if h.get("obj") is not None: return False
+    ref = h.get("target") if h["kind"] == "withdraw" else h.get("of")
+    # a row whose `of` names itself (a merge head presented as its own cosignature) refers to nothing else: read it
+    # by the rows it names
+    if ref is not None and ref != h["id"]: return on_object(by, by.get(ref), obj, n + 1)
+    return any(on_object(by, by.get(m), obj, n + 1) for m in h.get("names", ()))
+
+
+def heads_on_object(r, by):
+    """A counted row's heads are heads of its own object (CC 4.5.4 and the review of #54: a count is over the room
+    it acts in, so it names that room's heads): each head a row of the object's own line (on_object). MUTATION
+    heads_any_object: a head of another object's line counts."""
+    if "heads_any_object" in MUT: return True
+    return all(on_object(by, by.get(h), r["obj"]) for h in r.get("head", ()))
+
+
+def duty_gate(r, by, table=None):
+    """CC 4.5.4: a duty seat is placed only by the founding record, by "the duty holders of C, counted under line
+    (iv)", or by "the members' count under line (v)", which "is the election of rule 2". So a counted offer of a duty
+    scope over a community concludes only where it is the duty holders' count, or is an election's acceptance (the
+    ranked tally). The duty holders' count is the count over all the duty holders of the room it confers in:
+    `counted` the duty holders' scope itself (`duty`; one duty's holders are not all of them), under the duty policy
+    `duty_confer` (a strict majority of the holders, never fewer than two unless one; a policy the row states
+    otherwise, `accord_halt` say, is not that count), over the room itself (`over` absent or the room). A members'
+    count under an admission-style policy confers no duty, whether or not a duty holder lives (CIRISConstitution#241).
+    A seat that makes its holder no duty holder (a node's detector seat) is not reached. (MUTATIONS duty_gate_off;
+    duty_gate_wrong_row: `counted` read off the room; gate_counted_any_duty: one duty's holders pass;
+    duty_over_unread: a count over another room passes.)"""
+    if "duty_gate_off" in MUT or not community(by, r["obj"]) or not is_duty(r["scope"], declared(by, r["obj"])): return True
+    if r.get("over", r["obj"]) != r["obj"] and "duty_over_unread" not in MUT: return False
+    # the gate reads the policy in force (the acts table's, where it binds: a fixed act's row may state none)
+    pol = policy_in_force(r, by) if "gate_reads_stated" not in MUT else r.get("policy")
+    if pol is REFUSED: return False
+    r = dict(r, policy=pol)
+    if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked": return True
+    src = by.get(r["obj"], {}) if "duty_gate_wrong_row" in MUT else r
+    counted = src.get("counted", "member")
+    if not (counted == "duty" or ("gate_counted_any_duty" in MUT and is_duty(counted, declared(by, r["obj"])))): return False
+    # a law with the acts table refuses every other policy first (policy_in_force); with none, the gate does
+    return r.get("policy") == "duty_confer"
+
+
+def duty_over(r, by):
+    """A counted unseat of a duty scope over a community (the holders' withdrawal of a duty, the members' recall) is
+    counted over the room it ends the seat in: `over` absent or the room (MUTATION duty_over_unread)."""
+    if "duty_over_unread" in MUT or not community(by, r["obj"]) or not is_duty(r["scope"], declared(by, r["obj"])): return True
+    return r.get("over", r["obj"]) == r["obj"]
+
+
 def count_met(r, P, past, table=None):
     """A counted row's count (conf=group), met over its concluded ancestors P: the lift, the ranked tally, the duty
     count, or the policy's threshold over the persons at the heads it names."""
     k, by, heads = r["kind"], {q["id"]: q for q in P}, r.get("head", ())
-    if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "lift": return lift_count(r, P, past, by)
+    pol = policy_in_force(r, by)
+    if pol is REFUSED: return False                  # its act may not take the policy it states (the acts table)
+    r = dict(r, policy=pol)                          # the count reads the policy in force, never the stated one
+    # the lift is told by its act where the object has a kind (act_of), by its policy otherwise
+    a = act_of(r, by, r.get("obj") is not None and r.get("obj") not in by) if BOUND else None
+    if (a[0] == "lift" if a is not None else K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "lift"):
+        return lift_count(r, P, past, by)
     mem, vot = counted_keys(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
     left = count_left(P, past, r.get("over", r["obj"]), r.get("counted", "member"))
     mem, vot = mem - left, vot - left
@@ -951,6 +1456,17 @@ def count_met(r, P, past, table=None):
         # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
         return k == "offer" and bool(ballots) and RANKED(ballots, list(r["options"]), declared=False)[0] == r["to"][0]
     if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
+    # the recall is told by its act where the binding reads one (act_of: an unseat of a duty counted over the
+    # members), by its policy otherwise; Policy::Recall is only the threshold its fixed row maps to
+    is_recall = (a[0] == "recall") if a is not None else \
+        K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "recall"
+    if k == "unseat" and is_recall and "recall_as_strictfloor" not in MUT:
+        # the recall judges one holder: counted over the members less the holder it recalls, and that holder no voice
+        # of it, as the lift is counted over the room less the one it judges
+        judged = frozenset(r["to"])
+        base = mem if "recall_holder_in_base" in MUT else mem - judged
+        yes = (voices(r, P) & vot) - (frozenset() if "recall_holder_voice" in MUT else judged)
+        return met(r.get("policy"), len(yes), len(base), r.get("need"), table)
     return met(r.get("policy"), len(voices(r, P) & vot), len(mem), r.get("need"), table)
 
 
@@ -959,12 +1475,20 @@ def seat_rule(r, P, past, table=None, other=None):
     k, by = r["kind"], {q["id"]: q for q in P}
     if k in ("offer", "unseat"):
         conf = r["conf"]
-        if k == "offer" and _revoked_before(r, P): return False   # a revoked key does not re-seat itself (FINAL)
-        if k == "offer" and conf in ("self", "seat") and duty_seat(by, r) and not _lone(r, P, by): return False
+        if k == "offer" and _revoked_before(r, P, past): return False   # a revoked key does not re-seat itself (FINAL)
+        # a single key's own offer of a duty (or one under its seat) concludes only where that key is the lone person
+        # duty holder: "by a strict majority of the duty holders, or by the lone holder with the new holder's
+        # acceptance" (CC 4.5.4), in every community (CIRISConstitution#241; MUTATION own_duty_ungated: duty rooms only)
+        if k == "offer" and conf in ("self", "seat") and r["obj"] != r["id"] and (duty_seat(by, r) or (
+                "own_duty_ungated" not in MUT and community(by, r["obj"]) and is_duty(r["scope"], declared(by, r["obj"])))) \
+                and not _lone(r, P, by): return False
+        if conf == "group" and not heads_on_object(r, by): return False       # a count names its own room's heads
+        if k == "offer" and conf == "group" and not duty_gate(r, by): return False   # CC 4.5.4: who places a duty
+        if k == "unseat" and conf == "group" and not duty_over(r, by): return False  # and over which room
         if conf == "self":
             if r["obj"] == r["id"]: return k == "offer"          # a founding row is its own object
             if k == "unseat" and founding_many(by, r["obj"]): return False    # among several founding keys, ending a seat takes the count
-            return r["signer"] in own_keys(by, r["obj"]) and (r["obj"] not in by or True)
+            return r["signer"] in own_keys(by, r["obj"])
         if conf == "seat":
             if k == "unseat": return _ender(r, P, by)
             return k == "offer" and r.get("under") in by and r["signer"] in by[r["under"]]["to"]
@@ -973,6 +1497,7 @@ def seat_rule(r, P, past, table=None, other=None):
             return count_met(r, P, past, table)
         return False
     if k == "accept":
+        if _revoked_before(r, P, past): return False           # a room key whose seat's end stands is not seated again (FINAL)
         return r["of"] is None or (r["of"] in by and r["signer"] in by[r["of"]].get("to", ()))
     if k == "withdraw":
         t = by.get(r["target"])

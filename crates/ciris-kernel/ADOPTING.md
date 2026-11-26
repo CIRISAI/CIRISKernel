@@ -71,6 +71,34 @@ migrations, and the local operational store.
 - **An agent's owner on its duty seat.** The kernel does not read the owner's statement on an agent's duty seat
   yet (CC 4.5.4, `founding_duty_holder_agent_owner_unsigned`). Until it does, a caller must not present an
   agent's duty seat without the owner's statement having been checked at the door.
+- **A proposal's stated end** (`expires_at`). The kernel reads none: it is a door check on the acceptance row,
+  not a window rule.
+- **A poll** (CC 4.5.13, CC 6.1.9). A poll is a tally signed by the period's tally member: its rule and its close
+  are stated by its own opening row. It is not a window here.
+
+**The act-to-policy binding** (unreleased).
+- `SeatLaw::acts` is the Constitution's `governance_policy_acts.tsv` as `ActRule`s, and `SeatLaw::kinds` maps a
+  founding row's scope to its object's kind. A law with `acts: None` binds no act to a policy; the binding is
+  then the caller's, as before.
+- `seat::act_of(law, get, row)` is the act a counted row is, and `seat::policy_for(law, act, scope, kind)` the
+  policy rows it may take: ask these rather than keeping a list of your own.
+- With `acts: Some(..)`, the seat rule refuses a counted row whose stated policy its act may not take
+  (`act_of`, `policy_for`). A fixed act's row may state its one policy or none. A protocol row (`cosigned_act`,
+  `community_remove`, `Policy::Protocol`) is counted under the room's declared protocol.
+- Present a community's founding record with its declared protocol (`SeatRow::consensus_protocol()`), a word
+  your law's policy map names, and its `cohort_subkind()` (`infrastructure` for an infrastructure community). With none, the room concludes no removal and no
+  `cosigned_act` admission. Read it with `seat::protocol_of(p, obj)` (the row's past) rather than from any other
+  row: it gives the newest change of the record there (a counted `record` offer carrying `consensus_protocol`),
+  or the founding record's. Emit the notice `hard_case:community_consensus_protocol_change` for a change.
+- A counted row's `regime()`, where you state one, must be the protocol in force in its past, or it concludes
+  nothing; the kernel derives the regime it waits on at tips.
+- A node's seat (`seat::NODE`) over an infrastructure community is on the roster, no voice and in no base.
+- The store's query: `seat::policy_for(law, act, scope, kind)` gives the policy rows an act may take and whether
+  the row chooses. `seat::act_of(law, get, row)` gives a row's act; `seat::kind_of` gives an object's kind.
+- The windows' specs (`window::WindowSpec`, chosen by a row's `window()` name) stay the caller's: no act binding
+  reads them in this tag.
+- The election's seating is the one act read from the policy the row states (`Policy::Ranked`). The election is
+  not answered safely by this tag: a caller must not rely on a ranked seating.
 
 ## Points to settle before adoption
 
@@ -156,6 +184,28 @@ trusting an adapter.
   `SeatLaw::holds["duty"]` containing `member` that seat is its membership, so its withdrawal ends both.
 - A duty conferred after the founding is a counted row: an Offer, `Conf::Group`, policy `duty_confer`, counted
   `duty`, over the head it extends. Its holder lays it down by withdrawing that offer.
+- **Breaking (0.5.0):** implement `SeatRow::word(s: &'static str) -> Self::Word`, the crate's way to name the one
+  scope it seats itself (`moderate`, for a lone founder). For a `String` word `fn word(s: &'static str) -> String
+  { s.into() }`; for a `&'a str` word `fn word(s: &'static str) -> &'a str { s }`.
+- A founding record one key signs with no `duty_holders` map seats that key in `member`, `moderate`, and each duty
+  its `duties()` declares. Where the record has a map, the map decides. A record's `duties()` never name a roster
+  scope: an entry `member` or `agent` is ignored.
+- A duty is placed by the founding record, by the duty holders' count, or by an election's acceptance
+  (`Policy::Ranked`). The duty holders' count is a counted Offer with `counted()` exactly `duty` (all the duty
+  holders, not one duty's), `policy()` `duty_confer`, and `over()` absent or the room it confers in. Any other
+  counted offer of a duty scope concludes nothing (CIRISConstitution#241): a members' admission count
+  (`community_invite`, `counted()` `member`), a count under another policy, a count over another room. A
+  counted unseat of a duty scope is likewise counted over the room (`over()` absent or the room). Where no
+  holder is left, present the election.
+- Every head a counted row names is of its own object's line: the object's founding row, a row whose `obj()` is
+  the object, a withdrawal, acceptance or receipt of one, or a version row with no `obj()` that names one. A
+  count naming another room's row as a head concludes nothing.
+- A community, for every rule that asks (the duty gate, the duty room, the one-founder room, a lone removal): an
+  object that names a held offer whose object is itself. A moderator's lone removal of an agent's key is read
+  only over a community; elsewhere present the removal as the room's counted unseat.
+- A single key's own offer of a duty (`Conf::Own`, or `Conf::Seat` under its own seat) concludes only where its
+  signer is then the lone person duty holder over the room (an agent holding a duty is not counted), with the new
+  holder's acceptance, in every community. Where there are two holders or more, present the holders' count.
 - A duty seat is live only on a member, in every room, whatever its founding row seats (a room founded with
   members only included). Present the widening that admits a key before, or with, the conferral
   on it: a conferral on a key that is not yet a member seats nobody, with no error, and is live once the
@@ -191,8 +241,17 @@ trusting an adapter.
   the standing is held (its own withdrawal, a counted removal of it, the holders' counted withdrawal of its
   duty), the removal ends nothing for that reader unless a receipt of it is held, and nothing puts it back: a
   moderator seated again (the same offer accepted again, or a new conferral) signs the removal again. Present a duty holder's
-  receipt as a `SeatKind::Ack` row with `of()` the removal and no `room()`, signed by a holder other than the
-  moderator. A reader's acknowledgement of a head keeps `room()` and `head()` as before.
+  receipt as a `SeatKind::Ack` row with `of()` the removal and no `room()`, signed by a person duty holder other
+  than the moderator; an agent's receipt keeps nothing. A reader's acknowledgement of a head keeps `room()` and `head()` as before. The room's count's
+  receipt is the same row with `conf()` `Conf::Group`, `obj()` the removal's room, `head()` (each the removal's
+  head or later), and the counting persons as signer and cosigners; it keeps the removal where more than half of
+  the room's persons less the remover sign it, never fewer than two (the remover is no voice of it and not
+  counted over). That rule is fixed: the row's `policy()` and `need()` are not read. Any other room, an older
+  head, or a `counted()` scope other than the persons, and it keeps nothing. A duty holder's receipt
+  is void where a counted unseat of a seat that holder holds does not have the receipt in its past. An end of
+  the moderator's standing that lifts receipts states `SeatRow::lifts()`: a counted end (a conferrer's
+  withdrawal of a duty seat ends nothing, so it lifts nothing); then only the count's receipt keeps. The holder's own end never lifts
+  (`lifts_on_own_end`): refuse such a row at the door; handed one, the kernel reads no lift.
 - `content::answers` reads no seat row: the caller marks each roster version (`ContentRow::seat`, `SeatAt`)
   for the author. For an agent's rows mark it by its `agent` seat (in `Seats::roster`), as a member's by its
   member seat; its stay begins at the version that admits it in `agent` and ends at its removal or
@@ -202,6 +261,21 @@ trusting an adapter.
 members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
 voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row
 names (`models/causal_kernel/roomkey.py`, `rule`).
+- Give the founding row's `membership` as `SeatRow::private_room` (true for `private`; default false, read
+  public). Over a private room the room key's seat is final once its end stands (unreleased; see the CHANGELOG):
+  a re-admission of a removed or resigned room key, or its acceptance of the same offer again, concludes nothing:
+  the text's refusal is `membership_room_key_ended` (a seating of a room key whose stay in that room has ended),
+  the door's to name. Keep `SeatLaw::final_scopes` as the table gives it (`registered`, `member`, `agent`). A room
+  is private or public by its founding row, and no record change moves it (people found a new room): give
+  `private_room` from the founding row only.
+- An end is the key's end of its stay in a scope, not of a row: one resignation or one counted removal ends every
+  seating of the key in that scope in the end's past. A second seat row of a key already seated is a second basis
+  for the same seat: one key, one voice.
+- In every room, a key's own signature on an offer of a roster seat, or its acceptance of one, that is concurrent
+  with its own end of its stay there is no voice (`Seats`): present the rows as they are; nothing to mark.
+- The kernel counts voices as presented. Which keys are one person's is the binding, never a row, so collapsing
+  them (two admissions of one person under two room keys both seat) is the caller's until the voice's own key
+  roster is built; the cosigners' checks of the binding are the caller's too.
 
 **A delegation chain**, for `Seats::stands`.
 - The counted grant: an Offer, `Conf::Group`, counted over the holders, `sub()` true where it carries
@@ -225,6 +299,12 @@ past without re-binding it. `Nobody::TwoOwners` is a new variant: an exhaustive 
 founder laying down a duty); `None` ends every seat the target gives its signer. A scope naming a roster seat
 ends the stay only where the target gives the signer that seat. `Live::scope` is the seat's own scope: one
 founding record gives one `Live` per seat, with the same `offer`.
+
+**A deputy under two standings**, for `standing::answers`: present the node's edge as its own act with `on()` the
+owner's acceptance, and a deputy's act with `via()` its edge and no `on()`; `sub_delegation()` on an edge that
+may be passed on. For the deputy's act to stay in force after a re-binding, the old owner receipts the act and
+its edge. An act on the acceptance itself (no `via`) must be the grantee's: a deputy's act presented so stands on
+nothing (`Nobody::NotTheGrantee`).
 
 **A deputy edge**, for `conferral::answers`. This is the deputy of an exercised standing, not the delegation
 chain of `Seats::stands` above.
@@ -264,4 +344,19 @@ chain of `Seats::stands` above.
 content row that names it as its head is read as naming a head at which the member is out.
 
 **Windows.** A `WindowSpec` literal states `opener` (`None` unless the opener's signer holds another scope than
-the counted one). `window::outcome` answers a met at-once count with no landing row.
+the counted one). `window::outcome` answers a met at-once count with no landing row. A ballot (an answer a
+`How::MoreOfVoted` clause reads; the fallback's `ballot:moderation_action`, `for` or `against`) withdrawn by its
+own signer is a seat withdrawal naming it (`SeatKind::Withdraw`, `target()`): `window::unwithdrawn` reads it.
+Every window's receipt is a `window:held` row and its landing a `window:landed` row stating the outcome
+(CIRISConstitution#221). Those names are entries of the caller's table: the crate reads a row's `WinKind` and
+never its family, and checks no family. Where every counted clause is over `Base::Others` (the members' check), the opener's
+signer is no concluder (`window::author_apart`). A table for the accord's halt is the holders' confirmation of a
+halt, a count (CC 4.2.1.1); the halted node's own fuse, on its own clock with no landing, is the node's and is not
+read through `window::outcome`. A clause over
+`Base::Stated(n)` (the base `active` above the base law's `k`) takes `n` from the caller: it is the census's
+figure (CC 6.1.9), and the kernel does not check it (a stated `n` below the members at the head counts as those members).
+`Base::Stated` is a new variant of a public enum: a caller's exhaustive `match` on `window::Base` breaks and needs
+an arm for it. `window::author_apart` takes the opener's signer out of the concluders of a table every counted
+clause of which is over `others`: such a table is a judgment of its opener's signer (the members' check, where the
+act opens its own window). Present an opener whose signer is a proposer, and not the subject, under a table that
+counts some clause over another base.

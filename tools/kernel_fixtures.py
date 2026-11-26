@@ -17,7 +17,7 @@ Sources (all under models/):
     seat      causal_kernel/attacks.py (every scenario its 34 tests conclude, with the seat, window and route rules)
               and causal_kernel/window.py (the adversary table): conclusions, the cut, live seats, the reader's
               line, holders, tips and window outcomes; with the cases of check_delegation.py and
-              check_agent_removal.py
+              check_agent_removal.py and check_readmit.py
     purge     causal_kernel/purge.py: every replay check_purge.py runs, under both readings
     key_end   causal_kernel/check_key_end.py: every generated world at every instant
     conferral_end causal_kernel/conferral_end.py: the case table of the end of a conferral (CC 2.4.1.1, CC 4.5.5),
@@ -26,6 +26,8 @@ Sources (all under models/):
     conferral_content causal_kernel/conferral_content.py: room content after a member's seat ends, where the end
               names the rows held good: its case table, and (conferral_content_worlds) histories built row by
               row as check_conferral_content.py builds them. tests/content.rs replays both through content::answers.
+    acts      causal_kernel/check_acts.py: the act each counted row is and the policy rows each act may take (the
+              act-to-policy table). tests/acts.rs replays it through seat::act_of and seat::policy_for.
     conferral_two causal_kernel/check_conferral_two.py: one row that needs two standings (an owner binding and a
               root grant), and a later bundle version: its case table, per act and owner, with why.
               tests/conferral_two.rs replays it through standing::answers; it is also for Verify's standing
@@ -150,7 +152,26 @@ def reexpress_cases():
                     rows.append((rows[0][0], list(rankings[(combo[0] + 1) % len(rankings)])))
                 for declared in (True, False):
                     w, rounds = RX.ranked([(p, tuple(r)) for p, r in rows], opts, 2, declared)
-                    out["ranked"].append({"rows": rows, "options": opts, "declared": declared, "winner": w, "rounds": rounds})
+                    order = list(RX.runoff([(p, tuple(r)) for p, r in rows], opts, 2, declared))
+                    out["ranked"].append({"rows": rows, "options": opts, "declared": declared, "winner": w, "rounds": rounds,
+                                          "order": order})
+    # four to six options (CIRISConstitution#241 E1): where options holding no first choice are struck together, and
+    # where that changes a winner (no declared order) or the rounds (a declared order). A fixed seed
+    import random
+    rnd = random.Random(241)
+    for _ in range(600):
+        n_opt = rnd.randint(4, 6)
+        o6 = [chr(ord("a") + i) for i in range(n_opt)]
+        rows = []
+        for i in range(rnd.randint(1, 9)):
+            rows.append(("p%d" % i, rnd.sample(o6, rnd.randint(1, min(3, n_opt)))))
+        if rows and rnd.random() < 0.2:
+            rows.append((rows[0][0], rnd.sample(o6, 1)))
+        declared = rnd.random() < 0.5
+        w, rounds = RX.ranked([(p, tuple(r)) for p, r in rows], o6, 2, declared)
+        order = list(RX.runoff([(p, tuple(r)) for p, r in rows], o6, 2, declared))
+        out["ranked"].append({"rows": rows, "options": o6, "declared": declared, "winner": w, "rounds": rounds,
+                              "order": order})
     hk = [("header", "i1", "d1", 0), ("header", "i1", "d2", 1), ("header", "i2", "d1", 5)]
     lk = [("leaf", "i1", "d1", 2), ("leaf", "i1", "d2", 3), ("leaf", "i2", "d1", 9)]
     for n in range(0, 4):
@@ -331,6 +352,20 @@ def seat_cases():
     import check_duty_seats as DS
     for _name, rows, asks, tab in DS.CASES:
         record(rows, A.SEAT, [(k, sc, DS.OBJ) for k, sc, _ in asks], tab)
+    # a member who left and was re-admitted counts: check_readmit.py's cases, under the seat rule
+    import check_readmit as RA
+    for _name, rows, asks, _item in RA.CASES:
+        record(rows, A.SEAT, [(k, sc, RA.OBJ) for k, sc, _ in asks])
+    # the act-to-policy binding: check_acts.py's refusal cases and its tips across a change of protocol
+    import check_acts as ACT
+    for _name, rows, _rid, _wb, _wu in ACT.CONCLUDE:
+        record(rows, A.SEAT)
+    for _name, rows, asks in ACT.TIPS:
+        record(rows, A.SEAT, [(k, sc, ACT.OBJ) for k, sc, _ in asks])
+    # the members' recall of a duty holder: check_recall.py's cases, under the seat rule
+    import check_recall as RC
+    for _name, rows, asks in RC.CASES:
+        record(rows, A.SEAT, [(k, sc, RC.OBJ) for k, sc, _ in asks])
     # a moderator's lone removal of an agent's key and the members' lift (CC 4.5.13): check_agent_removal.py's cases,
     # under the window rule (the removal is the opener of its own window; every other row goes to the seat rule)
     import check_agent_removal as AR
@@ -345,6 +380,11 @@ def seat_cases():
     import check_removal_in_force as RF
     for _name, rows, _concl, _roster, asks in RF.CASES:
         record(rows, A.WIN, [(k, sc, RF.OBJ) for k, sc, _ in asks])
+    # the membership plane of a private room (CIRISConstitution#224): check_room_keys.py's cases and its OPEN rows,
+    # each with the answer as built
+    import check_room_keys as RKC
+    for case in RKC.CASES + RKC.OPEN:
+        record(case[2], A.WIN, [(k, sc, RKC.OBJ) for k, sc, _ in case[5]])
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
@@ -379,7 +419,8 @@ def seat_cases():
         out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
-           "policy": {k: list(v) for k, v in ST.POLICY.items()}}
+           "policy": {k: list(v) for k, v in ST.POLICY.items()},
+           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
     windows = {k: dict(enc(v), secs=WN.secs(k)) for k, v in WN.WINDOWS.items()}
     adversary = []
     for t in WN.adversary_table():
@@ -443,6 +484,7 @@ def table_cases():
     import seat as ST
     import window as WN
     import cut as CUT
+    ST.BOUND = False           # the roster instances are not bound to acts yet: this law carries no acts table
     out = {"witnesses": [], "rosters": [], "other_rules": []}
     for c in WIT.CASES:
         worlds = [("main", c["rows"])] + [("variant " + v[0], v[1]) for v in c["variants"]] + \
@@ -634,6 +676,26 @@ def key_end_cases():
             "pool": pool, "worlds": worlds}
 
 
+def acts_cases():
+    """check_acts.py: the act each counted row is (seat.act_of) and the policy rows each act may take (seat.policy_for),
+    with the acts table and the kinds table they read."""
+    import seat as ST
+    import check_acts as AC
+    cases = []
+    for name, rows, rid, want in AC.CASES:
+        refs = {}
+        cases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid,
+                      "act": list(want) if want else None})
+    queries = [{"ask": list(q), "policies": list(w[0]) if w else None, "choice": w[1] if w else None} for q, w in AC.QUERIES]
+    conclude = []
+    for name, rows, rid, wb, wu in AC.CONCLUDE:
+        refs = {}
+        conclude.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "bound": wb, "unbound": wu})
+    return {"acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS),
+            "roster_seats": list(ST.ROSTER_SEATS), "duties": list(ST.DUTIES), "cases": cases, "queries": queries,
+            "conclude": conclude}
+
+
 def main():
     out = {}
     dump("lib.json", lib_cases(), out)
@@ -648,8 +710,11 @@ def main():
     dump("seat.json", seat, out)
     dump("purge.json", purge_cases(), out)
     dump("tables.json", table_cases(), out)
+    import seat as _ST
+    _ST.BOUND = True           # every later fixture reads the seat rule with the binding on
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
+    dump("acts.json", acts_cases(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution

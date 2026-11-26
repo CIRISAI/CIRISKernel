@@ -481,7 +481,7 @@ def window_bases():
              WN.landing("L", "d1", "p", "r", "landed", 0, ("a2",))],
             {"d3 objects": WN.answer("n", "d3", "p", "object"), "d3 signs any row": R("n", "note", "d3", ("g",))}, None, "d2"),
         "moderation: members' fallback after 48 h": (
-            [gm, am, md, pm, WN.receipt("r", "m2", "p", 0), WN.answer("x1", "m1", "p", "act"), WN.answer("x2", "m2", "p", "act"), WN.answer("x3", "m3", "p", "act"),
+            [gm, am, md, pm, WN.receipt("r", "m2", "p", 0), WN.answer("x1", "m1", "p", "for"), WN.answer("x2", "m2", "p", "for"), WN.answer("x3", "m3", "p", "for"),
              WN.landing("L", "m2", "p", "r", "fallback", Wm, ("x1", "x2", "x3"))],
             {"the moderator answers": WN.answer("n", "MOD", "p", "answered")}, "answered", "m1"),
         "halt: lapsed at the fuse": (
@@ -588,8 +588,8 @@ def t11(t):
     gm, am = WN.admitted("MOD")                                               # three duty holders (CC 4.5.4), and MOD a member
     md = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("am",), head=("am",), policy="duty_confer", counted="duty",
                   cosigners=("m3", "MOD"))                                     # two of the three confer, MOD accepting
-    rows = [gm, am, md, WN.opener("p", "m2", "moderation_fallback", "g", ("md",)), WN.receipt("r", "m2", "p", 0), WN.answer("x1", "m1", "p", "act"),
-            WN.answer("x3", "m3", "p", "act"), WN.answer("x2", "m2", "p", "act"), WN.landing("L", "m2", "p", "r", "fallback", Wm, ("x1", "x2", "x3"))]
+    rows = [gm, am, md, WN.opener("p", "m2", "moderation_fallback", "g", ("md",)), WN.receipt("r", "m2", "p", 0), WN.answer("x1", "m1", "p", "for"),
+            WN.answer("x3", "m3", "p", "for"), WN.answer("x2", "m2", "p", "for"), WN.landing("L", "m2", "p", "r", "fallback", Wm, ("x1", "x2", "x3"))]
     o, bad = win(rows); t.order(bad)
     t.fact("three members of four act over a present moderator without waiting 48 h: recount=%s (until the moderator signs an answer)" % o["recount"], o["recount"] == "fallback")
     t.note("not expressible: two honest nodes straddling the close on one clock, and what is owed at the close (a key rotation after an eviction); window.py has no `now` and no owed set")
@@ -799,7 +799,7 @@ def t17(t):
                 witness="g(f1,f2 found) w1(f1 resigns) w2(f2 resigns), neither naming the other: no duty holder, and no row either can sign alone restores one. o1,o2(A binds K1 and K2 as owner): no owner.",
                 protects="KERNEL 6.2: 'The same kind on one slot: both or neither.' causal_order README: 'A contested slot may stay empty; nothing here ends a dispute.' "
                          "'Exactly one' is kept as 'at most one'. 'Count still met' is kept by tips waiting. 'At least one' is kept by no rule and is stated as a limit in KERNEL.md: it needs a window (a resignation that lands only if another duty holder remains) "
-                         "or a restatement. CC 4.5.4 (v) restates it for a room: with no duty holder left the room locks and the members' count seats one (check_rosters.py runs it); a room with no member left has no recovery inside the kernel.",
+                         "or a restatement. CC 4.5.4 (v) restates it for a room: with no duty holder left the room locks and the members' election seats one (check_rosters.py runs it); a room with no member left has no recovery inside the kernel.",
                 fix="")
 
 
@@ -1320,7 +1320,7 @@ def checkpoint_price():
     pm = WN.opener("p", "m2", "moderation_fallback", "g", ("md",))
     An = WN.answer("A", "MOD", "p", "answered")                              # the moderator answers in time
     # four members (m1, m2, m3 and MOD): the fallback takes three acts, and the two counted rows are counted over the appointment
-    hostile = [gm, am, md, pm, An, WN.answer("x1", "m1", "p", "act"), WN.answer("x2", "m2", "p", "act"), WN.answer("x3", "m3", "p", "act"),
+    hostile = [gm, am, md, pm, An, WN.answer("x1", "m1", "p", "for"), WN.answer("x2", "m2", "p", "for"), WN.answer("x3", "m3", "p", "for"),
                WN.receipt("r", "m2", "p", 0), WN.landing("L", "m2", "p", "r", "fallback", Wm, ("x1", "x2", "x3"))]
     s1 = ST.offer("s1", "m2", "S1", "member", "g", "group", ("md", "p", "s1b", "s1c"), head=("md",), policy="community_invite", content="s1", cosigners=("S1",))
     s2 = ST.offer("s2", "m2", "S2", "member", "g", "group", ("s1", "s2b", "s2c", "s2d"), head=("s1",), policy="community_invite", content="s2", cosigners=("S2",))

@@ -89,6 +89,9 @@ impl Row for S {
 
 impl SeatRow for S {
     type Word = String;
+    fn word(s: &'static str) -> String {
+        s.into()
+    }
     fn seat_kind(&self) -> SeatKind {
         self.kind
     }

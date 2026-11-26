@@ -59,6 +59,14 @@ Planted breaks, each of which must change a case's answer:
     scope_unread        a withdrawal's `scope` is not read: laying down one duty ends the founder's stay
     member_rule_duty_rooms_only  the membership rule reaches only rooms whose founding row seats duty holders
     unsigned_no_map     a founding row with no map seats a listed key that did not sign and accepts later
+    duty_gate_off       a members' admission count confers a duty (CIRISConstitution#241)
+    duty_gate_wrong_row the gate reads `counted` off the room's founding row, not the offer
+    lone_founder_unread a record one person signs with no map seats that person in no duty
+    own_duty_ungated    a single key's own offer of a duty concludes outside a duty room though it is no lone holder
+    duty_over_unread    a duty's count over another room (`over`) confers or withdraws it (review of #54)
+    gate_counted_any_duty  a count over one duty's holders passes the gate as the duty holders' count
+    heads_any_object    a counted row naming another object's head counts (a count names its own room's heads)
+    declared_roster_kept  a record's declared duty naming a roster scope (`member`, `agent`) is read as a duty
 
 Not here: the count that confers or withdraws a duty seat (check_rosters.py, the duty instance); a count over a scope
 that is no duty; the term of a seat; an act done under a duty seat after it ends (conferral_end.py).
@@ -120,6 +128,36 @@ CM = confer("cm", "A", "moderate", ("B", "C"), ("g",))                   # persi
 # a member-only room's members' count confers `moderate` (counted over `member`)
 MCD = lambda i, k, heads: ST.offer(i, "A", k, "moderate", OBJ, "group", tuple(heads), head=tuple(heads), policy="community_invite",
                                    counted="member", cosigners=("B", "C", k))   # A, B and C: D is no voice of its own seat
+DG = "CIRISConstitution#241: a duty is conferred by its holders, the founding record or an election: "
+# a room whose founding record names A its one moderator, and A has laid the duty down: no duty holder is left
+GV = [ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C")),
+      ST.withdraw("la", "A", "g", ("g",), scope="moderate")]
+
+
+LF = ST.found("g", "A", ("A",), {})                                       # a record one person signs, no map
+LFR = dict(LF, duties=("review",))                                         # and declaring review
+
+
+RV54 = "CIRISConstitution#241, review of #54: "
+GA = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",), "review": ("B", "C")}, cosigners=("B", "C"))
+MDA = admit("md", "D", ("A", "B", "C"), ("g",))
+HD = ST.found("h", "D", ("D",), {})                                        # a room D founds alone
+HD2 = ST.found("h", "D", ("D",), {}, names=("md",))                         # the same, after D's admission to g
+
+
+def gate_offer(signer, cosigners, names=("md",), head=("md",), **kw):
+    """A counted offer of moderate over g to D, by default the duty holders' count over g at md."""
+    kw = dict(dict(policy="duty_confer", counted="duty"), **kw)
+    return ST.offer("c1", signer, "D", "moderate", OBJ, "group", names, head=head, cosigners=tuple(cosigners), **kw)
+
+
+def ELECT(i, k, heads):
+    """An election (rule 2): ballots of B and C ranking k first, and its acceptance seating k to moderate."""
+    bs = [ST.R("b" + v + i, "ballot", v, tuple(heads), ranking=(k, "C")) for v in ("B", "C")]
+    return bs + [ST.offer(i, "B", k, "moderate", OBJ, "group", tuple(heads) + tuple(b["id"] for b in bs), head=tuple(heads),
+                          policy="moderator_election", options=(k, "C"), cosigners=(k,))]
+
+
 G1 = ST.offer("g", "A", ("A",), "duty", "@", "self")                     # a lone founder (scope duty, no map)
 MS1 = ST.offer("ms", "A", "A", "member", OBJ, "self", ("g",))            # and its own offer of `member` to itself
 # founding records: listed members A, B, C (where present), duty_holders {moderate: [A, B], review: [A]}
@@ -264,26 +302,121 @@ CASES = [
      [G, remove("xc", "C", ("A", "B"), ("g",)), admit("md", "D", ("B", "C"), ("g",)), confer("cd", "D", "moderate", ("A", "B"), ("md",))],
      [("D", "member", F), ("D", "moderate", F), ("D", "duty", F), ("A", "moderate", T), ("C", "member", F)], None),
     # ---- what the rule does not reach -----------------------------------------------------------------------------
-    # ---- a room founded with members only: the rule reaches it too ----------------------------------------------------
-    ("a member-only founding: the members' count confers moderate on a key that is no member, and seats nobody",
-     [GM, MCD("cd", "D", ("g",))], [("D", "moderate", F), ("D", "member", F)], None),
-    ("the same conferral on a member seats it",
-     [GM, admit("md", "D", ("A", "B", "C"), ("g",)), MCD("cd", "D", ("md",))], [("D", "moderate", T), ("D", "member", T)], None),
-    ("that member resigns: its duty seat ends",
-     [GM, admit("md", "D", ("A", "B", "C"), ("g",)), MCD("cd", "D", ("md",)), ST.withdraw("wd", "D", "md", ("cd",))],
+    # ---- CIRISConstitution#241: a duty is conferred by its holders, the founding record or an election -------------------
+    (DG + "a member-only founding, handed one (the text refuses it at the door: founding_duty_holders_unnamed): the "
+     "kernel seats the members and no duty, and a later members' count confers none",
+     [GM, admit("md", "D", ("A", "B", "C"), ("g",)), MCD("cd", "D", ("md",))], [("D", "moderate", F), ("D", "member", T), ("A", "duty", F)], None),
+    (DG + "a room whose holders have all left: the members' admission count confers nothing",
+     GV + [admit("md", "D", ("A", "B", "C"), ("la",)), MCD("cd", "D", ("md",))], [("D", "moderate", F), ("D", "member", T)], None),
+    (DG + "the same room: an election's acceptance seats a member", GV + [admit("md", "D", ("A", "B", "C"), ("la",))] + ELECT("cd", "D", ("md",)),
+     [("D", "moderate", T), ("D", "duty", T)], None),
+    (DG + "an election of a key that is no member seats nobody (a duty seat stands only on a member)",
+     GV + ELECT("cd", "D", ("la",)), [("D", "moderate", F), ("D", "member", F)], None),
+    (DG + "the elected member resigns: its duty seat ends",
+     GV + [admit("md", "D", ("A", "B", "C"), ("la",))] + ELECT("cd", "D", ("md",)) + [ST.withdraw("wd", "D", "md", ("cd",))],
      [("D", "moderate", F), ("D", "member", F)], None),
-    ("re-admitted after that, nothing revives",
-     [GM, admit("md", "D", ("A", "B", "C"), ("g",)), MCD("cd", "D", ("md",)), ST.withdraw("wd", "D", "md", ("cd",)),
+    (DG + "re-admitted after that, nothing revives",
+     GV + [admit("md", "D", ("A", "B", "C"), ("la",))] + ELECT("cd", "D", ("md",)) + [ST.withdraw("wd", "D", "md", ("cd",)),
       admit("md2", "D", ("A", "B", "C"), ("cd",), ("wd",))], [("D", "moderate", F), ("D", "member", T)], None),
-    ("a member-only founding: a counted removal from the roster ends the member's moderate seat",
-     [GM, admit("md", "D", ("A", "B", "C"), ("g",)), MCD("cd", "D", ("md",)), remove("xd", "D", ("A", "B", "C"), ("cd",))],
+    (DG + "a counted removal from the roster ends the elected member's duty seat",
+     GV + [admit("md", "D", ("A", "B", "C"), ("la",))] + ELECT("cd", "D", ("md",)) + [remove("xd", "D", ("A", "B", "C"), ("cd",))],
      [("D", "moderate", F), ("D", "member", F)], None),
+    (DG + "a member-only founding, handed one: a founder's own offer of moderate seats nobody (a single key's own offer "
+     "of a duty concludes only from the lone person duty holder, and there is none)",
+     [GM, admit("md", "D", ("A", "B", "C"), ("g",)), ST.offer("cs", "A", "D", "moderate", OBJ, "self", ("md",), cosigners=("D",))],
+     [("D", "moderate", F), ("D", "member", T)], None),
+    (DG + "a member-only founding, handed one: an election seats a member, the one way a duty is placed there",
+     [GM, admit("md", "D", ("A", "B", "C"), ("g",))] + ELECT("cd", "D", ("md",)), [("D", "moderate", T)], None),
+    (DG + "and that member's resignation ends it: a duty seat stands only on a member, in every room",
+     [GM, admit("md", "D", ("A", "B", "C"), ("g",))] + ELECT("cd", "D", ("md",)) + [ST.withdraw("wd", "D", "md", ("cd",))],
+     [("D", "moderate", F), ("D", "member", F)], None),
+    (DG + "a lone holder's own offer of a duty concludes, with the new holder's acceptance",
+     [G1, admit("md", "D", ("A",), ("g",)), ST.offer("cs", "A", "D", "moderate", OBJ, "self", ("md",), cosigners=("D",))],
+     [("D", "moderate", T)], None),
+    (DG + "a holder's own offer of a duty where it is not the lone holder concludes nothing",
+     [G, MD, ST.offer("cs", "A", "D", "moderate", OBJ, "self", ("md",), cosigners=("D",))], [("D", "moderate", F)], None),
+    # ---- a record one person signs, with no map (CIRISConstitution#241) ---------------------------------------------
+    (DG + "a lone founder, no list: a member, and the holder of moderate", [LF],
+     [("A", "member", T), ("A", "moderate", T), ("A", "duty", T), ("A", "review", F)], None),
+    (DG + "a lone founder whose record declares review: moderate and review, not slash", [LFR],
+     [("A", "moderate", T), ("A", "review", T), ("A", "slash", F)], None),
+    (DG + "the lone founder lays moderate down: no holder is left, and an election seats a member",
+     [LF, ST.withdraw("la", "A", "g", ("g",), scope="moderate"), admit("mb", "B", ("A",), ("la",)),
+      admit("mc", "C", ("A", "B"), ("mb",))] + ELECT("ce", "B", ("mc",)),
+     [("A", "moderate", F), ("A", "member", T), ("B", "moderate", T)], None),
+    (DG + "a lone founder's record naming a map: the map decides", [ST.found("g", "A", ("A",), {"review": ("A",)})],
+     [("A", "review", T), ("A", "moderate", F)], None),
+    (DG + "several signers and no map: members, no duty", [GM], [("A", "moderate", F), ("A", "member", T), ("A", "duty", F)], None),
+    # ---- the review of #54: the gate's room, count and policy; a record's declared duties ------------------------
+] + [(RV54 + n, rows, asks, None) for n, rows, asks in (
+    ("a count over another room confers no duty: D, admitted to g, founds h alone and confers moderate over g on "
+     "itself counted over h's duty holders", [GA, MDA, HD, gate_offer("D", ("D",), over="h", head=("h",), names=("md", "h"))],
+     [("D", "moderate", F), ("D", "member", T)]),
+    ("the same with h founded in the older presentation (scope duty)",
+     [GA, MDA, ST.offer("h", "D", ("D",), "duty", "@", "self"), gate_offer("D", ("D",), over="h", head=("h",), names=("md", "h"))],
+     [("D", "moderate", F)]),
+    ("the same count over h at a head of g's own line with h in its past (E's admission, citing h): still no duty "
+     "(the count is over the room it confers in)",
+     [GA, MDA, HD, admit("me", "E", ("A", "B", "C"), ("md",), ("h",)),
+      gate_offer("D", ("D",), over="h", head=("me",), names=("me",))], [("D", "moderate", F)]),
+    ("a count naming another room's founding row as its head confers no duty, whatever it is counted over: a count "
+     "names its own room's heads (h, founded by D after its admission, has g's rows in its past)",
+     [GA, MDA, HD2, gate_offer("A", ("B", "D"), head=("h",), names=("h",))], [("D", "moderate", F)]),
+    ("the same count at a head of g's line (D's admission): D holds moderate", [GA, MDA, HD2, gate_offer("A", ("B", "D"))],
+     [("D", "moderate", T)]),
+    ("a version of g's roster as the head (a row of no object naming g's rows, as persist presents a ballot's head): "
+     "a head of g's line, and D holds moderate",
+     [GA, MDA, ST.R("v", "note", "A", ("md",)), gate_offer("A", ("B", "D"), head=("v",), names=("v",))], [("D", "moderate", T)]),
+    ("a merge head presented as a cosignature whose `of` is itself, naming g's rows: a head of g's line, and D "
+     "holds moderate", [GA, MDA, ST.R("v", "cosign", "A", ("md",), of="v"),
+                       gate_offer("A", ("B", "D"), head=("v",), names=("v",))], [("D", "moderate", T)]),
+    ("a version naming only h's founding row is no head of g: no duty",
+     [GA, MDA, HD2, ST.R("v", "note", "D", ("h",)), gate_offer("A", ("B", "D"), head=("v",), names=("v",))],
+     [("D", "moderate", F)]),
+    ("the duty holders' count over the room itself, two of the three: D holds moderate",
+     [GA, MDA, gate_offer("A", ("B", "D"))], [("D", "moderate", T)]),
+    ("a withdrawal of a duty counted over another room ends nothing: D's count over h of A's moderate over g",
+     [GA, MDA, HD, ST.unseat("u", "D", "A", "moderate", OBJ, "group", ("md", "h"), head=("h",), policy="duty_withdraw",
+                              counted="duty", over="h")], [("A", "moderate", T)]),
+    ("the same withdrawal at a head of g's own line with h in its past: it ends nothing still",
+     [GA, MDA, HD, admit("me", "E", ("A", "B", "C"), ("md",), ("h",)),
+      ST.unseat("u", "D", "A", "moderate", OBJ, "group", ("me",), head=("me",), policy="duty_withdraw",
+                counted="duty", over="h")], [("A", "moderate", T)]),
+    ("one duty's holders are not all of them: A, the only holder of moderate of three duty holders, confers alone "
+     "counted over `moderate`", [GA, MDA, gate_offer("A", ("D",), counted="moderate")], [("D", "moderate", F)]),
+    ("a policy that is not the duty count confers nothing: B alone, counted over the duty holders, under accord_halt "
+     "(one of n)", [GA, MDA, gate_offer("B", ("D",), policy="accord_halt")], [("D", "moderate", F)]),
+    ("a record's declared duties are never a roster scope: several signers declaring `member` a duty have no duty "
+     "holders, and the members' count confers no moderate",
+     [dict(GM, duties=("member",)), admit("md", "D", ("A", "B", "C"), ("g",)), MCD("mc", "D", ("md",))],
+     [("D", "moderate", F), ("A", "duty", F), ("D", "member", T)]),
+    ("a lone founder declaring `agent` holds no agent seat; its admission of B stands",
+     [dict(LF, duties=("agent",)), admit("mb", "B", ("A",), ("g",))], [("A", "agent", F), ("A", "moderate", T), ("B", "member", T)]),
+    ("a lone founder declaring `member` a duty: the room's admission is an admission still",
+     [dict(LF, duties=("member",)), admit("mb", "B", ("A",), ("g",))], [("B", "member", T), ("B", "duty", F)]),
+    ("the one-founder room reads a seat its holders place as a map-founded room does: the founder's own offer of "
+     "`author` to B, then its withdrawal of that offer, leaves B its seat (a seat the duty holders place ends by its "
+     "holder or a count; `author` is no duty, so B is no duty holder)",
+     [LF, admit("mb", "B", ("A",), ("g",)), ST.offer("au", "A", "B", "author", OBJ, "self", ("mb",), cosigners=("B",)),
+      ST.withdraw("wa", "A", "au", ("au",))], [("B", "author", T), ("B", "duty", F)]),
+    ("the same in a room whose record names A its one moderator", [ST.found("g", "A", ("A",), {"moderate": ("A",)}),
+      admit("mb", "B", ("A",), ("g",)), ST.offer("au", "A", "B", "author", OBJ, "self", ("mb",), cosigners=("B",)),
+      ST.withdraw("wa", "A", "au", ("au",))], [("B", "author", T), ("B", "duty", F)]),
+    ("the founder of a one-founder room holds moderate, so it removes an agent's key alone (changed from 0.4.0, where "
+     "it held no duty and the removal took the room's count)",
+     [LF, admit("mb", "B", ("A",), ("g",)), admit("mc", "C", ("A", "B"), ("mb",)),
+      ST.offer("ag", "A", "AG", "agent", OBJ, "group", ("mc",), head=("mc",), policy="community_invite", cosigners=("B", "C", "AG")),
+      ST.unseat("x", "A", "AG", "agent", OBJ, "group", ("ag",), head=("ag",), policy="community_remove")],
+     [("AG", "agent", F), ("A", "moderate", T)]),
+)] + [
     ("not reached: a seat the duty holders place that is no duty (a node's detector seat) stands on a key that is no member, and makes it no duty holder",
      [G, confer("cn", "N", "detect:list1", ("A", "B"), ("g",))], [("N", "detect:list1", T), ("N", "member", F), ("N", "duty", F)], None),
 ]
 PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_only", "duty_fold_unread", "holders_unread",
           "unsigned_seated", "scope_unread", "member_rule_duty_rooms_only",
-          "unsigned_no_map")
+          "unsigned_no_map", "duty_gate_off", "duty_gate_wrong_row", "own_duty_ungated", "lone_founder_unread",
+          "duty_over_unread", "gate_counted_any_duty", "declared_roster_kept",
+          "heads_any_object")
 
 
 @contextlib.contextmanager

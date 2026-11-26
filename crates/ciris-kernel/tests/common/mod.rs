@@ -293,6 +293,9 @@ pub struct TRow {
     pub room: Option<Obj<String, String>>,
     pub scope: Option<String>,
     pub policy: Option<String>,
+    pub consensus_protocol: Option<String>,
+    pub regime: Option<String>,
+    pub cohort_subkind: Option<String>,
     pub counted: Option<String>,
     pub of: Option<String>,
     pub target: Option<String>,
@@ -373,6 +376,9 @@ impl TRow {
             room: o("room"),
             scope: opt(&m, "scope"),
             policy: opt(&m, "policy"),
+            consensus_protocol: opt(&m, "consensus_protocol"),
+            regime: opt(&m, "regime"),
+            cohort_subkind: opt(&m, "cohort_subkind"),
             counted: opt(&m, "counted"),
             of: opt(&m, "of"),
             target: if m.get("target").is_some_and(|t| matches!(t, J::Str(_))) { opt(&m, "target") } else { None },
@@ -423,6 +429,9 @@ impl Row for TRow {
 
 impl SeatRow for TRow {
     type Word = String;
+    fn word(s: &'static str) -> String {
+        s.into()
+    }
     fn seat_kind(&self) -> SeatKind {
         match self.kind.as_str() {
             "offer" => SeatKind::Offer,
@@ -472,8 +481,20 @@ impl SeatRow for TRow {
     fn head(&self) -> &[String] {
         &self.head
     }
+    fn lifts(&self) -> bool {
+        self.f("lifts").is_some_and(|x| x.b())
+    }
     fn policy(&self) -> Option<&String> {
         self.policy.as_ref()
+    }
+    fn consensus_protocol(&self) -> Option<&String> {
+        self.consensus_protocol.as_ref()
+    }
+    fn cohort_subkind(&self) -> Option<&String> {
+        self.cohort_subkind.as_ref()
+    }
+    fn regime(&self) -> Option<&String> {
+        self.regime.as_ref()
     }
     fn counted(&self) -> Option<&String> {
         self.counted.as_ref()
@@ -507,6 +528,9 @@ impl SeatRow for TRow {
     }
     fn room(&self) -> Option<Obj<String, String>> {
         self.room.clone()
+    }
+    fn private_room(&self) -> bool {
+        self.fs("membership") == Some("private")
     }
 }
 
@@ -689,8 +713,11 @@ pub fn law_of(j: &J) -> SeatLaw {
         let p = match a[0].s() {
             "atleast" => Policy::AtLeast(num, den),
             "strict" => Policy::Strict(num, den),
+            "strictfloor" => Policy::StrictFloor(num, den, a[3].i() as u64),
+            "recall" => Policy::Recall(num, den, a[3].i() as u64),
             "one" => Policy::One,
             "declared" => Policy::Declared,
+            "protocol" => Policy::Protocol,
             "ranked" => Policy::Ranked,
             "duty" if k == "duty_confer" => Policy::DutyConfer,
             "duty" if k == "duty_withdraw" => Policy::DutyWithdraw,
@@ -699,7 +726,35 @@ pub fn law_of(j: &J) -> SeatLaw {
         };
         law.policy.insert(k.clone(), p);
     }
+    acts_of(j, &mut law);
     law
+}
+
+/// The acts table and the kinds table a law carries (`acts`, `kinds`), where it carries them.
+pub fn acts_of(j: &J, law: &mut SeatLaw) {
+    use ciris_kernel::seat::{Act, ActRule, Choice, CommunityKind as ObjKind, ScopeClass};
+    if let Some(a) = j.get("acts") {
+        law.acts = Some(
+            a.arr()
+                .iter()
+                .map(|r| {
+                    let r = r.arr();
+                    ActRule {
+                        act: Act::from_word(r[0].s()).expect("an act the table names"),
+                        scope: ScopeClass::from_word(r[1].s()).expect("a scope class"),
+                        kind: ObjKind::from_word(r[2].s()).expect("a kind"),
+                        policies: r[3].strs(),
+                        choice: Choice::from_word(r[4].s()).expect("a choice"),
+                    }
+                })
+                .collect(),
+        );
+    }
+    if let Some(k) = j.get("kinds") {
+        for (sc, kd) in k.obj() {
+            law.kinds.insert(sc.clone(), ObjKind::from_word(kd.s()).expect("a kind"));
+        }
+    }
 }
 
 pub fn windows_of(j: &J) -> BTreeMap<String, WindowSpec<i64>> {
@@ -725,11 +780,14 @@ pub fn windows_of(j: &J) -> BTreeMap<String, WindowSpec<i64>> {
                         J::Arr(t) => How::More(t[1].i() as u64, t[2].i() as u64),
                         x => panic!("clause {x:?}"),
                     },
-                    over: match c[2].s() {
-                        "all" => Base::All,
-                        "others" => Base::Others,
-                        "opener" => Base::Opener,
-                        s => Base::Scope(s.into()),
+                    over: match &c[2] {
+                        J::Arr(t) if t[0].s() == "stated" => Base::Stated(t[1].i() as u64),
+                        x => match x.s() {
+                            "all" => Base::All,
+                            "others" => Base::Others,
+                            "opener" => Base::Opener,
+                            s => Base::Scope(s.into()),
+                        },
                     },
                     out: c[3].s().into(),
                 }

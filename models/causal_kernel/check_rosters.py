@@ -521,20 +521,31 @@ def check_room(spec, inst, private):
         m = run(spec, worlds, c5, orders=False)
     res.append(result(inst, "Inv_ResignationEnabled", src, verdict_of(base), base, "a withdrawal concludes nothing", m))
 
-    # C6 no duty holder left: the members' count seats one; one member alone cannot
+    # C6 no duty holder left: the members' admission count confers no duty (CC 4.5.4: "The members' count that seats a
+    # holder is the election of rule 2"); an election's acceptance seats one; one ballot does not (CIRISConstitution#241)
+    B_ = P("B") if private else "B"
     def mod(id, signers, names=()):
-        return ST.offer(id, signers[0], P("B") if private else "B", "moderate", "g", "group", ("g",) + tuple(names), head=("g",),
+        return ST.offer(id, signers[0], B_, "moderate", "g", "group", ("g",) + tuple(names), head=("g",),
                         policy=spec.add, counted="member", cosigners=tuple(signers[1:]))
-    worlds = [world("the members' count seats B to moderate", [g, ST.accept("am", "B", None, ("g",), scope="moderate", obj="g"), mod("m", ("A", "C"), ("am",))]),
-              world("one member alone seats B to moderate", [g, ST.accept("am", "B", None, ("g",), scope="moderate", obj="g"), mod("m", ("A",), ("am",))])]
+    def elect(id, voters, names=()):
+        ballots = [ST.R("b" + v, "ballot", v, ("g",), ranking=(B_, "C")) for v in voters]
+        return ballots + [ST.offer(id, voters[0], B_, "moderate", "g", "group", ("g",) + tuple(names) + tuple(b["id"] for b in ballots),
+                                   head=("g",), policy="moderator_election", options=(B_, "C"))]
+    am = ST.accept("am", "B", None, ("g",), scope="moderate", obj="g")
+    worlds = [world("an election seats B to moderate", [g, am] + elect("m", ("A", "C"), ("am",))),
+              world("one ballot does not", [g, am] + elect("m", ("A",), ("am",))),
+              world("the members' admission count does not", [g, am, mod("m", ("A", "C"), ("am",))])]
     def c6(S, rows, n):
-        has = (P("B") if private else "B") in ST.Seats(S).holders("moderate", "g")
-        if has != ("count" in n): return "moderate seat %s" % has
+        has = B_ in ST.Seats(S).holders("moderate", "g")
+        if has != ("election" in n): return "moderate seat %s" % has
     base = run(spec, worlds, c6)
-    with mutated(policy={spec.add: ("one", 1, 1)}, mut={"no_floor"}):
+    ST.MUT.add("duty_gate_off")                         # seat.py's own planted break: the gate removed
+    try:
         m = run(spec, worlds, c6, orders=False)
-    res.append(result(inst, "when no duty holder is left the members' count seats one (and one member does not)", "ruling in force; CC 4.5.4",
-                      verdict_of(base), base, "one voice seats", m))
+    finally:
+        ST.MUT.discard("duty_gate_off")
+    res.append(result(inst, "when no duty holder is left an election seats one, and the members' admission count none (and one ballot does not)",
+                      "ruling in force; CC 4.5.4; CIRISConstitution#241", verdict_of(base), base, "the members' count confers a duty", m))
 
     # C7 the reverse path of community_invite: a member's proposal and the joiner's yes land at the close unless a third objects
     lw = spec.lone["add"]
