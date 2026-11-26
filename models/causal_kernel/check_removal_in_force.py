@@ -43,9 +43,16 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     reseat_revives   the remover holding `moderate` again (its re-acceptance, a new conferral) puts its removal
                      back in force
 
-Not here: a count's own receipt (a counted ack): only duty holders' acks are read; a count end that lifts receipts
-(no seat row says so); a receipt by a key removed concurrently; a lone removal whose remover is an agent removed in
-turn by a lone removal that is itself out of force (an end is read as a row that concludes; no cascade is run).
+    count_receipt_unchecked  the count's receipt read over any room, at any head, with the remover a voice
+    founding_duty_unread     a receipter's duty from a founding record not read as a seat a counted unseat ends
+    agent_settles_pair       an agent duty holder's receipt settles a mutual pair
+    lone_lifts / own_end_lifts  a lone removal, or the holder's own end, lifts receipts
+    receipt_before_kept      a receipt made after a counted unseat of its signer's seat keeps
+    failed_count_is_signers  a counted receipt that fails its count is read as its signer's own
+
+Not here: whether an agent duty holder's receipt keeps an ordinary (not mutual) lone removal (it does, as built;
+asked of the Constitution); a ring of three or more removals at one head (a case, marked OPEN, gives what the code
+gives).
 
     python3 -I check_removal_in_force.py      exit 1 on any difference
 """
@@ -137,8 +144,76 @@ def counted_receipt(i, signers, act, head):
              head=tuple(head), policy="accord_majority", cosigners=tuple(signers[1:]))
 
 
+RV = "CIRISConstitution#218, review of #48: "
+AGS3 = ST.offer("ags", "p1", ("A1", "A2", "A3"), "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
+                cosigners=("p2", "p3", "A1", "A2", "A3"))
+CM3 = ST.offer("cm3", "p1", "A3", "moderate", OBJ, "group", ("cm2",), head=("cm2",), policy="duty_confer", counted="duty",
+               cosigners=("p2", "A3"))
+W3A = [G, AGS3, CM1, CM2]
+# V1: a room p1 founded alone, p2 and p3 admitted after
+G1 = ST.found("g", "p1", ("p1",), {"moderate": ("p1",)})
+V1 = [G1, admit("a2", "p2", ("p1",), ("g",)), admit("a3", "p3", ("p1", "p2"), ("a2",)),
+      admit("ag", "AG", ("p1", "p2", "p3"), ("a3",), "agent"), lone("x", "p1", "AG", ("ag",))]
+# D: p2's moderate given by the founding record (D1) or by an offer (D4)
+GD4 = ST.found("g", "p1", ("p1", "p2", "p3"), {"moderate": ("p1", "p3")}, cosigners=("p2", "p3"))
+CD4 = ST.offer("cd", "p1", "p2", "moderate", OBJ, "group", ("g",), head=("g",), policy="duty_confer", counted="duty",
+               cosigners=("p3", "p2"))
+
+
 # (name, rows, {row: concludes}, roster, [(key, scope, stands)])
 CASES = [
+    # ---- the review of #48 (CIRISConstitution#218) -------------------------------------------------------------------
+    (RV + "V1, the count's receipt at an old head: p1, alone in the room at g, writes a counted receipt there; after "
+     "the count removes p1 stating lifts it keeps nothing (its head is older than the removal's)",
+     V1 + [counted_receipt("qc", ("p1",), "x", ("g",)), dict(remove("xp", "p1", ("p2", "p3"), ("x",)), lifts=True)],
+     {"x": T, "xp": T}, {"p2", "p3", "AG"}, []),
+    (RV + "V1, the remover is no voice of the count's receipt: p1's counted receipt at the removal's head keeps nothing",
+     V1 + [counted_receipt("qc", ("p1",), "x", ("x",)), ST.withdraw("wm", "p1", "g", ("x",), scope="moderate")],
+     {"x": T}, {"p1", "p2", "p3", "AG"}, []),
+    (RV + "V3, the count's receipt over another room: p2's counted receipt over a room it founded alone keeps nothing",
+     W + [ST.offer("h", "p2", ("p2",), "member", "@", "self"), lone("x", "p1", "AG", ("ag",), ("h",)),
+          dict(counted_receipt("qc", ("p2",), "x", ("x",)), obj="h"), LAY], {"x": T}, P3 | {"AG"}, []),
+    (RV + "V4, an agent in no count: the one agent left writes a counted receipt over `agent`; it keeps nothing",
+     W + [admit("a9", "A9", ("p1", "p2", "p3"), ("ag",), "agent"), lone("x", "p1", "AG", ("a9",)),
+          dict(counted_receipt("qc", ("A9",), "x", ("x",)), counted="agent"), LAY], {"x": T}, P3 | {"AG", "A9"}, []),
+    (RV + "O2, a mutual pair decided alone: A1 and A2 remove each other, and A1 removes A3 too, all at one head; the "
+     "pair stays contested, so A1's removal of A3 is in force",
+     W3A + [CM3, lone("x1", "A1", "A2", ("cm3",)), lone("x2", "A2", "A1", ("cm3",)), lone("w", "A1", "A3", ("cm3",))],
+     {"x1": T, "x2": T, "w": T}, P3 | {"A1", "A2"}, [("A1", "moderate", T), ("A2", "moderate", T)]),
+    (RV + "O4, an ordered pair: A1 removes A2, then A2 removes A1 with that removal in its past at the older head: A1's "
+     "removal is in force and A2's is not counted (E4)",
+     W3A + [lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",), ("x1",))], {"x1": T, "x2": T},
+     P3 | {"A1", "A3"}, [("A1", "moderate", T), ("A2", "agent", F)]),
+    (RV + "K2, an out-of-force removal of a receipter voids nothing: A3 receipts p1's removal; A1 removes A3 beside "
+     "that receipt and then lays down its own moderate, so A1's removal is out of force and A3's receipt keeps",
+     [G, ST.offer("ags", "p1", ("A1", "A3", "AG"), "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
+                  cosigners=("p2", "p3", "A1", "A3", "AG")), CM1,
+      ST.offer("cm3", "p1", "A3", "moderate", OBJ, "group", ("cm1",), head=("cm1",), policy="duty_confer", counted="duty",
+               cosigners=("p2", "A3")),
+      lone("x", "p1", "AG", ("cm3",)), receipt("q3", "A3", "x"), ST.withdraw("wm", "p1", "g", ("x",), scope="moderate"),
+      lone("y", "A1", "A3", ("cm3",)), ST.withdraw("wa", "A1", "cm1", ("y",))],
+     {"x": T, "y": T}, P3 | {"A1", "A3"}, [("A3", "moderate", T)]),
+    (RV + "D1, a receipter removed at the same time, its duty from the founding record: the count withdraws p2's "
+     "moderate beside its receipt: void",
+     W + [X, receipt("q2", "p2", "x"), unduty("xm", "p2", "moderate", ("p1", "p3"), ("x",)), LAY], {"x": T, "xm": T},
+     P3 | {"AG"}, [("p2", "moderate", F)]),
+    (RV + "D4, the same with p2's moderate conferred by an offer: void",
+     [GD4, CD4, admit("ag", "AG", ("p1", "p2", "p3"), ("cd",), "agent"), lone("x", "p1", "AG", ("ag",)),
+      receipt("q2", "p2", "x"), unduty("xm", "p2", "moderate", ("p1", "p3"), ("x",)), LAY], {"x": T, "xm": T},
+     P3 | {"AG"}, [("p2", "moderate", F)]),
+    (RV + "O5, a mutual pair is not settled by an agent's receipt: A3, an agent moderator A2 could remove alone, "
+     "receipts x1; the pair stays contested",
+     W3A + [CM3, lone("x1", "A1", "A2", ("cm3",)), lone("x2", "A2", "A1", ("cm3",)), receipt("q3", "A3", "x1")],
+     {"x1": T, "x2": T}, P3 | {"A1", "A2", "A3"}, [("A1", "moderate", T), ("A2", "moderate", T)]),
+    (RV + "OPEN, a ring of three: A1 removes A2, A2 removes A3, A3 removes A1, all at one head. As built: one "
+     "component, each removal an end of another's standing, all three out of force, all three seated",
+     W3A + [CM3, lone("x1", "A1", "A2", ("cm3",)), lone("x2", "A2", "A3", ("cm3",)), lone("x3", "A3", "A1", ("cm3",))],
+     {"x1": T, "x2": T, "x3": T}, P3 | {"A1", "A2", "A3"}, []),
+    (RV + "a lone removal lifts nothing: p1 removes A1 alone stating lifts; p2's receipt of A1's removal of A2 keeps it",
+     WA + [XA, receipt("q2", "p2", "x"), dict(YA, lifts=True)], {"x": T, "y": T}, P3, []),
+    (RV + "a receipt after the unseat is void: the count removes p2, and p2 then receipts the removal",
+     W + [X, remove("xp2", "p2", ("p1", "p3"), ("x",)), receipt("q2", "p2", "x", ("xp2",)), LAY], {"x": T, "xp2": T},
+     {"p1", "p3", "AG"}, []),
     # ---- CIRISConstitution#218, pin list -----------------------------------------------------------------------------
     (PIN + "no cascade: p1 removes the agent moderator A1 alone, then lays down moderate: that removal is out of "
      "force and ends no standing, so A1's own removal of A2 stays in force",
@@ -250,7 +325,9 @@ CASES = [
      W + [X, receipt("q2", "p2", "x"), remove("xp", "p1", ("p2", "p3"), ("ag",))], {"x": T, "xp": T}, P23, []),
 ]
 PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone", "cascade", "count_receipt_unread",
-          "removed_receipt_kept", "lifts_unread", "conferrer_lift_unread", "cycle_one_then_other")
+          "removed_receipt_kept", "lifts_unread", "conferrer_lift_unread", "cycle_one_then_other", "count_receipt_unchecked",
+          "founding_duty_unread", "agent_settles_pair", "lone_lifts", "own_end_lifts", "receipt_before_kept",
+          "failed_count_is_signers")
 
 
 def read(S, case):

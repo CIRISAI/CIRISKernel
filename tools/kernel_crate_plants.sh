@@ -82,13 +82,35 @@ plant "the roster leaves out the agents"              src/seat.rs '        m.ext
 plant "a lone removal's end unread"                 src/seat.rs 'None => out_of_force(c, law, spec, own, &by, &unseats, cache.unwrap_or(&local)),' 'None => BTreeSet::new(),'
 plant "a remover's own receipt keeps its removal"   src/seat.rs '    duty.remove(m);
 ' ''
-plant "a lone removal out of force still ends a standing (cascade)" src/seat.rs 'let excl: BTreeSet<usize> = deps[j].iter().copied().filter(|y| decided.get(y) == Some(&false)).collect();' 'let excl: BTreeSet<usize> = deps[j].iter().copied().filter(|_| false).collect();'
-plant "the room's counted receipt unread" src/seat.rs 'return count_met(&Past::new(g, q, &anc), law, spec, Some(cache)).then_some((q, true));' 'return None;'
 plant "a removed key's receipt keeps" src/seat.rs '            (!cut).then_some((q, false))' '            Some((q, false))'
 plant "a conferrer's own end lifts nothing" src/seat.rs '                .is_some_and(|t| t.seat_kind() == SeatKind::Offer && !t.to().contains(er.signer())),' '                .is_some_and(|_| false),'
-plant "a mutual pair decided one then the other" src/seat.rs '            got.push((acts[j], removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone)));' '            let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone);
-            decided.insert(acts[j], v);
-            got.push((acts[j], v));'
+plant "a lone removal out of force still ends a standing (cascade)" src/seat.rs 'let excl: BTreeSet<usize> = out.iter().map(|&j| acts[j]).collect();' 'let excl: BTreeSet<usize> = BTreeSet::new();'
+plant "the room's counted receipt unread" src/seat.rs 'return count_receipt(c, q, x, law, spec, cache).then_some((q, true));' 'return None;'
+plant "a failed counted receipt read as its signer's" src/seat.rs 'return count_receipt(c, q, x, law, spec, cache).then_some((q, true));' 'if count_receipt(c, q, x, law, spec, cache) {
+                    return Some((q, true));
+                }'
+plant "the count's receipt over any room" src/seat.rs 'if qr.obj().as_ref() != Some(&obj) || qr.over().is_some_and(|o| o != obj) {' 'if false {'
+plant "the count's receipt at an older head" src/seat.rs 'if qr.head().is_empty() || !qr.head().iter().all(fresh) {' 'if qr.head().is_empty() {'
+plant "the remover a voice of the count's receipt" src/seat.rs '    v.remove(xr.signer());
+    let yes' '    let yes'
+plant "a founding duty read as the offer's scope" src/seat.rs '            && (seat_scopes(m, k, signed_by(m, k)).contains(&us)' '            && (m.scope() == Some(us)'
+plant "an agent's receipt settles a mutual pair" src/seat.rs 'if mutual && agents.contains(qr.signer()) {' 'if false {'
+plant "a receipt after the unseat keeps" src/seat.rs '                    && !g.in_past(q, *u)
+' '                    && !g.in_past(q, *u)
+                    && !g.in_past(*u, q)
+'
+plant "a lone removal lifts" src/seat.rs 'SeatKind::Unseat => er.conf() == Some(Conf::Group) && !lone.contains(&e),' 'SeatKind::Unseat => er.conf() == Some(Conf::Group),'
+plant "the holder's own end lifts" src/seat.rs '.is_some_and(|t| t.seat_kind() == SeatKind::Offer && !t.to().contains(er.signer())),' '.is_some_and(|t| t.seat_kind() == SeatKind::Offer),'
+plant "an ordered pair read as mutual" src/seat.rs '                        && !g.in_past(y, x)
+' '
+'
+plant "a mutual pair decided one then the other" src/seat.rs '                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone, comp.len() > 1);' '                let excl: BTreeSet<usize> =
+                    out.iter().chain(got.iter().filter(|(_, v)| !*v).map(|(j, _)| j)).map(|&j| acts[j]).collect();
+                let drop2: BTreeSet<R::Id> = excl.iter().map(|&y| g.row(y).id().clone()).collect();
+                let now = nows
+                    .entry(drop2.clone())
+                    .or_insert_with(|| Seats::build(c, law, spec, own, Some(&drop2), Some(cache)));
+                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone, comp.len() > 1);'
 plant "a count end's lifts unread" src/seat.rs '(counted || e.is_none_or(|e| !lifts(e)))' '(counted || true)'
 plant "a receipt after the end keeps a removal"     src/seat.rs 'acks.iter().any(|&(q, counted)| e.is_none_or(|e| !g.in_past(e, q)) &&' 'acks.iter().any(|&(q, counted)| true &&'
 plant "a removal at a later head than the end counts" src/seat.rs '!g.in_past(e, x) && !later(head_of(e)) && kept(Some(e))' '!g.in_past(e, x) && kept(Some(e))'

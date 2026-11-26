@@ -21,6 +21,14 @@
   (ii) The holder's own end never lifts: the text refuses such a row at the door (`lifts_on_own_end`), and the
   kernel, handed one, reads no lift. A moderator's lone removal lifts nothing.
 - A counted receipt that fails its count keeps nothing, and is not read as its signer's own receipt (confirmed).
+- Fixes from the review of #48: the count's receipt is a count over the persons of the removal's room, at heads
+  none older than the removal's, the remover no voice of it (before: any room, any head, any `counted` scope, so
+  a remover alone, or an agent, could keep its own removal). The acts are decided one strongly connected
+  component at a time, in rounds, against every act decided out of force before (before: an act outside a
+  mutual pair was decided with it, and only an act's own waits were left out). An act waits only for removals
+  not in its past, and for removals of its receipters too: an ordered pair is not mutual. A receipter's duty
+  from a founding record is a seat a counted unseat ends, as one from an offer. A mutual pair is settled only by
+  a person's receipt or the count's.
 - Not built: the owner's statement on an agent's duty seat (CC 4.5.4).
 
 The reference: `seat.receipts_of`, `lifts_receipts` and the ordering in `out_of_force`; thirteen cases and six
