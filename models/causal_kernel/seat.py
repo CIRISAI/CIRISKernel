@@ -709,6 +709,10 @@ def own_keys(by, obj):
 # ---- derived: the live seats ---------------------------------------------------------------------------
 class Seats:
     def __init__(self, S, holds=HOLDS, confers=CONFERS, depth=DEPTH, by_arrival=False, own=None, checkpoint=False, drop=None):
+        # (prototype "rroster": the reader's roster is read over the rows as they conclude FOR THIS READER, its void
+        # changes left out of every count's fold: a row that concludes only for it enters, one refused for it leaves)
+        if own is not None and "rline" in PROTO and "fold" in PROTO and "rroster" in PROTO and not getattr(S, "_reader", None):
+            S = reader_state(S, own)
         self.S, self.holds, self.confers, self.own = S, holds, confers, own
         # the reader's line is read before the cut: a counted act void for this reader cuts nothing for it (CC 2.7.8).
         # L: the acts behind the reader's line and those built on them, every row taken as counting; then the cut
@@ -718,7 +722,7 @@ class Seats:
         # (MUTATION line_after_cut: the first pass reads the cut, not every row as counting)
         first = CUT.Cut(S) if "line_after_cut" in MUT else CP.EVERY
         L = CP.void(S, first, own, checkpoint) if own is not None and "cut_before_line" not in MUT else frozenset()
-        if own is not None and "rline" in PROTO and "fold" in PROTO:
+        if own is not None and "rline" in PROTO and "fold" in PROTO and "rroster" not in PROTO:
             L = L | reader_refused(S, own, L)
         self.cut = C = CUT.Cut(S, without=L)
         Cs = S.Cs
@@ -1321,6 +1325,19 @@ def reader_void(S, own):
                 out.add(q["id"])
         out |= _built_closure(acts, out)
     return frozenset(out)
+
+
+def reader_state(S, own, rule=None):
+    """The rows concluded again for reader `own`, its void changes (reader_void, over the rows as concluded for every
+    reader) left out of every counting row's fold and heads. Order-free as `concluded` is."""
+    RV = reader_void(S, own)
+    _RVOID.append(frozenset(RV))
+    try:
+        R = CK.concluded(CK.kept(list(S.rows)), rule or (lambda r, P, past: seat_rule(r, P, past)))
+    finally:
+        _RVOID.pop()
+    R._reader = own
+    return R
 
 
 def reader_refused(S, own, L):
