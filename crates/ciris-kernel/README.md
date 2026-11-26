@@ -132,7 +132,7 @@ ask no question the table lacks. What these runs check is the kernel's door, rec
 derived answers over the model's conclusions. The answers the witnesses compute are per-case functions of
 the model and are not ported.
 
-`tools/kernel_crate_plants.sh` plants 238 breaks, one at a time on a copy of the crate, and each must fail a
+`tools/kernel_crate_plants.sh` plants 243 breaks, one at a time on a copy of the crate, and each must fail a
 test. Count them with `grep -c '^plant' tools/kernel_crate_plants.sh`; the script prints how many were caught.
 
 **The cycle reading.** "A cycle is visited once" (CC 2.7.5) has two readings. Under the first, a walk never

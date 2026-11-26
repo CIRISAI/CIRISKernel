@@ -92,11 +92,14 @@ fn protocol_set_replay() {
     let fx = fixture("acts.json");
     assert_eq!(fx.at("protocol_kinds").strs(), PROTOCOL_KINDS.map(String::from).to_vec());
     let (mut cases, mut bad) = (0, 0);
-    for (list, infra) in [("protocol_words", false), ("infrastructure_words", true)] {
+    for list in ["protocol_words", "infrastructure_words"] {
         for w in fx.at(list).arr() {
-            let word = w.arr()[0].s();
-            let want = words_of(&w.arr()[1]);
-            let got = RoomProtocol::parse_in(word, infra).map(proto_words);
+            let a = w.arr();
+            let word = a[0].s();
+            // an infrastructure word is read over its founder count
+            let founders = (a.len() == 3).then(|| a[1].i() as usize);
+            let want = words_of(&a[a.len() - 1]);
+            let got = RoomProtocol::parse_in(word, founders).map(proto_words);
             cases += 1;
             if got != want {
                 bad += 1;

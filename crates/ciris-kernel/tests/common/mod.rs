@@ -287,7 +287,7 @@ pub struct TRow {
     pub duties: Vec<String>,
     /// A founding record's `duty_holders`: (duty, keys) pairs.
     pub duty_holders: Vec<(String, Vec<String>)>,
-    /// A record's `weights` (a weighted protocol's): key -> whole-number weight.
+    /// A record's `weights` (a weighted protocol's): (key, whole-number weight) pairs.
     pub weights: Vec<(String, u64)>,
     pub sigs: Vec<String>,
     pub obj: Option<Obj<String, String>>,
@@ -374,8 +374,8 @@ impl TRow {
                 .unwrap_or_default(),
             weights: m
                 .get("weights")
-                .filter(|x| matches!(x, J::Obj(_)))
-                .map(|x| x.obj().iter().map(|(k, v)| (k.clone(), v.i() as u64)).collect())
+                .filter(|x| matches!(x, J::Arr(_)))
+                .map(|x| x.arr().iter().map(|e| (e.arr()[0].s().to_string(), e.arr()[1].i() as u64)).collect())
                 .unwrap_or_default(),
             sigs: strs(&m, "sigs"),
             obj: o("obj"),

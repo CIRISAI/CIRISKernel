@@ -694,8 +694,8 @@ def acts_cases():
             "roster_seats": list(ST.ROSTER_SEATS), "duties": list(ST.DUTIES), "cases": cases, "queries": queries,
             "conclude": conclude, "protocol_kinds": list(ST.PROTOCOL_KINDS),
             "protocol_words": [[w, list(ST.protocol_rule(w)) if ST.protocol_rule(w) else None] for w, _ in AC.PROTOCOL_WORDS],
-            "infrastructure_words": [[w, list(ST.infrastructure_rule(w)) if ST.infrastructure_rule(w) else None]
-                                     for w, _ in AC.INFRA_WORDS]}
+            "infrastructure_words": [[w, n, list(ST.infrastructure_rule(w, n)) if ST.infrastructure_rule(w, n) else None]
+                                     for w, n, _ in AC.INFRA_WORDS]}
 
 
 def main():

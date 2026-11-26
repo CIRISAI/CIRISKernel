@@ -98,15 +98,22 @@ migrations, and the local operational store.
   `record` offer carrying `consensus_protocol`, ordered over the concluded rows), or the founding record's. Emit
   the notice `hard_case:community_consensus_protocol_change` for a change.
 - An infrastructure community's protocol is a quorum of its founders' strict majority, `quorum:{M}/{N}` with
-  `M = N / 2 + 1`, counted over the founders (`counted()` `founder`; nodes in no base). Any other word there concludes
-  nothing (`RoomProtocol::parse_in(w, true)`): refuse it at your door at founding and at a change
-  (`federation_community_consensus_protocol_violation`), and check that its N is the founder count, which the
-  kernel does not. Its record changes under that protocol (`record_change` over `infrastructure`).
+  `M = N / 2 + 1` and N the founding row's distinct signers (`seat::founders_of`; a founder who leaves stays in N),
+  counted over the founders (`counted()` `founder`; nodes in no base). Any other word there concludes nothing
+  (`RoomProtocol::parse_in(w, Some(n))`): your door refuses it at founding and at a change
+  (`federation_community_consensus_protocol_violation`). Its record changes under that quorum (`record_change`
+  over `infrastructure`).
+- Under `open:self_admit` and `founder_only` the room's protocol counts admissions alone (an offer of the member
+  seat): no removal concludes under them, and a change of the record takes a policy row of its own
+  (`default_standing`, ...).
+- State `counted()` as the act's own body or not at all: the members for an admission, a removal, the recall, the
+  lift, the election and a change of the record; `duty` for the duty holders' acts; `founder` in an infrastructure
+  community; the accord's holders; a self roster's own seat. Any other `counted()`, or an `over()` naming another
+  object, concludes nothing.
+- A weighted record's `weights()` name each key once.
 - The edge: two concurrent changes of a room's protocol that disagree leave no protocol in force, so removals wait
   until a change names both tips under the protocol the common members had (CC 2.7.8's wait, from the protocol
   side; an old past is the weak-subjectivity edge).
-- An unseat of a duty counts over `duty` (the holders' withdrawal) or `member` (the recall), exactly: any other
-  `counted()` concludes nothing.
 - A counted row's `regime()`, where you state one, must be the protocol in force in its past, or it concludes
   nothing; the kernel derives the regime it waits on at tips.
 - A node's seat (`seat::NODE`) over an infrastructure community is on the roster, no voice and in no base. A
