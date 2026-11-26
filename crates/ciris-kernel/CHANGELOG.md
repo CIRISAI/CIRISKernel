@@ -459,16 +459,18 @@ told what act it is by the policy a row states.
   heads (`counted()` `founder`; nodes in no base) and takes M voices. The record MUST be entrenched
   (`consensus_protocol_entrenched`): a founding without the flag concludes nothing.
   - **Founder seats are added only by a founders' amendment** (or the stalled recovery widening): a change of the
-    record that seats the new key (`to()` the key, `role()` `founder`), is signed by it, restates `quorum:{M}/{N}`
-    with N the founders it leaves and M their strict majority, and is counted at the present M. A plain founder
-    widening concludes nothing. The founding word states N = the founders the row seats.
+    record that seats the new key (`to()` the key, `role()` `founder`), is signed by it, and is counted at the present
+    M. One that leaves the founders at or below the word's N keeps the word unchanged; one that would leave more
+    names a new word in the same version, N the founders it leaves and M its strict majority (9 to 10 gives 6/10). A
+    plain founder widening concludes nothing. The founding word states N = the founders the row seats.
   - **No weakening**: an amendment whose M is below the present M, or that moves `admission_quorum_basis` away from
     `founders` (`SeatRow::admission_quorum_basis`), concludes nothing; equal or stronger restatements conclude. (A
     family's entrenchment refuses any change of the protocol: the two readings are kept apart, by kind, in
     `entrenchment_allows`.) So the growth 2/3, 3/4, 3/5, 4/6 goes one founder at a time, each counted at the previous
-    M; 2/3 to 3/5 at three founders is refused, and no room stalls itself by a record change. Seating into a stale
-    word restates N as the count after it, and is refused where the new M would be below the present (5/9 with six
-    left cannot seat a seventh: 4/7 weakens).
+    M; 2/3 to 3/5 at three founders is refused, and no room stalls itself by a record change. No version names a word
+    whose M is below the present M, or is not its N's strict majority: a shrunk room does not restate downward (5/9
+    at six: 4/6 refused). A room that lost founders refills its own seats while it is live, under the word in force
+    (5/9 at six seats a seventh, an eighth and a ninth; a version naming 4/7 or 5/7 there is refused).
   - **Live** while the active founders number at least M + 1; otherwise **stalled**: the founders' count then admits
     and removes nothing (a founder, a node), and an amendment seating a founder, a widening by that count, is none.
     3/4 is live only at four founders, as 2/3 at three.

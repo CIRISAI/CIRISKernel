@@ -72,6 +72,7 @@ Planted breaks, each of which must change a case's answer:
     role_on_own_offer             `role: founder` is read on an own or uncounted offer, or outside a family
     entrenched_weights_free       an entrenched weighted record's weights and threshold may be restated (E1)
     concurrent_amendments_free    concurrent founders' amendments do not freeze the founders' count (L1)
+    infra_word_restated_always    an infrastructure amendment seating a founder must restate the word, even at or below N
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
@@ -278,7 +279,9 @@ GI5 = ST.offer("g", "f1", ("f1", "f2", "f3", "f4", "f5"), "founder", "@", "self"
 GI9 = ST.offer("g", "f1", tuple("f%d" % i for i in range(1, 10)), "founder", "@", "self",
                cosigners=tuple("f%d" % i for i in range(2, 10)), cohort_subkind="infrastructure",
                consensus_protocol="quorum:5/9", consensus_protocol_entrenched=True)                  # nine founders
-GIU = {k: v for k, v in GI.items() if k != "consensus_protocol_entrenched"}                         # not entrenched
+GIU = {k: v for k, v in GI.items() if k != "consensus_protocol_entrenched"}
+GI9_6 = [GI9, ST.withdraw("w7", "f7", "g", ("g",)), ST.withdraw("w8", "f8", "g", ("w7",)), ST.withdraw("w9", "f9", "g", ("w8",))]
+SEAT5 = ("f2", "f3", "f4", "f5")                                                                    # with f1: five voices                         # not entrenched
 # L1: two concurrent founders' amendments over four founders (3/4), and the version that reconciles them
 L1 = None   # set below, once GI4 is built
 # the growth 2/3 -> 3/4 -> 3/5 -> 4/6, each amendment counted at the previous M
@@ -365,10 +368,17 @@ CONCLUDE = [
      [GI, IAM("quorum:2/3", i="a4", seat=("f4",))], "a4", False, False),
     ("a stalled room makes no amendment seating a founder (it is a widening by the founders' count)",
      [GI, W3, IAM("quorum:3/3", i="a4", heads=("w3",), seat=("f4",))], "a4", False, False),
-    ("M is never lowered: of nine founders (5/9) six remain, and an amendment seating a seventh restating 4/7 (the new "
-     "count's majority, below 5) is a weakening and concludes nothing",
-     [GI9, ST.withdraw("w7", "f7", "g", ("g",)), ST.withdraw("w8", "f8", "g", ("w7",)), ST.withdraw("w9", "f9", "g", ("w8",)),
-      IAM("quorum:4/7", i="aa", heads=("w9",), cosigners=("f2", "f3", "f4", "f5"), seat=("fa",))], "aa", False, False),
+    ("a room that lost founders refills its own seats while live, the word unchanged: of nine (5/9) six remain, and an "
+     "amendment seating a seventh under 5/9 concludes", GI9_6 + [IAM(None, i="aa", heads=("w9",), cosigners=SEAT5, seat=("fa",))],
+     "aa", True, False),
+    ("the same version naming 4/7 is a weakening (M below 5) and concludes nothing",
+     GI9_6 + [IAM("quorum:4/7", i="aa", heads=("w9",), cosigners=SEAT5, seat=("fa",))], "aa", False, False),
+    ("and naming 5/7 concludes nothing (5 is not 7's strict majority)",
+     GI9_6 + [IAM("quorum:5/7", i="aa", heads=("w9",), cosigners=SEAT5, seat=("fa",))], "aa", False, False),
+    ("a shrunk room does not restate downward: at six, 4/6 is refused",
+     GI9_6 + [IAM("quorum:4/6", i="aa", heads=("w9",), cosigners=SEAT5)], "aa", False, False),
+    ("above N the version names the new word: of three (2/3), seating f4 under the unchanged word is refused",
+     [GI, IAM(None, i="a4", seat=("f4",))], "a4", False, False),
     ("after a removal (3/5 down to four), an amendment seating a fifth restates 3/5",
      [GI5, FRMF("f5", ("f1", "f2", "f3")), IAM("quorum:3/5", i="a6", heads=("x",), cosigners=("f2", "f3"), seat=("f6",))],
      "a6", True, False),
@@ -780,7 +790,7 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "family_founders_fixed", "family_floor_two", "family_last_founder_refused", "entrenched_amendable",
           "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "dissolve_any_heads", "self_removal_as_leave", "role_unread", "role_outlives_stay",
           "contested_both_out", "founder_role_survives_leave", "role_on_own_offer", "entrenched_weights_free",
-          "concurrent_amendments_free")
+          "concurrent_amendments_free", "infra_word_restated_always")
 
 
 @contextlib.contextmanager

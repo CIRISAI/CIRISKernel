@@ -1911,10 +1911,12 @@ def _count_under(r, P, past, by, table=None):
         # version names both (and restates the word for the founders it leaves), no founders' count concludes over a
         # past holding both; that version is itself a founders' amendment, counted at the present M over the founders
         # common to the two (the founders at its heads) and signed by every key the two seated
-        seating = [q for q in P if is_amendment(q, r["obj"]) and q.get("role") == "founder" and q.get("to")]
+        versions = [q for q in P if q["kind"] == "offer" and q.get("conf") == "group" and q.get("obj") == r["obj"]
+                    and q.get("scope") == "record"]
+        seating = [q for q in versions if q.get("role") == "founder" and q.get("to")]
         pairs = [(a, b) for i, a in enumerate(seating) for b in seating[i + 1:]
                  if not past(a["id"], b["id"]) and not past(b["id"], a["id"])
-                 and not any(past(a["id"], q["id"]) and past(b["id"], q["id"]) for q in P if is_amendment(q, r["obj"]))]
+                 and not any(past(a["id"], q["id"]) and past(b["id"], q["id"]) for q in versions)]
         if pairs and "concurrent_amendments_free" not in MUT:
             if r.get("scope") != "record": return False
             pair_keys = frozenset(k for a, b in pairs for q in (a, b) for k in q["to"])
@@ -1935,13 +1937,20 @@ def _count_under(r, P, past, by, table=None):
             # so a stalled room makes none
             if not new <= voices(r, P): return False
             if new and len(mem) < m + 1 and "infra_stalled_admits" not in MUT: return False
-            # it restates quorum:M/N with N the founders it leaves and M their strict majority, never below the present M
-            if r.get("consensus_protocol") is not None:
-                pr = infrastructure_rule(r["consensus_protocol"])
-                n_after = len(mem) + len(new)
-                if pr is None or (pr[2] != n_after and "infra_word_n_free" not in MUT): return False
+            # the word (the Constitution's narrowing): a version leaving the founders at or below the word's N keeps it
+            # (counted at the present M); one leaving more must name a new word, N the founders it leaves and M its
+            # strict majority. No version names a word whose M is below the present M, or is not its N's strict
+            # majority; a new word other than the one in force states the founders the version leaves
+            n_after = len(mem) + len(new)
+            w = r.get("consensus_protocol")
+            pr = infrastructure_rule(w) if w is not None else None
+            if w is not None and pr is None: return False
+            unchanged = pr is None or (pr[1], pr[2]) == (m, n)
+            if "infra_word_restated_always" in MUT and new and unchanged: return False   # MUTATION
+            if unchanged and n_after > n: return False             # above N, the version names a new word
+            if not unchanged:
                 if pr[1] < m and "infra_m_lowered" not in MUT: return False
-            elif new: return False                                 # seating a founder restates the word
+                if pr[2] != n_after and "infra_word_n_free" not in MUT: return False
     if r.get("founders_fixed"):                      # MUTATION family_founders_fixed: the founding row's founders only
         g = by.get(r["obj"]) or {}
         mem = vot = frozenset(k for d, ks in (g.get("duty_holders") or ()) if d == "founder" for k in ks) & signers(g)

@@ -3455,12 +3455,20 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
     }
     let mem = count_members_with(p, law, spec, cache);
-    if let Some((m, _)) = f.infra {
+    if let Some((m, n)) = f.infra {
         // CC 2.7.8's wait for founders' amendments: two concurrent ones are concurrent versions of the record. Until a
         // version names both (and restates the word for the founders it leaves), no founders' count concludes over a
         // past holding both; that version is itself a founders' amendment, counted at the present M over the
         // founders common to the two (the founders at its heads) and signed by every key the two seated
-        let amends: Vec<&R> = p.rows().filter(|q| is_amendment(*q, &obj)).collect();
+        let amends: Vec<&R> = p
+            .rows()
+            .filter(|q| {
+                q.seat_kind() == SeatKind::Offer
+                    && q.conf() == Some(Conf::Group)
+                    && q.obj().as_ref() == Some(&obj)
+                    && q.scope().is_some_and(|s| s.as_ref() == "record")
+            })
+            .collect();
         let seating: Vec<&R> = amends
             .iter()
             .copied()
@@ -3519,22 +3527,29 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
             if !new.is_empty() && mem.len() < m + 1 {
                 return false;
             }
-            // it restates quorum:M/N with N the founders it leaves and M their strict majority, never below the
-            // present M
-            match r.consensus_protocol() {
-                Some(w) => {
-                    let Some(RoomProtocol::Quorum(m2, n2)) = RoomProtocol::parse_in(w.as_ref(), true) else {
-                        return false;
-                    };
-                    if usize::try_from(n2) != Ok(mem.len() + new.len()) {
-                        return false;
-                    }
-                    if !usize::try_from(m2).is_ok_and(|m2| m2 >= m) {
-                        return false;
-                    }
+            // the word (the Constitution's narrowing): a version leaving the founders at or below the word's N keeps
+            // it (counted at the present M); one leaving more names a new word, N the founders it leaves and M its
+            // strict majority. No version names a word whose M is below the present M or is not its N's strict
+            // majority; a new word other than the one in force states the founders the version leaves
+            let n_after = mem.len() + new.len();
+            let stated = match r.consensus_protocol() {
+                None => None,
+                Some(w) => match RoomProtocol::parse_in(w.as_ref(), true) {
+                    Some(RoomProtocol::Quorum(m2, n2)) => Some((m2, n2)),
+                    _ => return false,
+                },
+            };
+            let unchanged = stated.is_none_or(|(m2, n2)| usize::try_from(m2) == Ok(m) && usize::try_from(n2) == Ok(n));
+            if unchanged && n_after > n {
+                return false;
+            }
+            if let Some((m2, n2)) = stated.filter(|_| !unchanged) {
+                if !usize::try_from(m2).is_ok_and(|m2| m2 >= m) {
+                    return false;
                 }
-                None if !new.is_empty() => return false,
-                None => {}
+                if usize::try_from(n2) != Ok(n_after) {
+                    return false;
+                }
             }
         }
     }
