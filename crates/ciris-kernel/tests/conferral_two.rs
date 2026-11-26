@@ -19,6 +19,8 @@ struct SRow {
     head: Option<String>,
     on: Option<String>,
     owner: Option<String>,
+    via: Option<String>,
+    sub_delegation: bool,
 }
 
 impl StandingRow for SRow {
@@ -42,6 +44,12 @@ impl StandingRow for SRow {
     fn owner(&self) -> Option<&String> {
         self.owner.as_ref()
     }
+    fn via(&self) -> Option<&String> {
+        self.via.as_ref()
+    }
+    fn sub_delegation(&self) -> bool {
+        self.sub_delegation
+    }
 }
 
 fn row(j: &J) -> SRow {
@@ -62,6 +70,8 @@ fn row(j: &J) -> SRow {
         head: opt("head"),
         on: opt("on"),
         owner: opt("owner"),
+        via: opt("via"),
+        sub_delegation: j.get("sub_delegation").is_some_and(|x| x.b()),
     }
 }
 

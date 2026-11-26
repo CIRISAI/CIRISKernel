@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**A deputy under two standings** (CIRISConstitution#218, in no issue). New: `StandingRow::via` (default `None`)
+and `StandingRow::sub_delegation` (default `false`), additive. `standing::answers` now judges a deputy's act:
+- It stands on its deputy edge (`via`), the node's own act that names the owner's acceptance; it names no
+  acceptance itself, and stands where its edges' root stands (or on no acceptance, for a cycle of edges).
+- Both records read it with its edges through conferral's own deputy walk (E6.depth, E6.no_sub, E6.upstream);
+  no second walk. It counts for the binding's owner where it and its edges count under the grant and under the
+  binding, and is in force likewise.
+- A re-binding of the node reaches the deputy's act as it reaches the edge: with the re-binding in its past it
+  does not count for the old owner (E4 under the binding); concurrent with it, it counts and is not in force
+  unless receipted under the binding by its owner. Because E6 passes both bits down, the act is in force only
+  where its edge is too: a receipt of the act alone does not keep it.
+- Two owners is none for the edge, and so for every act under it.
+The reference: `chain_answers` in `check_conferral_two.py`, with nine cases (`DEPUTY_CASES`, in the
+`conferral_two` fixture, read as listed and in reverse) and two planted breaks; two crate plants.
+
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
 - `content` reads `conferral`'s three-way `any`, later-head test and stale-head test; its own copies are gone.

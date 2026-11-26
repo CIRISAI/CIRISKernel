@@ -22,9 +22,15 @@
 //! replays its case table (`tests/fixtures/conferral_two.json`) through this module. Cases only: no run of
 //! every state compares the crate with the reference, and no proof covers it.
 //!
-//! Not read here: a deputy edge under such an act, a receipt by a co-holder of the binding (only the binding's
-//! owner receipts under it), and whether the act's signer is the node the binding binds. The caller presents
-//! the rows of one node under one grant.
+//! A deputy's act ([`StandingRow::via`]) stands on its deputy edge, the node's own act that names the owner's
+//! acceptance; it names none itself. It is judged in both records with its edges, by conferral's own deputy
+//! walk (E6: depth, sub-delegation, upstream): it counts for the binding's owner where it and its edges count
+//! under the grant and under the binding, and is in force likewise, so a re-binding reaches it as it reaches
+//! the edge, and under the binding only its owner receipts. Two owners is none for the edge and every act under it.
+//!
+//! Not read here: a receipt by a co-holder of the binding (only the binding's owner receipts under it), and
+//! whether the act's signer is the node the binding binds. The caller presents the rows of one node under one
+//! grant.
 
 use crate::conferral::{self, ConferralRow, Judged, Past, Refused, Role, Who};
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -82,6 +88,16 @@ pub trait StandingRow {
     }
     /// On the grant's end by a count: it lifts the receipts of single co-holders and of the receipter.
     fn lifts(&self) -> bool {
+        false
+    }
+    /// On a deputy's act: the deputy edge it stands on, itself an act (the node's own, which names the owner's
+    /// acceptance, or a deputy's onward edge). A deputy's act names no acceptance: it stands where the root of
+    /// its edges stands. Default `None`: the node's own act.
+    fn via(&self) -> Option<&Self::Id> {
+        None
+    }
+    /// On a deputy edge: the deputy may deputize onward ([`conferral::ConferralRow::sub_delegation`]).
+    fn sub_delegation(&self) -> bool {
         false
     }
 }
@@ -185,11 +201,19 @@ impl<R: StandingRow> ConferralRow for As<'_, R> {
     fn lifts(&self) -> bool {
         self.row.kind() == Kind::GrantEnd && self.row.lifts()
     }
+    // a deputy's act and its edges, read by conferral's own deputy walk (E6) in both records
+    fn via(&self) -> Option<&R::Id> {
+        (self.kind == conferral::Kind::Act).then(|| self.row.via()).flatten()
+    }
+    fn sub_delegation(&self) -> bool {
+        self.kind == conferral::Kind::Act && self.row.sub_delegation()
+    }
 }
 
 // where an act stands: the binding its acceptance names, why it stands on none, or the row to fetch
 fn stands_on<'a, R: StandingRow>(x: &'a R, rows: &[&'a R]) -> Result<Result<&'a R, Nobody>, R::Id> {
     let held = |i: &R::Id| rows.iter().copied().find(|r| r.id() == i).ok_or_else(|| i.clone());
+    let Some(x) = root_edge(x, rows)? else { return Ok(Err(Nobody::NoAcceptance)) };
     let Some(on) = x.on() else { return Ok(Err(Nobody::NoAcceptance)) };
     let a = held(on)?;
     match a.kind() {
@@ -206,6 +230,17 @@ fn stands_on<'a, R: StandingRow>(x: &'a R, rows: &[&'a R]) -> Result<Result<&'a 
         return Ok(Err(Nobody::NotTheOwnersAcceptance));
     }
     Ok(Ok(b))
+}
+
+// the node's own act a deputy's act stands on: its edges (`via`) followed to one that has none. `None` for a
+// cycle of edges, which names no acceptance; an edge not held is the row to fetch
+fn root_edge<'a, R: StandingRow>(x: &'a R, rows: &[&'a R]) -> Result<Option<&'a R>, R::Id> {
+    let mut at = x;
+    for _ in 0..=rows.len() {
+        let Some(v) = at.via() else { return Ok(Some(at)) };
+        at = rows.iter().copied().find(|r| r.id() == v && r.kind() == Kind::Act).ok_or_else(|| v.clone())?;
+    }
+    Ok(None)
 }
 
 // `c` is `b`, or re-binds `b` through a chain of re-bindings (`on`), among the rows held
@@ -266,7 +301,8 @@ pub fn answers<R: StandingRow, P: Past<R::Id>>(
     let mut at: Vec<(&R, &R)> = Vec::new();
     for &x in &acts {
         match stands_on(x, rows) {
-            Ok(Ok(b)) => match two_owners(x, b, rows, past) {
+            // two owners is none for the edge, and so for every act under it
+            Ok(Ok(b)) => match root_edge(x, rows).and_then(|e| two_owners(e.unwrap_or(x), b, rows, past)) {
                 Ok(false) => at.push((x, b)),
                 Ok(true) => drop(out.insert(x.id().clone(), Answer::Nobody(Nobody::TwoOwners))),
                 Err(i) => drop(out.insert(x.id().clone(), Answer::Undecided(i))),
