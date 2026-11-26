@@ -424,6 +424,12 @@ CASES += [
      {"x": T}, {"p1", "p2", "p3", "p4", "AG"}, []),
     (RV54 + "the other two's counted ack at the room's founding head, older than the removal's: no receipt",
      W + [X, counted_receipt("qc", ("p2", "p3"), "x", ("g",)), OUT], {"x": T}, P23 | {"AG"}, []),
+    (RV54 + "the other two's counted ack stating another room (one p2 founded alone): no receipt",
+     W + [ST.found("h", "p2", ("p2",), {}), X, dict(counted_receipt("qc", ("p2", "p3"), "x", ("x",)), obj="h"), OUT],
+     {"x": T}, P23 | {"AG"}, []),
+    (RV54 + "the other two's counted ack counted over another room: no receipt",
+     W + [ST.found("h", "p2", ("p2",), {}), X, dict(counted_receipt("qc", ("p2", "p3"), "x", ("x",)), over="h"), OUT],
+     {"x": T}, P23 | {"AG"}, []),
     (RV54 + "two persons: the other one's counted ack is all of the room less the remover, but never fewer than two "
      "voices: no count's receipt", [ST.found("g", "p1", ("p1", "p2"), {"moderate": ("p1",)}, cosigners=("p2",)),
                                     admit("ag", "AG", ("p1", "p2"), ("g",), "agent"), X,
