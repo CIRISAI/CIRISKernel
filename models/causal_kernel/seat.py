@@ -376,17 +376,35 @@ def founders_of(by, obj):
     return len(signers(g) if "founders_all_signers" in MUT else signers(g) & frozenset(g["to"]))   # MUTATION
 
 
-def infrastructure_rule(word, n_founders):
-    """The word an infrastructure community's record may state (CC 3.2, ruled on P1 and Q5), over n_founders founders
-    (the founding row's signers for the founding record; the founder seats at a change's heads for a change):
-    `quorum:M/N` with N = n_founders and M its strict majority (N // 2 + 1). The rule (kind, m, n), or None for any
-    other word: `quorum:2/5`, `quorum:3/3`, a quorum stating another N (federation_community_consensus_protocol_violation:
-    the kernel concludes nothing under it). The count itself is always the founders' strict majority at its heads."""
+def infrastructure_rule(word):
+    """The word an infrastructure community's record may state (CC 3.2, "Live and stalled"): `quorum:M/N`, M an
+    absolute count of founder voices, at least 2, and the strict majority of N (N // 2 + 1); N the cap on its active
+    founders. The rule (kind, m, n), or None for any other word (`quorum:1/1`, `quorum:2/5`, `quorum:3/3`, `majority`:
+    federation_community_consensus_protocol_violation, the kernel concludes nothing under it). M is never recomputed
+    from the founders held, and a leaving never lowers it."""
     pr = protocol_rule(word)
-    if pr is None or pr[0] != "quorum": return None
-    if pr[2] != n_founders: return None
+    if pr is None or pr[0] != "quorum" or pr[1] < 2: return None
     if pr[1] != pr[2] // 2 + 1 and "infra_any_quorum" not in MUT: return None   # MUTATION: any quorum
     return pr
+
+
+def stalled_recovery(r, P, past):
+    """The one row an infrastructure room admits without its founders' count while stalled (CC 3.2): a widening whose
+    only change is one added founder seat, for a key named by a row (`bundle`) counted at a strict majority over the
+    holders of the bundle in force of the root the room stands under, whose `scope` names this room, signed by the
+    named key. The kernel holds no bundle holders, so such a row is UNDECIDED: the reason `stalled_recovery_needs_bundle`
+    (the seat rule concludes nothing for it), or None for a row of another shape. The checks for when the trust root's
+    fold is in the kernel: the counted row names the bundle in force; its `scope` names this room; the key's identity
+    type includes `user` and excludes `node`; the widening is signed by the named key; only while stalled; only one
+    founder seat; nothing else changed."""
+    by = {q["id"]: q for q in P}
+    if r["kind"] != "offer" or r.get("bundle") is None or r.get("scope") != "founder": return None
+    if kind_of(by, r.get("obj")) != "infrastructure" or len(r.get("to", ())) != 1 or r["to"][0] not in signers(r): return None
+    rec = protocol_record(by, r["obj"])
+    pr = infrastructure_rule(rec.get("consensus_protocol")) if rec is not None else None
+    if pr is None: return None
+    founders = members_at(P, past, r["obj"], r.get("head", ()), "founder") - count_left(P, past, r["obj"], "founder")
+    return "stalled_recovery_needs_bundle" if len(founders) < pr[1] + 1 else None
 
 
 def is_amendment(q, obj):
@@ -474,22 +492,17 @@ def _protocol_part(r, by, need, weights):
     infra = kind_of(by, obj) == "infrastructure" and not ("infra_record_simple_majority" in MUT and r.get("scope") == "record")
     if r.get("over", obj) != obj and "body_from_row" not in MUT: return REFUSED
     if infra:
-        # the founders' strict majority (CC 3.2, P1 and Q5): the body is the `founder` seats held at the row's heads,
-        # N their number and M = N // 2 + 1, counted by the kernel (a founding row with no founder seat leaves the body
-        # empty, so nothing concludes)
+        # CC 3.2, "Live and stalled": the record's M founder voices (absolute, never recomputed), over the `founder`
+        # seats held at the row's heads; the room is live while they number at least M + 1, and N caps them (both read
+        # by the count, which counts them). A founding row of more founders than N, or with no founder seat, founds no
+        # protocol that concludes
         g = by[obj]
-        if rec is g and infrastructure_rule(w, founders_of(by, obj)) is None: return REFUSED   # the founding word
+        pr = infrastructure_rule(w)
+        if pr is None: return REFUSED
+        if rec is g and founders_of(by, obj) > pr[2] and "infra_no_cap" not in MUT: return REFUSED   # founded above N
         if r.get("counted", "member") != "founder" and "infra_body_members" not in MUT and "protocol_body_free" not in MUT:
             return REFUSED
-        pr = protocol_rule(w)
-        if "infra_n_from_word" in MUT and pr is not None and pr[0] == "quorum":    # MUTATION: M read from the word
-            return dict(policy="P:quorum", need=pr[1], weights=None)
-        if "infra_m_fixed" in MUT:                                               # MUTATION: M from the founding count
-            return dict(policy="P:quorum", need=founders_of(by, obj) // 2 + 1, weights=None)
-        # a change of the record states the founders' quorum at its own heads (checked by the count, which reads them)
-        out = dict(policy="P:founders", need=None, weights=None)
-        if r.get("scope") == "record" and r.get("consensus_protocol") is not None: out["founders_word"] = r["consensus_protocol"]
-        return out
+        return dict(policy="P:quorum", need=pr[1], weights=None, infra_mn=(pr[1], pr[2]))
     family = kind_of(by, obj) == "family"
     if family:
         # a family (CC 3.3.4, 3.1.3.2, 4.5.12.5): every protocol of the set, founder_only and quorum:1/n included, and no
@@ -565,8 +578,9 @@ def in_force(r, by):
         # infrastructure community's: its founders' strict majority, checked by the count at the change's heads)
         if a[0] == "record_change" and r.get("consensus_protocol") is not None and "protocol_set_open" not in MUT:
             w = r["consensus_protocol"]
-            ok = protocol_rule(w) if a[2] == "infrastructure" else community_rule(w, r.get("need"), r.get("weights"))
-            if ok is None or (a[2] == "infrastructure" and ok[0] != "quorum"): return REFUSED
+            ok = infrastructure_rule(w) if a[2] == "infrastructure" and "infra_record_simple_majority" not in MUT \
+                else community_rule(w, r.get("need"), r.get("weights"))
+            if ok is None: return REFUSED
         # an entrenched record (`consensus_protocol_entrenched`): a change of its protocol, or of the flag itself,
         # concludes nothing (F5); every other amendment concludes under the protocol
         if a[0] == "record_change" and not entrenchment_allows(r, by): return REFUSED
@@ -667,8 +681,6 @@ POLICY["moderation_overturn"] = ("lift", 1, 2)
 # CC 4.5.13: "A recall is one row cosigned by more than two thirds of the standing roster ... The floor is two voices"
 # (the table's cell reads 2/3): strictly more, with the floor, counted over the roster less the holder it recalls
 POLICY["moderator_recall"] = ("recall", 2, 3, 2)
-# an infrastructure community's protocol (P1, Q5): a strict majority of the founder seats at the row's heads
-POLICY["P:founders"] = ("strict", 1, 2)
 # The count each protocol of the set is read as (in_force names it `P:{kind}`): the protocol rows of the table
 # (`protocol` in their enact cell: cosigned_act, community_remove, wa_adjudication) are counted under the room's protocol
 # in force, never one a row states. A quorum's m and a weighted count's threshold reach met()/count_of() as `need`.
@@ -811,7 +823,10 @@ def seat_scopes(o, k):
     row seats by the signatures on it, with or without a map: a listed member who did not sign it is seated in nothing,
     whatever it accepts later (CC 3.1.3.2, `membership_founding_member_unsigned`); one who signed it in its own scope,
     and where it carries a `duty_holders` map, in each duty whose entry names it."""
-    if o["obj"] != o["id"]: return (o["scope"],)
+    if o["obj"] != o["id"]:
+        # an admission carrying `role: founder` (a family's one-row founder admission) seats the founder role too
+        if o.get("role") == "founder" and o["scope"] == "member" and "role_unread" not in MUT: return ("member", "founder")
+        return (o["scope"],)
     # a founding row seats by the signatures on it, with or without a map (CC 3.1.3.2: a listed key that did not sign
     # is `membership_founding_member_unsigned`; it joins by an ordinary admission)
     if "unsigned_no_map" in MUT and not o.get("duty_holders"): return (o["scope"],)   # MUTATION: the old exception
@@ -904,11 +919,19 @@ def end_scope(by, w):
     return t.get("scope")
 
 
+def family_role_seat(by, o, sc):
+    """A family's founder role conferred after founding (a promotion, or an admission carrying the role): a seat of
+    scope `founder` over a family that stands only on the member's seat, and ends with the member's stay (F1)."""
+    g = by.get(o.get("obj"))
+    return sc == "founder" and g is not None and g.get("group_kind") == "family" and o["id"] != o["obj"] \
+        and "role_outlives_stay" not in MUT
+
+
 def duty_held(by, o, sc=None):
     """A duty seat proper: a seat the duty holders place over their community (duty_seat) whose scope makes its holder a
     duty holder, or a duty seat a founding row gives by its `duty_holders` map. The seat the membership rule reaches."""
     sc = o["scope"] if sc is None else sc
-    if founding_duty(o, sc): return True
+    if founding_duty(o, sc) or family_role_seat(by, o, sc): return True
     # over any community, a seat whose scope makes its holder a duty holder (who may confer it is duty_seat's)
     g = by.get(o["obj"])
     return community(by, o["obj"]) and g["id"] != o["id"] and o["scope"] not in ROSTER_SEATS and is_duty(sc, declared(by, o["obj"]))
@@ -1050,7 +1073,8 @@ class Seats:
             for u in unseats:
                 # a removal from the roster ends the removed member's duty seats too, "since a non-member holds no duty" (CC 4.5.4)
                 held = ("seat", k, sc, o["obj"]) in u["cuts"] or (
-                    "member_cut_only" not in MUT and (is_duty(sc) or duty_seat(S.by, o) or founding_duty(o, sc))
+                    "member_cut_only" not in MUT and (is_duty(sc) or duty_seat(S.by, o) or founding_duty(o, sc)
+                                                       or family_role_seat(S.by, o, sc))
                     and any(("seat", k, r, o["obj"]) in u["cuts"] and holds_roster(S, u, k, o["obj"], r) for r in ROSTER_SEATS))
                 if not held: continue
                 # MUTATION duty_revives: a removal from the roster ends no duty seat by its past, so the next admission seats the old offer
@@ -1809,8 +1833,17 @@ def _count_under(r, P, past, by, table=None):
     mem, vot = mem - left, vot - left
     # an infrastructure community's change of the record states the founders' quorum at its own heads: N the founder
     # seats there, M their strict majority (P1, Q5)
-    if r.get("founders_word") is not None and infrastructure_rule(r["founders_word"], len(mem)) is None:
-        return False
+    if r.get("infra_mn") is not None:
+        m, n = r["infra_mn"]
+        if "infra_m_recomputed" in MUT: r = dict(r, need=len(mem) // 2 + 1)   # MUTATION: M computed from the founders
+        # stalled (fewer than M + 1 active founders): the founders' count admits and removes nothing
+        if r.get("scope") != "record" and len(mem) < m + 1 and "infra_stalled_admits" not in MUT: return False
+        if k == "offer" and r.get("scope") == "founder":
+            new = frozenset(r.get("to", ())) - mem
+            # N caps the active founders: a widening that would make them N + 1 concludes nothing
+            if len(mem) + len(new) > n and "infra_no_cap" not in MUT: return False
+            # the new founder signs its own widening
+            if not new <= voices(r, P): return False
     if r.get("founders_fixed"):                      # MUTATION family_founders_fixed: the founding row's founders only
         g = by.get(r["obj"]) or {}
         mem = vot = frozenset(k for d, ks in (g.get("duty_holders") or ()) if d == "founder" for k in ks) & signers(g)
@@ -1872,6 +1905,9 @@ def seat_rule(r, P, past, table=None, other=None):
             if k == "unseat": return _ender(r, P, by)
             return k == "offer" and r.get("under") in by and r["signer"] in by[r["under"]]["to"]
         if conf == "group":
+            # an infrastructure room's recovery widening while stalled is undecided here (stalled_recovery): the kernel
+            # holds no bundle holders, so it concludes nothing
+            if r.get("bundle") is not None and "recovery_concludes" not in MUT: return False
             if k == "unseat" and lone_removal(r, P, past): return True          # CC 4.5.13: a moderator, an agent's key
             return count_met(r, P, past, table)
         return False

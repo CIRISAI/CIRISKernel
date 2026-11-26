@@ -675,6 +675,14 @@ def key_end_cases():
             "pool": pool, "worlds": worlds}
 
 
+def undecided_cases(AC):
+    out = []
+    for name, rows, rid, want in AC.UNDECIDED:
+        refs = {}
+        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "reason": want})
+    return out
+
+
 def dissolved_cases(AC):
     out = []
     for name, rows, want in AC.DISSOLVED:
@@ -702,8 +710,9 @@ def acts_cases():
             "roster_seats": list(ST.ROSTER_SEATS), "duties": list(ST.DUTIES), "cases": cases, "queries": queries,
             "conclude": conclude, "protocol_kinds": list(ST.PROTOCOL_KINDS),
             "protocol_words": [[w, list(ST.protocol_rule(w)) if ST.protocol_rule(w) else None] for w, _ in AC.PROTOCOL_WORDS],
-            "infrastructure_words": [[w, n, list(ST.infrastructure_rule(w, n)) if ST.infrastructure_rule(w, n) else None]
-                                     for w, n, _ in AC.INFRA_WORDS],
+            "infrastructure_words": [[w, list(ST.infrastructure_rule(w)) if ST.infrastructure_rule(w) else None]
+                                     for w, _ in AC.INFRA_WORDS],
+            "undecided": undecided_cases(AC),
             "protocol_states": [[w, act, got] for w, act, got in AC.SHEET_ANSWERS],
             "dissolved": dissolved_cases(AC),
             "community_floor": ST.COMMUNITY_FLOOR}

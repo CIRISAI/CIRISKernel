@@ -191,8 +191,8 @@ plant "a founding record's duty holders unread" src/seat.rs '    if o.duty_holde
         return alloc::vec![Sc::Row(own)];' '    if true {
         return alloc::vec![Sc::Row(own)];'
 plant "a founding row with no map seats an unsigned key that accepts later" src/seat.rs '    if !founding(o) {
-        return alloc::vec![Sc::Row(own)];' '    if !founding(o) || (o.duty_holders().is_empty() && !lone_founding(o)) {
-        return alloc::vec![Sc::Row(own)];'
+        // an admission carrying' '    if !founding(o) || (o.duty_holders().is_empty() && !lone_founding(o)) {
+        // an admission carrying'
 plant "a listed member who did not sign the record is seated" src/seat.rs '    if !signed {
         return Vec::new();' '    if false {
         return Vec::new();'
@@ -311,15 +311,24 @@ plant 'the order of changes read over the whole graph'  src/seat.rs 'let newest:
 plant 'of disagreeing changes one in force'              src/seat.rs 'newest.iter().all(|q| stated(*q) == one).then_some(first)' 'Some(first)'
 plant 'any change of the record in force, not the newest' src/seat.rs 'newest.iter().all(|q| stated(*q) == one).then_some(first)' 'Some(am[0])'
 plant 'a change of the record counted under the founding protocol' src/seat.rs '    let rec = protocol_record(p, &obj).ok_or(())?;' '    let rec = match &obj { Obj::Row(i) if r.scope().is_some_and(|s| s.as_ref() == "record") => p.get(i), o => protocol_record(p, o) }.ok_or(())?;'
-plant "an infrastructure quorum not its founders' strict majority" src/seat.rs 'RoomProtocol::Quorum(m, n) if usize::try_from(n) == Ok(n_f) && m == n / 2 + 1 => Some(p),' 'RoomProtocol::Quorum(_, n) if usize::try_from(n) == Ok(n_f) => Some(p),'
+plant "an infrastructure quorum not its N's strict majority" src/seat.rs 'RoomProtocol::Quorum(m, n) if m >= 2 && m == n / 2 + 1 => Some(p),' 'RoomProtocol::Quorum(m, _) if m >= 2 => Some(p),'
+plant 'an infrastructure quorum of one voice'           src/seat.rs 'RoomProtocol::Quorum(m, n) if m >= 2 && m == n / 2 + 1 => Some(p),' 'RoomProtocol::Quorum(m, n) if m == n / 2 + 1 => Some(p),'
 # retired: "an infrastructure quorum's N the record's" (N is the founder seats at the row's heads, P1 redo; the plants on M below)
 plant "an infrastructure record change counted as a community's" src/seat.rs '    if kind_of(law, get, &obj) == Some(CommunityKind::Infrastructure) {' '    if kind_of(law, get, &obj) == Some(CommunityKind::Infrastructure) && !r.scope().is_some_and(|s| s.as_ref() == "record") {'
 plant 'under open:self_admit a record change an admission' src/seat.rs '&& (r.seat_kind() != SeatKind::Offer || !r.scope().is_some_and(|s| s.as_ref() == "member"))' '&& r.seat_kind() != SeatKind::Offer'
 plant 'under open:self_admit a removal counted'          src/seat.rs '&& (r.seat_kind() != SeatKind::Offer || !r.scope().is_some_and(|s| s.as_ref() == "member"))' '&& r.seat_kind() == SeatKind::Offer && !r.scope().is_some_and(|s| s.as_ref() == "member")'
 plant "an act's body the row's"                          src/seat.rs 'if r.over().is_some_and(|o| o != obj) || counted != body_of(get, (act, sc, kind), &obj) {' 'if false {'
 plant 'an infrastructure community counted over its members' src/seat.rs '        if counted != "founder" {' '        if counted != "founder" && counted != "member" {'
-plant "an infrastructure community's M read from its word" src/seat.rs 'return Ok(InForce { founders_word, ..InForce::plain(Some(Policy::Strict(1, 2)), None) });' 'return Ok(InForce::plain(Some(Policy::Declared), match RoomProtocol::parse(word.as_ref()) { Some(RoomProtocol::Quorum(m, _)) => Some(m as usize), _ => None }));'
-plant "an infrastructure community's M fixed by its founding count" src/seat.rs 'return Ok(InForce { founders_word, ..InForce::plain(Some(Policy::Strict(1, 2)), None) });' 'return Ok(InForce { founders_word, ..InForce::plain(Some(Policy::Declared), Some(founders_of(get, &obj) / 2 + 1)) });'
+plant "an infrastructure community's M recomputed from the founders" src/seat.rs 'need: f.need };' 'need: f.infra.map_or(f.need, |_| Some(mem.len() / 2 + 1)) };'
+plant 'an infrastructure room founded above its cap'     src/seat.rs 'if core::ptr::eq(rec, founding) && founders_of(get, &obj) > n {' 'if false {'
+plant 'a stalled infrastructure room admits and removes' src/seat.rs '&& mem.len() < m + 1 {' '&& false {'
+plant "an infrastructure room's N caps nothing"          src/seat.rs '            if mem.len() + new.len() > n {' '            if false {'
+plant 'a new founder need not sign its own widening'     src/seat.rs '            if !new.iter().all(|k| v.contains(*k)) {' '            if false {'
+plant 'a recovery widening counted as a widening'        src/seat.rs '                    if r.bundle().is_some() {' '                    if false {'
+plant "an admission's role unread"                        src/seat.rs '            if let Some(role) = o.role().filter(|x| x.as_ref() == "founder") {' '            if let Some(role) = o.role().filter(|_| false) {'
+plant 'a conferred founder role outlives the stay'       src/seat.rs '    sc == "founder"
+        && !founding(o)' '    false
+        && !founding(o)'
 plant "a change of the record meets either joined policy" src/seat.rs '!fs.is_empty() && fs.iter().all(|f| count_under(p, law, spec, cache, f))' '!fs.is_empty() && fs.iter().any(|f| count_under(p, law, spec, cache, f))'
 plant 'the cosigned_act half blocks where the protocol states no rule' src/seat.rs '    let dropped = unstated().is_some();' '    let dropped = unstated().is_some() && false;'
 plant 'a policy governing alone takes no floor'          src/seat.rs '    if f.floor > 0 && v.iter().filter(|k| mem.contains(*k)).count() < f.floor {' '    if false {'

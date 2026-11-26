@@ -299,6 +299,8 @@ pub struct TRow {
     pub regime: Option<String>,
     pub cohort_subkind: Option<String>,
     pub group_kind: Option<String>,
+    pub bundle: Option<String>,
+    pub role: Option<String>,
     pub counted: Option<String>,
     pub of: Option<String>,
     pub target: Option<String>,
@@ -388,6 +390,8 @@ impl TRow {
             regime: opt(&m, "regime"),
             cohort_subkind: opt(&m, "cohort_subkind"),
             group_kind: opt(&m, "group_kind"),
+            bundle: opt(&m, "bundle"),
+            role: opt(&m, "role"),
             counted: opt(&m, "counted"),
             of: opt(&m, "of"),
             target: if m.get("target").is_some_and(|t| matches!(t, J::Str(_))) { opt(&m, "target") } else { None },
@@ -501,6 +505,12 @@ impl SeatRow for TRow {
     }
     fn group_kind(&self) -> Option<&String> {
         self.group_kind.as_ref()
+    }
+    fn bundle(&self) -> Option<&String> {
+        self.bundle.as_ref()
+    }
+    fn role(&self) -> Option<&String> {
+        self.role.as_ref()
     }
     fn protocol_entrenched(&self) -> bool {
         self.f("consensus_protocol_entrenched").is_some_and(|x| x.b())

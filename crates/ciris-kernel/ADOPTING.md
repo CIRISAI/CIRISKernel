@@ -97,12 +97,13 @@ migrations, and the local operational store.
   (the row's past) rather than from any other row: it gives the newest change of the record there (a counted
   `record` offer carrying `consensus_protocol`, ordered over the concluded rows), or the founding record's. Emit
   the notice `hard_case:community_consensus_protocol_change` for a change.
-- An infrastructure community counts a strict majority of the `founder` seats at the row's heads (`counted()`
-  `founder`; nodes in no base): N is counted by the kernel and M = N / 2 + 1. Its record states `quorum:{M}/{N}`
-  with those numbers (the founding record's over its signers, `seat::founders_of`; a change's over the founders at its
-  heads): any other word concludes nothing (`RoomProtocol::parse_in`), and your door refuses it at founding and at
-  a change (`federation_community_consensus_protocol_violation`). Found it in scope `founder`. Its record changes
-  under that majority (`record_change` over `infrastructure`). At N = 1 a lone founder acts alone (open, Q5).
+- An infrastructure community counts M founder voices, the record's M (absolute, at least 2, the strict majority of
+  N; never recomputed), over the `founder` seats at the row's heads (`counted()` `founder`; nodes in no base). It is
+  live while its active founders number at least M + 1; stalled, its founders admit and remove nothing. N caps the
+  founders; going above N is a record change restating `quorum:{M}/{N}`, not allowed where entrenched. Found it in
+  scope `founder`, with no more founders than N; refuse any other word at your door
+  (`federation_community_consensus_protocol_violation`). A stalled room's recovery widening (`SeatRow::bundle()`)
+  is undecided: ask `seat::stalled_recovery` and settle it against the trust root's bundle yourself.
 - A community's protocol is a word of the set under which no one voice decides (`seat::community_protocol`): not
   `quorum:1/{n}`, not `founder_only` (a family's; families are not built), not a weighted record one of whose
   weights reaches its threshold. A change of its record states no policy and meets both the protocol in force and
@@ -114,7 +115,8 @@ migrations, and the local operational store.
 - A family: present its founding record with `group_kind()` `family`, its founders as the `duty_holders` entry
   `founder` (no other entry: a duty map refuses the family), and its `consensus_protocol` (any of the set). Nothing
   signs as the family. Under `founder_only` state `counted()` `founder`; a promotion is an offer of scope `founder`
-  the member accepts, a demotion an unseat of `founder`. Present `protocol_entrenched()` and `dissolves()` where the
+  the member accepts, a demotion an unseat of `founder`; a one-row admission with the role is an offer of `member`
+  carrying `role()` `founder`. Present `protocol_entrenched()` and `dissolves()` where the
   record carries them, and ask `Seats::dissolved` whether a group is gone. No last-founder rule is the kernel's.
 - A demotion and a removal are both counted as a removal, and differ in what they end. In a family, an unseat of
   scope `founder` is a DEMOTION: the founder role ends and the member seat stays. An unseat of the member seat is a

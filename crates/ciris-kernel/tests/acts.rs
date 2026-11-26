@@ -92,14 +92,12 @@ fn protocol_set_replay() {
     let fx = fixture("acts.json");
     assert_eq!(fx.at("protocol_kinds").strs(), PROTOCOL_KINDS.map(String::from).to_vec());
     let (mut cases, mut bad) = (0, 0);
-    for list in ["protocol_words", "infrastructure_words"] {
+    for (list, infrastructure) in [("protocol_words", false), ("infrastructure_words", true)] {
         for w in fx.at(list).arr() {
             let a = w.arr();
             let word = a[0].s();
-            // an infrastructure word is read over its founder count
-            let founders = (a.len() == 3).then(|| a[1].i() as usize);
-            let want = words_of(&a[a.len() - 1]);
-            let got = RoomProtocol::parse_in(word, founders).map(proto_words);
+            let want = words_of(&a[1]);
+            let got = RoomProtocol::parse_in(word, infrastructure).map(proto_words);
             cases += 1;
             if got != want {
                 bad += 1;
@@ -213,6 +211,37 @@ fn dissolved_replay() {
         }
     }
     report("a group's dissolution against check_acts.py", cases, bad);
+    assert_eq!(bad, 0);
+}
+
+/// An infrastructure room's recovery widening while stalled is undecided, with its reason
+/// (`seat::stalled_recovery`, `check_acts.py`'s UNDECIDED).
+#[test]
+fn undecided_replay() {
+    use ciris_kernel::layers::{conclude, kept, Past};
+    use ciris_kernel::seat::{seat_rule, stalled_recovery};
+    use common::DictCut;
+    let fx = fixture("acts.json");
+    let law = law_of(fixture("seat.json").at("law"));
+    let (mut cases, mut bad) = (0, 0);
+    for c in fx.at("undecided").arr() {
+        let refs: BTreeMap<String, String> =
+            c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rows = rows_with_refs(c.at("rows").arr(), &refs);
+        let k = kept(&rows, |_| true);
+        let cc = conclude(k, |p| seat_rule(p, &law, &DictCut, &|_| true), None);
+        let i = cc.g.rows().iter().position(|r| r.id == c.at("row").s()).expect("the row asked");
+        let anc: Vec<usize> = cc.cs().iter().copied().filter(|&q| cc.g.in_past(q, i)).collect();
+        let p = Past::new(&cc.g, i, &anc);
+        let got = stalled_recovery(&p, &law, &DictCut);
+        let want = c.get("reason").and_then(|r| r.opt_s());
+        cases += 1;
+        if got.map(String::from) != want {
+            bad += 1;
+            eprintln!("undecided {}: got {got:?}, want {want:?}", c.at("name").s());
+        }
+    }
+    report("an infrastructure room's recovery widening against check_acts.py", cases, bad);
     assert_eq!(bad, 0);
 }
 

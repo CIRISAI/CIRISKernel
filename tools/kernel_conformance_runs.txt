@@ -47,3 +47,4 @@ act_of and policy_for against check_acts.py
 the act-to-policy refusal against check_acts.py
 the protocol set against check_acts.py
 a group's dissolution against check_acts.py
+an infrastructure room's recovery widening against check_acts.py

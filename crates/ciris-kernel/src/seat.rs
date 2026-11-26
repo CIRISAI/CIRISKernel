@@ -219,6 +219,17 @@ pub trait SeatRow: Row {
     fn dissolves(&self) -> bool {
         false
     }
+    /// An infrastructure room's recovery widening (CC 3.2): the row, counted at a strict majority over the holders
+    /// of the bundle in force of the room's root, that names the key a stalled room's widening seats. Such a widening
+    /// is undecided ([`stalled_recovery`]); the seat rule concludes nothing for it. Default `None`.
+    fn bundle(&self) -> Option<&Self::Id> {
+        None
+    }
+    /// An admission's role: `founder` on an offer of the member seat over a family seats the founder role too (a
+    /// family's one-row founder admission, F1). Default `None`.
+    fn role(&self) -> Option<&Self::Word> {
+        None
+    }
     /// A counted act: the protocol and policy in force at it, as one value the caller compares by equality.
     /// Tips whose values differ do not fold ([`Seats::tips_fold`]). `None` where the caller states none.
     fn regime(&self) -> Option<&Self::Word> {
@@ -412,17 +423,18 @@ impl RoomProtocol {
             _ => None,
         }
     }
-    /// The protocol a record's word names (`founders` `None`), or the word an infrastructure community's record may
-    /// state over that many founders (CC 3.2, ruled on P1 and Q5: the founding row's signers, [`founders_of`], for
-    /// the founding record; the founder seats at a change's heads for a change): `quorum:{M}/{N}` with N that count
-    /// and M its strict majority (`N / 2 + 1`); any other word there (`quorum:2/5`, `quorum:3/3`, a quorum stating
-    /// another N, `majority`) is none, the text's `federation_community_consensus_protocol_violation`. The count
-    /// itself is always the founders' strict majority at its own heads.
-    pub fn parse_in(w: &str, founders: Option<usize>) -> Option<RoomProtocol> {
+    /// The protocol a record's word names (`infrastructure` false), or the word an infrastructure community's
+    /// record may state (CC 3.2, "Live and stalled"): `quorum:{M}/{N}`, M an absolute count of founder voices, at
+    /// least 2 and the strict majority of N (`N / 2 + 1`), N the cap on its active founders. Any other word there
+    /// (`quorum:1/1`, `quorum:2/5`, `quorum:3/3`, `majority`) is none, the text's
+    /// `federation_community_consensus_protocol_violation`. M is never recomputed from the founders held.
+    pub fn parse_in(w: &str, infrastructure: bool) -> Option<RoomProtocol> {
         let p = RoomProtocol::parse(w)?;
-        let Some(n_f) = founders else { return Some(p) };
+        if !infrastructure {
+            return Some(p);
+        }
         match p {
-            RoomProtocol::Quorum(m, n) if usize::try_from(n) == Ok(n_f) && m == n / 2 + 1 => Some(p),
+            RoomProtocol::Quorum(m, n) if m >= 2 && m == n / 2 + 1 => Some(p),
             _ => None,
         }
     }
@@ -938,9 +950,9 @@ struct InForce<'a, R: SeatRow> {
     need: Option<usize>,
     /// The row whose weights a weighted count reads: the record under the room's protocol, `None` for the row's own.
     weights: Option<&'a R>,
-    /// An infrastructure community's change of the record: the word it states must be the founders' quorum at its
-    /// own heads (read by the count, which counts them).
-    founders_word: bool,
+    /// An infrastructure community's (M, N) (CC 3.2): the count is live while the founder seats at the row's heads
+    /// number at least M + 1, and N caps them (read by the count, which counts them).
+    infra: Option<(usize, usize)>,
     /// The community floor of voices, where this policy governs alone in place of a protocol that states no rule.
     floor: usize,
     /// A family under `founder_only`: a removal (a demotion too) takes an active founder other than the one it
@@ -953,15 +965,7 @@ struct InForce<'a, R: SeatRow> {
 
 impl<'a, R: SeatRow> InForce<'a, R> {
     fn plain(pol: Option<Policy>, need: Option<usize>) -> Self {
-        InForce {
-            pol,
-            need,
-            weights: None,
-            founders_word: false,
-            floor: 0,
-            exclude_target: false,
-            no_self_removal: false,
-        }
+        InForce { pol, need, weights: None, infra: None, floor: 0, exclude_target: false, no_self_removal: false }
     }
 }
 
@@ -1013,7 +1017,7 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
                 if act == Act::RecordChange {
                     if let Some(w) = r.consensus_protocol() {
                         let ok = if kind == CommunityKind::Infrastructure {
-                            matches!(RoomProtocol::parse(w.as_ref()), Some(RoomProtocol::Quorum(..)))
+                            RoomProtocol::parse_in(w.as_ref(), true).is_some()
                         } else {
                             community_protocol(w.as_ref(), r.need(), r.weights()).is_some()
                         };
@@ -1112,6 +1116,37 @@ fn dissolved_in<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>) -> bool {
     p.rows().any(|q| is_dissolve(q) && q.obj().as_ref() == Some(obj))
 }
 
+/// The one row an infrastructure room admits without its founders' count while stalled (CC 3.2): a widening whose only
+/// change is one added founder seat, for a key named by a row ([`SeatRow::bundle`]) counted at a strict majority over
+/// the holders of the bundle in force of the root the room stands under, whose `scope` names this room, signed by the
+/// named key. The kernel holds no bundle holders, so `p.row()` of that shape is UNDECIDED: the reason
+/// `stalled_recovery_needs_bundle` (the seat rule concludes nothing for it); `None` for a row of another shape, or
+/// in a room that is live. The checks for when the trust root's fold is in the kernel: the counted row names the
+/// bundle in force; its `scope` names this room; the key's identity type includes `user` and excludes `node`; the
+/// widening is signed by the named key; only while stalled; only one founder seat; nothing else changed.
+pub fn stalled_recovery<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+) -> Option<&'static str> {
+    let r = p.row();
+    if r.seat_kind() != SeatKind::Offer || r.bundle().is_none() || r.scope().is_none_or(|s| s.as_ref() != "founder") {
+        return None;
+    }
+    let obj = r.obj()?;
+    let get = |i: &R::Id| p.get(i);
+    if kind_of(law, &get, &obj) != Some(CommunityKind::Infrastructure) || r.to().len() != 1 || !signed_by(r, &r.to()[0])
+    {
+        return None;
+    }
+    let rec = protocol_record(p, &obj)?;
+    let Some(RoomProtocol::Quorum(m, _)) = RoomProtocol::parse_in(rec.consensus_protocol()?.as_ref(), true) else {
+        return None;
+    };
+    let founders = count_members_with(p, law, spec, None).len() as u64;
+    (founders < m + 1).then_some("stalled_recovery_needs_bundle")
+}
+
 /// The room's protocol in force at protocol row `r` ([`policy_in_force`]): in a community, the record's protocol
 /// ([`community_protocol`]) over the members, with the record's numbers; in an infrastructure community, a strict
 /// majority of the `founder` seats at the row's heads (CC 3.2, the Constitution's P1 and Q5: N counted by the kernel,
@@ -1128,18 +1163,21 @@ fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> R
     }
     let counted = r.counted().map_or("member", |c| c.as_ref());
     if kind_of(law, get, &obj) == Some(CommunityKind::Infrastructure) {
+        // CC 3.2, "Live and stalled": the record's M founder voices (absolute, never recomputed), over the `founder`
+        // seats held at the row's heads; live while they number at least M + 1, and N caps them (both read by the
+        // count). A founding row seating more founders than N founds no protocol that concludes
         let Obj::Row(i) = &obj else { return Err(()) };
         let founding = p.get(i).ok_or(())?;
         let word = rec.consensus_protocol().ok_or(())?;
-        if core::ptr::eq(rec, founding) && RoomProtocol::parse_in(word.as_ref(), Some(founders_of(get, &obj))).is_none()
-        {
+        let Some(RoomProtocol::Quorum(m, n)) = RoomProtocol::parse_in(word.as_ref(), true) else { return Err(()) };
+        let (m, n) = (usize::try_from(m).map_err(|_| ())?, usize::try_from(n).map_err(|_| ())?);
+        if core::ptr::eq(rec, founding) && founders_of(get, &obj) > n {
             return Err(());
         }
         if counted != "founder" {
             return Err(());
         }
-        let founders_word = r.scope().is_some_and(|s| s.as_ref() == "record") && r.consensus_protocol().is_some();
-        return Ok(InForce { founders_word, ..InForce::plain(Some(Policy::Strict(1, 2)), None) });
+        return Ok(InForce { infra: Some((m, n)), ..InForce::plain(Some(Policy::Declared), Some(m)) });
     }
     let word = rec.consensus_protocol().ok_or(())?;
     let family = kind_of(law, get, &obj) == Some(CommunityKind::Family);
@@ -1381,6 +1419,12 @@ fn lone_founding<R: SeatRow>(o: &R) -> bool {
 fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<Sc<'a, R::Word>> {
     let Some(own) = o.scope() else { return Vec::new() };
     if !founding(o) {
+        // an admission carrying `role: founder` (a family's one-row founder admission) seats the founder role too
+        if own.as_ref() == "member" {
+            if let Some(role) = o.role().filter(|x| x.as_ref() == "founder") {
+                return alloc::vec![Sc::Row(own), Sc::Row(role)];
+            }
+        }
         return alloc::vec![Sc::Row(own)];
     }
     if !signed {
@@ -1402,6 +1446,16 @@ fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<Sc<'a,
     let mut out = alloc::vec![Sc::Row(own)];
     out.extend(o.duty_holders().iter().filter(|(d, ks)| ks.contains(k) && d != own).map(|(d, _)| Sc::Row(d)));
     out
+}
+
+/// A family's founder role conferred after founding (a promotion, or an admission carrying the role): a seat of scope
+/// `founder` over a family that stands only on the member's seat, and ends with the member's stay (F1).
+fn family_role_seat<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, o: &R, sc: &str) -> bool {
+    sc == "founder"
+        && !founding(o)
+        && o.obj()
+            .and_then(|ob| row_of(by, &ob))
+            .is_some_and(|g| g.group_kind().is_some_and(|k| k.as_ref() == "family"))
 }
 
 /// A duty seat a founding row gives by its `duty_holders` map, or to its lone signer: a seat of that row in a
@@ -1441,7 +1495,7 @@ fn community<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, obj: &ObjOf<R>) -> bool {
 /// `duty_holders` map. The seat the membership rule reaches, in every community. (Who may confer it is
 /// [`duty_seat`]'s, and that is unchanged.)
 fn duty_held<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, o: &R, sc: &str) -> bool {
-    if founding_duty(o, sc) {
+    if founding_duty(o, sc) || family_role_seat(by, o, sc) {
         return true;
     }
     let Some(obj) = o.obj() else { return false };
@@ -1652,7 +1706,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 return false;
             }
             let o = g.row(oi);
-            let dutyish = law.is_duty(sc.s(), &[]) || duty_seat(law, &by, o) || founding_duty(o, sc.s());
+            let dutyish = law.is_duty(sc.s(), &[])
+                || duty_seat(law, &by, o)
+                || founding_duty(o, sc.s())
+                || family_role_seat(&by, o, sc.s());
             let oo = o.obj();
             unseats.iter().any(|(u, uo)| {
                 let (u, ur) = (*u, g.row(*u));
@@ -3254,12 +3311,23 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
     }
     let mem = count_members_with(p, law, spec, cache);
-    // an infrastructure community's change of the record states the founders' quorum at its own heads: N the founder
-    // seats there, M their strict majority (P1, Q5)
-    if f.founders_word
-        && !r.consensus_protocol().is_some_and(|w| RoomProtocol::parse_in(w.as_ref(), Some(mem.len())).is_some())
-    {
-        return false;
+    if let Some((m, n)) = f.infra {
+        // stalled (fewer than M + 1 active founders): the founders' count admits and removes nothing
+        if !r.scope().is_some_and(|s| s.as_ref() == "record") && mem.len() < m + 1 {
+            return false;
+        }
+        if is_offer && r.scope().is_some_and(|s| s.as_ref() == "founder") {
+            let new: Vec<&R::Key> = r.to().iter().filter(|k| !mem.contains(*k)).collect();
+            // N caps the active founders: a widening that would make them N + 1 concludes nothing
+            if mem.len() + new.len() > n {
+                return false;
+            }
+            // the new founder signs its own widening
+            let v = voices(r, p);
+            if !new.iter().all(|k| v.contains(*k)) {
+                return false;
+            }
+        }
     }
     // a family under founder_only: a removal takes an active founder other than the one it names
     let v: BTreeSet<R::Key> = if f.exclude_target {
@@ -3369,6 +3437,11 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     r.under().and_then(|u| by.get(u)).is_some_and(|u| u.to().contains(r.signer()))
                 }
                 Some(Conf::Group) => {
+                    // an infrastructure room's recovery widening while stalled is undecided ([`stalled_recovery`]): the
+                    // kernel holds no bundle holders, so it concludes nothing
+                    if r.bundle().is_some() {
+                        return false;
+                    }
                     if !r.head().iter().all(|h| on_object(&by, h, &obj)) {
                         return false; // a count names its own room's heads
                     }
