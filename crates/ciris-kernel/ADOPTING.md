@@ -97,13 +97,14 @@ migrations, and the local operational store.
   (the row's past) rather than from any other row: it gives the newest change of the record there (a counted
   `record` offer carrying `consensus_protocol`, ordered over the concluded rows), or the founding record's. Emit
   the notice `hard_case:community_consensus_protocol_change` for a change.
-- An infrastructure community counts M founder voices, the record's M (absolute, at least 2, the strict majority of
-  N; never recomputed), over the `founder` seats at the row's heads (`counted()` `founder`; nodes in no base). It is
-  live while its active founders number at least M + 1; stalled, its founders admit and remove nothing. N caps the
-  founders; going above N is a record change restating `quorum:{M}/{N}`, not allowed where entrenched. Found it in
-  scope `founder`, with no more founders than N; refuse any other word at your door
-  (`federation_community_consensus_protocol_violation`). A stalled room's recovery widening (`SeatRow::bundle()`)
-  is undecided: ask `seat::stalled_recovery` and settle it against the trust root's bundle yourself.
+- An infrastructure community counts M founder voices, the record's M (absolute, at least 2, never lowered), over the
+  `founder` seats at the row's heads (`counted()` `founder`; nodes in no base); it is live while its active founders
+  number at least M + 1, and stalled its founders admit and remove nothing. Found it in scope `founder`, entrenched,
+  its word stating N = the founders it seats and M their strict majority. Add a founder only by a founders' amendment:
+  a change of the record naming the key in `to()` with `role()` `founder`, signed by it, restating `quorum:{M}/{N}`
+  for the founders after it, counted at the present M. Refuse any other word at your door
+  (`federation_community_consensus_protocol_violation`). A stalled room's recovery widening (`SeatRow::bundle()`) is
+  undecided: ask `seat::stalled_recovery` and settle it against the trust root's bundle yourself.
 - A community's protocol is a word of the set under which no one voice decides (`seat::community_protocol`): not
   `quorum:1/{n}`, not `founder_only` (a family's; families are not built), not a weighted record one of whose
   weights reaches its threshold. A change of its record states no policy and meets both the protocol in force and

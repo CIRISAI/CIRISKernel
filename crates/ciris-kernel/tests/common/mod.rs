@@ -301,6 +301,7 @@ pub struct TRow {
     pub group_kind: Option<String>,
     pub bundle: Option<String>,
     pub role: Option<String>,
+    pub admission_quorum_basis: Option<String>,
     pub counted: Option<String>,
     pub of: Option<String>,
     pub target: Option<String>,
@@ -392,6 +393,7 @@ impl TRow {
             group_kind: opt(&m, "group_kind"),
             bundle: opt(&m, "bundle"),
             role: opt(&m, "role"),
+            admission_quorum_basis: opt(&m, "admission_quorum_basis"),
             counted: opt(&m, "counted"),
             of: opt(&m, "of"),
             target: if m.get("target").is_some_and(|t| matches!(t, J::Str(_))) { opt(&m, "target") } else { None },
@@ -511,6 +513,9 @@ impl SeatRow for TRow {
     }
     fn role(&self) -> Option<&String> {
         self.role.as_ref()
+    }
+    fn admission_quorum_basis(&self) -> Option<&String> {
+        self.admission_quorum_basis.as_ref()
     }
     fn protocol_entrenched(&self) -> bool {
         self.f("consensus_protocol_entrenched").is_some_and(|x| x.b())

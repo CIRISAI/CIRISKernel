@@ -214,6 +214,11 @@ pub trait SeatRow: Row {
     fn protocol_entrenched(&self) -> bool {
         false
     }
+    /// An infrastructure record's `admission_quorum_basis` (`founders`): a change moving it away concludes nothing
+    /// (no weakening, CC 3.2). Default `None`, read as `founders`.
+    fn admission_quorum_basis(&self) -> Option<&Self::Word> {
+        None
+    }
     /// A counted version of the group's record carrying `dissolved_at`: the act `dissolve`, after which no row over
     /// the group concludes and every seat over it ends. Default `false`.
     fn dissolves(&self) -> bool {
@@ -226,7 +231,8 @@ pub trait SeatRow: Row {
         None
     }
     /// An admission's role: `founder` on an offer of the member seat over a family seats the founder role too (a
-    /// family's one-row founder admission, F1). Default `None`.
+    /// family's one-row founder admission, F1); on a change of an infrastructure community's record (scope
+    /// `record`), the keys it names are seated as founders (a founders' amendment, CC 3.1.3.2). Default `None`.
     fn role(&self) -> Option<&Self::Word> {
         None
     }
@@ -1027,7 +1033,7 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
                     }
                 }
                 // an entrenched record: a change of its protocol, or of the flag, concludes nothing (F5)
-                if act == Act::RecordChange && !entrenchment_allows(p, r) {
+                if act == Act::RecordChange && !entrenchment_allows(law, p, r) {
                     return Err(());
                 }
                 // the body an act counts is the act's own, over its own object, never one the row states; a
@@ -1091,10 +1097,19 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
 /// force ([`protocol_record`]) carrying [`SeatRow::protocol_entrenched`], a change stating another protocol, or one
 /// stating a protocol without the flag (a change of the flag), concludes nothing; a change that states no protocol (a
 /// rename, a role, metadata) is allowed. A record not entrenched allows every change.
-fn entrenchment_allows<R: SeatRow>(p: &Past<'_, '_, R>, r: &R) -> bool {
-    let Some(rec) = r.obj().and_then(|o| protocol_record(p, &o)) else { return true };
+fn entrenchment_allows<R: SeatRow>(law: &SeatLaw, p: &Past<'_, '_, R>, r: &R) -> bool {
+    let Some(obj) = r.obj() else { return true };
+    let Some(rec) = protocol_record(p, &obj) else { return true };
     if !rec.protocol_entrenched() {
         return true;
+    }
+    if kind_of(law, &|i| p.get(i), &obj) == Some(CommunityKind::Infrastructure) {
+        // an infrastructure record's entrenchment means no WEAKENING (CC 3.2): its basis stays `founders`, the flag
+        // stays, and M is never lowered (the count checks M against the present one, with the founders it reads)
+        if r.admission_quorum_basis().is_some_and(|b| b.as_ref() != "founders") {
+            return false;
+        }
+        return r.consensus_protocol().is_none() || r.protocol_entrenched();
     }
     match r.consensus_protocol() {
         None => true,
@@ -1171,7 +1186,15 @@ fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> R
         let word = rec.consensus_protocol().ok_or(())?;
         let Some(RoomProtocol::Quorum(m, n)) = RoomProtocol::parse_in(word.as_ref(), true) else { return Err(()) };
         let (m, n) = (usize::try_from(m).map_err(|_| ())?, usize::try_from(n).map_err(|_| ())?);
-        if core::ptr::eq(rec, founding) && founders_of(get, &obj) > n {
+        // its record MUST be entrenched; its founding word states N = the founders it seats; and a founder seat is
+        // added only by a founders' amendment (or the stalled recovery widening): a plain founder widening is none
+        if !founding.protocol_entrenched() {
+            return Err(());
+        }
+        if core::ptr::eq(rec, founding) && founders_of(get, &obj) != n {
+            return Err(());
+        }
+        if r.seat_kind() == SeatKind::Offer && r.scope().is_some_and(|s| s.as_ref() == "founder") {
             return Err(());
         }
         if counted != "founder" {
@@ -1419,10 +1442,13 @@ fn lone_founding<R: SeatRow>(o: &R) -> bool {
 fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<Sc<'a, R::Word>> {
     let Some(own) = o.scope() else { return Vec::new() };
     if !founding(o) {
-        // an admission carrying `role: founder` (a family's one-row founder admission) seats the founder role too
-        if own.as_ref() == "member" {
-            if let Some(role) = o.role().filter(|x| x.as_ref() == "founder") {
-                return alloc::vec![Sc::Row(own), Sc::Row(role)];
+        // an admission carrying `role: founder` (a family's one-row founder admission) seats the founder role too; a
+        // founders' amendment of an infrastructure record (scope `record`) seats its keys as founders
+        if let Some(role) = o.role().filter(|x| x.as_ref() == "founder") {
+            match own.as_ref() {
+                "member" => return alloc::vec![Sc::Row(own), Sc::Row(role)],
+                "record" => return alloc::vec![Sc::Row(role)],
+                _ => {}
             }
         }
         return alloc::vec![Sc::Row(own)];
@@ -3311,21 +3337,40 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
     }
     let mem = count_members_with(p, law, spec, cache);
-    if let Some((m, n)) = f.infra {
+    if let Some((m, _)) = f.infra {
         // stalled (fewer than M + 1 active founders): the founders' count admits and removes nothing
         if !r.scope().is_some_and(|s| s.as_ref() == "record") && mem.len() < m + 1 {
             return false;
         }
-        if is_offer && r.scope().is_some_and(|s| s.as_ref() == "founder") {
-            let new: Vec<&R::Key> = r.to().iter().filter(|k| !mem.contains(*k)).collect();
-            // N caps the active founders: a widening that would make them N + 1 concludes nothing
-            if mem.len() + new.len() > n {
-                return false;
-            }
-            // the new founder signs its own widening
+        // N in the word is documentary once a removal leaves it stale; M binds
+        if r.scope().is_some_and(|s| s.as_ref() == "record") {
+            // a founders' amendment: it seats its new keys, signed by each, and is a widening by the founders'
+            // count, so a stalled room makes none
+            let new: Vec<&R::Key> =
+                if is_offer { r.to().iter().filter(|k| !mem.contains(*k)).collect() } else { Vec::new() };
             let v = voices(r, p);
             if !new.iter().all(|k| v.contains(*k)) {
                 return false;
+            }
+            if !new.is_empty() && mem.len() < m + 1 {
+                return false;
+            }
+            // it restates quorum:M/N with N the founders it leaves and M their strict majority, never below the
+            // present M
+            match r.consensus_protocol() {
+                Some(w) => {
+                    let Some(RoomProtocol::Quorum(m2, n2)) = RoomProtocol::parse_in(w.as_ref(), true) else {
+                        return false;
+                    };
+                    if usize::try_from(n2) != Ok(mem.len() + new.len()) {
+                        return false;
+                    }
+                    if !usize::try_from(m2).is_ok_and(|m2| m2 >= m) {
+                        return false;
+                    }
+                }
+                None if !new.is_empty() => return false,
+                None => {}
             }
         }
     }

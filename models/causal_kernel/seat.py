@@ -492,14 +492,17 @@ def _protocol_part(r, by, need, weights):
     infra = kind_of(by, obj) == "infrastructure" and not ("infra_record_simple_majority" in MUT and r.get("scope") == "record")
     if r.get("over", obj) != obj and "body_from_row" not in MUT: return REFUSED
     if infra:
-        # CC 3.2, "Live and stalled": the record's M founder voices (absolute, never recomputed), over the `founder`
-        # seats held at the row's heads; the room is live while they number at least M + 1, and N caps them (both read
-        # by the count, which counts them). A founding row of more founders than N, or with no founder seat, founds no
-        # protocol that concludes
+        # CC 3.1.3.2 and 3.2 read through: the record's M founder voices (absolute, never lowered), over the `founder`
+        # seats held at the row's heads; live while they number at least M + 1. Its record MUST be entrenched (no
+        # weakening), and its founding word states N = the founders it seats and M their strict majority. A founder
+        # seat is added only by a founders' amendment (a change of the record seating the key, below) or the stalled
+        # recovery widening (undecided): a plain founder widening concludes nothing
         g = by[obj]
         pr = infrastructure_rule(w)
         if pr is None: return REFUSED
-        if rec is g and founders_of(by, obj) > pr[2] and "infra_no_cap" not in MUT: return REFUSED   # founded above N
+        if not g.get("consensus_protocol_entrenched") and "infra_unentrenched" not in MUT: return REFUSED
+        if rec is g and pr[2] != founders_of(by, obj) and "infra_word_n_free" not in MUT: return REFUSED   # founding N
+        if r["kind"] == "offer" and r.get("scope") == "founder" and "infra_founder_by_widening" not in MUT: return REFUSED
         if r.get("counted", "member") != "founder" and "infra_body_members" not in MUT and "protocol_body_free" not in MUT:
             return REFUSED
         return dict(policy="P:quorum", need=pr[1], weights=None, infra_mn=(pr[1], pr[2]))
@@ -628,6 +631,11 @@ def entrenchment_allows(r, by):
     if "entrenched_amendable" in MUT: return True
     rec = protocol_record(by, r.get("obj"))
     if rec is None or not rec.get("consensus_protocol_entrenched"): return True
+    if kind_of(by, r.get("obj")) == "infrastructure":
+        # an infrastructure record's entrenchment means no WEAKENING (CC 3.2): its basis stays `founders`, the flag stays,
+        # and M is never lowered (the count checks M against the present one, with the founders it reads)
+        if r.get("admission_quorum_basis", "founders") != "founders": return False
+        return r.get("consensus_protocol") is None or r.get("consensus_protocol_entrenched") is True
     if "entrenched_whole_record" in MUT: return False             # MUTATION: every amendment refused
     if r.get("consensus_protocol") is None: return r.get("consensus_protocol_entrenched", True) is True
     return r["consensus_protocol"] == rec.get("consensus_protocol") and r.get("consensus_protocol_entrenched") is True
@@ -826,6 +834,8 @@ def seat_scopes(o, k):
     if o["obj"] != o["id"]:
         # an admission carrying `role: founder` (a family's one-row founder admission) seats the founder role too
         if o.get("role") == "founder" and o["scope"] == "member" and "role_unread" not in MUT: return ("member", "founder")
+        # a founders' amendment of an infrastructure record seats its keys as founders (CC 3.1.3.2)
+        if o.get("role") == "founder" and o["scope"] == "record": return ("founder",)
         return (o["scope"],)
     # a founding row seats by the signatures on it, with or without a map (CC 3.1.3.2: a listed key that did not sign
     # is `membership_founding_member_unsigned`; it joins by an ordinary admission)
@@ -1838,12 +1848,19 @@ def _count_under(r, P, past, by, table=None):
         if "infra_m_recomputed" in MUT: r = dict(r, need=len(mem) // 2 + 1)   # MUTATION: M computed from the founders
         # stalled (fewer than M + 1 active founders): the founders' count admits and removes nothing
         if r.get("scope") != "record" and len(mem) < m + 1 and "infra_stalled_admits" not in MUT: return False
-        if k == "offer" and r.get("scope") == "founder":
-            new = frozenset(r.get("to", ())) - mem
-            # N caps the active founders: a widening that would make them N + 1 concludes nothing
-            if len(mem) + len(new) > n and "infra_no_cap" not in MUT: return False
-            # the new founder signs its own widening
+        new = frozenset(r.get("to", ())) - mem if k == "offer" else frozenset()
+        if r.get("scope") == "record":
+            # a founders' amendment: it seats its new keys, signed by each, and is a widening by the founders' count,
+            # so a stalled room makes none
             if not new <= voices(r, P): return False
+            if new and len(mem) < m + 1 and "infra_stalled_admits" not in MUT: return False
+            # it restates quorum:M/N with N the founders it leaves and M their strict majority, never below the present M
+            if r.get("consensus_protocol") is not None:
+                pr = infrastructure_rule(r["consensus_protocol"])
+                n_after = len(mem) + len(new)
+                if pr is None or (pr[2] != n_after and "infra_word_n_free" not in MUT): return False
+                if pr[1] < m and "infra_m_lowered" not in MUT: return False
+            elif new: return False                                 # seating a founder restates the word
     if r.get("founders_fixed"):                      # MUTATION family_founders_fixed: the founding row's founders only
         g = by.get(r["obj"]) or {}
         mem = vot = frozenset(k for d, ks in (g.get("duty_holders") or ()) if d == "founder" for k in ks) & signers(g)

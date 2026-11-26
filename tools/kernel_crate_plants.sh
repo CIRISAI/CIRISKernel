@@ -320,12 +320,18 @@ plant 'under open:self_admit a removal counted'          src/seat.rs '&& (r.seat
 plant "an act's body the row's"                          src/seat.rs 'if r.over().is_some_and(|o| o != obj) || counted != body_of(get, (act, sc, kind), &obj) {' 'if false {'
 plant 'an infrastructure community counted over its members' src/seat.rs '        if counted != "founder" {' '        if counted != "founder" && counted != "member" {'
 plant "an infrastructure community's M recomputed from the founders" src/seat.rs 'need: f.need };' 'need: f.infra.map_or(f.need, |_| Some(mem.len() / 2 + 1)) };'
-plant 'an infrastructure room founded above its cap'     src/seat.rs 'if core::ptr::eq(rec, founding) && founders_of(get, &obj) > n {' 'if false {'
+plant "an infrastructure founding word's N free"        src/seat.rs 'if core::ptr::eq(rec, founding) && founders_of(get, &obj) != n {' 'if false {'
+plant 'an infrastructure record not entrenched'          src/seat.rs '        if !founding.protocol_entrenched() {' '        if false {'
+plant 'an infrastructure founder seat by a plain widening' src/seat.rs '        if r.seat_kind() == SeatKind::Offer && r.scope().is_some_and(|s| s.as_ref() == "founder") {' '        if false {'
+plant "an infrastructure amendment's N free"             src/seat.rs '                    if usize::try_from(n2) != Ok(mem.len() + new.len()) {' '                    if false {'
+plant 'an infrastructure amendment lowers M'             src/seat.rs '                    if !usize::try_from(m2).is_ok_and(|m2| m2 >= m) {' '                    if false {'
+plant 'a stalled room seats a founder by amendment'      src/seat.rs '            if !new.is_empty() && mem.len() < m + 1 {' '            if false {'
+plant "an infrastructure amendment's basis moved"        src/seat.rs '        if r.admission_quorum_basis().is_some_and(|b| b.as_ref() != "founders") {' '        if false {'
 plant 'a stalled infrastructure room admits and removes' src/seat.rs '&& mem.len() < m + 1 {' '&& false {'
-plant "an infrastructure room's N caps nothing"          src/seat.rs '            if mem.len() + new.len() > n {' '            if false {'
-plant 'a new founder need not sign its own widening'     src/seat.rs '            if !new.iter().all(|k| v.contains(*k)) {' '            if false {'
-plant 'a recovery widening counted as a widening'        src/seat.rs '                    if r.bundle().is_some() {' '                    if false {'
-plant "an admission's role unread"                        src/seat.rs '            if let Some(role) = o.role().filter(|x| x.as_ref() == "founder") {' '            if let Some(role) = o.role().filter(|_| false) {'
+# retired: "an infrastructure room's N caps nothing" (the cap is gone: founder seats come by amendment)
+plant 'a new founder need not sign its amendment'       src/seat.rs '            if !new.iter().all(|k| v.contains(*k)) {' '            if false {'
+# retired: 'a recovery widening counted as a widening' (no founder widening concludes now: dead)
+plant "an admission's role unread"                        src/seat.rs '        if let Some(role) = o.role().filter(|x| x.as_ref() == "founder") {' '        if let Some(role) = o.role().filter(|_| false) {'
 plant 'a conferred founder role outlives the stay'       src/seat.rs '    sc == "founder"
         && !founding(o)' '    false
         && !founding(o)'

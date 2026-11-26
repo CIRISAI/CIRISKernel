@@ -453,29 +453,30 @@ told what act it is by the policy a row states.
   the same protocol with the same numbers.
 - **The roster instances' binding is a parameter** (`roster.Spec.bound`, False for the five; `seat.binding`):
   importing `roster.py` no longer switches the binding off process-wide.
-- **An infrastructure community: live and stalled** (CC 3.2, "Live and stalled", as the Constitution corrected
-  itself, reversing the P1 redo's computed M; the acts table's `record_change` / `record` / `infrastructure`). The
-  record states `quorum:{M}/{N}`: M an absolute count of founder voices, at least 2 and the strict majority of N, never
-  recomputed from the founders held, and never lowered by a leaving (`RoomProtocol::parse_in(w, true)`; `quorum:1/1`,
-  `quorum:3/3`, `majority` are none). Every count there is over the `founder` seats at the row's heads (`counted()`
-  `founder`; nodes in no base) and takes M voices.
-  - **Live** while the active founders number at least M + 1; otherwise **stalled**, and the founders' count then
-    admits and removes nothing (a founder or a node). A change of the record is not stalled. A resignation and a
-    removal alike take a seat out of the count.
-  - **N caps the founders**: a founder widening that would make them N + 1 concludes nothing; below N it takes M
-    founder voices and the new founder's own signature. A founding row seating more founders than N founds no
-    protocol that concludes. To go above N the record changes where it is not entrenched, restating `quorum:{M}/{N}`
-    for the new N (M its strict majority), counted under the present M; entrenched, that concludes nothing.
-  - **The margin between M + 1 and N is the room's own room to refill**; where N = M + 1 (2 of 3) there is none: the
-    first leaving stalls it, and a founder is then replaced only by the recovery widening. In 3 of 5 the room is live
-    at four or five, and its founders refill their own seats at M voices up to N. Raising M with no new founders
-    (2 of 3 to 3 of 5 at three founders) leaves the room stalled: a consequence of the text.
-  - A founder's removal is an ordinary counted removal by M founders (or the founder's own resignation).
-  - **Recovery when stalled**: the one row admitted without the founders' count (a widening adding one founder seat,
-    for a key named by a row counted at a strict majority over the holders of the bundle in force of the room's root,
-    `SeatRow::bundle()`, signed by that key) is UNDECIDED: `seat::stalled_recovery` answers
-    `stalled_recovery_needs_bundle` and the seat rule concludes nothing for it, since the kernel holds no bundle
-    holders. The checks for when the trust root's fold is in the kernel are listed beside it.
+- **An infrastructure community** (CC 3.1.3.2 and 3.2 read through, the Constitution's final correction; it
+  supersedes the P1 redo's computed M and the cap). The record states `quorum:{M}/{N}`, M an absolute count of founder
+  voices, at least 2 (`RoomProtocol::parse_in(w, true)`). Every count there is over the `founder` seats at the row's
+  heads (`counted()` `founder`; nodes in no base) and takes M voices. The record MUST be entrenched
+  (`consensus_protocol_entrenched`): a founding without the flag concludes nothing.
+  - **Founder seats are added only by a founders' amendment** (or the stalled recovery widening): a change of the
+    record that seats the new key (`to()` the key, `role()` `founder`), is signed by it, restates `quorum:{M}/{N}`
+    with N the founders it leaves and M their strict majority, and is counted at the present M. A plain founder
+    widening concludes nothing. The founding word states N = the founders the row seats.
+  - **No weakening**: an amendment whose M is below the present M, or that moves `admission_quorum_basis` away from
+    `founders` (`SeatRow::admission_quorum_basis`), concludes nothing; equal or stronger restatements conclude. (A
+    family's entrenchment refuses any change of the protocol: the two readings are kept apart, by kind, in
+    `entrenchment_allows`.) So the growth 2/3, 3/4, 3/5, 4/6 goes one founder at a time, each counted at the previous
+    M; 2/3 to 3/5 at three founders is refused, and no room stalls itself by a record change. Seating into a stale
+    word restates N as the count after it, and is refused where the new M would be below the present (5/9 with six
+    left cannot seat a seventh: 4/7 weakens).
+  - **Live** while the active founders number at least M + 1; otherwise **stalled**: the founders' count then admits
+    and removes nothing (a founder, a node), and an amendment seating a founder, a widening by that count, is none.
+    3/4 is live only at four founders, as 2/3 at three.
+  - A founder's removal is an ordinary counted removal by M founders, and a resignation the founder's own; both leave
+    the word as it is (its N documentary, its M binding).
+  - **Recovery when stalled**: the one row admitted without the founders' count (`SeatRow::bundle()`) is UNDECIDED:
+    `seat::stalled_recovery` answers `stalled_recovery_needs_bundle`, with the checks listed for when the trust root's
+    fold is in the kernel.
   - Not built: a key record that later adds `node` counted as a resignation; a founder's seat read at its seating
     row (no key record is a seat row here).
 - **A change of the record meets the protocol in force and the standing default together** (Q1: the table's
@@ -546,12 +547,13 @@ told what act it is by the policy a row states.
   so removals wait until a change names both tips under the protocol the common members had (the text's wait rule,
   CC 2.7.8, from the protocol side). No code.
 - The reference: `check_acts.py` has 40 act cases, 139 refusal cases, 16 stand cases, 3 dissolution cases, 2
-  undecided cases, 30 protocol words and 16 infrastructure words, the sheet's 18 answers, 55 planted breaks (40 new);
+  undecided cases, 30 protocol words and 16 infrastructure words, the sheet's 18 answers, 57 planted breaks (42 new, one
+  retired);
   four rows pending the head rules and `room-keys-fix` (A1: an old head's record change by removed members; A3 and
   P1-3: one founder's own offer; Q4: a change not naming the record in force). `check_room_keys.py`'s two-key count and
   `check_rosters.py`'s infrastructure instance (I1: the node in scope `node`, founding record `infrastructure`) are
   restated. Crate tests `protocol_set_replay` and `the_recall_is_told_by_its_act` (a law mapping `moderator_recall`
-  to a plain threshold: the recall is told by its act). Forty-seven new plants in the crate, one retired (N read from the record); those on changed text retargeted.
+  to a plain threshold: the recall is told by its act). Fifty-one new plants in the crate, three retired (N read from the record); those on changed text retargeted.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
