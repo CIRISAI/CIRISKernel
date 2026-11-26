@@ -74,6 +74,27 @@ def tight(n):
                              cosigners=("D", "E", "F", "G"))]
 for n in (0, 1, 2, 8):
     case("tightened (majority to two_thirds at am); A,B pack n=%d at g under majority; C..G remove A at (am, p%d)" % (n, n), tight(n), "xa")
+# L' (the honest chain's first change signed only by the later forkers), from lprime.py
+import importlib.util as _u
+_sp = _u.spec_from_file_location("lprime", os.path.join(os.path.dirname(os.path.abspath(__file__)), "lprime.py"))
+LP = _u.module_from_spec(_sp); _sp.loader.exec_module(LP)
+for _n, _rows in LP.W.items():
+    case(_n + ": C..G remove A at (xd, aG)", _rows + [LP.rem("xa", "A", ("C", "D", "E", "F", "G"), ("xd", "aG"))], "xa")
+# forkers that never acknowledged the honest line, under a tightened rule: a quorum-of-two room founded by A..F; the
+# honest C..F admit G and raise the protocol to two_thirds (am); A and B pack from g under the old quorum
+GQ = ST.found("g", "A", tuple("ABCDEF"), {"moderate": ("A",)}, cosigners=tuple("BCDEF"), consensus_protocol="quorum")
+AG2 = LP.adm("ag2", "G", ("C", "D", "E", "F"), ("g",))
+AMQ = ST.offer("amq", "C", "g", "record", OBJ, "group", ("ag2",), head=("ag2",), policy="cosigned_act", need=2,
+               consensus_protocol="two_thirds", cosigners=("D", "E", "F", "G"))
+def quiet(n):
+    rows, sg, prev = [GQ, AG2, AMQ], ["A", "B"], "g"
+    for i in range(1, n + 1):
+        rows.append(LP.adm("q%d" % i, "X%d" % i, tuple(sg), (prev,))); sg.append("X%d" % i); prev = "q%d" % i
+    heads = ("amq", prev) if n else ("amq",)
+    return rows + [ST.unseat("xa", "C", "A", "member", OBJ, "group", heads, head=heads, policy="community_remove",
+                             cosigners=("D", "E", "F", "G"))]
+for n in (0, 2, 8):
+    case("quiet forkers (never signed the honest line), quorum to two_thirds; pack n=%d; C..G remove A" % n, quiet(n), "xa")
 if __name__ == "__main__":
     for name, rows, ask, own in C:
         S = CK.concluded(CK.kept(list(rows)), CH.RULE)

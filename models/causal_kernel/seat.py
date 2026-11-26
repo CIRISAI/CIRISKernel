@@ -917,7 +917,12 @@ class Seats:
             lines.append((t, sub, {q["id"] for q in sub}, seated))
         common = frozenset.intersection(*[frozenset(sd) for _, _, _, sd in lines])
         union = frozenset.union(*[frozenset(sd) for _, _, _, sd in lines])
-        if len({regime_of(t, {q["id"]: q for q in sub if q["id"] != t["id"]}) for t, sub, _, _ in lines}) > 1 \
+        # a tip that is itself a change of the record's protocol is under its new protocol (MUTATION
+        # regime_before_change: read in its past, so tips on either side of the change fold)
+        # (prototype only, with PROTO "fold": the crate's fold reads the tip's past, as before)
+        own = lambda t: "fold" in PROTO and "regime_before_change" not in MUT and t.get("scope") == "record" \
+            and t.get("consensus_protocol")
+        if len({regime_of(t, {q["id"]: q for q in sub if q["id"] != t["id"] or own(t)}) for t, sub, _, _ in lines}) > 1 \
                 and "regime_folds" not in MUT:
             memo[(s, o)] = common
             return common
@@ -1348,13 +1353,40 @@ def signers_void(r, P):
                 return any(c["id"] != q["id"] and not past(q["id"], c["id"]) and CP.older(S, q["head"], c["head"])
                            for c in CP.own_line(S, k, obj))
             if all(forked(k) for k in voices_q): out.add(q["id"])
+        if "rescue" not in PROTO:
+            changed = True
+            while changed:
+                changed = False
+                for q in acts:
+                    if q["id"] not in out and any(h in out for h in q["head"]):
+                        out.add(q["id"]); changed = True
+            return frozenset(out)
+        # "rescue" (the L' narrowing): a change is not void where a counted change in r's past that has it in its past
+        # (an honest continuation) has a counted voice that is no forker (no counted voice of a self-forked change) and
+        # was already a member at the change's own heads (its seat does not stand on the change: a key the fork itself
+        # seated rescues nothing). The built-on closure stops at a rescued change
+        forkers = set()
+        info = {}
+        # the keys seated by a change the plain closure voids rescue nothing (a key the fork itself seated)
+        plain = _built_closure(acts, out)
+        seated_on = set().union(*[set(S.by[i].get("to", ())) for i in plain]) if plain else set()
+        for q in acts:
+            qP = [x for x in P if past(x["id"], q["id"])]
+            mem_q = members_at(qP, past, obj, q.get("head", ())) if q.get("head") else frozenset()
+            info[q["id"]] = (voices(q, qP) & mem_q, mem_q)
+            if q["id"] in out: forkers |= info[q["id"]][0]
+        def rescued(q):
+            mem_q = info[q["id"]][1]
+            return any((p["id"] == q["id"] or past(q["id"], p["id"])) and (info[p["id"]][0] - forkers - seated_on) & mem_q
+                       for p in acts)
+        void = {i for i in out if not rescued(S.by[i])}
         changed = True
         while changed:
             changed = False
             for q in acts:
-                if q["id"] not in out and any(h in out for h in q["head"]):
-                    out.add(q["id"]); changed = True
-        return frozenset(out)
+                if q["id"] not in void and any(h in void for h in q["head"]) and not rescued(q):
+                    void.add(q["id"]); changed = True
+        return frozenset(void)
     if "sib" not in PROTO:
         out = set()
         for k in signers(r):
