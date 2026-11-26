@@ -818,7 +818,7 @@ fn signed_by<R: SeatRow>(r: &R, k: &R::Key) -> bool {
     r.signer() == k || r.cosigners().contains(k)
 }
 
-fn signers<R: SeatRow>(r: &R) -> BTreeSet<R::Key> {
+pub(crate) fn signers<R: SeatRow>(r: &R) -> BTreeSet<R::Key> {
     let mut s: BTreeSet<R::Key> = r.cosigners().iter().cloned().collect();
     s.insert(r.signer().clone());
     s
@@ -2852,28 +2852,33 @@ fn duty_gate<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, p: &Past<'_, 
 /// may name; with the acts table on, a self-admission concluded under the room's declared protocol is one); and,
 /// where `room` (`obj` is a community), a duty holder's own conferral of a duty over it (an offer `Conf::Own` or
 /// `Conf::Seat`, not the founding row, of a scope that is no roster seat: the lone holder's, on one voice).
-fn change<R: SeatRow>(law: &SeatLaw, q: &R, obj: &ObjOf<R>, room: bool) -> bool {
+fn change<R: SeatRow>(law: &SeatLaw, q: &R, obj: &ObjOf<R>, room: Option<&[&str]>) -> bool {
     if LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj) {
         return law.acts.is_some() || !authored_head(law, q);
     }
-    room && own_conferral(law, q, obj)
+    room.is_some_and(|declared| own_conferral(law, q, obj, declared))
 }
 
 /// A one-key conferral of a duty over a room: an offer of `Conf::Own` or `Conf::Seat` over `obj`, not its founding
-/// row, of a scope that is no roster seat.
-fn own_conferral<R: SeatRow>(law: &SeatLaw, q: &R, obj: &ObjOf<R>) -> bool {
+/// row, of a duty scope (`declared`: the room's declared duties). An own offer of any other scope is no counted
+/// change.
+fn own_conferral<R: SeatRow>(law: &SeatLaw, q: &R, obj: &ObjOf<R>, declared: &[&str]) -> bool {
     q.seat_kind() == SeatKind::Offer
         && matches!(q.conf(), Some(Conf::Own) | Some(Conf::Seat))
         && q.obj().as_ref() == Some(obj)
         && !founding(q)
         && q.scope().is_some_and(|s| {
-            !roster_word(s.as_ref()) && s.as_ref() != NODE && !law.roster_seats.iter().any(|x| x == s.as_ref())
+            !roster_word(s.as_ref())
+                && s.as_ref() != NODE
+                && !law.roster_seats.iter().any(|x| x == s.as_ref())
+                && law.is_duty(s.as_ref(), declared)
         })
 }
 
-/// Whether `obj` is a community among `p`: its founding row is there.
-fn room_in<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>) -> bool {
-    matches!(obj, Obj::Row(i) if p.get(i).is_some_and(|g| g.seat_kind() == SeatKind::Offer && founding(g)))
+/// The declared duties of `obj` where it is a community among `p` (its founding row is there), else `None`.
+fn room_in<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> Option<Vec<&'a str>> {
+    let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
+    community(&by, obj).then(|| declared(&by, obj))
 }
 
 /// H7: counted change `q` is behind an acknowledgement, in `p`, by one of `keys` (the row's own signers): a
@@ -2882,7 +2887,7 @@ fn room_in<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>) -> bool {
 /// never a row built on it.
 fn acked_behind<R: SeatRow>(
     p: &Past<'_, '_, R>,
-    law: &SeatLaw,
+    _law: &SeatLaw,
     q: &R,
     keys: &BTreeSet<R::Key>,
     obj: &ObjOf<R>,
@@ -2897,7 +2902,9 @@ fn acked_behind<R: SeatRow>(
             && object_of(s, &|i| p.get(i)).as_ref() == Some(obj)
             && q.head().iter().all(|h| {
                 p.rows().any(|a| {
-                    (a.id() == s.id() || p.past(a.id(), s.id())) && change(law, a, obj, false) && p.past(h, a.id())
+                    (a.id() == s.id() || p.past(a.id(), s.id()))
+                        && LineSpec::<R>::counted_act(&SeatLine, a).is_some_and(|(o, _)| o == *obj)
+                        && p.past(h, a.id())
                 })
             })
     })
@@ -2910,7 +2917,7 @@ fn acked_behind<R: SeatRow>(
 /// naming itself, is a head of a count). A counted row over a roster concludes only at the newest counted
 /// changes over it in its own past (CC 2.7.8). A cosignature needs no reading of its own: it is a voice only
 /// where the row names it, so the row's past holds the cosignature's.
-fn newer_head_in_past<R: SeatRow>(
+pub(crate) fn newer_head_in_past<R: SeatRow>(
     p: &Past<'_, '_, R>,
     law: &SeatLaw,
     obj: &ObjOf<R>,
@@ -2923,11 +2930,14 @@ fn newer_head_in_past<R: SeatRow>(
     }
     let heads: Vec<&R::Id> = heads.iter().collect();
     let room = room_in(p, obj);
-    if heads.iter().any(|&h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(|q| change(law, q, obj, room))) {
+    if heads
+        .iter()
+        .any(|&h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(|q| change(law, q, obj, room.as_deref())))
+    {
         return true;
     }
     p.rows().any(|q| {
-        change(law, q, obj, room)
+        change(law, q, obj, room.as_deref())
             && !heads.iter().any(|&h| h == q.id() || p.past(q.id(), h))
             && !acked_behind(p, law, q, keys, obj)
     })
@@ -3113,7 +3123,8 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     .names()
                     .iter()
                     .filter(|n| {
-                        room == Obj::Row((*n).clone()) || by.get(*n).is_some_and(|q| change(law, *q, &room, true))
+                        room == Obj::Row((*n).clone())
+                            || by.get(*n).is_some_and(|q| change(law, *q, &room, Some(declared(&by, &room).as_slice())))
                     })
                     .cloned()
                     .collect();
@@ -3358,7 +3369,8 @@ fn lone<R: SeatRow, S: CutSpec<R>>(
     let seats = Seats::build(&sc, law, spec, None, None, cache);
     // the holders are persons: an agent holding a duty is no holder this count reads
     let held = persons(seats.holders("duty", &obj, None), &seats.holders(AGENT, &obj, None));
-    held.len() == 1 && held.contains(r.signer())
+    // and a lone holder with an offer of a duty seat standing confers no other alone
+    held.len() == 1 && held.contains(r.signer()) && !lone_offer_stands(law, p, r, &held)
 }
 
 fn ender<R: SeatRow, S: CutSpec<R>>(

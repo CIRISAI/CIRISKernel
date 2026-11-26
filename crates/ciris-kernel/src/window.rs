@@ -504,6 +504,12 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         if matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && !seat_rule(p, law, spec, &|_| true) {
             return Some(false);
         }
+        // an opening names the newest counted changes over its object in its own past, and is counted there (H1)
+        if !matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat)
+            && seat::newer_head_in_past(p, law, &obj, r.head(), &seat::signers(r))
+        {
+            return Some(false);
+        }
         let scope = w.opener.as_ref().unwrap_or(&w.counted);
         return Some(members_in(&rows, &past, law, spec, &obj, r.head(), scope).contains(r.signer()));
     }

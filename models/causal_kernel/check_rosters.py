@@ -174,7 +174,9 @@ def check_keys(spec, inst):
     worlds = []
     for keep, l1, l2 in ((k1, k2, k3), (k2, k1, k3), (k3, k1, k2)):
         for first, second in ((l1, l2), (l2, l1)):
-            for stale in (False, True):
+            # (an opening "on the old head", naming E1 beside the founding head, is refused since an opening names the
+            # newest counted changes in its own past (H1, the review of 58b): only the honest opening is a world)
+            for stale in (False,):
                 g = RS.found(spec, (k1, k2, k3))
                 p1_ = RS.lone_open(spec, "p1", keep, "evict", (spec.obj,), first)
                 rows = [g, p1_, WN.receipt("r1", keep, "p1", 0), WN.landing("L1", keep, "p1", "r1", "landed", W), RS.effect(spec, "E1", keep, "L1", p1_)]

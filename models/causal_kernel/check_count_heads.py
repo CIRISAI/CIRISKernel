@@ -325,6 +325,11 @@ CASES = [
     (LO, "any duty: A's standing offer of `review` to B stops its lone conferral of `moderate` on C",
      ROOM + [conf("oB", "B", ("aG",), scope="review", joins=False), conf("oC", "C", ("oB",))], None, {"oB": T, "oC": F},
      {"moderate": {"A"}, "review": set()}, set()),
+    (LO, "the same on the lone holder's own path: A's own offer of moderate to B (no yes yet), then its own offer of "
+         "moderate to C naming it: the second concludes nothing",
+     ROOM + [ST.offer("s1", "A", "B", "moderate", OBJ, "self", ("aG",)), ST.offer("s2", "A", "C", "moderate", OBJ, "self", ("s1",),
+                                                                                   cosigners=("C",))],
+     None, {"s1": T, "s2": F}, {"moderate": {"A"}}, set()),
     (LO, "two new holders at once: one row naming both, each signing it, concludes whole",
      ROOM + [conf("oBC", ("B", "C"), ("aG",))], None, {"oBC": T}, {"moderate": {"A", "B", "C"}}, set()),
     (LO, "two rows: the first seats B (its yes on it), so the second is counted over A and B, and A alone is short",
@@ -429,7 +434,7 @@ PLANTS = (("count_heads_unread", ST.MUT), ("all_heads_read", ST.MUT), ("head_any
           ("ack_excuses_none", ST.MUT), ("election_exempt", ST.MUT),
           ("acceptance_unread", ST.MUT), ("acceptance_ends_unread", ST.MUT),
           ("lone_offer_unread", ST.MUT), ("lone_offer_same_scope", ST.MUT), ("fold_acceptance_unread", ST.MUT),
-          ("heads_not_antichain", ST.MUT))
+          ("heads_not_antichain", ST.MUT), ("window_opener_old_head", ST.MUT), ("lone_offer_self_path", ST.MUT))
 
 
 import contextlib  # noqa: E402
@@ -476,10 +481,23 @@ def read_case(rule, rows, own, concl, holds, arrive=None):
         return answer(S, own, concl, holds)
 
 
+# a window's opening names the newest counted changes in its own past and is counted there (H1; the review of 58b):
+# A opens ballot@once; A and B for, D to G against. (name, the opening's heads, the outcome under recount)
+WINDOW = (("an opening at the newest admission: the seven decide it", ("aG",), "open"),
+          ("an opening at the founding head naming the newest admission: it concludes nothing", ("g",), "none"))
+
+
+def window_answer(heads):
+    import window as WN
+    p = WN.opener("p", "A", "ballot@once", OBJ, heads, names=("aG",))
+    rows = ROOM + [p] + [WN.answer("v" + k, k, "p", "for") for k in "AB"] + [WN.answer("v" + k, k, "p", "against") for k in "DEFG"]
+    return WN.outcome(CK.concluded(CK.kept(rows), WN.rule), "p", "recount")
+
+
 def run_all():
     return [read_case(rule, rows, own, concl, holds) for rule, _, rows, own, concl, holds, _ in CASES] + \
         [(version_answer(E, past, a), version_roster(past, R, version_answer(E, past, a))) for _, E, past, R, a, *_ in VERSIONS] + \
-        [line_answer()]
+        [line_answer()] + [window_answer(h) for _, h, _ in WINDOW]
 
 
 def main():
@@ -499,7 +517,11 @@ def main():
             problems.append("H5 %s: got %s, roster %s" % (name, t, version_roster(past, R, t)))
     if line_answer() != frozenset({"a2"}):
         problems.append("H5 the seat's line read directly: void %s" % sorted(line_answer()))
-    labels = ["%s %s" % (c[0], c[1]) for c in CASES] + ["H5 " + v[0] for v in VERSIONS] + ["H5 the seat's line read directly"]
+    for name, h, w in WINDOW:
+        if window_answer(h) != w:
+            problems.append("H1 window: %s: got %s" % (name, window_answer(h)))
+    labels = ["%s %s" % (c[0], c[1]) for c in CASES] + ["H5 " + v[0] for v in VERSIONS] + ["H5 the seat's line read directly"] + \
+        ["H1 window: " + w[0] for w in WINDOW]
     now, caught = run_all(), 0
     for p, m in PLANTS:
         m.add(p)

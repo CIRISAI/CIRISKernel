@@ -593,7 +593,10 @@ def _lone(r, P, by):
     (a person: an agent holding a duty is no holder this count reads)."""
     if "lone_any" in MUT: return True
     Q = seats_of(P)
-    return Q.holders("duty", r["obj"]) - Q.holders(AGENT, r["obj"]) == frozenset({r["signer"]})
+    held = Q.holders("duty", r["obj"]) - Q.holders(AGENT, r["obj"])
+    # and a lone holder with an offer of a duty seat standing confers no other alone (MUTATION lone_offer_self_path:
+    # the standing offer unread on this path)
+    return held == frozenset({r["signer"]}) and ("lone_offer_self_path" in MUT or not lone_offer_stands(r, P, held))
 
 
 def duty_count(r, P, yes, mem):
@@ -1464,9 +1467,10 @@ def change(q, obj, by=None):
 
 def own_conferral(q, obj, by):
     """A one-key conferral of a duty over room obj (a community, `by` holding its founding row): an offer of conf
-    `self` or `seat` over obj, not its founding row, of a scope that is no roster seat."""
+    `self` or `seat` over obj, not its founding row, of a duty scope (an own offer of any other scope is no counted
+    change)."""
     return q["kind"] == "offer" and q.get("conf") in ("self", "seat") and q.get("obj") == obj and q["id"] != obj \
-        and q.get("scope") not in ROSTER_SEATS and community(by, obj)
+        and q.get("scope") not in ROSTER_SEATS and community(by, obj) and is_duty(q.get("scope"), declared(by, obj))
 
 
 def honest(rows, ids=None):

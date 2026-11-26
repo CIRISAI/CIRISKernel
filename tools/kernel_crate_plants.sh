@@ -64,12 +64,14 @@ plant "named heads that are no antichain: the older dropped, not refused (H1)" s
         return true;
     }
     let heads: Vec<&R::Id> = heads.iter().collect();' '    let heads: Vec<&R::Id> = heads.iter().filter(|&a| !heads.iter().any(|b| a != b && p.past(a, b))).collect();'
+plant "a lone holder's own conferral reads no standing offer" src/seat.rs '    held.len() == 1 && held.contains(r.signer()) && !lone_offer_stands(law, p, r, &held)' '    held.len() == 1 && held.contains(r.signer())'
+plant "a window opened at an old head (H1)" src/window.rs '            && seat::newer_head_in_past(p, law, &obj, r.head(), &seat::signers(r))' '            && false'
 plant "a lone holder's standing duty offer unread" src/seat.rs '    if pol == Some(Policy::DutyConfer) && mem.len() < 2 && lone_offer_stands(law, p, r, &mem) {' '    if false {'
 plant "a lone holder's standing duty offer read for its own scope only" src/seat.rs '            && o.scope().is_some_and(|s| law.is_duty(s.as_ref(), &declared))' '            && o.scope() == r.scope()'
-plant "a duty holder's own conferral is no counted change" src/seat.rs '    room && own_conferral(law, q, obj)' '    false && room && own_conferral(law, q, obj)'
+plant "a duty holder's own conferral is no counted change" src/seat.rs '    room.is_some_and(|declared| own_conferral(law, q, obj, declared))' '    room.is_some_and(|declared| false && own_conferral(law, q, obj, declared))'
 plant "the fold at tips reads no later acceptance" src/seat.rs '        ids.extend(completing(&rows, self.law, &by, o, &at, &in_past).iter().filter_map(|q| g.idx(q.id())));' ''
 plant "a count read at every head it names, not the newest (H1)" src/seat.rs '    if !heads.iter().any(behind_another) {' '    if true {'
-plant "a named head may be any row (H1, H3, H8)" src/seat.rs 'if heads.iter().any(|&h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(|q| change(law, q, obj, room))) {' 'if false {'
+plant "a named head may be any row (H1, H3, H8)" src/seat.rs '.any(|&h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(|q| change(law, q, obj, room.as_deref())))' '.any(|_: &&R::Id| false)'
 plant "a counted change of any object moves the head (H1)" src/seat.rs '    if LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj) {' '    if LineSpec::<R>::counted_act(&SeatLine, q).is_some() {'
 plant "a counted change behind a named head moves it (H1)" src/seat.rs '&& !heads.iter().any(|&h| h == q.id() || p.past(q.id(), h))' '&& !heads.iter().any(|&h| h == q.id())'
 plant "a self-admission is a counted change (H3)"      src/seat.rs '        return law.acts.is_some() || !authored_head(law, q);' '        return true;'
