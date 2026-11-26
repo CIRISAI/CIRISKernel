@@ -689,6 +689,8 @@ pub fn law_of(j: &J) -> SeatLaw {
         let p = match a[0].s() {
             "atleast" => Policy::AtLeast(num, den),
             "strict" => Policy::Strict(num, den),
+            "strictfloor" => Policy::StrictFloor(num, den, a[3].i() as u64),
+            "recall" => Policy::Recall(num, den, a[3].i() as u64),
             "one" => Policy::One,
             "declared" => Policy::Declared,
             "ranked" => Policy::Ranked,

@@ -8,7 +8,8 @@ use alloc::vec::Vec;
 
 /// The ranked count over `ballots` (one per person; a person with two different rankings has no ballot).
 /// Returns the winner, if any, and the number of elimination rounds run. `floor` is the least number of
-/// ballots (capped at the number of options).
+/// ballots (capped at the number of options). In each round the options holding no first choice are eliminated
+/// together, before the weakest is sought (CIRISConstitution#241 E1: every ranked count).
 pub fn ranked<P: Ord + Clone, O: Ord + Clone>(
     ballots: &[(P, Vec<O>)],
     options: &[O],
@@ -57,6 +58,15 @@ pub fn ranked<P: Ord + Clone, O: Ord + Clone>(
             let w = ops::one(s.standing.iter().filter(|o| n(o) == top).cloned());
             return St { done: true, winner: w, ..s.clone() };
         }
+        // the options holding no ballot are eliminated together (no ballot passes when one goes, so their order
+        // cannot change the count); a tie for weakest is then among options that hold ballots
+        if s.standing.iter().any(|o| n(o) == 0) {
+            return St {
+                standing: s.standing.iter().filter(|o| n(o) > 0).cloned().collect(),
+                rounds: s.rounds + 1,
+                ..s.clone()
+            };
+        }
         // weakest by (first choices, declared order: the option listed later is weaker); a tie is refused
         #[derive(PartialEq)]
         struct T<'o, O> {
@@ -81,4 +91,24 @@ pub fn ranked<P: Ord + Clone, O: Ord + Clone>(
         }
     });
     (end.winner, end.rounds)
+}
+
+/// The runoff order (CC 4.5.13: a decline "passes the duty to the next in runoff order"): the one count
+/// repeated. The first is the count's winner; the next is the winner of the same count over the same ballots
+/// with those ahead of it struck; and so on. A step that yields nobody (a tie) ends the order there
+/// (CIRISConstitution#241). Each step is [`ranked`].
+pub fn runoff<P: Ord + Clone, O: Ord + Clone>(
+    ballots: &[(P, Vec<O>)],
+    options: &[O],
+    floor: usize,
+    declared: bool,
+) -> Vec<O> {
+    let mut order = Vec::new();
+    let mut opts = options.to_vec();
+    while !opts.is_empty() {
+        let Some(w) = ranked(ballots, &opts, floor, declared).0 else { break };
+        opts.retain(|o| *o != w);
+        order.push(w);
+    }
+    order
 }
