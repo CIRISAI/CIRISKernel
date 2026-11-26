@@ -21,6 +21,7 @@ public, and seats identity keys.
                 its past, or the key's own end of its stay (stay_ends). A row concurrent with the end concludes (the rule is by
                 past). Beside a counted removal it does not seat: the cut voids it, and a later row adding the key is
                 refused. Beside a resignation it seats as built: OPEN, sent to the Constitution.
+    a second seat row   OPEN (#224: "what a second seat row of one room key does"). The text does not say.
 
 Part 1. Cases, each a hand-written answer: which rows conclude, the roster (members and agents), and standings asked
 by name; every case is read in arrival orders. Each names the ledger row it closes.
@@ -184,6 +185,23 @@ OPEN += [
      [PV[0], admit("aq", "q", ("m1", "m2", "m3", "m4"), ("g",), joiner=False), ST.accept("acq", "q", "aq"),
       ST.withdraw("wa", "q", "acq"), ST.accept("acq2", "q", "aq", ("acq",))], {"wa": T, "acq2": T}, M4 | {"q"},
      [("q", "member", T)], RACE),
+]
+# a second seat row of one room key
+OPEN += [
+    ("a second seat row of a room key already seated: as built it concludes, and the key is one key on the roster",
+     SECOND_ROW, PV + [admit("aq2", "q", ("m1", "m2", "m3", "m4"), ("ag",))], {"aq2": T}, M4 | {"q", "AG"}, [("q", "member", T)],
+     ("the second row concludes nothing: a room key has one seat row, its own record (a refusal the text would name)",
+      "it stands, and a binding is taken that opens either commitment (formal/binding_carriage finding 3: the fork the "
+      "commitment was added to stop returns)",
+      "it stands, and the key takes no binding: nothing forks, no node counts persons, and the key's holder stalls every "
+      "count alone (the same finding)")),
+    ("a second seat row, then the key withdraws its first: as built the second still seats it, so the resignation ends "
+     "nothing for the roster", SECOND_ROW,
+     PV + [admit("aq2", "q", ("m1", "m2", "m3", "m4"), ("ag",)), ST.withdraw("wq", "q", "aq", ("aq2",))], {"aq2": T, "wq": T},
+     M4 | {"q", "AG"}, [("q", "member", T)],
+     ("the second row is refused, so the case does not arise",
+      "a withdrawal of one seat row by its key ends the key's stay, and every seat row of it",
+      "each seat row is a stay of its own, as built")),
 ]
 PLANTS = ("room_key_unread", "public_final", "lone_final", "resign_not_final", "reaccept_reseats")
 

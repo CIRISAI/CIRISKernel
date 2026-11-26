@@ -58,8 +58,12 @@ admission", of any end of the seat, a resignation included; CC 3.1.3.2: "a membe
   tip). The other candidate is that the key is out, as beside a counted removal; building it needs a resignation
   that ends rows concurrent with it, which seat.rs and seat.py do not have.
 
+**A second seat row of one room key** (CIRISConstitution#224): no answer changes, and nothing is built. The text
+does not say what it does. OPEN, as built: a second seat row of a key already seated concludes and the key is one
+key on the roster; the key's withdrawal of one of two seat rows leaves the other seating it.
+
 The reference: `seat._revoked_before`, `seat.room_key_ended`, `seat.private_room` in `models/causal_kernel/seat.py`;
-`check_room_keys.py` has 20 cases and 4 OPEN rows in every arrival order (up to six rows, else 41 orders) and five
+`check_room_keys.py` has 20 cases and 6 OPEN rows in every arrival order (up to six rows, else 41 orders) and five
 planted breaks; `roomkey.py` states the finding of re-admission under the same key for a public room and the refusal
 for the same room declared private. Five plants in `tools/kernel_crate_plants.sh`.
 

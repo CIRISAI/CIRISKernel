@@ -496,7 +496,7 @@ is final once its end stands: a counted removal of it, or the key's own end of i
 again in that seat, or an acceptance of an offer that does, with the end in its past concludes nothing; a person
 returns under a new room key. A moderator's lone removal is never final: the members' lift restores the same key,
 out of force the key is seated with no row, and a counted admission seats it. A public room is read as before. **run**
-(`models/causal_kernel/check_room_keys.py`): 20 cases and 4 rows the text leaves OPEN, in arrival orders, five
+(`models/causal_kernel/check_room_keys.py`): 20 cases and 6 rows the text leaves OPEN, in arrival orders, five
 planted breaks caught.
 
 An adversary holding the count of an old head signs a valid version alone. A witnessed lineage answers that

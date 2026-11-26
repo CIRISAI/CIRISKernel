@@ -208,6 +208,7 @@ names (`models/causal_kernel/roomkey.py`, `rule`).
   Keep `SeatLaw::final_scopes` as the table gives it (`registered`, `member`, `agent`). The refusal has no name in
   the crate; the text's name is the door's to give. A room that moved to public is not read: the crate reads the
   founding row only.
+- A second seat row of a room key already seated is seated as any row is (OPEN in `check_room_keys.py`).
 
 **A delegation chain**, for `Seats::stands`.
 - The counted grant: an Offer, `Conf::Group`, counted over the holders, `sub()` true where it carries
