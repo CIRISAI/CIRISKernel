@@ -25,8 +25,8 @@ What is counted (seat.count_met, its ranked arm):
 OPEN lists rows the text does not decide, with the model's answer now and the candidate answers.
 
 Every case is a hand-written answer, read in every arrival order of its rows above the founding one (a fixed sample
-of 300 where there are more than six). Each names the ledger row it closes: CIRISConstitution#218, waits list,
-"the election beyond the ballot count".
+of 300 where there are more than six). Each names the ledger row it closes, CIRISConstitution#241: <item> (LEDGER and the
+case's item).
 
 Planted breaks, each of which must change a case's answer:
     ballot_any_signer   a ballot counts whoever signed it (an agent's, a non-member's)
@@ -36,6 +36,7 @@ Planted breaks, each of which must change a case's answer:
     ballot_withdrawal_unread  a ballot its signer withdrew in the row's past still counts
     ballot_nonmember_ranked   a ballot ranking a key with no roster seat at the heads counts, the key skipped
     election_beside_holder    the election seats while a duty holder is live at the heads the row names
+    election_agent_holder     an AI agent's key holding a duty is read as a holder, and the room does not elect
 
     python3 -I check_election.py      exit 1 on any difference
 """
@@ -54,7 +55,7 @@ CK = ST.CK
 T, F = True, False
 OBJ = "g"
 RULE = lambda r, P, past: ST.seat_rule(r, P, past)
-LEDGER = "CIRISConstitution#218, waits list: the election: "
+LEDGER = "CIRISConstitution#241: "
 
 # rooms founded with members only: no duty holder (CC 4.5.4 (v): "With no duty holder left the room locks, and the
 # members' count seats one")
@@ -199,6 +200,12 @@ CASES = [
      [FH2, ST.withdraw("wm", "A", "g", ("g",), scope="moderate"), ballot("bb", "B", "C", ("wm",)),
       ballot("bc", "C", "C", ("wm",)), elect("el", "C", ("bb", "bc"), M3, heads=("wm",))],
      NOMOD("A", "C") + MOD("B"), "a vacancy"),
+    ("an AI agent's key holding moderate is no holder: the room, its persons holding no duty, elects B",
+     [G3, admit("ax", "X", ("A", "B"), ("g",), "agent"),
+      ST.offer("cx", "A", "X", "moderate", OBJ, "group", ("ax",), head=("ax",), policy="community_invite",
+               counted="member", cosigners=("B", "X")),
+      ballot("bb", "B", "B", ("cx",)), ballot("bc", "C", "B", ("cx",)), elect("el", "B", ("bb", "bc"), M3, heads=("cx",))],
+     [("X", "moderate", T)] + MOD("B"), "a vacancy"),
     # ---- the seat ----------------------------------------------------------------------------------------------------
     ("a seating signed by another key seats the winner only with the winner's acceptance: none here",
      [G3, ballot("ba", "A", "B"), ballot("bb", "B", "B"), elect("el", "B", ("ba", "bb"), M3, signer="A")],
@@ -287,7 +294,7 @@ def planted(plant):
 
 
 PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_any_winner", "ballot_withdrawal_unread",
-          "ballot_nonmember_ranked", "election_beside_holder")
+          "ballot_nonmember_ranked", "election_beside_holder", "election_agent_holder")
 
 
 def answers(rows, asks, plant=None, arrive=False):

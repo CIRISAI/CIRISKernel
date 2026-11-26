@@ -1925,7 +1925,8 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
         // the members' count seats a holder only where none is left (CC 4.5.4 (v); rule 2: "While another duty
         // holder remains, a vacant seat is conferred under line (iv), and the community does not lock"): a duty
         // holder at the heads the row names, its own leaving not in the row's past, and the election seats nobody
-        let mut holders = members_at_with(p, law, spec, &over, r.head(), "duty", cache);
+        // read by person, as the duty counts are: an AI agent's key holding a duty is no holder here
+        let mut holders = persons_at_with(p, law, spec, &over, r.head(), "duty", cache);
         for k in left_in_past(p, &over, "duty").into_iter().chain(stay_ended_in_past(p, law, &over)) {
             holders.remove(&k);
         }

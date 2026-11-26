@@ -30,7 +30,9 @@ beyond the ballot count").
   it names, less a holder whose own leaving is in the row's past (as a count over the duty holders reads them).
   **An answer changes**: before, an election seated a moderator beside a live one. Four cases (a holder present; the
   last holder laying its duty down, or leaving, and an election at a later head; one of two holders laying down);
-  one plant in each language.
+  one plant in each language. The holders are read by person (CIRISConstitution#241 B3, derived: "only while >= 1
+  member holds the live `moderate` duty"): an AI agent's key holding a duty is no holder, and a room whose only
+  holder is an agent elects. One case; one plant in each language.
 - Not built, each a row of `check_election.py`'s OPEN list with the model's answer now: the text decides two of
   them, and the crate cannot hold them yet. (1) Several seatings: "the one counted over the larger set stands", and
   two over equal sets of different ballots seat nobody until one is counted over their union. The rows carry no

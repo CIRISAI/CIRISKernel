@@ -951,7 +951,10 @@ def count_met(r, P, past, table=None):
         # remains, a vacant seat is conferred under line (iv), and the community does not lock"): a duty holder at
         # the heads the row names, its own leaving not in the row's past, and the election seats nobody
         over = r.get("over", r["obj"])
-        if "election_beside_holder" not in MUT and members_at(P, past, over, heads, "duty") - count_left(P, past, over, "duty"):
+        # read by person, as the duty counts are: an AI agent's key holding a duty is no holder here (#241 B3)
+        holders = members_at(P, past, over, heads, "duty") if "election_agent_holder" in MUT else \
+            counted_keys(P, past, over, heads, "duty")[0]
+        if "election_beside_holder" not in MUT and holders - count_left(P, past, over, "duty"):
             return False
         # a ballot its signer withdrew in the row's past is none (CC 4.5.13: "Disagreeing ballots neither withdrawn are
         # no ballot until a withdrawal leaves one"; the ballot's way back is its author's withdrawal)

@@ -176,6 +176,7 @@ plant 'an election seats whoever its row names'          src/seat.rs '.0.as_ref(
 plant 'an election counts a ballot its signer withdrew'  src/seat.rs '.filter(|b| !gone(b))' '.filter(|_| true)'
 plant 'an election counts a ballot ranking a non-member' src/seat.rs '.filter(|b| b.ranking().iter().all(|k| roster.contains(k)))' '.filter(|_| true)'
 plant 'an election seats beside a live duty holder'     src/seat.rs 'if !holders.is_empty() {' 'if false {'
+plant "an agent's duty seat stops an election"          src/seat.rs 'let mut holders = persons_at_with(p, law, spec, &over, r.head(), "duty", cache);' 'let mut holders = members_at_with(p, law, spec, &over, r.head(), "duty", cache);'
 plant 'a row'"'"'s concluded past read as its first row' src/layers.rs 'self.p.binary_search(&q).is_ok()' 'self.p.first() == Some(&q)'
 plant "voices counts a cosignature the row does not name"  src/seat.rs 'for n in r.names() {' 'for n in p.rows().map(|q| q.id()) {'
 plant "a cycle of names walked without its stack"       src/graph.rs '                    if l >= WAITING {' '                    if l == WAITING {'
