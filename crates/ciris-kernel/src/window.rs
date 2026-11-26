@@ -22,6 +22,15 @@
 //! withdrawal row naming it, concluded by the seat rule) is no ballot ([`unwithdrawn`]); a withdrawal
 //! concurrent with a landing is recounted with it, as an answer is. An answer that is no ballot is read as
 //! before, withdrawn or not.
+//!
+//! **The landing** of every window is one family (CIRISConstitution#221, W1): the receipt is a `window:held`
+//! row and the landing a `window:landed` row stating the outcome; the families are the caller's. The
+//! moderation fallback's landing is signed by any member at the opener's head; the overturn's by any member
+//! there but the act's author (W2): a key no clause counts is no concluder, so where every counted clause of
+//! the table is over [`Base::Others`] ([`author_apart`]) the opener's signer signs no receipt and no landing.
+//!
+//! A table modelling the accord's halt (`halt_fuse` in the reference) is **not the fuse** (W3): the fuse is the
+//! halted node's own reading (CC 4.2.1.1), not a window landed by a holder.
 
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
@@ -369,6 +378,14 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
     w.default.clone()
 }
 
+/// Whether no clause of `w` counts the opener's signer: every counted clause (one not over [`Base::Opener`]) is
+/// over [`Base::Others`], as the members' check is. The opener's signer is then no concluder of the window
+/// (CIRISConstitution#221, W2: the overturn's landing is signed by any member but the act's author).
+pub fn author_apart<T>(w: &WindowSpec<T>) -> bool {
+    let mut over = w.at_once.iter().chain(&w.at_close).map(|c| &c.over).filter(|b| **b != Base::Opener).peekable();
+    over.peek().is_some() && over.all(|b| *b == Base::Others)
+}
+
 /// The words a ballot says: the value and the `against` of each [`How::MoreOfVoted`] clause of `w`.
 pub fn ballot_words<T>(w: &WindowSpec<T>) -> BTreeSet<&str> {
     let mut out = BTreeSet::new();
@@ -379,6 +396,19 @@ pub fn ballot_words<T>(w: &WindowSpec<T>) -> BTreeSet<&str> {
         }
     }
     out
+}
+
+/// Each (row, signer) a withdrawal among `rows` names: a row `r` is withdrawn by its own signer iff
+/// `(r.id(), r.signer())` is in the set. Pass concluded rows (the seat rule concludes a withdrawal of a row
+/// only by that row's signer or, for an offer, a key it seats). The one reading of a ballot's withdrawal: the
+/// window's ballots here, and any count of ballots of its own (an election's) may read it.
+pub fn own_withdrawals<'a, R: SeatRow + 'a>(
+    rows: impl IntoIterator<Item = &'a R>,
+) -> BTreeSet<(&'a R::Id, &'a R::Key)> {
+    rows.into_iter()
+        .filter(|w| w.seat_kind() == SeatKind::Withdraw)
+        .filter_map(|w| w.target().map(|t| (t, w.signer())))
+        .collect()
 }
 
 /// The rows of `answers` less each one saying a word of `words` that its own signer withdrew by a
@@ -392,11 +422,7 @@ pub fn unwithdrawn<'r, R: SeatRow>(
     words: &BTreeSet<&str>,
     says: impl Fn(&R) -> Option<&str>,
 ) -> Vec<&'r R> {
-    let wd: BTreeSet<(&R::Id, &R::Key)> = rows
-        .iter()
-        .filter(|w| w.seat_kind() == SeatKind::Withdraw)
-        .filter_map(|w| w.target().map(|t| (t, w.signer())))
-        .collect();
+    let wd: BTreeSet<(&R::Id, &R::Key)> = own_withdrawals(rows.iter().copied());
     answers
         .into_iter()
         .filter(|a| !says(*a).is_some_and(|v| words.contains(v)) || !wd.contains(&(a.id(), a.signer())))
@@ -478,6 +504,9 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
     };
     if !concluders.contains(r.signer()) {
         return Some(false);
+    }
+    if r.signer() == o.signer() && author_apart(&w) {
+        return Some(false); // out of every count of the window, so no concluder of it
     }
     if k == WinKind::Receipt {
         // a receipt puts no row of the target before the window: none in its past that the opener's past does

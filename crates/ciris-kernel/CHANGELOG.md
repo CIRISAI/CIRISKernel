@@ -3,7 +3,7 @@
 ## Unreleased
 
 **The moderation windows land by signed rows; the fallback's vote is a ballot** (CIRISConstitution#221). Additive:
-two public functions, no name changes.
+four public functions, no name changes.
 
 - The ruling on #221: a member's vote on a moderation action where no moderator acts is a ballot of
   `ballot:moderation_action` (dimension `ballot:moderation_action:v1`), `for` or `against`. A contrary voice is a
@@ -12,26 +12,35 @@ two public functions, no name changes.
   logic. The fallback's at-close clause reads `for` where it read `act`: **an answer changes** for a caller whose
   table still says `act` (an `act` answer is then no ballot). The reference's cases, `attacks.py` and
   `roomkey.py` now say `for`.
-- New: `window::unwithdrawn` and `window::ballot_words`. A ballot (an answer that a `How::MoreOfVoted` clause
-  reads, its value or its `against`) whose own signer withdrew it is no ballot. The withdrawal is a seat
-  withdrawal naming the ballot. Another key's withdrawal does not conclude under the seat rule, so it withdraws
-  nothing. The fold of what is left is `ops::one` per signer: agreeing ballots are one, and disagreeing ones say
-  nothing. This is the rule `ranked.rs` writes inline for `ballot:moderator`. A withdrawal concurrent with a
-  landing is recounted with it, as an answer is. **Answers change** only where a ballot is withdrawn: no case
-  before this one had such a withdrawal. An answer that is no ballot (an objection, an approval) is read as
-  before, withdrawn or not. Whether that should change is OPEN.
-- Both moderation windows close by a signed landing (`window:{state}`) of a key of the concluder's scope at the
-  opener's head, as the self roster's lone path does. The crate already did this. Two new cases show that a key
-  with no seat at the head lands nothing.
-- OPEN (#221 does not decide these; `check_window_rows.py` prints them):
-  - which `window:{state}` states the fallback's and the overturn's outcomes land with. The landing states the
-    outcome word, as before.
-  - whether the act's author may sign the overturn's landing. Built: it may, being a member at the head.
-  - whether a withdrawn objection is still a voice. Built: it is.
-  - the door model (the Constitution's `door.py`), which is not in this repository.
-- The reference: `window.unwithdrawn`, `window.ballot_words`, 13 rows of `window_adversary.tsv` (94 now, every
-  earlier row unchanged), and `models/causal_kernel/check_window_rows.py` (those rows in arrival orders, three
-  planted breaks, the OPEN list). Three new crate plants in `tools/kernel_crate_plants.sh`.
+- New: `window::unwithdrawn`, `window::own_withdrawals` and `window::ballot_words`. A ballot is an answer that a
+  `How::MoreOfVoted` clause reads (its value or its `against`). A ballot whose own signer withdrew it is no
+  ballot. The withdrawal is a seat withdrawal naming the ballot. Another key's withdrawal does not conclude under
+  the seat rule, so it withdraws nothing. The fold of what is left is `ops::one` per signer: agreeing ballots are
+  one, and disagreeing ones say nothing. This is the rule `ranked.rs` writes inline for `ballot:moderator`. A
+  withdrawal concurrent with a landing is recounted with it, as an answer is. **Answers change** only where a
+  ballot is withdrawn: no case before this one had such a withdrawal. An answer that is no ballot (an objection,
+  an approval) is read as before, withdrawn or not. Whether that should change is OPEN.
+- One landing family for every window (ruling W1): the receipt is `window:held` and the landing `window:landed`,
+  which states the outcome. The reference's tables name both (`held`, `landing`).
+- Who signs (ruling W2): the fallback's landing by any member at the opener's head; the overturn's by any member
+  but the act's author. New: `window::author_apart`. Where every counted clause of a table is over
+  `Base::Others`, the opener's signer concludes no receipt and no landing of that window. **An answer changes:** an
+  overturn's receipt or landing by the act's author concluded before. No earlier case had one. New cases show that
+  a key with no seat at the head lands nothing.
+- `halt_fuse` is not the fuse (ruling W3). The accord's fuse is the halted node's own reading (CC 4.2.1.1). The
+  table is kept with its answers unchanged and is marked so in `window.py`, `window.rs` and ADOPTING.md.
+- `head::View::window(now)` is a per-node reading that decides nothing that counts (ruling W5). This is in its doc
+  comment only; the code is unchanged.
+- W4 (derived, not built): if an overturn's landing binds the objections it was counted over, an objection
+  concurrent with it is not recounted. `check_window_rows.py` runs that reading as the switch
+  `landing_binds_objections`. Under it, three rows of the adversary table change from `contested` to `stands`,
+  and two of them then break the property "a majority's objections are not overridden by a landing".
+- OPEN: whether a withdrawn objection is still a voice (built: it is); the door model (the Constitution's
+  `door.py`, not in this repository).
+- The reference: `window.unwithdrawn`, `window.ballot_words` and `window.author_apart`; 17 new rows of
+  `window_adversary.tsv` (98 now, every earlier row unchanged); and `models/causal_kernel/check_window_rows.py`
+  (those rows in arrival orders, four planted breaks, the W4 reading, the OPEN list). Four new crate plants in
+  `tools/kernel_crate_plants.sh`.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

@@ -749,8 +749,10 @@ impl<I: Ord + Clone, K: Ord + Clone, T: Ord + Copy + core::ops::Add<Output = T>>
         Some(self.answers(t))
     }
 
-    /// A window's state at `now`, read from the instant this node first held the opener. A reading at a
-    /// node's own present (CC 2.7.9): for serving and display; a verdict reads [`View::window_at`].
+    /// A window's state at `now`, read from the instant this node first held the opener. A per-node reading
+    /// (CC 2.7.9) that decides nothing that counts (CIRISConstitution#221, W5): for serving and display. A
+    /// window whose close binds others lands by a signed row ([`crate::window`]); a verdict reads
+    /// [`View::window_at`].
     pub fn window(&self, o: &I, now: T) -> WindowState {
         let answered = if self.rec.len() <= self.scanned {
             self.rec.values().any(|x| x.kind == Kind::Answer && x.names.contains(o))

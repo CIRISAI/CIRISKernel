@@ -15,8 +15,9 @@ ballots are one, and disagreeing unwithdrawn ballots are none until a withdrawal
                    ballot (CC 2.4.1.1 rule 1; `ballot:moderator`'s undo is its signer's withdrawal). Another key's
                    withdrawal of it does not conclude (seat.seat_rule), so it withdraws nothing. A withdrawal
                    concurrent with a landing is recounted with it, as an answer is (CC 2.7.5)
-    the landing    a signed row (`window:{state}`) of a key of the concluder's scope at the opener's head; a key with
-                   no seat there lands nothing
+    the landing    a `window:landed` row naming the signer's `window:held` row (W1), of a key of the concluder's
+                   scope at the opener's head; a key with no seat there lands nothing; the overturn's author is no
+                   concluder (W2: out of its count)
 
 Part 1. The window adversary table's rows that name #221 (window.adversary_table), each read once as a batch and
 again in arrival orders of its rows (every order up to six rows above the founding one, else the batch order, its
@@ -25,6 +26,7 @@ reverse and forty shuffles): the property holds under recount, and every order g
 Part 2. Planted breaks, each of which must break a row of Part 1:
     ballot_withdrawal_unread   a withdrawn ballot is still a ballot
     withdrawal_not_recounted   a withdrawal concurrent with a landing is not read with it
+    author_concludes           the act's author signs the overturn's receipt and landing (W2: it is no concluder)
     ballot_word_act            the fallback's ballot says `act` (the word before the ruling)
 
 Part 3. What #221 and the text do not decide, printed as OPEN with the candidate answers. The adversary table's OPEN
@@ -47,20 +49,12 @@ CK, K = WN.CK, WN.K
 LEDGER = "CIRISConstitution#221"
 
 OPEN = (
-    ("the states of the landing", "which `window:{state}` state each outcome lands with: the family has held, landed and "
-     "refused (namespace registry). (a) new states, one per outcome word (answered, fallback, lapsed; lifted, stands); "
-     "(b) fallback and lifted as `landed`, lapsed and stands as `refused`, answered landing nothing; (c) a family of "
-     "the room's own. Built: the landing states the outcome word (`says`); the crate takes the word from the caller"),
-    ("who signs the overturn's landing", "(a) any member seated at the head the act names, the act's author included "
-     "(window:{state}'s rule: a key seated in the counted set at the head the opener names); built. (b) the members "
-     "the majority is taken of, the author apart"),
     ("a withdrawn objection or approval", "whether an answer that is no ballot (the overturn's objection, the self "
      "roster's approval or objection) is still a voice once its signer withdrew it. (a) it is: only a ballot is read "
      "as withdrawn; built. (b) it is not, as a ballot (objection:{state} is withdrawn by its signer)"),
-    ("a withdrawal after a met count", "an overturn's at-once count met with no landing, and a withdrawal of one of "
-     "its objections after: no case is built, since (a) of the row above leaves the objection a voice"),
-    ("the door model", "formal/causal_kernel/door.py and door_text.tsv are the Constitution's, not this repository's: "
-     "whether its clocked doors move to rows or are each named a per-node reading under CC 2.7.9 is not decided"),
+    ("W4, the landing binds its objections", "derived, not built: switch `landing_binds_objections` (an overturn "
+     "objection concurrent with the landing is not recounted). The rows it changes are printed above"),
+    ("the door model", "formal/causal_kernel/door.py and door_text.tsv are the Constitution's, not this repository's"),
 )
 
 
@@ -102,6 +96,7 @@ def broken(table):
 PLANTS = (
     ("ballot_withdrawal_unread", lambda: WN.MUT.add("ballot_withdrawal_unread")),
     ("withdrawal_not_recounted", lambda: WN.MUT.add("withdrawal_not_recounted")),
+    ("author_concludes", lambda: WN.MUT.add("author_concludes")),
     ("ballot_word_act", lambda: WN.WINDOWS["moderation_fallback"].update(
         at_close=tuple(("act",) + c[1:] for c in WN.WINDOWS["moderation_fallback"]["at_close"]))),
 )
@@ -134,6 +129,18 @@ def main():
         print("  plant %-26s %s" % (name, "caught by %d rows, first: %s" % (len(hit), hit[0]["case"]) if hit else "NOT CAUGHT"))
         if not hit:
             problems.append("plant %s not caught" % name)
+    # W4 (derived): the rows of the whole table whose recount outcome changes if the overturn's landing binds its objections
+    before = {(t["window"], t["case"]): t for t in table}
+    WN.MUT.add("landing_binds_objections")
+    try:
+        after = WN.adversary_table()
+    finally:
+        WN.MUT.discard("landing_binds_objections")
+    for t in after:
+        b = before[(t["window"], t["case"])]
+        if t["outcome"]["recount"] != b["outcome"]["recount"]:
+            print("  W4 changes: %s: %s -> %s (%s)" % (t["case"], b["outcome"]["recount"], t["outcome"]["recount"],
+                  "holds" if t["holds"]["recount"] else "BROKEN" if t["needs"] else "no property"))
     for what, why in OPEN:
         print("  OPEN %s: %s: %s" % (LEDGER, what, why))
     for p in problems:

@@ -64,9 +64,15 @@ nothing, and a withdrawal concurrent with a landing is recounted with it, as an 
 other key is no withdrawal (seat.seat_rule does not conclude it). Only a ballot is read so: whether an objection or
 an approval its signer withdrew is still a voice is not stated, and is left as it was (an OPEN case below).
 
-The landing of the fallback and of the overturn is a signed row (`landing`: `window:{state}`, the family that
-closes the self roster's lone path, CC 3.3.6.4), signed by a key of the concluder's scope at the opener's head.
-Which states of that family each outcome lands with is not stated: the landing here states the outcome word.
+The landing of the fallback and of the overturn is a signed row of the family that closes the self roster's lone
+path (CC 3.3.6.4; the ruling on CIRISConstitution#221, W1: one landing family for every window): the receipt is a
+`window:held` row and the landing a `window:landed` row (`held`, `landing` in the table), which states the outcome.
+The fallback's is signed by any member at the opener's head. The overturn's is signed by any member there but the
+act's author (W2): a key no clause counts is no concluder of the window, so where every counted clause is over
+`others` (author_apart) the opener's signer signs no receipt and no landing of it.
+
+`halt_fuse` is NOT the accord's fuse (W3). The fuse is the halted node's own reading (CC 4.2.1.1, reactions.json
+`fuse local, late closed`); this window, landed by a holder, is a model of the halt's count kept for its cases.
 
 A duty holder's single-signature answer (a value an at-once clause reads as "one" over a named scope, said by a
 holder of that scope) is what that key said: a vote the same key also cast is moot, and does not make its answer
@@ -107,10 +113,11 @@ WINDOWS = {
     # ballot of `ballot:moderation_action` (CIRISConstitution#221): `for`, or `against` (a contrary voice is a vote
     # against); a silent member is not counted over. A moderator's answer is no vote. The landing is a signed row
     "moderation_fallback": {"policy": "moderation_action", "counted": "member", "concluder": "member", "opener_says": None,
-                            "ballot": "ballot:moderation_action", "landing": "window:{state}",
+                            "ballot": "ballot:moderation_action", "held": "window:held", "landing": "window:landed",
                             "at_once": (("answered", "one", "moderate", "answered"),),
                             "silent": None, "at_close": (("for", ("voted", 1, 2, 2, "against"), "all", "fallback"),), "default": "lapsed"},
-    # CC 4.2.1.1: one holder fires at once; the halt lapses at the fuse unless a strict majority confirms
+    # CC 4.2.1.1: one holder fires at once; the halt lapses at the fuse unless a strict majority confirms. NOT the fuse:
+    # the fuse is the halted node's own reading (CIRISConstitution#221, W3); this window lands by a holder
     "halt_fuse": {"policy": "accord_halt", "counted": "holder", "concluder": "holder", "opener_says": "confirm",
                   "at_once": (("confirm", "strict", "all", "confirmed"),),
                   "silent": None, "at_close": (), "default": "lapsed"},
@@ -120,7 +127,7 @@ WINDOWS = {
     # author is not among the members the majority is taken of. Where the author is one of two members no lift is
     # possible." Short of that at the close it stands. So the base is `others`
     "moderation_overturn": {"policy": "moderation_overturn", "counted": "member", "concluder": "member", "opener": "moderate",
-                            "landing": "window:{state}",
+                            "held": "window:held", "landing": "window:landed",
                             "opener_says": None, "at_once": (("object", ("more", 1, 2, 2), "others", "lifted"),),
                             "silent": None, "at_close": (), "default": "stands"},
 }
@@ -249,6 +256,14 @@ def unwithdrawn(spec, answers, rows):
     return [a for a in answers if a["says"] not in words or (a["id"], a["signer"]) not in wd]
 
 
+def author_apart(spec):
+    """No clause counts the opener's signer: every counted clause is over `others` (the members' check). The author is
+    then no concluder of the window (CIRISConstitution#221, W2)."""
+    if "author_concludes" in MUT: return False
+    over = [c[2] for c in spec["at_once"] + spec["at_close"] if c[2] != "opener"]
+    return bool(over) and all(o == "others" for o in over)
+
+
 def voices_of(answers, p, past):
     """The answers that are voices: an approval that has the proposer's withdrawal in its past approves nothing."""
     wd = [a["id"] for a in answers if a["signer"] == p["signer"] and a["says"] == "withdraw"]
@@ -270,6 +285,7 @@ def rule(r, P, past):
     if k == "answer": return True                              # whether its voice counts is read against the roster at p's head
     spec, base = WINDOWS[p["window"]], _base(P, past, p)
     if r["signer"] not in ST.members_at(P, past, p["obj"], p["head"], spec["concluder"]): return False
+    if r["signer"] == p["signer"] and author_apart(spec): return False     # out of every count, so no concluder of it
     if k == "receipt":
         # a receipt puts no row of the target before the window: none in its past that the opener's past does not hold
         t = p.get("target")
@@ -322,6 +338,9 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
                [r for r in S.Cs if S.concurrent(r["id"], L["id"])]
         conc = [r for r in conc if not late(r)]
         ans = [r for r in K.sel(conc, kind="answer", of=pid) if r["signer"] in base("all") | base.raw("moderate") | ({p.get("target")} if spec.get("target_votes") else set())]
+        # SWITCH landing_binds_objections (CIRISConstitution#221 W4, derived and not built): the overturn's landing binds
+        # the objections it was counted over, and one concurrent with it is not recounted
+        if "landing_binds_objections" in MUT and author_apart(spec): ans = []
         tgt = K.sel(conc, signer=p.get("target")) if spec["silent"] else []
         if how == "contest":
             said.append({"v": "contested" if ans or tgt else L["says"]})
@@ -558,6 +577,12 @@ def moderation_world():
         ("a key with no seat at the head lands the fallback over two votes for",
          b4[:4] + [receipt("rz", "z", "p", 0)] + acts + [landing("L", "z", "p", "rz", "fallback", W, ("x1", "x3"))],
          "CIRISConstitution#221: the fallback's landing, a signed row of a member at the head the opener names", "not fallback"),
+        ("the moderator, a member who did not answer, lands the fallback over two votes for",
+         b4 + acts + [receipt("rM", "MOD", "p", 0), landing("L", "MOD", "p", "rM", "fallback", W, ("x1", "x3"))],
+         "CIRISConstitution#221: the fallback's landing is signed by any member", "fallback"),
+        ("the proposer lands the fallback over two votes for, neither its own",
+         [g4, am4, md4, opener("p", "m4", "moderation_fallback", "g", ("md",)), receipt("r", "m4", "p", 0)] + acts + [landing("L", "m4", "p", "r", "fallback", W, ("x1", "x3"))],
+         "CIRISConstitution#221: the fallback's landing is signed by any member", "fallback"),
     ]
     return "moderation fallback (48 h, absent moderator, a majority of the members who voted)", cases
 
@@ -644,12 +669,17 @@ def overturn_world():
         ("a key with no seat at the head lands 'stands' at the close over one objection",
          base + [o1, receipt("rz", "z", "p", 0), landing("L", "z", "p", "rz", "stands", W, ("o1",))],
          "CIRISConstitution#221: the overturn's landing, a signed row of a member at the head the act names", "not stands"),
-        # OPEN (CIRISConstitution#221, not decided): who of the members signs the overturn's landing. (a) any member
-        # seated at the head the act names, the author included (window:{state}'s rule; what is built); (b) the
-        # members the majority is taken of, the author apart
-        ("OPEN: the act's author lands 'stands' at the close over one objection",
+        # the ruling on #221 (W2): any member but the act's author signs the overturn's landing
+        ("the act's author lands 'stands' at the close over one objection",
          base + [o1, receipt("rM", "MOD", "p", 0), landing("L", "MOD", "p", "rM", "stands", W, ("o1",))],
-         "(OPEN CIRISConstitution#221: the author signs the overturn's landing; (a) it concludes, built; (b) it concludes nothing)", None),
+         "CIRISConstitution#221: the overturn's landing is signed by any member but the act's author", "not stands"),
+        ("the act's author lands 'stands' at the close over one objection, and a member lands 'stands' naming both",
+         base + [o1, receipt("rM", "MOD", "p", 0), landing("LM", "MOD", "p", "rM", "stands", W, ("o1",)), r3,
+                 landing("L", "m3", "p", "r", "stands", W, ("o1", "LM"))],
+         "CIRISConstitution#221: the overturn's landing is signed by any member but the act's author", "stands"),
+        ("a member other than the act's author lands 'stands' over no objection",
+         base + [receipt("r", "m2", "p", 0), landing("L", "m2", "p", "r", "stands", W)],
+         "CIRISConstitution#221: the overturn's landing is signed by any member but the act's author", "stands"),
         # OPEN (not decided): whether an objection its own signer withdrew is still a voice. (a) it is (only a ballot is
         # read as withdrawn; what is built); (b) it is not, as a ballot (objection:{state} is withdrawn by its signer)
         ("OPEN: a member withdraws its objection, beside a second objection, and a member lands the lift naming the three",
