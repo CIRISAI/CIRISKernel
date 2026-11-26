@@ -190,6 +190,21 @@ def policy_table(path=None):
 
 
 POLICY = policy_table()
+
+
+def acts_table(path=None):
+    """The act-to-policy binding (data/governance_policy_acts.tsv): one row per (act, scope, community kind), the policy
+    rows it may take, and whether the counted row states one of them (`row`) or the act fixes it (`fixed`)."""
+    path = path or os.path.join(ROOT, "data", "governance_policy_acts.tsv")
+    out = []
+    for line in open(path, encoding="utf-8"):
+        if line.startswith("#") or not line.strip() or line.startswith("act\t"): continue
+        act, scope, kind, policy, choice = line.rstrip("\n").split("\t")[:5]
+        out.append((act, scope, kind, tuple(policy.split("|")), choice))
+    return tuple(out)
+
+
+ACTS = acts_table()     # read by no rule yet: the binding is built in steps (CIRISConstitution: the act-to-policy table)
 # A removal runs under the room's own declared protocol (CC 3.3.4; the table's cell is `protocol`). The rooms of
 # these scenarios declare two thirds. roster.py runs the other protocols.
 POLICY.update({k: ("duty", 0, 0) for k in DUTY_POLICY})          # CC 4.5.4 (iv), read by duty_count, not by met()

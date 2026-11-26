@@ -1,12 +1,18 @@
 # `data/` — what the kernel is run on
 
-Every file here is copied unchanged from the parent repository at commit `60c741e`. The parent generates most
+Every file here is copied unchanged from the parent repository at commit `60c741e`, except the four policy files
+(`governance_policy.tsv`, `governance_policy.json`, `governance_policy_vectors.json`, `governance_policy_acts.tsv`),
+copied unchanged from the Constitution's `rc23` at commit `f1773bf7684ebc29cfbe971474bc4064ea1de348` (the last commit
+touching `constitution/governance_policy.tsv`; the branch head was `efc31033dbf1ff51a1236ddba17cd68caa11c6f5`). The
+table's own pin, `policy_sha256` in the two manifests, is `8d58a472cc09beda6a962a4f579da6d5fcf5a3c63fbcd62f8db81aa84c20b873`:
+a content hash of the table, not a commit. The parent generates most
 of them from its rule tables; the generators are not carried, so treat these as fixed inputs.
 
 | File | What it is | Read by | From (parent) |
 |---|---|---|---|
 | `governance_policy.tsv` | the governance policy table: one row per decision family (who may decide, the counts to enact, cancel and floor, the window and its length, whether the act is irreversible). The authored source | people | `constitution/governance_policy.tsv` |
 | `governance_policy.json` | the same table as data, with each rule parsed | `seat.py`, `window.py`, `roster.py` | `manifests/governance_policy.json` |
+| `governance_policy_acts.tsv` | which row of the policy table governs which counted act: one row per (act, scope, community kind), the policy rows it may take and whether the row chooses (`row`) or the act fixes it (`fixed`). The authored source | `seat.py` (`ACTS`), into the seat fixture's law | `constitution/governance_policy_acts.tsv` |
 | `governance_policy_vectors.json` | test vectors for the policy table: inputs and the verdict each row gives | the parent's `check_door.py` (not carried); here for reading | `manifests/governance_policy_vectors.json` |
 | `transitions.json` | the transition table: for each family, the acts, the scopes and what each does, including the key effect of each membership act | `key_plane_model.py` | `manifests/transitions.json` |
 | `witnesses.tsv` | seventeen cases where judging each row on arrival gives two results from one set of rows, with both orders and both results | `check.py` | `formal/derivation/order/witnesses.tsv` |

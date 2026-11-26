@@ -2,7 +2,7 @@
  "_meta": {
   "source": "constitution/governance_policy.tsv",
   "cc_section": "4.5.13",
-  "policy_sha256": "9b68ee39a48f2067c026f050bd37152a9933d344943fdf6df81a629153a4192c",
+  "policy_sha256": "8d58a472cc09beda6a962a4f579da6d5fcf5a3c63fbcd62f8db81aa84c20b873",
   "corridor": "formal/two_path/PolicyCorridor.lean",
   "machine": "formal/two_path/TwoPath.tla; one generated instance per two-path row in formal/two_path/generated/"
  },
@@ -151,7 +151,7 @@
     "formal/two_path"
    ],
    "status": "default",
-   "note": "roster and standing changes: who is a member, who holds a duty"
+   "note": "roster and standing changes: who is a member; a duty seat has its own two rows"
   },
   {
    "family": "default_irreversible",
@@ -331,7 +331,7 @@
     },
     "counted_at": {
      "value": "named",
-     "cc_ref": "CC 3.1.3"
+     "cc_ref": "CC 2.4"
     },
     "voices": {
      "value": "scrubs",
@@ -413,7 +413,7 @@
     }
    },
    "cancel_over": "others",
-   "at_window": "stay_open",
+   "at_window": "refused",
    "window_secs": 86400,
    "window_class": "ruled_24h",
    "irreversible": false,
@@ -478,7 +478,7 @@
     }
    },
    "cancel_over": "others",
-   "at_window": "stay_open",
+   "at_window": "refused",
    "window_secs": 86400,
    "window_class": "ruled_24h",
    "irreversible": false,
@@ -556,7 +556,7 @@
    "family": "moderation_overturn",
    "cc_ref": "4.5.13",
    "kind": "mirror",
-   "standing_set": "the community's roster as it stood at the instant of the moderator's act",
+   "standing_set": "the community's roster at the head the act names, less the act's author",
    "base": "standing",
    "enact": "more than 1/2",
    "cancel": null,
@@ -609,13 +609,13 @@
     "4.5.13"
    ],
    "status": "normative",
-   "note": "the members' check: a strict majority of those seated before the act lift a duty holder's single-signature act within the window; below that the act stands; a restored item returns consent-gated"
+   "note": "the members' check: a strict majority of those seated at the head the act names, its author apart, lift a duty holder's single-signature act within the window; below that the act stands; a restored item returns consent-gated"
   },
   {
    "family": "moderator_recall",
    "cc_ref": "4.5.13 4.5.4",
    "kind": "cosigned",
-   "standing_set": "the community's roster",
+   "standing_set": "the community's roster, less the holder it recalls",
    "base": "standing",
    "enact": {
     "num": 2,
@@ -646,7 +646,7 @@
     },
     "counted_at": {
      "value": "named",
-     "cc_ref": "CC 3.1.3"
+     "cc_ref": "CC 2.4"
     },
     "voices": {
      "value": "scrubs",
@@ -676,13 +676,131 @@
    "note": "the members recall any duty holder, however seated: more than two thirds of the standing roster cosign one row in the standing window; where that leaves no duty holder the room locks and elects"
   },
   {
+   "family": "duty_confer",
+   "cc_ref": "4.5.4",
+   "kind": "cosigned",
+   "standing_set": "the community's duty holders",
+   "base": "standing",
+   "enact": "more than 1/2",
+   "cancel": null,
+   "floor": "2 voices, or the roster's size if smaller",
+   "enact_rule": {
+    "kind": "strict_majority"
+   },
+   "cancel_rule": {
+    "kind": "none"
+   },
+   "floor_rule": {
+    "kind": "voices_or_roster",
+    "count": 2
+   },
+   "counted": {
+    "count_set": {
+     "value": "moderate+review+slash+takedown",
+     "cc_ref": "CC 4.5.4"
+    },
+    "voice": {
+     "value": "person",
+     "cc_ref": "CC 4.5.13"
+    },
+    "counted_at": {
+     "value": "named",
+     "cc_ref": "CC 2.4"
+    },
+    "voices": {
+     "value": "scrubs",
+     "cc_ref": "CC 4.5.4"
+    },
+    "target_silent": {
+     "value": "no"
+    },
+    "changes_set": {
+     "value": "no"
+    },
+    "target_voice": {
+     "value": "no"
+    }
+   },
+   "cancel_over": "—",
+   "at_window": "cancelled",
+   "window_secs": 259200,
+   "window_class": "standing_72h",
+   "irreversible": false,
+   "reverse_path": false,
+   "corridor": "community",
+   "model": [
+    "4.5.4"
+   ],
+   "status": "normative",
+   "note": "a duty seat is conferred by a strict majority of all the duty holders of the room it is conferred in, with the new holder's acceptance; a lone duty holder confers alone"
+  },
+  {
+   "family": "duty_withdraw",
+   "cc_ref": "4.5.4",
+   "kind": "cosigned",
+   "standing_set": "the community's duty holders, less the holder concerned",
+   "base": "standing",
+   "enact": "more than 1/2",
+   "cancel": null,
+   "floor": "2 voices",
+   "enact_rule": {
+    "kind": "strict_majority"
+   },
+   "cancel_rule": {
+    "kind": "none"
+   },
+   "floor_rule": {
+    "kind": "voices",
+    "count": 2
+   },
+   "counted": {
+    "count_set": {
+     "value": "moderate+review+slash+takedown-target",
+     "cc_ref": "CC 4.5.4"
+    },
+    "voice": {
+     "value": "person",
+     "cc_ref": "CC 4.5.13"
+    },
+    "counted_at": {
+     "value": "named",
+     "cc_ref": "CC 2.4"
+    },
+    "voices": {
+     "value": "scrubs",
+     "cc_ref": "CC 4.5.4"
+    },
+    "target_silent": {
+     "value": "no"
+    },
+    "changes_set": {
+     "value": "no"
+    },
+    "target_voice": {
+     "value": "no"
+    }
+   },
+   "cancel_over": "—",
+   "at_window": "cancelled",
+   "window_secs": 259200,
+   "window_class": "standing_72h",
+   "irreversible": false,
+   "reverse_path": false,
+   "corridor": "community",
+   "model": [
+    "4.5.4"
+   ],
+   "status": "normative",
+   "note": "a duty seat is withdrawn by a strict majority of the other duty holders, the holder concerned not counted; one other holder alone withdraws nothing, and the members' recall stays"
+  },
+  {
    "family": "accord_halt",
    "cc_ref": "4.2.1.1 4.2.6",
    "kind": "mirror",
    "standing_set": "the accord holders",
    "base": "standing",
    "enact": "1/N fires",
-   "cancel": "1/2 confirms",
+   "cancel": "more than 1/2 confirms",
    "floor": null,
    "enact_rule": {
     "kind": "one_of_n"
@@ -862,7 +980,7 @@
    "base": "standing",
    "enact": "instant runoff over ranked choice of three",
    "cancel": null,
-   "floor": "2 voices",
+   "floor": "2 voices, or the roster's size if smaller",
    "enact_rule": {
     "kind": "ranked_irv",
     "choices": 3
@@ -871,7 +989,7 @@
     "kind": "none"
    },
    "floor_rule": {
-    "kind": "voices",
+    "kind": "voices_or_roster",
     "count": 2
    },
    "counted": {
@@ -942,7 +1060,7 @@
     },
     "counted_at": {
      "value": "named",
-     "cc_ref": "CC 3.1.3"
+     "cc_ref": "CC 2.4"
     },
     "voices": {
      "value": "scrubs",
@@ -1442,7 +1560,7 @@
     "verdict": "condition",
     "condition": "entrenched=true",
     "refusal": "—",
-    "cc_ref": "CC 3.3.4"
+    "cc_ref": "CC 4.2.6"
    },
    {
     "group": "accord",

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**The act-to-policy binding, steps 1 and 2** (the Constitution's `governance_policy_acts.tsv`). Nothing refuses yet:
+no answer of any case changes.
+
+- The policy data moves to the Constitution's rc23 (commit `f1773bf`, table pin `8d58a472`; `data/README.md`). It
+  adds two rows, `duty_confer` and `duty_withdraw`, and changes the wording of `moderator_recall`'s base, a
+  `moderator_election` floor rule, and two `self_roster_*` `at_window` cells. No rule reads the changed cells, and
+  the fixture law is unchanged: `seat.py` already reads the two duty rows as the duty counts.
+- `data/governance_policy_acts.tsv` is new: which policy rows each counted act may take. `seat.py` loads it
+  (`ACTS`), and the seat fixture's law carries it (`acts`). No rule reads it yet.
+
 **A duty is conferred by its holders, the founding record or an election** (CC 4.5.4; CIRISConstitution#241). This
 follows #48. **Answers of 0.4.0 change.** `seat::seat_rule`: a counted offer of a duty scope over a community
 concludes only where it is counted over the duty holders (`SeatRow::counted` a duty) or is an election's acceptance

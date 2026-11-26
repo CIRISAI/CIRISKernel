@@ -379,7 +379,8 @@ def seat_cases():
         out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
-           "policy": {k: list(v) for k, v in ST.POLICY.items()}}
+           "policy": {k: list(v) for k, v in ST.POLICY.items()},
+           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS]}
     windows = {k: dict(enc(v), secs=WN.secs(k)) for k, v in WN.WINDOWS.items()}
     adversary = []
     for t in WN.adversary_table():
