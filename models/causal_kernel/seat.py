@@ -551,21 +551,24 @@ def seat_class(o, sc, holds=None):
     return None
 
 
-def consented(by, t, k):
-    """Key k consented to offer t: it signed it, or an acceptance of it by k is held (one naming it, or a standing
-    acceptance it names). A withdrawal of an offer k never consented to is a decline: it ends that offer for k and
-    nothing else, and is no end of a stay."""
+def consented(by, t, k, before):
+    """Key k consented to offer t: it signed it, or an acceptance of it by k is in the withdrawal's own concluded past
+    (`before`: one naming it, or a standing acceptance it names, of its scope and object). A withdrawal of an offer k
+    never consented to is a decline: it ends that offer for k and nothing else, and is no end of a stay."""
     if k in signers(t): return True
-    return any(a["kind"] == "accept" and a["signer"] == k and (a.get("of") == t["id"] or (
-        a.get("of") is None and a["id"] in t.get("names", ()) and a.get("scope") == t.get("scope"))) for a in by.values())
+    return any(a["kind"] == "accept" and a["signer"] == k and before(a) and (a.get("of") == t["id"] or (
+        a.get("of") is None and a["id"] in t.get("names", ()) and a.get("scope") == t.get("scope")
+        and a.get("obj") in (None, t.get("obj")))) for a in by.values())
 
 
-def stay_ends(rows, by, holds=None):
+def stay_ends(rows, by, before, holds=None):
     """The holders' own ends of a stay as a member, among `rows`: (withdrawal, key, community) for each withdrawal by a
     key of an offer of the roster's seat that names it, or of its own acceptance of one (the offer the acceptance
-    names, or a standing acceptance's own scope and object). Read from the rows alone."""
+    names, or a standing acceptance's own scope and object). `before(a, w)`: row a is concluded and in w's past; the
+    consent a withdrawal ends is read there only (a row written after it, or one that concludes nothing, is none)."""
     out = []
     for w in rows:
+        bw = (lambda a, w=w: True) if "consent_any_row" in MUT else (lambda a, w=w: before(a, w))   # MUTATION consent_any_row
         if w["kind"] != "withdraw": continue
         t, k = by.get(w.get("target")), w["signer"]
         if t is None: continue
@@ -581,13 +584,14 @@ def stay_ends(rows, by, holds=None):
             elif t.get("obj") is not None and t.get("scope") in ROSTER_SEATS and community(by, t["obj"]):
                 # a standing acceptance withdrawn ends a stay only where an offer seating k named it (F5)
                 if "decline_ends_stay" in MUT or any(m["kind"] == "offer" and m.get("obj") == t["obj"] and k in m["to"]
-                                                     and t["id"] in m["names"] for m in by.values()):
+                                                     and m.get("scope") == t.get("scope") and t["id"] in m["names"]
+                                                     and bw(m) for m in by.values()):
                     out.append((w, k, t["obj"]))
                 continue
             else: continue
         if t is None or t["kind"] != "offer" or k not in t["to"]: continue
         # a key that never consented to the offer it withdraws declines it: no end of a stay (MUTATION decline_ends_stay)
-        if "decline_ends_stay" not in MUT and not consented(by, t, k): continue
+        if "decline_ends_stay" not in MUT and not consented(by, t, k, bw): continue
         if community(by, t["obj"]) and roster_seat(t, holds): out.append((w, k, t["obj"]))
     return out
 
@@ -730,7 +734,7 @@ class Seats:
         self.dropped = drop
         unseats = [u for u in unseats if u["id"] not in drop]
 
-        left = stay_ends(wd, S.by, holds)                       # the holders' own ends of a stay as a member
+        left = stay_ends(wd, S.by, lambda a, w: bool(S.C.get(a["id"])) and a["id"] in S.anc[w["id"]], holds)   # the holders' own ends of a stay as a member
         gone = {(k, g) for _, k, g in left}
 
         def same_class(w, o, sc):
@@ -1041,7 +1045,8 @@ def standing_ends(S, x, standing, unseats, not_ends=frozenset()):
     ids = {o for o, _ in standing}
     of = lambda oids: frozenset(s for s in standing if s[0] in oids)
     out = []
-    stay = {w["id"] for w, k, g in stay_ends(K.sel(S.Cs, kind="withdraw"), by) if k == M and g == obj}
+    stay = {w["id"] for w, k, g in stay_ends(K.sel(S.Cs, kind="withdraw"), by,
+                                             lambda a, w: bool(S.C.get(a["id"])) and a["id"] in S.anc[w["id"]]) if k == M and g == obj}
     for w in K.sel(S.Cs, kind="withdraw"):
         t = by.get(w["target"])
         if t is None: continue
@@ -1339,7 +1344,8 @@ def stay_ended_in_past(P, past, obj):
     if "leaving_unread" in MUT or "resign_keeps_duty" in MUT: return frozenset()
     by = {q["id"]: q for q in P}
     if not community(by, obj): return frozenset()
-    return frozenset(k for w, k, g in stay_ends(P, by) if g == obj and not seated_after(P, past, obj, k, w, roster_seat))
+    return frozenset(k for w, k, g in stay_ends(P, by, lambda a, w: a["id"] in by and past(a["id"], w["id"]))
+                     if g == obj and not seated_after(P, past, obj, k, w, roster_seat))
 
 
 def count_left(P, past, obj, scope):
@@ -1386,7 +1392,7 @@ def room_key_ended(k, sc, obj, P, past, by):
                                            for m in P):
         return True                                               # MUTATION: a second seat row of a seated key is refused
     if "resign_not_final" in MUT: return False                   # MUTATION: a resignation is no end of the seat
-    return any(k2 == k and g == obj for _, k2, g in stay_ends(P, by))
+    return any(k2 == k and g == obj for _, k2, g in stay_ends(P, by, lambda a, w: a["id"] in by and past(a["id"], w["id"])))
 
 
 def _revoked_before(r, P, past):
@@ -1428,10 +1434,8 @@ def roster_placement(r, by):
     if not community(by, obj) or seat_class(r, r.get("scope")) is None: return True
     if r.get("conf") in ("self", "seat") and "own_roster_row" not in MUT: return False   # MUTATION own_roster_row: RK2 unread
     if r["kind"] == "offer" and r.get("consent") == "one" and "consent_one_any" not in MUT:  # MUTATION consent_one_any: RK1 unread
-        # MARKED: until kind_of reads the founding record's `cohort_subkind` (the binding's batch, with the `node` scope),
-        # consent "one" is allowed only over a group that is no community by its kind (an infrastructure group, founded
-        # in `founder`); then it is `kind_of(by, obj) == "infrastructure" and r["scope"] == "node"`
-        return kind_of(by, obj) != "community" and r.get("scope") != "founder"
+        # MARKED: the founding record's `cohort_subkind`, read here until kind_of reads it (the binding's batch)
+        return by[obj].get("cohort_subkind") == "infrastructure" and r.get("scope") == "node"
     return True
 
 

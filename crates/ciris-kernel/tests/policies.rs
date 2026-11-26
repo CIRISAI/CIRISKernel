@@ -133,13 +133,13 @@ fn admits(
             signer: f[0].clone(),
             kind: Some(SeatKind::Offer),
             to: f.clone(),
-            cosigners: f[1..].to_vec(),
+            cosigners: m.iter().chain(f.iter()).filter(|k| **k != f[0]).cloned().collect(),
             scope: Some("founder".into()),
             // a roster seat over a group is placed by a counted row, never by one key's own row: the founders are
-            // seated by a counted admission of one voice, each founder signing it (its own consent)
+            // seated by the room's counted admission (`community_invite`), every member and founder signing it
             conf: Some(Conf::Group),
             head: s(&["g"]),
-            policy: Some("seat_founders".into()),
+            policy: Some("community_invite".into()),
             ..Default::default()
         });
     }
@@ -163,7 +163,7 @@ fn admits(
     let mut law = SeatLaw { depth: 5, roster_seats: s(&["member"]), ..Default::default() };
     law.holds.insert("founder".into(), s(&["member"]));
     law.policy.insert("p".into(), policy);
-    law.policy.insert("seat_founders".into(), Policy::One);
+    law.policy.entry("community_invite".into()).or_insert(Policy::AtLeast(2, 3));
     let c = conclude(kept(&rows, |_| true), |q| seat_rule(q, &law, &Slots, &|_| true), None);
     c.concluded(c.g.idx(&"x".to_string()).unwrap())
 }
