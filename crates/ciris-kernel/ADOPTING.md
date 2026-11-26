@@ -169,15 +169,18 @@ trusting an adapter.
 - Cases: `models/causal_kernel/check_duty_seats.py`, all in the `seat` fixture.
 
 **The moderator election**, for the seat rule (unreleased; see the CHANGELOG).
+- Every election row names its election in `of()`: the last seating of `moderate` over the room that stood, or
+  the room's founding row for a room never seated. A row naming another row belongs to that election or to none.
 - A ballot (`ballot:moderator`) is a row of `SeatKind::Ballot`, `ranking()` its keys best first (at most
   `seat::ELECTION_RANKS`). Its withdrawal is a `SeatKind::Withdraw` by its signer, `target()` the ballot.
 - The acceptance (`ballot:moderator_acceptance`) is one Offer of scope `moderate` over the room, `Conf::Group`,
   `policy()` the table's `moderator_election` row (`Policy::Ranked`), `to()` the winner, `head()` the head
-  counted at. The candidates are the roster at that head (`options()` is not read). It names every ballot, withdrawal and decline of its set. The winner
-  signs it, or accepts it.
+  counted at, SIGNED BY THE WINNER: a seating signed by any other key concludes nothing. It names every ballot,
+  withdrawal and decline of its set. The candidates are the roster at that head (`options()` is not read).
 - A decline (`ballot:moderator_decline`) is a row whose `SeatRow::decline()` is true (default false), signed by
-  the key declining. The count yields the first in the runoff order (`ranked::runoff`) whose decline the
-  acceptance does not name.
+  the key declining, naming its election. The count runs with the decliners the acceptance names struck.
+- Of one election's acceptances, the one hearing the most persons of the electorate stands (then the one with
+  more valid rows); different sets of equal size seat nobody until an acceptance over their union is held.
 - The table's `moderator_recall` row is `Policy::Recall(2, 3, 2)`: more than two thirds of the members less the
   holder it recalls (that holder no voice), and never fewer than two voices. `Policy::StrictFloor` is the same
   threshold as a plain count. BREAKING for an exhaustive match on `Policy`: both are new variants.

@@ -46,7 +46,7 @@ use crate::cut::{Cut, CutSpec};
 use crate::graph::Graph;
 use crate::layers::{Concluded, Past};
 use crate::line::{self, LineSpec};
-use crate::ranked::runoff;
+use crate::ranked::ranked;
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
@@ -207,7 +207,9 @@ pub trait SeatRow: Row {
         None
     }
     /// An acceptance: the offer it accepts (none for a standing acceptance). A cosignature: the content
-    /// it is a voice for.
+    /// it is a voice for. An election's ballot, decline and seating (a [`Policy::Ranked`] offer): the
+    /// election it is of, the row that names it (the last seating of `moderate` over the room that stood, or the
+    /// room's founding row).
     fn of(&self) -> Option<&Self::Id> {
         None
     }
@@ -278,10 +280,14 @@ pub enum Policy {
     One,
     /// The threshold the row declares.
     Declared,
-    /// The ranked tally: the ballots the row names, and the row seats the winner. The election (CC 4.5.13): it
-    /// seats nobody where a duty holder is live at the heads the row names; a ballot counts where its signer is
-    /// counted over, its signer has not withdrawn it in the row's past, and every key it ranks holds the counted
-    /// scope at those heads.
+    /// The election's seating (CC 4.5.13): the winner's own acceptance, naming its election (`of()`) and the
+    /// ballots, withdrawals and declines of its set. It concludes where the row it names is its election (the
+    /// founding row, or the last seating of `moderate` that stood), no person holds a duty at its heads, its signer
+    /// is its `to`, and the ranked count over exactly its set, with no declared order and the decliners struck,
+    /// yields that key. The candidates and voters are the persons at its heads, less a key whose own leaving is in
+    /// its past. A ballot counts where it is of the election, its signer's, not withdrawn by its signer, and ranks
+    /// at most [`ELECTION_RANKS`] candidates. Of one election's seatings, the one over the larger set stands
+    /// ([`Seats`]).
     Ranked,
     /// CC 4.5.4 (iv): conferral by a strict majority of the duty holders.
     DutyConfer,
@@ -602,6 +608,8 @@ pub struct Seats<'c, 'a, R: SeatRow, S: CutSpec<R>> {
     spec: &'c S,
     by: BTreeMap<&'a R::Id, &'a R>,
     stale: BTreeSet<usize>,
+    /// The election seatings that do not stand ([`outvoted`]): no seat and no tip.
+    beaten: BTreeSet<usize>,
     /// The moderators' lone removals the end rule holds out of force over this set ([`removal_in_force`]):
     /// they end nothing here, and a reading of one line of the set (a tip, the fold) leaves them out too.
     dropped: BTreeSet<R::Id>,
@@ -746,7 +754,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         };
         // the election's seatings that do not stand: of one election, over a smaller set than another's, or over
         // another set of the same size
-        let beaten = outvoted(law, c, &by, &|i| cut.counts(i) && !stale.contains(&i));
+        let beaten = outvoted(law, spec, c, &|i| cut.counts(i) && !stale.contains(&i), Some(cache.unwrap_or(&local)));
         // keys and scopes are borrowed from the rows through the walk, and copied once into each live seat
         let mut base: Vec<(usize, &'a R::Key, &'a R::Word)> = Vec::new();
         for &oi in cs {
@@ -883,6 +891,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             spec,
             by,
             stale,
+            beaten,
             dropped,
             recs,
             duty,
@@ -995,6 +1004,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     && (r.conf() == Some(Conf::Group) || Obj::Row(r.id().clone()) == *o)
                     && self.cut.counts(i)
                     && !self.stale.contains(&i)
+                    && !self.beaten.contains(&i)
             })
             .collect();
         g.frontier(&acts)
@@ -1236,90 +1246,203 @@ impl<'c, 'a, R: SeatRow + crate::Dated, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     }
 }
 
-/// Whether unseat `u` cuts a roster seat key `k` holds over `obj`: an offer in `u`'s past seats `k` in the
-/// unseat's scope (or it is the founding row, holding `member`, and the scope is `member`). A cut of a roster
-/// scope the key does not hold ends no stay, and so no duty seat.
-/// The election a seating counted by the ranked count belongs to (CC 4.5.13: its id is "the digest of the
-/// community id and of the last seating row or, for a room never yet seated, the genesis of the roster"), read
-/// from what the row names: the latest concluded rows in its past that seat `moderate` over its room, or the
-/// room's founding row. Two seatings are of one election when these are the same rows. No digest is taken.
-fn election_of<R: SeatRow>(c: &Concluded<'_, R>, oi: usize) -> BTreeSet<usize> {
-    let g = &c.g;
-    let o = g.row(oi);
-    let Some(obj) = o.obj() else { return BTreeSet::new() };
-    let past = g.ancestors(oi);
-    let seat: Vec<usize> = c
-        .cs()
-        .iter()
-        .copied()
-        .filter(|&q| q != oi && past.has(q))
-        .filter(|&q| {
-            let r = g.row(q);
-            r.seat_kind() == SeatKind::Offer
-                && r.obj().as_ref() == Some(&obj)
-                && (obj == Obj::Row(r.id().clone()) || r.scope().is_some_and(|s| s.as_ref() == "moderate"))
-        })
-        .collect();
-    seat.iter().copied().filter(|&q| !seat.iter().any(|&x| x != q && g.in_past(q, x))).collect()
+/// A seating by the election: a counted offer under the ranked count (`moderator_election`).
+fn is_election<R: SeatRow>(law: &SeatLaw, o: &R) -> bool {
+    o.seat_kind() == SeatKind::Offer
+        && o.conf() == Some(Conf::Group)
+        && law.policy_of(o.policy().map(|x| x.as_ref())) == Some(Policy::Ranked)
 }
 
-/// The set a seating was counted over: the ballot, withdrawal and decline rows it names (CC 4.5.13).
-fn ballot_set<'r, R: SeatRow>(by: &BTreeMap<&R::Id, &'r R>, o: &'r R) -> BTreeSet<&'r R::Id> {
-    o.names()
-        .iter()
-        .filter(|n| {
-            by.get(n).is_some_and(|b| {
-                b.seat_kind() == SeatKind::Ballot
-                    || b.decline()
-                    || (b.seat_kind() == SeatKind::Withdraw
-                        && b.target().and_then(|t| by.get(t)).is_some_and(|t| t.seat_kind() == SeatKind::Ballot))
-            })
-        })
-        .collect()
+/// A seating of `moderate` over `obj`: an offer of that scope, or `obj`'s founding row (its genesis).
+fn seats_moderate<R: SeatRow>(q: &R, obj: &ObjOf<R>) -> bool {
+    q.seat_kind() == SeatKind::Offer
+        && q.obj().as_ref() == Some(obj)
+        && (*obj == Obj::Row(q.id().clone()) || q.scope().is_some_and(|s| s.as_ref() == "moderate"))
 }
 
-/// The ranked seatings that do not stand (CC 4.5.13: "Among the valid acceptances a node holds, the one counted
-/// over the larger set stands ... Two acceptances over different sets of equal size are a tie, and neither seats
-/// anyone. The tie ends when the node holds an acceptance counted over the union of the two sets"): of one
-/// election, each seating over a set smaller than another's, or of the same size and different. A reading over the
-/// concluded rows, as the fold at tips is; each seating still concludes on its own past.
-fn outvoted<R: SeatRow>(
+/// The size of a set (CIRISConstitution#241 E-A1).
+type Size<I> = (usize, usize, BTreeSet<I>);
+
+/// The size of the set seating `o` was counted over, in election `e`, read over `p` (which holds `o`'s past):
+/// (the persons of the electorate heard in it, the valid rows it holds, those rows). A row is valid where it is its
+/// signer's own (a ballot, a withdrawal of the signer's own ballot, a decline), of election `e`, concluded, and
+/// signed by a person of the electorate: the persons seated at `e`. A non-member's rows, an agent's, and rows
+/// about another person's ballot add nothing. The valid rows are a function of the row and `e` alone, so the union
+/// of two sets' valid rows is at least each of them on both counts.
+fn election_size<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
     law: &SeatLaw,
-    c: &Concluded<'_, R>,
-    by: &BTreeMap<&R::Id, &R>,
-    counts: &dyn Fn(usize) -> bool,
-) -> BTreeSet<usize> {
-    let g = &c.g;
-    let el: Vec<usize> = c
-        .cs()
-        .iter()
-        .copied()
-        .filter(|&i| {
-            let o = g.row(i);
-            o.seat_kind() == SeatKind::Offer
-                && o.conf() == Some(Conf::Group)
-                && law.policy_of(o.policy().map(|x| x.as_ref())) == Some(Policy::Ranked)
-                && counts(i)
-        })
-        .collect();
-    if el.len() < 2 {
-        return BTreeSet::new();
+    spec: &S,
+    cache: Option<&MembersAt<R>>,
+    o: &R,
+    e: &R::Id,
+) -> Size<R::Id> {
+    let Some(obj) = o.obj() else { return (0, 0, BTreeSet::new()) };
+    let elect = if p.get(e).is_some() {
+        persons_at_with(p, law, spec, &obj, core::slice::from_ref(e), "member", cache)
+    } else {
+        BTreeSet::new()
+    };
+    let mut rows = BTreeSet::new();
+    let mut heard = BTreeSet::new();
+    for n in o.names() {
+        let Some(q) = p.get(n) else { continue };
+        if !elect.contains(q.signer()) {
+            continue;
+        }
+        let valid = if q.seat_kind() == SeatKind::Ballot || q.decline() {
+            q.of() == Some(e)
+        } else if q.seat_kind() == SeatKind::Withdraw {
+            q.target()
+                .and_then(|t| p.get(t))
+                .is_some_and(|t| t.seat_kind() == SeatKind::Ballot && t.of() == Some(e) && t.signer() == q.signer())
+        } else {
+            false
+        };
+        if valid {
+            rows.insert(n.clone());
+            heard.insert(q.signer().clone());
+        }
     }
-    let of: Vec<(BTreeSet<usize>, BTreeSet<&R::Id>)> =
-        el.iter().map(|&i| (election_of(c, i), ballot_set(by, g.row(i)))).collect();
+    (heard.len(), rows.len(), rows)
+}
+
+/// Of one election's seatings with their sizes, those that do not stand (CC 4.5.13: "the one counted over the
+/// larger set stands ... Two acceptances over different sets of equal size are a tie, and neither seats anyone"):
+/// below the largest (by persons heard, then by valid rows), and, where several different sets share the largest,
+/// all of those. Sorted once: O(n log n).
+fn beaten_among<K: Ord + Clone, I: Ord>(mut sized: Vec<(K, Size<I>)>) -> BTreeSet<K> {
     let mut out = BTreeSet::new();
-    for (a, (e, b)) in of.iter().enumerate() {
-        let lost = of
-            .iter()
-            .enumerate()
-            .any(|(x, (e2, b2))| x != a && e2 == e && (b2.len() > b.len() || (b2.len() == b.len() && b2 != b)));
-        if lost {
-            out.insert(el[a]);
+    if sized.len() < 2 {
+        return out;
+    }
+    sized.sort_by(|a, b| (b.1 .0, b.1 .1).cmp(&(a.1 .0, a.1 .1)));
+    let top = (sized[0].1 .0, sized[0].1 .1);
+    let tops: Vec<&(K, Size<I>)> = sized.iter().filter(|x| (x.1 .0, x.1 .1) == top).collect();
+    let split = tops.iter().any(|x| x.1 .2 != tops[0].1 .2);
+    for x in &sized {
+        if (x.1 .0, x.1 .1) != top || split {
+            out.insert(x.0.clone());
         }
     }
     out
 }
 
+/// The election seatings of `c` that do not stand, each election's seatings compared among themselves (grouped by
+/// the room and the election row they name), and the seatings of an election whose row is itself outvoted (that
+/// election was never held). A reading over the concluded rows, as the fold at tips is; each seating still
+/// concludes on its own past.
+fn outvoted<R: SeatRow, S: CutSpec<R>>(
+    law: &SeatLaw,
+    spec: &S,
+    c: &Concluded<'_, R>,
+    counts: &dyn Fn(usize) -> bool,
+    cache: Option<&MembersAt<R>>,
+) -> BTreeSet<usize> {
+    let g = &c.g;
+    type Group<I, K> = BTreeMap<(Option<Obj<I, K>>, Option<I>), Vec<usize>>;
+    let mut groups: Group<R::Id, R::Key> = BTreeMap::new();
+    for &i in c.cs() {
+        let o = g.row(i);
+        if is_election(law, o) && counts(i) {
+            groups.entry((o.obj(), o.of().cloned())).or_default().push(i);
+        }
+    }
+    let mut out = BTreeSet::new();
+    for ((_, e), el) in &groups {
+        let Some(e) = e else { continue };
+        if el.len() < 2 {
+            continue;
+        }
+        let sized: Vec<(usize, Size<R::Id>)> = el
+            .iter()
+            .map(|&i| {
+                let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, i)).collect();
+                let p = Past::new(g, i, &anc);
+                (i, election_size(&p, law, spec, cache, g.row(i), e))
+            })
+            .collect();
+        out.extend(beaten_among(sized));
+    }
+    loop {
+        let add: Vec<usize> = groups
+            .values()
+            .flatten()
+            .copied()
+            .filter(|i| !out.contains(i))
+            .filter(|&i| g.row(i).of().and_then(|e| g.idx(e)).is_some_and(|ei| out.contains(&ei)))
+            .collect();
+        if add.is_empty() {
+            break;
+        }
+        out.extend(add);
+    }
+    out
+}
+
+/// A seating of `moderate` that stood, read over `p`: its holder's consent is held (it signed the row, or accepted
+/// it), and, for an election's seating, no other of its election in `p` outvotes it.
+fn stood_in<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    cache: Option<&MembersAt<R>>,
+    e: &R,
+) -> bool {
+    let Some(k) = e.to().first() else { return false };
+    let consent = signed_by(e, k)
+        || p.rows().any(|a| a.seat_kind() == SeatKind::Accept && a.signer() == k && a.of() == Some(e.id()));
+    if !consent {
+        return false;
+    }
+    if !is_election(law, e) {
+        return true;
+    }
+    let Some(el) = e.of() else { return false };
+    let sized: Vec<(&R::Id, Size<R::Id>)> = p
+        .rows()
+        .filter(|q| is_election(law, *q) && q.obj() == e.obj() && q.of() == Some(el))
+        .map(|q| (q.id(), election_size(p, law, spec, cache, q, el)))
+        .collect();
+    !beaten_among(sized).contains(e.id())
+}
+
+/// The election `r` names ([`SeatRow::of`]), where it is that election (CIRISConstitution#241 E-A3): the room's
+/// founding row, or a seating of `moderate` over the room that stood; and no later seating of `moderate` over the
+/// room that stood, other than another of the same election, is in `r`'s past. `None` otherwise: a row naming
+/// another row as its election belongs to that election or to none.
+fn election_named<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    cache: Option<&MembersAt<R>>,
+) -> Option<R::Id> {
+    let r = p.row();
+    let e_id = r.of()?;
+    let e = p.get(e_id)?;
+    let obj = r.obj()?;
+    let genesis = obj == Obj::Row(e_id.clone());
+    if !genesis && !(seats_moderate(e, &obj) && stood_in(p, law, spec, cache, e)) {
+        return None;
+    }
+    let later = p.rows().any(|q| {
+        q.id() != e_id
+            && q.id() != r.id()
+            && seats_moderate(q, &obj)
+            && obj != Obj::Row(q.id().clone())
+            && p.past(e_id, q.id())
+            && q.of() != Some(e_id)
+            && stood_in(p, law, spec, cache, q)
+    });
+    if later {
+        return None;
+    }
+    Some(e_id.clone())
+}
+
+/// Whether unseat `u` cuts a roster seat key `k` holds over `obj`: an offer in `u`'s past seats `k` in the
+/// unseat's scope (or it is the founding row, holding `member`, and the scope is `member`). A cut of a roster
+/// scope the key does not hold ends no stay, and so no duty seat.
 fn holds_roster<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, u: usize, k: &R::Key, obj: &ObjOf<R>) -> bool {
     let g = &c.g;
     let Some(us) = g.row(u).scope() else { return false };
@@ -2035,27 +2158,37 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
     }
     let mem = count_members_with(p, law, spec, cache);
     if pol == Some(Policy::Ranked) {
-        // a ballot its signer withdrew in the row's past is none (CC 4.5.13: "Disagreeing ballots neither withdrawn
-        // are no ballot until a withdrawal leaves one")
-        let gone = |b: &R| {
-            p.rows()
-                .any(|w| w.seat_kind() == SeatKind::Withdraw && w.target() == Some(b.id()) && w.signer() == b.signer())
-        };
+        // the election's seating: the winner's acceptance (CC 4.5.13), counted over the ballots it names. It names its
+        // election, and the row it names is that election (CIRISConstitution#241 E-A3)
+        let Some(e) = election_named(p, law, spec, cache) else { return false };
         let over = r.over().unwrap_or(obj);
         // the members' count seats a holder only where none is left (CC 4.5.4 (v); rule 2: "While another duty
-        // holder remains, a vacant seat is conferred under line (iv), and the community does not lock"): a duty
-        // holder at the heads the row names, its own leaving not in the row's past, and the election seats nobody
-        // read by person, as the duty counts are: an AI agent's key holding a duty is no holder here
+        // holder remains, a vacant seat is conferred under line (iv), and the community does not lock"): a person
+        // holding a duty at the heads, its own leaving or the end of its stay not in the row's past, and not
+        // seated by another seating of the same election (which this one may replace)
         let mut holders = persons_at_with(p, law, spec, &over, r.head(), "duty", cache);
         for k in left_in_past(p, &over, "duty").into_iter().chain(stay_ended_in_past(p, law, &over)) {
             holders.remove(&k);
         }
+        for q in p.rows().filter(|q| is_election(law, *q) && q.of() == Some(&e)) {
+            for k in q.to() {
+                holders.remove(k);
+            }
+        }
         if !holders.is_empty() {
             return false;
         }
+        // a ballot its signer withdrew in the row's past is none (CC 4.5.13: "Disagreeing ballots neither withdrawn
+        // are no ballot until a withdrawal leaves one"); the withdrawal is the signer's own
+        let gone = |b: &R| {
+            p.rows()
+                .any(|w| w.seat_kind() == SeatKind::Withdraw && w.target() == Some(b.id()) && w.signer() == b.signer())
+        };
         let ballots: Vec<(R::Key, Vec<R::Key>)> = p
             .rows()
             .filter(|b| b.seat_kind() == SeatKind::Ballot && r.names().contains(b.id()) && mem.contains(b.signer()))
+            // a ballot counts in the election it names only
+            .filter(|b| b.of() == Some(&e))
             .filter(|b| !gone(b))
             // a ballot ranking a key that is not counted over is not counted, the whole ballot (CC 3.1.4
             // `ballot:moderator`: "A ballot naming ... a non-member is kept and not counted"): the candidates are
@@ -2064,16 +2197,22 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
             .filter(|b| b.ranking().len() <= ELECTION_RANKS)
             .map(|b| (b.signer().clone(), b.ranking().to_vec()))
             .collect();
-        // the one ranked row is the election, which declares no order: a tie for weakest seats nobody
-        // the count yields the first in the set's runoff order who has not declined, the declines being those the
-        // row names (CC 4.5.13: a decline "passes the duty to the next in runoff order")
-        let declined: BTreeSet<&R::Key> =
-            p.rows().filter(|d| d.decline() && r.names().contains(d.id())).map(|d| d.signer()).collect();
-        // the candidates are the roster at the heads: the base, persons less a key whose own leaving is in the row's
-        // past (CC 4.5.13: "The ballot is the roster, every member a candidate"); the row's `options` are not read
-        let candidates: Vec<R::Key> = mem.iter().cloned().collect();
-        let won = runoff(&ballots, &candidates, 2, false).into_iter().find(|o| !declined.contains(o));
-        return is_offer && !ballots.is_empty() && won.as_ref() == r.to().first();
+        if ballots.is_empty() {
+            return false;
+        }
+        // a decline strikes its signer: the count yields the first in the set's runoff order who has not declined,
+        // which is the count with the decliners struck; the declines are those the row names, of its election
+        let declined: BTreeSet<&R::Key> = p
+            .rows()
+            .filter(|d| d.decline() && r.names().contains(d.id()) && d.of() == Some(&e))
+            .map(|d| d.signer())
+            .collect();
+        // the candidates are the roster at the heads (CC 4.5.13: "The ballot is the roster, every member a
+        // candidate"); the row's `options` are not read, and an election declares no order
+        let candidates: Vec<R::Key> = mem.iter().filter(|k| !declined.contains(k)).cloned().collect();
+        let won = ranked(&ballots, &candidates, 2, false).0;
+        // the seating is the winner's acceptance: its signer is the key the count yields
+        return is_offer && won.as_ref() == r.to().first() && won.as_ref() == Some(r.signer());
     }
     let v = voices(r, p);
     let count = GroupCount { policy: pol, offer: is_offer, to: r.to(), members: &mem, voices: &v, need: r.need() };

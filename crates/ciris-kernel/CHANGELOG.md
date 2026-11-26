@@ -2,104 +2,109 @@
 
 ## Unreleased
 
-**The moderator election, read by the seat rule** (CC 4.5.13; CIRISConstitution#218, waits list: "the election
-beyond the ballot count").
+**The moderator election, read by the seat rule** (CC 4.5.13, CC 4.5.4 rule 2; CIRISConstitution#241). The
+election is built in the Python reference and the crate. Every rule below changes answers that 0.4.0 gave.
+Public names are added only; `Policy` gains two variants (BREAKING for an exhaustive match).
 
-- The seat rule's ranked arm (`Policy::Ranked`: a counted offer of `moderate` naming its ballots, which concludes
-  where the ranked count over them yields its `to`) had no case in either language. `check_election.py` has 19
-  hand-written cases (the count, a transfer, ties, the floor in a room of one and of three, a non-member's and an
-  agent's ballot, an unnamed ballot, one ballot a person, the winner's consent, the seat on a member) in every
-  arrival order, and one row the text does not decide (OPEN: every member a candidate, two with no first choice
-  tie for weakest). All are in the `seat` fixture, so `tests/seat.rs` replays them. No answer changes. Four
-  planted breaks in each language.
-- **A withdrawn ballot is none** (CC 4.5.13: "Disagreeing ballots neither withdrawn are no ballot until a
-  withdrawal leaves one"; a ballot's way back is its author's withdrawal). A ballot whose signer's withdrawal of it
-  is among the counted row's concluded ancestors is not counted. **An answer changes**: before, a withdrawn ballot
-  counted, so a seating over it could conclude (and one with a withdrawn disagreeing ballot could not). A
-  withdrawal beside the row, not in its past, is not read; another key's withdrawal of a ballot concludes nothing.
-  Four cases; one plant in each language.
-- **A ballot ranking a non-member is not counted** (CC 3.1.4 `ballot:moderator`: "A ballot naming ... a non-member
-  is kept and not counted"; its guard, each rank a member). A ballot ranking a key that holds no seat of the counted
-  scope (`member`) at the heads the row names is not counted, the whole ballot. **An answer changes**: before, a
-  ranked key that was no option was passed over and the ballot counted for its next choice. The candidates are the
-  base the count is taken over (CIRISConstitution#241 O1, O2, derived): an AI agent's key is no candidate, and a key
-  whose own leaving is in the row's past is out of the base, the voices and the candidates (`left_in_past`, one
-  rule). **An answer changes** for a ballot ranking such a leaver: it is not counted. Seven cases; two plants in
-  `seat.py`, one in the crate.
-- **A ballot ranking more than three is void**, the whole ballot (CC 4.5.13: "Each person ranks up to three";
-  CIRISConstitution#241 O3). New: `seat::ELECTION_RANKS` (3). **An answer changes**: before, every rank counted.
-  Two cases; one plant in each language.
-- **A recall is strictly more than two thirds, with a floor of two voices, over the roster less the holder it
-  recalls** (CC 4.5.13: "A recall is one row cosigned by more than two thirds of the standing roster ... The floor
-  is two voices"; CIRISConstitution#241 O5, and C1, derived from the lift's ruling). **BREAKING for an exhaustive
-  match on `seat::Policy`**: two new variants.
-  - `Policy::StrictFloor(num, den, least)` is a plain threshold: strictly more than `num / den` of the base, and
-    never fewer than `least` voices. `seat::met` reads it with `Policy::Strict`'s comparison, and the removed
-    member is a voice as on any plain count.
-  - `Policy::Recall(num, den, least)` uses the same comparison and floor (`met` delegates to StrictFloor), but it
-    judges one holder. `count_of` counts it over the members less the key it removes, and that key is no voice. The
-    exclusion keys on the variant, beside `unanimous`, `open:self_admit` and the duty withdrawal. It does not key on
-    a threshold's shape.
-  The reference's table reads `moderator_recall` as `Recall(2, 3, 2)` (the data's cell is `2/3`, read before as at
-  least), and the fixture's law carries it. An adopter's table must give `moderator_recall` as
-  `Policy::Recall(2, 3, 2)`. **Answers change** (holder A):
+**The rows.** Every election row names its election (`SeatRow::of`, already an accessor, here read for three more
+kinds). The election is the last seating of `moderate` over the room that stood, or, for a room never seated, the
+room's founding row.
+- A ballot (`ballot:moderator`) is a `SeatKind::Ballot` row, signed by a member, `ranking()` best first, naming its
+  election.
+- A decline (`ballot:moderator_decline`) is a row whose new `SeatRow::decline()` is true (default false), naming
+  its election.
+- A seating (`ballot:moderator_acceptance`) is one Offer of scope `moderate` over the room, `Conf::Group`, under
+  `Policy::Ranked`, `to()` the winner, `head()` the head it is counted at. It names its election and every
+  ballot, withdrawal and decline of its set. `options()` is not read.
+
+**The seating's conclusion rule** (`seat::count_met`'s ranked arm, `seat.count_met`). A seating concludes only
+where every one of these holds:
+- **Its election is that row** (#241 E-A3). The row it names is the room's founding row, or a seating of
+  `moderate` over the room that stood: its holder's consent is held and no seating of its own election in the
+  past outvotes it. And no later seating of `moderate` over the room that stood is in the seating's past, other
+  than another of the same election, so rival seatings of one election name the same row whatever they have
+  seen. A row naming another row as its election belongs to that election or to none.
+- **No person holds a duty at its heads** (CC 4.5.4 (v); rule 2, "While another duty holder remains ... the
+  community does not lock"; #241 B3, L5). A holder whose own leaving or end of stay is in the seating's past is
+  not counted, nor a key seated by another seating of the same election (which this one may replace). An AI
+  agent's key holding a duty is no holder.
+- **The count over exactly its set yields its `to`**, the ranked count with no declared order (CC 4.5.13 "An
+  election declares no order"; #241 L1), floor two ballots or fewer where there are fewer candidates. The
+  candidates are the base at the heads: the persons there, less a key whose own leaving is in the row's past
+  (CC 4.5.13 "every member a candidate"; #241 O1, O2). A ballot counts where all of these hold:
+  - it is named by the seating, of its election (#241 E-A4), and signed by a key of the base (an agent's or a
+    non-member's ballot counts for nothing);
+  - its signer has not withdrawn it in the seating's past (CC 4.5.13 "Disagreeing ballots neither withdrawn are no
+    ballot until a withdrawal leaves one"; #241 L6);
+  - every key it ranks is a candidate and it ranks at most three (`seat::ELECTION_RANKS`; #241 O3), else the
+    whole ballot is void (CC 3.1.4 "A ballot naming ... a non-member is kept and not counted").
+  One ballot counts per person: agreeing ballots are one, disagreeing ones none (`ranked::ranked`).
+- **A decline strikes its signer** (#241 O4). The seating names the declines of its election, and the count runs
+  with the decliners struck from the candidates: the first in the runoff order who has not declined. Where that
+  count ties, the duty passes to nobody and the room elects again (#241 L1, L2).
+- **Its signer is the winner** (#241 E-A6): the seating is the winner's own acceptance. One signed by any other key
+  (a non-member, an agent, a losing candidate) concludes nothing, even with the winner's acceptance beside it.
+
+**Which seating stands** (`seat::Seats`, a reading over the concluded rows like the fold at tips; each seating
+still concludes on its own past; #241 E-A1, N2). The seatings are grouped by the room and the election they
+name.
+- The size of a seating's set is the number of distinct persons of the electorate it hears: persons with at
+  least one valid row of their own in the set. A row is valid where it is its signer's own (a ballot, a
+  withdrawal of the signer's own ballot, a decline), of this election, concluded, and signed by a person seated
+  at the election row. Between sets hearing the same persons, the one holding more valid rows stands.
+- A seating below the largest does not stand, and where different sets share the largest, none of them stands
+  until a seating over their union is held. Since validity is a function of the row and its election alone, the
+  union's valid rows are at least each set's on both counts, so no subset beats a seating over the union.
+- A seating of an election whose row is itself outvoted does not stand either.
+- An outvoted seating is no tip (`Seats::tips`), so the standing one does not wait on it (#241 A7).
+- An election's seating is a counted row, and a reader's acknowledged line voids a rival at an older head behind
+  it (`Seats::stale`, `line::void`; #241 E-A2). There is no new rule for this; two cases pin it.
+- Cost: seatings are grouped by election and each group sorted once by size: O(s log s) for s seatings of one
+  election, plus each seating's size, linear in the rows it names, plus the members at the election row.
+
+**Ranked choice** (`ranked`, `reexpress.py`; CC 4.5.13 "Ranked choice is one count").
+- **Options holding no first choice are struck together**, in every round of every ranked count, before the
+  weakest is sought (#241 E1, for every caller). `ranked::ranked`'s answers change. With a declared order no
+  winner changes, only the rounds. With none, a count that seated nobody on a tie at zero now reaches a winner,
+  with four or more options. The `reexpress` fixture now holds 600 cases of four to six options beside its 480
+  of three. Over the four-to-six-option cases, the rounds change in 101 of 552 with a declared order and in 96 of
+  528 without, and with no declared order 11 counts that seated nobody now seat someone. No case of three options
+  moves.
+- **`ranked::runoff`** (new) is the runoff order: the one count repeated. The first is the count's winner, the
+  next is the winner of the same count over the same ballots with those ahead of it struck, and so on; a step
+  that ties ends the order there. Each step is `ranked`, and there is no second ordering. The fixture carries
+  each case's order, and `tests/lib_ops.rs` replays it.
+
+**The recall** (CC 4.5.13: "A recall is one row cosigned by more than two thirds of the standing roster ... The
+floor is two voices"; #241 O5, C1). **BREAKING for an exhaustive match on `seat::Policy`**: two new variants.
+- `Policy::StrictFloor(num, den, least)` is a plain threshold: strictly more than `num / den` of the base, and
+  never fewer than `least` voices. The removed member is a voice, as on any plain count.
+- `Policy::Recall(num, den, least)` uses the same comparison and floor (`seat::met` delegates to StrictFloor).
+  It judges one holder, so `count_of` counts it over the members less the key it removes, and that key is no
+  voice. The exclusion keys on the variant, not on a threshold's shape.
+- The reference's table and the fixture law give `moderator_recall` as `Recall(2, 3, 2)`; the data's cell is
+  `2/3`, read before as at least. An adopter's table must do the same.
+- Answers, holder A:
   - one or two members: no recall is possible;
   - three: both others recall;
   - four: all three others recall, and two of three do not;
   - five: three of four;
   - six: four of five;
   - seven: five of six.
-  One case shows the difference: of three, B and C do not remove A under StrictFloor(2, 3, 2) and do recall it
-  under Recall(2, 3, 2). Sixteen cases; five plants in each language.
-- **The room elects only where no duty holder is left** (CC 4.5.4 (v): "With no duty holder left the room locks, and
-  the members' count seats one"; rule 2: "While another duty holder remains, a vacant seat is conferred under line
-  (iv), and the community does not lock"). A ranked row concludes nothing where a key holds a duty seat at the heads
-  it names, less a holder whose own leaving is in the row's past (as a count over the duty holders reads them).
-  **An answer changes**: before, an election seated a moderator beside a live one. Four cases (a holder present; the
-  last holder laying its duty down, or leaving, and an election at a later head; one of two holders laying down);
-  one plant in each language. The holders are read by person (CIRISConstitution#241 B3, derived: "only while >= 1
-  member holds the live `moderate` duty"): an AI agent's key holding a duty is no holder, and a room whose only
-  holder is an agent elects. One case; one plant in each language.
-- **A decline passes the duty to the next in runoff order** (CC 4.5.13: "The count yields the first in the set's
-  runoff order who has not declined"; CIRISConstitution#241 O4). New: `ranked::runoff`, the runoff order of the
-  same count (one loop with `ranked::ranked`, whose answers are unchanged). It gives the winner, then the options
-  in the reverse of their elimination, with the count run on past a majority "until one remains". It is only the
-  part a tie leaves known: a tie for weakest after the majority leaves the winner alone. New: `SeatRow::decline`
-  (default false), a decline row (`ballot:moderator_decline`). The seating yields the first in that order whose
-  decline it names. It is not a rerun: the case's winner after a decline differs from a count without the
-  decliner. The `reexpress` fixture carries each case's order, and `tests/lib_ops.rs` replays `runoff`. Six
-  cases; a plant in `seat.py` and two in the crate.
-- Not the kernel's (the caller's, ADOPTING.md): the lock, a `may` answer the caller carries; the node's 24 h
-  since it first held the lock; and the winner's grace. These are node clocks, and the kernel answers the rows'
-  half only.
-- **Of one election's seatings, the one over the larger set stands** (CC 4.5.13: "Among the valid acceptances a
-  node holds, the one counted over the larger set stands ... Two acceptances over different sets of equal size are
-  a tie, and neither seats anyone. The tie ends when the node holds an acceptance counted over the union";
-  CIRISConstitution#241 N1, N2). The election is read from what a seating names, and no digest is taken: its
-  election is the latest concluded rows in its past that seat `moderate` over its room, or the room's founding
-  row (#241 N1, derived), and two seatings are of one election when these are the same. The seating's set is the
-  ballot, withdrawal and decline rows it names. `seat::Seats` leaves out a seating whose election has another
-  over a larger set, or over a different set of the same size. Two seatings over the same set both stand. This is
-  a reading over the concluded rows, like the fold at tips; each seating still concludes on its own past. At two
-  tips the seat waits, as any seat does, until a row names both. **An answer changes**: before, two concluded
-  seatings both seated, once a row named both. Seven cases; two plants in each language.
-- **Options holding no ballot are eliminated together** (CIRISConstitution#241 E1, derived, a sentence being added to
-  "Ranked choice is one count"). In each round of `ranked::ranked` and `ranked::runoff` (one loop, and
-  `reexpress.py`'s reference), every standing option with no first choice is struck at once, before the weakest is
-  sought. "A tie for weakest seats nobody" is then about options that hold ballots. Every one of the 480 cases of
-  the `reexpress` fixture keeps its winner, rounds and order, declared and not. In the runoff order, a group struck
-  together is ordered by the declared order, and with none the order stops above it. The election always counts
-  with no declared order, whatever order its row lists (CC 4.5.13: "An election declares no order"; #241 L1), so
-  a decline does not pass into a group struck together: it passes to nobody, and the room elects again. **The election's candidates
-  are the roster at the heads** (CC 4.5.13: "The ballot is the roster, every member a candidate"): the base, which
-  is the persons less a key whose own leaving is in the row's past. The seating's `options()` are not read. **Answers
-  change**: a room of five whose two members no ballot names now elects. Four cases (a room of ten at 4/3/3 seats
-  nobody; at 5/3/2 it seats A); a plant in `seat.py` and one in the crate.
-- The election's rooms in `check_election.py` are founded by a record that names one holder of `moderate`, who
-  lays it down before the election. A founding with members only is refused at the door by the text, so no case
-  stands on one. The answers are as before.
-- `window`'s `How::MoreAtLeast` arm will read `Policy::StrictFloor` once the windows PR (#52) merges. Until
-  then it keeps its own floor check.
+- One case shows the difference: of three, B and C do not remove A under StrictFloor(2, 3, 2) and do recall it
+  under Recall(2, 3, 2).
+
+**Not the kernel's** (ADOPTING.md, caller duties): the lock (nobody posts, admits or acts until a moderator is
+seated; a `may` answer the caller carries), the node's 24 h since it first held the lock, and a silent winner's
+grace (`election_grace_secs`). These are node clocks, and the kernel answers the rows' half only. Window.rs's
+`How::MoreAtLeast` arm is to read `Policy::StrictFloor` after the windows PR (#52) merges.
+
+**The reference**: `models/causal_kernel/check_election.py` has 91 hand-written cases, three runoff cases and two
+reader cases. Every case is read in every arrival order (a sample of 300 above six rows), and all are in the
+`seat` fixture. It holds 30 planted breaks in `seat.py` and `reexpress.py`, with matching plants in
+`tools/kernel_crate_plants.sh`. Two tests have no plant because no row reaches them through the seat rule: a
+ballot's withdrawal by another key never concludes, and an empty set never meets the floor. Each case names its
+ledger row, "CIRISConstitution#241: <item>".
 
 **A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
 

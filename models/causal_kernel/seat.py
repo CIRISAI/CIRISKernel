@@ -129,7 +129,6 @@ import checkpoint as CP     # noqa: E402
 K, R = CK.K, CK.row
 sys.path.insert(0, os.path.join(ROOT, "models", "kernel_lib"))
 from reexpress import ranked as RANKED  # noqa: E402   the ranked count, already written over the library
-from reexpress import runoff as RUNOFF  # noqa: E402   its runoff order, the same count run on
 DEPTH = 5                                       # CC 3.4.7: a delegation chain is at most five links
 
 # ---- table data ----------------------------------------------------------------------------------------
@@ -459,41 +458,97 @@ def own_keys(by, obj):
 
 
 # ---- derived: the live seats ---------------------------------------------------------------------------
-def election_of(S, o):
-    """The election a seating counted by the ranked count belongs to (CC 4.5.13: its id is "the digest of the community
-    id and of the last seating row or, for a room never yet seated, the genesis of the roster"), read from what the row
-    names: the latest rows in its past that seat `moderate` over its room, or the room's founding row. Two seatings
-    are of one election when these are the same rows (#241 N1, derived: no digest; the rows named)."""
-    past = S.anc[o["id"]]
-    seat = [q for q in S.Cs if q["id"] in past and q["kind"] == "offer" and q["obj"] == o["obj"]
-            and (q["id"] == o["obj"] or q["scope"] == "moderate")]
-    return frozenset(q["id"] for q in seat if not any(q["id"] in S.anc[x["id"]] for x in seat))
+def is_election(o, table=None):
+    """A seating by the election: a counted offer under the ranked count (`moderator_election`)."""
+    return o["kind"] == "offer" and o.get("conf") == "group" and K.rule(table or POLICY, o.get("policy"), ("unknown",))[0] == "ranked"
 
 
-def ballot_set(S, o):
-    """The set a seating was counted over: the ballot, withdrawal and decline rows it names (CC 4.5.13)."""
-    return frozenset(n for n in o["names"] if n in S.by and (S.by[n]["kind"] in ("ballot", "decline") or (
-        S.by[n]["kind"] == "withdraw" and S.by.get(S.by[n]["target"], {}).get("kind") == "ballot")))
+def seats_moderate(q, obj):
+    """A seating of `moderate` over obj: an offer of that scope, or obj's founding row (its genesis)."""
+    return q["kind"] == "offer" and q.get("obj") == obj and (q["id"] == obj or q.get("scope") == "moderate")
 
 
-def outvoted(S, offers):
-    """The ranked seatings that do not stand (CC 4.5.13: "Among the valid acceptances a node holds, the one counted over
-    the larger set stands ... Two acceptances over different sets of equal size are a tie, and neither seats anyone.
-    The tie ends when the node holds an acceptance counted over the union of the two sets"): of one election, each
-    seating over a set smaller than another's, or of the same size and different (#241 N2). A reading over the
-    concluded rows, as the fold at tips is; each seating still concludes on its own past."""
-    if "larger_set_unread" in MUT: return frozenset()
-    el = [o for o in offers if o["conf"] == "group" and K.rule(POLICY, o.get("policy"), ("unknown",))[0] == "ranked"]
-    if len(el) < 2: return frozenset()
-    of = {o["id"]: (election_of(S, o), ballot_set(S, o)) for o in el}
+def election_size(P, by, past, o, E):
+    """The size of the set seating `o` was counted over, in election E (CIRISConstitution#241 E-A1): (the persons of
+    the electorate heard in it, the valid rows it holds, those rows). A row is valid where it is its signer's own (a
+    ballot, a withdrawal of the signer's own ballot, a decline), of election E, concluded (in P), and signed by a
+    person of the electorate: the persons seated at E. A non-member's rows, an agent's, and rows about another
+    person's ballot add nothing. The valid rows are a function of the row and E alone, so the union of two sets'
+    valid rows is at least each of them on both counts."""
+    elect = counted_keys(P, past, o["obj"], (E,), "member")[0] if E in by else frozenset()
+    rows = set()
+    for n in o["names"]:
+        q = by.get(n)
+        if q is None or q["signer"] not in elect and "size_any_row" not in MUT: continue
+        if q["kind"] in ("ballot", "decline") and (q.get("of") == E or "size_any_row" in MUT):
+            rows.add(n)
+        elif q["kind"] == "withdraw":
+            t = by.get(q.get("target"))
+            if t is not None and t["kind"] == "ballot" and (t.get("of") == E and t["signer"] == q["signer"] or "size_any_row" in MUT):
+                rows.add(n)
+    return len({by[n]["signer"] for n in rows}), len(rows), frozenset(rows)
+
+
+def beaten_among(sized):
+    """sized: [(id, (persons, rows, set))] of one election. The ids that do not stand (CC 4.5.13: "the one counted over
+    the larger set stands ... Two acceptances over different sets of equal size are a tie, and neither seats anyone"):
+    below the largest (by persons heard, then by valid rows), and, where several different sets share the largest,
+    all of those. Sorted once: O(n log n)."""
+    if len(sized) < 2 or "larger_set_unread" in MUT: return set()
+    sized = sorted(sized, key=lambda x: (x[1][0], x[1][1]), reverse=True)
+    top = sized[0][1][:2]
+    tops = [x for x in sized if x[1][:2] == top]
+    out = {x[0] for x in sized if x[1][:2] != top}
+    if len({x[1][2] for x in tops}) > 1: out |= {x[0] for x in tops}
+    return out
+
+
+def outvoted(P, by, past, offers):
+    """The election seatings among `offers` that do not stand, each election's seatings compared among themselves
+    (grouped by the room and the election row they name). A reading over the concluded rows, as the fold at tips is;
+    each seating still concludes on its own past."""
+    groups = {}
+    for o in offers:
+        if is_election(o):
+            groups.setdefault((o.get("obj"), o.get("of") if "election_id_unread" not in MUT else None), []).append(o)
     out = set()
-    for o in el:
-        e, b = of[o["id"]]
-        for x in el:
-            e2, b2 = of[x["id"]]
-            if x is not o and (e2 == e or "election_id_unread" in MUT) and (len(b2) > len(b) or (len(b2) == len(b) and b2 != b)):
-                out.add(o["id"])
+    for (_obj, E), el in groups.items():
+        if len(el) > 1:
+            out |= beaten_among([(o["id"], election_size(P, by, past, o, o.get("of"))) for o in el])
+    # a seating of an election whose row is itself outvoted does not stand either: that election was never held
+    # (each seating concludes on its own past, where its election row may yet have stood)
+    more = True
+    while more and "election_id_unread" not in MUT:
+        add = {o["id"] for el in groups.values() for o in el if o["id"] not in out and o.get("of") in out}
+        more = bool(add); out |= add
     return frozenset(out)
+
+
+def stood(P, by, past, e):
+    """A seating of `moderate` that stood: its holder's consent is held (it signed the row, or accepted it), and, for an
+    election's seating, it is not outvoted by another of its election in P."""
+    k = e["to"][0] if e.get("to") else None
+    if k is None or not (k in signers(e) or any(a["kind"] == "accept" and a["signer"] == k and a.get("of") == e["id"] for a in P)):
+        return False
+    if not is_election(e): return True
+    rivals = [q for q in P if is_election(q) and q.get("obj") == e["obj"] and q.get("of") == e.get("of")]
+    return e["id"] not in outvoted(P, by, past, rivals)
+
+
+def election_named(r, P, by, past):
+    """The election row `r` names (`of`), where it is that election (CIRISConstitution#241 E-A3): the room's founding
+    row, or a seating of `moderate` over the room that stood; and no later seating of `moderate` over the room that
+    stood, other than another of the same election, is in r's past. None otherwise: a row naming another row as its
+    election belongs to that election or to none."""
+    E, obj = r.get("of"), r.get("obj")
+    if E is None or E not in by: return None
+    e = by[E]
+    if "election_id_any" in MUT: return E
+    if E != obj and not (seats_moderate(e, obj) and stood(P, by, past, e)): return None
+    later = [q for q in P if q["id"] not in (E, r["id"]) and seats_moderate(q, obj) and q["id"] != obj and past(E, q["id"])
+             and q.get("of") != E]
+    if any(stood(P, by, past, q) for q in later): return None
+    return E
 
 
 class Seats:
@@ -555,7 +610,8 @@ class Seats:
                 if paired and not ended(a) and C.counts(a): return True
             return False
 
-        beaten = outvoted(S, [o for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V])
+        self.beaten = beaten = outvoted(Cs, {q["id"]: q for q in Cs}, lambda a, b: a in S.anc[b],
+                                        [o for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V])
         base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V and o["id"] not in beaten
                 for k in o["to"] if accepted(o, k) for sc in seat_scopes(o, k)
                 if not off_ended(o, k, sc) and not unseated(o, k, sc) and not resigned(o, k, sc)]
@@ -628,7 +684,7 @@ class Seats:
     def tips(self, o):
         """The frontier of the counted acts on o that count, with its founding row."""
         acts = [r for r in self.S.Cs if r["kind"] in ("offer", "unseat") and r.get("obj") == o and (r.get("conf") == "group" or r["id"] == o)
-                and self.cut.counts(r) and r["id"] not in self.stale]
+                and self.cut.counts(r) and r["id"] not in self.stale and (r["id"] not in self.beaten or "beaten_tip" in MUT)]
         return K.frontier(self.S.anc, acts)
 
     def tips_common(self, s, o):
@@ -1011,41 +1067,53 @@ def count_met(r, P, past, table=None):
     left = count_left(P, past, r.get("over", r["obj"]), r.get("counted", "member"))
     mem, vot = mem - left, vot - left
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
-        # the count is the ranked tally: the ballots the row names, one voice each, and the row seats the winner
-        # the members' count seats a holder only where none is left (CC 4.5.4 (v); rule 2: "While another duty holder
-        # remains, a vacant seat is conferred under line (iv), and the community does not lock"): a duty holder at
-        # the heads the row names, its own leaving not in the row's past, and the election seats nobody
+        # the election's seating: the winner's acceptance (CC 4.5.13), counted over the ballots it names
         over = r.get("over", r["obj"])
-        # read by person, as the duty counts are: an AI agent's key holding a duty is no holder here (#241 B3)
+        # it names its election, and the row it names is that election (CIRISConstitution#241 E-A3)
+        E = election_named(r, P, by, past)
+        if E is None: return False
+        # the members' count seats a holder only where none is left (CC 4.5.4 (v); rule 2: "While another duty holder
+        # remains, a vacant seat is conferred under line (iv), and the community does not lock"): a person holding a
+        # duty at the heads, its own leaving or the end of its stay not in the row's past, and not seated by another
+        # seating of the same election (which this one may replace), and the election seats nobody
         holders = members_at(P, past, over, heads, "duty") if "election_agent_holder" in MUT else \
             counted_keys(P, past, over, heads, "duty")[0]
-        if "election_beside_holder" not in MUT and holders - count_left(P, past, over, "duty"):
+        if "holders_left_unread" not in MUT:
+            holders = holders - count_left(P, past, over, "duty")
+        rivals = {k2 for q in P if is_election(q) and q.get("of") == E for k2 in q.get("to", ())}
+        if "election_beside_holder" not in MUT and holders - rivals:
             return False
         # a ballot its signer withdrew in the row's past is none (CC 4.5.13: "Disagreeing ballots neither withdrawn are
-        # no ballot until a withdrawal leaves one"; the ballot's way back is its author's withdrawal)
+        # no ballot until a withdrawal leaves one"); the withdrawal is the signer's own
         gone = frozenset() if "ballot_withdrawal_unread" in MUT else frozenset(
             w["target"] for w in K.sel(P, kind="withdraw")
-            if w["target"] in by and by[w["target"]]["kind"] == "ballot" and w["signer"] == by[w["target"]]["signer"])
-        # a ballot ranking a key that is not counted over is not counted, the whole ballot (CC 3.1.4 `ballot:moderator`:
-        # "A ballot naming ... a non-member is kept and not counted"; its guard, each rank a member). The candidates are
-        # the base: the persons at the heads, less a key whose own leaving is in the row's past (#241 O1, O2, derived:
-        # an agent's key is no candidate; a leaver is out of the base, the voices and the candidates)
+            if w["target"] in by and by[w["target"]]["kind"] == "ballot"
+            and w["signer"] == by[w["target"]]["signer"])
+        # a ballot counts in the election it names only (#241 E-A4); one ranking a key that is not counted over is not
+        # counted, the whole ballot (CC 3.1.4 `ballot:moderator`: "A ballot naming ... a non-member is kept and not
+        # counted"); the candidates are the base: the persons at the heads, less a key whose own leaving is in the
+        # row's past (#241 O1, O2); a ballot ranking more than three is void (#241 O3)
         roster = (members_at(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
                   if "candidates_roster" in MUT else vot)
         ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot")
                    if (b["id"] in r["names"] or "ballot_unnamed" in MUT) and (b["signer"] in vot or "ballot_any_signer" in MUT)
+                   and (b.get("of") == E or "ballot_any_election" in MUT)
                    and b["id"] not in gone and (set(b["ranking"]) <= roster or "ballot_nonmember_ranked" in MUT)
                    and (len(b["ranking"]) <= ELECTION_RANKS or "ballot_ranks_unbounded" in MUT)]
-        # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
-        # the count yields the first in the set's runoff order who has not declined, the declines being those the row
-        # names (CC 4.5.13; a decline is the winner's own row, `ballot:moderator_decline`, #241 O4)
-        declined = set() if "decline_unread" in MUT else {d["signer"] for d in K.sel(P, kind="decline") if d["id"] in r["names"]}
-        # the candidates are the roster at the heads: the base, persons less a key whose own leaving is in the row's past
-        # (CC 4.5.13: "The ballot is the roster, every member a candidate"); the row's `options` are not read
-        cands = list(r["options"]) if "candidates_options" in MUT else sorted(vot)
-        won = next((o for o in RUNOFF(ballots, cands, declared="election_declared" in MUT) if o not in declined), None)
-        if "election_any_winner" in MUT: return k == "offer" and bool(ballots) and won is not None
-        return k == "offer" and bool(ballots) and won == r["to"][0]
+        if not ballots: return False
+        # a decline strikes its signer: the count yields the first in the set's runoff order who has not declined,
+        # which is the count with the decliners struck (#241 O4, the runoff order the count repeated); the declines are
+        # those the row names, of its election
+        declined = set() if "decline_unread" in MUT else {
+            d["signer"] for d in K.sel(P, kind="decline")
+            if (d["id"] in r["names"] or "decline_unnamed" in MUT) and d.get("of") == E}
+        # the candidates are the roster at the heads (CC 4.5.13: "The ballot is the roster, every member a candidate");
+        # the row's `options` are not read; an election declares no order (#241 L1)
+        cands = [o for o in (list(r["options"]) if "candidates_options" in MUT else sorted(vot)) if o not in declined]
+        won = RANKED(ballots, cands, 1 if "floor_one" in MUT else 2, declared="election_declared" in MUT)[0]
+        if "election_any_winner" in MUT: return k == "offer" and won is not None
+        # the seating is the winner's acceptance: its signer is the key the count yields (#241 E-A6)
+        return k == "offer" and won == r["to"][0] and (r["signer"] == won or "seating_any_signer" in MUT)
     if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
     if k == "unseat" and K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "recall" and "recall_as_strictfloor" not in MUT:
         # the recall judges one holder: counted over the members less the holder it recalls, and that holder no voice

@@ -153,6 +153,23 @@ def reexpress_cases():
                     order = list(RX.runoff([(p, tuple(r)) for p, r in rows], opts, 2, declared))
                     out["ranked"].append({"rows": rows, "options": opts, "declared": declared, "winner": w, "rounds": rounds,
                                           "order": order})
+    # four to six options (CIRISConstitution#241 E1): where options holding no first choice are struck together, and
+    # where that changes a winner (no declared order) or the rounds (a declared order). A fixed seed
+    import random
+    rnd = random.Random(241)
+    for _ in range(600):
+        n_opt = rnd.randint(4, 6)
+        o6 = [chr(ord("a") + i) for i in range(n_opt)]
+        rows = []
+        for i in range(rnd.randint(1, 9)):
+            rows.append(("p%d" % i, rnd.sample(o6, rnd.randint(1, min(3, n_opt)))))
+        if rows and rnd.random() < 0.2:
+            rows.append((rows[0][0], rnd.sample(o6, 1)))
+        declared = rnd.random() < 0.5
+        w, rounds = RX.ranked([(p, tuple(r)) for p, r in rows], o6, 2, declared)
+        order = list(RX.runoff([(p, tuple(r)) for p, r in rows], o6, 2, declared))
+        out["ranked"].append({"rows": rows, "options": o6, "declared": declared, "winner": w, "rounds": rounds,
+                              "order": order})
     hk = [("header", "i1", "d1", 0), ("header", "i1", "d2", 1), ("header", "i2", "d1", 5)]
     lk = [("leaf", "i1", "d1", 2), ("leaf", "i1", "d2", 3), ("leaf", "i2", "d1", 9)]
     for n in range(0, 4):
@@ -337,6 +354,8 @@ def seat_cases():
     import check_election as EL
     for _name, rows, asks, _item in EL.CASES + [o[:4] for o in EL.OPEN]:
         record(rows, A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks])
+    for _name, rows, _own, _asks in EL.READER_CASES:            # the reader's seats are in every scenario's answers
+        record(rows, A.SEAT)
     # a member who left and was re-admitted counts: check_readmit.py's cases, under the seat rule
     import check_readmit as RA
     for _name, rows, asks, _item in RA.CASES:
