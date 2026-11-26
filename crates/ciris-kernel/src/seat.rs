@@ -970,11 +970,23 @@ struct InForce<'a, R: SeatRow> {
     /// A family's removal: one naming only its own signer, on that signature alone, concludes nothing (F3: the
     /// resignation is the leaving).
     no_self_removal: bool,
+    /// A removal under the room's protocol (`community_remove`: "the member being removed is not counted"): the key
+    /// it removes is neither counted over nor a voice.
+    base_excludes_target: bool,
 }
 
 impl<'a, R: SeatRow> InForce<'a, R> {
     fn plain(pol: Option<Policy>, need: Option<usize>) -> Self {
-        InForce { pol, need, weights: None, infra: None, floor: 0, exclude_target: false, no_self_removal: false }
+        InForce {
+            pol,
+            need,
+            weights: None,
+            infra: None,
+            floor: 0,
+            exclude_target: false,
+            no_self_removal: false,
+            base_excludes_target: false,
+        }
     }
 }
 
@@ -1218,7 +1230,13 @@ fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> R
         if counted != "founder" {
             return Err(());
         }
-        return Ok(InForce { infra: Some((m, n)), ..InForce::plain(Some(Policy::Declared), Some(m)) });
+        // the founder removed is not counted
+        let base_excludes_target = r.seat_kind() == SeatKind::Unseat;
+        return Ok(InForce {
+            infra: Some((m, n)),
+            base_excludes_target,
+            ..InForce::plain(Some(Policy::Declared), Some(m))
+        });
     }
     let word = rec.consensus_protocol().ok_or(())?;
     let family = kind_of(law, get, &obj) == Some(CommunityKind::Family);
@@ -1268,6 +1286,9 @@ fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> R
     Ok(InForce {
         weights: Some(rec),
         no_self_removal: family && r.seat_kind() == SeatKind::Unseat,
+        // a removal under the room's protocol counts the other members (the sheet's removal rules for quorum and
+        // weighted are the admission rule over them; unanimous reads its own rule)
+        base_excludes_target: r.seat_kind() == SeatKind::Unseat && proto != RoomProtocol::Unanimous,
         ..InForce::plain(Some(pol), need)
     })
 }
@@ -3557,9 +3578,13 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         }
     }
     // a family under founder_only: a removal takes an active founder other than the one it names
-    // voices voided by a concurrent counted removal ([`contested_out`]) are none
+    // voices voided by a concurrent counted removal ([`contested_out`]) are none; under the room's protocol the key a
+    // removal removes is neither counted over nor a voice
+    let drop_to = f.exclude_target || f.base_excludes_target;
     let v: BTreeSet<R::Key> =
-        voices(r, p).into_iter().filter(|k| !void.contains(k) && !(f.exclude_target && r.to().contains(k))).collect();
+        voices(r, p).into_iter().filter(|k| !void.contains(k) && !(drop_to && r.to().contains(k))).collect();
+    let mem: BTreeSet<R::Key> =
+        if f.base_excludes_target { mem.into_iter().filter(|k| !r.to().contains(k)).collect() } else { mem };
     // a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
     if f.no_self_removal && v.iter().all(|k| r.to().contains(k)) {
         return false;

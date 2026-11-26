@@ -38,22 +38,24 @@ LEDGER = "CIRISConstitution#218, pin list: a re-admitted member counts: "
 
 
 def admit(i, k, signers, heads):
-    """A widening under the room's protocol (community_invite, two thirds), the joiner cosigning."""
+    """A widening (community_invite, two thirds), the joiner cosigning."""
     return ST.offer(i, signers[0], k, "member", OBJ, "group", tuple(heads), head=tuple(heads), policy="community_invite",
                     cosigners=tuple(signers[1:]) + ((k,) if k not in signers else ()))
 
 
 def remove(i, k, signers, heads):
-    """A counted removal from the roster (community_remove, two thirds)."""
+    """A counted removal from the roster (community_remove: the room's protocol, majority, over the other members)."""
     return ST.unseat(i, signers[0], k, "member", OBJ, "group", tuple(heads), head=tuple(heads), policy="community_remove",
                      cosigners=tuple(signers[1:]))
 
 
 G4 = ST.found("g", "A", tuple("ABCD"), {"moderate": ("A",)}, cosigners=tuple("BCD"))
 G6 = ST.found("g", "A", tuple("ABCDEF"), {"moderate": ("A",)}, cosigners=tuple("BCDEF"))
+G5 = ST.found("g", "A", tuple("ABCDE"), {"moderate": ("A",)}, cosigners=tuple("BCDE"))
 WC = ST.withdraw("wc", "C", "g", ("g",))                       # C resigns (its withdrawal of its founding seat)
 AC4 = admit("ac", "C", ("A", "B", "D"), ("wc",))               # the room re-admits C (3 of 3)
 AC6 = admit("ac", "C", ("A", "B", "D", "E"), ("wc",))          # (4 of 5)
+AC5 = admit("ac", "C", ("A", "B", "D", "E"), ("wc",))          # (4 of 4)
 XC4 = remove("xc", "C", ("A", "B", "D"), ("g",))               # or the room removes C
 AX4 = admit("ac", "C", ("A", "B", "D"), ("xc",))               # and re-admits it
 
@@ -65,8 +67,8 @@ CASES = [
      [G4, WC, AC4, admit("ax", "X", "AB", ("ac",))], [("C", "member", T), ("X", "member", F)], "the base"),
     ("a removal: of six, F removed by A, B, C and D (4 of 6) is out",
      [G6, WC, AC6, remove("xf", "F", "ABCD", ("ac",))], [("F", "member", F)], "a removal"),
-    ("a removal: of four, D removed by A and B (2 of 4) is not out",
-     [G4, WC, AC4, remove("xd", "D", "AB", ("ac",))], [("D", "member", T)], "a removal"),
+    ("a removal: of five, E removed by A and B (two of the four others: the member removed is not counted) is not out",
+     [G5, WC, AC5, remove("xe", "E", "AB", ("ac",))], [("E", "member", T)], "a removal"),
     ("without the re-admission, the leaver is out of the base: of four, X admitted by A and B (2 of the 3 left) is seated",
      [G4, WC, admit("ax", "X", "AB", ("wc",))], [("C", "member", F), ("X", "member", T)], "the base"),
     ("a re-admission beside the count (not in its past) is not read by it: C is out, and X by A and B is seated",

@@ -64,7 +64,8 @@ Planted breaks, each of which must change a case's answer:
     dissolve_leaves_seats         a dissolution ends no seat
     dissolve_unread               a row over a dissolved group concludes
     dissolve_any_heads            a dissolution need not name the newest heads in its own past
-    self_removal_as_leave         a removal naming only its own signer, on that signature alone, concludes (F3)
+    (retired: self_removal_as_leave, F3's self-only removal concluding: the member a removal names is no voice of it
+    now (removal_counts_target), so the F3 refusal is that rule's consequence and the plant breaks nothing a case sees)
     role_unread                   an admission's `role: founder` is not read: the one-row founder admission seats no founder
     role_outlives_stay            a founder role conferred after founding outlives the member's stay
     contested_both_out            counted removals that remove each other's voices concurrently are both in force
@@ -76,6 +77,7 @@ Planted breaks, each of which must change a case's answer:
     contested_scoped_to_kinds     the contested pair is read for a family and an infrastructure community only
     contested_voice_everywhere    a removal voids a voice whatever head the other row names (not from its own head on)
     negative_weight               a weighted record may weigh a key below zero
+    removal_counts_target         a removal under the room's protocol counts the member it removes, over and as a voice
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
@@ -250,6 +252,8 @@ FH4 = ST.found("g", "A", ("A", "B", "C", "D"), {"moderate": ("A",)}, cosigners=(
 GN = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), consensus_protocol=None)
 AM1 = grp("am", "offer", (), "record", None, cosigners=("B", "C"), consensus_protocol="quorum:2/4")   # to any two of four
 GM5 = ST.offer("g", "A", ("A", "B", "C", "D", "E"), "member", "@", "self", cosigners=("B", "C", "D", "E"))   # majority
+GM6 = ST.offer("g", "A", tuple("ABCDEF"), "member", "@", "self", cosigners=tuple("BCDEF"))
+GM7 = ST.offer("g", "A", tuple("ABCDEFG"), "member", "@", "self", cosigners=tuple("BCDEFG"))
 REC = lambda i, w, heads=("g",), signer="A", cosigners=("B", "C"), to=(), **kw: grp(i, "offer", to, "record", None, heads=heads,
                                                                            signer=signer, cosigners=cosigners,
                                                                            consensus_protocol=w, **kw)
@@ -307,6 +311,7 @@ L1 = [GI4, IAM("quorum:3/5", i="a5", cosigners=("f2", "f3"), seat=("f5",)),
 L1X1 = grp("x1", "unseat", "f1", "founder", None, heads=("a5", "a6"), signer="f4", cosigners=("f5", "f6"), counted="founder")
 L1X2 = grp("x2", "unseat", "f4", "founder", None, heads=("a5", "a6"), signer="f1", cosigners=("f2", "f3"), counted="founder")
 L1RC = IAM("quorum:4/6", i="rc", heads=("a5", "a6"), cosigners=("f2", "f3", "f5", "f6"))
+AMU = REC("am", "quorum:2/4", cosigners=("B", "C", "D"))                                         # all four, to any two
 RM_A = lambda heads: grp("x", "unseat", "D", "member", "community_remove", heads=heads, cosigners=("B",))   # A and B
 CONTESTED = (True, True)          # the contested pair: neither removal in force, both stay (CC 2.7.7 rule 5)
 CONCLUDE = [
@@ -317,8 +322,20 @@ CONCLUDE = [
      [GM4, grp("r", "unseat", "D", "member", "cosigned_act", cosigners=("B", "C"))], "r", False, True),
     ("a removal stating none is counted under community_remove, the room's protocol: majority, three of four",
      [GM4, grp("r", "unseat", "D", "member", None, cosigners=("B", "C"))], "r", True, False),
-    ("a removal under community_remove in a room of majority: A and B, two of four, are not more than half",
-     [GMJ, grp("r", "unseat", "D", "member", "community_remove", cosigners=("B",))], "r", False, False),
+    ("a removal under community_remove counts over the other members (\"the member being removed is not counted\"): "
+     "of four, A alone (one of the three others) does not remove D",
+     [GMJ, grp("r", "unseat", "D", "member", "community_remove")], "r", False, False),
+    ("and A and B (two of the three others, more than half) do", [GMJ, grp("r", "unseat", "D", "member",
+                                                                         "community_remove", cosigners=("B",))], "r",
+     True, True),
+    ("in a room of seven, four others removing E count as four of six", [GM7, grp("r", "unseat", "E", "member", None,
+                                                                                 cosigners=("B", "C", "D"))], "r",
+     True, False),
+    ("in a room of six, three others removing F are three of five (more than half), where counting F would make them "
+     "three of six", [GM6, grp("r", "unseat", "F", "member", None, cosigners=("B", "C"))], "r", True, False),
+    ("and the member removed is no voice: F with two others is two of five", [GM6, grp("r", "unseat", "F", "member", None,
+                                                                                      cosigners=("B", "F"))], "r",
+     False, False),
     ("and A, B and C are: the room's protocol, not one the row states",
      [GMJ, grp("r", "unseat", "D", "member", "community_remove", cosigners=("B", "C"))], "r", True, True),
     ("a removal in a room whose record declares no protocol concludes nothing, with the table or without",
@@ -450,10 +467,10 @@ CONCLUDE = [
     # ---- step 5: the protocol change; Q1: a change meets the protocol in force and the standing default (both) -
     ("a change of the record's protocol (record_change) is counted under the protocol in force in its own past and the "
      "standing default: A, B, C of four (majority, two thirds) change it to quorum:2/4", [GM4, AM1], "am", True, False),
-    ("a removal naming the change is counted under the new protocol: A and B remove D", [GM4, AM1, RM_A(("am",))], "x",
-     True, False),
-    ("a removal beside the change (not in its past) is counted under the old one: A and B do not",
-     [GM4, AM1, RM_A(("g",))], "x", False, False),
+    ("a removal naming the change is counted under the new protocol: of a unanimous room changed to quorum:2/4, A and B "
+     "remove D", [GU, AMU, RM_A(("am",))], "x", True, False),
+    ("a removal beside the change (not in its past) is counted under the old one (unanimous): A and B do not",
+     [GU, AMU, RM_A(("g",))], "x", False, False),
     ("a change signed by A and B is no change (two of four: not a majority), and the protocol stays",
      [GM4, REC("am", "quorum:2/4", cosigners=("B",)), RM_A(("am",))], "x", False, False),
     ("two concurrent changes naming different protocols: none is in force, and the removal concludes nothing",
@@ -467,9 +484,8 @@ CONCLUDE = [
     ("a change of the record is counted under the protocol in force in its own past, not the founding one: after a "
      "unanimous room's change to majority, A, B and C change it again (three of four: not unanimous)",
      [GU, REC("am", "majority", cosigners=("B", "C", "D")), REC("am2", "quorum:2/4", heads=("am",))], "am2", True, False),
-    ("the newest change is in force, not any change: after quorum:2/4 and then majority, A and B do not remove D",
-     [GU, REC("am", "quorum:2/4", cosigners=("B", "C", "D")), REC("am2", "majority", heads=("am",)), RM_A(("am2",))], "x",
-     False, False),
+    ("the newest change is in force, not any change: after quorum:2/4 and then unanimous, A and B do not remove D",
+     [GU, AMU, REC("am2", "unanimous", heads=("am",)), RM_A(("am2",))], "x", False, False),
     ("the order of changes is read over the concluded past: a change naming only a row that did not conclude (which "
      "names the earlier change) is concurrent with that change, the two disagree, and the removal concludes nothing",
      [GM4, AM1, grp("n", "offer", "Q", "member", "community_invite", heads=("am",)),
@@ -685,9 +701,9 @@ TIPS = [
     ("an infrastructure pair (S4): of four (3/4), f1, f2, f3 remove f4 while f1, f2, f4 remove f3; neither is in force",
      [GI4, FRMF("f4", ("f1", "f2", "f3")), dict(FRMF("f3", ("f1", "f2", "f4")), id="x2")],
      [("f3", "founder", True), ("f4", "founder", True)]),
-    ("a contested pair in a community too (CC 2.7.7 governs every group): of four, A, B, C remove D while A, B, D remove "
-     "C at one head; neither is in force", [GM4, grp("x", "unseat", "D", "member", None, cosigners=("B", "C")),
-                                           grp("x2", "unseat", "C", "member", None, cosigners=("B", "D"))],
+    ("a contested pair in a community too (CC 2.7.7 governs every group): of four, A and C remove D while A and D remove "
+     "C at one head (each two of its three others, each needing the voice the other removes); neither is in force",
+     [GM4, grp("x", "unseat", "D", "member", None, cosigners=("C",)), grp("x2", "unseat", "C", "member", None, cosigners=("D",))],
      [("C", "member", True), ("D", "member", True)]),
     ("a pair at different heads is read from the head each cut names: of four (3/4), X (f1, f2, f3) removes f4 at g "
      "while Y (f1, f2, f4) removes f3 at the later head r; f3's voice counts at X's own head, so X stands, and f4's is "
@@ -833,10 +849,10 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "record_change_either_policy", "one_voice_community_protocol", "founder_only_community",
           "unstated_cosigned_blocks", "unstated_floor_unread", "founders_all_signers", "weights_twice_at_change",
           "family_founders_fixed", "family_floor_two", "family_last_founder_refused", "entrenched_amendable",
-          "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "dissolve_any_heads", "self_removal_as_leave", "role_unread", "role_outlives_stay",
+          "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "dissolve_any_heads", "role_unread", "role_outlives_stay",
           "contested_both_out", "founder_role_survives_leave", "role_on_own_offer", "entrenched_weights_free",
           "concurrent_amendments_free", "infra_word_restated_always", "contested_scoped_to_kinds",
-          "contested_voice_everywhere", "negative_weight")
+          "contested_voice_everywhere", "negative_weight", "removal_counts_target")
 
 
 @contextlib.contextmanager

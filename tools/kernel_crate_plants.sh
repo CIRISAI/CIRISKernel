@@ -370,8 +370,9 @@ plant 'a row over a dissolved group concludes'           src/seat.rs '          
 plant 'a dissolution at any heads'                       src/seat.rs '                if stale {
                     return false;' '                if stale && false {
                     return false;'
-plant 'a self-removal read as the leaving'               src/seat.rs '    if f.no_self_removal && v.iter().all(|k| r.to().contains(k)) {' '    if false {'
-plant "a family's founder_only removal by its target"    src/seat.rs '!void.contains(k) && !(f.exclude_target && r.to().contains(k))' '!void.contains(k)'
+# retired: 'a self-removal read as the leaving' (the member a removal names is no voice of it: F3 follows)
+plant "a family's founder_only removal by its target"    src/seat.rs '    let drop_to = f.exclude_target || f.base_excludes_target;' '    let drop_to = f.base_excludes_target;'
+plant 'a removal counts the member it removes'          src/seat.rs 'base_excludes_target: r.seat_kind() == SeatKind::Unseat && proto != RoomProtocol::Unanimous,' 'base_excludes_target: false,'
 plant 'a family with a duty map'                         src/seat.rs '        if p.get(i).ok_or(())?.duty_holders().iter().any(|(d, _)| d.as_ref() != "founder") {' '        if false {'
 plant 'a family read as a community'                     src/seat.rs '    if g.group_kind().is_some_and(|k| k.as_ref() == "family") {' '    if false {'
 plant 'a one-voice community protocol'                   src/seat.rs 'RoomProtocol::FounderOnly | RoomProtocol::Quorum(1, _) => None,' 'RoomProtocol::FounderOnly => None,'

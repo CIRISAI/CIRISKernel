@@ -490,6 +490,16 @@ told what act it is by the policy a row states.
     fold is in the kernel.
   - Not built: a key record that later adds `node` counted as a resignation; a founder's seat read at its seating
     row (no key record is a seat row here).
+- **A removal under the room's protocol counts the other members** (the policy row `community_remove`: "the member
+  being removed is not counted"; the protocol sheet's removal rules for quorum and weighted are the admission rule over
+  the other members; `unanimous` reads its own): the key a removal names is neither counted over nor a voice, in every
+  group (an infrastructure founder's removal too). In a room of seven, four others removing E are four of six; in a
+  room of six, three others removing F are three of five, a strict majority (they were three of six). **Answers that
+  move**: a removal by two of four (A and B removing D) under `majority` now concludes (two of the three others), and
+  the cases are restated where they turned on it (the step-5 removals are read against a unanimous room; the community
+  contested pair is two of three on each side; `check_readmit.py`'s removal reads a room of five). F3's self-only
+  removal now follows from it. `community_remove` states no floor, so in a room of two either member removes the other
+  alone (`check_attacks.py`, attack 27, restated).
 - **A change of the record meets the protocol in force and the standing default together** (Q1: the table's
   `cosigned_act&default_standing`, fixed; policies joined by `&` are each met, the stricter decides). A row stating
   another policy (`default_content`, say) is refused: the `default_*` rows are classes of content change (the table's

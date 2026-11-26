@@ -507,7 +507,9 @@ def _protocol_part(r, by, need, weights):
         if r["kind"] == "offer" and r.get("scope") == "founder" and "infra_founder_by_widening" not in MUT: return REFUSED
         if r.get("counted", "member") != "founder" and "infra_body_members" not in MUT and "protocol_body_free" not in MUT:
             return REFUSED
-        return dict(policy="P:quorum", need=pr[1], weights=None, infra_mn=(pr[1], pr[2]))
+        out = dict(policy="P:quorum", need=pr[1], weights=None, infra_mn=(pr[1], pr[2]))
+        if r["kind"] == "unseat": out["base_excludes_target"] = True   # the founder removed is not counted
+        return out
     family = kind_of(by, obj) == "family"
     if family:
         # a family (CC 3.3.4, 3.1.3.2, 4.5.12.5): every protocol of the set, founder_only and quorum:1/n included, and no
@@ -544,6 +546,10 @@ def _protocol_part(r, by, need, weights):
         if len(keys) != len(set(keys)): return REFUSED          # a record weighing one key twice states no weights
         if any(w < 0 for _, w in (weights or ())) and "negative_weight" not in MUT: return REFUSED
     out = dict(policy="P:" + kind, need=need, weights=weights)
+    # a removal under the room's protocol (community_remove: "the member being removed is not counted"; the sheet's
+    # removal rules for quorum and weighted are the admission rule over the other members): the key it removes is
+    # neither counted over nor a voice (unanimous reads its own rule, count_of)
+    if r["kind"] == "unseat" and kind != "unanimous" and "removal_counts_target" not in MUT: out["base_excludes_target"] = True
     # a family's removal naming only its own signer, on that signature alone, is no leaving (F3: the resignation is)
     if family and r["kind"] == "unseat" and "self_removal_as_leave" not in MUT: out["no_self_removal"] = True
     return out
@@ -1965,6 +1971,8 @@ def _count_under(r, P, past, by, table=None):
         mem = vot = frozenset(k for d, ks in (g.get("duty_holders") or ()) if d == "founder" for k in ks) & signers(g)
     # a family under founder_only: a removal takes an active founder other than the one it names
     if r.get("exclude_target"): vot = vot - frozenset(r.get("to", ()))
+    if r.get("base_excludes_target"):
+        mem, vot = mem - frozenset(r.get("to", ())), vot - frozenset(r.get("to", ()))
     # a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
     if r.get("no_self_removal") and voices(r, P) - r.get("void_voices", frozenset()) <= frozenset(r.get("to", ())):
         return False
