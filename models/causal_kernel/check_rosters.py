@@ -728,16 +728,20 @@ def check_infra(spec, inst):
     # consent "one" is valid only for a NODE's seat over an infrastructure community (CC 3.1.3.2, CC 3.2, ruled on
     # CIRISConstitution#224): the founders' quorum seats it, it never signs and has no vote; a founder's seat there, and
     # any roster seat over another community, needs the key's own consent (seat.roster_placement)
-    node = RS.add(spec, "n1", ("I",), "node1", ("f1", "f2"), consent="one")
+    node = RS.add(spec, "n1", ("I",), "node1", ("f1", "f2"), scope="node", consent="one")
+    nodes = lambda S: ST.Seats(S).holders("node", "I")
     aj = RS.accept(spec, "aj", "J", ("I",), scope="member")
     # I1 a node is seated with no acceptance and never votes
     worlds = [("founders seat node1; node1 and f1 widen J", [g, node, aj, RS.add(spec, "w", ("n1",), "J", ("f1", "node1"), names=("aj",))])]
     def i1(S, rows, n):
-        if "node1" not in members(S): return "node not seated"
+        if "node1" not in nodes(S) and "node1" not in members(S): return "node not seated"
         if "J" in members(S): return "a node's voice counted"
     base = run(spec, worlds, i1)
-    with mutated(spec_attr={("I", "counted"): "member"}):
-        m = run(spec, [(n, [dict(r, counted="member") if r.get("counted") == "founder" else r for r in rows]) for n, rows in worlds], i1, orders=False)
+    # the plant: the node's seat read as a member's (consent one let through), and the count over every member
+    with mutated(spec_attr={("I", "counted"): "member"}), seat_mut("consent_one_any"):
+        m = run(spec, [(n, [dict(r, counted="member", scope="member") if r.get("id") == "n1" else
+                            dict(r, counted="member") if r.get("counted") == "founder" else r for r in rows]) for n, rows in worlds],
+                i1, orders=False)
     res.append(result(inst, "a node is seated without consent and is never counted", src, verdict_of(base, param="counted=founder, consent=one for nodes"),
                       base, "the count is over every member", m))
     # I2 no single founder admits

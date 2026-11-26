@@ -365,15 +365,24 @@ change, each with a case in `check_room_keys.py` and a plant in each language:
   the key's earlier standing acceptance seated it.
 - F5: a withdrawal of an offer the key never consented to is a decline, and no end of a stay (`seat::stay_end`;
   a standing acceptance withdrawn before any offer named it, likewise). Before, declining an invitation, or an
-  unsigned listed founding member withdrawing the founding record, barred the key for ever in a private room.
+  unsigned listed founding member withdrawing the founding record, barred the key for ever in a private room. The
+  consent, and the offer that used a standing acceptance (of the same scope and object), are read from the
+  withdrawal's own concluded past only (N1, N2 of the re-read): an offer that concludes nothing, or an acceptance
+  written after the withdrawal, makes no decline an end. `stay_end` (crate-private) takes that past as an argument.
 - RK1: a roster seat over a community needs the key's own consent under every protocol: an offer waiving it
   (`consent_one`) concludes nothing, except a node's seat over an infrastructure community (never a founder's).
-  Until `kind_of` reads the founding record's `cohort_subkind` (the binding's batch, with the `node` scope), the
-  test is marked: consent `one` is allowed only over a group that is no community by its kind.
+  A node's seat is scope `node`, a roster seat (`seat.ROSTER_SEATS`), seated with no signature of its own, no voice
+  and in no base. Until `kind_of` reads the founding record's `cohort_subkind` (the binding's batch), the call site
+  is marked: the reference reads `cohort_subkind` there, and the crate, with no accessor yet, takes a group that is
+  no community by its kind. `check_rosters.py`'s infrastructure node is seated in `node`; its plant now reads the
+  node's seat as a member's with consent let through.
 - RK2: over a group a member or agent seat is placed or removed only by a counted row, the founding record, the
   key's own end, or (an agent's key) a moderator's lone removal: one key's own row (`Conf::Own`) or a row under a
   seat (`Conf::Seat`) of such a seat concludes nothing, offer and unseat alike. A room of one still grows by its
-  member's counted proposal and the newcomer's acceptance (a case); an `open:self_admit` admission is a counted row
+  member's counted proposal and the newcomer's acceptance (a case), and in a room of two the founder alone can no
+  longer remove the other (a count needs two voices and the removed member is a voice; the old `Conf::Own` route
+  allowed it), which is right under RK2 and the same edge as "no lift in a room of two" (a case); an
+  `open:self_admit` admission is a counted row
   and is unchanged (`tests/policies.rs`). Whether a counted row meets the room's DECLARED protocol is the binding's
   read (`act_of`), not this one.
 - R-a: a counted row concludes whole or not at all: in a private room an admission naming several keys, one of whose
@@ -384,7 +393,8 @@ change, each with a case in `check_room_keys.py` and a plant in each language:
   Inv_LeavingNotUndone, "leaving read as a withdrawal of the seat" (it now holds: the old standing acceptance is
   void; `roster_expected.tsv` updated in all three instances). The crate tests that seated roster seats by
   `Conf::Own` (`fast_paths.rs`'s ballot and seat world, `policies.rs`'s founders, `window.rs`'s and `seat.rs`'s
-  generated groups) now seat them by the founding record or counted rows.
+  generated groups) now seat them by the founding record or the room's counted admission (`community_invite`); the
+  generators of `fast_paths.rs` are left as they were here, to be rewritten once on the `heads` lane.
 - Not changed: the unreachable arm "a non-counted unseat is final" is gone (every roster unseat over a community that
   concludes is counted).
 
@@ -447,9 +457,9 @@ A counted row concludes whole or not at all: in a private room an admission nami
 has ended, concludes nothing for any of them.
 
 The reference: `seat._revoked_before`, `seat.room_key_ended`, `seat.private_room` in `models/causal_kernel/seat.py`;
-`check_room_keys.py` has 54 cases and no OPEN row in every arrival order (up to six rows, else 41 orders) and twenty
+`check_room_keys.py` has 58 cases and no OPEN row in every arrival order (up to six rows, else 41 orders) and twenty-one
 planted breaks; `roomkey.py` states the finding of re-admission under the same key for a public room and the refusal
-for the same room declared private. Twenty-one plants in `tools/kernel_crate_plants.sh`.
+for the same room declared private. Twenty-three plants in `tools/kernel_crate_plants.sh`.
 
 ## [0.4.0]
 

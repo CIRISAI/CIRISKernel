@@ -638,7 +638,9 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
         // the stay; one naming `member` of an offer that seats no member ends nothing
         if wr.scope().is_some() {
             let by = by.get_or_insert_with(|| g.rows().iter().map(|r| (r.id(), *r)).collect());
-            if seat::stay_end(law, by, wr).as_ref() != Some(&obj) {
+            if seat::stay_end(law, by, wr, &|a| c.concluded_id(a.id()) && g.id_in_past(a.id(), wi)).as_ref()
+                != Some(&obj)
+            {
                 continue;
             }
         }
@@ -929,9 +931,9 @@ mod tests {
     #[test]
     fn prefilled_scopes_answer_as_scopes_read_when_asked() {
         // a roster seat over a group is placed by the founding record or a counted row: the members are seated by
-        // the founding record, and the agent's key by a counted admission of one voice
+        // the founding record, and the agent's key by the room's counted admission
         let mut law = SeatLaw::default();
-        law.policy.insert("one".into(), Policy::One);
+        law.policy.insert("community_invite".into(), Policy::AtLeast(2, 3));
         let mut g = Lcg(3);
         let mut h = Lcg(17);
         let (mut cases, mut bad, mut landed) = (0usize, 0usize, 0usize);
@@ -975,12 +977,14 @@ mod tests {
                 let mut o = W::new(id, vec![0], 1);
                 o.kind = SeatKind::Offer;
                 o.to = vec![n];
-                o.cosigners = vec![n];
+                // the room's counted admission: every member signs it (key 1 is the signer), and the agent's own
+                // signature is its consent
+                o.cosigners = rows[0].to.iter().copied().filter(|&k| k != 1).chain([n]).collect();
                 o.scope = Some(AGENT.into());
                 o.obj = Some(Obj::Row(0));
                 o.conf = Some(Conf::Group);
                 o.head = vec![0];
-                o.policy = Some("one".into());
+                o.policy = Some("community_invite".into());
                 rows.push(o);
             }
             let v = W::new(100, rows.iter().map(|r| r.id).collect(), 1);

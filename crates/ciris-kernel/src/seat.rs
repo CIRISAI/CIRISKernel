@@ -874,16 +874,21 @@ fn seat_class<'s, R: SeatRow>(law: &SeatLaw, o: &R, sc: &'s str) -> Option<&'s s
     (holds_member && !law.is_duty(sc, &[])).then_some("member")
 }
 
-/// Key `k` consented to offer `t`: it signed it, or an acceptance of it by `k` is held (one naming it, or a
-/// standing acceptance the offer names). A withdrawal of an offer `k` never consented to is a decline: it ends
-/// that offer for `k` and nothing else, and is no end of a stay.
-fn consented<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, t: &R, k: &R::Key) -> bool {
+/// Key `k` consented to offer `t`: it signed it, or an acceptance of it by `k` is in the withdrawal's own
+/// concluded past (`before`: one naming it, or a standing acceptance the offer names, of its scope and object). A
+/// withdrawal of an offer `k` never consented to is a decline: it ends that offer for `k` and nothing else, and is
+/// no end of a stay.
+fn consented<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, t: &R, k: &R::Key, before: &dyn Fn(&R) -> bool) -> bool {
     signed_by(t, k)
         || by.values().any(|a| {
             a.seat_kind() == SeatKind::Accept
                 && a.signer() == k
+                && before(*a)
                 && (a.of() == Some(t.id())
-                    || (a.of().is_none() && t.names().contains(a.id()) && a.scope() == t.scope()))
+                    || (a.of().is_none()
+                        && t.names().contains(a.id())
+                        && a.scope() == t.scope()
+                        && a.obj().is_none_or(|x| Some(x) == t.obj())))
         })
 }
 
@@ -894,8 +899,15 @@ fn roster_offer<R: SeatRow>(law: &SeatLaw, o: &R) -> bool {
 
 /// Whether withdrawal `w` is its signer's own end of a stay as a member, and of which community: a withdrawal
 /// by a key of an offer of the roster's seat that names it, or of its own acceptance of one (the offer the
-/// acceptance names, or a standing acceptance's own scope and object). Read from the rows alone.
-pub(crate) fn stay_end<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, w: &R) -> Option<ObjOf<R>> {
+/// acceptance names, or a standing acceptance's own scope and object). `before(a)`: row `a` is concluded and in
+/// `w`'s past; the consent a withdrawal ends is read there only (a row written after it, or one that concludes
+/// nothing, is none).
+pub(crate) fn stay_end<R: SeatRow>(
+    law: &SeatLaw,
+    by: &BTreeMap<&R::Id, &R>,
+    w: &R,
+    before: &dyn Fn(&R) -> bool,
+) -> Option<ObjOf<R>> {
     let k = w.signer();
     let mut t = *by.get(w.target()?)?;
     // a withdrawal that names a duty seat lays down that seat, and the stay goes on
@@ -919,13 +931,15 @@ pub(crate) fn stay_end<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, w: 
                     m.seat_kind() == SeatKind::Offer
                         && m.obj().as_ref() == Some(&obj)
                         && m.to().contains(k)
+                        && m.scope() == Some(s)
                         && m.names().contains(t.id())
+                        && before(*m)
                 });
                 return (roster && community(by, &obj) && used).then_some(obj);
             }
         }
     }
-    if t.seat_kind() != SeatKind::Offer || !t.to().contains(k) || !consented(by, t, k) {
+    if t.seat_kind() != SeatKind::Offer || !t.to().contains(k) || !consented(by, t, k, before) {
         return None; // a key that never consented to the offer it withdraws declines it
     }
     let obj = t.obj()?;
@@ -1039,7 +1053,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     if let Some(t) = r.target() {
                         wd.entry(t).or_default().push(r);
                     }
-                    if let Some(room) = stay_end(law, &by, r) {
+                    if let Some(room) = stay_end(law, &by, r, &|a| c.concluded_id(a.id()) && g.id_in_past(a.id(), i)) {
                         left.push((i, r.signer(), room));
                     }
                 }
@@ -2003,7 +2017,8 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
             && t.signer() == m
             && wr.signer() == m
             && t.of().is_some_and(|o| ids.contains(o));
-        let stay = wr.signer() == m && stay_end(law, by, wr).as_ref() == Some(&obj) && after(w);
+        let held = |a: &R| c.concluded_id(a.id()) && g.id_in_past(a.id(), w);
+        let stay = wr.signer() == m && stay_end(law, by, wr, &held).as_ref() == Some(&obj) && after(w);
         if offer_end {
             found.push((w, of(&|s| s.0 == *t.id() && wr.scope().is_none_or(|ws| *ws == s.1))));
         } else if accept_end {
@@ -2269,7 +2284,7 @@ pub fn stay_ended_in_past<R: SeatRow>(p: &Past<'_, '_, R>, law: &SeatLaw, obj: &
         return out;
     }
     for w in p.rows().filter(|w| w.seat_kind() == SeatKind::Withdraw) {
-        if stay_end(law, &by, w).as_ref() != Some(obj) {
+        if stay_end(law, &by, w, &|a| p.get(a.id()).is_some() && p.past(a.id(), w.id())).as_ref() != Some(obj) {
             continue;
         }
         let k = w.signer();
@@ -2874,11 +2889,11 @@ fn roster_placement<R: SeatRow>(law: &SeatLaw, r: &R, by: &BTreeMap<&R::Id, &R>)
         return false;
     }
     if r.seat_kind() == SeatKind::Offer && r.consent_one() {
-        // MARKED: until `kind_of` reads the founding record's `cohort_subkind` (the binding's batch, with the `node`
-        // scope), consent "one" is allowed only over a group that is no community by its kind; then it is
-        // `kind_of(..) == Some(CommunityKind::Infrastructure)` and scope `node`
+        // MARKED: a node's seat (`node`) over an infrastructure community. Until `kind_of` reads the founding record's
+        // `cohort_subkind` (the binding's batch; the reference reads that field here), the crate has no accessor for
+        // it and takes a group that is no community by its kind (an infrastructure group, founded in `founder`)
         let get = |i: &R::Id| by.get(i).copied();
-        return kind_of(law, &get, &obj) != Some(CommunityKind::Community) && sc.as_ref() != "founder";
+        return kind_of(law, &get, &obj) != Some(CommunityKind::Community) && sc.as_ref() == "node";
     }
     true
 }
@@ -2966,7 +2981,9 @@ fn room_key_ended<R: SeatRow, S: CutSpec<R>>(
     });
     removed
         || p.rows().any(|w| {
-            w.seat_kind() == SeatKind::Withdraw && w.signer() == k && stay_end(law, by, w).as_ref() == Some(obj)
+            w.seat_kind() == SeatKind::Withdraw
+                && w.signer() == k
+                && stay_end(law, by, w, &|a| p.get(a.id()).is_some() && p.past(a.id(), w.id())).as_ref() == Some(obj)
         })
 }
 
