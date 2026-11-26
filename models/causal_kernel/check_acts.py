@@ -42,7 +42,11 @@ Planted breaks, each of which must change a case's answer:
     consent_one_waives  a row's `consent = "one"` waives the seated key's acceptance (A6)
     infra_any_quorum    an infrastructure community's quorum need not be its founders' strict majority (P1)
     infra_body_members  an infrastructure community's protocol counts its members, not its founders (P1)
-    infra_n_from_record an infrastructure quorum's N is the record's, not its founding row's signers (P1)
+    infra_n_from_word   an infrastructure community counts M as its record's word states it, not the founders' majority (P1)
+    infra_m_fixed       an infrastructure community's M is fixed by its founding count, not the founders at the heads (P1)
+    record_change_either_policy   a record change meets one of its joined policies, not both (Q1)
+    one_voice_community_protocol  a community may declare a protocol under which one voice decides (Q1)
+    founder_only_community        a community may declare founder_only (Q3)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
     record_change_as_admission    under open:self_admit or founder_only, a record change is counted as an admission (N1)
@@ -139,7 +143,7 @@ CASES = [
     ("a node's seat over a community is the community's admission of a roster seat, which the table does not bind",
      [GM, grp("r", "offer", "n1", "node", "community_invite", cosigners=("B",))], "r", ("admit", "node", "community")),
     ("a change of a community's record is record_change", [GM, grp("r", "offer", (), "record", "cosigned_act",
-                                                                    consensus_protocol="quorum:1/4")], "r",
+                                                                    consensus_protocol="quorum:2/4")], "r",
      ("record_change", "record", "community")),
     ("a row that is not counted is no act", [GM, ST.offer("r", "A", "D", "member", OBJ, "seat", ("g",), under="g")], "r", None),
     ("a counted row with no scope is no act (an answer, as the crate's, not an exception)",
@@ -175,7 +179,9 @@ QUERIES = [
     (("remove", "node", "infrastructure"), (("cosigned_act",), "fixed")),
     (("record_change", "record", "infrastructure"), (("cosigned_act",), "fixed")),
     (("admit", "node", "community"), None),
-    (("record_change", "record", "community"), (("cosigned_act", "default_standing", "default_content", "default_irreversible"), "row")),
+    (("record_change", "record", "community"), (("cosigned_act&default_standing",), "fixed")),
+    (("change", "content", "community"), (("default_content",), "fixed")),
+    (("admit", "member", "family"), (("cosigned_act",), "fixed")),
     (("admit", "member", "accord"), None),
     (("recall", "duty", "self"), None),
 ]
@@ -185,7 +191,11 @@ GM4 = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=
 GMJ = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), consensus_protocol="majority")
 FH4 = ST.found("g", "A", ("A", "B", "C", "D"), {"moderate": ("A",)}, cosigners=("B", "C", "D"))     # A holds moderate
 GN = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), consensus_protocol=None)
-AM1 = grp("am", "offer", (), "record", "cosigned_act", cosigners=("B", "C"), consensus_protocol="quorum:1/4")   # to one of four
+AM1 = grp("am", "offer", (), "record", None, cosigners=("B", "C"), consensus_protocol="quorum:2/4")   # to any two of four
+GM5 = ST.offer("g", "A", ("A", "B", "C", "D", "E"), "member", "@", "self", cosigners=("B", "C", "D", "E"))   # majority
+REC = lambda i, w, heads=("g",), signer="A", cosigners=("B", "C"), to=(), **kw: grp(i, "offer", to, "record", None, heads=heads,
+                                                                           signer=signer, cosigners=cosigners,
+                                                                           consensus_protocol=w, **kw)
 GQ = dict(GM4, consensus_protocol="quorum:3/4")                                                    # any three
 GU = dict(GM4, consensus_protocol="unanimous")
 GF = ST.offer("g", "A", ("A", "B", "C"), "founder", "@", "self", cosigners=("B", "C"), consensus_protocol="founder_only")
@@ -195,11 +205,17 @@ AG = grp("ag", "offer", ("X", "Y", "Z"), "agent", "cosigned_act", cosigners=("B"
 G6 = ST.found("g", "A", ("A", "B", "C", "D", "E", "F"), {"moderate": ("A", "B", "F"), "review": ("C", "D", "E")},
               cosigners=("B", "C", "D", "E", "F"))
 IN1 = grp("na", "offer", "n1", "node", None, signer="f1", cosigners=("f2",), counted="founder")       # node n1 seated
-IAM = lambda w, heads=("g",), cosigners=("f2",): grp("am", "offer", (), "record", "cosigned_act", heads=heads, signer="f1",
-                                                     cosigners=cosigners, counted="founder", consensus_protocol=w)
+IAM = lambda w, heads=("g",), cosigners=("f2",), signer="f1": grp("am", "offer", (), "record", None, heads=heads,
+                                                                  signer=signer, cosigners=cosigners, counted="founder",
+                                                                  consensus_protocol=w)
+IAD = lambda i, k, signers, heads=("g",): grp(i, "offer", k, "founder", None, heads=heads, signer=signers[0],
+                                              cosigners=tuple(signers[1:]) + (k,), counted="founder")   # k cosigns its own
+INODE = lambda signers, heads=("g",): grp("r", "offer", "n1", "node", None, heads=heads, signer=signers[0],
+                                          cosigners=tuple(signers[1:]), counted="founder")
+GI1 = ST.offer("g", "f1", ("f1",), "founder", "@", "self", cohort_subkind="infrastructure", consensus_protocol="quorum:1/1")
 GI4 = ST.offer("g", "f1", ("f1", "f2", "f3", "f4"), "founder", "@", "self", cosigners=("f2", "f3", "f4"),
                cohort_subkind="infrastructure", consensus_protocol="quorum:3/4")                     # four founders
-RM_A = lambda heads: grp("x", "unseat", "D", "member", "community_remove", heads=heads)                # A alone
+RM_A = lambda heads: grp("x", "unseat", "D", "member", "community_remove", heads=heads, cosigners=("B",))   # A and B
 CONCLUDE = [
     ("an admission stating accord_halt (one voice) is no admission's policy: with the table it concludes nothing",
      [GM4, grp("r", "offer", "E", "member", "accord_halt", cosigners=("E",))], "r", False, True),
@@ -234,24 +250,45 @@ CONCLUDE = [
      "founder (one of three founders)",
      [GI, IN1, grp("r", "offer", "f4", "founder", None, signer="f1", cosigners=("n1", "f4"), heads=("na",), counted="founder")],
      "r", False, False),
-    # ---- an infrastructure community's record (P1): a quorum of its founders' strict majority, N its founding row's -
+    # ---- an infrastructure community (P1, Q5): its founders' strict majority, N the founder seats at the row's heads -
     ("an infrastructure community's record changes under its founders' protocol: two of three founders change it",
-     [GI, IAM("quorum:2/3")], "am", True, True),
+     [GI, IAM("quorum:2/3")], "am", True, False),
     ("and one founder alone does not", [GI, IAM("quorum:2/3", cosigners=())], "am", False, False),
-    ("four founders (quorum:3/4): three change the record", [GI4, IAM("quorum:3/4", cosigners=("f2", "f3"))], "am", True, True),
+    ("four founders (quorum:3/4): three change the record", [GI4, IAM("quorum:3/4", cosigners=("f2", "f3"))], "am", True, False),
     ("and two of four do not", [GI4, IAM("quorum:3/4")], "am", False, False),
     ("a key that is no founder signing in a founder's place is no voice: f1 and m1 do not change it",
      [GI, IAM("quorum:2/3", cosigners=("m1",))], "am", False, False),
-    ("a founder who left stays in N: after f3's withdrawal f1 and f2 (two of three) still change the record",
-     [GI, ST.withdraw("w3", "f3", "g"), IAM("quorum:2/3", heads=("w3",))], "am", True, True),
+    ("a founder is admitted by the founders' majority (f1 and f2, two of three), with its own signature",
+     [GI, IAD("a4", "f4", ("f1", "f2"))], "a4", True, False),
+    ("the founders grow: N is four, so f1 and f2 (two of four) do not admit f5 (P1-2)",
+     [GI, IAD("a4", "f4", ("f1", "f2")), IAD("a5", "f5", ("f1", "f2"), heads=("a4",))], "a5", False, False),
+    ("and f1, f2 and f4 (three of four) do", [GI, IAD("a4", "f4", ("f1", "f2")), IAD("a5", "f5", ("f1", "f2", "f4"), heads=("a4",))],
+     "a5", True, False),
+    ("two of five founders do not change the record (to quorum:1/1, which five founders' majority is not) (P1-1)",
+     [GI, IAD("a4", "f4", ("f1", "f2")), IAD("a5", "f5", ("f1", "f2", "f4"), heads=("a4",)),
+      IAM("quorum:1/1", heads=("a5",), signer="f4", cosigners=("f5",))], "am", False, False),
+    ("a change at the founders' own N: after f4 joins, f1, f2 and f3 change the record to quorum:3/4",
+     [GI, IAD("a4", "f4", ("f1", "f2")), IAM("quorum:3/4", heads=("a4",), cosigners=("f2", "f3"))], "am", True, False),
+    ("and a change stating quorum:2/3 there (N four) concludes nothing",
+     [GI, IAD("a4", "f4", ("f1", "f2")), IAM("quorum:2/3", heads=("a4",), cosigners=("f2", "f3"))], "am", False, False),
+    ("a leaving lowers N: after f3's withdrawal f1 and f2 (two of two) seat a node (P1-4)",
+     [GI, ST.withdraw("w3", "f3", "g"), INODE(("f1", "f2"), heads=("w3",))], "r", True, False),
+    ("and after f2's and f3's, f1 alone (one of one) does: a stated consequence",
+     [GI, ST.withdraw("w3", "f3", "g"), ST.withdraw("w2", "f2", "g"), INODE(("f1",), heads=("w2", "w3"))], "r", True, False),
+    ("an infrastructure founding row with no founder seat (founded in `member`): its body is empty, so nothing concludes",
+     [ST.offer("g", "f1", ("f1", "f2", "f3"), "member", "@", "self", cosigners=("f2", "f3"), cohort_subkind="infrastructure",
+               consensus_protocol="quorum:2/3"), INODE(("f1", "f2"))], "r", False, False),
+    ("the open edge at N = 1 (Q5): a lone founder admits a second founder (the row carries two keys)",
+     [GI1, IAD("a2", "f2", ("f1",))], "a2", True, False),
+    ("and seats a node alone", [GI1, INODE(("f1",))], "r", True, False),
+    ("and changes the record alone", [GI1, IAM("quorum:1/1", cosigners=())], "am", True, False),
     ("a record stating quorum:2/3 over four founders has no protocol: three founders conclude nothing under it",
-     [dict(GI4, consensus_protocol="quorum:2/3"),
-      grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2", "f3"), counted="founder")], "r", False, False),
-    ("nor may a change name another N: quorum:3/4 over three founders concludes nothing; with no table it is read as "
-     "any change", [GI, IAM("quorum:3/4")], "am", False, True),
+     [dict(GI4, consensus_protocol="quorum:2/3"), INODE(("f1", "f2", "f3"))], "r", False, False),
+    ("nor may a change name another N: quorum:3/4 over three founders concludes nothing", [GI, IAM("quorum:3/4")], "am",
+     False, False),
     ("a change naming an M that is not N's strict majority (quorum:3/3) concludes nothing",
-     [GI, IAM("quorum:3/3", cosigners=("f2", "f3"))], "am", False, True),
-    ("nor a protocol of another kind (majority)", [GI, IAM("majority")], "am", False, True),
+     [GI, IAM("quorum:3/3", cosigners=("f2", "f3"))], "am", False, False),
+    ("nor a protocol of another kind (majority)", [GI, IAM("majority")], "am", False, False),
     ("an infrastructure record declaring quorum:3/3 has no protocol: the founders conclude nothing under it",
      [dict(GI, consensus_protocol="quorum:3/3"),
       grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2", "f3"), counted="founder")], "r", False, False),
@@ -261,7 +298,7 @@ CONCLUDE = [
     ("its count is over the founders: a count over the members concludes nothing",
      [GI, grp("r", "offer", "n1", "node", None, signer="f1", cosigners=("f2",))], "r", False, False),
     ("a node's voice is not counted in a change of the record: f1 and the node n1 do not change it",
-     [GI, IN1, IAM("quorum:3/4", heads=("na",), cosigners=("n1",))], "am", False, False),
+     [GI, IN1, IAM("quorum:2/3", heads=("na",), cosigners=("n1",))], "am", False, False),
     ("a node's seat over a community concludes nothing (the table binds it over infrastructure only)",
      [GM4, grp("r", "offer", "n1", "node", "community_invite", cosigners=("B", "C"))], "r", False, True),
     # ---- the recall told by its act ------------------------------------------------------------------------------
@@ -276,38 +313,50 @@ CONCLUDE = [
      "r", False, False),
     ("a members' unseat of a duty stating another policy (community_remove) is refused: the recall's row is fixed",
      [FH4, grp("r", "unseat", "A", "moderate", "community_remove", signer="B", cosigners=("C", "D"))], "r", False, True),
-    # ---- step 5: the protocol change ------------------------------------------------------------------------------
-    ("a change of the record's protocol (record_change) is counted under the protocol in force in its own past: three "
-     "of four, majority, change it to quorum:1/4", [GM4, AM1], "am", True, True),
-    ("a removal naming the change is counted under the new protocol: A alone removes D", [GM4, AM1, RM_A(("am",))], "x",
-     True, True),
-    ("a removal beside the change (not in its past) is counted under the old one: A alone does not",
+    # ---- step 5: the protocol change; Q1: a change meets the protocol in force and the standing default (both) -
+    ("a change of the record's protocol (record_change) is counted under the protocol in force in its own past and the "
+     "standing default: A, B, C of four (majority, two thirds) change it to quorum:2/4", [GM4, AM1], "am", True, False),
+    ("a removal naming the change is counted under the new protocol: A and B remove D", [GM4, AM1, RM_A(("am",))], "x",
+     True, False),
+    ("a removal beside the change (not in its past) is counted under the old one: A and B do not",
      [GM4, AM1, RM_A(("g",))], "x", False, False),
-    ("a change signed by A alone is no change (one of four under majority), and the protocol stays",
-     [GM4, grp("am", "offer", (), "record", "cosigned_act", signer="A", consensus_protocol="quorum:1/4"), RM_A(("am",))], "x",
-     False, False),
+    ("a change signed by A and B is no change (two of four: not a majority), and the protocol stays",
+     [GM4, REC("am", "quorum:2/4", cosigners=("B",)), RM_A(("am",))], "x", False, False),
     ("two concurrent changes naming different protocols: none is in force, and the removal concludes nothing",
-     [GM4, AM1, grp("am2", "offer", (), "record", "cosigned_act", cosigners=("B", "C"), consensus_protocol="majority"),
-      RM_A(("am", "am2"))], "x", False, False),
+     [GM4, AM1, REC("am2", "majority", signer="B", cosigners=("C", "D")), RM_A(("am", "am2"))], "x", False, False),
     ("a row stating a regime other than the protocol in force concludes nothing (a consistency check); with no table "
      "the stated regime is not read", [GM4, grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "C", "E"),
                                              regime="unanimous")], "r", False, True),
     ("a row stating the protocol in force as its regime is counted as any", [GM4, grp("r", "offer", "E", "member", "cosigned_act",
                                                                                      cosigners=("B", "C", "E"), regime="majority")],
      "r", True, True),
-    ("a change of the record is counted under the protocol in force in its own past, not the founding one: A alone "
-     "changes it again under quorum:1/4 (one of four under the founding majority)",
-     [GM4, AM1, grp("am2", "offer", (), "record", "cosigned_act", heads=("am",), signer="A", consensus_protocol="majority")],
-     "am2", True, True),
-    ("the newest change is in force, not any change: after quorum:1/4 and then majority, A alone does not remove D",
-     [GM4, AM1, grp("am2", "offer", (), "record", "cosigned_act", heads=("am",), signer="A", consensus_protocol="majority"),
-      RM_A(("am2",))], "x", False, False),
+    ("a change of the record is counted under the protocol in force in its own past, not the founding one: after a "
+     "unanimous room's change to majority, A, B and C change it again (three of four: not unanimous)",
+     [GU, REC("am", "majority", cosigners=("B", "C", "D")), REC("am2", "quorum:2/4", heads=("am",))], "am2", True, False),
+    ("the newest change is in force, not any change: after quorum:2/4 and then majority, A and B do not remove D",
+     [GU, REC("am", "quorum:2/4", cosigners=("B", "C", "D")), REC("am2", "majority", heads=("am",)), RM_A(("am2",))], "x",
+     False, False),
     ("the order of changes is read over the concluded past: a change naming only a row that did not conclude (which "
      "names the earlier change) is concurrent with that change, the two disagree, and the removal concludes nothing",
      [GM4, AM1, grp("n", "offer", "Q", "member", "community_invite", heads=("am",)),
-      dict(grp("am2", "offer", (), "record", "default_content", heads=("am",), signer="B", cosigners=("C", "D"),
-               consensus_protocol="majority"), names=("n",)),
+      dict(REC("am2", "majority", heads=("am",), signer="B", cosigners=("C", "D")), names=("n",)),
       grp("x", "unseat", "D", "member", "community_remove", heads=("am2",), cosigners=("B", "C"))], "x", False, False),
+    ("Q1: a change must meet the protocol in force as well as the standing default: A, B and C of a unanimous room do "
+     "not change it to majority", [GU, REC("am", "majority")], "am", False, False),
+    ("and the standing default as well as the protocol: A, B and C of five (a majority, not two thirds) change nothing",
+     [GM5, REC("am", "quorum:2/5")], "am", False, False),
+    ("N3's rows: A, B and C of a unanimous room of four do not change it to quorum:1/1 (refused twice over)",
+     [GU, REC("am", "quorum:1/1")], "am", False, False),
+    ("no community declares a one-voice protocol (CC 4.5.13): A, B and C of a majority room do not change it to quorum:1/4",
+     [GM4, REC("am", "quorum:1/4")], "am", False, False),
+    ("nor founds a room under one: a removal in a room founded quorum:1/4 concludes nothing",
+     [dict(GM4, consensus_protocol="quorum:1/4"), grp("r", "unseat", "D", "member", None)], "r", False, False),
+    ("nor under a weighted record one of whose weights reaches its threshold",
+     [dict(GW, weights=(("A", 5), ("B", 2), ("C", 1), ("D", 1))), grp("r", "offer", "E", "member", None, cosigners=("E",))],
+     "r", False, False),
+    ("a change stating a policy of its own (default_content) is refused: the change's policies are fixed",
+     [GM4, grp("am", "offer", (), "record", "default_content", cosigners=("B", "C"), consensus_protocol="quorum:2/4")],
+     "am", False, True),
     # ---- the protocol set (data/consensus_protocols.tsv): a word outside it is no protocol --------------------------
     ("a removal in a room declaring two_thirds (no protocol of the set) concludes nothing",
      [dict(GM4, consensus_protocol="two_thirds"), grp("r", "unseat", "D", "member", "community_remove", cosigners=("B", "C"))],
@@ -320,9 +369,8 @@ CONCLUDE = [
      "r", False, False),
     ("quorum:03/4 is no protocol", [dict(GM4, consensus_protocol="quorum:03/4"),
                                     grp("r", "unseat", "D", "member", None, cosigners=("B", "C", "D"))], "r", False, False),
-    ("a change of the record naming a policy word (accord_halt) concludes nothing; with no table it is read as any change",
-     [GM4, grp("am", "offer", (), "record", "cosigned_act", cosigners=("B", "C"), consensus_protocol="accord_halt")],
-     "am", False, True),
+    ("a change of the record naming a policy word (accord_halt) concludes nothing",
+     [GM4, REC("am", "accord_halt")], "am", False, False),
     ("a quorum's number is the record's: under quorum:3/4 A alone stating need=1 does not admit E",
      [GQ, grp("r", "offer", "E", "member", "cosigned_act", cosigners=("E",), need=1)], "r", False, False),
     ("and A alone stating need=1 does not remove B", [GQ, grp("r", "unseat", "B", "member", None, need=1)], "r", False, False),
@@ -335,8 +383,8 @@ CONCLUDE = [
     ("unanimous removal: every member but D, and a strict majority of the roster",
      [GU, grp("r", "unseat", "D", "member", None, cosigners=("B", "C"))], "r", True, False),
     ("and A and B do not remove D", [GU, grp("r", "unseat", "D", "member", None, cosigners=("B",))], "r", False, False),
-    ("founder_only: one founder admits, counted over the founders",
-     [GF, grp("r", "offer", "D", "member", "cosigned_act", counted="founder", cosigners=("D",))], "r", True, True),
+    ("founder_only is no community protocol (Q3: a family's): one founder's admission concludes nothing",
+     [GF, grp("r", "offer", "D", "member", "cosigned_act", counted="founder", cosigners=("D",))], "r", False, False),
     ("a count under the protocol is over the protocol's body: the same admission counted over the members concludes nothing",
      [GF, grp("r", "offer", "D", "member", "cosigned_act", cosigners=("D",))], "r", False, False),
     ("and over a narrower body (one duty's holders) concludes nothing: A, the one moderator, alone does not admit E",
@@ -365,20 +413,12 @@ CONCLUDE = [
      [G6, grp("r", "unseat", "B", "moderate", None, signer="A", cosigners=("F",), counted="moderate")], "r", False, False),
     # ---- N1: open:self_admit and founder_only govern admissions alone ----------------------------------------------
     ("in an open room (open:self_admit) a key's own change of the record is no admission: X alone changes nothing",
-     [GO, grp("am", "offer", ("X",), "record", "cosigned_act", signer="X", consensus_protocol="quorum:1/1")], "am",
-     False, False),
-    ("nor do two members under cosigned_act: the room's protocol counts no change of the record",
-     [GO, grp("am", "offer", (), "record", "cosigned_act", cosigners=("B",), consensus_protocol="quorum:1/1")], "am",
-     False, False),
-    ("a change of an open room's record is counted under a policy row of its own: A, B and C under default_content "
-     "(two thirds of the members)",
-     [GO, grp("am", "offer", (), "record", "default_content", cosigners=("B", "C"), consensus_protocol="quorum:1/1")], "am",
-     True, True),
+     [GO, REC("am", "quorum:2/4", signer="X", cosigners=(), to=("X",))], "am", False, False),
+    ("nor do the members: the room's protocol counts admissions alone, so its record does not change (cosigned_act's "
+     "part of the change is never met)", [GO, REC("am", "majority", cosigners=("B", "C", "D"))], "am", False, False),
     ("open:self_admit states no removal: A and B do not remove D",
      [GO, grp("r", "unseat", "D", "member", None, cosigners=("B",))], "r", False, False),
-    ("founder_only governs admissions alone: a founder's change of the record under cosigned_act is not counted",
-     [GF, grp("am", "offer", (), "record", "cosigned_act", counted="founder", consensus_protocol="quorum:1/1")], "am",
-     False, False),
+    ("nor in a room naming founder_only (no community protocol)", [GF, REC("am", "majority")], "am", False, False),
     ("in an infrastructure community no key admits itself: X's own founder admission concludes nothing",
      [dict(GI, consensus_protocol="open:self_admit"), grp("r", "offer", "X", "founder", "cosigned_act", signer="X",
                                                          counted="founder")], "r", False, False),
@@ -411,13 +451,13 @@ TIPS = [
      [("f4", "founder", False)]),
     ("tips on either side of a change of protocol do not fold: X admitted under the new protocol at one tip, Y under "
      "two-path at another, and neither stands until a row names both",
-     [GM4, AM1, grp("ax", "offer", "X", "member", "cosigned_act", heads=("am",), cosigners=("X",)),
+     [GM4, AM1, grp("ax", "offer", "X", "member", "cosigned_act", heads=("am",), cosigners=("B", "X")),
       grp("ay", "offer", "Y", "member", "community_invite", cosigners=("B", "C", "Y"))],
      [("X", "member", False), ("Y", "member", False), ("B", "member", True)]),
     ("and once a row names both, both stand",
-     [GM4, AM1, grp("ax", "offer", "X", "member", "cosigned_act", heads=("am",), cosigners=("X",)),
+     [GM4, AM1, grp("ax", "offer", "X", "member", "cosigned_act", heads=("am",), cosigners=("B", "X")),
       grp("ay", "offer", "Y", "member", "community_invite", cosigners=("B", "C", "Y")),
-      grp("az", "offer", "Z", "member", "cosigned_act", heads=("ax", "ay"), cosigners=("Z",))],
+      grp("az", "offer", "Z", "member", "cosigned_act", heads=("ax", "ay"), cosigners=("B", "Z"))],
      [("X", "member", True), ("Y", "member", True)]),
 ]
 
@@ -448,16 +488,25 @@ _rem = lambda i, k, signers, heads: grp(i, "unseat", k, "member", None, heads=he
                                         cosigners=tuple(signers[1:]))
 _LINE = [G3, _adm("ad", "D", ("A", "B", "C"), ("g",)), _adm("ae", "E", ("A", "B", "C"), ("ad",)),
          _rem("xa", "A", ("C", "D", "E"), ("ae",)), _rem("xb", "B", ("C", "D", "E"), ("xa",)),
-         grp("am", "offer", (), "record", "cosigned_act", heads=("g",), signer="A", cosigners=("B",),
-             consensus_protocol="quorum:1/3"),
-         _adm("af", "F", ("A",), ("am",)),
+         grp("am", "offer", (), "record", None, heads=("g",), signer="A", cosigners=("B",),
+             consensus_protocol="quorum:2/5"),
+         _adm("af", "F", ("A", "B"), ("am",)),
          grp("mg", "offer", "G", "member", "cosigned_act", heads=("xb", "af"), signer="C", cosigners=("D", "E", "G")),
          _rem("xc", "C", ("F",), ("mg",))]
 PENDING = [
-    ("A1: two removed members' change of the record at an old head installs nothing: F is not seated by A alone, and "
-     "F alone does not remove C", _LINE, [(k, "member", k in "CDEG") for k in "ABCDEFG"]),
+    ("A1: two removed members' change of the record at an old head (to quorum:2/5) installs nothing: A and B do not "
+     "seat F under it, and F alone does not remove C", _LINE, [(k, "member", k in "CDEG") for k in "ABCDEFG"]),
     ("A3: one founder's own offer seats no key in a room of several founders",
      [GM4, ST.offer("o", "A", "X", "member", OBJ, "self", ("g",), cosigners=("X",))], [("X", "member", False)]),
+    ("P1-3: one founder's own offer of `founder` seats no key in an infrastructure community (A3's class)",
+     [GI, ST.offer("o", "f1", "X", "founder", OBJ, "self", ("g",), cosigners=("X",))], [("X", "founder", False)]),
+]
+# Q4: a change of the record names the record in force as its head (N5's rows: am2 names only a row that did not
+# conclude, so it lacks am's head): the head rules' H1. (name, rows, the row asked, concludes)
+PENDING_CONCLUDE = [
+    ("Q4: a change that does not name the record in force (am) as its head concludes nothing",
+     [GM4, AM1, grp("n", "offer", "Q", "member", "community_invite", heads=("am",)),
+      dict(REC("am2", "unanimous", heads=("am",), signer="B", cosigners=("C", "D")), names=("n",))], "am2", False),
 ]
 
 PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread",
@@ -465,8 +514,9 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "subkind_unread", "amendment_unread", "record_unread", "regime_unread",
           "regime_stated", "protocol_set_open", "row_need", "protocol_body_free", "disagreeing_first", "any_amendment",
           "record_by_founding", "body_free", "kind_partial", "election_any_duty", "node_consent_asked",
-          "consent_one_waives", "infra_any_quorum", "infra_body_members", "infra_n_from_record", "infra_record_frozen",
-          "infra_record_simple_majority", "record_change_as_admission", "self_admit_removal_counted", "body_from_row")
+          "consent_one_waives", "infra_any_quorum", "infra_body_members", "infra_n_from_word", "infra_m_fixed", "infra_record_frozen",
+          "infra_record_simple_majority", "record_change_as_admission", "self_admit_removal_counted", "body_from_row",
+          "record_change_either_policy", "one_voice_community_protocol", "founder_only_community")
 
 
 @contextlib.contextmanager
@@ -532,6 +582,10 @@ def main():
         if ST.infrastructure_rule(w, n) != want:
             problems.append("an infrastructure protocol word %r over %d founders: got %s, expected %s"
                             % (w, n, ST.infrastructure_rule(w, n), want))
+    for name, rows, rid, want in PENDING_CONCLUDE:
+        got = concludes(rows, rid, True)
+        print("  pending the heads and room-keys-fix merge: %s: %s" % (name, "holds" if got == want else
+                                                                     "does not hold yet (got %s)" % got))
     for c, got in zip(PENDING, tip_answers(cases=PENDING)):
         want = [w for _, _, w in c[2]]
         print("  pending the heads and room-keys-fix merge: %s: %s" % (c[0], "holds" if got == want else

@@ -453,22 +453,37 @@ told what act it is by the policy a row states.
   the same protocol with the same numbers.
 - **The roster instances' binding is a parameter** (`roster.Spec.bound`, False for the five; `seat.binding`):
   importing `roster.py` no longer switches the binding off process-wide.
-- **An infrastructure community's record changes** (ruled, P1; the acts table re-copied from rc23 6c60be9: row
-  `record_change` / `record` / `infrastructure`, `cosigned_act`, fixed). There the protocol is a quorum over the
-  founders alone, `quorum:{M}/{N}`, with N the founder count and M its strict majority (`N / 2 + 1`). The kernel
-  counts N itself (`seat::founders_of`): the distinct signers of the founding row, which every count there has in
-  its past. The founding row fixes N: a founder who leaves stays in N, and an admitted founder does not raise it. A
-  record whose word is any other (`quorum:2/5`, `quorum:3/3`, `quorum:2/3` over four founders, `majority`) is no
-  protocol there, at founding or in a change (the text's `federation_community_consensus_protocol_violation`): the
-  kernel concludes nothing under it (`RoomProtocol::parse_in(w, Some(n))`). A change of the record is counted under
-  that quorum over the founders (`counted()` `founder`): fewer than M founders conclude nothing, and a key that is no
-  founder (a node, any other) is no voice. The new record is read by `protocol_record` over the concluded past.
-- **`open:self_admit` and `founder_only` govern admissions alone** (the read's N1): an offer of the member seat. A
-  change of the record is never counted as an admission under them (before, a non-member's own change of an open
-  room's record to `quorum:1/1` concluded, and then one member removed another): it takes a policy row of its own
-  (`default_standing`, `default_content`, `default_irreversible`, counted over the members). The set states no
-  removal under either, so a removal under them concludes nothing (before, `open:self_admit` removed with two
-  voices). Asked of the Constitution whether an open room gets a removal rule.
+- **An infrastructure community: its founders' strict majority** (ruled, P1 and Q5; the acts table re-copied from
+  rc23 682e9e4). The body of every count there is the `founder` seats held at the row's heads, read as for any count
+  (`counted()` `founder`; nodes in no base); N is their number and M = N / 2 + 1, counted by the kernel. So each
+  admission or removal of a founder needs a strict majority of the founders at that moment, growth needs one at every
+  step, and a leaving lowers N (two of two act, and one of one: a stated consequence). The record's word there is
+  `quorum:{M}/{N}`, checked against those numbers: the founding record's against its signers (`seat::founders_of`), a
+  change's against the founders at its own heads; a word that disagrees (`quorum:1/1` among five founders,
+  `quorum:2/3` over four, `quorum:3/3`, `majority`) concludes nothing (`RoomProtocol::parse_in`, the text's
+  `federation_community_consensus_protocol_violation`). The record changes by `record_change` / `record` /
+  `infrastructure` (`cosigned_act`, fixed). A founding row with no `founder` seat (founded in `member`) leaves the
+  body empty, so nothing concludes there. A founder's own seat needs that founder's signature (RK1).
+- **The open edge at N = 1** (Q5, for the Constitution to rule): a lone founder's admission of a second founder
+  concludes (the row carries both keys), and so do a lone founder's node seating, node removal and change of the
+  record. Cases in `check_acts.py`.
+- **A change of the record meets the protocol in force and the standing default together** (Q1: the table's
+  `cosigned_act&default_standing`, fixed; policies joined by `&` are each met, the stricter decides). A row stating
+  another policy (`default_content`, say) is refused: the `default_*` rows are classes of content change (the table's
+  new `change` / `content` and `change` / `irreversible` rows), no choice for a record act. So a group weakens its
+  protocol only by meeting its present one: A, B and C of a unanimous room of four do not change it.
+- **No one-voice community protocol** (Q1, CC 4.5.13): a community's record may not declare `quorum:1/{n}`, nor a
+  weighted record one of whose weights reaches its threshold, at founding or in a change
+  (`seat::community_protocol`; `federation_community_consensus_protocol_violation`): nothing concludes under it.
+- **`founder_only` is no community protocol** (Q3): a community naming it concludes nothing. It is a family's (and a
+  publication's subscriber list's, and a room's own listing's), read from the founders the record names. The table
+  gives the `family` kind its rows (`CommunityKind::Family`), but not how a family is founded, so `kind_of` never
+  answers it: the family is not built in this tag.
+- **`open:self_admit` governs admissions alone** (the read's N1, Q2): an offer of the member seat. A change of the
+  record is never counted as an admission under it (before, a non-member's own change of an open room's record to
+  `quorum:1/1` concluded, and then one member removed another); since a change must meet the protocol in force, an
+  open room's record does not change. The set states no removal under it, so a removal concludes nothing (before, two
+  voices removed): whether an open room may remove anyone is with Eric.
 - **The body an act counts is the act's own** (the read's N2), never the row's `counted()`: the members for an
   admission, a removal, the recall, the lift, the election and a change of the record; all the duty holders (`duty`)
   for a duty's or a detector seat's conferral and withdrawal; an infrastructure community's founders; an accord's
@@ -479,15 +494,18 @@ told what act it is by the policy a row states.
 - **Weights** are compared as a set of pairs, and a record that weighs one key twice states no weights (a weighted
   count under it concludes nothing). An authored head (an outsider's own admission to an open room, read from a
   stated `open:self_admit` count) is read with the binding off only, as the reference reads none.
+- **A change of the record names the record in force as its head** (Q4): it is a counted change, and the head rules
+  (H1) ask it; built with `heads` (a pending case in `check_acts.py` until then).
 - **The edge, stated** (ruled, P2): two concurrent changes of the protocol that disagree leave no protocol in force,
   so removals wait until a change names both tips under the protocol the common members had (the text's wait rule,
   CC 2.7.8, from the protocol side). No code.
-- The reference: `check_acts.py` has 35 act cases, 79 refusal cases, 5 stand cases, 30 protocol words and 17
-  infrastructure words, 34 planted breaks (19 new); two of the read's rows (A1: an old head's record change by removed members; A3: one founder's
+- The reference: `check_acts.py` has 35 act cases, 96 refusal cases, 5 stand cases, 30 protocol words and 17
+  infrastructure words, 38 planted breaks (23 new); five rows pending the head rules and `room-keys-fix` (A1, A3,
+  P1-3, Q4); two of the read's rows (A1: an old head's record change by removed members; A3: one founder's
   own offer) are listed as pending the head rules and `room-keys-fix`. `check_room_keys.py`'s two-key count and
   `check_rosters.py`'s infrastructure instance (I1: the node in scope `node`, founding record `infrastructure`) are
   restated. Crate tests `protocol_set_replay` and `the_recall_is_told_by_its_act` (a law mapping `moderator_recall`
-  to a plain threshold: the recall is told by its act). Twenty-two new plants in the crate; those on changed text retargeted.
+  to a plain threshold: the recall is told by its act). Twenty-seven new plants in the crate, one retired (N read from the record); those on changed text retargeted.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

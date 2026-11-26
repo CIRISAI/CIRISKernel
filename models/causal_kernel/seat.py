@@ -324,20 +324,21 @@ def protocol_rule(word):
 
 
 def founders_of(by, obj):
-    """The founder count N of an infrastructure community: the signers of its founding row. The founding row fixes it:
-    a founder who leaves stays in N, and an admitted founder does not raise it."""
+    """The founders an infrastructure community's founding row seats: its signers. Its own word is checked against
+    their number; every later count reads the founder seats at its own heads (P1, Q5)."""
     g = by.get(obj)
     return len(signers(g)) if g is not None else 0
 
 
 def infrastructure_rule(word, n_founders):
-    """The protocol of an infrastructure community (CC 3.2, ruled on the binding's P1): a quorum over its founders
-    alone, `quorum:M/N` with N the founder count (founders_of: the founding row's signers) and M its strict majority
-    (N // 2 + 1). The rule (kind, m, n), or None for any other word: `quorum:2/5`, `quorum:3/3`, a quorum stating
-    another N (the text's federation_community_consensus_protocol_violation: the kernel concludes nothing under it)."""
+    """The word an infrastructure community's record may state (CC 3.2, ruled on P1 and Q5), over n_founders founders
+    (the founding row's signers for the founding record; the founder seats at a change's heads for a change):
+    `quorum:M/N` with N = n_founders and M its strict majority (N // 2 + 1). The rule (kind, m, n), or None for any
+    other word: `quorum:2/5`, `quorum:3/3`, a quorum stating another N (federation_community_consensus_protocol_violation:
+    the kernel concludes nothing under it). The count itself is always the founders' strict majority at its heads."""
     pr = protocol_rule(word)
     if pr is None or pr[0] != "quorum": return None
-    if pr[2] != n_founders and "infra_n_from_record" not in MUT: return None     # MUTATION: N as the record states it
+    if pr[2] != n_founders: return None
     if pr[1] != pr[2] // 2 + 1 and "infra_any_quorum" not in MUT: return None   # MUTATION: any quorum
     return pr
 
@@ -400,18 +401,78 @@ class binding:
         BOUND = self.saved
 
 
+def community_rule(word, need=None, weights=None):
+    """The protocol a community's record may declare (CC 3.3.4, closed by CC 4.5.13 and the Constitution's Q1, Q3): a
+    word of the set (protocol_rule) under which no one voice admits or removes, and not founder_only (a family's, not a
+    community's). None for any other: `quorum:1/{n}`, `founder_only`, a weighted record one of whose weights reaches
+    its threshold (federation_community_consensus_protocol_violation)."""
+    pr = protocol_rule(word)
+    if pr is None: return None
+    if pr[0] == "founder_only" and "founder_only_community" not in MUT: return None
+    if "one_voice_community_protocol" in MUT: return pr                      # MUTATION: a one-voice protocol is one
+    if pr[0] == "quorum" and pr[1] == 1: return None
+    if pr[0] == "weighted" and need is not None and any(w >= need for _, w in (weights or ())): return None
+    return pr
+
+
+def _protocol_part(r, by, need, weights):
+    """The room's protocol in force at r (a protocol row): {policy, need, weights} or REFUSED. See in_force."""
+    obj = r.get("obj")
+    rec = protocol_record(by, obj)
+    if "record_by_founding" in MUT and r.get("scope") == "record": rec = by.get(obj)   # MUTATION
+    if rec is None: return REFUSED
+    w = rec.get("consensus_protocol")
+    infra = kind_of(by, obj) == "infrastructure" and not ("infra_record_simple_majority" in MUT and r.get("scope") == "record")
+    if r.get("over", obj) != obj and "body_from_row" not in MUT: return REFUSED
+    if infra:
+        # the founders' strict majority (CC 3.2, P1 and Q5): the body is the `founder` seats held at the row's heads,
+        # N their number and M = N // 2 + 1, counted by the kernel (a founding row with no founder seat leaves the body
+        # empty, so nothing concludes)
+        g = by[obj]
+        if rec is g and infrastructure_rule(w, founders_of(by, obj)) is None: return REFUSED   # the founding word
+        if r.get("counted", "member") != "founder" and "infra_body_members" not in MUT and "protocol_body_free" not in MUT:
+            return REFUSED
+        pr = protocol_rule(w)
+        if "infra_n_from_word" in MUT and pr is not None and pr[0] == "quorum":    # MUTATION: M read from the word
+            return dict(policy="P:quorum", need=pr[1], weights=None)
+        if "infra_m_fixed" in MUT:                                               # MUTATION: M from the founding count
+            return dict(policy="P:quorum", need=founders_of(by, obj) // 2 + 1, weights=None)
+        # a change of the record states the founders' quorum at its own heads (checked by the count, which reads them)
+        out = dict(policy="P:founders", need=None, weights=None)
+        if r.get("scope") == "record" and r.get("consensus_protocol") is not None: out["founders_word"] = r["consensus_protocol"]
+        return out
+    pr = community_rule(w, rec.get("need"), rec.get("weights"))
+    if pr is None: return REFUSED
+    kind, m, _n = pr
+    if r.get("counted", "member") != "member" and "protocol_body_free" not in MUT: return REFUSED
+    # open:self_admit governs admissions alone (an offer of the member seat): the set states no removal under it (Q2),
+    # and a change of the record is never counted as an admission
+    if kind == "open:self_admit":
+        if r["kind"] != "offer":
+            if "self_admit_removal_counted" not in MUT: return REFUSED
+        elif r.get("scope") != "member" and "record_change_as_admission" not in MUT: return REFUSED
+    need, weights = None, None
+    if "row_need" in MUT: need = r.get("need")                 # MUTATION: the row's need, not the record's number
+    elif kind == "quorum": need = m
+    elif kind == "weighted":
+        need, weights = rec.get("need"), rec.get("weights")
+        keys = [k for k, _ in (weights or ())]
+        if len(keys) != len(set(keys)): return REFUSED          # a record weighing one key twice states no weights
+    return dict(policy="P:" + kind, need=need, weights=weights)
+
+
 def in_force(r, by):
     """What a counted row is counted under: {policy, need, weights} (a word of POLICY, the threshold a declared count
-    reads, the weights a weighted count reads), or REFUSED.
+    reads, the weights a weighted count reads), {policy, all: [those]} for policies joined by `&` (every one met), or
+    REFUSED.
     With the binding on (BOUND), the policy is the row's act's (act_of) in the acts table: a fixed act refuses a
     different stated policy and accepts its own or none; a row's choice is one of those listed, stated. A counted row
     over an object with a kind whose act has no row, or that states another policy, is REFUSED; so is a change of the
-    record naming a word outside the protocol set. A protocol row (cosigned_act, community_remove, wa_adjudication) is
-    counted under the room's protocol in force in the row's past (protocol_record), never one the row states, over the
-    protocol's own body (the members; the founders for founder_only) and with the record's numbers (a quorum's m, a
-    weighted count's weights and threshold), never the row's `need`. REFUSED where no protocol of the set is in force,
-    where the row counts another body, or for a removal under a protocol that states none (founder_only). With the
-    binding off, the row's own policy and need, a protocol row read the same way."""
+    record naming a word its room may not declare (community_rule, infrastructure_rule), and a row whose body
+    (`counted`, `over`) is not its act's own (body_of). A protocol row (cosigned_act, community_remove,
+    wa_adjudication) is counted under the room's protocol in force in the row's past (protocol_record), never one the
+    row states, over the protocol's own body and with the record's numbers, never the row's `need`
+    (_protocol_part). With the binding off, the row's own policy and need, a protocol row read the same way."""
     stated = r.get("policy")
     word, need, weights = stated, r.get("need"), r.get("weights")
     if BOUND and "binding_off" not in MUT:
@@ -431,50 +492,31 @@ def in_force(r, by):
         # a stated regime is a consistency check: it must be the room's protocol in force in the row's past
         if r.get("regime") is not None and r.get("regime") != protocol_of(by, r.get("obj")) and "regime_unread" not in MUT:
             return REFUSED
-        # a change of the record that states a protocol names one of the set, or concludes nothing (an infrastructure
-        # community's: a quorum of its founders' strict majority, N its founding row's signers)
+        # a change of the record that states a protocol names one its room may declare, or concludes nothing (an
+        # infrastructure community's: its founders' strict majority, checked by the count at the change's heads)
         if a[0] == "record_change" and r.get("consensus_protocol") is not None and "protocol_set_open" not in MUT:
-            if a[2] == "infrastructure" and "infra_record_simple_majority" not in MUT:
-                ok = infrastructure_rule(r["consensus_protocol"], founders_of(by, r["obj"]))
-            else:
-                ok = protocol_rule(r["consensus_protocol"])
-            if ok is None: return REFUSED
+            w = r["consensus_protocol"]
+            ok = protocol_rule(w) if a[2] == "infrastructure" else community_rule(w, r.get("need"), r.get("weights"))
+            if ok is None or (a[2] == "infrastructure" and ok[0] != "quorum"): return REFUSED
         # the body an act counts is the act's own (body_of), over its own object: never one the row states. A
-        # protocol row's is its protocol's (below); a duty's conferral, withdrawal and recall are read by their own
-        # gates (duty_gate, duty_over, act_of's body)
+        # protocol row's is its protocol's (_protocol_part); a duty's conferral, withdrawal and recall are read by
+        # their own gates (duty_gate, duty_over, act_of's body)
         if "body_from_row" not in MUT and K.rule(POLICY, word, ("unknown",))[0] != "protocol" \
                 and a[0] not in ("duty_confer", "duty_withdraw", "recall"):
             if r.get("over", r.get("obj")) != r.get("obj") or r.get("counted", "member") != body_of(a, by, r.get("obj")):
                 return REFUSED
-    if K.rule(POLICY, word, ("unknown",))[0] == "protocol" and "protocol_unread" not in MUT:
-        rec = protocol_record(by, r.get("obj"))
-        if "record_by_founding" in MUT and r.get("scope") == "record": rec = by.get(r.get("obj"))   # MUTATION
-        # an infrastructure community counts under a quorum of its founders alone (its founders' strict majority)
-        infra = kind_of(by, r.get("obj")) == "infrastructure" and not (
-            "infra_record_simple_majority" in MUT and r.get("scope") == "record")
-        w = rec.get("consensus_protocol") if rec is not None else None
-        pr = infrastructure_rule(w, founders_of(by, r.get("obj"))) if infra else protocol_rule(w)
-        if pr is None: return REFUSED
-        kind, m, _n = pr
-        body = "founder" if kind == "founder_only" or (infra and "infra_body_members" not in MUT) else "member"
-        if r.get("counted", "member") != body and "protocol_body_free" not in MUT: return REFUSED
-        if r.get("over", r.get("obj")) != r.get("obj") and "body_from_row" not in MUT: return REFUSED
-        # founder_only and open:self_admit govern admissions alone (an offer of the member seat): the set states no
-        # removal under them, and a change of the record is never counted as an admission (it takes a policy row of
-        # its own: default_standing, ...)
-        if kind in ("founder_only", "open:self_admit"):
-            if r["kind"] != "offer":
-                if not (kind == "open:self_admit" and "self_admit_removal_counted" in MUT): return REFUSED
-            elif r.get("scope") != "member" and "record_change_as_admission" not in MUT: return REFUSED
-        need, weights = None, None
-        if "row_need" in MUT: need = r.get("need")                 # MUTATION: the row's need, not the record's number
-        elif kind == "quorum": need = m
-        elif kind == "weighted":
-            need, weights = rec.get("need"), rec.get("weights")
-            keys = [k for k, _ in (weights or ())]
-            if len(keys) != len(set(keys)): return REFUSED          # a record weighing one key twice states no weights
-        word = "P:" + kind
-    return dict(policy=word, need=need, weights=weights)
+    parts = word.split("&") if isinstance(word, str) and "&" in word else [word]
+    out = []
+    for w in parts:
+        if K.rule(POLICY, w, ("unknown",))[0] == "protocol" and "protocol_unread" not in MUT:
+            f = _protocol_part(r, by, need, weights)
+        else:
+            f = dict(policy=w, need=need, weights=weights)
+        if f is not REFUSED: out.append(f)
+        elif "record_change_either_policy" not in MUT: return REFUSED   # MUTATION: one joined policy is enough
+    if not out: return REFUSED
+    if len(parts) == 1: return out[0]
+    return dict(policy=word, all=out, any="record_change_either_policy" in MUT)
 
 
 def body_of(a, by, obj):
@@ -512,6 +554,8 @@ POLICY["moderation_overturn"] = ("lift", 1, 2)
 # CC 4.5.13: "A recall is one row cosigned by more than two thirds of the standing roster ... The floor is two voices"
 # (the table's cell reads 2/3): strictly more, with the floor, counted over the roster less the holder it recalls
 POLICY["moderator_recall"] = ("recall", 2, 3, 2)
+# an infrastructure community's protocol (P1, Q5): a strict majority of the founder seats at the row's heads
+POLICY["P:founders"] = ("strict", 1, 2)
 # The count each protocol of the set is read as (in_force names it `P:{kind}`): the protocol rows of the table
 # (`protocol` in their enact cell: cosigned_act, community_remove, wa_adjudication) are counted under the room's protocol
 # in force, never one a row states. A quorum's m and a weighted count's threshold reach met()/count_of() as `need`.
@@ -1081,6 +1125,8 @@ class Seats:
                 past = lambda a, b: a in S.anc[b]
                 f = in_force(r, {q["id"]: q for q in P})
                 if f is REFUSED: return False
+                if "all" in f:                                       # joined policies: a record change, no seat
+                    continue
                 r = dict(r, **f)                                     # the count reads the policy in force
                 over, counted = r.get("over", r["obj"]), r.get("counted", "member")
                 if (over, counted) == (o, s): ok = seated if "one_step" not in MUT else (union - out_keys)
@@ -1619,10 +1665,18 @@ def duty_over(r, by):
 def count_met(r, P, past, table=None):
     """A counted row's count (conf=group), met over its concluded ancestors P: the lift, the ranked tally, the duty
     count, or the policy's threshold over the persons at the heads it names."""
-    k, by, heads = r["kind"], {q["id"]: q for q in P}, r.get("head", ())
+    by = {q["id"]: q for q in P}
     f = in_force(r, by)
     if f is REFUSED: return False                    # its act may not take the policy it states (the acts table)
-    r = dict(r, **f)                                 # the count reads the policy in force, never the stated one
+    if "all" in f:                                   # policies joined by `&`: every one met (Q1)
+        got = [_count_under(dict(r, **g), P, past, by, table) for g in f["all"]]
+        return any(got) if f["any"] else all(got)
+    return _count_under(dict(r, **f), P, past, by, table)
+
+
+def _count_under(r, P, past, by, table=None):
+    """count_met's count, r carrying the policy in force (in_force) in place of the one it states."""
+    k, heads = r["kind"], r.get("head", ())
     # the lift is told by its act where the object has a kind (act_of), by its policy otherwise
     a = act_of(r, by, r.get("obj") is not None and r.get("obj") not in by) if BOUND else None
     if (a[0] == "lift" if a is not None else K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "lift"):
@@ -1630,6 +1684,10 @@ def count_met(r, P, past, table=None):
     mem, vot = counted_keys(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
     left = count_left(P, past, r.get("over", r["obj"]), r.get("counted", "member"))
     mem, vot = mem - left, vot - left
+    # an infrastructure community's change of the record states the founders' quorum at its own heads: N the founder
+    # seats there, M their strict majority (P1, Q5)
+    if r.get("founders_word") is not None and infrastructure_rule(r["founders_word"], len(mem)) is None:
+        return False
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
         # the count is the ranked tally: the ballots the row names, one voice each, and the row seats the winner
         ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot") if b["id"] in r["names"] and b["signer"] in vot]

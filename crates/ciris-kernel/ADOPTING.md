@@ -86,26 +86,29 @@ migrations, and the local operational store.
   (`act_of`, `policy_for`). A fixed act refuses a different stated policy and accepts its own or none; a row's
   choice (`row`) is one of those listed, stated. A protocol row (`cosigned_act`, `community_remove`,
   `wa_adjudication`: `Policy::Protocol`) is counted under the room's protocol in force, over the protocol's body
-  (the members; the founders for `founder_only`): a row counting another body concludes nothing.
+  (the members; an infrastructure community's founders): a row counting another body concludes nothing.
 - You MUST implement `SeatRow::consensus_protocol()` on a community's records. It defaults to `None`, and with
   `None` no room has a protocol: no removal and no admission under the room's protocol concludes in any room.
   Present the founding record with its protocol, a word of the closed set (`seat::RoomProtocol::parse`:
-  `founder_only`, `unanimous`, `majority`, `quorum:{m}/{n}`, `weighted:{rubric}`, `open:self_admit`), and its
+  `unanimous`, `majority`, `quorum:{m}/{n}`, `weighted:{rubric}`, `open:self_admit` for a community), and its
   `cohort_subkind()` (`infrastructure` for an infrastructure community). A quorum's `m` is the word's; a weighted
   protocol's weights and threshold are the declaring record's `weights()` and `need()`. A counted row's `need()`
   is never read under the protocol. Read the protocol with `seat::protocol_of(p, obj)` or `seat::protocol_record`
   (the row's past) rather than from any other row: it gives the newest change of the record there (a counted
   `record` offer carrying `consensus_protocol`, ordered over the concluded rows), or the founding record's. Emit
   the notice `hard_case:community_consensus_protocol_change` for a change.
-- An infrastructure community's protocol is a quorum of its founders' strict majority, `quorum:{M}/{N}` with
-  `M = N / 2 + 1` and N the founding row's distinct signers (`seat::founders_of`; a founder who leaves stays in N),
-  counted over the founders (`counted()` `founder`; nodes in no base). Any other word there concludes nothing
-  (`RoomProtocol::parse_in(w, Some(n))`): your door refuses it at founding and at a change
-  (`federation_community_consensus_protocol_violation`). Its record changes under that quorum (`record_change`
-  over `infrastructure`).
-- Under `open:self_admit` and `founder_only` the room's protocol counts admissions alone (an offer of the member
-  seat): no removal concludes under them, and a change of the record takes a policy row of its own
-  (`default_standing`, ...).
+- An infrastructure community counts a strict majority of the `founder` seats at the row's heads (`counted()`
+  `founder`; nodes in no base): N is counted by the kernel and M = N / 2 + 1. Its record states `quorum:{M}/{N}`
+  with those numbers (the founding record's over its signers, `seat::founders_of`; a change's over the founders at its
+  heads): any other word concludes nothing (`RoomProtocol::parse_in`), and your door refuses it at founding and at
+  a change (`federation_community_consensus_protocol_violation`). Found it in scope `founder`. Its record changes
+  under that majority (`record_change` over `infrastructure`). At N = 1 a lone founder acts alone (open, Q5).
+- A community's protocol is a word of the set under which no one voice decides (`seat::community_protocol`): not
+  `quorum:1/{n}`, not `founder_only` (a family's; families are not built), not a weighted record one of whose
+  weights reaches its threshold. A change of its record states no policy and meets both the protocol in force and
+  `default_standing`.
+- Under `open:self_admit` the room's protocol counts admissions alone (an offer of the member seat): no removal
+  concludes, and the record does not change.
 - State `counted()` as the act's own body or not at all: the members for an admission, a removal, the recall, the
   lift, the election and a change of the record; `duty` for the duty holders' acts; `founder` in an infrastructure
   community; the accord's holders; a self roster's own seat. Any other `counted()`, or an `over()` naming another

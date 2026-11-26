@@ -395,11 +395,12 @@ impl RoomProtocol {
             _ => None,
         }
     }
-    /// The protocol a record's word names in a community (`founders` `None`), or in an infrastructure community of
-    /// that many founders (CC 3.2, ruled on the binding's P1: [`founders_of`]), where it is a quorum over the
-    /// founders alone, `quorum:{M}/{N}` with N the founder count and M its strict majority (`N / 2 + 1`); any other
-    /// word there (`quorum:2/5`, `quorum:3/3`, a quorum stating another N, `majority`) is none, the text's
-    /// `federation_community_consensus_protocol_violation`.
+    /// The protocol a record's word names (`founders` `None`), or the word an infrastructure community's record may
+    /// state over that many founders (CC 3.2, ruled on P1 and Q5: the founding row's signers, [`founders_of`], for
+    /// the founding record; the founder seats at a change's heads for a change): `quorum:{M}/{N}` with N that count
+    /// and M its strict majority (`N / 2 + 1`); any other word there (`quorum:2/5`, `quorum:3/3`, a quorum stating
+    /// another N, `majority`) is none, the text's `federation_community_consensus_protocol_violation`. The count
+    /// itself is always the founders' strict majority at its own heads.
     pub fn parse_in(w: &str, founders: Option<usize>) -> Option<RoomProtocol> {
         let p = RoomProtocol::parse(w)?;
         let Some(n_f) = founders else { return Some(p) };
@@ -408,8 +409,9 @@ impl RoomProtocol {
             _ => None,
         }
     }
-    /// The body a count under it is taken over: the founders for `founder_only`, the members otherwise (in an
-    /// infrastructure community, the founders whatever the protocol: [`RoomProtocol::parse_in`]).
+    /// The body a count under it is taken over: the founders for `founder_only` (a family's protocol, Q3: the
+    /// founders its record names; no family is built, and no community may declare it: [`community_protocol`]), the
+    /// members otherwise.
     pub fn body(self) -> &'static str {
         match self {
             RoomProtocol::FounderOnly => "founder",
@@ -528,6 +530,8 @@ words! {
         Finding = "finding",
         /// A custodian's replacement.
         Replace = "replace",
+        /// A change of content of a class the table names (`content`, `irreversible`): its default policy.
+        Change = "change",
     }
 }
 
@@ -558,6 +562,8 @@ words! {
         Record = "record",
         /// A halt.
         Halt = "halt",
+        /// An irreversible change of content.
+        Irreversible = "irreversible",
         /// A custodian.
         Custodian = "custodian",
         /// Any scope.
@@ -572,6 +578,10 @@ words! {
         Community = "community",
         /// An infrastructure community (its record's `cohort_subkind`): founders and nodes' seats.
         Infrastructure = "infrastructure",
+        /// A family (CIRISConstitution's ruling Q3: `founder_only` is its protocol, read from its record's
+        /// founders). The table gives its rows; how a family is founded is not stated, so no object is one yet
+        /// ([`kind_of`] never answers it).
+        Family = "family",
         /// A self roster.
         SelfRoster = "self",
         /// The accord.
@@ -809,8 +819,8 @@ pub fn protocol_of<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> Optio
     protocol_record(p, obj).and_then(|g| g.consensus_protocol())
 }
 
-/// The founder count N of an infrastructure community `obj`: the distinct signers of its founding row. The founding
-/// row fixes it: a founder who leaves stays in N, and an admitted founder does not raise it.
+/// The founders an infrastructure community's founding row seats: its distinct signers. The founding record's word
+/// is checked against their number; every later count reads the founder seats at its own heads (P1, Q5).
 pub fn founders_of<'r, R: SeatRow + 'r>(get: &dyn Fn(&R::Id) -> Option<&'r R>, obj: &ObjOf<R>) -> usize {
     let Obj::Row(i) = obj else { return 0 };
     get(i).map_or(0, |g| core::iter::once(g.signer()).chain(g.cosigners()).collect::<BTreeSet<_>>().len())
@@ -838,6 +848,19 @@ fn body_of<'r, R: SeatRow + 'r>(
     }
 }
 
+/// The protocol a community's record may declare (CC 3.3.4, closed by CC 4.5.13 and the Constitution's Q1 and Q3): a
+/// word of the set under which no one voice admits or removes, and not `founder_only` (a family's, not a
+/// community's). `None` for any other: `quorum:1/{n}`, `founder_only`, a `weighted:{rubric}` record one of whose
+/// `weights` reaches its threshold `need` (the text's `federation_community_consensus_protocol_violation`).
+pub fn community_protocol<K>(w: &str, need: Option<usize>, weights: &[(K, u64)]) -> Option<RoomProtocol> {
+    let p = RoomProtocol::parse(w)?;
+    match p {
+        RoomProtocol::FounderOnly | RoomProtocol::Quorum(1, _) => None,
+        RoomProtocol::Weighted if need.is_some_and(|t| weights.iter().any(|(_, x)| *x as u128 >= t as u128)) => None,
+        _ => Some(p),
+    }
+}
+
 /// What a counted row is counted under ([`policy_in_force`]).
 struct InForce<'a, R: SeatRow> {
     /// The policy.
@@ -847,19 +870,28 @@ struct InForce<'a, R: SeatRow> {
     need: Option<usize>,
     /// The row whose weights a weighted count reads: the record under the room's protocol, `None` for the row's own.
     weights: Option<&'a R>,
+    /// An infrastructure community's change of the record: the word it states must be the founders' quorum at its
+    /// own heads (read by the count, which counts them).
+    founders_word: bool,
 }
 
-/// The policy a counted row is counted under, or `Err(())`: the row concludes nothing. With the binding on
-/// ([`SeatLaw::acts`] `Some`), from the row's act ([`act_of`]) and the acts table: a fixed act refuses a different
-/// stated policy and accepts its own or none; a row's choice is one of those listed, stated. A counted row over an
-/// object with a kind whose act has no row, or that states a policy its act may not take, concludes nothing; so does a
-/// change of the record naming a word outside the protocol set ([`RoomProtocol::parse`]). A protocol row
-/// ([`Policy::Protocol`]) is counted under the room's protocol in force in the row's past ([`protocol_record`]), never
-/// one the row states, over the protocol's own body ([`RoomProtocol::body`]: the row's `counted()`, default `member`,
-/// must be it) and with the record's numbers, never the row's `need()`; it concludes nothing where no protocol of the
-/// set is in force, where the row counts another body, or for a removal under `founder_only` (the set states none).
-/// With the binding off, the row's own policy and need, a protocol row read the same way.
-fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> Result<InForce<'a, R>, ()> {
+impl<'a, R: SeatRow> InForce<'a, R> {
+    fn plain(pol: Option<Policy>, need: Option<usize>) -> Self {
+        InForce { pol, need, weights: None, founders_word: false }
+    }
+}
+
+/// The policy a counted row is counted under: one [`InForce`], or several for policies the table joins by `&`
+/// (every one must be met), or `Err(())`: the row concludes nothing. With the binding on ([`SeatLaw::acts`] `Some`),
+/// from the row's act ([`act_of`]) and the acts table: a fixed act refuses a different stated policy and accepts its
+/// own or none; a row's choice is one of those listed, stated. A counted row over an object with a kind whose act
+/// has no row, or that states a policy its act may not take, concludes nothing; so does a change of the record naming
+/// a word its room may not declare ([`community_protocol`]; an infrastructure community's must be a quorum), and a
+/// row whose body (`counted()`, `over()`) is not its act's own. A protocol row ([`Policy::Protocol`]) is counted under
+/// the room's protocol in force in the row's past ([`protocol_record`]), never one the row states, over the
+/// protocol's own body and with the record's numbers, never the row's `need()` ([`protocol_part`]). With the binding
+/// off, the row's own policy and need, a protocol row read the same way.
+fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> Result<Vec<InForce<'a, R>>, ()> {
     let get = |i: &R::Id| p.get(i);
     let get: &dyn Fn(&R::Id) -> Option<&'a R> = &get;
     let stated = r.policy().map(|x| x.as_ref());
@@ -892,20 +924,23 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
                 if r.regime().is_some_and(|g| r.obj().and_then(|o| protocol_of(p, &o)) != Some(g)) {
                     return Err(());
                 }
-                // a change of the record that states a protocol names one of the set, or concludes nothing
-                // (an infrastructure community's: a quorum of its founders' strict majority)
-                let founders = match (kind, r.obj()) {
-                    (CommunityKind::Infrastructure, Some(o)) => Some(founders_of(get, &o)),
-                    _ => None,
-                };
-                if act == Act::RecordChange
-                    && r.consensus_protocol().is_some_and(|w| RoomProtocol::parse_in(w.as_ref(), founders).is_none())
-                {
-                    return Err(());
+                // a change of the record that states a protocol names one its room may declare, or concludes nothing
+                // (an infrastructure community's: its founders' strict majority, checked by the count at its heads)
+                if act == Act::RecordChange {
+                    if let Some(w) = r.consensus_protocol() {
+                        let ok = if kind == CommunityKind::Infrastructure {
+                            matches!(RoomProtocol::parse(w.as_ref()), Some(RoomProtocol::Quorum(..)))
+                        } else {
+                            community_protocol(w.as_ref(), r.need(), r.weights()).is_some()
+                        };
+                        if !ok {
+                            return Err(());
+                        }
+                    }
                 }
                 // the body an act counts is the act's own, over its own object, never one the row states; a
-                // protocol row's is its protocol's (below); a duty's conferral, withdrawal and recall are read by
-                // their own gates (`duty_gate`, `duty_over`, `act_of`'s body)
+                // protocol row's is its protocol's (`protocol_part`); a duty's conferral, withdrawal and recall are
+                // read by their own gates (`duty_gate`, `duty_over`, `act_of`'s body)
                 if law.policy_of(word) != Some(Policy::Protocol)
                     && !matches!(act, Act::DutyConfer | Act::DutyWithdraw | Act::Recall)
                 {
@@ -918,24 +953,57 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
             }
         }
     }
-    let pol = law.policy_of(word);
-    if pol != Some(Policy::Protocol) {
-        return Ok(InForce { pol, need: r.need(), weights: None });
-    }
+    let Some(w) = word.filter(|w| w.contains('&')) else {
+        let pol = law.policy_of(word);
+        if pol != Some(Policy::Protocol) {
+            return Ok(alloc::vec![InForce::plain(pol, r.need())]);
+        }
+        return Ok(alloc::vec![protocol_part(law, p, r)?]);
+    };
+    // policies joined by `&` (a change of the record: the protocol in force and the standing default): each is met
+    w.split('&')
+        .map(|part| match law.policy_of(Some(part)) {
+            Some(Policy::Protocol) => protocol_part(law, p, r),
+            pol => Ok(InForce::plain(pol, r.need())),
+        })
+        .collect()
+}
+
+/// The room's protocol in force at protocol row `r` ([`policy_in_force`]): in a community, the record's protocol
+/// ([`community_protocol`]) over the members, with the record's numbers; in an infrastructure community, a strict
+/// majority of the `founder` seats at the row's heads (CC 3.2, the Constitution's P1 and Q5: N counted by the kernel,
+/// M = N / 2 + 1; the founding record's word is checked against its signers, [`founders_of`], and a change's word
+/// against the founders at its own heads). `open:self_admit` governs admissions alone (an offer of the member seat):
+/// the set states no removal under it, and a change of the record is never counted as an admission.
+fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> Result<InForce<'a, R>, ()> {
+    let get = |i: &R::Id| p.get(i);
+    let get: &dyn Fn(&R::Id) -> Option<&'a R> = &get;
     let obj = r.obj().ok_or(())?;
     let rec = protocol_record(p, &obj).ok_or(())?;
-    // an infrastructure community counts under a quorum of its founders alone (their strict majority)
-    let infra = kind_of(law, get, &obj) == Some(CommunityKind::Infrastructure);
-    let founders = infra.then(|| founders_of(get, &obj));
-    let proto = rec.consensus_protocol().and_then(|w| RoomProtocol::parse_in(w.as_ref(), founders)).ok_or(())?;
-    let body = if infra { "founder" } else { proto.body() };
-    if r.counted().map_or("member", |c| c.as_ref()) != body || r.over().is_some_and(|o| o != obj) {
+    if r.over().is_some_and(|o| o != obj) {
         return Err(());
     }
-    // founder_only and open:self_admit govern admissions alone (an offer of the member seat): the set states no
-    // removal under them, and a change of the record is never counted as an admission (it takes a policy row of its
-    // own: default_standing, ...)
-    if matches!(proto, RoomProtocol::FounderOnly | RoomProtocol::SelfAdmit)
+    let counted = r.counted().map_or("member", |c| c.as_ref());
+    if kind_of(law, get, &obj) == Some(CommunityKind::Infrastructure) {
+        let Obj::Row(i) = &obj else { return Err(()) };
+        let founding = p.get(i).ok_or(())?;
+        let word = rec.consensus_protocol().ok_or(())?;
+        if core::ptr::eq(rec, founding) && RoomProtocol::parse_in(word.as_ref(), Some(founders_of(get, &obj))).is_none()
+        {
+            return Err(());
+        }
+        if counted != "founder" {
+            return Err(());
+        }
+        let founders_word = r.scope().is_some_and(|s| s.as_ref() == "record") && r.consensus_protocol().is_some();
+        return Ok(InForce { pol: Some(Policy::Strict(1, 2)), need: None, weights: None, founders_word });
+    }
+    let word = rec.consensus_protocol().ok_or(())?;
+    let proto = community_protocol(word.as_ref(), rec.need(), rec.weights()).ok_or(())?;
+    if counted != "member" {
+        return Err(());
+    }
+    if proto == RoomProtocol::SelfAdmit
         && (r.seat_kind() != SeatKind::Offer || !r.scope().is_some_and(|s| s.as_ref() == "member"))
     {
         return Err(());
@@ -948,14 +1016,15 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
         }
     }
     let (pol, need) = match proto {
-        RoomProtocol::FounderOnly => (Policy::One, None),
         RoomProtocol::Unanimous => (Policy::Unanimous, None),
         RoomProtocol::Majority => (Policy::Strict(1, 2), None),
         RoomProtocol::Quorum(m, _) => (Policy::Declared, Some(usize::try_from(m).map_err(|_| ())?)),
         RoomProtocol::Weighted => (Policy::Weighted, rec.need()),
         RoomProtocol::SelfAdmit => (Policy::SelfAdmit, None),
+        // a family's protocol: no community declares it (community_protocol), so this arm is not reached
+        RoomProtocol::FounderOnly => (Policy::One, None),
     };
-    Ok(InForce { pol: Some(pol), need, weights: Some(rec) })
+    Ok(InForce { pol: Some(pol), need, weights: Some(rec), founders_word: false })
 }
 
 /// Whether counted row `r` is the members' lift: its act ([`act_of`]) where the binding is on and the object has a
@@ -1884,7 +1953,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 if let Some(ok) = ok {
                     mem.retain(|m| ok.contains(m));
                 }
-                let Ok(f) = policy_in_force(self.law, &p, r) else { return false };
+                let Ok(fs) = policy_in_force(self.law, &p, r) else { return false };
+                // joined policies are a change of the record's, which seats no key
+                let [f] = fs.as_slice() else { return true };
                 let pol = f.pol;
                 // a re-seating's voices (its act the lift) are the objections it names, counted over the members
                 // the fold seats
@@ -2903,8 +2974,8 @@ fn duty_gate<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, p: &Past<'_, 
         return false;
     }
     // the gate reads the policy in force (the acts table's, where it binds: a fixed act's row may state none)
-    let Ok(f) = policy_in_force(law, p, r) else { return false };
-    let pol = f.pol;
+    let Ok(fs) = policy_in_force(law, p, r) else { return false };
+    let pol = fs.first().and_then(|f| f.pol);
     if pol == Some(Policy::Ranked) {
         return true;
     }
@@ -2960,11 +3031,23 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
     spec: &S,
     cache: Option<&MembersAt<R>>,
 ) -> bool {
+    // the count reads the policy in force (the acts table, the room's protocol), never the stated one; policies the
+    // table joins by `&` are each met (a change of the record: the protocol in force and the standing default)
+    let Ok(fs) = policy_in_force(law, p, p.row()) else { return false };
+    !fs.is_empty() && fs.iter().all(|f| count_under(p, law, spec, cache, f))
+}
+
+/// [`count_met`]'s count under one policy in force `f`.
+fn count_under<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    cache: Option<&MembersAt<R>>,
+    f: &InForce<'_, R>,
+) -> bool {
     let r = p.row();
     let is_offer = r.seat_kind() == SeatKind::Offer;
     let Some(obj) = r.obj() else { return false };
-    // the count reads the policy in force (the acts table, the room's protocol), never the stated one
-    let Ok(f) = policy_in_force(law, p, r) else { return false };
     let pol = f.pol;
     // the lift is told by its act where the binding is on and the object has a kind, by its policy otherwise
     if is_lift(law, &|i| p.get(i), r, pol) {
@@ -2978,6 +3061,13 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
     }
     let mem = count_members_with(p, law, spec, cache);
+    // an infrastructure community's change of the record states the founders' quorum at its own heads: N the founder
+    // seats there, M their strict majority (P1, Q5)
+    if f.founders_word
+        && !r.consensus_protocol().is_some_and(|w| RoomProtocol::parse_in(w.as_ref(), Some(mem.len())).is_some())
+    {
+        return false;
+    }
     if pol == Some(Policy::Ranked) {
         let ballots: Vec<(R::Key, Vec<R::Key>)> = p
             .rows()
