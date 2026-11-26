@@ -4,7 +4,7 @@
 
 mod common;
 use ciris_kernel::ops::{self, Tie};
-use ciris_kernel::ranked::ranked;
+use ciris_kernel::ranked::{ranked, runoff};
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -241,6 +241,8 @@ fn reexpressed_decisions() {
             c.at("rows").arr().iter().map(|r| (r.arr()[0].s().to_string(), r.arr()[1].strs())).collect();
         let (w, rounds) = ranked(&rows, &c.at("options").strs(), 2, c.at("declared").b());
         cmp("ranked", w == c.at("winner").opt_s() && rounds as i64 == c.at("rounds").i());
+        let order = runoff(&rows, &c.at("options").strs(), 2, c.at("declared").b());
+        cmp("runoff", order == c.at("order").strs() && order.first().cloned() == w);
     }
     for c in fx.at("set_item").arr() {
         let got = set_item(&hs(c.at("H")), c.at("leaf").s(), c.at("A").i(), c.at("W").i());

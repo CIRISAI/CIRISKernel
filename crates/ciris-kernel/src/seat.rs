@@ -259,6 +259,13 @@ pub enum Policy {
     AtLeast(u64, u64),
     /// `yes / n > num / den`.
     Strict(u64, u64),
+    /// `yes / n > num / den`, and never fewer than `least` voices (`StrictFloor(num, den, least)`): a plain
+    /// threshold with a floor; the member a removal names is a voice of it, as on any plain count.
+    StrictFloor(u64, u64, u64),
+    /// The recall (CC 4.5.13: "A recall is one row cosigned by more than two thirds of the standing roster ... The
+    /// floor is two voices"): [`Policy::StrictFloor`]'s comparison and floor, counted over the base less the key it
+    /// removes, that key no voice (it judges one holder, as the lift does).
+    Recall(u64, u64, u64),
     /// One voice.
     One,
     /// The threshold the row declares.
@@ -1745,10 +1752,17 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
 
 /// Whether a count is met: `yes` voices of `n`, under `policy`.
 pub fn met(policy: Option<Policy>, yes: usize, n: usize, declared: Option<usize>) -> bool {
+    // the recall's threshold is the strict fraction with a floor; its base is read by the count
+    if let Some(Policy::Recall(num, den, least)) = policy {
+        return met(Some(Policy::StrictFloor(num, den, least)), yes, n, declared);
+    }
     let (y, n) = (yes as u128, n as u128);
+    // strictly more than `num / den` of n
+    let strict = |num: u64, den: u64| y * den as u128 > num as u128 * n;
     match policy {
         Some(Policy::AtLeast(num, den)) => n > 0 && y * den as u128 >= num as u128 * n,
-        Some(Policy::Strict(num, den)) => y * den as u128 > num as u128 * n,
+        Some(Policy::Strict(num, den)) => strict(num, den),
+        Some(Policy::StrictFloor(num, den, least)) => strict(num, den) && y >= least as u128,
         Some(Policy::One) => yes >= 1,
         Some(Policy::Declared) => declared.is_some_and(|d| yes >= d),
         _ => false,
@@ -2033,7 +2047,8 @@ pub struct GroupCount<'a, K> {
     pub offer: bool,
     /// The keys the row seats or removes (`SeatRow::to`).
     /// A key the row seats is no voice of its count; a key it removes is a voice like any other, except
-    /// under `unanimous`, `open:self_admit` and the duty withdrawal, whose text excludes it.
+    /// under `unanimous`, `open:self_admit`, the duty withdrawal and the recall (`Policy::Recall`), whose
+    /// text excludes it.
     pub to: &'a [K],
     /// The members at the head, less those whose own leaving is in the row's past.
     pub members: &'a BTreeSet<K>,
@@ -2087,10 +2102,18 @@ fn count_of<K: Ord>(
         let yes = v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).count();
         return is_offer && 2 * yes > mem.len() && yes >= 2;
     }
+    // the recall judges one holder: it is counted over the members less the holder it recalls, and that holder
+    // is no voice of it, as the lift is counted over the room less the one it judges. A row is a recall when its
+    // policy reads as `Policy::Recall` (the table's `moderator_recall`)
+    if !is_offer && matches!(pol, Some(Policy::Recall(..))) {
+        let base = mem.iter().filter(|k| !to.contains(k)).count();
+        let yes = v.intersection(mem).filter(|k| !to.contains(k)).count();
+        return met(pol, yes, base, need);
+    }
     // no key admits itself (CC 2.7.5): a key the row seats is no voice of its count. On a removal the member
     // removed is a voice like any other unless the policy's own text excludes it: `unanimous` (below),
-    // `open:self_admit` and the duty withdrawal (above) do. The voices that are members, ascending and each
-    // once, read off the two sorted sets with no set built.
+    // `open:self_admit`, the duty withdrawal and the recall (above) do. The voices that are members, ascending
+    // and each once, read off the two sorted sets with no set built.
     let unanimous = pol == Some(Policy::Unanimous);
     let yes = || v.intersection(mem).filter(move |k| !(is_offer || unanimous) || !to.contains(k));
     if pol == Some(Policy::Weighted) {

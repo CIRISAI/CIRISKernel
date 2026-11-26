@@ -150,7 +150,26 @@ def reexpress_cases():
                     rows.append((rows[0][0], list(rankings[(combo[0] + 1) % len(rankings)])))
                 for declared in (True, False):
                     w, rounds = RX.ranked([(p, tuple(r)) for p, r in rows], opts, 2, declared)
-                    out["ranked"].append({"rows": rows, "options": opts, "declared": declared, "winner": w, "rounds": rounds})
+                    order = list(RX.runoff([(p, tuple(r)) for p, r in rows], opts, 2, declared))
+                    out["ranked"].append({"rows": rows, "options": opts, "declared": declared, "winner": w, "rounds": rounds,
+                                          "order": order})
+    # four to six options (CIRISConstitution#241 E1): where options holding no first choice are struck together, and
+    # where that changes a winner (no declared order) or the rounds (a declared order). A fixed seed
+    import random
+    rnd = random.Random(241)
+    for _ in range(600):
+        n_opt = rnd.randint(4, 6)
+        o6 = [chr(ord("a") + i) for i in range(n_opt)]
+        rows = []
+        for i in range(rnd.randint(1, 9)):
+            rows.append(("p%d" % i, rnd.sample(o6, rnd.randint(1, min(3, n_opt)))))
+        if rows and rnd.random() < 0.2:
+            rows.append((rows[0][0], rnd.sample(o6, 1)))
+        declared = rnd.random() < 0.5
+        w, rounds = RX.ranked([(p, tuple(r)) for p, r in rows], o6, 2, declared)
+        order = list(RX.runoff([(p, tuple(r)) for p, r in rows], o6, 2, declared))
+        out["ranked"].append({"rows": rows, "options": o6, "declared": declared, "winner": w, "rounds": rounds,
+                              "order": order})
     hk = [("header", "i1", "d1", 0), ("header", "i1", "d2", 1), ("header", "i2", "d1", 5)]
     lk = [("leaf", "i1", "d1", 2), ("leaf", "i1", "d2", 3), ("leaf", "i2", "d1", 9)]
     for n in range(0, 4):
@@ -335,6 +354,10 @@ def seat_cases():
     import check_readmit as RA
     for _name, rows, asks, _item in RA.CASES:
         record(rows, A.SEAT, [(k, sc, RA.OBJ) for k, sc, _ in asks])
+    # the members' recall of a duty holder: check_recall.py's cases, under the seat rule
+    import check_recall as RC
+    for _name, rows, asks in RC.CASES:
+        record(rows, A.SEAT, [(k, sc, RC.OBJ) for k, sc, _ in asks])
     # a moderator's lone removal of an agent's key and the members' lift (CC 4.5.13): check_agent_removal.py's cases,
     # under the window rule (the removal is the opener of its own window; every other row goes to the seat rule)
     import check_agent_removal as AR

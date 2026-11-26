@@ -26,6 +26,45 @@
 - The reference: `models/causal_kernel/check_readmit.py`, 10 hand-written cases in every arrival order, all in
   the `seat` fixture, and one planted break. Two plants in the crate.
 
+**The recall, and ranked choice** (CC 4.5.13; CIRISConstitution#241, split out of the election's PR, which does not
+merge for this tag). Two public variants and a function are added. **BREAKING for an exhaustive match on
+`seat::Policy`.**
+
+- **The recall** is strictly more than two thirds, with a floor of two voices, over the roster less the holder
+  it recalls ("A recall is one row cosigned by more than two thirds of the standing roster ... The floor is two
+  voices"; #241 O5, C1).
+  - `Policy::StrictFloor(num, den, least)` is a plain threshold: strictly more than `num / den` of the base, and
+    never fewer than `least` voices. The member a removal names is a voice of it, as on any plain count.
+  - `Policy::Recall(num, den, least)` uses the same comparison and floor (`seat::met` delegates to StrictFloor).
+    It judges one holder: `count_of` counts it over the members less the key it removes, and that key is no
+    voice. The exclusion keys on the variant.
+  - The reference's table and the fixture law give `moderator_recall` as `Recall(2, 3, 2)`; the data's cell
+    reads `2/3`, read before as at least. An adopter's table must do the same.
+  - **Answers change** (holder A):
+    - one or two members: no recall is possible;
+    - three: both others recall;
+    - four: all three others recall, and two of three do not;
+    - five: three of four;
+    - six: four of five;
+    - seven: five of six.
+  - One case shows the two counts side by side: of three, B and C do not remove A under StrictFloor(2, 3, 2).
+  - `models/causal_kernel/check_recall.py` has 14 cases in every arrival order, in the `seat` fixture, with five
+    planted breaks. Five plants in the crate.
+- **Options holding no first choice are struck together**, in every round of every ranked count, before the
+  weakest is sought (#241 E1). `ranked::ranked`'s answers change:
+  - with a declared order no winner changes, only the rounds;
+  - with none, a count that seated nobody on a tie at zero now reaches a winner, with four or more options.
+  The `reexpress` fixture now holds 600 cases of four to six options beside its 480 of three, and no case of
+  three options moves. Over the new cases:
+  - with a declared order, the rounds change in 101 of 552;
+  - without one, the rounds change in 96 of 528, and 11 counts that seated nobody now seat someone.
+- **`ranked::runoff`** (new) is the runoff order: the one count repeated. The first is the count's winner, the
+  next is the winner of the same count over the same ballots with those ahead of it struck, and so on; a step
+  that ties ends the order there. Each step is `ranked`. Its reference is `reexpress.runoff`; the fixture
+  carries each case's order, and `tests/lib_ops.rs` replays it. The seat rule does not use it in this tag.
+- `models/causal_kernel/check_ranked.py` has eight hand-written cases and three planted breaks in `reexpress.py`.
+  There are three plants in the crate.
+
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
 - `content` reads `conferral`'s three-way `any`, later-head test and stale-head test; its own copies are gone.

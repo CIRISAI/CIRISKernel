@@ -196,14 +196,21 @@ POLICY.update({k: ("duty", 0, 0) for k in DUTY_POLICY})          # CC 4.5.4 (iv)
 # CC 4.5.13, the members' check as a counted row: the re-seating of an agent's key a moderator removed alone. Read by
 # lift_count, not by met(): a counted row of this policy that is no such re-seating concludes nothing.
 POLICY["moderation_overturn"] = ("lift", 1, 2)
+# CC 4.5.13: "A recall is one row cosigned by more than two thirds of the standing roster ... The floor is two voices"
+# (the table's cell reads 2/3): strictly more, with the floor, counted over the roster less the holder it recalls
+POLICY["moderator_recall"] = ("recall", 2, 3, 2)
 if POLICY.get("community_remove", ("", 0, 0))[0] == "declared":
     POLICY["community_remove"] = ("atleast", 2, 3)
 
 
 def met(policy, yes, n, declared=None, table=None):
-    kind, num, den = K.rule(table or POLICY, policy, ("unknown", 0, 0))
+    e = K.rule(table or POLICY, policy, ("unknown", 0, 0))
+    kind, num, den = e[:3]
     if kind == "atleast": return n > 0 and yes * den >= num * n
     if kind == "strict": return yes * den > num * n
+    # strictly more than a fraction and never fewer than `least` voices; the recall's threshold (its base, less the
+    # holder it recalls, is read by count_met)
+    if kind in ("strictfloor", "recall"): return yes * den > num * n and (yes >= e[3] or "floor_unread" in MUT)
     if kind == "one": return yes >= 1
     if kind == "declared": return declared is not None and yes >= declared
     return False
@@ -968,6 +975,14 @@ def count_met(r, P, past, table=None):
         # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
         return k == "offer" and bool(ballots) and RANKED(ballots, list(r["options"]), declared=False)[0] == r["to"][0]
     if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
+    if k == "unseat" and K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "recall" and "recall_as_strictfloor" not in MUT:
+        # the recall judges one holder: counted over the members less the holder it recalls, and that holder no voice
+        # of it, as the lift is counted over the room less the one it judges. A row is a recall when its policy reads
+        # as the `recall` count (the table's `moderator_recall`)
+        judged = frozenset(r["to"])
+        base = mem if "recall_holder_in_base" in MUT else mem - judged
+        yes = (voices(r, P) & vot) - (frozenset() if "recall_holder_voice" in MUT else judged)
+        return met(r.get("policy"), len(yes), len(base), r.get("need"), table)
     return met(r.get("policy"), len(voices(r, P) & vot), len(mem), r.get("need"), table)
 
 

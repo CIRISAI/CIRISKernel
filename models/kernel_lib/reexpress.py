@@ -65,31 +65,65 @@ def guardianship(H, band):
 
 
 # ---- ranked_choice (formal/ranked_choice/ranked_choice_model.py: winner = finish . summary . dedupe) ----
+MUT = set()   # named mutations, switched on by a check (models/causal_kernel/check_ranked.py)
+
+
 def ranked(rows, options, floor=2, declared=True):
     """rows: (person, ranking). Returns (winner or None, rounds). declared=False: the election's count, with no
-    declared order, where a tie for weakest is refused by the reducer and seats nobody (CC 4.5.13)."""
+    declared order, where a tie for weakest is refused by the reducer and seats nobody (CC 4.5.13). In each round the
+    options holding no first choice are eliminated together, before the weakest is sought (CIRISConstitution#241 E1:
+    every ranked count)."""
+    winner, rounds, _out = _count(rows, options, floor, declared)
+    return winner, rounds
+
+
+def runoff(rows, options, floor=2, declared=True):
+    """The runoff order (CC 4.5.13: a decline "passes the duty to the next in runoff order"): the one count repeated.
+    The first is the count's winner; the next is the winner of the same count over the same ballots with those ahead
+    of it struck; and so on. A step that yields nobody (a tie) ends the order there (CIRISConstitution#241)."""
+    order, opts = [], list(options)
+    if "runoff_from_eliminations" in MUT:                  # MUTATION: the order read off one count's eliminations
+        w, _, out = _count(rows, opts, floor, declared)
+        return () if w is None else (w,) + tuple(o for o in reversed(out) if o != w)
+    while opts:
+        w = ranked(rows, opts, floor, declared)[0]
+        if w is None:
+            if "runoff_tie_continues" not in MUT: break
+            opts = opts[1:]; continue                      # MUTATION: a step's tie strikes one option and goes on
+        order.append(w)
+        opts = [o for o in opts if o != w]
+    return tuple(order)
+
+
+def _count(rows, options, floor, declared):
+    """The one count: (winner, rounds, the options eliminated in turn)."""
     ballots = K.group([{"person": p, "ranking": r, "t": 0} for p, r in rows], "person", "one", "ranking")
-    if not K.in_range(len(ballots), min(floor, max(len(options), 1))): return None, 0
+    if not K.in_range(len(ballots), min(floor, max(len(options), 1))): return None, 0, ()
     marks = [{"person": p, "option": o, "rank": i, "t": 0} for p, r in ballots.items() for i, o in enumerate(r)]
 
     def round_(state):
-        standing, winner, done, rounds = state
+        standing, winner, done, rounds, out = state
         if done: return state
         tops = K.group(K.sel(marks, option=set(standing)), "person", "least", "rank")
         first = K.group(list(tops.values()), "option", "count", "person")
-        if not tops: return standing, None, True, rounds
+        if not tops: return standing, None, True, rounds, out
         table = [{"o": o, "n": first.get(o, 0), "back": -options.index(o) if declared else 0} for o in standing]
-        top = K.group(table, None, "max", "n")
-        if K.in_range(2 * top, len(tops) + 1) or len(standing) == 1:
-            return standing, K.group(K.sel(table, n=top), None, "one", "o"), True, rounds
+        top_n = K.group(table, None, "max", "n")
+        if K.in_range(2 * top_n, len(tops) + 1) or len(standing) == 1:
+            return standing, K.group(K.sel(table, n=top_n), None, "one", "o"), True, rounds, out
+        # the options holding no ballot are eliminated together (no ballot passes when one goes, so their order
+        # cannot change the count); a tie for weakest is then among options that hold ballots
+        none = tuple(o for o in standing if first.get(o, 0) == 0)
+        if none and "zero_strike_off" not in MUT:
+            return tuple(o for o in standing if o not in none), None, False, rounds + 1, out + none
         try:
             weakest = K.group(table, None, "least", ("n", "back"))
         except K.Tie:
-            return standing, None, True, rounds                   # no declared order: a tie for weakest seats nobody
-        return tuple(o for o in standing if o != weakest["o"]), None, False, rounds + 1
+            return standing, None, True, rounds, out                  # no declared order: a tie seats nobody
+        return tuple(o for o in standing if o != weakest["o"]), None, False, rounds + 1, out + (weakest["o"],)
 
-    _, winner, _, rounds = K.fix(round_, (tuple(options), None, False, 0), len(options) + 1)
-    return winner, rounds
+    _, winner, _, rounds, out = K.fix(round_, (tuple(options), None, False, 0, ()), len(options) + 1)
+    return winner, rounds, out
 
 
 # ---- set_item (formal/set_item/set_item_model.py: item_counts, the reading `both`) ----------------------
