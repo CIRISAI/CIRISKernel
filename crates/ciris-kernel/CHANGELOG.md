@@ -553,7 +553,7 @@ told what act it is by the policy a row states.
   P1-3: one founder's own offer; Q4: a change not naming the record in force). `check_room_keys.py`'s two-key count and
   `check_rosters.py`'s infrastructure instance (I1: the node in scope `node`, founding record `infrastructure`) are
   restated. Crate tests `protocol_set_replay` and `the_recall_is_told_by_its_act` (a law mapping `moderator_recall`
-  to a plain threshold: the recall is told by its act). Fifty-one new plants in the crate, three retired (N read from the record); those on changed text retargeted.
+  to a plain threshold: the recall is told by its act). Fifty-one new plants in the crate, three retired (N read from the record, the cap, the recovery counted as a widening); those on changed text retargeted.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
