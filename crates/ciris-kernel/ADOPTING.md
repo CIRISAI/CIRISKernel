@@ -90,14 +90,14 @@ migrations, and the local operational store.
 - each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` its election's id row: the
   room's founding row for the first election, then the seating of the one before; naming the end of the last
   holder's seat it votes on;
-- every row a key signs in an election (ballot, withdrawal, decline, receipt, seating) with that key's earlier rows
-  of the election in its past (a client builds on its own tips): two such rows neither in the other's past are the
-  key saying two things, and the key is out of that election (a device restored from an old backup included). The
+- RULE: each election row a key signs (ballot, withdrawal, decline, receipt, seating) builds on that key's earlier
+  rows of that election: a row that does not is the key saying two things, and the key is out of the election (a
+  device restored from an old backup included). The
   fork is per verified signing key: return from `SeatRow::signing_key` the key whose signature the door verified
   (the room key in a private room), never a client-supplied value; return `None` where the signer signed;
 - a decline as `SeatKind::Decline`, `of()` its election;
-- (guidance, not a rule) a client builds every row a key signs in a room on that key's own tips, so the rule above
-  holds whatever later becomes an election row;
+- GUIDANCE (not a rule): build every other row a key signs on that key's own tips, so the rule above holds
+  whatever later becomes an election row;
 - the winner's own seating: an Offer of `moderate`, `Conf::Group`, policy `moderator_election`, signed by the
   winner, `to()` the winner, `of()` its election, naming its whole set: the ballots, the voters' own withdrawals
   of their ballots, the declines, the leavings it reads, and the end or ends of the last holder's seat it reads

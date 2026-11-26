@@ -602,11 +602,12 @@ CASES += [
 ]
 # (5) the room of four: winners A (S1, signed by A) and B (S2, signed by B), voters C and D; B and C receipt S1, A and
 # D receipt S2. A seating is its signer's say (i): a winner that receipts the rival has said two things. Without (i)
-# nobody forks (each winner is outside its own seating's base) and both close two of three. With (i) no two seatings of
-# one election both close over the rows held, which is why (ii) is a guard and no rule: a key receipting both
-# forks, and a winner receipting the rival forks, so the two receipter sets are disjoint and hold neither winner;
-# each must be more than half of a base of n - 1 (n the electorate less the forkers), and two such sets do not fit in
-# the n - 2 keys left
+# nobody forks (each winner is outside its own seating's base) and both close two of three. With (i), over the ONE base
+# the election has for a reader (the electorate less the departed and the forkers over the rows held, n keys), no
+# two seatings of one election both close: a key receipting both forks, and a winner receipting the rival forks, so
+# the two receipter sets are disjoint and hold neither winner; each must be more than half of that base less its own
+# winner (n - 1), and two such sets do not fit in the n - 2 keys left. (ii) is the rule backstop: where two groups
+# meet their close over the rows held anyway, neither is closed
 G4F = room(4)
 R4 = [G4F, LM, ballot("bx", "C", "A"), ballot("bw2", "B", "A"), elect("s1", "A", ("bx", "bw2")),
       ballot("by", "D", "B"), ballot("bw1", "A", "B"), elect("s2", "B", ("by", "bw1"))]

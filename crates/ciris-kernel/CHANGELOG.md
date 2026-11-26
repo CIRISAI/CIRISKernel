@@ -67,8 +67,9 @@ variant; an exhaustive match must add it). New: `seat::election_closed`. The pre
   an election (the third read's b5) is theirs, a case pending them.
 - Two concurrent seatings of election 1 not nested, each line opening a next election: where both are held neither
   stands and both next elections fall (F3): nobody until a seating over the union.
-- Clients must present each election row a key signs with that key's earlier rows of that election in its past
-  (an honest client builds on its own tips); otherwise the key has said two things, a restored device included.
+- Rule for clients: each election row a key signs builds on that key's earlier rows of that election; a row that
+  does not is the key saying two things, and the key is out of the election, a restored device included. Guidance
+  (not a rule): build every other row a key signs on that key's own tips.
 - The reference: `models/causal_kernel/check_election.py`, 103 cases, 22 of the close read directly
   (`seat::election_closed`), 3 of the line, 2 pending the head rules, every one in arrival orders and in the `seat`
   fixture; 37 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
