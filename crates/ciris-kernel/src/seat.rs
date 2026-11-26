@@ -427,9 +427,10 @@ impl RoomProtocol {
         }
     }
     /// Whether the protocol states a rule for an act, as the protocol sheet (`consensus_protocols.tsv`) gives it:
-    /// an admission by its `rule` cell, a removal by its `removal_rule` cell (`unstated` for `founder_only` and
-    /// `open:self_admit`), any other act counted under it (a change of the record) by its count set (a count of the
-    /// members states one; the joiner's own signature and the founder role do not). Where the protocol states none,
+    /// an admission by its `rule` cell, a removal by its `removal_rule` cell (`unstated` for `open:self_admit`), and
+    /// any other act counted under it (a change of the record) by a DERIVED column, as the sheet has none: a
+    /// protocol whose count set is the members states a rule; the joiner's own signature (`open:self_admit`) and the
+    /// founder role (`founder_only`) do not. Where the protocol states none,
     /// the `cosigned_act` half of an `&` is no condition, and the other policy governs alone, with
     /// [`SeatLaw::community_floor`] (the Constitution's reading of `&`).
     pub fn states(self, act: Act) -> bool {

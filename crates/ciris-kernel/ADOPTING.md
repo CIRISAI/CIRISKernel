@@ -116,6 +116,11 @@ migrations, and the local operational store.
   signs as the family. Under `founder_only` state `counted()` `founder`; a promotion is an offer of scope `founder`
   the member accepts, a demotion an unseat of `founder`. Present `protocol_entrenched()` and `dissolves()` where the
   record carries them, and ask `Seats::dissolved` whether a group is gone. No last-founder rule is the kernel's.
+- A demotion and a removal are both counted as a removal, and differ in what they end. In a family, an unseat of
+  scope `founder` is a DEMOTION: the founder role ends and the member seat stays. An unseat of the member seat is a
+  REMOVAL: it ends every seat the key holds in the room, member and founder alike (one end ends every seat in its
+  class). In an infrastructure community the founder seat is the founding seat itself (founded in scope
+  `founder`), so an unseat of `founder` there is the removal, and the key holds no seat after.
 - State `counted()` as the act's own body or not at all: the members for an admission, a removal, the recall, the
   lift, the election and a change of the record; `duty` for the duty holders' acts; `founder` in an infrastructure
   community; the accord's holders; a self roster's own seat. Any other `counted()`, or an `over()` naming another

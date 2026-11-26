@@ -559,6 +559,12 @@ TIPS = [
     ("a promotion with acceptance seats the founder role", [FAM, FADM("p", "B", scope="founder")], [("B", "founder", True)]),
     ("a demotion ends the role and keeps the member", [FAM2, FREM("x", "B", scope="founder")],
      [("B", "founder", False), ("B", "member", True)]),
+    ("a removal of a founder ends every seat it holds in the family, member and founder alike",
+     [FAM2, FREM("x", "B")], [("B", "founder", False), ("B", "member", False)]),
+    ("in an infrastructure community the founder seat is the founding seat itself: f1 and f2 remove f3 by an unseat of "
+     "`founder`, and f3 holds no seat there", [GI, grp("x", "unseat", "f3", "founder", None, signer="f1", cosigners=("f2",),
+                                                    counted="founder")],
+     [("f3", "founder", False), ("f3", "member", False), ("f1", "founder", True)]),
     ("two founders removing each other concurrently (CC 2.7.7 rule 5, the contested pair)",
      [FAM2, FREM("xa", "A", signer="B"), FREM("xb", "B")], [("A", "member", CONTESTED[0]), ("B", "member", CONTESTED[1])]),
     ("a node's seat over an infrastructure community stands on the founders' count alone, by scope and kind",

@@ -333,6 +333,9 @@ SHEET = protocol_sheet()
 COMMUNITY_FLOOR = json.load(open(os.path.join(ROOT, "data", "governance_policy.json"), encoding="utf-8"))["min_count"]["community"]
 
 
+# The protocol sheet has no column for a change of the record (or any act but an admission and a removal): the column
+# is DERIVED from the count set. A protocol whose count set is the members states a rule for it; open:self_admit (the
+# joiner's own signature) and founder_only (the founder role) do not (ruled with the reading of `&`).
 def protocol_states(kind, act):
     """Whether protocol `kind` (protocol_rule's) states a rule for `act`, read from the sheet: an admission by its
     `rule` cell, a removal by its `removal_rule` cell (`unstated` states none); any other act counted under the

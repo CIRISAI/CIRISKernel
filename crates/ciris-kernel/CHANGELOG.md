@@ -534,7 +534,7 @@ told what act it is by the policy a row states.
   so removals wait until a change names both tips under the protocol the common members had (the text's wait rule,
   CC 2.7.8, from the protocol side). No code.
 - The reference: `check_acts.py` has 40 act cases, 130 refusal cases, 11 stand cases, 3 dissolution cases, 30
-  protocol words and 17 infrastructure words, the sheet's 18 answers, 51 planted breaks (36 new); five rows pending the head rules and `room-keys-fix` (A1, A3,
+  protocol words and 17 infrastructure words, the sheet's 18 answers, 51 planted breaks (36 new), 13 stand cases; five rows pending the head rules and `room-keys-fix` (A1, A3,
   P1-3, Q4); two of the read's rows (A1: an old head's record change by removed members; A3: one founder's
   own offer) are listed as pending the head rules and `room-keys-fix`. `check_room_keys.py`'s two-key count and
   `check_rosters.py`'s infrastructure instance (I1: the node in scope `node`, founding record `infrastructure`) are
