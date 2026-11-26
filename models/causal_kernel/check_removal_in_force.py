@@ -45,14 +45,13 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
 
     count_receipt_unchecked  the count's receipt read over any room, at any head, with the remover a voice
     founding_duty_unread     a receipter's duty from a founding record not read as a seat a counted unseat ends
-    agent_settles_pair       an agent duty holder's receipt settles a mutual pair
+    agent_receipt_kept       an agent duty holder's receipt keeps a lone removal (ruled: an agent's receipt is no receipt)
     lone_lifts / own_end_lifts  a lone removal, or the holder's own end, lifts receipts
     receipt_before_kept      a receipt made after a counted unseat of its signer's seat keeps
     failed_count_is_signers  a counted receipt that fails its count is read as its signer's own
 
-Not here: whether an agent duty holder's receipt keeps an ordinary (not mutual) lone removal (it does, as built;
-asked of the Constitution); a ring of three or more removals at one head (a case, marked OPEN, gives what the code
-gives).
+Not here: a lone removal of a receipter voiding a receipt does not arise: a receipter is a person, and a lone
+removal removes only an agent.
 
     python3 -I check_removal_in_force.py      exit 1 on any difference
 """
@@ -184,15 +183,20 @@ CASES = [
      "removal is in force and A2's is not counted (E4)",
      W3A + [lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",), ("x1",))], {"x1": T, "x2": T},
      P3 | {"A1", "A3"}, [("A1", "moderate", T), ("A2", "agent", F)]),
-    (RV + "K2, an out-of-force removal of a receipter voids nothing: A3 receipts p1's removal; A1 removes A3 beside "
-     "that receipt and then lays down its own moderate, so A1's removal is out of force and A3's receipt keeps",
+    (RV + "K2, an agent's receipt is no receipt (ruled, CC 2.4.1.1): A3, an agent moderator, receipts p1's removal; "
+     "A1 removes A3 beside it and then lays down its own moderate, so A1's removal is out of force, A3 stays, and "
+     "A3's receipt keeps nothing: p1's removal is out of force",
      [G, ST.offer("ags", "p1", ("A1", "A3", "AG"), "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
                   cosigners=("p2", "p3", "A1", "A3", "AG")), CM1,
       ST.offer("cm3", "p1", "A3", "moderate", OBJ, "group", ("cm1",), head=("cm1",), policy="duty_confer", counted="duty",
                cosigners=("p2", "A3")),
       lone("x", "p1", "AG", ("cm3",)), receipt("q3", "A3", "x"), ST.withdraw("wm", "p1", "g", ("x",), scope="moderate"),
       lone("y", "A1", "A3", ("cm3",)), ST.withdraw("wa", "A1", "cm1", ("y",))],
-     {"x": T, "y": T}, P3 | {"A1", "A3"}, [("A3", "moderate", T)]),
+     {"x": T, "y": T}, P3 | {"A1", "A3", "AG"}, [("A3", "moderate", T)]),
+    (RV + "an agent's receipt is no receipt, alone: A3's receipt of p1's removal keeps nothing once p1 lays down "
+     "moderate; p2's would",
+     W3A + [CM3, lone("x", "p1", "A2", ("cm3",)), receipt("q3", "A3", "x"),
+            ST.withdraw("wm", "p1", "g", ("x",), scope="moderate")], {"x": T}, P3 | {"A1", "A2", "A3"}, []),
     (RV + "D1, a receipter removed at the same time, its duty from the founding record: the count withdraws p2's "
      "moderate beside its receipt: void",
      W + [X, receipt("q2", "p2", "x"), unduty("xm", "p2", "moderate", ("p1", "p3"), ("x",)), LAY], {"x": T, "xm": T},
@@ -201,12 +205,12 @@ CASES = [
      [GD4, CD4, admit("ag", "AG", ("p1", "p2", "p3"), ("cd",), "agent"), lone("x", "p1", "AG", ("ag",)),
       receipt("q2", "p2", "x"), unduty("xm", "p2", "moderate", ("p1", "p3"), ("x",)), LAY], {"x": T, "xm": T},
      P3 | {"AG"}, [("p2", "moderate", F)]),
-    (RV + "O5, a mutual pair is not settled by an agent's receipt: A3, an agent moderator A2 could remove alone, "
-     "receipts x1; the pair stays contested",
+    (RV + "O5, an agent's receipt is no receipt, so it settles no pair: A3, an agent moderator, receipts x1; the "
+     "pair stays contested",
      W3A + [CM3, lone("x1", "A1", "A2", ("cm3",)), lone("x2", "A2", "A1", ("cm3",)), receipt("q3", "A3", "x1")],
      {"x1": T, "x2": T}, P3 | {"A1", "A2", "A3"}, [("A1", "moderate", T), ("A2", "moderate", T)]),
-    (RV + "OPEN, a ring of three: A1 removes A2, A2 removes A3, A3 removes A1, all at one head. As built: one "
-     "component, each removal an end of another's standing, all three out of force, all three seated",
+    (RV + "a ring of three (ruled, CC 2.7.7 rule 5 read for a set): A1 removes A2, A2 removes A3, A3 removes A1, "
+     "all at one head: all three out of force, all three seated, until a person's receipt or the count's settles it",
      W3A + [CM3, lone("x1", "A1", "A2", ("cm3",)), lone("x2", "A2", "A3", ("cm3",)), lone("x3", "A3", "A1", ("cm3",))],
      {"x1": T, "x2": T, "x3": T}, P3 | {"A1", "A2", "A3"}, []),
     (RV + "a lone removal lifts nothing: p1 removes A1 alone stating lifts; p2's receipt of A1's removal of A2 keeps it",
@@ -324,9 +328,72 @@ CASES = [
     ("two tips with a receipt of the removal by another holder: in force",
      W + [X, receipt("q2", "p2", "x"), remove("xp", "p1", ("p2", "p3"), ("ag",))], {"x": T, "xp": T}, P23, []),
 ]
+# The reviewer's rows for the review of #48 (its script, s48/cases.py), each a case named with its ledger row.
+def _review():
+    Gv = ST.found("g", "p1", ("p1",), {"moderate": ("p1",)})
+    A2v = ST.offer("a2", "p1", ("p2", "p3"), "member", OBJ, "group", ("g",), head=("g",), policy="community_invite",
+                   cosigners=("p2", "p3"))
+    AGv = ST.offer("ag", "p1", "AG", "agent", OBJ, "group", ("a2",), head=("a2",), policy="community_invite",
+                   cosigners=("p2", "p3", "AG"))
+    xv = lone("x", "p1", "AG", ("ag",))
+    outv = dict(remove("xp", "p1", ("p2", "p3"), ("x",)), lifts=True)
+    qg = R("qc", "ack", "p1", ("x", "g"), of="x", conf="group", obj=OBJ, head=("g",), policy="accord_majority")
+    H = ST.found("h", "p1", ("p1",), {})
+    qh = R("qh", "ack", "p1", ("x", "h"), of="x", conf="group", obj="h", head=("h",), policy="accord_majority")
+    qo = R("qo", "ack", "p1", ("x", "h"), of="x", conf="group", obj=OBJ, over="h", head=("h",), policy="accord_majority")
+    AGB = ST.offer("ag2", "p1", "B", "agent", OBJ, "group", ("ag",), head=("ag",), policy="community_invite",
+                   cosigners=("p2", "p3", "B"))
+    xb = lone("x", "p1", "AG", ("ag2",))
+    qa = R("qa", "ack", "B", ("x",), of="x", conf="group", obj=OBJ, head=("x",), policy="accord_majority", counted="agent")
+    B3 = [G, AGS3, CM1, CM2]
+    x1, x2, w = lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), lone("w", "A1", "A3", ("cm2",))
+    x2o = ST.unseat("x2", "A2", "A1", "agent", OBJ, "group", ("cm2", "x1"), head=("cm2",), policy="community_remove", window=OV)
+    AGS13 = ST.offer("ags", "p1", ("A1", "A3"), "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
+                     cosigners=("p2", "p3", "A1", "A3"))
+    cA1 = ST.offer("cmA1", "p1", "A1", "moderate", OBJ, "group", ("ags",), head=("ags",), policy="duty_confer", counted="duty",
+                   cosigners=("p2", "A1"))
+    cA3 = ST.offer("cmA3", "p1", "A3", "moderate", OBJ, "group", ("cmA1",), head=("cmA1",), policy="duty_confer",
+                   counted="duty", cosigners=("p2", "A3"))
+    AGk = ST.offer("ag", "p1", "AG", "agent", OBJ, "group", ("cmA3",), head=("cmA3",), policy="community_invite",
+                   cosigners=("p2", "p3", "AG"))
+    B5 = [G, AGS13, cA1, cA3, AGk, lone("x", "p1", "AG", ("ag",)), receipt("q3", "A3", "x"),
+          ST.withdraw("wm", "p1", "g", ("x", "q3"), scope="moderate")]
+    y = lone("y", "A1", "A3", ("ag",))
+    q2 = receipt("q2", "p2", "x")
+    WQ0 = WQ[:-1]
+    xq = lone("x", "p1", "AG", ("acq",))
+    S3 = {"p1", "p2", "p3"}
+    return [
+        ("V1 base", [Gv, A2v, AGv, xv, outv], S3 - {"p1"} | {"AG"}, []),
+        ("V1, p1's counted receipt at the old head g", [Gv, A2v, AGv, xv, qg, outv], {"p2", "p3", "AG"}, []),
+        ("V3 base", W + [H, X, OUT], {"p2", "p3", "AG"}, []),
+        ("V3, a counted receipt with obj another room", W + [H, X, qh, OUT], {"p2", "p3", "AG"}, []),
+        ("V3b, a counted receipt over another room", W + [H, X, qo, OUT], {"p2", "p3", "AG"}, []),
+        ("V4 base", W + [AGB, xb, LAY], S3 | {"AG", "B"}, []),
+        ("V4, an agent's counted receipt over `agent`", W + [AGB, xb, qa, LAY], S3 | {"AG", "B"}, []),
+        ("O1, x2 and w: x2 in force, w out", B3 + [x2, w], S3 | {"A2", "A3"}, [("A3", "agent", T)]),
+        ("O2, x1, x2 and w: the pair contested, w in force", B3 + [x1, x2, w], S3 | {"A1", "A2"}, [("A3", "agent", F)]),
+        ("O3, x1 alone", B3 + [x1], S3 | {"A1", "A3"}, [("A2", "agent", F), ("A2", "moderate", F)]),
+        ("O4, x1 then x2 naming it at the older head: x1 in force", B3 + [x1, x2o], S3 | {"A1", "A3"},
+         [("A2", "agent", F), ("A2", "moderate", F)]),
+        ("K0, an agent's receipt keeps nothing", B5, S3 | {"A1", "A3", "AG"}, []),
+        ("K1, and A1's removal of A3 in force", B5 + [y], S3 | {"A1", "AG"}, [("A3", "agent", F)]),
+        ("K2, and A1 lays down its moderate: A1's removal out of force; x still out", B5 + [y, ST.withdraw("wa1", "A1", "cmA1", ("y",))],
+         S3 | {"A1", "A3", "AG"}, [("A3", "agent", T), ("A1", "moderate", F)]),
+        ("D0, p2's receipt keeps x", W + [X, q2, LAY], S3, []),
+        ("D1, p2's founding moderate withdrawn beside its receipt: void", W + [X, q2, LAY, unduty("xm2", "p2", "moderate", ("p1", "p3"), ("x",))],
+         S3 | {"AG"}, [("p2", "moderate", F)]),
+        ("D3, q's receipt keeps x", WQ0 + [xq, receipt("qq", "q", "x"), LAY], S3 | {"q"}, []),
+        ("D4, q's conferred moderate withdrawn beside its receipt: void",
+         WQ0 + [xq, receipt("qq", "q", "x"), LAY, unduty("xmq", "q", "moderate", ("p1", "p2", "p3"), ("x",))],
+         S3 | {"AG", "q"}, [("q", "moderate", F)]),
+    ]
+
+
+CASES += [(RV + "the reviewer's rows: " + n, rows, {}, roster, asks) for n, rows, roster, asks in _review()]
 PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone", "cascade", "count_receipt_unread",
           "removed_receipt_kept", "lifts_unread", "conferrer_lift_unread", "cycle_one_then_other", "count_receipt_unchecked",
-          "founding_duty_unread", "agent_settles_pair", "lone_lifts", "own_end_lifts", "receipt_before_kept",
+          "founding_duty_unread", "agent_receipt_kept", "lone_lifts", "own_end_lifts", "receipt_before_kept",
           "failed_count_is_signers")
 
 

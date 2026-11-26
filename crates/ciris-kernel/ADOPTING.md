@@ -191,8 +191,8 @@ trusting an adapter.
   the standing is held (its own withdrawal, a counted removal of it, the holders' counted withdrawal of its
   duty), the removal ends nothing for that reader unless a receipt of it is held, and nothing puts it back: a
   moderator seated again (the same offer accepted again, or a new conferral) signs the removal again. Present a duty holder's
-  receipt as a `SeatKind::Ack` row with `of()` the removal and no `room()`, signed by a holder other than the
-  moderator. A reader's acknowledgement of a head keeps `room()` and `head()` as before. The room's count's
+  receipt as a `SeatKind::Ack` row with `of()` the removal and no `room()`, signed by a person duty holder other
+  than the moderator; an agent's receipt keeps nothing. A reader's acknowledgement of a head keeps `room()` and `head()` as before. The room's count's
   receipt is the same row with `conf()` `Conf::Group`, `obj()` the removal's room, `head()` (each the removal's
   head or later) and `policy()`, and the counting persons as signer and cosigners; it keeps the removal where its
   count over the room's persons is met, the remover no voice of it. Any other room, an older head, or a

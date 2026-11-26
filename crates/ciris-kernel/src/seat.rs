@@ -1311,35 +1311,25 @@ fn out_of_force<R: SeatRow, S: CutSpec<R>>(
         return BTreeSet::new();
     }
     let lone: BTreeSet<usize> = acts.iter().copied().collect();
-    // No cascade (CIRISConstitution#218): a lone removal out of force ends no standing and voids no receipt. An
-    // act x waits for every other lone removal y that could end its remover's standing or void one of its
-    // receipts (y removes x's signer, or a signer of a receipt of x), unless y is in x's past: an act ordered
+    // No cascade (CIRISConstitution#218): a lone removal out of force ends no standing (and voids no receipt: a
+    // receipter is a person, and a lone removal removes only an agent). An act x waits for every other lone
+    // removal y that could end its remover's standing (y removes x's signer), unless y is in x's past: an act ordered
     // after another is decided first, the earlier one read as an end of it (E4). The acts are decided one
     // strongly connected component at a time, in rounds: every component whose waits are decided, against what
     // the rounds before decided out of force. A component of two or more (agent moderators removing each other
-    // at one head) is decided together, each read as an end of another's: CC 2.7.7 rule 5, two cuts by keys of
-    // equal standing that undo each other stay contested, until a voice neither can remove settles them (a
-    // person's receipt, or the count's).
+    // at one head, a pair or a ring) is decided together, each read as an end of another's: CC 2.7.7 rule 5,
+    // read for a set, two cuts by keys of equal standing that undo each other stay contested, until a voice none
+    // of them can remove settles them (a person's receipt, or the count's).
     let n = acts.len();
     let waits: Vec<BTreeSet<usize>> = acts
         .iter()
         .map(|&x| {
             let xr = g.row(x);
-            let signers: BTreeSet<&R::Key> = c
-                .cs()
-                .iter()
-                .map(|&q| g.row(q))
-                .filter(|q| q.seat_kind() == SeatKind::Ack && q.of() == Some(xr.id()))
-                .map(|q| q.signer())
-                .collect();
             (0..n)
                 .filter(|&j| {
                     let y = acts[j];
                     let yr = g.row(y);
-                    y != x
-                        && yr.obj() == xr.obj()
-                        && !g.in_past(y, x)
-                        && yr.to().first().is_some_and(|k| k == xr.signer() || signers.contains(k))
+                    y != x && yr.obj() == xr.obj() && !g.in_past(y, x) && yr.to().first() == Some(xr.signer())
                 })
                 .collect()
         })
@@ -1383,7 +1373,7 @@ fn out_of_force<R: SeatRow, S: CutSpec<R>>(
                 let now = nows
                     .entry(drop.clone())
                     .or_insert_with(|| Seats::build(c, law, spec, own, Some(&drop), Some(cache)));
-                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone, comp.len() > 1);
+                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone);
                 got.push((j, v));
             }
         }
@@ -1430,7 +1420,6 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
     cache: &MembersAt<R>,
     not_ends: &BTreeSet<usize>,
     lone: &BTreeSet<usize>,
-    mutual: bool,
 ) -> bool {
     let g = &c.g;
     let xr = g.row(x);
@@ -1476,8 +1465,10 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
     }
     let agents = agents.unwrap_or_default();
     let mut duty = duty.unwrap_or_default();
-    // never the remover's own receipt
+    // never the remover's own receipt, and never an agent's: an agent's receipt is no receipt (CC 2.4.1.1;
+    // keeping another's act in force is a voice, which an agent does not have), for every lone removal
     duty.remove(m);
+    duty.retain(|k| !agents.contains(k));
     // the receipts of x that may keep it: a duty holder's other than the remover's, void where a counted
     // unseat of a seat that key holds over the room does not have the receipt in its past (conferral's
     // key_cut); and the room's own, a counted ack met over the persons at its heads (CIRISConstitution#218)
@@ -1494,10 +1485,6 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
                 return count_receipt(c, q, x, law, spec, cache).then_some((q, true));
             }
             if !duty.contains(qr.signer()) {
-                return None;
-            }
-            // a mutual pair is settled only by a voice the other cannot remove: a person's, or the count's
-            if mutual && agents.contains(qr.signer()) {
                 return None;
             }
             let cut = unseats.iter().any(|(u, uo)| {

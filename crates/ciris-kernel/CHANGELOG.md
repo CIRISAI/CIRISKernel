@@ -27,8 +27,15 @@
   component at a time, in rounds, against every act decided out of force before (before: an act outside a
   mutual pair was decided with it, and only an act's own waits were left out). An act waits only for removals
   not in its past, and for removals of its receipters too: an ordered pair is not mutual. A receipter's duty
-  from a founding record is a seat a counted unseat ends, as one from an offer. A mutual pair is settled only by
-  a person's receipt or the count's.
+  from a founding record is a seat a counted unseat ends, as one from an offer.
+- Ruled: an agent's receipt is no receipt (CC 2.4.1.1: never the act's own signer's and never a node's; keeping
+  another's act in force is a voice). For every lone removal, a mutual pair's included, the receipts that keep it
+  are a person duty holder's other than the remover's, or the count's. One answer changes: an agent moderator's
+  receipt kept a lone removal and now keeps nothing. A lone removal of a receipter no longer orders anything,
+  since a receipter is a person and a lone removal removes only an agent.
+- Ruled: a ring of three or more concurrent lone removals, each undone by another, is read as the pair is (CC
+  2.7.7 rule 5 read for a set): all out of force, all seats kept, until a person's receipt or the count's
+  settles it.
 - Not built: the owner's statement on an agent's duty seat (CC 4.5.4).
 
 The reference: `seat.receipts_of`, `lifts_receipts` and the ordering in `out_of_force`; thirteen cases and six
