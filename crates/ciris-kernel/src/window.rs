@@ -14,6 +14,14 @@
 //!
 //! The two rejected rules (the landing voids concurrent answers; any concurrent answer contests it) are not
 //! implemented; KERNEL.md runs them only as the reason.
+//!
+//! **A ballot** (CIRISConstitution#221) is an answer a [`How::MoreOfVoted`] clause reads: its value or its
+//! `against` (the moderation fallback's `ballot:moderation_action`, `for` or `against`; the family is the
+//! caller's). One ballot a person, folded as `ballot:moderator` is: agreeing ballots are one and disagreeing
+//! ones say nothing ([`ops::one`], the fold every answer has here). A ballot its own signer withdrew (a
+//! withdrawal row naming it, concluded by the seat rule) is no ballot ([`unwithdrawn`]); a withdrawal
+//! concurrent with a landing is recounted with it, as an answer is. An answer that is no ballot is read as
+//! before, withdrawn or not.
 
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
@@ -361,6 +369,44 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
     w.default.clone()
 }
 
+/// The words a ballot says: the value and the `against` of each [`How::MoreOfVoted`] clause of `w`.
+pub fn ballot_words<T>(w: &WindowSpec<T>) -> BTreeSet<&str> {
+    let mut out = BTreeSet::new();
+    for cl in w.at_once.iter().chain(&w.at_close) {
+        if let How::MoreOfVoted(_, _, _, against) = &cl.how {
+            out.insert(cl.value.as_str());
+            out.insert(against.as_str());
+        }
+    }
+    out
+}
+
+/// The rows of `answers` less each one saying a word of `words` that its own signer withdrew by a
+/// withdrawal among `rows` (one ballot a person, folded as `ballot:moderator`: a withdrawn ballot is no
+/// ballot; CC 2.4.1.1 rule 1). Pass the concluded rows: a withdrawal by another key does not conclude. The
+/// fold of the ballots left is [`ops::one`] per signer. Any caller folding ballots of its own (an election's)
+/// may read its withdrawals here.
+pub fn unwithdrawn<'r, R: SeatRow>(
+    answers: Vec<&'r R>,
+    rows: &[&R],
+    words: &BTreeSet<&str>,
+    says: impl Fn(&R) -> Option<&str>,
+) -> Vec<&'r R> {
+    let wd: BTreeSet<(&R::Id, &R::Key)> = rows
+        .iter()
+        .filter(|w| w.seat_kind() == SeatKind::Withdraw)
+        .filter_map(|w| w.target().map(|t| (t, w.signer())))
+        .collect();
+    answers
+        .into_iter()
+        .filter(|a| !says(*a).is_some_and(|v| words.contains(v)) || !wd.contains(&(a.id(), a.signer())))
+        .collect()
+}
+
+fn says_of<R: WindowRow>(a: &R) -> Option<&str> {
+    a.says().map(|s| s.as_ref())
+}
+
 /// The answers that are voices: an approval that has the proposer's withdrawal in its past approves nothing.
 fn voices_of<'r, R: WindowRow>(
     answers: Vec<&'r R>,
@@ -444,7 +490,12 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         return Some(false);
     }
     let answers: Vec<&R> = voices_of(
-        rows.iter().copied().filter(|q| q.win_kind() == Some(WinKind::Answer) && q.of() == Some(o.id())).collect(),
+        unwithdrawn(
+            rows.iter().copied().filter(|q| q.win_kind() == Some(WinKind::Answer) && q.of() == Some(o.id())).collect(),
+            &rows,
+            &ballot_words(&w),
+            says_of,
+        ),
         o.signer(),
         &past,
     );
@@ -549,6 +600,8 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
             .filter(|&r| g.row(r).win_kind() == Some(WinKind::Answer) && g.row(r).of() == Some(p.id()) && !late(r))
             .map(|r| g.row(r))
             .collect();
+        let counted: Vec<&R> = c.cs().iter().copied().filter(|&r| !late(r)).map(|r| g.row(r)).collect();
+        let held = unwithdrawn(held, &counted, &ballot_words(&w), says_of);
         let got = table_outcome(&x, p.target_key(), &voices_of(held, p.signer(), &past), &[], false);
         return if got == "open" { Outcome::Open } else { Outcome::Landed(got) };
     }
@@ -579,7 +632,9 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
             .filter(|q| q.win_kind() == Some(WinKind::Answer) && q.of() == Some(p.id()))
             .collect();
         answers.extend(ans);
-        let answers = voices_of(answers, p.signer(), &past);
+        // a withdrawal of a ballot concurrent with the landing is recounted with it, as an answer is
+        let wrows: Vec<&R> = mine.iter().chain(&conc).map(|&q| g.row(q)).collect();
+        let answers = voices_of(unwithdrawn(answers, &wrows, &ballot_words(&w), says_of), p.signer(), &past);
         let elapsed = match (lr.at(), g.row(rec).at()) {
             (Some(a), Some(b)) => a >= b && a - b >= w.secs,
             _ => false,

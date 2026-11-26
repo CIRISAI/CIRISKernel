@@ -2,8 +2,8 @@
 window.py: a window as rows.
 
     open      row p opens the window. It names the head it is counted over, and (for an eviction) its target.
-    answer    a row naming p that says something the window's table counts: approve, object, confirm, answered, act,
-              against (a vote against the act proposed: the same row as `act` with the other polarity).
+    answer    a row naming p that says something the window's table counts: approve, object, confirm, answered, for,
+              against (a ballot on the act proposed: `for`, or `against`, the same row with the other choice).
     receipt   a key with the concluder's seat signs that it holds p, stating its own instant.
               "Inside the window" is what the landing has in its past and the receipt has not, so a receipt
               with a row of the target in its past would put that row before the window. A row that has one, beyond
@@ -55,6 +55,19 @@ The thresholds: "strict", "one", ("atleast", n, d, min), ("more", n, d, min), an
     ("voted", n, d, min, against)   more than n/d of the keys of the base that VOTED, and at least min voices: a key
                       voted if it said the clause's value or `against`. A silent key is not counted over.
 
+A ballot (CIRISConstitution#221: the fallback vote): the answers a "voted" clause reads, its value and its `against`,
+are a member's ballot of the family the window's table names (`ballot`; the fallback's is `ballot:moderation_action`,
+`for` or `against`). One ballot a person, folded as `ballot:moderator` is: a voice whose ballots agree is one ballot,
+and a voice whose unwithdrawn ballots disagree says nothing (the fold above, K.group "one"). A ballot its own
+signer withdrew (a `withdraw` row naming it, CC 2.4.1.1 rule 1) is no ballot: a landing that counts it concludes
+nothing, and a withdrawal concurrent with a landing is recounted with it, as an answer is. A withdrawal by any
+other key is no withdrawal (seat.seat_rule does not conclude it). Only a ballot is read so: whether an objection or
+an approval its signer withdrew is still a voice is not stated, and is left as it was (an OPEN case below).
+
+The landing of the fallback and of the overturn is a signed row (`landing`: `window:{state}`, the family that
+closes the self roster's lone path, CC 3.3.6.4), signed by a key of the concluder's scope at the opener's head.
+Which states of that family each outcome lands with is not stated: the landing here states the outcome word.
+
 A duty holder's single-signature answer (a value an at-once clause reads as "one" over a named scope, said by a
 holder of that scope) is what that key said: a vote the same key also cast is moot, and does not make its answer
 two things said.
@@ -90,11 +103,13 @@ WINDOWS = {
                                     ("object", "strict", "others", "refused")),
                         "silent": None, "at_close": (), "default": "landed"},
     # CC 4.5.13: a moderator answers within 48 h; on their absence the members act: "a strict majority of the members
-    # who voted, never fewer than two voices" (data/governance_policy.tsv, moderation_action). `act` is a vote for,
-    # `against` a vote against, a silent member is not counted over. A moderator's answer is no vote
+    # who voted, never fewer than two voices" (data/governance_policy.tsv, moderation_action). A member's vote is a
+    # ballot of `ballot:moderation_action` (CIRISConstitution#221): `for`, or `against` (a contrary voice is a vote
+    # against); a silent member is not counted over. A moderator's answer is no vote. The landing is a signed row
     "moderation_fallback": {"policy": "moderation_action", "counted": "member", "concluder": "member", "opener_says": None,
+                            "ballot": "ballot:moderation_action", "landing": "window:{state}",
                             "at_once": (("answered", "one", "moderate", "answered"),),
-                            "silent": None, "at_close": (("act", ("voted", 1, 2, 2, "against"), "all", "fallback"),), "default": "lapsed"},
+                            "silent": None, "at_close": (("for", ("voted", 1, 2, 2, "against"), "all", "fallback"),), "default": "lapsed"},
     # CC 4.2.1.1: one holder fires at once; the halt lapses at the fuse unless a strict majority confirms
     "halt_fuse": {"policy": "accord_halt", "counted": "holder", "concluder": "holder", "opener_says": "confirm",
                   "at_once": (("confirm", "strict", "all", "confirmed"),),
@@ -105,6 +120,7 @@ WINDOWS = {
     # author is not among the members the majority is taken of. Where the author is one of two members no lift is
     # possible." Short of that at the close it stands. So the base is `others`
     "moderation_overturn": {"policy": "moderation_overturn", "counted": "member", "concluder": "member", "opener": "moderate",
+                            "landing": "window:{state}",
                             "opener_says": None, "at_once": (("object", ("more", 1, 2, 2), "others", "lifted"),),
                             "silent": None, "at_close": (), "default": "stands"},
 }
@@ -217,6 +233,22 @@ def elapsed(landing_, rec, p):
     return a is not None and b is not None and a - b >= secs(p["window"])
 
 
+def ballot_words(spec):
+    """The words a ballot says: the value and the `against` of each clause counted over those who voted."""
+    return {w for value, how, _, _ in spec["at_once"] + spec["at_close"] if isinstance(how, tuple) and how[0] == "voted"
+            for w in (value, how[4])}
+
+
+def unwithdrawn(spec, answers, rows):
+    """The answers less each ballot its own signer withdrew by a row among `rows` (CIRISConstitution#221: one ballot a
+    person, folded as `ballot:moderator`; a withdrawal of one's own row, CC 2.4.1.1 rule 1)."""
+    if "ballot_withdrawal_unread" in MUT: return answers
+    words = ballot_words(spec)
+    # a withdrawal of another key's ballot does not conclude (seat.seat_rule), so `rows` (concluded) holds none
+    wd = {(w["target"], w["signer"]) for w in rows if w["kind"] == "withdraw"}
+    return [a for a in answers if a["says"] not in words or (a["id"], a["signer"]) not in wd]
+
+
 def voices_of(answers, p, past):
     """The answers that are voices: an approval that has the proposer's withdrawal in its past approves nothing."""
     wd = [a["id"] for a in answers if a["signer"] == p["signer"] and a["says"] == "withdraw"]
@@ -244,7 +276,7 @@ def rule(r, P, past):
         return t is None or not any(q["signer"] == t and q["id"] != p["id"] and not past(q["id"], p["id"]) for q in P)
     rec = by.get(r["receipt"])
     if rec is None or rec["kind"] != "receipt" or rec["signer"] != r["signer"] or rec["of"] != p["id"]: return False
-    answers = voices_of(K.sel(P, kind="answer", of=p["id"]), p, past)
+    answers = voices_of(unwithdrawn(spec, K.sel(P, kind="answer", of=p["id"]), P), p, past)
     inside = [q for q in P if q["id"] != rec["id"] and not past(q["id"], rec["id"])]
     return r["says"] == table_outcome(spec, p, answers, inside, base, elapsed(r, rec, p))
 
@@ -280,7 +312,8 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
     if not Ls:
         # no landing has concluded: a count that is met needs no clock and no concluder, so the table's at-once
         # outcome over the answers held is the outcome; short of it the window is open
-        held = voices_of([a for a in K.sel(S.Cs, kind="answer", of=pid) if not late(a)], p, past)
+        held = voices_of(unwithdrawn(spec, [a for a in K.sel(S.Cs, kind="answer", of=pid) if not late(a)],
+                                     [w for w in S.Cs if not late(w)]), p, past)
         return table_outcome(spec, p, held, [], base, False)
     said = []
     for L in K.frontier(S.anc, Ls):                             # a landing that a later landing names is answered by it
@@ -296,7 +329,11 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
             rec = S.by[L["receipt"]]
             mine = [q for q in S.Cs if q["id"] in S.anc[L["id"]]]
             inside = [q for q in mine if q["id"] != rec["id"] and q["id"] not in S.anc[rec["id"]]] + tgt
-            again = table_outcome(spec, p, voices_of(K.sel(mine, kind="answer", of=pid) + ans, p, past), inside, base, elapsed(L, rec, p))
+            # a withdrawal of a ballot concurrent with the landing is recounted with it, as an answer is
+            # (MUTATION withdrawal_not_recounted: only the landing's own past is read for withdrawals)
+            wrows = mine + ([] if "withdrawal_not_recounted" in MUT else conc)
+            heard = unwithdrawn(spec, K.sel(mine, kind="answer", of=pid) + ans, wrows)
+            again = table_outcome(spec, p, voices_of(heard, p, past), inside, base, elapsed(L, rec, p))
             said.append({"v": L["says"] if again == L["says"] else "contested"})
     if how == "recount" and any(x["v"] != "contested" for x in said):
         said = [x for x in said if x["v"] != "contested"]       # a landing that does not stand is no voice against one that does
@@ -428,7 +465,7 @@ def moderation_world():
     W = secs("moderation_fallback")
     p = opener("p", "m2", "moderation_fallback", "g", ("md",))
     # four members at the head (m1, m2, m3 and MOD); the count at the close is over the members who voted
-    acts = [answer("x1", "m1", "p", "act"), answer("x2", "m2", "p", "act"), answer("x3", "m3", "p", "act")]
+    acts = [answer("x1", "m1", "p", "for"), answer("x2", "m2", "p", "for"), answer("x3", "m3", "p", "for")]
     xs = ("x1", "x2", "x3")
     A = answer("A", "MOD", "p", "answered")
     base = [g, am, md, p, receipt("r", "m2", "p", 0)] + acts
@@ -461,7 +498,7 @@ def moderation_world():
          "the fallback needs the members' majority", "not fallback"),
     ]
     # a room of four founders and MOD, admitted and then made moderator: the count is over the members who voted,
-    # for (`act`) or against (`against`), floor two voices; a silent member (MOD among them) is not counted over
+    # for (`for`) or against (`against`), floor two voices; a silent member (MOD among them) is not counted over
     g4, am4 = admitted("MOD", by=("m1", "m3", "m4"), founders=("m1", "m2", "m3", "m4"))
     md4 = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("am",), head=("am",), policy="duty_confer", counted="duty",
                    cosigners=("m3", "m4", "MOD"))
@@ -486,7 +523,7 @@ def moderation_world():
          b4 + acts + [answer("z1", "z", "p", "against"), answer("z2", "y", "p", "against"), fb("x1", "x3", "z1", "z2")],
          "only a member's vote is counted", "fallback"),
         ("a key conferred `moderate` while it is no member votes for, beside one member's vote",
-         [g4, dict(md4, names=("g",), head=("g",)), p, receipt("r", "m2", "p", 0)] + acts[:1] + [answer("xM", "MOD", "p", "act"), fb("x1", "xM")],
+         [g4, dict(md4, names=("g",), head=("g",)), p, receipt("r", "m2", "p", 0)] + acts[:1] + [answer("xM", "MOD", "p", "for"), fb("x1", "xM")],
          "a duty seat stands only on a member, and a non-member's vote is no vote", "not fallback"),
         ("a moderator who is also a member answers and votes for, beside one vote for: no landing",
          b4 + acts + [answer("A1", "m1", "p", "answered")], "its act answers and its vote is moot", "answered"),
@@ -495,6 +532,32 @@ def moderation_world():
         ("after the fallback has landed, the moderator answers, naming the landing",
          b4 + acts + [n2, fb("x1", "x3", "n2"), answer("A", "MOD", "p", "answered", ("L",))],
          "a moderator's act after the fallback has landed does not reopen the window", "fallback"),
+    ]
+    # a member's vote is a ballot of `ballot:moderation_action`, `for` or `against`, one ballot a person, folded as
+    # `ballot:moderator` is (CIRISConstitution#221)
+    n1, wd = answer("n1", "m1", "p", "against"), lambda i, who, t, names=(): ST.withdraw(i, who, t, names)
+    B221 = "CIRISConstitution#221: the fallback vote"
+    cases += [
+        ("two members answer in the word `act`, which is no ballot, and a member lands the fallback naming both",
+         b4 + [answer("y1", "m1", "p", "act"), answer("y3", "m3", "p", "act"), fb("y1", "y3")],
+         B221 + ", a ballot says `for` or `against`", "not fallback"),
+        ("a member's two ballots for agree, and nobody else votes: one ballot",
+         b4 + acts[:1] + [answer("x1b", "m1", "p", "for"), fb("x1", "x1b")], B221 + ", agreeing ballots are one ballot", "not fallback"),
+        ("a member's two ballots for agree, beside a second member's ballot for: two voices",
+         b4 + acts + [answer("x1b", "m1", "p", "for"), fb("x1", "x1b", "x3")], B221 + ", agreeing ballots are one ballot", "fallback"),
+        ("a member votes for and against and withdraws the vote against, beside a second vote for: the landing names the four",
+         b4 + acts + [n1, wd("w1", "m1", "n1"), fb("x1", "x3", "n1", "w1")], B221 + ", disagreeing ballots are none until a withdrawal", "fallback"),
+        ("a member withdraws its vote for, beside a second vote for: the landing names the three",
+         b4 + acts + [wd("w1", "m1", "x1"), fb("x1", "x3", "w1")], B221 + ", a ballot its signer withdrew is no vote", "not fallback"),
+        ("another member signs a withdrawal of a member's vote for: the landing names the three",
+         b4 + acts + [wd("w1", "m4", "x1"), fb("x1", "x3", "w1")], B221 + ", only the voter withdraws its ballot", "fallback"),
+        ("a member withdraws its vote for concurrent with the landing that counted it",
+         b4 + acts + [fb("x1", "x3"), wd("w1", "m1", "x1")], B221 + ", a withdrawal concurrent with the landing is recounted", "not fallback"),
+        ("a member withdraws its vote for after the landing, naming it",
+         b4 + acts + [fb("x1", "x3"), wd("w1", "m1", "x1", ("L",))], B221 + ", a withdrawal that names the landing came after it", "fallback"),
+        ("a key with no seat at the head lands the fallback over two votes for",
+         b4[:4] + [receipt("rz", "z", "p", 0)] + acts + [landing("L", "z", "p", "rz", "fallback", W, ("x1", "x3"))],
+         "CIRISConstitution#221: the fallback's landing, a signed row of a member at the head the opener names", "not fallback"),
     ]
     return "moderation fallback (48 h, absent moderator, a majority of the members who voted)", cases
 
@@ -576,6 +639,22 @@ def overturn_world():
          base + [o1, r3, stands, answer("o2", "m2", "p", "object", ("L",))], "(what an honest late objection is worth)", None),
         ("objection signed just after, leaving the landing unnamed",
          base + [o1, r3, stands, o2], "(a late objection against a landing that stands)", None),
+        ("a member lands 'stands' at the close over one objection, naming it",
+         base + [o1, r3, stands], "CIRISConstitution#221: the overturn's landing, a signed row of a member at the head the act names", "stands"),
+        ("a key with no seat at the head lands 'stands' at the close over one objection",
+         base + [o1, receipt("rz", "z", "p", 0), landing("L", "z", "p", "rz", "stands", W, ("o1",))],
+         "CIRISConstitution#221: the overturn's landing, a signed row of a member at the head the act names", "not stands"),
+        # OPEN (CIRISConstitution#221, not decided): who of the members signs the overturn's landing. (a) any member
+        # seated at the head the act names, the author included (window:{state}'s rule; what is built); (b) the
+        # members the majority is taken of, the author apart
+        ("OPEN: the act's author lands 'stands' at the close over one objection",
+         base + [o1, receipt("rM", "MOD", "p", 0), landing("L", "MOD", "p", "rM", "stands", W, ("o1",))],
+         "(OPEN CIRISConstitution#221: the author signs the overturn's landing; (a) it concludes, built; (b) it concludes nothing)", None),
+        # OPEN (not decided): whether an objection its own signer withdrew is still a voice. (a) it is (only a ballot is
+        # read as withdrawn; what is built); (b) it is not, as a ballot (objection:{state} is withdrawn by its signer)
+        ("OPEN: a member withdraws its objection, beside a second objection, and a member lands the lift naming the three",
+         base + [o1, o2, ST.withdraw("w1", "m1", "o1"), r1, landing("L", "m1", "p", "r", "lifted", 0, ("o1", "o2", "w1"))],
+         "(OPEN CIRISConstitution#221: a withdrawn objection; (a) still a voice, built: lifted; (b) no voice: not lifted)", None),
     ]
     # the moderator is itself on the roster (a duty holder is a member and holds every duty): its own objection is no
     # voice and it is not among the members the majority is taken of

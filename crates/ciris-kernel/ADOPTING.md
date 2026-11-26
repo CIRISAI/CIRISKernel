@@ -264,4 +264,6 @@ chain of `Seats::stands` above.
 content row that names it as its head is read as naming a head at which the member is out.
 
 **Windows.** A `WindowSpec` literal states `opener` (`None` unless the opener's signer holds another scope than
-the counted one). `window::outcome` answers a met at-once count with no landing row.
+the counted one). `window::outcome` answers a met at-once count with no landing row. A ballot (an answer a
+`How::MoreOfVoted` clause reads; the fallback's `ballot:moderation_action`, `for` or `against`) withdrawn by its
+own signer is a seat withdrawal naming it (`SeatKind::Withdraw`, `target()`): `window::unwithdrawn` reads it.

@@ -122,9 +122,9 @@ def room_world(nm):
     # the moderation fallback: B opens it, C and J act, the moderator is silent, B lands it
     W = WN.secs("moderation_fallback")
     p = in_room(WN.opener("p", B, "moderation_fallback", "g", ("wj",)))
-    a1 = in_room(WN.answer("a1", C2, "p", "act"))
-    a2 = in_room(WN.answer("a2", J, "p", "act"))
-    a3 = in_room(WN.answer("a3", B, "p", "act"))
+    a1 = in_room(WN.answer("a1", C2, "p", "for"))
+    a2 = in_room(WN.answer("a2", J, "p", "for"))
+    a3 = in_room(WN.answer("a3", B, "p", "for"))
     rc = in_room(WN.receipt("rc", B, "p", 0))
     L = in_room(WN.landing("L", B, "p", "rc", "fallback", W, ("a1", "a2", "a3")))
     late = in_room(WN.answer("late", A, "p", "answered"))       # the moderator answers, concurrent with the landing
