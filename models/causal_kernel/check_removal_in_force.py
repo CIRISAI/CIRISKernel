@@ -37,6 +37,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     count_receipt_unread  the room's counted receipt is not read
     removed_receipt_kept  a receipt by a key whose seat a counted unseat beside it ends still keeps
     lifts_unread     a count end's `lifts` is not read
+    conferrer_lift_unread  a conferrer's withdrawal of its own offer stating `lifts` lifts nothing
     cycle_one_then_other   a mutual pair of lone removals decided one after the other, not together
     count_unread_lone a removal the room's count carries is read as the moderator's lone act
     reseat_revives   the remover holding `moderate` again (its re-acceptance, a new conferral) puts its removal
@@ -46,9 +47,15 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     founding_duty_unread     a receipter's duty from a founding record not read as a seat a counted unseat ends
     agent_receipt_kept       an agent duty holder's receipt keeps a lone removal (ruled: an agent's receipt is no receipt)
     remover_counted_over     the remover left in the denominator of the count's receipt (ruled R5: the room less it)
-    lone_lifts               a lone removal lifts receipts
+    lone_lifts / own_end_lifts  a lone removal, or the holder's own end, lifts receipts
     receipt_before_kept      a receipt made after a counted unseat of its signer's seat keeps
     failed_count_is_signers  a counted receipt that fails its count is read as its signer's own
+    ordered_pair_cascade     an act decided before the verdict of an earlier act in its past that could end its
+                             standing, that earlier act read as an end (cascade through an ordered pair)
+    lift_no_floor            the members' check of one member's act (the lift, the count's receipt) with no floor
+                             of two voices
+    receipt_row_policy       the count's receipt read by the policy and need its row states (ruled: one fixed rule,
+                             more than half of the persons of the room less the remover, never fewer than two)
 
 Not here: a lone removal of a receipter voiding a receipt does not arise: a receipter is a person, and a lone
 removal removes only an agent.
@@ -124,6 +131,7 @@ CM1 = ST.offer("cm1", "p1", "A1", "moderate", OBJ, "group", ("ags",), head=("ags
 CM2 = ST.offer("cm2", "p1", "A2", "moderate", OBJ, "group", ("cm1",), head=("cm1",), policy="duty_confer", counted="duty",
                cosigners=("p2", "A2"))
 WA = [G, AGS, CM1]
+B2 = [G, AGS, CM1, CM2]                                    # both agents moderators
 XA = lone("x", "A1", "A2", ("cm1",))                      # the agent moderator A1 removes A2 alone
 YA = lone("y", "p1", "A1", ("x",))                        # p1 removes A1 alone, after x
 LAYY = ST.withdraw("wm", "p1", "g", ("y",), scope="moderate")
@@ -389,10 +397,83 @@ CASES += [
      {"x": T}, {"p1", "p2", "p3", "p4", "AG"}, []),
 ]
 CASES += [(RV + "the reviewer's rows: " + n, rows, {}, roster, asks) for n, rows, roster, asks in _review()]
+# The review of #54 (CIRISConstitution#218, pin list: a count's own receipt): the count's receipt is read under one
+# rule, the members' check of one member's act (more than half of the persons of the room less the remover, never
+# fewer than two), whatever policy or need the row states
+RV54 = "CIRISConstitution#218, pin list: a count's own receipt (review of #54): "
+UNDL = dict(UND, lifts=True)
+CR1 = dict(counted_receipt("qc", ("p2",), "x", ("x",)), policy="accord_halt")
+CR2 = dict(counted_receipt("qc", ("p1",), "x", ("x",)), policy="cosigned_act", need=0)
+CR2b = dict(counted_receipt("qc", ("AG",), "x", ("x",)), policy="cosigned_act", need=0)
+CASES += [
+    (RV54 + "R1, one person's counted ack under `accord_halt` (one of n) is no count's receipt: the lifting end puts "
+     "the removal out of force", W + [X, CR1, dict(UNDL, names=("x", "qc"))], {"x": T, "qc": T}, P3 | {"AG"}, [("AG", "agent", T)]),
+    (RV54 + "R2, the remover's own counted ack with a declared need of none is no count's receipt",
+     W + [X, CR2, dict(UNDL, names=("x", "qc"))], {"x": T, "qc": T}, P3 | {"AG"}, [("AG", "agent", T)]),
+    (RV54 + "R2b, the agent's own counted ack with a declared need of none is no receipt: the laying down puts the "
+     "removal out of force", W + [X, CR2b, dict(LAY, names=("x", "qc"))], {"x": T}, P3 | {"AG"}, [("AG", "agent", T)]),
+    (RV54 + "two persons of the other two, under `accord_halt`: the count's receipt keeps the removal through the "
+     "lifting end", W + [X, dict(counted_receipt("qc", ("p2", "p3"), "x", ("x",)), policy="accord_halt"),
+                         dict(UNDL, names=("x", "qc"))], {"x": T}, P3, [("AG", "agent", F)]),
+    (RV54 + "two of the other three under `unanimous`: the row's own policy is not read, the count's receipt keeps",
+     R5 + [dict(counted_receipt("qc", ("p2", "p3"), "x", ("x",)), policy="unanimous"),
+           ST.withdraw("wm", "p1", "g", ("x",), scope="moderate")], {"x": T}, {"p1", "p2", "p3", "p4"}, []),
+    (RV54 + "the remover and one of the other three: the remover no voice, one is not more than half",
+     R5 + [counted_receipt("qc", ("p1", "p2"), "x", ("x",)), ST.withdraw("wm", "p1", "g", ("x",), scope="moderate")],
+     {"x": T}, {"p1", "p2", "p3", "p4", "AG"}, []),
+    (RV54 + "the other two's counted ack at the room's founding head, older than the removal's: no receipt",
+     W + [X, counted_receipt("qc", ("p2", "p3"), "x", ("g",)), OUT], {"x": T}, P23 | {"AG"}, []),
+    (RV54 + "two persons: the other one's counted ack is all of the room less the remover, but never fewer than two "
+     "voices: no count's receipt", [ST.found("g", "p1", ("p1", "p2"), {"moderate": ("p1",)}, cosigners=("p2",)),
+                                    admit("ag", "AG", ("p1", "p2"), ("g",), "agent"), X,
+                                    counted_receipt("qc", ("p2",), "x", ("x",)), LAY], {"x": T}, {"p1", "p2", "AG"}, []),
+]
+# CC 2.4.1.1 (iii), a conferrer that ends its own offer may lift (CIRISConstitution#218, pin list: a count end that
+# lifts receipts; review of #54): a room founded with members only (no duty holder), an election seats p2 to
+# moderate, and p2, then the lone person duty holder, confers moderate on p3 by its own offer. That room's record
+# seats no duty holder, so the conferrer's withdrawal ends p3's seat
+MG3 = ST.offer("g", "p1", ("p1", "p2", "p3"), "member", "@", "self", cosigners=("p2", "p3"))
+EL = [MG3, R("b1", "ballot", "p1", ("g",), ranking=("p2", "p3")), R("b3", "ballot", "p3", ("g",), ranking=("p2", "p3")),
+      ST.offer("el", "p1", "p2", "moderate", OBJ, "group", ("g", "b1", "b3"), head=("g",), policy="moderator_election",
+               options=("p2", "p3"), cosigners=("p2",)),
+      admit("ag", "AG", ("p1", "p2", "p3"), ("el",), "agent"),
+      ST.offer("oc", "p2", "p3", "moderate", OBJ, "self", ("ag",), cosigners=("p3",)),
+      lone("x", "p3", "AG", ("oc",)), receipt("q2", "p2", "x")]
+CASES += [
+    (PIN + "a conferrer that ends its own offer may lift (CC 2.4.1.1 (iii)): an elected p2 confers moderate on p3 by "
+     "its own offer; p3 removes the agent alone, p2 receipts it, and p2 withdraws p3's offer stating `lifts`: the "
+     "receipt keeps nothing", EL + [dict(ST.withdraw("wo", "p2", "oc", ("x", "q2")), lifts=True)],
+     {"el": T, "oc": T, "x": T, "wo": T}, P3 | {"AG"}, [("p3", "moderate", F), ("p2", "moderate", T)]),
+    (PIN + "the same withdrawal not stating `lifts`: p2's receipt keeps the removal in force",
+     EL + [ST.withdraw("wo", "p2", "oc", ("x", "q2"))], {"x": T, "wo": T}, P3, [("p3", "moderate", F)]),
+    (PIN + "p3's own withdrawal of the offer stating `lifts` is the holder's own end and lifts nothing",
+     EL + [dict(ST.withdraw("wo", "p3", "oc", ("x", "q2")), lifts=True)], {"x": T, "wo": T}, P3, [("p3", "moderate", F)]),
+]
+# The review of #54 (CIRISConstitution#218, pin list: no cascade): an act decided before an earlier act's own verdict
+# is known reads that earlier act as an end; x, out of force, ends nothing, so an act after it that it would end is in
+# force. A1 and A2 are agent moderators; A1 lays its moderate down after x
+NC = "CIRISConstitution#218, pin list: no cascade (review of #54): "
+X12 = lone("x", "A1", "A2", ("cm2",))
+LAY1 = ST.withdraw("la1", "A1", "cm1", ("x",), scope="moderate")
+CASES += [
+    (NC + "x, A1's removal of A2, and A1's laying down after it: x out of force, A2 seated",
+     B2 + [X12, LAY1], {"x": T}, P3 | {"A1", "A2"}, [("A1", "moderate", F)]),
+    (NC + "an ordered pair: A2's removal of A1 has x in its past; x is out of force by A1's own laying down, so it ended "
+     "nothing, and A2's removal is in force", B2 + [X12, LAY1, lone("y", "A2", "A1", ("cm2",), cites=("x",))],
+     {"x": T, "y": T}, P3 | {"A2"}, [("A1", "agent", F), ("A2", "moderate", T)]),
+    (NC + "the ordered pair with no laying down: x in force ends A2's standing, so A2's removal of A1 is out of force",
+     B2 + [X12, lone("y", "A2", "A1", ("cm2",), cites=("x",))], {"x": T, "y": T}, P3 | {"A1"}, [("A2", "agent", F)]),
+    (NC + "no pair: A2's removal of A3 has x in its past; x out of force ended nothing, so A2's removal is in force",
+     W3A + [X12, LAY1, lone("z", "A2", "A3", ("cm2",), cites=("x",))], {"x": T, "z": T}, P3 | {"A1", "A2"},
+     [("A3", "agent", F)]),
+    (NC + "the same with x in force: A2's standing ended in its past, its removal of A3 out of force",
+     W3A + [X12, lone("z", "A2", "A3", ("cm2",), cites=("x",))], {"x": T, "z": T}, P3 | {"A1", "A3"}, [("A2", "agent", F)]),
+]
 PLANTS = ("end_unread", "remover_receipt", "reseat_revives", "count_unread_lone", "cascade", "count_receipt_unread",
-          "removed_receipt_kept", "lifts_unread", "cycle_one_then_other", "count_receipt_unchecked",
-          "founding_duty_unread", "agent_receipt_kept", "remover_counted_over", "lone_lifts", "receipt_before_kept",
-          "failed_count_is_signers")
+          "removed_receipt_kept", "lifts_unread", "conferrer_lift_unread", "cycle_one_then_other", "count_receipt_unchecked",
+          "founding_duty_unread", "agent_receipt_kept", "remover_counted_over", "lone_lifts", "own_end_lifts", "receipt_before_kept",
+          "failed_count_is_signers", "receipt_row_policy", "ordered_pair_cascade",
+          "lift_no_floor")
 
 
 def read(S, case):

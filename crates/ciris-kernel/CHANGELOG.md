@@ -80,9 +80,9 @@ the crate.
   none older than the removal's, the remover no voice of it (before: any room, any head, any `counted` scope, so
   a remover alone, or an agent, could keep its own removal). The acts are decided one strongly connected
   component at a time, in rounds, against every act decided out of force before (before: an act outside a
-  mutual pair was decided with it, and only an act's own waits were left out). An act waits only for removals
-  not in its past, and for removals of its receipters too: an ordered pair is not mutual. A receipter's duty
-  from a founding record is a seat a counted unseat ends, as one from an offer.
+  mutual pair was decided with it, and only an act's own waits were left out). An ordered pair is not mutual
+  (its order is the review of #54's, below). A receipter's duty from a founding record is a seat a counted
+  unseat ends, as one from an offer.
 - Ruled: an agent's receipt is no receipt (CC 2.4.1.1: never the act's own signer's and never a node's; keeping
   another's act in force is a voice). For every lone removal, a mutual pair's included, the receipts that keep it
   are a person duty holder's other than the remover's, or the count's. One answer changes: an agent moderator's
@@ -94,10 +94,22 @@ the crate.
 - Ruled: a ring of three or more concurrent lone removals, each undone by another, is read as the pair is (CC
   2.7.7 rule 5 read for a set): all out of force, all seats kept, until a person's receipt or the count's
   settles it.
+- Fixes from the review of #54. The count's receipt is read under one fixed rule, the members' check of one
+  member's act (the lift's own arithmetic): more than half of the persons of the room less the remover, never
+  fewer than two, whatever `policy()` or `need()` the row states. Before, the row's own policy was read, so one
+  person's ack under `accord_halt`, or the remover's or an agent's under a declared need of none, was the count's
+  receipt, which no lift lifts. Changed answer: each of those rows now keeps nothing.
+- No cascade through an earlier act: an act's verdict now waits for every lone removal that could end its
+  remover's standing, the ones in its past included (before, an act was decided before an earlier act in its
+  past, reading that act as an end, E4, before its own verdict was known). An ordered pair (y has x in its past,
+  and each removes the other's remover) is decided x first, without y, and y then reads x's verdict: x in force
+  ends y's standing; x out of force on its own (its remover lays the duty down) ends nothing, and y is in force.
+  Changed answers: in those two shapes the later act was out of force and is now in force.
 - Not built: the owner's statement on an agent's duty seat (CC 4.5.4).
 
 The reference: `seat.receipts_of`, `lifts_receipts` and the ordering in `out_of_force`; thirteen cases and six
-planted breaks in `check_removal_in_force.py`, each named for its row of the pin list. Six crate plants.
+planted breaks in `check_removal_in_force.py`, each named for its row of the pin list. Six crate plants; the
+review of #54 adds thirteen cases, three planted breaks in the reference and three crate plants.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 
