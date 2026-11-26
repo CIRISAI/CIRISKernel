@@ -500,7 +500,9 @@ told what act it is by the policy a row states.
   contested pair is two of three on each side; `check_readmit.py`'s removal reads a room of five). F3's self-only
   removal now follows from it. **The community floor applies to counted removals** (CC 4.5.13: "In a community the
   floor is never fewer than two voices, so one voice never decides who is in a room, whatever the size"): a removal
-  takes two voices besides the member it removes (`SeatLaw::community_floor`). So a room of two removes nobody by
+  takes two voices besides the member it removes, read from the policy table's `community_remove` floor cell (`2
+  voices` at pin 6b7471d6, rc23 8c75ae7, where the Constitution corrected the cell's `none`): new `SeatLaw::removal_floor`
+  (BREAKING, as `community_floor`), under any community protocol. So a room of two removes nobody by
   count (the edge; its members can leave), and in a room of three two remove the third. A family has no floor, and an
   infrastructure community's M is at least two.
 - **A change of the record meets the protocol in force and the standing default together** (Q1: the table's

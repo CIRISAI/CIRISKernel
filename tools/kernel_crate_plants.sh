@@ -323,7 +323,7 @@ plant 'an infrastructure community counted over its members' src/seat.rs '      
 plant "an infrastructure community's M recomputed from the founders" src/seat.rs 'need: f.need };' 'need: f.infra.map_or(f.need, |_| Some(mem.len() / 2 + 1)) };'
 plant "an infrastructure founding word's N free"        src/seat.rs 'if core::ptr::eq(rec, founding) && founders_of(get, &obj) != n {' 'if false {'
 plant 'an infrastructure record not entrenched'          src/seat.rs '        if founding.protocol_entrenched() != Some(true) {' '        if false {'
-plant 'an infrastructure founder seat by a plain widening' src/seat.rs '        if r.seat_kind() == SeatKind::Offer && r.scope().is_some_and(|s| s.as_ref() == "founder") {' '        if false {'
+# retired: 'an infrastructure founder seat by a plain widening' (the acts table has no admit / founder / infrastructure row at 8c75ae7)
 plant "an infrastructure amendment's N free"             src/seat.rs '                if usize::try_from(n2) != Ok(n_after) {' '                if false {'
 plant 'an infrastructure amendment restates the word always' src/seat.rs '            if unchanged && n_after > n {' '            if unchanged && (n_after > n || !new.is_empty()) {'
 plant 'an infrastructure amendment lowers M'             src/seat.rs '                if !usize::try_from(m2).is_ok_and(|m2| m2 >= m) {' '                if false {'
@@ -347,7 +347,7 @@ plant 'a conferred founder role outlives the stay'       src/seat.rs '    sc == 
 plant "a change of the record meets either joined policy" src/seat.rs '!fs.is_empty() && fs.iter().all(|f| count_under(p, law, spec, cache, f, void))' '!fs.is_empty() && fs.iter().any(|f| count_under(p, law, spec, cache, f, void))'
 plant 'the cosigned_act half blocks where the protocol states no rule' src/seat.rs '    let dropped = unstated().is_some();' '    let dropped = unstated().is_some() && false;'
 plant 'a policy governing alone takes no floor'          src/seat.rs '    if f.floor > 0 && v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).count() < f.floor {' '    if false {'
-plant "a community removal's floor unread"              src/seat.rs 'floor: if r.seat_kind() == SeatKind::Unseat && !family { law.community_floor } else { 0 },' 'floor: 0,'
+plant "a community removal's floor unread"              src/seat.rs 'floor: if r.seat_kind() == SeatKind::Unseat && !family { law.removal_floor } else { 0 },' 'floor: 0,'
 plant "the founders all the founding row's signers"     src/seat.rs '.filter(|k| g.to().contains(*k))' '.filter(|_| true)'
 plant 'a change may weigh one key twice'                 src/seat.rs 'if weights.iter().enumerate().any(|(i, (k, _))| weights[..i].iter().any(|(j, _)| j == k)) =>' 'if false =>'
 plant 'a family takes the two-voice floor'               src/seat.rs '        RoomProtocol::parse(word.as_ref()).ok_or(())?

@@ -513,6 +513,10 @@ pub struct SeatLaw {
     /// where the room's protocol states no rule for the act (the reading of `&`, [`RoomProtocol::states`]) is met by
     /// no fewer voices. 0: no floor.
     pub community_floor: usize,
+    /// A community's removal floor: the policy table's `community_remove` floor cell (`2 voices`): a counted removal
+    /// takes that many voices besides the member it removes (CC 4.5.13, CC 3.1.3.2), under any community protocol. 0:
+    /// no floor.
+    pub removal_floor: usize,
     /// The kind of an object, from its founding row's scope (`holder`: an accord; `self`: a self roster; `member`,
     /// `duty`, and every scope the map does not name: a community). A key object is a self roster. An object with no
     /// founding row has no kind and no act.
@@ -1292,7 +1296,7 @@ fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> R
         // in a community the floor is never fewer than two voices, so one voice never decides who is in a room,
         // whatever its size (CC 4.5.13): a counted removal takes two voices besides the member it removes (a family
         // has no floor)
-        floor: if r.seat_kind() == SeatKind::Unseat && !family { law.community_floor } else { 0 },
+        floor: if r.seat_kind() == SeatKind::Unseat && !family { law.removal_floor } else { 0 },
         ..InForce::plain(Some(pol), need)
     })
 }

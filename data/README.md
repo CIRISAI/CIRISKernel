@@ -3,12 +3,14 @@
 Every file here is copied unchanged from the parent repository at commit `60c741e`, except the five policy files
 (`governance_policy.tsv`, `governance_policy.json`, `governance_policy_vectors.json`, `governance_policy_acts.tsv`,
 `consensus_protocols.tsv`), copied unchanged from the Constitution's `rc23` at commit
-`2b509c82873da8ef251fa6a08f95cea9c7652738` (`constitution/` for the tables, `manifests/` for the two JSON files). The
-table's own pin, `policy_sha256` in the two manifests, is `d9f0d0a9d8378b16c8f7747d169e02bf15a85d930813c51d3d717b174e4780cd`:
+`8c75ae7b7a4fa7424557fe2ee15b024d25610c4c` (`constitution/` for the tables, `manifests/` for the two JSON files). The
+table's own pin, `policy_sha256` in the two manifests, is `6b7471d6209897802088c2b63a8260f6ba8d06d42f18fad94327610abfa3a95b`:
 a content hash of the table, not a commit. The steps that brought the acts table there: an infrastructure community's
 kind and a node's seat (4c165f8); its record changes under its founders' protocol (6c60be9); a record change meets the
 protocol in force and the standing default together, and a family has its rows (682e9e4); the reading of `&` where a
-protocol states no rule, the group kind, and `dissolve` (2b509c8). `consensus_protocols.tsv` at 2b509c8 gives
+protocol states no rule, the group kind, and `dissolve` (2b509c8); a community's removal never takes fewer than two
+voices and the member removed is no voice in it, and a founder seat over infrastructure is added only by a record
+change (8c75ae7). `consensus_protocols.tsv` at 2b509c8 gives
 `founder_only` a removal rule (`founder-target`, `role_at:founder:1`). The parent generates most
 of them from its rule tables; the generators are not carried, so treat these as fixed inputs.
 

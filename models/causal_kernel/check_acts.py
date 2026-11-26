@@ -43,7 +43,8 @@ Planted breaks, each of which must change a case's answer:
     infra_any_quorum    an infrastructure community's quorum need not be its founders' strict majority (P1)
     infra_body_members  an infrastructure community's protocol counts its members, not its founders (P1)
     infra_m_recomputed  an infrastructure community's M is recomputed from the founders at the heads (the P1 redo's)
-    infra_founder_by_widening     an infrastructure founder seat is added by a plain widening, not an amendment
+    (retired: infra_founder_by_widening, a plain founder widening over infrastructure concluding: the acts table at rc23
+    8c75ae7 has no admit / founder / infrastructure row, so the binding refuses it before the protocol is read)
     infra_m_lowered     an infrastructure amendment may lower M
     infra_word_n_free   an infrastructure word's N need not be the founders the version leaves
     infra_unentrenched  an infrastructure record need not be entrenched
@@ -235,7 +236,7 @@ QUERIES = [
     (("standing_act", "any", "accord"), (("accord_majority",), "fixed")),
     (("admit", "key", "self"), (("self_roster_add",), "fixed")),
     (("remove", "member", "affiliation"), (("affiliation_member_action", "cosigned_act"), "row")),
-    (("admit", "founder", "infrastructure"), (("cosigned_act",), "fixed")),
+    (("admit", "founder", "infrastructure"), None),        # rc23 8c75ae7: a founder seat comes only by a record change
     (("remove", "node", "infrastructure"), (("cosigned_act",), "fixed")),
     (("record_change", "record", "infrastructure"), (("cosigned_act",), "fixed")),
     (("admit", "node", "community"), None),
@@ -851,7 +852,7 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "subkind_unread", "amendment_unread", "record_unread", "regime_unread",
           "regime_stated", "protocol_set_open", "row_need", "protocol_body_free", "disagreeing_first", "any_amendment",
           "record_by_founding", "body_free", "kind_partial", "election_any_duty", "node_consent_asked",
-          "consent_one_waives", "infra_any_quorum", "infra_body_members", "infra_m_recomputed", "infra_stalled_admits", "infra_founder_by_widening",
+          "consent_one_waives", "infra_any_quorum", "infra_body_members", "infra_m_recomputed", "infra_stalled_admits",
           "infra_m_lowered", "infra_word_n_free", "infra_unentrenched", "infra_record_frozen",
           "infra_record_simple_majority", "record_change_as_admission", "self_admit_removal_counted", "body_from_row",
           "record_change_either_policy", "one_voice_community_protocol", "founder_only_community",

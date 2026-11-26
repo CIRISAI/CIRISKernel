@@ -333,6 +333,20 @@ SHEET = protocol_sheet()
 COMMUNITY_FLOOR = json.load(open(os.path.join(ROOT, "data", "governance_policy.json"), encoding="utf-8"))["min_count"]["community"]
 
 
+def removal_floor(path=None):
+    """A community's removal floor, read from the policy table's community_remove row (its floor cell, `2 voices` at
+    pin 6b7471d6: "never fewer than two voices, so a room of two removes nobody"); 0 where the cell states none."""
+    path = path or os.path.join(ROOT, "data", "governance_policy.json")
+    for f in json.load(open(path, encoding="utf-8"))["families"]:
+        if f["family"] == "community_remove":
+            fl = f.get("floor_rule") or {}
+            return fl.get("count", 0) if fl.get("kind") == "voices" else 0
+    return 0
+
+
+REMOVAL_FLOOR = removal_floor()
+
+
 # The protocol sheet has no column for a change of the record (or any act but an admission and a removal): the column
 # is DERIVED from the count set. A protocol whose count set is the members states a rule for it; open:self_admit (the
 # joiner's own signature) and founder_only (the founder role) do not (ruled with the reading of `&`).
@@ -553,7 +567,7 @@ def _protocol_part(r, by, need, weights):
     # in a community the floor is never fewer than two voices, so one voice never decides who is in a room, whatever
     # its size (CC 4.5.13): a counted removal takes two voices besides the member it removes (a family has no floor)
     if r["kind"] == "unseat" and not family and "removal_floor_unread" not in MUT:
-        out["floor"] = COMMUNITY_FLOOR
+        out["floor"] = REMOVAL_FLOOR
     # a family's removal naming only its own signer, on that signature alone, is no leaving (F3: the resignation is)
     if family and r["kind"] == "unseat" and "self_removal_as_leave" not in MUT: out["no_self_removal"] = True
     return out
