@@ -470,6 +470,30 @@ CASES = [
          "(the reader-line exclusion): the removal concludes for D, and A is out of D's roster",
      silent(2, lambda sg, fp: remove("xr", "A", tuple("CDEFG"), ("aG", fp))), "D", {"xr": F},
      {"member": frozenset("BCDEFG")}, {"p1"}),
+    (SF, "acknowledging never un-voids: the same rows read by C, whose own honest removal names p2 as a head (H1 asks it, "
+         "it has seen p2): the chain stays behind C's line, and is no part of C's roster",
+     silent(2, lambda sg, fp: remove("xr", "A", tuple("CDEFG"), ("aG", fp))), "C", {"xr": F},
+     {"member": frozenset("BCDEFG")}, {"p1"}),
+    (SF, "both ways: D's removal at aG alone (a client that does not build on a change void for it): concurrent with p1, "
+         "no self-fork, and for D the same count as the removal naming p2: it concludes, and A is out",
+     silent(2, lambda sg, fp: remove("xr", "A", tuple("CDEFG"), ("aG",))), "D", {"xr": T},
+     {"member": frozenset("BCDEFG")}, {"p1"}),
+    (EDGE, "both ways, for a reader with no row: the removal at aG alone concludes (five of seven), the one naming p2 is "
+           "five of nine and does not (the case above): for that reader alone the two differ, as it holds the chain. Its "
+           "roster is then the fold of the two tips, the removal's line and the chain's: A is out on one, so the admissions "
+           "A signed meet no count on the voices the fold seats, and only B and C are common",
+     silent(2, lambda sg, fp: remove("xr", "A", tuple("CDEFG"), ("aG",))), None, {"xr": T},
+     {"member": frozenset("BC")}, set()),
+    (SF, "acknowledging never un-voids: D, whose line holds the chain void, then writes an explicit acknowledgement "
+         "naming p2 and the newest honest admission (its own earlier rows in its past): the chain stays void for D (an "
+         "acknowledgement closes older heads and nothing reopens them, CC 2.7.9)",
+     silent(2, lambda sg, fp: CK.row("kD", "ack", "D", ("aG", fp), room=OBJ, head=("aG", fp))), "D", {},
+     {"member": frozenset("ABCDEFG")}, {"p1"}),
+    (SF, "a counted row is no acknowledgement of a change void for it: Z, whose one row is its cosignature of C..G's "
+         "removal of A naming the fork-built xd, holds the fork void (S'' voids dc and xd for that row)",
+     ROOM + [DC("dc", "B", ("g",)), admit("xd", "X", ("A", "B"), ("dc",)),
+             dict(remove("xa", "A", ("C", "D", "E", "F", "G"), ("xd", "aG")), cosigners=("D", "E", "F", "G", "Z"))], "Z",
+     {"xa": T}, {"member": frozenset("BCDEFG")}, {"dc"}),
     (EDGE, "the silent colluder at n=8, for a reader with no row: A, B and X1..X8 remove C, ten of fifteen (the stated "
            "residual: a silent colluder's packing chain under one protocol)",
      silent(8, lambda sg, fp: remove("xr", "C", sg, ("aG", fp))), None, {"xr": T}, {}, set()),
@@ -542,7 +566,8 @@ PLANTS = (("count_heads_unread", ST.MUT), ("all_heads_read", ST.MUT), ("head_any
           ("lone_offer_unread", ST.MUT), ("lone_offer_same_scope", ST.MUT), ("fold_acceptance_unread", ST.MUT),
           ("heads_not_antichain", ST.MUT), ("window_opener_old_head", ST.MUT), ("lone_offer_self_path", ST.MUT),
           ("self_fork_unread", ST.MUT), ("rescue_unread", ST.MUT), ("tie_unread", ST.MUT), ("meet_tips", ST.MUT),
-          ("regime_before_change", ST.MUT), ("reader_exclusion_unread", ST.MUT), ("ack_reads_void", CP.MUT))
+          ("regime_before_change", ST.MUT), ("reader_exclusion_unread", ST.MUT), ("ack_reads_void", CP.MUT),
+          ("ack_unvoids", CP.MUT))
 # retired with the ruling of 2026-11-27: ack_excuses_none (H7, subsumed by the self-fork void) and line_after_cut (the
 # line's first pass reads every row as counting; with the line sibling-safe and the reader's rows concluded again for
 # it, no case here tells a first pass over the cut from one over every row)

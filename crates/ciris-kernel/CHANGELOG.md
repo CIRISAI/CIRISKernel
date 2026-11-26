@@ -483,6 +483,9 @@ rebuilt fresh, so no old row has to keep concluding: many answers change, each l
   behind: every head they extend strictly in the past of the acknowledged version's own heads), all 400 with the
   same tip roster. Against the H5 line (no concurrency test, siblings void) 149,966 answers differ, every one
   holding fewer void.
+- **Acknowledging never un-voids** (CC 2.7.9; `checkpoint.own_line`, `line::own_line_with`). A row the reader signed
+  acknowledges the counted acts in its past that are not already void for the line its earlier rows (in its own past)
+  drew, nor void for the row itself. Naming a change as a head adopts nothing. Plant `ack_unvoids`.
 - Cases (`check_count_heads.py`): the round tables' rows (the H7 shapes, the strip, the room of one, the hostile
   signer, honest siblings, packing, the tightened protocol, L' and its variants, S'' against itself, the silent
   colluder for three readers). Plants: `self_fork_unread`, `rescue_unread`, `tie_unread`, `meet_tips`,

@@ -91,17 +91,46 @@ def acknowledgements(S, own, obj, rows=None):
 
 def own_line(S, own, obj):
     """The counted acts on obj this reader has acknowledged, with the counted acts in their past: those in the past of
-    (or equal to) any of its acknowledgements, and any head an explicit `ack` names."""
+    (or equal to) any of its acknowledgements, and any head an explicit `ack` names.
+
+    Acknowledging never un-voids (the ruling of 2026-11-27, CC 2.7.9: an acknowledgement closes older heads and nothing
+    reopens them): a row the reader signed acknowledges the counted acts in its past that are not already void for the
+    line its earlier rows (those in its own past) drew, nor void for the row itself (a counted row's S'' void, seat sets
+    ACK_VOID). So a change behind the reader's line stays behind it even after the reader signs a row naming it as a head.
+    MUTATIONS ack_unvoids (every act in a row's past acknowledged, whatever its earlier line held void); ack_reads_void (a
+    counted row acknowledges its own void changes too)."""
     if own is None: return []
-    acks = acknowledgements(S, own, obj)
-    named = {h for a in acks if a["kind"] == "ack" for h in a.get("head", ())}
-    # a counted row the reader signed acknowledges the counted acts in its past but those void for it (a fork head it
-    # had to name; seat sets ACK_VOID; MUTATION ack_reads_void: it acknowledges them too)
-    ex = {a["id"]: (ACK_VOID(S, a) if ACK_VOID and is_counted_act(a, obj) and "ack_reads_void" not in MUT else frozenset())
-          for a in acks}
-    return [r for r in counted_acts(S, obj) if r["id"] in named
-            or any(r["id"] == a["id"] or (r["id"] in S.anc[a["id"]] and r["id"] not in ex[a["id"]]) for a in acks)
-            or any(r["id"] in S.anc[h] for h in named if h in S.anc)]
+    acks = sorted(acknowledgements(S, own, obj), key=lambda a: (len(S.anc[a["id"]]), a["id"]))
+    acts = counted_acts(S, obj)
+    def covered(a):
+        """The counted acts a row acknowledges before any exclusion: it, its past, and the heads an `ack` names."""
+        named = set(a.get("head", ())) if a["kind"] == "ack" else set()
+        return {r["id"] for r in acts if r["id"] == a["id"] or r["id"] in S.anc[a["id"]] or r["id"] in named
+                or any(r["id"] in S.anc[h] for h in named if h in S.anc)}
+    by = {r["id"]: r for r in acts}
+    def void_for(line):
+        """The counted acts behind a line (sibling-safe), and those built on them, the line's own acts apart."""
+        out = {r["id"] for r in acts if r["id"] not in line and any(behind(S, r, by[c]) for c in line)}
+        changed = True
+        while changed:
+            changed = False
+            for r in acts:
+                if r["id"] not in out and r["id"] not in line and any(h in out for h in r["head"]):
+                    out.add(r["id"]); changed = True
+        return out
+    got = {}
+    for a in acks:
+        ex = ACK_VOID(S, a) if ACK_VOID and is_counted_act(a, obj) and "ack_reads_void" not in MUT else frozenset()
+        cov = covered(a)
+        if "ack_unvoids" in MUT:
+            got[a["id"]] = {r for r in cov if r == a["id"] or r not in ex}
+            continue
+        # the line the reader's rows in a's own past drew, and what it holds void
+        prior = set().union(*[got[b["id"]] for b in acks if b["id"] in S.anc[a["id"]]])
+        held = void_for(prior)
+        got[a["id"]] = {r for r in cov if r == a["id"] or (r not in ex and r not in held)}
+    mine = set().union(*got.values()) if got else set()
+    return [r for r in acts if r["id"] in mine]
 
 
 ACK_VOID = None     # seat.void_changes, read for a reader's own counted rows

@@ -180,6 +180,15 @@ trusting an adapter.
   at several heads are the fold of their lines, and a counted change self-forked by all its voices is void for a
   count that has it in its past (S''): that is the only automatic effect of a key signing two things outside an
   election, and it voids a change, never a key.
+  **Acknowledging never un-voids** (CC 2.7.9: an acknowledgement closes older heads, and nothing reopens them): a
+  row the reader signs acknowledges only the changes in its past not already void for its line, so naming a change
+  as a head adopts nothing. A client does not build on a change that is void for it: its next row names only the
+  honest newest heads and is simply concurrent with the void change. That breaks no rule (it is no self-fork, the
+  void change not being the client's row, and H1 does not ask for a change that is not in its past).
+  **Founders' lines:** when a reader that held one founders' line later holds the other (two concurrent records'
+  versions), what it had read as concluded on the first line is then waiting, like any tip that turns out to have a
+  sibling (the regime wait). A store should not treat a founders' act over an infrastructure room as final on the
+  strength of one line.
   **The residual, stated:** a reader with no row of its own, facing a silent colluder's packing chain under the
   same protocol (a fork whose voices never acknowledged the honest line), reads the fork's admissions folded in;
   and a newcomer admitted on the fork takes its past from its admitter (CC 3.3.4).

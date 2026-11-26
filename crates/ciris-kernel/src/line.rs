@@ -59,6 +59,11 @@ pub fn own_line<R: Row, L: LineSpec<R>>(
 
 /// [`own_line`], where a signed row `s` does not acknowledge the counted acts `except(s)` gives (by index): the
 /// changes void for one of the reader's own counted rows (a fork head it had to name; `seat::Seats` passes them).
+///
+/// Acknowledging never un-voids (the ruling of 2026-11-27; CC 2.7.9: an acknowledgement closes older heads, and
+/// nothing reopens them): a row the reader signed acknowledges the counted acts in its past that are not already
+/// void for the line its earlier rows (those in its own past) drew. A change behind the reader's line stays behind
+/// it after the reader signs a row naming it as a head.
 pub fn own_line_with<R: Row, L: LineSpec<R>>(
     c: &Concluded<'_, R>,
     spec: &L,
@@ -67,30 +72,65 @@ pub fn own_line_with<R: Row, L: LineSpec<R>>(
     except: &dyn Fn(usize) -> BTreeSet<usize>,
 ) -> Vec<usize> {
     let Some(own) = own else { return Vec::new() };
-    let mut acked: BTreeSet<&R::Id> = BTreeSet::new();
-    let mut signed: Vec<usize> = Vec::new();
     let get = |i: &R::Id| c.g.idx(i).map(|i| c.g.row(i));
+    let acts = counted_acts(c, spec, obj);
+    let heads = |i: usize| spec.counted_act(c.g.row(i)).map(|(_, h)| h).unwrap_or(&[]);
+    // the reader's own rows over `obj`, each with the heads an explicit acknowledgement names, oldest first
+    let mut rows: Vec<(usize, Vec<usize>)> = Vec::new();
     for &a in c.cs() {
         let r = c.g.row(a);
-        if let Some((o, hs)) = spec.ack_by(r, own) {
-            if o == *obj {
-                acked.extend(hs.iter());
-            }
-        }
-        if spec.acknowledges(r, own, &get).is_some_and(|o| o == *obj) {
-            signed.push(a);
+        let named: Vec<usize> = match spec.ack_by(r, own) {
+            Some((o, hs)) if o == *obj => hs.iter().filter_map(|h| c.g.idx(h)).collect(),
+            _ => Vec::new(),
+        };
+        if !named.is_empty() || spec.acknowledges(r, own, &get).is_some_and(|o| o == *obj) {
+            rows.push((a, named));
         }
     }
-    let ex: Vec<(usize, BTreeSet<usize>)> = signed.iter().map(|&s| (s, except(s))).collect();
-    counted_acts(c, spec, obj)
-        .into_iter()
-        .filter(|&r| {
-            let id = c.g.row(r).id();
-            acked.contains(id)
-                || acked.iter().any(|h| c.g.idx(h).is_some_and(|h| c.g.in_past(r, h)))
-                || ex.iter().any(|(s, x)| *s == r || (c.g.in_past(r, *s) && !x.contains(&r)))
-        })
-        .collect()
+    rows.sort_by_key(|&(a, _)| c.g.level(a));
+    // the counted acts behind a line (sibling-safe), and those built on them, the line's own acts apart
+    let void_for = |line: &BTreeSet<usize>| -> BTreeSet<usize> {
+        let mut out: BTreeSet<usize> = acts
+            .iter()
+            .copied()
+            .filter(|&r| {
+                !line.contains(&r) && line.iter().any(|&m| m != r && !c.g.in_past(r, m) && older(c, heads(r), heads(m)))
+            })
+            .collect();
+        loop {
+            let more: Vec<usize> = acts
+                .iter()
+                .copied()
+                .filter(|&r| {
+                    !out.contains(&r)
+                        && !line.contains(&r)
+                        && heads(r).iter().any(|h| c.g.idx(h).is_some_and(|hi| out.contains(&hi)))
+                })
+                .collect();
+            if more.is_empty() {
+                return out;
+            }
+            out.extend(more);
+        }
+    };
+    let mut got: Vec<(usize, BTreeSet<usize>)> = Vec::new();
+    for (a, named) in &rows {
+        let ex = except(*a);
+        let prior: BTreeSet<usize> =
+            got.iter().filter(|(b, _)| c.g.in_past(*b, *a)).flat_map(|(_, s)| s.iter().copied()).collect();
+        let held = void_for(&prior);
+        let cov: BTreeSet<usize> = acts
+            .iter()
+            .copied()
+            .filter(|&r| {
+                r == *a || c.g.in_past(r, *a) || named.contains(&r) || named.iter().any(|&h| c.g.in_past(r, h))
+            })
+            .filter(|&r| r == *a || (!ex.contains(&r) && !held.contains(&r)))
+            .collect();
+        got.push((*a, cov));
+    }
+    let mine: BTreeSet<usize> = got.into_iter().flat_map(|(_, s)| s).collect();
+    acts.into_iter().filter(|i| mine.contains(i)).collect()
 }
 
 /// The counted acts on `obj` that count for reader `own`, given which of them the cut lets count.
