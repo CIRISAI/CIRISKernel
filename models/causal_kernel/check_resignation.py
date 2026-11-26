@@ -91,7 +91,7 @@ def dissolved(S, plant=None):
 def counted_over(S, r):
     P = [q for q in S.Cs if q["id"] in S.anc[r["id"]]]
     past = lambda a, b: a in S.anc[b]
-    return ST.members_at(P, past, OBJ, r["head"], SC) - ST.left_in_past(P, OBJ, SC), ST.voices(r, P)
+    return ST.members_at(P, past, OBJ, r["head"], SC, count=True) - ST.left_in_past(P, OBJ, SC), ST.voices(r, P)
 
 
 def check(plant=None):

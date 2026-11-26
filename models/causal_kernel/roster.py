@@ -270,7 +270,7 @@ def rule(r, P, past):
     if r.get("by_body"):
         if spec is None or r["signer"] != spec.body or r["kind"] != "offer" or r["scope"] != "founder": return False
         if r["to"][0] not in ST.signers(r): return False              # the conferred key signs it
-        live = ST.members_at(P, past, r["obj"], r["head"], spec.counted)
+        live = ST.members_at(P, past, r["obj"], r["head"], spec.counted, count=True)
         return "body_any_time" in MUT or len(live) <= spec.need       # only while stalled
     if r["kind"] == "speak":                                           # a row of the object's own: speech, a vote, a note
         sp = SPECS.get(r["obj"])
@@ -279,12 +279,12 @@ def rule(r, P, past):
     if r["kind"] == "withdraw" and "decline_ignored" in MUT: return False
     if ("enact_over_others" in MUT and spec is not None and r["kind"] == "offer" and r.get("conf") == "group"
             and r["id"] != r["obj"] and not r.get("via") and not r.get("by_body") and r.get("recovery_of") is None):
-        others = ST.members_at(P, past, r["obj"], r.get("head", ()), spec.counted) - {r["signer"]}
+        others = ST.members_at(P, past, r["obj"], r.get("head", ()), spec.counted, count=True) - {r["signer"]}
         return 2 * len((ST.voices(r, P) - {r["signer"]}) & others) > len(others)
     if spec is not None and r["kind"] in ("offer", "unseat") and r.get("conf") == "group" and r["id"] != r["obj"]:
         if "self_admit" in MUT and r["kind"] == "offer" and r["signer"] in r["to"]: return True
         if "live_set" in MUT and spec.name == "accord":                # a majority of those who took part, not of the standing roster
-            mem = ST.members_at(P, past, r["obj"], r.get("head", ()), spec.counted)
+            mem = ST.members_at(P, past, r["obj"], r.get("head", ()), spec.counted, count=True)
             v = ST.voices(r, P) & mem
             live = v | {q["signer"] for q in P if q["kind"] == "participate" and q.get("of") == r.get("proposal")}
             return 2 * len(v) > len(live & mem)
@@ -300,7 +300,7 @@ def rule(r, P, past):
             if any(past(q["id"], w["id"]) for q in used for w in left): return False
     if not ok or spec is None or r["kind"] not in ("offer", "unseat") or r.get("conf") != "group": return ok
     if r["id"] == r["obj"]: return ok
-    mem = ST.members_at(P, past, r.get("over", r["obj"]), r.get("head", ()), r.get("counted", spec.counted)) \
+    mem = ST.members_at(P, past, r["obj"] if "R" in ST.SWITCH else r.get("over", r["obj"]), r.get("head", ()), r.get("counted", spec.counted), count=True) \
         - ST.count_left(P, past, r.get("over", r["obj"]), r.get("counted", spec.counted))  # a key that left in the version's past
     v = ST.voices(r, P) & mem
     if r["kind"] == "offer":

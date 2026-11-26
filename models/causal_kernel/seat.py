@@ -163,6 +163,12 @@ FINAL = ("registered",)
 # over the duty holders at the head the row names; a seat conferred alone stands only if its signer was then the
 # one duty holder, read over the offer's own past.
 DUTY_POLICY = {"duty_confer": "confer", "duty_withdraw": "withdraw"}
+# SWITCHES, off by default (KERNEL_SWITCH=R,fold_sym in the environment), for a candidate the Constitution holds:
+#   R         a count is taken over the roster of the row's OWN PAST (Seats over its concluded ancestors; several tips:
+#             the fold), never at a named head; no read-through of an authored head; no `over`
+#   fold_sym  the fold's removal arm is symmetric: at tips a removal takes a key out only where it meets its count over
+#             the members the fold seats
+SWITCH = frozenset(x for x in os.environ.get("KERNEL_SWITCH", "").split(",") if x)
 MUT = set()       # named mutations, switched on by a check (formal/causal_kernel/check_rosters.py, the key instance)
 
 
@@ -405,9 +411,11 @@ def lone_removal(r, P, past):
     # scope the unseat states (MUTATION lone_any_key: the key's seat not read)
     # This is also what makes a lift restore and not admit: its re-seating stands on such a removal (MUTATION
     # restores_unseated, the same break seen from the lift)
-    if not MUT & {"lone_any_key", "restores_unseated"} and r["to"][0] not in members_at(P, past, r["obj"], heads, AGENT):
+    # SWITCH R: read over the removal's own past (P may be a later row's past that holds it)
+    of = r["id"] if any(q["id"] == r["id"] for q in P) else None
+    if not MUT & {"lone_any_key", "restores_unseated"} and r["to"][0] not in members_at(P, past, r["obj"], heads, AGENT, of, count=True):
         return False
-    return r["signer"] in members_at(P, past, r["obj"], heads, "moderate")
+    return r["signer"] in members_at(P, past, r["obj"], heads, "moderate", of, count=True)
 
 
 def lift_voices(r, P, past, by):
@@ -662,6 +670,25 @@ class Seats:
         cand = [k for k in sorted(union - common, key=str) if survives(k) or "keeps_removed" in MUT]
         out_keys = union - common - frozenset(cand)             # removed on a line and not added again after it
 
+        def removal_holds(k, seated):
+            """SWITCH fold_sym: whether the removal that holds k out of a line still takes it out. A counted removal on a
+            line that ends k's seat must meet its count on the voices of keys the fold seats, over the members the fold
+            seats. Any other end (k's own leaving, a lone removal, an ender's unseat) holds as it stands, and so does a
+            key held out for a reason that is no removal."""
+            found = False
+            for _, sub2, _, sd2 in lines:
+                if k in sd2: continue
+                for u in sub2:
+                    if u["kind"] == "withdraw" and u["signer"] == k: return True
+                    if u["kind"] != "unseat" or u.get("obj") != o or not any(c[1] == k for c in u.get("cuts", ())): continue
+                    P = [q for q in S.Cs if q["id"] in S.anc[u["id"]]]
+                    past = lambda a, b: a in S.anc[b]
+                    if u.get("conf") != "group" or lone_removal(u, P, past): return True
+                    found = True
+                    mem = counted_keys(P, past, o, u.get("head", ()), u.get("counted", "member"))[0] & seated
+                    if met(u.get("policy"), len(voices(u, P) & mem), len(mem), u.get("need")): return True
+            return not found
+
         def count_holds(k, seated):
             """Every counted offer that adds k meets its count on the voices of keys the fold seats, over the
             members at its heads that the fold seats."""
@@ -696,6 +723,8 @@ class Seats:
         got = common
         while True:                                             # least fixed point: a voice counts once its key is in
             more = got | frozenset(k for k in cand if k not in got and count_holds(k, got))
+            if "fold_sym" in SWITCH:                            # a removal that does not meet its count takes nobody out
+                more = more | frozenset(k for k in out_keys if k not in got and not removal_holds(k, got))
             if more == got: break
             got = more
         memo[(s, o)] = got
@@ -840,9 +869,14 @@ def stands(S, root, k, s, o, **kw):
 
 
 # ---- concluded: was the offer, the unseat, the withdrawal validly made, at the head it names -------------
-def members_at(P, past, obj, heads, scope="member"):
+def members_at(P, past, obj, heads, scope="member", of=None, count=False):
     """The live `scope` seats over obj, read from the rows in the past of the heads only. Several heads: the
-    keys common to all of them (KERNEL.md section 7)."""
+    keys common to all of them (KERNEL.md section 7). SWITCH R, for a count (`count`): the roster of the row's own
+    past instead, the heads unread: P (a row's concluded ancestors), or the rows of P in the past of row `of`.
+    Callers that are no count (routing, a device's version head) read the heads as before."""
+    if "R" in SWITCH and count:
+        rows = P if of is None else [q for q in P if past(q["id"], of)]
+        return seats_of(rows).holders(scope, obj)
     out = None
     for h in count_heads(heads, P, past):              # the count is read at the newest heads named
         sub = [q for q in P if q["id"] == h or past(q["id"], h)]
@@ -868,19 +902,19 @@ def seats_of(rows):
     return got[1]
 
 
-def agents_at(P, past, obj, heads):
+def agents_at(P, past, obj, heads, of=None):
     """The keys holding an AI agent's seat over obj at the heads (`agent`): on the roster, in no count."""
     if not any(q.get("scope") == AGENT for q in P): return frozenset()
-    return members_at(P, past, obj, heads, AGENT)
+    return members_at(P, past, obj, heads, AGENT, of, count=True)
 
 
-def counted_keys(P, past, obj, heads, scope="member"):
+def counted_keys(P, past, obj, heads, scope="member", of=None):
     """(over, voters): the keys a count over `scope` at the heads is taken of, and those whose signatures are its
     voices. Every count of a room is by person (CC 4.5.13: an agent "has no vote"; "a recall and an election count its
     persons alone"), so an agent's key is in neither, whatever scope it holds besides."""
-    m = members_at(P, past, obj, heads, scope)
+    m = members_at(P, past, obj, heads, scope, of, count=True)
     if scope == AGENT: return m, m
-    a = agents_at(P, past, obj, heads)
+    a = agents_at(P, past, obj, heads, of)
     over = m | a if "agent_counted_over" in MUT else m - a      # MUTATION: the agent is counted over (no voice)
     voters = m | a if "agent_voice" in MUT else m - a           # MUTATION: the agent's signature is a voice
     return over, voters
@@ -1008,9 +1042,10 @@ def count_met(r, P, past, table=None):
     # read at the newest counted heads of the roster in its own past. A lift (above) is exempt, pending the lift
     # follow-up: it is counted at the head its act names
     # the object the count is taken over (MUTATION heads_of_obj: the row's own object)
-    if newer_head_in_past(heads, None, P, past, r["obj"] if "heads_of_obj" in MUT else r.get("over", r["obj"])): return False
-    mem, vot = counted_keys(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
-    left = count_left(P, past, r.get("over", r["obj"]), r.get("counted", "member"))
+    if newer_head_in_past(heads, None, P, past, r["obj"] if "heads_of_obj" in MUT or "R" in SWITCH else r.get("over", r["obj"])): return False
+    over = r["obj"] if "R" in SWITCH else r.get("over", r["obj"])          # SWITCH R: no `over`
+    mem, vot = counted_keys(P, past, over, heads, r.get("counted", "member"))
+    left = count_left(P, past, over, r.get("counted", "member"))
     mem, vot = mem - left, vot - left
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
         # the count is the ranked tally: the ballots the row names, one voice each, and the row seats the winner

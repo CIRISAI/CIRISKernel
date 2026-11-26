@@ -195,8 +195,8 @@ def _base(rows, past, p):
             # key a lone removal removes is an agent's, so it is apart from the lift of its own removal
             # in no count means out of the base for every scope a clause reads, `moderate` included (the ruling of
             # 2026-11-25; MUTATION scope_keeps_agents: a named scope keeps its agents)
-            m = ST.members_at(rows, past, p["obj"], p["head"], scope) if name not in ("all", "others") and "scope_keeps_agents" in MUT \
-                else ST.counted_keys(rows, past, p["obj"], p["head"], scope)[0]
+            m = ST.members_at(rows, past, p["obj"], p["head"], scope, of=p["id"], count=True) if name not in ("all", "others") and "scope_keeps_agents" in MUT \
+                else ST.counted_keys(rows, past, p["obj"], p["head"], scope, of=p["id"])[0]
             cache[name] = m - {p["signer"]} if name == "others" else m
         return cache[name]
 
@@ -205,7 +205,7 @@ def _base(rows, past, p):
         included (an agent acts under its seat by the acts one signature resolves; the ruling of 2026-11-25)."""
         if name in ("all", "others", "opener") or "one_leaves_agents" in MUT: return base(name)
         if ("raw", name) not in cache:
-            cache[("raw", name)] = ST.members_at(rows, past, p["obj"], p["head"], name)
+            cache[("raw", name)] = ST.members_at(rows, past, p["obj"], p["head"], name, of=p["id"], count=True)
         return cache[("raw", name)]
     base.raw = raw
     return base
@@ -232,12 +232,12 @@ def rule(r, P, past):
     if is_opener(r):
         w = WINDOWS[r["window"]]                               # the opener's signer holds the opener's scope, by default the counted one
         if k != "open" and not ST.seat_rule(r, P, past): return False     # an act that opens its own window: validly made, by the seat
-        return r["signer"] in ST.members_at(P, past, r["obj"], r["head"], w.get("opener", w["counted"]))
+        return r["signer"] in ST.members_at(P, past, r["obj"], r["head"], w.get("opener", w["counted"]), count=True)
     p = by.get(r["of"])
     if p is None or not is_opener(p): return False
     if k == "answer": return True                              # whether its voice counts is read against the roster at p's head
     spec, base = WINDOWS[p["window"]], _base(P, past, p)
-    if r["signer"] not in ST.members_at(P, past, p["obj"], p["head"], spec["concluder"]): return False
+    if r["signer"] not in ST.members_at(P, past, p["obj"], p["head"], spec["concluder"], of=p["id"], count=True): return False
     if k == "receipt":
         # a receipt puts no row of the target before the window: none in its past that the opener's past does not hold
         t = p.get("target")
