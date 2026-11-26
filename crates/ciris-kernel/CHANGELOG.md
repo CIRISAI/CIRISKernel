@@ -7,7 +7,10 @@ follows #48. **Answers of 0.4.0 change.** `seat::seat_rule`: a counted offer of 
 concludes only where it is counted over the duty holders (`SeatRow::counted` a duty) or is an election's acceptance
 (`Policy::Ranked`). A members' count under an admission-style policy (`community_invite`, counted `member`) confers
 no duty, whether or not a duty holder lives. A conferral under a holder's own seat (`Conf::Seat`, `Conf::Own`) is no
-count and is not reached by this gate. No signature changes.
+count and is not reached by this gate; but a single key's own offer of a duty (`Conf::Own`, or one under its seat,
+`Conf::Seat`) concludes only where its signer is the lone person duty holder, with the new holder's acceptance ("or
+by the lone holder with the new holder's acceptance"), in every community, not only where the record seats duty
+holders. No signature changes.
 - Changed answers, `check_duty_seats.py`: "the same conferral on a member seats it" (a member-only room's members'
   count of moderate on D) seated D and now seats nobody; the member-only cases that rested on it ("that member
   resigns", "re-admitted after that, nothing revives", "a counted removal from the roster ends the member's
@@ -27,7 +30,14 @@ count and is not reached by this gate. No signature changes.
   answers as a departed key's: its roster seat stands. No case had one before.
 - Not built: a founding record one key signs that names no duty holder (the text: that signer holds every
   declared duty) seats that key in `member` and no duty, as before.
-Plants: `duty_gate_off` and `duty_gate_wrong_row` in the reference and the crate.
+- Changed by the own-offer rule: "a member-only founding, handed one: a founder's own offer of moderate seats a
+  member" seated D and now seats nobody (no lone holder there); a member-only room places a duty by an election
+  only. Removed as unreachable: the two cases of a moderate seat hanging under an agent's seat (a seat conferred
+  under one's own seat is the lone person holder's, and an agent is none), with the wait on the seats a standing
+  hangs under and its plant; and the two cases of a conferrer's own end lifting receipts (CC 2.4.1.1 (iii)), with
+  that branch of `lifts` and its plants (a conferrer's withdrawal of a duty seat ends nothing, where the record
+  seats duty holders, and no single key's own offer places one elsewhere).
+Plants: `duty_gate_off`, `duty_gate_wrong_row` and `own_duty_ungated` in the reference and the crate.
 
 **A moderator's lone removal: the four receipt items** (CIRISConstitution#218, pin list). New: one trait method,
 `SeatRow::lifts` (default `false`), additive. Answers change only for rows no case had before:
@@ -42,9 +52,9 @@ Plants: `duty_gate_off` and `duty_gate_wrong_row` in the reference and the crate
   heads, keeps it in force where its count is met, beside a duty holder's receipt.
 - A receipt by a key removed at the same time is void: a duty holder's receipt keeps nothing where a counted
   unseat of a seat that holder holds over the room does not have the receipt in its past (conferral's key_cut).
-- A count end that lifts receipts (`lifts()`, conferral's word), in CC 2.4.1.1's three cases: (i) a counted unseat
-  ending the moderator's standing may lift, and (iii) a conferrer ending its own offer (its withdrawal of an offer
-  that seats the moderator, counted or not) may lift; then every receipt but the count's own keeps nothing.
+- A count end that lifts receipts (`lifts()`, conferral's word): a counted unseat ending the moderator's standing
+  may lift (CC 2.4.1.1 (i)); then every receipt but the count's own keeps nothing. Case (iii), a conferrer ending
+  its own offer, does not arise for a moderator's standing (see "A duty is conferred by its holders" above).
   (ii) The holder's own end never lifts: the text refuses such a row at the door (`lifts_on_own_end`), and the
   kernel, handed one, reads no lift. A moderator's lone removal lifts nothing.
 - A counted receipt that fails its count keeps nothing, and is not read as its signer's own receipt (confirmed).
@@ -63,8 +73,6 @@ Plants: `duty_gate_off` and `duty_gate_wrong_row` in the reference and the crate
 - Ruled (R5): the count's own receipt is over the persons of the room at the removal's head or later, the remover
   apart in the base as in the voices (as the overturn and the lift). Four persons with the remover one: two of
   the other three keep the removal; one does not.
-- An act also waits for a lone removal of any key whose seat its remover's standing is conferred under (a
-  `Conf::Seat` chain): such a removal decided out of force no longer cuts that seat for it.
 - Ruled: a ring of three or more concurrent lone removals, each undone by another, is read as the pair is (CC
   2.7.7 rule 5 read for a set): all out of force, all seats kept, until a person's receipt or the count's
   settles it.

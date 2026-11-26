@@ -202,8 +202,8 @@ trusting an adapter.
   count over the room's persons less the remover is met (the remover is no voice of it and not counted over). Any other room, an older head, or a
   `counted()` scope other than the persons, and it keeps nothing. A duty holder's receipt
   is void where a counted unseat of a seat that holder holds does not have the receipt in its past. An end of
-  the moderator's standing that lifts receipts states `SeatRow::lifts()`: a counted end, or a conferrer's
-  withdrawal of its own offer; then only the count's receipt keeps. The holder's own end never lifts
+  the moderator's standing that lifts receipts states `SeatRow::lifts()`: a counted end (a conferrer's
+  withdrawal of a duty seat ends nothing, so it lifts nothing); then only the count's receipt keeps. The holder's own end never lifts
   (`lifts_on_own_end`): refuse such a row at the door; handed one, the kernel reads no lift.
 - `content::answers` reads no seat row: the caller marks each roster version (`ContentRow::seat`, `SeatAt`)
   for the author. For an agent's rows mark it by its `agent` seat (in `Seats::roster`), as a member's by its

@@ -830,10 +830,10 @@ def lifts_receipts(E, lone_ids, by=None):
     withdrawal, its resignation; the text refuses such a row at the door, `lifts_on_own_end`, and the kernel, handed
     one, reads no lift). A moderator's lone removal lifts nothing."""
     if not E.get("lifts") or "lifts_unread" in MUT: return False
-    if E["kind"] == "unseat": return E.get("conf") == "group" and (E["id"] not in lone_ids or "lone_lifts" in MUT)
-    t = (by or {}).get(E.get("target")) if E["kind"] == "withdraw" else None
-    return t is not None and t["kind"] == "offer" and (E["signer"] not in t["to"] or "own_end_lifts" in MUT) \
-        and "conferrer_lift_unread" not in MUT
+    # (iii), a conferrer ending its own offer, does not arise for a moderator's standing: in a room whose record seats
+    # duty holders the holders are equals and a conferrer's withdrawal ends no duty seat; elsewhere no single key's
+    # own offer places one (CIRISConstitution#241). So only a counted unseat lifts here
+    return E["kind"] == "unseat" and E.get("conf") == "group" and (E["id"] not in lone_ids or "lone_lifts" in MUT)
 
 
 def removal_in_force(S, x, unseats, now, not_ends=frozenset(), lone_ids=frozenset()):
@@ -884,22 +884,6 @@ def removal_in_force(S, x, unseats, now, not_ends=frozenset(), lone_ids=frozense
     return True
 
 
-def standing_keys(S, x):
-    """The keys whose seats x's remover's standing rests on: the remover, and the signers up each chain of seats a
-    moderate seat of it is conferred under (`conf` seat, `under`) in x's past. A lone removal of one of them could end
-    the standing (MUTATION upstream_unread: the remover only)."""
-    keys = {x["signer"]}
-    if "upstream_unread" in MUT: return keys
-    for o in S.Cs:
-        if o["kind"] != "offer" or o.get("obj") != x["obj"] or x["signer"] not in o["to"] or o["id"] not in S.anc[x["id"]]:
-            continue
-        cur, n = o, 0
-        while cur is not None and cur.get("conf") == "seat" and n <= DEPTH:
-            keys.add(cur["signer"])
-            cur, n = S.by.get(cur.get("under")), n + 1
-    return keys
-
-
 def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
     """The lone removals among `unseats` the end rule holds out of force over S."""
     acts = [u for u in unseats if u.get("scope") == AGENT and lone_act(u, S)]
@@ -922,7 +906,7 @@ def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):
     # end of another's: CC 2.7.7 rule 5, "Two cuts by keys of equal standing that undo each other stay contested. A
     # voice that the other cannot remove settles them", read for a set (a person's receipt, or the count's).
     waits = {x["id"]: {y["id"] for y in acts if y is not x and y["obj"] == x["obj"] and y["id"] not in S.anc[x["id"]]
-                       and y["to"][0] in standing_keys(S, x)} for x in acts}
+                       and y["to"][0] == x["signer"]} for x in acts}
     decided, out = {}, set()
     while len(decided) < len(acts):
         pend = [x["id"] for x in acts if x["id"] not in decided]
@@ -1103,7 +1087,12 @@ def seat_rule(r, P, past, table=None, other=None):
     if k in ("offer", "unseat"):
         conf = r["conf"]
         if k == "offer" and _revoked_before(r, P): return False   # a revoked key does not re-seat itself (FINAL)
-        if k == "offer" and conf in ("self", "seat") and duty_seat(by, r) and not _lone(r, P, by): return False
+        # a single key's own offer of a duty (or one under its seat) concludes only where that key is the lone person
+        # duty holder: "by a strict majority of the duty holders, or by the lone holder with the new holder's
+        # acceptance" (CC 4.5.4), in every community (CIRISConstitution#241; MUTATION own_duty_ungated: duty rooms only)
+        if k == "offer" and conf in ("self", "seat") and r["obj"] != r["id"] and (duty_seat(by, r) or (
+                "own_duty_ungated" not in MUT and community(by, r["obj"]) and is_duty(r["scope"], declared(by, r["obj"])))) \
+                and not _lone(r, P, by): return False
         if k == "offer" and conf == "group" and not duty_gate(r, by): return False   # CC 4.5.4: who places a duty
         if conf == "self":
             if r["obj"] == r["id"]: return k == "offer"          # a founding row is its own object

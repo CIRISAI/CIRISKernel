@@ -193,9 +193,9 @@ pub trait SeatRow: Row {
     }
     /// On an end of a moderator's standing: it lifts the receipts of acts under the ended standing, so only the
     /// count's own receipt keeps such an act in force (conferral's [`crate::conferral::ConferralRow::lifts`]).
-    /// Honoured on a counted unseat and on a conferrer's withdrawal of its own offer that seats another (CC
-    /// 2.4.1.1); the holder's own end never lifts (`lifts_on_own_end`) and a lone removal lifts nothing. Default
-    /// `false`.
+    /// Honoured on a counted unseat (CC 2.4.1.1 (i)). Its case (iii), a conferrer ending its own offer, does not
+    /// arise for a moderator's standing (a conferrer's withdrawal of a duty seat ends nothing); the holder's own
+    /// end never lifts (`lifts_on_own_end`) and a lone removal lifts nothing. Default `false`.
     fn lifts(&self) -> bool {
         false
     }
@@ -1328,33 +1328,11 @@ fn out_of_force<R: SeatRow, S: CutSpec<R>>(
         .iter()
         .map(|&x| {
             let xr = g.row(x);
-            // the keys the remover's standing rests on: the remover, and the signers up each chain of seats a
-            // moderate seat of it is conferred under in x's past
-            let mut keys: BTreeSet<&R::Key> = core::iter::once(xr.signer()).collect();
-            for &o in c.cs() {
-                let or = g.row(o);
-                if or.seat_kind() != SeatKind::Offer
-                    || or.obj() != xr.obj()
-                    || !or.to().contains(xr.signer())
-                    || !g.in_past(o, x)
-                {
-                    continue;
-                }
-                let mut cur = Some(or);
-                for _ in 0..=law.depth {
-                    let Some(r) = cur.filter(|r| r.conf() == Some(Conf::Seat)) else { break };
-                    keys.insert(r.signer());
-                    cur = r.under().and_then(|u| by.get(u).copied());
-                }
-            }
             (0..n)
                 .filter(|&j| {
                     let y = acts[j];
                     let yr = g.row(y);
-                    y != x
-                        && yr.obj() == xr.obj()
-                        && !g.in_past(y, x)
-                        && yr.to().first().is_some_and(|k| keys.contains(k))
+                    y != x && yr.obj() == xr.obj() && !g.in_past(y, x) && yr.to().first() == Some(xr.signer())
                 })
                 .collect()
         })
@@ -1522,23 +1500,18 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
             (!cut).then_some((q, false))
         })
         .collect();
-    // an end stating `lifts` lifts every receipt but the count's own, in CC 2.4.1.1's cases: (i) a counted end;
-    // (iii) a conferrer ending its own offer (its withdrawal of an offer seating another), counted or not. (ii) The
-    // holder's own end never lifts (`lifts_on_own_end`, refused at the door; handed one, no lift is read), and a
-    // moderator's lone removal lifts nothing.
+    // an end stating `lifts` lifts every receipt but the count's own: (i) a counted end. (ii) The holder's own end
+    // never lifts (`lifts_on_own_end`, refused at the door; handed one, no lift is read), and a moderator's lone
+    // removal lifts nothing.
     let lifts = |e: usize| {
         let er = g.row(e);
         if !er.lifts() {
             return false;
         }
-        match er.seat_kind() {
-            SeatKind::Unseat => er.conf() == Some(Conf::Group) && !lone.contains(&e),
-            SeatKind::Withdraw => er
-                .target()
-                .and_then(|t| by.get(t))
-                .is_some_and(|t| t.seat_kind() == SeatKind::Offer && !t.to().contains(er.signer())),
-            _ => false,
-        }
+        // (iii), a conferrer ending its own offer, does not arise for a moderator's standing: where the record
+        // seats duty holders they are equals and a conferrer's withdrawal ends no duty seat, and elsewhere no single
+        // key's own offer places one (CIRISConstitution#241). So only a counted unseat lifts
+        er.seat_kind() == SeatKind::Unseat && er.conf() == Some(Conf::Group) && !lone.contains(&e)
     };
     let kept = |e: Option<usize>| {
         acks.iter().any(|&(q, counted)| e.is_none_or(|e| !g.in_past(e, q)) && (counted || e.is_none_or(|e| !lifts(e))))
@@ -2148,9 +2121,19 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
             if is_offer && revoked_before(law, r, p) {
                 return false; // a revoked key does not re-seat itself
             }
+            // a single key's own offer of a duty (or one under its seat) concludes only where that key is the lone
+            // person duty holder: "or by the lone holder with the new holder's acceptance" (CC 4.5.4), in every
+            // community (CIRISConstitution#241)
+            let own_duty = || {
+                r.obj().is_some_and(|o| {
+                    !founding(r)
+                        && community(&by, &o)
+                        && r.scope().is_some_and(|s| law.is_duty(s.as_ref(), &declared(&by, &o)))
+                })
+            };
             if is_offer
                 && matches!(conf, Some(Conf::Own) | Some(Conf::Seat))
-                && duty_seat(law, &by, r)
+                && (duty_seat(law, &by, r) || own_duty())
                 && !lone(law, spec, r, p, cache)
             {
                 return false;

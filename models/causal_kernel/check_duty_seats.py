@@ -61,6 +61,7 @@ Planted breaks, each of which must change a case's answer:
     unsigned_no_map     a founding row with no map seats a listed key that did not sign and accepts later
     duty_gate_off       a members' admission count confers a duty (CIRISConstitution#241)
     duty_gate_wrong_row the gate reads `counted` off the room's founding row, not the offer
+    own_duty_ungated    a single key's own offer of a duty concludes outside a duty room though it is no lone holder
 
 Not here: the count that confers or withdraws a duty seat (check_rosters.py, the duty instance); a count over a scope
 that is no duty; the term of a seat; an act done under a duty seat after it ends (conferral_end.py).
@@ -298,17 +299,26 @@ CASES = [
     (DG + "a counted removal from the roster ends the elected member's duty seat",
      GV + [admit("md", "D", ("A", "B", "C"), ("la",))] + ELECT("cd", "D", ("md",)) + [remove("xd", "D", ("A", "B", "C"), ("cd",))],
      [("D", "moderate", F), ("D", "member", F)], None),
-    (DG + "a member-only founding, handed one: a founder's own offer of moderate (not a count, not gated here) seats a "
-     "member, and a key that is no member nobody",
-     [GM, admit("md", "D", ("A", "B", "C"), ("g",)), ST.offer("cs", "A", "D", "moderate", OBJ, "self", ("md",), cosigners=("D",)),
-      ST.offer("ce", "A", "E", "moderate", OBJ, "self", ("md",), cosigners=("E",))],
-     [("D", "moderate", T), ("E", "moderate", F)], None),
+    (DG + "a member-only founding, handed one: a founder's own offer of moderate seats nobody (a single key's own offer "
+     "of a duty concludes only from the lone person duty holder, and there is none)",
+     [GM, admit("md", "D", ("A", "B", "C"), ("g",)), ST.offer("cs", "A", "D", "moderate", OBJ, "self", ("md",), cosigners=("D",))],
+     [("D", "moderate", F), ("D", "member", T)], None),
+    (DG + "a member-only founding, handed one: an election seats a member, the one way a duty is placed there",
+     [GM, admit("md", "D", ("A", "B", "C"), ("g",))] + ELECT("cd", "D", ("md",)), [("D", "moderate", T)], None),
+    (DG + "and that member's resignation ends it: a duty seat stands only on a member, in every room",
+     [GM, admit("md", "D", ("A", "B", "C"), ("g",))] + ELECT("cd", "D", ("md",)) + [ST.withdraw("wd", "D", "md", ("cd",))],
+     [("D", "moderate", F), ("D", "member", F)], None),
+    (DG + "a lone holder's own offer of a duty concludes, with the new holder's acceptance",
+     [G1, admit("md", "D", ("A",), ("g",)), ST.offer("cs", "A", "D", "moderate", OBJ, "self", ("md",), cosigners=("D",))],
+     [("D", "moderate", T)], None),
+    (DG + "a holder's own offer of a duty where it is not the lone holder concludes nothing",
+     [G, MD, ST.offer("cs", "A", "D", "moderate", OBJ, "self", ("md",), cosigners=("D",))], [("D", "moderate", F)], None),
     ("not reached: a seat the duty holders place that is no duty (a node's detector seat) stands on a key that is no member, and makes it no duty holder",
      [G, confer("cn", "N", "detect:list1", ("A", "B"), ("g",))], [("N", "detect:list1", T), ("N", "member", F), ("N", "duty", F)], None),
 ]
 PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_only", "duty_fold_unread", "holders_unread",
           "unsigned_seated", "scope_unread", "member_rule_duty_rooms_only",
-          "unsigned_no_map", "duty_gate_off", "duty_gate_wrong_row")
+          "unsigned_no_map", "duty_gate_off", "duty_gate_wrong_row", "own_duty_ungated")
 
 
 @contextlib.contextmanager

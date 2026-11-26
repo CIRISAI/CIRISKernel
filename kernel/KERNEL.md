@@ -237,7 +237,7 @@ listed member who did not sign is seated in nothing, and so is a key an entry na
 The seats end separately: a founder's withdrawal of the record naming one duty ends that seat only, and one
 naming no seat ends its stay and every duty seat it held. A seat the duty
 holders place that makes its holder no duty holder (a node's detector seat) is not asked for membership.
-**run** (`models/causal_kernel/check_duty_seats.py`): 61 cases in every arrival order, twelve planted breaks
+**run** (`models/causal_kernel/check_duty_seats.py`): 65 cases in every arrival order, thirteen planted breaks
 caught. **open**: the members' check (`moderation_overturn`) counts the objection of the duty holder whose act it is, now that
 the duty holder is a member, and the sentence that it has no say in the lift is not a rule of the table.
 **run**: five properties, each with a deliberate break that is caught. `owner` and the steward of an agent are one
@@ -490,7 +490,7 @@ moderator's lone removal and its lift in `check_agent_removal.py`. That removal 
 over the rows held: an end of the standing (the moderator's own laying down, a counted removal of it, the other
 holders' counted withdrawal of its duty) takes it out of force from the end's head on unless another duty holder's
 receipt of it is held, and the agent's key is seated again for a reader holding that end. **run**
-(`models/causal_kernel/check_removal_in_force.py`): 75 cases in arrival orders, nineteen planted breaks caught.
+(`models/causal_kernel/check_removal_in_force.py`): 71 cases in arrival orders, sixteen planted breaks caught.
 Nothing puts such a removal back in force: a moderator seated again signs it again.
 
 An adversary holding the count of an old head signs a valid version alone. A witnessed lineage answers that

@@ -83,9 +83,6 @@ plant "a lone removal's end unread"                 src/seat.rs 'None => out_of_
 plant "a remover's own receipt keeps its removal"   src/seat.rs '    duty.remove(m);
 ' ''
 plant "a removed key's receipt keeps" src/seat.rs '            (!cut).then_some((q, false))' '            Some((q, false))'
-plant "a conferrer's own end lifts nothing" src/seat.rs '                .is_some_and(|t| t.seat_kind() == SeatKind::Offer && !t.to().contains(er.signer())),' '                .is_some_and(|_| false),'
-plant "a lone removal out of force still ends a standing (cascade)" src/seat.rs 'let excl: BTreeSet<usize> = out.iter().map(|&j| acts[j]).collect();' 'let excl: BTreeSet<usize> = BTreeSet::new();'
-plant "the room's counted receipt unread" src/seat.rs 'return count_receipt(c, q, x, law, spec, cache).then_some((q, true));' 'return None;'
 plant "a failed counted receipt read as its signer's" src/seat.rs 'return count_receipt(c, q, x, law, spec, cache).then_some((q, true));' 'if count_receipt(c, q, x, law, spec, cache) {
                     return Some((q, true));
                 }'
@@ -100,14 +97,10 @@ plant "a receipt after the unseat keeps" src/seat.rs '                    && !g.
 ' '                    && !g.in_past(q, *u)
                     && !g.in_past(*u, q)
 '
-plant "a lone removal lifts" src/seat.rs 'SeatKind::Unseat => er.conf() == Some(Conf::Group) && !lone.contains(&e),' 'SeatKind::Unseat => er.conf() == Some(Conf::Group),'
-plant "the holder's own end lifts" src/seat.rs '.is_some_and(|t| t.seat_kind() == SeatKind::Offer && !t.to().contains(er.signer())),' '.is_some_and(|t| t.seat_kind() == SeatKind::Offer),'
-plant "an ordered pair read as mutual" src/seat.rs '                        && !g.in_past(y, x)
+plant "a lone removal lifts" src/seat.rs 'er.seat_kind() == SeatKind::Unseat && er.conf() == Some(Conf::Group) && !lone.contains(&e)' 'er.seat_kind() == SeatKind::Unseat && er.conf() == Some(Conf::Group)'
 ' ''
 plant "the remover left in the count's receipt's base" src/seat.rs '    mem.remove(xr.signer());
     let mut v = voices(qr, &p);' '    let mut v = voices(qr, &p);'
-plant "a seat the remover's moderate hangs under not waited for" src/seat.rs '                    keys.insert(r.signer());' '                    let _ = r;'
-plant "a mutual pair decided one then the other" src/seat.rs '                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &excl, &lone);' '                let excl: BTreeSet<usize> =
                     out.iter().chain(got.iter().filter(|(_, v)| !*v).map(|(j, _)| j)).map(|&j| acts[j]).collect();
                 let drop2: BTreeSet<R::Id> = excl.iter().map(|&y| g.row(y).id().clone()).collect();
                 let now = nows
@@ -119,6 +112,8 @@ plant "a receipt after the end keeps a removal"     src/seat.rs 'acks.iter().any
 plant "a removal at a later head than the end counts" src/seat.rs '!g.in_past(e, x) && !later(head_of(e)) && kept(Some(e))' '!g.in_past(e, x) && kept(Some(e))'
 plant "a members' count confers a duty (the gate removed)" src/seat.rs 'if is_offer && !duty_gate(law, &by, r) {' 'if false {'
 plant "the duty gate reads counted off the room" src/seat.rs 'let counted = r.counted().map_or("member", |c| c.as_ref());' 'let counted = row_of(by, &obj).and_then(|g| g.counted()).map_or("member", |c| c.as_ref());'
+plant "an ordered pair read as mutual" src/seat.rs ' && !g.in_past(y, x) && yr.to().first() == Some(xr.signer())' ' && yr.to().first() == Some(xr.signer())'
+plant "a key's own offer of a duty ungated outside a duty room" src/seat.rs '&& (duty_seat(law, &by, r) || own_duty())' '&& duty_seat(law, &by, r)'
 plant "two live owners still give an owner"          src/standing.rs 'Ok(true) => drop(out.insert(x.id().clone(), Answer::Nobody(Nobody::TwoOwners))),' 'Ok(true) => at.push((x, b)),'
 plant "a remover seated again revives its removal"   src/seat.rs '    if now.stands(m, "moderate", &obj, None)
         && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s))' '    if now.stands(m, "moderate", &obj, None)
