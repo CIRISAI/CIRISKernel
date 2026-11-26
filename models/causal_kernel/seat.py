@@ -952,9 +952,12 @@ def count_met(r, P, past, table=None):
         gone = frozenset() if "ballot_withdrawal_unread" in MUT else frozenset(
             w["target"] for w in K.sel(P, kind="withdraw")
             if w["target"] in by and by[w["target"]]["kind"] == "ballot" and w["signer"] == by[w["target"]]["signer"])
+        # a ballot ranking a key that holds no seat of the roster at the heads is not counted, the whole ballot (CC 3.1.4
+        # `ballot:moderator`: "A ballot naming ... a non-member is kept and not counted"; its guard, each rank a member)
+        roster = members_at(P, past, r.get("over", r["obj"]), heads, r.get("counted", "member"))
         ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot")
                    if (b["id"] in r["names"] or "ballot_unnamed" in MUT) and (b["signer"] in vot or "ballot_any_signer" in MUT)
-                   and b["id"] not in gone]
+                   and b["id"] not in gone and (set(b["ranking"]) <= roster or "ballot_nonmember_ranked" in MUT)]
         # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
         won = RANKED(ballots, list(r["options"]), declared="election_declared" in MUT)[0]
         if "election_any_winner" in MUT: return k == "offer" and bool(ballots) and won is not None

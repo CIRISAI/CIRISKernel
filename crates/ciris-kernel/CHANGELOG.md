@@ -18,6 +18,12 @@ beyond the ballot count").
   counted, so a seating over it could conclude (and one with a withdrawn disagreeing ballot could not). A
   withdrawal beside the row, not in its past, is not read; another key's withdrawal of a ballot concludes nothing.
   Four cases; one plant in each language.
+- **A ballot ranking a non-member is not counted** (CC 3.1.4 `ballot:moderator`: "A ballot naming ... a non-member
+  is kept and not counted"; its guard, each rank a member). A ballot ranking a key that holds no seat of the counted
+  scope (`member`) at the heads the row names is not counted, the whole ballot. **An answer changes**: before, a
+  ranked key that was no option was passed over and the ballot counted for its next choice. Read so: an agent's key
+  (it holds `agent`) is no member, and a member at the head whose leaving is in the row's past still is (an OPEN
+  row in `check_election.py`, with its candidate answers). Four cases; one plant in each language.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

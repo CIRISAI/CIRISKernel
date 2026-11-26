@@ -1918,10 +1918,16 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
             p.rows()
                 .any(|w| w.seat_kind() == SeatKind::Withdraw && w.target() == Some(b.id()) && w.signer() == b.signer())
         };
+        // a ballot ranking a key that holds no seat of the roster at the heads is not counted, the whole ballot
+        // (CC 3.1.4 `ballot:moderator`: "A ballot naming ... a non-member is kept and not counted")
+        let over = r.over().unwrap_or(obj);
+        let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
+        let roster = members_at_with(p, law, spec, &over, r.head(), counted, cache);
         let ballots: Vec<(R::Key, Vec<R::Key>)> = p
             .rows()
             .filter(|b| b.seat_kind() == SeatKind::Ballot && r.names().contains(b.id()) && mem.contains(b.signer()))
             .filter(|b| !gone(b))
+            .filter(|b| b.ranking().iter().all(|k| roster.contains(k)))
             .map(|b| (b.signer().clone(), b.ranking().to_vec()))
             .collect();
         // the one ranked row is the election, which declares no order: a tie for weakest seats nobody

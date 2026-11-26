@@ -14,7 +14,8 @@ then stands as any duty seat does, only while its holder is a member (check_duty
 What is counted (seat.count_met, its ranked arm):
     the ballots the row names, each from a key the count is over (the persons at the head the row names, less a
     key whose own leaving is in the row's past): an agent's ballot, a non-member's and an unnamed one count for
-    nothing; a ballot whose signer's withdrawal of it is in the row's past is none; one ballot per key (two different rankings by one key are none, CC 4.5.13 "a person whose ballots
+    nothing; a ballot whose signer's withdrawal of it is in the row's past is none; a ballot ranking a key that holds
+    no seat of the counted scope (`member`) at the heads the row names is not counted, the whole ballot; one ballot per key (two different rankings by one key are none, CC 4.5.13 "a person whose ballots
     disagree has none"); the floor is two ballots, or fewer where there are fewer options; a tie for weakest seats
     nobody (an election declares no order).
 
@@ -30,6 +31,7 @@ Planted breaks, each of which must change a case's answer:
     election_declared   the election's count breaks a tie for weakest by the order of the row's options
     election_any_winner the row concludes where the count yields any winner, not the key it seats
     ballot_withdrawal_unread  a ballot its signer withdrew in the row's past still counts
+    ballot_nonmember_ranked   a ballot ranking a key with no roster seat at the heads counts, the key skipped
 
     python3 -I check_election.py      exit 1 on any difference
 """
@@ -131,6 +133,21 @@ CASES = [
     ("a ballot the seating does not name is not counted: the seating names B's ballot only, which names A's",
      [G3, ballot("ba", "A", "B"), ballot("bb", "B", "B", ("ba",)), elect("el", "B", ("bb",), M3)],
      NOMOD("B"), "the ballot set"),
+    ("a ballot ranking a key the room does not seat is not counted, the whole ballot: one ballot is under the floor",
+     [G3, ballot("ba", "A", "XB"), ballot("bb", "B", "B"), elect("el", "B", ("ba", "bb"), M3)],
+     NOMOD("A", "B"), "who may stand"),
+    ("a ballot ranking an agent's key (which holds `agent`, no member seat) is not counted: one ballot is under the floor",
+     [G3, admit("ax", "X", ("A", "B"), ("g",), "agent"), ballot("ba", "A", "XB", ("ax",)),
+      ballot("bb", "B", "B", ("ax",)), elect("el", "B", ("ba", "bb"), M3, heads=("ax",))],
+     NOMOD("A", "B") + [("X", "agent", T)], "who may stand"),
+    ("a ballot ranking a key admitted after the head the seating names is not counted",
+     [G3, ballot("ba", "A", "XB"), ballot("bb", "B", "B"), admit("ax", "X", ("A", "B"), ("g",)),
+      elect("el", "B", ("ba", "bb"), M3, cites=("ax",))],
+     NOMOD("A", "B") + [("X", "member", T)], "who may stand"),
+    ("and counted at a head after the admission: two ballots, B is seated",
+     [G3, admit("ax", "X", ("A", "B"), ("g",)), ballot("ba", "A", "XB", ("ax",)), ballot("bb", "B", "B", ("ax",)),
+      elect("el", "B", ("ba", "bb"), M3, heads=("ax",))],
+     MOD("B"), "who may stand"),
     # ---- one ballot a person -----------------------------------------------------------------------------------------
     ("two different ballots by one member are none: B's one ballot is under the floor",
      [G3, ballot("ba", "A", "B"), ballot("ba2", "A", "C"), ballot("bb", "B", "B"),
@@ -184,6 +201,16 @@ OPEN = [
      "roster) | C (the members no ballot names are no standing candidates, and the count runs as over A, B and C). "
      "Over a roster of n with every member voting and no first-round majority, two members with no first choice is "
      "the common case, so under the first reading a runoff seldom decides."),
+    ("OPEN: a ballot ranking first a member who left, its leaving in the seating's past: C, a member at the head, "
+     "resigns; A ranks C then B, B ranks B; over the options B and D the model counts A's ballot and seats B",
+     [G4, ST.withdraw("wc", "C", "g", ("g",)), ballot("ba", "A", "CB"), ballot("bb", "B", "B"),
+      elect("el", "B", ("ba", "bb"), ("B", "D"), cites=("wc",))],
+     MOD("B") + [("C", "member", F)], "a candidate who leaves",
+     "B (the electorate and the candidates are the roster the election names, CC 4.5.13 'A member leaving while the "
+     "room is locked therefore changes nothing about the election'; the model's answer) | nobody (a ballot ranking a "
+     "key that is no member when the count is read is void, CC 3.1.4's guard read at the count; one ballot is then "
+     "under the floor). Whether the leaver's own ballot counts is open too: the model leaves it out (a count is "
+     "not taken over a key whose own leaving is in its past)."),
 ]
 
 
@@ -198,7 +225,8 @@ def planted(plant):
         ST.MUT.clear(); ST.MUT |= saved
 
 
-PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_any_winner", "ballot_withdrawal_unread")
+PLANTS = ("ballot_any_signer", "ballot_unnamed", "election_declared", "election_any_winner", "ballot_withdrawal_unread",
+          "ballot_nonmember_ranked")
 
 
 def answers(rows, asks, plant=None, arrive=False):
