@@ -315,18 +315,19 @@ def seat_cases():
     rules = {id(A.SEAT): "seat", id(A.WIN): "window", id(A.ROUTE): "route"}
     seen, scen, skipped = {}, [], {"rules": 0}
 
-    def record(rows, rule, asks=None, table=None, open_next=False):
+    def record(rows, rule, asks=None, table=None, wait_close=False, closed=None):
         """`asks`: (key, scope, object) the scenario also states `stands` for. `table`: read under another HOLDS
-        (check_duty_seats.py's `persist`); the scenario then carries its own `holds`. `open_next`: read with the
-        election's open-case alternative on (ST.ELECTION_OPEN_NEXT); the scenario carries `open_next`."""
+        (check_duty_seats.py's `persist`); the scenario then carries its own `holds`. `wait_close`: read under the
+        election's candidate rule E3 replaced (ST.ELECTION_WAIT_CLOSE); the scenario carries `wait_close`.
+        `closed`: a seating whose election's close the scenario states (`closed`)."""
         name = rules.get(id(rule))
         if name is None:
             skipped["rules"] += 1
             return
-        key = (name, table, open_next, json.dumps([row_enc(r) for r in rows], sort_keys=True))
+        key = (name, table, wait_close, closed, json.dumps([row_enc(r) for r in rows], sort_keys=True))
         if key not in seen:
             seen[key] = True
-            scen.append((name, list(rows), list(asks or ()), table, open_next))
+            scen.append((name, list(rows), list(asks or ()), table, wait_close, closed))
 
     orig_conc = A.conc
 
@@ -364,10 +365,12 @@ def seat_cases():
     # the moderator election (C1 to C5): check_election.py's cases, its open cases, and those read with the open
     # case's alternative on
     import check_election as EL
-    for _name, rows, asks, _item in EL.CASES + [o[:4] for o in EL.OPEN]:
+    for _name, rows, asks, _item in EL.CASES:
         record(rows, A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks])
-    for _name, rows, asks, _item in EL.NEXT_CASES:
-        record(rows, A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks], open_next=True)
+    for _name, rows, asks, _item in EL.WAIT_CASES:
+        record(rows, A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks], wait_close=True)
+    for _name, rows, seating, _want in EL.CLOSE_CASES:
+        record(rows, A.SEAT, closed=seating)
     # a moderator's lone removal of an agent's key and the members' lift (CC 4.5.13): check_agent_removal.py's cases,
     # under the window rule (the removal is the opener of its own window; every other row goes to the seat rule)
     import check_agent_removal as AR
@@ -407,9 +410,9 @@ def seat_cases():
         record(rows, A.SEAT)
     rulefn = {"seat": A.SEAT, "window": A.WIN, "route": A.ROUTE}
     problems, out = [], []
-    for i, (name, rows, asks, tab, open_next) in enumerate(scen):
+    for i, (name, rows, asks, tab, wait_close, closed) in enumerate(scen):
         check_rows(rows, problems, "scenario %d" % i)
-        with DS.table(tab), EL.planted(None, open_next):
+        with DS.table(tab), EL.planted(None, wait_close):
             S = CK.concluded(CK.kept(list(rows)), rulefn[name])
             refs = {}
             e = {"rule": name, "rows": with_refs(rows, refs), "refs": refs, "a": enc(seat_answers(S, ST, WN, CUT, CP))}
@@ -418,8 +421,10 @@ def seat_cases():
                 e["stands"] = [[k, sc, o, Q.stands(k, sc, o)] for k, sc, o in asks]
             if tab:
                 e["holds"] = enc(ST.HOLDS)
-            if open_next:
-                e["open_next"] = True
+            if wait_close:
+                e["wait_close"] = True
+            if closed:
+                e["closed"] = [closed, EL.closed(rows, closed)]
         out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,

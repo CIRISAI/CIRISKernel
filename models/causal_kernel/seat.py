@@ -607,7 +607,10 @@ def own_keys(by, obj):
 #       seating stood under C4 in the receipt's own past; one say per person, read causally. Once closed, no rival
 #       seating counts.
 ELECTION_RANKS = 3               # "Each person ranks up to three": a ballot ranking more is void, the whole ballot
-ELECTION_OPEN_NEXT = False       # the alternative of the open case: an unclosed seating whose holder ended is an id
+# E3 (ruled): once its holder's seat has ended, a seating that stood (C4) and never closed names the next election,
+# C3 deciding between rival ids by past. ELECTION_WAIT_CLOSE: the candidate rule E3 replaced (no next election until
+# the earlier closes or its seating is beaten), kept to show what it does
+ELECTION_WAIT_CLOSE = False
 _EMEMO = {}
 
 
@@ -618,7 +621,7 @@ def is_election(o, table=None):
 
 
 def _memo(tag, row, f):
-    key = (tag, id(row), frozenset(MUT), ELECTION_OPEN_NEXT)
+    key = (tag, id(row), frozenset(MUT), ELECTION_WAIT_CLOSE)
     got = _EMEMO.get(key)
     if got is None or got[0] is not row:
         got = _EMEMO[key] = (row, f())
@@ -730,10 +733,12 @@ def closure(Ek, rows, past, obj):
     acks = [a for a in rows if a["kind"] == "ack" and a.get("of") in seat_ids]
     by_p = {}
     for a in acks: by_p.setdefault(a["signer"], []).append(a)
-    says = {}
+    says, mute = {}, set()
     for p, rs in by_p.items():
         first = rs if "say_any_receipt" in MUT else [a for a in rs if not any(past(b["id"], a["id"]) for b in rs if b is not a)]
-        if len({view(seat_ids[a["of"]])[2] for a in first}) != 1 and "say_any_receipt" not in MUT: continue
+        if len({view(seat_ids[a["of"]])[2] for a in first}) != 1 and "say_any_receipt" not in MUT:
+            mute.add(p)                # E2: no say, and still in the base (MUTATION equivocator_out)
+            continue
         for a in first:
             A = _past_of(rows, past, a)
             here = _seatings_of(Ek, A, past, obj)
@@ -744,27 +749,42 @@ def closure(Ek, rows, past, obj):
     for group, rs in says.items():
         S = next(q for q in seat_ids.values() if view(q)[2] == group)
         el, winner = view(S)[1], S["to"][0]
-        left = set()
+        # E1: a key that has departed (left, or been removed, not seated again) in a receipt's past is out of the base
+        gone = set()
         for a in rs:
-            left |= count_left(_past_of(rows, past, a), past, obj, "member")
-        base = el - {winner} - (frozenset() if "close_leavers_kept" in MUT else left)
+            gone |= departed(_past_of(rows, past, a), past, obj)
+        base = el - {winner} - (frozenset() if "close_leavers_kept" in MUT else gone)
+        if "equivocator_out" in MUT: base = base - mute
         yes = {a["signer"] for a in rs} & base
         if 2 * len(yes) > len(base) or not base: return group
-    # one member: its seating, standing, closes itself
-    for q in seat_ids.values():
+    # a room of one, or one whose every other elector has departed (E1, the limit): a standing seating closes itself
+    here = list(seat_ids.values())
+    st = c4_standing(here, {x["id"]: view(x)[2] for x in here})
+    gone = frozenset() if "close_leavers_kept" in MUT else departed(rows, past, obj)
+    for q in here:
         el = view(q)[1]
-        if el and not (el - {q["to"][0]}):
-            A = _past_of(rows, past, q) + [q]
-            here = _seatings_of(Ek, A, past, obj)
-            if q["id"] in c4_standing(here, {x["id"]: view(x)[2] for x in here}):
-                return view(q)[2]
+        if q["id"] in st and el and not (el - {q["to"][0]} - gone):
+            return view(q)[2]
     return None
+
+
+def departed(P, past, obj):
+    """The keys that have left the room (their own leaving) or been removed from its roster (a counted unseat of
+    their roster seat) in P, and not been seated again after it there."""
+    out = set(count_left(P, past, obj, "member"))
+    for u in P:
+        if u["kind"] == "unseat" and u.get("obj") == obj and u.get("scope") in ROSTER_SEATS and u.get("conf") == "group":
+            for k in u["to"]:
+                if not any(m["kind"] == "offer" and m.get("obj") == obj and k in m["to"] and roster_seat(m)
+                           and past(u["id"], m["id"]) for m in P):
+                    out.add(k)
+    return frozenset(out)
 
 
 def valid_id(E, r, P, past, by):
     """C3 and C5: id row E names an election for row r, read in r's past P: the room's founding row, or a seating of
-    the room that closed its own election in r's past. The open case's alternative (ELECTION_OPEN_NEXT): a seating of
-    the room that stands under C4 in r's past and whose seat has ended there."""
+    the room that closed its own election in r's past, or (E3) a seating of the room that stood under C4 in r's past
+    and whose seat has ended there (not under ELECTION_WAIT_CLOSE, the candidate rule E3 replaced)."""
     e = by.get(E)
     obj = r.get("obj")
     if e is None or "election_id_any" in MUT: return e is not None
@@ -772,10 +792,24 @@ def valid_id(E, r, P, past, by):
     if not (is_election(e) and e.get("obj") == obj): return False
     v = _view(P, past, e)
     if closure(v[0], P, past, obj) == v[2]: return True
-    if ELECTION_OPEN_NEXT:
+    if not ELECTION_WAIT_CLOSE and "wait_close" not in MUT:
         here = _seatings_of(v[0], P, past, obj)
         return e["id"] in c4_standing(here, {x["id"]: _view(P, past, x)[2] for x in here}) and vacancy(e, P, past) is not None
     return False
+
+
+def superseded(E, r, P, past, by):
+    """E3, C3: election E is no longer the room's for row r where a seating of it that stood (C4) in r's past, and
+    whose seat has ended there, names the next election (r must name that one). Under ELECTION_WAIT_CLOSE, only a
+    closed seating does."""
+    e = by.get(E)
+    obj = r.get("obj")
+    if e is None or "superseded_unread" in MUT: return False
+    Ek = ekey(e, P, past)
+    if ELECTION_WAIT_CLOSE or "wait_close" in MUT: return closure(Ek, P, past, obj) is not None
+    here = _seatings_of(Ek, P, past, obj)
+    st = c4_standing(here, {x["id"]: _view(P, past, x)[2] for x in here})
+    return any(vacancy(x, P, past) is not None for x in here if x["id"] in st)
 
 
 def election_beaten(rows, past):
@@ -787,6 +821,10 @@ def election_beaten(rows, past):
         if is_election(q): groups.setdefault((q.get("obj"), _view(rows, past, q)[0]), []).append(q)
     for (obj, Ek), el in groups.items():
         sets = {x["id"]: _view(rows, past, x)[2] for x in el}
+        if "id_read_whole" in MUT:                 # MUTATION: a seating's id read over the whole set, not its past
+            dead = {x["id"] for x in el if x.get("of") in {q["id"] for q in rows}
+                    and not valid_id(x["of"], x, rows, past, {q["id"]: q for q in rows})}
+            out |= dead
         grp = closure(Ek, rows, past, obj)
         if grp is not None and "closed_rivals_count" not in MUT:
             out |= {x["id"] for x in el if sets[x["id"]] != grp}
@@ -800,7 +838,7 @@ def election_count(r, P, past, by):
     """The seating's count (C1, C2, C5 and the carried-over ballot rules), over its concluded past P."""
     E, obj = r.get("of"), r["obj"]
     if r["kind"] != "offer" or not r.get("to") or E not in by: return False
-    if not valid_id(E, r, P, past, by): return False
+    if not valid_id(E, r, P, past, by) or superseded(E, r, P, past, by): return False
     # C2: no person holds a duty over the room in the seats over the whole past
     Q = seats_of(P)
     if "c2_holder_unread" not in MUT and Q.holders("duty", obj) - Q.holders(AGENT, obj): return False

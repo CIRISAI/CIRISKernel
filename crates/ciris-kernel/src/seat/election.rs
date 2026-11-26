@@ -21,8 +21,8 @@
 //!   seating that stood under C4 in each receipt's own past; one say per person, read causally. Once closed, no
 //!   rival seating counts, and the next election is named by the closed seating.
 use super::{
-    concluded_over, founding, persons_at_with, roster_word, seat_scopes, signed_by, Conf, MembersAt, Obj, ObjOf,
-    Policy, SeatKind, SeatLaw, SeatRow, Seats, AGENT,
+    concluded_over, founding, left_in_past, persons_at_with, roster_offer, roster_word, seat_scopes, signed_by, Conf,
+    MembersAt, Obj, ObjOf, Policy, SeatKind, SeatLaw, SeatRow, Seats, AGENT,
 };
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
@@ -246,13 +246,16 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             }
         }
         let mut says: BTreeMap<BTreeSet<R::Id>, Vec<usize>> = BTreeMap::new();
-        for rs in by_p.values() {
+        // E2: a person whose earliest receipts are of different sets has no say, and stays in the base
+        let mut mute: BTreeSet<&R::Key> = BTreeSet::new();
+        for (p, rs) in &by_p {
             // a person's say: its earliest receipts; of different sets, no say
             let first: Vec<usize> =
                 rs.iter().copied().filter(|&a| !rs.iter().any(|&b| b != a && g.in_past(b, a))).collect();
             let sets: BTreeSet<BTreeSet<R::Id>> =
                 first.iter().filter_map(|&a| seat_of(a)).map(|s| self.view(s).2).collect();
             if sets.len() != 1 {
+                mute.insert(*p);
                 continue;
             }
             for &a in &first {
@@ -271,9 +274,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             let Some(winner) = self.row(s).to().first() else { continue };
             let mut base = el.clone();
             base.remove(winner);
+            // E1: a key departed (left, or removed, and not seated again) in a receipt's past is out of the base
             for &a in rs {
                 let p = self.past(a);
-                for k in super::left_in_past(&Past::new(g, a, &p), obj, "member") {
+                for k in self.departed(a, &p, obj) {
                     base.remove(&k);
                 }
             }
@@ -282,26 +286,73 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                 return Some(group.clone());
             }
         }
-        // one member: its seating, standing, closes itself
+        // a room of one, or one whose every other elector has departed (E1, the limit): a standing seating closes
+        // itself
+        let st = self.standing(&seats);
+        let gone = match rows.last() {
+            Some(&anchor) => self.departed(anchor, rows, obj),
+            None => BTreeSet::new(),
+        };
         for &q in &seats {
             let v = self.view(q);
             let Some(w) = self.row(q).to().first() else { continue };
-            if !v.1.is_empty() && v.1.iter().all(|k| k == w) {
-                let mut a = self.past(q);
-                a.push(q);
-                a.sort_unstable();
-                let here = self.seatings_of(ek, &a, obj);
-                if self.standing(&here).contains(&q) {
-                    return Some(v.2);
-                }
+            if st.contains(&q) && !v.1.is_empty() && v.1.iter().all(|k| k == w || gone.contains(k)) {
+                return Some(v.2);
             }
         }
         None
     }
 
+    /// The keys that have left the room (their own leaving) or been removed from its roster (a counted unseat of
+    /// their roster seat) among `p`, and not been seated again after it there. `anchor`: a row of the set whose
+    /// past `p` is read as (only `p` is read).
+    fn departed(&self, anchor: usize, p: &[usize], obj: &ObjOf<R>) -> BTreeSet<R::Key> {
+        let g = &self.c.g;
+        let mut out = left_in_past(&Past::new(g, anchor, p), obj, "member");
+        for &u in p {
+            let ur = self.row(u);
+            let roster = ur.scope().is_some_and(|s| self.law.roster_seats.iter().any(|x| x == s.as_ref()));
+            if ur.seat_kind() != SeatKind::Unseat
+                || ur.obj().as_ref() != Some(obj)
+                || !roster
+                || ur.conf() != Some(Conf::Group)
+            {
+                continue;
+            }
+            for k in ur.to() {
+                let again = p.iter().any(|&m| {
+                    let mr = self.row(m);
+                    mr.seat_kind() == SeatKind::Offer
+                        && mr.obj().as_ref() == Some(obj)
+                        && mr.to().contains(k)
+                        && roster_offer(self.law, mr)
+                        && g.in_past(u, m)
+                });
+                if !again {
+                    out.insert(k.clone());
+                }
+            }
+        }
+        out
+    }
+
+    /// E3, C3: the election id row `ei` names is no longer the room's for row `ri` (read over its past `p`) where
+    /// a seating of it that stood (C4) there, and whose seat has ended there, names the next election; under
+    /// [`SeatLaw::election_wait_close`], where a seating closed it.
+    fn superseded(&self, ei: usize, p: &[usize]) -> bool {
+        let Some(obj) = self.row(ei).obj() else { return false };
+        let ek = self.ekey(ei);
+        if self.law.election_wait_close {
+            return self.closure(&ek, p, &obj).is_some();
+        }
+        let here = self.seatings_of(&ek, p, &obj);
+        let st = self.standing(&here);
+        here.iter().any(|&x| st.contains(&x) && self.vacancy(x, p).is_some())
+    }
+
     /// C3 and C5: id row `ei` names an election for row `ri`, read over `ri`'s past `p`: the founding row, or a
-    /// seating of the room that closed its own election there (or, under [`SeatLaw::election_open_next`], one that
-    /// stands under C4 there and whose seat has ended there).
+    /// seating of the room that closed its own election there, or (E3) one that stands under C4 there and whose seat
+    /// has ended there (not under [`SeatLaw::election_wait_close`]).
     fn valid_id(&self, ei: usize, ri: usize, p: &[usize]) -> bool {
         let e = self.row(ei);
         let Some(obj) = self.row(ri).obj() else { return false };
@@ -316,7 +367,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         if self.closure(ek, p, &obj).as_ref() == Some(&v.2) {
             return true;
         }
-        self.law.election_open_next && {
+        !self.law.election_wait_close && {
             let here = self.seatings_of(ek, p, &obj);
             self.standing(&here).contains(&ei) && self.vacancy(ei, p).is_some()
         }
@@ -377,7 +428,7 @@ pub(super) fn count<R: SeatRow, S: CutSpec<R>>(
     let Some(ri) = sub.g.idx(r.id()) else { return false };
     let past = cx.past(ri);
     let Some(ei) = cx.idx(e).filter(|ei| past.binary_search(ei).is_ok()) else { return false };
-    if !cx.valid_id(ei, ri, &past) {
+    if !cx.valid_id(ei, ri, &past) || cx.superseded(ei, &past) {
         return false;
     }
     // C2: no person holds a duty over the room in the seats over the whole past
@@ -407,7 +458,7 @@ pub(super) fn count<R: SeatRow, S: CutSpec<R>>(
         return false;
     }
     let pp = Past::new(&sub.g, ri, &past);
-    let left = super::left_in_past(&pp, &obj, "member");
+    let left = left_in_past(&pp, &obj, "member");
     let voters: BTreeSet<R::Key> = el.iter().filter(|k| !left.contains(*k)).cloned().collect();
     let rows: Vec<&R> = past.iter().map(|&q| sub.g.row(q)).collect();
     let gone: BTreeSet<&R::Id> = rows
@@ -442,4 +493,22 @@ pub(super) fn count<R: SeatRow, S: CutSpec<R>>(
     let cands: Vec<R::Key> = voters.iter().filter(|k| !declined.contains(k)).cloned().collect();
     let won = ranked(&ballots, &cands, 2, false).0;
     won.as_ref() == Some(winner) && r.signer() == winner
+}
+
+/// Whether the election seating `seating` names (by id, a concluded row of `c`) is closed over `c` by the seatings
+/// over `seating`'s own set (C5): the causal close, read over every concluded row.
+pub fn election_closed<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    seating: &R::Id,
+) -> bool {
+    let memo = MembersAt::<R>::default();
+    let cx = Ctx { c, law, spec, memo: &memo };
+    let Some(si) = cx.idx(seating) else { return false };
+    let r = cx.row(si);
+    let (true, Some(obj)) = (is_election(law, r), r.obj()) else { return false };
+    let (ek, _, set) = cx.view(si);
+    let Some(ek) = ek else { return false };
+    cx.closure(&ek, c.cs(), &obj).as_ref() == Some(&set)
 }

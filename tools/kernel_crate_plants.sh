@@ -299,6 +299,13 @@ plant "a ballot ranking more than three counts" src/seat/election.rs '          
 ' ''
 plant "a seating signed by another than the winner concludes" src/seat/election.rs 'won.as_ref() == Some(winner) && r.signer() == winner' 'won.as_ref() == Some(winner)'
 plant "the fold counts an election's seating as a plain count" src/seat.rs 'Some(Policy::Ranked) => true, // an election' 'Some(Policy::Ranked) => false, // an election'
+plant "E3: an unclosed seating that stood and ended names no next election" src/seat/election.rs '!self.law.election_wait_close && {' 'false && {'
+plant "E3, C3: an election superseded by its ended seating still takes rows" src/seat/election.rs 'if !cx.valid_id(ei, ri, &past) || cx.superseded(ei, &past) {' 'if !cx.valid_id(ei, ri, &past) {'
+plant "E2: an equivocator out of the closing base" src/seat/election.rs '            base.remove(winner);' '            base.remove(winner);
+            base.retain(|k| !mute.contains(k));'
+plant "C3: a seating's id read over the whole set" src/seat/election.rs 'out.extend(el.iter().copied().filter(|q| !keep.contains(q)));' 'out.extend(el.iter().copied().filter(|q| {
+                !keep.contains(q) || self.row(*q).of().and_then(|e| self.idx(e)).is_some_and(|e| !self.valid_id(e, *q, &rows))
+            }));'
 plant "act_of: the election's seating read as a conferral" src/seat.rs '                if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {' '                if false {'
 plant 'act_of: a detector seat read as no act'          src/seat.rs '            if sc == "detect" || sc.starts_with("detect:") {' '            if false {'
 plant 'act_of: the recall read as the withdrawal'       src/seat.rs 'let act = if law.is_duty(counted, &declared) { Act::DutyWithdraw } else { Act::Recall };' 'let act = Act::DutyWithdraw;'

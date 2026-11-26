@@ -96,7 +96,8 @@ migrations, and the local operational store.
   vacancy, not at a head;
 - each member's receipt of the seating as `SeatKind::Ack` with `of()` the seating: a strict majority of the
   electorate, the winner apart, closes the election. Present the next election's rows naming the closed seating.
-- Leave `SeatLaw::election_open_next` `false` unless the Constitution rules the alternative.
+- Leave `SeatLaw::election_wait_close` `false` (E3, ruled). A room re-closes an election an equivocator reopened
+  by removing it by count and a receipt after the removal.
 
 ## Points to settle before adoption
 

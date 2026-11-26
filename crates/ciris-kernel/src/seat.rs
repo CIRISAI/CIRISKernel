@@ -53,7 +53,7 @@ use alloc::vec::Vec;
 use core::cell::RefCell;
 
 mod election;
-pub use election::ELECTION_RANKS;
+pub use election::{election_closed, ELECTION_RANKS};
 
 /// What a seat is over: a row (a group is the row that founded it) or a key.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -363,10 +363,10 @@ pub struct SeatLaw {
     /// The kind of an object, from its founding row's scope (`member` and `duty`: a community; `holder`: an
     /// accord; `self`: a self roster). A key object is a self roster. An object with no kind has no act.
     pub kinds: BTreeMap<String, CommunityKind>,
-    /// The open case of the election (CIRISConstitution#241, not ruled): `false`, the candidate rule (no next
-    /// election until the earlier closes or its seating is beaten); `true`, the alternative (an unclosed seating
-    /// whose holder has ended names the next election).
-    pub election_open_next: bool,
+    /// The election's next id (CIRISConstitution#241, E3, ruled): `false` (the rule), once its holder's seat has
+    /// ended a seating that stood and never closed names the next election; `true`, the candidate rule E3 replaced
+    /// (no next election until the earlier closes or its seating is beaten), kept to show what it does.
+    pub election_wait_close: bool,
 }
 
 impl SeatLaw {

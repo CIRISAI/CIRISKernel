@@ -4,7 +4,8 @@
 
 **The moderator election, rebuilt on C1 to C5** (CC 4.5.13; CC 4.5.4 (v) and rule 2; CIRISConstitution#241). The
 election is back in this tag. **BREAKING**: `SeatKind::Decline` (a new variant; an exhaustive match must add it),
-`SeatLaw::election_open_next` (a new field; an exhaustive struct literal must add it). The presentation changes:
+`SeatLaw::election_wait_close` (a new field; an exhaustive struct literal must add it), and
+`seat::election_closed`. The presentation changes:
 - An election is named by its id row: the room's founding row, or the closed seating of the election before. A
   ballot (`SeatKind::Ballot`, `ranking()` best first) and a decline (`SeatKind::Decline`) are a member's own rows,
   each naming its election by `of()`. The seating is a counted offer of `moderate` under `Policy::Ranked`, signed
@@ -26,17 +27,26 @@ election is back in this tag. **BREAKING**: `SeatKind::Decline` (a new variant; 
   seating counts, and the next election is named by the closed seating. A room of one: its seating closes itself.
   The close is not monotone: a member whose receipt was needed reopens the election by a concurrent receipt of
   a rival (ruled; shown by a case).
-- The open case (not ruled): a seating that stood, never closed, and fell vacant. `election_open_next` `false`
-  (the default, the candidate rule): the next election is the first again, its electorate fixed at the first
-  vacancy, so a member admitted since never votes, and a room whose whole first electorate has left can never seat
-  anyone. `true`: such a seating names the next election.
+- E1: a leaver (left, or removed by count, and not seated again) is out of C5's closing base, read in each
+  receipt's past; with everyone but the winner gone the seating closes itself.
+- E2: an equivocator's two receipts are no say and it stays in the base; the election is open again for everyone
+  alike, and a seating that stood stands while no rival contains it. The way back: remove the equivocator by count,
+  and a receipt after the removal reads it out of the base. A close holds while no receipter it needs has said two
+  things.
+- E3: once its holder's seat has ended, a seating that stood and never closed names the next election, and C3
+  decides between rival ids by past: a row of an election one of whose seatings stood and ended in its past
+  concludes nothing (the next election is that seating's). The cost, shown by a case: two concurrent seatings each
+  read alone open two next elections, both seat, until one id's standing is settled in the other's past.
+  `election_wait_close` `true` reads the candidate rule E3 replaced (no next election until the earlier closes or
+  its seating is beaten; a member admitted since never votes; a room whose first electorate has left is locked).
 - Carried over: a ballot ranking a key outside the electorate, a leaver or more than three (`ELECTION_RANKS`) is
   void, the whole ballot; a ballot its signer withdrew is none; a decline strikes its signer; the floor of two
   ballots; a tie for weakest seats nobody.
 - Removed: the LARGER reading (sizes by persons and rows), the seating's heads and options, and the test that no
   holder outside the election's seatings is live (C2 replaces it).
-- The reference: `models/causal_kernel/check_election.py`, 54 cases, 3 more behind `ELECTION_OPEN_NEXT`, 2 open,
-  every one in arrival orders and in the `seat` fixture; 20 planted breaks, each a crate plant too. The rule is
+- The reference: `models/causal_kernel/check_election.py`, 52 cases, 15 of the close read directly
+  (`seat::election_closed`), 4 under `ELECTION_WAIT_CLOSE`, every one in arrival orders and in the `seat` fixture;
+  24 planted breaks, each a crate plant too. The rule is
   `seat/election.rs`.
 
 **A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
