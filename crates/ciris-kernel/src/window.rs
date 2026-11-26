@@ -522,6 +522,11 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
         if wr.seat_kind() != SeatKind::Withdraw {
             continue;
         }
+        // a withdrawal naming a duty lays that seat down: the key's seat on the roster, and so its voice, stands
+        let roster = |s: &str| s == "member" || law.roster_seats.iter().any(|r| r == s);
+        if wr.scope().is_some_and(|s| !roster(s.as_ref())) {
+            continue;
+        }
         if let Some(o) = wr.target().and_then(|t| g.idx(t)).map(|t| g.row(t)) {
             if o.seat_kind() == SeatKind::Offer && o.obj().as_ref() == Some(&obj) {
                 let ks = if o.to().contains(wr.signer()) {

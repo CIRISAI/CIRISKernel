@@ -2077,6 +2077,22 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
     mem
 }
 
+/// CC 4.5.4: a duty seat is placed only by the founding record, by "the duty holders of C, counted under line
+/// (iv)", or by "the members' count under line (v)", which "is the election of rule 2". So a counted offer of a
+/// duty scope over a community concludes only where it is counted over the duty holders ([`SeatRow::counted`] a
+/// duty) or is an election's acceptance ([`Policy::Ranked`]). A members' count under an admission-style policy
+/// confers no duty, whether or not a duty holder lives (CIRISConstitution#241). A seat that makes its holder no
+/// duty holder (a node's detector seat) is not reached.
+fn duty_gate<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, r: &R) -> bool {
+    let (Some(obj), Some(s)) = (r.obj(), r.scope()) else { return true };
+    let declared = declared(by, &obj);
+    if !community(by, &obj) || !law.is_duty(s.as_ref(), &declared) {
+        return true;
+    }
+    let counted = r.counted().map_or("member", |c| c.as_ref());
+    law.is_duty(counted, &declared) || law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked)
+}
+
 /// A counted row's count ([`Conf::Group`]), met over `p`: the lift, the ranked tally, the duty count, or the
 /// policy's threshold over the persons at the heads the row names. [`seat_rule`]'s group arm, after a
 /// moderator's lone removal is read.
@@ -2157,6 +2173,9 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     r.under().and_then(|u| by.get(u)).is_some_and(|u| u.to().contains(r.signer()))
                 }
                 Some(Conf::Group) => {
+                    if is_offer && !duty_gate(law, &by, r) {
+                        return false; // CC 4.5.4: a duty is placed by its holders' count or an election
+                    }
                     if !is_offer && lone_removal(r, p, law, spec, cache) {
                         return true; // CC 4.5.13: a moderator, an agent's key
                     }

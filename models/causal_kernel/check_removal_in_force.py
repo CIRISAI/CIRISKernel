@@ -330,17 +330,18 @@ CASES = [
     ("two tips with a receipt of the removal by another holder: in force",
      W + [X, receipt("q2", "p2", "x"), remove("xp", "p1", ("p2", "p3"), ("ag",))], {"x": T, "xp": T}, P23, []),
 ]
-# a room founded with members only: Z (an agent) is conferred moderate by the members' count with sub-delegation,
-# and confers moderate on the agent M under that seat; p1 is conferred moderate too
+# a room founded with members only, handed one (the text refuses it at the door, founding_duty_holders_unnamed; a
+# members' count confers no duty there, CIRISConstitution#241): p1's own offers, which are no count, give Z (an
+# agent) moderate with sub-delegation and p1 moderate; Z confers moderate on the agent M under its seat. In a room
+# whose record names its holders the same chain cannot arise: a conferral under one's own seat there is the lone
+# holder's, and an agent is no holder that rule reads
 R5 = [ST.found("g", "p1", ("p1", "p2", "p3", "p4"), {"moderate": ("p1",)}, cosigners=("p2", "p3", "p4")),
       admit("ag", "AG", ("p1", "p2", "p3", "p4"), ("g",), "agent"), lone("x", "p1", "AG", ("ag",))]
 MG3 = ST.offer("g", "p1", ("p1", "p2", "p3"), "member", "@", "self", cosigners=("p2", "p3"))
 UP = [MG3, ST.offer("ags", "p1", ("Z", "M", "AG"), "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
                     cosigners=("p2", "p3", "Z", "M", "AG")),
-      ST.offer("cz", "p1", "Z", "moderate", OBJ, "group", ("ags",), head=("ags",), policy="community_invite",
-               cosigners=("p2", "p3", "Z"), sub=True),
-      ST.offer("cp", "p1", "p1", "moderate", OBJ, "group", ("cz",), head=("cz",), policy="community_invite",
-               cosigners=("p2", "p3")),
+      ST.offer("cz", "p1", "Z", "moderate", OBJ, "self", ("ags",), cosigners=("Z",), sub=True),
+      ST.offer("cp", "p1", "p1", "moderate", OBJ, "self", ("cz",)),
       ST.offer("cm", "Z", "M", "moderate", OBJ, "seat", ("cp",), under="cz", cosigners=("M",))]
 UPX = [lone("x", "M", "AG", ("cm",)), lone("y", "p1", "Z", ("cm",))]
 

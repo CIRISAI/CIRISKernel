@@ -272,6 +272,8 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
         # the rows that ended a seat over the object, with the keys each ended
         gone = [(frozenset(u["to"]), u) for u in K.sel(S.Cs, kind="unseat") if u["obj"] == p["obj"] and C.counts(u)]
         for w in K.sel(S.Cs, kind="withdraw"):
+            # a withdrawal naming a duty lays that seat down: the key's seat on the roster, and so its voice, stands
+            if w.get("scope") is not None and w["scope"] not in ST.ROSTER_SEATS: continue
             o = S.by.get(w["target"])
             if o is not None and o["kind"] == "offer" and o["obj"] == p["obj"]:
                 gone.append((frozenset({w["signer"]}) if w["signer"] in o["to"] else frozenset(o["to"]), w))

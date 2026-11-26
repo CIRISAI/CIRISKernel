@@ -60,11 +60,11 @@ What ends a seat.
                `member` over the community. Nothing revives: a later admission does not seat an offer so ended. A
                conferral that is not in the end's past (made after it, or beside it) waits for the next admission
                like any conferral on a non-member. At tips the duty seat follows the folded roster.
-               Over every community, whatever its founding row seats (a room founded with members only, whose
-               members' count confers a duty, included), and only a seat that makes its holder a duty holder
-               (`duty`, a named duty, a duty the record declares): another seat, a node's detector seat for one,
-               is not asked for membership. Who may confer a duty is unchanged: the duty holders' count or the
-               lone holder where the founding row seats duty holders (duty_seat), the room's count otherwise.
+               Over every community, whatever its founding row seats, and only a seat that makes its holder a duty
+               holder (`duty`, a named duty, a duty the record declares): another seat, a node's detector seat for
+               one, is not asked for membership. Who may place a duty (CC 4.5.4): the founding record, the duty
+               holders' count (or the lone holder, duty_seat), or the members' election (the ranked tally); a
+               members' admission count places none (duty_gate, CIRISConstitution#241).
 
 An AI agent's key (CC 4.5.13). An agent "acts under its own key and has no vote"; "a recall and an election count
 its persons alone". "No single key removes a member alone, and no duty holder removes another from the roster
@@ -1067,6 +1067,19 @@ def _ender(r, P, by):
     return sole.one(up["scope"], r["obj"]) == r["signer"]
 
 
+def duty_gate(r, by, table=None):
+    """CC 4.5.4: a duty seat is placed only by the founding record, by "the duty holders of C, counted under line
+    (iv)", or by "the members' count under line (v)", which "is the election of rule 2". So a counted offer of a duty
+    scope over a community concludes only where it is counted over the duty holders (`counted` a duty) or is an
+    election's acceptance (the ranked tally). A members' count under an admission-style policy confers no duty,
+    whether or not a duty holder lives (CIRISConstitution#241). A seat that makes its holder no duty holder (a node's
+    detector seat) is not reached. (MUTATION duty_gate_off; duty_gate_wrong_row: `counted` read off the room.)"""
+    if "duty_gate_off" in MUT or not community(by, r["obj"]) or not is_duty(r["scope"], declared(by, r["obj"])): return True
+    src = by.get(r["obj"], {}) if "duty_gate_wrong_row" in MUT else r
+    if is_duty(src.get("counted", "member"), declared(by, r["obj"])): return True
+    return K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked"
+
+
 def count_met(r, P, past, table=None):
     """A counted row's count (conf=group), met over its concluded ancestors P: the lift, the ranked tally, the duty
     count, or the policy's threshold over the persons at the heads it names."""
@@ -1091,6 +1104,7 @@ def seat_rule(r, P, past, table=None, other=None):
         conf = r["conf"]
         if k == "offer" and _revoked_before(r, P): return False   # a revoked key does not re-seat itself (FINAL)
         if k == "offer" and conf in ("self", "seat") and duty_seat(by, r) and not _lone(r, P, by): return False
+        if k == "offer" and conf == "group" and not duty_gate(r, by): return False   # CC 4.5.4: who places a duty
         if conf == "self":
             if r["obj"] == r["id"]: return k == "offer"          # a founding row is its own object
             if k == "unseat" and founding_many(by, r["obj"]): return False    # among several founding keys, ending a seat takes the count

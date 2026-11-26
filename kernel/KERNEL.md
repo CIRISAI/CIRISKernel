@@ -223,7 +223,9 @@ covers 18 of them, three are read off the row judged (`author`, `self`, `subject
 founding record seats the duty holders who sign it, and they are equals (CC 4.5.4). A duty seat is conferred
 by a strict majority of the duty holders, or by the lone holder with the new holder's acceptance. It is
 withdrawn by a strict majority of the others, never on fewer than two voices where there are two holders.
-A duty seat stands only on a member, in every room whatever its founding row seats: it stands only where its
+A duty is placed only by the founding record, by the duty holders' count, or by the members' election (CC 4.5.4,
+"The members' count that seats a holder is the election of rule 2"): a members' admission count confers none
+(CIRISConstitution#241). A duty seat stands only on a member, in every room whatever its founding row seats: it stands only where its
 holder holds the roster's seat over the same community at the same reading, so a conferral on a key that is not a member seats nobody and is no voice in a
 duty count, and it stands with no further row when the key's widening lands. An end of the holder's stay as a
 member, its own resignation or a counted removal, ends the duty seats whose offers are in that end's past, and
@@ -235,7 +237,7 @@ listed member who did not sign is seated in nothing, and so is a key an entry na
 The seats end separately: a founder's withdrawal of the record naming one duty ends that seat only, and one
 naming no seat ends its stay and every duty seat it held. A seat the duty
 holders place that makes its holder no duty holder (a node's detector seat) is not asked for membership.
-**run** (`models/causal_kernel/check_duty_seats.py`): 58 cases in every arrival order, ten planted breaks
+**run** (`models/causal_kernel/check_duty_seats.py`): 61 cases in every arrival order, twelve planted breaks
 caught. **open**: the members' check (`moderation_overturn`) counts the objection of the duty holder whose act it is, now that
 the duty holder is a member, and the sentence that it has no say in the lift is not a rule of the table.
 **run**: five properties, each with a deliberate break that is caught. `owner` and the steward of an agent are one
@@ -654,7 +656,7 @@ What that leaves, each **run** with its witness:
 | A landing over an objection that never reached the concluder | a relay between objector and concluder; no key | as long as the eclipse; ends when any concluder lands naming both |
 | The concluder's own clock | any one key holding the concluder's seat | a lone window has no length against a lying concluder; ends when the target or a counted key signs and a landing names both |
 | A stale proposal forcing the tips to wait | a member below the count holding a stale honest proposal on any past head | one flood per pocketed proposal; each ends with a merge by the count; a reader that acknowledged a merge is not moved by a later flood from below it |
-| An invariant of the form "at least one" | two honest keys acting concurrently | 'at least one' is kept by no rule of the kernel; for a community the text gives the way back: with no duty holder left the room locks and the members' count seats one (CC 4.5.4) |
+| An invariant of the form "at least one" | two honest keys acting concurrently | 'at least one' is kept by no rule of the kernel; for a community the text gives the way back: with no duty holder left the room locks and the members' election seats one (CC 4.5.4) |
 | A fork by the count of an old head | keys that met the count at an old head, signing one version | only against a reader with no acknowledgement of its own: its roster is the keys common to the two lines (nobody), for good |
 | The same, by leaked keys of removed members | whoever holds removed keys that once met a count | only against a reader with no acknowledgement of its own, as test 18 |
 | A new reader's first view | whoever controls a new reader's first view | until the reader withdraws its own rows; its own acknowledgement makes the wrong head stick |

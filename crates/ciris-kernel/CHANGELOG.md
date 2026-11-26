@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+**A duty is conferred by its holders, the founding record or an election** (CC 4.5.4; CIRISConstitution#241). This
+follows #48. **Answers of 0.4.0 change.** `seat::seat_rule`: a counted offer of a duty scope over a community
+concludes only where it is counted over the duty holders (`SeatRow::counted` a duty) or is an election's acceptance
+(`Policy::Ranked`). A members' count under an admission-style policy (`community_invite`, counted `member`) confers
+no duty, whether or not a duty holder lives. A conferral under a holder's own seat (`Conf::Seat`, `Conf::Own`) is no
+count and is not reached by this gate. No signature changes.
+- Changed answers, `check_duty_seats.py`: "the same conferral on a member seats it" (a member-only room's members'
+  count of moderate on D) seated D and now seats nobody; the member-only cases that rested on it ("that member
+  resigns", "re-admitted after that, nothing revives", "a counted removal from the roster ends the member's
+  moderate seat") are rebuilt on a room whose one founding moderator has laid the duty down, where an election
+  seats a member and the members' count seats none. One member-only case stays, stated as "handed one".
+- `check_agent_removal.py` world A: its moderator was conferred `moderate` by the members' count; it is now the
+  founding moderator's own count (`duty_confer`), the founder then laying its duty down. No answer of world A
+  changes.
+- `check_removal_in_force.py`: the two cases of a moderate seat hanging under another (Z's) were built on
+  members' counts; they are now built on a member-only room's founder's own offers (handed one). In a room whose
+  record names its holders the chain cannot arise: a conferral under one's own seat there is the lone holder's,
+  and an agent is no holder that rule reads. Their answers are unchanged.
+- `check_rosters.py`: the property "when no duty holder is left the members' count seats one (and one member
+  does not)" is now "when no duty holder is left an election seats one, and the members' admission count none
+  (and one ballot does not)".
+- `window::outcome`: a withdrawal naming a duty (a founder laying it down) no longer marks its signer's later
+  answers as a departed key's: its roster seat stands. No case had one before.
+- Not built: a founding record one key signs that names no duty holder (the text: that signer holds every
+  declared duty) seats that key in `member` and no duty, as before.
+Plants: `duty_gate_off` and `duty_gate_wrong_row` in the reference and the crate.
+
 **A moderator's lone removal: the four receipt items** (CIRISConstitution#218, pin list). New: one trait method,
 `SeatRow::lifts` (default `false`), additive. Answers change only for rows no case had before:
 - No cascade: a lone removal that is out of force ends no standing. A moderator's lone removal whose signer is an

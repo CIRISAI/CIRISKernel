@@ -156,6 +156,10 @@ trusting an adapter.
   `SeatLaw::holds["duty"]` containing `member` that seat is its membership, so its withdrawal ends both.
 - A duty conferred after the founding is a counted row: an Offer, `Conf::Group`, policy `duty_confer`, counted
   `duty`, over the head it extends. Its holder lays it down by withdrawing that offer.
+- A duty is placed by the founding record, a counted Offer counted over the duty holders (`counted()` a duty,
+  `duty_confer`), or an election's acceptance (`Policy::Ranked`). A members' admission count (`community_invite`,
+  `counted()` `member`) of a duty scope concludes nothing (CIRISConstitution#241), whether or not a duty holder
+  lives. Where no holder is left, present the election.
 - A duty seat is live only on a member, in every room, whatever its founding row seats (a room founded with
   members only included). Present the widening that admits a key before, or with, the conferral
   on it: a conferral on a key that is not yet a member seats nobody, with no error, and is live once the
