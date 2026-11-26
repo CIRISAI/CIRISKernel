@@ -91,6 +91,13 @@ fn seat_scenarios() {
             law: SeatLaw { holds: h.obj().iter().map(|(k, v)| (k.clone(), v.strs())).collect(), ..w.law.clone() },
             windows: w.windows.clone(),
         });
+        // a scenario read with the election's open-case alternative on carries `open_next`
+        let own_law = own_law.or_else(|| {
+            sc.get("open_next").map(|_| World {
+                law: SeatLaw { election_open_next: true, ..w.law.clone() },
+                windows: w.windows.clone(),
+            })
+        });
         let w = own_law.as_ref().unwrap_or(&w);
         let c = conclude(kept(&rows, |_| true), |p| w.rule(&name, p), None);
         let mut cmp = |ok: bool, what: String| {

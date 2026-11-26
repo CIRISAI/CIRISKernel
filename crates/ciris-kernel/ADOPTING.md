@@ -12,7 +12,7 @@ One trait, [`Row`](src/lib.rs), and for each answer persist asks, the spec trait
 | Trait | What persist supplies | From |
 |---|---|---|
 | `Row` | `Id` = `persist_row_hash` (or the `RowId([u8; 32])` of KERNEL_SEAMS §5.2); `Key` = key id; `names()` = every digest the row's signed bytes name; `signer()` = `attesting_key_id` | `Attestation` (`federation/types.rs:1632`): `persist_row_hash` `:1669`, `attesting_key_id` `:1636`; the named digests are `references_attestation_id` (`federation/precedence.rs:71`), `prev_head_digest` and `charter_digest` on a group version (`federation/types.rs:3191`, `:3200`) |
-| `seat::SeatRow` | the kind (offer, accept, withdraw, unseat, cosign, ballot, ack), `to`, `scope`, `obj`, `conf`, `under`, `cosigners`, `subjects`, `head`, `policy` | `attestation_type` `:1642`; `subject_key_ids` `:1684`; `additional_scrubs` (verified cosignatures) `:1768`; the body members the family's grammar names |
+| `seat::SeatRow` | the kind (offer, accept, withdraw, unseat, cosign, ballot, decline, ack), `to`, `scope`, `obj`, `conf`, `under`, `cosigners`, `subjects`, `head`, `policy` | `attestation_type` `:1642`; `subject_key_ids` `:1684`; `additional_scrubs` (verified cosignatures) `:1768`; the body members the family's grammar names |
 | `cut::CutSpec` | the slots a row is on and cuts, and what it says | the family tables (`family_model.json`); the slot of a seat is `(seat, key, scope, object)` |
 | `window::WindowRow` | the opener's window name, an answer's word, a landing's receipt and its signer's own instant | the window families; the instant is the signed `asserted_at` of one signer, compared only with that signer's own (`:1647`) |
 | `key_end::KeyEndRow` | a key record's `valid_from`, `valid_until`, the old key of a rotation and the signatures it carries | `KeyRecord` (`federation/types.rs:1343`): `valid_from` `:1362`, `valid_until` `:1365`, `identity_type` `:1358` (persist maps it to `EndRule`) |
@@ -80,8 +80,19 @@ migrations, and the local operational store.
   policy rows it may take: ask these rather than keeping a list of your own.
 - The windows' specs (`window::WindowSpec`, chosen by a row's `window()` name) stay the caller's: no act binding
   reads them in this tag.
-- The election's seating is the one act read from the policy the row states (`Policy::Ranked`). The election is
-  not answered safely by this tag: a caller must not rely on a ranked seating.
+- The election's seating is the one act read from the policy the row states (`Policy::Ranked`).
+
+**The moderator election** (C1 to C5; CHANGELOG). Present:
+- each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` its election's id row: the
+  room's founding row for the first election, then the closed seating of the one before;
+- a decline as `SeatKind::Decline`, `of()` its election;
+- the winner's own seating: an Offer of `moderate`, `Conf::Group`, policy `moderator_election`, signed by the
+  winner, `to()` the winner, `of()` its election, naming its set (the ballots, the voters' own withdrawals of
+  their ballots, the declines). **No `head()`**, no `options()`: the electorate is read at the election's
+  vacancy, not at a head;
+- each member's receipt of the seating as `SeatKind::Ack` with `of()` the seating: a strict majority of the
+  electorate, the winner apart, closes the election. Present the next election's rows naming the closed seating.
+- Leave `SeatLaw::election_open_next` `false` unless the Constitution rules the alternative.
 
 ## Points to settle before adoption
 

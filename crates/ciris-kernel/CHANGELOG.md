@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+**The moderator election, rebuilt on C1 to C5** (CC 4.5.13; CC 4.5.4 (v) and rule 2; CIRISConstitution#241). The
+election is back in this tag. **BREAKING**: `SeatKind::Decline` (a new variant; an exhaustive match must add it),
+`SeatLaw::election_open_next` (a new field; an exhaustive struct literal must add it). The presentation changes:
+- An election is named by its id row: the room's founding row, or the closed seating of the election before. A
+  ballot (`SeatKind::Ballot`, `ranking()` best first) and a decline (`SeatKind::Decline`) are a member's own rows,
+  each naming its election by `of()`. The seating is a counted offer of `moderate` under `Policy::Ranked`, signed
+  by the winner (its acceptance), `to()` the winner, `of()` its election, naming the rows it is counted over (its
+  set). **It names no head, and `options()` is not read.** A receipt of a seating is a `SeatKind::Ack` whose
+  `of()` is that seating.
+- C1: the electorate (persons) and the candidates are read at the vacancy the id row defines: every end, in the
+  reading row's past, of a seat the id row gave (the founding row itself where it gives none); a member admitted
+  after the vacancy neither votes nor stands; a leaver is no voice and no candidate.
+- C2: a seating concludes only where no person holds a duty over the room in the seats over its whole past, and
+  no row of a later election is in its past.
+- C3: an id row's standing is read in the naming row's past.
+- C4: CONTAINS replaces LARGER: a seating stands only where its set contains every other seating's set of its
+  election (two over equal sets are one seat: the holder's withdrawal of either ends it, and an election named by
+  either is one election); sets not nested seat nobody until a seating over the union.
+- C5: the causal close: a strict majority of the electorate, the winner and the leavers apart, receipting one
+  seating that stood under C4 in each receipt's own past, one say per person read causally (two concurrent
+  receipts of different sets by one person are no say; a later one counts for nothing). Once closed, no rival
+  seating counts, and the next election is named by the closed seating. A room of one: its seating closes itself.
+  The close is not monotone: a member whose receipt was needed reopens the election by a concurrent receipt of
+  a rival (ruled; shown by a case).
+- The open case (not ruled): a seating that stood, never closed, and fell vacant. `election_open_next` `false`
+  (the default, the candidate rule): the next election is the first again, its electorate fixed at the first
+  vacancy, so a member admitted since never votes, and a room whose whole first electorate has left can never seat
+  anyone. `true`: such a seating names the next election.
+- Carried over: a ballot ranking a key outside the electorate, a leaver or more than three (`ELECTION_RANKS`) is
+  void, the whole ballot; a ballot its signer withdrew is none; a decline strikes its signer; the floor of two
+  ballots; a tie for weakest seats nobody.
+- Removed: the LARGER reading (sizes by persons and rows), the seating's heads and options, and the test that no
+  holder outside the election's seatings is live (C2 replaces it).
+- The reference: `models/causal_kernel/check_election.py`, 54 cases, 3 more behind `ELECTION_OPEN_NEXT`, 2 open,
+  every one in arrival orders and in the `seat` fixture; 20 planted breaks, each a crate plant too. The rule is
+  `seat/election.rs`.
+
 **A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
 
 - `seat::left_in_past` read a key's own leaving and ignored a later admission, unlike `stay_ended_in_past`. So
@@ -219,8 +256,7 @@ no answer of any case changes.
   `policy_for(law, act, scope, kind)` is the store's query: the policy rows an act may take, and whether the row
   chooses.
 - **The one act read from the stated policy**: an offer of a duty under the ranked count (`Policy::Ranked`) is the
-  election's seating. **The election is not answered safely by this tag, and a caller must not rely on a ranked
-  seating** (CIRISConstitution#241: the election is out of 0.5.0).
+  election's seating (the election is answered by C1 to C5: see its entry above).
 - **BREAKING for an exhaustive struct literal of `SeatLaw`**: two new fields. `acts: Option<Vec<ActRule>>` is
   `None` where a law binds no act to a policy: the behaviour before, with the binding left to the caller.
   `kinds` maps a founding row's scope to an object's kind. The seat fixture's law carries `Some(acts)` and the

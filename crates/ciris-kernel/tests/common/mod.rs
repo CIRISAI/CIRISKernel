@@ -434,6 +434,7 @@ impl SeatRow for TRow {
             "unseat" => SeatKind::Unseat,
             "cosign" => SeatKind::Cosign,
             "ballot" => SeatKind::Ballot,
+            "decline" => SeatKind::Decline,
             "ack" => SeatKind::Ack,
             // an objection in a window is presented as a voice for the row it answers (seat::lift_voices)
             "answer" if self.says.as_deref() == Some("object") => SeatKind::Cosign,
