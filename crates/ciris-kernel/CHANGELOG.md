@@ -372,11 +372,8 @@ changes.
     in no base, as an agent's seat is.
   - A node's seat over a community is no act the table binds: it concludes nothing there. Whether a node's seat
     needs its own consent is the room-key lane's rule.
-- **Not built:**
-  - a later change of a room's protocol: `record_change` is not built, and only the founding record is read;
-  - `SeatRow::regime()`, which is the protocol and policy in force as ONE value a counted row states, compared at
-    tips, is not yet compared with the record's protocol.
-  - The duty gate's own policy check and the other narrow gates stay as they are until step 4.
+- Built in later steps: a change of a room's protocol and `SeatRow::regime()` (step 5), and the narrow gates
+  (step 4).
 - The reference: `check_acts.py`'s 16 refusal cases, each with the table and without, and four planted breaks in
   `seat.py` (the binding, the stated policy, the protocol, the cohort_subkind). `tests/acts.rs` replays them.
   Five plants in the crate.
@@ -391,6 +388,29 @@ told what act it is by the policy a row states.
   recall's exclusion keys on `Policy::Recall`, the threshold the fixed `moderator_recall` row maps to.
 - One case in `check_acts.py`, one planted break in `seat.py`, two in the crate. No other answer of any case
   changes.
+
+**The act-to-policy binding, step 5: a change of the room's protocol, and the regime.**
+- **A change of the record** is the act `record_change`: a counted offer of scope `record` over a community
+  (`ScopeClass::Record`), counted under one of the table's listed paths. `cosigned_act` is the protocol in force
+  in its own past. A change that states `consensus_protocol` changes the room's protocol.
+- **The protocol in force** (`seat::protocol_of(p, obj)`, which now takes the row's past `p`): the newest change
+  in the row's own past, or the founding record's. A row that names the change, or has it in its past, is
+  counted under the new protocol; a row beside it is counted under the old one. Where the newest changes
+  disagree (two concurrent changes naming different protocols), no protocol is in force, and the row concludes
+  nothing under `cosigned_act` or `community_remove`. A seat outlasts a change of protocol (CC 4.5.4): no seat is
+  judged again under the new one. The notice `hard_case:community_consensus_protocol_change` is the caller's to
+  emit.
+- **The regime.** A counted row's regime is the room's protocol in force in its past, once the binding reads it.
+  Each act's own policy is fixed by the table, so it is no part of the room's regime.
+  - Tips that differ in it wait at the fold: tips on either side of a change of protocol do not fold, and tips
+    of an admission and a conferral do.
+  - A stated `SeatRow::regime()` is a consistency check only: one other than the protocol in force concludes
+    nothing.
+  - With no acts table the stated regime is read as before.
+- **Answers change**: a removal or a `cosigned_act` admission naming a change is counted under the changed
+  protocol, and tips across a change wait.
+- The reference: `check_acts.py` has seven protocol-change cases, two tip cases, four planted breaks, and an act
+  case and a query for `record_change`; all are in the fixtures. Four plants in the crate.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
 

@@ -87,7 +87,11 @@ migrations, and the local operational store.
   `community_remove`, `Policy::Protocol`) is counted under the room's declared protocol.
 - Present a community's founding record with its declared protocol (`SeatRow::consensus_protocol()`), a word
   your law's policy map names, and its `cohort_subkind()` (`infrastructure` for an infrastructure community). With none, the room concludes no removal and no
-  `cosigned_act` admission. Read it with `seat::protocol_of(get, obj)` rather than from any other row.
+  `cosigned_act` admission. Read it with `seat::protocol_of(p, obj)` (the row's past) rather than from any other
+  row: it gives the newest change of the record there (a counted `record` offer carrying `consensus_protocol`),
+  or the founding record's. Emit the notice `hard_case:community_consensus_protocol_change` for a change.
+- A counted row's `regime()`, where you state one, must be the protocol in force in its past, or it concludes
+  nothing; the kernel derives the regime it waits on at tips.
 - A node's seat (`seat::NODE`) over an infrastructure community is on the roster, no voice and in no base.
 - The store's query: `seat::policy_for(law, act, scope, kind)` gives the policy rows an act may take and whether
   the row chooses. `seat::act_of(law, get, row)` gives a row's act; `seat::kind_of` gives an object's kind.

@@ -356,6 +356,12 @@ def seat_cases():
     import check_readmit as RA
     for _name, rows, asks, _item in RA.CASES:
         record(rows, A.SEAT, [(k, sc, RA.OBJ) for k, sc, _ in asks])
+    # the act-to-policy binding: check_acts.py's refusal cases and its tips across a change of protocol
+    import check_acts as ACT
+    for _name, rows, _rid, _wb, _wu in ACT.CONCLUDE:
+        record(rows, A.SEAT)
+    for _name, rows, asks in ACT.TIPS:
+        record(rows, A.SEAT, [(k, sc, ACT.OBJ) for k, sc, _ in asks])
     # the members' recall of a duty holder: check_recall.py's cases, under the seat rule
     import check_recall as RC
     for _name, rows, asks in RC.CASES:

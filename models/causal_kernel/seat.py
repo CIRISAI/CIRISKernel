@@ -255,6 +255,8 @@ def act_of(r, by, is_key=False):
         # a detector seat (CC 4.5.7: `detect:{list id}`, conferred and "withdrawn by the count of (iv)"): no declared duty
         if (sc == "detect" or sc.startswith("detect:")) and "detect_unread" not in MUT:
             return ("seat_confer" if offer else "seat_withdraw", "detect", kind)
+        # a change of the community's record (its consensus_protocol, say): the act record_change
+        if sc == "record" and offer and "record_unread" not in MUT: return ("record_change", "record", kind)
         dec = declared(by, obj)
         if not is_duty(sc, dec): return None
         if offer:
@@ -276,12 +278,36 @@ def act_of(r, by, is_key=False):
     return None
 
 
+def is_amendment(q, obj):
+    """A change of community obj's record that states its consensus_protocol: a counted offer of scope `record` over
+    obj (the act record_change), carrying the new protocol."""
+    return q["kind"] == "offer" and q.get("conf") == "group" and q.get("obj") == obj and q.get("scope") == "record" \
+        and q.get("consensus_protocol") is not None
+
+
 def protocol_of(by, obj):
-    """The room's declared protocol in a row's past (`by`: the rows of that past): the `consensus_protocol` its founding
-    record states, or None. A later change of the record is not read (the protocol change is step 5)."""
+    """The room's declared protocol in force in a row's past (`by`: the concluded rows of that past): the
+    `consensus_protocol` of the newest amendment of the record there (a counted change of the object, so a row that
+    has it in its past has it in force), or the founding record's. None where the founding record states none, or
+    where the newest amendments disagree (two concurrent changes naming different protocols: none is in force).
+    A seat outlasts a change of protocol: no seat is judged again under the new one (CC 4.5.4)."""
     g = by.get(obj)
     if g is None or g["kind"] != "offer" or g.get("obj") != g["id"]: return None
-    return g.get("consensus_protocol")
+    am = [q for q in by.values() if is_amendment(q, obj)] if "amendment_unread" not in MUT else []
+    if not am: return g.get("consensus_protocol")
+    anc = {q["id"]: K.ancestors(by, q["id"]) for q in am}
+    newest = [q for q in am if not any(q["id"] in anc[x["id"]] for x in am)]
+    words = {q["consensus_protocol"] for q in newest}
+    return words.pop() if len(words) == 1 else None
+
+
+def regime_of(r, by):
+    """The regime a counted row is counted under, once the binding reads it: the room's protocol in force in its past
+    (protocol_of). Each act's own policy is fixed by the acts table, so it is no part of the room's regime: tips of an
+    admission and a conferral fold, and tips on either side of a change of protocol do not. With the binding off, the
+    row's stated `regime`."""
+    if not BOUND or "regime_stated" in MUT: return r.get("regime")
+    return protocol_of(by, r.get("obj"))
 
 
 BOUND = True            # the seat rule reads the acts table; the roster instances (roster.py) are not bound yet
@@ -293,8 +319,8 @@ def policy_in_force(r, by):
     row's act (act_of) and the acts table: a fixed act's one row (the row may state it or none), or the row's own
     choice among those listed; a counted row over an object with a kind whose act has no row, or that states another
     policy, is REFUSED. A protocol row (cosigned_act, community_remove) is counted under the founding record's protocol
-    (protocol_of), never one the row states, and REFUSED where the record states none. A row that states a regime
-    other than that protocol is REFUSED. With the binding off, the row's own policy, a protocol row read the same way."""
+    (protocol_of), never one the row states, and REFUSED where the record states none. With the binding off, the row's
+    own policy, a protocol row read the same way."""
     stated = r.get("policy")
     word = stated
     if BOUND and "binding_off" not in MUT:
@@ -311,6 +337,9 @@ def policy_in_force(r, by):
         else:
             if stated not in pols and "stated_policy_free" not in MUT: return REFUSED
             word = stated
+        # a stated regime is a consistency check: it must be the room's protocol in force in the row's past
+        if r.get("regime") is not None and r.get("regime") != protocol_of(by, r.get("obj")) and "regime_unread" not in MUT:
+            return REFUSED
     if K.rule(POLICY, word, ("unknown",))[0] == "protocol" and "protocol_unread" not in MUT:
         proto = protocol_of(by, r.get("obj"))
         if proto is None: return REFUSED
@@ -817,7 +846,8 @@ class Seats:
             in       a key some tip adds is in where the counted offer that adds it meets its count on the voices
                      of keys the fold seats, over the members at its heads that the fold seats: a least fixed
                      point from the common keys;
-            wait     tips that differ in protocol or policy (a counted row's `regime`, where the caller states one)
+            wait     tips that differ in protocol or policy (regime_of: the protocol in force in a tip's past and its
+                     policy in force, once the binding reads them; with the binding off, a row's stated `regime`)
                      do not fold: the answer is then the common keys, as tips_common gives."""
         tp = self.tips(o)
         if len(tp) <= 1: return None
@@ -835,7 +865,8 @@ class Seats:
             lines.append((t, sub, {q["id"] for q in sub}, seated))
         common = frozenset.intersection(*[frozenset(sd) for _, _, _, sd in lines])
         union = frozenset.union(*[frozenset(sd) for _, _, _, sd in lines])
-        if len({t.get("regime") for t, _, _, _ in lines}) > 1 and "regime_folds" not in MUT:
+        if len({regime_of(t, {q["id"]: q for q in sub if q["id"] != t["id"]}) for t, sub, _, _ in lines}) > 1 \
+                and "regime_folds" not in MUT:
             memo[(s, o)] = common
             return common
 

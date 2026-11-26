@@ -20,6 +20,10 @@ Planted breaks, each of which must change a case's answer:
     protocol_unread     a protocol row (cosigned_act, community_remove) is counted as a row-declared threshold
     gate_reads_stated   the duty gate reads the stated policy, not the one in force (step 4)
     subkind_unread      a community record's cohort_subkind is not read: no infrastructure community
+    amendment_unread    a change of the record's protocol is not read: the founding protocol stays in force (step 5)
+    record_unread       a change of the record is no act (record_change unread): it concludes nothing (step 5)
+    regime_unread       a stated regime other than the protocol in force is not refused (step 5)
+    regime_stated       tips are read by their stated regime, not the protocol in force: tips across a change fold
 
     python3 -I check_acts.py      exit 1 on any difference
 """
@@ -106,6 +110,9 @@ CASES = [
      [GI, grp("r", "offer", "m1", "member", "community_invite", cosigners=("f2", "m1"))], "r", None),
     ("a node's seat over a community is the community's admission of a roster seat, which the table does not bind",
      [GM, grp("r", "offer", "n1", "node", "community_invite", cosigners=("B",))], "r", ("admit", "node", "community")),
+    ("a change of a community's record is record_change", [GM, grp("r", "offer", (), "record", "cosigned_act",
+                                                                    consensus_protocol="one")], "r",
+     ("record_change", "record", "community")),
     ("a row that is not counted is no act", [GM, ST.offer("r", "A", "D", "member", OBJ, "seat", ("g",), under="g")], "r", None),
     ("an object that is a row and no founding row has no kind",
      [CK.row("q", "note", "A", ()), grp("r", "offer", "D", "member", "community_invite", heads=(), obj="q", cites=("q",))], "r", None),
@@ -129,6 +136,7 @@ QUERIES = [
     (("admit", "founder", "infrastructure"), (("cosigned_act",), "fixed")),
     (("remove", "node", "infrastructure"), (("cosigned_act",), "fixed")),
     (("admit", "node", "community"), None),
+    (("record_change", "record", "community"), (("cosigned_act", "default_standing", "default_content", "default_irreversible"), "row")),
     (("admit", "member", "accord"), None),
     (("recall", "duty", "self"), None),
 ]
@@ -137,6 +145,8 @@ QUERIES = [
 GM4 = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"))      # two thirds
 GMJ = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), consensus_protocol="majority")
 GN = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), consensus_protocol=None)
+AM1 = grp("am", "offer", (), "record", "cosigned_act", cosigners=("B", "C"), consensus_protocol="one")   # to "one"
+RM_A = lambda heads: grp("x", "unseat", "D", "member", "community_remove", heads=heads)                # A alone
 CONCLUDE = [
     ("an admission stating accord_halt (one voice) is no admission's policy: with the table it concludes nothing",
      [GM4, grp("r", "offer", "E", "member", "accord_halt", cosigners=("E",))], "r", False, True),
@@ -173,13 +183,47 @@ CONCLUDE = [
       grp("r", "offer", "f4", "founder", None, signer="f1", cosigners=("n1", "f4"), heads=("na",))], "r", False, False),
     ("a node's seat over a community concludes nothing (the table binds it over infrastructure only)",
      [GM4, grp("r", "offer", "n1", "node", "community_invite", cosigners=("B", "C"))], "r", False, True),
+    # ---- step 5: the protocol change ------------------------------------------------------------------------------
+    ("a change of the record's protocol (record_change) is counted under the protocol in force in its own past: three "
+     "of four, two thirds, change it to one", [GM4, AM1], "am", True, True),
+    ("a removal naming the change is counted under the new protocol: A alone removes D", [GM4, AM1, RM_A(("am",))], "x",
+     True, True),
+    ("a removal beside the change (not in its past) is counted under the old one: A alone does not",
+     [GM4, AM1, RM_A(("g",))], "x", False, False),
+    ("a change signed by A alone is no change (one of four under two thirds), and the protocol stays",
+     [GM4, grp("am", "offer", (), "record", "cosigned_act", signer="A", consensus_protocol="one"), RM_A(("am",))], "x",
+     False, False),
+    ("two concurrent changes naming different protocols: none is in force, and the removal concludes nothing",
+     [GM4, AM1, grp("am2", "offer", (), "record", "cosigned_act", cosigners=("B", "C"), consensus_protocol="majority"),
+      RM_A(("am", "am2"))], "x", False, False),
+    ("a row stating a regime other than the protocol in force concludes nothing (a consistency check); with no table "
+     "the stated regime is not read", [GM4, grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "C", "E"),
+                                             regime="majority")], "r", False, True),
+    ("a row stating the protocol in force as its regime is counted as any", [GM4, grp("r", "offer", "E", "member", "cosigned_act",
+                                                                                     cosigners=("B", "C", "E"), regime="two_thirds")],
+     "r", True, True),
     ("an accord's counted row stating none is a standing act, counted under accord_majority",
      [GA, grp("r", "offer", "h4", "holder", None, counted="holder", cosigners=("h1", "h2", "h4"))], "r", True, False),
 ]
 
+# The wait at tips (step 5): (name, rows, [(key, scope, stands)])
+TIPS = [
+    ("tips on either side of a change of protocol do not fold: X admitted under the new protocol at one tip, Y under "
+     "two-path at another, and neither stands until a row names both",
+     [GM4, AM1, grp("ax", "offer", "X", "member", "cosigned_act", heads=("am",), cosigners=("X",)),
+      grp("ay", "offer", "Y", "member", "community_invite", cosigners=("B", "C", "Y"))],
+     [("X", "member", False), ("Y", "member", False), ("B", "member", True)]),
+    ("and once a row names both, both stand",
+     [GM4, AM1, grp("ax", "offer", "X", "member", "cosigned_act", heads=("am",), cosigners=("X",)),
+      grp("ay", "offer", "Y", "member", "community_invite", cosigners=("B", "C", "Y")),
+      grp("az", "offer", "Z", "member", "cosigned_act", heads=("ax", "ay"), cosigners=("Z",))],
+     [("X", "member", True), ("Y", "member", True)]),
+]
+
 PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread",
           "binding_off", "stated_policy_free", "protocol_unread", "gate_reads_stated",
-          "subkind_unread")
+          "subkind_unread", "amendment_unread", "record_unread", "regime_unread",
+          "regime_stated")
 
 
 @contextlib.contextmanager
@@ -211,8 +255,21 @@ def concludes(rows, rid, bound, plant=None):
         ST.BOUND = saved
 
 
+def tip_answers(plant=None):
+    out = []
+    with planted(plant):
+        for _, rows, asks in TIPS:
+            S = CK.concluded(CK.kept(list(rows)), lambda r, P, past: ST.seat_rule(r, P, past))
+            Q = ST.Seats(S)
+            out.append([Q.stands(k, sc, OBJ) for k, sc, _ in asks])
+    return out
+
+
 def main():
     problems = []
+    for (name, _rows, asks), got in zip(TIPS, tip_answers()):
+        if got != [w for _, _, w in asks]:
+            problems.append("tips %s: got %s, expected %s" % (name, got, [w for _, _, w in asks]))
     for name, rows, rid, wb, wu in CONCLUDE:
         got = (concludes(rows, rid, True), concludes(rows, rid, False))
         if got != (wb, wu):
@@ -229,6 +286,7 @@ def main():
     for plant in PLANTS:
         hit = [name for name, rows, rid, want in CASES if answer(rows, rid, plant) != want]
         hit += [c[0] for c in CONCLUDE if concludes(c[1], c[2], True, plant) != c[3]]
+        hit += ["tips: " + c[0] for c, got in zip(TIPS, tip_answers(plant)) if got != [w for _, _, w in c[2]]]
         caught += bool(hit)
         print("  plant %-16s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0]) if hit else "NOT CAUGHT"))
         if not hit:

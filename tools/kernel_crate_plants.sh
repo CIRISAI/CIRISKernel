@@ -131,7 +131,7 @@ plant "the members' check with no floor of two"     src/seat.rs '    2 * yes > b
 plant "a count end's lifts unread" src/seat.rs '(counted || e.is_none_or(|e| !lifts(e)))' '(counted || true)'
 plant "a receipt after the end keeps a removal"     src/seat.rs 'acks.iter().any(|&(q, counted)| e.is_none_or(|e| !g.in_past(e, q)) &&' 'acks.iter().any(|&(q, counted)| true &&'
 plant "a removal at a later head than the end counts" src/seat.rs '!g.in_past(e, x) && !later(head_of(e)) && kept(Some(e))' '!g.in_past(e, x) && kept(Some(e))'
-plant "a members' count confers a duty (the gate removed)" src/seat.rs 'if is_offer && !duty_gate(law, &by, r) {' 'if false {'
+plant "a members' count confers a duty (the gate removed)" src/seat.rs 'if is_offer && !duty_gate(law, &by, p, r) {' 'if false {'
 plant "the duty gate reads counted off the room" src/seat.rs 'r.counted().is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)' 'row_of(by, &obj).and_then(|g| g.counted()).is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)'
 plant "one duty's holders pass the duty gate" src/seat.rs 'r.counted().is_some_and(|c| c.as_ref() == "duty") && pol == Some(Policy::DutyConfer)' 'r.counted().is_some_and(|c| law.is_duty(c.as_ref(), &declared)) && pol == Some(Policy::DutyConfer)'
 plant "a duty conferred by a count over another room" src/seat.rs '    if r.over().is_some_and(|o| o != obj) {
@@ -270,8 +270,18 @@ plant "a recall's holder a voice of it"                  src/seat.rs 'let yes = 
 plant "a runoff step's tie goes on"                      src/ranked.rs 'let Some(w) = ranked(ballots, &opts, floor, declared).0 else { break };' 'let Some(w) = ranked(ballots, &opts, floor, declared).0 else { opts.remove(0); continue };'
 plant 'the runoff order stops at its winner'             src/ranked.rs 'opts.retain(|o| *o != w);' 'opts.clear();'
 plant 'options holding no ballot eliminated one by one'  src/ranked.rs 'if s.standing.iter().any(|o| n(o) == 0) {' 'if false {'
-plant 'the duty gate reads the stated policy'           src/seat.rs '    let Ok(pol) = policy_in_force(law, &|i| by.get(i).copied(), r) else { return false };' '    let pol = law.policy_of(r.policy().map(|x| x.as_ref()));'
+plant 'the duty gate reads the stated policy'           src/seat.rs '    let Ok(pol) = policy_in_force(law, p, r) else { return false };
+    if pol == Some(Policy::Ranked) {' '    let pol = law.policy_of(r.policy().map(|x| x.as_ref()));
+    if pol == Some(Policy::Ranked) {'
 plant 'the lift told by its policy only'                src/seat.rs '        Some((act, _, _)) => act == Act::Lift,' '        Some(_) => pol == Some(Policy::Lift),'
+plant "a change of the record's protocol unread"         src/seat.rs '    if am.is_empty() {
+        return g.consensus_protocol();' '    if true {
+        return g.consensus_protocol();'
+plant 'a change of the record no act'                   src/seat.rs '            if offer && sc == "record" {' '            if false {'
+plant 'a stated regime unread'                          src/seat.rs '                if r.regime().is_some_and(|g| r.obj().and_then(|o| protocol_of(p, &o)) != Some(g)) {' '                if false {'
+plant 'tips read by their stated regime'                src/seat.rs '                if self.law.acts.is_none() {
+                    return g.row(t).regime();' '                if true {
+                    return g.row(t).regime();'
 plant 'the acts table read by no count'                  src/seat.rs '    if law.acts.is_some() {
         match (act_of(law, get, r), r.obj()) {' '    if false {
         match (act_of(law, get, r), r.obj()) {'
