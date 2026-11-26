@@ -28,7 +28,7 @@ and `StandingRow::sub_delegation` (default `false`), additive. `standing::answer
   edge not held is undecided there (it raised).
 The reference: `chain_answers` in `check_conferral_two.py`, with fifteen cases (`DEPUTY_CASES`, in the
 `conferral_two` fixture, read as listed and in reverse; the plants compare reasons as well as bits) and four
-planted breaks; four crate plants. `tests/conferral_two.rs` now withholds any row, a deputy edge among them, and
+planted breaks; four crate plants (142 after merging main). `tests/conferral_two.rs` now withholds any row, a deputy edge among them, and
 reads an undecided act as the fixture does.
 
 **One of each** (no public name changes; the fixtures and conformance runs are unchanged).
