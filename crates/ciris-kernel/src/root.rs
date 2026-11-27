@@ -24,6 +24,11 @@
 //!   names, under a charter carrying its duty. It resolves for a reader while its bundle is in the reader's lineage
 //!   and the scope in force there (what every tip carries) still carries the duty.
 //!
+//! The costs, stated: a recovery concurrent with an amend that changes the charter leaves the recovering holder no
+//! seat in force until a bundle names both tips (it gives a holder majority nothing it lacks: the same majority
+//! could remove that holder by an amend); two joins of the same tips under different charters with disjoint holders
+//! leave no common holder, and no further join can be counted (open, reported).
+//!
 //! Receipts, equivocation records and fork-attempt records move no head and are not read here.
 
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -78,6 +83,8 @@ pub trait RootGrant {
     fn bundle(&self) -> &Self::Id;
     /// The key it names.
     fn to(&self) -> &Self::Key;
+    /// The room its scope names.
+    fn scope(&self) -> &Self::Id;
     /// Its signers.
     fn signers(&self) -> &[Self::Key];
     /// The duty it grants, which the bundle's charter must carry.
@@ -648,9 +655,50 @@ fn seats_of<B: RootBundle>(b: &B) -> &[B::Key] {
     b.seats()
 }
 
+/// A key's identity type, as the store's key record states it (a fact about a key, not a rule over rows).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Identity {
+    /// The type includes `user`.
+    pub user: bool,
+    /// The type includes `node`.
+    pub node: bool,
+}
+
+/// The trust root as one node reads it: the kernel's [`RootView`] over a [`Root`], for the seat rule's stalled
+/// recovery. The store supplies only the reader (its anchor and acknowledgements) and each key's identity type; the
+/// grant's resolution, its room scope and the identity rule are the kernel's.
+pub struct RootReading<'r, 'a, B: RootBundle, G> {
+    /// The root.
+    pub root: &'r Root<'a, B, G>,
+    /// This node, as a reader of it.
+    pub reader: Reader<B::Id, B::Key>,
+    /// A key's identity type, from the store's key record.
+    pub identity: &'r dyn Fn(&B::Key) -> Identity,
+}
+
+impl<B, G> RootView<B::Id, B::Key, crate::seat::Obj<B::Id, B::Key>> for RootReading<'_, '_, B, G>
+where
+    B: RootBundle,
+    G: RootGrant<Id = B::Id, Key = B::Key, Word = B::Word>,
+{
+    fn recovery_grant(&self, grant: &B::Id, room: &crate::seat::Obj<B::Id, B::Key>) -> Result<B::Key, Reason> {
+        self.root.grant_in_force(grant, &self.reader)?;
+        let g = self.root.grant(grant).ok_or("grant_unknown")?;
+        if *room != crate::seat::Obj::Row(g.scope().clone()) {
+            return Err("grant_scope_not_this_room");
+        }
+        let id = (self.identity)(g.to());
+        if !id.user || id.node {
+            return Err("grant_identity_not_user");
+        }
+        Ok(g.to().clone())
+    }
+}
+
 /// What the seat rule asks of the trust root a node reads, for a stalled recovery
 /// ([`crate::seat::recovery_verdict`]): the key a grant names, where the grant resolves for this node, names this
-/// room in its scope, and names a key whose identity type includes `user` and excludes `node`.
+/// room in its scope, and names a key whose identity type includes `user` and excludes `node`. The kernel's
+/// implementation is [`RootReading`].
 pub trait RootView<I, K, O> {
     /// The key grant `grant` names for room `room`, or why it does not stand: `grant_unknown`,
     /// `genesis_bundle_not_anchored`, `grant_bundle_void`, `grant_count_short`, `grant_not_in_reader_lineage`,

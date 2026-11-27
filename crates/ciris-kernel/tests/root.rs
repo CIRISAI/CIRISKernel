@@ -6,7 +6,7 @@
 mod common;
 use ciris_kernel::cut::CutSpec;
 use ciris_kernel::layers::{conclude, kept, Past};
-use ciris_kernel::root::{Reader, Reason, Revocation, Root, RootBundle, RootGrant, RootView};
+use ciris_kernel::root::{Identity, Reader, Revocation, Root, RootBundle, RootGrant, RootReading, RootView};
 use ciris_kernel::seat::{recovery_verdict, seat_rule, Obj, Seats};
 use common::{fixture, law_of, report, rows_with_refs, DictCut, TRow, J};
 use std::collections::{BTreeMap, BTreeSet};
@@ -90,6 +90,9 @@ impl RootGrant for TG {
     }
     fn to(&self) -> &String {
         &self.to
+    }
+    fn scope(&self) -> &String {
+        &self.scope
     }
     fn signers(&self) -> &[String] {
         &self.signers
@@ -213,28 +216,6 @@ fn root_replay() {
     assert_eq!(bad, 0);
 }
 
-/// The store's view of the root for one node: the grant must resolve for its reader, name this room in its
-/// scope, and name a user key that is no node.
-struct View<'a> {
-    root: Root<'a, TB, TG>,
-    rd: Reader<String, String>,
-    grants: &'a [TG],
-}
-
-impl RootView<String, String, Obj<String, String>> for View<'_> {
-    fn recovery_grant(&self, grant: &String, room: &Obj<String, String>) -> Result<String, Reason> {
-        self.root.grant_in_force(grant, &self.rd)?;
-        let g = self.grants.iter().find(|g| &g.id == grant).ok_or("grant_unknown")?;
-        if *room != Obj::Row(g.scope.clone()) {
-            return Err("grant_scope_not_this_room");
-        }
-        if !g.identity.iter().any(|i| i == "user") || g.identity.iter().any(|i| i == "node") {
-            return Err("grant_identity_not_user");
-        }
-        Ok(g.to.clone())
-    }
-}
-
 /// DictCut, with a trust root read.
 struct RootCut<'v>(Option<&'v dyn RootView<String, String, Obj<String, String>>>);
 
@@ -279,8 +260,13 @@ fn stalled_recovery_replay() {
         let bs = c.get("bundles").filter(|b| !b.is_null()).map(bundles);
         let gs = grants(c.at("grants"));
         let revs: Vec<Revocation<String, String>> = Vec::new();
-        let view =
-            bs.as_ref().map(|bs| View { root: Root::new(bs, &revs, &gs), rd: reader(c.at("reader")), grants: &gs });
+        // the store's one fact: a key's identity type, from its key record (here, the grant naming it)
+        let identity = |k: &String| {
+            let ids: Vec<String> = gs.iter().find(|g| &g.to == k).map(|g| g.identity.clone()).unwrap_or_default();
+            Identity { user: ids.iter().any(|i| i == "user"), node: ids.iter().any(|i| i == "node") }
+        };
+        let root = bs.as_ref().map(|bs| Root::new(bs, &revs, &gs));
+        let view = root.as_ref().map(|root| RootReading { root, reader: reader(c.at("reader")), identity: &identity });
         let spec = RootCut(view.as_ref().map(|v| v as &dyn RootView<String, String, Obj<String, String>>));
         let k = kept(&rows, |_| true);
         let cc = conclude(k, |p| seat_rule(p, &law, &spec, &|_| true), None);

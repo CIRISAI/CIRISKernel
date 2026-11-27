@@ -47,6 +47,11 @@ FORKR = [B0, nxt("s1", "b0", ("h1", "h2"), ("h1", "h2")), nxt("s2", "b0", H3 + (
 # a join of FORK's tips, counted over the holders common to them (h1 h2 h3)
 JOIN = FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2"), version=2)]
 JOINC = FORKC + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2"), version=2, charter=C1)]
+# a forked join: two joins of FORK's tips, both by h1 and h2 (a strict majority of the common h1 h2 h3), under
+# different charters: two tips whose regime differs, so the holders are again those common to them
+C3 = {"name": "c3", "duties": ("infra",)}
+FJ = lambda h1s, h2s: FORK + [nxt("j1", ("s1", "s2"), h1s, ("h1", "h2"), version=2),
+                              nxt("j2", ("s1", "s2"), h2s, ("h1", "h2"), version=2, charter=C1)]
 # a holder's recovery: h3's recovery key r:h3 replaces h3 by h3b
 REC = nxt("rc", "b0", ("h1", "h2", "h3b"), ("r:h3",), recovers=("h3", "h3b"),
           recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b"})
@@ -143,6 +148,18 @@ CASES = [
      FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h4", "h5"), version=2)], (), (), ANC, {"concluded": {"j": Fa}}),
     ("join", "a join names both where charters differ, and ends the wait: its own holders", JOINC, (), (),
      RD(anchor="b0", acks=("j",)), {"concluded": {"j": T}, "holders": {"h1", "h2", "h3", "h4", "h5"}}),
+    ("join", "a forked join: two joins of s1 and s2 under different charters are two tips whose regime differs: the "
+             "holders common to them (h1 h2 h3 h4)", FJ(("h1", "h2", "h3", "h4", "h5"), ("h1", "h2", "h3", "h4")), (), (),
+     RD(anchor="b0", acks=("j1", "j2")), {"concluded": {"j1": T, "j2": T}, "heads": ("j1", "j2"),
+                                          "holders": {"h1", "h2", "h3", "h4"}}),
+    ("join", "forked joins may shrink the common holders to one key (h1), which alone counts a further join",
+     FJ(("h1", "h4"), ("h1", "h5")) + [nxt("j3", ("j1", "j2"), ("h1", "h4", "h5"), ("h1",), version=3, charter=C3)], (), (),
+     RD(anchor="b0", acks=("j3",)), {"concluded": {"j3": T}, "heads": ("j3",), "holders": {"h1", "h4", "h5"}}),
+    ("join", "OPEN (a liveness hole, reported): two joins with disjoint holders (h1 h4; h2 h5) leave no common holder, "
+             "and no further join can be counted: the root is stuck with no holder in force at a reader that acknowledged "
+             "both", FJ(("h1", "h4"), ("h2", "h5")) + [nxt("j3", ("j1", "j2"), ("h1", "h2", "h4", "h5"), ("h1", "h2", "h4", "h5"),
+                                                         version=3)], (), (),
+     RD(anchor="b0", acks=("j1", "j2")), {"concluded": {"j1": T, "j2": T, "j3": Fa}, "heads": ("j1", "j2"), "holders": set()}),
     # ---- the reader ------------------------------------------------------------------------------------------------
     ("in force", "per reader: a reader that acknowledged s1 alone holds s1's holders; one that acknowledged nothing, "
                  "its anchor's", FORK, (), (), RD(anchor="b0", acks=("s1",)), {"heads": ("s1",), "holders": {"h1", "h2", "h3", "h4"}}),
@@ -224,7 +241,9 @@ RECOVERY = [
      RD(anchor="b0", acks=("b1",)), False, "grant_scope_not_in_force", False),
     ("the reader's anchor names no first bundle", STALLED + [RCV()], ROOT_ROWS, (GOK,), RD(anchor="zz"), False,
      "genesis_bundle_not_anchored", False),
-    ("two tips: a grant on s1 by h1, h2 and h4 is three of s1's four", STALLED + [RCV()], FORK,
+    ("two tips: a grant on s1 by h1, h2 and h4 is three of s1's four (the count base, the named bundle's own live "
+     "holders, is put to the Constitution: it may be the in-force holders at the reader, three of five)",
+     STALLED + [RCV()], FORK,
      (GR("B1", "s1", "f4", "g", ("h1", "h2", "h4")),), RD(anchor="b0", acks=("s1", "s2")), True, None, True),
     ("the same by h1 and h2 alone: two of four, short", STALLED + [RCV()], FORK, (GR("B1", "s1", "f4", "g", ("h1", "h2")),),
      RD(anchor="b0", acks=("s1", "s2")), False, "grant_count_short", False),

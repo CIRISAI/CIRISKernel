@@ -34,7 +34,15 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
                  at that reader still carries the duty (several tips: what all carry). A later bundle re-scopes
                  existing grants with no re-issuance.
     contested    two recoveries of one seat, neither in the other's past, are contested: neither replaces the seat
-                 until a bundle names both, and the old key's seat stays as it was.
+                 until a bundle names both, and the old key's seat stays as it was (the causal form of a spent
+                 commitment).
+    the costs    a recovery concurrent with an amend that changes the charter leaves the recovering holder no seat in
+                 force until a bundle names both tips; it gives a holder majority nothing it lacks: the same majority
+                 could remove that holder by an amend. A forked join (two joins of the same tips under different
+                 charters) is two tips whose regime differs, so the holders are again the common ones; every pair
+                 of strict majorities shares a key, but a key that signs both joins may keep itself in neither, and
+                 two joins with disjoint holders leave no common holder: no further join can be counted (OPEN, a
+                 liveness hole, reported to the Constitution).
 
 Receipts, equivocation records and fork-attempt records move no head and are not read here.
 
