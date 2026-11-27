@@ -689,11 +689,18 @@ plant "a licence may predate what it cites"            src/trust_rows.rs 'if (0.
 plant "a licence's instant is bounded by the reader's rows" src/trust_rows.rs 'if (0..c.g.len()).any(|j| anc.has(j) && c.g.row(j).asserted_at().is_some_and(|u| u > t)) {' 'if (0..c.g.len()).any(|j| j != i && c.g.row(j).asserted_at().is_some_and(|u| u > t)) {'
 plant "an edge's term is not read"                     src/trust_rows.rs '(None, _) | (Some(_), None) => false,' '(None, _) | (Some(_), None) => true,'
 plant "a concurrent amendment reads as a cut"          src/trust_rows.rs 'Some(_) if issuance(seats, i, &ended_for_reader_with(seats, i, true, false, own)).is_none() => {' 'Some(_) if false => {'
-plant "an end cuts acts of another scope"              src/trust_rows.rs '.is_some_and(|cls| need.contains(&cls) && !still_holds(seats, e, k, ob, &cls))' '.is_some()'
 plant "growth the reader holds is not read for the act" src/trust_rows.rs '    if read && amend {
         if let Some(o) = authority_act_over(c, c.g.row(i)) {' '    if false {
         if let Some(o) = authority_act_over(c, c.g.row(i)) {'
 plant "a concurrent lone seat is not re-counted"       src/trust_rows.rs '|| (qr.licence_authority().is_none() && !recounted(seats, q, &o))' '|| false'
+plant "an end cuts whatever its key still holds"       src/trust_rows.rs '*ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, e, k, ob, cls))' '*ob == o && who.contains(k)'
+plant "a full end cuts only its named scope"           src/trust_rows.rs '            let hit = ks.iter().any(|(k, ob, _)| {
+                *ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, e, k, ob, cls))' '            let hit = ks.iter().any(|(k, ob, sc)| {
+                *ob == o && who.contains(k) && need.iter().any(|cls| scope_class(c, seats.law(), ob, sc.as_ref().map(|w| w.as_ref())).as_deref() == Some(cls.as_str()) && loses(seats, &judged, e, k, ob, cls))'
+plant "a loss is read over the end's past"             src/trust_rows.rs '    let without: Vec<usize> = judged.iter().copied().filter(|&j| j != e).collect();' '    let own_past: Vec<usize> = (0..seats.c().g.len()).filter(|&j| seats.c().g.ancestors(e).has(j) || j == e).collect();
+    let judged: &[usize] = &own_past;
+    let without: Vec<usize> = judged.iter().copied().filter(|&j| j != e).collect();'
+plant "a holder's own lone conferrals regrow each other" src/trust_rows.rs '&& !one_batch(c, law, q, x, o))' ')'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

@@ -276,11 +276,21 @@ def rests_on(S, q, o):
     return set()
 
 
-def still_holds(S, e, k, o, cls):
-    """Key `k` still holds standing `cls` over `o` once end `e` is read: over e's own past and e."""
-    rows = [q for q in S.rows if q["id"] in S.anc[e["id"]] or q["id"] == e["id"]]
-    Q = ST.Seats(CK.State(rows, {q["id"]: S.C.get(q["id"]) for q in rows}))
-    return k in Q.holders(cls if cls != "duty" else "duty", o)
+def holds_over(S, ids, k, o, cls):
+    """Key `k` holds standing `cls` over `o` over the rows `ids` (their conclusions as S has them)."""
+    rows = [q for q in S.rows if q["id"] in ids]
+    return k in ST.Seats(CK.State(rows, {q["id"]: S.C.get(q["id"]) for q in rows})).holders(cls, o)
+
+
+def loses(S, judged, e, k, o, cls):
+    """Key `k` LOSES standing `cls` over `o` by end `e`: it holds it over the JUDGED rows (the judged row's past, the
+    ends the reader holds and their pasts) without `e`, and no more with it. A partial end (one duty laid down, another
+    held, a seat gained beside it) loses nothing; a full end (a resignation, the withdrawal of an appointment) loses
+    every standing the seat it ends gave, whatever scope the end's target names."""
+    if "still_holds_end_past" in MUT:
+        ids = set(S.anc[e["id"]]) | {e["id"]}
+        return holds_over(S, ids - {e["id"]}, k, o, cls) and not holds_over(S, ids, k, o, cls)
+    return holds_over(S, judged - {e["id"]}, k, o, cls) and not holds_over(S, judged, k, o, cls)
 
 
 # ---- the reader's line over a group's body (the r77 attack: body growth is a counted change, not an end) ----------
@@ -357,7 +367,19 @@ def concurrent_growth(S, q, o):
     if "growth_held_unread" in MUT:
         return []
     return [c for c in growth_of(S, o) if c["id"] != q["id"] and c["id"] not in S.anc[q["id"]]
-            and q["id"] not in S.anc[c["id"]]]
+            and q["id"] not in S.anc[c["id"]] and not one_batch(S, q, c, o)]
+
+
+def one_batch(S, q, c, o):
+    """A holder's own concurrent lone duty conferrals are one batch, as the tips fold reads them: growth row `c` (or
+    the offer it accepts) and act `q`, both a single key's own or conferred offer of a duty over `o` by the same key,
+    are not growth against each other. (MUTATION lone_batch_unread.)"""
+    if "lone_batch_unread" in MUT:
+        return False
+    off = S.by.get(c.get("of")) if c["kind"] == "accept" else c
+    lone = lambda x: x is not None and x["kind"] == "offer" and x.get("conf") in ("self", "seat") \
+        and scope_class(S, o, x.get("scope")) == "duty"
+    return lone(q) and lone(off) and off["signer"] == q["signer"]
 
 
 def with_growth(S, q, o):
@@ -392,6 +414,9 @@ def cut_state(S, rows, own=None):
     Rows in an end's past stand (nothing reaches back); rows after it are judged at their own past."""
     ends = [e for e in rows if is_end(e) and S.C.get(e["id"])]
     cut = set()
+    judged = {q["id"] for q in rows}
+    for e in ends:
+        judged |= set(S.anc[e["id"]])
     if "cut_unread" not in MUT:
         for e in ends:
             ks = ends_keys(S, e)
@@ -405,10 +430,13 @@ def cut_state(S, rows, own=None):
                 for k, ob, sc in ks:
                     if k not in ST.signers(q) or o != ob:
                         continue
-                    cls = scope_class(S, ob, sc)
-                    if need is None or (cls in need and not still_holds(S, e, k, ob, cls)):
-                        cut.add(q["id"])
-                        break
+                    if need is None:
+                        cut.add(q["id"]); break
+                    # an end is keyed by every standing its key LOSES by it, whatever scope its target names (MUTATION
+                    # end_scope_keyed: only the class the end's named scope gives)
+                    classes = {scope_class(S, ob, sc)} & need if "end_scope_keyed" in MUT else need
+                    if any(loses(S, judged, e, k, ob, cls) for cls in classes):
+                        cut.add(q["id"]); break
     for q in rows:
         o = authority_act_over(S, q)
         if o is not None and (behind_line(S, own, q, o) or (q["kind"] != "licensure" and not recounted(S, q, o))):

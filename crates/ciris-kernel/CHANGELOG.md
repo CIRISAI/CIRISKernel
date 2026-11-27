@@ -91,6 +91,14 @@ role ends with any leaving. `false` for any other object and at the founding row
 `check_acts.py` (FOUNDERS), recorded in the `seat` fixture (`founder`); plants `founder_at_tips` and
 `founder_leavings_unread`, and a crate plant.
 
+**The r80 attack on the trust walk, closed** (both languages; every attack a case, each fix a plant):
+- A holder's own concurrent lone duty conferrals are one batch, as the tips fold reads them: they are not growth
+  against each other, so neither voids the other, nor what is built on both (F4e, F4g).
+- An end is keyed by every STANDING its key loses by it, whatever scope its target names: a resignation ends the
+  duties a lone conferral gave, a withdrawn appointment the officer role it carried (F1, F2).
+- Whether the key still holds a standing is read over the JUDGED rows (the judged row's past, the ends the reader holds
+  and their pasts), not the end's own past: a seat gained beside a partial lay-down keeps the holder (F3).
+
 **The r77 attack on the trust walk, closed** (both languages; every attack a case, each fix a plant):
 - A licence's instant is bounded below by its OWN past alone: the reader's ends cut, and never set the lower bound
   (an unrelated late-dated row no longer voids it).

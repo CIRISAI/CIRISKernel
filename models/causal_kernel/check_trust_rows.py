@@ -45,6 +45,9 @@ Planted breaks, each of which must change a case's answer:
     whose bytes it no longer holds, but every row the model holds that a line covers it also holds as growth, so the
     held-growth rule (growth_held_unread) decides every case the model can build)
     termless_edge_walked     (d) an edge stating no term is walked
+    lone_batch_unread        (a), (b) a holder's own concurrent lone duty conferrals are re-counted against each other
+    end_scope_keyed          (d) an end cuts by the scope its target names, not by every standing its key loses
+    still_holds_end_past     (d) whether the key still holds a standing is read over the end's past, not the judged rows
     growth_held_unread       (a), (b) an authority act concurrent with growth of its body the reader holds is not
                              re-counted over the grown body
 
@@ -415,6 +418,48 @@ CASES += [
                                                R_ZW], "RD", "l", None, OK),
 ]
 
+# ---- the r80 attack (review-scratch fac316d, r80/m1 to m4), each a case ------------------------------------------
+_DC1, _DA1 = ST.offer("dc1", "A", "C", "moderate", "g", "self", ("g",)), ST.accept("da1", "C", "dc1")
+_DC2, _DA2 = ST.offer("dc2", "A", "B", "moderate", "g", "self", ("g",)), ST.accept("da2", "B", "dc2")
+_GLO_C = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dca",), head=("dc",), cosigners=("C",), counted="duty")
+_AOB = ST.offer("aob", "A", ("B",), "member", "af", "group", ("af",), head=("af",), cosigners=("B",),
+                counted=ST.OFFICER, role=ST.OFFICER)
+_LSO = ST.offer("lso", "A", ("X",), "license", "af", "group", ("aob",), head=("aob",), cosigners=("B",),
+                counted=ST.OFFICER)
+_RV = ST.offer("rv", "A", "A", "review", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty",
+               policy="duty_confer")
+_GLO_RV = ST.offer("glo", "A", ("X",), "license", "g", "group", ("rv",), head=("rv",), cosigners=("B",), counted="duty",
+                   policy="duty_confer")
+_X = glic("l", "g", "X") | {"names": ("gla",)}
+CASES += [
+    ("r80 F1 C (a duty holder by A's lone conferral) resigns from g, concurrent with A and C's license conferral: cut",
+     [G1, R_DC, R_DCA, ST.withdraw("wc", "C", "g"), _GLO_C, GLA, A("e", "RD", "g"), _X], "RD", "l", None, LW),
+    ("r80 F1' a resignation naming dca concludes nothing (it names no newest head, H4): no end, nothing cut",
+     [G1, R_DC, R_DCA, ST.withdraw("wc", "C", "g", ("dca",)), _GLO_C, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r80 F1c with no resignation", [G1, R_DC, R_DCA, _GLO_C, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r80 F2 an appointed officer withdraws its appointment, concurrent with the officers' license conferral: cut",
+     [AFD1, _AOB, ST.withdraw("wb", "B", "aob", ("aob",)), _LSO, ST.accept("lsa", "X", "lso"), A("e", "RD", "af"),
+      glic("l", "af", "X") | {"names": ("lsa",)}], "RD", "l", None, LW),
+    ("r80 F2c with no withdrawal", [AFD1, _AOB, _LSO, ST.accept("lsa", "X", "lso"), A("e", "RD", "af"),
+                                    glic("l", "af", "X") | {"names": ("lsa",)}], "RD", "l", None, OK),
+    ("r80 F3 A lays down moderate concurrent with its counted review seat and the conferral: A still a holder",
+     [GD, _RV, ST.withdraw("ldm", "A", "g", (), scope="moderate"), _GLO_RV, GLA, A("e", "RD", "g"), _X], "RD", "l",
+     None, OK),
+    ("r80 F4 two concurrent lone conferrals; an edge by A and C naming da1",
+     [G1, _DC1, _DA1, _DC2, _DA2, A("e", "RD", "g", depth=1),
+      A("f", "A", "K", on_behalf="g", names=("da1",), cosigners=("C",)), klic("l")], "RD", "l", KCH, OK),
+    ("r80 F4b and naming both", [G1, _DC1, _DA1, _DC2, _DA2, A("e", "RD", "g", depth=1),
+                                 A("f", "A", "K", on_behalf="g", names=("da1", "da2"), cosigners=("C",)), klic("l")],
+     "RD", "l", KCH, OK),
+    ("r80 F4e a holder's own concurrent lone conferrals are one batch: A, B and C's conferral naming both stands",
+     [G1, _DC1, _DA1, _DC2, _DA2, ST.offer("glo", "A", ("X",), "license", "g", "group", ("da1", "da2"),
+                                          head=("dc1", "dc2"), cosigners=("B", "C"), counted="duty"), GLA,
+      A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r80 F4g and A and C's conferral at dc1, the reader holding dc2 too",
+     [G1, _DC1, _DA1, ST.offer("glo", "A", ("X",), "license", "g", "group", ("da1",), head=("dc1",), cosigners=("C",),
+                               counted="duty"), GLA, _DC2, _DA2, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+]
+
 NOW = {"an edge whose term has ended at the caller's instant (150)": 150,
        "r77 N8 a term-bearing edge read with no caller's instant: not walked (never at the licence's own instant)": None}
 
@@ -442,7 +487,7 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "ends_unread", "cut_unread", "self_seat_ungated", "untimed_term_met", "instant_unread",
           "edge_term_unread", "amendment_as_cut",
           "instant_over_reader", "scope_unread", "termless_edge_walked",
-          "growth_held_unread")
+          "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past")
 
 
 @contextlib.contextmanager

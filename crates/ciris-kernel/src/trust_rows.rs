@@ -305,20 +305,33 @@ fn rests_on<R: TrustRow>(c: &Concluded<'_, R>, law: &SeatLaw, q: &R, o: &ObjOf<R
     }
 }
 
-/// Key `k` still holds standing `cls` over `o` once end `e` is read: over e's own past and e.
-fn still_holds<R: TrustRow, S: CutSpec<R>>(
+/// Key `k` holds standing `cls` over `o` over the rows `idx` (their conclusions as `seats`' set has them).
+fn holds_over<R: TrustRow, S: CutSpec<R>>(
     seats: &Seats<'_, '_, R, S>,
+    idx: &[usize],
+    k: &R::Key,
+    o: &ObjOf<R>,
+    cls: &str,
+) -> bool {
+    let sub = sub_of(seats.c(), idx);
+    let (rc, _) = for_reader(&sub, seats.law(), seats.spec(), None);
+    Seats::new(&rc, seats.law(), seats.spec(), None).holders(cls, o, None).contains(k)
+}
+
+/// Key `k` LOSES standing `cls` over `o` by end `e`: it holds it over the JUDGED rows (the judged row's past, the ends
+/// the reader holds and their pasts) without `e`, and no more with it. A partial end (one duty laid down, another held,
+/// a seat gained beside it) loses nothing; a full end (a resignation, the withdrawal of an appointment) loses every
+/// standing the seat it ends gave, whatever scope the end's target names.
+fn loses<R: TrustRow, S: CutSpec<R>>(
+    seats: &Seats<'_, '_, R, S>,
+    judged: &[usize],
     e: usize,
     k: &R::Key,
     o: &ObjOf<R>,
     cls: &str,
 ) -> bool {
-    let c = seats.c();
-    let ea = c.g.ancestors(e);
-    let idx: Vec<usize> = (0..c.g.len()).filter(|&j| ea.has(j) || j == e).collect();
-    let sub = sub_of(c, &idx);
-    let (rc, _) = for_reader(&sub, seats.law(), seats.spec(), None);
-    Seats::new(&rc, seats.law(), seats.spec(), None).holders(cls, o, None).contains(k)
+    let without: Vec<usize> = judged.iter().copied().filter(|&j| j != e).collect();
+    holds_over(seats, &without, k, o, cls) && !holds_over(seats, judged, k, o, cls)
 }
 
 // ---- the reader's line over a group's body (the r77 attack: body growth is a counted change, not an end) ----------
@@ -446,8 +459,33 @@ fn growth_of<R: SeatRow>(c: &Concluded<'_, R>, o: &ObjOf<R>) -> Vec<usize> {
 }
 
 /// The growth of `o`'s body the reader holds concurrent with row `q` (neither in the other's past).
-fn concurrent_growth<R: SeatRow>(c: &Concluded<'_, R>, q: usize, o: &ObjOf<R>) -> Vec<usize> {
-    growth_of(c, o).into_iter().filter(|&x| x != q && !c.g.ancestors(q).has(x) && !c.g.ancestors(x).has(q)).collect()
+fn concurrent_growth<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, q: usize, o: &ObjOf<R>) -> Vec<usize> {
+    growth_of(c, o)
+        .into_iter()
+        .filter(|&x| x != q && !c.g.ancestors(q).has(x) && !c.g.ancestors(x).has(q) && !one_batch(c, law, q, x, o))
+        .collect()
+}
+
+/// A holder's own concurrent lone duty conferrals are one batch, as the tips fold reads them: growth row `x` (or the
+/// offer it accepts) and act `q`, both a single key's own or conferred offer of a duty over `o` by the same key, are
+/// not growth against each other.
+fn one_batch<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, q: usize, x: usize, o: &ObjOf<R>) -> bool {
+    let xr = c.g.row(x);
+    let off = if xr.seat_kind() == SeatKind::Accept {
+        match xr.of().and_then(|i| c.g.idx(i)) {
+            Some(i) => c.g.row(i),
+            None => return false,
+        }
+    } else {
+        xr
+    };
+    let lone = |r: &R| {
+        r.seat_kind() == SeatKind::Offer
+            && matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat))
+            && scope_class(c, law, o, r.scope().map(|w| w.as_ref())).as_deref() == Some("duty")
+    };
+    let qr = c.g.row(q);
+    lone(qr) && lone(off) && off.signer() == qr.signer()
 }
 
 /// The rows `q`'s authority over `o` is re-counted over: its own past, with the concurrent growth the reader holds
@@ -463,7 +501,7 @@ fn with_growth<R: SeatRow>(c: &Concluded<'_, R>, q: usize, growth: &[usize]) -> 
 /// stands as made; a counted act (`Conf::Group`) is the tips fold's.
 fn recounted<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, q: usize, o: &ObjOf<R>) -> bool {
     let c = seats.c();
-    let growth = concurrent_growth(c, q, o);
+    let growth = concurrent_growth(c, seats.law(), q, o);
     if growth.is_empty() {
         return true;
     }
@@ -529,7 +567,7 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
     // (`amend` false leaves it out, as an amendment: it changes the rule, it cuts nothing)
     if read && amend {
         if let Some(o) = authority_act_over(c, c.g.row(i)) {
-            for x in concurrent_growth(c, i, &o) {
+            for x in concurrent_growth(c, seats.law(), i, &o) {
                 rows.extend((0..c.g.len()).filter(|&j| j != i && (j == x || c.g.ancestors(x).has(j))));
             }
         }
@@ -537,7 +575,11 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
     rows.sort_unstable();
     rows.dedup();
     let mut cut: BTreeSet<usize> = BTreeSet::new();
-    for &e in rows.iter().filter(|&&e| c.concluded(e) && is_end(c.g.row(e))) {
+    let ends: Vec<usize> = rows.iter().copied().filter(|&e| c.concluded(e) && is_end(c.g.row(e))).collect();
+    let judged: Vec<usize> = (0..c.g.len())
+        .filter(|&j| rows.binary_search(&j).is_ok() || ends.iter().any(|&e| c.g.ancestors(e).has(j)))
+        .collect();
+    for &e in &ends {
         let ks = ends_keys(c, c.g.row(e));
         if ks.is_empty() {
             continue;
@@ -551,11 +593,9 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
             let Some(o) = object_of(c, qr) else { continue };
             let who = signers(qr);
             let need = rests_on(c, seats.law(), qr, &o);
-            let hit = ks.iter().any(|(k, ob, sc)| {
-                *ob == o
-                    && who.contains(k)
-                    && scope_class(c, seats.law(), ob, sc.as_ref().map(|w| w.as_ref()))
-                        .is_some_and(|cls| need.contains(&cls) && !still_holds(seats, e, k, ob, &cls))
+            // an end is keyed by every standing its key LOSES by it, whatever scope its target names
+            let hit = ks.iter().any(|(k, ob, _)| {
+                *ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, e, k, ob, cls))
             });
             if hit {
                 cut.insert(q);
