@@ -568,9 +568,9 @@ only: the crate reads the edges, the charter and the issuer's standing from them
   duty: pass `now`** to `read_licence`; with none, no edge is walked. Every edge carries a term (CC 4.4.3.12): the
   door should refuse an edge stating none, and the crate does not walk one. A licence under a term-bearing seat must
   state its `asserted_at`, or it meets no term.
-- The reader's line: `read_licence` reads the authority acts behind the reader's own line (a newer change of the
-  authority's body the reader has taken up, by a row it signed over the body) as concluding nothing. A reader that has
-  taken up nothing is the newcomer residual, as everywhere.
+- Body growth: an authority act concurrent with a change of its body the reader holds is counted over the grown
+  body, and one behind the reader's own acknowledged line concludes nothing for it. Present every row the reader
+  holds: a reader holding none of the body's newer changes is the residual (it cannot know).
 - **Named residual (the term).** Within its term a licence's instant is its holder's word, bounded below by the latest
   instant in its own past (`licensure_instant_before_its_past`). So a holder whose term has run can sign a licence
   dated inside the term, as long as nothing later-dated is in its past; the crate cannot tell it from one signed in

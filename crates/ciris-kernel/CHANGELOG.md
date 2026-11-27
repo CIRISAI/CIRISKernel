@@ -94,10 +94,11 @@ role ends with any leaving. `false` for any other object and at the founding row
 **The r77 attack on the trust walk, closed** (both languages; every attack a case, each fix a plant):
 - A licence's instant is bounded below by its OWN past alone: the reader's ends cut, and never set the lower bound
   (an unrelated late-dated row no longer voids it).
-- Body growth is a counted change, not an end: an authority act (an edge, a license or officer seat, an own licence, a
-  record act) whose named heads are behind the READER'S LINE over the authority's body (the reader holds and has
-  taken up a newer change of that body) concludes nothing for that reader. `read_licence` reads the line of the
-  reader's own key; a reader that has taken up nothing is the stated newcomer residual.
+- Body growth is a counted change, not an end, and is read over the rows the reader HOLDS, as the tips fold re-counts
+  a lone duty conferral: an authority act (an edge, a license or officer seat, an own licence) concurrent with a
+  change of its body the reader holds is counted over the body at the newest changes the reader holds; an act the
+  growth has in its past stands. The reader's acknowledged line is kept beside it (an act behind it concludes nothing
+  for that reader). The residual narrows to a reader that holds none of the body's newer changes: it cannot know.
 - Ends are keyed by (key, object, SCOPE): an end cuts only rows whose standing rests on the scope it ends, and only
   where the key holds that standing no more (a lay-down of `review` leaves the holder's `moderate` acts).
 - Every edge carries a term (CC 4.4.3.12): an edge stating none is not walked. Edge terms are read only at the

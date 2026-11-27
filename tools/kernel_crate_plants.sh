@@ -690,9 +690,10 @@ plant "a licence's instant is bounded by the reader's rows" src/trust_rows.rs 'i
 plant "an edge's term is not read"                     src/trust_rows.rs '(None, _) | (Some(_), None) => false,' '(None, _) | (Some(_), None) => true,'
 plant "a concurrent amendment reads as a cut"          src/trust_rows.rs 'Some(_) if issuance(seats, i, &ended_for_reader_with(seats, i, true, false, own)).is_none() => {' 'Some(_) if false => {'
 plant "an end cuts acts of another scope"              src/trust_rows.rs '.is_some_and(|cls| need.contains(&cls) && !still_holds(seats, e, k, ob, &cls))' '.is_some()'
-plant "an act behind the reader's line is kept"        src/trust_rows.rs 'if behind_line(c, own, q, &o) {' 'if false {'
-plant "a licence behind the reader's line stands"      src/trust_rows.rs 'if behind_line(c, own, i, &a) {' 'if false {'
-plant "an edge behind the reader's line is walked"     src/trust_rows.rs 'if matches!(e.src, Obj::Row(_)) && behind_line(c, own, i, &e.src) {' 'if false {'
+plant "growth the reader holds is not read for the act" src/trust_rows.rs '    if read && amend {
+        if let Some(o) = authority_act_over(c, c.g.row(i)) {' '    if false {
+        if let Some(o) = authority_act_over(c, c.g.row(i)) {'
+plant "a concurrent lone seat is not re-counted"       src/trust_rows.rs '|| (qr.licence_authority().is_none() && !recounted(seats, q, &o))' '|| false'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

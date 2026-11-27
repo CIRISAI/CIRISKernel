@@ -41,8 +41,12 @@ Planted breaks, each of which must change a case's answer:
     amendment_as_cut         (d) a licence failing only under a concurrent amendment reads as cut (link_withdrawn)
     instant_over_reader      (b) a licence's instant is bounded below by every row the reader holds, not its own past
     scope_unread             (d) an end cuts every act of its key over the object, whatever scope it ends
-    line_unread              (a), (b) an authority act behind the reader's line over the body concludes
+    (retired: line_unread, the reader's acknowledged line unread: the line is kept, for a reader that took up a change
+    whose bytes it no longer holds, but every row the model holds that a line covers it also holds as growth, so the
+    held-growth rule (growth_held_unread) decides every case the model can build)
     termless_edge_walked     (d) an edge stating no term is walked
+    growth_held_unread       (a), (b) an authority act concurrent with growth of its body the reader holds is not
+                             re-counted over the grown body
 
     python3 -I check_trust_rows.py      exit 1 on any difference
 """
@@ -364,9 +368,31 @@ CASES += [
     ("r77 N1b and naming only g, behind the reader's line (it took up dca): concludes nothing",
      [G1, R_DC, R_DCA, ACK("ak", "g", "dca"), A("e", "RD", "g", depth=1),
       A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD", "l", KCH, NR),
-    ("r77 N1b' the same for a reader that took up nothing: the newcomer residual",
+    ("r77 N1b an OUTSIDER holding dca, acknowledging nothing: the edge is counted over the grown body",
      [G1, R_DC, R_DCA, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD",
-     "l", KCH, OK),
+     "l", KCH, NR),
+    ("r77 N1b the outsider holding none of the growth: the residual (it cannot know)",
+     [G1, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD", "l", KCH, OK),
+    ("r77 an honest pre-growth edge the growth has in its past stands",
+     [G1, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)),
+      ST.offer("dc", "A", "C", "moderate", "g", "self", ("f",)), R_DCA, klic("l")], "RD", "l", KCH, OK),
+    ("r77 N2 the outsider holding dca: the concurrent lone license seat is re-counted, X's licence testimony",
+     [G1, R_DC, R_DCA, R_LS, R_LSA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("lsa",)}], "RD", "l", None, NA),
+    ("r77 N2 holding none of the growth: the residual",
+     [G1, R_LS, R_LSA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("lsa",)}], "RD", "l", None, OK),
+    ("r77 N4c the outsider holding aob: A's own licence counted over officers A and B",
+     [AFD1, R_AOB, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
+    ("r77 N4c holding none: the residual", [AFD1, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, OK),
+    ("r77 N4e the outsider holding aob: A's edge for af", [AFD1, R_AOB, A("e", "RD", "af", depth=1),
+                                                          A("f", "A", "K", on_behalf="af", names=("af",)),
+                                                          klic("l")], "RD", "l", KCH, NR),
+    ("r77 N4e holding none: the residual", [AFD1, A("e", "RD", "af", depth=1),
+                                           A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l",
+     KCH, OK),
+    ("r77 N5b the outsider holding the admissions to aG: A and B's quorum licence",
+     GROWN + [A("e", "RD", "g"), glic("l", "g", cosigners=("B",))], "RD", "l", None, NA),
+    ("r77 N5b holding none: two of three, the residual",
+     [GROWN[0], A("e", "RD", "g"), glic("l", "g", cosigners=("B",))], "RD", "l", None, OK),
     ("r77 N2 A alone confers a license seat naming only g, behind the line: X's licence is testimony",
      [G1, R_DC, R_DCA, R_LS, R_LSA, ACK("ak", "g", "dca"), A("e", "RD", "g"),
       glic("l", "g", "X") | {"names": ("lsa", "dca")}], "RD", "l", None, NA),
@@ -415,7 +441,8 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "withdrawn_unread", "withdraw_by_anyone", "issuer_unread", "chain_unread", "quorum_unread",
           "ends_unread", "cut_unread", "self_seat_ungated", "untimed_term_met", "instant_unread",
           "edge_term_unread", "amendment_as_cut",
-          "instant_over_reader", "scope_unread", "line_unread", "termless_edge_walked")
+          "instant_over_reader", "scope_unread", "termless_edge_walked",
+          "growth_held_unread")
 
 
 @contextlib.contextmanager

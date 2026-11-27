@@ -5736,6 +5736,22 @@ fn room_key_ended<R: SeatRow, S: CutSpec<R>>(
         })
 }
 
+/// [`authority_gate`] for the row a past is of: the one gate read again over another past than the one the row
+/// concluded over (a lone conferral re-counted over the grown body the reader holds, [`crate::trust_rows`]). True for
+/// a row the gate does not read (a founding row, a counted row).
+pub fn authority_gate_at<R: SeatRow, S: CutSpec<R>>(law: &SeatLaw, spec: &S, p: &Past<'_, '_, R>) -> bool {
+    let r = p.row();
+    if r.seat_kind() != SeatKind::Offer || !matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat) | Some(Conf::Root)) {
+        return true;
+    }
+    let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
+    let own_duty = r.obj().is_some_and(|o| {
+        !founding(r) && community(&by, &o) && r.scope().is_some_and(|s| law.is_duty(s.as_ref(), &declared(&by, &o)))
+    });
+    let duty = duty_seat(law, &by, r) || own_duty;
+    authority_gate(law, spec, r, p, &by, None, duty)
+}
+
 /// THE ONE GATE (the r73 attack) on a single key's offer (`Conf::Own` or `Conf::Seat`, not a founding row) of a
 /// group's authority seat over a group: an act of its AUTHORITY BODY ([`Seats::authority_body`]), concluded only where
 /// its signer alone is that body, whether or not the founding row names holders. A duty seat (`duty`): the lone duty

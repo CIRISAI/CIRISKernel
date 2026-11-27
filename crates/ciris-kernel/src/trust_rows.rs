@@ -39,8 +39,8 @@ use crate::cut::CutSpec;
 use crate::graph::Graph;
 use crate::layers::{Concluded, Past};
 use crate::seat::{
-    declared_count, for_reader, kind_of, policy_for, Act, CommunityKind, Conf, Obj, ScopeClass, SeatKind, SeatLaw,
-    SeatRow, Seats, AGENT, OFFICER,
+    authority_gate_at, declared_count, for_reader, kind_of, policy_for, Act, CommunityKind, Conf, Obj, ScopeClass,
+    SeatKind, SeatLaw, SeatRow, Seats, AGENT, OFFICER,
 };
 use crate::trust::{reaches, Accepts, Charters, HOP_CAP};
 use crate::{Dated, Row};
@@ -428,6 +428,59 @@ fn sub_of<'a, R: Row>(c: &Concluded<'a, R>, idx: &[usize]) -> Concluded<'a, R> {
     Concluded::with(g, Some(idx.iter().map(|&j| c.concluded(j)).collect()))
 }
 
+// ---- body growth over the rows the reader HOLDS (the tips fold's rule, which a lone duty conferral already reads) ---
+
+/// The rows that grow group `o`'s body among the concluded rows: its changes ([`body_change`]) and the acceptances
+/// completing them.
+fn growth_of<R: SeatRow>(c: &Concluded<'_, R>, o: &ObjOf<R>) -> Vec<usize> {
+    c.cs()
+        .iter()
+        .copied()
+        .filter(|&x| {
+            let q = c.g.row(x);
+            body_change(q, o)
+                || (q.seat_kind() == SeatKind::Accept
+                    && q.of().and_then(|i| c.g.idx(i)).is_some_and(|i| body_change(c.g.row(i), o)))
+        })
+        .collect()
+}
+
+/// The growth of `o`'s body the reader holds concurrent with row `q` (neither in the other's past).
+fn concurrent_growth<R: SeatRow>(c: &Concluded<'_, R>, q: usize, o: &ObjOf<R>) -> Vec<usize> {
+    growth_of(c, o).into_iter().filter(|&x| x != q && !c.g.ancestors(q).has(x) && !c.g.ancestors(x).has(q)).collect()
+}
+
+/// The rows `q`'s authority over `o` is re-counted over: its own past, with the concurrent growth the reader holds
+/// and their pasts: the body at the newest counted changes the reader holds.
+fn with_growth<R: SeatRow>(c: &Concluded<'_, R>, q: usize, growth: &[usize]) -> Vec<usize> {
+    let qa = c.g.ancestors(q);
+    (0..c.g.len()).filter(|&j| qa.has(j) || growth.iter().any(|&x| x == j || c.g.ancestors(x).has(j))).collect()
+}
+
+/// Authority act `q` over `o`, CONCURRENT with growth of the body the reader holds, still holds counted over the grown
+/// body (as the tips fold re-counts a lone duty conferral): a single key's own or conferred seat by the one gate
+/// ([`crate::seat::authority_gate_at`]), an edge by its owner's authority set. An act the growth has in its past
+/// stands as made; a counted act (`Conf::Group`) is the tips fold's.
+fn recounted<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, q: usize, o: &ObjOf<R>) -> bool {
+    let c = seats.c();
+    let growth = concurrent_growth(c, q, o);
+    if growth.is_empty() {
+        return true;
+    }
+    let idx = with_growth(c, q, &growth);
+    let r = c.g.row(q);
+    if r.seat_kind() == SeatKind::Offer && matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat)) {
+        let (_, with) = judged(c, q, &idx);
+        let last = with.g.len() - 1;
+        let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
+        return authority_gate_at(seats.law(), seats.spec(), &Past::new(&with.g, last, &p));
+    }
+    if r.is_delegates_to() {
+        return speaks_over(seats, q, &idx, &signers(r), &owner(r));
+    }
+    true
+}
+
 /// THE END RULE (the r73 attack), the one read of ends for every path (the emitter, the quorum, the seat, the edge):
 /// an END cuts every row of what it ends that is not in the end's past. The rows (indices of `seats`' set) row `i`'s
 /// authority is judged over: its own past, with every end in it cutting the rows concurrent with it (`read` false: its
@@ -471,8 +524,18 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
                 && !c.g.ancestors(j).has(i)
                 && (amend || !is_amendment(c.g.row(j)))
         }));
-        rows.sort_unstable();
     }
+    // the growth of the authority's body the reader holds, concurrent with i: i is counted over the grown body
+    // (`amend` false leaves it out, as an amendment: it changes the rule, it cuts nothing)
+    if read && amend {
+        if let Some(o) = authority_act_over(c, c.g.row(i)) {
+            for x in concurrent_growth(c, i, &o) {
+                rows.extend((0..c.g.len()).filter(|&j| j != i && (j == x || c.g.ancestors(x).has(j))));
+            }
+        }
+    }
+    rows.sort_unstable();
+    rows.dedup();
     let mut cut: BTreeSet<usize> = BTreeSet::new();
     for &e in rows.iter().filter(|&&e| c.concluded(e) && is_end(c.g.row(e))) {
         let ks = ends_keys(c, c.g.row(e));
@@ -500,8 +563,9 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
         }
     }
     for &q in &rows {
-        if let Some(o) = authority_act_over(c, c.g.row(q)) {
-            if behind_line(c, own, q, &o) {
+        let qr = c.g.row(q);
+        if let Some(o) = authority_act_over(c, qr) {
+            if behind_line(c, own, q, &o) || (qr.licence_authority().is_none() && !recounted(seats, q, &o)) {
                 cut.insert(q);
             }
         }

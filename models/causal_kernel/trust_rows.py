@@ -339,6 +339,52 @@ def authority_act_over(S, q):
     return None
 
 
+# ---- body growth over the rows the reader HOLDS (the tips fold's rule, which a lone duty conferral already reads) ---
+def growth_of(S, o):
+    """The rows that grow group `o`'s body, among the concluded rows S holds: its changes (body_change) and the
+    acceptances completing them."""
+    out = []
+    for q in S.Cs:
+        if body_change(q, o):
+            out.append(q)
+        elif q["kind"] == "accept" and q.get("of") in S.by and body_change(S.by[q["of"]], o):
+            out.append(q)
+    return out
+
+
+def concurrent_growth(S, q, o):
+    """The growth of `o`'s body the reader holds concurrent with row `q` (neither in the other's past)."""
+    if "growth_held_unread" in MUT:
+        return []
+    return [c for c in growth_of(S, o) if c["id"] != q["id"] and c["id"] not in S.anc[q["id"]]
+            and q["id"] not in S.anc[c["id"]]]
+
+
+def with_growth(S, q, o):
+    """The rows `q`'s authority over `o` is re-counted over: its own past, with the concurrent growth the reader holds
+    and their pasts: the body at the newest counted changes the reader holds."""
+    ids = set(S.anc[q["id"]])
+    for c in concurrent_growth(S, q, o):
+        ids |= {c["id"]} | set(S.anc[c["id"]])
+    rows = [x for x in S.rows if x["id"] in ids]
+    return CK.State(rows, {x["id"]: S.C.get(x["id"]) for x in rows})
+
+
+def recounted(S, q, o):
+    """Authority act `q` over `o`, CONCURRENT with growth of the body the reader holds, still holds counted over the
+    grown body (as the tips fold re-counts a lone duty conferral): a single key's own or conferred seat by the one
+    gate (seat.authority_gate), an edge by its owner's authority set (speaks_for). An act the growth has in its past
+    stands as made; a counted act (conf group) is the tips fold's."""
+    if not concurrent_growth(S, q, o):
+        return True
+    T = with_growth(S, q, o)
+    if q["kind"] == "offer" and q.get("conf") in ("self", "seat"):
+        return ST.authority_gate(q, T.Cs, T.by)
+    if q["kind"] == "delegates_to":
+        return speaks_for(T, ST.signers(q), owner(q))
+    return True
+
+
 def cut_state(S, rows, own=None):
     """The rows `rows` with every row an end among them cuts taken out, and every authority act behind the reader's
     line: an end cuts a row signed by a key whose seat over the row's object, of a scope whose standing the row rests
@@ -365,7 +411,7 @@ def cut_state(S, rows, own=None):
                         break
     for q in rows:
         o = authority_act_over(S, q)
-        if o is not None and behind_line(S, own, q, o):
+        if o is not None and (behind_line(S, own, q, o) or (q["kind"] != "licensure" and not recounted(S, q, o))):
             cut.add(q["id"])
     kept = [q for q in rows if q["id"] not in cut]
     return CK.State(kept, {q["id"]: S.C.get(q["id"]) for q in kept})
@@ -385,6 +431,15 @@ def ended_for_reader(S, r, read=True, amend=True, own=None):
     if read and "ends_unread" not in MUT:
         rows += [q for q in S.rows if S.C.get(q["id"]) and is_end(q) and q["id"] not in past and q["id"] != r["id"]
                  and r["id"] not in S.anc[q["id"]] and (amend or not is_amendment(q))]
+    # the growth of the authority's body the reader holds, concurrent with r: r is counted over the grown body
+    # (`amend` False leaves it out, as an amendment: it changes the rule, it cuts nothing)
+    o = authority_act_over(S, r)
+    if read and amend and o is not None:
+        have = {q["id"] for q in rows}
+        for c in concurrent_growth(S, r, o):
+            for x in S.rows:
+                if (x["id"] == c["id"] or x["id"] in S.anc[c["id"]]) and x["id"] not in have and x["id"] != r["id"]:
+                    rows.append(x); have.add(x["id"])
     return cut_state(S, rows, own)
 
 
