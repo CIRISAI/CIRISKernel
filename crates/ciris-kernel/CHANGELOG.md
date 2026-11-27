@@ -3,16 +3,20 @@
 ## Unreleased
 
 **The audience after review r79** (both languages, cases from each finding, planted breaks and fixtures):
-- The copy rule never adds a key the named row's own placement withholds (`audience::copy_bound`, the one place
-  the precedence is stated): it no longer carries older rows to a joiner under from_join, to an offered key that
-  never accepted, or to a removed key. Under the bound it adds no key; a joiner under from_join can receive a reply
-  whose parent it is not owed.
+- The copy rule is the Constitution's proposal c (`audience::carried`, the one place it is stated): carriage is of
+  rows; a room row is carried by a concluded room row of its room to that row's audience on the room's current
+  roster; nothing reaches a key off the roster (an offered key that never accepted gets the offer alone, a removed
+  key its removal alone); a self or addressed row is carried only by a concluded row of its own signer or person;
+  the carrier's signer is already in the row's audience; a key grant is never carried.
+- `history_on_join` changes no audience: served is not readable. A later joiner is served the older room rows,
+  sealed by keys it lacks; `full` acts only on a kept stream, the caller's (`audience::history_of`). **BREAKING**:
+  `audience::Joins` keeps `history` and `at_head` only.
 - `named_within` is read against the members at the row's own head (`audience::Joins::at_head`), so a later
   removal never unplaces an old row, and a row naming an outsider stays refused after the outsider joins. The
   current roster is read only for who is owed.
 - The keys a seat row seats or removes are derived (`audience::seats_of`: an offer or unseat whose `obj` is its
   room, its `to`). **BREAKING**: `AudienceRow::seats` is gone; `seat_act`, `obj` and `to` replace it.
-- An unknown `history_on_join` word is absent and falls through (the door refuses it).
+- An unknown `history_on_join` word is absent and falls through (the door refuses it), in `history_of`.
 - Family patterns that tie on a name refuse (`Refusal::FamilyAmbiguous`, `audience::family_in`); the generator
   refuses to write a table with a tie.
 - A key removal (`content`) is read only where it is the key's own revocation or concludes under the person's own

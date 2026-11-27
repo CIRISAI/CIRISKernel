@@ -15,9 +15,11 @@ over the family model's placement cells (data/family_placement.json).
                  with no room; an unknown family; the copy rule (same room, same signer, signer in the audience,
                  concluded; a refused row carries nothing)
 
-    Planted breaks (audience.MUT), each caught: undecided_defaulted, pinned_unread, named_within_unread,
-    copy_cross_room, copy_any_signer, copy_unconcluded, match_first, seats_not_within (the keys a seat row seats
-    or removes held to named_within), history_unread (every row read as history_on_join full).
+    Planted breaks (audience.MUT), each caught: undecided_defaulted, pinned_unread, named_within_unread, the copy
+    rule's copy_any_carrier, copy_any_signer, copy_unconcluded, copy_off_roster and key_grant_carried, match_first,
+    seats_not_within, seats_any_obj, named_within_current, history_unread and word_read (history_of), tie_first.
+    copy_cross_room is not planted: a room row's carriage is bounded by its own room's roster, which already
+    serves it, so a carrier of another room adds nothing observable.
 
     python3 -I check_audience.py      exit 1 on any difference
 """
@@ -130,27 +132,23 @@ CASES = [
      "held to named_within",
      [row("v", "partner_role:member", "community", room="r1", named=["j"], kind="offer", obj="r9", to=["j"])],
      {"v": REF("named_outside_audience")}),
-    # history_on_join (CC 2.1, CC 4.4.3.16): j was admitted to r3 by `adm`, after the row m (m in adm's past)
-    ("history_from_join", "the room's record states nothing: the default from_join, and j, admitted after m, is "
-     "not owed m",
-     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b"])},
-     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]]}),
-    ("history_record_full", "the room's record states history_on_join full: j is owed m",
-     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b", "j"])},
-     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "full"}}),
-    ("history_record_from_join", "the room's record states from_join: j is not owed m",
-     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b"])},
-     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "from_join"}}),
-    ("history_row_full", "the row's producer keeps it (its own history_on_join full), the record stating from_join: "
-     "j is owed m",
+    # history_on_join changes no audience (CC 4.4.3.16 as the Constitution corrected it): j, admitted to r3 by `adm`
+    # after m, is SERVED m, sealed by keys it lacks: served is not readable. `full` acts only on a kept stream, the
+    # caller's (history_of)
+    ("history_from_join", "the record states nothing (from_join): j is served m, not keyed for it",
+     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b", "j"])}, {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]]}),
+    ("history_record_full", "the record states full: j is served m, and the room's tier still gives it no earlier "
+     "key; full acts only on a kept stream",
+     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b", "j"])}, {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "full"}}),
+    ("history_record_from_join", "the record states from_join: j is served m, not keyed for it",
+     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b", "j"])}, {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "from_join"}}),
+    ("history_row_full", "the row states full, the record from_join: served alike; the row's own full is read only "
+     "for a kept stream",
      [row("m", "chat:general", "community", room="r3", history="full")], {"m": P("targeted_room", ["a", "b", "j"])},
      {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "from_join"}}),
-    ("history_join_concurrent", "j was admitted concurrently with m: neither is in the other's past, so the "
-     "admission is not after m and j is owed m under from_join",
-     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b", "j"])},
-     {"joined": {"r3": {"j": "adm"}}, "before": []}),
-    ("history_row_after_join", "m has j's admission in its past (m is signed after the join): j is owed m under "
-     "from_join",
+    ("history_join_concurrent", "j was admitted concurrently with m: served m",
+     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b", "j"])}, {"joined": {"r3": {"j": "adm"}}, "before": []}),
+    ("history_row_after_join", "m has j's admission in its past: served m",
      [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b", "j"])},
      {"joined": {"r3": {"j": "adm"}}, "before": [["adm", "m"]]}),
     ("removed_later_owed_nothing", "c was removed from r2's roster after m: the roster as it stands does not list c, "
@@ -180,57 +178,64 @@ CASES = [
     ("most_literal_pattern", "accord:lifecycle is its own family, not accord:*",
      [row("m", "accord:lifecycle", "self"), row("n", "accord:other", "self")],
      {"m": P("self_collective", ["a", "a2"]), "n": P("self_collective", ["a", "a2"])}),
-    # the copy rule
-    ("copy_same_room", "an addressed row in room r1, named by a concluded row in r1 whose signer d it addresses: "
-     "the copy rule adds no key the addressed row's own placement withholds, so it stays with its addressees",
+    # the copy rule (carried: the Constitution's proposal c). Carriage is of rows; served is not readable
+    ("copy_same_room", "an addressed row of a, named by d's concluded row in r1: d is not its signer, so it is not "
+     "carried (c.3) and stays with its addressees",
      [row("x", "census:member:share", "addressed", room="r1", named=["d"]),
       row("m", "chat:general", "community", signer="d", room="r1", names=["x"])],
      {"x": P("addressed", ["a", "d"]), "m": P("targeted_room", ["a", "b", "c", "d"])}),
-    ("copy_signer_outside", "the namer's signer b is not in the addressed row's audience: it carries nobody",
+    ("copy_signer_outside", "a's addressed row, named by a room row of a2 (a's person, so a carrier c.3 admits) that "
+     "is not in the row's audience: the gate of CC 5.2, it carries nobody",
      [row("x", "census:member:share", "addressed", room="r1", named=["d"]),
-      row("m", "chat:general", "community", signer="b", room="r1", names=["x"])],
-     {"x": P("addressed", ["a", "d"]), "m": P("targeted_room", ROOM)}),
-    ("copy_other_room", "the namer is in another room and signed by another key: the row does not leave its room",
-     [row("x", "census:member:share", "addressed", room="r2", named=["d"]),
-      row("m", "chat:general", "community", signer="d", room="r1", names=["x"])],
-     {"x": P("addressed", ["a", "d"]), "m": P("targeted_room", ["a", "b", "c", "d"])}),
-    ("copy_author_carries", "the author's self row named by its row in r1: the copy rule adds no key a self row's "
-     "placement withholds, so it stays with the author's own keys",
+      row("m", "chat:general", "community", signer="a2", room="r1", names=["x"])],
+     {"x": P("addressed", ["a", "d"]), "m": P("targeted_room", ["a", "a2", "b", "c"])}),
+    ("copy_author_carries", "the author's self row, named by its own concluded row in r1: carried to r1's roster",
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", room="r1", names=["s"])],
-     {"s": P("self_collective", ["a", "a2"]), "m": P("targeted_room", ROOM)}),
+     {"s": P("self_collective", ["a", "a2", "b", "c"]), "m": P("targeted_room", ROOM)}),
+    ("copy_person_carries", "the self row named by a concluded room row of a2, a key of a's person: carried",
+     [row("s", "chat:general", "self"), row("m", "chat:general", "community", signer="a2", room="r1", names=["s"])],
+     {"s": P("self_collective", ["a", "a2", "b", "c"]), "m": P("targeted_room", ["a", "a2", "b", "c"])}),
     ("copy_unconcluded", "a namer that does not conclude carries nobody",
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", room="r1", names=["s"], concluded=False)],
      {"s": P("self_collective", ["a", "a2"]), "m": P("targeted_room", ROOM)}),
     ("copy_from_refused", "a refused namer carries nobody",
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", room="r1", names=["s"], named=["z"])],
      {"s": P("self_collective", ["a", "a2"]), "m": REF("named_outside_audience")}),
-    ("copy_chain", "a commons row by b names the room row, which names the author's self row: each keeps the "
-     "audience its own placement owes it",
+    ("copy_chain", "a commons row by b names a's room row, which names a's self row: the self row reaches r1's "
+     "roster by a's own row; the room row is carried only by a room row of its room, so b's commons row adds nothing",
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", room="r1", names=["s"]),
       row("c", "chat:general", "federation", signer="b", room="r1", names=["m"])],
-     {"s": P("self_collective", ["a", "a2"]), "m": P("targeted_room", ROOM), "c": P("commons", AU.EVERYONE)}),
-    # review r79 (leak.py): the copy rule never adds a key the named row's own place() withholds
-    ("copy_reply_from_join", "j joined r3 after m0 and m1 (from_join); b's reply d after the join names m1, which "
-     "names m0: d reaches j, m1 and m0 do not. A joiner under from_join can receive a reply whose parent it is not owed",
+     {"s": P("self_collective", ["a", "a2", "b", "c"]), "m": P("targeted_room", ROOM), "c": P("commons", AU.EVERYONE)}),
+    ("copy_not_off_roster", "a's offer to z (never accepted) names a's self row: the self row reaches the roster, "
+     "not z (c.2: nothing reaches a key off the roster)",
+     [row("s", "chat:general", "self"), dict(seat_row("o", "offer", "r1", ["z"]), names=["s"])],
+     {"s": P("self_collective", ["a", "a2", "b", "c"]), "o": P("targeted_room", ROOM + ["z"])}),
+    ("key_grant_never_carried", "a key grant of a, at self, named by a's own room row: a key grant is never "
+     "carried, and reaches only the key it names",
+     [row("k", "key_grant:content", "self", named=["d"]),
+      row("m", "chat:general", "community", room="r1", names=["k"])],
+     {"k": P("self_collective", ["a", "a2", "d"]), "m": P("targeted_room", ROOM)}),
+    # the joiner (review r79, leak.py): served the room's rows as they stand, sealed by keys it lacks
+    ("copy_reply_from_join", "j joined r3 after m0 and m1; b's reply d names m1, which names m0: j is served all "
+     "three, as a current member, and holds the older two as ciphertext",
      [row("m0", "chat:general", "community", room="r3"),
       row("m1", "chat:general", "community", signer="b", room="r3", names=["m0"]),
       row("d", "chat:general", "community", signer="b", room="r3", names=["m1"])],
-     {"m0": P("targeted_room", ["a", "b"]), "m1": P("targeted_room", ["a", "b"]), "d": P("targeted_room", ["a", "b", "j"])},
+     {"m0": P("targeted_room", ["a", "b", "j"]), "m1": P("targeted_room", ["a", "b", "j"]), "d": P("targeted_room", ["a", "b", "j"])},
      {"joined": {"r3": {"j": "adm"}}, "before": [["m0", "adm"], ["m1", "adm"], ["m0", "m1"], ["m0", "d"], ["m1", "d"],
                                                  ["adm", "d"]]}),
-    ("copy_admission_from_join", "j's admission names its head m1: it carries none of the older rows to j",
+    ("copy_admission_from_join", "j's admission names m1, which names m0: j holds the rows its admission names",
      [row("m0", "chat:general", "community", room="r3"),
       row("m1", "chat:general", "community", signer="b", room="r3", names=["m0"]),
       dict(seat_row("adm", "offer", "r3", ["j"]), names=["m1"])],
-     {"m0": P("targeted_room", ["a", "b"]), "m1": P("targeted_room", ["a", "b"]), "adm": P("targeted_room", ["a", "b", "j"])},
+     {"m0": P("targeted_room", ["a", "b", "j"]), "m1": P("targeted_room", ["a", "b", "j"]), "adm": P("targeted_room", ["a", "b", "j"])},
      {"joined": {"r3": {"j": "adm"}}, "before": [["m0", "adm"], ["m1", "adm"], ["m0", "m1"]]}),
-    ("copy_unaccepted_outsider", "a concluded offer to z, never accepted, names its head h1: z gets the offer, not h1 "
-     "or h0",
+    ("copy_unaccepted_outsider", "a concluded offer to z, never accepted, names its head h1: z gets the offer alone",
      [row("h0", "chat:general", "community", signer="c", room="r1"),
       row("h1", "chat:general", "community", signer="b", room="r1", names=["h0"]),
       dict(seat_row("o", "offer", "r1", ["z"]), names=["h1"])],
      {"h0": P("targeted_room", ROOM), "h1": P("targeted_room", ROOM), "o": P("targeted_room", ROOM + ["z"])}),
-    ("copy_removed_key", "the removal of c names its head g1: c gets the removal, not g1 or g0",
+    ("copy_removed_key", "the removal of c names its head g1: c gets the removal alone",
      [row("g0", "chat:general", "community", signer="e", room="r2"),
       row("g1", "chat:general", "community", room="r2", names=["g0"]),
       dict(seat_row("x", "unseat", "r2", ["c"]), names=["g1"])],
@@ -243,17 +248,6 @@ CASES = [
     ("named_outsider_joins_later", "a row naming j before j sat in r3 stays refused after j joins",
      [row("m", "chat:general", "community", room="r3", named=["j"])], {"m": REF("named_outside_audience")},
      {"at_head": {"m": ["a", "b"]}}),
-    # review r79: an unknown history_on_join word is absent, and falls through to the record
-    ("history_unknown_word_record_full", "the row states history_on_join 'always', a word the door refuses: read as "
-     "absent, the record's full decides and j is owed m",
-     [row("m", "chat:general", "community", room="r3", history="always")], {"m": P("targeted_room", ["a", "b", "j"])},
-     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "full"}}),
-    ("history_unknown_word_default", "the same word with the record silent: the default from_join, j is not owed m",
-     [row("m", "chat:general", "community", room="r3", history="always")], {"m": P("targeted_room", ["a", "b"])},
-     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]]}),
-    ("history_unknown_record_word", "the record states an unknown word: absent, the default from_join",
-     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b"])},
-     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "sometimes"}}),
 ]
 
 # family names that tie: two patterns matching one name with as many literal segments; a synthetic table, since
@@ -270,14 +264,13 @@ TIES = [
 # its bound lifted (copy_unbounded): under the bound they are not observable
 PLANTS = [(("undecided_defaulted",), "undecided_family"), (("pinned_unread",), "pinned_self"),
           (("named_within_unread",), "named_outside_audience"),
-          (("copy_unbounded",), "copy_reply_from_join"),
-          (("copy_unbounded", "copy_cross_room"), "copy_other_room"),
-          (("copy_unbounded", "copy_any_signer"), "copy_signer_outside"),
-          (("copy_unbounded", "copy_unconcluded"), "copy_unconcluded"),
+          (("copy_any_carrier",), "copy_same_room"), (("copy_any_signer",), "copy_signer_outside"),
+          (("copy_unconcluded",), "copy_unconcluded"), (("copy_off_roster",), "copy_not_off_roster"),
+          (("key_grant_carried",), "key_grant_never_carried"),
           (("match_first",), "table"), (("seats_not_within",), "admission_names_joiner"),
           (("seats_any_obj",), "seats_derived_not_stated"),
           (("named_within_current",), "named_at_own_head"),
-          (("history_unread",), "history_from_join"), (("word_read",), "history_unknown_word_record_full"),
+          (("history_unread",), "history"), (("word_read",), "history"),
           (("tie_first",), "ties")]
 
 
@@ -338,6 +331,21 @@ def check_derivation():
     return problems
 
 
+# history_of: the word a caller reads for a kept stream (it changes no audience). (row's word, record's word, answer)
+HISTORY = [(None, None, "from_join"), ("full", None, "full"), (None, "full", "full"), ("from_join", "full", "from_join"),
+           ("always", "full", "full"), ("always", None, "from_join"), (None, "sometimes", "from_join")]
+
+
+def check_history():
+    problems = []
+    for rw, rec, want in HISTORY:
+        r = row("m", "chat:general", "community", room="r3", history=rw)
+        got = AU.history_of(r, dict(AU.NO_JOINS, history=lambda room: rec))
+        if got != want:
+            problems.append("history: row %s, record %s gives %s, want %s" % (rw, rec, got, want))
+    return problems
+
+
 def check_ties():
     problems = []
     for fams, name, want in TIES:
@@ -395,6 +403,7 @@ def fixture():
             "source": AU.TABLE["_source"], "roster": {k: list(v) for k, v in ROSTER.items()},
             "person": {k: list(v) for k, v in PERSON.items()},
             "ties": [{"families": f, "name": n, "answer": a} for f, n, a in TIES],
+            "history": [{"row": rw, "record": rec, "answer": a} for rw, rec, a in HISTORY],
             "generated": [{"family": p, "name": n, "scope": s, "room": r, "answer": a} for p, n, s, r, a in generated()],
             "cases": [{"name": n, "about": ab, "rows": rows, "joins": w[0] if w else {},
                        "answers": {i: enc(a) for i, a in
@@ -403,7 +412,7 @@ def fixture():
 
 
 def main():
-    problems = check_table() + check_cases() + check_derivation() + check_ties()
+    problems = check_table() + check_cases() + check_derivation() + check_ties() + check_history()
     if REGARD not in AU.FAMILIES:
         print("  %s is not in the pinned table yet: its %d cases wait for the re-pin" % (REGARD, len(REGARD_CASES)))
     caught = 0
@@ -411,7 +420,7 @@ def main():
         mut = "+".join(muts)
         AU.MUT.clear(); AU.MUT.update(muts)
         try:
-            got = check_table() + check_cases() + check_ties()
+            got = check_table() + check_cases() + check_ties() + check_history()
         finally:
             AU.MUT.clear()
         hit = any(g.startswith(where + ":") for g in got)

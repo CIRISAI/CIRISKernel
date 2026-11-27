@@ -26,11 +26,14 @@
 //!   `history_on_join` is full: the row's own ([`AudienceRow::history_on_join`]), else the room record's
 //!   ([`Joins::history`]), else from_join. Commons: everyone. Addressed:
 //!   the keys it names.
-//! * **Copy** ([`audiences`]). A row's audience includes that of every concluded row naming it from the same room
-//!   or signed by the same key, whose signer is already in its audience: the least fixed point. A refused or
-//!   undecided row carries nothing and receives nothing. [`copy_bound`] is the one place the precedence is stated:
-//!   the copy rule never adds a key the named row's own placement withholds, so it adds none here, and a joiner
-//!   under from_join can receive a reply whose parent it is not owed.
+//! * **Copy** ([`audiences`], [`carried`]: the Constitution's proposal c). Carriage is of rows: a room row is
+//!   carried by a concluded room row of its room to that row's audience on the room's current roster; nothing
+//!   reaches a key off the roster; a self or addressed row is carried only by a concluded row of its own signer or
+//!   that signer's person; the carrier's signer is already in the row's audience; a key grant is never carried.
+//!   A refused or undecided row carries nothing and receives nothing.
+//! * **Served is not readable.** `history_on_join` changes no audience: a later joiner is served the older room
+//!   rows, sealed by keys it lacks (the tier gives the current epoch's key only, CC 4.4.3.16). `full` acts only on
+//!   a kept stream, through its producer's own key grants within the catch-up bound: the caller's ([`history_of`]).
 
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
@@ -127,13 +130,6 @@ impl<K: Ord + Clone> Audience<K> {
     }
 }
 
-/// The keys the copy rule may add to a placed row: those its own placement owes it (its placement, history_on_join
-/// and the current roster, its named and seat keys). The one place the precedence is stated: the copy rule never
-/// adds a key that the row's own [`place`] withholds.
-pub fn copy_bound<K: Ord + Clone>(placed: &Audience<K>) -> Audience<K> {
-    placed.clone()
-}
-
 /// Why a row is refused a placement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
@@ -198,12 +194,9 @@ impl History {
 
 /// How the room's members joined, the caller's: read for a targeted row's audience.
 pub struct Joins<'a, I, K> {
-    /// The row that admitted the key to the room; `None` for a founding member.
-    pub joined: &'a dyn Fn(&I, &K) -> Option<I>,
-    /// The `history_on_join` the room's record states, where it states one (an unknown word: none).
+    /// The `history_on_join` the room's record states, where it states one (an unknown word: none). It changes no
+    /// audience; [`history_of`] reads it for a kept stream.
     pub history: &'a dyn Fn(&I) -> Option<History>,
-    /// Row `a` is in row `b`'s past.
-    pub past: &'a dyn Fn(&I, &I) -> bool,
     /// The members of the room at the row's own head ([`crate::seat::members_at`]), which `named_within` reads.
     /// No fallback to the current roster: that would make a row's placement change with a later removal.
     pub at_head: &'a dyn Fn(&I, &I) -> BTreeSet<K>,
@@ -380,20 +373,69 @@ pub fn place<R: AudienceRow>(
                 return Placed::Refused(Refusal::NamedOutsideAudience);
             }
             keys.extend(seats.iter().cloned());
-            // a member admitted after the row receives it only where the history is full: the row's own, else the
-            // room record's, else from_join
-            let history = r.history_on_join().or_else(|| (joins.history)(room)).unwrap_or(History::FromJoin);
-            keys.extend(members.into_iter().filter(|k| {
-                history == History::Full || (joins.joined)(room, k).is_none_or(|adm| !(joins.past)(r.id(), &adm))
-            }));
+            // history_on_join changes no audience: a later joiner is served the older room rows, sealed by keys it
+            // lacks (served is not readable; the tier gives the current epoch's key only, CC 4.4.3.16)
+            keys.extend(members);
         }
     }
     Placed::Placed(placement, Audience::Keys(keys))
 }
 
-/// Every row's answer, the copy rule applied: a placed row's audience grows by that of every concluded placed row
-/// naming it from the same room, or signed by the same key, whose signer is already in its audience (CC 5.2),
-/// bounded by [`copy_bound`]: the copy rule never adds a key the row's own placement withholds.
+/// The `history_on_join` a caller reads for a KEPT STREAM, where `full` lets the producer's own key grants reach
+/// a late joiner within the catch-up bound (CC 5.1; the caller's): the row's own, else the room record's, else
+/// from_join. It changes no audience here.
+pub fn history_of<R: AudienceRow>(r: &R, joins: &Joins<'_, R::Id, R::Key>) -> History {
+    r.history_on_join().or_else(|| r.room().and_then(|room| (joins.history)(room))).unwrap_or(History::FromJoin)
+}
+
+// a key of `k`'s person, `k` included
+fn same_person<K: Ord + Clone>(person: &dyn Fn(&K) -> BTreeSet<K>, k: &K, of: &K) -> bool {
+    k == of || person(of).contains(k)
+}
+
+/// The keys a concluded placed row `d` naming `r` carries `r` to, or `None`: the copy rule of CC 5.2 as the
+/// Constitution read it (proposal c), the one place it is stated. Carriage is of ROWS; served is not readable.
+/// * c.1: a room row is carried by a concluded room row of the same room, to that row's audience;
+/// * c.2: only to keys on the room's current roster (an offered key that never accepted gets the offer alone, a
+///   removed key its removal alone);
+/// * c.3: a self or an addressed row is carried only by a concluded row of its own signer or that signer's person,
+///   into that row's audience (bounded by c.2 where it is a room row).
+///
+/// The carrier's signer is already in `r`'s audience (CC 5.2's gate). A key grant is never carried: it reaches only
+/// the key it names.
+pub fn carried<R: AudienceRow>(
+    r: &R,
+    a: &Placed<R::Key>,
+    d: &R,
+    ad: &Placed<R::Key>,
+    roster: &dyn Fn(&R::Id) -> BTreeSet<R::Key>,
+    person: &dyn Fn(&R::Key) -> BTreeSet<R::Key>,
+) -> Option<Audience<R::Key>> {
+    let (Placed::Placed(pr, ar), Placed::Placed(pd, aud)) = (a, ad) else { return None };
+    if !d.concluded() || r.family().starts_with("key_grant:") || !ar.holds(d.signer()) {
+        return None;
+    }
+    let targeted = |p: &Placement| matches!(p, Placement::TargetedFamily | Placement::TargetedRoom);
+    let on_roster = |room: &R::Id| aud.meet(&Audience::Keys(roster(room)));
+    if targeted(pr) {
+        if !targeted(pd) || d.room() != r.room() {
+            return None;
+        }
+        return r.room().map(on_roster);
+    }
+    if !same_person(person, d.signer(), r.signer()) {
+        return None;
+    }
+    if targeted(pd) {
+        d.room().map(on_roster)
+    } else {
+        Some(aud.clone())
+    }
+}
+
+/// Every row's answer, the copy rule applied ([`carried`]): a placed row's audience grows by the keys every
+/// concluded placed row naming it carries it to; the least fixed point, which only grows. The consequence: a
+/// joiner may hold the room's whole named reply chain, as ciphertext it cannot read.
 pub fn audiences<R: AudienceRow>(
     rows: &[&R],
     roster: &dyn Fn(&R::Id) -> BTreeSet<R::Key>,
@@ -402,27 +444,17 @@ pub fn audiences<R: AudienceRow>(
 ) -> BTreeMap<R::Id, Placed<R::Key>> {
     let mut out: BTreeMap<R::Id, Placed<R::Key>> =
         rows.iter().map(|r| (r.id().clone(), place(*r, roster, person, joins))).collect();
-    let bound: BTreeMap<R::Id, Audience<R::Key>> = out
-        .iter()
-        .filter_map(|(i, a)| match a {
-            Placed::Placed(_, aud) => Some((i.clone(), copy_bound(aud))),
-            _ => None,
-        })
-        .collect();
     let by: BTreeMap<&R::Id, &R> = rows.iter().map(|r| (r.id(), *r)).collect();
     loop {
         let mut changed = false;
-        for d in rows.iter().filter(|d| d.concluded()) {
-            let Some(Placed::Placed(_, ad)) = out.get(d.id()).cloned() else { continue };
+        for d in rows.iter() {
+            let Some(ad) = out.get(d.id()).cloned() else { continue };
             for n in d.names() {
                 let Some(r) = by.get(n) else { continue };
-                let same_room = d.room().is_some() && d.room() == r.room();
-                if !same_room && d.signer() != r.signer() {
-                    continue; // a row leaves its room only by its own signer's act
-                }
-                let Some(b) = bound.get(n) else { continue };
+                let Some(a) = out.get(n) else { continue };
+                let Some(add) = carried(*r, a, *d, &ad, roster, person) else { continue };
                 if let Some(Placed::Placed(_, a)) = out.get_mut(n) {
-                    if a.holds(d.signer()) && a.join(&ad.meet(b)) {
+                    if a.join(&add) {
                         changed = true;
                     }
                 }

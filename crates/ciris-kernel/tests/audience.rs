@@ -4,8 +4,8 @@
 
 mod common;
 use ciris_kernel::audience::{
-    audiences, family_in, family_of, place, Audience, AudienceRow, FamilyMatch, FamilyPlacement, History, Joins,
-    Placed, Placement, SeatAct, FAMILIES, FAMILY_MODEL_SHA256,
+    audiences, family_in, family_of, history_of, place, Audience, AudienceRow, FamilyMatch, FamilyPlacement, History,
+    Joins, Placed, Placement, SeatAct, FAMILIES, FAMILY_MODEL_SHA256,
 };
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -150,7 +150,7 @@ fn every_family_in_every_scope() {
         };
         n += 1;
         // the generated rows: no member changes, so the members at a row's head are the roster
-        let none = Joins { joined: &|_, _| None, history: &|_| None, past: &|_, _| false, at_head: &|rm, _| ro(rm) };
+        let none = Joins { history: &|_| None, at_head: &|rm, _| ro(rm) };
         let got = enc(&place(&r, &ro, &pe, &none));
         if &got != g.at("answer") {
             bad += 1;
@@ -170,38 +170,20 @@ fn case_table() {
     let (mut n, mut bad) = (0, 0);
     for c in fx.at("cases").arr() {
         let rows: Vec<ARow> = c.at("rows").arr().iter().map(arow).collect();
-        // the case's joins: who was admitted by which row, the room record's history_on_join, and which rows are
-        // in an admitting row's past
+        // the case's view of the room: the record's history_on_join, the members at each row's own head
         let w = c.at("joins");
-        let joined: BTreeMap<(String, String), String> = w
-            .get("joined")
-            .map(|j| {
-                j.obj()
-                    .iter()
-                    .flat_map(|(room, ks)| {
-                        ks.obj().iter().map(move |(k, a)| ((room.clone(), k.clone()), a.s().to_string()))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
         let history: BTreeMap<String, String> = w
             .get("history")
             .map(|h| h.obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect())
             .unwrap_or_default();
-        let before: BTreeSet<(String, String)> = w
-            .get("before")
-            .map(|b| b.arr().iter().map(|p| (p.arr()[0].s().to_string(), p.arr()[1].s().to_string())).collect())
-            .unwrap_or_default();
-        let jn = |room: &String, k: &String| joined.get(&(room.clone(), k.clone())).cloned();
         let hi = |room: &String| history.get(room).and_then(|v| History::from_word(v));
-        let pa = |a: &String, b: &String| before.contains(&(a.clone(), b.clone()));
         let heads: BTreeMap<String, BTreeSet<String>> = w
             .get("at_head")
             .map(|h| h.obj().iter().map(|(k, v)| (k.clone(), v.str_set())).collect())
             .unwrap_or_default();
         // a case that states none: no member changed, the roster
         let ah = |rm: &String, i: &String| heads.get(i).cloned().unwrap_or_else(|| ro(rm));
-        let joins = Joins { joined: &jn, history: &hi, past: &pa, at_head: &ah };
+        let joins = Joins { history: &hi, at_head: &ah };
         let refs: Vec<&ARow> = rows.iter().collect();
         let rev: Vec<&ARow> = rows.iter().rev().collect();
         for list in [refs, rev] {
@@ -242,5 +224,40 @@ fn ties_refuse() {
         }
     }
     report("family names that tie (audience.py)", n, bad);
+    assert_eq!(bad, 0);
+}
+
+/// The `history_on_join` a caller reads for a kept stream: the row's own, else the record's, else from_join; an
+/// unknown word is absent (`check_audience.py`'s HISTORY). It changes no audience.
+#[test]
+fn history_on_join_words() {
+    let fx = fixture("audience.json");
+    let (mut n, mut bad) = (0, 0);
+    for h in fx.at("history").arr() {
+        let rec = h.get("record").and_then(|v| v.opt_s());
+        let r = ARow {
+            id: "m".into(),
+            family: "chat:general".into(),
+            scope: "community".into(),
+            room: Some("r3".into()),
+            signer: "a".into(),
+            named: vec![],
+            names: vec![],
+            concluded: true,
+            seat: None,
+            obj: None,
+            to: vec![],
+            history: h.get("row").and_then(|v| v.opt_s()).and_then(|w| History::from_word(&w)),
+        };
+        let hi = |_: &String| rec.as_deref().and_then(History::from_word);
+        let got = history_of(&r, &Joins { history: &hi, at_head: &|_, _| BTreeSet::new() });
+        let want = History::from_word(h.at("answer").s()).expect("a word");
+        n += 1;
+        if got != want {
+            bad += 1;
+            eprintln!("row {:?}, record {rec:?}: got {got:?}, want {want:?}", h.get("row"));
+        }
+    }
+    report("history_on_join words (audience.py)", n, bad);
     assert_eq!(bad, 0);
 }

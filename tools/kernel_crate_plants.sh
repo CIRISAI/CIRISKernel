@@ -594,16 +594,15 @@ plant "the rooms read as one"                           src/content.rs 'by_room.
 plant "an undecided family takes the default"           src/audience.rs 'FamilyPlacement::Undecided => return Placed::Undecided(fam),' 'FamilyPlacement::Undecided => &[Placement::SelfCollective, Placement::TargetedFamily, Placement::TargetedRoom, Placement::Commons][..],'
 plant "a pinned family takes any placement"             src/audience.rs 'if !allowed.contains(&placement) {' 'if false && !allowed.contains(&placement) {'
 plant "a targeted row names keys off the roster"        src/audience.rs 'if !r.named().iter().all(|k| within.contains(k) || seats.contains(k)) {' 'if false {'
-plant "history_on_join unread: every row read full"    src/audience.rs 'let history = r.history_on_join().or_else(|| (joins.history)(room)).unwrap_or(History::FromJoin);' 'let history = History::Full;'
-plant "a later joiner owed a from_join row"             src/audience.rs '(joins.joined)(room, k).is_none_or(|adm| !(joins.past)(r.id(), &adm))' 'true'
 plant "a seat row's own keys held to named_within"      src/audience.rs 'within.contains(k) || seats.contains(k)' 'within.contains(k)'
 plant "named_within read on the current roster"       src/audience.rs 'let within = (joins.at_head)(room, r.id());' 'let within = members.clone();'
 plant "a seat row over another object seats"          src/audience.rs 'r.seat_act().is_some() && r.obj().is_some() && r.obj() == r.room()' 'r.seat_act().is_some()'
+plant "a self row carried by another's row (c.3)"      src/audience.rs '    if !same_person(person, d.signer(), r.signer()) {' '    if false && !same_person(person, d.signer(), r.signer()) {'
+plant "a key outside the row's audience carries"      src/audience.rs '|| !ar.holds(d.signer())' ''
+plant "a row that does not conclude carries"          src/audience.rs 'if !d.concluded() || r.family()' 'if r.family()'
+plant "carried to a key off the roster (c.2)"          src/audience.rs 'let on_roster = |room: &R::Id| aud.meet(&Audience::Keys(roster(room)));' 'let on_roster = |_: &R::Id| aud.clone();'
+plant "a key grant carried"                            src/audience.rs '|| r.family().starts_with("key_grant:")' ''
 plant "a tie takes the first pattern"                 src/audience.rs 'Some((b, _)) if k == b => tie = true,' 'Some((b, _)) if k == b => {}'
-plant "the copy rule unbounded"                       src/audience.rs '    placed.clone()
-}' '    let _ = placed;
-    Audience::Everyone
-}'
 plant "the first matching family pattern decides"       src/audience.rs 'Some((b, _)) if k < b => {}' 'Some(_) => {}'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then

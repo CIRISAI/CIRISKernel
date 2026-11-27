@@ -18,41 +18,41 @@ The rules.
    A family the CC table pins takes only the placements its cell names: any other is refused,
    `placement_not_allowed`. A family whose cell is not table data (a code, prose or gap source) answers
    Undecided naming the family: no default is taken for it.
-3. AUDIENCE, as keys. Every audience holds the row's signer and the keys the row names (CC 5.2, reach: "A row
-   that names a node ... is always served to that node"):
+3. AUDIENCE, as keys: who may be SERVED the row. Served is not readable: a room row's content is sealed under the
+   room's epoch keys, and the tier gives a joiner the current epoch's key only (CC 4.4.3.16); key wraps are the
+   wrap set's (Seats.roster), not this. Every audience holds the row's signer and the keys the row names (CC 5.2,
+   reach: "A row that names a node ... is always served to that node"):
        self_collective   the signer's own keys (the person's)
        targeted_family,  the room's roster as it stands (Seats.roster over the rows held: the current members, the
-                         ruling of CC 5.2: a member removed later is owed nothing further), less the members
-                         admitted after the row unless its history_on_join is `full` (the row's own, else the
-                         room record's, else `from_join`; CC 2.1, CC 4.4.3.16), and the keys the
-       targeted_room     row names; a row there may name only keys within its audience (CC 5.2: "A row placed at
-                         family, community or affiliations may name only keys within its audience"), read
-                         against the members AT THE ROW'S OWN HEAD, so a row's placement never changes with a
-                         later removal or admission: one naming a key that was off the roster there is refused,
-                         `named_outside_audience`, and stays refused after that key joins. The current roster is
-                         read only for who is OWED. The keys a seat offer or unseat over the room seats or
-                         removes (seats_of: derived from the row, its `to` where its `obj` is its room; no
-                         caller states them) are always within its audience, ahead of that rule: a pending
-                         admission names its joiner, a removal its removed key. A targeted row names its room,
-                         or it is refused, `no_room`. An unknown history_on_join word is absent: it falls
-                         through to the record, then the default (the door refuses it)
+                         ruling of CC 5.2: a member removed later is owed nothing further), and the keys the row
+       targeted_room     names. history_on_join changes no audience: a later joiner is served the older room rows,
+                         sealed by keys it lacks; `full` acts only on a kept stream, through its producer's own
+                         key grants within the catch-up bound (CC 5.1), the caller's (history_of reads the word;
+                         an unknown word is absent and falls through, and the door refuses it). A row there may
+                         name only keys within its audience (CC 5.2: "A row placed at family, community or
+                         affiliations may name only keys within its audience"), read against the members AT THE
+                         ROW'S OWN HEAD, so its placement never changes with a later removal or admission: one
+                         naming a key that was off the roster there is refused, `named_outside_audience`, and stays
+                         refused after that key joins. The keys a seat offer or unseat over the room seats or
+                         removes (seats_of: derived from the row, its `to` where its `obj` is its room) are always
+                         within its audience, ahead of that rule. A targeted row names its room, or it is refused,
+                         `no_room`
        commons           everyone
        addressed         the keys it names, and its signer
-4. COPY (CC 5.2: "A row carries its audience to the rows it names, when it is concluded, sits in the same room as
-   the row it names, and its signer is already in that row's audience"; route.py's `closed`, Carry.lean). A row's
-   audience includes that of every concluded row that names it, sits in the same room or is signed by the same
-   key, and whose signer is already in its audience: the least fixed point, which only grows. A row refused or
-   undecided carries nothing and receives nothing. THE PRECEDENCE (review r79; copy_bound, the one place it is
-   stated): the copy rule never adds a key that the named row's own place() withholds. A key it adds must be owed
-   that row under its own placement, history_on_join and the current roster, or be its own named or seat keys.
-   So the copy rule adds no key here; and a joiner under from_join can receive a reply whose parent it is not
-   owed.
+4. COPY (CC 5.2: "a joiner holds the rows its own admission names, and a reply carries the row it answers to a
+   later joiner"; a row waits for what it names, CC 2.7.3). Carriage is of rows (`carried`, the one place it is
+   stated; the Constitution's proposal c): a room row is carried by a concluded room row of the same room, to that
+   row's audience on the room's current roster; nothing reaches a key off the roster (an offered key that never
+   accepted gets the offer alone, a removed key its removal alone); a self or addressed row is carried only by a
+   concluded row of its own signer or that signer's person; the carrier's signer is already in the row's audience;
+   a key grant is never carried, and reaches only the key it names. The least fixed point, which only grows. A
+   row refused or undecided carries nothing and receives nothing. The consequence: a joiner may hold the room's
+   whole named reply chain, as ciphertext it cannot read.
 
 Rows: `id`, `family`, `scope` (a cohort scope word, or "addressed"), `room` (the room or family a targeted row is
-in; None elsewhere), `signer`, `named` (the keys it names: attested, subjects, for_key_id), `seats` (on a seat offer or unseat over the
-room: the keys it seats or removes, among `named`), `names` (the rows it
-names), `concluded` (bool). `roster(room)` and `person(key)` are the caller's: the room's roster as Seats.roster
-reads it, and the keys of the signer's person.
+in; None elsewhere), `signer`, `named` (the keys it names: attested, subjects, for_key_id), `kind`, `obj`, `to` (on
+a seat offer or unseat), `names` (the rows it names), `concluded` (bool), `history_on_join`. `roster(room)` and
+`person(key)` are the caller's: the room's roster as Seats.roster reads it, and the keys of the signer's person.
 """
 import json
 import os
@@ -111,9 +111,9 @@ def family_of(name, families=None):
     return top[0] if len(top) == 1 or "tie_first" in MUT else AMBIGUOUS
 
 
-# the caller's view of the room: `joined(room, key)`, the row that admitted the key (None for a founding member);
-# `history(room)`, the history_on_join the room's record states (None where it states none); `past(a, b)`, row a
-# is in row b's past; `at_head(room, row)`, the members of the room at the row's own head (seat.members_at). A
+# the caller's view of the room: `history(room)`, the history_on_join the room's record states (None where it states
+# none; read by history_of for a kept stream, never for an audience); `at_head(room, row)`, the members of the room
+# at the row's own head (seat.members_at). `joined` and `past` are no longer read (history changes no audience). A
 # targeted row naming a key needs it: there is no fallback to the current roster, which would make placement change
 # with a later removal
 NO_JOINS = {"joined": lambda room, k: None, "history": lambda room: None, "past": lambda a, b: False,
@@ -129,7 +129,9 @@ def _word(v):
 def history_of(row, joins):
     """The row's history_on_join (CC 2.1: set per stream by its producer, an envelope member), else the one its
     room's record states, else the default `from_join` (signed_object.cddl). An unknown word is absent and falls
-    through. MUTATION history_unread: always full."""
+    through. It changes no audience here: who is served is the roster as it stands. It is what a caller reads for
+    a KEPT STREAM, where `full` lets the producer's own key grants reach a late joiner within the catch-up bound
+    (CC 5.1; the caller's). MUTATION history_unread: always full."""
     if "history_unread" in MUT:
         return "full"
     return _word(row.get("history_on_join")) or _word(joins["history"](row.get("room"))) or "from_join"
@@ -177,13 +179,12 @@ def place(row, roster, person, joins=NO_JOINS):
     if row.get("room") is None:
         return ("refused", "no_room")
     # WHO IS OWED: the current roster (Seats.roster over the rows held), CC 5.2 as ruled: a row is owed to the
-    # roster as it stands when the node replicates; a member removed since is owed nothing further. A member
-    # admitted after the row (its admission has the row in its past) is owed it only where the history is `full`
-    # (CC 2.1, CC 4.4.3.16); one admitted concurrently with the row is owed it
+    # roster as it stands when the node replicates; a member removed since is owed nothing further
     members = frozenset(roster(row["room"]))
-    joined = joins["joined"]
-    owed = members if history_of(row, joins) == "full" else frozenset(
-        k for k in members if joined(row["room"], k) is None or not joins["past"](row["id"], joined(row["room"], k)))
+    # history_on_join does not change who is SERVED: a later joiner is served the older room rows, sealed by keys it
+    # lacks (served is not readable; the tier gives the current epoch's key only, CC 4.4.3.16). `full` acts only on
+    # a kept stream, through its producer's own key grants: the caller's (history_of)
+    owed = members
     # WHAT IT MAY NAME: the members at the row's own head (named_within, CC 5.2), so a row's placement never
     # changes with a later removal or admission. MUTATION named_within_current: read against the current roster
     at = joins["at_head"](row["room"], row["id"])
@@ -213,19 +214,40 @@ def _meet(a, b):
     return a & b
 
 
-def copy_bound(placed):
-    """The keys the copy rule may add to a placed row: the keys its own place() owes it (its placement,
-    history_on_join and the current roster, its named and seats keys). The one place the precedence is stated:
-    the copy rule never adds a key that the row's own placement withholds. MUTATION copy_unbounded."""
-    return EVERYONE if "copy_unbounded" in MUT else placed[2]
+def carried(r, a, d, ad, roster, person):
+    """The keys a concluded placed row d naming r carries r to, or None: the copy rule of CC 5.2 as the
+    Constitution read it (proposal c, the one place it is stated). Carriage is of ROWS: served is not readable, and
+    a row reaches a key that lacks the epoch's key sealed.
+        c.1  a room row is carried by a concluded room row of the same room, to the carrier's audience;
+        c.2  only to keys on the room's current roster: nothing reaches a key off it (an offered key that never
+             accepted, a removed key);
+        c.3  a self or an addressed row is carried only by a concluded row of its own signer (or that signer's
+             person), into that row's audience (bounded by c.2 where the carrier is a room row);
+    the gate of CC 5.2 kept: the carrier's signer is already in r's audience. A key grant is never carried: it
+    reaches only the key it names. MUTATIONS copy_cross_room, copy_off_roster, copy_any_carrier, copy_any_signer,
+    copy_unconcluded, key_grant_carried."""
+    if not d.get("concluded") and "copy_unconcluded" not in MUT:
+        return None
+    if r["family"].startswith("key_grant:") and "key_grant_carried" not in MUT:
+        return None
+    if not _within(d["signer"], a[2]) and "copy_any_signer" not in MUT:
+        return None
+    on_roster = lambda aud, room: aud if "copy_off_roster" in MUT else _meet(aud, frozenset(roster(room)))
+    if a[1] in TARGETED:
+        if ad[1] not in TARGETED:
+            return None
+        if d.get("room") != r.get("room") and "copy_cross_room" not in MUT:
+            return None
+        return on_roster(ad[2], r["room"])
+    if d["signer"] != r["signer"] and d["signer"] not in person(r["signer"]) and "copy_any_carrier" not in MUT:
+        return None
+    return on_roster(ad[2], d["room"]) if ad[1] in TARGETED else ad[2]
 
 
 def audiences(rows, roster, person, joins=NO_JOINS):
-    """{row id: its answer}, the copy rule applied: a placed row's audience grows by that of every concluded placed
-    row naming it from the same room, or signed by the same key, whose signer is already in its audience, bounded
-    by copy_bound."""
+    """{row id: its answer}, the copy rule applied (carried): a placed row's audience grows by the keys every
+    concluded placed row naming it carries it to; the least fixed point, which only grows."""
     out = {r["id"]: place(r, roster, person, joins) for r in rows}
-    bound = {i: copy_bound(a) for i, a in out.items() if a[0] == "placed"}
     by = {r["id"]: r for r in rows}
     namers = {i: [] for i in by}
     for d in rows:
@@ -238,19 +260,14 @@ def audiences(rows, roster, person, joins=NO_JOINS):
         for i, a in out.items():
             if a[0] != "placed":
                 continue
-            r = by[i]
             for d in namers[i]:
                 ad = out[d["id"]]
                 if ad[0] != "placed":
                     continue
-                if not d.get("concluded") and "copy_unconcluded" not in MUT:
+                add = carried(by[i], out[i], d, ad, roster, person)
+                if add is None:
                     continue
-                same_room = d.get("room") is not None and d.get("room") == r.get("room")
-                if not (same_room or d["signer"] == r["signer"]) and "copy_cross_room" not in MUT:
-                    continue                    # a row leaves its room only by its own signer's act
-                if not _within(d["signer"], out[i][2]) and "copy_any_signer" not in MUT:
-                    continue                    # a key outside the named row's audience carries nobody
-                grown = _union(out[i][2], _meet(ad[2], bound[i]))
+                grown = _union(out[i][2], add)
                 if grown != out[i][2]:
                     out[i] = ("placed", out[i][1], grown); changed = True
     return out

@@ -55,7 +55,11 @@ migrations, and the local operational store.
 **Caller duties for content and audience.** A key removal (`content::Kind::KeyEnd`) cuts only where the reader
 holds it, so place it at commons, or in every room the key sits in; give `ContentRow::concludes` from the
 self-roster count of the person's own key roster. Decode `history_on_join` with `audience::History::from_word`: a
-word it does not know is absent.
+word it does not know is absent. Served is not readable: the audience is who may be served a row, not who holds its key. A later
+joiner is served the room's older rows, and through the copy rule (`audience::carried`) a joiner may hold the
+room's whole named reply chain as ciphertext it cannot read; the tier gives it the current epoch's key only, and
+`history_on_join: full` acts only on a kept stream, through the producer's own key grants within the catch-up bound
+(`audience::history_of` reads the word; the bound is the caller's).
 
 ## What the crate does not cover
 
