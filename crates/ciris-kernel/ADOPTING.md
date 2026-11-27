@@ -114,6 +114,13 @@ migrations, and the local operational store.
   states: "a holder's statement over a sibling bundle is not ordered against its grant, so it is not read; a grant on one tip is judged by the rows in its own past". It can matter only where that holder's voice is the deciding one of an exact majority, and the
   statement over the sibling and the grant on the one tip are held evidence the other holders can cite when they name
   both tips.
+- A holder's halt is a row of the root's lane with `RootGrant::halts()` true, its signer the holder; `Root::halt_in_force`
+  says whether it halts for a reader. A halt counts nobody, so it halts wherever its signer is a holder in force,
+  a rule-6 double signer included. In every count at a head (a grant resolving there, a rule-3 bundle settling
+  it) a double signer at that head has no say, under either key, and at a later head it counts as any holder. The
+  residual: "a reader stalled at b0 leaves it by acknowledging a bundle that counts over its own past without the
+  double signers, or by re-rooting. So a strict majority that double-signs can stall a reader that saw the bad
+  side first, and cannot capture it."
 - A community's protocol is a word of the set under which no one voice decides (`seat::community_protocol`): not
   `quorum:1/{n}`, not `founder_only` (a family's; families are not built), not a weighted record one of whose
   weights reaches its threshold. A change of its record states no policy and meets both the protocol in force and

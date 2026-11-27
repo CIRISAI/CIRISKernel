@@ -103,6 +103,11 @@ pub trait RootGrant: crate::Row {
     fn cosigns(&self) -> Option<&Self::Id> {
         None
     }
+    /// The row is a holder's halt (CC 4.2.1): one holder's row that counts nobody, its signer
+    /// ([`crate::Row::signer`]) the holder. Default: not a halt.
+    fn halts(&self) -> bool {
+        false
+    }
     /// The bundles a grant names, and is counted over: one, or several.
     fn bundles(&self) -> &[Self::Id];
     /// The key a grant names.
@@ -777,12 +782,7 @@ where
     pub fn heads(&self, rd: &Reader<B::Id, B::Key>) -> Option<Vec<B::Id>> {
         let f = self.first(rd)?;
         let (accepted, rv) = self.reader_line(rd);
-        let base: Vec<B::Id> = self
-            .valid()
-            .into_iter()
-            .map(|b| b.id().clone())
-            .filter(|i| (*i == f || self.in_past(&f, i)) && !rv.contains(i))
-            .collect();
+        let base = self.base(rd)?;
         // rules 5 and 6 over what the reader's line leaves (a row void by the line is no input to them)
         let ct = self.contested(&base);
         let held: BTreeSet<B::Id> = base.into_iter().filter(|i| !ct.contains(i)).collect();
@@ -806,6 +806,48 @@ where
             return Some(Vec::from([f]));
         }
         Some(acked.iter().filter(|i| !acked.iter().any(|j| self.in_past(i, j))).cloned().collect())
+    }
+
+    /// The bundles of the reader's anchored lineage its line does not hold void: the input to rules 5 and 6.
+    fn base(&self, rd: &Reader<B::Id, B::Key>) -> Option<Vec<B::Id>> {
+        let f = self.first(rd)?;
+        let (_, rv) = self.reader_line(rd);
+        Some(
+            self.valid()
+                .into_iter()
+                .map(|b| b.id().clone())
+                .filter(|i| (*i == f || self.in_past(&f, i)) && !rv.contains(i))
+                .collect(),
+        )
+    }
+
+    /// RULE 6's double signers, per head: the head (a successor's prev, as a set) to the holders (owner classes, so
+    /// under either key) that signed two successors of it, one cutting a holder the other keeps, neither naming the
+    /// other; over the bundles `bs` a reader holds.
+    fn double_signers(&self, bs: &[&B]) -> BTreeMap<BTreeSet<B::Id>, BTreeSet<B::Key>> {
+        let mut out: BTreeMap<BTreeSet<B::Id>, BTreeSet<B::Key>> = BTreeMap::new();
+        for b in bs {
+            for c in bs {
+                if self.siblings(b, c) && (self.cuts_kept(b, c) || self.cuts_kept(c, b)) {
+                    // the holder is the voice, under its key or its recovery key
+                    let oc: BTreeSet<B::Key> = self.voices(c).iter().map(|k| self.owner(k)).collect();
+                    let ks: Vec<B::Key> =
+                        self.voices(b).iter().map(|k| self.owner(k)).filter(|k| oc.contains(k)).collect();
+                    out.entry(b.prev().iter().cloned().collect()).or_default().extend(ks);
+                }
+            }
+        }
+        out
+    }
+
+    /// The holders (owner classes) with no say in any count at the reader's heads in force: rule 6's double signers
+    /// at those heads, over what the reader holds. Only at that head: at a later head where the signer did not
+    /// double-sign, it counts as any holder (nothing is carried forward as a mark on the key).
+    pub fn no_say(&self, rd: &Reader<B::Id, B::Key>) -> BTreeSet<B::Key> {
+        let (Some(hs), Some(base)) = (self.heads(rd), self.base(rd)) else { return BTreeSet::new() };
+        let hs: BTreeSet<B::Id> = hs.into_iter().collect();
+        let bs: Vec<&B> = base.iter().filter_map(|i| self.b(i)).collect();
+        self.double_signers(&bs).into_iter().filter(|(p, _)| p.is_subset(&hs)).flat_map(|(_, ks)| ks).collect()
     }
 
     /// b and c extend the same bundles, neither in the other's past, and neither names the other.
@@ -837,15 +879,14 @@ where
         let bs: Vec<&'a B> = ids.iter().filter_map(|i| self.b(i)).filter(|b| !b.prev().is_empty()).collect();
         let mut out: BTreeSet<B::Id> = BTreeSet::new();
         let mut no: BTreeMap<B::Id, BTreeSet<B::Key>> = BTreeMap::new();
+        // rule 6: a double signer at a head has no say in ANY count at that head: the two successors it signed, a
+        // third, and a rule-3 bundle naming both
+        let ds = self.double_signers(&bs);
+        let none = BTreeSet::new();
         for b in &bs {
-            let mut ks: BTreeSet<B::Key> = BTreeSet::new();
-            for c in &bs {
-                if self.siblings(b, c) && (self.cuts_kept(b, c) || self.cuts_kept(c, b)) {
-                    // rule 6: the holder is the voice, under its key or its recovery key
-                    let oc: BTreeSet<B::Key> = self.voices(c).iter().map(|k| self.owner(k)).collect();
-                    ks.extend(self.voices(b).into_iter().filter(|k| oc.contains(&self.owner(k))));
-                }
-            }
+            let p: BTreeSet<B::Id> = b.prev().iter().cloned().collect();
+            let d = ds.get(&p).unwrap_or(&none);
+            let ks: BTreeSet<B::Key> = self.voices(b).into_iter().filter(|k| d.contains(&self.owner(k))).collect();
             if !ks.is_empty() {
                 let v: BTreeSet<B::Key> = self.voices(b).difference(&ks).cloned().collect();
                 if b.recovers().is_some() || !self.meets(b, &v, None) {
@@ -1129,13 +1170,27 @@ where
         }
         // (i) its voices (its issuance and every cosignature since) are a strict majority of ALL the holders in force
         // at this reader (live, under the same key)
+        // rule 6: a double signer at the reader's head has no say in a count there, under either key
         let held = self.live(self.fold(&hs).0);
-        let voices = self.grant_voices(gid).into_iter().filter(|k| held.contains(k)).count();
+        let ns = self.no_say(rd);
+        let voices =
+            self.grant_voices(gid).into_iter().filter(|k| held.contains(k) && !ns.contains(&self.owner(k))).count();
         if 2 * voices <= held.len() {
             return Err("grant_voices_not_in_force");
         }
         if !self.scope_in_force(rd).contains(g.duty()) {
             return Err("grant_scope_not_in_force");
+        }
+        Ok(())
+    }
+
+    /// A halt halts for the reader where its signer is a holder in force there (live, under the same key). A halt
+    /// counts nobody, so a double signer's halt at that head still halts: losing a say never removes the stop.
+    pub fn halt_in_force(&self, hid: &B::Id, rd: &Reader<B::Id, B::Key>) -> Result<(), Reason> {
+        let h = self.lane.idx(hid).map(|i| self.lane.row(i)).filter(|r| r.halts()).ok_or("halt_unknown")?;
+        let hs = self.heads(rd).ok_or("genesis_bundle_not_anchored")?;
+        if !self.live(self.fold(&hs).0).contains(h.signer()) {
+            return Err("halt_signer_not_in_force");
         }
         Ok(())
     }

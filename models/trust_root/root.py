@@ -74,9 +74,6 @@ MUT holds planted breaks, switched on by check_root.py.
 
 MUT = set()
 
-# PROTOTYPE (pending the Constitution): a rule-6 double signer at a head is no voice either for a grant resolving at
-# a reader whose bundle in force is that head (the capture by acknowledging the bad side first). Off by default.
-DOUBLE_SIGNER_GRANTS = [False]
 
 INVALID, VOID, CONCLUDED, REFUSED = "invalid", "void", "concluded", "refused"
 
@@ -109,6 +106,12 @@ def cosign(id, of, signer, names=()):
     """A row of the root's lane: a later cosignature of grant `of` by `signer` (under the grant's own family and row
     id, as a cosigned row short of its count is held, CC 3.3.4): a voice added to the grant."""
     return {"id": id, "kind": "cosign", "of": of, "signer": signer, "names": tuple(names)}
+
+
+def halt(id, signer, names=()):
+    """A row of the root's lane: a holder's halt (CC 4.2.1), one holder's row that counts nobody: it halts for a
+    reader where its signer is a holder in force there."""
+    return {"id": id, "kind": "halt", "signer": signer, "names": tuple(names)}
 
 
 def grant(id, bundle_id, to, scope, signers, identity=("user",), duty="infra", names=()):
@@ -508,20 +511,36 @@ class Root:
         if i not in self.void(): return None
         return "genesis_join_contested" if self.contested_join(i) else "void"
 
-    def double_signers(self, heads):
-        """The holders (under either key) that signed two successors of one of `heads`, one cutting a holder the other
-        keeps, neither naming the other: rule 6's double signers at those heads."""
-        out = set()
-        kids = [b for b in self.by.values() if self.counted(b["id"])[0] and b["prev"] and set(b["prev"]) <= set(heads)]
-        for b in kids:
-            for c in kids:
-                if not self._siblings(b, c): continue
-                p0 = self.by[b["prev"][0]]
-                if any(self._removes(b, k) and k in c["holders"] for k in p0["holders"]) or \
-                        any(self._removes(c, k) and k in b["holders"] for k in p0["holders"]):
-                    oc = {self.owner(k) for k in self.voices(c)}
-                    out |= {self.owner(k) for k in self.voices(b) if self.owner(k) in oc}
-        return frozenset(out)
+    def _cut(self, b, c):
+        """Siblings b and c, one cutting a holder the other keeps."""
+        return self._siblings(b, c) and (
+            any(self._removes(b, k) and k in c["holders"] for k in self.by[b["prev"][0]]["holders"]) or
+            any(self._removes(c, k) and k in b["holders"] for k in self.by[c["prev"][0]]["holders"]))
+
+    def double_signers(self, bs):
+        """RULE 6's double signers, per head: {the head (a successor's prev, as a set): the holders (owner classes,
+        so under either key) that signed two successors of it, one cutting a holder the other keeps, neither naming
+        the other}, over the bundles `bs` (dicts) a reader holds (MUTATION double_signer_voices: none)."""
+        out = {}
+        if "double_signer_voices" in MUT: return out
+        for b in bs:
+            for c in bs:
+                if not self._cut(b, c): continue
+                oc = {self.owner(k) for k in self.voices(c)}
+                out.setdefault(frozenset(b["prev"]), set()).update(
+                    self.owner(k) for k in self.voices(b) if self.owner(k) in oc)
+        return out
+
+    def no_say(self, rd):
+        """The holders (owner classes) with no say in any count at the reader's heads in force: rule 6's double
+        signers at those heads, over what the reader holds. Only AT THAT HEAD: at a later head where the signer did
+        not double-sign, it counts as any holder (MUTATION double_signer_mark_carried: the mark is carried, every
+        head of the reader's lineage)."""
+        hs = self.heads(rd)
+        if hs is None: return frozenset()
+        D = self.double_signers([self.by[i] for i in self._base(rd)])
+        if "double_signer_mark_carried" in MUT: return frozenset().union(*D.values()) if D else frozenset()
+        return frozenset().union(*[v for p, v in D.items() if p <= set(hs)])
 
     def contested(self, ids):
         """Of the bundles `ids` (those counting for a reader before these rules), the ones that do not count:
@@ -536,18 +555,15 @@ class Root:
         ids = set(ids)
         bs = [self.by[i] for i in ids if self.by[i]["prev"]]
         out = set()
-        # rule 6
+        # rule 6: a double signer at a head has no say in ANY count at that head: the two successors it signed, a
+        # third, and a rule-3 bundle naming both (MUTATION double_signer_settles: only on the successors it signed,
+        # so a settler counts it)
+        D = self.double_signers(bs)
         no = {}
         for b in bs:
-            ks = set()
-            for c in bs:
-                if not self._siblings(b, c): continue
-                cut = any(self._removes(b, k) and k in c["holders"] for k in self.by[b["prev"][0]]["holders"]) or \
-                    any(self._removes(c, k) and k in b["holders"] for k in self.by[c["prev"][0]]["holders"])
-                if cut and "double_signer_voices" not in MUT:
-                    # the holder is the voice, under its key or its recovery key
-                    oc = {self.owner(k) for k in self.voices(c)}
-                    ks |= {k for k in self.voices(b) if self.owner(k) in oc}
+            d = D.get(frozenset(b["prev"]), set())
+            if "double_signer_settles" in MUT and not any(self._cut(b, c) for c in bs): d = set()
+            ks = {k for k in self.voices(b) if self.owner(k) in d}
             no[b["id"]] = ks
             if ks and (b.get("recovers") is not None or not self.meets(b, self.voices(b) - ks)): out.add(b["id"])
         # rule 5
@@ -576,11 +592,16 @@ class Root:
         rules 5 and 6 over the rest (a row void by the line is no input to them)."""
         return self._held(rd)[0]
 
-    def _held(self, rd):
+    def _base(self, rd):
+        """The bundles of the reader's anchored lineage its line does not hold void: the input to rules 5 and 6."""
         f = self.first(rd)
-        if f is None: return [], frozenset()
+        if f is None: return []
         rv = self.reader_void(rd)
-        base = [i for i in self.valid() if (i == f or f in self.past(i)) and i not in rv]
+        return [i for i in self.valid() if (i == f or f in self.past(i)) and i not in rv]
+
+    def _held(self, rd):
+        if self.first(rd) is None: return [], frozenset()
+        base = self._base(rd)
         ct = self.contested(base)
         return [i for i in base if i not in ct], ct
 
@@ -762,6 +783,19 @@ class Root:
         if hs is None: return frozenset()
         return frozenset.intersection(*[duties(self.by[h]["charter"]) for h in hs])
 
+    def halt_in_force(self, hid, rd):
+        """(True|False, reason): a halt halts for the reader where its signer is a holder in force there (live,
+        under the same key). A halt counts nobody, so a double signer's halt at that head still halts: losing a say
+        never removes the stop (MUTATION double_signer_halt_suppressed: it does not)."""
+        h = self.rows.get(hid)
+        if h is None or h["kind"] != "halt": return (False, "halt_unknown")
+        hs = self.heads(rd)
+        if hs is None: return (False, "genesis_bundle_not_anchored")
+        if h["signer"] not in self.live(self.fold(hs)[0]): return (False, "halt_signer_not_in_force")
+        if "double_signer_halt_suppressed" in MUT and self.owner(h["signer"]) in self.no_say(rd):
+            return (False, "halt_signer_not_in_force")
+        return (True, None)
+
     def grant_in_force(self, gid, rd):
         """(True|False, reason): the grant exists and RESOLVES for the reader only while (i) its voices (every voice
         it holds: its own signers and later cosignatures, grant_voices) are a strict majority of ALL the holders IN
@@ -778,9 +812,12 @@ class Root:
         if not self.antichain(g["bundles"]): return (False, "grant_bundles_not_antichain")
         if not self.grant_row(gid): return (False, "grant_count_short")
         H = self.live(self.fold(hs)[0])
+        # rule 6: a double signer at the reader's head has no say in a count there, under either key (MUTATION
+        # double_signer_grant_voices: it is a voice)
         gv = self.grant_voices(gid)
-        if DOUBLE_SIGNER_GRANTS[-1]:
-            gv = frozenset(k for k in gv if self.owner(k) not in self.double_signers(hs))
+        if "double_signer_grant_voices" not in MUT:
+            ns = self.no_say(rd)
+            gv = frozenset(k for k in gv if self.owner(k) not in ns)
         if not 2 * len(gv & H) > len(H) and "grant_count_unread" not in MUT:
             return (False, "grant_voices_not_in_force")
         if g["duty"] not in self.scope_in_force(rd) and "grant_scope_unread" not in MUT:

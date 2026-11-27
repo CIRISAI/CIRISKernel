@@ -81,6 +81,7 @@ struct TG {
     id: String,
     names: Vec<String>,
     grant: bool,
+    halt: bool,
     head: Option<String>,
     of: Option<String>,
     bundles: Vec<String>,
@@ -109,6 +110,9 @@ impl RootGrant for TG {
     type Word = String;
     fn is_grant(&self) -> bool {
         self.grant
+    }
+    fn halts(&self) -> bool {
+        self.halt
     }
     fn attached_head(&self) -> Option<&String> {
         self.head.as_ref()
@@ -169,6 +173,7 @@ fn grants(j: &J) -> Vec<TG> {
             id: g.at("id").s().into(),
             names: ss(g, "names"),
             grant: g.at("kind").s() == "grant",
+            halt: g.at("kind").s() == "halt",
             head: g.get("head").and_then(|h| h.opt_s()),
             of: g.get("of").and_then(|h| h.opt_s()),
             bundles: ss(g, "bundles"),
@@ -249,6 +254,16 @@ fn root_replay() {
             let want: Result<(), String> = if w[0].b() { Ok(()) } else { Err(w[1].s().to_string()) };
             if got.map_err(String::from) != want {
                 fail(&format!("grant {g}"), format!("{got:?}"));
+            }
+        }
+        if let Some(hx) = c.get("halt") {
+            for (h, want) in hx.obj() {
+                let got = root.halt_in_force(h, &rd);
+                let w = want.arr();
+                let want: Result<(), String> = if w[0].b() { Ok(()) } else { Err(w[1].s().to_string()) };
+                if got.map_err(String::from) != want {
+                    fail(&format!("halt {h}"), format!("{got:?}"));
+                }
             }
         }
         for (g, want) in c.at("row").obj() {

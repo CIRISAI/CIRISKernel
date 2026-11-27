@@ -18,6 +18,7 @@ sys.dont_write_bytecode = True
 import root as RT  # noqa: E402
 
 B, RV, GR, RD, AK, CS = RT.bundle, RT.revoke, RT.grant, RT.reader, RT.ack, RT.cosign
+HALT = RT.halt
 F = "fam"
 H3 = ("h1", "h2", "h3")
 H5 = ("h1", "h2", "h3", "h4", "h5")
@@ -438,10 +439,24 @@ CASES += [
     ("attack", "AO2: acknowledged b1, s0, then b2: b1 settles, s0 does not (over its past b1 and s0 contest), and b2 "
                "is built on b1, which the final reading holds contested: b0", AO, (), (), RD(anchor="b0", acks=("b1", "s0", "b2")),
      {"heads": ("b0",), "holders": set(H3)}),
-    ("attack", "OPEN (a capture, reported; the proposed fix is root.DOUBLE_SIGNER_GRANTS, off): a reader that "
-               "acknowledged s0 first is at b0 (h1 h2 h3), and a grant by h1 and h2, the double signers at b0, is two "
-               "of three there: it resolves", AO, (), (GR("gx", "b0", "uX", "room", ("h1", "h2")),),
-     RD(anchor="b0", acks=("s0", "b2")), {"heads": ("b0",), "grant": {"gx": (True, None)}}),
+    ("attack", "the capture by acknowledging the bad side first, closed (rule 6, every count at the head): a reader "
+               "that acknowledged s0 first is at b0 (h1 h2 h3); h1 and h2 double-signed at b0, so they have no say in a "
+               "count there: their grant is no voice of three, refused, and so is one all three sign (h3 alone)",
+     AO, (), (GR("gx", "b0", "uX", "room", ("h1", "h2")), GR("gy", "b0", "uY", "room", ("h1", "h2", "h3"))),
+     RD(anchor="b0", acks=("s0", "b2")), {"heads": ("b0",), "grant": {"gx": (False, "grant_voices_not_in_force"),
+                                                                     "gy": (False, "grant_voices_not_in_force")}}),
+    ("attack", "and settling: h1 and h2 sign a rule-3 bundle at b0 naming s0 and b1; they have no say at b0, so it is "
+               "no voice of three, and the reader stays at b0 (stalled, not captured)",
+     AO + [nxt("st", "b0", ("h1", "h2", "X"), ("h1", "h2"), names=("s0", "b1"))], (), (), RD(anchor="b0", acks=("s0", "st")),
+     {"concluded": {"st": T}, "heads": ("b0",), "holders": set(H3)}),
+    ("attack", "a halt counts nobody: h1's halt at b0 still halts for that reader (losing a say never removes the stop)",
+     AO, (), (HALT("hx", "h1"), HALT("h4x", "h4")), RD(anchor="b0", acks=("s0", "b2")),
+     {"halt": {"hx": (True, None), "h4x": (False, "halt_signer_not_in_force")}}),
+    ("attack", "EDGE (the stated residual): a reader stalled at b0 leaves it by acknowledging a bundle that counts over "
+               "its own past without the double signers, or by re-rooting. So a strict majority that double-signs can "
+               "stall a reader that saw the bad side first, and cannot capture it",
+     AO, (), (GR("gy", "b0", "uY", "room", ("h1", "h2", "h3")),), RD(anchor="b0", acks=("s0", "b2")),
+     {"heads": ("b0",), "grant": {"gy": (False, "grant_voices_not_in_force")}}),
     ("attack", "AO0: a reader that acknowledged b2 first: s0 is behind its line and no input; b2 stands", AO, (), (),
      RD(anchor="b0", acks=("b2", "s0")), {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
     ("attack", "AO3: a reader that acknowledged only s0: h1 and h2 signed s0 (cutting h3) and b1 (keeping it) at b0, "
@@ -490,9 +505,22 @@ CASES += [
      {"heads": ("b1",)}),
     ("rules", "and its own acknowledgement of b3 settles it (the store acknowledges the newest head it holds)",
      [B0, DB1, DB2, DB3, DT1], (), (), RD(anchor="b0", acks=("b2", "b3")), {"heads": ("b3",)}),
-    ("rules", "rule 3: a bundle at b1 naming both b2 and t1 decides, counted over b1's five: h3, h4 and h5 (h3's voice "
-              "counts on a row naming both)", DL + [DS], (), (), RD(anchor="b0", acks=("s",)),
-     {"concluded": {"s": T}, "heads": ("s",), "holders": {"h3", "h4", "h5"}}),
+    ("rules", "rule 3: a bundle at b1 naming both b2 and t1 is counted over b1's five, and h3, a double signer at b1, "
+              "has no say in it (rule 6 reaches every count at that head): h4 and h5 are two of five, and the reader "
+              "stays at b1", DL + [DS], (), (), RD(anchor="b0", acks=("s",)),
+     {"concluded": {"s": T}, "heads": ("b1",), "holders": set(H5)}),
+    ("rules", "and one that counts without the double signer decides: h1, h4 and h5 of b1's five (the residual's way "
+              "out)", DL + [nxt("s", "b1", ("h1", "h4", "h5"), ("h1", "h4", "h5"), version=2, names=("b2", "t1"))], (), (),
+     RD(anchor="b0", acks=("s",)), {"heads": ("s",), "holders": {"h1", "h4", "h5"}}),
+    ("rules", "and no mark is carried forward: the settler s (by h1, h4 and h5 of b1's five) keeps h3 (h1 h3 h4 h5); h3 "
+              "double-signed at b1, which the reader still holds, not at s: h3, h4 and h5 on s are three of four, and "
+              "it resolves", DL + [nxt("s", "b1", ("h1", "h3", "h4", "h5"), ("h1", "h4", "h5"), version=2, names=("b2", "t1"))],
+     (), (GR("gs", "s", "uX", "room", ("h3", "h4", "h5")),), RD(anchor="b0", acks=("s",)),
+     {"heads": ("s",), "grant": {"gs": (True, None)}}),
+    ("rules", "the exclusion is at that head only: h3 double-signed at b1, not at b3; a reader at b3 (h3 h4 h5 h6) "
+              "counts h3's voice as any holder's: h3, h4 and h5 on b3 are three of four, and it resolves",
+     DL + [DB3], (), (GR("g3", "b3", "uX", "room", ("h3", "h4", "h5")),), RD(anchor="b0", acks=("b2", "b3", "t")),
+     {"heads": ("b3",), "grant": {"g3": (True, None)}}),
     ("rules", "DP5, the control: h1 and h2 alone at b1 are two of five: t1 concludes nothing",
      [B0, DB1, DB2, nxt("t1", "b1", ("h1", "h2", "X"), ("h1", "h2"), version=2)], (), (), RD(anchor="b0", acks=("b2",)),
      {"concluded": {"t1": Fa}, "heads": ("b2",)}),
@@ -578,7 +606,8 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "grant_head_unread", "join_common_base", "recovery_t_unread",
           "join_void_prev_blocks", "grant_antichain_unread", "regime_reads_commitments", "reader_line_unread",
           "rotation_outlives_seat", "retired_unread", "join_prev_unread", "cosign_unread", "double_signer_voices",
-          "ack_settles_over_all", "recovery_head_unread")
+          "ack_settles_over_all", "recovery_head_unread", "double_signer_grant_voices", "double_signer_settles",
+          "double_signer_halt_suppressed", "double_signer_mark_carried")
 
 
 def answer(bs, rv, gs, rd, want):
@@ -593,6 +622,7 @@ def answer(bs, rv, gs, rd, want):
     if "seats" in want: got["seats"] = set(f[1]) if f else None
     if "grant" in want: got["grant"] = {g: R.grant_in_force(g, rd) for g in want["grant"]}
     if "row" in want: got["row"] = {g: R.grant_row(g) for g in want["row"]}
+    if "halt" in want: got["halt"] = {h: R.halt_in_force(h, rd) for h in want["halt"]}
     return got
 
 
@@ -667,6 +697,7 @@ def benc(b):
             "stmts": [[k, i] for k, i in b["stmts"]]}
 def genc(g):
     if g["kind"] == "ack": return {"id": g["id"], "kind": "ack", "head": g["head"], "names": list(g["names"])}
+    if g["kind"] == "halt": return {"id": g["id"], "kind": "halt", "signers": [g["signer"]], "names": list(g["names"])}
     if g["kind"] == "cosign": return {"id": g["id"], "kind": "cosign", "of": g["of"], "signers": [g["signer"]],
                                       "names": list(g["names"])}
     return {"id": g["id"], "kind": "grant", "bundles": list(g["bundles"]), "names": list(g["names"]), "to": g["to"], "scope": g["scope"], "signers": list(g["signers"]),
@@ -692,7 +723,9 @@ def fixture(with_refs):
                       "void_reasons": {i: R.void_reason(i) for i in sorted(R.void())},
                       "holders": sorted(f[0]) if f else None, "seats": sorted(f[1]) if f else None,
                       "grant": {g["id"]: list(R.grant_in_force(g["id"], rd)) for g in gs if g["kind"] == "grant"},
-                      "row": {g["id"]: R.grant_row(g["id"]) for g in gs if g["kind"] == "grant"}, "line": line})
+                      "row": {g["id"]: R.grant_row(g["id"]) for g in gs if g["kind"] == "grant"},
+                      "halt": {g["id"]: list(R.halt_in_force(g["id"], rd)) for g in gs if g["kind"] == "halt"},
+                      "line": line})
     for rule, name, bs, rv, gs, rd, _ in CASES:
         one(rule, name, bs, rv, gs, rd, False)
     rec = []
