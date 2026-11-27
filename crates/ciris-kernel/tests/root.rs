@@ -171,7 +171,6 @@ fn reader(j: &J) -> Reader<String, String> {
         anchor: j.get("anchor").and_then(|a| a.opt_s()),
         thumbs: j.get("thumbs").filter(|t| !t.is_null()).map(|t| t.str_set()),
         acks: j.at("acks").strs(),
-        rows: j.get("rows").filter(|r| !r.is_null()).map(|r| r.str_set()).unwrap_or_default(),
     }
 }
 

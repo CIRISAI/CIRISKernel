@@ -586,7 +586,7 @@ def fixture(with_refs):
     def renc(rd):
         if rd is None: return None
         return {"anchor": rd["anchor"], "thumbs": sorted(rd["thumbs"]) if rd["thumbs"] is not None else None,
-                "acks": sorted(rd["acks"]), "rows": sorted(rd.get("rows", ()))}
+                "acks": list(rd["acks"])}
     cases = []
     def one(rule, name, bs, rv, gs, rd, line):
         R = RT.Root(bs, rv, gs)

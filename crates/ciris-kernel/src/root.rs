@@ -119,10 +119,8 @@ pub struct Reader<I: Ord, K: Ord> {
     pub anchor: Option<I>,
     /// The holders' thumbprints.
     pub thumbs: Option<BTreeSet<K>>,
-    /// The bundles it acknowledged, in the order it acknowledged them (its own line).
+    /// The bundles it acknowledged (they accumulate: its own line).
     pub acks: Vec<I>,
-    /// Its own acknowledgement rows in the root's lane.
-    pub rows: BTreeSet<I>,
 }
 
 /// Why a bundle or a grant does not stand.
@@ -682,24 +680,23 @@ where
             .cloned()
     }
 
-    fn rv_of(&self, acked: &[B::Id], valid: &[B::Id]) -> BTreeSet<B::Id> {
-        let on: BTreeSet<B::Id> = acked.iter().flat_map(|a| self.line(a)).collect();
+    /// The reader's own line: every bundle it acknowledged (they accumulate, in any order), and the bundles void
+    /// for the reader by it: every bundle behind ANY acknowledged bundle, an acknowledged one included, and every
+    /// bundle built on one, a join included (a join naming a predecessor void for a reader concludes nothing for
+    /// it). Acknowledging never revives.
+    pub fn reader_line(&self, rd: &Reader<B::Id, B::Key>) -> (Vec<B::Id>, BTreeSet<B::Id>) {
+        let valid: Vec<&'a B> = self.valid();
+        let acked: Vec<B::Id> = rd.acks.iter().filter(|a| valid.iter().any(|b| b.id() == *a)).cloned().collect();
         let mut out: BTreeSet<B::Id> = valid
             .iter()
-            .filter(|i| {
-                !on.contains(*i)
-                    && self.b(i).is_some_and(|bi| acked.iter().any(|a| self.b(a).is_some_and(|ba| self.behind(bi, ba))))
-            })
-            .cloned()
+            .filter(|b| acked.iter().any(|a| self.b(a).is_some_and(|ba| self.behind(b, ba))))
+            .map(|b| b.id().clone())
             .collect();
         loop {
             let mut changed = false;
-            for i in valid {
-                if !out.contains(i)
-                    && !on.contains(i)
-                    && self.b(i).is_some_and(|bi| bi.prev().iter().any(|p| out.contains(p)))
-                {
-                    out.insert(i.clone());
+            for b in &valid {
+                if !out.contains(b.id()) && b.prev().iter().any(|p| out.contains(p)) {
+                    out.insert(b.id().clone());
                     changed = true;
                 }
             }
@@ -707,23 +704,7 @@ where
                 break;
             }
         }
-        out
-    }
-
-    /// The reader's own line: its acknowledgements in order, each taken unless void for it by those before
-    /// (acknowledging never un-voids); and the bundles void for the reader by that line: one behind a bundle it
-    /// acknowledged and not on its line, and every bundle built on one, a join included (a join naming a predecessor
-    /// void for a reader concludes nothing for it).
-    pub fn reader_line(&self, rd: &Reader<B::Id, B::Key>) -> (Vec<B::Id>, BTreeSet<B::Id>) {
-        let valid: Vec<B::Id> = self.valid().into_iter().map(|b| b.id().clone()).collect();
-        let mut acc: Vec<B::Id> = Vec::new();
-        for a in &rd.acks {
-            if valid.contains(a) && !self.rv_of(&acc, &valid).contains(a) {
-                acc.push(a.clone());
-            }
-        }
-        let rv = self.rv_of(&acc, &valid);
-        (acc, rv)
+        (acked, out)
     }
 
     /// The bundles in force for the reader: the newest it acknowledged, read by its line; none, its anchor.
@@ -948,8 +929,10 @@ where
         out.unwrap_or_default()
     }
 
-    /// The grant exists and resolves for the reader: its bundle in the reader's lineage, the scope in force there
-    /// still carrying its duty.
+    /// The grant exists and resolves for the reader only while its voices are a strict majority of the holders in
+    /// force at that reader (the fold at unjoined tips, the common holders where charters differ; live, under the
+    /// same key) and the scope in force there carries its duty. A grant lapses when enough of its signers leave,
+    /// and is re-issued.
     pub fn grant_in_force(&self, gid: &B::Id, rd: &Reader<B::Id, B::Key>) -> Result<(), Reason> {
         let Some(g) = self.grants.get(gid) else { return Err("grant_unknown") };
         let hs = self.heads(rd).ok_or("genesis_bundle_not_anchored")?;
@@ -963,21 +946,11 @@ where
         if !self.grant_row(gid) {
             return Err("grant_count_short");
         }
-        {
-            let mut seen: BTreeSet<usize> = BTreeSet::new();
-            for r in &rd.rows {
-                if let Some(i) = self.lane.idx(r) {
-                    seen.extend(self.lane.past(i, false));
-                }
-            }
-            let inside = self.lane.idx(gid).is_some_and(|gi| seen.contains(&gi));
-            let behind = g.bundles().iter().any(|n| self.reader_line(rd).0.iter().any(|a| self.in_past(n, a)));
-            if !inside && behind {
-                return Err("grant_behind_reader_line");
-            }
-        }
-        if !g.bundles().iter().all(|n| hs.iter().any(|h| self.line(h).contains(n))) {
-            return Err("grant_not_in_reader_lineage");
+        // (i) its voices are a strict majority of the holders in force at this reader (live, under the same key)
+        let held = self.live(self.fold(&hs).0);
+        let voices = g.signers().iter().collect::<BTreeSet<_>>().into_iter().filter(|k| held.contains(*k)).count();
+        if 2 * voices <= held.len() {
+            return Err("grant_voices_not_in_force");
         }
         if !self.scope_in_force(rd).contains(g.duty()) {
             return Err("grant_scope_not_in_force");
@@ -1045,7 +1018,7 @@ where
 /// implementation is [`RootReading`].
 pub trait RootView<I, K, O> {
     /// The key grant `grant` names for room `room`, or why it does not stand: `grant_unknown`,
-    /// `genesis_bundle_not_anchored`, `grant_bundle_void`, `grant_count_short`, `grant_not_in_reader_lineage`,
+    /// `genesis_bundle_not_anchored`, `grant_bundle_void`, `grant_count_short`, `grant_voices_not_in_force`,
     /// `grant_scope_not_in_force`, `grant_scope_not_this_room`, `grant_identity_not_user`.
     fn recovery_grant(&self, grant: &I, room: &O) -> Result<K, Reason>;
 }
