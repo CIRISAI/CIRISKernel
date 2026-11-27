@@ -11,7 +11,13 @@ with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
   halt's own path is the Constitution's model and is not built here.
 - A reader's acknowledgements are rows with their own pasts (r76 q4; BREAKING: `Reader::after`, None for one
   chain): each is judged over its own causal past, two concurrent rows (a person's two devices) each without the
-  other, and the line is drawn over their union; a row closes nothing a row concurrent with it settled.
+  other, and the line is drawn over their union; a row closes nothing on the line a row concurrent with it
+  settled onto. Two devices that disagree stall at the fork point (rules 5, 6 and 3 decide over what is held),
+  never by depth.
+- Considered and rejected (r78 q4): union voiding, a bundle behind ANY of the person's settled acknowledgements
+  void whatever their concurrency (`models/trust_root/proto_union_voiding.py`, `root.UNION_VOIDING`, off). It
+  decides by depth: one device at b2 and the other at the attacker's t (t1, t, one bundle deeper) puts the reader
+  on t, the attacker's key in force.
 - The bounded settler (the ruling on the genesis stall, r76 ST1; `RootBundle::settles`, defaulted;
   `Root::bounded_settler`): a settler at a head that names one contested sibling there as the one that stands, and
   states nothing of its own (its holders, seats, charter and recovery commitments are that sibling's), is counted over
