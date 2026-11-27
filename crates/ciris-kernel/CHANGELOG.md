@@ -20,7 +20,7 @@ removed; `trust::reaches` and `EdgeIndex::reaches` stay as the walk. New: the mo
 - The four readings ruled: a community's own licence is counted under its DECLARED `consensus_protocol`
   (`seat::declared_count`); there is no members' fallback, and a community with no live duty holder is locked
   (CC 4.5.4 (v): no onward edge, no license seat conferred, its quorum's licence `licensure_authority_locked`); any
-  live key of a person's roster is the person; a license seat over a community (or an affiliation) is conferred and
+  live key of a person's roster is the person; a license seat over a community is conferred and
   withdrawn by its duty holders' count (`seat_confer` / `seat_withdraw` of scope `license`, `ScopeClass::License`,
   rows held in `seat.PENDING_ACTS`), and its holder is no duty holder.
 - (b) A licence is the authority's act where, over its own past, its emitter's key is the authority, or holds a
