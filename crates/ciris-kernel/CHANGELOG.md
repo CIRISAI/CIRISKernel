@@ -110,6 +110,43 @@ instant, `R: Dated`), `seat::affiliation_removal`, `SeatRow::licence_classes` ((
 - A licence of a class the charter does not declare is admitted as a row and honoured by no reader
   (`licence_class_not_trusted`); a class the reader's walk does not reach is `authority_not_reached`.
 
+**The trust root's fork fold** (persist's item 15; CC 3.2 T6, CC 2.7.8), both languages: `root` (`models/trust_root`),
+with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
+- A root is the lineage of a genesis bundle (`RootBundle`, a signed object the store presents with its statements
+  checked). The first bundle is counted over every holder it lists, a later one over a strict majority of its
+  predecessor's live holders, a join (two predecessors) over those common to them. An iat that disagrees is Invalid
+  on its own; a key revoked with no bound leaves the live holders and unmakes nothing (the first bundle's count
+  stands); a statement after a key's bound does not count. A holder's own key recovery concludes on its recovery key
+  alone, changing only its own seat; a spent commitment concludes nothing, and two recoveries of one seat, neither
+  in the other's past, are contested (its causal form). Version and family are consistency checks, never ranked. S''
+  and T apply to a forked bundle as to a roster change.
+- Several tips' holders and seats are the guarded fold; tips whose charters differ (the whole charter, one value)
+  do not fold, and the holders and seats are those common to them until a bundle names both. Two joins of the same
+  tips under different charters are contested: neither stands, a reader keeps the tips they tried to join, and a
+  bundle naming every one settles them, counted over those tips' common holders. Two successors of one bundle, and
+  joins under one charter, fold as tips.
+- The bundles in force are per reader (`Reader`: its anchor, else `genesis_bundle_not_anchored`, and its
+  acknowledgements). A root grant (`RootGrant`, a row of the root's lane with the acceptance edges) exists where it
+  is counted at a strict majority over the live holders of the bundles it names, under charters carrying its duty,
+  naming the newest bundles in its signers' own past: the bundles named by rows in the grant's causal past (an
+  acceptance edge's attached_head_digest, an earlier grant's bundles). It resolves for a reader only while every voice
+  it holds (its issuance and the cosignatures of it held since, `RootGrant::cosigns`) is a strict majority of ALL
+  the holders in force at that reader (same key, live: a voice under a retired key is no voice; a recovered holder
+  cosigns again under its new key), and the scope in force there carries the duty. The cost: a grant lapses when its
+  voices stop being a strict majority of the holders in force, whether by signers leaving or holders being added,
+  and resolves again once enough present holders have cosigned it. `Root::sub_delegation` (and
+  `RootView::sub_delegation`) answers whether the charter in force carries sub_delegation for the grant's duty. The reader's
+  line is monotone: every bundle behind any bundle it acknowledged is void for it, an acknowledged one included,
+  and every bundle built on one, a join included.
+- A stalled recovery (`seat::recovery_verdict`) is judged against the root this node reads (`CutSpec::trust_root`,
+  default none: undecided, as before; `root::RootReading` is the kernel's view, the store supplying only each key's
+  identity type), by its six checks.
+- The costs, stated: a recovery concurrent with an amend that changes the charter leaves the recovering holder no
+  seat in force until a bundle names both tips (it gives a holder majority nothing it lacks: the same majority could
+  remove that holder by an amend). **The residual, stated:** "a holder's statement over a sibling bundle is not ordered against its grant, so it is not read; a grant on one tip is judged by the rows in its own past". It can matter only where that holder's voice is the
+  deciding one of an exact majority, and the statement over s2 and the grant on s1 are held evidence the other holders
+  can cite when they name both tips.
+
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone
   removal out of force) ended nothing, and does not block a later end (the settling count, S4).

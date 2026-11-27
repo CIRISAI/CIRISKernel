@@ -38,6 +38,8 @@ Sources (all under models/):
     trust_rows causal_kernel/check_trust_rows.py: the reader's walk from acceptance edge rows and the issuer's
               standing, under the pending rulings and a stand-in. tests/trust_rows.rs replays it through
               trust_rows::read_licence and trust_rows::refusal.
+    root      trust_root/check_root.py: the trust root's lineage (the count, S'' and T, the fold, the bundles in
+              force per reader, grants) and stalled recoveries judged against it. tests/root.rs replays both.
 """
 import base64
 import hashlib
@@ -797,6 +799,10 @@ def main():
     dump("charter.json", CHC.fixture(with_refs), out)
     import check_trust_rows as CTR
     dump("trust_rows.json", CTR.fixture(lambda rows, refs: with_refs(rows, refs, REF_FIELDS + CTR.REF_FIELDS)), out)
+    sys.path.insert(0, os.path.join(ROOT, "models", "trust_root"))
+    import check_root as CR
+    dump("root.json", CR.fixture(with_refs), out)
+    dump("root_reader.json", CR.reader_vectors(), out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():

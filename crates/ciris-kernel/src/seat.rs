@@ -1243,11 +1243,9 @@ fn dissolved_in<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>) -> bool {
 /// The one row an infrastructure room admits without its founders' count while stalled (CC 3.2): a widening whose only
 /// change is one added founder seat, for a key named by a row ([`SeatRow::bundle`]) counted at a strict majority over
 /// the holders of the bundle in force of the root the room stands under, whose `scope` names this room, signed by the
-/// named key. The kernel holds no bundle holders, so `p.row()` of that shape is UNDECIDED: the reason
-/// `stalled_recovery_needs_bundle` (the seat rule concludes nothing for it); `None` for a row of another shape, or
-/// in a room that is live. The checks for when the trust root's fold is in the kernel: the counted row names the
-/// bundle in force; its `scope` names this room; the key's identity type includes `user` and excludes `node`; the
-/// widening is signed by the named key; only while stalled; only one founder seat; nothing else changed.
+/// named key. With no trust root read ([`CutSpec::trust_root`]), the kernel holds no bundle holders, so `p.row()` of
+/// that shape is UNDECIDED: the reason `stalled_recovery_needs_bundle` (the seat rule concludes nothing for it);
+/// `None` for a row of another shape, or in a room that is live. With one read, [`recovery_verdict`] judges it.
 pub fn stalled_recovery<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
     law: &SeatLaw,
@@ -1267,7 +1265,7 @@ pub fn stalled_recovery<R: SeatRow, S: CutSpec<R>>(
     let Some(RoomProtocol::Quorum(m, _)) = RoomProtocol::parse_in(rec.consensus_protocol()?.as_ref(), true) else {
         return None;
     };
-    let founders = count_members_with(p, law, spec, None).len() as u64;
+    let founders = founders_at(p, law, spec).len() as u64;
     (founders < m + 1).then_some("stalled_recovery_needs_bundle")
 }
 
@@ -1423,6 +1421,48 @@ fn countersign_ok<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw,
         }
     }
     members_at_with(p, law, spec, &body, &heads, "review", None).contains(k)
+}
+
+/// A stalled infrastructure room's recovery widening (CC 3.2), judged against the trust root this node reads
+/// ([`CutSpec::trust_root`]): `Ok`, or why not (the model's `seat.recovery_verdict`). The six checks: the grant it
+/// names ([`SeatRow::bundle`]) resolves for this node ([`crate::root::Root::grant_in_force`]); its scope names this
+/// room; the key's identity type includes `user` and excludes `node` (both by [`crate::root::RootView`]); the
+/// widening is signed by the key the grant names; only while stalled; one founder seat, and nothing else changed.
+/// With no trust root read: `stalled_recovery_needs_bundle`, undecided.
+pub fn recovery_verdict<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+) -> Result<(), &'static str> {
+    let Some(view) = spec.trust_root() else { return Err("stalled_recovery_needs_bundle") };
+    let r = p.row();
+    let Some(obj) = r.obj() else { return Err("not_a_recovery") };
+    let get = |i: &R::Id| p.get(i);
+    if r.seat_kind() != SeatKind::Offer
+        || r.scope().is_none_or(|s| s.as_ref() != "founder")
+        || kind_of(law, &get, &obj) != Some(CommunityKind::Infrastructure)
+    {
+        return Err("not_a_recovery");
+    }
+    let Some(rec) = protocol_record(p, &obj) else { return Err("not_a_recovery") };
+    let Some(RoomProtocol::Quorum(m, _)) =
+        rec.consensus_protocol().and_then(|w| RoomProtocol::parse_in(w.as_ref(), true))
+    else {
+        return Err("not_a_recovery");
+    };
+    if r.to().len() != 1 || r.consensus_protocol().is_some() || !r.cosigners().is_empty() {
+        return Err("recovery_changes_more");
+    }
+    let founders = founders_at(p, law, spec).len() as u64;
+    if founders >= m + 1 {
+        return Err("not_stalled");
+    }
+    let Some(gid) = r.bundle() else { return Err("not_a_recovery") };
+    let named = view.recovery_grant(gid, &obj)?;
+    if r.to()[0] != named || *r.signer() != named {
+        return Err("not_signed_by_named_key");
+    }
+    Ok(())
 }
 
 /// The room's protocol in force at protocol row `r` ([`policy_in_force`]): in a community, the record's protocol
@@ -4458,6 +4498,19 @@ fn persons_at_with<R: SeatRow, S: CutSpec<R>>(
     persons(m, &agents_at_with(p, law, spec, obj, heads, cache))
 }
 
+/// The `founder` seats held at the row's heads, less those whose leaving is in its past: what "stalled" reads,
+/// whatever scope the row itself is counted in (the model's `members_at(.., "founder") - count_left(.., "founder")`).
+fn founders_at<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> BTreeSet<R::Key> {
+    let r = p.row();
+    let Some(obj) = r.obj() else { return BTreeSet::new() };
+    let scope = "founder";
+    let mut mem = persons_at_with(p, law, spec, &obj, r.head(), scope, None);
+    for k in left_in_past(p, &obj, scope) {
+        mem.remove(&k);
+    }
+    mem
+}
+
 fn count_members_with<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
     law: &SeatLaw,
@@ -4955,10 +5008,10 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     r.under().and_then(|u| by.get(u)).is_some_and(|u| u.to().contains(r.signer()))
                 }
                 Some(Conf::Group) => {
-                    // an infrastructure room's recovery widening while stalled is undecided ([`stalled_recovery`]): the
-                    // kernel holds no bundle holders, so it concludes nothing
+                    // an infrastructure room's recovery widening while stalled: judged against the trust root this
+                    // node reads ([`recovery_verdict`]); with none read, undecided ([`stalled_recovery`])
                     if r.bundle().is_some() {
-                        return false;
+                        return recovery_verdict(p, law, spec).is_ok();
                     }
                     // H2: a counted row is counted over its own object; one stating another concludes nothing
                     if r.over().is_some_and(|o| o != obj) {
