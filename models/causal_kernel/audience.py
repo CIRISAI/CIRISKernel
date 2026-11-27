@@ -20,14 +20,17 @@ The rules.
 3. AUDIENCE, as keys. Every audience holds the row's signer and the keys the row names (CC 5.2, reach: "A row
    that names a node ... is always served to that node"):
        self_collective   the signer's own keys (the person's)
-       targeted_family,  the room's roster (Seats.roster over the rows held: the current members) and the keys the
+       targeted_family,  the room's roster as it stands (Seats.roster over the rows held: the current members, the
+                         ruling of CC 5.2: a member removed later is owed nothing further), less the members
+                         admitted after the row unless its history_on_join is `full` (the row's own, else the
+                         room record's, else `from_join`; CC 2.1, CC 4.4.3.16), and the keys the
        targeted_room     row names; a row there may name only keys within its audience (CC 5.2: "A row placed at
                          family, community or affiliations may name only keys within its audience"): one naming a
                          key off the roster is refused, `named_outside_audience`. The keys a seat offer or
                          unseat over the room seats or removes (`seats`, its `to`) are always within its
                          audience, ahead of that rule: a pending admission names its joiner, who is not on the
-                         roster yet, and a removal its removed key, who is not on it any longer. A targeted row names its room, or
-                         it is refused, `no_room`
+                         roster yet, and a removal its removed key, who is not on it any longer. A targeted
+                         row names its room, or it is refused, `no_room`
        commons           everyone
        addressed         the keys it names, and its signer
 4. COPY (CC 5.2: "A row carries its audience to the rows it names, when it is concluded, sits in the same room as
@@ -94,9 +97,22 @@ def family_of(name):
     return top[0]
 
 
-def place(row, roster, person):
+NO_JOINS = {"joined": lambda room, k: None, "history": lambda room: None, "past": lambda a, b: False}
+
+
+def history_of(row, joins):
+    """The row's history_on_join (CC 2.1: set per stream by its producer, an envelope member), else the one its
+    room's record states, else the default `from_join` (signed_object.cddl). MUTATION history_unread: always full."""
+    if "history_unread" in MUT:
+        return "full"
+    return row.get("history_on_join") or joins["history"](row.get("room")) or "from_join"
+
+
+def place(row, roster, person, joins=NO_JOINS):
     """("placed", placement, audience) | ("refused", token) | ("undecided", family pattern) for one row, before
-    the copy rule. An audience is a frozenset of keys or EVERYONE."""
+    the copy rule. An audience is a frozenset of keys or EVERYONE. `joins` is the caller's: `joined(room, key)`,
+    the row that admitted the key to the room (None for a founding member); `history(room)`, the history_on_join
+    the room's record states (None where it states none); `past(a, b)`, row a is in row b's past."""
     fam = family_of(row["family"])
     if fam is None:
         return ("refused", "family_unknown")
@@ -122,14 +138,19 @@ def place(row, roster, person):
         return ("placed", placement, me | named)
     if row.get("room") is None:
         return ("refused", "no_room")
-    # the current roster (Seats.roster over the rows held), not the members at the row's own head: the one place
-    # this choice is made, until the Constitution rules
+    # the current roster (Seats.roster over the rows held), not the members at the row's own head: CC 5.2 as
+    # ruled, a row is owed to the roster as it stands when the node replicates
     members = frozenset(roster(row["room"]))
+    # a member admitted after the row (its admission has the row in its past) receives it only where the history
+    # is `full` (CC 2.1, CC 4.4.3.16); a member removed since is not on the current roster and is owed nothing
+    joined = joins["joined"]
+    owed = members if history_of(row, joins) == "full" else frozenset(
+        k for k in members if joined(row["room"], k) is None or not joins["past"](row["id"], joined(row["room"], k)))
     # the keys a seat offer or unseat over the room seats or removes are within its audience, ahead of named_within
     seated = frozenset(row.get("seats", ())) if "seats_not_within" not in MUT else frozenset()
     if "named_within_unread" not in MUT and not (named - seated) <= members:
         return ("refused", "named_outside_audience")
-    return ("placed", placement, members | me | named)
+    return ("placed", placement, owed | me | named)
 
 
 def _union(a, b):
@@ -140,10 +161,10 @@ def _within(k, a):
     return a == EVERYONE or k in a
 
 
-def audiences(rows, roster, person):
+def audiences(rows, roster, person, joins=NO_JOINS):
     """{row id: its answer}, the copy rule applied: a placed row's audience grows by that of every concluded placed
     row naming it from the same room, or signed by the same key, whose signer is already in its audience."""
-    out = {r["id"]: place(r, roster, person) for r in rows}
+    out = {r["id"]: place(r, roster, person, joins) for r in rows}
     by = {r["id"]: r for r in rows}
     namers = {i: [] for i in by}
     for d in rows:

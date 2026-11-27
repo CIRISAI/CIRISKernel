@@ -4,7 +4,8 @@
 
 mod common;
 use ciris_kernel::audience::{
-    audiences, family_of, place, Audience, AudienceRow, FamilyPlacement, Placed, FAMILIES, FAMILY_MODEL_SHA256,
+    audiences, family_of, place, Audience, AudienceRow, FamilyPlacement, History, Joins, Placed, FAMILIES,
+    FAMILY_MODEL_SHA256,
 };
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -19,6 +20,7 @@ struct ARow {
     names: Vec<String>,
     concluded: bool,
     seats: Vec<String>,
+    history: Option<History>,
 }
 
 impl AudienceRow for ARow {
@@ -51,6 +53,9 @@ impl AudienceRow for ARow {
     fn seats(&self) -> &[String] {
         &self.seats
     }
+    fn history_on_join(&self) -> Option<History> {
+        self.history
+    }
 }
 
 fn arow(j: &J) -> ARow {
@@ -64,6 +69,7 @@ fn arow(j: &J) -> ARow {
         names: j.at("names").strs(),
         concluded: j.at("concluded").b(),
         seats: j.get("seats").map(|v| v.strs()).unwrap_or_default(),
+        history: j.get("history_on_join").map(|v| History::from_word(v.s()).expect("a history_on_join word")),
     }
 }
 
@@ -123,9 +129,10 @@ fn every_family_in_every_scope() {
             names: vec![],
             concluded: true,
             seats: vec![],
+            history: None,
         };
         n += 1;
-        let got = enc(&place(&r, &ro, &pe));
+        let got = enc(&place(&r, &ro, &pe, &Joins { joined: &|_, _| None, history: &|_| None, past: &|_, _| false }));
         if &got != g.at("answer") {
             bad += 1;
             eprintln!("{} at {}: got {got:?}, want {:?}", g.at("family").s(), g.at("scope").s(), g.at("answer"));
@@ -144,10 +151,36 @@ fn case_table() {
     let (mut n, mut bad) = (0, 0);
     for c in fx.at("cases").arr() {
         let rows: Vec<ARow> = c.at("rows").arr().iter().map(arow).collect();
+        // the case's joins: who was admitted by which row, the room record's history_on_join, and which rows are
+        // in an admitting row's past
+        let w = c.at("joins");
+        let joined: BTreeMap<(String, String), String> = w
+            .get("joined")
+            .map(|j| {
+                j.obj()
+                    .iter()
+                    .flat_map(|(room, ks)| {
+                        ks.obj().iter().map(move |(k, a)| ((room.clone(), k.clone()), a.s().to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let history: BTreeMap<String, String> = w
+            .get("history")
+            .map(|h| h.obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect())
+            .unwrap_or_default();
+        let before: BTreeSet<(String, String)> = w
+            .get("before")
+            .map(|b| b.arr().iter().map(|p| (p.arr()[0].s().to_string(), p.arr()[1].s().to_string())).collect())
+            .unwrap_or_default();
+        let jn = |room: &String, k: &String| joined.get(&(room.clone(), k.clone())).cloned();
+        let hi = |room: &String| history.get(room).and_then(|v| History::from_word(v));
+        let pa = |a: &String, b: &String| before.contains(&(a.clone(), b.clone()));
+        let joins = Joins { joined: &jn, history: &hi, past: &pa };
         let refs: Vec<&ARow> = rows.iter().collect();
         let rev: Vec<&ARow> = rows.iter().rev().collect();
         for list in [refs, rev] {
-            let got = audiences(&list, &ro, &pe);
+            let got = audiences(&list, &ro, &pe, &joins);
             for (i, want) in c.at("answers").obj() {
                 n += 1;
                 let g = got.get(i).map(enc);

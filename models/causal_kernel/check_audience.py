@@ -17,7 +17,7 @@ over the family model's placement cells (data/family_placement.json).
 
     Planted breaks (audience.MUT), each caught: undecided_defaulted, pinned_unread, named_within_unread,
     copy_cross_room, copy_any_signer, copy_unconcluded, match_first, seats_not_within (the keys a seat row seats
-    or removes held to named_within).
+    or removes held to named_within), history_unread (every row read as history_on_join full).
 
     python3 -I check_audience.py      exit 1 on any difference
 """
@@ -29,7 +29,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, HERE)
 import audience as AU  # noqa: E402
 
-ROSTER = {"r1": ("a", "b", "c"), "r2": ("a", "e")}
+ROSTER = {"r1": ("a", "b", "c"), "r2": ("a", "e"), "r3": ("a", "b", "j")}
 PERSON = {"a": ("a", "a2")}
 roster = lambda room: ROSTER.get(room, ())
 person = lambda k: PERSON.get(k, (k,))
@@ -37,9 +37,23 @@ person = lambda k: PERSON.get(k, (k,))
 SCOPES = (("self", None), ("family", "r1"), ("community", "r1"), ("federation", None), ("addressed", None))
 
 
-def row(i, family, scope, signer="a", room=None, named=(), names=(), concluded=True, seats=()):
-    return {"id": i, "family": family, "scope": scope, "signer": signer, "room": room, "named": list(named),
-            "names": list(names), "concluded": concluded, "seats": list(seats)}
+def row(i, family, scope, signer="a", room=None, named=(), names=(), concluded=True, seats=(), history=None):
+    r = {"id": i, "family": family, "scope": scope, "signer": signer, "room": room, "named": list(named),
+         "names": list(names), "concluded": concluded, "seats": list(seats)}
+    if history:
+        r["history_on_join"] = history
+    return r
+
+
+def joins_of(w):
+    """A case's joins: `joined` {room: {key: admitting row}}, `history` {room: the record's value}, `before` [[row,
+    admitting row]]: the row is in the admitting row's past."""
+    if not w:
+        return AU.NO_JOINS
+    before = {tuple(p) for p in w.get("before", ())}
+    return {"joined": lambda room, k: w.get("joined", {}).get(room, {}).get(k),
+            "history": lambda room: w.get("history", {}).get(room),
+            "past": lambda a, b: (a, b) in before}
 
 
 def enc(a):
@@ -99,6 +113,28 @@ CASES = [
      [row("m", "partner_role:member", "community", room="r1", named=["z"])], {"m": REF("named_outside_audience")}),
     ("roster_family_undecided", "group:roster itself answers Undecided at this pin, its seats apart",
      [row("g", "group:roster", "community", room="r1", named=["j"], seats=["j"])], {"g": UND("group:roster")}),
+    # history_on_join (CC 2.1, CC 4.4.3.16): j was admitted to r3 by `adm`, after the row m (m in adm's past)
+    ("history_from_join", "the room's record states nothing: the default from_join, and j, admitted after m, is "
+     "not owed m",
+     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b"])},
+     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]]}),
+    ("history_record_full", "the room's record states history_on_join full: j is owed m",
+     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b", "j"])},
+     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "full"}}),
+    ("history_record_from_join", "the room's record states from_join: j is not owed m",
+     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b"])},
+     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "from_join"}}),
+    ("history_row_full", "the row's producer keeps it (its own history_on_join full), the record stating from_join: "
+     "j is owed m",
+     [row("m", "chat:general", "community", room="r3", history="full")], {"m": P("targeted_room", ["a", "b", "j"])},
+     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "from_join"}}),
+    ("history_join_not_after", "j's admission does not have m in its past (m is concurrent with it, or later): j is "
+     "owed m under from_join",
+     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b", "j"])},
+     {"joined": {"r3": {"j": "adm"}}}),
+    ("removed_later_owed_nothing", "c was removed from r2's roster after m: the roster as it stands does not list c, "
+     "and c is owed nothing further",
+     [row("m", "chat:general", "community", room="r2")], {"m": P("targeted_room", ["a", "e"])}),
     ("targeted_no_room", "a targeted row names its room",
      [row("m", "chat:general", "community")], {"m": REF("no_room")}),
     ("undecided_family", "a family whose placement cell is not table data answers Undecided naming the family",
@@ -143,7 +179,8 @@ CASES = [
 PLANTS = [("undecided_defaulted", "undecided_family"), ("pinned_unread", "pinned_self"),
           ("named_within_unread", "named_outside_audience"), ("copy_cross_room", "copy_other_room"),
           ("copy_any_signer", "copy_signer_outside"), ("copy_unconcluded", "copy_unconcluded"),
-          ("match_first", "table"), ("seats_not_within", "admission_names_joiner")]
+          ("match_first", "table"), ("seats_not_within", "admission_names_joiner"),
+          ("history_unread", "history_from_join")]
 
 
 def generated():
@@ -184,8 +221,8 @@ def check_table():
 
 def check_cases():
     problems = []
-    for name, _, rows, want in CASES:
-        got = {i: enc(a) for i, a in AU.audiences(rows, roster, person).items()}
+    for name, _, rows, want, *w in CASES:
+        got = {i: enc(a) for i, a in AU.audiences(rows, roster, person, joins_of(w[0] if w else None)).items()}
         for i, w in want.items():
             if got.get(i) != w:
                 problems.append("%s: %s is %s, want %s" % (name, i, got.get(i), w))
@@ -200,9 +237,10 @@ def fixture():
             "source": AU.TABLE["_source"], "roster": {k: list(v) for k, v in ROSTER.items()},
             "person": {k: list(v) for k, v in PERSON.items()},
             "generated": [{"family": p, "name": n, "scope": s, "room": r, "answer": a} for p, n, s, r, a in generated()],
-            "cases": [{"name": n, "about": ab, "rows": rows,
-                       "answers": {i: enc(a) for i, a in AU.audiences(rows, roster, person).items()}}
-                      for n, ab, rows, _ in CASES]}
+            "cases": [{"name": n, "about": ab, "rows": rows, "joins": w[0] if w else {},
+                       "answers": {i: enc(a) for i, a in
+                                   AU.audiences(rows, roster, person, joins_of(w[0] if w else None)).items()}}
+                      for n, ab, rows, _, *w in CASES]}
 
 
 def main():

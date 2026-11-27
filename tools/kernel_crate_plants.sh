@@ -592,6 +592,8 @@ plant "the rooms read as one"                           src/content.rs 'by_room.
 plant "an undecided family takes the default"           src/audience.rs 'FamilyPlacement::Undecided => return Placed::Undecided(fam),' 'FamilyPlacement::Undecided => &[Placement::SelfCollective, Placement::TargetedFamily, Placement::TargetedRoom, Placement::Commons][..],'
 plant "a pinned family takes any placement"             src/audience.rs 'if !allowed.contains(&placement) {' 'if false && !allowed.contains(&placement) {'
 plant "a targeted row names keys off the roster"        src/audience.rs 'if !r.named().iter().all(|k| members.contains(k) || r.seats().contains(k)) {' 'if false {'
+plant "history_on_join unread: every row read full"    src/audience.rs 'let history = r.history_on_join().or_else(|| (joins.history)(room)).unwrap_or(History::FromJoin);' 'let history = History::Full;'
+plant "a later joiner owed a from_join row"             src/audience.rs '(joins.joined)(room, k).is_none_or(|adm| !(joins.past)(r.id(), &adm))' 'true'
 plant "a seat row's own keys held to named_within"      src/audience.rs 'members.contains(k) || r.seats().contains(k)' 'members.contains(k)'
 plant "a row leaves its room by another's act"          src/audience.rs 'if !same_room && d.signer() != r.signer() {' 'if false && !same_room {'
 plant "a key outside the audience carries"              src/audience.rs 'if a.holds(d.signer()) && a.join(&ad) {' 'if a.join(&ad) {'

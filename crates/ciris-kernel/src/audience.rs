@@ -20,7 +20,10 @@
 //!   keys. Targeted: the room's roster; a row there may name only keys on the roster
 //!   ([`Refusal::NamedOutsideAudience`]) and names its room ([`Refusal::NoRoom`]). The keys a seat offer or unseat
 //!   over the room seats or removes ([`AudienceRow::seats`]) are always within its audience, ahead of that rule: a
-//!   pending admission names its joiner, a removal its removed key. Commons: everyone. Addressed:
+//!   pending admission names its joiner, a removal its removed key. The roster is the roster as it stands (CC 5.2:
+//!   a member removed later is owed nothing further), less the members admitted after the row unless its
+//!   `history_on_join` is full: the row's own ([`AudienceRow::history_on_join`]), else the room record's
+//!   ([`Joins::history`]), else from_join. Commons: everyone. Addressed:
 //!   the keys it names.
 //! * **Copy** ([`audiences`]). A row's audience includes that of every concluded row naming it from the same room
 //!   or signed by the same key, whose signer is already in its audience: the least fixed point. A refused or
@@ -152,6 +155,36 @@ pub enum Placed<K> {
     Undecided(&'static str),
 }
 
+/// What a later member receives of the rows before its join (CC 2.1, CC 4.4.3.16).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum History {
+    /// The rows before the join too.
+    Full,
+    /// Only the rows from the join (the default).
+    FromJoin,
+}
+
+impl History {
+    /// The value's word on the wire.
+    pub fn from_word(w: &str) -> Option<History> {
+        match w {
+            "full" => Some(History::Full),
+            "from_join" => Some(History::FromJoin),
+            _ => None,
+        }
+    }
+}
+
+/// How the room's members joined, the caller's: read for a targeted row's audience.
+pub struct Joins<'a, I, K> {
+    /// The row that admitted the key to the room; `None` for a founding member.
+    pub joined: &'a dyn Fn(&I, &K) -> Option<I>,
+    /// The `history_on_join` the room's record states, where it states one.
+    pub history: &'a dyn Fn(&I) -> Option<History>,
+    /// Row `a` is in row `b`'s past.
+    pub past: &'a dyn Fn(&I, &I) -> bool,
+}
+
 /// A row as this module reads it. The caller has verified and decoded it.
 pub trait AudienceRow {
     /// The row's digest; also a room's id.
@@ -178,6 +211,10 @@ pub trait AudienceRow {
     }
     /// The row concludes.
     fn concluded(&self) -> bool;
+    /// The row's own `history_on_join` (set per stream by its producer, CC 2.1), where it states one.
+    fn history_on_join(&self) -> Option<History> {
+        None
+    }
 }
 
 // the number of literal segments by which `pattern` matches `name`
@@ -227,6 +264,7 @@ pub fn place<R: AudienceRow>(
     r: &R,
     roster: &dyn Fn(&R::Id) -> BTreeSet<R::Key>,
     person: &dyn Fn(&R::Key) -> BTreeSet<R::Key>,
+    joins: &Joins<'_, R::Id, R::Key>,
 ) -> Placed<R::Key> {
     let Some(&(fam, cell)) = family_of(r.family()) else { return Placed::Refused(Refusal::FamilyUnknown) };
     let Some(placement) = Placement::of_scope(r.scope()) else { return Placed::Refused(Refusal::ScopeUnknown) };
@@ -245,14 +283,19 @@ pub fn place<R: AudienceRow>(
         Placement::Addressed => {}
         Placement::TargetedFamily | Placement::TargetedRoom => {
             let Some(room) = r.room() else { return Placed::Refused(Refusal::NoRoom) };
-            // the current roster, not the members at the row's own head: the one place this choice is made, until
-            // the Constitution rules
+            // the current roster, not the members at the row's own head (CC 5.2 as ruled: a row is owed to the
+            // roster as it stands when the node replicates; a member removed since is owed nothing further)
             let members = roster(room);
             // the keys a seat offer or unseat seats or removes are within its audience, ahead of named_within
             if !r.named().iter().all(|k| members.contains(k) || r.seats().contains(k)) {
                 return Placed::Refused(Refusal::NamedOutsideAudience);
             }
-            keys.extend(members);
+            // a member admitted after the row receives it only where the history is full: the row's own, else the
+            // room record's, else from_join
+            let history = r.history_on_join().or_else(|| (joins.history)(room)).unwrap_or(History::FromJoin);
+            keys.extend(members.into_iter().filter(|k| {
+                history == History::Full || (joins.joined)(room, k).is_none_or(|adm| !(joins.past)(r.id(), &adm))
+            }));
         }
     }
     Placed::Placed(placement, Audience::Keys(keys))
@@ -264,9 +307,10 @@ pub fn audiences<R: AudienceRow>(
     rows: &[&R],
     roster: &dyn Fn(&R::Id) -> BTreeSet<R::Key>,
     person: &dyn Fn(&R::Key) -> BTreeSet<R::Key>,
+    joins: &Joins<'_, R::Id, R::Key>,
 ) -> BTreeMap<R::Id, Placed<R::Key>> {
     let mut out: BTreeMap<R::Id, Placed<R::Key>> =
-        rows.iter().map(|r| (r.id().clone(), place(*r, roster, person))).collect();
+        rows.iter().map(|r| (r.id().clone(), place(*r, roster, person, joins))).collect();
     let by: BTreeMap<&R::Id, &R> = rows.iter().map(|r| (r.id(), *r)).collect();
     loop {
         let mut changed = false;
