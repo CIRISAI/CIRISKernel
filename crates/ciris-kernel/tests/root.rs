@@ -70,7 +70,8 @@ impl RootBundle for TB {
 
 struct TG {
     id: String,
-    bundle: String,
+    bundles: Vec<String>,
+    seen: Option<Vec<String>>,
     to: String,
     scope: String,
     signers: Vec<String>,
@@ -85,8 +86,11 @@ impl RootGrant for TG {
     fn id(&self) -> &String {
         &self.id
     }
-    fn bundle(&self) -> &String {
-        &self.bundle
+    fn bundles(&self) -> &[String] {
+        &self.bundles
+    }
+    fn seen(&self) -> Option<&[String]> {
+        self.seen.as_deref()
     }
     fn to(&self) -> &String {
         &self.to
@@ -132,7 +136,8 @@ fn grants(j: &J) -> Vec<TG> {
         .iter()
         .map(|g| TG {
             id: g.at("id").s().into(),
-            bundle: g.at("bundle").s().into(),
+            bundles: g.at("bundles").strs(),
+            seen: g.get("seen").filter(|x| !x.is_null()).map(|x| x.strs()),
             to: g.at("to").s().into(),
             scope: g.at("scope").s().into(),
             signers: g.at("signers").strs(),

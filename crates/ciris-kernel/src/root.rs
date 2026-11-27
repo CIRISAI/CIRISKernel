@@ -20,14 +20,17 @@
 //!   whole charter, compared as one value) do not fold, and the holders and seats are those common to them.
 //! - **In force**, per reader: its anchor names its first bundle (else `genesis_bundle_not_anchored`); the bundles
 //!   in force are the newest it acknowledged, folded where several; none acknowledged, the anchor.
-//! - **Grants.** A grant exists where it is counted at a strict majority over the live holders of the bundle it
-//!   names, under a charter carrying its duty. It resolves for a reader while its bundle is in the reader's lineage
+//! - **Grants.** A grant exists where it is counted at a strict majority over the live holders of the bundles it
+//!   names (their fold where several), under charters carrying its duty, naming the newest bundles in its signers'
+//!   own past. It resolves for a reader while its bundle is in the reader's lineage
 //!   and the scope in force there (what every tip carries) still carries the duty.
 //!
 //! The costs, stated: a recovery concurrent with an amend that changes the charter leaves the recovering holder no
 //! seat in force until a bundle names both tips (it gives a holder majority nothing it lacks: the same majority
-//! could remove that holder by an amend); two joins of the same tips under different charters with disjoint holders
-//! leave no common holder, and no further join can be counted (open, reported).
+//! could remove that holder by an amend). Two joins of the same tips under different charters, neither in the
+//! other's past, are contested: neither stands, a reader keeps the tips they tried to join, and a bundle naming
+//! every one settles them, counted over those tips' common holders. Two successors of one bundle, and two joins
+//! under the same charter, fold as tips: concurrent successors are not contested.
 //!
 //! Receipts, equivocation records and fork-attempt records move no head and are not read here.
 
@@ -79,8 +82,13 @@ pub trait RootGrant {
     type Word: Ord + Clone;
     /// The grant's id.
     fn id(&self) -> &Self::Id;
-    /// The bundle it is counted over.
-    fn bundle(&self) -> &Self::Id;
+    /// The bundles it names (the newest in its signers' own past), and is counted over: one, or several.
+    fn bundles(&self) -> &[Self::Id];
+    /// The bundles in its signers' own past, where the store knows them (None: the lines of those it names). A
+    /// grant naming only one tip, by signers who had seen another, concludes nothing (the head rule).
+    fn seen(&self) -> Option<&[Self::Id]> {
+        None
+    }
     /// The key it names.
     fn to(&self) -> &Self::Key;
     /// The room its scope names.
@@ -123,7 +131,7 @@ pub struct Root<'a, B: RootBundle, G> {
     grants: BTreeMap<&'a B::Id, &'a G>,
     past_memo: RefCell<BTreeMap<B::Id, BTreeSet<B::Id>>>,
     counted_memo: RefCell<BTreeMap<B::Id, Result<(), Reason>>>,
-    void_memo: RefCell<Option<BTreeSet<B::Id>>>,
+    void_memo: RefCell<Option<(BTreeSet<B::Id>, BTreeSet<B::Id>)>>,
 }
 
 impl<'a, B, G> Root<'a, B, G>
@@ -224,9 +232,37 @@ where
         ps.iter().all(|p| p.family() == b.family())
     }
 
-    /// The live holders a later bundle is counted over: its predecessor's, or those common to a join's two.
-    fn base(&self, b: &B) -> BTreeSet<B::Key> {
-        let mut it = b.prev().iter().filter_map(|p| self.b(p));
+    /// A join contested by a rival: a concluded join of the same predecessors under another charter, neither in
+    /// the other's past. Joins that do not fold with each other may not both stand. Two successors of one bundle
+    /// are no joins and fold as tips; two joins under the same charter fold as any tips do.
+    fn contested_join(&self, i: &B::Id) -> bool {
+        let Some(b) = self.b(i) else { return false };
+        if b.prev().len() < 2 || self.counted(i).is_err() {
+            return false;
+        }
+        let ps: BTreeSet<&B::Id> = b.prev().iter().collect();
+        self.by.values().any(|x| {
+            x.id() != i
+                && x.prev().len() >= 2
+                && x.prev().iter().collect::<BTreeSet<_>>() == ps
+                && x.charter() != b.charter()
+                && !self.in_past(x.id(), i)
+                && !self.in_past(i, x.id())
+                && self.counted(x.id()).is_ok()
+        })
+    }
+
+    /// The live holders common to `prevs`; where they are joins contested among themselves (a bundle settling a
+    /// forked join), those common to the tips those joins tried to join.
+    fn prev_base(&self, prevs: &[B::Id]) -> BTreeSet<B::Key> {
+        let ps: Vec<&B> = prevs.iter().filter_map(|p| self.b(p)).collect();
+        if ps.len() >= 2
+            && prevs.iter().all(|p| self.contested_join(p))
+            && ps.iter().map(|q| q.prev().iter().collect::<BTreeSet<_>>()).collect::<BTreeSet<_>>().len() == 1
+        {
+            return self.prev_base(ps[0].prev());
+        }
+        let mut it = ps.iter();
         let Some(first) = it.next() else { return BTreeSet::new() };
         let mut hs: BTreeSet<B::Key> = first.holders().iter().cloned().collect();
         for p in it {
@@ -234,6 +270,12 @@ where
             hs = hs.intersection(&ph).cloned().collect();
         }
         self.live(hs)
+    }
+
+    /// The live holders a later bundle is counted over: its predecessor's, or those common to a join's two (a
+    /// bundle settling a forked join: those common to the tips it joined).
+    fn base(&self, b: &B) -> BTreeSet<B::Key> {
+        self.prev_base(b.prev())
     }
 
     fn commitment(p: &B, h: &B::Key) -> Option<B::Key> {
@@ -335,6 +377,12 @@ where
 
     /// S'' and T: the bundles void (and contested recoveries).
     pub fn void(&self) -> BTreeSet<B::Id> {
+        self.void_and_contested().0
+    }
+
+    /// The void, and of it the contested bundles (a forked join's joins, a double recovery's recoveries), which
+    /// leave a reader that acknowledged them at the bundles they extend.
+    fn void_and_contested(&self) -> (BTreeSet<B::Id>, BTreeSet<B::Id>) {
         if let Some(v) = self.void_memo.borrow().as_ref() {
             return v.clone();
         }
@@ -343,7 +391,8 @@ where
         v
     }
 
-    fn void_of(&self) -> BTreeSet<B::Id> {
+    fn void_of(&self) -> (BTreeSet<B::Id>, BTreeSet<B::Id>) {
+        let mut contest: BTreeSet<B::Id> = BTreeSet::new();
         let cs = self.concluded();
         let forked = |b: &B| {
             if b.prev().is_empty() || b.recovers().is_some() {
@@ -437,10 +486,43 @@ where
                 let line = self.line(c.id());
                 if !line.is_disjoint(g) && !g.is_subset(&line) {
                     tv.insert(c.id().clone());
+                    if g.contains(c.id()) {
+                        contest.insert(c.id().clone());
+                    }
                 }
             }
         }
-        tv
+        // a forked join: joins of the same tips under different charters are contested, neither stands, and a reader
+        // keeps the tips they tried to join; a bundle naming every one settles them (counted over those tips' common
+        // holders, prev_base); one built on some and not all is void with them
+        let mut jgroups: BTreeMap<BTreeSet<B::Id>, BTreeSet<B::Id>> = BTreeMap::new();
+        for c in &cs {
+            if self.contested_join(c.id()) {
+                jgroups.entry(c.prev().iter().cloned().collect()).or_default().insert(c.id().clone());
+            }
+        }
+        loop {
+            let mut changed = false;
+            for g in jgroups.values() {
+                if cs.iter().any(|c| !tv.contains(c.id()) && g.is_subset(&self.past(c.id()))) {
+                    continue; // settled
+                }
+                for c in &cs {
+                    let line = self.line(c.id());
+                    if !tv.contains(c.id()) && !line.is_disjoint(g) && (g.contains(c.id()) || !g.is_subset(&line)) {
+                        tv.insert(c.id().clone());
+                        changed = true;
+                        if g.contains(c.id()) {
+                            contest.insert(c.id().clone());
+                        }
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        (tv, contest)
     }
 
     // ---- for one reader ----------------------------------------------------------------------------------
@@ -471,7 +553,20 @@ where
         let f = self.first(rd)?;
         let held: Vec<B::Id> =
             self.valid().into_iter().map(|b| b.id().clone()).filter(|i| *i == f || self.in_past(&f, i)).collect();
-        let acked: BTreeSet<B::Id> = held.into_iter().filter(|i| rd.acks.contains(i)).collect();
+        let mut acked: BTreeSet<B::Id> = held.iter().filter(|i| rd.acks.contains(*i)).cloned().collect();
+        // a contested bundle the reader acknowledged leaves it at the bundles it extends, and so on down
+        let contest = self.void_and_contested().1;
+        let held: BTreeSet<B::Id> = held.into_iter().collect();
+        let mut todo: Vec<B::Id> = rd.acks.iter().filter(|i| contest.contains(*i)).cloned().collect();
+        while let Some(x) = todo.pop() {
+            for p in self.b(&x).map(|b| b.prev().to_vec()).unwrap_or_default() {
+                if held.contains(&p) {
+                    acked.insert(p);
+                } else if contest.contains(&p) {
+                    todo.push(p);
+                }
+            }
+        }
         if acked.is_empty() {
             return Some(Vec::from([f]));
         }
@@ -595,15 +690,26 @@ where
     }
 
     // ---- grants ------------------------------------------------------------------------------------------
-    /// A grant EXISTS: counted at a strict majority over the live holders of the bundle it names, that bundle
-    /// concluded and not void, its charter carrying the grant's duty.
+    /// A grant EXISTS: counted at a strict majority over the live holders of the bundles it names (one: its
+    /// holders; several: their fold, the common holders where the charters differ), those bundles concluded and not
+    /// void, their charters carrying its duty; and it names the newest bundles in its signers' own past.
     pub fn grant_row(&self, gid: &B::Id) -> bool {
         let Some(g) = self.grants.get(gid) else { return false };
-        let Some(b) = self.valid().into_iter().find(|b| b.id() == g.bundle()) else { return false };
-        if !b.duties().contains(g.duty()) {
+        let valid: BTreeSet<&B::Id> = self.valid().into_iter().map(|b| b.id()).collect();
+        let named = g.bundles();
+        if named.is_empty() || named.iter().any(|n| !valid.contains(n)) {
             return false;
         }
-        let base = self.live(b.holders().iter().cloned());
+        if named.iter().any(|n| self.b(n).is_none_or(|b| !b.duties().contains(g.duty()))) {
+            return false;
+        }
+        if let Some(seen) = g.seen() {
+            let lines: BTreeSet<B::Id> = named.iter().flat_map(|n| self.line(n)).collect();
+            if seen.iter().any(|x| !lines.contains(x)) {
+                return false; // the head rule
+            }
+        }
+        let base = self.live(self.fold(named).0);
         2 * g.signers().iter().collect::<BTreeSet<_>>().into_iter().filter(|k| base.contains(*k)).count() > base.len()
     }
 
@@ -626,13 +732,14 @@ where
     pub fn grant_in_force(&self, gid: &B::Id, rd: &Reader<B::Id, B::Key>) -> Result<(), Reason> {
         let Some(g) = self.grants.get(gid) else { return Err("grant_unknown") };
         let hs = self.heads(rd).ok_or("genesis_bundle_not_anchored")?;
-        if !self.valid().iter().any(|b| b.id() == g.bundle()) {
+        let valid: BTreeSet<&B::Id> = self.valid().into_iter().map(|b| b.id()).collect();
+        if g.bundles().iter().any(|n| !valid.contains(n)) {
             return Err("grant_bundle_void");
         }
         if !self.grant_row(gid) {
             return Err("grant_count_short");
         }
-        if !hs.iter().any(|h| self.line(h).contains(g.bundle())) {
+        if !g.bundles().iter().all(|n| hs.iter().any(|h| self.line(h).contains(n))) {
             return Err("grant_not_in_reader_lineage");
         }
         if !self.scope_in_force(rd).contains(g.duty()) {

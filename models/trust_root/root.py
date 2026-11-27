@@ -28,7 +28,9 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
                  bundle in force is the newest of the lineage the reader has acknowledged (acceptance edges with
                  attached_head_digest), read by its line; several acknowledged tips are folded; none, the anchor.
     grants       a root grant EXISTS where it is counted at a strict majority (accord_majority) over the live
-                 holders of the bundle it names, and that bundle's charter carries its duty; one made under either
+                 holders of the bundles it names, and their charters carry its duty; it names the newest bundles in
+                 its signers' own past (signers who saw s2 name s1 and s2, and are counted over their fold, or the
+                 common holders where charters differ; one naming only s1 by signers who saw s2 concludes nothing); one made under either
                  successor stands as a row. It RESOLVES for a reader while its bundle is in the reader's lineage
                  (one of its heads, or in their past; not on a line behind it) and the scope of the bundle in force
                  at that reader still carries the duty (several tips: what all carry). A later bundle re-scopes
@@ -38,11 +40,13 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
                  commitment).
     the costs    a recovery concurrent with an amend that changes the charter leaves the recovering holder no seat in
                  force until a bundle names both tips; it gives a holder majority nothing it lacks: the same majority
-                 could remove that holder by an amend. A forked join (two joins of the same tips under different
-                 charters) is two tips whose regime differs, so the holders are again the common ones; every pair
-                 of strict majorities shares a key, but a key that signs both joins may keep itself in neither, and
-                 two joins with disjoint holders leave no common holder: no further join can be counted (OPEN, a
-                 liveness hole, reported to the Constitution).
+                 could remove that holder by an amend.
+    forked join  two joins of the same tips that do not fold with each other (their charters differ), neither in
+                 the other's past, are contested: neither stands, and a reader that acknowledged them keeps the tips
+                 they tried to join. A bundle naming every one settles them, counted by a strict majority of those
+                 tips' common holders (so a forked settler ends at the same holders, never fewer). Two successors
+                 of one bundle are no joins and fold as tips, and two joins under the SAME charter fold as any tips
+                 do: concurrent successors are not contested.
 
 Receipts, equivocation records and fork-attempt records move no head and are not read here.
 
@@ -72,11 +76,14 @@ def revoke(key, bound=None):
     return {"kind": "revoke", "key": key, "bound": bound}
 
 
-def grant(id, bundle_id, to, scope, signers, identity=("user",), duty="infra"):
-    """A root grant: a row counted over the holders of `bundle_id`, naming key `to` for room `scope`, of `duty` (the
-    duty the bundle's charter must carry)."""
-    return {"id": id, "kind": "grant", "bundle": bundle_id, "to": to, "scope": scope, "signers": tuple(signers),
-            "identity": tuple(identity), "duty": duty}
+def grant(id, bundle_id, to, scope, signers, identity=("user",), duty="infra", seen=None):
+    """A root grant: a row counted over the holders of the bundles it names (`bundle_id`, one id or several), naming
+    key `to` for room `scope`, of `duty` (the duty the bundles' charters must carry). `seen`: the bundles in its
+    signers' own past (default: the lines of those it names)."""
+    named = (bundle_id,) if isinstance(bundle_id, str) else tuple(bundle_id)
+    return {"id": id, "kind": "grant", "bundle": named[0], "bundles": named, "to": to, "scope": scope,
+            "signers": tuple(signers), "identity": tuple(identity), "duty": duty,
+            "seen": tuple(seen) if seen is not None else None}
 
 
 def duties(charter):
@@ -139,10 +146,36 @@ class Root:
         if "family_unread" not in MUT and any(p["family"] != b["family"] for p in ps): return False
         return True
 
+    def contested_join(self, i):
+        """A join (two predecessors or more) contested by a rival: a concluded join of the same predecessors under
+        another charter, neither in the other's past. Joins that do not fold with each other may not both stand.
+        Two successors of one bundle are no joins and fold as tips; two joins under the SAME charter fold as any
+        tips do (MUTATION joins_fork_both: no join is contested)."""
+        if "joins_fork_both" in MUT: return False
+        b = self.by[i]
+        if len(b["prev"]) < 2 or not self.counted(i)[0]: return False
+        return any(x["id"] != i and len(x["prev"]) >= 2 and frozenset(x["prev"]) == frozenset(b["prev"])
+                   and self.regime(x["id"]) != self.regime(i) and x["id"] not in self.past(i) and i not in self.past(x["id"])
+                   and self.counted(x["id"])[0] for x in self.by.values())
+
+    def prev_base(self, prevs):
+        """The live holders common to the bundles `prevs`; where they are joins contested among themselves (a
+        bundle settling a forked join), the holders common to the tips those joins tried to join."""
+        prevs = tuple(prevs)
+        ps = [self.by[p] for p in prevs]
+        if len(ps) >= 2 and all(self.contested_join(p) for p in prevs) \
+                and len({frozenset(q["prev"]) for q in ps}) == 1:
+            return self.prev_base(ps[0]["prev"])
+        if "join_union" in MUT: hs = frozenset().union(*[frozenset(p["holders"]) for p in ps])
+        else: hs = frozenset.intersection(*[frozenset(p["holders"]) for p in ps])
+        return self.live(hs)
+
     def base(self, b):
-        """The live holders a later bundle is counted over: its predecessor's, or those common to a join's two."""
-        ps = [self.by[p] for p in b["prev"]]
+        """The live holders a later bundle is counted over: its predecessor's, or those common to a join's two (a
+        bundle settling a forked join: those common to the tips it joined)."""
         if "count_over_own" in MUT: return self.live(b["holders"])
+        if len(b["prev"]) >= 2: return self.prev_base(b["prev"])
+        ps = [self.by[p] for p in b["prev"]]
         if "join_union" in MUT: hs = frozenset().union(*[frozenset(p["holders"]) for p in ps])
         else: hs = frozenset.intersection(*[frozenset(p["holders"]) for p in ps])
         return self.live(hs)
@@ -205,6 +238,7 @@ class Root:
         count only on the other side outnumber those only on its side (a tie voids neither); a bundle built on a void
         one is void, but a join of both lines. MUTATION root_sf_unread: nothing is void; root_t_unread: every
         self-forked bundle is void."""
+        self._contest = set()
         if "root_sf_unread" in MUT: return frozenset()
         cs = [self.by[i] for i in self.concluded()]
         def voices_of(b):
@@ -259,6 +293,23 @@ class Root:
                 for c in cs:
                     line = self.line(c["id"])
                     if line & g and not g <= line: tv.add(c["id"])
+                    if c["id"] in g: self._contest.add(c["id"])
+        # a forked join: joins of the same tips under different charters are contested, neither stands, and a reader
+        # keeps the tips they tried to join; a bundle naming every one of them settles them (counted over those tips'
+        # common holders, prev_base); one built on some and not all is void with them
+        jgroups = {}
+        for c in cs:
+            if self.contested_join(c["id"]): jgroups.setdefault(frozenset(c["prev"]), set()).add(c["id"])
+        changed = True
+        while changed:
+            changed = False
+            for g in jgroups.values():
+                if any(g <= self.past(c["id"]) for c in cs if c["id"] not in tv): continue    # settled
+                for c in cs:
+                    line = self.line(c["id"])
+                    if c["id"] not in tv and line & g and (c["id"] in g or not g <= line):
+                        tv.add(c["id"]); changed = True
+                        if c["id"] in g: self._contest.add(c["id"])
         return frozenset(tv)
 
     # ---- for one reader ----------------------------------------------------------------------------------
@@ -288,6 +339,16 @@ class Root:
         if not h: return None
         if "inforce_global" in MUT: acked = set(h)
         else: acked = {i for i in h if i in rd["acks"]}
+        # a contested bundle the reader acknowledged leaves it at the bundles it extends (the tips a forked join
+        # tried to join; the seat a contested recovery tried to replace), and so on down
+        self.void()
+        todo = [i for i in rd["acks"] if i in self._contest]
+        held = set(h)
+        while todo and "inforce_global" not in MUT:
+            x = todo.pop()
+            for p in self.by[x]["prev"]:
+                if p in held: acked.add(p)
+                elif p in self._contest: todo.append(p)
         if not acked: return (self.first(rd),)
         return tuple(sorted(i for i in acked if not any(i in self.past(j) for j in acked)))
 
@@ -367,13 +428,21 @@ class Root:
 
     # ---- grants ------------------------------------------------------------------------------------------
     def grant_row(self, gid):
-        """A grant EXISTS: counted at a strict majority over the live holders of the bundle it names, that bundle
-        concluded and not void, and its charter carrying the grant's duty (MUTATION grant_charter_unread)."""
+        """A grant EXISTS: counted at a strict majority over the live holders of the bundles it names (one: its
+        holders; several: their fold, the common holders where the charters differ), those bundles concluded and
+        not void, their charters carrying the grant's duty (MUTATION grant_charter_unread); and it names the newest
+        bundles in its signers' own past (the head rule: a grant naming only s1 by signers who had seen s2 concludes
+        nothing; MUTATION grant_head_unread)."""
         g = self.grants.get(gid)
-        if g is None or g["bundle"] not in self.valid(): return False
-        b = self.by[g["bundle"]]
-        if g["duty"] not in duties(b["charter"]) and "grant_charter_unread" not in MUT: return False
-        base = self.live(b["holders"])
+        if g is None: return False
+        named = g["bundles"]
+        if any(n not in self.valid() for n in named): return False
+        if any(g["duty"] not in duties(self.by[n]["charter"]) for n in named) and "grant_charter_unread" not in MUT:
+            return False
+        if g["seen"] is not None and "grant_head_unread" not in MUT:
+            lines = set().union(*[self.line(n) for n in named])
+            if any(x not in lines for x in g["seen"]): return False
+        base = self.live(self.fold(named)[0])
         return 2 * len(frozenset(g["signers"]) & base) > len(base)
 
     def scope_in_force(self, rd):
@@ -383,17 +452,17 @@ class Root:
         return frozenset.intersection(*[duties(self.by[h]["charter"]) for h in hs])
 
     def grant_in_force(self, gid, rd):
-        """(True|False, reason): the grant exists and RESOLVES for the reader: (i) its bundle is in the reader's
-        lineage, one of its heads or in their past, not on a line behind it (MUTATION grant_any_bundle); (ii) the
+        """(True|False, reason): the grant exists and RESOLVES for the reader: (i) its bundles are in the reader's
+        lineage, among its heads or in their past, not on a line behind it (MUTATION grant_any_bundle); (ii) the
         scope of the bundle in force at the reader still carries its duty (MUTATION grant_scope_unread). A later
         bundle re-scopes existing grants with no re-issuance."""
         g = self.grants.get(gid)
         if g is None: return (False, "grant_unknown")
         hs = self.heads(rd)
         if hs is None: return (False, "genesis_bundle_not_anchored")
-        if g["bundle"] not in self.valid(): return (False, "grant_bundle_void")
+        if any(n not in self.valid() for n in g["bundles"]): return (False, "grant_bundle_void")
         if not self.grant_row(gid): return (False, "grant_count_short")
-        if "grant_any_bundle" not in MUT and not any(g["bundle"] in self.line(h) for h in hs):
+        if "grant_any_bundle" not in MUT and not all(any(n in self.line(h) for h in hs) for n in g["bundles"]):
             return (False, "grant_not_in_reader_lineage")
         if g["duty"] not in self.scope_in_force(rd) and "grant_scope_unread" not in MUT:
             return (False, "grant_scope_not_in_force")
