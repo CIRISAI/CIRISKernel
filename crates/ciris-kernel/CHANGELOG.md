@@ -2,6 +2,57 @@
 
 ## Unreleased
 
+**An affiliation's officers** (CC 4.4.3.12, the Constitution's ruling on officers). An officer is a member whose seat
+carries `role: officer` (`seat::OFFICER`, a canonical member role): the founding record's signers it lists with that
+role (a `duty_holders` entry `officer`) are the first officers; after founding an officer is seated as a family's
+founder is, by an appointment carrying the role (or a promotion, an offer of scope `officer`), counted by the
+officers under the protocol, with the appointee's own acceptance. Taking the role away counts as a removal; an officer
+lays it down by its own withdrawal naming the scope. An affiliation's BODY for every counted act is its officers
+under its declared protocol (appointment, removal, record change, dissolution, license-seat conferral, an onward
+trust edge); members with role `member` or none are subjects and no voice (a charter granting a vote: a gap, none
+built). The one-seat rule of the countersign reads on officers. An affiliation with NO officer is DISSOLVED at that
+point, not locked, and has no election: every seat over it ends. One source of the body rule: `Seats::authority_body`
+and `Seats::protocol_body` (Python `seat.authority_body`, `seat.protocol_body`), read by `trust_rows`. **An answer
+changes:** an affiliation's appointed member is no voice of its record change, its edge or its licence; an
+affiliation founded with no officer is dissolved; the charter and trust-rows cases are restated over officers. Plants
+`officer_from_founders`, `affiliation_body_members`, `no_officer_locks`, with crate twins; six crate plants retargeted.
+
+**An agent's duty rests on its owner's signature** (CC 4.5.4, "An agent's key MAY hold a duty, by its own statement and
+its owner's signature"; the cross-object rest (2)). A duty seat of an agent's key (a key holding an `agent` seat over
+the room) stands only where the one live owner of that key (its `owner` seat over the key's own roster) signed the
+conferral, by an owner-binding in the conferral's past, and only while that binding stands for the reader: the
+owner's revocation stops the seat (it has the binding in its past), and two owners are none (CC 3.2). **An answer
+changes:** a duty conferred on an agent with no owner's signature seats nothing. Five cases in `check_agent_seat.py`,
+and its worlds now carry the agent's owner-binding; plants `agent_duty_owner_unread` and `agent_owner_end_unread`,
+and two crate plants (no owner asked; two owners read as one).
+
+**The countersign of a one-seat affiliation's removal** (CC 4.4.3.12; the Constitution's
+formal/affiliation/Affiliation.lean, its `admitted` and `validCountersign`, as the reference). A removal of a member of
+an affiliation is no longer undecided. The deciding seats are its officers (below). The body's own signature is every
+voice a deciding seat, at least one. With ONE deciding seat the removal concludes as a PROPOSAL (CC 4.5.5's
+reconsideration path) and is in force only where a countersign naming it counts for the reader: a countersign row by
+the designated official or by a review holder of the overseeing body (its `review` seat over that body), both read in
+the removal's own past, outside the deciding seat. No window: it waits. The acting seat's withdrawal of the removal
+clears it (rule 4: a countersign with the withdrawal in its past concludes nothing; a withdrawal concurrent with the
+countersign counts at its own head and the countersign is out of force from there, so nothing is decided; a
+withdrawal with the countersign in its past is a new act and undoes no decision). With two or more seats the removal decides on two
+voices at least, the member removed apart (CC 4.5.13). "Outside the seat" is asked of keys: of persons once room-keys
+gives key to person (a TODO). **BREAKING**: `SeatKind::Countersign` (a new variant); `SeatRow::official` and
+`SeatRow::overseen_by` (new, default `None`; the record member `overseen_by`, the Constitution's ruled name: optional,
+one group id, the overseeing body's community_key_id, changed like any record member; absent, only the designated
+official countersigns); `seat::affiliation_removal` returns `bool` (the shape), no reason; `charter.json` has no `undecided`
+cases. 14 cases in `check_charter.py` (COUNTERSIGN), in the `seat` fixture; plants `countersign_unread`,
+`countersign_inside_seat`, `official_at_founding`, `overseers_unread`, `withdrawal_clears_unread`, `two_voices_unread`,
+with crate twins; `affiliation_removal_passes` and its crate twin retired with the undecided reading.
+
+**New: `seat::is_founder`** (persist's gap list). Who is a founder of a family or an infrastructure community at a
+row, by the reading a count uses: the `founder` seats over the object at the heads the row names, or for a row naming
+none at the newest counted changes over the object in its past (the founding row where there is none); persons only;
+read with every withdrawal in the row's past, so a key whose own leaving is there is no founder, and a family's founder
+role ends with any leaving. `false` for any other object and at the founding row itself (it has no past). Ten cases in
+`check_acts.py` (FOUNDERS), recorded in the `seat` fixture (`founder`); plants `founder_at_tips` and
+`founder_leavings_unread`, and a crate plant.
+
 **The reader's trust walk from rows, and the issuer's standing** (CC 4.4.3.34, CC 4.5.4, with the Constitution's
 rulings (a) to (d) of 2026-11-27; `trust_rows.py`, `check_trust_rows.py`; fixture `trust_rows.json`). Whether a reader
 honours a licence is read from rows alone: `trust_rows::read_licence` is the only public path, and no caller supplies
@@ -29,6 +80,12 @@ removed; `trust::reaches` and `EdgeIndex::reaches` stay as the walk. New: the mo
   affiliation is never locked; its license seat is its body's act under its declared protocol (`seat_confer` /
   `seat_withdraw` / `license` / `affiliation` -> `cosigned_act`, held in `seat.PENDING_ACTS`; the body its officers once
   that lands, its members until then).
+- On the officer body (`Seats::authority_body`, `Seats::protocol_body`): an affiliation's onward edge is its
+  officers' act under its declared protocol (`accept / trust_edge / affiliation -> cosigned_act`, held in
+  `seat.PENDING_ACTS`); a dissolved authority's own edges end with its record, so no walk hops through it; and a
+  licence whose authority is dissolved stands, its authority judged at issuance, and reads `lapsed` for every later
+  use (`Unhonoured::Lapsed`; CC 4.4.3.12, "What stands after dissolution"), one with no standing over its own past
+  staying testimony.
 - (b) A licence is the authority's act where, over its own past, its emitter's key is the authority, or holds a
   `license` seat over it (a delegation chain resolving to it), or, for a community, the licence is cosigned by its
   quorum under its declared protocol. Any other is testimony: `licensure_delegator_not_authority`.

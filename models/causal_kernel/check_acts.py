@@ -66,6 +66,8 @@ Planted breaks, each of which must change a case's answer:
     dissolve_unread               a row over a dissolved group concludes
     (retired at the heads merge: dissolve_any_heads, a dissolution at any heads: H1 asks every counted row, a
     dissolution included, to name the newest counted changes in its own past, so the plant breaks nothing a case sees;
+    founder_at_tips      seat.is_founder read at the tips of everything held, not at the row (a founder case)
+    founder_leavings_unread  seat.is_founder not reading the withdrawals of the row's past (a founder case)
     founder_role_survives_leave: the head rules read a key whose own leaving is in a row's past out of every scope at
     its heads, the founder role included)
     (retired: self_removal_as_leave, F3's self-only removal concluding: the member a removal names is no voice of it
@@ -88,6 +90,7 @@ Planted breaks, each of which must change a case's answer:
     dissolve_uncontested          a dissolution is read apart from rule 5: it is no cut over every seat (FA6)
     wait_reader_unread            the founders' amendment wait is read over a row's own past only, not the reader's (C2)
     contested_one_sided           a one-sided cut is contested too: rule 5 read beyond mutual dependence
+    self_voice_on_offer           a key an offer seats is a voice of it (a member re-seated by its own signature)
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
@@ -274,6 +277,7 @@ QUERIES = [
     (("seat_withdraw", "license", "community"), (("duty_withdraw",), "fixed")),  # seat.PENDING_ACTS
     (("seat_confer", "license", "affiliation"), (("cosigned_act",), "fixed")),   # seat.PENDING_ACTS
     (("seat_withdraw", "license", "affiliation"), (("cosigned_act",), "fixed")),  # seat.PENDING_ACTS
+    (("accept", "trust_edge", "affiliation"), (("cosigned_act",), "fixed")),     # seat.PENDING_ACTS
     (("admit", "founder", "infrastructure"), None),        # rc23 8c75ae7: a founder seat comes only by a record change
     (("remove", "node", "infrastructure"), (("cosigned_act",), "fixed")),
     (("record_change", "record", "infrastructure"), (("cosigned_act",), "fixed")),
@@ -921,7 +925,52 @@ CONCLUDE_Q4 = [
      [GM4, AM1, grp("n", "offer", "Q", "member", "community_invite", heads=("am",)),
       dict(REC("am2", "unanimous", heads=("am",), signer="B", cosigners=("C", "D")), names=("n",))], "am2", True),
 ]
+# no key admits itself (CC 2.7.5) under every count: a member re-seated by a row it signs is no voice of it (the
+# crate's count_of; aligned at the first local build of the merged tree). B and A re-seat B in a room of three under
+# majority: A alone is one of three, short
+CONCLUDE_Q4 += [
+    ("no key admits itself: B's own signature is no voice of B's re-seating; A alone of three is short of a majority",
+     [G3, grp("rb", "offer", "B", "member", "cosigned_act", signer="B", cosigners=("A",))], "rb", False),
+]
 PENDING_CONCLUDE = []
+
+# seat.is_founder: who is a founder of a family or an infrastructure community at a row, by the reading a count uses
+# (the founder seats at the row's heads, or at the newest counted changes in its past for a row naming none; less the
+# leavings in its past; a family's founder role ends with any leaving). (name, rows, [(key, the row, founder)])
+NOTE = lambda i, names: ST.R(i, "note", "A", tuple(names))
+FOUNDERS = [
+    ("a family at a note on its founding row: its founding role holder is a founder, the other members are not",
+     [FAM, NOTE("n", ("g",))], [("A", "n", True), ("B", "n", False), ("C", "n", False)]),
+    ("the founding row itself has no past: no founder at it", [FAM], [("A", "g", False)]),
+    ("a promotion of B, and a count at its head: B is a founder there", [FAM, FADM("p", "B", scope="founder"),
+                                                                         FADM("r", "D", heads=("p",))],
+     [("B", "r", True), ("A", "r", True)]),
+    ("the same promotion, and a count at the founding head beside it: B is no founder at that row (read at its own "
+     "heads, not at what is held)", [FAM, FADM("p", "B", scope="founder"), FADM("r", "D")], [("B", "r", False)]),
+    ("a note naming the promotion: read at the newest counted change in its past, B is a founder",
+     [FAM, FADM("p", "B", scope="founder"), NOTE("n", ("p",))], [("B", "n", True)]),
+    ("the promoted founder leaves the family (its withdrawal of the founding row): the role ends with the leaving, so at "
+     "a count naming the promotion with the leaving in its past B is no founder",
+     [FAM, FADM("p", "B", scope="founder"), ST.withdraw("wb", "B", "g", ("p",)), FADM("r", "D", heads=("p",), cites=("wb",))],
+     [("B", "r", False), ("A", "r", True)]),
+    ("a demotion ends the role: at a count naming it, B is no founder and A still is",
+     [FAM2, FREM("x", "B", scope="founder"), FADM("r", "D", heads=("x",))], [("B", "r", False), ("A", "r", True)]),
+    ("an infrastructure community at a note on its founding row: its three founders, and no other key",
+     [GI, NOTE("n", ("g",))], [("f1", "n", True), ("f3", "n", True), ("n1", "n", False)]),
+    ("f3 leaves (its withdrawal of the founding row): at a count with the leaving in its past f3 is no founder",
+     [GI, W3, INODE(("f1", "f2"), cites=("w3",))], [("f3", "r", False), ("f1", "r", True)]),
+    ("a community is neither: no key is a founder of it", [GM, NOTE("n", ("g",))], [("A", "n", False)]),
+]
+FOUNDER_PLANTS = ("founder_at_tips", "founder_leavings_unread")
+
+
+def founder_answers(plant=None):
+    with planted(plant):
+        out = []
+        for _name, rows, asks in FOUNDERS:
+            S = CK.concluded(CK.kept(list(rows)), lambda r, P, past: ST.seat_rule(r, P, past))
+            out.append([ST.is_founder(S, k, OBJ, at) for k, at, _ in asks])
+        return out
 
 PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread",
           "binding_off", "stated_policy_free", "protocol_unread", "gate_reads_stated",
@@ -938,7 +987,8 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "contested_both_out", "role_on_own_offer", "entrenched_weights_free",
           "concurrent_amendments_free", "infra_word_restated_always", "contested_scoped_to_kinds",
           "contested_voice_everywhere", "negative_weight", "removal_counts_target", "removal_floor_unread",
-          "end_of_contested_end", "dissolve_uncontested", "wait_reader_unread", "contested_one_sided")
+          "end_of_contested_end", "dissolve_uncontested", "wait_reader_unread", "contested_one_sided",
+          "self_voice_on_offer")
 
 
 @contextlib.contextmanager
@@ -991,6 +1041,13 @@ def tip_answers(plant=None, cases=None):
 
 def main():
     problems = []
+    for (name, _rows, asks), got in zip(FOUNDERS, founder_answers()):
+        if got != [w for _, _, w in asks]:
+            problems.append("founder %s: got %s, expected %s" % (name, got, [w for _, _, w in asks]))
+    want_f = [[w for _, _, w in asks] for _n, _r, asks in FOUNDERS]
+    for plant in FOUNDER_PLANTS:
+        if founder_answers(plant) == want_f:
+            problems.append("plant %s not caught by a founder case" % plant)
     for (name, _rows, asks, *_own), got in zip(TIPS, tip_answers()):
         if got != [w for _, _, w in asks]:
             problems.append("tips %s: got %s, expected %s" % (name, got, [w for _, _, w in asks]))
@@ -1052,9 +1109,9 @@ def main():
             problems.append("plant %s not caught" % plant)
     for p in problems:
         print(p)
-    print("RESULT: %s: %d cases, %d queries, %d refusal cases, %d of %d planted breaks caught"
-          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), len(QUERIES), len(CONCLUDE), caught,
-             len(PLANTS)))
+    print("RESULT: %s: %d cases, %d queries, %d refusal cases, %d founder cases, %d of %d planted breaks caught"
+          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), len(QUERIES), len(CONCLUDE),
+             len(FOUNDERS), caught + len(FOUNDER_PLANTS), len(PLANTS) + len(FOUNDER_PLANTS)))
     return 1 if problems else 0
 
 

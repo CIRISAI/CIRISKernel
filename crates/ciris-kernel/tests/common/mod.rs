@@ -301,6 +301,8 @@ pub struct TRow {
     pub regime: Option<String>,
     pub cohort_subkind: Option<String>,
     pub group_kind: Option<String>,
+    pub official: Option<String>,
+    pub overseen_by: Option<String>,
     pub declared_cohort: Option<String>,
     /// An acceptance edge row's `bears`, `dst`, `on_behalf` and `trust_classes`; a licence's `authority` and
     /// `licence_class`. An object field written as a plain name (not a reference) is read as absent.
@@ -414,6 +416,8 @@ impl TRow {
             regime: opt(&m, "regime"),
             cohort_subkind: opt(&m, "cohort_subkind"),
             group_kind: opt(&m, "group_kind"),
+            official: opt(&m, "official"),
+            overseen_by: opt(&m, "overseen_by"),
             declared_cohort: opt(&m, "declared_cohort"),
             bears: opt(&m, "bears"),
             dst: ol("dst"),
@@ -486,6 +490,7 @@ impl SeatRow for TRow {
             "cosign" => SeatKind::Cosign,
             "ballot" => SeatKind::Ballot,
             "decline" => SeatKind::Decline,
+            "countersign" => SeatKind::Countersign,
             "ack" => SeatKind::Ack,
             // an objection in a window is presented as a voice for the row it answers (seat::lift_voices)
             "answer" if self.says.as_deref() == Some("object") => SeatKind::Cosign,
@@ -546,6 +551,12 @@ impl SeatRow for TRow {
     }
     fn group_kind(&self) -> Option<&String> {
         self.group_kind.as_ref()
+    }
+    fn official(&self) -> Option<&String> {
+        self.official.as_ref()
+    }
+    fn overseen_by(&self) -> Option<&String> {
+        self.overseen_by.as_ref()
     }
     fn bundle(&self) -> Option<&String> {
         self.bundle.as_ref()

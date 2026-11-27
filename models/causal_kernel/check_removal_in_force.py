@@ -124,15 +124,24 @@ WQ = W + [admit("aq", "q", ("p1", "p2", "p3"), ("ag",)),
 PQ = P3 | {"q"}
 
 PIN = "CIRISConstitution#218, pin list: "
-# two agents' keys, A1 and A2, admitted by one row; A1 (and in the mutual case A2) conferred `moderate`
+# two agents' keys, A1 and A2, admitted by one row; A1 (and in the mutual case A2) conferred `moderate`, each by its own
+# statement and its owner's signature (CC 4.5.4): OWN holds each agent key's registration and owner-binding (to "O" + key)
+
+
+def owned(k):
+    return [ST.offer("r" + k, k, k, "registered", k, "self"), ST.offer("o" + k, k, "O" + k, "owner", k, "self", ("r" + k,),
+                                                                      cosigners=("O" + k,))]
+
+
+OWN = owned("A1") + owned("A2") + owned("A3")
 AGS = ST.offer("ags", "p1", ("A1", "A2"), "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
                cosigners=("p2", "p3", "A1", "A2"))
-CM1 = ST.offer("cm1", "p1", "A1", "moderate", OBJ, "group", ("ags",), head=("ags",), policy="duty_confer", counted="duty",
-               cosigners=("p2", "A1"))
-CM2 = ST.offer("cm2", "p1", "A2", "moderate", OBJ, "group", ("cm1",), head=("cm1",), policy="duty_confer", counted="duty",
-               cosigners=("p2", "A2"))
-WA = [G, AGS, CM1]
-B2 = [G, AGS, CM1, CM2]                                    # both agents moderators
+CM1 = ST.offer("cm1", "p1", "A1", "moderate", OBJ, "group", ("ags", "oA1"), head=("ags",), policy="duty_confer",
+               counted="duty", cosigners=("p2", "A1", "OA1"))
+CM2 = ST.offer("cm2", "p1", "A2", "moderate", OBJ, "group", ("cm1", "oA2"), head=("cm1",), policy="duty_confer",
+               counted="duty", cosigners=("p2", "A2", "OA2"))
+WA = [G, AGS, *OWN, CM1]
+B2 = [G, AGS, *OWN, CM1, CM2]                                    # both agents moderators
 XA = lone("x", "A1", "A2", ("cm1",))                      # the agent moderator A1 removes A2 alone
 YA = lone("y", "p1", "A1", ("x",))                        # p1 removes A1 alone, after x
 LAYY = ST.withdraw("wm", "p1", "g", ("y",), scope="moderate")
@@ -147,9 +156,9 @@ def counted_receipt(i, signers, act, head):
 RV = "CIRISConstitution#218, review of #48: "
 AGS3 = ST.offer("ags", "p1", ("A1", "A2", "A3"), "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
                 cosigners=("p2", "p3", "A1", "A2", "A3"))
-CM3 = ST.offer("cm3", "p1", "A3", "moderate", OBJ, "group", ("cm2",), head=("cm2",), policy="duty_confer", counted="duty",
-               cosigners=("p2", "A3"))
-W3A = [G, AGS3, CM1, CM2]
+CM3 = ST.offer("cm3", "p1", "A3", "moderate", OBJ, "group", ("cm2", "oA3"), head=("cm2",), policy="duty_confer",
+               counted="duty", cosigners=("p2", "A3", "OA3"))
+W3A = [G, AGS3, *OWN, CM1, CM2]
 # V1: a room p1 founded alone, p2 and p3 admitted after
 G1 = ST.found("g", "p1", ("p1",), {"moderate": ("p1",)})
 V1 = [G1, admit("a2", "p2", ("p1",), ("g",)), admit("a3", "p3", ("p1", "p2"), ("a2",)),
@@ -188,9 +197,9 @@ CASES = [
      "A1 removes A3 beside it and then lays down its own moderate, so A1's removal is out of force, A3 stays, and "
      "A3's receipt keeps nothing: p1's removal is out of force",
      [G, ST.offer("ags", "p1", ("A1", "A3", "AG"), "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
-                  cosigners=("p2", "p3", "A1", "A3", "AG")), CM1,
-      ST.offer("cm3", "p1", "A3", "moderate", OBJ, "group", ("cm1",), head=("cm1",), policy="duty_confer", counted="duty",
-               cosigners=("p2", "A3")),
+                  cosigners=("p2", "p3", "A1", "A3", "AG")), *OWN, CM1,
+      ST.offer("cm3", "p1", "A3", "moderate", OBJ, "group", ("cm1", "oA3"), head=("cm1",), policy="duty_confer",
+               counted="duty", cosigners=("p2", "A3", "OA3")),
       lone("x", "p1", "AG", ("cm3",)), receipt("q3", "A3", "x"), ST.withdraw("wm", "p1", "g", ("x",), scope="moderate"),
       lone("y", "A1", "A3", ("cm3",)), ST.withdraw("wa", "A1", "cm1", ("y",))],
      {"x": T, "y": T}, P3 | {"A1", "A3", "AG"}, [("A3", "moderate", T)]),
@@ -228,22 +237,22 @@ CASES = [
     (PIN + "no cascade, a mutual pair (CC 2.7.7 rule 5: two cuts by keys of equal standing that undo each other stay "
      "contested): two agent moderators remove each other concurrently, unreceipted. Each counts at its own head, "
      "neither is in force: both agents stay seated and keep moderate",
-     [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",))], {"x1": T, "x2": T},
+     [G, AGS, *OWN, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",))], {"x1": T, "x2": T},
      P3 | {"A1", "A2"}, [("A1", "moderate", T), ("A2", "moderate", T)]),
     (PIN + "the mutual pair for a reader with an acknowledgement (CC 4.5.13; CC 2.7.7 rule 5): p3 has acknowledged the "
      "pair's common head (cm2), and reads as one with none: neither removal in force, both agent seats kept",
-     [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("k3", "p3", "cm2")],
+     [G, AGS, *OWN, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("k3", "p3", "cm2")],
      {"x1": T, "x2": T}, P3 | {"A1", "A2"}, [("A1", "moderate", T), ("A2", "moderate", T)], "p3"),
     (PIN + "an agent's receipt is no receipt: A1 receipts its own removal of A2; the pair stays contested",
-     [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("q1", "A1", "x1")],
+     [G, AGS, *OWN, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("q1", "A1", "x1")],
      {"x1": T, "x2": T}, P3 | {"A1", "A2"}, [("A1", "moderate", T), ("A2", "moderate", T)]),
     (PIN + "a person's receipt settles it for that one, for a reader with an acknowledgement too",
-     [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("q1", "p2", "x1"),
+     [G, AGS, *OWN, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("q1", "p2", "x1"),
       receipt("k3", "p3", "cm2")],
      {"x1": T, "x2": T}, P3 | {"A1"}, [("A1", "moderate", T), ("A2", "moderate", F), ("A2", "agent", F)], "p3"),
     (PIN + "no cascade, a mutual pair settled by a voice neither can remove: a person moderator receipts x1 only. x1 is in "
      "force, A2's agent seat and its duty end, and x2 is out of force",
-     [G, AGS, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("q1", "p2", "x1")],
+     [G, AGS, *OWN, CM1, CM2, lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), receipt("q1", "p2", "x1")],
      {"x1": T, "x2": T}, P3 | {"A1"}, [("A1", "moderate", T), ("A2", "moderate", F), ("A2", "agent", F)]),
     (PIN + "a count's own receipt: the room's count (p2 and p3 of three) receipts the removal; it stays in force after "
      "p1 lays down moderate", W + [X, counted_receipt("qc", ("p2", "p3"), "x", ("x",)), LAY], {"x": T}, P3, []),
@@ -355,18 +364,18 @@ def _review():
                    cosigners=("p2", "p3", "B"))
     xb = lone("x", "p1", "AG", ("ag2",))
     qa = R("qa", "ack", "B", ("x",), of="x", conf="group", obj=OBJ, head=("x",), policy="accord_majority", counted="agent")
-    B3 = [G, AGS3, CM1, CM2]
+    B3 = [G, AGS3, *OWN, CM1, CM2]
     x1, x2, w = lone("x1", "A1", "A2", ("cm2",)), lone("x2", "A2", "A1", ("cm2",)), lone("w", "A1", "A3", ("cm2",))
     x2o = ST.unseat("x2", "A2", "A1", "agent", OBJ, "group", ("cm2", "x1"), head=("cm2",), policy="community_remove", window=OV)
     AGS13 = ST.offer("ags", "p1", ("A1", "A3"), "agent", OBJ, "group", ("g",), head=("g",), policy="community_invite",
                      cosigners=("p2", "p3", "A1", "A3"))
-    cA1 = ST.offer("cmA1", "p1", "A1", "moderate", OBJ, "group", ("ags",), head=("ags",), policy="duty_confer", counted="duty",
-                   cosigners=("p2", "A1"))
-    cA3 = ST.offer("cmA3", "p1", "A3", "moderate", OBJ, "group", ("cmA1",), head=("cmA1",), policy="duty_confer",
-                   counted="duty", cosigners=("p2", "A3"))
+    cA1 = ST.offer("cmA1", "p1", "A1", "moderate", OBJ, "group", ("ags", "oA1"), head=("ags",), policy="duty_confer",
+                   counted="duty", cosigners=("p2", "A1", "OA1"))
+    cA3 = ST.offer("cmA3", "p1", "A3", "moderate", OBJ, "group", ("cmA1", "oA3"), head=("cmA1",), policy="duty_confer",
+                   counted="duty", cosigners=("p2", "A3", "OA3"))
     AGk = ST.offer("ag", "p1", "AG", "agent", OBJ, "group", ("cmA3",), head=("cmA3",), policy="community_invite",
                    cosigners=("p2", "p3", "AG"))
-    B5 = [G, AGS13, cA1, cA3, AGk, lone("x", "p1", "AG", ("ag",)), receipt("q3", "A3", "x"),
+    B5 = [G, AGS13, *OWN, cA1, cA3, AGk, lone("x", "p1", "AG", ("ag",)), receipt("q3", "A3", "x"),
           ST.withdraw("wm", "p1", "g", ("x", "q3"), scope="moderate")]
     y = lone("y", "A1", "A3", ("ag",))
     q2 = receipt("q2", "p2", "x")

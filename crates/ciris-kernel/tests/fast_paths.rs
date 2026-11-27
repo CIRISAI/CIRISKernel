@@ -188,14 +188,18 @@ const POLICIES: &[(&str, Policy)] = &[
     ("not_a_count", Policy::NotACount),
 ];
 
-/// The protocols a generated room's founding record may declare: each met when every member signs.
-const PROTOCOLS: &[&str] = &["one", "strict", "atleast", "unanimous"];
+/// The protocols a generated room's founding record may declare (the closed set's words): each met when every member
+/// signs, the key a row seats apart (no key admits itself, CC 2.7.5), so a member re-seated as a founder is admitted
+/// by the others' unanimity.
+const PROTOCOLS: &[&str] = &["unanimous"];
 
 fn law() -> SeatLaw {
     // the admissions' policies besides the counted rows': under the room's declared protocol, or the invitation's
     let admit = [("cosigned_act", Policy::Protocol), ("community_invite", Policy::AtLeast(2, 3))];
     SeatLaw {
-        roster_seats: vec!["member".into(), "founder".into()],
+        // `founder` holds `member` but is no roster seat (the binding: a founder over a community is no act of the
+        // roster), so a key's withdrawal of its founder seat ends that seat alone, as the reference reads it
+        roster_seats: vec!["member".into()],
         depth: 1,
         policy: POLICIES.iter().chain(admit.iter()).map(|(w, p)| (w.to_string(), *p)).collect(),
         ..Default::default()
@@ -269,6 +273,9 @@ fn ballot(g: &mut Lcg) -> Ballot {
     let mut head = 0u32;
     let mut pending: Vec<u32> = Vec::new(); // rows for the next admission to name
     let mut left: BTreeSet<u32> = BTreeSet::new();
+    // the keys whose member seat a leaving ended: an unseat of that seat is an end of an ended seat (rule (2)), so the
+    // counted row's removal names none of them
+    let mut gone_member: BTreeSet<u32> = BTreeSet::new();
     // some keys leave a seat: a withdrawal by the key of the row that seats it, naming the newest counted change
     // (H4), in the next admission's past or only in the counted row's (key 1 signs every admission, and leaves
     // only in the counted row's past)
@@ -279,6 +286,9 @@ fn ballot(g: &mut Lcg) -> Ballot {
         }
         if (founder_seat && counted == "founder") || (!founder_seat && counted == "member") {
             left.insert(k);
+        }
+        if !founder_seat {
+            gone_member.insert(k);
         }
         let id = if founder_seat { 500 + k } else { 300 + k };
         if !last && k != 1 && pick(g, 2) == 0 {
@@ -298,7 +308,9 @@ fn ballot(g: &mut Lcg) -> Ballot {
     for (j, (id, k, scope)) in seatings.into_iter().enumerate() {
         // a founder's seat is always signed by its holder (a unanimous count of members needs the member's yes)
         let joins = scope == "founder" || pick(g, 3) != 0;
-        let mut a = admission(id, k, scope, 1, &seated, head, joins, pick(g, 2) == 0);
+        // a founder is a member re-seated: its own signature is no voice of it (CC 2.7.5), so the others' unanimity
+        // (the room's protocol) admits it at every size
+        let mut a = admission(id, k, scope, 1, &seated, head, joins, scope == "founder" || pick(g, 2) == 0);
         a.names.append(&mut pending);
         rows.push(a);
         head = id;
@@ -341,7 +353,8 @@ fn ballot(g: &mut Lcg) -> Ballot {
     }
     let signer = if voices.is_empty() { 99 } else { voices.remove(0) };
     let to: Vec<u32> = match pick(g, 5) {
-        0 => Vec::new(),
+        // every counted row seats or removes someone (an empty `to` is no act)
+        0 => vec![51],
         1 => vec![50],
         2 => vec![1 + pick(g, n as u64) as u32, 1 + pick(g, n as u64) as u32],
         _ => vec![1 + pick(g, n as u64) as u32],
@@ -359,6 +372,8 @@ fn ballot(g: &mut Lcg) -> Ballot {
         }
     }
     let offer = pick(g, 3) != 0;
+    let to: Vec<u32> = if offer { to } else { to.into_iter().filter(|k| !gone_member.contains(k)).collect() };
+    let to = if to.is_empty() { vec![51] } else { to };
     let mut c =
         S::new(2000, [vec![head], in_c].concat(), signer, if offer { SeatKind::Offer } else { SeatKind::Unseat });
     c.to = to.clone();

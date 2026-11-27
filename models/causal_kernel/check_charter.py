@@ -5,7 +5,8 @@ check_charter.py: charter coverage for licensing authorities (charter.py; CC 3.4
 DECLARED: the (class, legal_weight) pairs a community's record in force declares, over the rows a reader holds (at the
 caller's instant, where a case gives one). LICENCES: whether a reader honours a licence, and why not; every licence
 row of every case is kept and concluded (admitted as a row, whatever class it states). EDGES: the admission of an
-acceptance edge's trust_classes. UNDECIDED: a removal from an affiliation is undecided, and concludes nothing. Every
+acceptance edge's trust_classes. COUNTERSIGN: a removal from an affiliation (CC 4.4.3.12): a one-seat body's is a
+proposal, in force only with a countersign by the designated official or an overseer outside the seat. Every
 DECLARED and LICENCES case is read in every arrival order of its rows up to a cap, and gives one answer.
 
 Planted breaks, each of which must change a case's answer:
@@ -30,7 +31,15 @@ Planted breaks, each of which must change a case's answer:
     affiliation_unread    (seat.py) a `declared_cohort` of `affiliations` is not read: the record is a plain
                           community's, under the community's acts
     affiliation_admit_unread    (seat.py) an appointment of a member of an affiliation is no act
-    affiliation_removal_passes  (seat.py) a removal from an affiliation is counted, not undecided
+    countersign_unread    (seat.py) a one-seat affiliation's removal is a decision without a countersign
+    countersign_inside_seat  (seat.py) the acting seat may countersign its own act
+    official_at_founding  (seat.py) the official is read from the founding record, not the record in force
+    overseers_unread      (seat.py) a review holder of the overseeing body may not countersign
+    withdrawal_clears_unread  (seat.py) the acting seat's withdrawal does not clear its proposal
+    two_voices_unread     (seat.py) a body of two or more seats removes on one voice
+    officer_from_founders (seat.py) the deciding seats are the founding record's signers, not the officer role
+    affiliation_body_members  (seat.py) an affiliation's acts are counted over its members, not its officers
+    no_officer_locks      (seat.py) an affiliation with no officer is not dissolved
 
     python3 -I check_charter.py      exit 1 on any difference
 """
@@ -51,21 +60,24 @@ M, L, D = "medical", "legal", "dental"
 MW, LW, DW = (M, True), (L, False), (D, False)       # a class with its legal weight
 
 
-def aff(i="af", to=("A", "B", "C"), cls=(MW, LW), cohort="affiliations", **kw):
-    """A community's founding record: its members, each seated by its own signature, and its charter."""
+def aff(i="af", to=("A", "B", "C"), cls=(MW, LW), cohort="affiliations", officers=None, **kw):
+    """A community's founding record: its members, each seated by its own signature, and its charter. An
+    affiliation's founding record lists its first officers (`officers`, every member by default) with the officer
+    role (CC 4.4.3.12: its body for every counted act)."""
     if cohort is not None:
         kw["declared_cohort"] = cohort
     if cls is not None:
         kw["licence_classes"] = tuple(cls)
-    return ST.found(i, to[0], to, cosigners=tuple(to[1:]), **kw)
+    roles = {ST.OFFICER: tuple(to if officers is None else officers)} if cohort == "affiliations" else None
+    return ST.found(i, to[0], to, roles, cosigners=tuple(to[1:]), **kw)
 
 
-def rec(i, cls, heads=("af",), signer="A", cosigners=("B",), obj="af", **kw):
-    """A version of the record, counted at `heads` (cls None: it states no classes)."""
+def rec(i, cls, heads=("af",), signer="A", cosigners=("B",), obj="af", counted=ST.OFFICER, **kw):
+    """A version of the record, counted at `heads` (cls None: it states no classes), by an affiliation's officers."""
     if cls is not None:
         kw["licence_classes"] = tuple(cls)
     return ST.offer(i, signer, (), "record", obj, "group", tuple(heads), head=tuple(heads), cosigners=tuple(cosigners),
-                    **kw)
+                    counted=counted, **kw)
 
 
 def lic(i, cls, authority="af", names=None):
@@ -89,7 +101,7 @@ DIS = rec("dis", None, dissolved_at=100)                   # a counted dissoluti
 A1 = aff("a1", to=("A",), cls=(MW,))                       # a one-seat affiliation
 A1V = rec("a1v", (MW, LW), heads=("a1",), cosigners=(), obj="a1")
 A1W = ST.withdraw("a1w", "A", "a1")                         # its one member lays down its seat: no seat is left
-A1B = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("B",))  # appoints B
+A1B = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("B",), counted=ST.OFFICER)  # appoints B
 A1VB = rec("a1v", (MW, LW), heads=("a1b",), cosigners=(), obj="a1")          # A alone, of two members
 A1VAB = rec("a1v", (MW, LW), heads=("a1b",), cosigners=("B",), obj="a1")     # A and B
 CM = aff("cm", cohort=None)                                # a community: no declared cohort
@@ -112,8 +124,9 @@ DECLARED = [
     ("a reader holding only one of the two reads it", [AF, VA], "af", None, None, {MW, DW}),
     ("a one-seat affiliation changes its charter alone: a record change is no act against a member",
      [A1, A1V], "a1", None, None, {MW, LW}),
-    ("an appointed member is a voice: A alone is one of two, below the protocol", [A1, A1B, A1VB], "a1", None, None, {MW}),
-    ("and A with B is two of two", [A1, A1B, A1VAB], "a1", None, None, {MW, LW}),
+    ("an appointed member is no voice (an affiliation's body for every act is its officers, CC 4.4.3.12): A, the one "
+     "officer, changes the record alone beside appointed B", [A1, A1B, A1VB], "a1", None, None, {MW, LW}),
+    ("and B's signature beside A's changes nothing", [A1, A1B, A1VAB], "a1", None, None, {MW, LW}),
     ("any community's record is a charter", [CM], "cm", None, None, {MW, LW}),
     ("a family's record is no charter", [FM], "fm", None, None, None),
     ("no founding row held: no charter", [V1], "af", None, None, None),
@@ -188,12 +201,71 @@ EDGES = [
     ((M, M), "trust_accepts_classes_malformed"),
 ]
 
-REM = ST.unseat("rm", "A", "C", "member", "af", "group", ("af",), head=("af",), cosigners=("B",), policy="cosigned_act")
-# (name, rows, the row asked, the reason it is undecided or None, whether it concludes)
-UNDECIDED = [
-    ("a counted removal of a member of an affiliation is undecided, naming its row", [AF, REM], "rm",
-     "affiliation_remove_member_undecided", False),
-    ("a change of the record is not", [AF, V1], "v1", None, True),
+# ---- the countersign (CC 4.4.3.12; Affiliation.lean, its `admitted` and `validCountersign` as the reference) -------
+# A1O: a one-seat affiliation (A) whose record names the designated official O and the overseeing body ob (the
+# placeholder field, seat.OVERSEEN_BY); ob is a community of R1 and R2, R1 holding `review` over it. A appoints B.
+OB = ST.found("ob", "R1", ("R1", "R2"), {"review": ("R1",)}, cosigners=("R2",))
+A1O = aff("a1", to=("A",), cls=(MW,), official="O", **{ST.OVERSEEN_BY: "ob"})
+A1OB = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("B",), counted=ST.OFFICER)
+RMB = lambda heads=("a1b",), signer="A", cos=(): ST.unseat("rm", signer, "B", "member", "a1", "group",
+                                                         tuple(heads) + ("ob",), head=tuple(heads), cosigners=tuple(cos),
+                                                         policy="affiliation_member_action", counted=ST.OFFICER)
+CS = lambda k, names=("rm",), i="cs": ST.R(i, "countersign", k, tuple(names), of="rm")
+WRM = ST.withdraw("wrm", "A", "rm", ("rm",))
+ONE = [OB, A1O, A1OB]
+# A, the one officer, appoints C an officer: an appointment carrying role officer, C cosigning (its own acceptance)
+AOC = ST.offer("aoc", "A", ("C",), "member", "a1", "group", ("a1b",), head=("a1b",), cosigners=("C",), counted=ST.OFFICER,
+               role=ST.OFFICER)
+VO2 = rec("v", (MW,), heads=("a1",), cosigners=(), obj="a1", official="O2", **{ST.OVERSEEN_BY: "ob"})
+A1OBV = dict(A1OB, names=("v",), head=("v",))
+REM = ST.unseat("rm", "A", "C", "member", "af", "group", ("af",), head=("af",), cosigners=("B",), policy="cosigned_act",
+               counted=ST.OFFICER)
+# (name, rows, {row: concludes}, [(key, the affiliation, stands as a member)])
+COUNTERSIGN = [
+    ("a one-seat affiliation's removal of a member, alone: it concludes as a proposal and B stays a member",
+     ONE + [RMB()], {"rm": True}, [("B", "a1", True)]),
+    ("countersigned by the designated official, outside the seat: a decision, B is out",
+     ONE + [RMB(), CS("O")], {"rm": True, "cs": True}, [("B", "a1", False), ("A", "a1", True)]),
+    ("countersigned by the acting seat itself: no countersign (the seat cannot be its own second voice)",
+     ONE + [RMB(), CS("A")], {"cs": False}, [("B", "a1", True)]),
+    ("countersigned by a review holder of the overseeing body (naming the body's record, its seat's basis): a "
+     "decision", ONE + [RMB(), CS("R1", ("rm", "ob"))], {"cs": True},
+     [("B", "a1", False)]),
+    ("countersigned by a member of the overseeing body holding no review seat: none", ONE + [RMB(), CS("R2", ("rm", "ob"))],
+     {"cs": False}, [("B", "a1", True)]),
+    ("countersigned by a key that is neither: none", ONE + [RMB(), CS("X")], {"cs": False}, [("B", "a1", True)]),
+    ("the acting seat withdraws the proposal, and a countersign naming the withdrawal concludes nothing",
+     ONE + [RMB(), WRM, CS("O", ("wrm",))], {"wrm": True, "cs": False}, [("B", "a1", True)]),
+    ("the withdrawal concurrent with the countersign clears the proposal: B stays",
+     ONE + [RMB(), WRM, CS("O")], {"wrm": True, "cs": True}, [("B", "a1", True)]),
+    ("a record change names a new official O2 (A alone, the one seat), and A then appoints B: O, named by the "
+     "founding record, countersigns a removal with that change in its past to no effect",
+     [OB, A1O, VO2, A1OBV, RMB(), CS("O")], {"v": True, "rm": True, "cs": False}, [("B", "a1", True)]),
+    ("and O2 countersigns it: a decision", [OB, A1O, VO2, A1OBV, RMB(), CS("O2")], {"cs": True}, [("B", "a1", False)]),
+    ("an official who is the seat (the record names A) is no outside key", [OB, aff("a1", to=("A",), cls=(MW,),
+                                                                             official="A"), A1OB, RMB(), CS("A")],
+     {"cs": False}, [("B", "a1", True)]),
+    ("a body of three deciding seats decides under its own protocol: A and B remove C, two voices, no countersign",
+     [AF, REM], {"rm": True}, [("C", "af", False)]),
+    ("and one voice of such a body removes nobody", [AF, dict(REM, cosigners=())], {"rm": False}, [("C", "af", True)]),
+    ("a key that is no deciding seat signs no removal: B, appointed, with A", ONE + [RMB(cos=("B",))], {"rm": False},
+     [("B", "a1", True)]),
+    ("the acting seat's withdrawal after the decision (the countersign in its past) is a new act and undoes nothing: "
+     "B stays out", ONE + [RMB(), CS("O"), ST.withdraw("wrm", "A", "rm", ("cs",))], {"cs": True, "wrm": True},
+     [("B", "a1", False)]),
+    # ---- the officers (the ruling on officers: `role: officer`, the body of every counted act) ------------------------
+    ("A, the one officer, appoints C as an officer (role officer, C's own acceptance): two officers, so A alone no "
+     "longer removes B (two voices needed), countersign or not",
+     ONE + [AOC, RMB(("aoc",)), CS("O")], {"aoc": True, "rm": False}, [("C", "a1", True), ("B", "a1", True)]),
+    ("and A and C, the two officers, remove B: a decision, no countersign asked",
+     ONE + [AOC, RMB(("aoc",), cos=("C",))], {"rm": True}, [("B", "a1", False)]),
+    ("an appointment with the officer role and no acceptance seats nobody, and A stays the one officer: a proposal",
+     ONE + [dict(AOC, cosigners=()), RMB(("aoc",))], {"rm": True}, [("C", "a1", False), ("B", "a1", True)]),
+    ("the one officer lays its role down by its own row: no officer is left, and the affiliation is dissolved (not "
+     "locked, no election): every seat over it ends",
+     ONE + [ST.withdraw("lo", "A", "a1", ("a1b",), scope=ST.OFFICER)], {"lo": True}, [("A", "a1", False), ("B", "a1", False)]),
+    ("an affiliation founded with no officer listed is dissolved at founding", [aff("a0", to=("A", "B"), cls=(MW,), officers=())],
+     {}, [("A", "a0", False)]),
 ]
 
 
@@ -238,17 +310,23 @@ def licence_answers(case, every_order=False):
     return out, kept
 
 
-def undecided_answer(case):
-    _name, rows, rid, _r, _c = case
-    S = arrive(rows)
-    return ST.affiliation_removal(S.by[rid], S.by), bool(S.C.get(rid))
+def countersign_answers(case, every_order=False):
+    _name, rows, concl, asks = case
+    out = set()
+    for order in (orders(rows) if every_order else [rows]):
+        S = arrive(list(order))
+        Q = ST.Seats(S)
+        out.add((tuple(bool(S.C.get(i)) for i in sorted(concl)), tuple(Q.stands(k, "member", o) for k, o, _ in asks)))
+    return out
 
 
 PLANTS = ("charter_unread", "at_issuance", "below_protocol_read", "fork_union", "fork_first", "join_unread",
           "unstated_keeps", "community_unread", "family_read", "weight_unread", "one_seat_countersign", "at_founding",
           "dissolved_declares", "dissolves_at_unread", "empty_edge_admits_all", "absent_means_none",
           "edge_classes_unread", "last_hop_only", "affiliation_unread", "affiliation_admit_unread",
-          "affiliation_removal_passes")
+          "countersign_unread", "countersign_inside_seat", "official_at_founding", "overseers_unread",
+          "withdrawal_clears_unread", "two_voices_unread", "officer_from_founders", "affiliation_body_members",
+          "no_officer_locks")
 
 
 def show(x):
@@ -273,10 +351,11 @@ def misses(plant=None, every_order=False):
             got = CH.edge_refusal(CH.edge("RD", "af", cs))
             if got != want:
                 hit.append("edge %s: got %s, expected %s" % (cs, got, want))
-        for c in UNDECIDED:
-            got = undecided_answer(c)
-            if got != (c[3], c[4]):
-                hit.append("undecided %s: got %s, expected %s" % (c[0], got, (c[3], c[4])))
+        for c in COUNTERSIGN:
+            want = (tuple(c[2][i] for i in sorted(c[2])), tuple(w for _, _, w in c[3]))
+            got = countersign_answers(c, every_order)
+            if got != {want}:
+                hit.append("countersign %s: got %s, expected %s" % (c[0], sorted(got), want))
     return hit
 
 
@@ -291,9 +370,9 @@ def main():
             problems.append("plant %s not caught" % plant)
     for p in problems:
         print(p)
-    print("RESULT: %s: %d declared cases, %d licence cases (each in up to %d arrival orders), %d edge cases, %d undecided "
+    print("RESULT: %s: %d declared cases, %d licence cases (each in up to %d arrival orders), %d edge cases, %d countersign "
           "cases, %d of %d planted breaks caught" % ("ok" if not problems else "%d problems" % len(problems),
-                                                    len(DECLARED), len(LICENCES), ORDER_CAP, len(EDGES), len(UNDECIDED),
+                                                    len(DECLARED), len(LICENCES), ORDER_CAP, len(EDGES), len(COUNTERSIGN),
                                                     caught, len(PLANTS)))
     return 1 if problems else 0
 
@@ -303,7 +382,7 @@ def fixture(with_refs):
     the models build them, each object a reference (`refs` names them); an edge's ends and an authority are names, a
     row where a row of the case has that id and a key otherwise. `with_refs`: kernel_fixtures.py's. An edge's classes
     are null where trust_classes is absent."""
-    out = {"declared": [], "licences": [], "edges": [], "undecided": []}
+    out = {"declared": [], "licences": [], "edges": []}
     for name, rows, a, own, now, _want in DECLARED:
         refs = {}
         d = CH.declared(arrive(rows), a, own, now)
@@ -324,11 +403,6 @@ def fixture(with_refs):
     for cs, _want in EDGES:
         out["edges"].append({"classes": None if cs is None else list(cs),
                              "refusal": CH.edge_refusal(CH.edge("RD", "af", cs))})
-    for name, rows, rid, _r, _c in UNDECIDED:
-        refs = {}
-        reason, concludes = undecided_answer((name, rows, rid, None, None))
-        out["undecided"].append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid,
-                                 "reason": reason, "concludes": concludes})
     return out
 
 

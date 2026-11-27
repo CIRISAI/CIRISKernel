@@ -103,10 +103,9 @@ def locked(T, community):
     license seat (the duty holders' count, seat.py, takes none) and issues no licence of its own, until an election
     seats a holder. A license seat's holder is no duty holder and keeps no room from locking; one conferred before the
     lock stands, and its holder keeps issuing until the seat's term ends (seat_term). An affiliation is never locked:
-    with no officer it is dissolved (the officers ruling, built with the officer body)."""
-    if "lock_unread" in MUT or (ST.kind_of(T.by, community) == "affiliation" and "affiliation_locked" not in MUT):
-        return False
-    return not ST.Seats(T).holders("duty", community)
+    with no officer (its authority body) it is DISSOLVED (CC 4.4.3.12), and signs nothing either. seat.authority_body is the one source of
+    whose keys these are."""
+    return "lock_unread" not in MUT and not ST.authority_body(ST.Seats(T), community)
 
 
 def seat_term(T, k, a, t):
@@ -129,7 +128,7 @@ def declared_count(T, signers, community):
     """(1) The cosignatures `signers` meet `community`'s DECLARED consensus_protocol in force over the rows T (a row's
     own past), counted over its members, as the seat rule counts a protocol row: the protocol's own numbers and
     weights, never the row's."""
-    mem = ST.Seats(T).holders("member", community)
+    mem = ST.protocol_body(ST.Seats(T), community)
     if "quorum_fixed_majority" in MUT:
         return counted(len(signers & mem), len(mem))
     rec = ST.protocol_record({q["id"]: q for q in T.Cs}, community)
@@ -159,6 +158,11 @@ def speaks_for(T, signers, src):
     if src in T.by:
         if not is_community(T, src):
             return False
+        # an affiliation's edge is its officers' act under its declared protocol (the officers ruling: the acts row
+        # accept / trust_edge / affiliation -> cosigned_act, held in seat.PENDING_ACTS)
+        if ST.kind_of(T.by, src) == "affiliation" and "affiliation_edge_duty_count" not in MUT:
+            rule = None if "pending_unread" in MUT else ST.policy_for("accept", "trust_edge", "affiliation")
+            return rule is not None and rule[0] == ("cosigned_act",) and declared_count(T, signers, src)
         # the acts row binds the count (MUTATION pending_unread: the table without the pending row)
         rule = None if "pending_unread" in MUT else ST.policy_for("accept", "trust_edge", "community")
         if rule is None or rule[0] != ("duty_confer",):
@@ -169,7 +173,7 @@ def speaks_for(T, signers, src):
         # (2) no members' fallback: a community with no duty holder is locked, and signs no edge
         if locked(T, src):
             return False
-        duty = Q.holders("duty", src)
+        duty = ST.authority_body(Q, src)
         return counted(len(signers & duty), len(duty))
     # a person: the key itself, or a live key of its roster
     if src in signers:
@@ -212,9 +216,12 @@ def ended(S, r):
 def edges_of(S):
     """The acceptance edges the rows S holds give: each admitted, live edge its owner's authority set signed, with its
     owner as `src`."""
-    out = []
+    out, Q = [], ST.Seats(S)
     for r in S.rows:
         if r["kind"] != "delegates_to" or not S.C.get(r["id"]):
+            continue
+        # a dissolved authority's own edges end with its record (CC 4.4.3.12): no walk hops through it
+        if owner(r) in S.by and Q.dissolved(owner(r)) and "dissolved_edges_kept" not in MUT:
             continue
         if r.get("bears") != BEARS and "bears_unread" not in MUT:
             continue
@@ -283,12 +290,17 @@ def standing(S, lic):
 
 def read_licence(S, reader, lic, own=None, supplied=None, now=None):
     """(honoured, reason) for licence row `lic` held in S, read by `reader` over the rows S holds:
-    `licence_class_not_trusted` (the authority's record does not declare the class), the standing's reason
+    `lapsed` (its authority is dissolved: a licence issued with standing stands and reads lapsed for every later
+    use), `licence_class_not_trusted` (the authority's record does not declare the class), the standing's reason
     (standing()), or `authority_not_reached` (the reader's walk does not reach the authority for the class)."""
     r = S.by.get(lic)
     if r is None:
         return False, "not_held"
     a, c = r["authority"], r["licence_class"]
+    # a dissolved authority (CC 4.4.3.12, "What stands after dissolution"): an issued licence stands, its authority
+    # judged at issuance, and reads `lapsed` for every later use; one with no standing over its own past is testimony
+    if a in S.by and is_community(S, a) and ST.Seats(S).dissolved(a) and "lapsed_unread" not in MUT:
+        return False, standing(S, lic) or "lapsed"
     if c not in CH.charters(S, own, supplied, now).get(a, frozenset()):
         return False, "licence_class_not_trusted"
     why = standing(S, lic)

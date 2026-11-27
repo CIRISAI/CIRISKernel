@@ -132,14 +132,11 @@ fn past_of<'a, R: Row>(c: &Concluded<'a, R>, i: usize, extra: &[usize]) -> Concl
 /// own, until an election seats a holder. A license seat's holder is no duty holder and keeps no room from locking.
 ///
 /// A license seat conferred before the lock stands, and its holder keeps issuing while the seat's term covers the
-/// licence's instant. An affiliation is never locked: with no officer it is dissolved.
+/// licence's instant. An affiliation is never locked: with no officer (its authority body, [`Seats::authority_body`])
+/// it is dissolved.
 fn locked<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, c: &ObjOf<R>) -> bool {
-    let g = &seats.c().g;
-    let get = |i: &R::Id| g.idx(i).map(|x| g.row(x));
-    if kind_of(seats.law(), &get, c) == Some(CommunityKind::Affiliation) {
-        return false;
-    }
-    seats.holders("duty", c, None).is_empty()
+    // an affiliation's authority is its officers: with none it is dissolved (CC 4.4.3.12), and signs nothing either
+    seats.authority_body(c).is_empty()
 }
 
 /// The licence's emitter `k` IS authority `a`: a person is one voice across its keys, so any live key of its roster
@@ -152,11 +149,26 @@ fn is_the_authority<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, k: &
 }
 
 /// Whether the keys `who` are `src`'s authority set over the rows `seats` was built on (a row's own past).
-fn speaks_for<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, who: &BTreeSet<&R::Key>, src: &ObjOf<R>) -> bool {
+fn speaks_for<R: SeatRow, S: CutSpec<R>>(
+    seats: &Seats<'_, '_, R, S>,
+    past: &Past<'_, '_, R>,
+    who: &BTreeSet<&R::Key>,
+    src: &ObjOf<R>,
+) -> bool {
     match src {
         Obj::Row(_) => {
             if !is_community(seats, src) {
                 return false;
+            }
+            // an affiliation's edge is its officers' act under its declared protocol (the officers ruling: the acts
+            // row `accept / trust_edge / affiliation -> cosigned_act`, which the fixtures' law carries)
+            let g = &seats.c().g;
+            let get = |i: &R::Id| g.idx(i).map(|x| g.row(x));
+            if kind_of(seats.law(), &get, src) == Some(CommunityKind::Affiliation) {
+                let bound = policy_for(seats.law(), Act::Accept, ScopeClass::TrustEdge, CommunityKind::Affiliation)
+                    .is_some_and(|(p, _)| p.len() == 1 && p[0] == "cosigned_act");
+                let voices: BTreeSet<R::Key> = who.iter().map(|k| (*k).clone()).collect();
+                return bound && declared_count(past, src, &seats.protocol_body(src), &voices);
             }
             // the acts row binds the count
             let bound = policy_for(seats.law(), Act::Accept, ScopeClass::TrustEdge, CommunityKind::Community)
@@ -168,7 +180,7 @@ fn speaks_for<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, who: &BTre
             if locked(seats, src) {
                 return false;
             }
-            let duty = seats.holders("duty", src, None);
+            let duty = seats.authority_body(src);
             counted(duty.iter().filter(|k| who.contains(k)).count(), duty.len())
         }
         // a person: the key itself, or a live key of its roster
@@ -183,9 +195,12 @@ fn speaks_at<R: SeatRow, S: CutSpec<R>>(
     who: &BTreeSet<&R::Key>,
     src: &ObjOf<R>,
 ) -> bool {
-    let sub = past_of(seats.c(), i, &[]);
+    let c = seats.c();
+    let sub = past_of(c, i, &[]);
     let (rc, _) = for_reader(&sub, seats.law(), seats.spec(), None);
-    speaks_for(&Seats::new(&rc, seats.law(), seats.spec(), None), who, src)
+    let anc = c.g.ancestors(i);
+    let p: Vec<usize> = c.cs().iter().copied().filter(|&j| anc.has(j)).collect();
+    speaks_for(&Seats::new(&rc, seats.law(), seats.spec(), None), &Past::new(&c.g, i, &p), who, src)
 }
 
 fn owner<R: TrustRow>(r: &R) -> ObjOf<R> {
@@ -221,6 +236,10 @@ pub fn edges_of<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>) -> Vec<
     for &i in c.cs() {
         let r = c.g.row(i);
         let Some(Ok(e)) = edge_of(r) else { continue };
+        // a dissolved authority's own edges end with its record (CC 4.4.3.12): no walk hops through it
+        if matches!(e.src, Obj::Row(_)) && seats.dissolved(&e.src) {
+            continue;
+        }
         if !speaks_at(seats, i, &signers(r), &e.src) {
             continue;
         }
@@ -259,7 +278,7 @@ pub fn standing<R: TrustRow + Dated, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>,
         let p: Vec<usize> = c.cs().iter().copied().filter(|&j| c.g.ancestors(i).has(j)).collect();
         let past = Past::new(&c.g, i, &p);
         let voices: BTreeSet<R::Key> = signers(r).into_iter().cloned().collect();
-        if declared_count(&past, &a, &at.holders("member", &a, None), &voices) {
+        if declared_count(&past, &a, &at.protocol_body(&a), &voices) {
             if !locked(&at, &a) {
                 return None;
             }
@@ -307,6 +326,8 @@ pub enum Unhonoured {
     Standing(&'static str),
     /// The reader's walk does not reach the authority for the class (`authority_not_reached`).
     NotReached,
+    /// Its authority is dissolved: issued with standing, the licence stands and reads `lapsed` for every later use.
+    Lapsed,
 }
 
 impl Unhonoured {
@@ -317,6 +338,7 @@ impl Unhonoured {
             Unhonoured::ClassNotTrusted => "licence_class_not_trusted",
             Unhonoured::Standing(w) => w,
             Unhonoured::NotReached => "authority_not_reached",
+            Unhonoured::Lapsed => "lapsed",
         }
     }
 }
@@ -339,6 +361,11 @@ pub fn read_licence<R: TrustRow + Dated, S: CutSpec<R>>(
     let (Some(auth), Some(cls)) = (r.licence_authority(), r.licence_class()) else {
         return Err(Unhonoured::ClassNotTrusted);
     };
+    // a dissolved authority (CC 4.4.3.12, "What stands after dissolution"): an issued licence stands, its authority
+    // judged at issuance, and reads `lapsed` for every later use; one with no standing over its own past is testimony
+    if is_community(seats, &auth) && seats.dissolved(&auth) {
+        return Err(standing(seats, i).map_or(Unhonoured::Lapsed, Unhonoured::Standing));
+    }
     if !charters(seats, supplied, now).declares(&auth, cls) {
         return Err(Unhonoured::ClassNotTrusted);
     }

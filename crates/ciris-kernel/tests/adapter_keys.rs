@@ -10,8 +10,9 @@ use std::collections::BTreeSet;
 /// Keys no rule reads by design: the model's own bookkeeping, carried for the reader of the fixture; `consent`, a
 /// flag no rule reads (no flag on a row waives the seated key's acceptance: the cases carry it to show it waives
 /// nothing); `family_key_id`, a family record's key, which nothing signs as (a family is keyless); `name`, a record's
-/// metadata (an amendment the entrenchment allows).
-const IGNORED: [&str; 5] = ["consent", "family", "family_key_id", "id", "name"];
+/// metadata (an amendment the entrenchment allows); `device_label`, a device label a row's body states, which the
+/// election's fork never reads as the signing key (the verified key is `SeatRow::signing_key`, `dev` here).
+const IGNORED: [&str; 6] = ["consent", "device_label", "family", "family_key_id", "id", "name"];
 
 /// Each fixture whose rows a crate rule reads, with the sources of the adapters that read them. (`tables.json`
 /// replays recorded verdicts, not its rows.)

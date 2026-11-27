@@ -323,7 +323,7 @@ def seat_cases():
     rules = {id(A.SEAT): "seat", id(A.WIN): "window", id(A.ROUTE): "route"}
     seen, scen, skipped = {}, [], {"rules": 0}
 
-    def record(rows, rule, asks=None, table=None, readers=(), closed=None):
+    def record(rows, rule, asks=None, table=None, readers=(), closed=None, founders=()):
         """`asks`: (key, scope, object) the scenario also states `stands` for. `table`: read under another HOLDS
         (check_duty_seats.py's `persist`); the scenario then carries its own `holds`. `readers`: the readers it is
         also read for. `closed`: a seating whose
@@ -332,13 +332,13 @@ def seat_cases():
         if name is None:
             skipped["rules"] += 1
             return
-        key = (name, table, closed, json.dumps([row_enc(r) for r in rows], sort_keys=True))
+        key = (name, table, closed, tuple(founders), json.dumps([row_enc(r) for r in rows], sort_keys=True))
         if key not in seen:
             seen[key] = len(scen)
-            scen.append((name, list(rows), list(asks or ()), table, tuple(readers), closed))
+            scen.append((name, list(rows), list(asks or ()), table, tuple(readers), closed, tuple(founders)))
         elif readers:                                # the same rows named again with a reader: read it too
-            n, r0, a0, t0, rd, cl = scen[seen[key]]
-            scen[seen[key]] = (n, r0, a0, t0, tuple(sorted(set(rd) | set(readers))), cl)
+            n, r0, a0, t0, rd, cl, fo = scen[seen[key]]
+            scen[seen[key]] = (n, r0, a0, t0, tuple(sorted(set(rd) | set(readers))), cl, fo)
 
     orig_conc = A.conc
 
@@ -373,6 +373,12 @@ def seat_cases():
     import check_acts as ACT
     for _name, rows, _rid, _wb, _wu in ACT.CONCLUDE:
         record(rows, A.SEAT)
+    # the countersign of a one-seat affiliation's removal: check_charter.py's cases, under the seat rule
+    import check_charter as CHC
+    for _name, rows, _concl, asks in CHC.COUNTERSIGN:
+        record(rows, A.SEAT, [(k, "member", o) for k, o, _ in asks])
+    for _name, rows, asks in ACT.FOUNDERS:
+        record(rows, A.SEAT, founders=[(k, ACT.OBJ, at) for k, at, _ in asks])
     for _name, rows, asks, *own in ACT.TIPS:
         record(rows, A.SEAT, [(k, sc, ACT.OBJ) for k, sc, _ in asks], readers=tuple(o for o in own if o))
     # the members' recall of a duty holder: check_recall.py's cases, under the seat rule
@@ -435,7 +441,7 @@ def seat_cases():
         record(rows, A.SEAT)
     rulefn = {"seat": A.SEAT, "window": A.WIN, "route": A.ROUTE}
     problems, out = [], []
-    for i, (name, rows, asks, tab, rdrs, closed) in enumerate(scen):
+    for i, (name, rows, asks, tab, rdrs, closed, founders) in enumerate(scen):
         check_rows(rows, problems, "scenario %d" % i)
         with DS.table(tab):
             S = CK.concluded(CK.kept(list(rows)), rulefn[name])
@@ -448,6 +454,8 @@ def seat_cases():
                 e["holds"] = enc(ST.HOLDS)
             if closed:
                 e["closed"] = [closed, EL.closed(rows, closed)]
+            if founders:
+                e["founder"] = [[k, o, at, ST.is_founder(S, k, o, at)] for k, o, at in founders]
         out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "community_floor": ST.COMMUNITY_FLOOR, "removal_floor": ST.REMOVAL_FLOOR,

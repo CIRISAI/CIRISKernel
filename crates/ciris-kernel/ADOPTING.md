@@ -145,6 +145,22 @@ migrations, and the local operational store.
 - The election's seating is the one act read from the policy the row states (`Policy::Ranked`), and of
   `moderate` only.
 
+**The countersign of a one-seat affiliation** (CC 4.4.3.12; the Constitution's formal/affiliation/Affiliation.lean).
+Present:
+- the affiliation's record (its founding row, and each counted change of scope `record`) with `SeatRow::official`, the
+  designated official's key, and `SeatRow::overseen_by`, the record member `overseen_by` (optional, one group id: the
+  body that conferred or oversees it), whose `review` holders may countersign. Each version is a whole record: one
+  stating no official names none;
+- a countersign as `SeatKind::Countersign`, signed by the countersigning key, `of()` the removal it countersigns,
+  naming the removal and, for an overseer, the overseeing body's rows its `review` seat stands on (its basis);
+- a removal of a member of an affiliation as a counted Unseat of scope `member` under `affiliation_member_action` or
+  `cosigned_act`, `counted` `officer`. The deciding seats are the officers: a member whose seat carries `role:
+  officer` (`seat::OFFICER`; the founding record lists the first officers in a `duty_holders` entry `officer`, and an
+  appointment carrying the role, with the appointee's acceptance, seats one later). Every counted act of an
+  affiliation is counted over its officers (`counted` `officer`); with no officer it is dissolved. With one officer
+  the removal concludes as a proposal and is in force only where a countersign naming it counts; the acting seat's
+  withdrawal of the removal clears it; with two or more it decides on two voices at least, the member removed apart.
+
 **The moderator election** (C1 to C5, E1 to E3, F1 to F4; CHANGELOG). Present:
 - each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` its election's id row: the
   room's founding row for the first election, then the seating of the one before; naming the end of the last
@@ -353,7 +369,10 @@ trusting an adapter.
   `founding_duty_holder_agent_owner_unsigned`): the seat rows carry no owner of an agent's key. Until it does, a
   caller must not present an agent's duty seat without the owner's statement having been checked at the door.
 - A duty conferred on an agent is a duty seat of its own (a counted `duty_confer` row), live while its `agent`
-  seat is. It acts alone within that duty. It is still no voice in any count, the duty holders' own included.
+  seat is, and only by its own statement and its owner's signature: the agent's key cosigns the conferral, and so
+  does the one live owner of the agent's key, the conferral naming that owner-binding (the owner's `owner` seat over
+  the agent's own roster: an Offer of scope `owner` over the key, the key's and the owner's signatures). The seat
+  stops when that binding ends (the owner's revocation), and with two owners there is none. It acts alone within that duty. It is still no voice in any count, the duty holders' own included.
 - A moderator's lone removal of an agent's key is an Unseat of its `agent` seat, `Conf::Group`, signed by the
   moderator alone, at the head it names. There is no mark to set: the seat's scope says whose key it is. An
   Unseat of a `member` seat so signed is counted as any removal is, and fails where it failed. The re-seating
