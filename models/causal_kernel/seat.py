@@ -406,7 +406,8 @@ def stalled_recovery(r, P, past):
     """The one row an infrastructure room admits without its founders' count while stalled (CC 3.2): a widening whose
     only change is one added founder seat, for a key named by a row (`bundle`) counted at a strict majority over the
     holders of the bundle in force of the root the room stands under, whose `scope` names this room, signed by the
-    named key. The kernel holds no bundle holders, so such a row is UNDECIDED: the reason `stalled_recovery_needs_bundle`
+    named key. With no trust root read (ROOT), the kernel holds no bundle holders, so such a row is UNDECIDED: the
+    reason `stalled_recovery_needs_bundle`
     (the seat rule concludes nothing for it), or None for a row of another shape. The checks for when the trust root's
     fold is in the kernel: the counted row names the bundle in force; its `scope` names this room; the key's identity
     type includes `user` and excludes `node`; the widening is signed by the named key; only while stalled; only one
@@ -419,6 +420,59 @@ def stalled_recovery(r, P, past):
     if pr is None: return None
     founders = members_at(P, past, r["obj"], r.get("head", ()), "founder") - count_left(P, past, r["obj"], "founder")
     return "stalled_recovery_needs_bundle" if len(founders) < pr[1] + 1 else None
+
+
+# the trust root this node reads (models/trust_root/root.py): (Root, reader), or None. With none, a stalled recovery is
+# undecided; with one, it is judged (recovery_verdict)
+ROOT = [None]
+
+
+class root_view:
+    """`with root_view(R, rd):` the seat rule judges a stalled recovery against root R as reader rd reads it."""
+    def __init__(self, R, rd): self.v = (R, rd)
+    def __enter__(self): ROOT.append(self.v)
+    def __exit__(self, *a): ROOT.pop()
+
+
+def recovery_verdict(r, P, past):
+    """A stalled infrastructure room's recovery widening (CC 3.2), judged against the trust root this node reads:
+    (True, None), or (False, reason). The six checks:
+        1  the grant it names (`bundle`) names the bundle in force for this node and is counted at a strict majority
+           of that bundle's holders (folded, or common where charters differ) (MUTATION recovery_inforce_unread: any
+           grant counted as a row);
+        2  the grant's `scope` names this room (MUTATION recovery_scope_unread);
+        3  the key's identity type includes `user` and excludes `node` (MUTATION recovery_identity_unread);
+        4  the widening is signed by the key the grant names (MUTATION recovery_signer_unread);
+        5  only while stalled: fewer than M + 1 founders at its heads (MUTATION recovery_stalled_unread);
+        6  one founder seat, and nothing else changed (MUTATION recovery_more_unread)."""
+    view = ROOT[-1]
+    if view is None: return (False, "stalled_recovery_needs_bundle")
+    Rt, rd = view
+    by = {q["id"]: q for q in P}
+    if r["kind"] != "offer" or r.get("scope") != "founder" or kind_of(by, r.get("obj")) != "infrastructure":
+        return (False, "not_a_recovery")
+    rec = protocol_record(by, r["obj"])
+    pr = infrastructure_rule(rec.get("consensus_protocol")) if rec is not None else None
+    if pr is None: return (False, "not_a_recovery")
+    if "recovery_more_unread" not in MUT and (len(r.get("to", ())) != 1 or r.get("consensus_protocol") is not None
+                                               or r.get("seat") is not None or r.get("cosigners")):
+        return (False, "recovery_changes_more")
+    founders = members_at(P, past, r["obj"], r.get("head", ()), "founder") - count_left(P, past, r["obj"], "founder")
+    if len(founders) >= pr[1] + 1 and "recovery_stalled_unread" not in MUT: return (False, "not_stalled")
+    gid = r.get("bundle")
+    g = Rt.grants.get(gid)
+    if g is None: return (False, "grant_unknown")
+    if "recovery_inforce_unread" in MUT:
+        if not Rt.grant_row(gid): return (False, "grant_count_short")
+    else:
+        ok, why = Rt.grant_in_force(gid, rd)
+        if not ok: return (False, why)
+    if g["scope"] != r["obj"] and "recovery_scope_unread" not in MUT: return (False, "grant_scope_not_this_room")
+    if ("user" not in g["identity"] or "node" in g["identity"]) and "recovery_identity_unread" not in MUT:
+        return (False, "grant_identity_not_user")
+    if "recovery_signer_unread" not in MUT and (r["to"][0] != g["to"] or r["signer"] != g["to"]):
+        return (False, "not_signed_by_named_key")
+    return (True, None)
 
 
 def is_amendment(q, obj):
@@ -3095,9 +3149,10 @@ def seat_rule(r, P, past, table=None, other=None):
             if k == "unseat": return _ender(r, P, by)
             return k == "offer" and r.get("under") in by and r["signer"] in by[r["under"]]["to"]
         if conf == "group":
-            # an infrastructure room's recovery widening while stalled is undecided here (stalled_recovery): the kernel
-            # holds no bundle holders, so it concludes nothing
-            if r.get("bundle") is not None and "recovery_concludes" not in MUT: return False
+            # an infrastructure room's recovery widening while stalled: judged against the trust root this node reads
+            # (recovery_verdict); with none read, undecided (stalled_recovery), and it concludes nothing
+            if r.get("bundle") is not None:
+                return ROOT[-1] is not None and recovery_verdict(r, P, past)[0]
             # H1, H4: every counted row names the newest counted changes over its object in its own past, a lone removal,
             # a self-admission, a lift and an election's seating included (a seating's count reads its election, never
             # its heads: its heads place it; MUTATION election_exempt: a seating names no head)

@@ -168,6 +168,65 @@ CASES = [
      {"grant": {"g1": (True, None)}}),
 ]
 
+# ---- stalled recovery, judged against the root (seat.recovery_verdict) ------------------------------------------------
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "causal_kernel"))
+import seat as ST  # noqa: E402
+import check_acts as AC  # noqa: E402
+CK = ST.CK
+GI, W3 = AC.GI, AC.W3                     # f1 f2 f3 found an infrastructure room under quorum:2/3; f3 leaves: stalled
+RCV = lambda **kw: dict(AC.RECOVER(heads=("g",), cites=("w3",)), **kw)          # f4 widens itself, naming grant B1
+STALLED = [GI, W3]
+GOK = GR("B1", "b0", "f4", "g", ("h1", "h2"))
+ROOT_ROWS = [B0]
+# (name, room rows, root bundles, grants, reader, recovery concludes, reason, f4 a founder)
+RECOVERY = [
+    ("stalled, a grant on the bundle in force counted by h1 and h2 of three, scope this room, a user key, signed by "
+     "it: the recovery concludes, and f4 is a founder", STALLED + [RCV()], ROOT_ROWS, (GOK,), ANC, True, None, True),
+    ("no trust root read: undecided, and it concludes nothing", STALLED + [RCV()], None, (), None, False,
+     "stalled_recovery_needs_bundle", False),
+    ("live (no founder left): no recovery", [GI, RCV(names=("g",))], ROOT_ROWS, (GOK,), ANC, False, "not_stalled", False),
+    ("the grant names another room", STALLED + [RCV()], ROOT_ROWS, (dict(GOK, scope="other"),), ANC, False,
+     "grant_scope_not_this_room", False),
+    ("the grant names a node key", STALLED + [RCV()], ROOT_ROWS, (dict(GOK, identity=("user", "node")),), ANC, False,
+     "grant_identity_not_user", False),
+    ("the widening is signed by another key than the grant names", STALLED + [RCV()], ROOT_ROWS, (dict(GOK, to="f5"),),
+     ANC, False, "not_signed_by_named_key", False),
+    ("the grant's count is short: h1 alone of three", STALLED + [RCV()], ROOT_ROWS, (dict(GOK, signers=("h1",)),), ANC,
+     False, "grant_count_short", False),
+    ("the grant names b0, and this node's bundle in force is b1", STALLED + [RCV()], LIN, (GOK,), RD(anchor="b0", acks=("b1",)),
+     False, "grant_not_on_bundle_in_force", False),
+    ("the reader's anchor names no first bundle", STALLED + [RCV()], ROOT_ROWS, (GOK,), RD(anchor="zz"), False,
+     "genesis_bundle_not_anchored", False),
+    ("two tips folded (h1..h5): a grant on s1 by h1, h2 and h4 is three of five", STALLED + [RCV()], FORK,
+     (GR("B1", "s1", "f4", "g", ("h1", "h2", "h4")),), RD(anchor="b0", acks=("s1", "s2")), True, None, True),
+    ("the same by h1 and h2 alone: two of five, short", STALLED + [RCV()], FORK, (GR("B1", "s1", "f4", "g", ("h1", "h2")),),
+     RD(anchor="b0", acks=("s1", "s2")), False, "grant_count_short", False),
+    ("charters differ: over the common holders (h1 h2 h3), h1 and h2 are two of three", STALLED + [RCV()], FORKC,
+     (GR("B1", "s1", "f4", "g", ("h1", "h2")),), RD(anchor="b0", acks=("s1", "s2")), True, None, True),
+    ("one founder seat and nothing else: a widening that also changes the protocol", STALLED + [RCV(consensus_protocol="quorum:2/3")],
+     ROOT_ROWS, (GOK,), ANC, False, "recovery_changes_more", False),
+]
+RECOVERY_PLANTS = ("recovery_inforce_unread", "recovery_scope_unread", "recovery_identity_unread", "recovery_signer_unread",
+                   "recovery_stalled_unread", "recovery_more_unread")
+
+
+def recovery_answer(rows, bs, gs, rd):
+    view = (RT.Root(bs, (), gs), rd) if bs is not None else None
+    ST.ROOT.append(view)
+    try:
+        S = CK.concluded(CK.kept(list(rows)), lambda r, P, past: ST.seat_rule(r, P, past))
+        P = [q for q in S.Cs if q["id"] in S.anc["rv"]] if "rv" in S.anc else []
+        why = ST.recovery_verdict(S.by["rv"], P, lambda a, b: a in S.anc.get(b, ()))[1]
+        return (bool(S.C.get("rv")), why, "f4" in ST.Seats(S).holders("founder", "g"))
+    finally:
+        ST.ROOT.pop()
+
+
+def run_recovery():
+    return ["recovery %s: got %s" % (name, got) for name, rows, bs, gs, rd, c, why, f4 in RECOVERY
+            for got in [recovery_answer(rows, bs, gs, rd)] if got != (c, why, f4)]
+
+
 PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "bound_unread", "version_unread",
           "family_unread", "commitments_unread", "recovery_other_seat", "spent_unread", "fold_common", "fold_union",
           "charter_folds", "join_union", "anchor_unread", "inforce_global", "root_sf_unread", "root_t_unread",
@@ -201,7 +260,7 @@ def run():
 
 
 def main():
-    bad = run()
+    bad = run() + run_recovery()
     for b in bad: print(b)
     missed = []
     for p in PLANTS:
@@ -213,9 +272,19 @@ def main():
             RT.MUT.discard(p)
         print("  plant %-22s %s" % (p, ("caught by: " + hit[:90]) if hit else "NOT CAUGHT"))
         if not hit: missed.append(p)
+    for p in RECOVERY_PLANTS:
+        ST.MUT.add(p)
+        try:
+            hit = next((name for name, rows, bs, gs, rd, c, why, f4 in RECOVERY
+                        if recovery_answer(rows, bs, gs, rd) != (c, why, f4)), None)
+        finally:
+            ST.MUT.discard(p)
+        print("  plant %-22s %s" % (p, ("caught by: " + hit[:90]) if hit else "NOT CAUGHT"))
+        if not hit: missed.append(p)
     ok = not bad and not missed
-    print("RESULT: %s: %d cases, %d of %d planted breaks caught" % ("ok" if ok else "%d problems" % (len(bad) + len(missed)),
-                                                                 len(CASES), len(PLANTS) - len(missed), len(PLANTS)))
+    n = len(PLANTS) + len(RECOVERY_PLANTS)
+    print("RESULT: %s: %d cases, %d of stalled recovery, %d of %d planted breaks caught" % (
+        "ok" if ok else "%d problems" % (len(bad) + len(missed)), len(CASES), len(RECOVERY), n - len(missed), n))
     return 0 if ok else 1
 
 
