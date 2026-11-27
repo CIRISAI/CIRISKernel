@@ -1,0 +1,4 @@
+r80: re-attack of origin/charter 8e306c0.
+Extract: git archive 8e306c0 | tar -x -C r80/tree ; run: python3 -I r80/s/<x>.py
+lib.py gives every edge a term and passes now=1000.
+a1-a3 (r73), n1-n5 (r77) re-run; m1-m4 attack the r77 fixes (m1 F1 rows are superseded by m2/m4).
