@@ -166,7 +166,9 @@ fn admits(
     let mut law = SeatLaw { depth: 5, roster_seats: s(&["member"]), ..Default::default() };
     law.holds.insert("founder".into(), s(&["member"]));
     law.policy.insert("p".into(), policy);
-    law.policy.insert("all".into(), Policy::AtLeast(1, 1));
+    // the founders' seating counts every member but the keys it seats (no key admits itself, CC 2.7.5): a strict
+    // majority of the members, each founder already a member re-seated in the founder role
+    law.policy.insert("all".into(), Policy::AtLeast(1, 2));
     let c = conclude(kept(&rows, |_| true), |q| seat_rule(q, &law, &Slots, &|_| true), None);
     c.concluded(c.g.idx(&"x".to_string()).unwrap())
 }

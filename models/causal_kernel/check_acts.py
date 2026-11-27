@@ -88,6 +88,7 @@ Planted breaks, each of which must change a case's answer:
     dissolve_uncontested          a dissolution is read apart from rule 5: it is no cut over every seat (FA6)
     wait_reader_unread            the founders' amendment wait is read over a row's own past only, not the reader's (C2)
     contested_one_sided           a one-sided cut is contested too: rule 5 read beyond mutual dependence
+    self_voice_on_offer           a key an offer seats is a voice of it (a member re-seated by its own signature)
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
@@ -891,6 +892,13 @@ CONCLUDE_Q4 = [
      [GM4, AM1, grp("n", "offer", "Q", "member", "community_invite", heads=("am",)),
       dict(REC("am2", "unanimous", heads=("am",), signer="B", cosigners=("C", "D")), names=("n",))], "am2", True),
 ]
+# no key admits itself (CC 2.7.5) under every count: a member re-seated by a row it signs is no voice of it (the
+# crate's count_of; aligned at the first local build of the merged tree). B and A re-seat B in a room of three under
+# majority: A alone is one of three, short
+CONCLUDE_Q4 += [
+    ("no key admits itself: B's own signature is no voice of B's re-seating; A alone of three is short of a majority",
+     [G3, grp("rb", "offer", "B", "member", "cosigned_act", signer="B", cosigners=("A",))], "rb", False),
+]
 PENDING_CONCLUDE = []
 
 PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread",
@@ -908,7 +916,8 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "contested_both_out", "role_on_own_offer", "entrenched_weights_free",
           "concurrent_amendments_free", "infra_word_restated_always", "contested_scoped_to_kinds",
           "contested_voice_everywhere", "negative_weight", "removal_counts_target", "removal_floor_unread",
-          "end_of_contested_end", "dissolve_uncontested", "wait_reader_unread", "contested_one_sided")
+          "end_of_contested_end", "dissolve_uncontested", "wait_reader_unread", "contested_one_sided",
+          "self_voice_on_offer")
 
 
 @contextlib.contextmanager

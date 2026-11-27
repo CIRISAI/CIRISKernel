@@ -338,7 +338,9 @@ OPEN = []
 # one voice, no refusal; and an end is the key's end of its stay in that scope, not of a row: one resignation or one
 # counted removal ends every seating of the key in that scope in the end's past
 SR = PV + [admit("aq2", "q", ("m1", "m2", "m3", "m4"), ("ag",))]          # q's second seat row, while aq seats it
-SR_H = merge(("aq2",))                                  # a later head with both rows in its past
+# a later head with both rows in its past: the four founders and q re-state m1's seat (no key admits itself, CC 2.7.5:
+# m1's own signature is no voice of its own re-seating, so q's makes four of the five others' two thirds)
+SR_H = dict(merge(("aq2",)), cosigners=("m2", "m3", "m4", "q"))
 CASES += [
     ("a second seat row of a room key already seated is a second basis for the same seat: it concludes, and the key is "
      "one key and one voice", SECOND_ROW, SR, {"aq2": T}, M4 | {"q", "AG"}, [("q", "member", T)]),

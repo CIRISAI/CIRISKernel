@@ -759,6 +759,9 @@ def count_of(policy, is_offer, to, mem, v, need=None, weights=None, table=None, 
         others = len([k for k in mem if k not in to])
         if is_offer: return bool(mem) and len(yes) == others and all(k not in mem or k in v for k in to)
         return len(yes) == others and 2 * len(yes) > len(mem)
+    # no key admits itself (CC 2.7.5), under every count: a key an offer seats is no voice of it, a member re-seated in
+    # another role included (the crate's count_of reads the same; MUTATION self_voice_on_offer: it is one)
+    if is_offer and "self_voice_on_offer" not in MUT: v = frozenset(k for k in v if k not in to)
     return met(policy, len(v), len(mem), need, table)              # the caller has read v over its voters
 
 # CC 4.4.3.6 `open:self_admit`: an outsider's own admission to an open room. The group's side of a widening naming one

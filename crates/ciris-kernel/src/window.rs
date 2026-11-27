@@ -978,6 +978,9 @@ mod tests {
                     id += 1;
                 }
             }
+            // the newest counted change over the room: the opener names it as its head (H1, H8: a head is a counted
+            // change or the founding row, never a note)
+            let mut newest = 0;
             // now and then the last key holds an agent's seat as well: every base leaves it out, read either way
             if (id + n).is_multiple_of(4) {
                 let mut o = W::new(id, vec![0], 1);
@@ -991,6 +994,7 @@ mod tests {
                 o.conf = Some(Conf::Group);
                 o.head = vec![0];
                 o.policy = Some("community_invite".into());
+                newest = o.id;
                 rows.push(o);
             }
             let v = W::new(100, rows.iter().map(|r| r.id).collect(), 1);
@@ -999,7 +1003,7 @@ mod tests {
             op.win = Some(WinKind::Open);
             op.window = Some("w".into());
             op.obj = Some(Obj::Row(0));
-            op.head = vec![100];
+            op.head = vec![newest];
             rows.push(op);
             let mut answers = vec![];
             for j in 0..g.next(2 * n as u64) as u32 {
