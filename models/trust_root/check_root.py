@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.dont_write_bytecode = True
 import root as RT  # noqa: E402
 
-B, RV, GR, RD = RT.bundle, RT.revoke, RT.grant, RT.reader
+B, RV, GR, RD, AK = RT.bundle, RT.revoke, RT.grant, RT.reader, RT.ack
 F = "fam"
 H3 = ("h1", "h2", "h3")
 H5 = ("h1", "h2", "h3", "h4", "h5")
@@ -243,6 +243,19 @@ CASES = [
     ("grant", "the head rule: signers who saw s2 but name only s1 conclude nothing (they must name both)", FORK, (),
      (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), seen=("b0", "s1", "s2")),), RD(anchor="b0", acks=("s1",)),
      {"row": {"g1": False}}),
+    ("grant", "the seen bundles are derived from the grant row's own past: an acceptance edge naming s2 there, and "
+              "the grant naming only s1 concludes nothing", FORK, (),
+     (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), past=(AK("b0"), AK("s1"), AK("s2"))),), RD(anchor="b0", acks=("s1",)),
+     {"row": {"g1": False}}),
+    ("grant", "and from earlier grants in its past: one naming s2", FORK, (),
+     (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), past=(AK("s1"), GR("g0", "s2", "uB", "room", ("h2", "h3", "h5")))),),
+     RD(anchor="b0", acks=("s1",)), {"row": {"g1": False}}),
+    ("grant", "a past that acknowledges s1 alone: the grant on s1 stands", FORK, (),
+     (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), past=(AK("b0"), AK("s1"))),), RD(anchor="b0", acks=("s1",)),
+     {"row": {"g1": True}}),
+    ("grant", "a stated `seen` does not override the rows: a past acknowledging s2, and a stated seen of s1 alone",
+     FORK, (), (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), seen=("s1",), past=(AK("s2"),)),),
+     RD(anchor="b0", acks=("s1",)), {"row": {"g1": False}}),
     ("grant", "naming both, they are counted over the fold (h1..h5): h1, h2 and h4 are three of five", FORK, (),
      (GR("g1", ("s1", "s2"), "uA", "room", ("h1", "h2", "h4"), seen=("b0", "s1", "s2")),), RD(anchor="b0", acks=("s1", "s2")),
      {"row": {"g1": True}, "grant": {"g1": (True, None)}}),
@@ -327,7 +340,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "family_unread", "commitments_unread", "recovery_other_seat", "spent_unread", "fold_common", "fold_union",
           "charter_folds", "join_union", "anchor_unread", "inforce_global", "root_sf_unread", "root_t_unread",
           "grant_any_bundle", "grant_charter_unread", "grant_scope_unread", "recovery_fork_both", "joins_fork_both",
-          "grant_head_unread")
+          "grant_head_unread", "seen_stated")
 
 
 def answer(bs, rv, gs, rd, want):
@@ -368,7 +381,8 @@ def fixture(with_refs):
                 "recovers": list(b["recovers"]) if b.get("recovers") else None,
                 "stmts": [[k, i] for k, i in b["stmts"]]}
     def genc(g):
-        return {"id": g["id"], "bundles": list(g["bundles"]), "seen": list(g["seen"]) if g["seen"] is not None else None,
+        seen = RT.Root([]).seen_of(g)          # the derived form, as the crate reads it until the field is dropped
+        return {"id": g["id"], "bundles": list(g["bundles"]), "seen": sorted(seen) if seen is not None else None,
                 "to": g["to"], "scope": g["scope"], "signers": list(g["signers"]),
                 "identity": list(g["identity"]), "duty": g["duty"]}
     def renc(rd):
