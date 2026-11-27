@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**The wrap set is replayed by the crate** (`tests/resignation.rs`, fixture `resignation.json`): who may read a room,
+`Seats::holders` over the fold of the tips less every member whose own end of its seat is held, with
+`Seats::roster` and `Seats::dissolved`, for `check_resignation.py`'s 8 cases and every one of its 152 sets of rows.
+Crate plant: a held withdrawal unread (the reference's `wrap_by_roster`: a resigner stays wrapped until a count cites
+it).
+
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone
   removal out of force) ended nothing, and does not block a later end (the settling count, S4).

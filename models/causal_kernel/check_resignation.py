@@ -35,6 +35,9 @@ Planted breaks:
     leaving_unread        a count ignores a leaving in its row's past (seat.py's leaving_unread and ends_at_heads_unread)
     dissolved_by_roster   dissolution read from the counted roster: two concurrent resignations do not dissolve
 
+The crate replays the cases and every set of rows (tools/kernel_fixtures.py writes resignation.json; the crate's
+tests/resignation.rs reads Seats.holders, Seats.roster and Seats.dissolved over each).
+
     python3 -I check_resignation.py      exit 1 on any difference
 """
 import itertools
@@ -94,6 +97,19 @@ def counted_over(S, r):
     return ST.members_at(P, past, OBJ, r["head"], SC) - ST.left_in_past(P, OBJ, SC), ST.voices(r, P)
 
 
+def sets():
+    """Every set of the pool's rows closed under what they name, with at most two admissions on g, founding row
+    first."""
+    for k in range(len(POOL) + 1):
+        for pick in itertools.combinations(POOL, k):
+            ids = {r["id"] for r in pick} | {"g"}
+            if any(not set(r["names"]) <= ids for r in pick):
+                continue
+            if sum(r["id"].startswith("v1") for r in pick) > 2:
+                continue
+            yield [G] + list(pick)
+
+
 def check(plant=None):
     bad = {}
     n = 0
@@ -103,50 +119,44 @@ def check(plant=None):
         # withdrawal with its heads (members_at); the planted break turns off both
         ST.MUT.update({"leaving_unread", "ends_at_heads_unread"})
     try:
-        for k in range(len(POOL) + 1):
-            for pick in itertools.combinations(POOL, k):
-                ids = {r["id"] for r in pick} | {"g"}
-                if any(not set(r["names"]) <= ids for r in pick):
+        for rows in sets():
+            ids = {r["id"] for r in rows}
+            n += 1
+            S = state(rows)
+            held = {m for m in MEM if "w" + m in ids}
+            W = wrap(S, plant)
+            Q = ST.Seats(S)
+            if W & held:
+                bad.setdefault("no_resigner_wrapped", (sorted(ids), sorted(W & held)))
+            seated_somewhere = set(MEM) | {r["to"][0] for r in S.Cs if r["kind"] == "offer" and r["id"] != "g"}
+            if not W <= seated_somewhere:
+                bad.setdefault("wrap_within_members", (sorted(ids), sorted(W)))
+            for r in S.Cs:
+                if r.get("conf") != "group":
                     continue
-                if len({r["id"][:2] for r in pick if r["id"].startswith("v1")}) and sum(r["id"].startswith("v1") for r in pick) > 2:
-                    continue
-                n += 1
-                rows = [G] + list(pick)
-                S = state(rows)
-                held = {m for m in MEM if "w" + m in ids}
-                W = wrap(S, plant)
-                Q = ST.Seats(S)
-                if W & held:
-                    bad.setdefault("no_resigner_wrapped", (sorted(ids), sorted(W & held)))
-                seated_somewhere = set(MEM) | {r["to"][0] for r in S.Cs if r["kind"] == "offer" and r["id"] != "g"}
-                if not W <= seated_somewhere:
-                    bad.setdefault("wrap_within_members", (sorted(ids), sorted(W)))
-                for r in S.Cs:
-                    if r.get("conf") != "group":
-                        continue
-                    mem, v = counted_over(S, r)
-                    for m in MEM:
-                        if "w" + m in S.anc[r["id"]] and m in mem:
-                            bad.setdefault("cited_is_out", (sorted(ids), r["id"], m))
-                        if "w" + m not in S.anc[r["id"]] and m not in mem and r["head"] == ("g",):
-                            bad.setdefault("uncited_still_counts", (sorted(ids), r["id"], m))
-                # a row that needs a resigner's voice and cites the resignation does not conclude
-                if "v1x" in ids and S.C.get("v1x"):
-                    bad.setdefault("cited_is_out", (sorted(ids), "v1x", "a's voice counted"))
-                live = {r["k"] for r in Q.recs if r["obj"] == OBJ}
-                if dissolved(S, plant) != (not (wrap(S) if plant == "dissolved_by_roster" else W)):
-                    bad.setdefault("dissolved_by_rows", (sorted(ids), "dissolved differs from the wrap set"))
-                if (not live) != dissolved(S, plant):
-                    bad.setdefault("dissolved_by_rows", (sorted(ids), "live %s, dissolved %s" % (sorted(live), dissolved(S, plant))))
-                if any(t["kind"] == "withdraw" for t in Q.tips(OBJ)):
-                    bad.setdefault("resignation_no_head", (sorted(ids),))
-                if plant is None and len(rows) <= 6:
-                    want = (W, dissolved(S))
-                    for p in itertools.permutations(rows[1:]):
-                        T2 = CK.arrive([G] + list(p), lambda r, P, past: ST.seat_rule(r, P, past))
-                        if (wrap(T2), dissolved(T2)) != want:
-                            bad.setdefault("dissolved_by_rows", (sorted(ids), "an arrival order differs"))
-                            break
+                mem, v = counted_over(S, r)
+                for m in MEM:
+                    if "w" + m in S.anc[r["id"]] and m in mem:
+                        bad.setdefault("cited_is_out", (sorted(ids), r["id"], m))
+                    if "w" + m not in S.anc[r["id"]] and m not in mem and r["head"] == ("g",):
+                        bad.setdefault("uncited_still_counts", (sorted(ids), r["id"], m))
+            # a row that needs a resigner's voice and cites the resignation does not conclude
+            if "v1x" in ids and S.C.get("v1x"):
+                bad.setdefault("cited_is_out", (sorted(ids), "v1x", "a's voice counted"))
+            live = {r["k"] for r in Q.recs if r["obj"] == OBJ}
+            if dissolved(S, plant) != (not (wrap(S) if plant == "dissolved_by_roster" else W)):
+                bad.setdefault("dissolved_by_rows", (sorted(ids), "dissolved differs from the wrap set"))
+            if (not live) != dissolved(S, plant):
+                bad.setdefault("dissolved_by_rows", (sorted(ids), "live %s, dissolved %s" % (sorted(live), dissolved(S, plant))))
+            if any(t["kind"] == "withdraw" for t in Q.tips(OBJ)):
+                bad.setdefault("resignation_no_head", (sorted(ids),))
+            if plant is None and len(rows) <= 6:
+                want = (W, dissolved(S))
+                for p in itertools.permutations(rows[1:]):
+                    T2 = CK.arrive([G] + list(p), lambda r, P, past: ST.seat_rule(r, P, past))
+                    if (wrap(T2), dissolved(T2)) != want:
+                        bad.setdefault("dissolved_by_rows", (sorted(ids), "an arrival order differs"))
+                        break
     finally:
         ST.MUT.clear(); ST.MUT |= saved
     return n, bad

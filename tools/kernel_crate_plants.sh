@@ -269,6 +269,11 @@ plant "a key's own end voids another key's voices" src/seat.rs '                
                     && same_class(*w, o, os.as_ref())'
 plant "a key's resignation ends another key's seats in its past" src/seat.rs '*k2 == k && oo.as_ref() == Some(room) && g.in_past(oi, *w) && (duty ||' '(*k2 == k || !duty) && oo.as_ref() == Some(room) && g.in_past(oi, *w) && (duty ||'
 plant "a resignation ends the row it names only" src/seat.rs '&& (duty || same_class(*w, o, sc.s()))' '&& duty'
+plant "the wrap set reads no held withdrawal: a resigner is wrapped until a count cites it (wrap_by_roster)" src/seat.rs '                SeatKind::Withdraw => {
+                    if let Some(t) = r.target() {
+                        wd.entry(t).or_default().push(r);' '                SeatKind::Withdraw if false => {
+                    if let Some(t) = r.target() {
+                        wd.entry(t).or_default().push(r);'
 plant "seats compared by name, not by what they hold" src/seat.rs 'let holds_member = covers(sc, "member") || law.holds.get(sc).is_some_and(|h| h.iter().any(|x| x == "member"));' 'let holds_member = covers(sc, "member");'
 plant "a decline is an end of a stay" src/seat.rs '|| !t.to().contains(k) || !consented(by, t, k, before) {' '|| !t.to().contains(k) {'
 plant "a consent read from any row, not the withdrawal's concluded past" src/seat.rs '                && before(*a)

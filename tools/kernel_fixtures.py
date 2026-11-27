@@ -723,6 +723,27 @@ def dissolved_cases(AC):
     return out
 
 
+# ---- resignation: the wrap set over every set of check_resignation.py's rows ---------------------------------------
+def resignation_cases():
+    """check_resignation.py: who may read the room (the wrap set: Seats.holders over the fold, less the held ends of a
+    seat), the whole roster and the dissolution, for each hand-written case and every set of rows the check reads."""
+    import seat as ST
+    import check_resignation as RS
+    out = []
+
+    def one(name, rows):
+        S = RS.state(rows)
+        Q = ST.Seats(S)
+        refs = {}
+        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "c": [S.C[r["id"]] for r in S.rows],
+                    "wrap": sorted(RS.wrap(S)), "roster": sorted(Q.roster(RS.OBJ)), "dissolved": Q.dissolved(RS.OBJ)})
+    for name, rows, *_ in RS.CASES:
+        one(name, rows)
+    for rows in RS.sets():
+        one("rows " + " ".join(r["id"] for r in rows), rows)
+    return {"obj": RS.OBJ, "scope": RS.SC, "cases": out}
+
+
 def acts_cases():
     """check_acts.py: the act each counted row is (seat.act_of) and the policy rows each act may take (seat.policy_for),
     with the acts table and the kinds table they read."""
@@ -769,6 +790,7 @@ def main():
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
     dump("acts.json", acts_cases(), out)
+    dump("resignation.json", resignation_cases(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution
