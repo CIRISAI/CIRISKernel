@@ -3756,7 +3756,13 @@ pub fn left_in_past<R: SeatRow>(p: &Past<'_, '_, R>, obj: &ObjOf<R>, scope: &str
         let Some(t) = w.target().and_then(|t| p.get(t)) else { continue };
         // a withdrawal that names a scope leaves that one seat of the row it withdraws (a founder's duty laid down)
         let ts = w.scope().or(t.scope());
-        if t.obj().is_some_and(|x| x != *obj) || ts.is_some_and(|s| s.as_ref() != scope) {
+        // a withdrawal naming no scope of an admission (not a founding row) leaves every seat it gives its signer: a
+        // founders' amendment's founder seat (scope `record`), an admission's founder role
+        let role = w.scope().is_none()
+            && t.seat_kind() == SeatKind::Offer
+            && !founding(t)
+            && seat_scopes(t, w.signer(), false).iter().any(|s| s.s() == scope);
+        if t.obj().is_some_and(|x| x != *obj) || (ts.is_some_and(|s| s.as_ref() != scope) && !role) {
             continue;
         }
         let own = match t.seat_kind() {
@@ -4168,6 +4174,12 @@ pub fn merge_concludes<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &Sea
     if newest != tips.iter().copied().collect::<BTreeSet<_>>() {
         return false;
     }
+    // a merge naming a tip S''-void over the merge row's own past concludes nothing (reader-independent: its past
+    // holds every tip), so its fixed content never enacts a void removal or admission
+    let void = void_changes(p, law, spec, None);
+    if tips.iter().any(|&t| void.contains(g.row(t).id())) {
+        return false;
+    }
     let infra_merge = kind_of(law, &|i| p.get(i), &obj) == Some(CommunityKind::Infrastructure);
     let me = p.index();
     // each tip's side: its line and the rows built on it (a member's own end after the tip)
@@ -4194,7 +4206,8 @@ pub fn merge_concludes<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &Sea
             let ps = Past::new(g, me, &sd);
             let tid = [g.row(t).id().clone()];
             let mut founders = persons_at_with(&pl, law, spec, &obj, &tid, "founder", None);
-            for k in left_in_past(&ps, &obj, "founder") {
+            // the tip's departed founders: the count's own reading (count_left), over the tip's side
+            for k in count_left(&ps, law, &obj, "founder") {
                 founders.remove(&k);
             }
             if founders.len() <= m || v.iter().filter(|k| founders.contains(*k)).count() < m {
@@ -4434,27 +4447,36 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
         None => r.head(),
     };
     let mut mem = persons_at_with(p, law, spec, &over, heads, counted, cache);
-    for k in left_in_past(p, &over, counted) {
-        mem.remove(&k);
+    if !mem.is_empty() {
+        for k in count_left(p, law, &over, counted) {
+            mem.remove(&k);
+        }
     }
+    mem
+}
+
+/// The keys a count over `scope` at `obj` leaves out for a leaving in its row's past `p`: the leaving of that seat
+/// ([`left_in_past`]), and for a count over the duty holders (or a family's founder role, which ends with any leaving
+/// of the key), the end of the key's stay as a member ([`stay_ended_in_past`]). The one reading, for every count and
+/// for a merge tip's departed founders.
+pub fn count_left<R: SeatRow>(p: &Past<'_, '_, R>, law: &SeatLaw, obj: &ObjOf<R>, scope: &str) -> BTreeSet<R::Key> {
+    let mut out = left_in_past(p, obj, scope);
     // a count over the duty holders: a holder whose own end of its stay as a member is in the row's past
-    let duties: Vec<&str> = match &over {
+    let duties: Vec<&str> = match obj {
         Obj::Row(i) => p.get(i).map_or(Vec::new(), |g| g.duties().iter().map(|d| d.as_ref()).collect()),
         Obj::Key(_) => Vec::new(),
     };
     // and a family's founder role ends with any leaving of the key (its member seat, or the founding row) in the
     // row's past, whatever head that row names
-    let role = counted == "founder"
-        && match &over {
+    let role = scope == "founder"
+        && match obj {
             Obj::Row(i) => p.get(i).is_some_and(|g| g.group_kind().is_some_and(|k| k.as_ref() == "family")),
             Obj::Key(_) => false,
         };
-    if !mem.is_empty() && (law.is_duty(counted, &duties) || role) {
-        for k in stay_ended_in_past(p, law, &over) {
-            mem.remove(&k);
-        }
+    if law.is_duty(scope, &duties) || role {
+        out.extend(stay_ended_in_past(p, law, obj));
     }
-    mem
+    out
 }
 
 /// CC 4.5.4: a duty seat is placed only by the founding record, by "the duty holders of C, counted under line

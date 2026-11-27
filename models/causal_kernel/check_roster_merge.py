@@ -64,6 +64,12 @@ F6 = F5 + ("f6",)
 # fewer than M + 1 stated: side A removes f5 (f1..f4), side B: f4 leaves after nb; the fixed roster states f1 f2 f3
 XA5 = ST.unseat("x5", "f1", "f5", "founder", OBJ, "group", ("na",), head=("na",), counted="founder", cosigners=("f2", "f3"))
 WB4b = ST.withdraw("w4", "f4", "g", ("nb",))
+# r76 MG: a self-forked tip. A..D (who signed aE..aG) remove E at aE, and admit Z on it; the honest tip x1 admits H
+GX1 = admit("x1", "H", ("A", "B", "C", "D", "E"), ("aG",))
+GF1 = remove("f1", "E", ("A", "B", "C", "D"), ("aE",))
+GF2 = admit("f2", "Z", ("A", "B", "C", "D", "Z"), ("f1",))
+VOIDT = ROOM + [GX1, GF1, GF2]
+EIGHT = tuple("ABCDEFGH")
 # three tips: side 3 admits N at aG
 X3 = admit("x3", "N", ("A", "B", "C", "F", "G"), ("aG",))
 THREE = ROOM + [X1, X2, X3]
@@ -140,6 +146,22 @@ CASES = [
                                        cosigners=("f2", "f3"), names=("w4",)),
               ST.offer("nz", "f1", "NZ", "node", OBJ, "group", ("mi",), head=("mi",), counted="founder", cosigners=("f2", "f3"))],
      None, {"mi": T, "nz": F}, None, {"founder": ("f1", "f2", "f3")}, None),
+    ("drift, one reading: a founder's own stay-end on the side. On side A f6, seated by the founders' amendment a6 "
+     "(scope record), withdraws it naming no scope, and f5 leaves; the tip's departed founders are the count's own "
+     "reading (count_left, both languages), which reads a6's founder seat: four active founders, at most M (4): a6 "
+     "is stalled and the merge concludes nothing",
+     INFRA + [AM6, ST.withdraw("w6", "f6", "a6", ("a6",)), ST.withdraw("w5", "f5", "g", ("a6",)),
+              dict(IM(tips=("a6", "nb"), founders=F5[:4], signers=F5[:4]), names=("a6", "nb", "w5", "w6"))], None,
+     {"w5": T, "w6": T, "mi": F}, None, None, None),
+    ("MG4: the self-forked tip f1 (A..D, who signed aF and aG, remove E at aE) and f2 built on it: both conclude, and "
+     "both are void for the reader (S'' over what it holds): E stays, Z is not seated", VOIDT, None,
+     {"x1": T, "f1": T, "f2": T}, set(EIGHT), None, None),
+    ("MG5: a merge naming the void tip f2 concludes nothing (f2 is S''-void over the merge row's own past, which holds "
+     "both tips), even stating E", VOIDT + [ST.merge("m", "A", OBJ, ("x1", "f2"), EIGHT + ("Z",), MOD,
+                                                      cosigners=tuple("BCDEFGHZ"))], None, {"m": F}, set(EIGHT), None, None),
+    ("MG6: and one dropping E (the void removal enacted) concludes nothing: E stays, Z is not seated",
+     VOIDT + [ST.merge("m", "A", OBJ, ("x1", "f2"), tuple("ABCDFGHZ"), MOD, cosigners=tuple("BCDFGHZ"))], None,
+     {"m": F}, set(EIGHT), None, None),
     ("tips in each other's past are no merge: x1 and y1", PART + [M("mx", ("x1", "y1"), tuple("ABCDEFGHK"))], None,
      {"mx": F}, None, None, None),
     ("a merge that leaves out a newest tip concludes nothing: x1 and y2 (y1 newer than x1)", PART + [M("mx", ("x1", "y2"))],
@@ -148,7 +170,8 @@ CASES = [
 
 PLANTS = (("merge_over_fold", ST.MUT), ("merge_free_roster", ST.MUT), ("merge_blocked_by_void", "both"),
           ("merge_revives", ST.MUT), ("merge_tip_reader", ST.MUT), ("merge_states_nothing", ST.MUT),
-          ("merge_consent_asked", ST.MUT), ("merge_stalled_signs", ST.MUT), ("merge_word_unread", ST.MUT))
+          ("merge_consent_asked", ST.MUT), ("merge_stalled_signs", ST.MUT), ("merge_word_unread", ST.MUT),
+          ("merge_void_tip", ST.MUT), ("role_left_unread", ST.MUT))
 # (merge_infra_counted is no plant: counted as an admission there, the founders' binding refuses a member-scope count
 # over an infrastructure room anyway, so the explicit refusal is the stated rule and no case can tell them apart)
 

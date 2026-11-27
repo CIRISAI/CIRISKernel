@@ -481,6 +481,9 @@ def merge_concludes(r, P, past):
     acts = [q for q in P if q.get("obj") == obj and q.get("conf") == "group" and q["kind"] in ("offer", "unseat") or q["id"] == obj]
     newest = {q["id"] for q in acts if not any(past(q["id"], x["id"]) for x in acts)}
     if newest != set(tips): return False
+    # a merge naming a tip S''-void over the merge row's OWN past concludes nothing (reader-independent: its past holds
+    # every tip), so its fixed content never enacts a void removal or admission (MUTATION merge_void_tip: it may)
+    if "merge_void_tip" not in MUT and set(tips) & void_changes(r, P): return False
     rr = dict(r, merge=False, scope="member", to=("__merge__",), policy=r.get("policy", "community_invite"))
     if infra:
         if not merge_infra_count(r, P, past, obj, tips): return False
@@ -2834,7 +2837,12 @@ def left_in_past(P, obj, scope="member", past=None):
         t = by.get(w["target"])
         # a withdrawal that names a scope leaves that one seat of the row it withdraws (a founder's duty laid down)
         ts = w["scope"] if w.get("scope") is not None and "scope_unread" not in MUT else t.get("scope") if t else None
-        if t is None or t.get("obj") not in (obj, None) or ts not in (scope, None): continue
+        # a withdrawal naming no scope of an admission (not a founding row) leaves every seat it gives its signer: a
+        # founders' amendment's founder seat (scope `record`), an admission's founder role (MUTATION role_left_unread:
+        # only the row's own scope)
+        role = w.get("scope") is None and t is not None and t["kind"] == "offer" and t.get("obj") != t["id"] and \
+            "role_left_unread" not in MUT and scope in seat_scopes(t, w["signer"])
+        if t is None or t.get("obj") not in (obj, None) or (ts not in (scope, None) and not role): continue
         if (t["kind"] == "accept" and t["signer"] == w["signer"]) or (t["kind"] == "offer" and w["signer"] in t["to"]):
             k = w["signer"]
             if seated_after(P, past, obj, k, w, lambda m: m["scope"] == scope): continue
