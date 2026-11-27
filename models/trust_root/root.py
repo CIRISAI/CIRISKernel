@@ -358,17 +358,16 @@ class Root:
             ko = set().union(*[voices_of(c) & mem for c in other]) if other else set()
             if len(ko - km) > len(km - ko): tv.add(i)
         def close():
-            """Built on: void. A join naming a void predecessor concludes nothing, though it names the line the void
-            one is behind too (MUTATION join_void_prev_spared: such a join stands)."""
+            """Built on: void, but a join. A join is judged by its own count (a strict majority of each named
+            predecessor's live holders) and its payload states its holders, seats and charter outright, so a void
+            predecessor it names does not stop it and is not revived: it heals the fork (MUTATION
+            join_void_prev_blocks: a join naming a void predecessor is void)."""
             changed = True
             while changed:
                 changed = False
                 for c in cs:
                     if c["id"] in tv or not any(p in tv for p in c["prev"]): continue
-                    if "join_void_prev_spared" in MUT and any(
-                            f in self.past(c["id"]) and any(x["id"] in self.past(c["id"]) for x in cs if self.behind(self.by[f], x))
-                            for f in tv):
-                        continue
+                    if len(c["prev"]) >= 2 and "join_void_prev_blocks" not in MUT: continue
                     tv.add(c["id"]); changed = True
         close()
         # two recoveries of one seat, neither in the other's past, are contested: neither replaces the seat until a
@@ -439,8 +438,9 @@ class Root:
     def reader_line(self, rd):
         """The reader's own line: every bundle it acknowledged (they accumulate, in any order), and the bundles void
         for the reader by it: every bundle behind ANY acknowledged bundle, an acknowledged one included, and every
-        bundle built on one, a join included (a join naming a predecessor void for a reader concludes nothing for
-        it). Acknowledging never revives (MUTATION reader_line_unread: nothing is void by the line)."""
+        bundle built on one but a join: a join is behind an acknowledged c only where every predecessor it names is
+        strictly in the past of c's heads, and a void predecessor it names does not stop it (it heals the fork, and
+        revives nothing). Acknowledging never revives (MUTATION reader_line_unread: nothing is void by the line)."""
         valid = self.valid()
         acked = [a for a in rd["acks"] if a in valid]
         if "reader_line_unread" in MUT: return acked, frozenset()
@@ -449,7 +449,8 @@ class Root:
         while changed:
             changed = False
             for i in valid:
-                if i not in out and any(p in out for p in self.by[i]["prev"]):
+                if i not in out and any(p in out for p in self.by[i]["prev"]) \
+                        and (len(self.by[i]["prev"]) < 2 or "join_void_prev_blocks" in MUT):
                     out.add(i); changed = True
         return acked, frozenset(out)
 

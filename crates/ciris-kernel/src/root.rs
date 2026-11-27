@@ -500,7 +500,9 @@ where
         v
     }
 
-    /// Built on: void, a join naming a void predecessor included.
+    /// Built on: void, but a join: a join is judged by its own count (a strict majority of each named predecessor's
+    /// live holders) and its payload states its holders, seats and charter outright, so a void predecessor it names
+    /// does not stop it and is not revived.
     fn close(&self, cs: &[&'a B], tv: &mut BTreeSet<B::Id>) {
         loop {
             let mut changed = false;
@@ -508,7 +510,10 @@ where
                 if tv.contains(c.id()) || !c.prev().iter().any(|p| tv.contains(p)) {
                     continue;
                 }
-                tv.insert(c.id().clone()); // a join naming a void predecessor concludes nothing
+                if c.prev().len() >= 2 {
+                    continue; // a join is judged by its own count, and heals the fork
+                }
+                tv.insert(c.id().clone());
                 changed = true;
             }
             if !changed {
@@ -691,8 +696,9 @@ where
 
     /// The reader's own line: every bundle it acknowledged (they accumulate, in any order), and the bundles void
     /// for the reader by it: every bundle behind ANY acknowledged bundle, an acknowledged one included, and every
-    /// bundle built on one, a join included (a join naming a predecessor void for a reader concludes nothing for
-    /// it). Acknowledging never revives.
+    /// bundle built on one but a join (a join is behind an acknowledged c only where every predecessor it names is
+    /// strictly in the past of c's heads; a void predecessor it names does not stop it). Acknowledging never
+    /// revives.
     pub fn reader_line(&self, rd: &Reader<B::Id, B::Key>) -> (Vec<B::Id>, BTreeSet<B::Id>) {
         let valid: Vec<&'a B> = self.valid();
         let acked: Vec<B::Id> = rd.acks.iter().filter(|a| valid.iter().any(|b| b.id() == *a)).cloned().collect();
@@ -704,7 +710,7 @@ where
         loop {
             let mut changed = false;
             for b in &valid {
-                if !out.contains(b.id()) && b.prev().iter().any(|p| out.contains(p)) {
+                if !out.contains(b.id()) && b.prev().len() < 2 && b.prev().iter().any(|p| out.contains(p)) {
                     out.insert(b.id().clone());
                     changed = true;
                 }

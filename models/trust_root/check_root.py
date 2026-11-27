@@ -202,12 +202,13 @@ CASES = [
      + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2", "h3"), version=2, charter=C3),
         nxt("k", ("j1", "j2", "j3"), ("h1", "h2", "h3"), ("h1", "h2"), version=3)], (), (), RD(anchor="b0", acks=("k",)),
      {"concluded": {"k": T}, "void": set(), "heads": ("k",), "holders": {"h1", "h2", "h3"}}),
-    ("join", "a join concurrent with an ordinary amend on one tip (a on s1, adding h6): no contest, but for a reader "
-             "that acknowledged a, s2 is behind its line (s2 names b0, strictly in the past of a's head s1), and the "
-             "join naming s2 concludes nothing for it: the reader holds a",
+    ("join", "a join concurrent with an ordinary amend on one tip (a on s1, adding h6): for a reader that "
+             "acknowledged a, s2 is behind its line (s2 names b0, strictly in the past of a's head s1), but the join "
+             "is judged by its own heads (s1 is a's head, not strictly in its past): not behind, and acknowledgeable; "
+             "the reader folds a and j1",
      FORK + [nxt("j1", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2", "h3"), version=2),
              nxt("a", "s1", H3 + ("h4", "h6"), ("h1", "h2", "h4"), version=2)], (), (),
-     RD(anchor="b0", acks=("j1", "a")), {"void": set(), "heads": ("a",), "holders": {"h1", "h2", "h3", "h4", "h6"}}),
+     RD(anchor="b0", acks=("j1", "a")), {"void": set(), "heads": ("a", "j1"), "holders": {"h1", "h2", "h3", "h4", "h5", "h6"}}),
     ("join", "the same join read by a reader that acknowledged only j1: j1 and its holders", FORK + [
         nxt("j1", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2", "h3"), version=2),
         nxt("a", "s1", H3 + ("h4", "h6"), ("h1", "h2", "h4"), version=2)], (), (),
@@ -381,12 +382,13 @@ CASES += [
      {"concluded": {"j": Fa}, "void": {"rc2"}, "heads": ("b0",)}),
     ("attack", "RS3: a third recovery at b0: void too", SL + [SRC2, SJ, SRC3], (), (), RD(anchor="b0", acks=("b3",)),
      {"void": {"rc2", "rc3"}, "heads": ("b3",)}),
-    ("attack", "a join naming a void predecessor concludes nothing, though it names the line the void one is behind "
-               "too: s1 (void by T) and b2, joined by majorities of both", [B0, nxt("s1", "b0", H3 + ("h8", "h9"), ("h1", "h2")),
+    ("attack", "a join naming a self-forked (S'') predecessor: s1 (void by T) and b2, joined by majorities of both; "
+               "the counts decide: the join stands, its payload states its holders outright, and s1 stays void", [B0, nxt("s1", "b0", H3 + ("h8", "h9"), ("h1", "h2")),
                                                                          nxt("b1", "b0", H3 + ("h4",), ("h1", "h2", "h3")),
       nxt("b2", "b1", H3 + ("h4", "h5"), ("h1", "h2", "h4"), version=2),
       nxt("m", ("b2", "s1"), H3 + ("h4", "h5", "h8", "h9"), ("h1", "h2", "h3", "h8", "h9"), version=3)], (), (),
-     RD(anchor="b0", acks=("m",)), {"concluded": {"m": T}, "void": {"s1", "m"}, "heads": ("b0",)}),
+     RD(anchor="b0", acks=("m",)), {"concluded": {"m": T}, "void": {"s1"}, "heads": ("m",),
+                                    "holders": {"h1", "h2", "h3", "h4", "h5", "h8", "h9"}}),
     ("attack", "a recovery is not exempt from S'': h3 signed b1 and b2, then its recovery key recovers it at b0; behind "
                "b2, self-forked, and by T (h1 and h2 built only on b1 and b2) void", [B0, XB1, XB2, XRC], (), (),
      RD(anchor="b0", acks=("b2", "rx")), {"void": {"rx"}, "heads": ("b2",)}),
@@ -398,11 +400,11 @@ CASES += [
      RD(anchor="b0", acks=("ra", "b2")), {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
     ("attack", "RJ0 by a reader that acknowledged b2 first: ra is behind its line, void for it", RL + [RA], (), (),
      RD(anchor="b0", acks=("b2", "ra")), {"heads": ("b2",)}),
-    ("attack", "a join naming a predecessor void for the reader concludes nothing for it: jx joins b2 and ra by "
-               "majorities of both, and a reader at b2 acknowledging jx after b2 stays at b2",
+    ("attack", "a join heals the fork: jx joins b2 and ra by majorities of both; for a reader at b2 ra is void, but "
+               "jx (naming b2, the reader's own newest) is not behind, and the reader that acknowledges it holds jx",
      RL + [RA, nxt("jx", ("b2", "ra"), ("h3", "h4", "h1x"), ("h3", "h4", "h1x"), version=3,
                    recovery={"h3": "r:h3", "h4": "r:h4", "h1x": "r:h1x"})], (), (), RD(anchor="b0", acks=("b2", "jx")),
-     {"concluded": {"jx": T}, "heads": ("b2",)}),
+     {"concluded": {"jx": T}, "heads": ("jx",), "holders": {"h3", "h4", "h1x"}}),
     ("attack", "RJ1 with ra under a different charter: h3 alone joins b2 and ra; one of b2's three: refused (only the "
                "per-predecessor count closes this cheap-tip shape)",
      RL + [dict(RA, charter=C1), nxt("jx", ("b2", "ra"), ("h3",), ("h3",), version=3, charter=C1, recovery={"h3": "r:h3"})],
@@ -525,7 +527,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "charter_folds", "anchor_unread", "inforce_global", "root_sf_unread", "root_t_unread",
           "grant_count_unread", "grant_charter_unread", "grant_scope_unread", "recovery_fork_both", "joins_fork_both",
           "grant_head_unread", "join_common_base", "recovery_exempt", "recovery_t_unread",
-          "join_void_prev_spared", "grant_antichain_unread", "regime_reads_commitments", "reader_line_unread",
+          "join_void_prev_blocks", "grant_antichain_unread", "regime_reads_commitments", "reader_line_unread",
           "rotation_outlives_seat", "retired_unread", "join_prev_unread", "cosign_unread")
 
 
