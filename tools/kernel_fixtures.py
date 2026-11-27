@@ -726,22 +726,27 @@ def dissolved_cases(AC):
 # ---- resignation: the wrap set over every set of check_resignation.py's rows ---------------------------------------
 def resignation_cases():
     """check_resignation.py: who may read the room (the wrap set: Seats.holders over the fold, less the held ends of a
-    seat), the whole roster and the dissolution, for each hand-written case and every set of rows the check reads."""
+    seat), the whole roster and the dissolution, for each hand-written case and every set of rows the check reads, in
+    its two rooms: `member` (a community; the roster) and `holder` (an accord's holders, no roster seat)."""
     import seat as ST
     import check_resignation as RS
     out = []
+    for room in RS.ROOMS:
+        RS.use(room)
 
-    def one(name, rows):
-        S = RS.state(rows)
-        Q = ST.Seats(S)
-        refs = {}
-        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "c": [S.C[r["id"]] for r in S.rows],
-                    "wrap": sorted(RS.wrap(S)), "roster": sorted(Q.roster(RS.OBJ)), "dissolved": Q.dissolved(RS.OBJ)})
-    for name, rows, *_ in RS.CASES:
-        one(name, rows)
-    for rows in RS.sets():
-        one("rows " + " ".join(r["id"] for r in rows), rows)
-    return {"obj": RS.OBJ, "scope": RS.SC, "cases": out}
+        def one(name, rows):
+            S = RS.state(rows)
+            Q = ST.Seats(S)
+            refs = {}
+            out.append({"room": room, "scope": RS.SC, "name": name, "rows": with_refs(rows, refs), "refs": refs,
+                        "c": [S.C[r["id"]] for r in S.rows], "wrap": sorted(RS.wrap(S)),
+                        "roster": sorted(Q.roster(RS.OBJ)), "dissolved": Q.dissolved(RS.OBJ)})
+        for name, rows, *_ in RS.CASES:
+            one(name, rows)
+        for rows in RS.sets():
+            one("rows " + " ".join(r["id"] for r in rows), rows)
+    RS.use("member")
+    return {"obj": RS.OBJ, "cases": out}
 
 
 def acts_cases():

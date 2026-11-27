@@ -2,7 +2,8 @@
 //! the tips less every member whose own end of its seat the node holds, at once and with no counted row
 //! (CC 2.4.1.1). Replayed from `models/causal_kernel/check_resignation.py` (fixture `resignation.json`): its
 //! hand-written cases and every set of its rows, each with the rows that conclude, the wrap set, the room's whole
-//! roster (`Seats::roster`) and its dissolution (`Seats::dissolved`).
+//! roster (`Seats::roster`) and its dissolution (`Seats::dissolved`), in two rooms: `member`, a community whose
+//! roster is the wrap set (what a store reads), and `holder`, an accord's holders, a seat that is no roster seat.
 
 mod common;
 use ciris_kernel::layers::{conclude, kept};
@@ -14,10 +15,10 @@ use std::collections::BTreeMap;
 fn wrap_set_replay() {
     let fx = fixture("resignation.json");
     let law = law_of(fixture("seat.json").at("law"));
-    let (obj, scope) = (Obj::Row(fx.at("obj").s().to_string()), fx.at("scope").s());
+    let obj = Obj::Row(fx.at("obj").s().to_string());
     let (mut cases, mut bad) = (0, 0);
     for c in fx.at("cases").arr() {
-        let name = c.at("name").s();
+        let (name, scope) = (c.at("name").s(), c.at("scope").s());
         let refs: BTreeMap<String, String> =
             c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
         let rows = rows_with_refs(c.at("rows").arr(), &refs);
@@ -37,6 +38,10 @@ fn wrap_set_replay() {
         cmp(wrap == c.at("wrap").strs(), format!("wrap set {wrap:?}"));
         let roster = sorted_ids(&q.roster(&obj));
         cmp(roster == c.at("roster").strs(), format!("roster {roster:?}"));
+        // in the community, persist's read: the roster is the wrap set
+        if c.at("room").s() == "member" {
+            cmp(roster == wrap, format!("roster {roster:?} is not the wrap set {wrap:?}"));
+        }
         cmp(q.dissolved(&obj) == c.at("dissolved").b(), format!("dissolved {}", q.dissolved(&obj)));
     }
     report("the wrap set against check_resignation.py", cases, bad);

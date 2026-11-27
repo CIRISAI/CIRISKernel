@@ -16,7 +16,10 @@ cases, planted breaks and the run's `keys` histories). **BREAKING**: `content::K
 
 **The wrap set is replayed by the crate** (`tests/resignation.rs`, fixture `resignation.json`): who may read a room,
 `Seats::holders` over the fold of the tips less every member whose own end of its seat is held, with
-`Seats::roster` and `Seats::dissolved`, for `check_resignation.py`'s 8 cases and every one of its 152 sets of rows.
+`Seats::roster` and `Seats::dissolved`, for `check_resignation.py`'s 8 cases and every one of its 152 sets of rows,
+in two rooms: a community whose members sit in scope `member` (the roster a store reads: there the roster is the
+wrap set and `Seats::dissolved` is the check's own reading, in every set) and an accord's holders (scope `holder`, no
+roster seat).
 Crate plant: a held withdrawal unread (the reference's `wrap_by_roster`: a resigner stays wrapped until a count cites
 it).
 
