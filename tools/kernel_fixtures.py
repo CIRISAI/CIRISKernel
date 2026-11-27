@@ -325,7 +325,7 @@ def seat_cases():
     rules = {id(A.SEAT): "seat", id(A.WIN): "window", id(A.ROUTE): "route"}
     seen, scen, skipped = {}, [], {"rules": 0}
 
-    def record(rows, rule, asks=None, table=None, readers=(), closed=None, founders=()):
+    def record(rows, rule, asks=None, table=None, readers=(), closed=None, founders=(), in_force=()):
         """`asks`: (key, scope, object) the scenario also states `stands` for. `table`: read under another HOLDS
         (check_duty_seats.py's `persist`); the scenario then carries its own `holds`. `readers`: the readers it is
         also read for. `closed`: a seating whose
@@ -334,13 +334,14 @@ def seat_cases():
         if name is None:
             skipped["rules"] += 1
             return
-        key = (name, table, closed, tuple(founders), json.dumps([row_enc(r) for r in rows], sort_keys=True))
+        key = (name, table, closed, tuple(founders), tuple(in_force), json.dumps([row_enc(r) for r in rows], sort_keys=True))
         if key not in seen:
             seen[key] = len(scen)
-            scen.append((name, list(rows), list(asks or ()), table, tuple(readers), closed, tuple(founders)))
+            scen.append((name, list(rows), list(asks or ()), table, tuple(readers), closed, tuple(founders),
+                         tuple(in_force)))
         elif readers:                                # the same rows named again with a reader: read it too
-            n, r0, a0, t0, rd, cl, fo = scen[seen[key]]
-            scen[seen[key]] = (n, r0, a0, t0, tuple(sorted(set(rd) | set(readers))), cl, fo)
+            n, r0, a0, t0, rd, cl, fo, inf = scen[seen[key]]
+            scen[seen[key]] = (n, r0, a0, t0, tuple(sorted(set(rd) | set(readers))), cl, fo, inf)
 
     orig_conc = A.conc
 
@@ -379,6 +380,10 @@ def seat_cases():
     import check_charter as CHC
     for _name, rows, _concl, asks in CHC.COUNTERSIGN:
         record(rows, A.SEAT, [(k, "member", o) for k, o, _ in asks])
+    # a duty holder's lone acts and their ways back: check_lone_acts.py's cases, under the window rule
+    import check_lone_acts as LA
+    for _name, rows, _concl, force in LA.CASES:
+        record(rows, A.WIN, in_force=sorted(force))
     for _name, rows, asks in ACT.FOUNDERS:
         record(rows, A.SEAT, founders=[(k, ACT.OBJ, at) for k, at, _ in asks])
     for _name, rows, asks, *own in ACT.TIPS:
@@ -443,7 +448,7 @@ def seat_cases():
         record(rows, A.SEAT)
     rulefn = {"seat": A.SEAT, "window": A.WIN, "route": A.ROUTE}
     problems, out = [], []
-    for i, (name, rows, asks, tab, rdrs, closed, founders) in enumerate(scen):
+    for i, (name, rows, asks, tab, rdrs, closed, founders, in_force) in enumerate(scen):
         check_rows(rows, problems, "scenario %d" % i)
         with DS.table(tab):
             S = CK.concluded(CK.kept(list(rows)), rulefn[name])
@@ -458,6 +463,8 @@ def seat_cases():
                 e["closed"] = [closed, EL.closed(rows, closed)]
             if founders:
                 e["founder"] = [[k, o, at, ST.is_founder(S, k, o, at)] for k, o, at in founders]
+            if in_force:
+                e["in_force"] = [[a, ST.act_in_force(S, a)] for a in in_force]
         out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "community_floor": ST.COMMUNITY_FLOOR, "removal_floor": ST.REMOVAL_FLOOR,

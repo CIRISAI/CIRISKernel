@@ -175,13 +175,13 @@ plant "an ordered pair read as mutual" src/seat.rs '(0..n).map(|i| (0..n).filter
 plant "an act decided before an earlier act in its past (cascade through an ordered pair)" src/seat.rs '(0..n).map(|i| (0..n).filter(|&j| dep(i, j) && !after[i].contains(&j)).collect()).collect();' '(0..n).map(|i| (0..n).filter(|&j| dep(i, j) && !g.in_past(acts[j], acts[i])).collect()).collect();'
 plant "the remover left in the count's receipt's base" src/seat.rs '    mem.remove(xr.signer());
     let mut v = voices(qr, &p);' '    let mut v = voices(qr, &p);'
-plant "a mutual pair decided one then the other" src/seat.rs '                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &ex, &lone);' '                let ex: BTreeSet<usize> =
+plant "a mutual pair decided one then the other" src/seat.rs '                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &ex, &lone, "moderate");' '                let ex: BTreeSet<usize> =
                     ex.iter().copied().chain(got.iter().filter(|(_, v)| !*v).map(|(j, _)| acts[*j])).collect();
                 let drop2: BTreeSet<R::Id> = ex.iter().map(|&y| g.row(y).id().clone()).collect();
                 let now = nows
                     .entry(drop2.clone())
                     .or_insert_with(|| Seats::build(c, law, spec, own, Some(&drop2), Some(cache)));
-                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &ex, &lone);'
+                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &ex, &lone, "moderate");'
 plant "the count's receipt read by its row's policy" src/seat.rs '    // the members'"'"' check of one member'"'"'s act, whatever policy or need the row states
     room_count(yes, mem.len())' '    met(law.policy_of(qr.policy().map(|w| w.as_ref())), yes, mem.len(), qr.need())'
 plant "the members' check with no floor of two"     src/seat.rs '    2 * yes > base && yes >= 2' '    2 * yes > base'
@@ -212,9 +212,7 @@ plant "a deputy's edges not passed to conferral" src/standing.rs '(self.kind == 
 plant "a root edge by a key that is not the grantee" src/standing.rs 'if (grant.role)(x.signer()) != Role::Grantee {' 'if false {'
 plant "two owners read on the deputy's act, not its root edge" src/standing.rs 'Ok(Ok((e, b))) => match two_owners(e, b, rows, past) {' 'Ok(Ok((_e, b))) => match two_owners(x, b, rows, past) {'
 plant "two live owners still give an owner"          src/standing.rs 'Ok(true) => drop(out.insert(x.id().clone(), Answer::Nobody(Nobody::TwoOwners))),' 'Ok(true) => at.push((x, b)),'
-plant "a remover seated again revives its removal"   src/seat.rs '    if now.stands(m, "moderate", &obj, None)
-        && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s))' '    if now.stands(m, "moderate", &obj, None)
-        && (standing.is_empty() || !live.is_empty() || !ended.is_empty())'
+plant "a remover seated again revives its removal"   src/seat.rs 'if now.stands(m, scope, &obj, None) && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s)) {' 'if now.stands(m, scope, &obj, None) && (standing.is_empty() || !live.is_empty() || !ended.is_empty()) {'
 plant "a lone removal reaches a key with no agent's seat (a re-seating then admits a key never seated)" src/seat.rs 'if !agent || !members_at_with(p, law, spec, &obj, r.head(), AGENT, cache).contains(&r.to()[0]) {' 'if !agent {'
 plant "an election's tie broken by list order"         src/ranked.rs 'back: if declared { -(index(o) as i64) } else { 0 }' 'back: -(index(o) as i64)'
 plant "a version counts though what it builds on does not" src/line.rs 'if builds_on(i).iter().all(|e| out.contains(e)) {' 'if true {'
@@ -249,9 +247,7 @@ plant "a withdrawal's scope unread (laying down a duty ends every seat)" src/sea
 plant "a roster cut ends duty seats of a key that holds no such seat" src/seat.rs '                            && oo.as_ref().is_some_and(|x| holds_roster(c, law, u, k, x))));' '                            && oo.is_some()));'
 plant "a withdrawal naming a roster scope ends the stay whatever its target gives" src/seat.rs '            || !seat_scopes(t, k, signed_by(t, k)).iter().any(|s| s.s() == ws.as_ref())
 ' ''
-plant "E7 read from any standing now" src/seat.rs '        && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s))
-    {' '        && !standing.is_empty() && !live.is_empty() && !ended.is_empty() && false
-    {'
+plant "E7 read from any standing now" src/seat.rs 'if now.stands(m, scope, &obj, None) && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s)) {' 'if now.stands(m, scope, &obj, None) && !standing.is_empty() && !live.is_empty() && !ended.is_empty() && false {'
 plant "a removal the count carries is read as a lone act" src/seat.rs '&& !count_met(&p, law, spec, Some(cache))' ''
 plant "room-key finality unread (a removed room key seated again)" src/seat.rs 'if !row_of(by, &obj).is_some_and(|g| community(by, &obj) && g.private_room()) {' 'if true {'
 plant "room-key finality reaches a public room" src/seat.rs '|g| community(by, &obj) && g.private_room())' '|_| community(by, &obj))'
@@ -555,12 +551,20 @@ plant "the official read from the founding record"   src/seat.rs '    if vs.is_e
         return alloc::vec![g];' '    if true {
         return alloc::vec![g];'
 plant "an overseer's review seat not read"           src/seat.rs 'members_at_with(p, law, spec, &body, &heads, "review", None).contains(k)' 'false && members_at_with(p, law, spec, &body, &heads, "review", None).contains(k)'
-plant "a body of two seats removes on one voice"     src/seat.rs 'seats.len() == 1 || vs.iter().filter(|k| !r.to().contains(k)).count() >= 2' 'seats.len() == 1 || vs.iter().filter(|k| !r.to().contains(k)).count() >= 1'
+plant "a body of two seats removes on one voice"     src/seat.rs 'seats.len() == 1 || vs.iter().filter(|k| !targets.contains(*k)).count() >= 2' 'seats.len() == 1 || vs.iter().filter(|k| !targets.contains(*k)).count() >= 1'
 plant "an agent's duty with no owner's signature"   src/seat.rs 'if on[j] && held[j] && (!member || (agent && !bound(oi, k))) {' 'if on[j] && held[j] && (!member || (agent && false && !bound(oi, k))) {'
 plant "two owners of an agent's key read as one"     src/seat.rs 'let one = ws.iter().all(|(w, _)| *w == ws[0].0);' 'let one = true;'
 plant "officer_from_founders: the deciding seats read as the members" src/seat.rs '    members_at_with(p, law, spec, obj, heads, OFFICER, None)' '    members_at_with(p, law, spec, obj, heads, "member", None)'
 plant "affiliation_body_members: an affiliation's protocol counted over its members" src/seat.rs '    } else if affiliation {' '    } else if false && affiliation {'
 plant "no_officer_locks: an affiliation with no officer keeps its seats" src/seat.rs '        if !ended.is_empty() {' '        if false && !ended.is_empty() {'
+plant "lone_act_counted: any member's lone act concludes" src/seat.rs '        && members_at_with(p, law, spec, &obj, heads, duty, None).contains(r.signer())' '        && members_at_with(p, law, spec, &obj, heads, "member", None).contains(r.signer())'
+plant "lone_act_cosigned: a cosigned lone act concludes" src/seat.rs '        && signers(r).len() == 1' '        && !signers(r).is_empty()'
+plant "lone_act_end_unread: a lone act outlives its signer's standing" src/seat.rs '        if !removal_in_force(c, i, law, spec, &by, &unseats, &now, &cache, &BTreeSet::new(), &BTreeSet::new(), duty) {' '        if false && !removal_in_force(c, i, law, spec, &by, &unseats, &now, &cache, &BTreeSet::new(), &BTreeSet::new(), duty) {'
+plant "lone_act_lift_unread: the members' lift of a lone act not read" src/seat.rs '        if !lifted.is_empty() {' '        if false && !lifted.is_empty() {'
+plant "reconsideration_unread: a reversal keeps the takedown" src/seat.rs '            if !reversed.is_empty() {' '            if false && !reversed.is_empty() {'
+plant "release_unread: a release naming a withhold lifts nothing" src/seat.rs '        if releases.iter().any(|&j| act_in_force(c, law, spec, g.row(j).id(), own)) {' '        if false && releases.iter().any(|&j| act_in_force(c, law, spec, g.row(j).id(), own)) {'
+plant "unproven_fires: a not_proven verdict fires" src/seat.rs '    if r.seat_kind() == SeatKind::Slashing && r.outcome().is_none_or(|o| o.as_ref() != "proven_rogue") {' '    if false && r.seat_kind() == SeatKind::Slashing {'
+plant "a one-officer affiliation's lone act decided without a countersign" src/seat.rs '            if !cs.iter().any(|&ci| wd.iter().all(|&w| g.in_past(ci, w))) {' '            if false && !cs.iter().any(|&ci| wd.iter().all(|&w| g.in_past(ci, w))) {'
 plant "an act naming the end still counts"            src/conferral.rs 'return Ok((false, false, Rule::NamesEnd));' 'return Ok((true, false, Rule::NamesEnd));'
 plant "the grantee receipts its own act"              src/conferral.rs 'Role::Grantee | Role::Other => Ok(false),' 'Role::Grantee | Role::Other => Ok(true),'
 plant "a receipt after the end keeps the act"         src/conferral.rs 'Ok(!self.key_cut(q)? && self.eligible(q, e)? && !self.past.in_past(e.id(), q.id())?)' 'Ok(!self.key_cut(q)? && self.eligible(q, e)?)'

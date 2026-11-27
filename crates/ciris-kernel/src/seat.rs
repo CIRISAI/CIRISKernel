@@ -142,6 +142,17 @@ pub enum SeatKind {
     /// the deciding seat: the designated official ([`SeatRow::official`]) or a review holder of the overseeing body
     /// ([`SeatRow::overseen_by`]). CC 4.4.3.12.
     Countersign,
+    /// A quarantine marker (`quarantine:{state}`, CC 3.1.9.2) of a key ([`SeatRow::target_key`]): state `withhold`,
+    /// or `release` naming ([`SeatRow::of`]) the withhold it lifts. A lone act of a `slash` holder.
+    Quarantine,
+    /// A slashing verdict (`slashing:{outcome}`) about a key ([`SeatRow::target_key`]): `proven_rogue` or
+    /// `not_proven` ([`SeatRow::outcome`]); it fires only on a proven ground. A lone act of a `slash` holder.
+    Slashing,
+    /// A takedown notice of a content row ([`SeatRow::of`]). A lone act of a `takedown` holder.
+    TakedownNotice,
+    /// A `reconsideration:{grounds}` row naming ([`SeatRow::of`]) a takedown notice, with its
+    /// [`SeatRow::outcome`] (`reversed` takes the takedown down). A lone act of a `review` holder (CC 4.5.5).
+    Reconsideration,
     /// Anything else.
     Other,
 }
@@ -225,6 +236,18 @@ pub trait SeatRow: Row {
     /// countersign. **The field's name is the Constitution's to give**: this accessor is the one place it is read.
     /// Default `None`.
     fn overseen_by(&self) -> Option<&Self::Id> {
+        None
+    }
+    /// A quarantine marker's state (`withhold`, `release`). Default `None`.
+    fn state(&self) -> Option<&Self::Word> {
+        None
+    }
+    /// A slashing verdict's or a reconsideration's outcome. Default `None`.
+    fn outcome(&self) -> Option<&Self::Word> {
+        None
+    }
+    /// The key a quarantine marker or a slashing verdict is about. Default `None`.
+    fn target_key(&self) -> Option<&Self::Key> {
         None
     }
     /// A group's record: `consensus_protocol_entrenched`, or `None` where the row states none (a change that
@@ -798,6 +821,15 @@ pub fn act_of<'r, R: SeatRow + 'r>(
     match kind {
         CommunityKind::Community => {
             if offer {
+                // the lift of a duty holder's lone act (quarantine, slash, takedown): an offer of scope `act` naming it
+                if offer
+                    && sc == Some("act")
+                    && r.content()
+                        .and_then(get)
+                        .is_some_and(|c| lone_act_duty(c.seat_kind()).is_some() && c.obj().as_ref() == Some(&obj))
+                {
+                    return Some((Act::Lift, ScopeClass::Act, kind));
+                }
                 let lift = r.content().and_then(get).is_some_and(|c| {
                     c.seat_kind() == SeatKind::Unseat
                         && c.obj().as_ref() == Some(&obj)
@@ -1306,6 +1338,205 @@ pub fn affiliation_removal<'r, R: SeatRow + 'r>(law: &SeatLaw, get: &dyn Fn(&R::
         && r.obj().is_some_and(|obj| kind_of(law, get, &obj) == Some(CommunityKind::Affiliation))
 }
 
+/// The duty that authorises a duty holder's lone act against a key or content (CC 4.5.5; CC 3.1.9.2): `slash` for a
+/// quarantine marker and a slashing verdict (there is no quarantine duty), `takedown` for a takedown notice; `None`
+/// for any other row.
+pub fn lone_act_duty(k: SeatKind) -> Option<&'static str> {
+    match k {
+        SeatKind::Quarantine | SeatKind::Slashing => Some("slash"),
+        SeatKind::TakedownNotice => Some("takedown"),
+        _ => None,
+    }
+}
+
+/// The keys an act is against: a quarantine marker's or a slashing verdict's key; a takedown notice's content row's
+/// signer (the member whose content it takes down); an unseat's `to`.
+fn act_targets<'r, R: SeatRow + 'r>(r: &R, get: &dyn Fn(&R::Id) -> Option<&'r R>) -> BTreeSet<R::Key> {
+    match r.seat_kind() {
+        SeatKind::Quarantine | SeatKind::Slashing => r.target_key().into_iter().cloned().collect(),
+        SeatKind::TakedownNotice => r.of().and_then(get).map(|c| c.signer().clone()).into_iter().collect(),
+        _ => r.to().iter().cloned().collect(),
+    }
+}
+
+/// One of the four acts against a member of an affiliation (CC 4.4.3.12): a removal, a quarantine marker, a slashing
+/// verdict, a takedown of the member's content (the three new acts' affiliation rows are held in code until the
+/// table has them).
+fn against_member<'r, R: SeatRow + 'r>(law: &SeatLaw, get: &dyn Fn(&R::Id) -> Option<&'r R>, r: &R) -> bool {
+    affiliation_removal(law, get, r)
+        || (lone_act_duty(r.seat_kind()).is_some()
+            && r.obj().is_some_and(|obj| kind_of(law, get, &obj) == Some(CommunityKind::Affiliation)))
+}
+
+/// Whether a quarantine marker, a slashing verdict or a takedown notice (`p.row()`) concludes: its shape holds (a
+/// marker's state `withhold` or `release`, a release naming the withhold of the same key it lifts; a verdict's
+/// outcome `proven_rogue` or `not_proven`; a takedown naming a content row in its past), it names the newest
+/// counted changes over its room in its past, and: in a community it is ONE duty holder's signature, of the duty
+/// that authorises it ([`lone_act_duty`]), never counted; in an affiliation it is the body's act over its officers
+/// (one officer makes it a proposal: [`act_in_force`] asks for a countersign).
+fn lone_act_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> bool {
+    let r = p.row();
+    let k = r.seat_kind();
+    let Some(duty) = lone_act_duty(k) else { return false };
+    let Some(obj) = r.obj() else { return false };
+    let is = |w: Option<&R::Word>, xs: &[&str]| w.is_some_and(|w| xs.contains(&w.as_ref()));
+    match k {
+        SeatKind::Quarantine => {
+            if !is(r.state(), &["withhold", "release"]) || r.target_key().is_none() {
+                return false;
+            }
+            if is(r.state(), &["release"]) {
+                let Some(w) = r.of().and_then(|i| p.get(i)) else { return false };
+                if w.seat_kind() != SeatKind::Quarantine
+                    || !is(w.state(), &["withhold"])
+                    || w.target_key() != r.target_key()
+                    || w.obj() != r.obj()
+                {
+                    return false;
+                }
+            }
+        }
+        SeatKind::Slashing => {
+            if !is(r.outcome(), &["proven_rogue", "not_proven"]) || r.target_key().is_none() {
+                return false;
+            }
+        }
+        _ => {
+            if r.of().and_then(|i| p.get(i)).is_none() {
+                return false;
+            }
+        }
+    }
+    let heads = r.head();
+    if heads.is_empty() || newer_head_in_past(p, law, &obj, heads, &signers(r)) {
+        return false;
+    }
+    if kind_of(law, &|i: &R::Id| p.get(i), &obj) == Some(CommunityKind::Affiliation) {
+        return affiliation_count(p, law, spec);
+    }
+    let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
+    community(&by, &obj)
+        && signers(r).len() == 1
+        && members_at_with(p, law, spec, &obj, heads, duty, None).contains(r.signer())
+}
+
+/// Whether a `reconsideration` row (`p.row()`) concludes: one `review` holder's signature at the newest counted
+/// changes in its past, naming a takedown notice in its past (CC 4.5.5).
+fn reconsideration_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> bool {
+    let r = p.row();
+    let Some(t) = r.of().and_then(|i| p.get(i)) else { return false };
+    let Some(obj) = t.obj() else { return false };
+    let heads = r.head();
+    t.seat_kind() == SeatKind::TakedownNotice
+        && !heads.is_empty()
+        && !newer_head_in_past(p, law, &obj, heads, &signers(r))
+        && members_at_with(p, law, spec, &obj, heads, "review", None).contains(r.signer())
+}
+
+/// Whether act `act` (a quarantine marker, a slashing verdict or a takedown notice; any other row: whether it
+/// concluded) is in force for reader `own` over `c`. A lone act of a community: concluded and not behind the
+/// reader's line; in force by the end rule ([`removal_in_force`] read for its duty: its signer's standing live, or
+/// another duty holder's receipt keeping it); not lifted by the members (a lift counted for the reader, an offer of
+/// scope `act` naming it under `moderation_overturn`); a takedown not reversed by a concluded `reconsideration`
+/// naming it; a quarantine withhold not lifted by a release in force that names it (a withhold outranks a release
+/// whatever their instants); a slashing verdict fires only on a proven ground (`not_proven`: `false`). In an
+/// affiliation the act is the body's, over its officers; with one officer it is decided only by a countersign
+/// naming it, and a concurrent withdrawal by the acting seat leaves nothing decided (rule 4).
+pub fn act_in_force<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    act: &R::Id,
+    own: Option<&R::Key>,
+) -> bool {
+    let g = &c.g;
+    let Some(i) = g.idx(act) else { return false };
+    if !c.concluded(i) {
+        return false;
+    }
+    let r = g.row(i);
+    let Some(duty) = lone_act_duty(r.seat_kind()) else { return true };
+    let q = Seats::new(c, law, spec, own);
+    if q.stale().contains(&i) {
+        return false;
+    }
+    let Some(obj) = r.obj() else { return false };
+    let counts = |j: usize| q.cut().counts(j) && !q.stale().contains(&j);
+    let held = |pick: &dyn Fn(&R) -> bool| c.cs().iter().copied().filter(|&j| counts(j) && pick(g.row(j))).collect();
+    let anc: Vec<usize> = c.cs().iter().copied().filter(|&j| g.in_past(j, i)).collect();
+    let p = Past::new(g, i, &anc);
+    if kind_of(law, &|x: &R::Id| p.get(x), &obj) == Some(CommunityKind::Affiliation) {
+        if needs_countersign(&p, law, spec) {
+            let wd: Vec<usize> = c
+                .cs()
+                .iter()
+                .copied()
+                .filter(|&w| {
+                    let wr = g.row(w);
+                    wr.seat_kind() == SeatKind::Withdraw && wr.target() == Some(act) && wr.signer() == r.signer()
+                })
+                .collect();
+            let cs: Vec<usize> = held(&|x: &R| x.seat_kind() == SeatKind::Countersign && x.of() == Some(act));
+            if !cs.iter().any(|&ci| wd.iter().all(|&w| g.in_past(ci, w))) {
+                return false;
+            }
+        }
+    } else {
+        let by: BTreeMap<&R::Id, &R> = g.rows().iter().map(|x| (x.id(), *x)).collect();
+        let unseats: Vec<(usize, Option<ObjOf<R>>)> = c
+            .cs()
+            .iter()
+            .copied()
+            .filter(|&u| g.row(u).seat_kind() == SeatKind::Unseat && counts(u))
+            .map(|u| (u, g.row(u).obj()))
+            .collect();
+        let cache = MembersAt::<R>::default();
+        let now = Seats::build(c, law, spec, own, None, Some(&cache));
+        if !removal_in_force(c, i, law, spec, &by, &unseats, &now, &cache, &BTreeSet::new(), &BTreeSet::new(), duty) {
+            return false;
+        }
+        let lifted: Vec<usize> = held(&|x: &R| {
+            x.seat_kind() == SeatKind::Offer
+                && x.scope().is_some_and(|s| s.as_ref() == "act")
+                && x.content() == Some(act)
+                && x.conf() == Some(Conf::Group)
+        });
+        if !lifted.is_empty() {
+            return false;
+        }
+        if r.seat_kind() == SeatKind::TakedownNotice {
+            let reversed: Vec<usize> = held(&|x: &R| {
+                x.seat_kind() == SeatKind::Reconsideration
+                    && x.of() == Some(act)
+                    && x.outcome().is_some_and(|o| o.as_ref() == "reversed")
+            });
+            if !reversed.is_empty() {
+                return false;
+            }
+        }
+    }
+    if r.seat_kind() == SeatKind::Quarantine && r.state().is_some_and(|s| s.as_ref() == "withhold") {
+        let releases: Vec<usize> = c
+            .cs()
+            .iter()
+            .copied()
+            .filter(|&j| {
+                let x = g.row(j);
+                x.seat_kind() == SeatKind::Quarantine
+                    && x.state().is_some_and(|s| s.as_ref() == "release")
+                    && x.of() == Some(act)
+            })
+            .collect();
+        if releases.iter().any(|&j| act_in_force(c, law, spec, g.row(j).id(), own)) {
+            return false;
+        }
+    }
+    if r.seat_kind() == SeatKind::Slashing && r.outcome().is_none_or(|o| o.as_ref() != "proven_rogue") {
+        return false;
+    }
+    true
+}
+
 /// The newest versions of `obj`'s record among `p`'s rows (its counted changes of scope `record`), or its founding
 /// row where there is none. Each version is a whole record.
 fn record_versions<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> Vec<&'a R> {
@@ -1363,14 +1594,15 @@ fn affiliation_count<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatL
     if vs.is_empty() || !vs.iter().all(|k| seats.contains(k)) {
         return false;
     }
-    seats.len() == 1 || vs.iter().filter(|k| !r.to().contains(k)).count() >= 2
+    let targets = act_targets(r, &|i: &R::Id| p.get(i));
+    seats.len() == 1 || vs.iter().filter(|k| !targets.contains(*k)).count() >= 2
 }
 
 /// `u` (a concluded removal from an affiliation, read over its own past `p`) has one deciding seat: a proposal until
 /// countersigned.
 fn needs_countersign<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> bool {
     let u = p.row();
-    affiliation_removal(law, &|i: &R::Id| p.get(i), u)
+    against_member(law, &|i: &R::Id| p.get(i), u)
         && u.obj().is_some_and(|obj| deciding_seats(p, law, spec, &obj, u.head()).len() == 1)
 }
 
@@ -1383,7 +1615,7 @@ fn countersign_ok<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw,
     let r = p.row();
     let g = p.graph();
     let Some(t) = r.of().and_then(|i| p.get(i)) else { return false };
-    if !affiliation_removal(law, &|i: &R::Id| p.get(i), t) {
+    if !against_member(law, &|i: &R::Id| p.get(i), t) {
         return false;
     }
     let Some(ti) = g.idx(t.id()) else { return false };
@@ -3151,7 +3383,7 @@ fn out_of_force<R: SeatRow, S: CutSpec<R>>(
                 let now = nows
                     .entry(drop.clone())
                     .or_insert_with(|| Seats::build(c, law, spec, own, Some(&drop), Some(cache)));
-                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &ex, &lone);
+                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &ex, &lone, "moderate");
                 got.push((j, v));
             }
         }
@@ -3198,6 +3430,7 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
     cache: &MembersAt<R>,
     not_ends: &BTreeSet<usize>,
     lone: &BTreeSet<usize>,
+    scope: &str,
 ) -> bool {
     let g = &c.g;
     let xr = g.row(x);
@@ -3250,7 +3483,7 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
                 let st: BTreeSet<SeatOf<R>> = q
                     .recs
                     .iter()
-                    .filter(|r| r.k == *m && r.obj == obj && q.has(r, "moderate"))
+                    .filter(|r| r.k == *m && r.obj == obj && q.has(r, scope))
                     .map(|r| (r.offer.clone(), r.scope.clone()))
                     .collect();
                 let v = (st, q.holders("duty", &obj, None), q.holders(AGENT, &obj, None));
@@ -3391,9 +3624,7 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
     let ended: BTreeSet<&SeatOf<R>> = found.iter().flat_map(|(_, sc)| sc.iter()).collect();
     let live: BTreeSet<(&R::Id, &R::Word)> =
         now.recs.iter().filter(|r| r.k == *m && r.obj == obj).map(|r| (&r.offer, &r.scope)).collect();
-    if now.stands(m, "moderate", &obj, None)
-        && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s))
-    {
+    if now.stands(m, scope, &obj, None) && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s)) {
         return true;
     }
     let ends: Vec<usize> = found.iter().map(|(e, _)| *e).collect();
@@ -4192,13 +4423,20 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
 ) -> Option<(R::Key, BTreeSet<R::Key>)> {
     let r = p.row();
     let rem = p.get(r.content()?)?;
-    if r.seat_kind() != SeatKind::Offer || !lone_removal(rem, p, law, spec, cache) {
-        return None;
-    }
-    // the same seat; the re-seating names the newest counted changes in its own past as every roster row does (H4),
-    // so it no longer names the removal's head
-    if rem.obj() != r.obj() || rem.scope() != r.scope() || rem.to() != r.to() {
-        return None;
+    // the lift of a duty holder's lone act (quarantine, slash, takedown): an offer of scope `act` naming it
+    let act_lift = r.seat_kind() == SeatKind::Offer
+        && r.scope().is_some_and(|s| s.as_ref() == "act")
+        && lone_act_duty(rem.seat_kind()).is_some()
+        && rem.obj() == r.obj();
+    if !act_lift {
+        if r.seat_kind() != SeatKind::Offer || !lone_removal(rem, p, law, spec, cache) {
+            return None;
+        }
+        // the same seat; the re-seating names the newest counted changes in its own past as every roster row does
+        // (H4), so it no longer names the removal's head
+        if rem.obj() != r.obj() || rem.scope() != r.scope() || rem.to() != r.to() {
+            return None;
+        }
     }
     let mut v = BTreeSet::new();
     for n in r.names() {
@@ -5098,6 +5336,8 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
         },
         SeatKind::Cosign => true,
         SeatKind::Countersign => countersign_ok(p, law, spec),
+        SeatKind::Quarantine | SeatKind::Slashing | SeatKind::TakedownNotice => lone_act_rule(p, law, spec),
+        SeatKind::Reconsideration => reconsideration_rule(p, law, spec),
         _ => other(p),
     }
 }

@@ -170,6 +170,15 @@ Present:
   the removal concludes as a proposal and is in force only where a countersign naming it counts; the acting seat's
   withdrawal of the removal clears it; with two or more it decides on two voices at least, the member removed apart.
 
+**A duty holder's lone acts** (CC 4.5.5, CC 3.1.9.2; CHANGELOG). Present a quarantine marker as
+`SeatKind::Quarantine` (`target_key()` the key, `state()` `withhold` or `release`, a release's `of()` the withhold it
+lifts), a slashing verdict as `SeatKind::Slashing` (`target_key()`, `outcome()` `proven_rogue` or `not_proven`), a
+takedown notice as `SeatKind::TakedownNotice` (`of()` the content row), each with `obj()` the room, `head()` the newest
+counted changes in its past, and the members' `moderation_overturn` window named (its `window()`, and its
+`WinKind::Open`); a reconsideration as `SeatKind::Reconsideration` (`of()` the takedown, `outcome()`); the members'
+lift of any of them as an Offer of scope `act`, `content()` the act, under `moderation_overturn`, naming the
+objections. Ask `seat::act_in_force` whether one is in force for a reader.
+
 **The moderator election** (C1 to C5, E1 to E3, F1 to F4; CHANGELOG). Present:
 - each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` its election's id row: the
   room's founding row for the first election, then the seating of the one before; naming the end of the last

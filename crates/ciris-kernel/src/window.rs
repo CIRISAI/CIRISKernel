@@ -504,6 +504,11 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         if matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && !seat_rule(p, law, spec, &|_| true) {
             return Some(false);
         }
+        // a duty holder's lone act (quarantine, slash, takedown) opens the members' overturn window on its own duty:
+        // the seat rule has read that duty
+        if seat::lone_act_duty(r.seat_kind()).is_some() {
+            return Some(seat_rule(p, law, spec, &|_| true));
+        }
         // an opening names the newest counted changes over its object in its own past, and is counted there (H1)
         if !matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat)
             && seat::newer_head_in_past(p, law, &obj, r.head(), &seat::signers(r))
