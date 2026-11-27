@@ -145,6 +145,20 @@ migrations, and the local operational store.
 - The election's seating is the one act read from the policy the row states (`Policy::Ranked`), and of
   `moderate` only.
 
+**The countersign of a one-seat affiliation** (CC 4.4.3.12; the Constitution's formal/affiliation/Affiliation.lean).
+Present:
+- the affiliation's record (its founding row, and each counted change of scope `record`) with `SeatRow::official`, the
+  designated official's key, and `SeatRow::overseen_by`, the founding row of the body that conferred or oversees it.
+  **The second field's wire name is the Constitution's to give**: the accessor is the one place it is read. Each version
+  is a whole record: one stating no official names none;
+- a countersign as `SeatKind::Countersign`, signed by the countersigning key, `of()` the removal it countersigns,
+  naming the removal and, for an overseer, the overseeing body's rows its `review` seat stands on (its basis);
+- a removal of a member of an affiliation as a counted Unseat of scope `member` under `affiliation_member_action` or
+  `cosigned_act`. The deciding seats are the keys the founding record seats by their signatures, while members; a
+  member appointed later holds no vote. With one deciding seat the removal concludes as a proposal and is in force
+  only where a countersign naming it counts; the acting seat's withdrawal of the removal clears it; with two or more
+  seats it decides on two voices at least, the member removed apart.
+
 **The moderator election** (C1 to C5, E1 to E3, F1 to F4; CHANGELOG). Present:
 - each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` its election's id row: the
   room's founding row for the first election, then the seating of the one before; naming the end of the last

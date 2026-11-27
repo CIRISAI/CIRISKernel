@@ -1,12 +1,12 @@
 //! Differential: a community's charter (the licence classes its record in force declares, with their legal weight),
-//! whether a reader honours a licence, the admission of an acceptance edge's `trust_classes`, and a removal from an
-//! affiliation left undecided, against `models/causal_kernel/check_charter.py` (fixture `charter.json`), with the rows
-//! as listed and in reverse.
+//! whether a reader honours a licence and the admission of an acceptance edge's `trust_classes`, against
+//! `models/causal_kernel/check_charter.py` (fixture `charter.json`), with the rows as listed and in reverse. Its
+//! countersign cases (a one-seat affiliation's removal) are in the `seat` fixture, replayed by `tests/seat.rs`.
 
 mod common;
 use ciris_kernel::charter::{declared, read_licence};
 use ciris_kernel::layers::{conclude, kept};
-use ciris_kernel::seat::{affiliation_removal, for_reader, seat_rule, Obj, Seats};
+use ciris_kernel::seat::{for_reader, seat_rule, Obj, Seats};
 use ciris_kernel::trust::{Accepts, Charters};
 use common::{fixture, law_of, report, rows_with_refs, DictCut, TRow, J};
 use std::collections::BTreeMap;
@@ -123,19 +123,6 @@ fn charter_replay() {
         if e.refusal().map(str::to_string) != want {
             bad += 1;
             eprintln!("edge {:?}: got {:?}, want {want:?}", e.classes, e.refusal());
-        }
-    }
-    for c in fx.at("undecided").arr() {
-        let rows = rows_with_refs(c.at("rows").arr(), &refs_of(c));
-        let cc = conclude(kept(&rows, |_| true), |p| seat_rule(p, &law, &spec, &|_| true), None);
-        let i = cc.g.idx(&c.at("row").s().to_string()).expect("the row asked");
-        let get = |x: &String| cc.g.idx(x).map(|j| cc.g.row(j));
-        let got = (affiliation_removal(&law, &get, cc.g.row(i)).map(str::to_string), cc.concluded(i));
-        let want = (c.get("reason").filter(|x| !x.is_null()).map(|x| x.s().to_string()), c.at("concludes").b());
-        cases += 1;
-        if got != want {
-            bad += 1;
-            eprintln!("undecided {}: got {got:?}, want {want:?}", c.at("name").s());
         }
     }
     report("charter coverage against check_charter.py", cases, bad);

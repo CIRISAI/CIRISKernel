@@ -369,6 +369,10 @@ def seat_cases():
     import check_acts as ACT
     for _name, rows, _rid, _wb, _wu in ACT.CONCLUDE:
         record(rows, A.SEAT)
+    # the countersign of a one-seat affiliation's removal: check_charter.py's cases, under the seat rule
+    import check_charter as CHC
+    for _name, rows, _concl, asks in CHC.COUNTERSIGN:
+        record(rows, A.SEAT, [(k, "member", o) for k, o, _ in asks])
     for _name, rows, asks in ACT.FOUNDERS:
         record(rows, A.SEAT, founders=[(k, ACT.OBJ, at) for k, at, _ in asks])
     for _name, rows, asks, *own in ACT.TIPS:

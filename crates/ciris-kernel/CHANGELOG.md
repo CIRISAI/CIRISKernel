@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+**The countersign of a one-seat affiliation's removal** (CC 4.4.3.12; the Constitution's
+formal/affiliation/Affiliation.lean, its `admitted` and `validCountersign`, as the reference). A removal of a member of
+an affiliation is no longer undecided. The deciding seats are the keys its founding record seats by their signatures,
+while members (a member appointed later holds no vote; a charter granting one is not read). The body's own signature
+is every voice a deciding seat, at least one. With ONE deciding seat the removal concludes as a PROPOSAL (CC 4.5.5's
+reconsideration path) and is in force only where a countersign naming it counts for the reader: a countersign row by
+the designated official (the record in force in the removal's own past names it) or by a review holder of the
+overseeing body (its `review` seat over that body, read in the countersign's past), outside the deciding seat. No
+window: it waits. The acting seat's withdrawal of the removal clears it (a countersign with the withdrawal in its past
+concludes nothing, and one concurrent with it decides nothing). With two or more seats the removal decides on two
+voices at least, the member removed apart (CC 4.5.13). "Outside the seat" is asked of keys: of persons once room-keys
+gives key to person (a TODO). **BREAKING**: `SeatKind::Countersign` (a new variant); `SeatRow::official` and
+`SeatRow::overseen_by` (new, default `None`; the second's wire name is the Constitution's to give, and the accessor is
+its one reading); `seat::affiliation_removal` returns `bool` (the shape), no reason; `charter.json` has no `undecided`
+cases. 14 cases in `check_charter.py` (COUNTERSIGN), in the `seat` fixture; plants `countersign_unread`,
+`countersign_inside_seat`, `official_at_founding`, `overseers_unread`, `withdrawal_clears_unread`, `two_voices_unread`,
+with crate twins; `affiliation_removal_passes` and its crate twin retired with the undecided reading.
+
 **New: `seat::is_founder`** (persist's gap list). Who is a founder of a family or an infrastructure community at a
 row, by the reading a count uses: the `founder` seats over the object at the heads the row names, or for a row naming
 none at the newest counted changes over the object in its past (the founding row where there is none); persons only;

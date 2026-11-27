@@ -548,6 +548,16 @@ plant "is_founder read at the tips of everything held" src/seat.rs '    let Some
         return Seats::new(c, law, spec, None).holders("founder", obj, None).contains(key);
     }
     let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, i)).collect();'
+plant "a one-seat affiliation's removal decides without a countersign" src/seat.rs 'if !needs_countersign(&Past::new(g, u, &anc), law, spec) {' 'if true {'
+plant "the acting seat countersigns its own act"     src/seat.rs 'if withdrawn || seats.contains(k) {' 'if withdrawn {'
+plant "the seat's withdrawal does not clear its proposal" src/seat.rs '    let withdrawn =
+        p.rows()' '    let withdrawn = false &&
+        p.rows()'
+plant "the official read from the founding record"   src/seat.rs '    if vs.is_empty() {
+        return alloc::vec![g];' '    if true {
+        return alloc::vec![g];'
+plant "an overseer's review seat not read"           src/seat.rs 'members_at_with(p, law, spec, &body, &heads, "review", None).contains(k)' 'false && members_at_with(p, law, spec, &body, &heads, "review", None).contains(k)'
+plant "a body of two seats removes on one voice"     src/seat.rs 'seats.len() == 1 || vs.iter().filter(|k| !r.to().contains(k)).count() >= 2' 'seats.len() == 1 || vs.iter().filter(|k| !r.to().contains(k)).count() >= 1'
 plant "an act naming the end still counts"            src/conferral.rs 'return Ok((false, false, Rule::NamesEnd));' 'return Ok((true, false, Rule::NamesEnd));'
 plant "the grantee receipts its own act"              src/conferral.rs 'Role::Grantee | Role::Other => Ok(false),' 'Role::Grantee | Role::Other => Ok(true),'
 plant "a receipt after the end keeps the act"         src/conferral.rs 'Ok(!self.key_cut(q)? && self.eligible(q, e)? && !self.past.in_past(e.id(), q.id())?)' 'Ok(!self.key_cut(q)? && self.eligible(q, e)?)'
@@ -577,7 +587,7 @@ plant "an end with an end in its past still ends"       src/content.rs 'Ok(seate
 plant "an affiliation's record is a plain community's"  src/seat.rs 'if kind == CommunityKind::Community && g.declared_cohort().is_some_and(|c| c.as_ref() == "affiliations") {' 'if false {'
 plant "a change of an affiliation's record is no act"   src/seat.rs 'CommunityKind::Affiliation => {' 'CommunityKind::Affiliation if false => {'
 plant "an appointment to an affiliation is no act"      src/seat.rs '"member" => Some((if offer { Act::Admit } else { Act::Remove }, ScopeClass::Member, kind)),' '"member" if !offer => Some((Act::Remove, ScopeClass::Member, kind)),'
-plant "a removal from an affiliation passes silently"   src/seat.rs 'if affiliation_removal(law, &|i: &R::Id| by.get(i).copied(), r).is_some() {' 'if false {'
+plant "an affiliation's removal counted as any removal" src/seat.rs '} else if affiliation_removal(law, &|i: &R::Id| by.get(i).copied(), r) {' '} else if false {'
 plant "only an affiliation's record is a charter"       src/charter.rs '[CommunityKind::Community, CommunityKind::Infrastructure, CommunityKind::Affiliation];' '[CommunityKind::Affiliation, CommunityKind::Affiliation, CommunityKind::Affiliation];'
 plant "a dissolved group still declares"                src/charter.rs 'if seats.dissolved(&obj) {' 'if false {'
 plant "a record's stated end is not read"               src/charter.rs 'if now.is_some_and(|t| r.valid_until().is_some_and(|u| *t >= u)) {' 'if false {'

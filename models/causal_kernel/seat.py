@@ -436,13 +436,87 @@ def stalled_recovery(r, P, past):
 
 def affiliation_removal(r, by):
     """A counted removal of a member of an affiliation (the acts row remove / member / affiliation:
-    affiliation_member_action | cosigned_act). A one-seat affiliation removes only with a countersign from outside it
-    (CC 4.4.3.12), which the kernel does not read, so such a row is UNDECIDED: the reason
-    `affiliation_remove_member_undecided` (the seat rule concludes nothing for it), never a silent pass. None for a
-    row of another shape."""
-    if r["kind"] != "unseat" or r.get("conf") != "group" or r.get("scope") != "member": return None
-    if kind_of(by, r.get("obj")) != "affiliation": return None
-    return "affiliation_remove_member_undecided"
+    affiliation_member_action | cosigned_act)."""
+    return r["kind"] == "unseat" and r.get("conf") == "group" and r.get("scope") == "member" \
+        and kind_of(by, r.get("obj")) == "affiliation"
+
+
+# ---- the countersign of a one-seat affiliation's act against a member (CC 4.4.3.12; the Constitution's
+# formal/affiliation/Affiliation.lean, `admitted` and `validCountersign`) -----------------------------------------
+# PLACEHOLDER: the record field that names the body that conferred or oversees the affiliation. The Constitution
+# names it; it is read here and nowhere else (record_value(.., OVERSEEN_BY))
+OVERSEEN_BY = "overseen_by"
+
+
+def record_value(by, obj, field):
+    """The value a field of obj's record in force has over `by` (the concluded rows of a row's past): the newest
+    versions of the record there (its counted changes, scope `record`; the founding row where there is none), each a
+    whole record. None where they disagree, or where the record states none."""
+    g = by.get(obj)
+    if g is None or g["kind"] != "offer" or g.get("obj") != g["id"]: return None
+    vs = [q for q in by.values() if q["kind"] == "offer" and q.get("conf") == "group" and q.get("obj") == obj
+          and q.get("scope") == "record"]
+    if not vs or "official_at_founding" in MUT: return g.get(field)      # MUTATION: the founding record alone
+    anc = {q["id"]: K.ancestors(by, q["id"]) for q in vs}
+    newest = [q for q in vs if not any(q["id"] in anc[x["id"]] for x in vs)]
+    vals = {q.get(field) for q in newest}
+    return vals.pop() if len(vals) == 1 else None
+
+
+def deciding_seats(P, past, obj, heads):
+    """An affiliation's deciding seats at the heads (its officers under its protocol, CC 4.4.3.12): the keys its
+    founding record seats by their signatures, while they are members there. A member appointed later is subject to
+    the body's power and holds no vote (its charter granting one is not read: a gap)."""
+    g = {q["id"]: q for q in P}.get(obj)
+    if g is None: return frozenset()
+    return (signers(g) & frozenset(g["to"])) & members_at(P, past, obj, heads, "member")
+
+
+def affiliation_count(r, P, past):
+    """Affiliation.lean `admitted` for a removal: the body's own signature (every voice a deciding seat, at least
+    one), and where the body has one deciding seat, the act stands as a PROPOSAL (CC 4.5.5's reconsideration path):
+    it concludes, and is in force only where a countersign names it (Seats); a body of two or more seats decides on
+    two voices at least, the member removed not counted (CC 4.5.13; MUTATION two_voices_unread: on one)."""
+    seats = deciding_seats(P, past, r["obj"], r.get("head", ()))
+    vs = voices(r, P)
+    if not vs or not vs <= seats: return False
+    if len(seats) == 1: return True
+    return len(vs - frozenset(r["to"])) >= (1 if "two_voices_unread" in MUT else 2)
+
+
+def needs_countersign(u, P, past):
+    """u, a concluded removal of a member of a one-seat affiliation, is a proposal until countersigned."""
+    by = {q["id"]: q for q in P}
+    return affiliation_removal(u, by) and len(deciding_seats(P, past, u["obj"], u.get("head", ()))) == 1
+
+
+def overseers(P, past, body):
+    """The review holders of the overseeing body, at the newest counted changes over it in P."""
+    by = {q["id"]: q for q in P}
+    if by.get(body) is None: return frozenset()
+    return members_at(P, past, body, newest_changes(P, past, body, by), "review")
+
+
+def countersign_ok(r, P, past):
+    """A countersign row (`of` the act) concludes where the act it names is a one-seat affiliation's removal in its
+    past, not withdrawn there by the acting seat, and its signer is outside the deciding seat and is the designated
+    official (the record in force in the ACT's own past) or a review holder of the overseeing body. Asked of keys:
+    TODO: of persons, once room-keys gives key to person (MUTATIONS countersign_inside_seat, overseers_unread)."""
+    by = {q["id"]: q for q in P}
+    t = by.get(r.get("of"))
+    if t is None or not affiliation_removal(t, by): return False
+    Pt = [q for q in P if past(q["id"], t["id"])]
+    seats = deciding_seats(Pt, past, t["obj"], t.get("head", ()))
+    if len(seats) != 1: return False
+    if any(w["kind"] == "withdraw" and w.get("target") == t["id"] and w["signer"] == t["signer"] for w in P) \
+            and "withdrawal_clears_unread" not in MUT:
+        return False
+    k = r["signer"]
+    if k in seats and "countersign_inside_seat" not in MUT: return False
+    byt = {q["id"]: q for q in Pt}
+    if k == record_value(byt, t["obj"], "official"): return True
+    body = record_value(byt, t["obj"], OVERSEEN_BY)
+    return body is not None and "overseers_unread" not in MUT and k in overseers(P, past, body)
 
 
 def is_amendment(q, obj):
@@ -1634,6 +1708,19 @@ class Seats:
         finally:
             _RENDS.pop()
         unseats = [u for u in K.sel(Cs, kind="unseat") if C.counts(u) and u["id"] not in V]
+
+        def decided(u):
+            """A one-seat affiliation's removal is a proposal: in force only where a countersign naming it counts for
+            the reader, and no withdrawal of it by the acting seat that does not have that countersign in its past is
+            held (the seat's withdrawal clears the proposal; MUTATION countersign_unread: no countersign asked)."""
+            if "countersign_unread" in MUT: return True
+            Pu = [q for q in Cs if q["id"] in S.anc[u["id"]]]
+            if not needs_countersign(u, Pu, past_): return True
+            cs = [c for c in Cs if c["kind"] == "countersign" and c.get("of") == u["id"] and C.counts(c) and c["id"] not in V]
+            wu = [w for w in Cs if w["kind"] == "withdraw" and w.get("target") == u["id"] and w["signer"] == u["signer"]
+                  and "withdrawal_clears_unread" not in MUT]
+            return any(all(c["id"] in S.anc[w["id"]] for w in wu) for c in cs)
+        unseats = [u for u in unseats if decided(u)]
         # a moderator's lone removal is an act under its `moderate` standing, in force only while the end rule says so
         # (out_of_force). `drop`: the lone removals already judged out of force over the whole set, for a reading of
         # one line of it (the tips, the fold) or of the set with every removal taken as made (`frozenset()`)
@@ -2707,6 +2794,13 @@ def count_left(P, past, obj, scope):
     return out | stay_ended_in_past(P, past, obj) if is_duty(scope, declared(by, obj)) or role else out
 
 
+def newest_changes(P, past, obj, by):
+    """The newest counted changes over obj among P (a row's concluded past), or obj's founding row where there is
+    none: the heads a row naming none is read at."""
+    chs = [q for q in P if change(q, obj, by)]
+    return tuple(q["id"] for q in chs if not any(q is not q2 and past(q["id"], q2["id"]) for q2 in chs)) or (obj,)
+
+
 def is_founder(S, key, obj, at_row):
     """Whether key is a founder of obj at row `at_row` (an id or a row of S), for a family or an infrastructure
     community (False for any other object): by the reading a count uses, over the row's own concluded past. The
@@ -2723,10 +2817,7 @@ def is_founder(S, key, obj, at_row):
     past = lambda a, b: a in S.anc[b]
     by = {q["id"]: q for q in P}
     if kind_of(by, obj) not in ("family", "infrastructure"): return False
-    heads = tuple(r.get("head", ()))
-    if not heads:
-        chs = [q for q in P if change(q, obj, by)]
-        heads = tuple(q["id"] for q in chs if not any(q is not q2 and past(q["id"], q2["id"]) for q2 in chs)) or (obj,)
+    heads = tuple(r.get("head", ())) or newest_changes(P, past, obj, by)
     unread = "founder_leavings_unread" in MUT and "ends_at_heads_unread" not in MUT
     if unread: MUT.add("ends_at_heads_unread")
     try:
@@ -3154,8 +3245,6 @@ def seat_rule(r, P, past, table=None, other=None):
             # an infrastructure room's recovery widening while stalled is undecided here (stalled_recovery): the kernel
             # holds no bundle holders, so it concludes nothing
             if r.get("bundle") is not None and "recovery_concludes" not in MUT: return False
-            # a removal from an affiliation is undecided (affiliation_removal): the outside countersign is not read
-            if affiliation_removal(r, by) is not None and "affiliation_removal_passes" not in MUT: return False
             # H1, H4: every counted row names the newest counted changes over its object in its own past, a lone removal,
             # a self-admission, a lift and an election's seating included (a seating's count reads its election, never
             # its heads: its heads place it; MUTATION election_exempt: a seating names no head)
@@ -3167,6 +3256,9 @@ def seat_rule(r, P, past, table=None, other=None):
                         and not ("lone_exempt" in MUT and k == "unseat" and lone_removal(r, P, past)) \
                         and newer_head_in_past(r.get("head", ()), None, P, past, r["obj"], signers(r)): return False
                 if k == "unseat" and lone_removal(r, P, past): return True          # CC 4.5.13: a moderator, an agent's key
+                if affiliation_removal(r, by):                # CC 4.4.3.12: the body's signature, its seats' floor
+                    f = in_force(r, by)
+                    return f is not REFUSED and affiliation_count(r, P, past)
                 return count_met(r, P, past, table)
             finally:
                 _VOID.pop()
@@ -3194,4 +3286,6 @@ def seat_rule(r, P, past, table=None, other=None):
         return True
     if k == "cosign":
         return True
+    if k == "countersign":
+        return countersign_ok(r, P, past)
     return other(r, P, past) if other else True
