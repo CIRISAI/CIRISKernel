@@ -70,6 +70,11 @@ XV = ST.unseat("xv", "vB", "vA", "member", "g", "group", ("g",), head=("g",), po
                cosigners=("vC",))                                # the room's count removes vA
 AN2 = ST.offer("an2", "rk:a0", NODE2, "key", "vA", "group", (HA,), head=(HA,), policy="self_roster_add", counted="key",
                cosigners=("rk:a1", NODE2))                       # a node's room key seated in vA's own roster
+VD, HD = RK.voice_rows("vD", ["rk:d0"])
+AD = ST.offer("ad", "vB", "vD", "member", "g", "group", ("g", HD), head=("g",), policy="community_invite",
+              cosigners=("vC", "vD"))                            # the room admits vD: a counted change after g
+XV_OLD = ST.unseat("xvo", "vB", "vA", "member", "g", "group", ("g", "ad"), head=("g",), policy="community_remove",
+                   cosigners=("vC",))                            # vA's removal naming the old head g, with ad in its past
 NODE_BASE = VA + VB + VC + [GR]
 
 
@@ -103,6 +108,9 @@ NODE_CASES = [
      node_row("n6", ["ob"], [HA], ("evo",)), "concludes_nothing", None),
     ("the owning voice removed from the room, the removal in the row's past", [OB, XV],
      node_row("n7", ["ob"], [HA], ("xv",)), "concludes_nothing", None),
+    ("the owning voice's removal names an old head while a newer counted change is in its own past: the removal "
+     "concludes nothing (H1), so the node's row stands", VD + [OB, AD, XV_OLD], node_row("n15", ["ob"], [HA], ("xvo",)),
+     "admitted", None),
     ("a node owned by another node's room key, that key even seated in a voice (no chains)", [OB3, AN2],
      node_row("n8", ["ob3"], ["an2"]), "concludes_nothing", None),
     ("the owning key's eviction concurrent with the row, the row at its head: out of force from that head on", [OB, EVO],

@@ -173,8 +173,8 @@ whose `refused` is null.
 
 ### A private room's row door, for a verifier
 
-`tests/fixtures/room_keys.json` is written from `models/causal_kernel/room_key_vectors.py` (30 cases: 16 of a
-voice's row, 14 of a node's,
+`tests/fixtures/room_keys.json` is written from `models/causal_kernel/room_key_vectors.py` (31 cases: 16 of a
+voice's row, 15 of a node's,
 CIRISConstitution#224, CC 3.1.3.2) for a verifier's pure check of one row of a room: the signer is a room key at
 all (its key record names a room), its record names this room, the row names exactly one head of the voice's key
 roster under `refs.also.voice`, and the key is a live key of the voice at that head. The roster fold stays the
