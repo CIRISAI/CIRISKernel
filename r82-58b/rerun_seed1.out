@@ -1,0 +1,78 @@
+cd: CD1 device 1 acks b2,b3; device 2 concurrently acks t
+cd:    heads=('b1',) holders=('h1', 'h2', 'h3', 'h4', 'h5') void=() grants={}
+cd: CD2 device 2 acks t1, t (two rows), device 1 b2,b3
+cd:    heads=('b1',) holders=('h1', 'h2', 'h3', 'h4', 'h5') void=() grants={}
+cd: CD3 a new reader whose only device acks t
+cd:    heads=('t',) holders=('X', 'h1', 'h2', 'h3') void=() grants={}
+cd: CD4 CD1 + a settler at b1 toward b2 by h4,h5
+cd:    heads=('b1',) holders=('h1', 'h2', 'h3', 'h4', 'h5') void=() grants={}
+cd: CD5 CD1 + a settler at b1 toward t1 by h1,h2 (removed at b2, a say at b1)
+cd:    heads=('b1',) holders=('h1', 'h2', 'h3', 'h4', 'h5') void=() grants={}
+cd: CD6 both settlers
+cd:    heads=('b1',) holders=('h1', 'h2', 'h3', 'h4', 'h5') void=() grants={}
+rb: RB0 honest history to b4 (7 holders); reader acked b2,b3,b4
+rb:    heads=('b4',) holders=('h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9') void=() grants={}
+rb: RB1 + t1 (h1,h2,h3 at b1, keeps h1,h2)
+rb:    heads=('b4',) holders=('h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9') void=() grants={}
+rb: RB1g an honest grant on b4 by four of seven, after t1
+rb:    heads=('b4',) holders=('h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9') void=() grants={'gh': (True, None)}
+rb: RB2 honest join (b4, t1) by h4..h9
+rb:    heads=('b4',) holders=('h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9') void=() grants={}
+rb: RB2b the same join with h1 signing too
+rb:    heads=('j2',) holders=('h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9') void=() grants={}
+st: ST0 control: reader acked b2, b3 (s0 exists)
+st:    heads=('b3',) holders=('h3', 'h4', 'h5', 'h6') void=() grants={}
+st: ST1 reader acked s0 first, then b2, then b3
+st:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+st: ST2 a new reader acks b3 only
+st:    heads=('b3',) holders=('h3', 'h4', 'h5', 'h6') void=() grants={}
+st: ST3 a reader with no acks (anchor only)
+st:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+st: ST4 ST1 + a rule-3 settler at b0 naming b1 and s0, by h3
+st:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+st: ST5 the same settler by h3 and h1
+st:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+st: ST1g an honest grant on b3, reader ST1
+st:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={'gh': (False, 'grant_voices_not_in_force')}
+ao: AO0 s0 concludes; reader acked b2 then s0
+ao:    heads=('b2',) holders=('h3', 'h4', 'h5') void=() grants={}
+ao: AO1 reader acked s0 then b2 (s0 delivered first)
+ao:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+ao: AO2 reader acked b1 then s0 then b2
+ao:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+ao: AO3 a new reader acked s0 only
+ao:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+ao: AO3g + h1,h2 grant on s0, reader acked s0 then b2
+ao:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={'gx': (False, 'grant_voices_not_in_force')}
+ao: AO1h honest grant on b2 by h3,h4; reader acked s0 then b2
+ao:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={'gh': (False, 'grant_voices_not_in_force')}
+dp: DP0 a reader that acked b2 only
+dp:    heads=('b1',) holders=('h1', 'h2', 'h3', 'h4', 'h5') void=() grants={}
+dp: DP1 the reader acks b2, then t
+dp:    heads=('b1',) holders=('h1', 'h2', 'h3', 'h4', 'h5') void=() grants={}
+dp: DP2 a new reader that acks t
+dp:    heads=('t',) holders=('X', 'h1', 'h2', 'h3') void=() grants={}
+dp: DP3 honest b3 on b2; the reader acks b2, b3, then t
+dp:    heads=('b3',) holders=('h3', 'h4', 'h5', 'h6') void=() grants={}
+dp: DP4 honest join (t, b3) by h3,h4,h5
+dp:    heads=('b3',) holders=('h3', 'h4', 'h5', 'h6') void=() grants={}
+dp: DP1g h1,h2,h3 grant on t; reader as DP1
+dp:    heads=('b1',) holders=('h1', 'h2', 'h3', 'h4', 'h5') void=() grants={'gx': (False, 'grant_voices_not_in_force')}
+dp: DP5 control: h1,h2 alone at b1
+dp:    heads=('b2',) holders=('h3', 'h4', 'h5') void=() grants={}
+ts: TS1 two settlers by h3: toward b1 and toward s0
+ts:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+ts: TS1b reader that acked only st
+ts:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+ts: TS1c reader that acked only su
+ts:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+ts: TS1d a reader with no acks
+ts:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+ca: CA1 device 1 acks s0; device 2 acks b2 then b3 (concurrent with device 1)
+ca:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+ca: CA2 + device 2 later acks b3 again with device 1's row in its past
+ca:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+ca: CA3 the reverse: device 1 acks b2, b3; device 2 then acks s0 (concurrent)
+ca:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={}
+ca: CA1g h1,h2 grant on s0, reader CA1
+ca:    heads=('b0',) holders=('h1', 'h2', 'h3') void=() grants={'gx': (False, 'grant_voices_not_in_force')}
