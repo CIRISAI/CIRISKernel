@@ -33,7 +33,8 @@ const MEDICAL: u8 = 1;
 const LEGAL: u8 = 2;
 
 fn e(src: u8, dst: u8, classes: &[u8], depth: u32) -> E {
-    Accepts { src, dst, classes: classes.to_vec(), depth }
+    // a list the Lean world writes empty is `trust_classes` absent: every class
+    Accepts { src, dst, classes: (!classes.is_empty()).then(|| classes.to_vec()), depth }
 }
 
 fn charter0() -> Charters<u8, u8> {

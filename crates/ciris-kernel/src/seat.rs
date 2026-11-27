@@ -207,9 +207,8 @@ pub trait SeatRow: Row {
         None
     }
     /// A group's founding record: its group kind (`family` for a family record, which carries a `family_key_id`;
-    /// `affiliation` for a licensing authority's; `community` or none for a community). `family` makes the object a
-    /// [`CommunityKind::Family`], `affiliation` a [`CommunityKind::Affiliation`] ([`kind_of`]), whatever its scope or
-    /// `cohort_subkind`. Default `None`: a community.
+    /// `community` or none for a community). `family` makes the object a [`CommunityKind::Family`] ([`kind_of`]),
+    /// whatever its scope or `cohort_subkind`. Default `None`: a community.
     fn group_kind(&self) -> Option<&Self::Word> {
         None
     }
@@ -325,11 +324,16 @@ pub trait SeatRow: Row {
     fn room(&self) -> Option<Obj<Self::Id, Self::Key>> {
         None
     }
-    /// An affiliation's record: the licence classes its charter declares (CC 3.4.7: "the charter enumerates the
-    /// licence classes the affiliation issues"), read by [`crate::charter`]. On the founding record `None` declares
-    /// none; on a change of the record (scope `record`) `None` states none and leaves the classes as they were at its
-    /// head. Default `None`.
-    fn licence_classes(&self) -> Option<&[Self::Word]> {
+    /// A community's record: the licence classes its charter declares (CC 3.4.7, CC 4.4.3.12: "the charter enumerates
+    /// the licence classes the affiliation issues"; any community may be an authority), each with its `legal_weight`,
+    /// read by [`crate::charter`]. A version is the whole record: `None` (or none listed) declares none. Default
+    /// `None`.
+    fn licence_classes(&self) -> Option<&[(Self::Word, bool)]> {
+        None
+    }
+    /// A community's founding record: its `declared_cohort`. `affiliations` makes the object a
+    /// [`CommunityKind::Affiliation`] ([`kind_of`]). Default `None`.
+    fn declared_cohort(&self) -> Option<&Self::Word> {
         None
     }
     /// A founding row that declares its community's `membership` `private` (CC 3.1.3.2): a private room, whose
@@ -722,14 +726,15 @@ pub fn kind_of<'r, R: SeatRow + 'r>(
     if g.group_kind().is_some_and(|k| k.as_ref() == "family") {
         return Some(CommunityKind::Family);
     }
-    // an affiliation (CC 3.4.7: a licensing authority) is a community record of kind `affiliation`
-    if g.group_kind().is_some_and(|k| k.as_ref() == "affiliation") {
-        return Some(CommunityKind::Affiliation);
-    }
     let kind = g.scope().and_then(|sc| law.kinds.get(sc.as_ref()).copied()).unwrap_or(CommunityKind::Community);
     // a community's record says whether it is an infrastructure community: `cohort_subkind`
     if kind == CommunityKind::Community && g.cohort_subkind().is_some_and(|c| c.as_ref() == "infrastructure") {
         return Some(CommunityKind::Infrastructure);
+    }
+    // an affiliation (CC 3.4.7, CC 4.4.3.12: a licensing authority) is a community record whose `declared_cohort` is
+    // `affiliations`
+    if kind == CommunityKind::Community && g.declared_cohort().is_some_and(|c| c.as_ref() == "affiliations") {
+        return Some(CommunityKind::Affiliation);
     }
     Some(kind)
 }
@@ -846,13 +851,14 @@ pub fn act_of<'r, R: SeatRow + 'r>(
         }
         CommunityKind::Accord => Some((Act::StandingAct, ScopeClass::Any, kind)),
         CommunityKind::Affiliation => {
-            // a change of the affiliation's record (its charter, [`crate::charter`]) under its declared protocol; a
-            // dissolution is the act dissolve, which the table does not bind for an affiliation. No other act over an
-            // affiliation is read here
+            // an affiliation's acts (the table's affiliation rows, CC 4.4.3.12): an appointment of a member (the
+            // appointee's acceptance is the second consent), a removal of one (undecided: [`affiliation_removal`]), a
+            // change of the record (its charter, [`crate::charter`]) and its dissolution. No duty seat
             match sc? {
                 "record" if offer => {
                     Some((if r.dissolves() { Act::Dissolve } else { Act::RecordChange }, ScopeClass::Record, kind))
                 }
+                "member" => Some((if offer { Act::Admit } else { Act::Remove }, ScopeClass::Member, kind)),
                 _ => None,
             }
         }
@@ -1229,6 +1235,26 @@ pub fn stalled_recovery<R: SeatRow, S: CutSpec<R>>(
     };
     let founders = count_members_with(p, law, spec, None).len() as u64;
     (founders < m + 1).then_some("stalled_recovery_needs_bundle")
+}
+
+/// A counted removal of a member of an affiliation (the acts row `remove / member / affiliation`:
+/// `affiliation_member_action | cosigned_act`). A one-seat affiliation removes only with a countersign from outside it
+/// (CC 4.4.3.12), which the kernel does not read, so such a row is UNDECIDED: the reason
+/// `affiliation_remove_member_undecided` (the seat rule concludes nothing for it), never a silent pass. `None` for a
+/// row of another shape. `get` looks a row up among those the caller holds (the row's past).
+pub fn affiliation_removal<'r, R: SeatRow + 'r>(
+    law: &SeatLaw,
+    get: &dyn Fn(&R::Id) -> Option<&'r R>,
+    r: &R,
+) -> Option<&'static str> {
+    if r.seat_kind() != SeatKind::Unseat
+        || r.conf() != Some(Conf::Group)
+        || r.scope().is_none_or(|s| s.as_ref() != "member")
+    {
+        return None;
+    }
+    let obj = r.obj()?;
+    (kind_of(law, get, &obj) == Some(CommunityKind::Affiliation)).then_some("affiliation_remove_member_undecided")
 }
 
 /// The room's protocol in force at protocol row `r` ([`policy_in_force`]): in a community, the record's protocol
@@ -4613,6 +4639,11 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     // an infrastructure room's recovery widening while stalled is undecided ([`stalled_recovery`]): the
                     // kernel holds no bundle holders, so it concludes nothing
                     if r.bundle().is_some() {
+                        return false;
+                    }
+                    // a removal from an affiliation is undecided ([`affiliation_removal`]): the outside countersign is
+                    // not read
+                    if affiliation_removal(law, &|i: &R::Id| by.get(i).copied(), r).is_some() {
                         return false;
                     }
                     // H2: a counted row is counted over its own object; one stating another concludes nothing

@@ -542,7 +542,7 @@ fn reaches_before(edges: &[Accepts<u32, u8>], from: &u32, c: &u8, budget: u32, a
         if b == 0 {
             continue;
         }
-        for e in edges.iter().filter(|e| e.src == k && e.admits(c)) {
+        for e in edges.iter().filter(|e| e.src == k && e.refusal().is_none() && e.admits(c)) {
             if e.dst == *a {
                 return true;
             }
@@ -581,7 +581,11 @@ fn the_walks_equal_the_walks_they_replaced() {
             .map(|_| Accepts {
                 src: pick(&mut g, keys as u64) as u32,
                 dst: pick(&mut g, keys as u64) as u32,
-                classes: (0..pick(&mut g, 3)).map(|_| pick(&mut g, 3) as u8).collect(),
+                // absent, or a list of up to two classes: empty, unsorted or twice is refused at admission
+                classes: match pick(&mut g, 4) {
+                    0 => None,
+                    n => Some((1..n).map(|_| pick(&mut g, 3) as u8).collect()),
+                },
                 depth: pick(&mut g, 4) as u32,
             })
             .collect();

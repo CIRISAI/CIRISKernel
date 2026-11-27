@@ -1,11 +1,12 @@
-//! Differential: an affiliation's charter (the licence classes its record in force declares) and whether a reader
-//! honours a licence, against `models/causal_kernel/check_charter.py` (fixture `charter.json`), with the rows as
-//! listed and in reverse.
+//! Differential: a community's charter (the licence classes its record in force declares, with their legal weight),
+//! whether a reader honours a licence, the admission of an acceptance edge's `trust_classes`, and a removal from an
+//! affiliation left undecided, against `models/causal_kernel/check_charter.py` (fixture `charter.json`), with the rows
+//! as listed and in reverse.
 
 mod common;
 use ciris_kernel::charter::{declared, read_licence};
 use ciris_kernel::layers::{conclude, kept};
-use ciris_kernel::seat::{for_reader, seat_rule, Obj, Seats};
+use ciris_kernel::seat::{affiliation_removal, for_reader, seat_rule, Obj, Seats};
 use ciris_kernel::trust::{Accepts, Charters};
 use common::{fixture, law_of, report, rows_with_refs, DictCut, TRow, J};
 use std::collections::BTreeMap;
@@ -23,6 +24,14 @@ fn obj(rows: &[TRow], n: &str) -> Obj<String, String> {
     }
 }
 
+fn now_of(c: &J) -> Option<i64> {
+    c.get("now").filter(|x| !x.is_null()).map(|x| x.i())
+}
+
+fn classes_of(j: &J) -> Option<Vec<String>> {
+    (!j.is_null()).then(|| j.strs())
+}
+
 #[test]
 fn charter_replay() {
     let fx = fixture("charter.json");
@@ -31,8 +40,12 @@ fn charter_replay() {
     let (mut cases, mut bad) = (0, 0);
     for c in fx.at("declared").arr() {
         let rows = rows_with_refs(c.at("rows").arr(), &refs_of(c));
-        let want: Option<Vec<String>> = c.get("declared").filter(|x| !x.is_null()).map(|x| x.strs());
+        let want: Option<Vec<(String, bool)>> = c
+            .get("declared")
+            .filter(|x| !x.is_null())
+            .map(|x| x.arr().iter().map(|p| (p.arr()[0].s().to_string(), p.arr()[1].b())).collect());
         let own: Option<String> = c.get("own").filter(|x| !x.is_null()).map(|x| x.s().to_string());
+        let now = now_of(c);
         for rev in [false, true] {
             let mut rs = rows.clone();
             if rev {
@@ -44,7 +57,8 @@ fn charter_replay() {
                 Some(k) => Seats::for_reader(&rc, &law, &spec, k, &rv),
                 None => Seats::new(&rc, &law, &spec, None),
             };
-            let got = declared(&q, &c.at("aff").s().to_string()).map(|d| d.into_iter().collect::<Vec<_>>());
+            let got =
+                declared(&q, &c.at("aff").s().to_string(), now.as_ref()).map(|d| d.into_iter().collect::<Vec<_>>());
             cases += 1;
             if got != want {
                 bad += 1;
@@ -63,7 +77,7 @@ fn charter_replay() {
                 Accepts {
                     src: obj(&rows, e[0].s()),
                     dst: obj(&rows, e[1].s()),
-                    classes: e[2].strs(),
+                    classes: classes_of(&e[2]),
                     depth: e[3].i() as u32,
                 }
             })
@@ -76,6 +90,7 @@ fn charter_replay() {
         let reader = obj(&rows, c.at("reader").s());
         let auth = obj(&rows, c.at("authority").s());
         let cls = c.at("class").s().to_string();
+        let now = now_of(c);
         for rev in [false, true] {
             let mut rs = rows.clone();
             if rev {
@@ -84,7 +99,9 @@ fn charter_replay() {
             let cc = conclude(kept(&rs, |_| true), |p| seat_rule(p, &law, &spec, &|_| true), None);
             let (rc, _) = for_reader(&cc, &law, &spec, None);
             let q = Seats::new(&rc, &law, &spec, None);
-            let got = read_licence(&q, &edges, &reader, &auth, &cls, &supplied).err().map(|u| u.word().to_string());
+            let got = read_licence(&q, &edges, &reader, &auth, &cls, &supplied, now.as_ref())
+                .err()
+                .map(|u| u.word().to_string());
             // the licence row is admitted, whatever the reading
             let lic = cc.g.idx(&c.at("licence").s().to_string()).expect("the licence row is kept");
             cases += 2;
@@ -96,6 +113,29 @@ fn charter_replay() {
                 bad += 1;
                 eprintln!("licence {} (reversed: {rev}): got {got:?}, want {want:?}", c.at("name").s());
             }
+        }
+    }
+    for c in fx.at("edges").arr() {
+        let e: Accepts<String, String> =
+            Accepts { src: "RD".into(), dst: "af".into(), classes: classes_of(c.at("classes")), depth: 0 };
+        let want = c.get("refusal").filter(|x| !x.is_null()).map(|x| x.s().to_string());
+        cases += 1;
+        if e.refusal().map(str::to_string) != want {
+            bad += 1;
+            eprintln!("edge {:?}: got {:?}, want {want:?}", e.classes, e.refusal());
+        }
+    }
+    for c in fx.at("undecided").arr() {
+        let rows = rows_with_refs(c.at("rows").arr(), &refs_of(c));
+        let cc = conclude(kept(&rows, |_| true), |p| seat_rule(p, &law, &spec, &|_| true), None);
+        let i = cc.g.idx(&c.at("row").s().to_string()).expect("the row asked");
+        let get = |x: &String| cc.g.idx(x).map(|j| cc.g.row(j));
+        let got = (affiliation_removal(&law, &get, cc.g.row(i)).map(str::to_string), cc.concluded(i));
+        let want = (c.get("reason").filter(|x| !x.is_null()).map(|x| x.s().to_string()), c.at("concludes").b());
+        cases += 1;
+        if got != want {
+            bad += 1;
+            eprintln!("undecided {}: got {got:?}, want {want:?}", c.at("name").s());
         }
     }
     report("charter coverage against check_charter.py", cases, bad);

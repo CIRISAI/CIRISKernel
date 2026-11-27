@@ -371,12 +371,12 @@ fn ledger(n: usize) -> Vec<B> {
 
 fn chain_edges(n: usize, extra: usize) -> Vec<Accepts<String, ()>> {
     let mut e: Vec<Accepts<String, ()>> =
-        (0..n).map(|i| Accepts { src: key(i), dst: key(i + 1), classes: Vec::new(), depth: 5 }).collect();
+        (0..n).map(|i| Accepts { src: key(i), dst: key(i + 1), classes: None, depth: 5 }).collect();
     let mut g = dag::Lcg(3);
     for _ in 0..extra {
         let a = (g.next() as usize) % (n + 1);
         let b = (g.next() as usize) % (n + 1);
-        e.push(Accepts { src: key(a), dst: key(b), classes: Vec::new(), depth: (g.next() % 6) as u32 });
+        e.push(Accepts { src: key(a), dst: key(b), classes: None, depth: (g.next() % 6) as u32 });
     }
     e
 }

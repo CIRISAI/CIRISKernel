@@ -2,23 +2,33 @@
 
 ## Unreleased
 
-**Charter coverage for licensing authorities** (CC 3.4.7; CC 4.4.3.12, 4.4.3.34), both languages, with cases and
-planted breaks (`charter.py`, `check_charter.py`; fixture `charter.json`). Whether an authority's charter declares a
-class is read from rows, not asked of the caller. **BREAKING**: `trust::honours` and `trust::EdgeIndex::honours` take
-a `&trust::Charters` in place of the `charter_declares` callback. New: `trust::Charters` (per authority, the classes
-declared; `meet` intersects a charter supplied from elsewhere, such as the trust root's scope), the module `charter`
-(`declared`, `charters`, `read_licence`, `Untrusted`), `SeatRow::licence_classes` (default `None`) and `Seats::law`.
-- A licensing authority is an affiliation: a founding record whose `group_kind` is `affiliation`
-  (`CommunityKind::Affiliation`). Its charter is the record's own `licence_classes`.
+**Charter coverage for licensing authorities** (CC 3.4.7; CC 4.4.3.12, 4.4.3.34, with the Constitution's answers of
+2026-11-27), both languages, with cases and planted breaks (`charter.py`, `check_charter.py`; fixture
+`charter.json`). Whether an authority's charter declares a class is read from rows, not asked of the caller.
+**BREAKING**: `trust::honours` and `trust::EdgeIndex::honours` take a `&trust::Charters` in place of the
+`charter_declares` callback; `trust::Accepts::classes` is `Option<Vec<C>>` (`None`: `trust_classes` absent); the
+walk's class bound is `Ord`. New: `trust::Charters` (per authority, the classes declared; `meet` intersects a charter
+supplied from elsewhere, such as the trust root's scope), `trust::Accepts::refusal` and `trust::CLASSES_MALFORMED`,
+the module `charter` (`declared`, `charters`, `read_licence`, `Untrusted`, `CHARTER_KINDS`; each takes the caller's
+instant, `R: Dated`), `seat::affiliation_removal`, `SeatRow::licence_classes` ((class, legal_weight) pairs) and
+`SeatRow::declared_cohort` (defaults `None`), and `Seats::law`.
+- An affiliation is a community record whose `declared_cohort` is `affiliations` (`CommunityKind::Affiliation`).
+  Charter coverage reads `licence_classes` from any community record (a community, an infrastructure community, an
+  affiliation); a family's is none. Each class carries its `legal_weight`.
 - The charter is read over the rows the reader holds, never at a licence's own instant: a class a later amendment
   drops stops matching every licence of it.
-- A version is a change of the affiliation's record (scope `record`, the act `record_change`) that concludes under
-  the affiliation's declared protocol and counts for the reader. A change below the protocol leaves the charter as
-  it was. The Constitution's acts table has no row for it yet: the model's `seat.PENDING_ACTS` adds
-  `record_change / record / affiliation / cosigned_act / fixed`, and the fixtures' law carries it. A record change is
-  no act against a member, so a one-seat affiliation changes its charter alone.
-- A version stating no classes keeps those in force at its head. Two version tips that differ declare the classes
-  both list, until a version names both (the Constitution's derived reading).
+- A version is a change of the record (the act `record_change`) that concludes under the record's protocol and counts
+  for the reader; a change below the protocol leaves the charter as it was. A version is the whole record: one
+  stating no classes declares none. Two version tips that differ declare the (class, legal_weight) pairs both list,
+  until a version names both.
+- An affiliation's acts are the acts table's (copied from the Constitution's `rc23-next` at `68eb8d1`): an
+  appointment of a member (`cosigned_act`, the appointee's acceptance the second consent), a change of its record,
+  its dissolution. A removal from an affiliation is undecided (`affiliation_remove_member_undecided`): the outside
+  countersign of CC 4.4.3.12 is not read, so the seat rule concludes nothing for it.
+- A dissolved group declares nothing (a concluded dissolution, or the lapse of its last seat); a record version's own
+  stated end (`dissolves_at`, read as `Dated::valid_until`) is read against the caller's instant where one is given.
+- `trust_classes` absent admits every declared class; a present list must be non-empty, sorted and name no class
+  twice, else the edge is refused at admission (`trust_accepts_classes_malformed`) and the walk reads it as no edge.
 - A licence of a class the charter does not declare is admitted as a row and honoured by no reader
   (`licence_class_not_trusted`); a class the reader's walk does not reach is `authority_not_reached`.
 
