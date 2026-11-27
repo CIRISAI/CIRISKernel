@@ -539,6 +539,18 @@ CASES += [
      RD(anchor="b0", acks=("s0", "b1", "st", "su")), {"concluded": {"st": Fa, "su": Fa}, "heads": ("b0",)}),
     ("settle", "and both together (h4 and h5 toward b1) settle it: b1", [B0_5, SC1, SC0, SETTLE("st", "b1", ("h4", "h5"), SC5)],
      (), (), RD(anchor="b0", acks=("s0", "b1", "st")), {"concluded": {"st": T}, "heads": ("b1",)}),
+    ("settle", "settler equivocation (rule 6 read over settlers), the two-holder world: h4 signs settlers toward b1 "
+               "and toward s0; it has no say in settling b0 (both its settler signatures count for nothing), and h5, "
+               "who signed toward b1, decides alone: b1",
+     [B0_5, SC1, SC0, SETTLE("st", "b1", ("h4", "h5"), SC5), SETTLE("su", "s0", ("h4",), SC5)], (), (),
+     RD(anchor="b0", acks=("s0", "b1", "st", "su")), {"concluded": {"st": T, "su": Fa}, "heads": ("b1",)}),
+    ("settle", "and where h5 signed neither, nothing settles: the reader stays at b0",
+     [B0_5, SC1, SC0, SETTLE("st", "b1", ("h4",), SC5), SETTLE("su", "s0", ("h4",), SC5)], (), (),
+     RD(anchor="b0", acks=("s0", "b1", "st", "su")), {"concluded": {"st": Fa, "su": Fa}, "heads": ("b0",)}),
+    ("settle", "the lone-holder world: h3, the one holder with a say, settles toward b1 and toward s0: it has no say, "
+               "the base is empty, and nothing settles (a stall)",
+     STL + [SETTLE("st", "b1", ("h3",), STS), SETTLE("su", "s0", ("h3",), STS)], (), (),
+     RD(anchor="b0", acks=("s0", "b2", "b3", "st", "su")), {"concluded": {"st": Fa, "su": Fa}, "heads": ("b0",)}),
     ("settle", "(5) EDGE (stated): every holder double-signed (h1 h2 h3 on a1 and a0): the base is empty, nothing "
                "settles, and the reader re-roots", [B0, SA1, SA0, SETTLE("st", "b1", ("h1", "h2", "h3"), SA)], (), (),
      RD(anchor="b0", acks=("s0", "b1", "st")), {"concluded": {"st": Fa}, "heads": ("b0",)}),
@@ -681,7 +693,8 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "rotation_outlives_seat", "retired_unread", "join_prev_unread", "cosign_unread", "double_signer_voices",
           "ack_settles_over_all", "recovery_head_unread", "double_signer_grant_voices", "double_signer_settles",
           "double_signer_halt_suppressed", "double_signer_mark_carried",
-          "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base")
+          "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
+          "settler_double_sign_counted")
 
 
 def answer(bs, rv, gs, rd, want):

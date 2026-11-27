@@ -493,7 +493,8 @@ where
             let ds = self.double_signers(&named);
             let p: BTreeSet<B::Id> = b.prev().iter().cloned().collect();
             let none = BTreeSet::new();
-            let d = ds.get(&p).unwrap_or(&none);
+            let mut d: BTreeSet<B::Key> = ds.get(&p).unwrap_or(&none).clone();
+            d.extend(self.settler_double_signers(b.prev()));
             let head = self.b(&b.prev()[0]).map(|h| h.holders().to_vec()).unwrap_or_default();
             let base: BTreeSet<B::Key> = self.live(head).into_iter().filter(|k| !d.contains(&self.owner(k))).collect();
             return if !base.is_empty() && self.meets(b, &v, Some(&base)) {
@@ -507,6 +508,23 @@ where
         } else {
             Err("genesis_bundle_count_unmet")
         }
+    }
+
+    /// Rule 6 read over settlers: the holders (owner classes) that signed two bounded settlers at head `prev` naming
+    /// different siblings. Such a holder has no say in settling that head: both its settler signatures count for
+    /// nothing.
+    fn settler_double_signers(&self, prev: &[B::Id]) -> BTreeSet<B::Key> {
+        let ss: Vec<&B> = self.by.values().copied().filter(|x| x.prev() == prev && self.bounded_settler(x)).collect();
+        let mut out = BTreeSet::new();
+        for a in &ss {
+            for c in &ss {
+                if a.settles() != c.settles() {
+                    let oc: BTreeSet<B::Key> = self.voices(c).iter().map(|k| self.owner(k)).collect();
+                    out.extend(self.voices(a).iter().map(|k| self.owner(k)).filter(|k| oc.contains(k)));
+                }
+            }
+        }
+        out
     }
 
     /// A settler at a head that names one contested sibling there ([`RootBundle::settles`]) as the one that stands

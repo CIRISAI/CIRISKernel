@@ -22,6 +22,8 @@ with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
   an empty base, nothing settles and the reader re-roots; the holders with a say split evenly, nothing settles; a
   lone holder with a say settles alone, choosing only between majority-signed bundles. A settler is no head of its
   own: the reader is at the sibling it names.
+- Settler equivocation (rule 6 read over settlers): a holder that signs two settlers at one head naming different
+  siblings has no say in settling that head; both its settler signatures count for nothing.
 - The halt residual, stated: holders a later line removed can halt a reader that has not yet settled onto that line.
 - A root is the lineage of a genesis bundle (`RootBundle`, a signed object the store presents with its statements
   checked). The first bundle is counted over every holder it lists, a later one over a strict majority of its

@@ -125,6 +125,10 @@ migrations, and the local operational store.
   the one that stands, and carrying that sibling's holders, seats, charter and recovery commitments unchanged (it
   states nothing of its own); it is counted over the holders with a say there. Holders a later line removed can halt
   a reader that has not yet settled onto that line.
+- Once the node holds a settler that decides a head for its reader, it re-acknowledges the reader's newest held
+  line on the sibling that stands (b2 and b3 in the stall world) as its own mechanical act, with no step for the
+  person: an acknowledgement settles only over its own past, so the earlier ones made before the settler do not.
+  A holder that signs two settlers at one head naming different siblings has no say in settling that head.
 - A community's protocol is a word of the set under which no one voice decides (`seat::community_protocol`): not
   `quorum:1/{n}`, not `founder_only` (a family's; families are not built), not a weighted record one of whose
   weights reaches its threshold. A change of its record states no policy and meets both the protocol in force and

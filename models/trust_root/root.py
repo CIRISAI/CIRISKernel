@@ -352,11 +352,25 @@ class Root:
             # bundles.
             D = {} if "settler_double_signers_in_base" in MUT else self.double_signers(
                 [self.by[n] for n in b["names"] if n in self.by and self.counted(n)[0]])
-            d = D.get(frozenset(b["prev"]), set())
+            d = set(D.get(frozenset(b["prev"]), set())) | self.settler_double_signers(b["prev"])
             base = frozenset(k for k in self.live(self.by[b["prev"][0]]["holders"]) if self.owner(k) not in d)
             ok = bool(base) and self.meets(b, v, within=base)
             return (True, None) if ok else (False, "genesis_bundle_count_unmet")
         return (True, None) if self.meets(b, v) else (False, "genesis_bundle_count_unmet")
+
+    def settler_double_signers(self, prev):
+        """Rule 6 read over settlers: the holders (owner classes) that signed two bounded settlers at head `prev`
+        naming different siblings. Such a holder has no say in settling that head: both its settler signatures count
+        for nothing (MUTATION settler_double_sign_counted: they count)."""
+        if "settler_double_sign_counted" in MUT: return set()
+        ss = [x for x in self.by.values() if tuple(x["prev"]) == tuple(prev) and self.bounded_settler(x)]
+        out = set()
+        for a in ss:
+            for c in ss:
+                if a["settles"] != c["settles"]:
+                    oc = {self.owner(k) for k in self.voices(c)}
+                    out |= {self.owner(k) for k in self.voices(a) if self.owner(k) in oc}
+        return out
 
     def bounded_settler(self, b):
         """A settler at a head that names one contested sibling there (`settles`) as the one that stands and states
