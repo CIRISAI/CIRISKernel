@@ -202,10 +202,16 @@ CASES = [
      + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2", "h3"), version=2, charter=C3),
         nxt("k", ("j1", "j2", "j3"), ("h1", "h2", "h3"), ("h1", "h2"), version=3)], (), (), RD(anchor="b0", acks=("k",)),
      {"concluded": {"k": T}, "void": set(), "heads": ("k",), "holders": {"h1", "h2", "h3"}}),
-    ("join", "a join concurrent with an ordinary amend on one tip (a on s1, adding h6): no contest; j and a are tips "
-             "under one charter and fold", FORK + [nxt("j1", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2", "h3"), version=2),
-                                                   nxt("a", "s1", H3 + ("h4", "h6"), ("h1", "h2", "h4"), version=2)], (), (),
-     RD(anchor="b0", acks=("j1", "a")), {"void": set(), "heads": ("a", "j1"), "holders": {"h1", "h2", "h3", "h4", "h5", "h6"}}),
+    ("join", "a join concurrent with an ordinary amend on one tip (a on s1, adding h6): no contest, but for a reader "
+             "that acknowledged a, s2 is behind its line (s2 names b0, strictly in the past of a's head s1), and the "
+             "join naming s2 concludes nothing for it: the reader holds a",
+     FORK + [nxt("j1", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2", "h3"), version=2),
+             nxt("a", "s1", H3 + ("h4", "h6"), ("h1", "h2", "h4"), version=2)], (), (),
+     RD(anchor="b0", acks=("j1", "a")), {"void": set(), "heads": ("a",), "holders": {"h1", "h2", "h3", "h4", "h6"}}),
+    ("join", "the same join read by a reader that acknowledged only j1: j1 and its holders", FORK + [
+        nxt("j1", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2", "h3"), version=2),
+        nxt("a", "s1", H3 + ("h4", "h6"), ("h1", "h2", "h4"), version=2)], (), (),
+     RD(anchor="b0", acks=("j1",)), {"heads": ("j1",), "holders": {"h1", "h2", "h3", "h4", "h5"}}),
     ("join", "the settling bundle itself forked: two settlers of j1 and j2 under different charters are contested in "
              "turn, and the reader ends at s1 and s2, the same holders, never fewer",
      FJ(("h1", "h4"), ("h2", "h5")) + [nxt("k1", ("j1", "j2"), ("h1", "h2", "h4"), ("h1", "h2", "h4", "h5"), version=3),
@@ -233,28 +239,43 @@ CASES = [
     ("S''", "h1 and h2 sign s1 at b0, then b1 at b0 with h3 and b2 on b1, without s1: s1 is self-forked, and by T h3 "
             "(signed only b1) against none: s1 is void, and no reader holds it", SFW, (), (),
      RD(anchor="b0", acks=("s1", "b2")), {"void": {"s1"}, "heads": ("b2",)}),
-    ("S''", "the same where h3 did not sign b1: the same voices on both sides, a tie: s1 stands, and the reader that "
-            "acknowledged both folds them", SFT, (), (), RD(anchor="b0", acks=("s1", "b2")),
-     {"void": set(), "heads": ("b2", "s1")}),
+    ("S''", "the same where h3 did not sign b1: the same voices on both sides, a tie: s1 stands, and a reader at s1 "
+            "holds it", SFT, (), (), RD(anchor="b0", acks=("s1",)), {"void": set(), "heads": ("s1",)}),
+    ("S''", "a reader that acknowledged s1 and then b2: s1 is behind b2, so void for it (acknowledgements accumulate; "
+            "an earlier one protects nothing)", SFT, (), (), RD(anchor="b0", acks=("s1", "b2")),
+     {"void": set(), "heads": ("b2",)}),
     # ---- grants ----------------------------------------------------------------------------------------------------
     ("grant", "a root grant counted over the holders of the bundle it names, at a strict majority: h1 alone on b0 is "
               "one of three", LIN, (), (GR("gA", "b0", "uA", "room", ("h1",)),), ANC, {"row": {"gA": False}}),
     ("grant", "the same signed by h1 and h2: a row; for a reader whose bundle in force is b0, in force",
      LIN, (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),), ANC, {"row": {"gA": True}, "grant": {"gA": (True, None)}}),
-    ("grant", "a later bundle re-scopes existing grants with no re-issuance: a grant under b0, read by a reader at b2 "
-              "whose charter still carries the duty, resolves",
-     LIN, (), (GR("gA", "b0", "uA", "room", ("h1", "h2")), AK("kr", "b2", names=("gA",))),
-     RD(anchor="b0", acks=("b2",), rows=("kr",)), {"grant": {"gA": (True, None)}}),
-    ("grant", "the line first: the same grant, not in the past of the reader's acknowledgement row, is behind its line",
-     LIN, (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b2",)),
-     {"grant": {"gA": (False, "grant_behind_reader_line")}}),
+    ("grant", "a later bundle re-scopes existing grants with no re-issuance: a grant by h1 and h2 under b0, read by a "
+              "reader at b2 (h1 h2 h4), resolves while its voices are a strict majority there (two of three)",
+     LIN, (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b2",)), {"grant": {"gA": (True, None)}}),
+    ("grant", "the cost: a grant lapses when enough of its signers leave: at b1 (h1..h4) h1 and h2 are two of four",
+     LIN, (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b1",)),
+     {"grant": {"gA": (False, "grant_voices_not_in_force")}}),
+    ("grant", "an amend swapping one of three holders (h3 for h6) leaves a grant by the other two standing",
+     [B0, nxt("b1", "b0", ("h1", "h2", "h6"), ("h1", "h2"))], (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),),
+     RD(anchor="b0", acks=("b1",)), {"grant": {"gA": (True, None)}}),
+    ("grant", "at unjoined tips the majority is of the holders in force there: the fold (h1..h5), so h1, h2 and h4 "
+              "on s1 are three of five", FORK, (), (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4")),),
+     RD(anchor="b0", acks=("s1", "s2")), {"grant": {"g1": (True, None)}}),
+    ("grant", "and the common holders where charters differ (h1 h2 h3): h1, h2 and h4 on s1 are two of three",
+     FORKC, (), (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4")),), RD(anchor="b0", acks=("s1", "s2")),
+     {"grant": {"g1": (True, None)}}),
+    ("grant", "a voice under a key a recovery retired is no voice: h1 and h2 grant on b0, h2 recovers to h2b; at the "
+              "recovery the holders are h1 h2b h3, and h1 alone is one of three: the grant lapses until re-issued",
+     [B0, nxt("rc", "b0", ("h1", "h2b", "h3"), ("r:h2",), recovers=("h2", "h2b"),
+              recovery={"h1": "r:h1", "h2b": "r:h2b", "h3": "r:h3"})], (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),),
+     RD(anchor="b0", acks=("rc",)), {"grant": {"gA": (False, "grant_voices_not_in_force")}}),
     ("grant", "the same after b2 drops the duty from its charter: the grant exists, and stops resolving",
      LIN[:2] + [dict(LIN[2], charter=C2)], (), (GR("gA", "b0", "uA", "room", ("h1", "h2")), AK("kr", "b2", names=("gA",))),
-     RD(anchor="b0", acks=("b2",), rows=("kr",)),
+     RD(anchor="b0", acks=("b2",)),
      {"row": {"gA": True}, "grant": {"gA": (False, "grant_scope_not_in_force")}}),
-    ("grant", "a grant under a tip the reader's line is not on: a reader at s1, a grant under s2 (counted by h2, h3 and "
-              "h5 of four) is void for it", FORK, (), (GR("g2", "s2", "uB", "room", ("h2", "h3", "h5")),),
-     RD(anchor="b0", acks=("s1",)), {"row": {"g2": True}, "grant": {"g2": (False, "grant_not_in_reader_lineage")}}),
+    ("grant", "a grant under s2 read at s1: its voices h2 and h3 are two of s1's four, so it does not resolve there",
+     FORK, (), (GR("g2", "s2", "uB", "room", ("h2", "h3", "h5")),),
+     RD(anchor="b0", acks=("s1",)), {"row": {"g2": True}, "grant": {"g2": (False, "grant_voices_not_in_force")}}),
     ("grant", "a grant exists only where its bundle's charter carries its duty: a grant of `infra` under a bundle "
               "whose charter carries none", [dict(B0, charter=C2)], (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),),
      ANC, {"row": {"gA": False}}),
@@ -352,12 +373,12 @@ CASES += [
     ("attack", "a recovery is not exempt from S'': h3 signed b1 and b2, then its recovery key recovers it at b0; behind "
                "b2, self-forked, and by T (h1 and h2 built only on b1 and b2) void", [B0, XB1, XB2, XRC], (), (),
      RD(anchor="b0", acks=("b2", "rx")), {"void": {"rx"}, "heads": ("b2",)}),
-    ("attack", "G1: removed holders h1 and h2 grant on b0; for a reader at b2 the grant is behind its line, void",
+    ("attack", "G1: removed holders h1 and h2 grant on b0; at b2 (h3 h4 h5) they are no voices in force: refused",
      RL, (), (GR("g1", "b0", "uX", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b2",)),
-     {"grant": {"g1": (False, "grant_behind_reader_line")}}),
-    ("attack", "RJ0 read by both (ra acknowledged first, then b2): the fold of b2 and ra; ra rotates h1 to h1x, and b2 "
-               "removed h1, so the rotation follows the seat out: h1x is not seated", RL + [RA], (), (),
-     RD(anchor="b0", acks=("ra", "b2")), {"heads": ("b2", "ra"), "holders": {"h3"}}),
+     {"grant": {"g1": (False, "grant_voices_not_in_force")}}),
+    ("attack", "RJ0 read by both, ra acknowledged first: ra is behind b2 for every reader that acknowledged b2, "
+               "whatever it acknowledged earlier: void, and the reader holds b2", RL + [RA], (), (),
+     RD(anchor="b0", acks=("ra", "b2")), {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
     ("attack", "RJ0 by a reader that acknowledged b2 first: ra is behind its line, void for it", RL + [RA], (), (),
      RD(anchor="b0", acks=("b2", "ra")), {"heads": ("b2",)}),
     ("attack", "a join naming a predecessor void for the reader concludes nothing for it: jx joins b2 and ra by "
@@ -386,25 +407,32 @@ CASES += [
      [B0, dict(RB1, charter=C1), dict(RB2, charter=C1)], (), (GR("g3", ("b2", "b0"), "uX", "room", ("h3", "h4")),),
      RD(anchor="b0", acks=("b2",)), {"row": {"g3": False}, "grant": {"g3": (False, "grant_bundles_not_antichain")}}),
 ]
-# the proposed reader's line (GRANT_LINE, pending the Constitution): (name, bundles, grants, reader, {grant: answer})
-LINE_CASES = [
-    ("G1: removed holders h1 and h2 grant on b0; for a reader at b2 the grant is behind its line, void", RL,
-     (GR("g1", "b0", "uX", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b2",)), {"g1": (False, "grant_behind_reader_line")}),
-    ("an honest old grant in the past of the reader's acknowledgement row stands", RL,
-     (GR("g1", "b0", "uX", "room", ("h1", "h2")), AK("kr", "b2", names=("g1",))),
-     RD(anchor="b0", acks=("b2",), rows=("kr",)), {"g1": (True, None)}),
-    ("a grant naming the reader's own bundle in force is no grant behind it", RL,
-     (GR("g4", "b2", "uX", "room", ("h3", "h4")),), RD(anchor="b0", acks=("b2",)), {"g4": (True, None)}),
+# the re-attack on 272fcd6 (ao, g3, gl): the line is monotone, and grants resolve by the in-force count
+AOS0 = nxt("s0", "b0", ("h1", "h2", "X"), ("h1", "h2"))             # removed h1 and h2's old-majority sibling at b0
+AO = RL + [AOS0]
+GLB1 = nxt("b1", "b0", ("h1", "h2", "h3", "h4"), ("h1", "h2", "h3"))
+GLG = GR("g0", "b0", "uX", "room", ("h1", "h2", "h3"))
+CASES += [
+    ("attack", "AO1: a reader that acknowledged s0, then b2: s0 names b0, strictly in the past of b2's head b1, so it "
+               "is behind b2 for every reader that acknowledged b2: void, and the reader holds b2", AO, (), (),
+     RD(anchor="b0", acks=("s0", "b2")), {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
+    ("attack", "AO2: acknowledged b1, s0, then b2: the same", AO, (), (), RD(anchor="b0", acks=("b1", "s0", "b2")),
+     {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
+    ("attack", "AO3, the residual: a reader that acknowledged only s0 holds s0 (it takes its first head from a member "
+               "it trusts, CC 3.3.4)", AO, (), (), RD(anchor="b0", acks=("s0",)), {"heads": ("s0",), "holders": {"h1", "h2", "X"}}),
+    ("attack", "AO1h: an honest grant on b2 by h3 and h4 resolves for the reader at b2", AO, (),
+     (GR("gh", "b2", "uY", "room", ("h3", "h4")),), RD(anchor="b0", acks=("s0", "b2")), {"grant": {"gh": (True, None)}}),
+    ("attack", "G5: removed holders' grant on b0, the reader's later acceptance edge naming it: no voices in force at "
+               "b2, refused", RL, (), (GR("g1", "b0", "uX", "room", ("h1", "h2")), AK("k2", "b2", names=("g1",))),
+     RD(anchor="b0", acks=("b2",)), {"grant": {"g1": (False, "grant_voices_not_in_force")}}),
+    ("attack", "GL1: an honest grant by h1, h2 and h3 on b0, the reader at b1 (h1..h4): three of four, it resolves",
+     [B0, GLB1], (), (GLG,), RD(anchor="b0", acks=("b0", "b1")), {"grant": {"g0": (True, None)}}),
+    ("attack", "GL4: the same for a reader that acknowledged b1 only", [B0, GLB1], (), (GLG,), RD(anchor="b0", acks=("b1",)),
+     {"grant": {"g0": (True, None)}}),
+    ("attack", "the turnover: b2 (by h1, h2 and h3 of b1's four) leaves h3 h4 h5; g0's voices are one of three, and it "
+               "lapses", [B0, GLB1, nxt("b2", "b1", ("h3", "h4", "h5"), ("h1", "h2", "h3"), version=2)], (), (GLG,),
+     RD(anchor="b0", acks=("b1", "b2")), {"heads": ("b2",), "grant": {"g0": (False, "grant_voices_not_in_force")}}),
 ]
-
-
-def run_line():
-    RT.GRANT_LINE.append(True)
-    try:
-        return ["line %s: got %s" % (name, got) for name, bs, gs, rd, want in LINE_CASES
-                for got in [{g: RT.Root(bs, (), gs).grant_in_force(g, rd) for g in want}] if got != want]
-    finally:
-        RT.GRANT_LINE.pop()
 
 
 # ---- stalled recovery, judged against the root (seat.recovery_verdict) ------------------------------------------------
@@ -434,12 +462,14 @@ RECOVERY = [
      ANC, False, "not_signed_by_named_key", False),
     ("the grant's count is short: h1 alone of three", STALLED + [RCV()], ROOT_ROWS, (dict(GOK, signers=("h1",)),), ANC,
      False, "grant_count_short", False),
-    ("the grant names b0, and this node's bundle in force is b1, whose charter still carries the duty: it resolves",
-     STALLED + [RCV()], LIN, (GOK, AK("kr", "b1", names=("B1",))), RD(anchor="b0", acks=("b1",), rows=("kr",)), True, None, True),
+    ("the grant names b0, and this node's bundle in force is b1 (h1..h4): h1 and h2 are two of four, the grant lapses",
+     STALLED + [RCV()], LIN, (GOK,), RD(anchor="b0", acks=("b1",)), False, "grant_voices_not_in_force", False),
+    ("a grant by h1, h2 and h3 is three of four there, and the charter carries the duty: it resolves",
+     STALLED + [RCV()], LIN, (dict(GOK, signers=("h1", "h2", "h3")),), RD(anchor="b0", acks=("b1",)), True, None, True),
     ("the same where b1's charter drops the duty", STALLED + [RCV()], [B0, dict(LIN[1], charter=C2)],
-     (GOK, AK("kr", "b1", names=("B1",))), RD(anchor="b0", acks=("b1",), rows=("kr",)), False, "grant_scope_not_in_force", False),
-    ("G4: a grant by removed holders h1 and h2 naming b0, the reader at b2: behind its line, refused",
-     STALLED + [RCV()], RL, (GOK,), RD(anchor="b0", acks=("b2",)), False, "grant_behind_reader_line", False),
+     (dict(GOK, signers=("h1", "h2", "h3")),), RD(anchor="b0", acks=("b1",)), False, "grant_scope_not_in_force", False),
+    ("G4: a grant by removed holders h1 and h2 naming b0, the reader at b2: no voices in force, refused",
+     STALLED + [RCV()], RL, (GOK,), RD(anchor="b0", acks=("b2",)), False, "grant_voices_not_in_force", False),
     ("the reader's anchor names no first bundle", STALLED + [RCV()], ROOT_ROWS, (GOK,), RD(anchor="zz"), False,
      "genesis_bundle_not_anchored", False),
     ("two tips: a grant on s1 by h1, h2 and h4, signers who hold only s1: three of s1's four",
@@ -476,7 +506,7 @@ def run_recovery():
 PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "bound_unread", "version_unread",
           "family_unread", "commitments_unread", "recovery_other_seat", "spent_unread", "fold_common", "fold_union",
           "charter_folds", "anchor_unread", "inforce_global", "root_sf_unread", "root_t_unread",
-          "grant_any_bundle", "grant_charter_unread", "grant_scope_unread", "recovery_fork_both", "joins_fork_both",
+          "grant_count_unread", "grant_charter_unread", "grant_scope_unread", "recovery_fork_both", "joins_fork_both",
           "grant_head_unread", "join_common_base", "recovery_exempt", "recovery_t_unread",
           "join_void_prev_spared", "grant_antichain_unread", "regime_reads_commitments", "reader_line_unread",
           "rotation_outlives_seat", "retired_unread", "join_prev_unread")
@@ -571,12 +601,6 @@ def fixture(with_refs):
                       "row": {g["id"]: R.grant_row(g["id"]) for g in gs if g["kind"] == "grant"}, "line": line})
     for rule, name, bs, rv, gs, rd, _ in CASES:
         one(rule, name, bs, rv, gs, rd, False)
-    RT.GRANT_LINE.append(True)
-    try:
-        for name, bs, gs, rd, _ in LINE_CASES:
-            one("line", name, bs, (), gs, rd, True)
-    finally:
-        RT.GRANT_LINE.pop()
     rec = []
     for name, rows, bs, gs, rd, c, why, f4 in RECOVERY:
         refs = {}
@@ -587,7 +611,7 @@ def fixture(with_refs):
 
 
 def main():
-    bad = run() + run_recovery() + run_line()
+    bad = run() + run_recovery()
     for b in bad: print(b)
     missed = []
     for p in PLANTS:
@@ -599,13 +623,6 @@ def main():
             RT.MUT.discard(p)
         print("  plant %-22s %s" % (p, ("caught by: " + hit[:90]) if hit else "NOT CAUGHT"))
         if not hit: missed.append(p)
-    RT.MUT.add("grant_line_unread")
-    try:
-        hit = run_line()
-    finally:
-        RT.MUT.discard("grant_line_unread")
-    print("  plant %-22s %s" % ("grant_line_unread", ("caught by: " + hit[0][:90]) if hit else "NOT CAUGHT"))
-    if not hit: missed.append("grant_line_unread")
     for p in RECOVERY_PLANTS:
         ST.MUT.add(p)
         try:
@@ -616,7 +633,7 @@ def main():
         print("  plant %-22s %s" % (p, ("caught by: " + hit[:90]) if hit else "NOT CAUGHT"))
         if not hit: missed.append(p)
     ok = not bad and not missed
-    n = len(PLANTS) + len(RECOVERY_PLANTS) + 1
+    n = len(PLANTS) + len(RECOVERY_PLANTS)
     print("RESULT: %s: %d cases, %d of stalled recovery, %d of %d planted breaks caught" % (
         "ok" if ok else "%d problems" % (len(bad) + len(missed)), len(CASES), len(RECOVERY), n - len(missed), n))
     return 0 if ok else 1

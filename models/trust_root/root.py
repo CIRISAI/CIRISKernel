@@ -39,10 +39,13 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
                  holders of the bundles it names, and their charters carry its duty; it names the newest bundles in
                  its signers' own past (signers who saw s2 name s1 and s2, and are counted over their fold, or the
                  common holders where charters differ; one naming only s1 by signers who saw s2 concludes nothing); one made under either
-                 successor stands as a row. It RESOLVES for a reader while its bundle is in the reader's lineage
-                 (one of its heads, or in their past; not on a line behind it) and the scope of the bundle in force
-                 at that reader still carries the duty (several tips: what all carry). A later bundle re-scopes
-                 existing grants with no re-issuance.
+                 successor stands as a row. It RESOLVES for a reader only while its voices are a strict majority of
+                 the holders IN FORCE at that reader (the fold at unjoined tips, the common holders where charters
+                 differ; live and under the same key, so a voice under a key a recovery retired is no voice) and the
+                 scope in force there carries the duty (several tips: what all carry). A later bundle re-scopes
+                 existing grants with no re-issuance. The cost: a grant lapses when enough of its signers leave (or
+                 rotate), and is re-issued; an amend swapping one of three holders leaves a grant signed by the
+                 other two standing.
     contested    two recoveries of one seat, neither in the other's past, are contested: neither replaces the seat
                  until a bundle names both, and the old key's seat stays as it was (the causal form of a spent
                  commitment).
@@ -109,27 +112,12 @@ def duties(charter):
     return frozenset(charter.get("duties", ())) if isinstance(charter, dict) else frozenset()
 
 
-def reader(anchor=None, thumbs=None, acks=(), rows=()):
-    """A reader: its anchor (a first bundle's id, or the holders' thumbprints), the bundles it acknowledged, in the
-    order it acknowledged them (its own line), and its own acknowledgement rows in the root's lane (`rows`)."""
-    return {"anchor": anchor, "thumbs": frozenset(thumbs) if thumbs is not None else None, "acks": tuple(acks),
-            "rows": frozenset(rows)}
+def reader(anchor=None, thumbs=None, acks=()):
+    """A reader: its anchor (a first bundle's id, or the holders' thumbprints), and the bundles it acknowledged."""
+    return {"anchor": anchor, "thumbs": frozenset(thumbs) if thumbs is not None else None, "acks": tuple(acks)}
 
 
-# Grants sit on the reader's line (the Constitution's ruling), with bundles as heads. A grant naming a bundle strictly
-# older than one the reader acknowledged, and not in the past of the reader's own acknowledgement rows, is void for
-# that reader (MUTATION grant_line_unread). Kept as a list only so the planted break can switch it.
-GRANT_LINE = [True]
 
-# PROTOTYPES of the re-attack's two candidate fixes (review-58b on 272fcd6), off unless switched on (or by the
-# environment, ROOT_SIBLING_T=1, ROOT_GRANT_COUNT=1), pending the Constitution:
-#   SIBLING_T    two successors of one bundle signed by the same voices, neither in the other's past, are those
-#                voices' self-fork, decided by T at the fork point (a tie keeps both)
-#   GRANT_COUNT  in place of grants on the reader's line: a grant resolves for a reader only while its counted voices
-#                are a strict majority of the reader's in-force holders (same key, live)
-import os as _os  # noqa: E402
-SIBLING_T = [bool(_os.environ.get("ROOT_SIBLING_T"))]
-GRANT_COUNT = [bool(_os.environ.get("ROOT_GRANT_COUNT"))]
 
 
 class Root:
@@ -328,13 +316,8 @@ class Root:
                 return own([b["recovers"][0]])
             return own(self.voices(b) & (self.base(b) if b["prev"] else frozenset(b["holders"])))
         def rivals(b):
-            """The bundles b is behind; with SIBLING_T, its siblings too (successors of the same bundles, neither in
-            the other's past)."""
-            out = [c for c in cs if self.behind(b, c)]
-            if SIBLING_T[-1]:
-                out += [c for c in cs if c["id"] != b["id"] and b["prev"] and frozenset(c["prev"]) == frozenset(b["prev"])
-                        and c["id"] not in self.past(b["id"]) and b["id"] not in self.past(c["id"])]
-            return out
+            """The bundles b is behind (sibling-safe: a sibling is no rival; the Constitution declined SIBLING_T)."""
+            return [c for c in cs if self.behind(b, c)]
         def forked(b):
             if not b["prev"]: return False
             if b.get("recovers") is not None and "recovery_exempt" in MUT: return False
@@ -440,29 +423,22 @@ class Root:
                 return i
         return None
 
-    def _rv(self, acked, valid):
-        on = set().union(*[self.line(a) for a in acked]) if acked else set()
-        out = {i for i in valid if i not in on and any(self.behind(self.by[i], self.by[a]) for a in acked)}
+    def reader_line(self, rd):
+        """The reader's own line: every bundle it acknowledged (they accumulate, in any order), and the bundles void
+        for the reader by it: every bundle behind ANY acknowledged bundle, an acknowledged one included, and every
+        bundle built on one, a join included (a join naming a predecessor void for a reader concludes nothing for
+        it). Acknowledging never revives (MUTATION reader_line_unread: nothing is void by the line)."""
+        valid = self.valid()
+        acked = [a for a in rd["acks"] if a in valid]
+        if "reader_line_unread" in MUT: return acked, frozenset()
+        out = {i for i in valid if any(self.behind(self.by[i], self.by[a]) for a in acked)}
         changed = True
         while changed:
             changed = False
             for i in valid:
-                if i not in out and i not in on and any(p in out for p in self.by[i]["prev"]):
+                if i not in out and any(p in out for p in self.by[i]["prev"]):
                     out.add(i); changed = True
-        return out
-
-    def reader_line(self, rd):
-        """The reader's own line: its acknowledgements in order, each taken unless it is void for the reader by
-        those before it (acknowledging never un-voids); and the bundles void for the reader by that line: one
-        behind a bundle it acknowledged and not on its line, and every bundle built on one, a join included (a
-        join naming a predecessor void for a reader concludes nothing for it; MUTATION reader_line_unread)."""
-        valid = self.valid()
-        if "reader_line_unread" in MUT:
-            return [a for a in rd["acks"] if a in valid], frozenset()
-        acc = []
-        for a in rd["acks"]:
-            if a in valid and a not in self._rv(acc, valid): acc.append(a)
-        return acc, frozenset(self._rv(acc, valid))
+        return acked, frozenset(out)
 
     def reader_void(self, rd):
         return self.reader_line(rd)[1]
@@ -631,10 +607,12 @@ class Root:
         return frozenset.intersection(*[duties(self.by[h]["charter"]) for h in hs])
 
     def grant_in_force(self, gid, rd):
-        """(True|False, reason): the grant exists and RESOLVES for the reader: (i) its bundles are in the reader's
-        lineage, among its heads or in their past, not on a line behind it (MUTATION grant_any_bundle); (ii) the
-        scope of the bundle in force at the reader still carries its duty (MUTATION grant_scope_unread). A later
-        bundle re-scopes existing grants with no re-issuance."""
+        """(True|False, reason): the grant exists and RESOLVES for the reader only while (i) its voices are a strict
+        majority of the holders IN FORCE at that reader (the fold at unjoined tips, or the common holders where
+        charters differ; live, and under the same key: a voice under a key a recovery retired is no voice;
+        MUTATION grant_count_unread) and (ii) the scope in force there carries its duty (MUTATION
+        grant_scope_unread). A later bundle re-scopes existing grants with no re-issuance; a grant lapses when
+        enough of its signers leave, and is re-issued."""
         g = self.grants.get(gid)
         if g is None: return (False, "grant_unknown")
         hs = self.heads(rd)
@@ -642,16 +620,9 @@ class Root:
         if any(n not in self.valid() for n in g["bundles"]): return (False, "grant_bundle_void")
         if not self.antichain(g["bundles"]): return (False, "grant_bundles_not_antichain")
         if not self.grant_row(gid): return (False, "grant_count_short")
-        if GRANT_COUNT[-1]:
-            H = self.live(self.fold(hs)[0])
-            if not 2 * len(frozenset(g["signers"]) & H) > len(H): return (False, "grant_voices_not_in_force")
-        elif GRANT_LINE[-1] and "grant_line_unread" not in MUT:
-            acked = self.reader_line(rd)[0]
-            seen = set().union(*[self.row_past(r) for r in rd.get("rows", ()) if r in self.rows]) if rd.get("rows") else set()
-            if gid not in seen and any(n in self.past(a) for n in g["bundles"] for a in acked):
-                return (False, "grant_behind_reader_line")
-        if "grant_any_bundle" not in MUT and not all(any(n in self.line(h) for h in hs) for n in g["bundles"]):
-            return (False, "grant_not_in_reader_lineage")
+        H = self.live(self.fold(hs)[0])
+        if not 2 * len(frozenset(g["signers"]) & H) > len(H) and "grant_count_unread" not in MUT:
+            return (False, "grant_voices_not_in_force")
         if g["duty"] not in self.scope_in_force(rd) and "grant_scope_unread" not in MUT:
             return (False, "grant_scope_not_in_force")
         return (True, None)

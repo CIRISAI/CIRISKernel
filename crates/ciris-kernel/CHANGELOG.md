@@ -21,8 +21,12 @@ with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
   acknowledgements). A root grant (`RootGrant`, a row of the root's lane with the acceptance edges) exists where it
   is counted at a strict majority over the live holders of the bundles it names, under charters carrying its duty,
   naming the newest bundles in its signers' own past: the bundles named by rows in the grant's causal past (an
-  acceptance edge's attached_head_digest, an earlier grant's bundles). It resolves for a reader while its bundles are
-  in the reader's lineage and the scope in force there carries the duty.
+  acceptance edge's attached_head_digest, an earlier grant's bundles). It resolves for a reader only while its voices
+  are a strict majority of the holders in force at that reader (same key, live: a voice under a retired key is no
+  voice) and the scope in force there carries the duty. A grant lapses when enough of its signers leave, and is
+  re-issued; an amend swapping one of three holders leaves a grant signed by the other two standing. The reader's
+  line is monotone: every bundle behind any bundle it acknowledged is void for it, an acknowledged one included,
+  and every bundle built on one, a join included.
 - A stalled recovery (`seat::recovery_verdict`) is judged against the root this node reads (`CutSpec::trust_root`,
   default none: undecided, as before; `root::RootReading` is the kernel's view, the store supplying only each key's
   identity type), by its six checks.
