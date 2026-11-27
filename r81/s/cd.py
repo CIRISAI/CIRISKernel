@@ -1,0 +1,15 @@
+exec(open(__file__.replace("cd.py","lib.py")).read())
+H5 = ("h1","h2","h3","h4","h5")
+b1 = nxt("b1","b0",H5,("h1","h2")); b2 = nxt("b2","b1",("h3","h4","h5"),("h3","h4","h5"),version=2)
+b3 = nxt("b3","b2",("h3","h4","h5","h6"),("h3","h4","h5"),version=3)
+t1 = nxt("t1","b1",("h1","h2","h3","X"),("h1","h2","h3"),version=2); t = nxt("t","t1",("h1","h2","h3","X"),("h1","h2","h3"),version=3)
+L = [B0, b1, b2, b3, t1, t]
+run("CD1 device 1 acks b2,b3; device 2 concurrently acks t", L, rd=RD(anchor="b0", acks=("b2","b3","t"), after=((),(0,),())))
+run("CD2 device 2 acks t1, t (two rows), device 1 b2,b3", L, rd=RD(anchor="b0", acks=("b2","b3","t1","t"), after=((),(0,),(),(2,))))
+run("CD3 a new reader whose only device acks t", L, rd=RD(anchor="b0", acks=("t",)))
+# settler at b1 by those with a say (h1,h2 not double signers at b1? h3 is): toward b2 by h4,h5 + h1?
+sb = CR.SETTLE("sb","b2",("h4","h5"),{"b2":b2,"t1":t1}, head="b1")
+run("CD4 CD1 + a settler at b1 toward b2 by h4,h5", L + [sb], rd=RD(anchor="b0", acks=("b2","b3","t","sb"), after=((),(0,),(),(0,1,2))))
+st = CR.SETTLE("st","t1",("h1","h2"),{"b2":b2,"t1":t1}, head="b1")
+run("CD5 CD1 + a settler at b1 toward t1 by h1,h2 (removed at b2, a say at b1)", L + [st], rd=RD(anchor="b0", acks=("b2","b3","t","st"), after=((),(0,),(),(0,1,2))))
+run("CD6 both settlers", L + [sb, st], rd=RD(anchor="b0", acks=("b2","b3","t","sb","st"), after=((),(0,),(),(0,1,2),(0,1,2,3))))
