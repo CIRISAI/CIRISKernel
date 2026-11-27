@@ -143,6 +143,7 @@ fn seat_scenarios() {
             let want: BTreeSet<J> = rd.at("recs").arr().iter().cloned().collect();
             cmp(got == want, format!("live seats for reader {reader}"));
             let stale = sorted_ids(q.stale().iter().map(|&i| &c.g.row(i).id));
+            }
             cmp(stale == rd.at("stale").strs(), format!("stale for reader {reader}"));
             for (o, h) in rd.at("holders").obj() {
                 let ob = obj_named(&rows, o);

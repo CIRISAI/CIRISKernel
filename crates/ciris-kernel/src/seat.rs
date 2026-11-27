@@ -1887,8 +1887,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             let twin = |t: &&R::Id| wd_of(t).iter().any(|w| w.signer() == k && o.to().contains(w.signer()));
             wd_of(o.id()).iter().any(own) || twin_ids.get(o.id()).unwrap_or(&none_ids).iter().any(twin)
         };
-        let mut stale =
-            line::void_except(c, &SeatLine, own, |i| cut.counts(i) && !behind.contains(&i), |_| false, &except);
+        // the changes void in the first pass and the roster's S'' void cut nothing (`cut` is built without them),
+        // and still count for the line's settle, so a merge of both lines built on one of them is not void, as the
+        // reference's checkpoint.void over Cut(S, without=L) reads it
+        let mut stale = line::void_except(c, &SeatLine, own, |i| cut.counts(i), |_| false, &except);
         stale.extend(behind.iter().copied());
         // a seating behind the reader's line does not stand for it and takes no part in C4
         let beaten = if elections { ecx.beaten(&stale) } else { BTreeSet::new() };
@@ -4055,7 +4057,14 @@ fn members_at_with<R: SeatRow, S: CutSpec<R>>(
     cache: Option<&MembersAt<R>>,
 ) -> BTreeSet<R::Key> {
     let Some(cache) = cache else { return members_at(p, law, spec, obj, heads, scope) };
-    if !heads.iter().all(|h| p.graph().idx(h).is_some_and(|hi| p.ancestors().binary_search(&hi).is_ok())) {
+    // a head void for the row or its reader is no head (members_at_c leaves it out): only the others must be among
+    // the row's concluded ancestors
+    let cv = cache.current_void();
+    if !heads
+        .iter()
+        .filter(|h| !cv.contains(*h))
+        .all(|h| p.graph().idx(h).is_some_and(|hi| p.ancestors().binary_search(&hi).is_ok()))
+    {
         return BTreeSet::new();
     }
     let mut hs = heads.to_vec();
