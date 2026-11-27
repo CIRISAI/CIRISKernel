@@ -11,7 +11,8 @@
 //!   roster (scope `key` over it); for a community record of any kind, CC 4.5.4's `authority_set(C)`, counted as a
 //!   duty conferral is (the acts row `accept / trust_edge / community -> duty_confer`, which the fixtures' law
 //!   carries until the Constitution's table has it): a strict majority of all its live duty holders, never fewer than
-//!   two where there are two or more, or a lone holder alone; the members' count where no duty holder is left.
+//!   two where there are two or more, or a lone holder alone. There is no members' fallback: a community with no duty
+//!   holder is LOCKED (CC 4.5.4 (v)) and signs no edge.
 //! - **Admission.** A `trust_classes` list that is present must be non-empty, sorted and name no class twice
 //!   ([`crate::trust::Accepts::refusal`]); `trust_depth` absent reads as 0, 0 to 5 is admitted, any other is
 //!   [`DEPTH_OUT_OF_RANGE`]. A refused edge is no edge.
@@ -22,10 +23,13 @@
 //!   the classes intersect hop by hop; a key expanded again only with more budget than before, so a cycle is visited
 //!   once; nothing is cached; within the cap of five. It reaches what the model's breadth-first walk reaches.
 //! - **(b) The issuer.** A licence is the authority's act where, over the licence's own causal past, its emitter's key
-//!   IS the authority, or holds a `license` seat over it (a delegation whose chain resolves to the authority:
-//!   [`Seats::stands`]), or, for a community, the licence is cosigned by its quorum (a strict majority of its members,
-//!   never fewer than two where there are two or more: no bootstrap). Any other is testimony, out of the fold:
-//!   [`NOT_AUTHORITY`]. A licence naming a link that is not held is not kept: it waits.
+//!   IS the authority (a person is one voice across its keys: any live key of its roster), or holds a `license` seat
+//!   over it (a delegation whose chain resolves to the authority: [`Seats::stands`]; over a community its duty holders
+//!   confer and withdraw the seat, the acts rows `seat_confer` / `seat_withdraw` of scope `license`, which the
+//!   fixtures' law carries until the table has them), or, for a community, the licence is cosigned by its quorum under
+//!   its DECLARED `consensus_protocol` ([`crate::seat::declared_count`]; no bootstrap). Any other is testimony, out of
+//!   the fold: [`NOT_AUTHORITY`]; a locked community's own licence is [`AUTHORITY_LOCKED`]. A licence naming a link
+//!   that is not held is not kept: it waits.
 //! - **(d) By ancestry.** The standing is judged at issuance, over the issuance's own past, never at receipt: a
 //!   withdrawal of a link in that past stops it; one concurrent with the issuance holds it out of force for a reader
 //!   that holds the withdrawal ([`LINK_WITHDRAWN`]); one with the issuance in its own past reaches nothing back.
@@ -33,8 +37,10 @@
 use crate::charter::{charters, CHARTER_KINDS};
 use crate::cut::CutSpec;
 use crate::graph::Graph;
-use crate::layers::Concluded;
-use crate::seat::{for_reader, kind_of, policy_for, Act, CommunityKind, Obj, ScopeClass, SeatKind, SeatRow, Seats};
+use crate::layers::{Concluded, Past};
+use crate::seat::{
+    declared_count, for_reader, kind_of, policy_for, Act, CommunityKind, Obj, ScopeClass, SeatKind, SeatRow, Seats,
+};
 use crate::trust::{reaches, Accepts, Charters, HOP_CAP};
 use crate::{Dated, Row};
 use alloc::collections::BTreeSet;
@@ -48,6 +54,8 @@ pub const BEARS: &str = "trust:accepts:v1";
 pub const DEPTH_OUT_OF_RANGE: &str = "trust_accepts_depth_out_of_range";
 /// A licence whose emitter has no standing for its authority over its own past: testimony, out of the fold.
 pub const NOT_AUTHORITY: &str = "licensure_delegator_not_authority";
+/// A locked community's own licence (CC 4.5.4 (v): no duty holder is left).
+pub const AUTHORITY_LOCKED: &str = "licensure_authority_locked";
 /// A licence a withdrawal concurrent with it, held by the reader, holds out of force.
 pub const LINK_WITHDRAWN: &str = "licensure_link_withdrawn";
 
@@ -119,35 +127,20 @@ fn past_of<'a, R: Row>(c: &Concluded<'a, R>, i: usize, extra: &[usize]) -> Concl
     Concluded::with(g, Some(idx.iter().map(|&j| c.concluded(j)).collect()))
 }
 
-// ---- three readings with the Constitution (the lead's suggestions: the community's DECLARED protocol for (1) and
-// (2), any live key of a person's roster for (3)). Each is read in this one place until it rules.
-
-/// READING (2), pending: the members' count of a community with no duty holder left, for its onward edge: a strict
-/// majority of its members, never fewer than two where there are two or more, or a lone member alone.
-fn members_count<R: SeatRow, S: CutSpec<R>>(
-    seats: &Seats<'_, '_, R, S>,
-    who: &BTreeSet<&R::Key>,
-    c: &ObjOf<R>,
-) -> bool {
-    let mem = seats.holders("member", c, None);
-    counted(mem.iter().filter(|k| who.contains(k)).count(), mem.len())
+/// CC 4.5.4 (v): community `c` has no live duty holder over the rows `seats` was built on, and is LOCKED: it signs no
+/// onward acceptance edge, confers no license seat (the duty holders' count takes none) and issues no licence of its
+/// own, until an election seats a holder. A license seat's holder is no duty holder and keeps no room from locking.
+fn locked<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, c: &ObjOf<R>) -> bool {
+    seats.holders("duty", c, None).is_empty()
 }
 
-/// READING (1), pending: the quorum whose cosignatures make a licence a community's act: a strict majority of its
-/// members, never fewer than two where there are two or more, or a lone member alone.
-fn community_quorum<R: SeatRow, S: CutSpec<R>>(
-    seats: &Seats<'_, '_, R, S>,
-    who: &BTreeSet<&R::Key>,
-    c: &ObjOf<R>,
-) -> bool {
-    let mem = seats.holders("member", c, None);
-    counted(mem.iter().filter(|k| who.contains(k)).count(), mem.len())
-}
-
-/// READING (3), pending: the licence's emitter `k` IS authority `a`: the authority's own key, not another live key of
-/// its roster (that one issues only by holding a license seat). `seats` is over the licence's own past.
-fn is_the_authority<R: SeatRow, S: CutSpec<R>>(_seats: &Seats<'_, '_, R, S>, k: &R::Key, a: &ObjOf<R>) -> bool {
-    *a == Obj::Key(k.clone())
+/// The licence's emitter `k` IS authority `a`: a person is one voice across its keys, so any live key of its roster
+/// (scope `key` over it, read by `seats` over the licence's own past) is the person.
+fn is_the_authority<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, k: &R::Key, a: &ObjOf<R>) -> bool {
+    match a {
+        Obj::Key(x) => x == k || seats.holders("key", a, None).contains(k),
+        Obj::Row(_) => false,
+    }
 }
 
 /// Whether the keys `who` are `src`'s authority set over the rows `seats` was built on (a row's own past).
@@ -163,10 +156,11 @@ fn speaks_for<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, who: &BTre
             if !bound {
                 return false;
             }
-            let duty = seats.holders("duty", src, None);
-            if duty.is_empty() {
-                return members_count(seats, who, src);
+            // no members' fallback: a community with no duty holder is locked, and signs no edge
+            if locked(seats, src) {
+                return false;
             }
+            let duty = seats.holders("duty", src, None);
             counted(duty.iter().filter(|k| who.contains(k)).count(), duty.len())
         }
         // a person: the key itself, or a live key of its roster
@@ -249,8 +243,20 @@ pub fn standing<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, i: usiz
     if is_the_authority(&at, r.signer(), &a) {
         return None;
     }
-    if is_community(&at, &a) && community_quorum(&at, &signers(r), &a) {
-        return None;
+    if is_community(&at, &a) {
+        // (1) the community's own licence: its quorum under its DECLARED protocol, in force over the licence's own
+        // past; (2) a locked community issues none of its own (a license seat conferred before the lock is read below)
+        let p: Vec<usize> = c.cs().iter().copied().filter(|&j| c.g.ancestors(i).has(j)).collect();
+        let past = Past::new(&c.g, i, &p);
+        let voices: BTreeSet<R::Key> = signers(r).into_iter().cloned().collect();
+        if declared_count(&past, &a, &at.holders("member", &a, None), &voices) {
+            if !locked(&at, &a) {
+                return None;
+            }
+            if !at.stands(r.signer(), "license", &a, None) {
+                return Some(AUTHORITY_LOCKED);
+            }
+        }
     }
     if !at.stands(r.signer(), "license", &a, None) {
         return Some(NOT_AUTHORITY);

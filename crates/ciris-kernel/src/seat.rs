@@ -657,6 +657,9 @@ words! {
         Any = "any",
         /// A trust edge: a community's onward acceptance of an authority ([`crate::trust_rows`]).
         TrustEdge = "trust_edge",
+        /// A license seat: the issuer's standing over an authority ([`crate::trust_rows`]); over a community its duty
+        /// holders confer and withdraw it, and its holder is no duty holder.
+        License = "license",
     }
 }
 
@@ -802,6 +805,11 @@ pub fn act_of<'r, R: SeatRow + 'r>(
                 let act = if r.dissolves() { Act::Dissolve } else { Act::RecordChange };
                 return Some((act, ScopeClass::Record, kind));
             }
+            // a license seat (the issuer's standing over the community, [`crate::trust_rows`]): conferred and
+            // withdrawn by the duty holders' count; its holder is no duty holder
+            if sc == "license" {
+                return Some((if offer { Act::SeatConfer } else { Act::SeatWithdraw }, ScopeClass::License, kind));
+            }
             // a detector seat (CC 4.5.7: `detect:{list id}`, conferred and "withdrawn by the count of (iv)")
             if sc == "detect" || sc.starts_with("detect:") {
                 return Some((if offer { Act::SeatConfer } else { Act::SeatWithdraw }, ScopeClass::Detect, kind));
@@ -864,6 +872,7 @@ pub fn act_of<'r, R: SeatRow + 'r>(
                     Some((if r.dissolves() { Act::Dissolve } else { Act::RecordChange }, ScopeClass::Record, kind))
                 }
                 "member" => Some((if offer { Act::Admit } else { Act::Remove }, ScopeClass::Member, kind)),
+                "license" => Some((if offer { Act::SeatConfer } else { Act::SeatWithdraw }, ScopeClass::License, kind)),
                 _ => None,
             }
         }
@@ -1240,6 +1249,34 @@ pub fn stalled_recovery<R: SeatRow, S: CutSpec<R>>(
     };
     let founders = count_members_with(p, law, spec, None).len() as u64;
     (founders < m + 1).then_some("stalled_recovery_needs_bundle")
+}
+
+/// Whether the keys `voices` meet community `obj`'s DECLARED `consensus_protocol` in force in past `p`
+/// ([`protocol_record`]), counted over `members`, for an act that seats and removes nobody: the protocol's own numbers
+/// and weights, never a row's. `false` where no protocol a community may declare is in force. Read by
+/// [`crate::trust_rows`] for a community's own licence.
+pub fn declared_count<R: SeatRow>(
+    p: &Past<'_, '_, R>,
+    obj: &ObjOf<R>,
+    members: &BTreeSet<R::Key>,
+    voices: &BTreeSet<R::Key>,
+) -> bool {
+    let Some(rec) = protocol_record(p, obj) else { return false };
+    let Some(word) = rec.consensus_protocol() else { return false };
+    let Some(proto) = community_protocol(word.as_ref(), rec.need(), rec.weights()) else { return false };
+    let (pol, need) = match proto {
+        RoomProtocol::Unanimous => (Policy::Unanimous, None),
+        RoomProtocol::Majority => (Policy::Strict(1, 2), None),
+        RoomProtocol::Quorum(m, _) => match usize::try_from(m) {
+            Ok(m) => (Policy::Declared, Some(m)),
+            Err(_) => return false,
+        },
+        RoomProtocol::Weighted => (Policy::Weighted, rec.need()),
+        RoomProtocol::SelfAdmit => (Policy::SelfAdmit, None),
+        RoomProtocol::FounderOnly => return false,
+    };
+    let weight = |k: &R::Key| rec.weights().iter().find(|(x, _)| x == k).map_or(0, |(_, n)| *n);
+    count_of(Some(pol), true, &[], members, voices, need, weight)
 }
 
 /// A counted removal of a member of an affiliation (the acts row `remove / member / affiliation`:

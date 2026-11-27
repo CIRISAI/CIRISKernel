@@ -13,13 +13,19 @@ removed; `trust::reaches` and `EdgeIndex::reaches` stay as the walk. New: the mo
   owner its signer or the authority it speaks for (`on_behalf`).
 - (a) An edge is its owner's where its signatures are the owner's authority set over the edge's own past: for a person,
   the key or a live key of its roster; for a community, CC 4.5.4's `authority_set(C)`, counted as `duty_confer` (a
-  strict majority of all its live duty holders, never fewer than two where there are two or more, or a lone holder;
-  the members' count where none is left), by the acts row `accept / trust_edge / community`, which the model holds in
+  strict majority of all its live duty holders, never fewer than two where there are two or more, or a lone holder),
+  by the acts row `accept / trust_edge / community`, which the model holds in
   `seat.PENDING_ACTS` until rc23-next has it.
 - (c) `trust_depth` absent reads as 0; 0 to 5 is admitted; any other is refused (`trust_accepts_depth_out_of_range`).
+- The four readings ruled: a community's own licence is counted under its DECLARED `consensus_protocol`
+  (`seat::declared_count`); there is no members' fallback, and a community with no live duty holder is locked
+  (CC 4.5.4 (v): no onward edge, no license seat conferred, its quorum's licence `licensure_authority_locked`); any
+  live key of a person's roster is the person; a license seat over a community (or an affiliation) is conferred and
+  withdrawn by its duty holders' count (`seat_confer` / `seat_withdraw` of scope `license`, `ScopeClass::License`,
+  rows held in `seat.PENDING_ACTS`), and its holder is no duty holder.
 - (b) A licence is the authority's act where, over its own past, its emitter's key is the authority, or holds a
   `license` seat over it (a delegation chain resolving to it), or, for a community, the licence is cosigned by its
-  quorum. Any other is testimony: `licensure_delegator_not_authority`.
+  quorum under its declared protocol. Any other is testimony: `licensure_delegator_not_authority`.
 - (d) By ancestry: a withdrawal of a link in the issuance's past stops it; one concurrent with it holds it out of force
   for a reader holding the withdrawal (`licensure_link_withdrawn`); one after it reaches nothing back. An edge is ended
   by a withdrawal its owner's authority set signs; the reader's own removal of its edge revokes at once.

@@ -588,7 +588,6 @@ plant "a refused edge is walked"                        src/trust.rs 'if e.refus
 plant "an edge for another counts whoever signs it"   src/trust_rows.rs 'Obj::Key(k) => who.contains(k) || seats.holders("key", src, None).iter().any(|x| who.contains(x)),' 'Obj::Key(_) => true,'
 plant "a person's roster keys do not speak for it"     src/trust_rows.rs 'Obj::Key(k) => who.contains(k) || seats.holders("key", src, None).iter().any(|x| who.contains(x)),' 'Obj::Key(k) => who.contains(k),'
 plant "a community's edge counts its members"          src/trust_rows.rs 'let duty = seats.holders("duty", src, None);' 'let duty: BTreeSet<R::Key> = BTreeSet::new();'
-plant "a community with no duty holder has no set"     src/trust_rows.rs 'return members_count(seats, who, src);' 'return false;'
 plant "the trust_edge acts row is not read"            src/trust_rows.rs '.is_some_and(|(p, _)| p.len() == 1 && p[0] == "duty_confer");' '.is_some_and(|_| false);'
 plant "an edge is judged over the reader's rows"       src/trust_rows.rs 'let sub = past_of(seats.c(), i, &[]);' 'let sub = seats.c().clone();'
 plant "a delegates_to bearing anything is an edge"     src/trust_rows.rs 'if !r.is_delegates_to() || r.bears().is_none_or(|b| b.as_ref() != BEARS) {' 'if !r.is_delegates_to() {'
@@ -600,8 +599,12 @@ plant "a withdrawn edge is walked"                     src/trust_rows.rs 'if !en
 plant "any signer of an edge withdraws it"             src/trust_rows.rs '&& speaks_at(seats, j, &signers(w), &e.src)' ''
 plant "any key's licence is the authority's act"       src/trust_rows.rs 'if is_the_authority(&at, r.signer(), &a) {' 'if true {'
 plant "a license seat is not read"                     src/trust_rows.rs 'if !at.stands(r.signer(), "license", &a, None) {' 'if true {'
-plant "a community's quorum does not issue"            src/trust_rows.rs 'if is_community(&at, &a) && community_quorum(&at, &signers(r), &a) {' 'if false {'
 plant "a concurrent withdrawal is not read"            src/trust_rows.rs 'if conc.is_empty() {' 'if true {'
+plant "a locked community issues its own licence"     src/trust_rows.rs 'if !locked(&at, &a) {' 'if true {'
+plant "a community's licence counts a fixed majority"  src/trust_rows.rs 'if declared_count(&past, &a, &at.holders("member", &a, None), &voices) {' 'if counted(voices.iter().filter(|k| at.holders("member", &a, None).contains(*k)).count(), at.holders("member", &a, None).len()) {'
+plant "a community's quorum does not issue"            src/trust_rows.rs 'if is_community(&at, &a) {' 'if false {'
+plant "a person's roster key is not the person"        src/trust_rows.rs 'Obj::Key(x) => x == k || seats.holders("key", a, None).contains(k),' 'Obj::Key(x) => x == k,'
+plant "a community's license seat is no act"           src/seat.rs 'if sc == "license" {' 'if false {'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"
