@@ -215,11 +215,14 @@ def acts_table(path=None):
 # conferral is (CC 4.5.4's authority_set(C), the ruling of 2026-11-27), being added to rc23-next. Drop it when it lands.
 # A community's license seat (trust_rows.py, the issuer's standing) is conferred and withdrawn by its duty holders, as a
 # detector seat is (the ruling of 2026-11-27): seat_confer / seat_withdraw of scope `license`. An affiliation's is its
-# officers' act under its protocol (the officers ruling, built on persist-gaps), so no row is held here for it: until
-# that lands an affiliation's license seat concludes nothing.
+# officers' act under its protocol (the officers ruling, built on persist-gaps).
+# An affiliation's license seat is its body's act under its declared protocol (the ruling: its officers; until the
+# officer body lands, body_of reads its members).
 PENDING_ACTS = (("accept", "trust_edge", "community", ("duty_confer",), "fixed"),
                 ("seat_confer", "license", "community", ("duty_confer",), "fixed"),
-                ("seat_withdraw", "license", "community", ("duty_withdraw",), "fixed"))
+                ("seat_withdraw", "license", "community", ("duty_withdraw",), "fixed"),
+                ("seat_confer", "license", "affiliation", ("cosigned_act",), "fixed"),
+                ("seat_withdraw", "license", "affiliation", ("cosigned_act",), "fixed"))
 
 
 def with_pending(table, pending=PENDING_ACTS):

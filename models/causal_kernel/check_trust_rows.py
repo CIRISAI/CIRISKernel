@@ -15,6 +15,8 @@ Planted breaks, each of which must change a case's answer:
     quorum_fixed_majority    (b) a community's own licence is counted as a strict majority, not its declared protocol
     roster_issuer_unread     (b) a live key of a person's roster is not the person
     license_seat_unread      (seat.py) a license seat over a community is no act: its duty holders confer none
+    term_unread              (b) a license seat's term is not read: its holder issues after the term ends
+    affiliation_locked       (b) an affiliation with no duty holder is locked as a community is (it is never locked)
     pending_unread           (a) the acts row accept / trust_edge / community is not read
     judged_at_read           (a), (b) authority is judged over the reader's rows, not the row's own past
     bears_unread             a delegates_to row not bearing trust:accepts:v1 is read as an edge
@@ -60,6 +62,11 @@ GLU = ST.unseat("glu", "A", "X", "license", "g", "group", ("glo", "gla"), head=(
 # a lone duty holder A confers a license seat on X, then lays down its duty: no duty holder is left
 G1LO = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), counted="duty")
 G1LD = ST.withdraw("ld", "A", "g", ("glo", "gla"), scope="moderate")
+G1LT = dict(G1LO, asserted_at=10, expires_at=100)                # the same seat, with its term
+# an affiliation's license seat: its body's count under its declared protocol (majority: two of three)
+ALO = ST.offer("alo", "A", ("X",), "license", "af", "group", ("af",), head=("af",), cosigners=("B",))
+ALO1 = ST.offer("alo", "A", ("X",), "license", "af", "group", ("af",), head=("af",))
+ALA = ST.accept("ala", "X", "alo")
 # the person K's roster seats its key d
 KRO, KRA = ST.offer("kro", "K", ("d",), "key", "K", "self"), ST.accept("kra", "d", "kro")
 GD = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B")}, cosigners=("B", "C"),
@@ -129,8 +136,8 @@ CASES = [
      "RD", "l", KCH, NR),
     ("(a) a lone duty holder alone",
      [G1, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD", "l", KCH, OK),
-    ("(a) no duty holder: LOCKED, no edge, whatever the members sign",
-     [AF, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B", "C")),
+    ("(a) a community with no duty holder: LOCKED, no edge, whatever the members sign",
+     [GN, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",), cosigners=("B", "C")),
       klic("l")], "RD", "l", KCH, NR),
     ("(a) with a duty holder, its lone holder alone signs the edge",
      [AFD, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH,
@@ -168,8 +175,21 @@ CASES = [
     ("(b) under a declared unanimous protocol two of three are not its quorum",
      [AFU, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD", "l", None, NA),
     ("(b) and three of three are", [AFU, A("e", "RD", "af"), glic("l", cosigners=("B", "C"))], "RD", "l", None, OK),
-    ("(b) a locked community issues no licence of its own", [AF, A("e", "RD", "af"), glic("l", cosigners=("B", "C"))],
+    ("(b) a locked community's quorum: its licence concludes nothing", [GN, A("e", "RD", "g"),
+                                                                       glic("l", "g", cosigners=("B", "C"))],
      "RD", "l", None, (False, "licensure_authority_locked")),
+    ("(b) an affiliation is never locked: its quorum's licence with no duty holder",
+     [AF, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD", "l", None, OK),
+    ("(b) a license seat conferred before the lock: its holder keeps issuing within the seat's term",
+     [G1, G1LT, GLA, G1LD, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("ld",), "asserted_at": 50}], "RD", "l",
+     None, OK),
+    ("(b) and not after the term ends", [G1, G1LT, GLA, G1LD, A("e", "RD", "g"),
+                                        glic("l", "g", "X") | {"names": ("ld",), "asserted_at": 150}], "RD", "l",
+     None, NA),
+    ("(b) an affiliation's members confer a license seat under its protocol (its officers, once that lands)",
+     [AF, A("e", "RD", "af"), ALO, ALA, glic("l", "af", "X") | {"names": ("ala",)}], "RD", "l", None, OK),
+    ("(b) and one member alone does not", [AF, A("e", "RD", "af"), ALO1, ALA, glic("l", "af", "X") | {"names": ("ala",)}],
+     "RD", "l", None, NA),
     ("(b) a live key of the person's roster is the person", [E0, KRO, KRA, klic("l", signer="d", names=("kra",))],
      "RD", "l", KCH, OK),
     ("(b) a key not seated in the licence's past is not", [E0, KRO, KRA, klic("l", signer="d")], "RD", "l", KCH, NA),
@@ -201,7 +221,7 @@ REFUSALS = [
 REF_FIELDS = ("dst", "on_behalf", "authority")      # the objects an edge row and a licence name, for the fixture
 
 PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quorum_fixed_majority",
-          "roster_issuer_unread", "license_seat_unread", "pending_unread",
+          "roster_issuer_unread", "license_seat_unread", "term_unread", "affiliation_locked", "pending_unread",
           "judged_at_read", "bears_unread", "refusal_unread", "depth_unread", "depth_absent_refused",
           "withdrawn_unread", "withdraw_by_anyone", "issuer_unread", "chain_unread", "quorum_unread",
           "concurrent_unread")

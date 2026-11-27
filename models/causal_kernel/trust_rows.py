@@ -101,8 +101,28 @@ def counted(yes, n):
 def locked(T, community):
     """CC 4.5.4 (v): a community with no live duty holder is LOCKED: it signs no onward acceptance edge, confers no
     license seat (the duty holders' count, seat.py, takes none) and issues no licence of its own, until an election
-    seats a holder. A license seat's holder is no duty holder and keeps no room from locking."""
-    return "lock_unread" not in MUT and not ST.Seats(T).holders("duty", community)
+    seats a holder. A license seat's holder is no duty holder and keeps no room from locking; one conferred before the
+    lock stands, and its holder keeps issuing until the seat's term ends (seat_term). An affiliation is never locked:
+    with no officer it is dissolved (the officers ruling, built with the officer body)."""
+    if "lock_unread" in MUT or (ST.kind_of(T.by, community) == "affiliation" and "affiliation_locked" not in MUT):
+        return False
+    return not ST.Seats(T).holders("duty", community)
+
+
+def seat_term(T, k, a, t):
+    """Whether a license seat over `a` that seats `k` covers instant `t` (the licence's own, where it states one): its
+    seating offer's own term, `asserted_at <= t < expires_at` (a missing bound does not limit; the door holds the term
+    to at most 365 days). With `t` None the term is not read."""
+    if t is None or "term_unread" in MUT:
+        return True
+    Q = ST.Seats(T)
+    for rec in Q.recs:
+        if rec["k"] == k and rec["obj"] == a and Q._has(rec, "license"):
+            o = T.by[rec["offer"]]
+            lo, hi = o.get("asserted_at"), o.get("expires_at")
+            if (lo is None or lo <= t) and (hi is None or t < hi):
+                return True
+    return False
 
 
 def declared_count(T, signers, community):
@@ -227,9 +247,11 @@ def reaches(edges, frm, c, budget, a):
 
 
 def standing(S, lic):
-    """(b), (d): None where licence `lic` is its authority's act in force for the reader holding S; else
-    `licensure_delegator_not_authority` (testimony: no standing over its own past) or `licensure_link_withdrawn` (a
-    withdrawal concurrent with it, held, ends a link of its standing)."""
+    """(b), (d): None where licence `lic` is its authority's act in force for the reader holding S; else the reason it
+    CONCLUDES NOTHING in the authority's fold (never a refusal: the licence row is admitted, and the reason reads other
+    rows, CC 2.7.3): `licensure_delegator_not_authority` (testimony: no standing over its own past, or a license seat
+    whose term does not cover the licence's instant), `licensure_authority_locked` (a locked community's quorum) or
+    `licensure_link_withdrawn` (a withdrawal concurrent with it, held, ends a link of its standing)."""
     r = S.by[lic]
     a, k = r["authority"], r["signer"]
     T = past_state(S, r)
@@ -243,7 +265,8 @@ def standing(S, lic):
                 return None
             if not ST.Seats(T).stands(k, "license", a):
                 return "licensure_authority_locked"
-    if "chain_unread" in MUT or not ST.Seats(T).stands(k, "license", a):
+    if "chain_unread" in MUT or not ST.Seats(T).stands(k, "license", a) \
+            or not seat_term(T, k, a, r.get("asserted_at")):
         return "licensure_delegator_not_authority"
     if "concurrent_unread" in MUT:
         return None
