@@ -120,6 +120,13 @@ CASES = [
      "partition leaving one side at M or fewer founders does not heal by merge)",
      INFRA + [WB4, WB5, ST.merge("mi", "f1", OBJ, ("na", "nb"), (), {"founder": ("f1", "f2", "f3"), "node": ("N1", "N2")},
                                   cosigners=("f2", "f3"), names=("w4", "w5"))], None, {"mi": F}, None, None, None),
+    ("a chained own end: f5's withdrawal naming only f4's (w4) concludes nothing. A member's own end is no counted "
+     "change, so it is no head (H3, H8) and does not move it: the head over the room is still nb, and a withdrawal over "
+     "a community names the newest counted changes in its own past (H4); w5 named g and w4, so nb is newer (H1): f5 "
+     "stays",
+     INFRA + [WB4, ST.withdraw("w5", "f5", "g", ("w4",))], None, {"w4": T, "w5": F}, None, {"founder": ("f1", "f2", "f3", "f5")}, None),
+    ("and naming the head beside it (nb and w4) concludes: f1 f2 f3 hold founder",
+     INFRA + [WB4, ST.withdraw("w5", "f5", "g", ("nb", "w4"))], None, {"w4": T, "w5": T}, None, {"founder": F5[:3]}, None),
     ("the word kept: five stated founders, at most N (5): no new word", INFRA + [IM(word="quorum:3/5")], None, {"mi": T},
      None, None, None),
     ("a new word above N: side A seats f6 (quorum:4/6); six stated founders are above side B's N (5), so the merge "
