@@ -1,0 +1,18 @@
+exec(open(__file__.replace("st.py","lib.py")).read())
+H5 = ("h1","h2","h3","h4","h5")
+b1 = nxt("b1","b0",H5,("h1","h2"))
+b2 = nxt("b2","b1",("h3","h4","h5"),("h3","h4","h5"),version=2)
+b3 = nxt("b3","b2",("h3","h4","h5","h6"),("h3","h4","h5"),version=3)
+s0 = nxt("s0","b0",("h1","h2","X"),("h1","h2"))                       # removed h1,h2: a cutting sibling of b1
+L = [B0, b1, b2, b3, s0]
+run("ST0 control: reader acked b2, b3 (s0 exists)", L, rd=RD(anchor="b0", acks=("b2","b3")))
+run("ST1 reader acked s0 first, then b2, then b3", L, rd=RD(anchor="b0", acks=("s0","b2","b3")))
+run("ST2 a new reader acks b3 only", L, rd=RD(anchor="b0", acks=("b3",)))
+run("ST3 a reader with no acks (anchor only)", L, rd=RD(anchor="b0"))
+# rule-3 settler at b0 naming b1 and s0, by h3 (the only holder at b0 not a double signer)
+st = dict(nxt("st","b0",H5,("h3",)), names=("b1","s0"))
+run("ST4 ST1 + a rule-3 settler at b0 naming b1 and s0, by h3", L + [st], rd=RD(anchor="b0", acks=("s0","b2","b3","st")))
+st2 = dict(nxt("st","b0",H5,("h3","h1")), names=("b1","s0"))
+run("ST5 the same settler by h3 and h1", L + [st2], rd=RD(anchor="b0", acks=("s0","b2","b3","st")))
+g = GR("gh","b3","uY","room",("h3","h4","h5"))
+run("ST1g an honest grant on b3, reader ST1", L, gs=(g,), rd=RD(anchor="b0", acks=("s0","b2","b3")), gids=("gh",))

@@ -1,0 +1,18 @@
+exec(open(__file__.replace("rb.py","lib.py")).read())
+H5 = ("h1","h2","h3","h4","h5")
+b1 = nxt("b1","b0",H5,("h1","h2"))
+b2 = nxt("b2","b1",("h3","h4","h5"),("h3","h4","h5"),version=2)
+b3 = nxt("b3","b2",("h3","h4","h5","h6","h7"),("h3","h4","h5"),version=3)
+b4 = nxt("b4","b3",("h3","h4","h5","h6","h7","h8","h9"),("h4","h5","h6","h7"),version=4)
+L = [B0, b1, b2, b3, b4]
+rd = RD(anchor="b0", acks=("b2","b3","b4"))
+run("RB0 honest history to b4 (7 holders); reader acked b2,b3,b4", L, rd=rd)
+t1 = nxt("t1","b1",H5,("h1","h2","h3"),version=2, seats=("n2",))    # later: h1,h2 + turncoat h3, a sibling of b2 keeping h1,h2
+run("RB1 + t1 (h1,h2,h3 at b1, keeps h1,h2)", L + [t1], rd=rd)
+g = GR("gh","b4","uY","room",("h4","h5","h6","h7"))
+run("RB1g an honest grant on b4 by four of seven, after t1", L + [t1], gs=(g,), rd=rd, gids=("gh",))
+# can the honest settle? rule 3: a bundle naming both b2 and t1 at b1... (a join of b4 and t1)
+j = nxt("j",("b4","t1"),("h3","h4","h5","h6","h7","h8","h9"),("h4","h5","h6","h7","h8","h9"),version=5)
+run("RB2 honest join (b4, t1) by h4..h9", L + [t1, j], rd=RD(anchor="b0", acks=("b2","b3","b4","j")))
+j2 = nxt("j2",("b4","t1"),("h3","h4","h5","h6","h7","h8","h9"),("h4","h5","h6","h7","h8","h9","h1"),version=5)
+run("RB2b the same join with h1 signing too", L + [t1, j2], rd=RD(anchor="b0", acks=("b2","b3","b4","j2")))
