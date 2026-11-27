@@ -279,9 +279,12 @@ signed both (CC 5.2). No member carries another member's signed row out. **prove
 `nothing_leaves`, `others_elsewhere_change_nothing`, `author_carries`, `same_room_unchanged`. The cost: a cut
 that names a row of another room waits until that row's signer carries it. What must not travel is proof of
 who said it or of who is in the room, which is section 7b. **measured** (`formal/derivation/placement_text.tsv` (parent repository)): no placement cell
-is empty. Of 184 families, 147 take the one default, the scope each row carries with the audience CC 5.2 gives
-it, and 21 are placed by a sentence of their own. **open**: the default is stated once for all families and is
-checked for none of the 147. CC 8.3.4 names this as a limit. The copy rule is a row of that table.
+is empty. Of 188 families, 143 take the one default, the scope each row carries with the audience CC 5.2 gives
+it, 23 are pinned by the CC table, and 22 are placed by code, prose or a gap rather than the table. **run**
+(`models/causal_kernel/audience.py`, `check_audience.py`, over `data/family_placement.json`; the crate's
+`audience`): every family in every cohort scope is placed with its audience as keys, refused, or Undecided naming
+the family; the copy rule is run with it. **open**: the 22 families whose placement cell is not table data answer
+Undecided until the Constitution states them. CC 8.3.4 names this as a limit.
 
 **window.** A row opens a clock. An answering row closes it, or time does, and the table states the outcome at
 the close. A window names its opener and the acknowledgement by which the concluding party first held it. Where the
@@ -690,7 +693,7 @@ that the ending row has not seen from counting.
 | Which rows seat which key in which role: what 20 doors and 3 other families confer, 29 name segments that point at another row, the 23 roles as one walk | table data | `manifests/family_model.json` (parent repository) |
 | A roster version naming several heads: an optional list beside the head it names now | wire | agreed with the store |
 | One acknowledgement of a head covering everything beneath it, in place of one for each row | wire | agreed with the store |
-| The default audience checked family by family for the 147 that take it; the transport reading placement and the copy rule as the `missing` answer | table data, with transport | `manifests/family_model.json` (parent repository) |
+| The placement of the 22 families whose cell is not table data (they answer Undecided); the transport reading placement and the copy rule as the `missing` answer | table data, with transport | `manifests/family_model.json` (parent repository) |
 | 16 things `doors.tsv` lists as stated by no table, and three stated and not run | table data | `formal/causal_kernel/doors.tsv` (parent repository) |
 | 47 cells with a word the expression language does not carry, and eight folds a reaction calls that no cell defines, each listed with the sentence it needs | table data | `tools/kx_maxima.tsv` (parent repository) |
 | Constants out of config | table data | `constitution/constants.tsv` (parent repository) |

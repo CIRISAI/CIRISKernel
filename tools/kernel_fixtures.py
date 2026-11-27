@@ -796,6 +796,8 @@ def main():
     dump("key_end.json", key_end_cases(), out)
     dump("acts.json", acts_cases(), out)
     dump("resignation.json", resignation_cases(), out)
+    import check_audience as AUC
+    dump("audience.json", AUC.fixture(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution

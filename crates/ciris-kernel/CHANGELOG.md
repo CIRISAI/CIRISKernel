@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**Audience and placement, family by family** (new module `audience`, both languages). The family model's placement
+cells (the Constitution's `manifests/family_model.json`, derived and pinned by `tools/family_placement.py` into
+`data/family_placement.json` and `audience::FAMILIES`; a provisional pin at `rc23` `f73162c`): 188 families, 143 on
+the default, 23 pinned by the CC table, 22 whose cell is not table data. `audience::place` gives a row's placement
+from the cohort scope it states and its audience as KEYS (the room's roster, the signer's own keys, the keys it
+names; everyone in the commons), or the refusal (`family_unknown`, `scope_unknown`, `placement_not_allowed`,
+`named_outside_audience`, `no_room`), or `Placed::Undecided` naming the family where its cell is not table data;
+`audience::audiences` applies the copy rule (CC 5.2). `check_audience.py` (940 generated answers, 23 cases, seven
+planted breaks), fixture `audience.json`, `tests/audience.rs`, seven crate plants.
+
 **Room content: receipts, the reader's line, key removals, rooms** (`content`, both languages, with cases, planted
 breaks and the run's `keys` histories). **BREAKING**: `content::Kind` has `Ack` and `KeyEnd`, and `content::Rule`
 has `KeyRemoved` (`"K.key_removed"`); an exhaustive match must add them.

@@ -1,6 +1,7 @@
 # `data/` — what the kernel is run on
 
-Every file here is copied unchanged from the parent repository at commit `60c741e`, except the five policy files
+Every file here is copied unchanged from the parent repository at commit `60c741e`, except `family_placement.json`
+(derived by `tools/family_placement.py`, its pin below) and the five policy files
 (`governance_policy.tsv`, `governance_policy.json`, `governance_policy_vectors.json`, `governance_policy_acts.tsv`,
 `consensus_protocols.tsv`), copied unchanged from the Constitution's `rc23` at commit
 `8c75ae7b7a4fa7424557fe2ee15b024d25610c4c` (`constitution/` for the tables, `manifests/` for the two JSON files). The
@@ -16,6 +17,7 @@ of them from its rule tables; the generators are not carried, so treat these as 
 
 | File | What it is | Read by | From (parent) |
 |---|---|---|---|
+| `family_placement.json` | the family model's placement cells, derived: per family the placements its rows may take (the default, or the placements the CC table pins), or undecided where the cell is not table data; the table's `scopes`, `reach` and `copy`. **Provisional pin**: derived from the Constitution's `rc23` at commit `f73162c34e969e6834f28a6a48e6220a844398b1`, `manifests/family_model.json` sha256 `47cd8fec99ae000dfaec2377edf49eada6b877efa9c07fe0bad40f3b4f85ad9c` (`_source` in the file), to be re-pinned when `rc23` settles: `python3 -I tools/family_placement.py <path to family_model.json>` rewrites it and `crates/ciris-kernel/src/audience_table.rs`; `--check` holds the two together | `audience.py`, `check_audience.py`; the crate's `audience::FAMILIES` | `manifests/family_model.json` (Constitution), through `tools/family_placement.py` |
 | `governance_policy.tsv` | the governance policy table: one row per decision family (who may decide, the counts to enact, cancel and floor, the window and its length, whether the act is irreversible). The authored source | people | `constitution/governance_policy.tsv` |
 | `governance_policy.json` | the same table as data, with each rule parsed | `seat.py`, `window.py`, `roster.py` | `manifests/governance_policy.json` |
 | `governance_policy_acts.tsv` | which row of the policy table governs which counted act: one row per (act, scope, community kind), the policy rows it may take and whether the row chooses (`row`) or the act fixes it (`fixed`: the counted row states it or none; another stated policy concludes nothing). The authored source | `seat.py` (`ACTS`), into the seat fixture's law | `constitution/governance_policy_acts.tsv` |

@@ -589,6 +589,13 @@ plant "a key removal voids the member's end"         src/content.rs '           
 plant "the room's count removes a key"                 src/content.rs 'q.kind() == Kind::KeyEnd && (seat.member)(q.signer())' 'q.kind() == Kind::KeyEnd && ((seat.member)(q.signer()) || (seat.counted)(q.signer()))'
 plant "a retraction a key removal cuts is read"         src/content.rs '.filter(|w| !cuts.any.contains(w.id()))' ''
 plant "the rooms read as one"                           src/content.rs 'by_room.entry(r.room()).or_default().push(r);' 'by_room.entry(None).or_default().push(r);'
+plant "an undecided family takes the default"           src/audience.rs 'FamilyPlacement::Undecided => return Placed::Undecided(fam),' 'FamilyPlacement::Undecided => &[Placement::SelfCollective, Placement::TargetedFamily, Placement::TargetedRoom, Placement::Commons][..],'
+plant "a pinned family takes any placement"             src/audience.rs 'if !allowed.contains(&placement) {' 'if false && !allowed.contains(&placement) {'
+plant "a targeted row names keys off the roster"        src/audience.rs 'if !r.named().iter().all(|k| members.contains(k)) {' 'if false {'
+plant "a row leaves its room by another's act"          src/audience.rs 'if !same_room && d.signer() != r.signer() {' 'if false && !same_room {'
+plant "a key outside the audience carries"              src/audience.rs 'if a.holds(d.signer()) && a.join(&ad) {' 'if a.join(&ad) {'
+plant "a row that does not conclude carries"            src/audience.rs 'for d in rows.iter().filter(|d| d.concluded()) {' 'for d in rows.iter() {'
+plant "the first matching family pattern decides"       src/audience.rs 'if best.is_none_or(|(b, _)| k > b) {' 'if best.is_none() {'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

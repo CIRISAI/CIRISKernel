@@ -18,6 +18,7 @@
 //! | [`cut`] | 6 | the cut, by the well-founded fixed point |
 //! | [`conferral`] | CC 2.4.1.1, CC 4.5.5 | the end of a conferral: an act counted at its head, and in force |
 //! | [`content`] | CC 2.4.1.1 | room content after a member's seat ends: the rows the end holds good |
+//! | [`audience`] | 7, CC 3.4.5.1, CC 5.2 | where a row is placed and who it is for (keys), family by family; the copy rule |
 //! | [`standing`] | CC 3.1.2.1 | one row under a root grant and an owner binding: the chain of names, per owner |
 //! | [`mod@line`] | 7, 8a | built on, and the reader's own acknowledged line |
 //! | [`seat`] | 5 (stands), 7 | the seat: two consents, the bounded walk, members at a head, tips wait |
@@ -34,6 +35,7 @@
 
 extern crate alloc;
 
+pub mod audience;
 pub mod conferral;
 pub mod content;
 pub mod cut;

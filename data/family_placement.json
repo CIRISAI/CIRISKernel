@@ -1,0 +1,1821 @@
+{
+ "_source": {
+  "repository": "CIRISConstitution",
+  "path": "manifests/family_model.json",
+  "branch": "rc23",
+  "commit": "f73162c34e969e6834f28a6a48e6220a844398b1",
+  "sha256": "47cd8fec99ae000dfaec2377edf49eada6b877efa9c07fe0bad40f3b4f85ad9c",
+  "families": 188,
+  "on_the_default": 143,
+  "pinned_by_the_table": 23,
+  "undecided": 22,
+  "provisional": true
+ },
+ "placements": [
+  "self_collective",
+  "targeted_family",
+  "targeted_room",
+  "commons",
+  "addressed"
+ ],
+ "default": {
+  "value": [
+   "self_collective",
+   "targeted_family",
+   "targeted_room",
+   "commons"
+  ],
+  "chosen_by": "the emitter, for each row",
+  "cc_ref": "CC 3.4.5.1",
+  "quote": "Scope is per-row; a family is not scope-pinned."
+ },
+ "scopes": [
+  {
+   "cohort_scope": [
+    "self"
+   ],
+   "public_room": false,
+   "placement": "self_collective",
+   "audience": "the owner's own nodes",
+   "outside": "nothing, not even that the content exists",
+   "cc_ref": "CC 5.2"
+  },
+  {
+   "cohort_scope": [
+    "family"
+   ],
+   "public_room": false,
+   "placement": "targeted_family",
+   "audience": "the nodes of the family's current members",
+   "outside": "nothing, not even that the content exists",
+   "cc_ref": "CC 5.2"
+  },
+  {
+   "cohort_scope": [
+    "community",
+    "affiliations"
+   ],
+   "public_room": false,
+   "placement": "targeted_room",
+   "audience": "the claimed nodes of the roster's members",
+   "outside": "nothing of the content, of the roster or of who holds it",
+   "cc_ref": "CC 5.2"
+  },
+  {
+   "cohort_scope": [
+    "community"
+   ],
+   "public_room": true,
+   "placement": "targeted_room",
+   "audience": "the claimed nodes of the roster's members",
+   "outside": "the listing, the holding claims and, by asking a member's node, the content and the roster",
+   "cc_ref": "CC 5.2"
+  },
+  {
+   "cohort_scope": [
+    "species",
+    "biosphere",
+    "federation"
+   ],
+   "public_room": false,
+   "placement": "commons",
+   "audience": "every node",
+   "outside": "everything: the holding claims here are the holder directory",
+   "cc_ref": "CC 5.2"
+  }
+ ],
+ "reach": [
+  {
+   "when": "named_party",
+   "statement": "a row that names a node is always served to that node",
+   "cc_ref": "CC 5.2",
+   "quote": "A row that names a node, or a grant issued for it, is always served to that node"
+  },
+  {
+   "when": "named_within",
+   "statement": "at family, community or affiliations a row may name only keys within its audience",
+   "cc_ref": "CC 5.2",
+   "quote": "A row placed at `family`, `community` or `affiliations` may name only keys within its audience"
+  }
+ ],
+ "copy": [
+  {
+   "when": "*",
+   "statement": "a row's audience includes that of a concluded row naming it from the same room, or signed by the same key, whose signer is already in its audience",
+   "cc_ref": "CC 5.2",
+   "quote": "A row carries its audience to the rows it names, when it is concluded, sits in the same room as the row it names, and its signer is already in that row's audience."
+  }
+ ],
+ "families": [
+  {
+   "family": "accord:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "accord:human_dignity",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "accord:invoke:constitutional:{halt_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "accord:invoke:drill:{drill_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "accord:invoke:notify:{notify_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "accord:lifecycle",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "accord:lifecycle:{kind}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "act:ack",
+   "allowed": null,
+   "undecided": "gap: no placement"
+  },
+  {
+   "family": "activity_tier:{period}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "admission:unit",
+   "allowed": null,
+   "undecided": "gap: no placement"
+  },
+  {
+   "family": "age_assurance:{level}:{band}:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "age_self_declared:band:{band}:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "agent_files:{kind}:{platform_or_target}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "approach:{goal_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "archive_release:{basis}",
+   "allowed": null,
+   "undecided": "code-v61: none (held shut: never stored)"
+  },
+  {
+   "family": "attestation:agent_integrity",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "attestation:hardware_rooted",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "attestation:license_validity",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "attestation:registry_consensus",
+   "allowed": [
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "attestation:self_verify",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "audio:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "audit_chain:hash_continuity",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "autonomy:{aspect}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ballot:moderation_action",
+   "allowed": [
+    "targeted_room"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ballot:moderator",
+   "allowed": [
+    "targeted_room"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ballot:moderator_acceptance",
+   "allowed": [
+    "targeted_room"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ballot:tally:{poll_id}",
+   "allowed": [
+    "targeted_room"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "benchmark:he300:{category}:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "beneficence:{aspect}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "blog:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "bond_posted:{currency}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "build:registered:{target}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "capacity:composite",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "capacity:relay_delivery",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "capacity:{factor}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "capacity_assurance:reversible_excluded:{domain}:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "capacity_assurance:reversible_pending:{domain}:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "capacity_assurance:{level}:{domain}:{band}:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "census:composite:{class}",
+   "allowed": [
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "census:expected_active",
+   "allowed": [
+    "targeted_room"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "census:member:partial",
+   "allowed": [
+    "targeted_room"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "census:member:share",
+   "allowed": [
+    "addressed"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "census:partial:{class}",
+   "allowed": [
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "census:share:{class}",
+   "allowed": [
+    "addressed"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "cert_validity:{authority}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "chat:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "coherence_standing:{cohort}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "collection:{kind}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "commitment_fulfillment:{prior_contribution_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "community:listing",
+   "allowed": null,
+   "undecided": "code-v61: commons (public_room.rs:229, listing_not_federation)"
+  },
+  {
+   "family": "config:{scope}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "conscience:coherence",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "conscience:entropy",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "conscience:epistemic_humility",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "conscience:optimization_veto",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "consent:community_trust",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "consent:decay:{stage}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "consent:deletion_complete",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "consent:deletion_sla:{days}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "consent:partnership_accept",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "consent:partnership_grant",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "consent:replication:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "consent:scope:{kind}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "consent:state:{stance}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "consent:stream:{kind}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "consent:{kind}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "content_class:{class}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "content_rating:{scheme}:{rating}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "contribution:{subject_kind}",
+   "allowed": null,
+   "undecided": "gap: no placement"
+  },
+  {
+   "family": "corpus_health:n_eff_measurable",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "credits:{domain}:{language}:{subject}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "custody:{kind}",
+   "allowed": null,
+   "undecided": "prose: the blob's held claim scope (holding_claim::check_holding_claim_scope)"
+  },
+  {
+   "family": "cw_class:{class}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "deferral:request",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "deferral:response:{outcome}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "delivery:{class}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "delivery_ack:{stream_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "detection:correlated_action:{axis}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "detection:distributive:access:{resource_type}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "detection:hash_chain_integrity",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "detection:intra_agent_consistency",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "detection:{detector}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "device:label",
+   "allowed": [
+    "self_collective"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "dma:csdma:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "dma:dsdma:{domain}:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "dma:idma:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "dma:pdma:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "duty:{kind}",
+   "allowed": null,
+   "undecided": "prose: never wider than the referenced permission's projection"
+  },
+  {
+   "family": "encyclopedia:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "event:attendance",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "event:lifecycle:{state}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "event:rsvp_count",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "evidence:{suite}:{kind}:{cell}:{prefix}",
+   "allowed": [
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "expertise:{domain}:{language}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "federation_directory:replication_lag",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "fidelity:explainability_sla:{tier}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "fidelity:{aspect}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "file:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "film:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "goal:{scale}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "group:roster",
+   "allowed": null,
+   "undecided": "code-v61: ['targeted_family', 'targeted_room (cohort_scope family|community + group_kind)']"
+  },
+  {
+   "family": "hard_case:{kind}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "hardware_custody:{platform}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "health:liveness:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "holon:claim",
+   "allowed": [
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "identity:canonical_binding:{canonical_hash}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "identity:occurrence",
+   "allowed": null,
+   "undecided": "prose: minted by the key plane"
+  },
+  {
+   "family": "identity:occurrence_revocation",
+   "allowed": null,
+   "undecided": "code-v61: commons (cohort_scope federation, minted)"
+  },
+  {
+   "family": "identity_amendment",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "identity_continuity:relational_anchor",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "image:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "integrity:{aspect}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "judge_model:verdict:{model_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "justice:{aspect}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "key:record",
+   "allowed": null,
+   "undecided": "prose: minted by the key plane"
+  },
+  {
+   "family": "key:revocation",
+   "allowed": null,
+   "undecided": "prose: minted by the key plane"
+  },
+  {
+   "family": "key_boundary:{scope}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "key_grant:{axis}",
+   "allowed": null,
+   "undecided": "prose: the content's scope (attested = recipient, AV-84 exception)"
+  },
+  {
+   "family": "lawful_order:release",
+   "allowed": null,
+   "undecided": "code-v61: none (held shut: never stored)"
+  },
+  {
+   "family": "ledger:checkpoint:{unit}:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ledger:head:{unit}:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ledger:promotion:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "licensure:{authority_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "locality:decision:{scale}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "location_proof:{version}",
+   "allowed": null,
+   "undecided": "gap: no placement"
+  },
+  {
+   "family": "manifold_conformity:{cohort}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "membership:{stage}",
+   "allowed": null,
+   "undecided": "code-v61: ['targeted_family', 'targeted_room (at the group)']"
+  },
+  {
+   "family": "mesh_config:{key}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "method:{approach_id}:{substrate_rung}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "mls:leaf_vouch",
+   "allowed": [
+    "self_collective",
+    "targeted_room"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "model_3d:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "moderation:{allegation_type}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "moderation_track_record:{community_key_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "multilateral_participation:{forum}:{kind}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "need:{domain}:{kind}",
+   "allowed": [
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "news:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "non_maleficence:{aspect}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "objection:{state}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "observation:access_assumption",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "observation:reachability",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ownership:{relation}:{target_kind}:{version}",
+   "allowed": null,
+   "undecided": "prose: affiliation named must admit the owner"
+  },
+  {
+   "family": "partner_role:{role}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "peer_reachability:{network}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "preserve_request",
+   "allowed": null,
+   "undecided": "code-v61: none (held shut: never stored)"
+  },
+  {
+   "family": "preserve_response",
+   "allowed": null,
+   "undecided": "code-v61: none (held shut: never stored)"
+  },
+  {
+   "family": "progress_measure:{method_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "prohibited:{category}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "provenance:build_manifest:{target}",
+   "allowed": [
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "provenance:build_manifest:{target}:locale:{lang_code}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "provenance:skill_import:{source}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "provenance:slsa:{level}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "quarantine:{state}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ratchet:flag:coordinated_voting_cluster",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ratchet:flag:counter_rii:{layer}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ratchet:flag:density_anomaly",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ratchet:flag:expertise_attestation_anomaly",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ratchet:flag:harassment_pattern",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "ratchet:flag:out_of_distribution_voting",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "reconsideration:{grounds}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "regime:{artifact}:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "rendezvous:route",
+   "allowed": [
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "retirement:{state}",
+   "allowed": null,
+   "undecided": "code-v61: none (held shut: never stored)"
+  },
+  {
+   "family": "revocation:{entity_type}:{reason}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "rollback_detected:{revision_field}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "seed_holder_voting_alignment:{cell}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "self:delegates_to",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "self:delegates_to:agent_occurrence",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "session:{kind}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "settlement:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "slashing:{outcome}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "stream:head",
+   "allowed": null,
+   "undecided": "gap: no placement"
+  },
+  {
+   "family": "system:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "takedown_notice:{basis}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "testimonial_witness:{kind}",
+   "allowed": [
+    "self_collective"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "topical_relation:{kind}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "trace:{form}:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "trace_summary:{kind}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "transport:canonical_rebind",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "transport:{kind}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "trust:{job}:{version}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "truth_grounding:{subject}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "video:*",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "vote:{contribution_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "wa_adjudication:{state}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "watchlist:{id}",
+   "allowed": [
+    "targeted_room"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "weighted_aggregate:{contribution_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  },
+  {
+   "family": "window:{state}",
+   "allowed": null,
+   "undecided": "gap: no placement"
+  },
+  {
+   "family": "witness_diversity:{contribution_id}",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null
+  }
+ ]
+}
