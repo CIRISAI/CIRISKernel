@@ -32,6 +32,10 @@
 //! every one settles them, counted over those tips' common holders. Two successors of one bundle, and two joins
 //! under the same charter, fold as tips: concurrent successors are not contested.
 //!
+//! The residual, stated: a holder's statement over a sibling bundle is not ordered against its grant, so it is not read; a grant on one tip is judged by the rows in its own past. It can matter only where that
+//! holder's voice is the deciding one of an exact majority, and the statement and the grant are held evidence the
+//! other holders can cite when they name both tips.
+//!
 //! Receipts, equivocation records and fork-attempt records move no head and are not read here.
 
 use alloc::collections::{BTreeMap, BTreeSet};

@@ -104,7 +104,16 @@ migrations, and the local operational store.
   a change of the record naming the key in `to()` with `role()` `founder`, signed by it, restating `quorum:{M}/{N}`
   for the founders after it, counted at the present M. Refuse any other word at your door
   (`federation_community_consensus_protocol_violation`). A stalled room's recovery widening (`SeatRow::bundle()`) is
-  undecided: ask `seat::stalled_recovery` and settle it against the trust root's bundle yourself.
+  undecided with no trust root read: give the seat rule one (`CutSpec::trust_root`, returning a
+  `root::RootReading` over a `root::Root` of the bundles, revocations and the root's lane rows you hold, this node as
+  its `Reader`, and each key's identity type from its key record), and `seat::recovery_verdict` judges it.
+- The trust root (`root`): present each bundle as a `RootBundle`, its statements' signatures checked; present root
+  grants and acceptance edges as rows of the root's lane (`RootGrant`, naming the rows in their own past). When a
+  holder's own node signs a bundle, have it also write an acceptance edge to that bundle, so the bundle is in the
+  past of whatever the holder signs next: that closes, for an honest holder and at no cost, the residual the kernel
+  states: "a holder's statement over a sibling bundle is not ordered against its grant, so it is not read; a grant on one tip is judged by the rows in its own past". It can matter only where that holder's voice is the deciding one of an exact majority, and the
+  statement over the sibling and the grant on the one tip are held evidence the other holders can cite when they name
+  both tips.
 - A community's protocol is a word of the set under which no one voice decides (`seat::community_protocol`): not
   `quorum:1/{n}`, not `founder_only` (a family's; families are not built), not a weighted record one of whose
   weights reaches its threshold. A change of its record states no policy and meets both the protocol in force and

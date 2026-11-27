@@ -248,6 +248,13 @@ CASES = [
      (AK("k1", "s1"), AK("k2", "s2", names=("k1",)), GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), names=("k2",))),
      RD(anchor="b0", acks=("s1",)),
      {"row": {"g1": False}}),
+    ("grant", "the honest holder's acceptance edge: h2 signed s2 and its node wrote an acceptance edge to it (k2); "
+              "h2's grant naming only s1, with k2 in its past, concludes nothing", FORK, (),
+     (AK("k2", "s2"), GR("g1", "s1", "uA", "room", ("h2", "h1", "h4"), names=("k2",))), RD(anchor="b0", acks=("s1",)),
+     {"row": {"g1": False}}),
+    ("grant", "the residual, stated: the same grant with no row naming s2 in its past stands (h2's statement over s2 "
+              "is not ordered against it, so it is not read)", FORK, (),
+     (GR("g1", "s1", "uA", "room", ("h2", "h1", "h4")),), RD(anchor="b0", acks=("s1",)), {"row": {"g1": True}}),
     ("grant", "and from earlier grants in its past: one naming s2", FORK, (),
      (GR("g0", "s2", "uB", "room", ("h2", "h3", "h5")), AK("k1", "s1"),
       GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), names=("k1", "g0"))),

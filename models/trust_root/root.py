@@ -41,6 +41,10 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
     the costs    a recovery concurrent with an amend that changes the charter leaves the recovering holder no seat in
                  force until a bundle names both tips; it gives a holder majority nothing it lacks: the same majority
                  could remove that holder by an amend.
+    residual     a holder's statement over a sibling bundle is not ordered against its grant, so it is not read; a grant on one tip is judged by the rows in its own past. It can matter only where that holder's voice is the
+                 deciding one of an exact majority, and the statement over s2 and the grant on s1 are held evidence
+                 the other holders can cite when they name both tips. A holder's own node that writes an acceptance
+                 edge to each bundle it signs closes it for an honest holder.
     forked join  two joins of the same tips that do not fold with each other (their charters differ), neither in
                  the other's past, are contested: neither stands, and a reader that acknowledged them keeps the tips
                  they tried to join. A bundle naming every one settles them, counted by a strict majority of those
