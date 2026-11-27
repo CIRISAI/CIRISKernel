@@ -655,6 +655,8 @@ plant "the root: the join's prev unread" src/root.rs 'if first.map(|q| q.id()) !
 plant "the root: a join revives a retired key" src/root.rs 'let gone = if prevs.len() >= 2 { self.retired(prevs) } else { BTreeSet::new() };' 'let gone: BTreeSet<B::Key> = BTreeSet::new();'
 plant "the root: a grant resolves without the in-force count" src/root.rs 'if 2 * voices <= held.len() {' 'if false {'
 plant "the root: a grant's cosignatures unread" src/root.rs '            if r.cosigns() == Some(gid) {' '            if false && r.cosigns() == Some(gid) {'
+plant "the root: a double signer a voice on both siblings (rule 6)" src/root.rs '                    ks.extend(self.voices(b).intersection(&self.voices(c)).cloned());' ''
+plant "the root: rule 5 unread" src/root.rs '        out.extend(dep);' '        let _ = dep;'
 plant "the root: the fold always common" src/root.rs '        if charters.len() > 1 {' '        if true {'
 plant "the root: differing charters fold" src/root.rs '        if charters.len() > 1 {' '        if false {'
 plant "the root: the fold unguarded" src/root.rs 'self.removals(t2, k, field).iter().all(|r| a.as_ref().is_some_and(|a| self.in_past(r, a)))' 'true'

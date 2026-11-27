@@ -21,6 +21,7 @@ struct TB {
     charter: String,
     duties: Vec<String>,
     sub: Vec<String>,
+    names: Vec<String>,
     iat: u64,
     recovery: Vec<(String, String)>,
     recovers: Option<(String, String)>,
@@ -57,6 +58,9 @@ impl RootBundle for TB {
     }
     fn sub_delegation(&self) -> &[String] {
         &self.sub
+    }
+    fn names(&self) -> &[String] {
+        &self.names
     }
     fn recovery(&self) -> &[(String, String)] {
         &self.recovery
@@ -147,6 +151,7 @@ fn bundles(j: &J) -> Vec<TB> {
             charter: b.at("charter").s().into(),
             duties: b.at("duties").strs(),
             sub: b.get("sub_delegation").filter(|x| !x.is_null()).map(|x| x.strs()).unwrap_or_default(),
+            names: b.get("names").filter(|x| !x.is_null()).map(|x| x.strs()).unwrap_or_default(),
             iat: b.at("iat").i() as u64,
             recovery: b.at("recovery").arr().iter().map(pair).collect(),
             recovers: b.get("recovers").filter(|x| !x.is_null()).map(pair),

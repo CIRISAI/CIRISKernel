@@ -133,9 +133,9 @@ CASES = [
     # ---- the fold ---------------------------------------------------------------------------------------------------
     ("fold", "two successors with the same charter fold: h4 (s1, by h1 h2) and h5 (s2, by h2 h3) are both in",
      FORK, (), (), RD(anchor="b0", acks=("s1", "s2")), {"heads": ("s1", "s2"), "holders": {"h1", "h2", "h3", "h4", "h5"}}),
-    ("fold", "a removal on one tip folds out: s1 removes h3, s2 adds h5 by h2 and h3; h3 is out, and h5's count over "
-             "b0's holders the fold seats (h1 h2) is h2 alone, one of two: h5 is not in",
-     FORKR, (), (), RD(anchor="b0", acks=("s1", "s2")), {"holders": {"h1", "h2"}}),
+    ("fold", "rule 6 before the fold: s1 removes h3 (h1 h2), s2 keeps h3 and adds h5 (h2 h3); h2 signed both, one "
+             "cutting a holder the other keeps, so h2 has no say on either: s1 and s2 are one of three, neither counts, "
+             "and the reader is at b0", FORKR, (), (), RD(anchor="b0", acks=("s1", "s2")), {"heads": ("b0",), "holders": set(H3)}),
     ("fold", "two successors with different charters do not fold: the holders common to them (h1 h2 h3), waiting",
      FORKC, (), (), RD(anchor="b0", acks=("s1", "s2")), {"heads": ("s1", "s2"), "holders": {"h1", "h2", "h3"}}),
     ("fold", "the seats fold too: s1 seats n2, s2 seats n3 (same charter): n1, n2 and n3",
@@ -186,11 +186,11 @@ CASES = [
     ("join", "h1 alone is no majority of either join's holders",
      FJ(("h1", "h4"), ("h1", "h5")) + [nxt("j3", ("j1", "j2"), ("h1", "h4", "h5"), ("h1",), version=3, charter=C3)], (), (),
      RD(anchor="b0", acks=("j3",)), {"concluded": {"j3": Fa}, "heads": ("b0",)}),
-    ("join", "two joins under the same charter fold as any tips do: not contested (each dropped the other tip's "
-             "addition, so h4 and h5 fold out)",
+    ("join", "two joins under the same charter are no forked join, but each drops a holder the other keeps (j1 drops "
+             "h5, j2 h4), and h1 h2 h3 signed both: rule 6, neither counts, and the reader is back at s1 and s2",
      FORK + [nxt("j1", ("s1", "s2"), ("h1", "h2", "h3", "h4"), ("h1", "h2", "h3"), version=2),
              nxt("j2", ("s1", "s2"), ("h1", "h2", "h3", "h5"), ("h1", "h2", "h3"), version=2)], (), (),
-     RD(anchor="b0", acks=("j1", "j2")), {"void": set(), "heads": ("j1", "j2"), "holders": {"h1", "h2", "h3"}}),
+     RD(anchor="b0", acks=("j1", "j2")), {"void": set(), "heads": ("s1", "s2"), "holders": {"h1", "h2", "h3", "h4", "h5"}}),
     ("join", "three joins, pairwise differing: all contested, and the reader keeps s1 and s2",
      FJ(("h1", "h2", "h3"), ("h1", "h2", "h4")) + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2", "h3"), version=2, charter=C3)],
      (), (), RD(anchor="b0", acks=("j1", "j2", "j3")), {"void": {"j1", "j2", "j3"}, "heads": ("s1", "s2")}),
@@ -437,8 +437,9 @@ CASES += [
      RD(anchor="b0", acks=("s0", "b2")), {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
     ("attack", "AO2: acknowledged b1, s0, then b2: the same", AO, (), (), RD(anchor="b0", acks=("b1", "s0", "b2")),
      {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
-    ("attack", "AO3, the residual: a reader that acknowledged only s0 holds s0 (it takes its first head from a member "
-               "it trusts, CC 3.3.4)", AO, (), (), RD(anchor="b0", acks=("s0",)), {"heads": ("s0",), "holders": {"h1", "h2", "X"}}),
+    ("attack", "AO3: a reader that acknowledged only s0: h1 and h2 signed s0 (cutting h3) and b1 (keeping it) at b0, "
+               "so by rule 6 they have no say on either; neither counts, and the reader is at b0 (the residual closes)",
+     AO, (), (), RD(anchor="b0", acks=("s0",)), {"heads": ("b0",), "holders": set(H3)}),
     ("attack", "AO1h: an honest grant on b2 by h3 and h4 resolves for the reader at b2", AO, (),
      (GR("gh", "b2", "uY", "room", ("h3", "h4")),), RD(anchor="b0", acks=("s0", "b2")), {"grant": {"gh": (True, None)}}),
     ("attack", "G5: removed holders' grant on b0, the reader's later acceptance edge naming it: no voices in force at "
@@ -451,6 +452,47 @@ CASES += [
     ("attack", "the turnover: b2 (by h1, h2 and h3 of b1's four) leaves h3 h4 h5; g0's voices are one of three, and it "
                "lapses", [B0, GLB1, nxt("b2", "b1", ("h3", "h4", "h5"), ("h1", "h2", "h3"), version=2)], (), (GLG,),
      RD(anchor="b0", acks=("b1", "b2")), {"heads": ("b2",), "grant": {"g0": (False, "grant_voices_not_in_force")}}),
+]
+
+
+# the third attack (dp.py): a sibling chain t1, t at b1 by h1, h2 (removed at b2) and the double-signing h3
+DB1 = nxt("b1", "b0", H5, ("h1", "h2"))
+DB2 = nxt("b2", "b1", ("h3", "h4", "h5"), ("h3", "h4", "h5"), version=2)
+DT1 = nxt("t1", "b1", ("h1", "h2", "h3", "X"), ("h1", "h2", "h3"), version=2)
+DT = nxt("t", "t1", ("h1", "h2", "h3", "X"), ("h1", "h2", "h3"), version=3)
+DB3 = nxt("b3", "b2", ("h3", "h4", "h5", "h6"), ("h4", "h5", "h3"), version=3)
+DL = [B0, DB1, DB2, DT1, DT]
+DS = nxt("s", "b1", ("h3", "h4", "h5"), ("h3", "h4", "h5"), version=2, names=("b2", "t1"))   # rule 3: names both
+CASES += [
+    ("rules", "DP0: a reader that acknowledged b2: h3 signed b2 (cutting h1 h2) and t1 (keeping them) at b1: no say on "
+              "either (rule 6), and b2 and t1 are two of b1's five: neither counts; the reader is at b1", DL, (), (),
+     RD(anchor="b0", acks=("b2",)), {"heads": ("b1",), "holders": set(H5)}),
+    ("rules", "DP1, EDGE (the stated residual: the swing holder h3 went over): acknowledging b2 then t: b2 is behind "
+              "t, void by the reader's line and no input to rule 6, so t1 and t count for it (an acknowledgement "
+              "settles, as b3's does in order case (1))", DL, (), (), RD(anchor="b0", acks=("b2", "t")),
+     {"heads": ("t",), "holders": {"h1", "h2", "h3", "X"}}),
+    ("rules", "DP2, the same edge: a new reader acknowledging only t holds t", DL, (), (), RD(anchor="b0", acks=("t",)),
+     {"heads": ("t",)}),
+    ("rules", "DP3: a reader acknowledging both b3 and t: each line holds the other side's base void (t1 behind b3, b2 "
+              "behind t), so neither stands for it, and it falls back to b1 where they meet", DL + [DB3], (), (),
+     RD(anchor="b0", acks=("b2", "b3", "t")), {"heads": ("b1",), "holders": set(H5)}),
+    ("rules", "order case (1): the honest line advanced first (b3), a reader at b3: t1 is behind its line, and b2 and b3 "
+              "stand", [B0, DB1, DB2, DB3, DT1], (), (), RD(anchor="b0", acks=("b3",)), {"heads": ("b3",)}),
+    ("rules", "order case (2): a reader that acknowledged only b2, holding t1 and b3: t1 contests b2 (rule 6), and b3 "
+              "is built on it: at b1, in any arrival order", [B0, DB1, DB2, DB3, DT1], (), (), RD(anchor="b0", acks=("b2",)),
+     {"heads": ("b1",)}),
+    ("rules", "and its own acknowledgement of b3 settles it (the store acknowledges the newest head it holds)",
+     [B0, DB1, DB2, DB3, DT1], (), (), RD(anchor="b0", acks=("b2", "b3")), {"heads": ("b3",)}),
+    ("rules", "rule 3: a bundle at b1 naming both b2 and t1 decides, counted over b1's five: h3, h4 and h5 (h3's voice "
+              "counts on a row naming both)", DL + [DS], (), (), RD(anchor="b0", acks=("s",)),
+     {"concluded": {"s": T}, "heads": ("s",), "holders": {"h3", "h4", "h5"}}),
+    ("rules", "DP5, the control: h1 and h2 alone at b1 are two of five: t1 concludes nothing",
+     [B0, DB1, DB2, nxt("t1", "b1", ("h1", "h2", "X"), ("h1", "h2"), version=2)], (), (), RD(anchor="b0", acks=("b2",)),
+     {"concluded": {"t1": Fa}, "heads": ("b2",)}),
+    ("rules", "the residual, stated: a five-holder roster split two against two: the swing holder decides, and if it "
+              "has gone over, a majority of the holders at b1 is against the honest two; nothing in rows can do better "
+              "(h3 signs t1 alone with h1 and h2: t1 counts, three of five)",
+     [B0, DB1, DT1], (), (), RD(anchor="b0", acks=("t1",)), {"heads": ("t1",)}),
 ]
 
 
@@ -528,7 +570,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "grant_count_unread", "grant_charter_unread", "grant_scope_unread", "recovery_fork_both", "joins_fork_both",
           "grant_head_unread", "join_common_base", "recovery_exempt", "recovery_t_unread",
           "join_void_prev_blocks", "grant_antichain_unread", "regime_reads_commitments", "reader_line_unread",
-          "rotation_outlives_seat", "retired_unread", "join_prev_unread", "cosign_unread")
+          "rotation_outlives_seat", "retired_unread", "join_prev_unread", "cosign_unread", "double_signer_voices")
 
 
 def answer(bs, rv, gs, rd, want):
@@ -614,6 +656,7 @@ def fixture(with_refs):
                 "charter": json.dumps(b["charter"], sort_keys=True), "duties": sorted(RT.duties(b["charter"])),
                 "sub_delegation": sorted(RT.sub_delegations(b["charter"])),
                 "iat": b["iat"], "recovery": [[k, v] for k, v in sorted(b["recovery"].items())],
+                "names": list(b.get("names", ())),
                 "recovers": list(b["recovers"]) if b.get("recovers") else None,
                 "stmts": [[k, i] for k, i in b["stmts"]]}
     def genc(g):
