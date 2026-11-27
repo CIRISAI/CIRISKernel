@@ -595,6 +595,7 @@ plant "the root: the scope in force unread" src/root.rs 'if !self.scope_in_force
 plant "the root: a recovery grant's resolution unread" src/root.rs '        self.root.grant_in_force(grant, &self.reader)?;' ''
 plant "the root: a recovery grant's room scope unread" src/root.rs 'if *room != crate::seat::Obj::Row(g.scope().clone()) {' 'if false {'
 plant "the root: a recovery key's identity unread" src/root.rs 'if !id.user || id.node {' 'if false {'
+plant "stalled read over the row's own counted scope" src/seat.rs '    let scope = "founder";' '    let scope = p.row().counted().map(|c| c.as_ref()).unwrap_or("member");'
 plant "a stalled recovery while live" src/seat.rs '    if founders >= m + 1 {' '    if false {'
 plant "a stalled recovery that changes more" src/seat.rs 'if r.to().len() != 1 || r.consensus_protocol().is_some() || !r.cosigners().is_empty() {' 'if false {'
 plant "a stalled recovery signed by another key" src/seat.rs 'if r.to()[0] != named || *r.signer() != named {' 'if false {'

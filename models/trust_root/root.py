@@ -101,9 +101,17 @@ def duties(charter):
     return frozenset(charter.get("duties", ())) if isinstance(charter, dict) else frozenset()
 
 
-def reader(anchor=None, thumbs=None, acks=()):
-    """A reader: its anchor (a first bundle's id, or the holders' thumbprints), and the bundles it acknowledged."""
-    return {"anchor": anchor, "thumbs": frozenset(thumbs) if thumbs is not None else None, "acks": frozenset(acks)}
+def reader(anchor=None, thumbs=None, acks=(), rows=()):
+    """A reader: its anchor (a first bundle's id, or the holders' thumbprints), the bundles it acknowledged, and its
+    own acknowledgement rows in the root's lane (`rows`, for GRANT_LINE)."""
+    return {"anchor": anchor, "thumbs": frozenset(thumbs) if thumbs is not None else None, "acks": frozenset(acks),
+            "rows": frozenset(rows)}
+
+
+# PROPOSED, pending the Constitution: grants sit on the reader's line, with bundles as heads. A grant naming a bundle
+# strictly older than one the reader acknowledged, and not in the past of the reader's own acknowledgement rows, is
+# void for that reader. Off by default.
+GRANT_LINE = [False]
 
 
 class Root:
@@ -113,6 +121,26 @@ class Root:
         self.rows = {g["id"]: g for g in grants}            # the root's lane: grants and acceptance edges
         self.grants = {g["id"]: g for g in grants if g["kind"] == "grant"}
         self._past, self._concl = {}, {}
+        # a holder is one voice whatever key it signs with: its key, its recovery key, and the key a recovery seats
+        self._own = {}
+        for b in bundles:
+            if b.get("recovers") is not None and len(b["prev"]) == 1 and b["prev"][0] in self.by:
+                h, new = b["recovers"]
+                rk = self.by[b["prev"][0]]["recovery"].get(h)
+                for k in (new, rk):
+                    if k is not None: self._union(h, k)
+
+    def _find(self, k):
+        while self._own.get(k, k) != k: k = self._own[k]
+        return k
+
+    def _union(self, a, b):
+        ra, rb = self._find(a), self._find(b)
+        if ra != rb: self._own[max(ra, rb)] = min(ra, rb)
+
+    def owner(self, k):
+        """The holder a key speaks for: its key, its recovery key, and the key a recovery seats are one voice."""
+        return self._find(k)
 
     # ---- the lineage --------------------------------------------------------------------------------------
     def past(self, i):
@@ -170,13 +198,23 @@ class Root:
                    and self.counted(x["id"])[0] for x in self.by.values())
 
     def prev_base(self, prevs):
-        """The live holders common to the bundles `prevs`; where they are joins contested among themselves (a
-        bundle settling a forked join), the holders common to the tips those joins tried to join."""
+        """The live holders a bundle naming `prevs` is counted over: one, its holders; several under one charter,
+        their fold (MUTATION join_common: their common holders); several whose charters differ, those common to
+        them; where they are joins contested among themselves (a bundle settling a forked join), the same over the
+        tips those joins tried to join."""
         prevs = tuple(prevs)
         ps = [self.by[p] for p in prevs]
         if len(ps) >= 2 and all(self.contested_join(p) for p in prevs) \
                 and len({frozenset(q["prev"]) for q in ps}) == 1:
             return self.prev_base(ps[0]["prev"])
+        # a bundle naming recoveries of one seat contested among themselves: the seat as it was, their predecessor's
+        if len(ps) >= 2 and all(q.get("recovers") is not None and len(q["prev"]) == 1 for q in ps) \
+                and len({(q["prev"][0], q["recovers"][0]) for q in ps}) == 1 \
+                and all(a not in self.past(b) for a in prevs for b in prevs):
+            return self.prev_base(ps[0]["prev"])
+        if len(ps) >= 2 and len({self.regime(p) for p in prevs}) == 1 and "join_common" not in MUT \
+                and "join_union" not in MUT:
+            return self.live(self.fold(prevs)[0])
         if "join_union" in MUT: hs = frozenset().union(*[frozenset(p["holders"]) for p in ps])
         else: hs = frozenset.intersection(*[frozenset(p["holders"]) for p in ps])
         return self.live(hs)
@@ -252,18 +290,23 @@ class Root:
         self._contest = set()
         if "root_sf_unread" in MUT: return frozenset()
         cs = [self.by[i] for i in self.concluded()]
+        own = lambda ks: frozenset(self.owner(k) for k in ks)
         def voices_of(b):
-            return self.voices(b) & (self.base(b) if b["prev"] else frozenset(b["holders"]))
+            """b's counted voices, as the holders they speak for: a recovery's is the recovering holder."""
+            if b.get("recovers") is not None and "recovery_exempt" not in MUT:
+                return own([b["recovers"][0]])
+            return own(self.voices(b) & (self.base(b) if b["prev"] else frozenset(b["holders"])))
         def forked(b):
-            if not b["prev"] or b.get("recovers") is not None: return False
+            if not b["prev"]: return False
+            if b.get("recovers") is not None and "recovery_exempt" in MUT: return False
             v = voices_of(b)
-            return bool(v) and all(any(k in self.voices(c) and self.behind(b, c) for c in cs) for k in v)
+            return bool(v) and all(any(k in own(self.voices(c)) and self.behind(b, c) for c in cs) for k in v)
         out = {b["id"] for b in cs if forked(b)}
         tv = set()
         for i in out:
             b = self.by[i]
             if "root_t_unread" in MUT: tv.add(i); continue
-            mem = self.base(b)
+            mem = own(self.base(b))
             beh = [c for c in cs if self.behind(b, c)]
             chain = set()
             todo = [c["id"] for c in beh]
@@ -278,16 +321,23 @@ class Root:
             km = set().union(*[voices_of(c) & mem for c in mine]) if mine else set()
             ko = set().union(*[voices_of(c) & mem for c in other]) if other else set()
             if len(ko - km) > len(km - ko): tv.add(i)
-        # built on: void, unless a join of both lines
-        changed = True
-        while changed:
-            changed = False
-            for c in cs:
-                if c["id"] in tv or not any(p in tv for p in c["prev"]): continue
-                if any(f in self.past(c["id"]) and any(x["id"] in self.past(c["id"]) for x in cs if self.behind(self.by[f], x))
-                       for f in tv):
-                    continue
-                tv.add(c["id"]); changed = True
+        def close():
+            """Built on: void, but a join of both lines, which is counted without the void bundles it names
+            (MUTATION merge_count_unread: it stands on its own count)."""
+            changed = True
+            while changed:
+                changed = False
+                for c in cs:
+                    if c["id"] in tv or not any(p in tv for p in c["prev"]): continue
+                    if any(f in self.past(c["id"]) and any(x["id"] in self.past(c["id"]) for x in cs if self.behind(self.by[f], x))
+                           for f in tv):
+                        keep = [p for p in c["prev"] if p not in tv]
+                        if "merge_count_unread" in MUT: continue
+                        if keep:
+                            base = self.prev_base(keep)
+                            if 2 * len(self.voices(c) & base) > len(base): continue
+                    tv.add(c["id"]); changed = True
+        close()
         # two recoveries of one seat, neither in the other's past, are contested: neither replaces the seat until a
         # bundle names both (one holder may not seat two keys for one seat by forking its own recovery); a bundle
         # built on some of a contest and not all is void with them (MUTATION recovery_fork_both: both conclude)
@@ -299,12 +349,27 @@ class Root:
                 rivals = [x["id"] for x in recs if x["id"] != c["id"] and seat(x) == seat(c)
                           and x["id"] not in self.past(c["id"]) and c["id"] not in self.past(x["id"])]
                 if rivals: groups.setdefault(seat(c), set()).update(rivals + [c["id"]])
-            for g in groups.values():
+            for (pv, _), g in groups.items():
                 if any(g <= self.past(c["id"]) for c in cs if c["id"] not in tv): continue    # a bundle names both
+                # T among them: of the live holders at their predecessor, those who built only on one recovery's
+                # line; the recoveries short of the most are void, and only a tie at the most is contested
+                if "recovery_t_unread" not in MUT:
+                    mem = own(self.live(self.by[pv]["holders"]))
+                    side = {}
+                    for r in g:
+                        xs = [x for x in cs if r in self.line(x["id"]) and not (g - {r}) & self.line(x["id"])]
+                        side[r] = set().union(*[voices_of(x) & mem for x in xs]) if xs else set()
+                    only = {r: len(side[r] - set().union(*[side[q] for q in g if q != r])) for r in g}
+                    top = max(only.values())
+                    lose = {r for r in g if only[r] < top}
+                    for r in lose: tv.add(r)
+                    g = g - lose
+                    if len(g) < 2: continue
                 for c in cs:
                     line = self.line(c["id"])
                     if line & g and not g <= line: tv.add(c["id"])
                     if c["id"] in g: self._contest.add(c["id"])
+            close()
         # a forked join: joins of the same tips under different charters are contested, neither stands, and a reader
         # keeps the tips they tried to join; a bundle naming every one of them settles them (counted over those tips'
         # common holders, prev_base); one built on some and not all is void with them
@@ -321,6 +386,7 @@ class Root:
                     if c["id"] not in tv and line & g and (c["id"] in g or not g <= line):
                         tv.add(c["id"]); changed = True
                         if c["id"] in g: self._contest.add(c["id"])
+        close()
         return frozenset(tv)
 
     # ---- for one reader ----------------------------------------------------------------------------------
@@ -448,6 +514,7 @@ class Root:
         if g is None: return False
         named = g["bundles"]
         if any(n not in self.valid() for n in named): return False
+        if not self.antichain(named): return False
         if any(g["duty"] not in duties(self.by[n]["charter"]) for n in named) and "grant_charter_unread" not in MUT:
             return False
         seen = self.seen_of(g)
@@ -456,6 +523,10 @@ class Root:
             if any(x not in lines for x in seen): return False
         base = self.live(self.fold(named)[0])
         return 2 * len(frozenset(g["signers"]) & base) > len(base)
+
+    def antichain(self, named):
+        """The bundles a grant names are an antichain: none in another's past (MUTATION grant_antichain_unread)."""
+        return "grant_antichain_unread" in MUT or not any(a in self.past(b) for a in named for b in named)
 
     def row_past(self, i):
         """The rows of the root's lane in row i's causal past, by what they name."""
@@ -494,7 +565,13 @@ class Root:
         hs = self.heads(rd)
         if hs is None: return (False, "genesis_bundle_not_anchored")
         if any(n not in self.valid() for n in g["bundles"]): return (False, "grant_bundle_void")
+        if not self.antichain(g["bundles"]): return (False, "grant_bundles_not_antichain")
         if not self.grant_row(gid): return (False, "grant_count_short")
+        if GRANT_LINE[-1] and "grant_line_unread" not in MUT:
+            acked = [a for a in rd["acks"] if a in self.by]
+            seen = set().union(*[self.row_past(r) for r in rd.get("rows", ()) if r in self.rows]) if rd.get("rows") else set()
+            if gid not in seen and any(n in self.past(a) for n in g["bundles"] for a in acked):
+                return (False, "grant_behind_reader_line")
         if "grant_any_bundle" not in MUT and not all(any(n in self.line(h) for h in hs) for n in g["bundles"]):
             return (False, "grant_not_in_reader_lineage")
         if g["duty"] not in self.scope_in_force(rd) and "grant_scope_unread" not in MUT:

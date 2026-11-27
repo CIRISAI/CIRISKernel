@@ -45,13 +45,13 @@ FORKC = [B0, nxt("s1", "b0", H3 + ("h4",), ("h1", "h2")), nxt("s2", "b0", H3 + (
 # a removal on one tip and an addition on the other: s1 removes h3 (h1 h2), s2 adds h5 (h2 h3)
 FORKR = [B0, nxt("s1", "b0", ("h1", "h2"), ("h1", "h2")), nxt("s2", "b0", H3 + ("h5",), ("h2", "h3"))]
 # a join of FORK's tips, counted over the holders common to them (h1 h2 h3)
-JOIN = FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2"), version=2)]
+JOIN = FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2", "h4"), version=2)]
 JOINC = FORKC + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2"), version=2, charter=C1)]
 # a forked join: two joins of FORK's tips, both by h1 and h2 (a strict majority of the common h1 h2 h3), under
 # different charters: two tips whose regime differs, so the holders are again those common to them
 C3 = {"name": "c3", "duties": ("infra",)}
-FJ = lambda h1s, h2s: FORK + [nxt("j1", ("s1", "s2"), h1s, ("h1", "h2"), version=2),
-                              nxt("j2", ("s1", "s2"), h2s, ("h1", "h2"), version=2, charter=C1)]
+FJ = lambda h1s, h2s: FORK + [nxt("j1", ("s1", "s2"), h1s, ("h1", "h2", "h4"), version=2),
+                              nxt("j2", ("s1", "s2"), h2s, ("h1", "h2", "h4"), version=2, charter=C1)]
 # a holder's recovery: h3's recovery key r:h3 replaces h3 by h3b
 REC = nxt("rc", "b0", ("h1", "h2", "h3b"), ("r:h3",), recovers=("h3", "h3b"),
           recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b"})
@@ -142,10 +142,13 @@ CASES = [
     ("fold", "and are common where charters differ: n1", [B0, nxt("s1", "b0", H3, ("h1", "h2"), seats=("n1", "n2")),
                                                          nxt("s2", "b0", H3, ("h2", "h3"), seats=("n1", "n3"), charter=C1)],
      (), (), RD(anchor="b0", acks=("s1", "s2")), {"seats": {"n1"}}),
-    ("join", "a join of the two tips, counted over the holders common to them: h1 and h2 of h1 h2 h3", JOIN, (), (),
+    ("join", "a join of two tips under one charter, counted over their fold (h1..h5): h1, h2 and h4 are three of five", JOIN, (), (),
      RD(anchor="b0", acks=("j",)), {"concluded": {"j": T}, "heads": ("j",), "holders": {"h1", "h2", "h3", "h4", "h5"}}),
-    ("join", "a join is counted over the common holders, not their union: h4 and h5 with h1 are one of three",
-     FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h4", "h5"), version=2)], (), (), ANC, {"concluded": {"j": Fa}}),
+    ("join", "over the fold, not the common holders: h1, h4 and h5 are three of five (one of the common three)",
+     FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h4", "h5"), version=2)], (), (), ANC, {"concluded": {"j": T}}),
+    ("join", "a join of tips whose charters differ is counted over their common holders: h1, h4 and h5 are one of three",
+     FORKC + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h4", "h5"), version=2, charter=C1)], (), (), ANC,
+     {"concluded": {"j": Fa}}),
     ("join", "a join names both where charters differ, and ends the wait: its own holders", JOINC, (), (),
      RD(anchor="b0", acks=("j",)), {"concluded": {"j": T}, "holders": {"h1", "h2", "h3", "h4", "h5"}}),
     # the forked join (the Constitution's option (ii)): two joins of the same tips that do not fold with each other
@@ -161,7 +164,7 @@ CASES = [
              "s1 and s2", FJ(("h1", "h4"), ("h2", "h5")), (), (), RD(anchor="b0", acks=("j1", "j2")),
      {"void": {"j1", "j2"}, "heads": ("s1", "s2"), "holders": {"h1", "h2", "h3", "h4", "h5"}}),
     ("join", "a bundle naming both settles them, counted over the tips' common holders (h1 h2 h3): h1 and h2",
-     FJ(("h1", "h4"), ("h2", "h5")) + [nxt("j3", ("j1", "j2"), ("h1", "h2", "h4", "h5"), ("h1", "h2"), version=3, charter=C3)],
+     FJ(("h1", "h4"), ("h2", "h5")) + [nxt("j3", ("j1", "j2"), ("h1", "h2", "h4", "h5"), ("h1", "h2", "h4"), version=3, charter=C3)],
      (), (), RD(anchor="b0", acks=("j3",)), {"concluded": {"j3": T}, "void": set(), "heads": ("j3",),
                                              "holders": {"h1", "h2", "h4", "h5"}}),
     ("join", "counted over the tips' common holders, not over the joins': h1 alone is one of three",
@@ -169,35 +172,35 @@ CASES = [
      RD(anchor="b0", acks=("j3",)), {"concluded": {"j3": Fa}, "heads": ("b0",)}),
     ("join", "two joins under the same charter fold as any tips do: not contested (each dropped the other tip's "
              "addition, so h4 and h5 fold out)",
-     FORK + [nxt("j1", ("s1", "s2"), ("h1", "h2", "h3", "h4"), ("h1", "h2"), version=2),
-             nxt("j2", ("s1", "s2"), ("h1", "h2", "h3", "h5"), ("h2", "h3"), version=2)], (), (),
+     FORK + [nxt("j1", ("s1", "s2"), ("h1", "h2", "h3", "h4"), ("h1", "h2", "h4"), version=2),
+             nxt("j2", ("s1", "s2"), ("h1", "h2", "h3", "h5"), ("h2", "h3", "h5"), version=2)], (), (),
      RD(anchor="b0", acks=("j1", "j2")), {"void": set(), "heads": ("j1", "j2"), "holders": {"h1", "h2", "h3"}}),
     ("join", "three joins, pairwise differing: all contested, and the reader keeps s1 and s2",
-     FJ(("h1", "h2", "h3"), ("h1", "h2", "h4")) + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2"), version=2, charter=C3)],
+     FJ(("h1", "h2", "h3"), ("h1", "h2", "h4")) + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2", "h4"), version=2, charter=C3)],
      (), (), RD(anchor="b0", acks=("j1", "j2", "j3")), {"void": {"j1", "j2", "j3"}, "heads": ("s1", "s2")}),
     ("join", "a bundle naming two of the three settles nothing, and is void with them",
-     FJ(("h1", "h2", "h3"), ("h1", "h2", "h4")) + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2"), version=2, charter=C3),
-                                                   nxt("k", ("j1", "j2"), ("h1", "h2", "h3"), ("h1", "h2"), version=3)],
+     FJ(("h1", "h2", "h3"), ("h1", "h2", "h4")) + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2", "h4"), version=2, charter=C3),
+                                                   nxt("k", ("j1", "j2"), ("h1", "h2", "h3"), ("h1", "h2", "h4"), version=3)],
      (), (), RD(anchor="b0", acks=("k",)), {"concluded": {"k": T}, "void": {"j1", "j2", "j3", "k"}, "heads": ("b0",)}),
     ("join", "one naming all three settles them", FJ(("h1", "h2", "h3"), ("h1", "h2", "h4"))
-     + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2"), version=2, charter=C3),
-        nxt("k", ("j1", "j2", "j3"), ("h1", "h2", "h3"), ("h1", "h2"), version=3)], (), (), RD(anchor="b0", acks=("k",)),
+     + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2", "h4"), version=2, charter=C3),
+        nxt("k", ("j1", "j2", "j3"), ("h1", "h2", "h3"), ("h1", "h2", "h4"), version=3)], (), (), RD(anchor="b0", acks=("k",)),
      {"concluded": {"k": T}, "void": set(), "heads": ("k",), "holders": {"h1", "h2", "h3"}}),
     ("join", "a join concurrent with an ordinary amend on one tip (a on s1, adding h6): no contest; j and a are tips "
-             "under one charter and fold", FORK + [nxt("j1", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2"), version=2),
+             "under one charter and fold", FORK + [nxt("j1", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2", "h4"), version=2),
                                                    nxt("a", "s1", H3 + ("h4", "h6"), ("h1", "h2", "h4"), version=2)], (), (),
      RD(anchor="b0", acks=("j1", "a")), {"void": set(), "heads": ("a", "j1"), "holders": {"h1", "h2", "h3", "h4", "h5", "h6"}}),
     ("join", "the settling bundle itself forked: two settlers of j1 and j2 under different charters are contested in "
              "turn, and the reader ends at s1 and s2, the same holders, never fewer",
-     FJ(("h1", "h4"), ("h2", "h5")) + [nxt("k1", ("j1", "j2"), ("h1", "h2", "h4"), ("h1", "h2"), version=3),
-                                       nxt("k2", ("j1", "j2"), ("h1", "h2", "h5"), ("h1", "h2"), version=3, charter=C1)],
+     FJ(("h1", "h4"), ("h2", "h5")) + [nxt("k1", ("j1", "j2"), ("h1", "h2", "h4"), ("h1", "h2", "h4"), version=3),
+                                       nxt("k2", ("j1", "j2"), ("h1", "h2", "h5"), ("h1", "h2", "h4"), version=3, charter=C1)],
      (), (), RD(anchor="b0", acks=("k1", "k2")),
      {"concluded": {"k1": T, "k2": T}, "void": {"j1", "j2", "k1", "k2"}, "heads": ("s1", "s2"),
       "holders": {"h1", "h2", "h3", "h4", "h5"}}),
     ("join", "and a bundle naming both settlers settles all, counted over s1 and s2's common holders",
-     FJ(("h1", "h4"), ("h2", "h5")) + [nxt("k1", ("j1", "j2"), ("h1", "h2", "h4"), ("h1", "h2"), version=3),
-                                       nxt("k2", ("j1", "j2"), ("h1", "h2", "h5"), ("h1", "h2"), version=3, charter=C1),
-                                       nxt("m", ("k1", "k2"), ("h1", "h2", "h3"), ("h2", "h3"), version=4, charter=C3)],
+     FJ(("h1", "h4"), ("h2", "h5")) + [nxt("k1", ("j1", "j2"), ("h1", "h2", "h4"), ("h1", "h2", "h4"), version=3),
+                                       nxt("k2", ("j1", "j2"), ("h1", "h2", "h5"), ("h1", "h2", "h4"), version=3, charter=C1),
+                                       nxt("m", ("k1", "k2"), ("h1", "h2", "h3"), ("h2", "h3", "h4"), version=4, charter=C3)],
      (), (), RD(anchor="b0", acks=("m",)), {"concluded": {"m": T}, "void": set(), "heads": ("m",), "holders": {"h1", "h2", "h3"}}),
     # ---- the reader ------------------------------------------------------------------------------------------------
     ("in force", "per reader: a reader that acknowledged s1 alone holds s1's holders; one that acknowledged nothing, "
@@ -281,6 +284,81 @@ CASES = [
      {"grant": {"g1": (False, "grant_scope_not_in_force")}}),
 ]
 
+# ---- the root-fold attack (review-58b): rj, rs, g1, g2 -----------------------------------------------------------
+H5 = ("h1", "h2", "h3", "h4", "h5")
+RB1 = nxt("b1", "b0", H5, ("h1", "h2"))
+RB2 = nxt("b2", "b1", ("h3", "h4", "h5"), ("h3", "h4", "h5"), version=2)      # h1 and h2 removed
+RL = [B0, RB1, RB2]
+RA = nxt("ra", "b0", ("h1x", "h2", "h3"), ("r:h1",), recovers=("h1", "h1x"), recovery={"h1x": "r:h1x", "h2": "r:h2", "h3": "r:h3"})
+RJX = nxt("jx", ("b2", "ra"), ("h3",), ("h3",), version=3, recovery={"h3": "r:h3"})
+_H = ("h1", "h2", "h3b")
+SB2 = nxt("b2", "rc", _H + ("h4",), ("h1", "h2"), version=2, recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})
+SB3 = nxt("b3", "b2", _H + ("h4", "h5"), ("h1", "h2", "h4"), version=3,
+          recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4", "h5": "r:h5"})
+SL = [B0, REC, SB2, SB3]
+SRC2 = nxt("rc2", "b0", ("h1", "h2", "h3x"), ("r:h3",), recovers=("h3", "h3x"), recovery={"h1": "r:h1", "h2": "r:h2", "h3x": "r:h3x"})
+SRC3 = nxt("rc3", "b0", ("h1", "h2", "h3y"), ("r:h3",), recovers=("h3", "h3y"), recovery={"h1": "r:h1", "h2": "r:h2", "h3y": "r:h3y"})
+SJ = nxt("j", ("b3", "rc2"), _H + ("h4", "h5"), ("h1", "h2"), version=4,
+         recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4", "h5": "r:h5"})
+# a recovery behind a bundle its holder signed: h1, h2 and h3 sign b1 and b2 (on b1); r:h3 then recovers at b0
+XB1 = nxt("b1", "b0", H3, ("h1", "h2", "h3"))
+XB2 = nxt("b2", "b1", H3 + ("h4",), ("h1", "h2", "h3"), version=2)
+XRC = nxt("rx", "b0", ("h1", "h2", "h3z"), ("r:h3",), recovers=("h3", "h3z"), recovery={"h1": "r:h1", "h2": "r:h2", "h3z": "r:h3z"})
+CASES += [
+    ("attack", "RJ0: a removed holder's recovery at b0 (h1, removed at b2, recovers to h1x) concludes, a sibling of b1, "
+               "which h1 signed: no bundle it is behind, so S'' does not reach it (the statement residual's bundle form); "
+               "a reader at b2 holds b2", RL + [RA], (), (), RD(anchor="b0", acks=("b2",)),
+     {"concluded": {"ra": T}, "void": set(), "heads": ("b2",)}),
+    ("attack", "RJ1: h3 alone joins b2 and ra (one charter): the join is counted over their fold (h3 and h1x), and h3 "
+               "is one of two: refused", RL + [RA, RJX], (), (), RD(anchor="b0", acks=("jx",)),
+     {"concluded": {"jx": Fa}, "heads": ("b0",)}),
+    ("attack", "RS0: h3 recovers, and the room grows on it to five", SL, (), (), RD(anchor="b0", acks=("b3",)),
+     {"void": set(), "heads": ("b3",), "holders": {"h1", "h2", "h3b", "h4", "h5"}}),
+    ("attack", "RS1: r:h3 later signs a second recovery at b0: by T between the two, h1 and h2 built only on the first: "
+               "the stale one is void, nothing is contested, and b3 stands", SL + [SRC2], (), (), RD(anchor="b0", acks=("b3",)),
+     {"void": {"rc2"}, "heads": ("b3",), "holders": {"h1", "h2", "h3b", "h4", "h5"}}),
+    ("attack", "RS2: h1 and h2 'settle' with a join naming b3 and the void rc2: a join of both lines is counted without "
+               "the void bundle, over b3's five: two of five, void", SL + [SRC2, SJ], (), (), RD(anchor="b0", acks=("j",)),
+     {"concluded": {"j": Fa}, "void": {"rc2"}, "heads": ("b0",)}),
+    ("attack", "RS3: a third recovery at b0: void too", SL + [SRC2, SJ, SRC3], (), (), RD(anchor="b0", acks=("b3",)),
+     {"void": {"rc2", "rc3"}, "heads": ("b3",)}),
+    ("attack", "a join of both lines is counted without the void bundle it names: s1 (void by T) adds h8 and h9; a "
+               "join of s1 and b2 by h1, h2, h8 and h9 is four of the fold's seven, but two of b2's five without s1: void",
+     [B0, nxt("s1", "b0", H3 + ("h8", "h9"), ("h1", "h2")), nxt("b1", "b0", H3 + ("h4",), ("h1", "h2", "h3")),
+      nxt("b2", "b1", H3 + ("h4", "h5"), ("h1", "h2", "h4"), version=2),
+      nxt("m", ("s1", "b2"), H3 + ("h4", "h5", "h8", "h9"), ("h1", "h2", "h8", "h9"), version=3)], (), (),
+     RD(anchor="b0", acks=("m",)), {"concluded": {"m": T}, "void": {"s1", "m"}, "heads": ("b0",)}),
+    ("attack", "a recovery is not exempt from S'': h3 signed b1 and b2, then its recovery key recovers it at b0; behind "
+               "b2, self-forked, and by T (h1 and h2 built only on b1 and b2) void", [B0, XB1, XB2, XRC], (), (),
+     RD(anchor="b0", acks=("b2", "rx")), {"void": {"rx"}, "heads": ("b2",)}),
+    ("attack", "G1, the proposed reader's line off: removed holders h1 and h2 grant on b0, and for a reader at b2 it "
+               "resolves (b0 is in its lineage)", RL, (), (GR("g1", "b0", "uX", "room", ("h1", "h2")),),
+     RD(anchor="b0", acks=("b2",)), {"grant": {"g1": (True, None)}}),
+    ("attack", "G2: a grant's named bundles are an antichain: h3 and h4 naming (b2, b0) conclude nothing",
+     [B0, dict(RB1, charter=C1), dict(RB2, charter=C1)], (), (GR("g3", ("b2", "b0"), "uX", "room", ("h3", "h4")),),
+     RD(anchor="b0", acks=("b2",)), {"row": {"g3": False}, "grant": {"g3": (False, "grant_bundles_not_antichain")}}),
+]
+# the proposed reader's line (GRANT_LINE, pending the Constitution): (name, bundles, grants, reader, {grant: answer})
+LINE_CASES = [
+    ("G1: removed holders h1 and h2 grant on b0; for a reader at b2 the grant is behind its line, void", RL,
+     (GR("g1", "b0", "uX", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b2",)), {"g1": (False, "grant_behind_reader_line")}),
+    ("an honest old grant in the past of the reader's acknowledgement row stands", RL,
+     (GR("g1", "b0", "uX", "room", ("h1", "h2")), AK("kr", "b2", names=("g1",))),
+     RD(anchor="b0", acks=("b2",), rows=("kr",)), {"g1": (True, None)}),
+    ("a grant naming the reader's own bundle in force is no grant behind it", RL,
+     (GR("g4", "b2", "uX", "room", ("h3", "h4")),), RD(anchor="b0", acks=("b2",)), {"g4": (True, None)}),
+]
+
+
+def run_line():
+    RT.GRANT_LINE.append(True)
+    try:
+        return ["line %s: got %s" % (name, got) for name, bs, gs, rd, want in LINE_CASES
+                for got in [{g: RT.Root(bs, (), gs).grant_in_force(g, rd) for g in want}] if got != want]
+    finally:
+        RT.GRANT_LINE.pop()
+
+
 # ---- stalled recovery, judged against the root (seat.recovery_verdict) ------------------------------------------------
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "causal_kernel"))
 import seat as ST  # noqa: E402
@@ -298,6 +376,8 @@ RECOVERY = [
     ("no trust root read: undecided, and it concludes nothing", STALLED + [RCV()], None, (), None, False,
      "stalled_recovery_needs_bundle", False),
     ("live (no founder left): no recovery", [GI, RCV(names=("g",))], ROOT_ROWS, (GOK,), ANC, False, "not_stalled", False),
+    ("stalled is read over the founders, whatever scope the widening states: live, counted `member`",
+     [GI, RCV(names=("g",), counted="member")], ROOT_ROWS, (GOK,), ANC, False, "not_stalled", False),
     ("the grant names another room", STALLED + [RCV()], ROOT_ROWS, (dict(GOK, scope="other"),), ANC, False,
      "grant_scope_not_this_room", False),
     ("the grant names a node key", STALLED + [RCV()], ROOT_ROWS, (dict(GOK, identity=("user", "node")),), ANC, False,
@@ -347,7 +427,8 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "family_unread", "commitments_unread", "recovery_other_seat", "spent_unread", "fold_common", "fold_union",
           "charter_folds", "join_union", "anchor_unread", "inforce_global", "root_sf_unread", "root_t_unread",
           "grant_any_bundle", "grant_charter_unread", "grant_scope_unread", "recovery_fork_both", "joins_fork_both",
-          "grant_head_unread")
+          "grant_head_unread", "join_common", "recovery_exempt", "recovery_t_unread", "merge_count_unread",
+          "grant_antichain_unread")
 
 
 def answer(bs, rv, gs, rd, want):
@@ -417,7 +498,7 @@ def fixture(with_refs):
 
 
 def main():
-    bad = run() + run_recovery()
+    bad = run() + run_recovery() + run_line()
     for b in bad: print(b)
     missed = []
     for p in PLANTS:
@@ -429,6 +510,13 @@ def main():
             RT.MUT.discard(p)
         print("  plant %-22s %s" % (p, ("caught by: " + hit[:90]) if hit else "NOT CAUGHT"))
         if not hit: missed.append(p)
+    RT.MUT.add("grant_line_unread")
+    try:
+        hit = run_line()
+    finally:
+        RT.MUT.discard("grant_line_unread")
+    print("  plant %-22s %s" % ("grant_line_unread", ("caught by: " + hit[0][:90]) if hit else "NOT CAUGHT"))
+    if not hit: missed.append("grant_line_unread")
     for p in RECOVERY_PLANTS:
         ST.MUT.add(p)
         try:
@@ -439,7 +527,7 @@ def main():
         print("  plant %-22s %s" % (p, ("caught by: " + hit[:90]) if hit else "NOT CAUGHT"))
         if not hit: missed.append(p)
     ok = not bad and not missed
-    n = len(PLANTS) + len(RECOVERY_PLANTS)
+    n = len(PLANTS) + len(RECOVERY_PLANTS) + 1
     print("RESULT: %s: %d cases, %d of stalled recovery, %d of %d planted breaks caught" % (
         "ok" if ok else "%d problems" % (len(bad) + len(missed)), len(CASES), len(RECOVERY), n - len(missed), n))
     return 0 if ok else 1

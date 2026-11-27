@@ -1202,7 +1202,7 @@ pub fn stalled_recovery<R: SeatRow, S: CutSpec<R>>(
     let Some(RoomProtocol::Quorum(m, _)) = RoomProtocol::parse_in(rec.consensus_protocol()?.as_ref(), true) else {
         return None;
     };
-    let founders = count_members_with(p, law, spec, None).len() as u64;
+    let founders = founders_at(p, law, spec).len() as u64;
     (founders < m + 1).then_some("stalled_recovery_needs_bundle")
 }
 
@@ -1236,7 +1236,7 @@ pub fn recovery_verdict<R: SeatRow, S: CutSpec<R>>(
     if r.to().len() != 1 || r.consensus_protocol().is_some() || !r.cosigners().is_empty() {
         return Err("recovery_changes_more");
     }
-    let founders = count_members_with(p, law, spec, None).len() as u64;
+    let founders = founders_at(p, law, spec).len() as u64;
     if founders >= m + 1 {
         return Err("not_stalled");
     }
@@ -4169,6 +4169,19 @@ fn persons_at_with<R: SeatRow, S: CutSpec<R>>(
         return m;
     }
     persons(m, &agents_at_with(p, law, spec, obj, heads, cache))
+}
+
+/// The `founder` seats held at the row's heads, less those whose leaving is in its past: what "stalled" reads,
+/// whatever scope the row itself is counted in (the model's `members_at(.., "founder") - count_left(.., "founder")`).
+fn founders_at<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> BTreeSet<R::Key> {
+    let r = p.row();
+    let Some(obj) = r.obj() else { return BTreeSet::new() };
+    let scope = "founder";
+    let mut mem = persons_at_with(p, law, spec, &obj, r.head(), scope, None);
+    for k in left_in_past(p, &obj, scope) {
+        mem.remove(&k);
+    }
+    mem
 }
 
 fn count_members_with<R: SeatRow, S: CutSpec<R>>(
