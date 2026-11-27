@@ -198,6 +198,37 @@ def generated():
     return out
 
 
+# A family pinned to two placements apart, self and federation: regard:{subject_kind} (a reader's weight at self, a
+# vouch at federation), approved and landing with the 22 placements. Its cases run once the pinned table holds it.
+REGARD = "regard:{subject_kind}"
+REGARD_CASES = [
+    ("regard_self", "a regard placed at self: the reader's own weight, its own keys",
+     [row("g", "regard:person", "self")], {"g": P("self_collective", ["a", "a2"])}),
+    ("regard_federation", "a regard placed at the federation: a vouch, for everyone",
+     [row("g", "regard:person", "federation")], {"g": P("commons", AU.EVERYONE)}),
+    ("regard_not_in_a_room", "a regard is not placed at a family or a room",
+     [row("g", "regard:person", "community", room="r1"), row("h", "regard:person", "family", room="r1")],
+     {"g": REF("placement_not_allowed"), "h": REF("placement_not_allowed")}),
+]
+
+
+def check_derivation():
+    """tools/family_placement.py reads a cell pinned to a set of placements apart, self and federation (the CC
+    table's words self_collective and commons), as exactly that set, in the table's order."""
+    sys.path.insert(0, os.path.join(AU.ROOT, "tools"))
+    import family_placement as FP
+    problems = []
+    cell = lambda v, **kw: {"placement": dict({"value": v, "source": "cc-table"}, **kw)}
+    for v, want in ((["commons", "self_collective"], (["self_collective", "commons"], None)),
+                    ("commons", (["commons"], None)),
+                    (["self_collective", "nowhere"], (None, "cc-table: ['self_collective', 'nowhere']"))):
+        if FP.placement_of(cell(v)) != want:
+            problems.append("derivation: %s gives %s" % (v, FP.placement_of(cell(v))))
+    if FP.placement_of(cell(None, rule="default")) != (list(AU.PLACEMENTS[:4]), None):
+        problems.append("derivation: the default")
+    return problems
+
+
 def check_table():
     problems = []
     for p in sorted(AU.FAMILIES):
@@ -223,9 +254,14 @@ def check_table():
     return problems
 
 
+def cases_now():
+    """The case table, with the regard cases once the pinned table holds that family."""
+    return CASES + (REGARD_CASES if REGARD in AU.FAMILIES else [])
+
+
 def check_cases():
     problems = []
-    for name, _, rows, want, *w in CASES:
+    for name, _, rows, want, *w in cases_now():
         got = {i: enc(a) for i, a in AU.audiences(rows, roster, person, joins_of(w[0] if w else None)).items()}
         for i, w in want.items():
             if got.get(i) != w:
@@ -244,11 +280,13 @@ def fixture():
             "cases": [{"name": n, "about": ab, "rows": rows, "joins": w[0] if w else {},
                        "answers": {i: enc(a) for i, a in
                                    AU.audiences(rows, roster, person, joins_of(w[0] if w else None)).items()}}
-                      for n, ab, rows, _, *w in CASES]}
+                      for n, ab, rows, _, *w in cases_now()]}
 
 
 def main():
-    problems = check_table() + check_cases()
+    problems = check_table() + check_cases() + check_derivation()
+    if REGARD not in AU.FAMILIES:
+        print("  %s is not in the pinned table yet: its %d cases wait for the re-pin" % (REGARD, len(REGARD_CASES)))
     caught = 0
     for mut, where in PLANTS:
         AU.MUT.clear(); AU.MUT.add(mut)
@@ -268,7 +306,7 @@ def main():
           "%d cases; %d of %d planted breaks caught"
           % ("ok" if not problems else "%d problems" % len(problems), s["families"], s["on_the_default"],
              s["pinned_by_the_table"], s["undecided"], s["branch"], s["commit"][:7],
-             ", provisional" if s.get("provisional") else "", len(generated()), len(CASES), caught, len(PLANTS)))
+             ", provisional" if s.get("provisional") else "", len(generated()), len(cases_now()), caught, len(PLANTS)))
     return 1 if problems else 0
 
 
