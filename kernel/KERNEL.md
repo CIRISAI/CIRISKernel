@@ -280,7 +280,7 @@ signed both (CC 5.2). No member carries another member's signed row out. **prove
 `nothing_leaves`, `others_elsewhere_change_nothing`, `author_carries`, `same_room_unchanged`. The cost: a cut
 that names a row of another room waits until that row's signer carries it. What must not travel is proof of
 who said it or of who is in the room, which is section 7b. **measured** (`formal/derivation/placement_text.tsv` (parent repository)): no placement cell
-is empty. Of 189 families (the family model at the Constitution's `rc23-next` `d103e60`, sha256 `f5a38b47`), 143
+is empty. Of 189 families (the family model at the Constitution's `rc23-next` `d103e60`, sha256 `f5a38b47`, a provisional pin until it reaches `rc23`), 143
 take the one default, the scope each row carries with the audience CC 5.2 gives it, 34 are pinned by the CC table,
 and 12 are placed by code, prose or a gap rather than the table. **run**
 (`models/causal_kernel/audience.py`, `check_audience.py`, over `data/family_placement.json`; the crate's

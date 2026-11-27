@@ -10,7 +10,7 @@ over the family model's placement cells (data/family_placement.json).
                         `addressed`
         pinned          a family the CC table pins is placed exactly in the placements its cell names
         undecided       a family whose cell is not table data answers Undecided naming the family in every
-                        scope: no default is taken (the 22 the Constitution is asked to fill)
+                        scope: no default is taken (12 at this pin, which the Constitution is asked to fill)
     cases        hand-written answers: the audience of each placement as keys; named_within; a targeted row
                  with no room; an unknown family; the copy rule (same room, same signer, signer in the audience,
                  concluded; a refused row carries nothing)
@@ -37,23 +37,36 @@ person = lambda k: PERSON.get(k, (k,))
 SCOPES = (("self", None), ("family", "r1"), ("community", "r1"), ("federation", None), ("addressed", None))
 
 
-def row(i, family, scope, signer="a", room=None, named=(), names=(), concluded=True, seats=(), history=None):
+def row(i, family, scope, signer="a", room=None, named=(), names=(), concluded=True, kind=None, obj=None, to=(),
+        history=None, seats=()):
+    """A row. `kind` "offer" or "unseat", with `obj` and `to`, makes it a seat row: the keys it seats or removes
+    are derived from it (audience.seats_of), never stated."""
     r = {"id": i, "family": family, "scope": scope, "signer": signer, "room": room, "named": list(named),
-         "names": list(names), "concluded": concluded, "seats": list(seats)}
+         "names": list(names), "concluded": concluded}
+    if seats and not kind:                       # the earlier form (review scripts): a seat offer over its room
+        kind, obj, to = "offer", room, seats
+    if kind:
+        r.update(kind=kind, obj=obj, to=list(to))
     if history:
         r["history_on_join"] = history
     return r
 
 
+def seat_row(i, kind, room, to, **kw):
+    """A seat offer or unseat over `room`, naming the keys it seats or removes."""
+    return row(i, "partner_role:member", "community", room=room, named=list(to), kind=kind, obj=room, to=to, **kw)
+
+
 def joins_of(w):
     """A case's joins: `joined` {room: {key: admitting row}}, `history` {room: the record's value}, `before` [[row,
     admitting row]]: the row is in the admitting row's past."""
-    if not w:
-        return AU.NO_JOINS
+    w = w or {}
     before = {tuple(p) for p in w.get("before", ())}
+    at = w.get("at_head", {})
     return {"joined": lambda room, k: w.get("joined", {}).get(room, {}).get(k),
             "history": lambda room: w.get("history", {}).get(room),
-            "past": lambda a, b: (a, b) in before}
+            "past": lambda a, b: (a, b) in before,
+            "at_head": lambda room, i: at.get(i, roster(room))}       # a case that states none: no member changed
 
 
 def enc(a):
@@ -100,19 +113,23 @@ CASES = [
     # membership answer Undecided at this pin, so the rule is shown on a placed consent family (partner_role)
     ("admission_names_joiner", "a pending admission of j at the room names j, who is not on the roster yet: j is "
      "in its audience",
-     [row("v", "partner_role:member", "community", room="r1", named=["j"], seats=["j"], concluded=False)],
+     [seat_row("v", "offer", "r1", ["j"], concluded=False)],
      {"v": P("targeted_room", ROOM + ["j"])}),
     ("removal_names_removed_key", "a removal of c, read where the roster no longer lists c, names c: c is in its "
      "audience",
-     [row("x", "partner_role:member", "community", room="r2", named=["c"], seats=["c"])],
+     [seat_row("x", "unseat", "r2", ["c"])],
      {"x": P("targeted_room", ["a", "c", "e"])}),
     ("seat_row_names_outsider", "the same admission also names z, a key it does not seat: refused",
-     [row("v", "partner_role:member", "community", room="r1", named=["j", "z"], seats=["j"])],
+     [dict(seat_row("v", "offer", "r1", ["j"]), named=["j", "z"])],
      {"v": REF("named_outside_audience")}),
     ("non_roster_row_names_outsider", "a row that seats no one names z, off the roster: still refused",
      [row("m", "partner_role:member", "community", room="r1", named=["z"])], {"m": REF("named_outside_audience")}),
     ("roster_family_undecided", "group:roster itself answers Undecided at this pin, its seats apart",
-     [row("g", "group:roster", "community", room="r1", named=["j"], seats=["j"])], {"g": UND("group:roster")}),
+     [dict(seat_row("g", "offer", "r1", ["j"]), family="group:roster")], {"g": UND("group:roster")}),
+    ("seats_derived_not_stated", "an offer over ANOTHER object names j: its `to` is no seat of this room, and j is "
+     "held to named_within",
+     [row("v", "partner_role:member", "community", room="r1", named=["j"], kind="offer", obj="r9", to=["j"])],
+     {"v": REF("named_outside_audience")}),
     # history_on_join (CC 2.1, CC 4.4.3.16): j was admitted to r3 by `adm`, after the row m (m in adm's past)
     ("history_from_join", "the room's record states nothing: the default from_join, and j, admitted after m, is "
      "not owed m",
@@ -165,10 +182,10 @@ CASES = [
      {"m": P("self_collective", ["a", "a2"]), "n": P("self_collective", ["a", "a2"])}),
     # the copy rule
     ("copy_same_room", "an addressed row in room r1, named by a concluded row in r1 whose signer d it addresses: "
-     "it joins the namer's audience",
+     "the copy rule adds no key the addressed row's own placement withholds, so it stays with its addressees",
      [row("x", "census:member:share", "addressed", room="r1", named=["d"]),
       row("m", "chat:general", "community", signer="d", room="r1", names=["x"])],
-     {"x": P("addressed", ["a", "b", "c", "d"]), "m": P("targeted_room", ["a", "b", "c", "d"])}),
+     {"x": P("addressed", ["a", "d"]), "m": P("targeted_room", ["a", "b", "c", "d"])}),
     ("copy_signer_outside", "the namer's signer b is not in the addressed row's audience: it carries nobody",
      [row("x", "census:member:share", "addressed", room="r1", named=["d"]),
       row("m", "chat:general", "community", signer="b", room="r1", names=["x"])],
@@ -177,26 +194,91 @@ CASES = [
      [row("x", "census:member:share", "addressed", room="r2", named=["d"]),
       row("m", "chat:general", "community", signer="d", room="r1", names=["x"])],
      {"x": P("addressed", ["a", "d"]), "m": P("targeted_room", ["a", "b", "c", "d"])}),
-    ("copy_author_carries", "the author's own row elsewhere: its self row named by its row in r1 joins r1's audience",
+    ("copy_author_carries", "the author's self row named by its row in r1: the copy rule adds no key a self row's "
+     "placement withholds, so it stays with the author's own keys",
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", room="r1", names=["s"])],
-     {"s": P("self_collective", ["a", "a2", "b", "c"]), "m": P("targeted_room", ROOM)}),
+     {"s": P("self_collective", ["a", "a2"]), "m": P("targeted_room", ROOM)}),
     ("copy_unconcluded", "a namer that does not conclude carries nobody",
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", room="r1", names=["s"], concluded=False)],
      {"s": P("self_collective", ["a", "a2"]), "m": P("targeted_room", ROOM)}),
     ("copy_from_refused", "a refused namer carries nobody",
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", room="r1", names=["s"], named=["z"])],
      {"s": P("self_collective", ["a", "a2"]), "m": REF("named_outside_audience")}),
-    ("copy_chain", "a commons row by b names the room row, which names the author's self row: both reach everyone",
+    ("copy_chain", "a commons row by b names the room row, which names the author's self row: each keeps the "
+     "audience its own placement owes it",
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", room="r1", names=["s"]),
       row("c", "chat:general", "federation", signer="b", room="r1", names=["m"])],
-     {"s": P("self_collective", AU.EVERYONE), "m": P("targeted_room", AU.EVERYONE), "c": P("commons", AU.EVERYONE)}),
+     {"s": P("self_collective", ["a", "a2"]), "m": P("targeted_room", ROOM), "c": P("commons", AU.EVERYONE)}),
+    # review r79 (leak.py): the copy rule never adds a key the named row's own place() withholds
+    ("copy_reply_from_join", "j joined r3 after m0 and m1 (from_join); b's reply d after the join names m1, which "
+     "names m0: d reaches j, m1 and m0 do not. A joiner under from_join can receive a reply whose parent it is not owed",
+     [row("m0", "chat:general", "community", room="r3"),
+      row("m1", "chat:general", "community", signer="b", room="r3", names=["m0"]),
+      row("d", "chat:general", "community", signer="b", room="r3", names=["m1"])],
+     {"m0": P("targeted_room", ["a", "b"]), "m1": P("targeted_room", ["a", "b"]), "d": P("targeted_room", ["a", "b", "j"])},
+     {"joined": {"r3": {"j": "adm"}}, "before": [["m0", "adm"], ["m1", "adm"], ["m0", "m1"], ["m0", "d"], ["m1", "d"],
+                                                 ["adm", "d"]]}),
+    ("copy_admission_from_join", "j's admission names its head m1: it carries none of the older rows to j",
+     [row("m0", "chat:general", "community", room="r3"),
+      row("m1", "chat:general", "community", signer="b", room="r3", names=["m0"]),
+      dict(seat_row("adm", "offer", "r3", ["j"]), names=["m1"])],
+     {"m0": P("targeted_room", ["a", "b"]), "m1": P("targeted_room", ["a", "b"]), "adm": P("targeted_room", ["a", "b", "j"])},
+     {"joined": {"r3": {"j": "adm"}}, "before": [["m0", "adm"], ["m1", "adm"], ["m0", "m1"]]}),
+    ("copy_unaccepted_outsider", "a concluded offer to z, never accepted, names its head h1: z gets the offer, not h1 "
+     "or h0",
+     [row("h0", "chat:general", "community", signer="c", room="r1"),
+      row("h1", "chat:general", "community", signer="b", room="r1", names=["h0"]),
+      dict(seat_row("o", "offer", "r1", ["z"]), names=["h1"])],
+     {"h0": P("targeted_room", ROOM), "h1": P("targeted_room", ROOM), "o": P("targeted_room", ROOM + ["z"])}),
+    ("copy_removed_key", "the removal of c names its head g1: c gets the removal, not g1 or g0",
+     [row("g0", "chat:general", "community", signer="e", room="r2"),
+      row("g1", "chat:general", "community", room="r2", names=["g0"]),
+      dict(seat_row("x", "unseat", "r2", ["c"]), names=["g1"])],
+     {"g0": P("targeted_room", ["a", "e"]), "g1": P("targeted_room", ["a", "e"]), "x": P("targeted_room", ["a", "c", "e"])}),
+    # review r79 (named.py): named_within is read at the row's own head
+    ("named_at_own_head", "a names c while c sat in r2; c is removed later: the row stays placed (placement is "
+     "monotone), and is owed the current roster and the key it names",
+     [row("m", "chat:general", "community", room="r2", named=["c"])], {"m": P("targeted_room", ["a", "c", "e"])},
+     {"at_head": {"m": ["a", "c", "e"]}}),
+    ("named_outsider_joins_later", "a row naming j before j sat in r3 stays refused after j joins",
+     [row("m", "chat:general", "community", room="r3", named=["j"])], {"m": REF("named_outside_audience")},
+     {"at_head": {"m": ["a", "b"]}}),
+    # review r79: an unknown history_on_join word is absent, and falls through to the record
+    ("history_unknown_word_record_full", "the row states history_on_join 'always', a word the door refuses: read as "
+     "absent, the record's full decides and j is owed m",
+     [row("m", "chat:general", "community", room="r3", history="always")], {"m": P("targeted_room", ["a", "b", "j"])},
+     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "full"}}),
+    ("history_unknown_word_default", "the same word with the record silent: the default from_join, j is not owed m",
+     [row("m", "chat:general", "community", room="r3", history="always")], {"m": P("targeted_room", ["a", "b"])},
+     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]]}),
+    ("history_unknown_record_word", "the record states an unknown word: absent, the default from_join",
+     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b"])},
+     {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "sometimes"}}),
 ]
 
-PLANTS = [("undecided_defaulted", "undecided_family"), ("pinned_unread", "pinned_self"),
-          ("named_within_unread", "named_outside_audience"), ("copy_cross_room", "copy_other_room"),
-          ("copy_any_signer", "copy_signer_outside"), ("copy_unconcluded", "copy_unconcluded"),
-          ("match_first", "table"), ("seats_not_within", "admission_names_joiner"),
-          ("history_unread", "history_from_join")]
+# family names that tie: two patterns matching one name with as many literal segments; a synthetic table, since
+# the pinned table has none (tools/family_placement.py refuses one). (families, name, the answer of family_of)
+TIES = [
+    (["x:{a}", "{b}:y"], "x:y", AU.AMBIGUOUS),
+    (["x:{a}", "{b}:y"], "x:z", "x:{a}"),
+    (["x:*", "x:{a}"], "x:y", AU.AMBIGUOUS),
+    (["x:*", "x:y"], "x:y", "x:y"),
+    (["x:*", "x:{a}"], "x:y:z", "x:*"),
+]
+
+# (planted breaks switched on together, the case that catches them). The copy rule's three gates are planted with
+# its bound lifted (copy_unbounded): under the bound they are not observable
+PLANTS = [(("undecided_defaulted",), "undecided_family"), (("pinned_unread",), "pinned_self"),
+          (("named_within_unread",), "named_outside_audience"),
+          (("copy_unbounded",), "copy_reply_from_join"),
+          (("copy_unbounded", "copy_cross_room"), "copy_other_room"),
+          (("copy_unbounded", "copy_any_signer"), "copy_signer_outside"),
+          (("copy_unbounded", "copy_unconcluded"), "copy_unconcluded"),
+          (("match_first",), "table"), (("seats_not_within",), "admission_names_joiner"),
+          (("seats_any_obj",), "seats_derived_not_stated"),
+          (("named_within_current",), "named_at_own_head"),
+          (("history_unread",), "history_from_join"), (("word_read",), "history_unknown_word_record_full"),
+          (("tie_first",), "ties")]
 
 
 def generated():
@@ -206,7 +288,8 @@ def generated():
         name = AU.instance(p)
         for scope, room in SCOPES:
             r = row("x", name, scope, room=room, named=["b"] if room else [])
-            out.append((p, name, scope, room, enc(AU.place(r, roster, person))))
+            heads = dict(AU.NO_JOINS, at_head=lambda rm, i: roster(rm))     # the generated rows: no member changes
+            out.append((p, name, scope, room, enc(AU.place(r, roster, person, heads))))
     return out
 
 
@@ -247,6 +330,20 @@ def check_derivation():
                           "closed": "targeted_family | targeted_room"}}
     if FP.placement_of(code)[0] is not None:
         problems.append("derivation: a code-sourced cell is read as table data")
+    # the generator refuses a table whose patterns tie on a name, and finds no tie in the pinned one
+    if not FP.ties(["x:{a}", "{b}:y"]) or not FP.ties(["x:*", "x:{a}"]) or FP.ties(["x:*", "x:y"]):
+        problems.append("derivation: the tie check")
+    if FP.ties(list(AU.FAMILIES)):
+        problems.append("derivation: the pinned table ties: %s" % FP.ties(list(AU.FAMILIES))[:3])
+    return problems
+
+
+def check_ties():
+    problems = []
+    for fams, name, want in TIES:
+        got = AU.family_of(name, {f: None for f in fams})
+        if got != want:
+            problems.append("ties: %s over %s is %s, want %s" % (name, fams, got, want))
     return problems
 
 
@@ -297,6 +394,7 @@ def fixture():
                      "audience.py over data/family_placement.json; checked by check_audience.py",
             "source": AU.TABLE["_source"], "roster": {k: list(v) for k, v in ROSTER.items()},
             "person": {k: list(v) for k, v in PERSON.items()},
+            "ties": [{"families": f, "name": n, "answer": a} for f, n, a in TIES],
             "generated": [{"family": p, "name": n, "scope": s, "room": r, "answer": a} for p, n, s, r, a in generated()],
             "cases": [{"name": n, "about": ab, "rows": rows, "joins": w[0] if w else {},
                        "answers": {i: enc(a) for i, a in
@@ -305,14 +403,15 @@ def fixture():
 
 
 def main():
-    problems = check_table() + check_cases() + check_derivation()
+    problems = check_table() + check_cases() + check_derivation() + check_ties()
     if REGARD not in AU.FAMILIES:
         print("  %s is not in the pinned table yet: its %d cases wait for the re-pin" % (REGARD, len(REGARD_CASES)))
     caught = 0
-    for mut, where in PLANTS:
-        AU.MUT.clear(); AU.MUT.add(mut)
+    for muts, where in PLANTS:
+        mut = "+".join(muts)
+        AU.MUT.clear(); AU.MUT.update(muts)
         try:
-            got = check_table() + check_cases()
+            got = check_table() + check_cases() + check_ties()
         finally:
             AU.MUT.clear()
         hit = any(g.startswith(where + ":") for g in got)

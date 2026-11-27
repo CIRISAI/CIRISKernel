@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+**The audience after review r79** (both languages, cases from each finding, planted breaks and fixtures):
+- The copy rule never adds a key the named row's own placement withholds (`audience::copy_bound`, the one place
+  the precedence is stated): it no longer carries older rows to a joiner under from_join, to an offered key that
+  never accepted, or to a removed key. Under the bound it adds no key; a joiner under from_join can receive a reply
+  whose parent it is not owed.
+- `named_within` is read against the members at the row's own head (`audience::Joins::at_head`), so a later
+  removal never unplaces an old row, and a row naming an outsider stays refused after the outsider joins. The
+  current roster is read only for who is owed.
+- The keys a seat row seats or removes are derived (`audience::seats_of`: an offer or unseat whose `obj` is its
+  room, its `to`). **BREAKING**: `AudienceRow::seats` is gone; `seat_act`, `obj` and `to` replace it.
+- An unknown `history_on_join` word is absent and falls through (the door refuses it).
+- Family patterns that tie on a name refuse (`Refusal::FamilyAmbiguous`, `audience::family_in`); the generator
+  refuses to write a table with a tie.
+- A key removal (`content`) is read only where it is the key's own revocation or concludes under the person's own
+  key roster (`ContentRow::concludes`, the self-roster count), and it does not cut a row the reader took up before
+  it held the removal. A reader applies only the removals it holds: a caller places a key removal at commons, or in
+  every room the key sits in.
+
 **Audience and placement, family by family** (new module `audience`, both languages). The family model's placement
 cells (the Constitution's `manifests/family_model.json`, derived and pinned by `tools/family_placement.py` into
 `data/family_placement.json` and `audience::FAMILIES`; a provisional pin at `rc23-next` `d103e60`, sha256 `f5a38b47`, until it

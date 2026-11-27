@@ -139,21 +139,38 @@ def _past(rows):
 
 
 def key_cuts(rows):
-    """{row id}: the member's rows a key removal cuts. A key removal (`keyend`, `removes` the key) is the member's
-    own key roster's act: a key of the member signs it (its eviction of the key, or the key's own revocation). It
-    is key-level and reaches every room: it cuts every row that key signs which is not in its past. A row of the
-    shape a room's count signs is no key removal and is not read: the room's count ends a SEAT, in that room only.
-    MUTATION count_key_end_read: a key removal the count signs is read."""
+    """{row id}: the member's rows a key removal cuts. A key removal (`keyend`, `removes` the key) is read where it
+    is the key's own revocation (signed by the key it removes), or a CONCLUDED act of the person's own key roster
+    under that roster's own rule (`concludes`, the caller's: the self-roster count of the seat model; a lone second
+    key does not evict the first unless the roster's policy says one key suffices). It is key-level and reaches
+    every room: it cuts every row that key signs which is not in its past, unless the reader had taken the row up
+    already: a row in the past of one of the reader's acknowledgements (`ack`, in any room) that does not have the
+    removal in its past stands (the monotone line: what the reader took up stays). A reader applies only the key
+    removals it holds: the caller places a key removal at commons, or in every room the key sits in. A row of that
+    kind the room's count signs is not read: a room's count ends a SEAT, in its room only.
+    MUTATIONS key_end_unread; count_key_end_read (one the count signs is read); unconcluded_key_end_read (an act of
+    the roster that does not conclude is read); key_cut_past_line (a row the reader took up is cut)."""
     if "key_end_unread" in MUT:
         return set()
     by, anc = _past(rows)
-    ends = [q for q in rows if q["kind"] == "keyend"
-            and (q["signer"] in KEYS or ("count_key_end_read" in MUT and q["signer"] == COUNT))]
+
+    def read(q):
+        if q["kind"] != "keyend":
+            return False
+        if q["signer"] == COUNT:
+            return "count_key_end_read" in MUT
+        if q["signer"] not in KEYS:
+            return False
+        return q["signer"] == q["removes"] or q.get("concludes", False) or "unconcluded_key_end_read" in MUT
+    ends = [q for q in rows if read(q)]
+    acks = [a["id"] for a in rows if a["kind"] == "ack"]
+    taken = lambda r, q: "key_cut_past_line" not in MUT and any(
+        r["id"] in anc(a) and q["id"] not in anc(a) for a in acks)
     cut = set()
     for r in rows:
         if r["signer"] not in KEYS or r["kind"] == "keyend":
             continue
-        if any(q["removes"] == r["signer"] and r["id"] not in anc(q["id"]) for q in ends):
+        if any(q["removes"] == r["signer"] and r["id"] not in anc(q["id"]) and not taken(r, q) for q in ends):
             cut.add(r["id"])
     return cut
 
@@ -469,10 +486,12 @@ def ack(i, names, room=None, signer="R"):
     return _room({"id": i, "kind": "ack", "signer": signer, "names": sorted(names)}, room)
 
 
-def keyend(i, removes, signer="B", names=()):
+def keyend(i, removes, signer="B", names=(), concludes=False):
     """A removal of one key of the member (`removes`) from the person's own key roster, signed by a key of the
-    member (an eviction, or the key's own revocation): key-level, in every room."""
-    return {"id": i, "kind": "keyend", "signer": signer, "removes": removes, "names": sorted(names)}
+    member: an eviction (`concludes`: it concludes under the roster's own rule, the caller's), or the key's own
+    revocation. Key-level, in every room."""
+    return {"id": i, "kind": "keyend", "signer": signer, "removes": removes, "names": sorted(names),
+            "concludes": concludes}
 
 
 H0, H1 = head("H0"), head("H1", "H0")
@@ -753,20 +772,20 @@ CASES = [
     # key removals
     ("key_removed_rows_after_it_cut", "a key of the member is removed with n1 in the removal's past: n1 counts, "
      "and n2, which that key signed later, is cut",
-     [H0, M1, act("n1", "H0", signer="B2"), keyend("x", "B2", names=["n1"]), act("n2", "H0", "n1", signer="B2")],
+     [H0, M1, act("n1", "H0", signer="B2"), keyend("x", "B2", names=["n1"], concludes=True), act("n2", "H0", "n1", signer="B2")],
      {}, {"m1": (T, T, "no_end"), "n1": (T, T, "no_end"), "n2": (F, F, "K.key_removed")}),
     ("cut_tip_keeps_nothing", "the end names as a tip a row a key removal cuts: it is not held good and the walk "
      "does not pass through it, so m1 behind it is out",
-     [H0, M1, act("n2", "H0", "m1", signer="B2"), keyend("x", "B2"), end("E", "H0", ["n2"])], {},
+     [H0, M1, act("n2", "H0", "m1", signer="B2"), keyend("x", "B2", concludes=True), end("E", "H0", ["n2"])], {},
      {"m1": OUT, "n2": (F, F, "K.key_removed")}),
     ("key_removed_after_end", "the key is removed after the end, with the kept rows in its past: they stay; a "
      "later row of that key is cut",
-     [H0, M1, act("n1", "H0", "m1", signer="B2"), end("E", "H0", ["n1"]), keyend("x", "B2", names=["E", "n1"]),
+     [H0, M1, act("n1", "H0", "m1", signer="B2"), end("E", "H0", ["n1"]), keyend("x", "B2", names=["E", "n1"], concludes=True),
       act("n2", "H0", "n1", signer="B2")], {}, {"m1": KEPT, "n1": KEPT, "n2": (F, F, "K.key_removed")}),
     ("member_revokes_key_keeps_its_resignation", "the member evicts the key it resigned under, the eviction not "
      "naming the resignation: a key removal voids no end (it would undo the resignation and bring every row back), "
      "and the seat stays ended",
-     [H0, M1, M2, end("R", "H0", ["m1"], "B2"), keyend("x", "B2", "B")], {},
+     [H0, M1, M2, end("R", "H0", ["m1"], "B2"), keyend("x", "B2", "B", concludes=True)], {},
      {"m1": KEPT, "m2": OUT}),
     ("key_revokes_itself_keeps_its_resignation", "the same where the key revokes itself",
      [H0, M1, M2, end("R", "H0", ["m1"], "B2"), keyend("x", "B2", "B2")], {},
@@ -783,7 +802,7 @@ CASES = [
     ("retraction_under_a_removed_key", "a retraction signed by a removed key, not in the removal's past, is not "
      "read: the kept row stays",
      [H0, M1, end("E", "H0", ["m1"]), act("w2", "H0", target="m1", compose="retract", signer="B2"),
-      keyend("x", "B2")], {}, {"m1": KEPT, "w2": (F, F, "K.key_removed")}),
+      keyend("x", "B2", concludes=True)], {}, {"m1": KEPT, "w2": (F, F, "K.key_removed")}),
     # more than one room: each room is judged by its own rows; a key is one key in every room
     ("end_in_another_room", "the member's seat ends in this room; in room r2, where it sits on, its row counts "
      "and is in force",
@@ -802,8 +821,37 @@ CASES = [
     ("ack_in_another_room", "the reader's line is the room's: an acknowledgement in room r2 leaves this room's "
      "end in force",
      [H0, H1, H2, G0, M1, end("E", "H0", ["m1"]), ack("k1", ["G0", "H2"], room="r2")], {}, {"m1": KEPT}),
+    # review r79 (keys.py): a key removal is read only as a concluded act of the person's own key roster, or the
+    # key's own revocation; and the reader keeps what it already took up
+    ("secondary_evicts_primary_alone", "B2 alone signs a removal of B that does not conclude under the person's key "
+     "roster (one key does not suffice): it cuts nothing, in either room",
+     [H0, G0, M1, act("m2", "H0", "m1"), dict(act("g1", "G0"), room="r2"), act("s1", "H0", signer="B2"),
+      keyend("k", "B", signer="B2", concludes=False)], {},
+     {"m1": (T, T, "no_end"), "m2": (T, T, "no_end"), "g1": (T, T, "no_end"), "s1": (T, T, "no_end")}),
+    ("counter_removal", "the same, and B's concluded removal of B2 names B2's row s1: B's rows stand, B2's later row "
+     "is cut",
+     [H0, M1, act("s1", "H0", signer="B2"), keyend("k", "B", signer="B2", concludes=False),
+      keyend("k2", "B2", signer="B", names=("k", "s1"), concludes=True), act("s2", "H0", "s1", signer="B2")], {},
+     {"m1": (T, T, "no_end"), "s1": (T, T, "no_end"), "s2": (F, F, "K.key_removed")}),
+    ("self_revocation", "B revokes itself naming m1: needing no count, it is read; m2, not in its past, is cut",
+     [H0, M1, act("m2", "H0", "m1"), keyend("k", "B", signer="B", names=("m1",), concludes=False)], {},
+     {"m1": (T, T, "no_end"), "m2": (F, F, "K.key_removed")}),
+    ("key_cut_after_reader_took_up", "the reader acknowledged m2 before it held the removal of B (the "
+     "acknowledgement does not have the removal in its past): m2 stands for this reader; m3, which it never took "
+     "up, is cut",
+     [H0, M1, act("m2", "H0", "m1"), act("m3", "H0", "m2"), ack("a1", ["m2"]),
+      keyend("k", "B", signer="B", names=("m1",))], {},
+     {"m1": (T, T, "no_end"), "m2": (T, T, "no_end"), "m3": (F, F, "K.key_removed")}),
+    ("key_cut_reader_held_the_removal", "the reader's acknowledgement has the removal in its past too: it took up m2 "
+     "knowing the key was removed, and m2 is cut",
+     [H0, M1, act("m2", "H0", "m1"), keyend("k", "B", signer="B", names=("m1",)), ack("a1", ["m2", "k"])], {},
+     {"m1": (T, T, "no_end"), "m2": (F, F, "K.key_removed")}),
+    ("key_end_not_held", "the reader does not hold the removal of B2 (the caller places a key removal at commons, "
+     "or in every room the key sits in): nothing is cut",
+     [H0, M1, act("n1", "H0", signer="B2"), act("n2", "H0", "n1", signer="B2")], {},
+     {"m1": (T, T, "no_end"), "n1": (T, T, "no_end"), "n2": (T, T, "no_end")}),
     ("key_removal_reaches_every_room", "a key removal is of the key, in every room: its later row in r2 is cut",
-     [H0, G0, act("p1", "G0", signer="B2", room="r2"), keyend("x", "B2")], {}, {"p1": (F, F, "K.key_removed")}),
+     [H0, G0, act("p1", "G0", signer="B2", room="r2"), keyend("x", "B2", concludes=True)], {}, {"p1": (F, F, "K.key_removed")}),
 ]
 
 

@@ -9,7 +9,7 @@
 //!
 //! * **Family.** A row's family is matched against the table's patterns: a segment `{name}` matches one segment, a
 //!   final `*` one or more; the pattern with the most literal segments that matches decides. No pattern:
-//!   [`Refusal::FamilyUnknown`].
+//!   [`Refusal::FamilyUnknown`]; two that tie: [`Refusal::FamilyAmbiguous`] ([`family_in`]).
 //! * **Placement.** The cohort scope a row states is its placement ([`SCOPES`]): `self` is self_collective,
 //!   `family` targeted_family, `community` and `affiliations` targeted_room, `species`, `biosphere` and
 //!   `federation` commons, and `addressed` a row for the keys it names. A family on the default takes any of the
@@ -17,17 +17,20 @@
 //!   ([`Refusal::PlacementNotAllowed`]). A family whose cell is not table data is [`Placed::Undecided`], naming
 //!   the family: no default is taken for it.
 //! * **Audience.** Every audience holds the signer and the keys the row names. Self_collective: the signer's own
-//!   keys. Targeted: the room's roster; a row there may name only keys on the roster
-//!   ([`Refusal::NamedOutsideAudience`]) and names its room ([`Refusal::NoRoom`]). The keys a seat offer or unseat
-//!   over the room seats or removes ([`AudienceRow::seats`]) are always within its audience, ahead of that rule: a
-//!   pending admission names its joiner, a removal its removed key. The roster is the roster as it stands (CC 5.2:
+//!   keys. Targeted: the room's roster; a row there may name only keys that were members at its own head
+//!   ([`Joins::at_head`]; [`Refusal::NamedOutsideAudience`]), so its placement never changes with a later removal
+//!   or admission, and names its room ([`Refusal::NoRoom`]). The keys a seat offer or unseat over the room seats or
+//!   removes ([`seats_of`], derived from the row, never stated) are always within its audience, ahead of that rule:
+//!   a pending admission names its joiner, a removal its removed key. The roster is the roster as it stands (CC 5.2:
 //!   a member removed later is owed nothing further), less the members admitted after the row unless its
 //!   `history_on_join` is full: the row's own ([`AudienceRow::history_on_join`]), else the room record's
 //!   ([`Joins::history`]), else from_join. Commons: everyone. Addressed:
 //!   the keys it names.
 //! * **Copy** ([`audiences`]). A row's audience includes that of every concluded row naming it from the same room
 //!   or signed by the same key, whose signer is already in its audience: the least fixed point. A refused or
-//!   undecided row carries nothing and receives nothing.
+//!   undecided row carries nothing and receives nothing. [`copy_bound`] is the one place the precedence is stated:
+//!   the copy rule never adds a key the named row's own placement withholds, so it adds none here, and a joiner
+//!   under from_join can receive a reply whose parent it is not owed.
 
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
@@ -97,6 +100,14 @@ impl<K: Ord + Clone> Audience<K> {
         }
     }
 
+    fn meet(&self, other: &Audience<K>) -> Audience<K> {
+        match (self, other) {
+            (Audience::Everyone, b) => b.clone(),
+            (a, Audience::Everyone) => a.clone(),
+            (Audience::Keys(a), Audience::Keys(b)) => Audience::Keys(a.intersection(b).cloned().collect()),
+        }
+    }
+
     fn join(&mut self, other: &Audience<K>) -> bool {
         match other {
             Audience::Everyone => {
@@ -116,6 +127,13 @@ impl<K: Ord + Clone> Audience<K> {
     }
 }
 
+/// The keys the copy rule may add to a placed row: those its own placement owes it (its placement, history_on_join
+/// and the current roster, its named and seat keys). The one place the precedence is stated: the copy rule never
+/// adds a key that the row's own [`place`] withholds.
+pub fn copy_bound<K: Ord + Clone>(placed: &Audience<K>) -> Audience<K> {
+    placed.clone()
+}
+
 /// Why a row is refused a placement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
@@ -129,6 +147,8 @@ pub enum Refusal {
     NamedOutsideAudience,
     /// A targeted row names no room.
     NoRoom,
+    /// Two family patterns tie on the row's family.
+    FamilyAmbiguous,
 }
 
 impl Refusal {
@@ -140,6 +160,7 @@ impl Refusal {
             Refusal::PlacementNotAllowed => "placement_not_allowed",
             Refusal::NamedOutsideAudience => "named_outside_audience",
             Refusal::NoRoom => "no_room",
+            Refusal::FamilyAmbiguous => "family_ambiguous",
         }
     }
 }
@@ -179,10 +200,22 @@ impl History {
 pub struct Joins<'a, I, K> {
     /// The row that admitted the key to the room; `None` for a founding member.
     pub joined: &'a dyn Fn(&I, &K) -> Option<I>,
-    /// The `history_on_join` the room's record states, where it states one.
+    /// The `history_on_join` the room's record states, where it states one (an unknown word: none).
     pub history: &'a dyn Fn(&I) -> Option<History>,
     /// Row `a` is in row `b`'s past.
     pub past: &'a dyn Fn(&I, &I) -> bool,
+    /// The members of the room at the row's own head ([`crate::seat::members_at`]), which `named_within` reads.
+    /// No fallback to the current roster: that would make a row's placement change with a later removal.
+    pub at_head: &'a dyn Fn(&I, &I) -> BTreeSet<K>,
+}
+
+/// What a seat row is to the room it names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SeatAct {
+    /// A seat offer: its `to` are seated.
+    Offer,
+    /// An unseat: its `to` are removed.
+    Unseat,
 }
 
 /// A row as this module reads it. The caller has verified and decoded it.
@@ -205,13 +238,22 @@ pub trait AudienceRow {
     fn named(&self) -> &[Self::Key];
     /// The rows it names.
     fn names(&self) -> &[Self::Id];
-    /// On a seat offer or unseat over the room: the keys it seats or removes (its `to`), among [`Self::named`].
-    fn seats(&self) -> &[Self::Key] {
+    /// On a seat row: whether it is an offer or an unseat. `None` on every other row.
+    fn seat_act(&self) -> Option<SeatAct> {
+        None
+    }
+    /// On a seat row: the object it is over.
+    fn obj(&self) -> Option<&Self::Id> {
+        None
+    }
+    /// On a seat row: the keys it seats or removes.
+    fn to(&self) -> &[Self::Key] {
         &[]
     }
     /// The row concludes.
     fn concluded(&self) -> bool;
-    /// The row's own `history_on_join` (set per stream by its producer, CC 2.1), where it states one.
+    /// The row's own `history_on_join` (set per stream by its producer, CC 2.1), where it states one. A word the
+    /// caller does not know ([`History::from_word`] gives none) is absent: the door refuses it.
     fn history_on_join(&self) -> Option<History> {
         None
     }
@@ -244,18 +286,58 @@ fn matches(pattern: &str, name: &str) -> Option<usize> {
     Some(lit)
 }
 
-/// The family pattern that decides a family name, with its cell: the most literal segments among those that
-/// match.
-pub fn family_of(name: &str) -> Option<&'static (&'static str, FamilyPlacement)> {
-    let mut best: Option<(usize, &'static (&'static str, FamilyPlacement))> = None;
-    for f in FAMILIES {
+/// How a family name resolves against a table of patterns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FamilyMatch<'t> {
+    /// No pattern matches.
+    None,
+    /// The one pattern with the most literal segments, with its cell.
+    One(&'t (&'t str, FamilyPlacement)),
+    /// Two patterns tie on the name: refused ([`Refusal::FamilyAmbiguous`]).
+    Tie,
+}
+
+/// How `name` resolves against `table`: the most literal segments among the patterns that match; two that tie
+/// decide nothing.
+pub fn family_in<'t>(table: &'t [(&'t str, FamilyPlacement)], name: &str) -> FamilyMatch<'t> {
+    let mut best: Option<(usize, &'t (&'t str, FamilyPlacement))> = None;
+    let mut tie = false;
+    for f in table {
         if let Some(k) = matches(f.0, name) {
-            if best.is_none_or(|(b, _)| k > b) {
-                best = Some((k, f));
+            match best {
+                Some((b, _)) if k < b => {}
+                Some((b, _)) if k == b => tie = true,
+                _ => {
+                    best = Some((k, f));
+                    tie = false;
+                }
             }
         }
     }
-    best.map(|(_, f)| f)
+    match best {
+        None => FamilyMatch::None,
+        Some(_) if tie => FamilyMatch::Tie,
+        Some((_, f)) => FamilyMatch::One(f),
+    }
+}
+
+/// The family pattern that decides a family name in [`FAMILIES`], with its cell; `None` where none matches or two
+/// tie.
+pub fn family_of(name: &str) -> Option<&'static (&'static str, FamilyPlacement)> {
+    match family_in(FAMILIES, name) {
+        FamilyMatch::One(f) => Some(f),
+        _ => None,
+    }
+}
+
+/// The keys a seat offer or unseat over the row's own room seats or removes (its `to`): derived from the row, never
+/// stated by the caller. Empty on every other row.
+pub fn seats_of<R: AudienceRow>(r: &R) -> &[R::Key] {
+    if r.seat_act().is_some() && r.obj().is_some() && r.obj() == r.room() {
+        r.to()
+    } else {
+        &[]
+    }
 }
 
 /// The placement and audience of one row, before the copy rule. `roster` is the room's roster as
@@ -266,7 +348,11 @@ pub fn place<R: AudienceRow>(
     person: &dyn Fn(&R::Key) -> BTreeSet<R::Key>,
     joins: &Joins<'_, R::Id, R::Key>,
 ) -> Placed<R::Key> {
-    let Some(&(fam, cell)) = family_of(r.family()) else { return Placed::Refused(Refusal::FamilyUnknown) };
+    let &(fam, cell) = match family_in(FAMILIES, r.family()) {
+        FamilyMatch::One(f) => f,
+        FamilyMatch::None => return Placed::Refused(Refusal::FamilyUnknown),
+        FamilyMatch::Tie => return Placed::Refused(Refusal::FamilyAmbiguous),
+    };
     let Some(placement) = Placement::of_scope(r.scope()) else { return Placed::Refused(Refusal::ScopeUnknown) };
     let allowed = match cell {
         FamilyPlacement::Undecided => return Placed::Undecided(fam),
@@ -283,13 +369,17 @@ pub fn place<R: AudienceRow>(
         Placement::Addressed => {}
         Placement::TargetedFamily | Placement::TargetedRoom => {
             let Some(room) = r.room() else { return Placed::Refused(Refusal::NoRoom) };
-            // the current roster, not the members at the row's own head (CC 5.2 as ruled: a row is owed to the
-            // roster as it stands when the node replicates; a member removed since is owed nothing further)
+            // WHO IS OWED: the current roster (CC 5.2 as ruled: a row is owed to the roster as it stands when the
+            // node replicates; a member removed since is owed nothing further)
             let members = roster(room);
-            // the keys a seat offer or unseat seats or removes are within its audience, ahead of named_within
-            if !r.named().iter().all(|k| members.contains(k) || r.seats().contains(k)) {
+            // WHAT IT MAY NAME: the members at the row's own head, so placement never changes with a later removal
+            // or admission; the keys a seat offer or unseat seats or removes are within its audience, ahead of it
+            let within = (joins.at_head)(room, r.id());
+            let seats = seats_of(r);
+            if !r.named().iter().all(|k| within.contains(k) || seats.contains(k)) {
                 return Placed::Refused(Refusal::NamedOutsideAudience);
             }
+            keys.extend(seats.iter().cloned());
             // a member admitted after the row receives it only where the history is full: the row's own, else the
             // room record's, else from_join
             let history = r.history_on_join().or_else(|| (joins.history)(room)).unwrap_or(History::FromJoin);
@@ -302,7 +392,8 @@ pub fn place<R: AudienceRow>(
 }
 
 /// Every row's answer, the copy rule applied: a placed row's audience grows by that of every concluded placed row
-/// naming it from the same room, or signed by the same key, whose signer is already in its audience (CC 5.2).
+/// naming it from the same room, or signed by the same key, whose signer is already in its audience (CC 5.2),
+/// bounded by [`copy_bound`]: the copy rule never adds a key the row's own placement withholds.
 pub fn audiences<R: AudienceRow>(
     rows: &[&R],
     roster: &dyn Fn(&R::Id) -> BTreeSet<R::Key>,
@@ -311,6 +402,13 @@ pub fn audiences<R: AudienceRow>(
 ) -> BTreeMap<R::Id, Placed<R::Key>> {
     let mut out: BTreeMap<R::Id, Placed<R::Key>> =
         rows.iter().map(|r| (r.id().clone(), place(*r, roster, person, joins))).collect();
+    let bound: BTreeMap<R::Id, Audience<R::Key>> = out
+        .iter()
+        .filter_map(|(i, a)| match a {
+            Placed::Placed(_, aud) => Some((i.clone(), copy_bound(aud))),
+            _ => None,
+        })
+        .collect();
     let by: BTreeMap<&R::Id, &R> = rows.iter().map(|r| (r.id(), *r)).collect();
     loop {
         let mut changed = false;
@@ -322,8 +420,9 @@ pub fn audiences<R: AudienceRow>(
                 if !same_room && d.signer() != r.signer() {
                     continue; // a row leaves its room only by its own signer's act
                 }
+                let Some(b) = bound.get(n) else { continue };
                 if let Some(Placed::Placed(_, a)) = out.get_mut(n) {
-                    if a.holds(d.signer()) && a.join(&ad) {
+                    if a.holds(d.signer()) && a.join(&ad.meet(b)) {
                         changed = true;
                     }
                 }

@@ -23,6 +23,7 @@ struct CRow {
     seat: SeatAt,
     room: Option<String>,
     removes: Option<String>,
+    concludes: bool,
 }
 
 impl ContentRow for CRow {
@@ -68,6 +69,9 @@ impl ContentRow for CRow {
     fn removes(&self) -> Option<&String> {
         self.removes.as_ref()
     }
+    fn concludes(&self) -> bool {
+        self.concludes
+    }
 }
 
 fn row(j: &J) -> CRow {
@@ -99,6 +103,7 @@ fn row(j: &J) -> CRow {
         },
         room: opt("room"),
         removes: opt("removes"),
+        concludes: j.get("concludes").is_some_and(|v| v.b()),
     }
 }
 
@@ -262,15 +267,22 @@ fn no_end_among_the_rows() {
         let list: Vec<&CRow> = heads.iter().chain(rows.iter()).filter(|r| r.kind != Kind::End).collect();
         let by: BTreeMap<&str, &CRow> = list.iter().map(|r| (r.id.as_str(), *r)).collect();
         let member = |k: &str| k == "B" || k == "B2";
-        // a row of the member a held key removal (signed by a key of the member) cuts: its key, not in its past
+        // a row of the member a key removal that is read cuts (its own revocation, or a concluded eviction by
+        // another key of the person): its key, not in its past, and not taken up by the reader before the removal
         let cut = |r: &CRow| {
             member(r.signer.as_str())
                 && r.kind != Kind::KeyEnd
                 && list.iter().any(|q| {
                     q.kind == Kind::KeyEnd
                         && member(q.signer.as_str())
+                        && (q.removes.as_deref() == Some(q.signer.as_str()) || q.concludes)
                         && q.removes.as_deref() == Some(r.signer.as_str())
                         && !in_past(&by, None, &r.id, &q.id).expect("held")
+                        && !list.iter().any(|a| {
+                            a.kind == Kind::Ack
+                                && in_past(&by, None, &r.id, &a.id).expect("held")
+                                && !in_past(&by, None, &q.id, &a.id).expect("held")
+                        })
                 })
         };
         for (x, a) in run(&list, None) {

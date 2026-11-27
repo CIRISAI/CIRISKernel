@@ -4,8 +4,8 @@
 
 mod common;
 use ciris_kernel::audience::{
-    audiences, family_of, place, Audience, AudienceRow, FamilyPlacement, History, Joins, Placed, FAMILIES,
-    FAMILY_MODEL_SHA256,
+    audiences, family_in, family_of, place, Audience, AudienceRow, FamilyMatch, FamilyPlacement, History, Joins,
+    Placed, Placement, SeatAct, FAMILIES, FAMILY_MODEL_SHA256,
 };
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -19,7 +19,9 @@ struct ARow {
     named: Vec<String>,
     names: Vec<String>,
     concluded: bool,
-    seats: Vec<String>,
+    seat: Option<SeatAct>,
+    obj: Option<String>,
+    to: Vec<String>,
     history: Option<History>,
 }
 
@@ -50,8 +52,14 @@ impl AudienceRow for ARow {
     fn concluded(&self) -> bool {
         self.concluded
     }
-    fn seats(&self) -> &[String] {
-        &self.seats
+    fn seat_act(&self) -> Option<SeatAct> {
+        self.seat
+    }
+    fn obj(&self) -> Option<&String> {
+        self.obj.as_ref()
+    }
+    fn to(&self) -> &[String] {
+        &self.to
     }
     fn history_on_join(&self) -> Option<History> {
         self.history
@@ -68,8 +76,15 @@ fn arow(j: &J) -> ARow {
         named: j.at("named").strs(),
         names: j.at("names").strs(),
         concluded: j.at("concluded").b(),
-        seats: j.get("seats").map(|v| v.strs()).unwrap_or_default(),
-        history: j.get("history_on_join").map(|v| History::from_word(v.s()).expect("a history_on_join word")),
+        seat: match j.get("kind").and_then(|v| v.opt_s()).as_deref() {
+            Some("offer") => Some(SeatAct::Offer),
+            Some("unseat") => Some(SeatAct::Unseat),
+            _ => None,
+        },
+        obj: j.get("obj").and_then(|v| v.opt_s()),
+        to: j.get("to").map(|v| v.strs()).unwrap_or_default(),
+        // a word the door would refuse is absent
+        history: j.get("history_on_join").and_then(|v| History::from_word(v.s())),
     }
 }
 
@@ -128,11 +143,15 @@ fn every_family_in_every_scope() {
             signer: "a".into(),
             names: vec![],
             concluded: true,
-            seats: vec![],
+            seat: None,
+            obj: None,
+            to: vec![],
             history: None,
         };
         n += 1;
-        let got = enc(&place(&r, &ro, &pe, &Joins { joined: &|_, _| None, history: &|_| None, past: &|_, _| false }));
+        // the generated rows: no member changes, so the members at a row's head are the roster
+        let none = Joins { joined: &|_, _| None, history: &|_| None, past: &|_, _| false, at_head: &|rm, _| ro(rm) };
+        let got = enc(&place(&r, &ro, &pe, &none));
         if &got != g.at("answer") {
             bad += 1;
             eprintln!("{} at {}: got {got:?}, want {:?}", g.at("family").s(), g.at("scope").s(), g.at("answer"));
@@ -176,7 +195,13 @@ fn case_table() {
         let jn = |room: &String, k: &String| joined.get(&(room.clone(), k.clone())).cloned();
         let hi = |room: &String| history.get(room).and_then(|v| History::from_word(v));
         let pa = |a: &String, b: &String| before.contains(&(a.clone(), b.clone()));
-        let joins = Joins { joined: &jn, history: &hi, past: &pa };
+        let heads: BTreeMap<String, BTreeSet<String>> = w
+            .get("at_head")
+            .map(|h| h.obj().iter().map(|(k, v)| (k.clone(), v.str_set())).collect())
+            .unwrap_or_default();
+        // a case that states none: no member changed, the roster
+        let ah = |rm: &String, i: &String| heads.get(i).cloned().unwrap_or_else(|| ro(rm));
+        let joins = Joins { joined: &jn, history: &hi, past: &pa, at_head: &ah };
         let refs: Vec<&ARow> = rows.iter().collect();
         let rev: Vec<&ARow> = rows.iter().rev().collect();
         for list in [refs, rev] {
@@ -192,5 +217,30 @@ fn case_table() {
         }
     }
     report("audience cases, the copy rule among them (audience.py)", n, bad);
+    assert_eq!(bad, 0);
+}
+
+/// Two family patterns that tie on a name decide nothing; a synthetic table, since the pinned one has no tie
+/// (`check_audience.py`'s TIES).
+#[test]
+fn ties_refuse() {
+    let fx = fixture("audience.json");
+    let (mut n, mut bad) = (0, 0);
+    for t in fx.at("ties").arr() {
+        let pats = t.at("families").strs();
+        let table: Vec<(&str, FamilyPlacement)> =
+            pats.iter().map(|p| (p.as_str(), FamilyPlacement::Allowed(&[Placement::Commons]))).collect();
+        let got = match family_in(&table, t.at("name").s()) {
+            FamilyMatch::None => J::Null,
+            FamilyMatch::Tie => J::Str("ambiguous".into()),
+            FamilyMatch::One(f) => J::Str(f.0.to_string()),
+        };
+        n += 1;
+        if &got != t.at("answer") {
+            bad += 1;
+            eprintln!("{} over {pats:?}: got {got:?}, want {:?}", t.at("name").s(), t.at("answer"));
+        }
+    }
+    report("family names that tie (audience.py)", n, bad);
     assert_eq!(bad, 0);
 }

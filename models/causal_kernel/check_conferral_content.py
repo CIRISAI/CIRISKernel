@@ -121,7 +121,7 @@ def next_rows(rows):
     if "keyend" not in kinds:
         for signer in (CC.COUNT, "B"):
             for names in [()] + [(x,) for x in acts + ends]:
-                yield CC.keyend("x1", "B2", signer, names)
+                yield CC.keyend("x1", "B2", signer, names, concludes=True)
     if "ack" not in kinds:
         for x in [h["id"] for h in HEADS] + ends:
             yield CC.ack("k1", [x])
@@ -143,6 +143,8 @@ PLANTS = [
     ("cut_retraction_read", "retraction_under_a_removed_key"),  # a retraction a key removal cuts is read
     ("key_end_voids_end", "member_revokes_key_keeps_its_resignation"),   # a key removal voids the member's end
     ("count_key_end_read", "room_count_cannot_remove_a_key"),  # the room's count removes a key
+    ("unconcluded_key_end_read", "secondary_evicts_primary_alone"),   # an unconcluded eviction is read
+    ("key_cut_past_line", "key_cut_after_reader_took_up"),     # a row the reader took up is cut
     ("rooms_mixed", "tip_in_another_room"),                    # the rooms are read as one
 ]
 

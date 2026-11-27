@@ -167,6 +167,12 @@ pub trait ContentRow {
     fn removes(&self) -> Option<&Self::Key> {
         None
     }
+    /// On a key removal signed by another key of the person: it concludes under the person's own key roster's own
+    /// rule (the self-roster count; a lone second key evicts the first only where the roster's policy says one key
+    /// suffices). The key's own revocation needs none. `false` where the caller does not say.
+    fn concludes(&self) -> bool {
+        false
+    }
 }
 
 /// Who signs: the member whose seat ends, and the room's count.
@@ -484,20 +490,29 @@ fn seat_of<R: ContentRow, P: Past<R::Id>>(
     Ok(Some(out))
 }
 
-// the member's rows the held key removals cut. A key removal is the person's own key roster's act, signed by a key
-// of the member (its eviction of the key, or the key's own revocation): key-level, in every room, it cuts every row
-// of the member signed by the key it removes that is not in its past. One the room's count signs is not read: a
-// room's count ends a seat, in its room.
+// the member's rows the held key removals cut. A key removal is read where it is the key's own revocation, or a
+// concluded act of the person's own key roster ([`ContentRow::concludes`]); one the room's count signs is not read (a
+// room's count ends a seat, in its room). Key-level, in every room, it cuts every row of the member signed by the key
+// it removes that is not in its past, unless the reader took the row up already: a row in the past of one of the
+// reader's acknowledgements that does not have the removal in its past stands (the monotone line).
 fn cuts<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Key>, past: &P) -> Result<Cuts<R::Id>, R::Id> {
-    let ends: Vec<&R> =
-        rows.iter().copied().filter(|q| q.kind() == Kind::KeyEnd && (seat.member)(q.signer())).collect();
+    let read = |q: &R| {
+        q.kind() == Kind::KeyEnd && (seat.member)(q.signer()) && (q.removes() == Some(q.signer()) || q.concludes())
+    };
+    let ends: Vec<&R> = rows.iter().copied().filter(|q| read(q)).collect();
     let mut out = Cuts { any: BTreeSet::new() };
     if ends.is_empty() {
         return Ok(out);
     }
+    let acks: Vec<&R> = rows.iter().copied().filter(|a| a.kind() == Kind::Ack).collect();
     for r in rows.iter().copied().filter(|r| r.kind() != Kind::KeyEnd && (seat.member)(r.signer())) {
         for q in ends.iter().filter(|q| q.removes() == Some(r.signer())) {
-            if !past.in_past(r.id(), q.id())? {
+            if past.in_past(r.id(), q.id())? {
+                continue;
+            }
+            // the reader took the row up before it held the removal
+            let taken = any3(acks.iter(), |a| Ok(past.in_past(r.id(), a.id())? && !past.in_past(q.id(), a.id())?))?;
+            if !taken {
                 out.any.insert(r.id().clone());
             }
         }

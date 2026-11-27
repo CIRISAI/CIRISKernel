@@ -580,25 +580,31 @@ plant "the line not sibling-safe"                     src/content.rs 'if !any3(o
 plant "a key removal cuts nothing"                      src/content.rs '    if ends.is_empty() {
         return Ok(out);
     }
-    for r in' '    if true {
+    let acks' '    if true {
         return Ok(out);
     }
-    for r in'
+    let acks'
 plant "the walk passes through a cut row"               src/content.rs '|| self.cuts.any.contains(*id) {' '{'
 plant "a key removal voids the member's end"         src/content.rs '            if line.contains(e.id()) {' '            if self.cuts.any.contains(e.id()) || line.contains(e.id()) {'
-plant "the room's count removes a key"                 src/content.rs 'q.kind() == Kind::KeyEnd && (seat.member)(q.signer())' 'q.kind() == Kind::KeyEnd && ((seat.member)(q.signer()) || (seat.counted)(q.signer()))'
+plant "the room's count removes a key"                 src/content.rs '(seat.member)(q.signer()) && (q.removes() == Some(q.signer()) || q.concludes())' '((seat.member)(q.signer()) || (seat.counted)(q.signer())) && (q.removes() == Some(q.signer()) || q.concludes() || (seat.counted)(q.signer()))'
+plant "an unconcluded eviction is read"               src/content.rs '&& (q.removes() == Some(q.signer()) || q.concludes())' '&& true'
+plant "a row the reader took up is cut"               src/content.rs '            if !taken {' '            if true || !taken {'
 plant "a retraction a key removal cuts is read"         src/content.rs '.filter(|w| !cuts.any.contains(w.id()))' ''
 plant "the rooms read as one"                           src/content.rs 'by_room.entry(r.room()).or_default().push(r);' 'by_room.entry(None).or_default().push(r);'
 plant "an undecided family takes the default"           src/audience.rs 'FamilyPlacement::Undecided => return Placed::Undecided(fam),' 'FamilyPlacement::Undecided => &[Placement::SelfCollective, Placement::TargetedFamily, Placement::TargetedRoom, Placement::Commons][..],'
 plant "a pinned family takes any placement"             src/audience.rs 'if !allowed.contains(&placement) {' 'if false && !allowed.contains(&placement) {'
-plant "a targeted row names keys off the roster"        src/audience.rs 'if !r.named().iter().all(|k| members.contains(k) || r.seats().contains(k)) {' 'if false {'
+plant "a targeted row names keys off the roster"        src/audience.rs 'if !r.named().iter().all(|k| within.contains(k) || seats.contains(k)) {' 'if false {'
 plant "history_on_join unread: every row read full"    src/audience.rs 'let history = r.history_on_join().or_else(|| (joins.history)(room)).unwrap_or(History::FromJoin);' 'let history = History::Full;'
 plant "a later joiner owed a from_join row"             src/audience.rs '(joins.joined)(room, k).is_none_or(|adm| !(joins.past)(r.id(), &adm))' 'true'
-plant "a seat row's own keys held to named_within"      src/audience.rs 'members.contains(k) || r.seats().contains(k)' 'members.contains(k)'
-plant "a row leaves its room by another's act"          src/audience.rs 'if !same_room && d.signer() != r.signer() {' 'if false && !same_room {'
-plant "a key outside the audience carries"              src/audience.rs 'if a.holds(d.signer()) && a.join(&ad) {' 'if a.join(&ad) {'
-plant "a row that does not conclude carries"            src/audience.rs 'for d in rows.iter().filter(|d| d.concluded()) {' 'for d in rows.iter() {'
-plant "the first matching family pattern decides"       src/audience.rs 'if best.is_none_or(|(b, _)| k > b) {' 'if best.is_none() {'
+plant "a seat row's own keys held to named_within"      src/audience.rs 'within.contains(k) || seats.contains(k)' 'within.contains(k)'
+plant "named_within read on the current roster"       src/audience.rs 'let within = (joins.at_head)(room, r.id());' 'let within = members.clone();'
+plant "a seat row over another object seats"          src/audience.rs 'r.seat_act().is_some() && r.obj().is_some() && r.obj() == r.room()' 'r.seat_act().is_some()'
+plant "a tie takes the first pattern"                 src/audience.rs 'Some((b, _)) if k == b => tie = true,' 'Some((b, _)) if k == b => {}'
+plant "the copy rule unbounded"                       src/audience.rs '    placed.clone()
+}' '    let _ = placed;
+    Audience::Everyone
+}'
+plant "the first matching family pattern decides"       src/audience.rs 'Some((b, _)) if k < b => {}' 'Some(_) => {}'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"
