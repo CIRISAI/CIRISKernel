@@ -128,10 +128,14 @@ CASES = [
      "j is owed m",
      [row("m", "chat:general", "community", room="r3", history="full")], {"m": P("targeted_room", ["a", "b", "j"])},
      {"joined": {"r3": {"j": "adm"}}, "before": [["m", "adm"]], "history": {"r3": "from_join"}}),
-    ("history_join_not_after", "j's admission does not have m in its past (m is concurrent with it, or later): j is "
-     "owed m under from_join",
+    ("history_join_concurrent", "j was admitted concurrently with m: neither is in the other's past, so the "
+     "admission is not after m and j is owed m under from_join",
      [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b", "j"])},
-     {"joined": {"r3": {"j": "adm"}}}),
+     {"joined": {"r3": {"j": "adm"}}, "before": []}),
+    ("history_row_after_join", "m has j's admission in its past (m is signed after the join): j is owed m under "
+     "from_join",
+     [row("m", "chat:general", "community", room="r3")], {"m": P("targeted_room", ["a", "b", "j"])},
+     {"joined": {"r3": {"j": "adm"}}, "before": [["adm", "m"]]}),
     ("removed_later_owed_nothing", "c was removed from r2's roster after m: the roster as it stands does not list c, "
      "and c is owed nothing further",
      [row("m", "chat:general", "community", room="r2")], {"m": P("targeted_room", ["a", "e"])}),

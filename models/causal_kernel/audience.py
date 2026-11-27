@@ -142,7 +142,7 @@ def place(row, roster, person, joins=NO_JOINS):
     # ruled, a row is owed to the roster as it stands when the node replicates
     members = frozenset(roster(row["room"]))
     # a member admitted after the row (its admission has the row in its past) receives it only where the history
-    # is `full` (CC 2.1, CC 4.4.3.16); a member removed since is not on the current roster and is owed nothing
+    # is `full` (CC 2.1, CC 4.4.3.16); one admitted concurrently with the row is owed it; a member removed since is not on the current roster and is owed nothing
     joined = joins["joined"]
     owed = members if history_of(row, joins) == "full" else frozenset(
         k for k in members if joined(row["room"], k) is None or not joins["past"](row["id"], joined(row["room"], k)))

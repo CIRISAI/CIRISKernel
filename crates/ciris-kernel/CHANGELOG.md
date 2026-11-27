@@ -14,7 +14,7 @@ names; everyone in the commons), or the refusal (`family_unknown`, `scope_unknow
 removal its removed key; any other key off the roster is still refused. The roster is the roster as it stands (CC 5.2 as ruled: a member removed later is
 owed nothing further), less the members admitted after the row unless its `history_on_join` is `full`: the row's own
 (`AudienceRow::history_on_join`), else the room record's (`audience::Joins::history`), else `from_join` (CC 2.1, CC
-4.4.3.16). **BREAKING** within this release: `audience::place` and `audiences` take `&audience::Joins`. `check_audience.py` (940 generated answers, 34 cases, nine
+4.4.3.16); a member admitted concurrently with the row (neither in the other's past) is owed it. **BREAKING** within this release: `audience::place` and `audiences` take `&audience::Joins`. `check_audience.py` (940 generated answers, 35 cases, nine
 planted breaks), fixture `audience.json`, `tests/audience.rs`, seven crate plants.
 
 **Room content: receipts, the reader's line, key removals, rooms** (`content`, both languages, with cases, planted
