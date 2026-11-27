@@ -2,7 +2,7 @@
 //! (fixture `key_person.json`): each case's rows concluded under the seat rule, the person read at the row `at`.
 
 mod common;
-use ciris_kernel::layers::{conclude, kept, Past};
+use ciris_kernel::layers::{conclude, kept};
 use ciris_kernel::seat::{person_at, seat_rule, Obj};
 use common::*;
 use std::collections::BTreeMap;
@@ -25,8 +25,7 @@ fn a_key_to_its_person_at_a_row() {
             }
             let c = conclude(kept(&rs, |_| true), |p| seat_rule(p, &law, &DictCut, &|_| true), None);
             let i = c.g.idx(&"at".to_string()).expect("the row asked at");
-            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| c.g.in_past(q, i)).collect();
-            let got = if c.concluded(i) { person_at(&Past::new(&c.g, i, &anc), &law, &DictCut, &key) } else { None };
+            let got = person_at(&c, i, &law, &DictCut, &key);
             cases += 1;
             if got != want {
                 bad += 1;

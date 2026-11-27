@@ -2,15 +2,18 @@
 
 ## Unreleased
 
-**A key's person at a row, with no instant** (0.5.0). New: `seat::person_at(p, law, spec, k)`, the person key `k`
-is at a row as a function of the row's concluded past `p`: the self roster (an object of kind `self`: a person's
-own key roster, or a voice's room keys in a private room) in whose own scope `k` holds a live seat there, admitted
-by the roster's count and not evicted in that past; `None` where none does, or where several do (two persons is
-none). The liveness half is kept behind one function, `seat::key_record_ended(p, k)`, until the Constitution rules
-it: for now the key's own revocation (an unseat of its `registered` seat by the key itself) in the row's past. No
-existing answer changes. The reference: `seat.person_of`, `seat.key_record_ended`; `check_key_person.py`, 14 cases
-in arrival orders, four planted breaks; fixture `key_person.json`, replayed as listed and reversed
-(`tests/key_person.rs`); four crate plants. `key_end::live(c, k, now)` is unchanged and still reads `now`.
+**A key's person at a row, with no instant** (0.5.0; the rule ruled on CIRISConstitution#224). New:
+`seat::person_at(c, at, law, spec, k)`, the person key `k` is at row `at` of a concluded set: the self roster (an
+object of kind `self`: a person's own key roster, or a voice's room keys in a private room) where, in the row's own
+past, `k` is the genesis key or was seated by a counted addition that landed (`self_roster_add`), no eviction of it
+has landed (`self_roster_evict`), an eviction concurrent with the row following rule 4 (it counts at its own head and
+is out of force from that head on); and the key's own revocation (an unseat of its `registered` seat by the key) is
+not in the row's past (`seat::key_record_ended`). `None` for none, or for several (two persons is none). The key
+record's stated end is the key's own instant on the key's own rows (`key_end`, the half-open end), not read here: no
+foreign clock. No existing answer changes. The reference: `seat.person_of`, `seat.evicted_from`,
+`seat.key_record_ended`; `check_key_person.py`, 18 cases in arrival orders, five planted breaks; fixture
+`key_person.json`, replayed as listed and reversed (`tests/key_person.rs`); five crate plants. `key_end::live(c, k,
+now)` is unchanged and still reads `now`; counts over persons do not read `person_at` yet.
 
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone

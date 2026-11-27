@@ -3136,9 +3136,10 @@ fn concluded_over<'a, R: Row>(rows: impl IntoIterator<Item = &'a R>) -> Conclude
     Concluded::with(Graph::new(rows), None)
 }
 
-/// The liveness half of a key's person, kept behind this one function (the exact rule is with the Constitution).
-/// Until it is ruled: the key's own revocation (CC 2.4.1.1: "only the key's own revocation ends its liveness"), an
-/// unseat of its `registered` seat by the key itself, is among `p` (the row's concluded past). No instant is read.
+/// The key's own end in a row's past, for its person (ruled on CIRISConstitution#224): the key's own revocation
+/// (CC 2.4.1.1: "only the key's own revocation ends its liveness"), an unseat of its `registered` seat by the key
+/// itself, is among `p` (the row's concluded past). The key record's stated end is read against the key's own
+/// instant on the key's own rows ([`crate::key_end`], the half-open end), never here: no foreign clock is read.
 pub fn key_record_ended<R: SeatRow>(p: &Past<'_, '_, R>, k: &R::Key) -> bool {
     p.rows().any(|q| {
         q.seat_kind() == SeatKind::Unseat
@@ -3149,19 +3150,45 @@ pub fn key_record_ended<R: SeatRow>(p: &Past<'_, '_, R>, k: &R::Key) -> bool {
     })
 }
 
-/// The person key `k` is at a row, as a function of rows (`p`: the row's concluded past), with no instant: the
-/// self roster (an object of kind [`CommunityKind::SelfRoster`]: a person's own key roster, CC 3.3.6.4, or a
-/// voice's room keys in a private room, CC 3.1.3.2) in whose own scope `k` holds a live seat read over `p`
-/// (admitted by the roster's own count, and not evicted, in the row's past), where the key record's own end is not
-/// in `p` ([`key_record_ended`]). `None` where no self roster seats `k` there, or where several do (two persons is
-/// none, as two owners are). The kind is read through [`SeatLaw::kinds`]: a law with no kinds names no person.
+/// Rule 4 for an eviction concurrent with row `at`: an eviction of `k` from self roster `g` (an unseat of its own
+/// scope `s` over `g`) that concluded, neither in the row's past nor having the row in its own, counts at its own
+/// head and is out of force from that head on: the key is out for a row that has every head the eviction names in
+/// its past.
+fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &str, k: &R::Key) -> bool {
+    c.cs().iter().copied().any(|e| {
+        let er = c.g.row(e);
+        er.seat_kind() == SeatKind::Unseat
+            && er.obj().as_ref() == Some(g)
+            && er.scope().is_some_and(|x| x.as_ref() == s)
+            && er.to().contains(k)
+            && c.g.concurrent(e, at)
+            && !er.head().is_empty()
+            && er.head().iter().all(|h| c.g.idx(h).is_some_and(|h| h == at || c.g.in_past(h, at)))
+    })
+}
+
+/// The person key `k` is at row `at` of `c`, as a function of rows (ruled on CIRISConstitution#224), with no
+/// instant: the self roster (an object of kind [`CommunityKind::SelfRoster`]: a person's own key roster, CC
+/// 3.3.6.4, or a voice's room keys in a private room, CC 3.1.3.2) where, in the row's own past, `k` is the genesis
+/// key (it signed the founding record) or was seated by a counted addition that landed (`self_roster_add`), no
+/// eviction of it has landed (`self_roster_evict`), and an eviction concurrent with the row follows rule 4 (it
+/// counts at its own head and is out of force from that head on); and the key's own revocation is not in the row's
+/// past ([`key_record_ended`]). `None` where `at` did not conclude, where no self roster has `k` live there, or
+/// where several do (two persons is none, as two owners are). The kind is read through [`SeatLaw::kinds`]: a law
+/// with no kinds names no person. A count is then over persons: one voice, however many live keys sign.
 pub fn person_at<R: SeatRow, S: CutSpec<R>>(
-    p: &Past<'_, '_, R>,
+    c: &Concluded<'_, R>,
+    at: usize,
     law: &SeatLaw,
     spec: &S,
     k: &R::Key,
 ) -> Option<ObjOf<R>> {
-    if key_record_ended(p, k) {
+    if !c.concluded(at) {
+        return None;
+    }
+    let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| c.g.in_past(q, at)).collect();
+    let p = Past::new(&c.g, at, &anc);
+    if key_record_ended(&p, k) {
         return None;
     }
     let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
@@ -3178,7 +3205,10 @@ pub fn person_at<R: SeatRow, S: CutSpec<R>>(
             continue;
         }
         let Some(s) = g.scope() else { continue };
-        if !hit.contains(&o) && seats.holders(s.as_ref(), &o, None).contains(k) {
+        if !hit.contains(&o)
+            && seats.holders(s.as_ref(), &o, None).contains(k)
+            && !evicted_from(c, at, &o, s.as_ref(), k)
+        {
             hit.push(o);
         }
     }

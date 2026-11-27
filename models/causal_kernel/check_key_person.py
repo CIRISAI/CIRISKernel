@@ -2,11 +2,13 @@
 """
 check_key_person.py: a key's person at a row, as a function of rows, with no instant (seat.person_of).
 
-A key's person at a row is the self roster (an object of kind `self`: a person's own key roster, CC 3.3.6.4, or a
-voice's room keys in a private room, CC 3.1.3.2) in whose own scope the key holds a live seat over the row's
-concluded past: admitted by the roster's own count, and not evicted, in that past. Two persons are none. The key
-record's own end (its liveness) is the other half, kept behind seat.key_record_ended: until the Constitution rules
-it, the key's own revocation (an unseat of its `registered` seat by the key) in the row's past.
+Ruled on CIRISConstitution#224: a key is live for its person at a row when, in the row's own past, the key is the
+person's genesis key or was seated by an `identity:occurrence` that landed (self_roster_add); no eviction of it has
+landed (self_roster_evict), an eviction concurrent with the row following rule 4 (it counts at its own head and is
+out of force from that head on); and the key's own revocation is not in the row's past (seat.key_record_ended). The
+key record's stated end is the key's own instant against the key's own row (key_end.covers), read there and not
+here: no foreign clock. The person is the self roster (an object of kind `self`: a person's own key roster, CC
+3.3.6.4, or a voice's room keys, CC 3.1.3.2); two persons are none.
 
 Part 1. Cases: (name, rows, the row asked at, the key, the person expected), each in arrival orders.
 Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
@@ -14,6 +16,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     person_first          two persons read as the first: a key in two self rosters gets one
     person_any_kind       any group is a person: a community's member seat makes the community a key's person
     person_end_unread     the key's own end is not read: a revoked key keeps its person
+    concurrent_eviction_unread  rule 4 not read: a key evicted concurrently keeps its person at the eviction's head
 
     python3 -I check_key_person.py      exit 1 on any difference
 """
@@ -65,6 +68,7 @@ REC = ST.offer("rec", "k1", "k1", "registered", "k1", "self")                  #
 RV = ST.unseat("rv", "k1", "k1", "registered", "k1", "self", ("rec", "S"))      # k1's own revocation
 VA, HA = RK.voice_rows("vA", ["rk:a0", "rk:a1"])
 G = ST.offer("g", "m1", ("m1", "m2"), "member", "@", "self", cosigners=("m2",))   # a community, no self roster
+E2 = evict("e2", "S", "k2", ("k1", "k3"), ("a3",))                             # k2 evicted at the head a3
 
 # (name, rows, key, person)
 CASES = [
@@ -75,7 +79,9 @@ CASES = [
     ("the third key evicted by the roster's count, at a row naming the eviction: no person", [S, A2, A3, E3, at(("e3",))],
      "k3", None),
     ("the other keys keep their person after the eviction", [S, A2, A3, E3, at(("e3",))], "k2", "S"),
-    ("the evicted key at a row before its eviction: its person then", [S, A2, A3, E3, at(("a3",))], "k3", "S"),
+    ("the evicted key at the eviction's own head, the eviction concurrent with the row: out (rule 4)",
+     [S, A2, A3, E3, at(("a3",))], "k3", None),
+    ("the evicted key at that head with no eviction held: its person then", [S, A2, A3, at(("a3",))], "k3", "S"),
     ("a key seated in two self rosters: two persons is none", [S, A2, T, T2, at(("a2", "b2"))], "k2", None),
     ("the same key with only one of the two in the row's past", [S, A2, T, T2, at(("a2",))], "k2", "S"),
     ("the key's own revocation in the row's past ends its person (the liveness half)", [S, REC, RV, at(("rv",))], "k1", None),
@@ -83,14 +89,17 @@ CASES = [
     ("a room key of a voice: the voice is its person", VA + [at((HA,))], "rk:a1", "vA"),
     ("a member seat of a community is no person", [G, at(("g",))], "m1", None),
     ("a key no roster seats", [S, at(("S",))], "zz", None),
+    # rule 4: an eviction concurrent with the row counts at its own head and is out of force from that head on
+    ("an eviction concurrent with the row, the row at the eviction's head: the key is out from that head on",
+     [S, A2, A3, E2, at(("a3",))], "k2", None),
+    ("the same eviction, the row at an earlier head: the key's person then", [S, A2, A3, E2, at(("a2",))], "k2", "S"),
+    ("the other keys at the eviction's head keep their person", [S, A2, A3, E2, at(("a3",))], "k3", "S"),
 ]
-PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread")
+PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread")
 
 
 def answer(rows, k):
-    S_ = CK.concluded(CK.kept(list(rows)), RULE)
-    P = [q for q in S_.Cs if q["id"] in S_.anc["at"]] if S_.C.get("at") else []
-    return ST.person_of(P, k)
+    return ST.person_of(CK.concluded(CK.kept(list(rows)), RULE), "at", k)
 
 
 def orders(rows):
@@ -106,9 +115,7 @@ def orders(rows):
 
 
 def answer_in(order, k):
-    S_ = CK.arrive(order, RULE)
-    P = [q for q in S_.Cs if q["id"] in S_.anc.get("at", ())] if S_.C.get("at") else []
-    return ST.person_of(P, k)
+    return ST.person_of(CK.arrive(order, RULE), "at", k)
 
 
 def main():

@@ -2590,20 +2590,40 @@ _SEATS_OF = {}
 
 
 def key_record_ended(P, k):
-    """The liveness half of a key's person, kept behind this one function (the exact rule is with the Constitution).
-    Until it is ruled: the key's own revocation (CC 2.4.1.1: "only the key's own revocation ends its liveness"), an
-    unseat of its `registered` seat by the key itself, is in P (the row's concluded past). No instant is read."""
+    """The key's own end in a row's past, for its person (ruled on CIRISConstitution#224): the key's own revocation
+    (CC 2.4.1.1: "only the key's own revocation ends its liveness"), an unseat of its `registered` seat by the key
+    itself, is in P (the row's concluded past). The key record's stated end is read against the key's own instant on
+    the key's own rows (key_end.covers, the half-open end), never here: no foreign clock is read."""
     if "person_end_unread" in MUT: return False                    # MUTATION: the key's own end is not read
     return any(q["kind"] == "unseat" and q.get("scope") == "registered" and q.get("obj") == k and k in q["to"]
                and q["signer"] == k for q in P)
 
 
-def person_of(P, k):
-    """The person key k is at a row, as a function of rows (P: the row's concluded past), with no instant: the self
-    roster (an object of kind `self`: a person's own key roster, or a voice's in a private room) in whose own scope k
-    holds a live seat read over P (admitted, and not evicted, in the row's past), where the key record's own end is
-    not in P (key_record_ended). None where no self roster seats k there, or where several do (two persons is none,
-    as two owners are)."""
+def evicted_from(S, rid, g, k):
+    """Rule 4 for an eviction concurrent with the row: an eviction of k from self roster g (a counted unseat of its own
+    scope over g) that concluded, neither in the row's past nor having the row in its own, counts at its own head and
+    is out of force from that head on: the key is out for a row that has every head the eviction names in its past."""
+    if "concurrent_eviction_unread" in MUT: return False          # MUTATION: a concurrent eviction is not read
+    anc = S.anc[rid]
+    for e in S.Cs:
+        if e["kind"] != "unseat" or e.get("obj") != g["id"] or e.get("scope") != g["scope"] or k not in e["to"]: continue
+        if e["id"] in anc or rid in S.anc[e["id"]]: continue       # in the row's past (read by the walk), or after it
+        heads = e.get("head", ())
+        if heads and all(h == rid or h in anc for h in heads): return True
+    return False
+
+
+def person_of(S, rid, k):
+    """The person key k is at row rid, as a function of rows (ruled on CIRISConstitution#224), with no instant: the
+    self roster (an object of kind `self`: a person's own key roster, or a voice's room keys in a private room) where,
+    in the row's own past, k is the genesis key (it signed the founding record) or was seated by a counted addition
+    (an `identity:occurrence` that landed, self_roster_add), no eviction of it has landed (self_roster_evict), and
+    an eviction concurrent with the row follows rule 4 (evicted_from); and the key's own revocation is not in the
+    row's past (key_record_ended). None where no self roster has k live there, or where several do (two persons is
+    none, as two owners are). A count is then over persons: one voice, however many live keys sign."""
+    if not S.C.get(rid): return None
+    anc = S.anc[rid]
+    P = [q for q in S.Cs if q["id"] in anc]
     if key_record_ended(P, k): return None
     by = {q["id"]: q for q in P}
     selves = [g for g in P if g["kind"] == "offer" and g.get("obj") == g["id"]
@@ -2613,7 +2633,7 @@ def person_of(P, k):
                                                      for q in P)})
     else:
         Q = seats_of(P)
-        hit = sorted({g["id"] for g in selves if k in Q.holders(g["scope"], g["id"])})
+        hit = sorted({g["id"] for g in selves if k in Q.holders(g["scope"], g["id"]) and not evicted_from(S, rid, g, k)})
     if len(hit) == 1 or ("person_first" in MUT and hit): return hit[0]   # MUTATION person_first: two persons, the first
     return None
 
