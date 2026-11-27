@@ -241,6 +241,12 @@ def check_derivation():
             problems.append("derivation: %s gives %s" % (v, FP.placement_of(cell(v))))
     if FP.placement_of(cell(None, rule="default")) != (list(AU.PLACEMENTS[:4]), None):
         problems.append("derivation: the default")
+    # a code-sourced cell is never table data, even where its words are all placement words (the Constitution's
+    # ruling: community:listing, group:roster and membership stay Undecided until the text states them)
+    code = {"placement": {"value": ["targeted_family", "targeted_room"], "source": "code-v61",
+                          "closed": "targeted_family | targeted_room"}}
+    if FP.placement_of(code)[0] is not None:
+        problems.append("derivation: a code-sourced cell is read as table data")
     return problems
 
 
