@@ -778,6 +778,8 @@ def main():
     dump("conferral_content_worlds.json", CK.worlds_fixture(), out)
     import check_conferral_two as C2
     dump("conferral_two.json", C2.fixture(), out)
+    import check_roster_merge as RM
+    dump("roster_merge.json", RM.fixture(with_refs), out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():

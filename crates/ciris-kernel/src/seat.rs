@@ -299,6 +299,16 @@ pub trait SeatRow: Row {
     fn duty_holders(&self) -> &[(Self::Word, Vec<Self::Key>)] {
         &[]
     }
+    /// A roster merge (the text's `group:roster` version, CC 4.4.3.17): a counted offer of scope `member` naming two
+    /// or more tips of its room as its heads, stating its roster outright, its members in [`SeatRow::to`] and its
+    /// duty seats in [`SeatRow::merge_duties`] ([`merge_concludes`]).
+    fn merge(&self) -> bool {
+        false
+    }
+    /// A roster merge's duty seats: each duty with the keys it seats.
+    fn merge_duties(&self) -> &[(Self::Word, Vec<Self::Key>)] {
+        &[]
+    }
     /// A record's whole-number weights, read by a `weighted:{rubric}` protocol on the record that declares it
     /// ([`protocol_record`]; a counted row's own weights are read only under a policy row the row states, binding
     /// off).
@@ -1403,6 +1413,9 @@ pub struct SeatLine;
 
 impl<R: SeatRow> LineSpec<R> for SeatLine {
     type Obj = ObjOf<R>;
+    fn own_heads_only(&self, r: &R) -> bool {
+        r.merge()
+    }
     fn counted_act<'r>(&self, r: &'r R) -> Option<(Self::Obj, &'r [R::Id])> {
         match r.seat_kind() {
             SeatKind::Offer | SeatKind::Unseat if r.conf() == Some(Conf::Group) && !r.head().is_empty() => {
@@ -1511,6 +1524,11 @@ fn lone_founding<R: SeatRow>(o: &R) -> bool {
 /// `moderate` and each duty its record declares ([`SeatRow::duties`]), not the law's other named duties.
 fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<Sc<'a, R::Word>> {
     let Some(own) = o.scope() else { return Vec::new() };
+    if o.merge() {
+        let mut out = alloc::vec![Sc::Row(own)];
+        out.extend(o.merge_duties().iter().filter(|(_, ks)| ks.contains(k)).map(|(d, _)| Sc::Row(d)));
+        return out;
+    }
     if !founding(o) {
         // an admission carrying `role: founder` (a family's one-row founder admission) seats the founder role too; a
         // founders' amendment of an infrastructure record (scope `record`) seats its keys as founders
@@ -2011,6 +2029,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         // `signed`: whether k signed the offer, read by the caller once per offer's signer set
         let by_get = |i: &R::Id| by.get(i).copied();
         let accepted = |oi: usize, o: &R, k: &R::Key, signed: bool| {
+            // a roster merge restates seats each key already took by its own consent on a named tip
+            if o.merge() {
+                return true;
+            }
             if signed {
                 return !own_void(oi, o, k);
             }
@@ -2035,6 +2057,22 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                             && ar.obj().is_none_or(|x| Some(x) == o.obj()));
                     paired && !ended(ar) && cut.counts(a) && !own_void(a, o, k)
                 })
+            })
+        };
+        // a roster merge states the roster outright: a member or duty seat placed in its past that it does not state
+        // is ended by it
+        let merges: Vec<usize> =
+            cs.iter().copied().filter(|&i| g.row(i).merge() && cut.counts(i) && !stale.contains(&i)).collect();
+        let merged_out = |oi: usize, k: &R::Key, sc: Sc<'a, R::Word>| {
+            merges.iter().any(|&mi| {
+                mi != oi && g.in_past(oi, mi) && {
+                    let m = g.row(mi);
+                    if sc.s() == "member" {
+                        !m.to().contains(k)
+                    } else {
+                        m.merge_duties().iter().any(|(d, ks)| d.as_ref() == sc.s() && !ks.contains(k))
+                    }
+                }
             })
         };
         // keys and scopes are borrowed from the rows through the walk, and copied once into each live seat
@@ -2066,7 +2104,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     continue;
                 }
                 for sc in seat_scopes(o, k, signed) {
-                    if !off_ended(o, k, sc) && !unseated(oi, k, sc) && !resigned(oi, k, sc) {
+                    if !off_ended(o, k, sc) && !unseated(oi, k, sc) && !resigned(oi, k, sc) && !merged_out(oi, k, sc) {
                         base.push((oi, k, sc));
                     }
                 }
@@ -3255,6 +3293,7 @@ fn built_closure<R: SeatRow>(
                 !out.contains(&q)
                     && g.row(q).head().iter().any(|h| g.idx(h).is_some_and(|hi| out.contains(&hi)))
                     && !stop(q)
+                    && !g.row(q).merge() // a roster merge is judged by its own count on each tip it names
             })
             .collect();
         if more.is_empty() {
@@ -3534,7 +3573,18 @@ pub fn for_reader<'a, R: SeatRow, S: CutSpec<R>>(
     *cache.rpairs.borrow_mut() = pairs;
     *cache.rends.borrow_mut() = ends;
     let rows: Vec<&'a R> = c.g.rows().to_vec();
-    let rc = crate::layers::conclude(rows, |p| seat_rule_with(p, law, spec, &|_| true, Some(&cache)), None);
+    // a roster merge is concluded as for every reader: its count is on each named tip, reader-independent, and a tip
+    // the reader holds void does not block it
+    let rc = crate::layers::conclude(
+        rows,
+        |p| {
+            if p.row().merge() {
+                return c.g.idx(p.row().id()).is_some_and(|i| c.cs().contains(&i));
+            }
+            seat_rule_with(p, law, spec, &|_| true, Some(&cache))
+        },
+        None,
+    );
     (rc, rv)
 }
 
@@ -3969,6 +4019,164 @@ fn contested_out<'a, R: SeatRow, S: CutSpec<R>>(
 
 /// The conclusion rule of the seat: was an offer, unseat, acceptance or withdrawal validly made, at the
 /// head it names. `p` gives the row's concluded ancestors; `other` concludes a row the seat does not read.
+/// A tip's roster as its own line gives it, READER-INDEPENDENT: read over the tip's past alone, with no reader's line.
+/// (members, per duty its holders.)
+type TipRoster<K> = (BTreeSet<K>, BTreeMap<String, BTreeSet<K>>);
+
+fn merge_tip_roster<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+    t: usize,
+    memo: &RefCell<BTreeMap<usize, TipRoster<R::Key>>>,
+) -> TipRoster<R::Key> {
+    if let Some(x) = memo.borrow().get(&t) {
+        return x.clone();
+    }
+    let g = p.graph();
+    let rows: Vec<&R> =
+        p.ancestors().iter().copied().filter(|&x| x == t || g.in_past(x, t)).map(|x| g.row(x)).collect();
+    let cc = concluded_over(rows);
+    let q = Seats::new(&cc, law, spec, None);
+    let by: BTreeMap<&R::Id, &R> = cc.g.rows().iter().map(|r| (r.id(), *r)).collect();
+    let mut duties: BTreeSet<String> = law.duties.iter().cloned().collect();
+    duties.extend(declared(&by, obj).into_iter().map(String::from));
+    let out: TipRoster<R::Key> = (
+        q.holders("member", obj, None),
+        duties
+            .into_iter()
+            .map(|d| {
+                let h = q.holders(&d, obj, None);
+                (d, h)
+            })
+            .collect(),
+    );
+    memo.borrow_mut().insert(t, out.clone());
+    out
+}
+
+/// The roster a merge of the tips `tips` (indices) must state: every member seated at any named tip, less every
+/// member a removal or the member's own end on any named tip's line took out; and the duty seats standing on any tip
+/// for a member it seats, less those an end on any tip took. The roster at each counted change of a line is read once
+/// (`memo`).
+fn merge_content<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+    tips: &[usize],
+) -> TipRoster<R::Key> {
+    let g = p.graph();
+    let memo: RefCell<BTreeMap<usize, TipRoster<R::Key>>> = RefCell::new(BTreeMap::new());
+    let is_change = |x: usize| {
+        let q = g.row(x);
+        (q.obj().as_ref() == Some(obj)
+            && q.conf() == Some(Conf::Group)
+            && matches!(q.seat_kind(), SeatKind::Offer | SeatKind::Unseat))
+            || *obj == Obj::Row(q.id().clone())
+    };
+    let mut members: BTreeSet<R::Key> = BTreeSet::new();
+    let mut gone: BTreeSet<R::Key> = BTreeSet::new();
+    let mut held: BTreeMap<String, BTreeSet<R::Key>> = BTreeMap::new();
+    let mut ended: BTreeMap<String, BTreeSet<R::Key>> = BTreeMap::new();
+    for &t in tips {
+        let (m, d) = merge_tip_roster(p, law, spec, obj, t, &memo);
+        let line: Vec<usize> =
+            p.ancestors().iter().copied().filter(|&x| (x == t || g.in_past(x, t)) && is_change(x)).collect();
+        let mut ever: BTreeSet<R::Key> = BTreeSet::new();
+        let mut ever_d: BTreeMap<String, BTreeSet<R::Key>> = BTreeMap::new();
+        for x in line {
+            let (em, ed) = merge_tip_roster(p, law, spec, obj, x, &memo);
+            ever.extend(em);
+            for (k, v) in ed {
+                ever_d.entry(k).or_default().extend(v);
+            }
+        }
+        gone.extend(ever.difference(&m).cloned());
+        for (dn, v) in &ever_d {
+            let now = d.get(dn).cloned().unwrap_or_default();
+            ended.entry(dn.clone()).or_default().extend(v.difference(&now).cloned());
+        }
+        for (dn, v) in d {
+            held.entry(dn).or_default().extend(v);
+        }
+        members.extend(m);
+    }
+    let members: BTreeSet<R::Key> = members.difference(&gone).cloned().collect();
+    let mut duties: BTreeMap<String, BTreeSet<R::Key>> = BTreeMap::new();
+    for (dn, v) in held {
+        let e = ended.get(&dn).cloned().unwrap_or_default();
+        let keep: BTreeSet<R::Key> = v.into_iter().filter(|k| members.contains(k) && !e.contains(k)).collect();
+        if !keep.is_empty() {
+            duties.insert(dn, keep);
+        }
+    }
+    (members, duties)
+}
+
+/// A roster merge concludes where (the Constitution's ruling): it names two or more tips of its room, none in another's
+/// past, and they are the newest counted changes in its past; it is counted on EACH named tip separately, by that
+/// tip's own members as that tip's own line gives them, under the room's protocol as an admission is counted there,
+/// never over a reader's fold; and it states exactly the fixed roster ([`merge_content`]).
+pub fn merge_concludes<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> bool {
+    let r = p.row();
+    let Some(obj) = r.obj() else { return false };
+    let g = p.graph();
+    let tips: Vec<usize> = r.head().iter().filter_map(|h| g.idx(h)).filter(|i| p.ancestors().contains(i)).collect();
+    if tips.len() < 2 || tips.len() != r.head().len() {
+        return false;
+    }
+    if tips.iter().any(|&a| tips.iter().any(|&b| a != b && g.in_past(a, b))) {
+        return false;
+    }
+    let acts: Vec<usize> = p
+        .ancestors()
+        .iter()
+        .copied()
+        .filter(|&x| {
+            let q = g.row(x);
+            (q.obj().as_ref() == Some(&obj)
+                && q.conf() == Some(Conf::Group)
+                && matches!(q.seat_kind(), SeatKind::Offer | SeatKind::Unseat))
+                || obj == Obj::Row(q.id().clone())
+        })
+        .collect();
+    let newest: BTreeSet<usize> = acts.iter().copied().filter(|&a| !acts.iter().any(|&b| g.in_past(a, b))).collect();
+    if newest != tips.iter().copied().collect::<BTreeSet<_>>() {
+        return false;
+    }
+    let all_voices = voices(r, p);
+    for &t in &tips {
+        let anc: Vec<usize> = p.ancestors().iter().copied().filter(|&x| g.in_past(x, t)).collect();
+        let pt = Past::new(g, t, &anc);
+        let tid = [g.row(t).id().clone()];
+        let mut mem = persons_at_with(&pt, law, spec, &obj, &tid, "member", None);
+        for k in left_in_past(&pt, &obj, "member") {
+            mem.remove(&k);
+        }
+        let v: BTreeSet<R::Key> = all_voices.iter().filter(|k| mem.contains(*k)).cloned().collect();
+        let Ok(fs) = policy_in_force(law, &pt, r) else { return false };
+        if fs.is_empty() {
+            return false;
+        }
+        for f in &fs {
+            let count = GroupCount { policy: f.pol, offer: true, to: &[], members: &mem, voices: &v, need: f.need };
+            let wr: &R = f.weights.unwrap_or(r);
+            if !group_count(&count, |k| wr.weights().iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x))
+                .unwrap_or(false)
+            {
+                return false;
+            }
+        }
+    }
+    let (members, duties) = merge_content(p, law, spec, &obj, &tips);
+    let stated: BTreeSet<R::Key> = r.to().iter().cloned().collect();
+    let stated_d: BTreeMap<String, BTreeSet<R::Key>> =
+        r.merge_duties().iter().map(|(d, ks)| (String::from(d.as_ref()), ks.iter().cloned().collect())).collect();
+    stated == members && stated_d == duties
+}
+
 pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
     law: &SeatLaw,
@@ -4594,6 +4802,9 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                 Some(Conf::Group) => {
                     // an infrastructure room's recovery widening while stalled is undecided ([`stalled_recovery`]): the
                     // kernel holds no bundle holders, so it concludes nothing
+                    if r.merge() {
+                        return merge_concludes(p, law, spec);
+                    }
                     if r.bundle().is_some() {
                         return false;
                     }

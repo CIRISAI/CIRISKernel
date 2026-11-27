@@ -133,6 +133,20 @@ def run():
     return bad
 
 
+def fixture(with_refs):
+    """The cases for the crate (tests/roster_merge.rs), with the answers the model gives."""
+    out = []
+    for name, rows, own, concl, members, duties, stale in CASES:
+        refs = {}
+        got = answer(rows, own, concl, members, duties, stale)
+        S = CK.concluded(CK.kept(list(rows)), lambda r, P, past: ST.seat_rule(r, P, past))
+        Q = ST.Seats(S, own=own)
+        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "reader": own,
+                    "concluded": got[0], "members": sorted(Q.holders("member", OBJ)),
+                    "moderate": sorted(Q.holders("moderate", OBJ))})
+    return {"cases": out}
+
+
 def main():
     bad = run()
     for b in bad: print(b)

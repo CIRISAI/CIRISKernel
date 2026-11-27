@@ -223,7 +223,7 @@ plant "a row is concluded before what it names"         src/layers.rs 'order.sor
 plant "an owner's revocation ends another owner's seat"  src/seat.rs 'if own { r.to()[0] != *r.signer() } else { Obj::Key(r.to()[0].clone()) != obj }' 'if own { false } else { Obj::Key(r.to()[0].clone()) != obj }'
 plant "one of two live owners revokes alone"            src/seat.rs 'sole.one(us.as_ref(), &obj).as_ref() == Some(r.signer())' 'sole.stands(r.signer(), us.as_ref(), &obj, None)'
 plant "a duty seat stands on a key that is not a member" src/seat.rs 'if held.contains(&true) {' 'if false {'
-plant "a resignation ends no duty seat by its past (revival)" src/seat.rs 'if !off_ended(o, k, sc) && !unseated(oi, k, sc) && !resigned(oi, k, sc) {' 'if !off_ended(o, k, sc) && !unseated(oi, k, sc) {'
+plant "a resignation ends no duty seat by its past (revival)" src/seat.rs 'if !off_ended(o, k, sc) && !unseated(oi, k, sc) && !resigned(oi, k, sc) && !merged_out(oi, k, sc) {' 'if !off_ended(o, k, sc) && !unseated(oi, k, sc) && !merged_out(oi, k, sc) {'
 plant "a removal from the roster cuts the member seat only (revival)" src/seat.rs '                    && (ur.scope().map(|x| x.as_ref()) == Some(sc.s())
                         || (dutyish' '                    && (ur.scope().map(|x| x.as_ref()) == Some(sc.s())
                         || (false'
@@ -568,6 +568,13 @@ plant "a row between seats counts"                      src/content.rs 'if at.se
 plant "a row naming the removal as its head waits on it" src/content.rs 'if ends.iter().any(|e| e.id() == h) {' 'if false {'
 plant "a retraction is read in its own seat only"       src/content.rs 'out.extend(seat_answers(&sub, seat, past, &retracted));' 'let sr: BTreeSet<&R::Id> = retracted.iter().copied().filter(|t| sub.iter().any(|w| w.retracts() == Some(*t))).collect(); out.extend(seat_answers(&sub, seat, past, &sr));'
 plant "an end with an end in its past still ends"       src/content.rs 'Ok(seated.then_some(Void::SeatEnded))' 'Ok(seated.then_some(Void::SeatEnded).filter(|_| false))'
+plant "a roster merge counted over its heads together (over the fold)" src/seat.rs 'let mut mem = persons_at_with(&pt, law, spec, &obj, &tid, "member", None);' 'let mut mem = persons_at_with(p, law, spec, &obj, r.head(), "member", None);'
+plant "a roster merge stating any roster" src/seat.rs '    stated == members && stated_d == duties' '    stated == stated && stated_d == stated_d'
+plant "a roster merge voided with a void head (S'')" src/seat.rs '&& !g.row(q).merge()' '&& !g.row(q).merge() || false'
+plant "a roster merge concluded again for the reader" src/seat.rs 'return c.g.idx(p.row().id()).is_some_and(|i| c.cs().contains(&i));' 'return seat_rule_with(p, law, spec, &|_| true, Some(&cache));'
+plant "a roster merge ends no seat it does not state" src/seat.rs '&& !resigned(oi, k, sc) && !merged_out(oi, k, sc) {' '&& !resigned(oi, k, sc) {'
+plant "a roster merge behind for a reader (its void head blocks it)" src/seat.rs '        r.merge()' '        false && r.merge()'
+plant "a roster merge asks each key's acceptance" src/seat.rs '            if o.merge() {' '            if false && o.merge() {'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"
