@@ -1,0 +1,4 @@
+r77: re-attack of origin/charter 9d149d2.
+Extract: git archive 9d149d2 | tar -x -C r77/tree ; run: python3 -I r77/s/<x>.py
+a1-a3: r73 re-run (a1 K-cases invalid: G1LD names unheld rows; a2 has the valid ones)
+n1,n2: body growth is no end; n3: over-cut, solo founder, edge term; n4: unrelated-instant DoS; n5: ends naming rows outside the licence past
