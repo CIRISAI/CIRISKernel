@@ -432,11 +432,15 @@ CASES = [
      ROOM + [admit("aH", "H", tuple(sorted(SEVEN)), ("aG",)), ack("ak", "R", "aH"),
              ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)), "R",
      {"se": T}, {"moderate": {"D"}}, set()),
-    (EL, "the seating at the head before an admission built on a later one the reader acknowledged: behind that "
-         "reader's line by its heads, as any roster change",
+    # restated at the batch merge (the Constitution's ruling on H4, 2026-11-27): the lay-down lm the seating reads as its
+    # vacancy, at aG, is itself a roster change behind this reader's line, so it is no vacancy end for the reader, and
+    # for it the seating concludes nothing at all (no longer a concluded act its line voids: stale is empty)
+    (EL, "the seating at the head before an admission built on a later one the reader acknowledged: its vacancy end, "
+         "the lay-down at the same head, is behind that reader's line (a lay-down is a roster change, H4), so for that "
+         "reader the seating reads no vacancy and seats nobody",
      ROOM + [admit("aH", "H", tuple(sorted(SEVEN)), ("aG",)), admit("aI", "I", tuple(sorted(SEVEN | {"H"})), ("aH",)),
              ack("ak", "R", "aI"), ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)), "R",
-     {"se": T}, {"moderate": set()}, {"se"}),
+     {"se": T}, {"moderate": set()}, set()),
     (EL, "a later admission at the newest admission, leaving the seating unnamed in its past (it names the ballots)",
      ROOM + [ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)) +
      [admit("ax", "X", FIVE, ("aG",), ("se",))], None, {"se": T, "ax": F}, {"moderate": {"D"}, "member": SEVEN}, set()),

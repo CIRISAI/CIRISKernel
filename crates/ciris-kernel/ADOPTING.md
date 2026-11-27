@@ -240,7 +240,9 @@ trusting an adapter.
   member whose proposal a newcomer accepted or, for a person's further device, a device of theirs already in the
   group." A store serving such a reader passes that member's acknowledged head as the reader's first.
   **A reader's roster** (the ruling of 2026-11-27): build it over the rows as they conclude for that reader:
-  `let (rows, void) = seat::for_reader(&c, law, spec, &own); Seats::for_reader(&rows, law, spec, &own, &void)`. A
+  `let (rows, void) = seat::for_reader(&c, law, spec, Some(&own)); Seats::for_reader(&rows, law, spec, &own, &void)`;
+  for a reader with no row of its own, `let (rows, _) = seat::for_reader(&c, law, spec, None); Seats::new(&rows, law,
+  spec, None)` (every reader holds the concurrent founders' amendments it is given: C2). A
   count can stand for its reader and not for a reader with no row (the changes void for the reader leave the
   count's fold): CC 2.7.9, "A reader's own acknowledged head closes older heads for that reader only". Show such a
   count as in force for that reader, and say that a reader with no acknowledgement of its own reads it otherwise.

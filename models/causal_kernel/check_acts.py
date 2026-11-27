@@ -10,8 +10,8 @@ one row of a set and the act it is; each query case names (act, scope class, kin
 table gives. CONCLUDE: whether a row concludes with the acts table and without it; the protocol rows are counted under
 the room's protocol in force, one of the closed set (data/consensus_protocols.tsv, PROTOCOL_WORDS), with the record's
 numbers and over the protocol's body. TIPS: who stands (the wait at tips across a change of protocol; a node's seat
-by scope and kind). PENDING: rows of the independent reads that do not hold on the merged tree (the settling count, FA6, T5, C2, Q4);
-reported, not failed on (A1, A3, K2, T5b and C1 held at the merge and are TIPS cases now).
+by scope and kind). PENDING: none left. A1, A3, K2, T5b and C1 held at the batch merge, and the settling count, FA6, T5 and C2 as ruled
+after it: all are TIPS cases now; Q4 is a conclusion case (CONCLUDE_Q4).
 
 Planted breaks, each of which must change a case's answer:
     lift_unread         an offer naming a removal of the same seat is read as an admission, not the lift
@@ -84,6 +84,9 @@ Planted breaks, each of which must change a case's answer:
     negative_weight               a weighted record may weigh a key below zero
     removal_counts_target         a removal under the room's protocol counts the member it removes, over and as a voice
     removal_floor_unread          a community's counted removal takes no floor of two voices besides the member removed
+    end_of_contested_end          rule (2) reads a removal rule 5 holds contested out as an earlier end (the settling count)
+    dissolve_uncontested          a dissolution is read apart from rule 5: it is no cut over every seat (FA6)
+    wait_reader_unread            the founders' amendment wait is read over a row's own past only, not the reader's (C2)
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
@@ -813,9 +816,20 @@ PENDING = [
      "f4, concludes (neither earlier row in force there): needs the heads' reading of a past holding both",
      [GI4, FRMF("f4", ("f1", "f2", "f3")), dict(FRMF("f3", ("f1", "f2", "f4")), id="x2"),
       dict(FRMF("f4", ("f1", "f2", "f3"), heads=("x", "x2")), id="xs")], [("f4", "founder", False), ("f3", "founder", True)]),
-    ("FA6: a dissolution at an old head is void for a reader that acknowledged a later change (A demoted B; B "
-     "dissolves at g): the reader's line, with the head rules",
-     [FAM2, FREM("dm", "B", scope="founder"), FDIS("d", signer="B")], [("A", "member", True), ("C", "member", True)]),
+    # FA6, restated by the ruling of 2026-11-27: A's demotion of B and B's dissolution at g are concurrent cuts that each
+    # undo the other (the demotion removes the voice the dissolution needs, the dissolution ends the seat the demotion
+    # needs): a dissolution is a cut over every seat for rule 5, so the two are contested and neither counts
+    ("FA6: A demotes B and B dissolves, both at g: contested cuts (rule 5, a dissolution a cut over every seat), neither "
+     "counts: the family stands and B is still a founder", [FAM2, FREM("dm", "B", scope="founder"), FDIS("d", signer="B")],
+     [("A", "member", True), ("C", "member", True), ("B", "founder", True)]),
+    ("FA6: the same read by A, which acknowledged its own demotion: a sibling at its head is not behind it (the "
+     "sibling-safe line), and rule 5 decides as for every reader", [FAM2, FREM("dm", "B", scope="founder"),
+                                                                   FDIS("d", signer="B")],
+     [("A", "member", True), ("C", "member", True), ("B", "founder", True)], "A"),
+    ("FA6, the variant: B's dissolution names the demotion as its head: the demotion is in force there, B is no founder "
+     "there, and the dissolution concludes nothing", [FAM2, FREM("dm", "B", scope="founder"),
+                                                      FDIS("d", signer="B", heads=("dm",))],
+     [("A", "member", True), ("C", "member", True), ("B", "member", True), ("B", "founder", False)]),
 ]
 # review-54 on 091b14d (r62): rule 5 contests only among removals not void for the row or reader (the head rules'
 # S''), and a reader holding two concurrent below-N seatings reads the founders common to them (reader_state)
@@ -836,8 +850,12 @@ PENDING += [
      "honest removal of C stands and B is kept",
      KL + [_krem("x", "C", ("B", "D", "E"), ("ae",)), _krem("z", "B", ("A", "C"), ("g",))],
      [("C", "member", False), ("B", "member", True)]),
-    ("T5: y1 (A, B, C, D at g, all of whom signed the later h) is behind h, so y2 at h stands: A out, E kept",
-     [G6M, T5H, _krem("y1", "E", "ABCD", ("g",)), _krem("y2", "A", "BCDE", ("h",))], [("A", "member", False), ("E", "member", True)]),
+    # T5, restated by the ruling of 2026-11-27: the old expectation (y1 behind h, so y2 stands) assumed the line before
+    # it was sibling-safe. Under the sibling-safe line y1 at g is a lawful sibling of h (h names g), not stale, so rule
+    # 5's "from the head the cut names" gives y1 standing and y2 falling
+    ("T5: y1 (A, B, C, D at g) is a sibling of h, which names g, and not behind it (the sibling-safe line); rule 5 from "
+     "the head each cut names: y1 stands and y2 at h falls: E out, A kept",
+     [G6M, T5H, _krem("y1", "E", "ABCD", ("g",)), _krem("y2", "A", "BCDE", ("h",))], [("A", "member", True), ("E", "member", False)]),
     ("T5b: swapped, y2 at g (E did not sign h) is not behind h; y2 stands, y1' falls: A out, E kept (as today)",
      [G6M, T5H, _krem("y1", "E", "ABCD", ("h",)), _krem("y2", "A", "BCDE", ("g",))], [("A", "member", False), ("E", "member", True)]),
     ("C1: a reader holding two concurrent below-N seatings reads the founders common to them: X1 to X3 and Y1 to Y3 "
@@ -846,18 +864,21 @@ PENDING += [
      GI9_6 + [C1A, C1B, C2XA, C2XB], [("f3", "founder", True), ("f1", "founder", True)]),
 ]
 # flipped at the batch merge (heads b2d5aa4, room-keys-fix 1a059be, election2 8910e02): the pending rows that hold on
-# the merged tree are failing cases now (A1, A3, K2, T5b, C1); the settling count, FA6, T5 and C2 do not hold on
-# it, and stay reported here
-HELD = ("A1:", "A3:", "K2:", "T5b:", "C1:")
+# the merged tree are failing cases now (A1, A3, K2, T5b, C1), and so, as ruled after it, are the settling count (rule
+# (2) reads only ends in force), FA6 (a dissolution contested as a cut), T5 (restated to the sibling-safe line) and C2
+# (the amendment wait read through reader_state)
+HELD = ("A1:", "A3:", "K2:", "T5b:", "C1:", "the settling count (S4)", "FA6", "T5:", "C2:")
 TIPS += [c for c in PENDING if c[0].startswith(HELD)]
 PENDING = [c for c in PENDING if not c[0].startswith(HELD)]
-# Q4: a change of the record names the record in force as its head (N5's rows: am2 names only a row that did not
-# conclude, so it lacks am's head): the head rules' H1. (name, rows, the row asked, concludes)
-PENDING_CONCLUDE = [
-    ("Q4: a change that does not name the record in force (am) as its head concludes nothing",
+# Q4, restated by the ruling of 2026-11-27: am2 names am, the newest counted change in its past (n did not conclude), so
+# it is not concurrent with am, and the accidental freeze cannot arise: am2 concludes. That is Q4's purpose, met by H1
+CONCLUDE_Q4 = [
+    ("Q4: a change naming the record in force (am) as its head, past an admission that did not conclude, concludes (no "
+     "freeze: H1)",
      [GM4, AM1, grp("n", "offer", "Q", "member", "community_invite", heads=("am",)),
-      dict(REC("am2", "unanimous", heads=("am",), signer="B", cosigners=("C", "D")), names=("n",))], "am2", False),
+      dict(REC("am2", "unanimous", heads=("am",), signer="B", cosigners=("C", "D")), names=("n",))], "am2", True),
 ]
+PENDING_CONCLUDE = []
 
 PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread",
           "binding_off", "stated_policy_free", "protocol_unread", "gate_reads_stated",
@@ -873,7 +894,8 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "role_unread",
           "contested_both_out", "role_on_own_offer", "entrenched_weights_free",
           "concurrent_amendments_free", "infra_word_restated_always", "contested_scoped_to_kinds",
-          "contested_voice_everywhere", "negative_weight", "removal_counts_target", "removal_floor_unread")
+          "contested_voice_everywhere", "negative_weight", "removal_counts_target", "removal_floor_unread",
+          "end_of_contested_end", "dissolve_uncontested", "wait_reader_unread")
 
 
 @contextlib.contextmanager
@@ -916,16 +938,17 @@ def dissolved(rows, plant=None):
 def tip_answers(plant=None, cases=None):
     out = []
     with planted(plant):
-        for _, rows, asks in (TIPS if cases is None else cases):
+        for c in (TIPS if cases is None else cases):
+            rows, asks, own = c[1], c[2], (c[3] if len(c) > 3 else None)    # an optional reader
             S = CK.concluded(CK.kept(list(rows)), lambda r, P, past: ST.seat_rule(r, P, past))
-            Q = ST.Seats(S)
+            Q = ST.Seats(S, own=own)
             out.append([Q.stands(k, sc, OBJ) for k, sc, _ in asks])
     return out
 
 
 def main():
     problems = []
-    for (name, _rows, asks), got in zip(TIPS, tip_answers()):
+    for (name, _rows, asks, *_own), got in zip(TIPS, tip_answers()):
         if got != [w for _, _, w in asks]:
             problems.append("tips %s: got %s, expected %s" % (name, got, [w for _, _, w in asks]))
     for name, rows, rid, wb, wu in CONCLUDE:
@@ -961,6 +984,9 @@ def main():
     for name, rows, rid, want in UNDECIDED:
         if undecided(rows, rid) != want:
             problems.append("undecided %s: got %s, expected %s" % (name, undecided(rows, rid), want))
+    for name, rows, rid, want in CONCLUDE_Q4:
+        if concludes(rows, rid, True) != want:
+            problems.append("%s: got %s, expected %s" % (name, concludes(rows, rid, True), want))
     for name, rows, rid, want in PENDING_CONCLUDE:
         got = concludes(rows, rid, True)
         print("  pending (does not hold on the merged tree): %s: %s" % (name, "holds" if got == want else
@@ -973,6 +999,7 @@ def main():
     for plant in PLANTS:
         hit = [name for name, rows, rid, want in CASES if answer(rows, rid, plant) != want]
         hit += [c[0] for c in CONCLUDE if concludes(c[1], c[2], True, plant) != c[3]]
+        hit += [c[0] for c in CONCLUDE_Q4 if concludes(c[1], c[2], True, plant) != c[3]]
         hit += ["tips: " + c[0] for c, got in zip(TIPS, tip_answers(plant)) if got != [w for _, _, w in c[2]]]
         hit += ["dissolved: " + c[0] for c in DISSOLVED if dissolved(c[1], plant) != c[2]]
         hit += ["undecided: " + c[0] for c in UNDECIDED if undecided(c[1], c[2], plant) != c[3]]

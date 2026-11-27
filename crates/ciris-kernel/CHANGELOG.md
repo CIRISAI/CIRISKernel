@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
+- Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone
+  removal out of force) ended nothing, and does not block a later end (the settling count, S4).
+- A dissolution is a cut over every seat of its group for rule 5: a dissolution and a concurrent counted removal that
+  each undo the other are contested, and neither counts (FA6). A dissolution at a head after the removal reads the
+  removal in force.
+- The founders' amendment wait reads through the reader's rows (C2): for a reader holding two concurrent founders'
+  amendments, a founders' count whose own past holds only one of them reads the founders common to the two.
+  **BREAKING**: `seat::for_reader` takes `Option<&Key>`; build every roster over the rows it returns.
+- A lay-down (any withdrawal of a seat over a community) is a roster change under H4 and sits on the reader's line by
+  the newest counted changes it names: one behind the reader's line is no vacancy end for that reader (the election).
+- The election's electorate is the persons at every end of its vacancy, each end read over its own past: the
+  leavings come only from the seating's named set (C1, F1, F2); `members_at`'s read of every withdrawal in a
+  counting row's past is the roster's, not the election's.
+
 **The moderator election, rebuilt on C1 to C5** (CC 4.5.13; CC 4.5.4 (v) and rule 2; CIRISConstitution#241, with
 the rulings E1 to E3 and F1 to F4). The election is back in this tag. **BREAKING**: `SeatKind::Decline` (a new
 variant; an exhaustive match must add it). New: `seat::election_closed`. The presentation changes:

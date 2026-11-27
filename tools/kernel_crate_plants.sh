@@ -427,10 +427,20 @@ plant "G2: the closing base read per group, over its receipts' pasts" src/seat/e
 plant "H1: a leaving that holds its receipt voids it" src/seat/election.rs 'let held = |k: &R::Key, d: usize| by_p.get(k).is_some_and(|rs| rs.iter().any(|&a| g.in_past(a, d)));' 'let held = |_k: &R::Key, _d: usize| false;'
 plant "the closing base read from each seating's own electorate" src/seat/election.rs '            let el = common.clone();' '            let el = self.view(s).1;'
 plant "the close's base the union of the election's electorates" src/seat/election.rs 'let common: BTreeSet<R::Key> = els.fold(first, |acc, e| acc.intersection(&e).cloned().collect());' 'let common: BTreeSet<R::Key> = els.fold(first, |acc, e| acc.union(&e).cloned().collect());'
-plant "(2): an end of an ended seat concludes" src/seat.rs '    !seats.is_empty()
-        && seats.iter().all(' '    false
-        && seats.iter().all('
-plant "(2): a re-seating after the first end not read" src/seat.rs '                    && !obj.as_ref().is_some_and(|o| {' '                    && !obj.as_ref().is_some_and(|o| false && {'
+plant "(2): an end of an ended seat concludes" src/seat.rs '    let seats = ends_of(by, r);
+    if seats.is_empty() {' '    let seats = ends_of(by, r);
+    if true {'
+plant "(2): a contested end blocks a later end" src/seat.rs '        !dropped.contains(q.id())
+    };' '        let _ = dropped;
+        true
+    };'
+plant "FA6: a dissolution read apart from rule 5" src/seat.rs 'is_dissolve(q) && cut.counts(i) && !stale.contains(&i) && !dropped.contains(q.id())' 'false && is_dissolve(q)'
+plant "C2: the amendment wait read over a row's own past only" src/seat.rs 'mem.retain(|k| !held.contains(k));' 'let _ = &held;'
+plant "H4: a lay-down behind the reader's line read as a vacancy end" src/seat/election.rs 'if self.memo.rends.borrow().contains(wr.id()) {' 'if false {'
+plant "F1: the electorate read with every withdrawal of the seating's past" src/seat/election.rs 'let pe: Vec<usize> = p.iter().copied().filter(|&q| q == e || self.c.g.in_past(q, e)).collect();' 'let pe: Vec<usize> = p.to_vec();'
+plant "(2): a re-seating after the first end not read" src/seat.rs '                && !obj.as_ref().is_some_and(|o| {
+                    seated_after(p, o, k, q.id(), |m| {' '                && !obj.as_ref().is_some_and(|o| false && {
+                    seated_after(p, o, k, q.id(), |m| {'
 plant 'act_of: a detector seat read as no act'          src/seat.rs '            if sc == "detect" || sc.starts_with("detect:") {' '            if false {'
 plant 'act_of: the recall read as the withdrawal'       src/seat.rs '"member" => Some((Act::Recall, ScopeClass::Duty, kind)),' '"member" => Some((Act::DutyWithdraw, ScopeClass::Duty, kind)),'
 plant 'act_of: a recall or withdrawal counts any body'  src/seat.rs '                "member" => Some((Act::Recall, ScopeClass::Duty, kind)),

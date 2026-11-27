@@ -1186,7 +1186,7 @@ def is_election(o, table=None):
 
 def _memo(tag, row, f, rows=()):
     # keyed by the row and the rows it is read over (one row object may stand in two sets of rows)
-    key = (tag, id(row), frozenset(MUT), frozenset(id(x) for x in rows))
+    key = (tag, id(row), frozenset(MUT), frozenset(id(x) for x in rows), _RENDS[-1])
     got = _EMEMO.get(key)
     if got is None or got[0] is not row:
         got = _EMEMO[key] = (row, f())
@@ -1213,6 +1213,7 @@ def vacancy(E, P, past, named=None):
     ends, ended = [], set()
     for w in P:
         if w["kind"] not in ("withdraw", "unseat") or not past(E["id"], w["id"]): continue
+        if w["id"] in _RENDS[-1]: continue          # a lay-down behind the reader's line is no vacancy end for it (H4)
         if named is not None and w["id"] not in named and "vacancy_unnamed" not in MUT: continue
         if not (w["signer"] in holders if w["kind"] == "withdraw" else set(w["to"]) & holders): continue
         pre = [q for q in P if past(q["id"], w["id"])]
@@ -1234,7 +1235,12 @@ def electorate(E, P, past, obj, named=None):
     # the members at EVERY end, each end read alone: since the head rules several heads are folded (members_at), so
     # the persons common to the ends are taken here (MUTATION electorate_folded: the ends read as one fold)
     if "electorate_folded" in MUT: return counted_keys(P, past, obj, v)[0]
-    return frozenset.intersection(*[frozenset(counted_keys(P, past, obj, (e,))[0]) for e in v])
+    # each end read over its own past only (C1, F1, F2: the electorate and the leavings come from the seating's named
+    # set; a withdrawal in the seating's past that the seating does not name strikes nobody, though members_at reads
+    # every withdrawal of a counting row's past for a roster count; MUTATION electorate_reads_past: over the seating's
+    # whole past)
+    at = (lambda e: P) if "electorate_reads_past" in MUT else (lambda e: [q for q in P if q["id"] == e or past(q["id"], e)])
+    return frozenset.intersection(*[frozenset(counted_keys(at(e), past, obj, (e,))[0]) for e in v])
 
 
 def _past_of(rows, past, q):
@@ -1543,12 +1549,14 @@ def election_count(r, P, past, by):
 # ---- derived: the live seats ---------------------------------------------------------------------------
 class Seats:
     def __init__(self, S, holds=HOLDS, confers=CONFERS, depth=DEPTH, by_arrival=False, own=None, checkpoint=False, drop=None,
-                 roster=True):
+                 roster=True, pairs=True):
         """`roster`: a reader's roster (the public reading): S'' is read over the rows it holds, as if a row had them all
         in its past, and a change void there neither adds nor removes members (the second review of 58b). The readings
         of a line inside the kernel (one tip, a head's past) pass False."""
         # the reader's roster is read over the rows as they conclude FOR THIS READER (reader_state)
-        if roster and own is not None and getattr(S, "_reader", None) != own:
+        # and over the concurrent founders' amendments it holds (C2)
+        if roster and (getattr(S, "_reader", None) != own or (pairs and not getattr(S, "_paired", False))) and (
+                own is not None or (pairs and "wait_reader_unread" not in MUT and held_pairs(S))):
             S = reader_state(S, own)
         self.S, self.holds, self.confers, self.own = S, holds, confers, own
         # the reader's line is read before the cut: a counted act void for this reader cuts nothing for it (CC 2.7.8).
@@ -1590,7 +1598,11 @@ class Seats:
         # (MUTATION line_void_unlisted: the acts of the first pass not listed as void)
         self.stale = V = (frozenset() if "line_void_unlisted" in MUT else L) | CP.void(S, C, own, checkpoint)     # counted acts built on one that does not count, or behind the reader's line
         # the election's seatings that do not stand (C4, C5): read over the concluded rows, as the fold at tips is
-        self.beaten = beaten = election_beaten(Cs, past_, V) if any(is_election(o) for o in Cs) else frozenset()
+        _RENDS.append(reader_ends(S, own) if roster else frozenset())     # the seat ends behind the reader's line
+        try:
+            self.beaten = beaten = election_beaten(Cs, past_, V) if any(is_election(o) for o in Cs) else frozenset()
+        finally:
+            _RENDS.pop()
         unseats = [u for u in K.sel(Cs, kind="unseat") if C.counts(u) and u["id"] not in V]
         # a moderator's lone removal is an act under its `moderate` standing, in force only while the end rule says so
         # (out_of_force). `drop`: the lone removals already judged out of force over the whole set, for a reading of
@@ -1601,7 +1613,11 @@ class Seats:
         # CC 2.7.7 rule 5: counted removals that remove each other's voices concurrently are contested, and neither is
         # in force (a voice concurrent with its own removal is no voice). Judged over the whole set, and carried with
         # the lone removals out of force into a reading of one line of it (the tips, the fold)
-        contested = contested_out(S, unseats)
+        # a dissolution is a cut over every seat of its group, so it is contested as a removal is (the ruling on FA6;
+        # MUTATION dissolve_uncontested: a dissolution is read apart from rule 5)
+        dis = [q for q in Cs if is_dissolve(q) and C.counts(q) and q["id"] not in V and q["id"] not in drop] \
+            if "dissolve_uncontested" not in MUT else []
+        contested = contested_out(S, unseats + dis)
         unseats = [u for u in unseats if u["id"] not in contested]
         self.dropped = drop | contested
 
@@ -1667,8 +1683,8 @@ class Seats:
             return False
 
         # a concluded dissolution of a group ends every seat over it (it reads as the withdrawal of the group's record)
-        gone = frozenset(q["obj"] for q in Cs if is_dissolve(q) and C.counts(q)) if "dissolve_leaves_seats" not in MUT \
-            else frozenset()
+        gone = frozenset(q["obj"] for q in Cs if is_dissolve(q) and C.counts(q) and q["id"] not in self.dropped) \
+            if "dissolve_leaves_seats" not in MUT else frozenset()
         base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V and o["obj"] not in gone
                 and o["id"] not in beaten
                 for k in o["to"] if accepted(o, k) for sc in seat_scopes(o, k)
@@ -1732,7 +1748,7 @@ class Seats:
     def dissolved(self, o):
         """Group o is dissolved: a concluded dissolution of it is held, or, with no signer, every member it seated has
         an end of their seat (its roster empty, folded at tips, and its founding row held): no row over it concludes."""
-        if any(is_dissolve(q) and q.get("obj") == o for q in self.S.Cs): return True
+        if any(is_dissolve(q) and q.get("obj") == o and q["id"] not in self.dropped for q in self.S.Cs): return True
         return founding_row(self.S.by, o) and not self.roster(o) and any(
             g == o for _, _, g in stay_ends(self.S.Cs, self.S.by,
                                           lambda a, w: bool(self.S.C.get(a["id"])) and a["id"] in self.S.anc[w["id"]]))
@@ -2131,12 +2147,15 @@ def contested_out(S, unseats):
     at_or_after = lambda u, u2: "contested_voice_everywhere" in MUT or all(
         any(h2 == h or h2 in S.anc.get(h, ()) for h in u.get("head", ())) for h2 in u2.get("head", ()))
     pasts = {u["id"]: [q for q in S.Cs if q["id"] in S.anc[u["id"]]] for u in grp_u}
+    # the keys a cut removes: an unseat's `to`; a dissolution's, every key holding a seat over its group in its past
+    cut_keys = {u["id"]: (frozenset(x["k"] for x in seats_of(pasts[u["id"]]).recs if x["obj"] == u.get("obj"))
+                          if is_dissolve(u) else frozenset(u["to"])) for u in grp_u}
     threats = {}
     for u in grp_u:
         vs = voices(u, pasts[u["id"]])
-        t = [(u2["id"], frozenset(u2["to"]) & vs) for u2 in grp_u
+        t = [(u2["id"], cut_keys[u2["id"]] & vs) for u2 in grp_u
              if u2 is not u and u2.get("obj") == u.get("obj") and conc(u, u2) and at_or_after(u, u2)
-             and frozenset(u2["to"]) & vs]
+             and cut_keys[u2["id"]] & vs]
         if t: threats[u["id"]] = t
     if not threats: return frozenset()
     past = lambda a, b: a in S.anc[b]
@@ -2231,6 +2250,8 @@ def stands(S, root, k, s, o, **kw):
 # guarded fold of CC 2.7.8), not their intersection.
 _VOID = [frozenset()]        # the changes void for the counting row being read
 _RVOID = [frozenset()]       # the changes void for the reader that row is read for
+_RPAIRS = [frozenset()]      # the concurrent founders' amendments the reader holds: (a, b, the keys the two seat)
+_RENDS = [frozenset()]       # the seat ends (lay-downs, leavings) behind the reader's line: no vacancy end for it
 
 
 def _built_closure(acts, void, stop=lambda q: False):
@@ -2420,6 +2441,42 @@ def reader_void(S, own):
     return CP.void(S, CP.EVERY, own)
 
 
+def reader_ends(S, own):
+    """The seat ends behind reader `own`'s line (the Constitution's ruling on H4: a lay-down is a roster change: it
+    names the newest counted changes over its room and sits on the reader's line by them): each withdrawal of a seat
+    over a community whose newest named counted changes (its room's founding row where it names none) are all strictly
+    in the past of the own heads of a counted act on the reader's line, it not in that act's past (checkpoint.behind,
+    sibling-safe). Such an end is no vacancy end for that reader (MUTATION laydown_off_line: none is)."""
+    if own is None or "laydown_off_line" in MUT: return frozenset()
+    past = lambda a, b: a in S.anc[b]
+    out, lines = set(), {}
+    for w in S.Cs:
+        if w["kind"] != "withdraw": continue
+        t = S.by.get(w.get("target"))
+        room = CP.object_of(t, S.by) if t is not None and t["kind"] in ("offer", "accept") else None
+        if room is None or room not in S.by or not community(S.by, room): continue
+        if room not in lines: lines[room] = CP.own_line(S, own, room)
+        if not lines[room]: continue
+        hs = newest(tuple(n for n in w["names"] if n in S.by and change(S.by[n], room, S.by)), past) or (room,)
+        if any(CP.behind(S, dict(w, head=hs), c) for c in lines[room]): out.add(w["id"])
+    return frozenset(out)
+
+
+def held_pairs(S):
+    """The concurrent founders' amendments the rows S holds (CC 2.7.8's wait, read for the reader holding them): pairs
+    of concluded record versions seating founders over one room, neither in the other's past, with no record version
+    of that room naming both. (a, b, the keys the two seat, the room)."""
+    vs = [q for q in S.Cs if q["kind"] == "offer" and q.get("conf") == "group" and q.get("scope") == "record"
+          and q.get("obj") is not None]
+    seating = [q for q in vs if q.get("role") == "founder" and q.get("to")]
+    if len(seating) < 2: return frozenset()
+    past = lambda a, b: a in S.anc[b]
+    return frozenset((a["id"], b["id"], frozenset(a["to"]) | frozenset(b["to"]), a["obj"])
+                     for i, a in enumerate(seating) for b in seating[i + 1:]
+                     if a["obj"] == b["obj"] and not past(a["id"], b["id"]) and not past(b["id"], a["id"])
+                     and not any(q["obj"] == a["obj"] and past(a["id"], q["id"]) and past(b["id"], q["id"]) for q in vs))
+
+
 def reader_state(S, own, rule=None):
     """The rows concluded again for reader `own`: the changes void for it by its line (over the rows as concluded for
     every reader) are left out of every counting row's fold and heads, so a count that stands for this reader and not
@@ -2429,16 +2486,20 @@ def reader_state(S, own, rule=None):
     key = (frozenset(id(q) for q in S.rows), frozenset(S.C.items()), own, frozenset(MUT))
     got = _READER_MEMO.get(key)
     if got is not None: return got[1]
-    RV = reader_void(S, own)
-    if not RV:
+    RV = reader_void(S, own) if own is not None else frozenset()
+    # the concurrent founders' amendments the reader holds are read into every founders' count (C2)
+    PR = held_pairs(S) if "wait_reader_unread" not in MUT else frozenset()
+    # the seat ends behind its line are no vacancy ends for it (H4, the election)
+    RE = reader_ends(S, own)
+    if not RV and not PR and not RE:
         _READER_MEMO[key] = (tuple(S.rows), S)
         return S
-    _RVOID.append(frozenset(RV))
+    _RVOID.append(frozenset(RV)); _RPAIRS.append(PR); _RENDS.append(RE)
     try:
         R = CK.concluded(CK.kept(list(S.rows)), rule or (lambda r, P, past: seat_rule(r, P, past)))
     finally:
-        _RVOID.pop()
-    R._reader, R._rvoid = own, frozenset(RV)
+        _RVOID.pop(); _RPAIRS.pop(); _RENDS.pop()
+    R._reader, R._rvoid, R._paired = own, frozenset(RV), True
     _READER_MEMO[key] = (tuple(S.rows), R)
     return R
 
@@ -2893,6 +2954,13 @@ def _count_under(r, P, past, by, table=None):
             if pr is None or pr[2] != len(union) + len(new_r) or pr[1] < m: return False
             if not new_r <= voices(r, P): return False
             return met("P:quorum", len(voices(r, P) & vot), len(mem), m)
+        # C2 (the ruling on reader_state): for a reader holding two concurrent founders' amendments, a founders' count
+        # whose own past holds only one of them reads the founders common to the two: neither line's later count is
+        # counted over the keys one line alone seated (MUTATION wait_reader_unread: read over its own past only)
+        if "wait_reader_unread" not in MUT:
+            ids = {q["id"] for q in P}
+            held = frozenset(k for a, b, ks, o in _RPAIRS[-1] if o == r["obj"] and ((a in ids) != (b in ids)) for k in ks)
+            if held: mem, vot = mem - held, vot - held
         if "infra_m_recomputed" in MUT: r = dict(r, need=len(mem) // 2 + 1)   # MUTATION: M computed from the founders
         # stalled (fewer than M + 1 active founders): the founders' count admits and removes nothing
         if r.get("scope") != "record" and len(mem) < m + 1 and "infra_stalled_admits" not in MUT: return False
@@ -2971,8 +3039,15 @@ def end_of_ended(r, P, past, by):
     re-admitted key's second leaving ends nothing)."""
     seats = ends_of(r, by)
     if not seats or "end_of_ended_seat" in MUT: return False
+    # only an end IN FORCE is an earlier end: a counted removal rule 5 holds contested out (or a lone removal out of
+    # force) ended nothing, and leaves the seat to a later end (the ruling on S4; MUTATION end_of_contested_end)
+    out = []
+    def in_force(q):
+        if q["kind"] != "unseat" or "end_of_contested_end" in MUT: return True
+        if not out: out.append(seats_of(P).dropped)
+        return q["id"] not in out[0]
     return all(any((k, sc, o) in ends_of(q, by) and ("end_reseat_unread" in MUT or not seated_after(
-        P, past, o, k, q, lambda m: sc in seat_scopes(m, k))) for q in P) for k, sc, o in seats)
+        P, past, o, k, q, lambda m: sc in seat_scopes(m, k))) and in_force(q) for q in P) for k, sc, o in seats)
 
 
 def seat_rule(r, P, past, table=None, other=None):

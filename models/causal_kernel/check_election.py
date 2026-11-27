@@ -42,9 +42,11 @@ Planted breaks (seat.MUT), each of which must change a case's answer:
     electorate_folded       the ends of the vacancy read as one fold of heads, not each alone (C1: since the head rules
                             several heads are folded, so the persons common to the ends are taken per end)
     electorate_at_seating   the electorate read over the seating's whole past (a member admitted after the vacancy votes)
-    (leaver_voice, retired at the batch merge: a member whose leaving is in the seating's past a voice. Since the head
-    rules the members at a head are read with every withdrawal in the counting row's past (seat.members_at), so a
-    leaver is no member at the vacancy at all and the plant changes no answer)
+    leaver_voice            a member whose leaving is in the seating's set is a voice
+    electorate_reads_past   the electorate read with every withdrawal in the seating's past, named or not (C1, F1, F2:
+                            a leaving the seating does not name strikes nobody)
+    laydown_off_line        a lay-down behind a reader's line is still a vacancy end for it (H4, the Constitution's
+                            ruling: a lay-down is a roster change and sits on the reader's line)
     c2_holder_unread        a seating concludes beside a live duty holder (C2)
     c2_later_unread         a seating concludes with a later election's row in its past (C2)
     contains_unread         every concluded seating stands (C4)
@@ -833,15 +835,16 @@ LINE_CASES = [
      + [elect("ed", "D", IDS5 + ("wa", "ba2", "wb", "bb2", "wd", "bd2"), head=("g",))], None, MOD("D") + NOMOD("C")),
 ]
 PENDING = [
-    ("H2b, PENDING the head rules, for a reader that acknowledged aI: lm1, a lay-down, is a roster change held to the "
+    ("H2b, for a reader that acknowledged aI: lm1, a lay-down, is a roster change held to the "
      "newest heads (H4) and is behind that reader's line, so it is no vacancy end for it: D",
      H2HON + H2ATK + [R("akR", "ack", "R", ("aI",), room=OBJ, head=("aI",))], MOD("D") + NOMOD("B"), "H2b", "R"),
-    ("G3c, PENDING the head rules, for a reader that acknowledged aG: lm1 behind its line: the honest close holds: D",
+    ("G3c, for a reader that acknowledged aG: lm1 behind its line: the honest close holds: D",
      G3C + [R("akR", "ack", "R", ("aG",), room=OBJ, head=("aG",))], MOD("D") + NOMOD("B"), "G3c", "R"),
-    ("G3b, PENDING the head rules: B and C name A's backdated end in new ballots (electorate A, B, C); lm1, a "
+    ("G3b: B and C name A's backdated end in new ballots (electorate A, B, C); lm1, a "
      "resignation, is held to the newest heads (H4) and falls behind a reader's line that acknowledged aG",
-     N1R + [N1L2] + G3H + [G3ED, N1L1] + G3X + [G3B], MOD("D") + NOMOD("B"), "G3b"),
-    ("b5, PENDING the head rules: A and B remove C at the founding head (two of three there) and elect A: the removal "
+     N1R + [N1L2] + G3H + [G3ED, N1L1] + G3X + [G3B, R("akR", "ack", "R", ("aG",), room=OBJ, head=("aG",))],
+     MOD("D") + NOMOD("B"), "G3b", "R"),
+    ("b5: A and B remove C at the founding head (two of three there) and elect A: the removal "
      "names an old head, so it concludes nothing and C keeps the seat",
      B5 + [XC5, ballot("ba", "A", "A", ("xc",)), ballot("bb", "B", "A", ("xc",)), elect("ea", "A", ("ba", "bb"), vac=("xc",))],
      MOD("C") + NOMOD("A"), "b5"),
@@ -890,10 +893,27 @@ PENDING = [(c[0], at_newest(c[1], keep=("xc",) if c[3] == "b5" else ()), *c[2:])
 # C's seating, does not hold either: the line is sibling-safe (the ruling of 2026-11-27), and D's seating names the
 # head C's names, so it is not behind; reported here until it is ruled
 CASES += [(c[0], c[1], c[2], c[3]) for c in PENDING if c[3] == "b5"]
-PENDING = [c for c in PENDING if c[3] != "b5"]
-_SIB = [c for c in LINE_CASES if c[0].startswith("the line: D's late seating forked from the old head")]
-LINE_CASES = [c for c in LINE_CASES if c not in _SIB]
-PENDING += [(n, rows, asks, "the line, sibling-safe", own) for n, rows, own, asks in _SIB]
+# and, as ruled after it (2026-11-27), H2b, G3c and G3b: a lay-down is a roster change under H4, on the reader's line,
+# and one behind it is no vacancy end for that reader (seat.reader_ends); they are line cases now, each with its reader
+LINE_CASES += [(c[0], c[1], c[4], c[2]) for c in PENDING if c[3] in ("H2b", "G3c", "G3b")]
+PENDING = []
+# The line case of a seating forked at the old head, restated (the ruling of 2026-11-27): C's and D's seatings both name
+# g, so under the sibling-safe line they are siblings and neither is behind the other for a reader that acknowledged
+# C's; C4 decides (D's set contains C's), and D stands for that reader too. Its old expectation (D void for the
+# reader) assumed the line before it was sibling-safe; the cases on _SAFE show a seating behind a reader's line
+LINE_CASES = [(n.replace("is behind a reader that acknowledged C's seating: void for it, and C stands for it",
+                         "and a reader that acknowledged C's seating: siblings at g, neither behind (the sibling-safe "
+                         "line); C4 decides, D's set containing C's: D"), rows, own,
+               MOD("D") + NOMOD("C") if n.startswith("the line: D's late seating forked from the old head") else asks)
+              for n, rows, own, asks in LINE_CASES]
+# C1, F1, F2: the electorate and the leavings are read from the seating's named set only: E's leaving, in the past of
+# D's ballot and so of C's seating, which does not name it, strikes nobody (members_at's read of every withdrawal in a
+# counting row's past is the roster's, not the election's)
+_UNL = [G5, LM, ballot("ba", "A", "B"), ballot("bb", "B", "B"), ballot("bc", "C", "C"), ballot("be", "E", "C"),
+        leave("le", "E", "g", ("be",)), ballot("bd", "D", "C", ("lm", "le")), elect("ec", "C", ("ba", "bb", "bc", "bd", "be"))]
+CASES += [("F1: a leaving the seating does not name strikes nobody: E left in the past of D's ballot, and C's seating, "
+           "naming the ballots and not the leaving, reads E a voice: C three to two", at_newest(_UNL),
+           MOD("C") + [("E", "member", F)], "F1")]
 # the same line where the reader's acknowledged seating is placed at a later head than the fork's (C's seating at F's
 # admission, D's at the founding row): D's seating names a head strictly in the past of C's own heads, so it is
 # behind C's for that reader under the sibling-safe line
@@ -919,7 +939,8 @@ def planted(plant):
         ST.MUT.clear(); ST.MUT |= saved
 
 
-PLANTS = ("vacancy_founding", "vacancy_first_end", "electorate_folded", "electorate_at_seating", "c2_holder_unread",
+PLANTS = ("vacancy_founding", "vacancy_first_end", "electorate_folded", "electorate_at_seating", "leaver_voice",
+          "electorate_reads_past", "laydown_off_line", "c2_holder_unread",
           "c2_later_unread", "contains_unread", "twin_withdrawal_unread", "close_unread", "receipt_standing_unread",
           "say_any_receipt", "close_leavers_kept", "closed_rivals_count", "election_id_any", "set_any_signer",
           "ballot_nonmember_ranked", "ballot_ranks_unbounded", "seating_any_signer", "twin_ids_apart",

@@ -116,11 +116,12 @@ fn seat_scenarios() {
         }
         for (reader, rd) in a.at("readers").obj() {
             let own = if reader == "-" { None } else { Some(reader.clone()) };
-            // a reader's roster is read over the rows as they conclude for it (the ruling of 2026-11-27)
-            let mine = own.as_ref().map(|k| ciris_kernel::seat::for_reader(&c, &w.law, &spec, k));
-            let q = match (&own, &mine) {
-                (Some(k), Some((rc, rv))) => Seats::for_reader(rc, &w.law, &spec, k, rv),
-                _ => Seats::new(&c, &w.law, &spec, None),
+            // a reader's roster is read over the rows as they conclude for it (the ruling of 2026-11-27); a reader with
+            // no row holds the rows too (the concurrent founders' amendments it holds, C2)
+            let (rc, rv) = ciris_kernel::seat::for_reader(&c, &w.law, &spec, own.as_ref());
+            let q = match &own {
+                Some(k) => Seats::for_reader(&rc, &w.law, &spec, k, &rv),
+                None => Seats::new(&rc, &w.law, &spec, None),
             };
             let got: BTreeSet<J> = q
                 .recs()
@@ -158,7 +159,8 @@ fn seat_scenarios() {
         }
         // the standing a scenario asks for by name (check_duty_seats.py's cases)
         if let Some(asks) = sc.get("stands") {
-            let q = Seats::new(&c, &w.law, &spec, None);
+            let (rc, _) = ciris_kernel::seat::for_reader(&c, &w.law, &spec, None);
+            let q = Seats::new(&rc, &w.law, &spec, None);
             for ask in asks.arr() {
                 let (k, s, o, want) = (ask.arr()[0].s(), ask.arr()[1].s(), ask.arr()[2].s(), ask.arr()[3].b());
                 let got = q.stands(&k.to_string(), s, &obj_named(&rows, o), None);

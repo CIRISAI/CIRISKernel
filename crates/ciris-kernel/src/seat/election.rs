@@ -143,6 +143,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             if !touches || !g.in_past(ei, w) || named.is_some_and(|n| !n.contains(wr.id())) {
                 continue;
             }
+            // a lay-down behind the reader's line is no vacancy end for it (H4)
+            if self.memo.rends.borrow().contains(wr.id()) {
+                continue;
+            }
             let pre: Vec<usize> = p.iter().copied().filter(|&q| g.in_past(q, w)).collect();
             let before = self.live(&pre);
             let mut post = pre.clone();
@@ -163,12 +167,17 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         let Some(v) = self.vacancy(ei, p, named) else { return BTreeSet::new() };
         let Some(obj) = self.row(si).obj() else { return BTreeSet::new() };
         let heads: Vec<R::Id> = v.iter().map(|&h| self.row(h).id().clone()).collect();
-        let past = Past::new(&self.c.g, si, p);
         // the persons at EVERY end, each end read alone: several heads are folded (the head rules), so the persons
         // common to the ends are taken here
         let mut out: Option<BTreeSet<R::Key>> = None;
         for h in heads.chunks(1) {
-            let at = persons_at_with(&past, self.law, self.spec, &obj, h, "member", Some(self.memo));
+            // each end read over its own past only (C1, F1, F2: a withdrawal in the seating's past that the seating
+            // does not name strikes nobody, though members_at reads every withdrawal of a counting row's past for a
+            // roster count)
+            let Some(e) = self.c.g.idx(&h[0]) else { continue };
+            let pe: Vec<usize> = p.iter().copied().filter(|&q| q == e || self.c.g.in_past(q, e)).collect();
+            let past_e = Past::new(&self.c.g, si, &pe);
+            let at = persons_at_with(&past_e, self.law, self.spec, &obj, h, "member", Some(self.memo));
             out = Some(match out {
                 None => at,
                 Some(acc) => acc.intersection(&at).cloned().collect(),
