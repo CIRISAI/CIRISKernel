@@ -456,7 +456,7 @@ def recovery_verdict(r, P, past):
     pr = infrastructure_rule(rec.get("consensus_protocol")) if rec is not None else None
     if pr is None: return (False, "not_a_recovery")
     if "recovery_more_unread" not in MUT and (len(r.get("to", ())) != 1 or r.get("consensus_protocol") is not None
-                                               or r.get("seat") is not None or r.get("cosigners")):
+                                               or r.get("cosigners")):
         return (False, "recovery_changes_more")
     founders = members_at(P, past, r["obj"], r.get("head", ()), "founder") - count_left(P, past, r["obj"], "founder")
     if len(founders) >= pr[1] + 1 and "recovery_stalled_unread" not in MUT: return (False, "not_stalled")

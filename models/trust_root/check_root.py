@@ -286,6 +286,45 @@ def run():
     return bad
 
 
+def fixture(with_refs):
+    """The cases as a fixture for the crate (tests/root.rs): every bundle's count, the void, and the reader's heads,
+    holders, seats and grants, as the model gives them; and the stalled recoveries with their seat rows."""
+    import json
+    def benc(b):
+        return {"id": b["id"], "family": b["family"], "version": b["version"], "prev": list(b["prev"]),
+                "holders": list(b["holders"]), "seats": list(b["seats"]),
+                "charter": json.dumps(b["charter"], sort_keys=True), "duties": sorted(RT.duties(b["charter"])),
+                "iat": b["iat"], "recovery": [[k, v] for k, v in sorted(b["recovery"].items())],
+                "recovers": list(b["recovers"]) if b.get("recovers") else None,
+                "stmts": [[k, i] for k, i in b["stmts"]]}
+    def genc(g):
+        return {"id": g["id"], "bundle": g["bundle"], "to": g["to"], "scope": g["scope"], "signers": list(g["signers"]),
+                "identity": list(g["identity"]), "duty": g["duty"]}
+    def renc(rd):
+        if rd is None: return None
+        return {"anchor": rd["anchor"], "thumbs": sorted(rd["thumbs"]) if rd["thumbs"] is not None else None,
+                "acks": sorted(rd["acks"])}
+    cases = []
+    for rule, name, bs, rv, gs, rd, _ in CASES:
+        R = RT.Root(bs, rv, gs)
+        f = R.in_force(rd)
+        hs = R.heads(rd)
+        cases.append({"name": rule + ": " + name, "bundles": [benc(b) for b in bs],
+                      "revokes": [{"key": r["key"], "bound": r["bound"]} for r in rv], "grants": [genc(g) for g in gs],
+                      "reader": renc(rd), "concluded": {b["id"]: R.counted(b["id"])[0] for b in bs},
+                      "void": sorted(R.void()), "heads": list(hs) if hs is not None else None,
+                      "holders": sorted(f[0]) if f else None, "seats": sorted(f[1]) if f else None,
+                      "grant": {g["id"]: list(R.grant_in_force(g["id"], rd)) for g in gs},
+                      "row": {g["id"]: R.grant_row(g["id"]) for g in gs}})
+    rec = []
+    for name, rows, bs, gs, rd, c, why, f4 in RECOVERY:
+        refs = {}
+        rec.append({"name": name, "rows": with_refs(rows, refs), "refs": refs,
+                    "bundles": [benc(b) for b in bs] if bs is not None else None, "grants": [genc(g) for g in gs],
+                    "reader": renc(rd), "concluded": c, "reason": why, "f4": f4})
+    return {"cases": cases, "recovery": rec}
+
+
 def main():
     bad = run() + run_recovery()
     for b in bad: print(b)

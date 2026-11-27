@@ -28,6 +28,7 @@
 //! | [`key_end`] | 5 (two notions of time) | a key's own end and the rows that lapse |
 //! | [`trust`] | 5 (stands), CC 4.4.3.34 | the reader's trust walk over acceptance edges |
 //! | [`ranked`] | 5 (the door's parameters) | the ranked count, with and without a declared order |
+//! | [`root`] | CC 3.2 (T6), CC 2.7.8 | the trust root's lineage: its count, the fold at tips, bundles in force, grants |
 #![no_std]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -47,6 +48,7 @@ pub mod layers;
 pub mod line;
 pub mod ops;
 pub mod ranked;
+pub mod root;
 pub mod seat;
 pub mod standing;
 pub mod trust;
