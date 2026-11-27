@@ -86,6 +86,16 @@ RVN = ST.unseat("rvn", NODE, NODE, "registered", NODE, "self", ("recn", "ob"))  
 OB2T = ST.offer("obt", NODE, ("rk:b0", "rk:a0"), "owner", NODE, "self", ("g",), cosigners=("rk:a0",))
 RECA = ST.offer("reca", "rk:a0", "rk:a0", "registered", "rk:a0", "self", ("g",))
 RVA = ST.unseat("rva", "rk:a0", "rk:a0", "registered", "rk:a0", "self", ("reca", "ob"))  # the owning key revokes itself
+# the review r78k's rows (RV-A, RV-B)
+OBD = ST.offer("obd", NODE, "rk:a0", "owner", NODE, "self", ("g",))          # a duplicate binding rk:a0 never signed
+OBS = ST.offer("obs", NODE, "rk:a0", "owner", NODE, "self", ("g",), cosigners=("rk:a0",))   # a signed duplicate
+OBA = ST.offer("oba", NODE, "rk:b0", "owner", NODE, "self", ("g",))          # rk:b0 owns the node by its acceptance
+ACC = ST.accept("acc", "rk:b0", "oba")
+M2 = R("m2", "note", "vC", ("acc",))
+WACC = ST.withdraw("wacc", "rk:b0", "acc", ("acc", "m2"))                    # rk:b0 withdraws its acceptance, at head m2
+WOB_P = ST.withdraw("wobp", "rk:a0", "ob", ("ob",))                          # the binding withdrawn, in the past
+OBF = ST.offer("obf", NODE, "rk:a0", "owner", NODE, "self", ("wobp",), cosigners=("rk:a0",))  # a fresh binding after it
+OBP = ST.offer("obp", "rk:a1", "rk:b0", "owner", "rk:a1", "self", ("g",), cosigners=("rk:b0",))  # a person's key "owned"
 NODE_BASE = VA + VB + VC + [GR]
 
 
@@ -153,10 +163,36 @@ NODE_CASES = [
     ("two owner-bindings named", [OB, OB2], node_row("n11", ["ob", "ob2"], [HA]), "refused",
      "room_row_owner_binding_malformed"),
     ("no voice head named", [OB], node_row("n12", ["ob"], []), "refused", "room_row_voice_head_malformed"),
+    # the review r78k: the named binding seats its owner by the owner's own signature (RV-A 1), and rule 4 reads every
+    # end of the owner's seat over the node key, not only the named row's (RV-A 2)
+    ("RV-A B1: an unsigned duplicate binding beside the signed one, the signed one withdrawn concurrently, the row at "
+     "the withdrawal's head under the duplicate: the duplicate seats no owner", [OB, OBD, M1, WOB_C],
+     node_row("n26", ["obd"], [HA], ("m1",)), "concludes_nothing", None),
+    ("RV-A B1': the same with the withdrawal in the row's past", [OB, OBD, M1, WOB_C],
+     node_row("n27", ["obd"], [HA], ("wob",)), "concludes_nothing", None),
+    ("RV-A B1'': the unsigned duplicate beside the signed one, both in the row's past, no end: the duplicate seats no "
+     "owner", [OB, OBD],
+     node_row("n28", ["obd"], [HA], ("ob",)), "concludes_nothing", None),
+    ("RV-A: a signed duplicate, the first binding withdrawn concurrently, the row at its head under the duplicate: the "
+     "owner's seat over the node key has ended", [OB, OBS, M1, WOB_C], node_row("n29", ["obs"], [HA], ("m1",)),
+     "concludes_nothing", None),
+    ("RV-A: the owner seat held by the owner's own acceptance of the node's offer", [OBA, ACC],
+     node_row("n30", ["oba"], [HB], ("acc",)), "admitted", None),
+    ("RV-A B4: the owner's acceptance withdrawn concurrently, the row at the withdrawal's head: out of force", [OBA, ACC, M2, WACC],
+     node_row("n31", ["oba"], [HB], ("m2",)), "concludes_nothing", None),
+    ("RV-A B4': the owner's acceptance withdrawn in the row's past", [OBA, ACC, M2, WACC],
+     node_row("n32", ["oba"], [HB], ("wacc",)), "concludes_nothing", None),
+    ("RV-A B4'': the acceptance withdrawn concurrently, the row before its head: it counts at its own head", [OBA, ACC, M2, WACC],
+     node_row("n33", ["oba"], [HB], ("acc",)), "admitted", None),
+    ("an end before the binding ends nothing of it: the owner withdrew, then bound the node again", [OB, WOB_P, OBF],
+     node_row("n34", ["obf"], [HA], ("obf",)), "admitted", None),
+    ("RV-B B2: a voice's room key (its record says person) binds an owner as a node would: no node's row", [OBP],
+     node_row("n35", ["obp"], [HB], kid="rk:a1"), "concludes_nothing", None),
 ]
 NODE_PLANTS = ("node_rule4_unread", "node_binding_end_unread", "node_two_owners_kept", "node_owner_kind_unread",
                "node_owner_eviction_unread", "node_voice_removal_unread", "node_owner_seat_unread",
-               "node_owner_revocation_unread", "node_key_end_unread", "node_record_unread")
+               "node_owner_revocation_unread", "node_key_end_unread", "node_record_unread",
+               "node_binding_signature_unread", "node_named_ends_only", "node_signer_kind_unread")
 
 
 def row(i, voice, kid, voice_refs, room=ROOM):
