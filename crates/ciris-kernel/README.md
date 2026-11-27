@@ -69,7 +69,7 @@ unless marked as the parent's.
 | `head::View` (`counts_at`, `carried`, `settled`, `missing`, `receipts`, `window`, `answers`) | 3, final by acknowledgement; 6 rule 6, one say | `ack_blocking_quorum`, `say_settled_final`, `countsAt_final`, `countsAt_local`, `symmetric_say_forced`, `say4_closed` (Settled) | `purge.View` |
 | `head::purge` | 3a, checkpoint and purge | `checkpoint_conclusions`, `checkpoint_resume`, `pruned_view_closed`, `pruned_view_answers` (sufficient); `count_view_not_closed` (the bare answer is not enough) | `purge.purge` |
 | `key_end::well_formed`, `conclude_rule`, `live`, `ended`, `retained`, `successor` | 5, two notions of time; a key's own end | `live_own_rows`, `live_perm`, `ended_not_live`, `ended_stays_ended` (KeyEnd) | `key_end.WF`, `RULE`, `live`, `ended`, `retained`, `successor` |
-| `trust::reaches`, `honours` | 5, **stands**: "the remaining depth is the lesser …, the classes intersect, and a cycle is visited once" (TEXT.md; CC 2.7.5) | `TrustSet.lean` (parent repository): `reaches_mono_budget`, `verdict_is_the_capped_walk`, the worked world | none in Python; compared with the Lean `walk` transcribed |
+| `trust::reaches` (a licence: `trust_rows::read_licence`, from rows) | 5, **stands**: "the remaining depth is the lesser …, the classes intersect, and a cycle is visited once" (TEXT.md; CC 2.7.5) | `TrustSet.lean` (parent repository): `reaches_mono_budget`, `verdict_is_the_capped_walk`, the worked world | none in Python; compared with the Lean `walk` transcribed |
 | `ranked::ranked` | 5, "an election declares no order, so its door seats nobody on a tie for weakest" | `Election.free_perm`, `free_agrees` (parent repository) | `reexpress.ranked` |
 
 ## Conformance

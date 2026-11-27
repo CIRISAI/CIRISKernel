@@ -35,6 +35,9 @@ Sources (all under models/):
     charter   causal_kernel/check_charter.py: an affiliation's charter (the licence classes its record in force
               declares) and whether a reader honours a licence. tests/charter.rs replays it through
               charter::declared and charter::read_licence.
+    trust_rows causal_kernel/check_trust_rows.py: the reader's walk from acceptance edge rows and the issuer's
+              standing, under the pending rulings and a stand-in. tests/trust_rows.rs replays it through
+              trust_rows::read_licence and trust_rows::refusal.
 """
 import base64
 import hashlib
@@ -285,14 +288,15 @@ def key_ref(k):
     return "urn:ietf:params:oauth:ckt:sha-256:" + d
 
 
-def with_refs(rows, table):
+def with_refs(rows, table, fields=REF_FIELDS):
     """The rows with every object written as a reference, row or key by its form; `table` collects the names
-    the references stand for, so the Rust side can turn a reference back into the model's own name."""
+    the references stand for, so the Rust side can turn a reference back into the model's own name. `fields`: the
+    fields that hold an object (REF_FIELDS, and a fixture's own)."""
     ids = {r["id"] for r in rows}
     out = []
     for r in rows:
         e = row_enc(r)
-        for f in REF_FIELDS:
+        for f in fields:
             v = r.get(f)
             if isinstance(v, str):
                 ref = row_ref(v) if v in ids else key_ref(v)
@@ -791,6 +795,8 @@ def main():
     dump("conferral_two.json", C2.fixture(), out)
     import check_charter as CHC
     dump("charter.json", CHC.fixture(with_refs), out)
+    import check_trust_rows as CTR
+    dump("trust_rows.json", CTR.fixture(lambda rows, refs: with_refs(rows, refs, REF_FIELDS + CTR.REF_FIELDS)), out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():

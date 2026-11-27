@@ -4,10 +4,10 @@
 //! countersign cases (a one-seat affiliation's removal) are in the `seat` fixture, replayed by `tests/seat.rs`.
 
 mod common;
-use ciris_kernel::charter::{declared, read_licence};
+use ciris_kernel::charter::{charters, declared};
 use ciris_kernel::layers::{conclude, kept};
 use ciris_kernel::seat::{for_reader, seat_rule, Obj, Seats};
-use ciris_kernel::trust::{Accepts, Charters};
+use ciris_kernel::trust::{reaches, Accepts, Charters, HOP_CAP};
 use common::{fixture, law_of, report, rows_with_refs, DictCut, TRow, J};
 use std::collections::BTreeMap;
 
@@ -99,9 +99,15 @@ fn charter_replay() {
             let cc = conclude(kept(&rs, |_| true), |p| seat_rule(p, &law, &spec, &|_| true), None);
             let (rc, _) = for_reader(&cc, &law, &spec, None);
             let q = Seats::new(&rc, &law, &spec, None);
-            let got = read_licence(&q, &edges, &reader, &auth, &cls, &supplied, now.as_ref())
-                .err()
-                .map(|u| u.word().to_string());
+            // the model's reading over given edges (`charter.read_licence`): the charter, then the walk. The crate's
+            // one public path from rows is trust_rows::read_licence (tests/trust_rows.rs)
+            let got = if !charters(&q, &supplied, now.as_ref()).declares(&auth, &cls) {
+                Some("licence_class_not_trusted".to_string())
+            } else if !reaches(&edges, &reader, &cls, HOP_CAP, &auth) {
+                Some("authority_not_reached".to_string())
+            } else {
+                None
+            };
             // the licence row is admitted, whatever the reading
             let lic = cc.g.idx(&c.at("licence").s().to_string()).expect("the licence row is kept");
             cases += 2;

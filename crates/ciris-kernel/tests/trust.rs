@@ -3,7 +3,7 @@
 //! There is no Python model of this walk, so the reference here is the Lean definition itself.
 
 mod common;
-use ciris_kernel::trust::{honours, reaches, Accepts, Charters, HOP_CAP};
+use ciris_kernel::trust::{reaches, Accepts, Charters, HOP_CAP};
 use common::report;
 
 type E = Accepts<u8, u8>;
@@ -35,6 +35,12 @@ const LEGAL: u8 = 2;
 fn e(src: u8, dst: u8, classes: &[u8], depth: u32) -> E {
     // a list the Lean world writes empty is `trust_classes` absent: every class
     Accepts { src, dst, classes: (!classes.is_empty()).then(|| classes.to_vec()), depth }
+}
+
+/// `TrustSet.honours`: the walk reaches the authority for the class, and its charter declares the class (the crate
+/// answers it from rows only, `trust_rows::read_licence`; here it is the Lean statement over given edges).
+fn honours(edges: &[E], reader: &u8, ch: &Charters<u8, u8>, auth: &u8, cls: &u8) -> bool {
+    ch.declares(auth, cls) && reaches(edges, reader, cls, HOP_CAP, auth)
 }
 
 fn charter0() -> Charters<u8, u8> {

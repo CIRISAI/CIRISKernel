@@ -37,14 +37,41 @@ role ends with any leaving. `false` for any other object and at the founding row
 `check_acts.py` (FOUNDERS), recorded in the `seat` fixture (`founder`); plants `founder_at_tips` and
 `founder_leavings_unread`, and a crate plant.
 
+**The reader's trust walk from rows, and the issuer's standing** (CC 4.4.3.34, CC 4.5.4, with the Constitution's
+rulings (a) to (d) of 2026-11-27; `trust_rows.py`, `check_trust_rows.py`; fixture `trust_rows.json`). Whether a reader
+honours a licence is read from rows alone: `trust_rows::read_licence` is the only public path, and no caller supplies
+edges. **BREAKING**: `trust::honours`, `trust::EdgeIndex::honours` and `charter::read_licence` (with `Untrusted`) are
+removed; `trust::reaches` and `EdgeIndex::reaches` stay as the walk. New: the module `trust_rows` (`TrustRow`,
+`edges_of`, `refusal`, `standing`, `read_licence`, `Unhonoured`, `BEARS`, `DEPTH_OUT_OF_RANGE`, `NOT_AUTHORITY`,
+`LINK_WITHDRAWN`), `seat::Act::Accept`, `seat::ScopeClass::TrustEdge`, `Seats::spec`.
+- An acceptance edge is a `delegates_to` row bearing `trust:accepts:v1`, with `trust_classes` and `trust_depth`, its
+  owner its signer or the authority it speaks for (`on_behalf`).
+- (a) An edge is its owner's where its signatures are the owner's authority set over the edge's own past: for a person,
+  the key or a live key of its roster; for a community, CC 4.5.4's `authority_set(C)`, counted as `duty_confer` (a
+  strict majority of all its live duty holders, never fewer than two where there are two or more, or a lone holder),
+  by the acts row `accept / trust_edge / community`, which the model holds in
+  `seat.PENDING_ACTS` until rc23-next has it.
+- (c) `trust_depth` absent reads as 0; 0 to 5 is admitted; any other is refused (`trust_accepts_depth_out_of_range`).
+- The four readings ruled: a community's own licence is counted under its DECLARED `consensus_protocol`
+  (`seat::declared_count`); there is no members' fallback, and a community with no live duty holder is locked
+  (CC 4.5.4 (v): no onward edge, no license seat conferred, its quorum's licence `licensure_authority_locked`); any
+  live key of a person's roster is the person; a license seat over a community is conferred and
+  withdrawn by its duty holders' count (`seat_confer` / `seat_withdraw` of scope `license`, `ScopeClass::License`,
+  rows held in `seat.PENDING_ACTS`), and its holder is no duty holder.
+- (b) A licence is the authority's act where, over its own past, its emitter's key is the authority, or holds a
+  `license` seat over it (a delegation chain resolving to it), or, for a community, the licence is cosigned by its
+  quorum under its declared protocol. Any other is testimony: `licensure_delegator_not_authority`.
+- (d) By ancestry: a withdrawal of a link in the issuance's past stops it; one concurrent with it holds it out of force
+  for a reader holding the withdrawal (`licensure_link_withdrawn`); one after it reaches nothing back. An edge is ended
+  by a withdrawal its owner's authority set signs; the reader's own removal of its edge revokes at once.
+
 **Charter coverage for licensing authorities** (CC 3.4.7; CC 4.4.3.12, 4.4.3.34, with the Constitution's answers of
 2026-11-27), both languages, with cases and planted breaks (`charter.py`, `check_charter.py`; fixture
 `charter.json`). Whether an authority's charter declares a class is read from rows, not asked of the caller.
-**BREAKING**: `trust::honours` and `trust::EdgeIndex::honours` take a `&trust::Charters` in place of the
-`charter_declares` callback; `trust::Accepts::classes` is `Option<Vec<C>>` (`None`: `trust_classes` absent); the
+**BREAKING**: `trust::Accepts::classes` is `Option<Vec<C>>` (`None`: `trust_classes` absent); the
 walk's class bound is `Ord`. New: `trust::Charters` (per authority, the classes declared; `meet` intersects a charter
 supplied from elsewhere, such as the trust root's scope), `trust::Accepts::refusal` and `trust::CLASSES_MALFORMED`,
-the module `charter` (`declared`, `charters`, `read_licence`, `Untrusted`, `CHARTER_KINDS`; each takes the caller's
+the module `charter` (`declared`, `charters`, `CHARTER_KINDS`; each takes the caller's
 instant, `R: Dated`), `seat::affiliation_removal`, `SeatRow::licence_classes` ((class, legal_weight) pairs) and
 `SeatRow::declared_cohort` (defaults `None`), and `Seats::law`.
 - An affiliation is a community record whose `declared_cohort` is `affiliations` (`CommunityKind::Affiliation`).
