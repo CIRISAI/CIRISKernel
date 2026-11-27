@@ -437,9 +437,10 @@ class root_view:
 def recovery_verdict(r, P, past):
     """A stalled infrastructure room's recovery widening (CC 3.2), judged against the trust root this node reads:
     (True, None), or (False, reason). The six checks:
-        1  the grant it names (`bundle`) names the bundle in force for this node and is counted at a strict majority
-           of that bundle's holders (folded, or common where charters differ) (MUTATION recovery_inforce_unread: any
-           grant counted as a row);
+        1  the grant it names (`bundle`) resolves for this node (root.grant_in_force): it exists, counted at a strict
+           majority of the live holders of the bundle it names under a charter carrying its duty, that bundle is in
+           this node's lineage, and the scope in force here still carries the duty (MUTATION
+           recovery_inforce_unread: any grant that exists as a row);
         2  the grant's `scope` names this room (MUTATION recovery_scope_unread);
         3  the key's identity type includes `user` and excludes `node` (MUTATION recovery_identity_unread);
         4  the widening is signed by the key the grant names (MUTATION recovery_signer_unread);
