@@ -26,7 +26,8 @@ Planted breaks, each of which must change a case's answer:
 
 Root chains (ROOT_CASES, cross-object rest 5): the grantee's seat from a root grant (conf `root`, `bundle` the grant)
 stands while the grant resolves at the reader of the root view; the onward gate reads the charter in force there
-(Root.sub_delegation), and closes with no root read. Plants root_gate_unread, root_seat_unchecked, root_seat_any_duty.
+(Root.sub_delegation), and closes with no root read. Plants root_gate_unread, root_seat_unchecked, root_seat_any_duty, root_through_lone_gate (the root seat read by the
+lone-holder gate, not as the one gate's other path).
 
 Not here: the term of an edge that carries sub-delegation (a shape rule of one row, and the caller's); an act
 done under the chain after an edge ends (conferral_end.py, one call per edge); the aggregate-weight cap that
@@ -110,6 +111,8 @@ sys.path.insert(0, os.path.join(HERE, "..", "trust_root"))
 import root as RT  # noqa: E402
 
 ROOM = ST.found("room", "p1", ("p1", "p2"), cosigners=("p2",))
+ROOMD = ST.found("room", "p1", ("p1", "p2", "uA"), {"moderate": ("p1",)}, cosigners=("p2", "uA"),
+                 duties=("infra",))                              # infra declared; uA a member (a duty seat stands on one)
 RS = ST.offer("rs", "uA", "uA", "infra", "room", "root", ("room",), bundle="gA", sub=True)   # the grantee's root seat
 RD1 = ST.offer("rd1", "uA", "B", "infra:detect", "room", "seat", ("rs",), under="rs", cosigners=("B",))
 CSUB = {"name": "c0s", "duties": ("infra",), "sub_delegation": ("infra",)}
@@ -133,10 +136,13 @@ ROOT_CASES = [
      [("uA", "infra", F), ("B", "infra:detect", F)]),
     ("a root seat of another duty than the grant's seats nothing",
      [dict(B0R, charter=CSUB)], ANCHOR, [ROOM, dict(RS, scope="other")], [("uA", "other", F)]),
+    ("a root grant's seat of a duty the room's record declares (uA a member): not the lone holder's act, the one gate's other "
+     "path (a resolving grant whose scope carries the duty); it stands",
+     [dict(B0R, charter=CSUB)], ANCHOR, [ROOMD, RS], [("uA", "infra", T)]),
     ("a root seat signed by a key the grant does not name seats nothing",
      [dict(B0R, charter=CSUB)], ANCHOR, [ROOM, dict(RS, signer="X", to=("X",))], [("X", "infra", F)]),
 ]
-ROOT_PLANTS = ("root_gate_unread", "root_seat_unchecked", "root_seat_any_duty")
+ROOT_PLANTS = ("root_gate_unread", "root_seat_unchecked", "root_seat_any_duty", "root_through_lone_gate")
 
 
 def root_answers(case, plant=None, order=None):

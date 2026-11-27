@@ -10,9 +10,11 @@ a grant the holders' growth has let lapse ends it, and a reader the grant does n
 root read it seats nothing. The onward gate of a chain from it reads the charter in force at that reader
 (`RootView::sub_delegation`) and is closed with no root read; the row's own `sub` mark is not read for such a chain
 (chains from any other seat keep it). **BREAKING**: `Conf::Root` (a new variant); `RootView::seat_grant` (new, with a
-default); `RootGrant::Word` must be `AsRef<str>`. Seven cases in `check_delegation.py` (ROOT_CASES), in a new fixture
-`root_chains.json` replayed by `tests/root.rs`; plants `root_gate_unread`, `root_seat_unchecked`,
-`root_seat_any_duty`, with crate twins.
+default); `RootGrant::Word` must be `AsRef<str>`. The root seat is read by THE ONE authority gate
+(`authority_gate`, the charter lane's): a seat of a group's authority is its authority body's act, and the one
+other path is a resolving root grant whose scope carries the duty. Eight cases in `check_delegation.py`
+(ROOT_CASES; a declared duty among them), in a new fixture `root_chains.json` replayed by `tests/root.rs`; plants
+`root_gate_unread`, `root_seat_unchecked`, `root_seat_any_duty`, `root_through_lone_gate`, with crate twins.
 
 **A duty holder's lone acts against a key or content, and their ways back** (CC 4.5.4 (iii), CC 4.5.5, CC 3.1.9.2,
 CC 4.4.3.12; the Constitution's 2b, with its registered family names). Three acts: a quarantine marker

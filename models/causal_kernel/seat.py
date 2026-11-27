@@ -1286,6 +1286,9 @@ def authority_gate(r, P, by):
     affiliation): its signer alone is the body. So a locked or dissolved group (no body) signs nothing, and a founding
     signer's own offer does not revive it. Any other offer: True."""
     obj, sc = r.get("obj"), r.get("scope")
+    # the one other path to a seat of a group's authority: a root grant's seat (conf `root`), only where the grant
+    # resolves at the reader of the root view, its scope carrying the duty, for this room and this key (root_seat_rule)
+    if r.get("conf") == "root" and "root_through_lone_gate" not in MUT: return root_seat_rule(r)   # MUTATION: none
     if duty_seat(by, r) or ("own_duty_ungated" not in MUT and community(by, obj) and is_duty(sc, declared(by, obj))):
         return _lone(r, P, by)
     if sc in (OFFICER, "license") and founding_row(by, obj) and \
@@ -3566,7 +3569,8 @@ def seat_rule(r, P, past, table=None, other=None):
         # a single key's own offer of a duty (or one under its seat) concludes only where that key is the lone person
         # duty holder: "by a strict majority of the duty holders, or by the lone holder with the new holder's
         # acceptance" (CC 4.5.4), in every community (CIRISConstitution#241; MUTATION own_duty_ungated: duty rooms only)
-        if k == "offer" and conf in ("self", "seat") and r["obj"] != r["id"] and not authority_gate(r, P, by): return False
+        if k == "offer" and conf in ("self", "seat", "root") and r["obj"] != r["id"] and not authority_gate(r, P, by):
+            return False
         # H2: a counted row is counted over its own object; one stating another (`over`) concludes nothing (MUTATION
         # over_allowed). Its heads are its own object's counted changes (H1, newer_head_in_past), so a head of another
         # object's line is refused there
@@ -3574,7 +3578,7 @@ def seat_rule(r, P, past, table=None, other=None):
         if r["obj"] != r["id"] and not roster_placement(r, by): return False   # RK1, RK2: who places a roster seat
         if k == "offer" and conf == "group" and not duty_gate(r, by): return False   # CC 4.5.4: who places a duty
         if conf == "root":
-            return k == "offer" and root_seat_rule(r)
+            return k == "offer"                              # read by the one gate (authority_gate: root_seat_rule)
         if conf == "self":
             if r["obj"] == r["id"]: return k == "offer"          # a founding row is its own object
             # over infrastructure a founder seat comes only by a founders' amendment: an own offer of one seats nothing

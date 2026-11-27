@@ -5298,7 +5298,7 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                 })
             };
             if is_offer
-                && matches!(conf, Some(Conf::Own) | Some(Conf::Seat))
+                && matches!(conf, Some(Conf::Own) | Some(Conf::Seat) | Some(Conf::Root))
                 && !authority_gate(law, spec, r, p, &by, cache, duty_seat(law, &by, r) || own_duty())
             {
                 return false;
@@ -5321,7 +5321,7 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     own_keys(&by, &obj).contains(r.signer())
                 }
                 // the seat a root grant gives: its key, its room, its duty, while the grant resolves here
-                Some(Conf::Root) => is_offer && root_seat(spec, r, &obj),
+                Some(Conf::Root) => is_offer, // read by the one gate (authority_gate: root_seat)
                 Some(Conf::Seat) => {
                     if !is_offer {
                         return ender(law, spec, r, p, &by);
@@ -5741,7 +5741,9 @@ fn room_key_ended<R: SeatRow, S: CutSpec<R>>(
 /// its signer alone is that body, whether or not the founding row names holders. A duty seat (`duty`): the lone duty
 /// holder ([`lone`], CC 4.5.4 (iv)). An officer seat ([`OFFICER`]) or a license seat over a community record (a
 /// community, an infrastructure community, an affiliation): its signer alone is the body. So a locked or dissolved
-/// group (no body) signs nothing, and a founding signer's own offer does not revive it. Any other offer: true.
+/// group (no body) signs nothing, and a founding signer's own offer does not revive it. The one other path to a
+/// seat of a group's authority: a root grant's seat (`Conf::Root`), only where the grant resolves at this node, its
+/// scope carrying the duty, for this room and this key ([`root_seat`]). Any other offer: true.
 fn authority_gate<R: SeatRow, S: CutSpec<R>>(
     law: &SeatLaw,
     spec: &S,
@@ -5751,6 +5753,9 @@ fn authority_gate<R: SeatRow, S: CutSpec<R>>(
     cache: Option<&MembersAt<R>>,
     duty: bool,
 ) -> bool {
+    if r.conf() == Some(Conf::Root) {
+        return r.obj().is_some_and(|obj| root_seat(spec, r, &obj));
+    }
     if duty {
         return lone(law, spec, r, p, cache);
     }
