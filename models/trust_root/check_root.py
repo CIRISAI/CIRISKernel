@@ -365,10 +365,9 @@ XB1 = nxt("b1", "b0", H3, ("h1", "h2", "h3"))
 XB2 = nxt("b2", "b1", H3 + ("h4",), ("h1", "h2", "h3"), version=2)
 XRC = nxt("rx", "b0", ("h1", "h2", "h3z"), ("r:h3",), recovers=("h3", "h3z"), recovery={"h1": "r:h1", "h2": "r:h2", "h3z": "r:h3z"})
 CASES += [
-    ("attack", "RJ0: a removed holder's recovery at b0 (h1, removed at b2, recovers to h1x) concludes, a sibling of b1, "
-               "which h1 signed: no bundle it is behind, so S'' does not reach it (the statement residual's bundle form); "
-               "a reader at b2 holds b2", RL + [RA], (), (), RD(anchor="b0", acks=("b2",)),
-     {"concluded": {"ra": T}, "void": set(), "heads": ("b2",)}),
+    ("attack", "RJ0: a removed holder's recovery at b0 (h1, removed at b2, recovers to h1x): its prev b0 is in the "
+               "lineage past of b1, which h1 signed, so it concludes nothing (recovery_behind_head)", RL + [RA], (), (),
+     RD(anchor="b0", acks=("b2",)), {"concluded": {"ra": Fa}, "void": set(), "heads": ("b2",)}),
     ("attack", "RJ1: h3 alone joins b2 and ra (one charter): the join is counted over their fold (h3 and h1x), and h3 "
                "is one of two: refused", RL + [RA, RJX], (), (), RD(anchor="b0", acks=("jx",)),
      {"concluded": {"jx": Fa}, "heads": ("b0",)}),
@@ -389,22 +388,21 @@ CASES += [
       nxt("m", ("b2", "s1"), H3 + ("h4", "h5", "h8", "h9"), ("h1", "h2", "h3", "h8", "h9"), version=3)], (), (),
      RD(anchor="b0", acks=("m",)), {"concluded": {"m": T}, "void": {"s1"}, "heads": ("m",),
                                     "holders": {"h1", "h2", "h3", "h4", "h5", "h8", "h9"}}),
-    ("attack", "a recovery is not exempt from S'': h3 signed b1 and b2, then its recovery key recovers it at b0; behind "
-               "b2, self-forked, and by T (h1 and h2 built only on b1 and b2) void", [B0, XB1, XB2, XRC], (), (),
-     RD(anchor="b0", acks=("b2", "rx")), {"void": {"rx"}, "heads": ("b2",)}),
+    ("attack", "a recovery takes the head rule: h3 signed b1 and b2, then its recovery key recovers it at b0; b0 is in "
+               "the lineage past of b1, which h3 signed: it concludes nothing (recovery_behind_head)", [B0, XB1, XB2, XRC],
+     (), (), RD(anchor="b0", acks=("b2", "rx")), {"concluded": {"rx": Fa}, "void": set(), "heads": ("b2",)}),
     ("attack", "G1: removed holders h1 and h2 grant on b0; at b2 (h3 h4 h5) they are no voices in force: refused",
      RL, (), (GR("g1", "b0", "uX", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b2",)),
      {"grant": {"g1": (False, "grant_voices_not_in_force")}}),
-    ("attack", "RJ0 read by both, ra acknowledged first: ra is behind b2 for every reader that acknowledged b2, "
-               "whatever it acknowledged earlier: void, and the reader holds b2", RL + [RA], (), (),
-     RD(anchor="b0", acks=("ra", "b2")), {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
+    ("attack", "RJ0 read by a reader that acknowledged ra first, then b2: ra concludes nothing, and the reader holds "
+               "b2", RL + [RA], (), (), RD(anchor="b0", acks=("ra", "b2")), {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
     ("attack", "RJ0 by a reader that acknowledged b2 first: ra is behind its line, void for it", RL + [RA], (), (),
      RD(anchor="b0", acks=("b2", "ra")), {"heads": ("b2",)}),
-    ("attack", "a join heals the fork: jx joins b2 and ra by majorities of both; for a reader at b2 ra is void, but "
-               "jx (naming b2, the reader's own newest) is not behind, and the reader that acknowledges it holds jx",
+    ("attack", "a join naming a refused predecessor (ra, recovery_behind_head) waits on nothing valid and concludes "
+               "nothing: the reader stays at b2",
      RL + [RA, nxt("jx", ("b2", "ra"), ("h3", "h4", "h1x"), ("h3", "h4", "h1x"), version=3,
                    recovery={"h3": "r:h3", "h4": "r:h4", "h1x": "r:h1x"})], (), (), RD(anchor="b0", acks=("b2", "jx")),
-     {"concluded": {"jx": T}, "heads": ("jx",), "holders": {"h3", "h4", "h1x"}}),
+     {"concluded": {"jx": Fa}, "heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
     ("attack", "RJ1 with ra under a different charter: h3 alone joins b2 and ra; one of b2's three: refused (only the "
                "per-predecessor count closes this cheap-tip shape)",
      RL + [dict(RA, charter=C1), nxt("jx", ("b2", "ra"), ("h3",), ("h3",), version=3, charter=C1, recovery={"h3": "r:h3"})],
@@ -432,16 +430,19 @@ AO = RL + [AOS0]
 GLB1 = nxt("b1", "b0", ("h1", "h2", "h3", "h4"), ("h1", "h2", "h3"))
 GLG = GR("g0", "b0", "uX", "room", ("h1", "h2", "h3"))
 CASES += [
-    ("attack", "AO1: a reader that acknowledged s0, then b2: s0 names b0, strictly in the past of b2's head b1, so it "
-               "is behind b2 for every reader that acknowledged b2: void, and the reader holds b2", AO, (), (),
-     RD(anchor="b0", acks=("s0", "b2")), {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
-    ("attack", "AO2: acknowledged b1, s0, then b2: the same", AO, (), (), RD(anchor="b0", acks=("b1", "s0", "b2")),
-     {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
+    ("attack", "AO1: a reader that acknowledged s0, then b2: s0 settles over its own past (b0, s0); b2 does not, since "
+               "over its past h1 and h2 signed s0 and b1 (rule 6) and neither counts: the reader is at b0", AO, (), (),
+     RD(anchor="b0", acks=("s0", "b2")), {"heads": ("b0",), "holders": set(H3)}),
+    ("attack", "AO2: acknowledged b1, s0, then b2: b1 settles, s0 does not (over its past b1 and s0 contest), and b2 "
+               "is built on b1, which the final reading holds contested: b0", AO, (), (), RD(anchor="b0", acks=("b1", "s0", "b2")),
+     {"heads": ("b0",), "holders": set(H3)}),
+    ("attack", "AO0: a reader that acknowledged b2 first: s0 is behind its line and no input; b2 stands", AO, (), (),
+     RD(anchor="b0", acks=("b2", "s0")), {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
     ("attack", "AO3: a reader that acknowledged only s0: h1 and h2 signed s0 (cutting h3) and b1 (keeping it) at b0, "
                "so by rule 6 they have no say on either; neither counts, and the reader is at b0 (the residual closes)",
      AO, (), (), RD(anchor="b0", acks=("s0",)), {"heads": ("b0",), "holders": set(H3)}),
     ("attack", "AO1h: an honest grant on b2 by h3 and h4 resolves for the reader at b2", AO, (),
-     (GR("gh", "b2", "uY", "room", ("h3", "h4")),), RD(anchor="b0", acks=("s0", "b2")), {"grant": {"gh": (True, None)}}),
+     (GR("gh", "b2", "uY", "room", ("h3", "h4")),), RD(anchor="b0", acks=("b2", "s0")), {"grant": {"gh": (True, None)}}),
     ("attack", "G5: removed holders' grant on b0, the reader's later acceptance edge naming it: no voices in force at "
                "b2, refused", RL, (), (GR("g1", "b0", "uX", "room", ("h1", "h2")), AK("k2", "b2", names=("g1",))),
      RD(anchor="b0", acks=("b2",)), {"grant": {"g1": (False, "grant_voices_not_in_force")}}),
@@ -467,15 +468,15 @@ CASES += [
     ("rules", "DP0: a reader that acknowledged b2: h3 signed b2 (cutting h1 h2) and t1 (keeping them) at b1: no say on "
               "either (rule 6), and b2 and t1 are two of b1's five: neither counts; the reader is at b1", DL, (), (),
      RD(anchor="b0", acks=("b2",)), {"heads": ("b1",), "holders": set(H5)}),
-    ("rules", "DP1, EDGE (the stated residual: the swing holder h3 went over): acknowledging b2 then t: b2 is behind "
-              "t, void by the reader's line and no input to rule 6, so t1 and t count for it (an acknowledgement "
-              "settles, as b3's does in order case (1))", DL, (), (), RD(anchor="b0", acks=("b2", "t")),
-     {"heads": ("t",), "holders": {"h1", "h2", "h3", "X"}}),
-    ("rules", "DP2, the same edge: a new reader acknowledging only t holds t", DL, (), (), RD(anchor="b0", acks=("t",)),
-     {"heads": ("t",)}),
-    ("rules", "DP3: a reader acknowledging both b3 and t: each line holds the other side's base void (t1 behind b3, b2 "
-              "behind t), so neither stands for it, and it falls back to b1 where they meet", DL + [DB3], (), (),
-     RD(anchor="b0", acks=("b2", "b3", "t")), {"heads": ("b1",), "holders": set(H5)}),
+    ("rules", "DP1: acknowledging b2, then t: ack(b2) settles over its own past (no t1 there); ack(t) does not (over "
+              "its past, holding b2 and t1, they are rule-6 contested and t falls): b2 and t1 contest in what is "
+              "held, and the reader is at b1", DL, (), (), RD(anchor="b0", acks=("b2", "t")),
+     {"heads": ("b1",), "holders": set(H5)}),
+    ("rules", "DP2, EDGE (the stated residual, a newcomer): a new reader's ack(t) has no b2 in its past, so t counts "
+              "there and settles; b2 is behind its line", DL, (), (), RD(anchor="b0", acks=("t",)), {"heads": ("t",)}),
+    ("rules", "DP3: acknowledging b2, b3, then t: ack(b3) settles over its own past (b2 and b3, no t1); t1 is then "
+              "behind the line, and t with it: the reader is at b3", DL + [DB3], (), (),
+     RD(anchor="b0", acks=("b2", "b3", "t")), {"heads": ("b3",), "holders": {"h3", "h4", "h5", "h6"}}),
     ("rules", "order case (1): the honest line advanced first (b3), a reader at b3: t1 is behind its line, and b2 and b3 "
               "stand", [B0, DB1, DB2, DB3, DT1], (), (), RD(anchor="b0", acks=("b3",)), {"heads": ("b3",)}),
     ("rules", "order case (2): a reader that acknowledged only b2, holding t1 and b3: t1 contests b2 (rule 6), and b3 "
@@ -568,9 +569,10 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "family_unread", "commitments_unread", "recovery_other_seat", "spent_unread", "fold_common", "fold_union",
           "charter_folds", "anchor_unread", "inforce_global", "root_sf_unread", "root_t_unread",
           "grant_count_unread", "grant_charter_unread", "grant_scope_unread", "recovery_fork_both", "joins_fork_both",
-          "grant_head_unread", "join_common_base", "recovery_exempt", "recovery_t_unread",
+          "grant_head_unread", "join_common_base", "recovery_t_unread",
           "join_void_prev_blocks", "grant_antichain_unread", "regime_reads_commitments", "reader_line_unread",
-          "rotation_outlives_seat", "retired_unread", "join_prev_unread", "cosign_unread", "double_signer_voices")
+          "rotation_outlives_seat", "retired_unread", "join_prev_unread", "cosign_unread", "double_signer_voices",
+          "ack_settles_over_all", "recovery_head_unread")
 
 
 def answer(bs, rv, gs, rd, want):

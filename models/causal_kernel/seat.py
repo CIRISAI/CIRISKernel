@@ -2490,7 +2490,12 @@ def _ack_void(S, a):
     rv = getattr(S, "_rvoid", frozenset())
     _RVOID.append(frozenset(rv))
     try:
-        return (void_changes(a, P) if a.get("obj") is not None else frozenset()) | rv
+        # one rule for bundles and rosters: an acknowledgement settles only if the acknowledged change counts over that
+        # acknowledgement row's OWN PAST (its past, the reader's earlier rows and the line they drew), so an explicit
+        # `ack` reads S'' over its own past too, over the room it names (MUTATION ack_self_fork_unread: only a
+        # counted row does)
+        obj = a.get("obj") if a.get("obj") is not None else (a.get("room") if "ack_self_fork_unread" not in MUT else None)
+        return (void_changes(dict(a, obj=obj), P) if obj is not None else frozenset()) | rv
     finally:
         _RVOID.pop()
 
