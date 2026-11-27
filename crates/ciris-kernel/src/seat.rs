@@ -1928,7 +1928,25 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     .map(|i| (i, g.row(i).obj())),
             )
             .collect();
-        let contested = contested_out(c, law, spec, &cuts, cache.unwrap_or(&local));
+        // every other counted act over the group's voices too (the ruling on the superseded version, (b)): an offer
+        // counted by voices, not an election's seating (its count is C1 to C5) and not a lift (its voices are the
+        // objections it names, counted over the persons at both heads)
+        let acts: Vec<usize> = cs
+            .iter()
+            .copied()
+            .filter(|&i| {
+                let q = g.row(i);
+                q.seat_kind() == SeatKind::Offer
+                    && q.conf() == Some(Conf::Group)
+                    && cut.counts(i)
+                    && !stale.contains(&i)
+                    && !beaten.contains(&i)
+                    && !dropped.contains(q.id())
+                    && !is_election(law, q)
+                    && !q.content().and_then(|x| by.get(x)).is_some_and(|u| u.seat_kind() == SeatKind::Unseat)
+            })
+            .collect();
+        let contested = contested_out(c, law, spec, &cuts, &acts, cache.unwrap_or(&local));
         let unseats: Vec<(usize, Option<ObjOf<R>>)> = if contested.is_empty() {
             unseats
         } else {
@@ -2048,7 +2066,12 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             .collect();
         for &oi in cs {
             let o = g.row(oi);
-            if o.seat_kind() != SeatKind::Offer || !cut.counts(oi) || stale.contains(&oi) || beaten.contains(&oi) {
+            if o.seat_kind() != SeatKind::Offer
+                || !cut.counts(oi)
+                || stale.contains(&oi)
+                || beaten.contains(&oi)
+                || dropped.contains(o.id())
+            {
                 continue;
             }
             if !gone.is_empty() && o.obj().is_some_and(|ob| gone.contains(&ob)) {
@@ -3895,18 +3918,24 @@ pub fn met_wide(policy: Option<Policy>, y: u128, n: u128, declared: Option<u128>
     }
 }
 
-/// The counted removals among `unseats` that are out of force as contested (CC 2.7.7 rule 5: "Two cuts by keys of equal
-/// standing that undo each other stay contested. A voice that the other cannot remove settles them"; CC 2.6.1.9,
-/// 2.6.1.11). A voice of a counted removal `u` is no voice where another counted removal over the same group,
-/// concurrent with `u` and in force, removes it; `u` is in force only if its count is still met without those voices.
-/// Read as the well-founded fixed point: two removals that each need a voice the other removes are both out of force
-/// (the roster stays as it was); one that needs nothing the other removes stands, and the other falls. It is the end
-/// rule (a removed key's voice counts only where its removal is in that row's past) read for counted rows.
+/// The counted acts that are out of force as contested (CC 2.7.7 rule 5: "Two cuts by keys of equal standing that
+/// undo each other stay contested. A voice that the other cannot remove settles them"; rule 4 and the paragraph
+/// after it; CC 2.6.1.9, 2.6.1.11), among the counted removals `unseats` and the other counted acts `acts`. A voice
+/// of a counted act `u` is no voice where a counted removal over the same group, concurrent with `u` and in force,
+/// removes its key from a head at or before `u`'s; `u` is in force only if its count is still met without those
+/// voices. Only a removal ends a voice, and only one that counts, is not void for the reader (the caller passes
+/// those) and is in force here. The removals are read as the well-founded fixed point: two that each need a voice
+/// the other removes are both out of force (the roster stays as it was); one that needs nothing the other removes
+/// stands, and the other falls. Every other act is then read against the removals in force (a contested removal
+/// takes nothing). It is the end rule (a removed key's voice counts only where its removal is in that row's past)
+/// read for counted rows, whatever they do. The edge: a counted act and a concurrent removal of a voice it needs do
+/// not both stand; the remedy is to sign the act again forward, by voices seated at the newer head.
 fn contested_out<'a, R: SeatRow, S: CutSpec<R>>(
     c: &Concluded<'a, R>,
     law: &SeatLaw,
     spec: &S,
     unseats: &[(usize, Option<ObjOf<R>>)],
+    acts: &[usize],
     cache: &MembersAt<R>,
 ) -> BTreeSet<R::Id> {
     let g = &c.g;
@@ -3917,7 +3946,11 @@ fn contested_out<'a, R: SeatRow, S: CutSpec<R>>(
         .map(|(u, _)| *u)
         .filter(|&u| g.row(u).conf() == Some(Conf::Group) && !lone_act(c, u, law, spec, cache))
         .collect();
-    if grp.len() < 2 {
+    // every other counted act over the group's voices is read against the removals in force (the ruling on the
+    // superseded version, (b): a voice of a key concurrent with a counted removal of it is not in force from the
+    // head the removal names, whatever the act does)
+    let grp_a: Vec<usize> = acts.iter().copied().filter(|&a| g.row(a).conf() == Some(Conf::Group)).collect();
+    if grp.is_empty() || grp.len() + grp_a.len() < 2 {
         return BTreeSet::new();
     }
     let past_of = |u: usize| -> Vec<usize> { c.cs().iter().copied().filter(|&q| g.in_past(q, u)).collect() };
@@ -3943,22 +3976,28 @@ fn contested_out<'a, R: SeatRow, S: CutSpec<R>>(
         })
         .collect();
     let mut threats: BTreeMap<usize, Vec<(usize, BTreeSet<R::Key>)>> = BTreeMap::new();
-    for &u in &grp {
+    for &u in grp.iter().chain(grp_a.iter()) {
         let ur = g.row(u);
-        let anc = past_of(u);
-        let vs = voices(ur, &Past::new(g, u, &anc));
-        let t: Vec<(usize, BTreeSet<R::Key>)> = grp
+        // a removed key's concurrent voice counts at its own head and is not in force from the removal's head
+        // on: u2 voids a voice of u only where u counts from u2's heads on (each head of u2 a head of u, or in
+        // the past of one); a removal that has u in its past takes nothing
+        let cands: Vec<usize> = grp
             .iter()
             .copied()
             .filter(|&u2| u2 != u && g.row(u2).obj() == ur.obj() && !g.in_past(u, u2) && !g.in_past(u2, u))
-            // a removed key's concurrent voice counts at its own head and is not in force from the removal's head
-            // on: u2 voids a voice of u only where u counts from u2's heads on (each head of u2 a head of u, or in
-            // the past of one)
             .filter(|&u2| {
                 g.row(u2).head().iter().all(|h2| {
                     ur.head().iter().any(|h| h == h2 || g.idx(h2).zip(g.idx(h)).is_some_and(|(a, b)| g.in_past(a, b)))
                 })
             })
+            .collect();
+        if cands.is_empty() {
+            continue;
+        }
+        let anc = past_of(u);
+        let vs = voices(ur, &Past::new(g, u, &anc));
+        let t: Vec<(usize, BTreeSet<R::Key>)> = cands
+            .into_iter()
             .map(|u2| (u2, cut_keys[&u2].iter().filter(|k| vs.contains(*k)).cloned().collect::<BTreeSet<_>>()))
             .filter(|(_, ks)| !ks.is_empty())
             .collect();
@@ -3986,7 +4025,14 @@ fn contested_out<'a, R: SeatRow, S: CutSpec<R>>(
         d = d2;
         pos = p2;
     }
-    grp.iter().copied().filter(|u| !d.contains(u)).map(|u| g.row(u).id().clone()).collect()
+    // `d`: the removals in force. Every other act is read against them alone: a contested removal takes nothing
+    let live = &d;
+    grp.iter()
+        .copied()
+        .filter(|u| !d.contains(u))
+        .chain(grp_a.iter().copied().filter(|&a| !holds(a, live)))
+        .map(|u| g.row(u).id().clone())
+        .collect()
 }
 
 /// The conclusion rule of the seat: was an offer, unseat, acceptance or withdrawal validly made, at the

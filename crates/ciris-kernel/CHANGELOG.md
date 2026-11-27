@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**CC 2.7.7 rule 5 reads every counted act** (ruling B of the superseded-version read, persist's item 13 (b), R2:
+the Constitution reads rule 4 and the paragraph after it as about the removed key's rows, whatever the row does).
+A voice of a key concurrent with a counted removal of that key is not in force from the head the removal names, on
+any counted act over the group's voices (an admission, a conferral, a change of the record), not only on another
+removal. The removals are read first, as before (each needing a voice the other ends: contested, neither counts;
+one-sided: the dependent one falls); every other counted act is then read against the removals in force. Only a
+removal that counts, is not void for the reader (the cut, S'', the line) and is not itself contested takes a voice
+away; one that has the act in its past takes nothing (the voice counted before the end), nor does one at a newer
+head than the act's (the key stood at the act's head). An election's seating (C1 to C5) and a lift (its own base)
+are not read here. **An answer changes:** a counted act that needs the voice of a key removed concurrently, at or
+after the act's head, no longer stands. **The edge:** a counted act and a concurrent removal of a voice it needs do
+not both stand; the remedy is to sign the act again forward, by voices seated at the newer head. Cases in
+`check_count_heads.py` (rule 5, every act) and one in `check_duty_seats.py` (the fold's own case, now that rule 5
+reaches the old one); plants `contested_unseats_only` and `contested_takes_voice`, in both languages.
+
 **The lift's base: the persons at both heads** (the lift follow-up, after the head rules). A lift (a re-seating
 citing a moderator's lone removal of an agent's key) names the newest counted changes in its own past (H4, no
 exemption) and is counted over the persons seated at BOTH the removal's head and its own heads, the removal's

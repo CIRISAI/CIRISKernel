@@ -435,7 +435,7 @@ plant "(2): a contested end blocks a later end" src/seat.rs '        !dropped.co
     };' '        let _ = dropped;
         true
     };'
-plant "rule 5: a one-sided cut contested too" src/seat.rs '    grp.iter().copied().filter(|u| !d.contains(u)).map(|u| g.row(u).id().clone()).collect()' '    grp.iter().copied().filter(|u| threats.contains_key(u) || threats.values().any(|t| t.iter().any(|(x, _)| x == u))).map(|u| g.row(u).id().clone()).collect()'
+plant "rule 5: a one-sided cut contested too" src/seat.rs '        .filter(|u| !d.contains(u))' '        .filter(|u| threats.contains_key(u) || threats.values().any(|t| t.iter().any(|(x, _)| x == u)))'
 plant "a left key's offer still standing for the lone holder" src/seat.rs 'a.seat_kind() == SeatKind::Accept && a.signer() == k && a.of() == Some(o.id()))' 'a.seat_kind() == SeatKind::Accept && a.signer() == k && a.of() == Some(o.id()) && !gone.contains(a.id()))'
 plant "FA6: a dissolution read apart from rule 5" src/seat.rs 'is_dissolve(q) && cut.counts(i) && !stale.contains(&i) && !dropped.contains(q.id())' 'false && is_dissolve(q)'
 plant "C2: the amendment wait read over a row's own past only" src/seat.rs 'mem.retain(|k| !held.contains(k));' 'let _ = &held;'
@@ -513,7 +513,7 @@ plant 'an entrenched record refuses every amendment'     src/seat.rs '    let So
 plant "an entrenched weighted record's weights free"    src/seat.rs '    if weighted && (r.need() != rec.need() || set(r) != set(rec)) {' '    if false {'
 plant 'the contested pair scoped to two kinds'          src/seat.rs '.filter(|&u| g.row(u).conf() == Some(Conf::Group) && !lone_act(c, u, law, spec, cache))' '.filter(|&u| g.row(u).conf() == Some(Conf::Group) && !lone_act(c, u, law, spec, cache) && g.row(u).obj().is_some_and(|o| matches!(kind_of(law, &|i: &R::Id| g.idx(i).map(|j| g.row(j)), &o), Some(CommunityKind::Family | CommunityKind::Infrastructure))))'
 plant "a removal voids a voice at any head"             src/seat.rs 'g.row(u2).head().iter().all(|h2| {' 'true || g.row(u2).head().iter().all(|h2| {'
-plant 'concurrent counted removals both in force'        src/seat.rs '    if grp.len() < 2 {
+plant 'concurrent counted removals both in force'        src/seat.rs '    if grp.is_empty() || grp.len() + grp_a.len() < 2 {
         return BTreeSet::new();' '    if true {
         return BTreeSet::new();'
 plant "concurrent founders' amendments free"             src/seat.rs '        if !pair_keys.is_empty() {
@@ -557,6 +557,8 @@ plant "the lift's base read at the removal's head alone" src/seat.rs '        me
     }
     mem
 }'
+plant "rule 5 reads removals only"                   src/seat.rs '    let grp_a: Vec<usize> = acts.iter().copied().filter(|&a| g.row(a).conf() == Some(Conf::Group)).collect();' '    let grp_a: Vec<usize> = acts.iter().copied().filter(|_| false).collect();'
+plant "a contested removal takes a voice"              src/seat.rs '    let live = &d;' '    let live = &pos;'
 plant "an act naming the end still counts"            src/conferral.rs 'return Ok((false, false, Rule::NamesEnd));' 'return Ok((true, false, Rule::NamesEnd));'
 plant "the grantee receipts its own act"              src/conferral.rs 'Role::Grantee | Role::Other => Ok(false),' 'Role::Grantee | Role::Other => Ok(true),'
 plant "a receipt after the end keeps the act"         src/conferral.rs 'Ok(!self.key_cut(q)? && self.eligible(q, e)? && !self.past.in_past(e.id(), q.id())?)' 'Ok(!self.key_cut(q)? && self.eligible(q, e)?)'
