@@ -114,6 +114,9 @@ pub enum Conf {
     Seat,
     /// A group, whose count over the head the row names is met.
     Group,
+    /// A root grant ([`SeatRow::bundle`] the grant's id): the seat the grant gives its key in the room it names, for
+    /// its duty, read against the trust root this node reads ([`CutSpec::trust_root`], [`crate::root::RootView::seat_grant`]).
+    Root,
 }
 
 /// What a row is, as the seat reads it.
@@ -1336,6 +1339,15 @@ pub fn affiliation_removal<'r, R: SeatRow + 'r>(law: &SeatLaw, get: &dyn Fn(&R::
         && r.conf() == Some(Conf::Group)
         && r.scope().is_some_and(|s| s.as_ref() == "member" || s.as_ref() == OFFICER)
         && r.obj().is_some_and(|obj| kind_of(law, get, &obj) == Some(CommunityKind::Affiliation))
+}
+
+/// Whether a `Conf::Root` offer `r` over `obj` is the seat a root grant gives (cross-object rest 5): it names the
+/// grant ([`SeatRow::bundle`]), is to and signed by the key the grant names, over the room the grant names, of the
+/// grant's duty, and the grant resolves at this node ([`crate::root::RootView::seat_grant`]); with no root read it seats
+/// nothing.
+fn root_seat<R: SeatRow, S: CutSpec<R>>(spec: &S, r: &R, obj: &ObjOf<R>) -> bool {
+    let (Some(view), Some(gid), Some(scope)) = (spec.trust_root(), r.bundle(), r.scope()) else { return false };
+    view.seat_grant(gid, obj, scope.as_ref()).is_ok_and(|k| r.to() == [k.clone()].as_slice() && *r.signer() == k)
 }
 
 /// The duty that authorises a duty holder's lone act against a key or content (CC 4.5.5; CC 3.1.9.2): `slash` for a
@@ -2631,6 +2643,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                                 add.push((key, (0, Root::Group(x))));
                             }
                         }
+                        Some(Conf::Root) => add.push((key, (0, Root::Key(o.signer().clone())))),
                         _ if eq(o) => {
                             if let Some(x) = obj {
                                 add.push((key, (0, Root::Group(x))));
@@ -2639,7 +2652,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                         Some(Conf::Seat) => {
                             if let Some(u) = o.under() {
                                 if let (Some(up), Some(hit)) = (by.get(u), held.get(&(u, o.signer()))) {
-                                    if may_confer(law, *up, o) {
+                                    if may_confer(law, spec, &by, *up, o) {
                                         add.push((key, (hit.0 + 1, hit.1.clone())));
                                     }
                                 }
@@ -3659,8 +3672,23 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
     ends.iter().all(|&e| !g.in_past(e, x) && !later(head_of(e)) && kept(Some(e)))
 }
 
-fn may_confer<R: SeatRow>(law: &SeatLaw, up: &R, o: &R) -> bool {
+fn may_confer<R: SeatRow, S: CutSpec<R>>(law: &SeatLaw, spec: &S, by: &BTreeMap<&R::Id, &R>, up: &R, o: &R) -> bool {
     let (Some(us), Some(os)) = (up.scope(), o.scope()) else { return false };
+    // a chain from a root grant (its top seat a `Conf::Root` seat naming the grant) passes on only where the charter
+    // in force at this node carries sub_delegation for the grant's duty; with no root read the gate is closed, and the
+    // row's own `sub` mark is not read for it
+    let mut top = up;
+    let mut hops = 0;
+    while top.conf() == Some(Conf::Seat) && hops <= by.len() {
+        let Some(t) = top.under().and_then(|u| by.get(u)) else { break };
+        top = *t;
+        hops += 1;
+    }
+    if top.conf() == Some(Conf::Root) {
+        let Some(gid) = top.bundle() else { return false };
+        let open = spec.trust_root().and_then(|v| v.sub_delegation(gid)) == Some(true);
+        return open && covers(us.as_ref(), os.as_ref()) && o.obj() == up.obj();
+    }
     if up.sub() && covers(us.as_ref(), os.as_ref()) && o.obj() == up.obj() {
         return true; // the grant carried sub-delegation: the same or narrower
     }
@@ -5239,6 +5267,8 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     }
                     own_keys(&by, &obj).contains(r.signer())
                 }
+                // the seat a root grant gives: its key, its room, its duty, while the grant resolves here
+                Some(Conf::Root) => is_offer && root_seat(spec, r, &obj),
                 Some(Conf::Seat) => {
                     if !is_offer {
                         return ender(law, spec, r, p, &by);

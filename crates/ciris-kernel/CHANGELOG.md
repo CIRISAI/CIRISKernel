@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**A delegation chain from a root grant** (the cross-object rest 5; the lead's shape). The seat a root grant gives is
+an offer of `Conf::Root`, naming the grant (`SeatRow::bundle`), of the grant's duty, over the room the grant names,
+to and signed by the key the grant names. It stands while the grant resolves at the reader of the root view
+(`RootView::seat_grant`: its voices a strict majority of the holders in force, the scope in force carrying the duty):
+a grant the holders' growth has let lapse ends it, and a reader the grant does not resolve for holds none. With no
+root read it seats nothing. The onward gate of a chain from it reads the charter in force at that reader
+(`RootView::sub_delegation`) and is closed with no root read; the row's own `sub` mark is not read for such a chain
+(chains from any other seat keep it). **BREAKING**: `Conf::Root` (a new variant); `RootView::seat_grant` (new, with a
+default); `RootGrant::Word` must be `AsRef<str>`. Seven cases in `check_delegation.py` (ROOT_CASES), in a new fixture
+`root_chains.json` replayed by `tests/root.rs`; plants `root_gate_unread`, `root_seat_unchecked`,
+`root_seat_any_duty`, with crate twins.
+
 **A duty holder's lone acts against a key or content, and their ways back** (CC 4.5.4 (iii), CC 4.5.5, CC 3.1.9.2,
 CC 4.4.3.12; the Constitution's 2b). Three acts: a quarantine marker (state `withhold`, or `release` naming the
 withhold it lifts) of a KEY and a slashing verdict (`proven_rogue` or `not_proven`) about a KEY, both under the

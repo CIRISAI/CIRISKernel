@@ -586,6 +586,22 @@ class root_view:
     def __exit__(self, *a): ROOT.pop()
 
 
+def root_seat_rule(r):
+    """The seat a root grant gives (CC 3.2, cross-object rest 5): an offer of conf `root`, naming the grant (`bundle`),
+    of the grant's duty (its scope), over the room the grant names, to and signed by the key the grant names. It
+    stands while the grant resolves at the reader of the root view (root.grant_in_force: its voices a strict majority
+    of the holders in force there, and the scope in force carrying its duty); with no root read it seats nothing.
+    MUTATIONS root_seat_unchecked (no grant read), root_seat_any_duty (the duty not read)."""
+    if "root_seat_unchecked" in MUT: return True
+    view = ROOT[-1]
+    if view is None: return False
+    Rt, rd = view
+    g = Rt.grants.get(r.get("bundle"))
+    if g is None or not Rt.grant_in_force(r["bundle"], rd)[0]: return False
+    if tuple(r.get("to", ())) != (g["to"],) or r["signer"] != g["to"] or g["scope"] != r.get("obj"): return False
+    return g["duty"] == r.get("scope") or "root_seat_any_duty" in MUT
+
+
 def recovery_verdict(r, P, past):
     """A stalled infrastructure room's recovery widening (CC 3.2), judged against the trust root this node reads:
     (True, None), or (False, reason). The six checks:
@@ -1943,6 +1959,7 @@ class Seats:
                     if o["obj"] == o["id"] or not founding_many(S.by, o["obj"]) or (o["obj"], o["signer"]) in held:
                         out.add((o["id"], k, sc, 0, o["signer"]))
                 elif o["conf"] == "group": out.add((o["id"], k, sc, 0, ("group", o["obj"])))
+                elif o["conf"] == "root": out.add((o["id"], k, sc, 0, ("root", o.get("bundle"))))   # a root grant's seat
                 elif eq(o): out.add((o["id"], k, sc, 0, ("group", o["obj"])))     # validly made by the lone holder: it stands as an equal
                 elif o["conf"] == "seat":
                     up = S.by.get(o.get("under"))
@@ -1985,7 +2002,20 @@ class Seats:
                       "depth": d, "root": root} for oid, k, sc, d, root in self.live]
 
     def may_confer(self, up, o):
-        """May the holder of the seat offered by `up` confer the seat `o` offers?"""
+        """May the holder of the seat offered by `up` confer the seat `o` offers? A chain from a root grant (its top seat
+        a `root` seat naming the grant, `bundle`) passes on only where the charter in force at the reader carries
+        sub_delegation for the grant's duty (Root.sub_delegation through the root view; with no root read the gate is
+        closed), every hop bearing a scope the one above covers; the row's own `sub` mark is not read for it (MUTATION
+        root_gate_unread: the row's mark read as for any chain)."""
+        top, seen = up, set()
+        while top.get("conf") == "seat" and top.get("under") in self.S.by and top["id"] not in seen:
+            seen.add(top["id"])
+            top = self.S.by[top["under"]]
+        if top.get("conf") == "root" and top.get("bundle") is not None and "root_gate_unread" not in MUT:
+            view = ROOT[-1]
+            if view is None: return False
+            return bool(view[0].sub_delegation(top["bundle"], view[1])) and covers(up["scope"], o["scope"]) \
+                and o["obj"] == up["obj"]
         if up.get("sub") and covers(up["scope"], o["scope"]) and o["obj"] == up["obj"]:
             return True                                            # the grant carried sub-delegation: the same or narrower
         scopes, over = K.rule(self.confers, up["scope"], ((), "same"))
@@ -3495,6 +3525,8 @@ def seat_rule(r, P, past, table=None, other=None):
         if conf == "group" and r.get("over", r["obj"]) != r["obj"] and "over_allowed" not in MUT: return False
         if r["obj"] != r["id"] and not roster_placement(r, by): return False   # RK1, RK2: who places a roster seat
         if k == "offer" and conf == "group" and not duty_gate(r, by): return False   # CC 4.5.4: who places a duty
+        if conf == "root":
+            return k == "offer" and root_seat_rule(r)
         if conf == "self":
             if r["obj"] == r["id"]: return k == "offer"          # a founding row is its own object
             # over infrastructure a founder seat comes only by a founders' amendment: an own offer of one seats nothing

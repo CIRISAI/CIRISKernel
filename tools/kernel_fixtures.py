@@ -810,6 +810,18 @@ def main():
     import check_root as CR
     dump("root.json", CR.fixture(with_refs), out)
     dump("root_reader.json", CR.reader_vectors(), out)
+    # a delegation chain from a root grant (check_delegation.py's ROOT_CASES): the seats under a root view
+    import check_delegation as CD
+    chains = []
+    for case in CD.ROOT_CASES:
+        name, bs, rd, rows, asks = case
+        refs = {}
+        got = CD.root_answers(case)
+        chains.append({"name": name, "rows": with_refs(rows, refs), "refs": refs,
+                       "bundles": [CR.benc(b) for b in bs] if bs is not None else None, "grants": [CR.genc(CD.GA)],
+                       "reader": CR.renc(rd), "stands": [[k, sc, w] for (k, sc, _), w in zip(asks, got)]})
+    dump("root_chains.json", {"about": "check_delegation.py's root chains: the seat a root grant gives, and the "
+                                       "onward gate read from the charter in force", "cases": chains}, out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():

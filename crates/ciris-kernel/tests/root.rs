@@ -338,3 +338,36 @@ fn stalled_recovery_replay() {
     report("stalled recovery against the trust root, against check_root.py", cases, bad);
     assert_eq!(bad, 0);
 }
+
+#[test]
+fn root_chain_replay() {
+    // the seat a root grant gives and the onward gate read from the charter in force (check_delegation.py ROOT_CASES)
+    let fx = fixture("root_chains.json");
+    let law = law_of(fixture("seat.json").at("law"));
+    let (mut cases, mut bad) = (0, 0);
+    for c in fx.at("cases").arr() {
+        let refs: BTreeMap<String, String> =
+            c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rows = rows_with_refs(c.at("rows").arr(), &refs);
+        let bs = c.get("bundles").filter(|b| !b.is_null()).map(bundles);
+        let gs = grants(c.at("grants"));
+        let revs: Vec<Revocation<String, String>> = Vec::new();
+        let identity = |_: &String| Identity { user: true, node: false };
+        let root = bs.as_ref().map(|bs| Root::new(bs, &revs, &gs));
+        let view = root.as_ref().map(|root| RootReading { root, reader: reader(c.at("reader")), identity: &identity });
+        let spec = RootCut(view.as_ref().map(|v| v as &dyn RootView<String, String, Obj<String, String>>));
+        let cc = conclude(kept(&rows, |_| true), |p| seat_rule(p, &law, &spec, &|_| true), None);
+        let q = Seats::new(&cc, &law, &spec, None);
+        for a in c.at("stands").arr() {
+            let a = a.arr();
+            let (k, sc, want) = (a[0].s().to_string(), a[1].s(), a[2].b());
+            cases += 1;
+            if q.stands(&k, sc, &Obj::Row("room".to_string()), None) != want {
+                bad += 1;
+                eprintln!("root chain {}: {k} in {sc}: want {want}", c.at("name").s());
+            }
+        }
+    }
+    report("chains from a root grant, against check_delegation.py", cases, bad);
+    assert_eq!(bad, 0);
+}

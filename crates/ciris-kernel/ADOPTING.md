@@ -179,6 +179,11 @@ counted changes in its past, and the members' `moderation_overturn` window named
 lift of any of them as an Offer of scope `act`, `content()` the act, under `moderation_overturn`, naming the
 objections. Ask `seat::act_in_force` whether one is in force for a reader.
 
+**A seat from a root grant.** Present it as an Offer of `Conf::Root`, `bundle()` the grant's id, `scope()` the
+grant's duty, `obj()` the room the grant names, `to()` and `signer()` the key the grant names; and give the seat rule
+the trust root this node reads (`CutSpec::trust_root`, a `root::RootReading`). Onward hops under it are ordinary
+`Conf::Seat` offers; whether they pass is the charter's (`RootView::sub_delegation`), never the row's `sub` mark.
+
 **The moderator election** (C1 to C5, E1 to E3, F1 to F4; CHANGELOG). Present:
 - each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` its election's id row: the
   room's founding row for the first election, then the seating of the one before; naming the end of the last

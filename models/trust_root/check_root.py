@@ -646,29 +646,31 @@ def reader_vectors():
                      "the common holders and seats where they differ", "cases": out}
 
 
+import json
+def benc(b):
+    return {"id": b["id"], "family": b["family"], "version": b["version"], "prev": list(b["prev"]),
+            "holders": list(b["holders"]), "seats": list(b["seats"]),
+            "charter": json.dumps(b["charter"], sort_keys=True), "duties": sorted(RT.duties(b["charter"])),
+            "sub_delegation": sorted(RT.sub_delegations(b["charter"])),
+            "iat": b["iat"], "recovery": [[k, v] for k, v in sorted(b["recovery"].items())],
+            "names": list(b.get("names", ())),
+            "recovers": list(b["recovers"]) if b.get("recovers") else None,
+            "stmts": [[k, i] for k, i in b["stmts"]]}
+def genc(g):
+    if g["kind"] == "ack": return {"id": g["id"], "kind": "ack", "head": g["head"], "names": list(g["names"])}
+    if g["kind"] == "cosign": return {"id": g["id"], "kind": "cosign", "of": g["of"], "signers": [g["signer"]],
+                                      "names": list(g["names"])}
+    return {"id": g["id"], "kind": "grant", "bundles": list(g["bundles"]), "names": list(g["names"]), "to": g["to"], "scope": g["scope"], "signers": list(g["signers"]),
+            "identity": list(g["identity"]), "duty": g["duty"]}
+def renc(rd):
+    if rd is None: return None
+    return {"anchor": rd["anchor"], "thumbs": sorted(rd["thumbs"]) if rd["thumbs"] is not None else None,
+            "acks": list(rd["acks"])}
+
+
 def fixture(with_refs):
     """The cases as a fixture for the crate (tests/root.rs): every bundle's count, the void, and the reader's heads,
     holders, seats and grants, as the model gives them; and the stalled recoveries with their seat rows."""
-    import json
-    def benc(b):
-        return {"id": b["id"], "family": b["family"], "version": b["version"], "prev": list(b["prev"]),
-                "holders": list(b["holders"]), "seats": list(b["seats"]),
-                "charter": json.dumps(b["charter"], sort_keys=True), "duties": sorted(RT.duties(b["charter"])),
-                "sub_delegation": sorted(RT.sub_delegations(b["charter"])),
-                "iat": b["iat"], "recovery": [[k, v] for k, v in sorted(b["recovery"].items())],
-                "names": list(b.get("names", ())),
-                "recovers": list(b["recovers"]) if b.get("recovers") else None,
-                "stmts": [[k, i] for k, i in b["stmts"]]}
-    def genc(g):
-        if g["kind"] == "ack": return {"id": g["id"], "kind": "ack", "head": g["head"], "names": list(g["names"])}
-        if g["kind"] == "cosign": return {"id": g["id"], "kind": "cosign", "of": g["of"], "signers": [g["signer"]],
-                                          "names": list(g["names"])}
-        return {"id": g["id"], "kind": "grant", "bundles": list(g["bundles"]), "names": list(g["names"]), "to": g["to"], "scope": g["scope"], "signers": list(g["signers"]),
-                "identity": list(g["identity"]), "duty": g["duty"]}
-    def renc(rd):
-        if rd is None: return None
-        return {"anchor": rd["anchor"], "thumbs": sorted(rd["thumbs"]) if rd["thumbs"] is not None else None,
-                "acks": list(rd["acks"])}
     cases = []
     def one(rule, name, bs, rv, gs, rd, line):
         R = RT.Root(bs, rv, gs)

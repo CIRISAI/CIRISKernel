@@ -526,6 +526,7 @@ impl SeatRow for TRow {
         match self.fs("conf") {
             Some("self") => Some(Conf::Own),
             Some("seat") => Some(Conf::Seat),
+            Some("root") => Some(Conf::Root),
             Some("group") => Some(Conf::Group),
             _ => None,
         }
