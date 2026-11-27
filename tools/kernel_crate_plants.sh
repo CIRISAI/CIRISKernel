@@ -562,7 +562,7 @@ plant "any key's acceptance is the owner's"            src/standing.rs 'if b.own
 plant "a re-binding does not end the binding before it" src/standing.rs 'Kind::Binding if row.on() == Some(bid) => (conferral::Kind::End, Some(bid)),' 'Kind::Binding if row.on() == Some(bid) => (conferral::Kind::Other, None),'
 plant "the member's own end adds tips beside a counted end" src/content.rs 'if ends.iter().any(|e| counts(e) && is_count(e)) {' 'if false {'
 plant "the member's own ends are joined, not met"       src/content.rs 'Some(o) => o.intersection(&g).copied().collect(),' 'Some(o) => o.union(&g).copied().collect(),'
-plant "a tips row signed by the member is read"         src/content.rs 'for t in self.of_kind(Kind::Tips).filter(|t| is_count(t)) {' 'for t in self.of_kind(Kind::Tips) {'
+plant "a tips row signed by the member is read"         src/content.rs 'for t in self.of_kind(Kind::Tips).filter(|t| is_count(t) && !line.contains(t.id())) {' 'for t in self.of_kind(Kind::Tips).filter(|t| !line.contains(t.id())) {'
 plant "the walk passes through a co-member's row"       src/content.rs 'if x.kind() != Kind::Content || !(self.seat.member)(x.signer()) || self.cuts.any.contains(*id) {' 'if x.kind() != Kind::Content || self.cuts.any.contains(*id) {'
 plant "a co-member's retraction takes a row out"        src/content.rs 'let content: Vec<&R> =
         rows.iter().copied().filter(|r| r.kind() == Kind::Content && (seat.member)(r.signer())).collect();
@@ -573,8 +573,10 @@ plant "a row between seats counts"                      src/content.rs 'if at.se
 plant "a row naming the removal as its head waits on it" src/content.rs 'if ends.iter().any(|e| e.id() == h) {' 'if false {'
 plant "a retraction is read in its own seat only"       src/content.rs 'out.extend(seat_answers(&sub, seat, past, &retracted, cuts));' 'let sr: BTreeSet<&R::Id> = retracted.iter().copied().filter(|t| sub.iter().any(|w| w.retracts() == Some(*t))).collect(); out.extend(seat_answers(&sub, seat, past, &sr, cuts));'
 plant "an end with an end in its past still ends"       src/content.rs 'Ok(seated.then_some(Void::SeatEnded))' 'Ok(seated.then_some(Void::SeatEnded).filter(|_| false))'
-plant "the reader's line not read on an end"           src/content.rs 'if !line.iter().any(|m| m.id() == e.id()) && any3(line.iter(), |m| self.behind(e, m))? {' 'if false {'
-plant "the line on an end not sibling-safe"             src/content.rs 'any3(own.iter(), |p| self.past.in_past(h, p))' '{ let _ = own; self.past.in_past(h, m.id()) }'
+plant "the reader's line not read on an end"           src/content.rs 'if line.contains(e.id()) {' 'if false {'
+plant "a tips row behind the reader's line is read"    src/content.rs 'is_count(t) && !line.contains(t.id())' 'is_count(t)'
+plant "an acknowledgement un-voids (ack_unvoids)"      src/content.rs 'if !held.contains(m.id()) && self.past.in_past(m.id(), a.id())? {' 'if self.past.in_past(m.id(), a.id())? {'
+plant "the line not sibling-safe"                     src/content.rs 'if !any3(own_heads(m).iter(), |t| self.past.in_past(h, t))? {' 'if !self.past.in_past(h, m.id())? {'
 plant "a key removal cuts nothing"                      src/content.rs '    if ends.is_empty() {
         return Ok(out);
     }
@@ -583,7 +585,8 @@ plant "a key removal cuts nothing"                      src/content.rs '    if e
     }
     for r in'
 plant "the walk passes through a cut row"               src/content.rs '|| self.cuts.any.contains(*id) {' '{'
-plant "the member's own key removal voids its end"      src/content.rs 'if (seat.counted)(q.signer()) {' 'if true {'
+plant "a key removal voids the member's end"         src/content.rs '            if line.contains(e.id()) {' '            if self.cuts.any.contains(e.id()) || line.contains(e.id()) {'
+plant "the room's count removes a key"                 src/content.rs 'q.kind() == Kind::KeyEnd && (seat.member)(q.signer())' 'q.kind() == Kind::KeyEnd && ((seat.member)(q.signer()) || (seat.counted)(q.signer()))'
 plant "a retraction a key removal cuts is read"         src/content.rs '.filter(|w| !cuts.any.contains(w.id()))' ''
 plant "the rooms read as one"                           src/content.rs 'by_room.entry(r.room()).or_default().push(r);' 'by_room.entry(None).or_default().push(r);'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'

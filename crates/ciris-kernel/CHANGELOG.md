@@ -2,15 +2,18 @@
 
 ## Unreleased
 
-**Room content: receipts, the reader's line on an end, key removals, rooms** (`content`, both languages, with
-cases, planted breaks and the run's `keys` histories). **BREAKING**: `content::Kind` has `Ack` and `KeyEnd`, and
-`content::Rule` has `KeyRemoved` (`"K.key_removed"`); an exhaustive match must add them.
-- A receipt of a content row is not read, the count's own included (`Kind::Other`).
-- The reader's line on an end, sibling-safe as `line::behind`: the reader's acknowledgements (`Kind::Ack`) put
-  the heads and ends in their past on its line, and an end behind it ends nothing for that reader. New:
-  `ContentRow::parents` (a head's own heads).
-- A key removal (`Kind::KeyEnd`, `ContentRow::removes`) cuts the member's rows under that key outside its past,
-  in every room; a counted one also voids the member's end under that key.
+**Room content: receipts, the reader's line, key removals, rooms** (`content`, both languages, with cases, planted
+breaks and the run's `keys` histories). **BREAKING**: `content::Kind` has `Ack` and `KeyEnd`, and `content::Rule`
+has `KeyRemoved` (`"K.key_removed"`); an exhaustive match must add them.
+- A receipt of a content row is not read, the count's own included (`Kind::Other`): a choice, stated as one.
+- The reader's line is the head rules' line, monotone (`line::own_line_with`, sibling-safe as `line::behind`): the
+  roster versions, the ends and the rows adding tips are its counted acts; each acknowledgement (`Kind::Ack`)
+  takes up the acts in its past not void for the line its earlier ones drew, so acknowledging never un-voids. An
+  end behind the line ends nothing for that reader, a tips row behind it adds nothing. New:
+  `ContentRow::parents` (a head's own heads); `ContentRow::head` is read on a tips row.
+- A key removal (`Kind::KeyEnd`, `ContentRow::removes`) is the person's own key roster's act, signed by a key of
+  the member: it cuts the member's rows under that key outside its past, in every room, and voids no end. One the
+  room's count signs is not read: the room's count ends a seat in its room only.
 - `ContentRow::room`: each room is judged by its own rows. A content row naming a held row that is not a roster
   version of its room has no seat (it was undecided).
 

@@ -136,10 +136,13 @@ PLANTS = [
     ("receipt_keeps", "counted_receipt_keeps_nothing"),        # a counted receipt of a content row is read as a tip
     ("line_unread", "line_voids_backdated_resignation"),       # the reader's line is not read on an end
     ("line_not_sibling_safe", "line_sibling_safe"),            # an end at a line act's own head is behind it
+    ("ack_unvoids", "line_acknowledging_never_unvoids"),       # an acknowledgement takes up what its earlier line voided
+    ("line_tips_unread", "line_holds_tips_row_void"),          # a tips row behind the line is read
     ("key_end_unread", "key_removed_rows_after_it_cut"),       # a key removal cuts nothing
     ("cut_row_followed", "cut_tip_keeps_nothing"),             # the walk passes through a cut row
     ("cut_retraction_read", "retraction_under_a_removed_key"),  # a retraction a key removal cuts is read
-    ("member_key_end_voids", "member_revokes_key_keeps_its_resignation"),   # the member's key removal voids its end
+    ("key_end_voids_end", "member_revokes_key_keeps_its_resignation"),   # a key removal voids the member's end
+    ("count_key_end_read", "room_count_cannot_remove_a_key"),  # the room's count removes a key
     ("rooms_mixed", "tip_in_another_room"),                    # the rooms are read as one
 ]
 

@@ -262,13 +262,13 @@ fn no_end_among_the_rows() {
         let list: Vec<&CRow> = heads.iter().chain(rows.iter()).filter(|r| r.kind != Kind::End).collect();
         let by: BTreeMap<&str, &CRow> = list.iter().map(|r| (r.id.as_str(), *r)).collect();
         let member = |k: &str| k == "B" || k == "B2";
-        // a row of the member a held key removal (the count's or the member's) cuts: its key, not in its past
+        // a row of the member a held key removal (signed by a key of the member) cuts: its key, not in its past
         let cut = |r: &CRow| {
             member(r.signer.as_str())
                 && r.kind != Kind::KeyEnd
                 && list.iter().any(|q| {
                     q.kind == Kind::KeyEnd
-                        && (q.signer == "count" || member(q.signer.as_str()))
+                        && member(q.signer.as_str())
                         && q.removes.as_deref() == Some(r.signer.as_str())
                         && !in_past(&by, None, &r.id, &q.id).expect("held")
                 })
