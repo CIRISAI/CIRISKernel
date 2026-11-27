@@ -568,6 +568,7 @@ plant "a one-officer affiliation's lone act decided without a countersign" src/s
 plant "root_gate_unread: a root chain's gate read from the row's mark" src/seat.rs '    if top.conf() == Some(Conf::Root) {' '    if false && top.conf() == Some(Conf::Root) {'
 plant "root_seat_unchecked: a root seat stands without its grant" src/seat.rs 'Some(Conf::Root) => is_offer && root_seat(spec, r, &obj),' 'Some(Conf::Root) => is_offer,'
 plant "root_seat_any_duty: a root seat of any duty" src/root.rs 'if g.duty().as_ref() != duty {' 'if false {'
+plant "owner_acceptance_unread: the owner's cosignature on the agent's acceptance not read" src/seat.rs '                        .chain(c.cs().iter().copied().filter(|&a| {' '                        .chain(c.cs().iter().copied().filter(|&a| false && {'
 plant "an act naming the end still counts"            src/conferral.rs 'return Ok((false, false, Rule::NamesEnd));' 'return Ok((true, false, Rule::NamesEnd));'
 plant "the grantee receipts its own act"              src/conferral.rs 'Role::Grantee | Role::Other => Ok(false),' 'Role::Grantee | Role::Other => Ok(true),'
 plant "a receipt after the end keeps the act"         src/conferral.rs 'Ok(!self.key_cut(q)? && self.eligible(q, e)? && !self.past.in_past(e.id(), q.id())?)' 'Ok(!self.key_cut(q)? && self.eligible(q, e)?)'

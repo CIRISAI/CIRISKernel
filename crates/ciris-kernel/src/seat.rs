@@ -2712,12 +2712,24 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                         }
                     }
                 }
+                // the owner's signature on the seating is carried either way: the owner cosigns the conferral row, or
+                // the owner cosigns the agent's own acceptance of it; the binding in the signed row's past (a row that
+                // only cites the binding is no signature)
                 let bound = |oi: usize, k: &R::Key| {
                     let Some(ws) = owners.get(&Obj::Key(k.clone())) else { return false };
                     let one = ws.iter().all(|(w, _)| *w == ws[0].0);
-                    one && ws
-                        .iter()
-                        .any(|&(w, b)| signed_by(g.row(oi), w) && g.idx(b).is_some_and(|bi| g.in_past(bi, oi)))
+                    let o = g.row(oi);
+                    let carriers: Vec<usize> = core::iter::once(oi)
+                        .chain(c.cs().iter().copied().filter(|&a| {
+                            let ar = g.row(a);
+                            ar.seat_kind() == SeatKind::Accept && ar.signer() == k && ar.of() == Some(o.id())
+                        }))
+                        .collect();
+                    one && ws.iter().any(|&(w, b)| {
+                        carriers
+                            .iter()
+                            .any(|&ci| signed_by(g.row(ci), w) && g.idx(b).is_some_and(|bi| g.in_past(bi, ci)))
+                    })
                 };
                 let mut dropped = false;
                 for (j, &(oi, k, _)) in base.iter().enumerate() {

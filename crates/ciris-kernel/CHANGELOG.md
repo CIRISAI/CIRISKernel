@@ -50,7 +50,9 @@ affiliation founded with no officer is dissolved; the charter and trust-rows cas
 **An agent's duty rests on its owner's signature** (CC 4.5.4, "An agent's key MAY hold a duty, by its own statement and
 its owner's signature"; the cross-object rest (2)). A duty seat of an agent's key (a key holding an `agent` seat over
 the room) stands only where the one live owner of that key (its `owner` seat over the key's own roster) signed the
-conferral, by an owner-binding in the conferral's past, and only while that binding stands for the reader: the
+seating, by an owner-binding in the signed row's past: carried either way (the Constitution's answer), the owner
+cosigning the conferral row, or the owner cosigning the agent's own acceptance of it (a row that only cites the
+binding is no signature; plant `owner_acceptance_unread`), and only while that binding stands for the reader: the
 owner's revocation stops the seat (it has the binding in its past), and two owners are none (CC 3.2). **An answer
 changes:** a duty conferred on an agent with no owner's signature seats nothing. Five cases in `check_agent_seat.py`,
 and its worlds now carry the agent's owner-binding; plants `agent_duty_owner_unread` and `agent_owner_end_unread`,

@@ -1981,8 +1981,14 @@ class Seats:
             owners = {}
             for oid, k2, sc2, _, _ in self.live:
                 if sc2 == "owner": owners.setdefault(S.by[oid]["obj"], set()).add((k2, oid))
+            # the owner's signature on the seating, carried either way (the Constitution's answer): the owner cosigns
+            # the conferral row, or the owner cosigns the agent's own acceptance of it (that acceptance names the
+            # conferral); the binding in the signed row's past. A row that only cites the binding is no signature
+            # (MUTATION owner_acceptance_unread: only the conferral carries it)
+            carriers = lambda o, k: [o] + ([] if "owner_acceptance_unread" in MUT else [
+                a for a in Cs if a["kind"] == "accept" and a["signer"] == k and a.get("of") == o["id"]])
             bound = lambda o, k: "agent_duty_owner_unread" in MUT or (lambda ws: len({w for w, _ in ws}) == 1 and any(
-                w in signers(o) and b in S.anc[o["id"]] for w, b in ws))(
+                w in signers(row) and b in S.anc[row["id"]] for w, b in ws for row in carriers(o, k)))(
                 owners.get(k, set()) if "agent_owner_end_unread" not in MUT else owner_bindings(S, k, o))
             # MUTATION resign_keeps_duty: a key that ended its own stay still reads as a member for its duty seats
             keep = [(o, k, sc) for o, k, sc in base if not duty_held(S.by, o, sc) or (

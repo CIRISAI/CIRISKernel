@@ -392,8 +392,9 @@ trusting an adapter.
   `founding_duty_holder_agent_owner_unsigned`): the seat rows carry no owner of an agent's key. Until it does, a
   caller must not present an agent's duty seat without the owner's statement having been checked at the door.
 - A duty conferred on an agent is a duty seat of its own (a counted `duty_confer` row), live while its `agent`
-  seat is, and only by its own statement and its owner's signature: the agent's key cosigns the conferral, and so
-  does the one live owner of the agent's key, the conferral naming that owner-binding (the owner's `owner` seat over
+  seat is, and only by its own statement and its owner's signature: the agent's key cosigns the conferral (or
+  accepts it by its own row), and the one live owner of the agent's key cosigns the conferral or that acceptance,
+  the row it signs naming that owner-binding (the owner's `owner` seat over
   the agent's own roster: an Offer of scope `owner` over the key, the key's and the owner's signatures). The seat
   stops when that binding ends (the owner's revocation), and with two owners there is none. It acts alone within that duty. It is still no voice in any count, the duty holders' own included.
 - A moderator's lone removal of an agent's key is an Unseat of its `agent` seat, `Conf::Group`, signed by the
