@@ -843,8 +843,12 @@ where
             let mut out = BTreeSet::new();
             for j in rows {
                 let Some(a) = won.get(&j) else { continue };
-                let keep: BTreeSet<B::Id> =
-                    won.iter().filter(|(m, _)| **m != j && !pasts[j].contains(*m)).map(|(_, x)| x.clone()).collect();
+                // a concurrent row's settled bundle and its whole line: the line it settled onto
+                let keep: BTreeSet<B::Id> = won
+                    .iter()
+                    .filter(|(m, _)| **m != j && !pasts[j].contains(*m))
+                    .flat_map(|(_, x)| self.line(x))
+                    .collect();
                 out.extend(self.rv_of(core::slice::from_ref(a), ids, &keep));
             }
             out

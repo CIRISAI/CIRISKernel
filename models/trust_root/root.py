@@ -74,6 +74,12 @@ MUT holds planted breaks, switched on by check_root.py.
 
 MUT = set()
 
+# PROTOTYPE (r78 q4, pending the Constitution): UNION VOIDING. A bundle behind ANY of the reader's settled
+# acknowledgements is void, whatever their concurrency (the monotone line over the union of the person's
+# acknowledgement rows); each acknowledgement still settles only over its own past. Off: a row closes nothing a row
+# concurrent with it settled.
+UNION_VOIDING = [False]
+
 
 INVALID, VOID, CONCLUDED, REFUSED = "invalid", "void", "concluded", "refused"
 
@@ -574,7 +580,10 @@ class Root:
             out = set()
             for j in rows:
                 if j not in won: continue
-                keep = frozenset(won[m] for m in won if m != j and m not in pasts[j])
+                # (a concurrent row's settled bundle and its whole line: the line it settled onto)
+                keep = frozenset() if UNION_VOIDING[-1] else frozenset().union(
+                    *[self.line(won[m]) if "concurrent_keep_bundle_only" not in MUT else {won[m]}
+                      for m in won if m != j and m not in pasts[j]])
                 out |= self._rv([won[j]], ids, keep=keep)
             return out
         for i, a in enumerate(acks):

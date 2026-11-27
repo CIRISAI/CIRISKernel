@@ -595,6 +595,11 @@ CASES += [
     ("rules", "DP3: acknowledging b2, b3, then t: ack(b3) settles over its own past (b2 and b3, no t1); t1 is then "
               "behind the line, and t with it: the reader is at b3", DL + [DB3], (), (),
      RD(anchor="b0", acks=("b2", "b3", "t")), {"heads": ("b3",), "holders": {"h3", "h4", "h5", "h6"}}),
+    ("rules", "two devices, the attacker chain concurrent with the honest line: one device acks b2 then b3, the other "
+              "t (t1, t by h1 h2 and the double-signing h3); neither row closes the line the other settled onto (t1 for "
+              "t, b2 for b3), so over what the reader holds b2 and t1 contest (rule 6): the reader is at b1, and X is "
+              "not in force", DL + [DB3], (), (), RD(anchor="b0", acks=("b2", "b3", "t"), after=((), (0,), ())),
+     {"heads": ("b1",), "holders": set(H5)}),
     ("rules", "order case (1): the honest line advanced first (b3), a reader at b3: t1 is behind its line, and b2 and b3 "
               "stand", [B0, DB1, DB2, DB3, DT1], (), (), RD(anchor="b0", acks=("b3",)), {"heads": ("b3",)}),
     ("rules", "order case (2): a reader that acknowledged only b2, holding t1 and b3: t1 contests b2 (rule 6), and b3 "
@@ -706,7 +711,8 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "ack_settles_over_all", "recovery_head_unread", "double_signer_grant_voices", "double_signer_settles",
           "double_signer_halt_suppressed", "double_signer_mark_carried",
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
-          "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names")
+          "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names",
+          "concurrent_keep_bundle_only")
 
 
 def answer(bs, rv, gs, rd, want):

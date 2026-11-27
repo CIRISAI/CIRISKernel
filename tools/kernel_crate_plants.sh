@@ -609,6 +609,7 @@ plant "the root: double signers left in the settler's base" src/root.rs '.filter
 plant "the root: a holder's two settlers at one head both counted" src/root.rs 'd.extend(self.settler_double_signers(b.prev()));' 'let _ = self.settler_double_signers(b.prev());'
 plant "the root: a settler's target not checked (a dummy target)" src/root.rs 'let Some(x) = target else { return Err("genesis_bundle_count_unmet") };' 'let Some(x) = target.or(kids.first().copied()) else { return Err("genesis_bundle_count_unmet") };'
 plant "the root: a settler's base over the siblings it names only" src/root.rs 'let ds = self.double_signers(&kids);' 'let named: Vec<&B> = b.names().iter().filter_map(|n| self.b(n)).collect(); let ds = self.double_signers(&named);'
+plant "the root: a concurrent row's settled bundle kept, not its line" src/root.rs '.flat_map(|(_, x)| self.line(x))' '.flat_map(|(_, x)| [x.clone()])'
 plant "the root: a contested join's token unread" src/root.rs 'Some(if self.contested_join(i) { "genesis_join_contested" } else { "void" })' 'Some("void")'
 plant "the root: the fold always common" src/root.rs '        if charters.len() > 1 {' '        if true {'
 plant "the root: differing charters fold" src/root.rs '        if charters.len() > 1 {' '        if false {'
