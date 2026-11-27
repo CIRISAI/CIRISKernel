@@ -70,6 +70,10 @@ pub trait RootBundle {
     fn sub_delegation(&self) -> &[Self::Word] {
         &[]
     }
+    /// The bundles it names besides those it extends (rule 3: a bundle at a head naming two siblings decides).
+    fn names(&self) -> &[Self::Id] {
+        &[]
+    }
     /// The recovery commitments: (holder, its recovery key), keys exactly the holders.
     fn recovery(&self) -> &[(Self::Key, Self::Key)];
     /// For a holder's own key recovery: (the holder, its new key).
@@ -727,22 +731,27 @@ where
     pub fn heads(&self, rd: &Reader<B::Id, B::Key>) -> Option<Vec<B::Id>> {
         let f = self.first(rd)?;
         let (accepted, rv) = self.reader_line(rd);
-        let held: Vec<B::Id> = self
+        let base: Vec<B::Id> = self
             .valid()
             .into_iter()
             .map(|b| b.id().clone())
             .filter(|i| (*i == f || self.in_past(&f, i)) && !rv.contains(i))
             .collect();
+        // rules 5 and 6 over what the reader's line leaves (a row void by the line is no input to them)
+        let ct = self.contested(&base);
+        let held: BTreeSet<B::Id> = base.into_iter().filter(|i| !ct.contains(i)).collect();
         let mut acked: BTreeSet<B::Id> = held.iter().filter(|i| accepted.contains(*i)).cloned().collect();
-        // a contested bundle the reader acknowledged leaves it at the bundles it extends, and so on down
-        let contest = self.void_and_contested().1;
-        let held: BTreeSet<B::Id> = held.into_iter().collect();
-        let mut todo: Vec<B::Id> = rd.acks.iter().filter(|i| contest.contains(*i)).cloned().collect();
+        // a bundle the reader acknowledged that does not count for it (contested, or held void by its own line)
+        // leaves it at the bundles it extends, and so on down
+        let mut down = self.void_and_contested().1;
+        down.extend(ct.iter().cloned());
+        down.extend(rd.acks.iter().filter(|a| rv.contains(*a)).cloned());
+        let mut todo: Vec<B::Id> = rd.acks.iter().filter(|i| down.contains(*i)).cloned().collect();
         while let Some(x) = todo.pop() {
             for p in self.b(&x).map(|b| b.prev().to_vec()).unwrap_or_default() {
                 if held.contains(&p) {
                     acked.insert(p);
-                } else if contest.contains(&p) {
+                } else if down.contains(&p) {
                     todo.push(p);
                 }
             }
@@ -751,6 +760,92 @@ where
             return Some(Vec::from([f]));
         }
         Some(acked.iter().filter(|i| !acked.iter().any(|j| self.in_past(i, j))).cloned().collect())
+    }
+
+    /// b and c extend the same bundles, neither in the other's past, and neither names the other.
+    fn siblings(&self, b: &B, c: &B) -> bool {
+        b.id() != c.id()
+            && !b.prev().is_empty()
+            && b.prev().iter().collect::<BTreeSet<_>>() == c.prev().iter().collect::<BTreeSet<_>>()
+            && !self.in_past(b.id(), c.id())
+            && !self.in_past(c.id(), b.id())
+            && !c.names().contains(b.id())
+            && !b.names().contains(c.id())
+    }
+
+    /// b removes holder k: a predecessor seats k, and b does not.
+    fn removes(&self, b: &B, k: &B::Key) -> bool {
+        !b.holders().contains(k) && b.prev().iter().any(|p| self.b(p).is_some_and(|q| q.holders().contains(k)))
+    }
+
+    fn cuts_kept(&self, b: &B, c: &B) -> bool {
+        self.b(&b.prev()[0]).is_some_and(|p| p.holders().iter().any(|k| self.removes(b, k) && c.holders().contains(k)))
+    }
+
+    /// Of the bundles `ids`, the ones that do not count. RULE 6: on one slot at one head, a voice that acknowledged
+    /// an act and voted to cut it, in two rows neither of which names the other, has no say there and stays among the
+    /// holders the count is over (a key that signed two siblings, one cutting a holder the other keeps). RULE 5:
+    /// siblings that each remove a holder whose voice the other needs are contested; one-sided, the dependent one
+    /// falls. And every bundle built on one but a join. RULE 3: a bundle at that head naming both decides.
+    pub fn contested(&self, ids: &[B::Id]) -> BTreeSet<B::Id> {
+        let bs: Vec<&'a B> = ids.iter().filter_map(|i| self.b(i)).filter(|b| !b.prev().is_empty()).collect();
+        let mut out: BTreeSet<B::Id> = BTreeSet::new();
+        let mut no: BTreeMap<B::Id, BTreeSet<B::Key>> = BTreeMap::new();
+        for b in &bs {
+            let mut ks: BTreeSet<B::Key> = BTreeSet::new();
+            for c in &bs {
+                if self.siblings(b, c) && (self.cuts_kept(b, c) || self.cuts_kept(c, b)) {
+                    ks.extend(self.voices(b).intersection(&self.voices(c)).cloned());
+                    // rule 6
+                }
+            }
+            if !ks.is_empty() && b.recovers().is_none() {
+                let v: BTreeSet<B::Key> = self.voices(b).difference(&ks).cloned().collect();
+                if !self.meets(b, &v, None) {
+                    out.insert(b.id().clone());
+                }
+            }
+            no.insert(b.id().clone(), ks);
+        }
+        // rule 5
+        let live: Vec<&'a B> = bs.iter().copied().filter(|b| !out.contains(b.id())).collect();
+        let needs = |y: &B, k: &B::Key| {
+            let v: BTreeSet<B::Key> = self.voices(y).difference(&no[y.id()]).cloned().collect();
+            let mut less = v.clone();
+            less.remove(k);
+            v.contains(k) && self.meets(y, &v, None) && !self.meets(y, &less, None)
+        };
+        let mut dep: Vec<B::Id> = Vec::new();
+        for x in &live {
+            for y in &live {
+                if self.siblings(x, y)
+                    && self
+                        .b(&x.prev()[0])
+                        .is_some_and(|p| p.holders().iter().any(|k| self.removes(x, k) && needs(y, k)))
+                {
+                    dep.push(y.id().clone());
+                }
+            }
+        }
+        out.extend(dep);
+        loop {
+            let mut changed = false;
+            for i in ids {
+                if out.contains(i) {
+                    continue;
+                }
+                if let Some(b) = self.b(i) {
+                    if b.prev().len() < 2 && b.prev().iter().any(|p| out.contains(p)) {
+                        out.insert(i.clone());
+                        changed = true;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        out
     }
 
     /// (holders, seats) in force for the reader; None: `genesis_bundle_not_anchored`.
