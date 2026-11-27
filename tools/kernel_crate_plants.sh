@@ -203,7 +203,6 @@ plant "a lone removal over an object that is no community" src/seat.rs '    if !
 plant "a record's declared roster scope read as a duty" src/seat.rs '    d == "member" || d == AGENT
 }' '    false
 }'
-plant "a key's own offer of a duty ungated outside a duty room" src/seat.rs '&& (duty_seat(law, &by, r) || own_duty())' '&& duty_seat(law, &by, r)'
 plant "a lone founder holds no duty" src/seat.rs '    if lone_founding(o) {
         let mut out' '    if false {
         let mut out'
@@ -616,7 +615,6 @@ plant "an edge for another counts whoever signs it"   src/trust_rows.rs 'Obj::Ke
 plant "a person's roster keys do not speak for it"     src/trust_rows.rs 'Obj::Key(k) => who.contains(k) || seats.holders("key", src, None).iter().any(|x| who.contains(x)),' 'Obj::Key(k) => who.contains(k),'
 plant "a community's edge counts its members"          src/trust_rows.rs 'let duty = seats.authority_body(src);' 'let duty: BTreeSet<R::Key> = BTreeSet::new();'
 plant "the trust_edge acts row is not read"            src/trust_rows.rs '.is_some_and(|(p, _)| p.len() == 1 && p[0] == "duty_confer");' '.is_some_and(|_| false);'
-plant "an edge is judged over the reader's rows"       src/trust_rows.rs 'let sub = past_of(seats.c(), i, &[]);' 'let sub = seats.c().clone();'
 plant "a delegates_to bearing anything is an edge"     src/trust_rows.rs 'if !r.is_delegates_to() || r.bears().is_none_or(|b| b.as_ref() != BEARS) {' 'if !r.is_delegates_to() {'
 plant "an edge row's malformed classes are admitted"   src/trust_rows.rs 'if let Some(why) = e.refusal() {' 'if let Some(why) = None::<&'"'"'static str> {'
 plant "an edge's depth above five is capped"           src/trust_rows.rs 'd @ 0..=5 => Some(Ok(Accepts { depth: d as u32, ..e })),' 'd @ 0..=5 => Some(Ok(Accepts { depth: d as u32, ..e })),
@@ -626,7 +624,6 @@ plant "a withdrawn edge is walked"                     src/trust_rows.rs 'if !en
 plant "any signer of an edge withdraws it"             src/trust_rows.rs '&& speaks_at(seats, j, &signers(w), &e.src)' ''
 plant "any key's licence is the authority's act"       src/trust_rows.rs 'if is_the_authority(&at, r.signer(), &a) {' 'if true {'
 plant "a license seat is not read"                     src/trust_rows.rs 'if !at.stands(r.signer(), "license", &a, None) {' 'if true {'
-plant "a concurrent withdrawal is not read"            src/trust_rows.rs 'if conc.is_empty() {' 'if true {'
 plant "a locked community issues its own licence"     src/trust_rows.rs 'if !locked(&at, &a) {' 'if true {'
 plant "a community's licence counts a fixed majority"  src/trust_rows.rs 'if declared_count(&past, &a, &at.protocol_body(&a), &voices) {' 'if counted(voices.iter().filter(|k| at.protocol_body(&a).contains(*k)).count(), at.protocol_body(&a).len()) {'
 plant "a community's quorum does not issue"            src/trust_rows.rs 'if is_community(&at, &a) {' 'if false {'
@@ -675,6 +672,20 @@ plant "stalled read over the row's own counted scope" src/seat.rs '    let scope
 plant "a stalled recovery while live" src/seat.rs '    if founders >= m + 1 {' '    if false {'
 plant "a stalled recovery that changes more" src/seat.rs 'if r.to().len() != 1 || r.consensus_protocol().is_some() || !r.cosigners().is_empty() {' 'if false {'
 plant "a stalled recovery signed by another key" src/seat.rs 'if r.to()[0] != named || *r.signer() != named {' 'if false {'
+plant "an affiliation's edge is a duty conferral"      src/trust_rows.rs 'if kind_of(seats.law(), &get, src) == Some(CommunityKind::Affiliation) {' 'if false {'
+plant "a dissolved authority's edges are walked"       src/trust_rows.rs 'if matches!(e.src, Obj::Row(_)) && seats.dissolved(&e.src) {' 'if false {'
+plant "a dissolved authority's licence is live"        src/trust_rows.rs 'if is_community(seats, &auth) && seats.dissolved(&auth) {' 'if false {'
+plant "a dissolved authority's class is not judged at issuance" src/trust_rows.rs 'if !charters(&at, supplied, now).declares(&auth, cls) {' 'if false {'
+plant "a key's own offer of a duty ungated outside a duty room" src/seat.rs '&& !authority_gate(law, spec, r, p, &by, cache, duty_seat(law, &by, r) || own_duty())' '&& !authority_gate(law, spec, r, p, &by, cache, duty_seat(law, &by, r))'
+plant "a founding signer's own officer or license seat revives a group" src/seat.rs 'body.len() == 1 && body.contains(r.signer())' 'true'
+plant "the ends the reader holds are not read"         src/trust_rows.rs '    if read {
+        rows.extend(' '    if false {
+        rows.extend('
+plant "an end cuts nothing concurrent with it"         src/trust_rows.rs 'rows.retain(|j| !cut.contains(j));' 'let _ = &cut;'
+plant "an edge is judged at issuance only"             src/trust_rows.rs '[false, true].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(c, i, read), who, src))' '[false].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(c, i, read), who, src))'
+plant "a licence stating no instant meets a term"      src/seat.rs '.any(|r| r.k == *k && g.idx(&r.offer).is_some_and(|i| g.row(i).valid_until().is_none()));' '.any(|r| r.k == *k);'
+plant "a licence may predate what it cites"            src/trust_rows.rs 'if idx.iter().any(|&j| c.g.row(j).asserted_at().is_some_and(|u| u > t)) {' 'if false {'
+plant "an edge's term is not read"                     src/trust_rows.rs 'None => r.valid_until().is_none(),' 'None => true,'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

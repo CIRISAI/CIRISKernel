@@ -673,15 +673,15 @@ impl ciris_kernel::trust_rows::TrustRow for TRow {
     }
 }
 
-/// A record's own stated instants: `asserted_at`, and its end (`dissolves_at`), read by `charter` against the caller's
-/// instant.
+/// A row's own stated instants: `asserted_at`, and its end (a record's `dissolves_at`, read by `charter` against the
+/// caller's instant; an offer's `expires_at`, a license seat's term, read by `trust_rows`).
 impl ciris_kernel::Dated for TRow {
     type Instant = i64;
     fn asserted_at(&self) -> Option<i64> {
         self.fi("asserted_at")
     }
     fn valid_until(&self) -> Option<i64> {
-        self.fi("dissolves_at")
+        self.fi("dissolves_at").or_else(|| self.fi("expires_at"))
     }
 }
 

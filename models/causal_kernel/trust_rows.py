@@ -99,12 +99,38 @@ def counted(yes, n):
 
 
 def locked(T, community):
-    """CC 4.5.4 (v): a community with no live duty holder is LOCKED: it signs no onward acceptance edge, confers no
+    """CC 4.5.4 (v): a community with no live duty holder is LOCKED: it signs no NEW onward acceptance edge, confers no
     license seat (the duty holders' count, seat.py, takes none) and issues no licence of its own, until an election
-    seats a holder. A license seat's holder is no duty holder and keeps no room from locking."""
-    # (an affiliation's authority is its officers: with none it is DISSOLVED, CC 4.4.3.12, and signs nothing either;
-    # seat.authority_body is the one source of whose keys these are)
+    seats a holder. A license seat's holder is no duty holder and keeps no room from locking. A license seat, or an
+    edge, from before the lock stands until its term ends (seat_term, edge_term) or it is withdrawn, by ancestry
+    (ended_for_reader). An affiliation is never locked:
+    with no officer (its authority body) it is DISSOLVED (CC 4.4.3.12), and signs nothing either. seat.authority_body is the one source of
+    whose keys these are."""
     return "lock_unread" not in MUT and not ST.authority_body(ST.Seats(T), community)
+
+
+def seat_term(T, k, a, t):
+    """Whether a license seat over `a` that seats `k` covers instant `t` (the licence's own), read as the crate's
+    Seats::stands_at_instant reads it: a live seat of `k` giving `license` over `a` (any chain, its root any) whose
+    seating offer's own term covers `t` (`asserted_at <= t < expires_at`; a missing bound does not limit), with the
+    fold at tips. With `t` None (the licence states no instant), only a seat whose offer states no term: no instant
+    means no term met (the r73 attack)."""
+    if "term_unread" in MUT:
+        return True
+    Q = ST.Seats(T)
+    fold = Q.tips_fold("license", a)
+    if fold is not None and k not in fold:
+        return False
+    for rec in Q.recs:
+        if rec["k"] == k and rec["obj"] == a and Q._has(rec, "license") and Q._member(rec):
+            o = T.by[rec["offer"]]
+            lo, hi = o.get("asserted_at"), o.get("expires_at")
+            if t is None:
+                if hi is None or "untimed_term_met" in MUT:
+                    return True
+            elif (lo is None or lo <= t) and (hi is None or t < hi):
+                return True
+    return False
 
 
 def declared_count(T, signers, community):
@@ -141,6 +167,11 @@ def speaks_for(T, signers, src):
     if src in T.by:
         if not is_community(T, src):
             return False
+        # an affiliation's edge is its officers' act under its declared protocol (the officers ruling: the acts row
+        # accept / trust_edge / affiliation -> cosigned_act, held in seat.PENDING_ACTS)
+        if ST.kind_of(T.by, src) == "affiliation" and "affiliation_edge_duty_count" not in MUT:
+            rule = None if "pending_unread" in MUT else ST.policy_for("accept", "trust_edge", "affiliation")
+            return rule is not None and rule[0] == ("cosigned_act",) and declared_count(T, signers, src)
         # the acts row binds the count (MUTATION pending_unread: the table without the pending row)
         rule = None if "pending_unread" in MUT else ST.policy_for("accept", "trust_edge", "community")
         if rule is None or rule[0] != ("duty_confer",):
@@ -157,6 +188,82 @@ def speaks_for(T, signers, src):
     if src in signers:
         return True
     return "roster_unread" not in MUT and bool(signers & ST.Seats(T).holders("key", src))
+
+
+def object_of(S, q):
+    """The group or key a row acts over: its object, the authority it speaks for, or a licence's authority; an
+    acceptance's, its offer's object."""
+    if q["kind"] == "accept" and q.get("of") in S.by:
+        return S.by[q["of"]].get("obj")
+    return q.get("obj") or q.get("on_behalf") or q.get("authority")
+
+
+def is_end(q):
+    """An end the reader reads over its own rows: a withdrawal (a lay-down, a resignation, a conferrer's withdrawal, an
+    edge's withdrawal), an unseat (a counted removal or withdrawal of a seat, a key's eviction from a roster), or a
+    change of a group's record (an amendment of its protocol or of what it declares)."""
+    return q["kind"] in ("withdraw", "unseat") or (q["kind"] == "offer" and q.get("conf") == "group"
+                                                   and q.get("scope") == "record")
+
+
+def ends_keys(S, e):
+    """The (key, object) seats end `e` ends: an unseat's keys over its object; a withdrawal by a seated key of its own
+    seat, or by the conferrer of an offer's seats (a counted offer's conferrer is its count, and its signer ends
+    nothing alone); a change of the record ends no seat."""
+    if e["kind"] == "unseat":
+        return {(k, e.get("obj")) for k in e.get("to", ())}
+    if e["kind"] != "withdraw":
+        return set()
+    t = S.by.get(e.get("target"))
+    if t is None:
+        return set()
+    if t["kind"] == "accept":
+        return {(e["signer"], object_of(S, t))}
+    if t["kind"] != "offer":
+        return set()
+    if e["signer"] in t.get("to", ()):
+        return {(e["signer"], t.get("obj"))}
+    if e["signer"] in ST.signers(t) and t.get("conf") != "group":
+        return {(k, t.get("obj")) for k in t.get("to", ())}
+    return set()
+
+
+def cut_state(S, rows):
+    """The rows `rows` with every row an end among them cuts taken out: a row signed by a key whose seat over the row's
+    object the end ends, concurrent with that end (neither in the other's past). Rows in an end's past stand (nothing
+    reaches back); rows after it are judged at their own past."""
+    ends = [e for e in rows if is_end(e) and S.C.get(e["id"])]
+    cut = set()
+    if "cut_unread" not in MUT:
+        for e in ends:
+            ks = ends_keys(S, e)
+            if not ks:
+                continue
+            for q in rows:
+                if q["id"] == e["id"] or q["id"] in S.anc[e["id"]] or e["id"] in S.anc[q["id"]]:
+                    continue
+                o = object_of(S, q)
+                if any(k in ST.signers(q) and o == ob for k, ob in ks):
+                    cut.add(q["id"])
+    kept = [q for q in rows if q["id"] not in cut]
+    return CK.State(kept, {q["id"]: S.C.get(q["id"]) for q in kept})
+
+
+def ended_for_reader(S, r, read=True):
+    """THE END RULE (the r73 attack), the one read of ends for every path (the emitter, the quorum, the seat, the edge):
+    an END cuts every row of what it ends that is not in the end's past. The rows row `r`'s authority is judged over:
+    its own past, with every end in it cutting the rows concurrent with it (`read` False: its existence at issuance);
+    with `read`, every end the READER holds concurrent with `r` too (a key's eviction, an unseat, a lay-down and so the
+    lock, an edge's withdrawal, an amendment of the record), each cutting what it ends there. Dissolution is read the
+    same way (read_licence)."""
+    if "judged_at_read" in MUT:
+        return S
+    past = S.anc[r["id"]]
+    rows = [q for q in S.rows if q["id"] in past]
+    if read and "ends_unread" not in MUT:
+        rows += [q for q in S.rows if S.C.get(q["id"]) and is_end(q) and q["id"] not in past and q["id"] != r["id"]
+                 and r["id"] not in S.anc[q["id"]]]
+    return cut_state(S, rows)
 
 
 def depth_of(r):
@@ -187,20 +294,39 @@ def ended(S, r):
     if "withdrawn_unread" in MUT:
         return False
     return any(w["kind"] == "withdraw" and w.get("target") == r["id"] and S.C.get(w["id"])
-               and ("withdraw_by_anyone" in MUT or speaks_for(past_state(S, w), ST.signers(w), owner(r)))
+               and ("withdraw_by_anyone" in MUT or all(speaks_for(T, ST.signers(w), owner(r)) for T in (
+                   ended_for_reader(S, w, False), ended_for_reader(S, w))))
                for w in S.rows)
 
 
-def edges_of(S):
-    """The acceptance edges the rows S holds give: each admitted, live edge its owner's authority set signed, with its
-    owner as `src`."""
-    out = []
+def edge_term(r, t):
+    """An edge's own term (`asserted_at <= t < expires_at`, as a license seat's) covers instant `t`: the caller's
+    instant, or the licence's own; with no instant, only an edge that states no term."""
+    if "edge_term_unread" in MUT:
+        return True
+    lo, hi = r.get("asserted_at"), r.get("expires_at")
+    if t is None:
+        return hi is None
+    return (lo is None or lo <= t) and (hi is None or t < hi)
+
+
+def edges_of(S, t=None):
+    """The acceptance edges the rows S holds give at instant `t`: each admitted, live edge its owner's authority set
+    signed (over its own past and with every end the reader holds), within its term, with its owner as `src`."""
+    out, Q = [], ST.Seats(S)
     for r in S.rows:
         if r["kind"] != "delegates_to" or not S.C.get(r["id"]):
             continue
+        # a dissolved authority's own edges end with its record (CC 4.4.3.12): no walk hops through it
+        if owner(r) in S.by and Q.dissolved(owner(r)) and "dissolved_edges_kept" not in MUT:
+            continue
         if r.get("bears") != BEARS and "bears_unread" not in MUT:
             continue
-        if refusal(r) is not None or not speaks_for(past_state(S, r), ST.signers(r), owner(r)) or ended(S, r):
+        if refusal(r) is not None or ended(S, r) or not edge_term(r, t):
+            continue
+        # its owner's authority set over its own past, and with every end the reader holds (ended_for_reader)
+        if not all(speaks_for(T, ST.signers(r), owner(r))
+                   for T in (ended_for_reader(S, r, False), ended_for_reader(S, r))):
             continue
         out.append(dict(CH.edge(owner(r), r["dst"], r.get("trust_classes"), depth_of(r)), row=r["id"]))
     return out
@@ -228,13 +354,17 @@ def reaches(edges, frm, c, budget, a):
     return False
 
 
-def standing(S, lic):
-    """(b), (d): None where licence `lic` is its authority's act in force for the reader holding S; else
-    `licensure_delegator_not_authority` (testimony: no standing over its own past) or `licensure_link_withdrawn` (a
-    withdrawal concurrent with it, held, ends a link of its standing)."""
-    r = S.by[lic]
-    a, k = r["authority"], r["signer"]
-    T = past_state(S, r)
+INSTANT_BEFORE_PAST = "licensure_instant_before_its_past"
+
+
+def issuance(T, r):
+    """The licence `r`'s standing over the rows T: None, `licensure_delegator_not_authority` (no standing: testimony),
+    `licensure_authority_locked` (a locked community's quorum) or INSTANT_BEFORE_PAST (an instant earlier than a row
+    it cites: a row cannot claim to predate what it names)."""
+    a, k, t = r["authority"], r["signer"], r.get("asserted_at")
+    if t is not None and "instant_unread" not in MUT and any(
+            q.get("asserted_at") is not None and q["asserted_at"] > t for q in T.rows):
+        return INSTANT_BEFORE_PAST
     if is_the_authority(T, k, a) or "issuer_unread" in MUT:
         return None
     if is_community(T, a) and "quorum_unread" not in MUT:
@@ -245,34 +375,53 @@ def standing(S, lic):
                 return None
             if not ST.Seats(T).stands(k, "license", a):
                 return "licensure_authority_locked"
-    if "chain_unread" in MUT or not ST.Seats(T).stands(k, "license", a):
+    if "chain_unread" in MUT or not ST.Seats(T).stands(k, "license", a) or not seat_term(T, k, a, t):
         return "licensure_delegator_not_authority"
-    if "concurrent_unread" in MUT:
-        return None
-    # (d) the withdrawals the reader holds that are concurrent with the issuance, read with its own past
-    conc = [w for w in S.rows if w["kind"] == "withdraw" and S.C.get(w["id"]) and w["id"] not in S.anc[lic]
-            and lic not in S.anc[w["id"]] and w["id"] != lic]
-    if conc:
-        rows = T.rows + conc
-        T2 = CK.State(rows, {q["id"]: S.C.get(q["id"]) for q in rows})
-        if not ST.Seats(T2).stands(k, "license", a):
-            return "licensure_link_withdrawn"
     return None
+
+
+def standing(S, lic):
+    """(b), (d): None where licence `lic` is its authority's act in force for the reader holding S; else the reason it
+    CONCLUDES NOTHING in the authority's fold (never a refusal: the licence row is admitted, and the reason reads other
+    rows, CC 2.7.3). Its existence is judged over its own past (ended_for_reader with read False): issuance()'s reason.
+    Then every end the reader holds is read over the reader's rows (ended_for_reader): a licence that stood and is cut
+    so is `licensure_link_withdrawn`, or `licensure_authority_locked` where the end locks its community."""
+    r = S.by[lic]
+    why = issuance(ended_for_reader(S, r, False), r)
+    if why is not None:
+        return why
+    why = issuance(ended_for_reader(S, r), r)
+    if why is None:
+        return None
+    return why if why == "licensure_authority_locked" else "licensure_link_withdrawn"
 
 
 def read_licence(S, reader, lic, own=None, supplied=None, now=None):
     """(honoured, reason) for licence row `lic` held in S, read by `reader` over the rows S holds:
-    `licence_class_not_trusted` (the authority's record does not declare the class), the standing's reason
+    `lapsed` (its authority is dissolved: a licence that stood at issuance, its class declared and its standing
+    held over its own past, stands and reads lapsed for every later use), `licence_class_not_trusted` (the authority's record does not declare the class), the standing's reason
     (standing()), or `authority_not_reached` (the reader's walk does not reach the authority for the class)."""
     r = S.by.get(lic)
     if r is None:
         return False, "not_held"
     a, c = r["authority"], r["licence_class"]
+    # a dissolved authority (CC 4.4.3.12, "What stands after dissolution"): an issued licence stands, its authority
+    # judged at issuance, and reads `lapsed` for every later use; one with no standing over its own past is testimony
+    # (the issuance judgement first, over the licence's own past: its standing, then its class; only a licence that
+    # stood then reads `lapsed`. MUTATION lapsed_class_unread: the class is not judged at issuance)
+    if a in S.by and is_community(S, a) and ST.Seats(S).dissolved(a) and "lapsed_unread" not in MUT:
+        why = standing(S, lic)
+        if why is not None:
+            return False, why
+        if "lapsed_class_unread" not in MUT and \
+                c not in CH.charters(past_state(S, r), own, supplied, now).get(a, frozenset()):
+            return False, "licence_class_not_trusted"
+        return False, "lapsed"
     if c not in CH.charters(S, own, supplied, now).get(a, frozenset()):
         return False, "licence_class_not_trusted"
     why = standing(S, lic)
     if why is not None:
         return False, why
-    if not reaches(edges_of(S), reader, c, HOP_CAP, a):
+    if not reaches(edges_of(S, now if now is not None else r.get("asserted_at")), reader, c, HOP_CAP, a):
         return False, "authority_not_reached"
     return True, None
