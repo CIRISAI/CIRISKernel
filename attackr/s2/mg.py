@@ -1,0 +1,12 @@
+exec(open(__file__.replace("mg.py","lib.py")).read())
+N=20; V=("today","L'","L's")
+AX = admit("ax","X",("A","B"),("g",))
+run("M0 fork ax (A,B admit X from {g})", ROOM+[AX], ids=("aD","aG","ax"), n=N, vars=V)
+run("M1 + honest five admit H heads (aG,ax)", ROOM+[AX, admit("ah","H",FIVE,("aG","ax"))], ids=("aD","aG","ax","ah"), n=N, vars=V)
+run("M2 + C alone acks ax (an ack row, room g)", ROOM+[AX, ack("kc","C","ax")], ids=("aD","aG","ax"), n=N, vars=V)
+run("M3 + C,D,E,F,G each ack ax", ROOM+[AX]+[ack("k"+k,k,"ax") for k in "CDEFG"], ids=("aD","aG","ax"), n=N, vars=V)
+run("M4 + X acks aG (the fork's own key acks honest line)", ROOM+[AX, ack("kx","X","aG")], ids=("aD","aG","ax"), n=N, vars=V)
+# symmetric small room
+G3 = ST.found("g","A",("A","B","C"),{},cosigners=("B","C"))
+run("M5 room ABC: honest aD by A,B,C,D at g; concurrent ax by A,B at g", [G3, admit("aD","D",("A","B","C"),("g",)), AX], ids=("aD","ax"), n=N, vars=V)
+run("M6 room ABC: two honest concurrent admissions by A,B,C at g", [G3, admit("aD","D",("A","B","C"),("g",)), admit("aE","E",("A","B","C"),("g",))], ids=("aD","aE"), n=N, vars=V)

@@ -1,0 +1,338 @@
+== the five instances, read from the policy table
+  self       {'member': 'key', 'seat': 'self', 'counted over': 'self', 'add': ('strict', 1, 2), 'remove': ('strict', 1, 2), 'need (quorum M)': None, 'floor (voices)': 1, 'joiner consents': 'own', 'lone path': {'add': ((('approve', 'strict', 'all', 'landed'), ('object', 'strict', 'others', 'refused')), (), None, 'landed', 86400), 'evict': ((('approve', 'strict', 'all', 'landed'), ('object', 'strict', 'others', 'refused')), (), 'refused', 'landed', 86400)}, 'margin': 0, 'own recovery version': False, 'conferring body': None, 'witnessed lineage': False}
+             tables: ('self_roster_add', 'self_roster_evict'); fork run under majority
+  voice      {'member': 'key', 'seat': 'key', 'counted over': 'key', 'add': ('strict', 1, 2), 'remove': ('strict', 1, 2), 'need (quorum M)': None, 'floor (voices)': 1, 'joiner consents': 'own', 'lone path': {'add': ((('approve', 'strict', 'all', 'landed'), ('object', 'strict', 'others', 'refused')), (), None, 'landed', 86400), 'evict': ((('approve', 'strict', 'all', 'landed'), ('object', 'strict', 'others', 'refused')), (), 'refused', 'landed', 86400)}, 'margin': 0, 'own recovery version': False, 'conferring body': None, 'witnessed lineage': False}
+             tables: ('(none: self_roster_add, self_roster_evict by CC 3.1.3.2)',); fork run under majority
+  community  {'member': 'person', 'seat': 'member', 'counted over': 'member', 'add': ('strict', 1, 2), 'remove': ('strict', 1, 2), 'need (quorum M)': None, 'floor (voices)': 2, 'joiner consents': 'own', 'lone path': {'add': ((('approve', 'strict', 'all', 'landed'),), (('object', ('atleast', 1, 3, 2), 'all', 'refused'), ('approve', ('atleast', 1, 3, 2), 'all', 'landed')), None, 'refused', 259200)}, 'margin': 0, 'own recovery version': False, 'conferring body': None, 'witnessed lineage': False}
+             tables: ('community_invite', 'community_remove', 'cosigned_act'); fork run under majority
+  accord     {'member': 'person', 'seat': 'holder', 'counted over': 'holder', 'add': ('strict', 1, 2), 'remove': ('strict', 1, 2), 'need (quorum M)': None, 'floor (voices)': 1, 'joiner consents': 'own', 'lone path': None, 'margin': 0, 'own recovery version': True, 'conferring body': None, 'witnessed lineage': False}
+             tables: ('accord_majority', 'accord_halt'); fork run under majority
+  infra      {'member': 'person', 'seat': 'member', 'counted over': 'founder', 'add': ('declared', 0, 0), 'remove': ('declared', 0, 0), 'need (quorum M)': 2, 'floor (voices)': 2, 'joiner consents': 'own', 'lone path': None, 'margin': 1, 'own recovery version': False, 'conferring body': 'BODY', 'witnessed lineage': True}
+             tables: ('cosigned_act',); fork run under quorum2
+
+== MADE-UP: a room where one signature removes (no floor)
+  refused as required    Inv_CoercedCannotRemoveHonest on an instance built to violate it (must be refused)
+      2 worlds, 2 orders
+      witness: [('one member (C, coerced) removes A', "one member (C, coerced) removes A: roster ['B', 'C']")]
+
+== community, with the stated parameter spent on (does it break anything else?)
+  holds                  Inv_JoinerConsented
+      3 worlds, 3 orders  mutation [no acceptance needed (consent='one')] caught
+      mutation witness: ('widening with no acceptance', 'J seated without consent')
+  holds                  Inv_DeclineTerminal, Inv_LeavingNotUndone (leaving = withdrawing the acceptance)
+      2 worlds, 2 orders  mutation [a withdrawal concludes nothing] caught
+      mutation witness: ('J declines (withdraws its acceptance), then a widening names it', 'J seated')
+  does NOT hold          Inv_LeavingNotUndone, leaving read as a withdrawal of the seat
+      1 worlds, 1 orders
+      witness: [('J resigns by withdrawing the widening that seated it; a second widening names the old acceptance', 'J seated')]
+      note: an acceptance with no `of` is not spent by the widening that used it (CC 3.1.3.2 admission (5))
+  holds with spent (CC 3.1.3.2 admission (5): 'P has not already seated K') Inv_LeavingNotUndone, leaving read as a withdrawal of the seat, with the stated parameter
+      1 worlds, 1 orders  mutation [plant: spent off (the kernel as it is)] caught
+      mutation witness: ('J resigns by withdrawing the widening that seated it; a second widening names the old acceptance', 'J seated')
+  holds                  Inv_NoSelfAdmission
+      1 worlds, 1 orders  mutation [a key's offer to itself counts] caught
+      mutation witness: ('X, not a member, offers itself a seat counted over the room', 'X seated itself')
+  holds with floor=2 (the table's min_count) Inv_CoercedCannotRemoveHonest, with the floor of two voices under every protocol
+      2 worlds, 2 orders  mutation [no floor (founder_only: one founder removes)] caught
+      mutation witness: ("one member (C, coerced) removes A, count ('one', 1, 1)", 'A removed by one signature')
+      note: formal/membership states the founder_only case as a bound; CC 3.1.3.2 says 'one signature never removes'
+  holds                  Inv_ResignationEnabled
+      2 worlds, 2 orders  mutation [a withdrawal concludes nothing] caught
+      mutation witness: ('J, seated by a count, withdraws its acceptance alone', 'J still seated')
+  holds                  when no duty holder is left the members' count seats one (and one member does not)
+      2 worlds, 2 orders  mutation [one voice seats] caught
+      mutation witness: ('one member alone seats B to moderate', 'moderate seat True')
+  holds                  community_invite reverse path: one member's proposal and the joiner's yes land at the close unless a third objects
+      3 worlds, 214 orders  mutation [no cancel] caught
+      mutation witness: ('reverse path, 2 objecting of 3', 'reverse path, 2 objecting of 3: seated=True')
+      note: without the parameter: [('reverse path, 0 objecting of 3', 'reverse path, 0 objecting of 3: seated=False')]
+  holds                  the fold at tips (KERNEL 7): of two versions of one head, the member one adds is in and the member the other removes is out; a version naming both makes one head
+      2 worlds, 6 orders  mutation [the tips' union (a removal on one tip does not reach)] caught
+      mutation witness: ('two versions of g wait', "two versions of g wait: roster ['A', 'B', 'C', 'X']")
+
+== self roster (a person's keys)
+  holds                  Inv_ThiefCannotEvictHonest (owner present)
+      50 worlds, 348 orders  mutation [unilateral door (one key removes)] caught
+      mutation witness: ('counted removal of k1 by the thief alone, owner both_object', 'k1 evicted')
+  holds                  Inv_ThiefCannotEvictHonest (owner present)
+      50 worlds, 348 orders  mutation [no silence condition (model finding 1)] caught
+      mutation witness: ('lone evict k1, owner both_note, landing leaves them unnamed, at 86400', 'k1 evicted')
+  holds                  Inv_ThiefCannotEvictHonest (owner present)
+      50 worlds, 348 orders  mutation [the landing voids concurrent answers (window rule i)] caught
+      mutation witness: ('lone evict k1, owner both_object, landing leaves them unnamed, at 86400', 'k1 evicted')
+  bound reproduced       residual: an owner absent for a whole window looks lost
+      4 worlds, 0 orders  mutation [plant: no lone path (the residual must vanish)] caught
+      witness: [('lone evict k1, owner other_object, landing leaves them unnamed, at 86400', 'k1 evicted')]
+      mutation witness: ('plant', 'nothing lands')
+      note: 4 of 4 worlds land the thief's eviction
+  holds                  Prop_LostRecoverable (two lost of three)
+      12 worlds, 12 orders  mutation [quorum path only (no lone path)] caught
+      mutation witness: ('keep k1, evict k2 then k3', "roster ['k1', 'k2', 'k3']")
+  holds                  the quorum path evicts an active thief
+      6 worlds, 286 orders  mutation [lone path only (no quorum path)] caught
+      mutation witness: ('owner evicts the thief by window; thief note', "roster ['k1', 'k2', 'k3']")
+  holds                  Inv_ThiefNeverMajority: a thief's own key is not added against the owner's two keys
+      2 worlds, 146 orders  mutation [no cancel by the others] caught
+      mutation witness: ('thief adds its own key, owner both_object, unnamed', 't2 seated')
+      note: with only ONE owner key objecting: the add lands
+  holds                  combined1_add: at one key the addition lands at once
+      2 worlds, 5 orders  mutation [count over the others only (the 'every other member' reading)] caught
+      mutation witness: ('one key adds by a counted version', 'not added')
+  bound reproduced       combined1_stolen: one key stolen loses the self
+      1 worlds, 0 orders  mutation [plant: self-admission (the bound must vanish)] caught
+      witness: [("one key, stolen: the owner's fresh key claims a seat", 'the owner holds no key')]
+      mutation witness: ('plant', 'k9 seats itself: the bound is not reproduced')
+  bound reproduced       combined2_stolen: two keys, one stolen, is a stalemate
+      1 worlds, 400 orders  mutation [plant: no silence condition (the bound must vanish)] caught
+      witness: [('two keys, one stolen, both active', "stalemate: roster ['k1', 'k2']")]
+      mutation witness: ('plant', 'roster changes: no stalemate')
+  bound reproduced       combined3_mixed: one stolen and one lost of three is a tie
+      1 worlds, 10 orders  mutation [plant: no silence condition (the bound must vanish)] caught
+      witness: [('three keys, one stolen (k3) and one lost (k2)', "tie: roster ['k1', 'k3']")]
+      mutation witness: ('plant', 'the owner evicts the thief: no tie')
+  holds with persons_only (identity_type of the roster's root) WITNESS PAIR: a person's and an agent's self roster, same parameters; CC 3.3.6.4 'The door is a person's ... an agent's occurrence is single-signer, and neither runs these paths'
+      2 worlds, 2 orders  mutation [plant: the parameter off (the plain mechanism)] caught
+      mutation witness: ("agent's roster: lone eviction of a silent key", "an agent's roster ran the person's door")
+  holds                  a vote from an evicted key is void (removal by causal past)
+      1 worlds, 4 orders  mutation [removal reaches what arrived before it] caught
+      mutation witness: ('by arrival', "the concurrent row is ['counts', 'void'] depending on the order")
+  holds                  roster_fork M0 (tips wait): majority over 012, adversary 2; 7 properties
+      377 worlds, 0 orders  mutation [first version seen wins (rule T6 of fork.py)] caught
+      mutation witness: ('function', "arrival orders end at 2 different heads with rosters ['{h0,h1}', '{h0,h1}']")
+      note: costs shown: ['nsf_now', 'removed_voice']; 0.1s
+
+== voice (a voice's room keys)
+  holds                  Inv_ThiefCannotEvictHonest (owner present)
+      50 worlds, 348 orders  mutation [unilateral door (one key removes)] caught
+      mutation witness: ('counted removal of rk1 by the thief alone, owner both_object', 'rk1 evicted')
+  holds                  Inv_ThiefCannotEvictHonest (owner present)
+      50 worlds, 348 orders  mutation [no silence condition (model finding 1)] caught
+      mutation witness: ('lone evict rk1, owner both_note, landing leaves them unnamed, at 86400', 'rk1 evicted')
+  holds                  Inv_ThiefCannotEvictHonest (owner present)
+      50 worlds, 348 orders  mutation [the landing voids concurrent answers (window rule i)] caught
+      mutation witness: ('lone evict rk1, owner both_object, landing leaves them unnamed, at 86400', 'rk1 evicted')
+  bound reproduced       residual: an owner absent for a whole window looks lost
+      4 worlds, 0 orders  mutation [plant: no lone path (the residual must vanish)] caught
+      witness: [('lone evict rk1, owner other_object, landing leaves them unnamed, at 86400', 'rk1 evicted')]
+      mutation witness: ('plant', 'nothing lands')
+      note: 4 of 4 worlds land the thief's eviction
+  holds                  Prop_LostRecoverable (two lost of three)
+      12 worlds, 12 orders  mutation [quorum path only (no lone path)] caught
+      mutation witness: ('keep rk1, evict rk2 then rk3', "roster ['rk1', 'rk2', 'rk3']")
+  holds                  the quorum path evicts an active thief
+      6 worlds, 286 orders  mutation [lone path only (no quorum path)] caught
+      mutation witness: ('owner evicts the thief by window; thief note', "roster ['rk1', 'rk2', 'rk3']")
+  holds                  Inv_ThiefNeverMajority: a thief's own key is not added against the owner's two keys
+      2 worlds, 146 orders  mutation [no cancel by the others] caught
+      mutation witness: ('thief adds its own key, owner both_object, unnamed', 't2 seated')
+      note: with only ONE owner key objecting: the add lands
+  holds                  combined1_add: at one key the addition lands at once
+      2 worlds, 5 orders  mutation [count over the others only (the 'every other member' reading)] caught
+      mutation witness: ('one key adds by a counted version', 'not added')
+  bound reproduced       combined1_stolen: one key stolen loses the self
+      1 worlds, 0 orders  mutation [plant: self-admission (the bound must vanish)] caught
+      witness: [("one key, stolen: the owner's fresh key claims a seat", 'the owner holds no key')]
+      mutation witness: ('plant', 'k9 seats itself: the bound is not reproduced')
+  bound reproduced       combined2_stolen: two keys, one stolen, is a stalemate
+      1 worlds, 400 orders  mutation [plant: no silence condition (the bound must vanish)] caught
+      witness: [('two keys, one stolen, both active', "stalemate: roster ['rk1', 'rk2']")]
+      mutation witness: ('plant', 'roster changes: no stalemate')
+  bound reproduced       combined3_mixed: one stolen and one lost of three is a tie
+      1 worlds, 10 orders  mutation [plant: no silence condition (the bound must vanish)] caught
+      witness: [('three keys, one stolen (k3) and one lost (k2)', "tie: roster ['rk1', 'rk3']")]
+      mutation witness: ('plant', 'the owner evicts the thief: no tie')
+  holds                  a vote from an evicted key is void (removal by causal past)
+      1 worlds, 4 orders  mutation [removal reaches what arrived before it] caught
+      mutation witness: ('by arrival', "the concurrent row is ['counts', 'void'] depending on the order")
+  holds                  one person, one voice: a tally over voices is the count of persons
+      1728 worlds, 0 orders  mutation [a count of room keys] caught
+      mutation witness: ('keys', '1216 of 1728 differ')
+  holds                  removal by causal past through a voice: a removed voice's room keys, a later one included, speak for nobody
+      1 worlds, 190 orders  mutation [the key's seat in the voice is all that is read] caught
+      mutation witness: ('same', "the removed voice's new key speaks")
+
+== community (public, members are persons)
+  holds                  Inv_JoinerConsented
+      3 worlds, 3 orders  mutation [no acceptance needed (consent='one')] caught
+      mutation witness: ('widening with no acceptance', 'J seated without consent')
+  holds                  Inv_DeclineTerminal, Inv_LeavingNotUndone (leaving = withdrawing the acceptance)
+      2 worlds, 2 orders  mutation [a withdrawal concludes nothing] caught
+      mutation witness: ('J declines (withdraws its acceptance), then a widening names it', 'J seated')
+  does NOT hold          Inv_LeavingNotUndone, leaving read as a withdrawal of the seat
+      1 worlds, 1 orders
+      witness: [('J resigns by withdrawing the widening that seated it; a second widening names the old acceptance', 'J seated')]
+      note: an acceptance with no `of` is not spent by the widening that used it (CC 3.1.3.2 admission (5))
+  holds with spent (CC 3.1.3.2 admission (5): 'P has not already seated K') Inv_LeavingNotUndone, leaving read as a withdrawal of the seat, with the stated parameter
+      1 worlds, 1 orders  mutation [plant: spent off (the kernel as it is)] caught
+      mutation witness: ('J resigns by withdrawing the widening that seated it; a second widening names the old acceptance', 'J seated')
+  holds                  Inv_NoSelfAdmission
+      1 worlds, 1 orders  mutation [a key's offer to itself counts] caught
+      mutation witness: ('X, not a member, offers itself a seat counted over the room', 'X seated itself')
+  holds with floor=2 (the table's min_count) Inv_CoercedCannotRemoveHonest, with the floor of two voices under every protocol
+      2 worlds, 2 orders  mutation [no floor (founder_only: one founder removes)] caught
+      mutation witness: ("one member (C, coerced) removes A, count ('one', 1, 1)", 'A removed by one signature')
+      note: formal/membership states the founder_only case as a bound; CC 3.1.3.2 says 'one signature never removes'
+  holds                  Inv_ResignationEnabled
+      2 worlds, 2 orders  mutation [a withdrawal concludes nothing] caught
+      mutation witness: ('J, seated by a count, withdraws its acceptance alone', 'J still seated')
+  holds                  when no duty holder is left the members' count seats one (and one member does not)
+      2 worlds, 2 orders  mutation [one voice seats] caught
+      mutation witness: ('one member alone seats B to moderate', 'moderate seat True')
+  holds                  community_invite reverse path: one member's proposal and the joiner's yes land at the close unless a third objects
+      3 worlds, 214 orders  mutation [no cancel] caught
+      mutation witness: ('reverse path, 2 objecting of 3', 'reverse path, 2 objecting of 3: seated=True')
+      note: without the parameter: [('reverse path, 0 objecting of 3', 'reverse path, 0 objecting of 3: seated=False')]
+  holds                  the fold at tips (KERNEL 7): of two versions of one head, the member one adds is in and the member the other removes is out; a version naming both makes one head
+      2 worlds, 6 orders  mutation [the tips' union (a removal on one tip does not reach)] caught
+      mutation witness: ('two versions of g wait', "two versions of g wait: roster ['A', 'B', 'C', 'X']")
+  holds                  a lone duty holder confers alone with the new holder's acceptance; one of two confers nothing alone
+      2 worlds, 12 orders  mutation [any holder confers alone] caught
+      mutation witness: ('one holder of two confers alone', "duty holders ['A', 'B', 'C'], want ['A', 'B']")
+  holds                  conferral by a strict majority of the holders; withdrawal by a strict majority of the others, the holder concerned not counted
+      2 worlds, 2 orders  mutation [the holder concerned counted in its own withdrawal] caught
+      mutation witness: ('four holders: two of the three others withdraw the fourth', "duty holders ['A', 'B', 'C', 'D'], want ['A', 'B', 'C']")
+  holds                  where there are two holders, no duty seat is withdrawn on fewer than two voices
+      1 worlds, 1 orders  mutation [no floor of two voices] caught
+      mutation witness: ('two holders: one withdraws the other alone', "duty holders ['A'], want ['A', 'B']")
+  holds                  holders are equals: the key that conferred a duty seat does not end it alone
+      2 worlds, 16 orders  mutation [a conferrer's withdrawal ends what it conferred] caught
+      mutation witness: ('A confers alone, then withdraws the offer', "duty holders ['A'], want ['A', 'B']")
+  holds                  a removal from the roster ends the removed member's duty seats (a non-member holds no duty)
+      1 worlds, 1 orders  mutation [a removal cuts the member seat only] caught
+      mutation witness: ('the room removes a duty holder from its roster', "duty holders ['A', 'B', 'C'], want ['A', 'B']")
+  holds                  any seat the duty holders place over the room follows their count, a duty the record declares or any other scope
+      4 worlds, 9 orders  mutation [only the four named duties follow the count] caught
+      mutation witness: ('one of two holders seats detect:x alone', 'C holds detect:x: True, want False')
+  holds                  a key's leaving binds by the version's past: a version with it there does not count that key; one without it still does
+      2 worlds, 11 orders  mutation [members read at the heads only (the leaving in the version's past unread)] caught
+      mutation witness: ("D's leaving in v2's past", 'E seated True, want False')
+  holds                  roster_fork M0 (tips wait): majority over 0123, adversary 3; 7 properties
+      2106 worlds, 0 orders  mutation [first version seen wins (rule T6 of fork.py)] caught
+      mutation witness: ('function', "arrival orders end at 2 different heads with rosters ['{h0,h1,h2}', '{h0,h1,h2}']")
+      note: costs shown: ['nsf_now', 'removed_voice']; 0.4s
+  holds                  roster_fork M0 (tips wait): majority over 0123, adversary 4; 7 properties
+      1186 worlds, 0 orders  mutation [first version seen wins (rule T6 of fork.py)] caught
+      mutation witness: ('function', "arrival orders end at 2 different heads with rosters ['{h0,h1,h2,h3,a4}', '{h0,h1,h2,h3,a4}']")
+      note: costs shown: []; 0.2s
+  holds                  roster_fork M0 (tips wait): quorum3 over 01234, adversary 34; 7 properties
+      12385 worlds, 0 orders  mutation [first version seen wins (rule T6 of fork.py)] caught
+      mutation witness: ('function', "arrival orders end at 2 different heads with rosters ['{h0,h1,h2,a4}', '{h0,h1,h2,a4}']")
+      note: costs shown: ['removed_voice']; 3.2s
+  holds                  roster_fork M0 (tips wait): two_thirds over 0123, adversary 3; 7 properties
+      981 worlds, 0 orders  mutation [first version seen wins (rule T6 of fork.py)] caught
+      mutation witness: ('function', "arrival orders end at 2 different heads with rosters ['{h0,h1,h2}', '{h0,h1,h2}']")
+      note: costs shown: ['nsf_now', 'removed_voice']; 0.2s
+
+== private room (members are voices)
+  holds                  Inv_JoinerConsented
+      3 worlds, 1160 orders  mutation [no acceptance needed (consent='one')] caught
+      mutation witness: ('widening with no acceptance', 'J seated without consent')
+  holds                  Inv_DeclineTerminal, Inv_LeavingNotUndone (leaving = withdrawing the acceptance)
+      2 worlds, 800 orders  mutation [a withdrawal concludes nothing] caught
+      mutation witness: ('J declines (withdraws its acceptance), then a widening names it', 'J seated')
+  does NOT hold          Inv_LeavingNotUndone, leaving read as a withdrawal of the seat
+      1 worlds, 400 orders
+      witness: [('J resigns by withdrawing the widening that seated it; a second widening names the old acceptance', 'J seated')]
+      note: an acceptance with no `of` is not spent by the widening that used it (CC 3.1.3.2 admission (5))
+  holds with spent (CC 3.1.3.2 admission (5): 'P has not already seated K') Inv_LeavingNotUndone, leaving read as a withdrawal of the seat, with the stated parameter
+      1 worlds, 400 orders  mutation [plant: spent off (the kernel as it is)] caught
+      mutation witness: ('J resigns by withdrawing the widening that seated it; a second widening names the old acceptance', 'J seated')
+  holds                  Inv_NoSelfAdmission
+      1 worlds, 400 orders  mutation [a key's offer to itself counts] caught
+      mutation witness: ('X, not a member, offers itself a seat counted over the room', 'X seated itself')
+  holds with floor=2 (the table's min_count) Inv_CoercedCannotRemoveHonest, with the floor of two voices under every protocol
+      2 worlds, 800 orders  mutation [no floor (founder_only: one founder removes)] caught
+      mutation witness: ("one member (C, coerced) removes A, count ('one', 1, 1)", 'A removed by one signature')
+      note: formal/membership states the founder_only case as a bound; CC 3.1.3.2 says 'one signature never removes'
+  holds                  Inv_ResignationEnabled
+      2 worlds, 800 orders  mutation [a withdrawal concludes nothing] caught
+      mutation witness: ('J, seated by a count, withdraws its acceptance alone', 'vJ still seated')
+  holds                  when no duty holder is left the members' count seats one (and one member does not)
+      2 worlds, 800 orders  mutation [one voice seats] caught
+      mutation witness: ('one member alone seats B to moderate', 'moderate seat True')
+  holds                  community_invite reverse path: one member's proposal and the joiner's yes land at the close unless a third objects
+      3 worlds, 1200 orders  mutation [no cancel] caught
+      mutation witness: ('reverse path, 2 objecting of 3', 'reverse path, 2 objecting of 3: seated=True')
+      note: without the parameter: [('reverse path, 0 objecting of 3', 'reverse path, 0 objecting of 3: seated=False')]
+  holds                  the fold at tips (KERNEL 7): of two versions of one head, the member one adds is in and the member the other removes is out; a version naming both makes one head
+      2 worlds, 800 orders  mutation [the tips' union (a removal on one tip does not reach)] caught
+      mutation witness: ('two versions of g wait', "two versions of g wait: roster ['vA', 'vB', 'vC', 'vX']")
+
+== accord (holders)
+  holds                  standing_seize_iff / standing_censorship_irrelevant (removal and puppet need floor(N/2)+1)
+      36 worlds, 79 orders  mutation [count over the live set (who took part)] caught
+      mutation witness: ('N=3, 1 coerced removes h3, honest censored', 'N=3, 1 coerced removes h3, honest censored: True, expected False')
+      note: every order checked for N=3
+  bound reproduced       standing_frozen_after_decimation, standing_survivors_keep_fire
+      1 worlds, 3 orders  mutation [plant: count over the live set (the freeze must vanish)] caught
+      witness: [('five holders, three lost: the two survivors add a sixth, and h5 fires', "frozen: roster ['h1', 'h2', 'h3', 'h4', 'h5']; a survivor's fire concludes: True")]
+      mutation witness: ('plant', 'survivors seat h6')
+  holds with the recovery parameter (a second root: the committed key) recovery_keys_help_heal (a single-signer version, no quorum)
+      1 worlds, 1 orders  mutation [no recovery version] caught
+      mutation witness: ('h1 lost its signing key; its recovery key seats h1b', "roster ['h1', 'h2', 'h3']")
+  holds                  recovery_keys_never_help_seizure
+      2 worlds, 2 orders  mutation [a recovery version may change any seat] caught
+      mutation witness: ("coerced h3's recovery version unseats h1 as well as its own", 'h1 removed')
+  holds                  the halt fuse (window.py halt cases): one holder fires, lapses unless a strict majority confirms
+      8 worlds, 0 orders  mutation [the landing voids concurrent answers] caught
+      mutation witness: ('void', '2 cases broken')
+  holds with latch_on_receipt (per node; NOT a function of the rows) lame duck AND a removed holder no longer fires, with the latch on receipt (a reader-relative parameter that reads arrival order)
+      1 worlds, 3 orders  mutation [plant: the plain mechanism (judged at the head the fire names)] caught
+      mutation witness: ('plain', "a removed holder's fire naming the removal concludes True")
+  does NOT hold          lame duck (a holder named for removal fires until the decision) AND a removed holder no longer fires
+      1 worlds, 2 orders
+      witness: [('fire', "plain mechanism: concurrent fire concludes True, a fire naming the removal (old head) concludes True; fire on the seat slot: concurrent void, after counts; latch on receipt: ['fired', 'refused'] by order")]
+      note: the plain mechanism gives the lame duck and lets a removed holder fire for ever on an old head; putting the fire on the seat slot ends that but voids a latched fire; the text's rule is a latch at the node's receipt, which depends on arrival order by design
+  holds                  roster_fork M0 (tips wait): majority over 01234, adversary 34; 7 properties
+      13153 worlds, 0 orders  mutation [first version seen wins (rule T6 of fork.py)] caught
+      mutation witness: ('function', "arrival orders end at 2 different heads with rosters ['{h0,h1,h2,a4}', '{h0,h1,h2,a4}']")
+      note: costs shown: ['removed_voice']; 3.2s
+
+== infrastructure community (operators' keys)
+  holds with counted=founder, consent=one for nodes a node is seated without consent and is never counted
+      1 worlds, 2 orders  mutation [the count is over every member] caught
+      mutation witness: ('founders seat node1; node1 and f1 widen J', "a node's voice counted")
+  holds                  no single founder admits alone (quorum:2/3)
+      2 worlds, 2 orders  mutation [quorum:1/N and no floor] caught
+      mutation witness: ('f1 alone widens J', 'J seated=True')
+  holds with margin=1 (live while need+1 founders) T7: a roster at M active founders is stalled and admits nothing by the count
+      1 worlds, 2 orders  mutation [no margin (the plain quorum)] caught
+      mutation witness: ('f3 leaves; f1 and f2 widen J', 'a stalled roster admitted J')
+  holds with body (a second conferrer, active only while stalled) T7 recovery: the conferring body's one widening
+      3 worlds, 3 orders  mutation [the body may widen at any time] caught
+      mutation witness: ('live: the body seats f4', 'f4 founder=True')
+  holds with witnessed (a reader's parameter: which tip its witnesses named) T6: a witnessed lineage holds void the rival head that is not witnessed
+      1 worlds, 6 orders  mutation [the fold at tips (an ordinary room)] caught
+      mutation witness: ('rival', "the fold at tips: ['J', 'K', 'f1', 'f2', 'f3']; witnessed v1: ['J', 'f1', 'f2', 'f3']")
+  holds                  roster_fork M0 (tips wait): quorum2 over 012, adversary 2; 7 properties
+      785 worlds, 0 orders  mutation [first version seen wins (rule T6 of fork.py)] caught
+      mutation witness: ('function', "arrival orders end at 2 different heads with rosters ['{h0,h1}', '{h0,h1}']")
+      note: costs shown: ['nsf_now', 'removed_voice']; 0.1s
+
+== a key (its registration, its owner, its revokers)
+  holds                  the key's own revocation ends its registration from the revocation forward, by causal past
+      1 worlds, 4 orders  mutation [the revocation signed as a count, not as the key's own] caught
+      mutation witness: ('the key revokes itself; its rows before, concurrent, after', "registered True, statuses ('counts', 'counts', 'concludes nothing')")
+  holds                  a revocation signed by any other key revokes nothing
+      7 worlds, 24 orders  mutation [any key's unseat under a seat counts] caught
+      mutation witness: ("a third key revokes the key itself under the owner's binding (one row)", "registered False, the key's row concurrent with it void")
+  holds                  the owner's revocation ends the owner-binding's standing from the revocation forward; the key stays registered and its rows count
+      4 worlds, 140 orders  mutation [no seat ends a seat by a row of its own (the owner is not a revoker)] caught
+      mutation witness: ("the owner revokes (one row); the key's rows before, concurrent, after", 'the key still has an owner: OW')
+  holds                  only the key's own revocation ends its liveness: the owner's does not
+      4 worlds, 140 orders  mutation [the owner's revocation ends the key's registration (the reading until 2026-11-23)] caught
+      mutation witness: ("the owner revokes (one row); the key's rows before, concurrent, after", 'the key still has an owner: OW')
+  holds                  a former owner, whose binding was withdrawn in the revocation's past, revokes nothing
+      2 worlds, 9 orders  mutation [the binding the revocation names is read, not whether it is live] caught
+      mutation witness: ('the owner withdraws the binding, then revokes (one row)', "the former owner's revocation concluded")
+  holds                  two live owner-bindings naming different owners: no owner, and neither alone revokes (derived from CC 3.2 owner_of)
+      4 worlds, 88 orders  mutation [any live owner revokes, not the one owner] caught
+      mutation witness: ('two live owners (one row); OW revokes alone', 'an owner is read: OV')
+  holds                  a revoked key cannot un-revoke itself (a revocation is never withdrawn)
+      2 worlds, 2 orders  mutation [a key's own offer re-seats it after its revocation] caught
+      mutation witness: ('revoked by itself; the key signs a fresh registration after', "registered True, the key's later row counts")
+  holds                  a key its owner revoked is unowned and live: it takes a new first binding
+      1 worlds, 1 orders  mutation [the owner's revocation ends the key's registration (the reading until 2026-11-23)] caught
+      mutation witness: ('revoked by its owner; the key signs a new binding to another owner, naming the revocation', "owner None, registered False, the key's later row concludes nothing")
+
+92 properties, verdicts as recorded: True

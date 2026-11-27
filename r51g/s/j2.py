@@ -1,0 +1,5 @@
+import os; exec(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib.py")).read())
+exec(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "h1.py")).read().split("show(")[0].split('lib.py")).read())')[1])
+show("J2a F leaves on a row NOT holding its receipt (names bf only)", base + [leave("lf","F","g",("bf",))], K6)
+show("J2b ... and is re-admitted afterwards", base + [leave("lf","F","g",("bf",)), admit("rf","F",("A","B","C","D","E"),("lf",))], K6)
+show("J2c F, a receipter, also receipts the rival on a fork (equivocation: the stated edge)", base + [ack("kf2","F","s2",("bf",))], K6)

@@ -1,0 +1,5 @@
+  plant no_cap          caught by: depth: the link after the cap does not
+  plant no_gate         caught by: the gate: an onward hop by a delegate whose own grant carries no sub-delegation
+  plant no_attenuation  caught by: one hop: the delegate holds the narrower scope and not the wider
+  plant one_consent     caught by: two consents: a hop the delegate has not accepted
+RESULT: ok: 14 cases, 26 answers, 823 orders, 4 of 4 planted breaks caught

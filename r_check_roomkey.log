@@ -1,0 +1,139 @@
+1  the kernel does not care which key
+   ok   691 sets of rows of one room of 34 rows (the room, the room less each row, every closed subset of up to 17 rows), 22468 answers compared in two arrival orders, 0 differ
+   ok   a reader that breaks a tie by the order of key names is caught by the same comparison
+   ok   who is entitled to a wrap (the key plane as seat rows): 1791 sequences of membership acts, 0 differ
+2  one person, one voice
+   ok   1728 ways for the devices of three persons to vote: the tally over voices equals the count of persons in every one (0 differ)
+   ok   a count of device keys would be wrong in 1216 of them
+      a second voice for a person already seated (members who give their voice without checking the binding, the person among them):
+   ok   3 members: seated only when 2 of them do not check (the room's own admission count); never by the person alone
+   ok   4 members: seated only when 3 of them do not check (the room's own admission count); never by the person alone
+   ok   5 members: seated only when 4 of them do not check (the room's own admission count); never by the person alone
+   ok   6 members: seated only when 4 of them do not check (the room's own admission count); never by the person alone
+   ok   7 members: seated only when 5 of them do not check (the room's own admission count); never by the person alone
+3  the binding
+   ok   two_encap    AUTHENTIC-INSIDE holds (0 of 180 coalitions forge); DENIABLE-OUTSIDE holds (0 of 14 coalitions prove something, 0 cannot be simulated); as expected: True
+                    two encapsulations and no signature: the addressee's challenge, which only P's identity can open, and P's confirmation, which the addressee could also have produced
+   ok   dvs          AUTHENTIC-INSIDE holds (0 of 180 coalitions forge); DENIABLE-OUTSIDE holds (0 of 14 coalitions prove something, 0 cannot be simulated); as expected: True
+                    a designated-verifier signature by P for one addressee (a ring of two)
+   ok   sealed_cred  AUTHENTIC-INSIDE holds (0 of 180 coalitions forge); DENIABLE-OUTSIDE does not hold (14 of 14 coalitions prove something, 14 cannot be simulated); as expected: True
+                    P's identity signature over the voice, sealed so that only members can open it (the credential of a group key agreement)
+   ok   room_mac     AUTHENTIC-INSIDE does not hold (168 of 180 coalitions forge: a member, a removed member); DENIABLE-OUTSIDE holds (0 of 14 coalitions prove something, 0 cannot be simulated); as expected: True
+                    a statement MAC'd under the room's shared key (authenticated by the group key alone)
+   ok   identity_sig AUTHENTIC-INSIDE holds (0 of 180 coalitions forge); DENIABLE-OUTSIDE does not hold (14 of 14 coalitions prove something, 14 cannot be simulated); as expected: True
+                    P's plain identity signature over the voice
+4  the interactions
+   ok   an evicted device key: its row in the eviction's past counts, its row concurrent with the eviction is void, its row naming the eviction concludes nothing, and the voice's other key still speaks
+   ok   the room's roster is unchanged by the eviction of a device key (three voices)
+   ok   removal by causal past holds against a rotated key: after the room removes the voice, a key added to the voice speaks for nobody (its row concurrent with the removal is void, its row naming the removal concludes nothing)
+   ok   that set gives one answer in each of 240 arrival orders
+   ok   FINDING, the chain shape: when device keys are seated under the first key, ending the first key ends every key of the voice (so the voice is a counted roster, not a chain)
+   ok   FINDING, one key copied to each device: a stolen device speaks as the voice and no row of the room can end that device alone; the only answer is a new voice (a removal and an admission, and a binding to every member again)
+      with two_encap:
+   ok   removal by causal past: C's row in the removal's past counts, C's row concurrent with it is void
+   ok   FINDING, re-admission under the SAME key: the kernel seats it again and counts it, so both stints are one key's and are linked by any holder of the rows (the rule is a fresh room key; see section 7)
+   ok   a reply carried to a later joiner: the message from before J joined is routed to J, and only because the reply names it
+   ok   the joiner is convinced who said it once the author has made a binding for the joiner (two_encap)
+   ok   before that binding exists the joiner holds a valid row of a seated voice with no name: the kernel's answers are the same, the name is missing
+   ok   an outsider shown the same bytes by the joiner, with the joiner's secrets, is convinced of nothing about B
+   ok   RESIDUAL: a removed member keeps the bindings made for it, so a later row of A shown to it still convinces it (removal ends reading, not conviction, unless the voice changes its key)
+   ok   carriage into another group: a member of the other group can check that some key signed the row, and holds no fact tying that key to a person (B's voice there is another key)
+   ok   MUST NOT: a voice used in two rooms. E, who is not in the first room, is then convinced B wrote the carried row, and anyone holding both rosters sees one key in two rooms
+   ok   the detection record names a voice: members resolve it by their bindings, and nobody outside the room can (the record names no person)
+   ok   report, testimony only: the duty holder is not convinced
+   ok   report, forwarding the reporter's own binding: the duty holder is not convinced (the reporter could have made it)
+   ok   report, an identity signature: the duty holder is convinced and so is everyone (not deniable)
+   ok   report, a binding made for the duty holder when the voice was seated: the duty holder is convinced, nobody else is even with the duty holder's secrets, and the reporter cannot frame the person
+   ok   an admission that names the duty holder's acknowledgement waits at the door until it is held, in the kernel as it stands
+      with dvs:
+   ok   removal by causal past: C's row in the removal's past counts, C's row concurrent with it is void
+   ok   FINDING, re-admission under the SAME key: the kernel seats it again and counts it, so both stints are one key's and are linked by any holder of the rows (the rule is a fresh room key; see section 7)
+   ok   a reply carried to a later joiner: the message from before J joined is routed to J, and only because the reply names it
+   ok   the joiner is convinced who said it once the author has made a binding for the joiner (dvs)
+   ok   before that binding exists the joiner holds a valid row of a seated voice with no name: the kernel's answers are the same, the name is missing
+   ok   an outsider shown the same bytes by the joiner, with the joiner's secrets, is convinced of nothing about B
+   ok   RESIDUAL: a removed member keeps the bindings made for it, so a later row of A shown to it still convinces it (removal ends reading, not conviction, unless the voice changes its key)
+   ok   carriage into another group: a member of the other group can check that some key signed the row, and holds no fact tying that key to a person (B's voice there is another key)
+   ok   MUST NOT: a voice used in two rooms. E, who is not in the first room, is then convinced B wrote the carried row, and anyone holding both rosters sees one key in two rooms
+   ok   the detection record names a voice: members resolve it by their bindings, and nobody outside the room can (the record names no person)
+   ok   report, testimony only: the duty holder is not convinced
+   ok   report, forwarding the reporter's own binding: the duty holder is not convinced (the reporter could have made it)
+   ok   report, an identity signature: the duty holder is convinced and so is everyone (not deniable)
+   ok   report, a binding made for the duty holder when the voice was seated: the duty holder is convinced, nobody else is even with the duty holder's secrets, and the reporter cannot frame the person
+   ok   an admission that names the duty holder's acknowledgement waits at the door until it is held, in the kernel as it stands
+5  what an identity signature on each kind of row would give an outsider (binding: two_encap)
+   ok   speech signed under the identity key (today): 13 of 14 coalitions can prove something about another person; e.g. ('m1', 'B')
+   ok   a vote signed under the identity key: 14 of 14 coalitions can prove something about another person; e.g. ('vB', 'B')
+   ok   roster events (founding, widening, removal) signed under identity keys: 11 of 14 coalitions can prove something about another person; e.g. ('cb', 'B')
+   ok   the joiner's acceptance signed under the identity key (CC 3.1.3.2: 'the invitee's only'): 11 of 14 coalitions can prove something about another person; e.g. ('ac', 'C')
+   ok   an acknowledgement of a row signed under the identity key: 8 of 14 coalitions can prove something about another person; e.g. ('k3', 'C')
+   ok   the rows of a window signed under identity keys: 14 of 14 coalitions can prove something about another person; e.g. ('L', 'B')
+6  persons counted through bindings the count waits on (one room key for each device)
+   ok   20736 pairs of member nodes over 81 ways to vote: a count is 'missing' exactly the bindings not held; 81 pairs hold every binding and 0 of them disagree; a node holding no binding never counts (0)
+   ok   FINDING, without the commitment: two members who share a room key and bind it to each of them for different nodes make two honest nodes, each holding every binding, count differently in 108 of 243 ways to vote; e.g. ({'k:P': 'yes', 'k:Q': 'no', 'k:S': 'yes', 'k:H1': 'yes', 'k:H2': 'yes'}, ('counted', 3, 1, 4), ('counted', 3, 0, 4))
+   ok   with a commitment to the person in the key's seat row that every binding must open: 0 count differently; the node that was told otherwise waits (243 of 243), a stall at that node and never a fork, and it names the key
+7  the two seatings: what a holder of rows can prove about persons with no secret
+        attribution-only   two members  the holder of a carried reply: 3 rows; proved to have acted in the room ['id:A', 'id:B']; named by another's row []
+        attribution-only   two members  a holder of every row of the room: 7 rows; proved to have acted in the room ['id:A', 'id:B']; named by another's row []
+        attribution-only   two members  the kernel as it stands: does the speech conclude from rows alone: False
+        membership-private two members  the holder of a carried reply: 3 rows; proved to have acted in the room []; named by another's row []
+        membership-private two members  a holder of every row of the room: 7 rows; proved to have acted in the room []; named by another's row []
+        membership-private two members  the kernel as it stands: does the speech conclude from rows alone: True
+        attribution-only   four members the holder of the reply m8 carried elsewhere: 16 rows; proved to have acted in the room ['id:A', 'id:B', 'id:C', 'id:J']; named by another's row []
+        membership-private four members every closed set of up to 17 rows of the room, and the room: 0 of 657 sets prove or name a person
+   ok   attribution-only, two members: a reply carried into another group brings the founding row, which proves both members by their own signatures; every row of speech is then one of two persons
+   ok   attribution-only: speech under a key the roster does not seat concludes nothing from rows; its standing would have to read the binding
+   ok   membership-private, two members: the same carried reply, and every row of the room, prove nothing about any person and name none
+   ok   attribution-only, four members: the carried reply drags 15 rows of roster ancestry and proves all four members, each by its own signature on a roster row
+   ok   membership-private: of 657 sets of rows of the room, none proves or names a person
+   ok   re-admission under a FRESH room key: the new key is seated and counted, the old key is not seated, the old key's row concurrent with the removal stays void, and no row links the two keys
+   ok   custody, as today: a holding claim under a node key names that node's owner to any holder of the claim
+   ok   custody under a key the node holds for the room only: the claim names no person
+   ok   the owner of a node's room key is read inside the room: an owner seat signed under the member's room key and the node's room key, a row of the room
+8  the room declares itself
+   ok   an absent declaration reads public: every admissible founding row with no `membership` member is seated by identity keys (9 rows)
+   ok   a self room and a family are seated by identity keys, and a founding row of either that declares is refused
+   ok   a community founded under the rule is private unless its founders chose public, and what the founder writes is admissible
+   ok   a body that is public by function declares public: `private` on a designated body, an infrastructure community or a trust-root-grade community is refused
+   ok   private to public and never back: 434 sequences of up to four later declarations over every admissible founding row, 0 go from public to private
+   ok   a reader under which the last declaration wins is caught (a public room would turn private)
+   ok   a seat row of a private room without a commitment is refused; with one it is taken; a public room asks for none; once the room is public the same row is taken
+9  the commitment, the planned binding (two encapsulations), the verdict, and the limits a run can show
+   ok   the commitment is opened by the person and the bytes it was made with, and by nothing else tried: another person, another key, another room, other bytes
+   ok   a holder of the seat row who has no opening learns no person by trying every person; with no fresh bytes in the hash it would name the person at once (the mutation)
+   ok   the seat row with its commitment names and proves no person to a holder of rows
+   ok   an opening handed outside the room proves nothing about the person: a party that is not B makes a key whose seat row commits to B, and it opens to B
+   ok   inside the room that key gets nowhere: the commitment opens, and the confirmation cannot be made by anyone but B and the addressee
+   ok   two encapsulations, honest addressee: the addressee is convinced, could have produced the confirmation itself, and an outsider given every secret of the addressee is convinced of nothing
+   ok   a binding is taken only when it opens the seat row's commitment: the same confirmation with another person's opening, or other bytes, is refused
+   ok   a binding made for one addressee is not accepted by another member's verifier
+   ok   LIMIT, run: a member cooperating live with an outsider. The outsider forms the challenge and the member relays it; the outsider is then convinced
+   ok   LIMIT, symbolic: IF an addressee can form a challenge whose secret it cannot be shown to know, the confirmation is transferable. Whether it can, with the pinned key exchange, is the conjecture
+   ok   a duty holder's verdict signed under its room key names and proves no person; signed under its identity key it proves the duty holder acted in the room
+   ok   LIMIT, run: one signed row by the person outside the room tying the room key to themself makes every row under that key provable (11 rows), and no other member's
+   ok   LIMIT, run: a room already signed under identity keys stays provable (all four members), and a later declaration of private changes nothing
+   ok   LIMIT, run: a joining is visible to whoever holds the rows. Each of 3 admissions seats a key that the head it names does not seat, read from the rows with no secret
+   ok   LIMIT, run: a removed member keeps the bindings it was given (removal ends reading, not what it was convinced of)
+   ok   LIMIT, run: a custody claim still reaches a node. Under a room key it names no person, and it is still one claim for each holding node (2)
+   ok   LIMIT, run: an order naming a person finds nothing in the rows. No row of the room, and no set of them, names or proves B, C or J
+10 detection in a private room: the seat comes from the room
+   ok   enabling the list seats the room's node as its detector: an ordinary seat, conferred by the count of the room's duty holders and held by the node's room key
+   ok   the seat is the room's: no outside root is on the walk to it; the same enabling signed by one duty holder of two alone, or by a key that holds no duty seat, seats nobody
+   ok   the notice is admitted when its signer owns the node's room key by the binding in the room; a notice by another member is not, and neither is one where that binding is absent
+   ok   the owner-binding of the node's room key is a row: any holder of the rows reads the owner from them with no binding of a voice, and reads a room key
+   ok   the whole record (the binding, the enabling, the detection, the notice) names and proves no person
+   ok   a detector's seat tied to the node's public key would name the node's owner to any holder of the detection
+   ok   the enabling is revocable: withdrawn by the count of the room's duty holders, the node holds no detector's seat; one holder's withdrawal of its own signature ends nothing (CC 4.5.4)
+   ok   a detection is a claim and no verdict: with the detection and the notice held, no seat in the room has changed
+what the rule does not give (run: shown above; stated: from outside this model):
+   - stated deniability against a verifier who cheats, with a post-quantum key exchange, is conjectured and not proved; the run shows only what follows if such a verifier can form a challenge it cannot itself open
+   - run    a member cooperating live with an outsider (the outsider supplies the challenge) can prove what it sees
+   - stated a member's word is always possible: what is removed is the proof
+   - run    one signed row by the person outside the room tying the room key to themself makes that person's history in the room provable
+   - run    a room already signed under identity keys stays provable, and declaring it private afterwards is refused
+   - run    a removed member keeps the bindings it was given
+   - run    custody claims and delivery still reach a node: a claim under a room key names no person, and the network that carries the bytes sees which nodes receive them unless delivery goes by the anonymous tier (the network is outside this model)
+   - run    a new key record appears when someone joins: whoever holds the rows sees that a joining happened, and when
+   - stated erasure by person finds a person's room rows only through that person's own devices, which keep the list of their room keys
+   - run    an order naming a person finds no row of a private room that names or proves that person; it rests on testimony or on a member's device
+RESULT: ok in 6s (77 facts)

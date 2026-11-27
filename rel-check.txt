@@ -1,0 +1,21 @@
+ok    proofs/build.sh                      26s  proofs: 26 files, 602 theorems reported, rc=0
+ok    check_purge (checkpoint, purge)       0s  RESULT: ok
+ok    check_time (two notions of time)      0s  RESULT: ok
+ok    check_key_end (a key's own end)      51s  RESULT: ok
+ok    check_conferral_end (an end)          0s  RESULT: ok: 34 cases, 49 act answers, 12 rules decide them (E2.forward, E3.later_head, E3.one_say, E4.names_end, E6.upstream, E7.other_standing, E8.receipt, end_void.key_removed, end_void.line, end_void.stale_head, key_removed, no_end)
+ok    check_conferral_content (tips)       79s  RESULT: ok: 55 cases, 128 content answers; 850987 histories of up to 4 rows (plain 412007; rejoin 412007; gap 26973), 3569415 extensions compared; a member's backdated end took a kept row out by E3 in 784; plants caught 3 of 3
+ok    check_rosters (one roster)            6s  90 properties, verdicts as recorded: True
+ok    check_attacks (34 attacks)           13s  RESULT: ok in 13s
+ok    check (order-freeness)               34s  RESULT: ok
+ok    check_cut (the cut)                  17s  RESULT: ok
+ok    check_roomkey (private rooms)         6s  RESULT: ok in 6s (77 facts)
+ok    fork_check (roster tips)              4s  roster_fork: with tips waiting on a version that names them, the roster is a function of the set and the adversary below the count gains nothing
+ok    key_plane_model (writer's keys)       1s  key_plane: the key effects of the transitions manifest hold K1-K10 at both tiers; the proposed group key for family files holds them with K5 in place of K4
+ok    divergence list (counts)              0s  divergences: 87 entries; 72 runnable, 11 stated, 4 wording-only
+ok    kernel_fixtures (fixtures current)   12s  kernel_fixtures: 13 fixtures, 0 out of date
+ok    ciris-kernel build (no_std)           2s  ciris-kernel built: host, thumbv7em-none-eabihf, wasm32-unknown-unknown; dependencies: 0
+ok    ciris-kernel conformance             10s  ciris-kernel: 36 conformance runs (of 36 listed), 7259595 cases, 0 disagreements
+ok    ciris-kernel plants                 715s  ciris-kernel plants: 63 of 63 caught
+ok    tla (TLC, five specs, plants)        16s  tla: 5 specs, 21780 distinct states, 5 pass with their plant caught; Door states fixture current
+---
+all 19 steps passed

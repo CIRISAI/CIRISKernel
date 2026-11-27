@@ -1,0 +1,11 @@
+exec(open(__file__.replace("sb.py","lib.py")).read())
+DC = lambda i, to: ST.offer(i, "A", to, "moderate", OBJ, "group", ("aG",), head=("aG",), policy="duty_confer", counted="duty", cosigners=())
+acc = lambda i, k, of: ST.accept(i, k, of)
+rows = ROOM + [DC("d1","B"), acc("kB","B","d1")] + [DC("z"+k, k) for k in "CDE"] + [acc("k"+k, k, "z"+k) for k in "CDE"]
+SC = ("moderate",)
+run("SB1 A lone at aG confers moderate on B, and concurrently on C,D,E (each accepts)", rows, ids=("d1","zC","zD","zE"), scopes=SC)
+run("SB1r reader B", rows, own="B", ids=("d1","zC","zD","zE"), scopes=SC)
+WB = ST.unseat("wb","A","B","moderate",OBJ,"group",("d1","zC","zD","zE","kB","kC","kD","kE"),head=("d1","zC","zD","zE"),policy="duty_withdraw",counted="duty",cosigners=("C","D","E"))
+run("SB2 + A,C,D,E withdraw B's moderate heads (d1,zC,zD,zE)", rows + [WB], ids=("wb",), scopes=SC)
+run("SB2r reader B", rows + [WB], own="B", ids=("wb",), scopes=SC)
+run("SB2s reader F (cosigned aG only)", rows + [WB], own="F", ids=("wb",), scopes=SC)

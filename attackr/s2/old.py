@@ -1,0 +1,30 @@
+exec(open(__file__.replace("old.py","lib.py")).read())
+N=20; V=("today","L'","L's","L")
+H = lambda heads, cites=(): admit("ah","H",FIVE,heads,cites)
+for nm, r in (("P1a A,B remove G head g, past aG", remove("xg","G",("A","B"),("g",),("aG",))),
+              ("P1b A,B admit X head g, past aG", admit("ax","X",("A","B"),("g",),("aG",))),
+              ("A1 A,B remove G heads (g,aG)", remove("xg","G",("A","B"),("g","aG"))),
+              ("A1b A,B admit X heads (g,aG)", admit("ax","X",("A","B"),("g","aG"))),
+              ("A1e A,B,C remove G heads (aD,aG)", remove("xg","G",("A","B","C"),("aD","aG")))):
+    run(nm, ROOM+[r], ids=(r["id"],), n=N, vars=V)
+run("A1f B,C recall moderator A heads (g,aG)", ROOM+[CH.RC(("g","aG"),("B","C"))], ids=("rc",), scopes=("moderate",), n=N, vars=V)
+G2 = ST.found("h","A",("A",),{},cosigners=())
+OLDH = ST.offer("ox","A","X","member","h","group",("g","aG","h"),head=("g",),over="g",policy="community_invite",cosigners=("B","X"))
+run("A3a over=g head g by A,B (object h)", ROOM+[G2,OLDH], ids=("ox",), obj="h", n=N, vars=V)
+X = ack("x","Z","g"); Y = ST.offer("y","Z","Z","member",OBJ,"group",("x","aG"),head=("x",),over="x",policy="open:self_admit")
+run("I3a Z self-admit over x head x", ROOM+[X,Y], ids=("y",), n=N, vars=V)
+run("I3b ... A,B remove G head y", ROOM+[X,Y,remove("xg","G",("A","B"),("y",))], ids=("y","xg"), n=N, vars=V)
+run("I3c ... A,B admit W head y", ROOM+[X,Y,admit("aw","W",("A","B"),("y",))], ids=("y","aw"), n=N, vars=V)
+DC0 = ST.offer("dc","A","B","moderate",OBJ,"group",("g",),head=("g",),policy="duty_confer",counted="duty",cosigners=("B",))
+AX0 = admit("ax","X",("A","B"),("g",))
+run("T1a tip dc; A,B remove G heads (dc,aG)", ROOM+[DC0,remove("xg","G",("A","B"),("dc","aG"))], ids=("dc","xg"), scopes=("member","moderate"), n=N, vars=V)
+run("T1b tip ax; A,B remove G heads (ax,aG)", ROOM+[AX0,remove("xg","G",("A","B"),("ax","aG"))], ids=("ax","xg"), n=N, vars=V)
+run("T1d tip dc; A,B admit W heads (dc,aG)", ROOM+[DC0,admit("aw","W",("A","B"),("dc","aG"))], ids=("dc","aw"), n=N, vars=V)
+run("T1g' five remove G heads (dc,aG)", ROOM+[DC0,remove("xg","G",FIVE,("dc","aG"))], ids=("dc","xg"), n=N, vars=V)
+Z = ST.offer("z","Z","Z","member",OBJ,"group",("aG",),head=("aG",),policy="open:self_admit")
+Z0 = ST.offer("z","Z","Z","member",OBJ,"group",("g",),head=("g",),policy="open:self_admit")
+run("I2 Z self-admits at aG", ROOM+[Z], ids=("z",), n=N, vars=V)
+run("I2c Z0; A,B remove G heads (z,aG)", ROOM+[Z0,remove("xg","G",("A","B"),("z","aG"))], ids=("z","xg"), n=N, vars=V)
+WM, XLM = CH.WM, CH.XLM; M4=("m1","m2","MOD","N")
+run("B1 lone removal xl (head md, an in past); all four admit P head xl", WM+[XLM, admit("ap","P",M4,("xl",))], ids=("xl","ap"), scopes=("member","agent"), n=N, vars=V)
+run("B1t reader acked an; heads (xl,an)", WM+[ack("ak","R","an"), XLM, admit("ap","P",M4,("xl","an"))], own="R", ids=("xl","ap"), scopes=("member","agent"), n=N, vars=V)

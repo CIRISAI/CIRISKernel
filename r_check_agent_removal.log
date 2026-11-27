@@ -1,0 +1,15 @@
+  plant agent_unread       caught by: A: a moderator 'removes' a key that was never seated, and both members object: lifted, and nothing is admitted
+  plant moderator_unread   caught by: A: the same row naming no window, read by the seat rule alone: nothing
+  plant author_voice       caught by: A: the moderator's own objection is no voice (it is the act's author)
+  plant agent_voice        caught by: A: the removed key's own objection is no voice: of the window with no landing, nor of the re-seating
+  plant lift_over_all      caught by: A: a moderator 'removes' a key that was never seated, and both members object: lifted, and nothing is admitted
+  plant restores_unseated  caught by: A: a moderator 'removes' a key that was never seated, and both members object: lifted, and nothing is admitted
+  plant agent_counted_over caught by: A: nor of a landing: a member lands 'lifted' naming its own objection and the removed key's
+  plant lift_no_floor      caught by: A: a moderator 'removes' a key that was never seated, and both members object: lifted, and nothing is admitted
+  plant fallback_of_all    caught by 4 rows, first: five members, two vote for and three are silent: the landing names the two votes
+  plant fallback_no_floor  caught by 3 rows, first: five members, one votes for and nobody against
+  plant overturn_all       caught by 7 rows, first: the room lifts: two of the three members other than the duty holder object and one of them lands at once
+  plant overturn_whole_roster caught by 6 rows, first: the room lifts: two of the three members other than the duty holder object and one of them lands at once
+  plant vote_beside_answer caught by 1 rows, first: a moderator who is also a member answers and votes for, beside one vote for: no landing
+A: a moderator 'removes' a key that was never seated, and both members object: lifted, and nothing is admitted: got ({'x': False, 'rs': False}, {'m2', 'MOD', 'AG', 'm1'}, {'x': 'none'}), expected ({'x': True, 'rs': False}, {'m1', 'm2', 'AG', 'MOD'}, {'x': 'lifted'})
+RESULT: 1 problems: 39 cases, 2451 arrival orders, 8 of 8 planted breaks in the seat rule caught; adversary table 81 rows, 71 checks, broken under recount 0, void 12, contest 2; 5 of 5 planted breaks in the tables caught

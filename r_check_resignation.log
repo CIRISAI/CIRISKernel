@@ -1,0 +1,4 @@
+  plant wrap_by_roster       caught (no_resigner_wrapped)
+  plant leaving_unread       caught (cited_is_out)
+  plant dissolved_by_roster  caught (dissolved_by_rows)
+RESULT: ok: 8 cases, 152 sets of rows, 6 properties, 3 of 3 planted breaks caught

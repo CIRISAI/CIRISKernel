@@ -1,0 +1,39 @@
+  [broad] reviewer: grant, act, concurrent revocation: 66 replays, 0 differ, 0 duty breaches; of 3 rows held, 1 kept whole and 2 reduced to a stub
+  [broad] blocked act, and one not yet blocked: 66 replays, 0 differ, 0 duty breaches; of 8 rows held, 3 kept whole and 5 reduced to a stub
+  [broad] forked acknowledger: 6 replays, 0 differ, 0 duty breaches; of 4 rows held, 0 kept whole and 4 reduced to a stub
+  [broad] cutter seated later acts forward: 6 replays, 0 differ, 0 duty breaches; of 4 rows held, 0 kept whole and 4 reduced to a stub
+  [broad] legal hold, owed row, never-purge rows, deletion: 6 replays, 0 differ, 0 duty breaches; of 11 rows held, 7 kept whole and 4 reduced to a stub
+  [broad] windows read now: 18 replays, 0 differ, 0 duty breaches; of 3 rows held, 1 kept whole and 2 reduced to a stub
+  [broad] reader's acknowledged line: 6 replays, 0 differ, 0 duty breaches; of 3 rows held, 0 kept whole and 3 reduced to a stub
+  [broad] late removal, no acknowledgement: 6 replays, 0 differ, 0 duty breaches; of 5 rows held, 0 kept whole and 5 reduced to a stub
+  [broad] reader closes an older head: 20 replays, 0 differ, 0 duty breaches; of 7 rows held, 0 kept whole and 7 reduced to a stub
+  [broad] a cut at an earlier head reaches a later head: 20 replays, 0 differ, 0 duty breaches; of 4 rows held, 2 kept whole and 2 reduced to a stub
+  [broad] a settled act and cuts at an earlier head: 20 replays, 0 differ, 0 duty breaches; of 5 rows held, 0 kept whole and 5 reduced to a stub
+broad reading: 240 replays over 11 histories; 14 rows kept whole, 43 reduced to a stub at the first checkpoint
+  [narrow] reviewer: grant, act, concurrent revocation: 66 replays, 0 differ, 0 duty breaches; of 3 rows held, 1 kept whole and 2 reduced to a stub
+  [narrow] blocked act, and one not yet blocked: 66 replays, 0 differ, 0 duty breaches; of 8 rows held, 3 kept whole and 5 reduced to a stub
+  [narrow] forked acknowledger: 6 replays, 0 differ, 0 duty breaches; of 4 rows held, 0 kept whole and 4 reduced to a stub
+  [narrow] cutter seated later acts forward: 6 replays, 0 differ, 0 duty breaches; of 4 rows held, 0 kept whole and 4 reduced to a stub
+  [narrow] legal hold, owed row, never-purge rows, deletion: 6 replays, 0 differ, 0 duty breaches; of 11 rows held, 7 kept whole and 4 reduced to a stub
+  [narrow] windows read now: 18 replays, 0 differ, 0 duty breaches; of 3 rows held, 1 kept whole and 2 reduced to a stub
+  [narrow] reader's acknowledged line: 6 replays, 0 differ, 0 duty breaches; of 3 rows held, 0 kept whole and 3 reduced to a stub
+  [narrow] late removal, no acknowledgement: 6 replays, 0 differ, 0 duty breaches; of 5 rows held, 0 kept whole and 5 reduced to a stub
+  [narrow] reader closes an older head: 20 replays, 0 differ, 0 duty breaches; of 7 rows held, 4 kept whole and 3 reduced to a stub
+  [narrow] a cut at an earlier head reaches a later head: 20 replays, 0 differ, 0 duty breaches; of 4 rows held, 2 kept whole and 2 reduced to a stub
+  [narrow] a settled act and cuts at an earlier head: 20 replays, 0 differ, 0 duty breaches; of 5 rows held, 0 kept whole and 5 reduced to a stub
+narrow reading: 240 replays over 11 histories; 18 rows kept whole, 39 reduced to a stub at the first checkpoint
+  plant drop_unsettled: caught (8 answers differ, 0 duty breaches)
+  plant freeze_now: caught (17 answers differ, 0 duty breaches)
+  plant ck_acks: caught (11 answers differ, 0 duty breaches)
+  plant drop_duty: caught (0 answers differ, 7 duty breaches)
+  plant keep_deleted: caught (0 answers differ, 1 duty breaches)
+  plant no_say: caught (60 answers differ, 0 duty breaches)
+  plant narrow_eval: caught (43 answers differ, 0 duty breaches)
+  plant freeze_carried: caught (16 answers differ, 0 duty breaches)
+  plant final_blocks_earlier: caught (4 answers differ, 0 duty breaches)
+  plant own_head_only (a cut at an older head not read): caught (9 countsAt answers differ)
+      a cut at an earlier head reaches a later head; offered {x}: E counts False, before True
+      a settled act and cuts at an earlier head; offered {y}: E counts False, before True
+      a settled act and cuts at an earlier head; offered {x,y}: E counts False, before True
+reader's line as run: a moderator seat's counted withdrawal on a head below the acknowledged one: void for the reader yes, for a reader with none no
+RESULT: ok

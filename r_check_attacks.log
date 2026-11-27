@@ -1,0 +1,47 @@
+ 1  HOLDS                             ok    Backdated act by a removed key
+ 2  HOLDS                             ok    Backdated act by a key still seated (accomplice names the removed key's rows)
+ 3  HOLDS                             ok    Backdated conferral chain
+ 4  CONCEDED                          ok    State reset by an old fork
+ 5  CONCEDED                          ok    Rollback by re-sync (intermediate answers)
+ 6  HOLDS                             ok    Hotel California (leave, join, leave across branches)
+ 7  HOLDS                             ok    Superseded grant on a fork
+ 8  HOLDS                             ok    A row naming disparate parts of the graph
+ 9  CONCEDED                          ok    Perpetual reopening of a landed window
+10  CONCEDED                          ok    Landing over an unacknowledged objection, with an eclipse
+11  CONCEDED                          ok    The concluder's clock
+12  HOLDS                             ok    Thief evicting alone, with control of delivery
+13  HOLDS                             ok    Slot veto by an entitled key
+14  HOLDS                             ok    Duelling admins
+15  HOLDS                             ok    Equivocating voter
+16  CONCEDED                          ok    Tip flooding
+17  CONCEDED                          ok    Invariants that are not confluent
+18  CONCEDED                          ok    Long-range roster fork
+19  CONCEDED                          ok    Posterior corruption
+20  NOT EXPRESSIBLE                   ok    Disjoint witness choices
+21  CONCEDED                          ok    Eclipse of a reader's root
+22  HOLDS                             ok    Second genesis
+23  HOLDS                             ok    Root backdating
+24  NOT EXPRESSIBLE                   ok    Two implementations, one row
+25  NOT EXPRESSIBLE                   ok    Parent-count and head-count exhaustion
+26  CONCEDED                          ok    Withheld ancestor
+27  CONCEDED                          ok    Duplication and spurious cuts
+28  HOLDS                             ok    Audience widening by naming
+29  NOT EXPRESSIBLE                   ok    Acknowledgement metadata
+30  NOT EXPRESSIBLE                   ok    `missing` as an oracle
+31  NOT EXPRESSIBLE                   ok    Removed member and concurrent keys
+32  CONCEDED                          ok    Forward secrecy under retained past
+33  CONCEDED                          ok    Sybil reach
+34  CONCEDED                          ok    A forged line of two rows by a past count
+tips, the reader's line, and why the group checkpoint is off, measured:
+   an honest counted admission (of F, on head w) signed offline, while two further counted rows were made without it: nothing is void; it is a tip, and the fold lists the offline admission and the two members admitted meanwhile, each on the voices of the three common keys: {A,B,C,E,F,G}
+   one counted row naming both tips, counted over the three keys common to them, makes one head and lists everyone both lines admitted: {A,B,C,E,F,G,H}
+   for a reader that had acknowledged the newer head, the offline admission is behind its line (void: True) and its roster is {A,B,C,E,G}: that reader and one with no acknowledgement differ ({A,B,C,E,F,G})
+   but for that reader the merge is built on a row behind its line, so the merge is void for it too (hm,mg) and its roster stays {A,B,C,E,G}: a reader whose acknowledgement outran a late honest row cannot take the merge that names it; the late row has to be signed again on the newer head
+   a seat over the room is placed only by the duty holders' count (CC 4.5.4), so an appointment on the founding head is a counted act: two counted rows later that leave it unnamed, it is a tip and the fold seats B in it = True, on the voices of holders common to the tips
+   THE REASON THE GROUP CHECKPOINT IS OFF. A past count (seated A with removed C) signs two rows from the head the newest honest row is counted over, the second over the first. As the rule stands: two tips, members {A,F2}, nothing stale. With Seats(..., checkpoint=True): the forged line is one row deeper, the honest removal is left behind (x) and the members are {A,C,F2}: the removed key is back. That is a rank by depth of line
+   AND FOR WINDOWS. Three hostile members of four land the fallback over a moderator who answered in time, then sign two counted rows that leave the answer unnamed: as the rule stands contested; with outcome(..., checkpoint=True) fallback: the count voids the one voice the window protects
+   two siblings a2 and s on one head: a reader that acknowledged their common head sees both wait as tips (roster {h0,h1,h2}) and takes a version naming both ({h0,h1,h2,h4}); a reader that acknowledged a2 holds s void, and the version naming both with it (roster {h0,h1,h2,h4}); a reader that acknowledged s holds a2 void (roster {h0,h1,h2,a3}). Each voiding is that reader's own
+   two readers that acknowledged heads on DIFFERENT lines of an old-count fork disagree for good, holding the same rows ({h0,h3,h4} against {a1,a2}): each line is its own reader's
+classes: HOLDS 13; BROKEN 0; CONCEDED 15; NOT EXPRESSIBLE 6
+order-freeness: 135 scenarios, 121518 arrival orders (every order of up to seven rows, a fixed sample of 1,000 above, each set once more with every row offered twice), 0 gave another answer
+RESULT: ok in 14s

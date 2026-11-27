@@ -1,0 +1,11 @@
+  plant duty_no_member     caught by 8 cases, first: a conferral on a key that is not a member seats nobody
+  plant duty_revives       caught by 3 cases, first: no revival: admitted again after its resignation, the key is a member and the old conferral does not seat it
+  plant resign_keeps_duty  caught by 10 cases, first: a member's resignation ends its duty seats, with no withdrawal of each offer
+  plant member_cut_only    caught by 2 cases, first: no revival: admitted again after its removal, the key is a member and the old conferral does not seat it
+  plant duty_fold_unread   caught by 1 cases, first: two tips: a key admitted on one tip by the voice of a member the other tip removed is out of the folded roster, and so is the duty seat conferred on it there
+  plant holders_unread     caught by 16 cases, first: three founders: each listed signer a member; A holds moderate and review, B moderate, C no duty
+  plant unsigned_seated    caught by 2 cases, first: a listed member who did not sign the record is seated in nothing, even with a later acceptance of it
+  plant scope_unread       caught by 7 cases, first: three founders: A lays down moderate and stays a member, keeping review
+  plant member_rule_duty_rooms_only caught by 3 cases, first: a member-only founding: the members' count confers moderate on a key that is no member, and seats nobody
+  plant unsigned_no_map    caught by 1 cases, first: a founding row with no map seats by the signatures on it too: a listed key that did not sign, and accepts later, is not seated
+RESULT: ok: 58 cases, 223 answers, 1226 orders, 10 of 10 planted breaks caught

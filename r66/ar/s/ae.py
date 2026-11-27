@@ -1,0 +1,11 @@
+exec(open(__file__.replace("ae.py","lib.py")).read())
+
+XG = remove("xg","G",("A","B"),("g",))
+H = admit("ah","H",FIVE,("aG",))
+J = admit("aj","J",FIVE+("H",),("ah",))
+run("Ae1 A,B remove G from {g}; honest line (not seeing xg) admits H at aG, then J at ah", ROOM+[XG,H,J], ids=("xg","ah","aj"))
+run("Ae2 same, reader R acked aG", ROOM+[ack("ak","R","aG"),XG,H,J], own="R", ids=("xg","ah","aj"))
+run("Ae3 same, reader R acked aj", ROOM+[XG,H,J,ack("ak","R","aj")], own="R", ids=("xg","ah","aj"))
+# can honest escape? five remove nobody... five re-admit G at heads (aj, xg)
+RG = admit("rg","G",FIVE+("H","J"),("aj","xg"))
+run("Ae4 Ae1 + honest re-admit G heads (aj,xg)", ROOM+[XG,H,J,RG], ids=("xg","ah","aj","rg"))

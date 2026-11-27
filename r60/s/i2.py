@@ -1,0 +1,8 @@
+exec(open(__file__.replace("i2.py","lib.py")).read())
+Z = ST.offer("z", "Z", "Z", "member", OBJ, "group", ("aG",), head=("aG",), policy="open:self_admit")
+run("I2 outsider Z self-admits to a room founded without open:self_admit", ROOM + [Z], ids=("z",))
+Z0 = ST.offer("z", "Z", "Z", "member", OBJ, "group", ("g",), head=("g",), policy="open:self_admit")
+run("I2b same at g, concurrent", ROOM + [Z0], ids=("z",))
+run("I2c Z0 then A,B remove G heads (z,aG)", ROOM + [Z0, remove("xg","G",("A","B"),("z","aG"))], ids=("z","xg"))
+run("I2d Z0 then A,B remove G heads (z,) naming aG", ROOM + [Z0, remove("xg","G",("A","B"),("z",),("aG",))], ids=("z","xg"))
+run("I2e Z0 then A,B remove G heads (z,) not naming aG (concurrent)", ROOM + [Z0, remove("xg","G",("A","B"),("z",))], ids=("z","xg"))

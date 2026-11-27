@@ -1,0 +1,4 @@
+  plant end_unread       caught by 17 cases, first: the remover lays down moderate after its removal: out of force, the agent seated again
+  plant remover_receipt  caught by 1 cases, first: a receipt by the remover itself keeps nothing
+  plant reseat_revives   caught by 3 cases, first: and accepts the same offer again: it holds moderate, and its removal stays out of force (nothing revives it)
+RESULT: ok: 24 cases, 1384 arrival orders, 3 of 3 planted breaks caught

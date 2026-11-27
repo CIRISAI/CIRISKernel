@@ -1,0 +1,1 @@
+RESULT: ok: 42 cases, 93 act answers, 14 rules decide them (E2.forward, E3.later_head, E3.one_say, E4.names_end, E6.depth, E6.no_sub, E6.upstream, E7.other_standing, E8.receipt, end_void.key_removed, end_void.line, end_void.stale_head, key_removed, no_end)

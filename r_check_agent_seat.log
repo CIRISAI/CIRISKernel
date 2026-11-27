@@ -1,0 +1,5 @@
+  plant agent_voice          caught by 3 cases, first: two persons and an agent: one person and the agent sign an admission, one voice of two, and nothing is admitted
+  plant agent_counted_over   caught by 5 cases, first: one person and an agent: the person's one voice admits a member (one of one; with the agent counted over, one of two)
+  plant agent_unread         NOT CAUGHT
+plant agent_unread not caught
+RESULT: 1 problems: 19 cases, 227 arrival orders, 2 of 3 planted breaks caught
