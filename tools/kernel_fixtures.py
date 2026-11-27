@@ -679,6 +679,22 @@ def purge_cases():
 
 
 # ---- key_end: every generated world at every instant ----------------------------------------------------------------
+def key_person_cases():
+    """check_key_person.py's cases: a key's person at a row (seat.person_of), each with the seat law it is read under."""
+    import seat as ST
+    import check_key_person as KP
+    out = []
+    for name, rows, k, person in KP.CASES:
+        refs = {}
+        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "key": k, "person": person})
+    law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+           "community_floor": ST.COMMUNITY_FLOOR, "removal_floor": ST.REMOVAL_FLOOR,
+           "policy": {k: list(v) for k, v in ST.POLICY.items()},
+           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+    return {"law": law, "cases": out}
+
+
 def key_end_cases():
     import check_key_end as CKE
     KE = CKE.KE
@@ -768,6 +784,7 @@ def main():
         dump("tables.json", table_cases(), out)
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
+    dump("key_person.json", key_person_cases(), out)
     dump("acts.json", acts_cases(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)

@@ -3136,6 +3136,59 @@ fn concluded_over<'a, R: Row>(rows: impl IntoIterator<Item = &'a R>) -> Conclude
     Concluded::with(Graph::new(rows), None)
 }
 
+/// The liveness half of a key's person, kept behind this one function (the exact rule is with the Constitution).
+/// Until it is ruled: the key's own revocation (CC 2.4.1.1: "only the key's own revocation ends its liveness"), an
+/// unseat of its `registered` seat by the key itself, is among `p` (the row's concluded past). No instant is read.
+pub fn key_record_ended<R: SeatRow>(p: &Past<'_, '_, R>, k: &R::Key) -> bool {
+    p.rows().any(|q| {
+        q.seat_kind() == SeatKind::Unseat
+            && q.scope().is_some_and(|s| s.as_ref() == "registered")
+            && q.obj() == Some(Obj::Key(k.clone()))
+            && q.to().contains(k)
+            && q.signer() == k
+    })
+}
+
+/// The person key `k` is at a row, as a function of rows (`p`: the row's concluded past), with no instant: the
+/// self roster (an object of kind [`CommunityKind::SelfRoster`]: a person's own key roster, CC 3.3.6.4, or a
+/// voice's room keys in a private room, CC 3.1.3.2) in whose own scope `k` holds a live seat read over `p`
+/// (admitted by the roster's own count, and not evicted, in the row's past), where the key record's own end is not
+/// in `p` ([`key_record_ended`]). `None` where no self roster seats `k` there, or where several do (two persons is
+/// none, as two owners are). The kind is read through [`SeatLaw::kinds`]: a law with no kinds names no person.
+pub fn person_at<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    k: &R::Key,
+) -> Option<ObjOf<R>> {
+    if key_record_ended(p, k) {
+        return None;
+    }
+    let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
+    let get = |i: &R::Id| by.get(i).copied();
+    let sc = concluded_over(p.rows());
+    let seats = Seats::build(&sc, law, spec, None, None, None);
+    let mut hit: Vec<ObjOf<R>> = Vec::new();
+    for g in p.rows() {
+        if g.seat_kind() != SeatKind::Offer || !founding(g) {
+            continue;
+        }
+        let o = Obj::Row(g.id().clone());
+        if kind_of(law, &get, &o) != Some(CommunityKind::SelfRoster) {
+            continue;
+        }
+        let Some(s) = g.scope() else { continue };
+        if !hit.contains(&o) && seats.holders(s.as_ref(), &o, None).contains(k) {
+            hit.push(o);
+        }
+    }
+    if hit.len() == 1 {
+        hit.pop()
+    } else {
+        None
+    }
+}
+
 /// The live `scope` seats over `obj`, read from the rows in the past of the heads only (`p`: a row's
 /// concluded ancestors). Several heads: the keys common to the newest counted of them. A head one key wrote
 /// (an outsider's own admission) is read through to the heads it names, so it narrows no count.

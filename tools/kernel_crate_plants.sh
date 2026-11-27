@@ -287,6 +287,19 @@ plant "a second seat row of a seated key is refused" src/seat.rs '    removed
         || p.rows().any(|m| m.seat_kind() == SeatKind::Offer && m.obj().as_ref() == Some(obj) && m.to().contains(k) && !founding(m))
         || p.rows().any(|w| {'
 plant "one barred key does not bar a batch admission" src/seat.rs 'keys.into_iter().any(|k| {' 'keys.into_iter().all(|k| {'
+plant "a key's person: two persons read as the first" src/seat.rs '    if hit.len() == 1 {
+        hit.pop()' '    if !hit.is_empty() {
+        hit.pop()'
+plant "a key's person: any group is a person" src/seat.rs 'if kind_of(law, &get, &o) != Some(CommunityKind::SelfRoster) {' 'if kind_of(law, &get, &o).is_none() {'
+plant "a key's person: the key's own end is not read" src/seat.rs '    if key_record_ended(p, k) {
+        return None;
+    }
+    let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
+    let get = |i: &R::Id| by.get(i).copied();
+    let sc = concluded_over(p.rows());' '    let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
+    let get = |i: &R::Id| by.get(i).copied();
+    let sc = concluded_over(p.rows());'
+plant "a key's person: an admission in the past is enough (evictions unread)" src/seat.rs '        if !hit.contains(&o) && seats.holders(s.as_ref(), &o, None).contains(k) {' '        if !hit.contains(&o) && (seats.holders(s.as_ref(), &o, None).contains(k) || p.rows().any(|q| q.seat_kind() == SeatKind::Offer && q.obj().as_ref() == Some(&o) && q.to().contains(k))) {'
 plant "a room key's offer accepted again re-seats it" src/seat.rs 'SeatKind::Accept if revoked_before(law, spec, r, p, &by, cache) => false,' 'SeatKind::Accept if false => false,'
 plant "a window's base read when asked keeps the agents" src/window.rs '            m = persons(m, &agents);' ''
 plant "two bindings one in the other's past read as one stint" src/standing.rs 'if rebinds(*c, b, rows) || rebinds(b, *c, rows) {' 'if past.in_past(c.id(), b.id())? || past.in_past(b.id(), c.id())? {'

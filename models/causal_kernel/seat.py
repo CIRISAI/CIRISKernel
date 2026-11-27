@@ -2589,6 +2589,35 @@ def completing(sub_ids, P, by, obj, past):
 _SEATS_OF = {}
 
 
+def key_record_ended(P, k):
+    """The liveness half of a key's person, kept behind this one function (the exact rule is with the Constitution).
+    Until it is ruled: the key's own revocation (CC 2.4.1.1: "only the key's own revocation ends its liveness"), an
+    unseat of its `registered` seat by the key itself, is in P (the row's concluded past). No instant is read."""
+    if "person_end_unread" in MUT: return False                    # MUTATION: the key's own end is not read
+    return any(q["kind"] == "unseat" and q.get("scope") == "registered" and q.get("obj") == k and k in q["to"]
+               and q["signer"] == k for q in P)
+
+
+def person_of(P, k):
+    """The person key k is at a row, as a function of rows (P: the row's concluded past), with no instant: the self
+    roster (an object of kind `self`: a person's own key roster, or a voice's in a private room) in whose own scope k
+    holds a live seat read over P (admitted, and not evicted, in the row's past), where the key record's own end is
+    not in P (key_record_ended). None where no self roster seats k there, or where several do (two persons is none,
+    as two owners are)."""
+    if key_record_ended(P, k): return None
+    by = {q["id"]: q for q in P}
+    selves = [g for g in P if g["kind"] == "offer" and g.get("obj") == g["id"]
+              and (kind_of(by, g["id"]) == "self" or "person_any_kind" in MUT)]   # MUTATION person_any_kind: any group
+    if "person_evict_unread" in MUT:                              # MUTATION: an admission in the past is enough
+        hit = sorted({g["id"] for g in selves if any(q["kind"] == "offer" and q.get("obj") == g["id"] and k in q["to"]
+                                                     for q in P)})
+    else:
+        Q = seats_of(P)
+        hit = sorted({g["id"] for g in selves if k in Q.holders(g["scope"], g["id"])})
+    if len(hit) == 1 or ("person_first" in MUT and hit): return hit[0]   # MUTATION person_first: two persons, the first
+    return None
+
+
 def seats_of(rows):
     """The seats over a set of rows, each taken as concluded, kept once built: a head's past is read again by every
     row that names it, and a chain of lone removals reads every earlier one's (the run is polynomial in the chain,
