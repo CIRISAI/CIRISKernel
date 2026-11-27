@@ -1844,17 +1844,33 @@ class Seats:
             memo[(s, o)] = common
             return common
 
+        # the offers that name each key (a key no offer in an offer's past names is seated by no subset of that past),
+        # and the seats read over one line's rows in an offer's past, by their ids: the same subset is read once (no
+        # answer changes; review-54's n tips cost n² reads of one subset)
+        named = {}
+        for q in S.Cs:
+            if q["kind"] == "offer":
+                for x in set(_tuple(q.get("to"))) | {k for _, ks in q.get("duty_holders", ()) for k in ks}:
+                    named.setdefault(x, []).append(q["id"])
+        seen_at = {}
+        def at_seen(sub2, off):
+            seen = [q for q in sub2 if q["id"] in S.anc[off]]
+            key = frozenset(q["id"] for q in seen)
+            if key not in seen_at: seen_at[key] = self._at(seen)
+            return seen_at[key]
+
         def survives(k):
             """k is seated at some tip by an offer that every other line either never held k against, or removed k
             in that offer's past."""
             for _, _, _, sd in lines:
                 for off in sd.get(k, ()):
                     ok = True
+                    prior = any(x in S.anc[off] for x in named.get(k, ()))
                     for _, sub2, ids2, sd2 in lines:
                         if k in sd2: continue
                         if off in ids2: ok = False; break       # this line ended the very seat
-                        seen = [q for q in sub2 if q["id"] in S.anc[off]]
-                        Q2 = self._at(seen)
+                        if not prior: continue                  # nothing in the offer's past names k
+                        Q2 = at_seen(sub2, off)
                         if any(Q2._has(r, s) for r in K.sel(Q2.recs, obj=o, k=k)): ok = False; break   # removed beside it
                     if ok: return True
             return False
