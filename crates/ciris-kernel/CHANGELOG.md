@@ -9,7 +9,9 @@ the default, 23 pinned by the CC table, 22 whose cell is not table data. `audien
 from the cohort scope it states and its audience as KEYS (the room's roster, the signer's own keys, the keys it
 names; everyone in the commons), or the refusal (`family_unknown`, `scope_unknown`, `placement_not_allowed`,
 `named_outside_audience`, `no_room`), or `Placed::Undecided` naming the family where its cell is not table data;
-`audience::audiences` applies the copy rule (CC 5.2). `check_audience.py` (940 generated answers, 23 cases, seven
+`audience::audiences` applies the copy rule (CC 5.2). The keys a seat offer or unseat over the room seats or removes (`AudienceRow::seats`, its
+`to`) are always within its audience, ahead of `named_outside_audience`: a pending admission names its joiner, a
+removal its removed key; any other key off the roster is still refused. `check_audience.py` (940 generated answers, 28 cases, eight
 planted breaks), fixture `audience.json`, `tests/audience.rs`, seven crate plants.
 
 **Room content: receipts, the reader's line, key removals, rooms** (`content`, both languages, with cases, planted

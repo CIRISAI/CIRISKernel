@@ -18,7 +18,9 @@
 //!   the family: no default is taken for it.
 //! * **Audience.** Every audience holds the signer and the keys the row names. Self_collective: the signer's own
 //!   keys. Targeted: the room's roster; a row there may name only keys on the roster
-//!   ([`Refusal::NamedOutsideAudience`]) and names its room ([`Refusal::NoRoom`]). Commons: everyone. Addressed:
+//!   ([`Refusal::NamedOutsideAudience`]) and names its room ([`Refusal::NoRoom`]). The keys a seat offer or unseat
+//!   over the room seats or removes ([`AudienceRow::seats`]) are always within its audience, ahead of that rule: a
+//!   pending admission names its joiner, a removal its removed key. Commons: everyone. Addressed:
 //!   the keys it names.
 //! * **Copy** ([`audiences`]). A row's audience includes that of every concluded row naming it from the same room
 //!   or signed by the same key, whose signer is already in its audience: the least fixed point. A refused or
@@ -170,6 +172,10 @@ pub trait AudienceRow {
     fn named(&self) -> &[Self::Key];
     /// The rows it names.
     fn names(&self) -> &[Self::Id];
+    /// On a seat offer or unseat over the room: the keys it seats or removes (its `to`), among [`Self::named`].
+    fn seats(&self) -> &[Self::Key] {
+        &[]
+    }
     /// The row concludes.
     fn concluded(&self) -> bool;
 }
@@ -239,8 +245,11 @@ pub fn place<R: AudienceRow>(
         Placement::Addressed => {}
         Placement::TargetedFamily | Placement::TargetedRoom => {
             let Some(room) = r.room() else { return Placed::Refused(Refusal::NoRoom) };
+            // the current roster, not the members at the row's own head: the one place this choice is made, until
+            // the Constitution rules
             let members = roster(room);
-            if !r.named().iter().all(|k| members.contains(k)) {
+            // the keys a seat offer or unseat seats or removes are within its audience, ahead of named_within
+            if !r.named().iter().all(|k| members.contains(k) || r.seats().contains(k)) {
                 return Placed::Refused(Refusal::NamedOutsideAudience);
             }
             keys.extend(members);

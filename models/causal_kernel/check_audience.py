@@ -16,7 +16,8 @@ over the family model's placement cells (data/family_placement.json).
                  concluded; a refused row carries nothing)
 
     Planted breaks (audience.MUT), each caught: undecided_defaulted, pinned_unread, named_within_unread,
-    copy_cross_room, copy_any_signer, copy_unconcluded, match_first.
+    copy_cross_room, copy_any_signer, copy_unconcluded, match_first, seats_not_within (the keys a seat row seats
+    or removes held to named_within).
 
     python3 -I check_audience.py      exit 1 on any difference
 """
@@ -36,9 +37,9 @@ person = lambda k: PERSON.get(k, (k,))
 SCOPES = (("self", None), ("family", "r1"), ("community", "r1"), ("federation", None), ("addressed", None))
 
 
-def row(i, family, scope, signer="a", room=None, named=(), names=(), concluded=True):
+def row(i, family, scope, signer="a", room=None, named=(), names=(), concluded=True, seats=()):
     return {"id": i, "family": family, "scope": scope, "signer": signer, "room": room, "named": list(named),
-            "names": list(names), "concluded": concluded}
+            "names": list(names), "concluded": concluded, "seats": list(seats)}
 
 
 def enc(a):
@@ -81,6 +82,23 @@ CASES = [
      {"s": REF("placement_not_allowed"), "t": P("targeted_family", ROOM)}),
     ("named_outside_audience", "a row at the community may name only keys within its audience: z is off the roster",
      [row("m", "chat:general", "community", room="r1", named=["z"])], {"m": REF("named_outside_audience")}),
+    # a seat offer or unseat over the room: the keys it seats or removes are within its audience. group:roster and
+    # membership answer Undecided at this pin, so the rule is shown on a placed consent family (partner_role)
+    ("admission_names_joiner", "a pending admission of j at the room names j, who is not on the roster yet: j is "
+     "in its audience",
+     [row("v", "partner_role:member", "community", room="r1", named=["j"], seats=["j"], concluded=False)],
+     {"v": P("targeted_room", ROOM + ["j"])}),
+    ("removal_names_removed_key", "a removal of c, read where the roster no longer lists c, names c: c is in its "
+     "audience",
+     [row("x", "partner_role:member", "community", room="r2", named=["c"], seats=["c"])],
+     {"x": P("targeted_room", ["a", "c", "e"])}),
+    ("seat_row_names_outsider", "the same admission also names z, a key it does not seat: refused",
+     [row("v", "partner_role:member", "community", room="r1", named=["j", "z"], seats=["j"])],
+     {"v": REF("named_outside_audience")}),
+    ("non_roster_row_names_outsider", "a row that seats no one names z, off the roster: still refused",
+     [row("m", "partner_role:member", "community", room="r1", named=["z"])], {"m": REF("named_outside_audience")}),
+    ("roster_family_undecided", "group:roster itself answers Undecided at this pin, its seats apart",
+     [row("g", "group:roster", "community", room="r1", named=["j"], seats=["j"])], {"g": UND("group:roster")}),
     ("targeted_no_room", "a targeted row names its room",
      [row("m", "chat:general", "community")], {"m": REF("no_room")}),
     ("undecided_family", "a family whose placement cell is not table data answers Undecided naming the family",
@@ -125,7 +143,7 @@ CASES = [
 PLANTS = [("undecided_defaulted", "undecided_family"), ("pinned_unread", "pinned_self"),
           ("named_within_unread", "named_outside_audience"), ("copy_cross_room", "copy_other_room"),
           ("copy_any_signer", "copy_signer_outside"), ("copy_unconcluded", "copy_unconcluded"),
-          ("match_first", "table")]
+          ("match_first", "table"), ("seats_not_within", "admission_names_joiner")]
 
 
 def generated():

@@ -18,6 +18,7 @@ struct ARow {
     named: Vec<String>,
     names: Vec<String>,
     concluded: bool,
+    seats: Vec<String>,
 }
 
 impl AudienceRow for ARow {
@@ -47,6 +48,9 @@ impl AudienceRow for ARow {
     fn concluded(&self) -> bool {
         self.concluded
     }
+    fn seats(&self) -> &[String] {
+        &self.seats
+    }
 }
 
 fn arow(j: &J) -> ARow {
@@ -59,6 +63,7 @@ fn arow(j: &J) -> ARow {
         named: j.at("named").strs(),
         names: j.at("names").strs(),
         concluded: j.at("concluded").b(),
+        seats: j.get("seats").map(|v| v.strs()).unwrap_or_default(),
     }
 }
 
@@ -117,6 +122,7 @@ fn every_family_in_every_scope() {
             signer: "a".into(),
             names: vec![],
             concluded: true,
+            seats: vec![],
         };
         n += 1;
         let got = enc(&place(&r, &ro, &pe));

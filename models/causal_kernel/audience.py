@@ -23,7 +23,10 @@ The rules.
        targeted_family,  the room's roster (Seats.roster over the rows held: the current members) and the keys the
        targeted_room     row names; a row there may name only keys within its audience (CC 5.2: "A row placed at
                          family, community or affiliations may name only keys within its audience"): one naming a
-                         key off the roster is refused, `named_outside_audience`. A targeted row names its room, or
+                         key off the roster is refused, `named_outside_audience`. The keys a seat offer or
+                         unseat over the room seats or removes (`seats`, its `to`) are always within its
+                         audience, ahead of that rule: a pending admission names its joiner, who is not on the
+                         roster yet, and a removal its removed key, who is not on it any longer. A targeted row names its room, or
                          it is refused, `no_room`
        commons           everyone
        addressed         the keys it names, and its signer
@@ -34,7 +37,8 @@ The rules.
    undecided carries nothing and receives nothing.
 
 Rows: `id`, `family`, `scope` (a cohort scope word, or "addressed"), `room` (the room or family a targeted row is
-in; None elsewhere), `signer`, `named` (the keys it names: attested, subjects, for_key_id), `names` (the rows it
+in; None elsewhere), `signer`, `named` (the keys it names: attested, subjects, for_key_id), `seats` (on a seat offer or unseat over the
+room: the keys it seats or removes, among `named`), `names` (the rows it
 names), `concluded` (bool). `roster(room)` and `person(key)` are the caller's: the room's roster as Seats.roster
 reads it, and the keys of the signer's person.
 """
@@ -118,8 +122,12 @@ def place(row, roster, person):
         return ("placed", placement, me | named)
     if row.get("room") is None:
         return ("refused", "no_room")
+    # the current roster (Seats.roster over the rows held), not the members at the row's own head: the one place
+    # this choice is made, until the Constitution rules
     members = frozenset(roster(row["room"]))
-    if "named_within_unread" not in MUT and not named <= members:
+    # the keys a seat offer or unseat over the room seats or removes are within its audience, ahead of named_within
+    seated = frozenset(row.get("seats", ())) if "seats_not_within" not in MUT else frozenset()
+    if "named_within_unread" not in MUT and not (named - seated) <= members:
         return ("refused", "named_outside_audience")
     return ("placed", placement, members | me | named)
 
