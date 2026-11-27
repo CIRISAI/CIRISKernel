@@ -249,11 +249,12 @@ delegate only with the delegate's own signature (CC 4.4.3.19), and a custodian h
 need none and say why: a node in an infrastructure community, a key of a person's own roster, and a device
 under its owner. **open**: how the second signature travels and from when a delegation without it stops
 seating are not settled. **measured** (`manifests/family_model.json` (parent repository), `formal/derivation/confers_text.tsv` (parent repository)): what a family confers is
-stated for 161 of 184 families. 135 claim and content families take one default, that a claim seats no one
-(CC 3.4.5.1). Twenty-one consents take their seat from `family_shapes.tsv`, and five families have a sentence of
-their own. **open**: 23 families confer nothing that a sentence states: 20 doors, two consents the shape
-table cannot run, and the consent prefix. Which segment of a family's name binds a key is filled for 155
-families; 29 have a segment that names another row and no word yet says so, a limit CC 8.3.4 names. Which answers read a family's
+stated for 162 of 188 families (the family model at the Constitution's `rc23` `f73162c`, sha256 `47cd8fec`, the
+pin of `data/family_placement.json`). 138 claim and content families take one default, that a claim seats no one
+(CC 3.4.5.1). Twenty consents take their seat from `family_shapes.tsv`, and four families have a sentence of
+their own. **open**: 26 families confer nothing that a sentence states: 23 doors, two consents the shape
+table cannot run, and the consent prefix. Which segment of a family's name binds a key is filled for 160
+families; 28 have a segment that names another row and no word yet says so, a limit CC 8.3.4 names. Which answers read a family's
 rows is filled for all 184 from the expression language: every family is read by **state** and **stands**
 through the default fold, a default checked for none of the 83 that take it, and 42 are also read by another
 answer. A row that must equal its own recomputation is stated for three families (CC 6.1.9) and for no other.
@@ -366,8 +367,8 @@ most one lease against that person's other devices.
 
 Every row family is one of four shapes: a **consent**, a **door**, a **claim** or **content**. A roster is a
 consent given by a count, and an acknowledgement is a claim. **measured**
-(`formal/derivation/family_shapes.tsv` (parent repository), `formal/causal_kernel/check_shapes.py` (parent repository)): of the 184 families, 110 are
-claims, 24 content, 24 doors, 16 consents and 7 both a consent and a door. Three fit none.
+(`formal/derivation/family_shapes.tsv` (parent repository), `formal/causal_kernel/check_shapes.py` (parent repository)): of the 188 families (the same pin), 114
+are claims, 24 content, 25 doors, 15 consents and 7 both a consent and a door. Three fit none.
 
 The four are labels over two mechanisms. Removing the shapes in order, three orders leave the same two:
 consent and the door. Content is carried by consent, since its audience is the holders of a roster and its
