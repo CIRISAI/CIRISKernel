@@ -121,6 +121,16 @@ def reader(anchor=None, thumbs=None, acks=(), rows=()):
 # that reader (MUTATION grant_line_unread). Kept as a list only so the planted break can switch it.
 GRANT_LINE = [True]
 
+# PROTOTYPES of the re-attack's two candidate fixes (review-58b on 272fcd6), off unless switched on (or by the
+# environment, ROOT_SIBLING_T=1, ROOT_GRANT_COUNT=1), pending the Constitution:
+#   SIBLING_T    two successors of one bundle signed by the same voices, neither in the other's past, are those
+#                voices' self-fork, decided by T at the fork point (a tie keeps both)
+#   GRANT_COUNT  in place of grants on the reader's line: a grant resolves for a reader only while its counted voices
+#                are a strict majority of the reader's in-force holders (same key, live)
+import os as _os  # noqa: E402
+SIBLING_T = [bool(_os.environ.get("ROOT_SIBLING_T"))]
+GRANT_COUNT = [bool(_os.environ.get("ROOT_GRANT_COUNT"))]
+
 
 class Root:
     def __init__(self, bundles, revokes=(), grants=()):
@@ -317,18 +327,27 @@ class Root:
             if b.get("recovers") is not None and "recovery_exempt" not in MUT:
                 return own([b["recovers"][0]])
             return own(self.voices(b) & (self.base(b) if b["prev"] else frozenset(b["holders"])))
+        def rivals(b):
+            """The bundles b is behind; with SIBLING_T, its siblings too (successors of the same bundles, neither in
+            the other's past)."""
+            out = [c for c in cs if self.behind(b, c)]
+            if SIBLING_T[-1]:
+                out += [c for c in cs if c["id"] != b["id"] and b["prev"] and frozenset(c["prev"]) == frozenset(b["prev"])
+                        and c["id"] not in self.past(b["id"]) and b["id"] not in self.past(c["id"])]
+            return out
         def forked(b):
             if not b["prev"]: return False
             if b.get("recovers") is not None and "recovery_exempt" in MUT: return False
             v = voices_of(b)
-            return bool(v) and all(any(k in own(self.voices(c)) and self.behind(b, c) for c in cs) for k in v)
+            rv = rivals(b)
+            return bool(v) and all(any(k in own(self.voices(c)) for c in rv) for k in v)
         out = {b["id"] for b in cs if forked(b)}
         tv = set()
         for i in out:
             b = self.by[i]
             if "root_t_unread" in MUT: tv.add(i); continue
             mem = own(self.base(b))
-            beh = [c for c in cs if self.behind(b, c)]
+            beh = rivals(b)
             chain = set()
             todo = [c["id"] for c in beh]
             while todo:
@@ -623,7 +642,10 @@ class Root:
         if any(n not in self.valid() for n in g["bundles"]): return (False, "grant_bundle_void")
         if not self.antichain(g["bundles"]): return (False, "grant_bundles_not_antichain")
         if not self.grant_row(gid): return (False, "grant_count_short")
-        if GRANT_LINE[-1] and "grant_line_unread" not in MUT:
+        if GRANT_COUNT[-1]:
+            H = self.live(self.fold(hs)[0])
+            if not 2 * len(frozenset(g["signers"]) & H) > len(H): return (False, "grant_voices_not_in_force")
+        elif GRANT_LINE[-1] and "grant_line_unread" not in MUT:
             acked = self.reader_line(rd)[0]
             seen = set().union(*[self.row_past(r) for r in rd.get("rows", ()) if r in self.rows]) if rd.get("rows") else set()
             if gid not in seen and any(n in self.past(a) for n in g["bundles"] for a in acked):

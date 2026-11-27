@@ -2351,6 +2351,17 @@ def void_changes(r, P):
 _VOID_MEMO = {}
 
 
+# PROTOTYPE (the root-fold re-attack's SIBLING_T, applied to rosters to see what moves; off unless SEAT_SIBLING_T=1):
+# a counted change's siblings (the same heads, neither in the other's past) are rivals as the changes it is behind are
+SIBLING_T = [bool(os.environ.get("SEAT_SIBLING_T"))]
+
+
+def _rival(S, q, c, past):
+    if CP.behind(S, q, c): return True
+    return SIBLING_T[-1] and c["id"] != q["id"] and set(c.get("head", ())) == set(q.get("head", ())) \
+        and q.get("head") and not past(q["id"], c["id"]) and not past(c["id"], q["id"])
+
+
 def _void_changes(r, P):
     S = CK.State(list(P), {q["id"]: True for q in P})
     obj = r["obj"]
@@ -2372,7 +2383,7 @@ def _void_changes(r, P):
     def forked_by(q, k):
         """The changes q is behind that k acknowledged by a row without q in its past."""
         return [c for a in signed(k) if a["id"] != q["id"] and not past(q["id"], a["id"])
-                for c in acts if (c["id"] == a["id"] or c["id"] in S.anc[a["id"]]) and CP.behind(S, q, c)]
+                for c in acts if (c["id"] == a["id"] or c["id"] in S.anc[a["id"]]) and _rival(S, q, c, past)]
     def forked(q):
         v = info[q["id"]][0]
         return bool(v) and all(forked_by(q, k) for k in v)
@@ -2381,12 +2392,12 @@ def _void_changes(r, P):
     if "fork_by_depth" in MUT:
         # the S' form (MUTATION): a self-forked change is void unless a change it is behind is self-forked too, so the
         # side with the longer chain wins where the same voices signed both
-        tv = {i for i in out if not any(c["id"] in out for c in acts if CP.behind(S, S.by[i], c))}
+        tv = {i for i in out if not any(c["id"] in out for c in acts if _rival(S, S.by[i], c, past))}
     else:
         tv = {i for i in out if t_void(S, P, obj, acts, past, info, S.by[i], out)}
     # a change built on a void one is void, but a merge of both lines (a change the void one is behind in its past
     # too), which reads its count without the void change, as any counting row does
-    line = {i: [c["id"] for c in acts if c["id"] != i and not past(i, c["id"]) and CP.behind(S, S.by[i], c)] for i in tv}
+    line = {i: [c["id"] for c in acts if c["id"] != i and not past(i, c["id"]) and _rival(S, S.by[i], c, past)] for i in tv}
     merge = lambda b: any(past(f, b["id"]) and any(past(c, b["id"]) for c in line[f]) for f in tv)
     return frozenset(_built_closure(acts, tv, merge))
 
@@ -2423,7 +2434,7 @@ def t_void(S, P, obj, acts, past, info, q, forked=frozenset()):
     posts = "t_counts_posts" in MUT
     pool = [a for a in P if CP.object_of(a, S.by) == obj] if posts else list(acts)
     rows = [a for a in pool if a["id"] not in fp]
-    behind = [c for c in acts if c["id"] != qid and not past(qid, c["id"]) and CP.behind(S, q, c)]
+    behind = [c for c in acts if c["id"] != qid and not past(qid, c["id"]) and _rival(S, q, c, past)]
     # the competing line: each change q is behind and the changes it names as heads back to the fork point (a row it
     # merely cites is not on it)
     chain = set()
