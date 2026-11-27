@@ -27,10 +27,14 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
                  first bundle (else `genesis_bundle_not_anchored`), and any other first bundle is void for it; the
                  bundle in force is the newest of the lineage the reader has acknowledged (acceptance edges with
                  attached_head_digest), read by its line; several acknowledged tips are folded; none, the anchor.
-    grants       a root grant is a row counted over the holders of the bundle it names, at a strict majority
-                 (accord_majority). A grant made under either successor stands as a row. Read against a reader,
-                 it is in force where the bundle it names is one of the reader's heads, counted over the reader's
-                 in-force holders (folded, or common where charters differ).
+    grants       a root grant EXISTS where it is counted at a strict majority (accord_majority) over the live
+                 holders of the bundle it names, and that bundle's charter carries its duty; one made under either
+                 successor stands as a row. It RESOLVES for a reader while its bundle is in the reader's lineage
+                 (one of its heads, or in their past; not on a line behind it) and the scope of the bundle in force
+                 at that reader still carries the duty (several tips: what all carry). A later bundle re-scopes
+                 existing grants with no re-issuance.
+    contested    two recoveries of one seat, neither in the other's past, are contested: neither replaces the seat
+                 until a bundle names both, and the old key's seat stays as it was.
 
 Receipts, equivocation records and fork-attempt records move no head and are not read here.
 
@@ -42,7 +46,10 @@ MUT = set()
 INVALID, VOID, CONCLUDED, REFUSED = "invalid", "void", "concluded", "refused"
 
 
-def bundle(id, family, version, holders, prev=(), charter="c0", seats=(), stmts=None, iat=0, recovery=None,
+C0 = {"name": "c0", "duties": ("infra",)}
+
+
+def bundle(id, family, version, holders, prev=(), charter=C0, seats=(), stmts=None, iat=0, recovery=None,
            recovers=None):
     """A bundle. stmts defaults to every holder of the predecessor... callers name them. recovers: (holder, new key)."""
     holders = tuple(holders)
@@ -57,10 +64,16 @@ def revoke(key, bound=None):
     return {"kind": "revoke", "key": key, "bound": bound}
 
 
-def grant(id, bundle_id, to, scope, signers, identity=("user",)):
-    """A root grant: a row counted over the holders of `bundle_id`, naming key `to` for room `scope`."""
+def grant(id, bundle_id, to, scope, signers, identity=("user",), duty="infra"):
+    """A root grant: a row counted over the holders of `bundle_id`, naming key `to` for room `scope`, of `duty` (the
+    duty the bundle's charter must carry)."""
     return {"id": id, "kind": "grant", "bundle": bundle_id, "to": to, "scope": scope, "signers": tuple(signers),
-            "identity": tuple(identity)}
+            "identity": tuple(identity), "duty": duty}
+
+
+def duties(charter):
+    """The duties a charter carries (its scope)."""
+    return frozenset(charter.get("duties", ())) if isinstance(charter, dict) else frozenset()
 
 
 def reader(anchor=None, thumbs=None, acks=()):
@@ -222,6 +235,22 @@ class Root:
                        for f in tv):
                     continue
                 tv.add(c["id"]); changed = True
+        # two recoveries of one seat, neither in the other's past, are contested: neither replaces the seat until a
+        # bundle names both (one holder may not seat two keys for one seat by forking its own recovery); a bundle
+        # built on some of a contest and not all is void with them (MUTATION recovery_fork_both: both conclude)
+        if "recovery_fork_both" not in MUT:
+            recs = [c for c in cs if c.get("recovers") is not None and c["id"] not in tv]
+            seat = lambda c: (c["prev"][0], c["recovers"][0])
+            groups = {}
+            for c in recs:
+                rivals = [x["id"] for x in recs if x["id"] != c["id"] and seat(x) == seat(c)
+                          and x["id"] not in self.past(c["id"]) and c["id"] not in self.past(x["id"])]
+                if rivals: groups.setdefault(seat(c), set()).update(rivals + [c["id"]])
+            for g in groups.values():
+                if any(g <= self.past(c["id"]) for c in cs if c["id"] not in tv): continue    # a bundle names both
+                for c in cs:
+                    line = self.line(c["id"])
+                    if line & g and not g <= line: tv.add(c["id"])
         return frozenset(tv)
 
     # ---- for one reader ----------------------------------------------------------------------------------
@@ -263,7 +292,7 @@ class Root:
     # ---- the fold ----------------------------------------------------------------------------------------
     def regime(self, i):
         c = self.by[i]["charter"]
-        if "charter_part" in MUT and isinstance(c, dict): return c.get("protocol")
+        if "charter_part" in MUT and isinstance(c, dict): return repr(sorted(c.get("duties", ())))
         return repr(c) if isinstance(c, dict) else c
 
     def fold(self, tips):
@@ -330,22 +359,34 @@ class Root:
 
     # ---- grants ------------------------------------------------------------------------------------------
     def grant_row(self, gid):
-        """A grant as a row: counted over the live holders of the bundle it names, at a strict majority, that
-        bundle concluded and not void."""
+        """A grant EXISTS: counted at a strict majority over the live holders of the bundle it names, that bundle
+        concluded and not void, and its charter carrying the grant's duty (MUTATION grant_charter_unread)."""
         g = self.grants.get(gid)
         if g is None or g["bundle"] not in self.valid(): return False
-        base = self.live(self.by[g["bundle"]]["holders"])
+        b = self.by[g["bundle"]]
+        if g["duty"] not in duties(b["charter"]) and "grant_charter_unread" not in MUT: return False
+        base = self.live(b["holders"])
         return 2 * len(frozenset(g["signers"]) & base) > len(base)
 
+    def scope_in_force(self, rd):
+        """The duties the reader's bundles in force carry: one head's charter; several, what all carry."""
+        hs = self.heads(rd)
+        if hs is None: return frozenset()
+        return frozenset.intersection(*[duties(self.by[h]["charter"]) for h in hs])
+
     def grant_in_force(self, gid, rd):
-        """(True|False, reason): the grant names one of the reader's bundles in force and is counted at a strict
-        majority over the reader's in-force holders (folded, or common where charters differ)."""
+        """(True|False, reason): the grant exists and RESOLVES for the reader: (i) its bundle is in the reader's
+        lineage, one of its heads or in their past, not on a line behind it (MUTATION grant_any_bundle); (ii) the
+        scope of the bundle in force at the reader still carries its duty (MUTATION grant_scope_unread). A later
+        bundle re-scopes existing grants with no re-issuance."""
         g = self.grants.get(gid)
         if g is None: return (False, "grant_unknown")
         hs = self.heads(rd)
         if hs is None: return (False, "genesis_bundle_not_anchored")
-        if g["bundle"] not in hs and "grant_any_bundle" not in MUT: return (False, "grant_not_on_bundle_in_force")
         if g["bundle"] not in self.valid(): return (False, "grant_bundle_void")
-        H = self.live(self.fold(hs)[0])
-        if not 2 * len(frozenset(g["signers"]) & H) > len(H): return (False, "grant_count_short")
+        if not self.grant_row(gid): return (False, "grant_count_short")
+        if "grant_any_bundle" not in MUT and not any(g["bundle"] in self.line(h) for h in hs):
+            return (False, "grant_not_in_reader_lineage")
+        if g["duty"] not in self.scope_in_force(rd) and "grant_scope_unread" not in MUT:
+            return (False, "grant_scope_not_in_force")
         return (True, None)
