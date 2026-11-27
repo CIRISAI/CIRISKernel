@@ -283,6 +283,9 @@ trusting an adapter.
 - A resignation is a `SeatKind::Withdraw` by the member, targeting the offer that seats it or its own
   acceptance, and naming the newest counted changes. It is no tip and no head. A counted row with it in its own
   past reads it with the heads it names; a row that does not have it in its past does not.
+  A resignation composed after another member's own end names the newest counted change (naming both is the
+  safe form): the other end is no head, so naming it alone leaves the newest counted change unnamed, and the
+  resignation concludes nothing.
 - A founder is whatever scope the caller seats it in. `members_at(.., scope)` answers for the scope asked.
 - `SeatRow::regime`: the protocol and policy in force at each counted act, on every counted act.
 
