@@ -5,28 +5,36 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
     the object   a bundle (`ceg-genesis-bundle/2`) is a signed object, not a row. Its payload: `holders`, `seats`
                  (serve_nodes), `charter` (one value), `version`, `family` (family_key_id, the lineage's name),
                  `recovery` (recovery_commitments: holder -> recovery key, keys exactly the holders) and `prev` (the
-                 bundles it extends: one; two for a join). `stmts` are its holders' statements, (key, iat), one per
+                 bundles it extends: refs.prev, then for a join refs.further_prev; refs.prev is the greatest version,
+                 least id among equals, and a named predecessor in the past of another concludes nothing). `stmts` are its holders' statements, (key, iat), one per
                  key over the one payload; `iat` is the payload's.
     the count    the first bundle is counted over every holder it lists; a later one over a strict majority of its
-                 predecessor's live holders; a join over a strict majority of the live holders common to its two
-                 predecessors (the text's GAP, modelled abstractly). A statement whose iat disagrees is Invalid on
+                 predecessor's live holders; a JOIN by a strict majority of EACH named predecessor's live holders,
+                 each voice a key that predecessor seats under the same key, whatever the charters, less the keys
+                 retired across its branches (a join inherits the union of retired keys and spent commitments, and
+                 revives nothing). A statement whose iat disagrees is Invalid on
                  its own, and the bundle is counted on the rest. A holder whose key is revoked with no bound leaves
                  the live holders; a statement its bound voids (on a bundle not at or before the bound) does not
                  count. The exception: a holder's own key recovery, a later bundle under that holder's recovery key
                  changing only its own seat (else `recovery_changes_other_seat`); a spent commitment (one a
-                 recovery in the bundle's past used) concludes nothing.
+                 recovery in the bundle's past used) concludes nothing. A recovery takes S'' like any bundle, the
+                 holder (either key) its voice; recoveries of one seat are settled by T between them.
     the heads    `version` is prev's plus one (a join: the greater plus one) and `family` is prev's: a consistency
                  check, never ranked; a mismatch is Invalid. A later bundle is a counted change of the holders'
                  roster: it names the newest bundle in its signers' own past, and S'' and T at the fork point
                  apply to it as to a roster change (MINE, the Constitution's derived reading).
     the fold     two later bundles on one bundle are both tips, and no rule picks one. The holders and seats at
                  several tips are the guarded fold (CC 2.7.8). Tips whose regime differs do not fold: a bundle's
-                 regime is its WHOLE charter, compared as one value, and the holders are then those common to the
-                 tips (and the seats likewise) until a bundle names both.
+                 regime is its WHOLE charter, compared as one value (without recovery_commitments, which are per
+                 holder), and the holders are then those common to the tips (and the seats likewise) until a bundle
+                 names both. A recovery is a rotation of an existing seat, not an addition: the key it seats is in
+                 the fold only where the holder's seat itself is in (CC 2.6.1.11).
     in force     per reader, never global: the reader's anchor (a bundle id, or the holders' thumbprints) names its
                  first bundle (else `genesis_bundle_not_anchored`), and any other first bundle is void for it; the
                  bundle in force is the newest of the lineage the reader has acknowledged (acceptance edges with
-                 attached_head_digest), read by its line; several acknowledged tips are folded; none, the anchor.
+                 attached_head_digest), read by its line, in the order it acknowledged them: a bundle behind one it
+                 acknowledged and not on its line is void for it, and so is every bundle built on one, a join
+                 included; several acknowledged tips are folded; none, the anchor.
     grants       a root grant EXISTS where it is counted at a strict majority (accord_majority) over the live
                  holders of the bundles it names, and their charters carry its duty; it names the newest bundles in
                  its signers' own past (signers who saw s2 name s1 and s2, and are counted over their fold, or the
@@ -102,16 +110,16 @@ def duties(charter):
 
 
 def reader(anchor=None, thumbs=None, acks=(), rows=()):
-    """A reader: its anchor (a first bundle's id, or the holders' thumbprints), the bundles it acknowledged, and its
-    own acknowledgement rows in the root's lane (`rows`, for GRANT_LINE)."""
-    return {"anchor": anchor, "thumbs": frozenset(thumbs) if thumbs is not None else None, "acks": frozenset(acks),
+    """A reader: its anchor (a first bundle's id, or the holders' thumbprints), the bundles it acknowledged, in the
+    order it acknowledged them (its own line), and its own acknowledgement rows in the root's lane (`rows`)."""
+    return {"anchor": anchor, "thumbs": frozenset(thumbs) if thumbs is not None else None, "acks": tuple(acks),
             "rows": frozenset(rows)}
 
 
-# PROPOSED, pending the Constitution: grants sit on the reader's line, with bundles as heads. A grant naming a bundle
-# strictly older than one the reader acknowledged, and not in the past of the reader's own acknowledgement rows, is
-# void for that reader. Off by default.
-GRANT_LINE = [False]
+# Grants sit on the reader's line (the Constitution's ruling), with bundles as heads. A grant naming a bundle strictly
+# older than one the reader acknowledged, and not in the past of the reader's own acknowledgement rows, is void for
+# that reader (MUTATION grant_line_unread). Kept as a list only so the planted break can switch it.
+GRANT_LINE = [True]
 
 
 class Root:
@@ -183,7 +191,44 @@ class Root:
         if not ps: return True
         if "version_unread" not in MUT and b["version"] != max(p["version"] for p in ps) + 1: return False
         if "family_unread" not in MUT and any(p["family"] != b["family"] for p in ps): return False
+        if len(ps) >= 2:
+            # the join's wire: refs.prev is the greatest version, least id among equals; refs.further_prev the rest;
+            # a named predecessor in the past of another concludes nothing
+            if "join_prev_unread" not in MUT and b["prev"][0] != min(b["prev"], key=lambda i: (-self.by[i]["version"], i)):
+                return False
+            if any(a in self.past(c) for a in b["prev"] for c in b["prev"]): return False
         return True
+
+    def retired(self, prevs):
+        """The keys retired across the branches of `prevs`: every key a recovery in their lines rotated out. A join
+        inherits the union, and revives nothing (MUTATION retired_unread)."""
+        if "retired_unread" in MUT: return frozenset()
+        out = set()
+        for p in prevs:
+            for x in self.line(p):
+                q = self.by[x]
+                if q.get("recovers") is not None: out.add(q["recovers"][0])
+        return frozenset(out)
+
+    def meets(self, b, voices, within=None, prevs=None):
+        """b's count on `voices`: one predecessor, a strict majority of its live holders; a JOIN, a strict majority
+        of EACH named predecessor's live holders, each voice a key that predecessor seats under the same key, less the
+        keys retired across its branches (MUTATION join_common_base: a strict majority of the holders common to
+        them). `within`: only these holders (the fold's); `prevs`: these predecessors only (a merge counted without
+        the void bundles it names)."""
+        prevs = tuple(prevs if prevs is not None else b["prev"])
+        if not prevs: return False
+        if "count_over_own" in MUT:
+            bases = [self.live(b["holders"])]
+        elif len(prevs) >= 2 and "join_common_base" in MUT:
+            bases = [self.live(frozenset.intersection(*[frozenset(self.by[p]["holders"]) for p in prevs]))]
+        elif len(prevs) >= 2 and "join_union" in MUT:
+            bases = [self.live(frozenset().union(*[frozenset(self.by[p]["holders"]) for p in prevs]))]
+        else:
+            gone = self.retired(prevs) if len(prevs) >= 2 else frozenset()
+            bases = [self.live(self.by[p]["holders"]) - gone for p in prevs]
+        if within is not None: bases = [x & within for x in bases]
+        return all(2 * len(frozenset(voices) & x) > len(x) for x in bases)
 
     def contested_join(self, i):
         """A join (two predecessors or more) contested by a rival: a concluded join of the same predecessors under
@@ -197,37 +242,14 @@ class Root:
                    and self.regime(x["id"]) != self.regime(i) and x["id"] not in self.past(i) and i not in self.past(x["id"])
                    and self.counted(x["id"])[0] for x in self.by.values())
 
-    def prev_base(self, prevs):
-        """The live holders a bundle naming `prevs` is counted over: one, its holders; several under one charter,
-        their fold (MUTATION join_common: their common holders); several whose charters differ, those common to
-        them; where they are joins contested among themselves (a bundle settling a forked join), the same over the
-        tips those joins tried to join."""
-        prevs = tuple(prevs)
-        ps = [self.by[p] for p in prevs]
-        if len(ps) >= 2 and all(self.contested_join(p) for p in prevs) \
-                and len({frozenset(q["prev"]) for q in ps}) == 1:
-            return self.prev_base(ps[0]["prev"])
-        # a bundle naming recoveries of one seat contested among themselves: the seat as it was, their predecessor's
-        if len(ps) >= 2 and all(q.get("recovers") is not None and len(q["prev"]) == 1 for q in ps) \
-                and len({(q["prev"][0], q["recovers"][0]) for q in ps}) == 1 \
-                and all(a not in self.past(b) for a in prevs for b in prevs):
-            return self.prev_base(ps[0]["prev"])
-        if len(ps) >= 2 and len({self.regime(p) for p in prevs}) == 1 and "join_common" not in MUT \
-                and "join_union" not in MUT:
-            return self.live(self.fold(prevs)[0])
-        if "join_union" in MUT: hs = frozenset().union(*[frozenset(p["holders"]) for p in ps])
-        else: hs = frozenset.intersection(*[frozenset(p["holders"]) for p in ps])
-        return self.live(hs)
-
     def base(self, b):
-        """The live holders a later bundle is counted over: its predecessor's, or those common to a join's two (a
-        bundle settling a forked join: those common to the tips it joined)."""
+        """The live holders whose statements on b are voices: its predecessor's; a join's, each named predecessor's
+        (the union, less the keys retired across its branches; its count is per predecessor, `meets`)."""
         if "count_over_own" in MUT: return self.live(b["holders"])
-        if len(b["prev"]) >= 2: return self.prev_base(b["prev"])
         ps = [self.by[p] for p in b["prev"]]
-        if "join_union" in MUT: hs = frozenset().union(*[frozenset(p["holders"]) for p in ps])
-        else: hs = frozenset.intersection(*[frozenset(p["holders"]) for p in ps])
-        return self.live(hs)
+        if not ps: return frozenset()
+        if len(ps) == 1: return self.live(ps[0]["holders"])
+        return self.live(frozenset().union(*[frozenset(p["holders"]) for p in ps])) - self.retired(b["prev"])
 
     def recovery_ok(self, b):
         """A holder's own key recovery: (True, None), (False, reason), or None where b is no recovery."""
@@ -268,8 +290,7 @@ class Root:
             return (bool(hs) and hs <= v, None)
         rec = self.recovery_ok(b)
         if rec is not None: return rec
-        base = self.base(b)
-        return (2 * len(v & base) > len(base), None)
+        return (self.meets(b, v), None)
 
     def concluded(self):
         return [i for i in self.by if self.counted(i)[0]]
@@ -322,20 +343,17 @@ class Root:
             ko = set().union(*[voices_of(c) & mem for c in other]) if other else set()
             if len(ko - km) > len(km - ko): tv.add(i)
         def close():
-            """Built on: void, but a join of both lines, which is counted without the void bundles it names
-            (MUTATION merge_count_unread: it stands on its own count)."""
+            """Built on: void. A join naming a void predecessor concludes nothing, though it names the line the void
+            one is behind too (MUTATION join_void_prev_spared: such a join stands)."""
             changed = True
             while changed:
                 changed = False
                 for c in cs:
                     if c["id"] in tv or not any(p in tv for p in c["prev"]): continue
-                    if any(f in self.past(c["id"]) and any(x["id"] in self.past(c["id"]) for x in cs if self.behind(self.by[f], x))
-                           for f in tv):
-                        keep = [p for p in c["prev"] if p not in tv]
-                        if "merge_count_unread" in MUT: continue
-                        if keep:
-                            base = self.prev_base(keep)
-                            if 2 * len(self.voices(c) & base) > len(base): continue
+                    if "join_void_prev_spared" in MUT and any(
+                            f in self.past(c["id"]) and any(x["id"] in self.past(c["id"]) for x in cs if self.behind(self.by[f], x))
+                            for f in tv):
+                        continue
                     tv.add(c["id"]); changed = True
         close()
         # two recoveries of one seat, neither in the other's past, are contested: neither replaces the seat until a
@@ -403,11 +421,39 @@ class Root:
                 return i
         return None
 
+    def _rv(self, acked, valid):
+        on = set().union(*[self.line(a) for a in acked]) if acked else set()
+        out = {i for i in valid if i not in on and any(self.behind(self.by[i], self.by[a]) for a in acked)}
+        changed = True
+        while changed:
+            changed = False
+            for i in valid:
+                if i not in out and i not in on and any(p in out for p in self.by[i]["prev"]):
+                    out.add(i); changed = True
+        return out
+
+    def reader_line(self, rd):
+        """The reader's own line: its acknowledgements in order, each taken unless it is void for the reader by
+        those before it (acknowledging never un-voids); and the bundles void for the reader by that line: one
+        behind a bundle it acknowledged and not on its line, and every bundle built on one, a join included (a
+        join naming a predecessor void for a reader concludes nothing for it; MUTATION reader_line_unread)."""
+        valid = self.valid()
+        if "reader_line_unread" in MUT:
+            return [a for a in rd["acks"] if a in valid], frozenset()
+        acc = []
+        for a in rd["acks"]:
+            if a in valid and a not in self._rv(acc, valid): acc.append(a)
+        return acc, frozenset(self._rv(acc, valid))
+
+    def reader_void(self, rd):
+        return self.reader_line(rd)[1]
+
     def held(self, rd):
-        """The bundles valid for the reader: of its anchored lineage."""
+        """The bundles valid for the reader: of its anchored lineage, and not void by its line."""
         f = self.first(rd)
         if f is None: return []
-        return [i for i in self.valid() if i == f or f in self.past(i)]
+        rv = self.reader_void(rd)
+        return [i for i in self.valid() if (i == f or f in self.past(i)) and i not in rv]
 
     def heads(self, rd):
         """The bundles in force for the reader: the newest it acknowledged, read by its line (MUTATION
@@ -415,7 +461,7 @@ class Root:
         h = self.held(rd)
         if not h: return None
         if "inforce_global" in MUT: acked = set(h)
-        else: acked = {i for i in h if i in rd["acks"]}
+        else: acked = {i for i in self.reader_line(rd)[0] if i in h}
         # a contested bundle the reader acknowledged leaves it at the bundles it extends (the tips a forked join
         # tried to join; the seat a contested recovery tried to replace), and so on down
         self.void()
@@ -439,6 +485,7 @@ class Root:
     def regime(self, i):
         c = self.by[i]["charter"]
         if "charter_part" in MUT and isinstance(c, dict): return repr(sorted(c.get("duties", ())))
+        if "regime_reads_commitments" in MUT: return repr((c, sorted(self.by[i]["recovery"].items())))
         return repr(c) if isinstance(c, dict) else c
 
     def fold(self, tips):
@@ -479,6 +526,16 @@ class Root:
                     for r in self._removals(t2, k, field):
                         if a is None or r not in self.past(a): ok = False; break     # removed beside it
                     if not ok: break
+                    # a recovery is a rotation of an existing seat, not an addition (CC 2.6.1.11: it "changes only
+                    # its own seat"): the key it seats is in only where the holder's seat itself is in, so a tip
+                    # that removes the holder (by a bundle that is no rotation of it) takes the rotation out
+                    # (MUTATION rotation_outlives_seat)
+                    rot = self.by[a].get("recovers") if a is not None and field == "holders" else None
+                    if rot is not None and rot[1] == k and "rotation_outlives_seat" not in MUT:
+                        for r in self._removals(t2, rot[0], field):
+                            rr = self.by[r].get("recovers")
+                            if (rr is None or rr[0] != rot[0]) and r not in self.past(a): ok = False; break
+                    if not ok: break
                 if ok: return True
             return False
         cand = [k for k in sorted(union - common) if survives(k)]
@@ -496,8 +553,7 @@ class Root:
                         b = self.by[a]
                         if not b["prev"]: continue
                         if b.get("recovers") is not None and b["recovers"][1] == k: continue   # its own recovery
-                        base = self.base(b) & H
-                        if not 2 * len(self.voices(b) & base) > len(base): ok = False
+                        if not self.meets(b, self.voices(b), within=H): ok = False
                 if ok:
                     F.add(k); changed = True
                     if holders is None: H.add(k)
@@ -568,7 +624,7 @@ class Root:
         if not self.antichain(g["bundles"]): return (False, "grant_bundles_not_antichain")
         if not self.grant_row(gid): return (False, "grant_count_short")
         if GRANT_LINE[-1] and "grant_line_unread" not in MUT:
-            acked = [a for a in rd["acks"] if a in self.by]
+            acked = self.reader_line(rd)[0]
             seen = set().union(*[self.row_past(r) for r in rd.get("rows", ()) if r in self.rows]) if rd.get("rows") else set()
             if gid not in seen and any(n in self.past(a) for n in g["bundles"] for a in acked):
                 return (False, "grant_behind_reader_line")

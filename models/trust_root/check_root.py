@@ -45,13 +45,15 @@ FORKC = [B0, nxt("s1", "b0", H3 + ("h4",), ("h1", "h2")), nxt("s2", "b0", H3 + (
 # a removal on one tip and an addition on the other: s1 removes h3 (h1 h2), s2 adds h5 (h2 h3)
 FORKR = [B0, nxt("s1", "b0", ("h1", "h2"), ("h1", "h2")), nxt("s2", "b0", H3 + ("h5",), ("h2", "h3"))]
 # a join of FORK's tips, counted over the holders common to them (h1 h2 h3)
-JOIN = FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2", "h4"), version=2)]
-JOINC = FORKC + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2"), version=2, charter=C1)]
+# a join of FORK's tips, counted by a strict majority of EACH predecessor's live holders: h1 h2 h3 are three of
+# s1's four (h1..h4) and three of s2's four (h1 h2 h3 h5)
+JOIN = FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2", "h3"), version=2)]
+JOINC = FORKC + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2", "h3"), version=2, charter=C1)]
 # a forked join: two joins of FORK's tips, both by h1 and h2 (a strict majority of the common h1 h2 h3), under
 # different charters: two tips whose regime differs, so the holders are again those common to them
 C3 = {"name": "c3", "duties": ("infra",)}
-FJ = lambda h1s, h2s: FORK + [nxt("j1", ("s1", "s2"), h1s, ("h1", "h2", "h4"), version=2),
-                              nxt("j2", ("s1", "s2"), h2s, ("h1", "h2", "h4"), version=2, charter=C1)]
+FJ = lambda h1s, h2s: FORK + [nxt("j1", ("s1", "s2"), h1s, ("h1", "h2", "h3"), version=2),
+                              nxt("j2", ("s1", "s2"), h2s, ("h1", "h2", "h3"), version=2, charter=C1)]
 # a holder's recovery: h3's recovery key r:h3 replaces h3 by h3b
 REC = nxt("rc", "b0", ("h1", "h2", "h3b"), ("r:h3",), recovers=("h3", "h3b"),
           recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b"})
@@ -142,20 +144,34 @@ CASES = [
     ("fold", "and are common where charters differ: n1", [B0, nxt("s1", "b0", H3, ("h1", "h2"), seats=("n1", "n2")),
                                                          nxt("s2", "b0", H3, ("h2", "h3"), seats=("n1", "n3"), charter=C1)],
      (), (), RD(anchor="b0", acks=("s1", "s2")), {"seats": {"n1"}}),
-    ("join", "a join of two tips under one charter, counted over their fold (h1..h5): h1, h2 and h4 are three of five", JOIN, (), (),
-     RD(anchor="b0", acks=("j",)), {"concluded": {"j": T}, "heads": ("j",), "holders": {"h1", "h2", "h3", "h4", "h5"}}),
-    ("join", "over the fold, not the common holders: h1, h4 and h5 are three of five (one of the common three)",
-     FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h4", "h5"), version=2)], (), (), ANC, {"concluded": {"j": T}}),
-    ("join", "a join of tips whose charters differ is counted over their common holders: h1, h4 and h5 are one of three",
-     FORKC + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h4", "h5"), version=2, charter=C1)], (), (), ANC,
+    # the join (the Constitution's ruling): counted by a strict majority of EACH named predecessor's live holders,
+    # each voice a key that predecessor seats under the same key, whatever the charters; prev is the greatest version
+    # (least id among equals), further_prev the rest; a named predecessor in the past of another concludes nothing
+    ("join", "a join of two tips, counted by a strict majority of each: h1, h2 and h3 are three of s1's four and of "
+             "s2's four", JOIN, (), (), RD(anchor="b0", acks=("j",)),
+     {"concluded": {"j": T}, "heads": ("j",), "holders": {"h1", "h2", "h3", "h4", "h5"}}),
+    ("join", "the common holders' base (h1 h2 h3) would take h1 and h2 (two of three); each predecessor's does not: "
+             "two of four, twice", FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2"), version=2)], (), (), ANC,
      {"concluded": {"j": Fa}}),
-    ("join", "a join names both where charters differ, and ends the wait: its own holders", JOINC, (), (),
+    ("join", "the same rule whatever the charters: h1, h2 and h3 join tips whose charters differ", JOINC, (), (),
      RD(anchor="b0", acks=("j",)), {"concluded": {"j": T}, "holders": {"h1", "h2", "h3", "h4", "h5"}}),
+    ("join", "the wire: prev is the greatest version, least id among equals; naming s2 first is Invalid",
+     FORK + [nxt("j", ("s2", "s1"), H3 + ("h4", "h5"), ("h1", "h2", "h3"), version=2)], (), (), ANC, {"concluded": {"j": Fa}}),
+    ("join", "a join inherits the union of retired keys: rc rotates h3 to h3b, and am (h1 h2 add h4) still lists h3; "
+             "joining them, h3 is no live holder of am for the count, so h1 and h2 are two of am's three and of rc's three",
+     [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h1", "h2"), version=2,
+                        recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})], (), (), RD(anchor="b0", acks=("j",)),
+     {"concluded": {"j": T}, "holders": {"h1", "h2", "h3b", "h4"}}),
+    ("join", "and revives nothing: the retired h3 signing it is no voice (h3 alone with h4 on am)",
+     [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h3", "h4"), version=2,
+                        recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})], (), (), ANC, {"concluded": {"j": Fa}}),
+    ("join", "the wire: a named predecessor in the past of another concludes nothing (s1 and b0)",
+     FORK + [nxt("j", ("s1", "b0"), H3 + ("h4",), ("h1", "h2", "h3"), version=2)], (), (), ANC, {"concluded": {"j": Fa}}),
     # the forked join (the Constitution's option (ii)): two joins of the same tips that do not fold with each other
     # (their charters differ), neither in the other's past, are contested: neither stands, and the reader keeps the
     # tips they tried to join; a bundle naming every one settles them, counted by a strict majority of those tips'
-    # common holders. Two successors of one bundle are no joins and fold as tips; two joins under the SAME charter
-    # fold as any tips do: concurrent successors are not contested
+    # own count (each named join's majority). Two successors of one bundle are no joins and fold as tips; two joins
+    # under the SAME charter fold as any tips do: concurrent successors are not contested
     ("join", "a forked join: two joins of s1 and s2 under different charters are contested: neither stands, and a "
              "reader that acknowledged both keeps s1 and s2 (their fold, h1..h5)",
      FJ(("h1", "h2", "h3", "h4", "h5"), ("h1", "h2", "h3", "h4")), (), (), RD(anchor="b0", acks=("j1", "j2")),
@@ -163,44 +179,44 @@ CASES = [
     ("join", "two joins with disjoint holders (h1 h4; h2 h5) leave no hole: they are contested, and the reader keeps "
              "s1 and s2", FJ(("h1", "h4"), ("h2", "h5")), (), (), RD(anchor="b0", acks=("j1", "j2")),
      {"void": {"j1", "j2"}, "heads": ("s1", "s2"), "holders": {"h1", "h2", "h3", "h4", "h5"}}),
-    ("join", "a bundle naming both settles them, counted over the tips' common holders (h1 h2 h3): h1 and h2",
-     FJ(("h1", "h4"), ("h2", "h5")) + [nxt("j3", ("j1", "j2"), ("h1", "h2", "h4", "h5"), ("h1", "h2", "h4"), version=3, charter=C3)],
+    ("join", "a bundle naming both settles them, counted by each joined join's majority: h1 h4 and h2 h5",
+     FJ(("h1", "h4"), ("h2", "h5")) + [nxt("j3", ("j1", "j2"), ("h1", "h2", "h4", "h5"), ("h1", "h2", "h4", "h5"), version=3, charter=C3)],
      (), (), RD(anchor="b0", acks=("j3",)), {"concluded": {"j3": T}, "void": set(), "heads": ("j3",),
                                              "holders": {"h1", "h2", "h4", "h5"}}),
-    ("join", "counted over the tips' common holders, not over the joins': h1 alone is one of three",
+    ("join", "h1 alone is no majority of either join's holders",
      FJ(("h1", "h4"), ("h1", "h5")) + [nxt("j3", ("j1", "j2"), ("h1", "h4", "h5"), ("h1",), version=3, charter=C3)], (), (),
      RD(anchor="b0", acks=("j3",)), {"concluded": {"j3": Fa}, "heads": ("b0",)}),
     ("join", "two joins under the same charter fold as any tips do: not contested (each dropped the other tip's "
              "addition, so h4 and h5 fold out)",
-     FORK + [nxt("j1", ("s1", "s2"), ("h1", "h2", "h3", "h4"), ("h1", "h2", "h4"), version=2),
-             nxt("j2", ("s1", "s2"), ("h1", "h2", "h3", "h5"), ("h2", "h3", "h5"), version=2)], (), (),
+     FORK + [nxt("j1", ("s1", "s2"), ("h1", "h2", "h3", "h4"), ("h1", "h2", "h3"), version=2),
+             nxt("j2", ("s1", "s2"), ("h1", "h2", "h3", "h5"), ("h1", "h2", "h3"), version=2)], (), (),
      RD(anchor="b0", acks=("j1", "j2")), {"void": set(), "heads": ("j1", "j2"), "holders": {"h1", "h2", "h3"}}),
     ("join", "three joins, pairwise differing: all contested, and the reader keeps s1 and s2",
-     FJ(("h1", "h2", "h3"), ("h1", "h2", "h4")) + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2", "h4"), version=2, charter=C3)],
+     FJ(("h1", "h2", "h3"), ("h1", "h2", "h4")) + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2", "h3"), version=2, charter=C3)],
      (), (), RD(anchor="b0", acks=("j1", "j2", "j3")), {"void": {"j1", "j2", "j3"}, "heads": ("s1", "s2")}),
     ("join", "a bundle naming two of the three settles nothing, and is void with them",
-     FJ(("h1", "h2", "h3"), ("h1", "h2", "h4")) + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2", "h4"), version=2, charter=C3),
-                                                   nxt("k", ("j1", "j2"), ("h1", "h2", "h3"), ("h1", "h2", "h4"), version=3)],
+     FJ(("h1", "h2", "h3"), ("h1", "h2", "h4")) + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2", "h3"), version=2, charter=C3),
+                                                   nxt("k", ("j1", "j2"), ("h1", "h2", "h3"), ("h1", "h2"), version=3)],
      (), (), RD(anchor="b0", acks=("k",)), {"concluded": {"k": T}, "void": {"j1", "j2", "j3", "k"}, "heads": ("b0",)}),
     ("join", "one naming all three settles them", FJ(("h1", "h2", "h3"), ("h1", "h2", "h4"))
-     + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2", "h4"), version=2, charter=C3),
-        nxt("k", ("j1", "j2", "j3"), ("h1", "h2", "h3"), ("h1", "h2", "h4"), version=3)], (), (), RD(anchor="b0", acks=("k",)),
+     + [nxt("j3", ("s1", "s2"), ("h1", "h2", "h5"), ("h1", "h2", "h3"), version=2, charter=C3),
+        nxt("k", ("j1", "j2", "j3"), ("h1", "h2", "h3"), ("h1", "h2"), version=3)], (), (), RD(anchor="b0", acks=("k",)),
      {"concluded": {"k": T}, "void": set(), "heads": ("k",), "holders": {"h1", "h2", "h3"}}),
     ("join", "a join concurrent with an ordinary amend on one tip (a on s1, adding h6): no contest; j and a are tips "
-             "under one charter and fold", FORK + [nxt("j1", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2", "h4"), version=2),
+             "under one charter and fold", FORK + [nxt("j1", ("s1", "s2"), H3 + ("h4", "h5"), ("h1", "h2", "h3"), version=2),
                                                    nxt("a", "s1", H3 + ("h4", "h6"), ("h1", "h2", "h4"), version=2)], (), (),
      RD(anchor="b0", acks=("j1", "a")), {"void": set(), "heads": ("a", "j1"), "holders": {"h1", "h2", "h3", "h4", "h5", "h6"}}),
     ("join", "the settling bundle itself forked: two settlers of j1 and j2 under different charters are contested in "
              "turn, and the reader ends at s1 and s2, the same holders, never fewer",
-     FJ(("h1", "h4"), ("h2", "h5")) + [nxt("k1", ("j1", "j2"), ("h1", "h2", "h4"), ("h1", "h2", "h4"), version=3),
-                                       nxt("k2", ("j1", "j2"), ("h1", "h2", "h5"), ("h1", "h2", "h4"), version=3, charter=C1)],
+     FJ(("h1", "h4"), ("h2", "h5")) + [nxt("k1", ("j1", "j2"), ("h1", "h2", "h4"), ("h1", "h2", "h4", "h5"), version=3),
+                                       nxt("k2", ("j1", "j2"), ("h1", "h2", "h5"), ("h1", "h2", "h4", "h5"), version=3, charter=C1)],
      (), (), RD(anchor="b0", acks=("k1", "k2")),
      {"concluded": {"k1": T, "k2": T}, "void": {"j1", "j2", "k1", "k2"}, "heads": ("s1", "s2"),
       "holders": {"h1", "h2", "h3", "h4", "h5"}}),
-    ("join", "and a bundle naming both settlers settles all, counted over s1 and s2's common holders",
-     FJ(("h1", "h4"), ("h2", "h5")) + [nxt("k1", ("j1", "j2"), ("h1", "h2", "h4"), ("h1", "h2", "h4"), version=3),
-                                       nxt("k2", ("j1", "j2"), ("h1", "h2", "h5"), ("h1", "h2", "h4"), version=3, charter=C1),
-                                       nxt("m", ("k1", "k2"), ("h1", "h2", "h3"), ("h2", "h3", "h4"), version=4, charter=C3)],
+    ("join", "and a bundle naming both settlers settles all, by each settler's majority (h1 and h2 of three)",
+     FJ(("h1", "h4"), ("h2", "h5")) + [nxt("k1", ("j1", "j2"), ("h1", "h2", "h4"), ("h1", "h2", "h4", "h5"), version=3),
+                                       nxt("k2", ("j1", "j2"), ("h1", "h2", "h5"), ("h1", "h2", "h4", "h5"), version=3, charter=C1),
+                                       nxt("m", ("k1", "k2"), ("h1", "h2", "h3"), ("h1", "h2"), version=4, charter=C3)],
      (), (), RD(anchor="b0", acks=("m",)), {"concluded": {"m": T}, "void": set(), "heads": ("m",), "holders": {"h1", "h2", "h3"}}),
     # ---- the reader ------------------------------------------------------------------------------------------------
     ("in force", "per reader: a reader that acknowledged s1 alone holds s1's holders; one that acknowledged nothing, "
@@ -227,9 +243,14 @@ CASES = [
      LIN, (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),), ANC, {"row": {"gA": True}, "grant": {"gA": (True, None)}}),
     ("grant", "a later bundle re-scopes existing grants with no re-issuance: a grant under b0, read by a reader at b2 "
               "whose charter still carries the duty, resolves",
-     LIN, (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b2",)), {"grant": {"gA": (True, None)}}),
+     LIN, (), (GR("gA", "b0", "uA", "room", ("h1", "h2")), AK("kr", "b2", names=("gA",))),
+     RD(anchor="b0", acks=("b2",), rows=("kr",)), {"grant": {"gA": (True, None)}}),
+    ("grant", "the line first: the same grant, not in the past of the reader's acknowledgement row, is behind its line",
+     LIN, (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b2",)),
+     {"grant": {"gA": (False, "grant_behind_reader_line")}}),
     ("grant", "the same after b2 drops the duty from its charter: the grant exists, and stops resolving",
-     LIN[:2] + [dict(LIN[2], charter=C2)], (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b2",)),
+     LIN[:2] + [dict(LIN[2], charter=C2)], (), (GR("gA", "b0", "uA", "room", ("h1", "h2")), AK("kr", "b2", names=("gA",))),
+     RD(anchor="b0", acks=("b2",), rows=("kr",)),
      {"row": {"gA": True}, "grant": {"gA": (False, "grant_scope_not_in_force")}}),
     ("grant", "a grant under a tip the reader's line is not on: a reader at s1, a grant under s2 (counted by h2, h3 and "
               "h5 of four) is void for it", FORK, (), (GR("g2", "s2", "uB", "room", ("h2", "h3", "h5")),),
@@ -322,18 +343,45 @@ CASES += [
      {"concluded": {"j": Fa}, "void": {"rc2"}, "heads": ("b0",)}),
     ("attack", "RS3: a third recovery at b0: void too", SL + [SRC2, SJ, SRC3], (), (), RD(anchor="b0", acks=("b3",)),
      {"void": {"rc2", "rc3"}, "heads": ("b3",)}),
-    ("attack", "a join of both lines is counted without the void bundle it names: s1 (void by T) adds h8 and h9; a "
-               "join of s1 and b2 by h1, h2, h8 and h9 is four of the fold's seven, but two of b2's five without s1: void",
-     [B0, nxt("s1", "b0", H3 + ("h8", "h9"), ("h1", "h2")), nxt("b1", "b0", H3 + ("h4",), ("h1", "h2", "h3")),
+    ("attack", "a join naming a void predecessor concludes nothing, though it names the line the void one is behind "
+               "too: s1 (void by T) and b2, joined by majorities of both", [B0, nxt("s1", "b0", H3 + ("h8", "h9"), ("h1", "h2")),
+                                                                         nxt("b1", "b0", H3 + ("h4",), ("h1", "h2", "h3")),
       nxt("b2", "b1", H3 + ("h4", "h5"), ("h1", "h2", "h4"), version=2),
-      nxt("m", ("s1", "b2"), H3 + ("h4", "h5", "h8", "h9"), ("h1", "h2", "h8", "h9"), version=3)], (), (),
+      nxt("m", ("b2", "s1"), H3 + ("h4", "h5", "h8", "h9"), ("h1", "h2", "h3", "h8", "h9"), version=3)], (), (),
      RD(anchor="b0", acks=("m",)), {"concluded": {"m": T}, "void": {"s1", "m"}, "heads": ("b0",)}),
     ("attack", "a recovery is not exempt from S'': h3 signed b1 and b2, then its recovery key recovers it at b0; behind "
                "b2, self-forked, and by T (h1 and h2 built only on b1 and b2) void", [B0, XB1, XB2, XRC], (), (),
      RD(anchor="b0", acks=("b2", "rx")), {"void": {"rx"}, "heads": ("b2",)}),
-    ("attack", "G1, the proposed reader's line off: removed holders h1 and h2 grant on b0, and for a reader at b2 it "
-               "resolves (b0 is in its lineage)", RL, (), (GR("g1", "b0", "uX", "room", ("h1", "h2")),),
-     RD(anchor="b0", acks=("b2",)), {"grant": {"g1": (True, None)}}),
+    ("attack", "G1: removed holders h1 and h2 grant on b0; for a reader at b2 the grant is behind its line, void",
+     RL, (), (GR("g1", "b0", "uX", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b2",)),
+     {"grant": {"g1": (False, "grant_behind_reader_line")}}),
+    ("attack", "RJ0 read by both (ra acknowledged first, then b2): the fold of b2 and ra; ra rotates h1 to h1x, and b2 "
+               "removed h1, so the rotation follows the seat out: h1x is not seated", RL + [RA], (), (),
+     RD(anchor="b0", acks=("ra", "b2")), {"heads": ("b2", "ra"), "holders": {"h3"}}),
+    ("attack", "RJ0 by a reader that acknowledged b2 first: ra is behind its line, void for it", RL + [RA], (), (),
+     RD(anchor="b0", acks=("b2", "ra")), {"heads": ("b2",)}),
+    ("attack", "a join naming a predecessor void for the reader concludes nothing for it: jx joins b2 and ra by "
+               "majorities of both, and a reader at b2 acknowledging jx after b2 stays at b2",
+     RL + [RA, nxt("jx", ("b2", "ra"), ("h3", "h4", "h1x"), ("h3", "h4", "h1x"), version=3,
+                   recovery={"h3": "r:h3", "h4": "r:h4", "h1x": "r:h1x"})], (), (), RD(anchor="b0", acks=("b2", "jx")),
+     {"concluded": {"jx": T}, "heads": ("b2",)}),
+    ("attack", "RJ1 with ra under a different charter: h3 alone joins b2 and ra; one of b2's three: refused (only the "
+               "per-predecessor count closes this cheap-tip shape)",
+     RL + [dict(RA, charter=C1), nxt("jx", ("b2", "ra"), ("h3",), ("h3",), version=3, charter=C1, recovery={"h3": "r:h3"})],
+     (), (), RD(anchor="b0", acks=("jx",)), {"concluded": {"jx": Fa}}),
+    ("attack", "the mirror: b1 removes h3 (h1 h2), and a sibling recovery rotates h3 to h3b; read by both, the "
+               "rotation follows the seat out", [B0, nxt("b1", "b0", ("h1", "h2"), ("h1", "h2")), REC], (), (),
+     RD(anchor="b0", acks=("b1", "rc")), {"heads": ("b1", "rc"), "holders": {"h1", "h2"}}),
+    ("attack", "a join naming both that seats the holder again is a new seating, by the join's own count, under the "
+               "key its payload states (h3b): h1 and h2 of b1's two and of rc's three",
+     [B0, nxt("b1", "b0", ("h1", "h2"), ("h1", "h2")), REC,
+      nxt("j", ("b1", "rc"), ("h1", "h2", "h3b"), ("h1", "h2"), version=2, recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b"})],
+     (), (), RD(anchor="b0", acks=("j",)), {"concluded": {"j": T}, "holders": {"h1", "h2", "h3b"}}),
+    ("attack", "EDGE (the stated residual: a reader with no acknowledgement takes its first head from a member it "
+               "trusts, CC 3.3.4): in the seizure world (b2, and the cheap tip ra under another charter), a reader with "
+               "no acknowledgement is at its anchor, b0; h3's lone grant on b2 is not in its lineage and does not "
+               "resolve", RL + [dict(RA, charter=C1)], (), (GR("g3", "b2", "uX", "room", ("h3",)),), ANC,
+     {"heads": ("b0",), "holders": set(H3), "grant": {"g3": (False, "grant_count_short")}}),
     ("attack", "G2: a grant's named bundles are an antichain: h3 and h4 naming (b2, b0) conclude nothing",
      [B0, dict(RB1, charter=C1), dict(RB2, charter=C1)], (), (GR("g3", ("b2", "b0"), "uX", "room", ("h3", "h4")),),
      RD(anchor="b0", acks=("b2",)), {"row": {"g3": False}, "grant": {"g3": (False, "grant_bundles_not_antichain")}}),
@@ -387,9 +435,11 @@ RECOVERY = [
     ("the grant's count is short: h1 alone of three", STALLED + [RCV()], ROOT_ROWS, (dict(GOK, signers=("h1",)),), ANC,
      False, "grant_count_short", False),
     ("the grant names b0, and this node's bundle in force is b1, whose charter still carries the duty: it resolves",
-     STALLED + [RCV()], LIN, (GOK,), RD(anchor="b0", acks=("b1",)), True, None, True),
-    ("the same where b1's charter drops the duty", STALLED + [RCV()], [B0, dict(LIN[1], charter=C2)], (GOK,),
-     RD(anchor="b0", acks=("b1",)), False, "grant_scope_not_in_force", False),
+     STALLED + [RCV()], LIN, (GOK, AK("kr", "b1", names=("B1",))), RD(anchor="b0", acks=("b1",), rows=("kr",)), True, None, True),
+    ("the same where b1's charter drops the duty", STALLED + [RCV()], [B0, dict(LIN[1], charter=C2)],
+     (GOK, AK("kr", "b1", names=("B1",))), RD(anchor="b0", acks=("b1",), rows=("kr",)), False, "grant_scope_not_in_force", False),
+    ("G4: a grant by removed holders h1 and h2 naming b0, the reader at b2: behind its line, refused",
+     STALLED + [RCV()], RL, (GOK,), RD(anchor="b0", acks=("b2",)), False, "grant_behind_reader_line", False),
     ("the reader's anchor names no first bundle", STALLED + [RCV()], ROOT_ROWS, (GOK,), RD(anchor="zz"), False,
      "genesis_bundle_not_anchored", False),
     ("two tips: a grant on s1 by h1, h2 and h4, signers who hold only s1: three of s1's four",
@@ -425,10 +475,11 @@ def run_recovery():
 
 PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "bound_unread", "version_unread",
           "family_unread", "commitments_unread", "recovery_other_seat", "spent_unread", "fold_common", "fold_union",
-          "charter_folds", "join_union", "anchor_unread", "inforce_global", "root_sf_unread", "root_t_unread",
+          "charter_folds", "anchor_unread", "inforce_global", "root_sf_unread", "root_t_unread",
           "grant_any_bundle", "grant_charter_unread", "grant_scope_unread", "recovery_fork_both", "joins_fork_both",
-          "grant_head_unread", "join_common", "recovery_exempt", "recovery_t_unread", "merge_count_unread",
-          "grant_antichain_unread")
+          "grant_head_unread", "join_common_base", "recovery_exempt", "recovery_t_unread",
+          "join_void_prev_spared", "grant_antichain_unread", "regime_reads_commitments", "reader_line_unread",
+          "rotation_outlives_seat", "retired_unread", "join_prev_unread")
 
 
 def answer(bs, rv, gs, rd, want):
@@ -455,6 +506,36 @@ def run():
         got = answer(bs, rv, gs, rd, want)
         if got != norm(want): bad.append("%s %s: got %s" % (rule, name, got))
     return bad
+
+
+def reader_vectors():
+    """For Verify: what a reader acts on at UNJOINED tips, per case: the bundles, the reader, the tips in force, and
+    the holders and seats in force, with the reason (one regime: the guarded fold; regimes differ: the common holders
+    and seats), and what intersecting would give, for contrast."""
+    import json
+    out = []
+    for rule, name, bs, rv, gs, rd, _ in CASES:
+        R = RT.Root(bs, rv, gs)
+        hs = R.heads(rd)
+        if hs is None or len(hs) < 2: continue
+        f = R.in_force(rd)
+        same = len({R.regime(t) for t in hs}) == 1
+        meet = frozenset.intersection(*[frozenset(R.by[t]["holders"]) for t in hs])
+        meet_s = frozenset.intersection(*[frozenset(R.by[t]["seats"]) for t in hs])
+        out.append({"name": rule + ": " + name,
+                    "bundles": [{"id": b["id"], "prev": list(b["prev"]), "version": b["version"], "family": b["family"],
+                                 "holders": list(b["holders"]), "seats": list(b["seats"]),
+                                 "charter": json.dumps(b["charter"], sort_keys=True), "recovers": list(b["recovers"]) if b.get("recovers") else None,
+                                 "stmts": [[k, i] for k, i in b["stmts"]], "iat": b["iat"]} for b in bs],
+                    "revokes": [{"key": r["key"], "bound": r["bound"]} for r in rv],
+                    "reader": {"anchor": rd["anchor"], "acks": list(rd["acks"])},
+                    "tips": list(hs), "holders": sorted(f[0]), "seats": sorted(f[1]),
+                    "reason": "one regime: the guarded fold" if same else "regimes differ: the common holders and seats",
+                    "intersect": {"holders": sorted(meet), "seats": sorted(meet_s)},
+                    "intersect_differs": sorted(meet) != sorted(f[0]) or sorted(meet_s) != sorted(f[1])})
+    return {"about": "what a reader acts on at unjoined tips (models/trust_root/check_root.py, root.py fold): the fold "
+                     "where the tips' regimes (their charters, as one value, without recovery_commitments) are equal; "
+                     "the common holders and seats where they differ", "cases": out}
 
 
 def fixture(with_refs):

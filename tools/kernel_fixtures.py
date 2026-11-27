@@ -783,6 +783,7 @@ def main():
     sys.path.insert(0, os.path.join(ROOT, "models", "trust_root"))
     import check_root as CR
     dump("root.json", CR.fixture(with_refs), out)
+    dump("root_reader.json", CR.reader_vectors(), out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():
