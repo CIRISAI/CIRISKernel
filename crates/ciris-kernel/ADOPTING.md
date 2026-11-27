@@ -538,8 +538,13 @@ only: the crate reads the edges, the charter and the issuer's standing from them
   that states no term (`valid_until`), or a term longer than 365 days from its `asserted_at` (or than the charter's
   `role_term` where it states a shorter one). The crate reads a seat with no term as unbounded, and the cap needs
   instant arithmetic the crate's `Dated::Instant` does not have.
+- An acceptance edge's term is its own `asserted_at` and `valid_until`, read at the caller's `now` or the licence's
+  instant; a licence under a term-bearing seat must state its `asserted_at`, or it meets no term. **Residual:** within
+  a term the instant a licence states is its holder's word; the crate bounds it only by the licence's own past (no
+  instant earlier than a row it cites) and by the seat's ends, read by ancestry.
 - Every reason `read_licence` gives is a reading: the licence row stays admitted, and its reason
   (`licence_class_not_trusted`, `licensure_delegator_not_authority`, `licensure_authority_locked`,
-  `licensure_link_withdrawn`, `authority_not_reached`) is no refusal at the door.
+  `licensure_link_withdrawn`, `licensure_instant_before_its_past`, `lapsed`, `authority_not_reached`) is no refusal at
+  the door.
 - Cases: `models/causal_kernel/check_charter.py` and `check_trust_rows.py`, in the `charter` and `trust_rows`
   fixtures.

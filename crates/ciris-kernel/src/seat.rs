@@ -2943,6 +2943,29 @@ impl<'c, 'a, R: SeatRow + crate::Dated, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         Some(self.stands_at_instant(k, s, o, root, &t))
     }
 
+    /// Whether key `k` stands in scope `s` over `o` within a seat's term at the instant `t` a row states: at `t`,
+    /// [`Seats::stands_at_instant`]; with no instant (`None`), only by a seat whose offer states no term (no instant
+    /// meets no term). The one read of a seat's term for a licence ([`crate::trust_rows`]).
+    pub fn stands_within(
+        &self,
+        k: &R::Key,
+        s: &str,
+        o: &ObjOf<R>,
+        root: Option<&Root<R::Id, R::Key>>,
+        t: Option<&R::Instant>,
+    ) -> bool {
+        match t {
+            Some(t) => self.stands_at_instant(k, s, o, root, t),
+            None => {
+                let g = &self.c.g;
+                let any = self
+                    .giving(s, o, root)
+                    .any(|r| r.k == *k && g.idx(&r.offer).is_some_and(|i| g.row(i).valid_until().is_none()));
+                any && self.tips_fold(s, o).is_none_or(|c| c.contains(k))
+            }
+        }
+    }
+
     /// Whether key `k` stands in scope `s` over `o` at instant `t`: [`Seats::stands_at`] at an instant the caller
     /// read from a row these seats do not hold (a licence read over its own past, [`crate::trust_rows`]).
     pub fn stands_at_instant(
@@ -4939,8 +4962,7 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
             };
             if is_offer
                 && matches!(conf, Some(Conf::Own) | Some(Conf::Seat))
-                && (duty_seat(law, &by, r) || own_duty())
-                && !lone(law, spec, r, p, cache)
+                && !authority_gate(law, spec, r, p, &by, cache, duty_seat(law, &by, r) || own_duty())
             {
                 return false;
             }
@@ -5371,6 +5393,39 @@ fn room_key_ended<R: SeatRow, S: CutSpec<R>>(
                 && w.signer() == k
                 && stay_end(law, by, w, &|a| p.get(a.id()).is_some() && p.past(a.id(), w.id())).as_ref() == Some(obj)
         })
+}
+
+/// THE ONE GATE (the r73 attack) on a single key's offer (`Conf::Own` or `Conf::Seat`, not a founding row) of a
+/// group's authority seat over a group: an act of its AUTHORITY BODY ([`Seats::authority_body`]), concluded only where
+/// its signer alone is that body, whether or not the founding row names holders. A duty seat (`duty`): the lone duty
+/// holder ([`lone`], CC 4.5.4 (iv)). An officer seat ([`OFFICER`]) or a license seat over a community record (a
+/// community, an infrastructure community, an affiliation): its signer alone is the body. So a locked or dissolved
+/// group (no body) signs nothing, and a founding signer's own offer does not revive it. Any other offer: true.
+fn authority_gate<R: SeatRow, S: CutSpec<R>>(
+    law: &SeatLaw,
+    spec: &S,
+    r: &R,
+    p: &Past<'_, '_, R>,
+    by: &BTreeMap<&R::Id, &R>,
+    cache: Option<&MembersAt<R>>,
+    duty: bool,
+) -> bool {
+    if duty {
+        return lone(law, spec, r, p, cache);
+    }
+    let Some(obj) = r.obj() else { return true };
+    let authority_scope = r.scope().is_some_and(|s| s.as_ref() == OFFICER || s.as_ref() == "license");
+    let group = matches!(
+        kind_of(law, &|i: &R::Id| by.get(i).copied(), &obj),
+        Some(CommunityKind::Community | CommunityKind::Infrastructure | CommunityKind::Affiliation)
+    );
+    if founding(r) || !authority_scope || !group {
+        return true;
+    }
+    let sc = concluded_over(p.rows());
+    let seats = Seats::build(&sc, law, spec, None, None, cache);
+    let body = seats.authority_body(&obj);
+    body.len() == 1 && body.contains(r.signer())
 }
 
 fn lone<R: SeatRow, S: CutSpec<R>>(

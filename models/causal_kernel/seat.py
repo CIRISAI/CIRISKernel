@@ -1198,6 +1198,22 @@ def _lone(r, P, by):
     return held == frozenset({r["signer"]}) and ("lone_offer_self_path" in MUT or not lone_offer_stands(r, P, held))
 
 
+def authority_gate(r, P, by):
+    """THE ONE GATE (the r73 attack) on a single key's offer (conf `self` or `seat`, not a founding row) of a group's
+    authority seat over a group: an act of its AUTHORITY BODY (authority_body), concluded only where its signer alone is
+    that body, whether or not the founding row names holders. A duty seat: the lone duty holder (_lone, CC 4.5.4 (iv)).
+    An officer seat or a license seat over a community record (a community, an infrastructure community, an
+    affiliation): its signer alone is the body. So a locked or dissolved group (no body) signs nothing, and a founding
+    signer's own offer does not revive it. Any other offer: True."""
+    obj, sc = r.get("obj"), r.get("scope")
+    if duty_seat(by, r) or ("own_duty_ungated" not in MUT and community(by, obj) and is_duty(sc, declared(by, obj))):
+        return _lone(r, P, by)
+    if sc in (OFFICER, "license") and founding_row(by, obj) and \
+            kind_of(by, obj) in ("community", "infrastructure", "affiliation") and "self_seat_ungated" not in MUT:
+        return authority_body(seats_of(P), obj) == frozenset({r["signer"]})
+    return True
+
+
 def duty_count(r, P, yes, mem):
     """CC 4.5.4 (iv) over the duty holders at the head: conferral by a strict majority of them, withdrawal by a strict
     majority of the others (the holder concerned not counted); never fewer than two voices where there are two holders.
@@ -3312,9 +3328,7 @@ def seat_rule(r, P, past, table=None, other=None):
         # a single key's own offer of a duty (or one under its seat) concludes only where that key is the lone person
         # duty holder: "by a strict majority of the duty holders, or by the lone holder with the new holder's
         # acceptance" (CC 4.5.4), in every community (CIRISConstitution#241; MUTATION own_duty_ungated: duty rooms only)
-        if k == "offer" and conf in ("self", "seat") and r["obj"] != r["id"] and (duty_seat(by, r) or (
-                "own_duty_ungated" not in MUT and community(by, r["obj"]) and is_duty(r["scope"], declared(by, r["obj"])))) \
-                and not _lone(r, P, by): return False
+        if k == "offer" and conf in ("self", "seat") and r["obj"] != r["id"] and not authority_gate(r, P, by): return False
         # H2: a counted row is counted over its own object; one stating another (`over`) concludes nothing (MUTATION
         # over_allowed). Its heads are its own object's counted changes (H1, newer_head_in_past), so a head of another
         # object's line is refused there

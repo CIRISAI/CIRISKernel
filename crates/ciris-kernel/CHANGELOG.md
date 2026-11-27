@@ -53,6 +53,27 @@ role ends with any leaving. `false` for any other object and at the founding row
 `check_acts.py` (FOUNDERS), recorded in the `seat` fixture (`founder`); plants `founder_at_tips` and
 `founder_leavings_unread`, and a crate plant.
 
+**The r73 attack on the trust walk, closed** (both languages; every attack a case in `check_trust_rows.py`, each fix a
+plant):
+- One gate (`seat.authority_gate`, the seat rule's `authority_gate`): a single key's offer (own or under a seat) of an
+  officer, license or duty seat over a group is an act of its authority body, concluded only where its signer alone
+  is that body, whether or not the founding row names holders. A locked or dissolved group signs nothing, and a
+  founding signer's own offer no longer revives it.
+- The end rule, one read for every path (the emitter, the quorum, the seat, the edge: `ended_for_reader`): an end
+  cuts every row of what it ends that is not in its past. A licence's or an edge's existence is judged over its own
+  past, every end there cutting the rows concurrent with it; then every end the reader holds (a key's eviction, an
+  unseat, a lay-down and so the lock, an edge's withdrawal, an amendment of the record) is read over the reader's rows.
+  A licence that stood and is cut so is `licensure_link_withdrawn` (`licensure_authority_locked` where the end locks
+  its community).
+- Terms: a licence under a term-bearing seat that states no instant meets no term (`Seats::stands_within`, new); a
+  licence stating an instant earlier than a row it cites is `licensure_instant_before_its_past`; an acceptance edge's
+  own term (`asserted_at`, `valid_until`) is read at the caller's instant or the licence's (`trust_rows::edges_of`
+  takes it). An edge or a license seat from before a lock stands until its term ends or it is withdrawn: a locked
+  group signs no NEW edge.
+- The residual: within a term the instant a licence states is its holder's word. Its bound is its own past (it cannot
+  predate what it cites) and the seat's ends, read by ancestry; the door's checks on a single row's fields stay the
+  door's (ADOPTING).
+
 **The reader's trust walk from rows, and the issuer's standing** (CC 4.4.3.34, CC 4.5.4, with the Constitution's
 rulings (a) to (d) of 2026-11-27; `trust_rows.py`, `check_trust_rows.py`; fixture `trust_rows.json`). Whether a reader
 honours a licence is read from rows alone: `trust_rows::read_licence` is the only public path, and no caller supplies

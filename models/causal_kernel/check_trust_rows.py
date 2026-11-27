@@ -31,7 +31,13 @@ Planted breaks, each of which must change a case's answer:
     issuer_unread            (b) any key's licence is the authority's act
     chain_unread             (b) a license seat is not read: only the authority's own key issues
     quorum_unread            (b) a community's licence cosigned by its quorum is not its act
-    concurrent_unread        (d) a withdrawal concurrent with an issuance is not read
+    ends_unread              (d) the ends the reader holds are not read over its rows: only the licence's own past
+    cut_unread               (d) an end cuts nothing concurrent with it (the lay-downs leave a concurrent conferral)
+    self_seat_ungated        (seat.py) a single key's offer of an officer or license seat over a group is not gated by
+                             its authority body: a founding signer's own offer revives a locked or dissolved group
+    untimed_term_met         (b) a licence stating no instant meets a term-bearing seat's term
+    instant_unread           (b) a licence may state an instant earlier than a row it cites
+    edge_term_unread         (d) an edge's own term is not read
 
     python3 -I check_trust_rows.py      exit 1 on any difference
 """
@@ -237,6 +243,87 @@ CASES = [
      (False, "licence_class_not_trusted")),
 ]
 
+# ---- the r73 attack (review-scratch 3bc1e46, r73/a1 to a3), each a case ----------------------------------------
+LW = (False, "licensure_link_withdrawn")
+LK = (False, "licensure_authority_locked")
+R_KU = ST.unseat("ku", "K", "d", "key", "K", "self", ("kra",))           # K evicts its key d
+R_RU = ST.unseat("ru", "RD", "d", "key", "RD", "self", ("ra",))          # RD evicts its key d
+R_LD = ST.withdraw("ld", "A", "g", (), scope="moderate")                  # G1's lone holder lays its duty down: locked
+R_LDA = ST.withdraw("lda", "A", "g", (), scope="moderate")
+R_LDB = ST.withdraw("ldb", "B", "g", (), scope="moderate")
+R_AMD = ST.offer("amd", "A", (), "record", "af", "group", ("af",), head=("af",), cosigners=("B", "C"),
+                 counted=ST.OFFICER, consensus_protocol="unanimous", declared_cohort="affiliations",
+                 licence_classes=((M, True), (L, False)))              # af amends its protocol to unanimous
+R_SO = lambda sc, obj, signer="B": ST.offer("so", signer, signer, sc, obj, "self", (obj,))
+CASES += [
+    ("r73 E1 K evicts d; d's licence naming the eviction", [E0, KRO, KRA, R_KU, klic("l", signer="d", names=("ku",))],
+     "RD", "l", KCH, NA),
+    ("r73 E2 K evicts d; d's licence naming only kra (concurrent with the eviction): cut",
+     [E0, KRO, KRA, R_KU, klic("l", signer="d", names=("kra",))], "RD", "l", KCH, LW),
+    ("r73 E3 RD evicts d; d writes RD's edge naming only ra: cut, no edge",
+     [RO, RA, R_RU, A("e", "d", "Z", on_behalf="RD", names=("ra",)), CH.licensure("l", "Z", "Z", M)], "RD", "l",
+     {"Z": (M,)}, NR),
+    ("r73 E4 RD evicts d; d's withdrawal of RD's edge, concurrent with the eviction, ends nothing",
+     [RO, RA, E0, R_RU, ST.withdraw("w", "d", "e", ("ra",)), klic("l")], "RD", "l", KCH, OK),
+    ("r73 K0 locked: the quorum's licence naming the lay-down",
+     [G1, R_LD, A("e", "RD", "g"), glic("l", "g", cosigners=("B",)) | {"names": ("ld",)}], "RD", "l", None, LK),
+    ("r73 K2 locked: the quorum's licence naming only g (concurrent with the lay-down)",
+     [G1, R_LD, A("e", "RD", "g"), glic("l", "g", cosigners=("B",))], "RD", "l", None, LK),
+    ("r73 K3 an edge from before the lock stands (a locked group signs no NEW edge)",
+     [G1, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), dict(R_LD, names=("f",)),
+      klic("l")], "RD", "l", KCH, OK),
+    ("r73 K4 after the lock the ex-holder's edge naming only g: cut, no edge",
+     [G1, R_LD, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD", "l", KCH,
+     NR),
+    ("r73 K5 and naming the lay-down: no edge", [G1, R_LD, A("e", "RD", "g", depth=1),
+                                                A("f", "A", "K", on_behalf="g", names=("ld",)), klic("l")],
+     "RD", "l", KCH, NR),
+    ("r73 K6 B lays down, A the lone holder signs alone",
+     [GD, R_LDB, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("ldb",)), klic("l")], "RD", "l",
+     KCH, OK),
+    ("r73 S1 the holders withdraw X's seat; X's licence naming it",
+     [GD, A("e", "RD", "g"), GLO, GLA, GLU, glic("l", "g", "X") | {"names": ("glu",)}], "RD", "l", None, NA),
+    ("r73 S2 and X's licence naming only gla (concurrent with the unseat): cut",
+     [GD, A("e", "RD", "g"), GLO, GLA, GLU, glic("l", "g", "X") | {"names": ("gla",)}], "RD", "l", None, LW),
+    ("r73 S3 a term-bearing seat; a licence stating no instant meets no term",
+     [G1, G1LT, GLA, G1LD, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("ld",)}], "RD", "l", None, NA),
+    ("r73 S4 and one stating 50, within the term", [G1, G1LT, GLA, G1LD, A("e", "RD", "g"),
+                                                    glic("l", "g", "X") | {"names": ("ld",), "asserted_at": 50}],
+     "RD", "l", None, OK),
+    ("r73 S5 an instant earlier than a row the licence cites (the seat's offer at 10)",
+     [G1, G1LT, GLA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("gla",), "asserted_at": 5}], "RD", "l", None,
+     (False, "licensure_instant_before_its_past")),
+    ("r73 P1 af amends to unanimous; two officers' licence naming the amendment",
+     [AFD, R_AMD, A("e", "RD", "af"), glic("l", cosigners=("B",)) | {"names": ("amd",)}], "RD", "l", None, NA),
+    ("r73 P2 and naming only af (concurrent with the amendment): judged under it, cut",
+     [AFD, R_AMD, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD", "l", None, LW),
+    ("r73 B1 A and B lay down; their concurrent conferral is cut; X's licence naming both lay-downs",
+     [GD, R_LDA, R_LDB, A("e", "RD", "g"), GLO, GLA, glic("l", "g", "X") | {"names": ("gla", "lda", "ldb")}], "RD", "l",
+     None, NA),
+    ("r73 B1c and a conferral naming the lay-downs", [GD, R_LDA, R_LDB, A("e", "RD", "g"),
+                                                      dict(GLO, names=("g", "lda", "ldb")), GLA,
+                                                      glic("l", "g", "X") | {"names": ("gla",)}], "RD", "l", None, NA),
+    ("r73 O1 dissolved AF: a founder's own officer seat revives nothing",
+     [AF, R_SO(ST.OFFICER, "af"), A("e", "RD", "af"), glic("l", "af", "B") | {"names": ("so",)}], "RD", "l", None, NA),
+    ("r73 O2 one-officer AFD1: a member's own officer seat",
+     [AFD1, R_SO(ST.OFFICER, "af"), A("e", "RD", "af"), glic("l", "af", "B") | {"names": ("so",)}], "RD", "l", None,
+     NA),
+    ("r73 O3 AFD1: a member's own license seat", [AFD1, R_SO("license", "af"), A("e", "RD", "af"),
+                                                  glic("l", "af", "B") | {"names": ("so",)}], "RD", "l", None, NA),
+    ("r73 O4 locked GN: a founder's own license seat", [GN, R_SO("license", "g"), A("e", "RD", "g"),
+                                                        glic("l", "g", "B") | {"names": ("so",)}], "RD", "l", None, NA),
+    ("r73 O5 locked GN: a founder's own duty seat, then its lone conferral",
+     [GN, R_SO("duty", "g"), A("e", "RD", "g"), dict(GLO1, signer="B", names=("so",)), GLA,
+      glic("l", "g", "X") | {"names": ("gla",)}], "RD", "l", None, NA),
+    ("an edge within its term at the licence's instant",
+     [A("e", "RD", "K") | {"asserted_at": 10, "expires_at": 100}, klic("l") | {"asserted_at": 50}], "RD", "l", KCH, OK),
+    ("an edge whose term has ended at the licence's instant",
+     [A("e", "RD", "K") | {"asserted_at": 10, "expires_at": 100}, klic("l") | {"asserted_at": 150}], "RD", "l", KCH,
+     NR),
+    ("a term-bearing edge and a licence stating no instant",
+     [A("e", "RD", "K") | {"asserted_at": 10, "expires_at": 100}, klic("l")], "RD", "l", KCH, NR),
+]
+
 # (name, the edge row, the refusal or None)
 REFUSALS = [
     ("absent classes, absent depth", A("e", "RD", "K"), None),
@@ -258,7 +345,8 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "pending_unread",
           "judged_at_read", "bears_unread", "refusal_unread", "depth_unread", "depth_absent_refused",
           "withdrawn_unread", "withdraw_by_anyone", "issuer_unread", "chain_unread", "quorum_unread",
-          "concurrent_unread")
+          "ends_unread", "cut_unread", "self_seat_ungated", "untimed_term_met", "instant_unread",
+          "edge_term_unread")
 
 
 @contextlib.contextmanager
