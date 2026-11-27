@@ -145,6 +145,8 @@ PLANTS = [
     ("count_key_end_read", "room_count_cannot_remove_a_key"),  # the room's count removes a key
     ("unconcluded_key_end_read", "secondary_evicts_primary_alone"),   # an unconcluded eviction is read
     ("key_cut_past_line", "key_cut_after_reader_took_up"),     # a row the reader took up is cut
+    ("anchor_unread", "member_reply_keeps_parent"),            # a row another member built on is cut
+    ("anchor_after_removal", "reply_after_revocation_keeps_nothing"),   # a reply after the removal anchors
     ("rooms_mixed", "tip_in_another_room"),                    # the rooms are read as one
 ]
 

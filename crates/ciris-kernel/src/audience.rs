@@ -29,7 +29,8 @@
 //! * **Copy** ([`audiences`], [`carried`]: the Constitution's proposal c). Carriage is of rows: a room row is
 //!   carried by a concluded room row of its room to that row's audience on the room's current roster; nothing
 //!   reaches a key off the roster; a self or addressed row is carried only by a concluded row of its own signer or
-//!   that signer's person; the carrier's signer is already in the row's audience; a key grant is never carried.
+//!   that signer's person; the carrier's signer is already in the row's audience; a key grant is never carried,
+//!   and is served per its placement (the content's scope), opened only by the key it names.
 //!   A refused or undecided row carries nothing and receives nothing.
 //! * **Served is not readable.** `history_on_join` changes no audience: a later joiner is served the older room
 //!   rows, sealed by keys it lacks (the tier gives the current epoch's key only, CC 4.4.3.16). `full` acts only on
@@ -408,8 +409,10 @@ fn same_person<K: Ord + Clone>(person: &dyn Fn(&K) -> BTreeSet<K>, k: &K, of: &K
 ///   CURRENT, concluded key roster (`seat::Persons` on the key-person lane, once merged; no separate notion), so an
 ///   evicted or revoked key leaves the person and carries nothing.
 ///
-/// The carrier's signer is already in `r`'s audience (CC 5.2's gate). A key grant is never carried: it reaches only
-/// the key it names.
+/// The carrier's signer is already in `r`'s audience (CC 5.2's gate). A key grant is never carried (CC 3.3.2): it is
+/// served per its placement, the content's scope (so it is purged, taken down and replicated with the content), and
+/// only the key it names can open it; in a room the members see that a grant exists and to which key, never the
+/// key.
 pub fn carried<R: AudienceRow>(
     r: &R,
     a: &Placed<R::Key>,

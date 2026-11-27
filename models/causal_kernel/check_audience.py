@@ -220,7 +220,7 @@ CASES = [
      [row("s", "chat:general", "self"), dict(seat_row("o", "offer", "r1", ["z"]), names=["s"])],
      {"s": P("self_collective", ["a", "a2", "b", "c"]), "o": P("targeted_room", ROOM + ["z"])}),
     ("key_grant_never_carried", "a key grant of a, at self, named by a's own room row: a key grant is never "
-     "carried, and reaches only the key it names",
+     "carried; it is served per its own placement (here a's keys and the key it names) and opened only by that key",
      [row("k", "key_grant:content", "self", named=["d"]),
       row("m", "chat:general", "community", room="r1", names=["k"])],
      {"k": P("self_collective", ["a", "a2", "d"]), "m": P("targeted_room", ROOM)}),

@@ -45,7 +45,9 @@ The rules.
    row's audience on the room's current roster; nothing reaches a key off the roster (an offered key that never
    accepted gets the offer alone, a removed key its removal alone); a self or addressed row is carried only by a
    concluded row of its own signer or that signer's person; the carrier's signer is already in the row's audience;
-   a key grant is never carried, and reaches only the key it names. The least fixed point, which only grows. A
+   a key grant is never carried (CC 3.3.2): it is served per its placement, which is the content's scope, so it is
+   purged, taken down and replicated with the content, and only the key it names can open it; in a room the
+   members see that a grant exists and to which key, never the key. The least fixed point, which only grows. A
    row refused or undecided carries nothing and receives nothing. The consequence: a joiner may hold the room's
    whole named reply chain, as ciphertext it cannot read.
 
@@ -234,7 +236,7 @@ def carried(r, a, d, ad, roster, person):
              lane, once merged; no separate notion): an evicted or revoked key leaves the person and carries
              nothing;
     the gate of CC 5.2 kept: the carrier's signer is already in r's audience. A key grant is never carried: it
-    reaches only the key it names. MUTATIONS copy_cross_room, copy_off_roster, copy_any_carrier, copy_any_signer,
+    is served per its placement (the content's scope) and opened only by the key it names. MUTATIONS copy_cross_room, copy_off_roster, copy_any_carrier, copy_any_signer,
     copy_unconcluded, key_grant_carried."""
     if not d.get("concluded") and "copy_unconcluded" not in MUT:
         return None

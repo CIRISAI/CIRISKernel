@@ -494,7 +494,9 @@ fn seat_of<R: ContentRow, P: Past<R::Id>>(
 // concluded act of the person's own key roster ([`ContentRow::concludes`]); one the room's count signs is not read (a
 // room's count ends a seat, in its room). Key-level, in every room, it cuts every row of the member signed by the key
 // it removes that is not in its past, unless the reader took the row up already: a row in the past of one of the
-// reader's acknowledgements that does not have the removal in its past stands (the monotone line).
+// reader's acknowledgements that does not have the removal in its past stands (the monotone line), and so does a
+// content row a co-member's content row of the same room was built on before that row held the removal. The residual:
+// a thief can revoke a key naming nothing and take out the rows nobody built on and the reader had not taken up.
 fn cuts<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Key>, past: &P) -> Result<Cuts<R::Id>, R::Id> {
     let read = |q: &R| {
         q.kind() == Kind::KeyEnd && (seat.member)(q.signer()) && (q.removes() == Some(q.signer()) || q.concludes())
@@ -505,6 +507,13 @@ fn cuts<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Key>, pas
         return Ok(out);
     }
     let acks: Vec<&R> = rows.iter().copied().filter(|a| a.kind() == Kind::Ack).collect();
+    // content only: a co-member's content row of the same room built on the row before it held the removal (a reply,
+    // a cite) keeps it standing. No count reads content answers, so this never reaches a count
+    let others: Vec<&R> = rows
+        .iter()
+        .copied()
+        .filter(|b| b.kind() == Kind::Content && !(seat.member)(b.signer()) && !(seat.counted)(b.signer()))
+        .collect();
     for r in rows.iter().copied().filter(|r| r.kind() != Kind::KeyEnd && (seat.member)(r.signer())) {
         for q in ends.iter().filter(|q| q.removes() == Some(r.signer())) {
             if past.in_past(r.id(), q.id())? {
@@ -512,7 +521,14 @@ fn cuts<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Key>, pas
             }
             // the reader took the row up before it held the removal
             let taken = any3(acks.iter(), |a| Ok(past.in_past(r.id(), a.id())? && !past.in_past(q.id(), a.id())?))?;
-            if !taken {
+            if taken {
+                continue;
+            }
+            let built = r.kind() == Kind::Content
+                && any3(others.iter().filter(|b| b.room() == r.room()), |b| {
+                    Ok(past.in_past(r.id(), b.id())? && !past.in_past(q.id(), b.id())?)
+                })?;
+            if !built {
                 out.any.insert(r.id().clone());
             }
         }

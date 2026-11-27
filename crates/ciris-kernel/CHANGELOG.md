@@ -7,7 +7,9 @@
   rows; a room row is carried by a concluded room row of its room to that row's audience on the room's current
   roster; nothing reaches a key off the roster (an offered key that never accepted gets the offer alone, a removed
   key its removal alone); a self or addressed row is carried only by a concluded row of its own signer or person;
-  the carrier's signer is already in the row's audience; a key grant is never carried.
+  the carrier's signer is already in the row's audience; a key grant is never carried, and is served per its
+  placement, the content's scope, opened only by the key it names (CC 3.3.2): in a room the members see that a grant
+  exists and to which key, never the key.
 - `history_on_join` changes no audience: served is not readable. A later joiner is served the older room rows,
   sealed by keys it lacks; `full` acts only on a kept stream, the caller's (`audience::history_of`). **BREAKING**:
   `audience::Joins` keeps `history` and `at_head` only.
@@ -19,6 +21,10 @@
 - Review r82: only a seat family's offer or unseat seats keys within its audience (`audience::SEAT_FAMILIES`,
   derived by the generator from the confers cells); the key grant exclusion reads the resolved family
   (`audience::KEY_GRANT`); `person` is the person's current, concluded key roster (a contract, stated).
+- A key's own revocation that names nothing (the Constitution's ruling of review r82): the end rule stands, and
+  for content only a revoked key's row also stands where a co-member's content row of the same room was built on it
+  before that row held the revocation (`content`; no count reads content answers). Residual: a thief can take out
+  the rows nobody built on and the reader had not taken up.
 - An unknown `history_on_join` word is absent and falls through (the door refuses it), in `history_of`.
 - Family patterns that tie on a name refuse (`Refusal::FamilyAmbiguous`, `audience::family_in`); the generator
   refuses to write a table with a tie.

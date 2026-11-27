@@ -145,7 +145,10 @@ def key_cuts(rows):
     key does not evict the first unless the roster's policy says one key suffices). It is key-level and reaches
     every room: it cuts every row that key signs which is not in its past, unless the reader had taken the row up
     already: a row in the past of one of the reader's acknowledgements (`ack`, in any room) that does not have the
-    removal in its past stands (the monotone line: what the reader took up stays). A reader applies only the key
+    removal in its past stands (the monotone line: what the reader took up stays), and so does a content row that a
+    co-member's content row of the same room was built on (a reply, a cite) before that row held the removal (the
+    caller gives the rows of current members that concluded). The residual: a thief holding a key can revoke it
+    naming nothing and take out the rows nobody built on and the reader had not taken up. A reader applies only the key
     removals it holds: the caller places a key removal at commons, or in every room the key sits in. A row of that
     kind the room's count signs is not read: a room's count ends a SEAT, in its room only.
     MUTATIONS key_end_unread; count_key_end_read (one the count signs is read); unconcluded_key_end_read (an act of
@@ -166,11 +169,19 @@ def key_cuts(rows):
     acks = [a["id"] for a in rows if a["kind"] == "ack"]
     taken = lambda r, q: "key_cut_past_line" not in MUT and any(
         r["id"] in anc(a) and q["id"] not in anc(a) for a in acks)
+    # CONTENT ONLY: a content row also stands where a co-member's content row of the same room (a reply, a cite)
+    # was built on it before that row held the removal. Nothing here is read by a count: content answers feed no
+    # count, so a removed key's vote a friendly member cites stays cut on the count path
+    others = [b for b in rows if b["kind"] == "act" and b["signer"] not in KEYS and b["signer"] != COUNT]
+    built = lambda r, q: r["kind"] == "act" and "anchor_unread" not in MUT and any(
+        b.get("room") == r.get("room") and r["id"] in anc(b["id"])
+        and (q["id"] not in anc(b["id"]) or "anchor_after_removal" in MUT) for b in others)
     cut = set()
     for r in rows:
         if r["signer"] not in KEYS or r["kind"] == "keyend":
             continue
-        if any(q["removes"] == r["signer"] and r["id"] not in anc(q["id"]) and not taken(r, q) for q in ends):
+        if any(q["removes"] == r["signer"] and r["id"] not in anc(q["id"]) and not taken(r, q) and not built(r, q)
+               for q in ends):
             cut.add(r["id"])
     return cut
 
@@ -846,6 +857,26 @@ CASES = [
      "knowing the key was removed, and m2 is cut",
      [H0, M1, act("m2", "H0", "m1"), keyend("k", "B", signer="B", names=("m1",)), ack("a1", ["m2", "k"])], {},
      {"m1": (T, T, "no_end"), "m2": (F, F, "K.key_removed")}),
+    # a key's own revocation naming nothing (the Constitution's ruling of review r82): the residual, and the anchor
+    # of content another member built on
+    ("thief_revokes_naming_nothing", "a thief holding B2 revokes it naming nothing: B2's rows that nobody built on "
+     "and the reader had not taken up are out for this reader (the residual of the end rule)",
+     [H0, M1, act("s1", "H0", signer="B2"), act("s2", "H0", "s1", signer="B2"), keyend("k", "B2", signer="B2")], {},
+     {"m1": (T, T, "no_end"), "s1": (F, F, "K.key_removed"), "s2": (F, F, "K.key_removed")}),
+    ("member_reply_keeps_parent", "the same, where a co-member replied to s1 before the revocation: s1 stands for a "
+     "late reader; s2, which nobody built on, is out",
+     [H0, M1, act("s1", "H0", signer="B2"), act("s2", "H0", "s1", signer="B2"), act("q1", "H0", "s1", ["s1"], signer="M"),
+      keyend("k", "B2", signer="B2")], {},
+     {"m1": (T, T, "no_end"), "s1": (T, T, "no_end"), "s2": (F, F, "K.key_removed")}),
+    ("reply_after_revocation_keeps_nothing", "a co-member's reply that has the revocation in its past keeps nothing: "
+     "s1 is out",
+     [H0, M1, act("s1", "H0", signer="B2"), keyend("k", "B2", signer="B2"),
+      act("q1", "H0", "s1", ["s1", "k"], signer="M")], {},
+     {"m1": (T, T, "no_end"), "s1": (F, F, "K.key_removed")}),
+    ("reply_in_another_room_keeps_nothing", "a co-member's reply in another room keeps nothing in this one",
+     [H0, G0, act("s1", "H0", signer="B2"), dict(act("q1", "G0", "s1", ["s1"], signer="M"), room="r2"),
+      keyend("k", "B2", signer="B2")], {},
+     {"s1": (F, F, "K.key_removed")}),
     ("key_end_not_held", "the reader does not hold the removal of B2 (the caller places a key removal at commons, "
      "or in every room the key sits in): nothing is cut",
      [H0, M1, act("n1", "H0", signer="B2"), act("n2", "H0", "n1", signer="B2")], {},
