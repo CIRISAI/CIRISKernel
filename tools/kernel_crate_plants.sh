@@ -160,7 +160,6 @@ plant "a failed counted receipt read as its signer's" src/seat.rs 'return count_
                 }'
 plant "the count's receipt over any room" src/seat.rs 'if qr.obj().as_ref() != Some(&obj) || qr.over().is_some_and(|o| o != obj) {' 'if false {'
 plant "the count's receipt at an older head" src/seat.rs 'if qr.head().is_empty() || !qr.head().iter().all(fresh) {' 'if qr.head().is_empty() {'
-plant "the remover a voice of the count's receipt" src/seat.rs '    v.remove(&pp.member(xr.signer()));' ''
 plant "a founding duty read as the offer's scope" src/seat.rs '        && (seat_scopes(m, k, signed_by(m, k)).iter().any(|s| s.s() == us.as_ref())' '        && (m.scope() == Some(us)'
 plant "an agent's receipt keeps a lone removal" src/seat.rs '    duty.retain(|k| !agents.contains(k));
 ' ''
@@ -294,18 +293,23 @@ plant "a key's person: the key's own end is not read" src/seat.rs 'if keep(&o, s
 plant "a key's person: an admission in the past is enough (evictions unread)" src/seat.rs '        for k in seats.holders(s.as_ref(), &o, None) {' '        let seated: BTreeSet<R::Key> = rows.iter().filter(|q| q.seat_kind() == SeatKind::Offer && q.obj().as_ref() == Some(&o)).flat_map(|q| q.to().iter().cloned()).collect();
         for k in seated.into_iter().chain(seats.holders(s.as_ref(), &o, None)) {'
 plant "a key's person: an eviction concurrent with the row is not read (rule 4)" src/seat.rs 'let keep = |g: &ObjOf<R>, s: &str, key: &R::Key| key != k || !evicted_from(c, at, g, s, k);' 'let keep = |g: &ObjOf<R>, s: &str, key: &R::Key| key != k || !(false && evicted_from(c, at, g, s, k));'
+plant "the remover a voice of the count's receipt" src/seat.rs '    let mut v = pp.voices(&voices(qr, &p), &mem);
+    v.remove(&pp.member(xr.signer()));
+    let mem = pp.base(&mem);
+    let yes = v.iter().filter(|k| mem.contains(*k)).count();' '    let mut full = mem.clone();
+    full.insert(xr.signer().clone());
+    let v = pp.voices(&voices(qr, &p), &full);
+    let mem = pp.base(&mem);
+    let yes = v.len();'
+plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '            [g] if !self.revoked.contains(g) => Some(g.clone()),' '            [g] => Some(g.clone()),'
+plant "an agent's key of a person's roster speaks for that person" src/seat.rs '        if self.agents.contains(k) {
+            return Some(k.clone());
+        }' ''
+plant "two rosters of one genesis key read as two persons" src/seat.rs '        names.into_iter().collect()' '        let _ = names;
+        self.rosters.get(k).map(|v| v.iter().map(|g| g.signer().clone()).collect()).unwrap_or_default()'
 plant "a count of keys, not persons" src/seat.rs '        let b = self.base(base);
         voices.iter().filter_map(|v| self.voice(v)).filter(|p| b.contains(p)).collect()' '        voices.intersection(base).cloned().collect()'
 plant "the base read by key: a person seated by two keys is two members" src/seat.rs '        keys.iter().map(|k| self.member(k)).collect()' '        keys.clone()'
-plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '        if self.revoked.contains(k) {
-            return None;
-        }
-        match self.rosters.get(k).map(|v| v.as_slice()) {
-            None | Some([]) => Some(k.clone()),
-            Some([g]) if !self.agents.contains(k) && !self.revoked.contains(g.signer()) => Some(g.signer().clone()),' '        match self.rosters.get(k).map(|v| v.as_slice()) {
-            None | Some([]) => Some(k.clone()),
-            Some([g]) if !self.agents.contains(k) => Some(g.signer().clone()),'
-plant "an agent's key of a person's roster speaks for that person" src/seat.rs 'Some([g]) if !self.agents.contains(k) && !self.revoked.contains(g.signer()) => Some(g.signer().clone()),' 'Some([g]) if !self.revoked.contains(g.signer()) => Some(g.signer().clone()),'
 plant "the lift reads the author's devices as other voices" src/seat.rs '        mem.remove(&author); // the author is not among the members the majority is taken of' '        mem.insert(author.clone());'
 plant "a window's answers read by key before the opener's withdrawal" src/window.rs '    let is_wd = |a: &&R| person(a).as_ref() == Some(&opener) && a.says().is_some_and(|w| w.as_ref() == "withdraw");' '    let is_wd = |a: &&R| *a.signer() == x.opener_signer && a.says().is_some_and(|w| w.as_ref() == "withdraw");'
 plant "a room key's offer accepted again re-seats it" src/seat.rs 'SeatKind::Accept if revoked_before(law, spec, r, p, &by, cache) => false,' 'SeatKind::Accept if false => false,'

@@ -3296,9 +3296,9 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
     }
 
     /// The voice key `k` counts as, or `None` (no voice): a key of exactly one self roster counts as its person
-    /// (the genesis key), a key of none as itself; none for a key of two rosters, a key that revoked itself, a key
-    /// whose person's genesis key revoked itself (its devices then speak for no one), and an agent's key of a
-    /// person's roster (CC 4.5.13: never for its owner).
+    /// (the genesis key), a key of none as itself; none for a key of two persons (two genesis keys), a key that
+    /// revoked itself, and a key whose person's genesis key revoked itself (its devices then speak for no one). An
+    /// agent's key is itself, never its owner (CC 4.5.13).
     pub fn voice(&self, k: &R::Key) -> Option<R::Key> {
         if self.keys {
             return Some(k.clone());
@@ -3306,11 +3306,25 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         if self.revoked.contains(k) {
             return None;
         }
-        match self.rosters.get(k).map(|v| v.as_slice()) {
-            None | Some([]) => Some(k.clone()),
-            Some([g]) if !self.agents.contains(k) && !self.revoked.contains(g.signer()) => Some(g.signer().clone()),
+        // an agent's key is out before the map: never its owner's voice, whatever roster lists it; it stays its own
+        // key, which no count's base holds (CC 4.5.13: "an agent has no vote")
+        if self.agents.contains(k) {
+            return Some(k.clone());
+        }
+        let names = self.named(k);
+        match names.as_slice() {
+            [] => Some(k.clone()),
+            [g] if !self.revoked.contains(g) => Some(g.clone()),
             _ => None,
         }
+    }
+
+    /// The persons key `k` is a live key of: the genesis keys of its self rosters, one each. A person is NAMED by its
+    /// genesis key, so two rosters founded by the same key are one person.
+    fn named(&self, k: &R::Key) -> Vec<R::Key> {
+        let names: BTreeSet<R::Key> =
+            self.rosters.get(k).map(|v| v.iter().map(|g| g.signer().clone()).collect()).unwrap_or_default();
+        names.into_iter().collect()
     }
 
     /// The member key `k` counts as in a base: a key of exactly one self roster is its person, any other key
@@ -3319,8 +3333,8 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         if self.keys || self.revoked.contains(k) {
             return k.clone();
         }
-        match self.rosters.get(k).map(|v| v.as_slice()) {
-            Some([g]) => g.signer().clone(),
+        match self.named(k).as_slice() {
+            [g] => g.clone(),
             _ => k.clone(),
         }
     }

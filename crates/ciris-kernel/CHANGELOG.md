@@ -7,10 +7,16 @@ however many live keys sign"). New: `seat::Persons`, the persons a count reads o
 `seat::persons_of`. A person is named by its self roster's genesis key (the founding record's signer). A key of
 exactly one self roster counts as its person, a key of none as itself. In a base, a key counts as that member,
 so a person seated by two keys is one member. As a voice it counts for nobody where:
-- it is a key of two rosters;
+- it is a key of two persons, two rosters with different genesis keys (two rosters founded by one genesis key name
+  one person);
 - it revoked itself (its member seat stands);
-- its person's genesis key revoked itself (its devices then speak for no one);
-- it is an AI agent's key of a person's roster (CC 4.5.13: never for its owner).
+- its person's genesis key revoked itself (its devices then speak for no one).
+An AI agent's key is out before the map (CC 4.5.13: "an agent has no vote"): never its owner's voice whatever roster
+lists it, and no voice of its own, since no count's base holds an agent (a clause one holder's act resolves still reads
+an agent holder's act). The edge: a person who seats one of their own device keys as an agent loses that key as a
+voting key. Agent registration is not modelled apart from the agent seat. The base and the voices map to persons
+everywhere: the denominator, the numerator, the electorate and the floor of two (two keys of one person never meet
+it).
 Every count reads its base and its voices through it: the seat rule's count (the policy count, quorum, floor, the duty
 count, the recall), the fold at tips, the lift (the remover's devices are the remover), the count's receipt of a lone
 removal, the election's ballots and set (one ballot a person; two rankings say nothing; a member's device signs for
@@ -18,7 +24,7 @@ it), and a window's answers and bases (each answer read as its signer's person b
 holder's act and the moot are read). Voices are mapped first and then held to the voting base, so a device of an
 excluded target or a voided member is no voice. A count over a self roster's own keys (or a key object) reads keys.
 `GroupCount`'s contract states that its `voices` are persons. No existing answer changes. The reference:
-`seat.rep_of`, `seat.as_persons`, `seat.persons_of`, `seat.person_for`; `check_key_person.py`, 39 cases (the review
+`seat.rep_of`, `seat.as_persons`, `seat.persons_of`, `seat.person_for`; `check_key_person.py`, 42 cases (the review
 r74's rows among them: a person seated by two keys, a revoked key and its devices, an agent's key, the lift's
 author's device, a window over a self roster) and ten planted breaks; the window, ballot and r74 rows are in the seat
 fixture; seven crate plants for it, four retargeted.

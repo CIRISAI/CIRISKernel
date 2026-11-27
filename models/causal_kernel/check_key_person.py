@@ -22,6 +22,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     revoked_voice_kept    a key's own revocation leaves its voice, and its devices speak for it (KP6)
     agent_speaks          an agent's key that is also a key of a person's roster speaks for that person (KP5)
     lift_author_device    the lift leaves out only the remover's own key, not its devices (KP1)
+    genesis_unread        each roster a person: two rosters of one genesis key make a key of two persons (K7)
 
     python3 -I check_key_person.py      exit 1 on any difference
 """
@@ -127,7 +128,7 @@ COUNT_CASES = [
     ("two keys of one person and one other: two voices, not met", BASE + [admit_z(("p1", "p1b", "p2"))], "az", False),
     ("a person's device key speaks for its person: met", BASE + [admit_z(("p1b", "p2", "p3"))], "az", True),
     ("an evicted device key is no voice: not met", BASE + [P1C, EV1B, admit_z(("p1b", "p2", "p3"), ("e1b",))], "az", False),
-    ("a key seated in two rosters has no person and is no voice: not met", BASE + [X1B, admit_z(("p1b", "p2", "p3"), ("x1b",))],
+    ("a key seated in two rosters of two different genesis keys (p1's and p2's) has no person and is no voice: not met", BASE + [X1B, admit_z(("p1b", "p2", "p3"), ("x1b",))],
      "az", False),
     ("a self roster's own count stays a count of keys: two keys of S1 add a third", BASE + [P1C], "a1c", True),
 ]
@@ -154,6 +155,11 @@ def admit_cr(i, signers, extra):
 def lift_with(objectors):
     objs = [WN.answer("o_" + k, k, "x", "object", ("x", "am1b")) for k in objectors]
     return CR.PV + [SM, AM1B, CR.XL] + objs + [CR.lift("rs", "m2", "AG", "x", ("x",), tuple(o["id"] for o in objs))]
+S9 = ST.offer("S9", "p2", ("p2", "p1b"), "self", "@", "self")           # p2 founds a second roster, listing p1b unsigned
+GF = ST.offer("gf", "p1", ("p1", "p1b", "p2"), "member", "@", "self", cosigners=("p1b", "p2"), names=("a1b", "S2"))
+XF = lambda signers: ST.unseat("xf", signers[0], "p2", "member", "gf", "group", ("gf",), head=("gf",),
+                               policy="community_remove", cosigners=tuple(signers[1:]))
+EG2 = ST.found("g", "A", ("A", "B", "C", "d2", "E"), {"moderate": ("A",)}, cosigners=("B", "C", "d2", "E"), names=("ad2",))
 R74_CASES = [
     ("KP4: a person seated by two keys is one member: three of four persons admit y (five keys seated)",
      BASE + [AB, admit_y(("p1", "p2", "p3"))], "ay", True, RULE),
@@ -220,10 +226,18 @@ BALLOT_CASES = [
      [SD, D2, EG, EL.LM] + B5 + [bal("bd", "D", "C"), bal("bd2", "d2", "B"),
                                  EL.elect("ec", "C", ("ba", "bb", "bc", "be", "bd", "bd2"))], "ec", False),
 ]
+R74_CASES += [
+    ("K7: two rosters founded by one genesis key p2 are one person p2: p2 is a voice, p1b, p2 and p3 admit z",
+     BASE + [S9, admit_z(("p1b", "p2", "p3"), ("S9",))], "az", True, RULE),
+    ("the floor of two (KP4): p1 and its device p1b, both seated, are one voice and never meet it: p2 is not removed",
+     [SP[1], SP[2], P1B, GF, XF(("p1", "p1b"))], "xf", False, RULE),
+    ("the electorate by person (KP4): D is seated only by its device d2, and D's own ballot counts for that member",
+     [SD, D2, EG2, EL.LM] + B5 + [bal("bd", "D", "C"), EL.elect("ec", "C", ("ba", "bb", "bc", "be", "bd"))], "ec", True, RULE),
+]
 
 
 PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
-          "persons_unread", "base_by_key", "revoked_voice_kept", "agent_speaks", "lift_author_device")
+          "persons_unread", "base_by_key", "revoked_voice_kept", "agent_speaks", "lift_author_device", "genesis_unread")
 
 
 def answer(rows, k):

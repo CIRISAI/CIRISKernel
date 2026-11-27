@@ -2692,20 +2692,30 @@ def rep_of(P, k, member=False):
     return _PERSON_IN[key][1]
 
 
+def persons_named(P, k):
+    """The persons key k is a live key of over P: the genesis keys (person_key) of the self rosters it holds a live
+    seat of, one each. A person is NAMED by its genesis key, so two rosters founded by the same key are one person."""
+    if "genesis_unread" in MUT: return list(rosters_of(P, k))      # MUTATION genesis_unread: each roster a person
+    return sorted({person_key(P, g) for g in rosters_of(P, k)})
+
+
 def _member_rep(P, k):
-    hit = rosters_of(P, k, keep=lambda g: True) if not key_record_ended(P, k) else []
-    if len(hit) != 1:                                             # a revoked key, a key of two rosters: still a member
+    names = persons_named(P, k) if not key_record_ended(P, k) else []
+    if len(names) != 1:                                           # a revoked key, a key of two persons: still a member
         return k
-    return person_key(P, hit[0])
+    return names[0] if "genesis_unread" not in MUT else person_key(P, names[0])
 
 
 def _rep(P, k):
     if key_record_ended(P, k) and "revoked_voice_kept" not in MUT: return None     # MUTATION: a revoked key keeps its voice
-    hit = rosters_of(P, k)
-    if not hit: return k                     # (an agent's own key is kept out of every base by counted_keys already)
-    if k in agent_keys(P) and "agent_speaks" not in MUT: return None   # never for its owner (MUTATION agent_speaks)
-    if len(hit) > 1 and "person_first" not in MUT: return None
-    g = person_key(P, hit[0])
+    # an agent's key (CC 4.5.13: "an agent has no vote") is out before the map: never its owner's voice, whatever
+    # roster lists it. It stays its own key, and is no voice of its own because no count's base holds an agent (a
+    # clause one holder's act resolves still reads an agent holder's act). MUTATION agent_speaks
+    if k in agent_keys(P) and "agent_speaks" not in MUT: return k
+    names = persons_named(P, k)
+    if not names: return k
+    if len(names) > 1 and "person_first" not in MUT: return None   # a key of two persons (two genesis keys)
+    g = names[0] if "genesis_unread" not in MUT else person_key(P, names[0])
     if key_record_ended(P, g) and "revoked_voice_kept" not in MUT: return None
     return g
 
