@@ -7,6 +7,8 @@ with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
 - Rule 6 reaches every count at the head (the ruling of 2026-11-27): a double signer at a head has no say there for a
   reader, for a grant resolving (`Root::no_say`) or a rule-3 bundle settling it; a halt (`RootGrant::halts`,
   `Root::halt_in_force`) still halts; at a later head it counts as any holder.
+  It follows that a double signer has no say in a halt's confirmation count either (a count at that head); the
+  halt's own path is the Constitution's model and is not built here.
 - A root is the lineage of a genesis bundle (`RootBundle`, a signed object the store presents with its statements
   checked). The first bundle is counted over every holder it lists, a later one over a strict majority of its
   predecessor's live holders, a join (two predecessors) over those common to them. An iat that disagrees is Invalid
