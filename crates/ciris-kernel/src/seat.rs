@@ -2455,6 +2455,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     .collect()
             })
             .collect();
+        let seen_at: RefCell<BTreeMap<Vec<usize>, BTreeSet<R::Key>>> = RefCell::new(BTreeMap::new());
         let survives = |k: &R::Key| {
             lines.iter().any(|(_, sd)| {
                 sd.get(k).is_some_and(|offs| {
@@ -2468,7 +2469,12 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                                 return false; // this line ended the very seat
                             }
                             let seen: Vec<usize> = ids2.iter().copied().filter(|&q| g.in_past(q, oi)).collect();
-                            !self.line_seats(&seen, s, o).contains_key(k) // else removed beside it
+                            // the seats over one subset are read once, by its row ids (no answer changes)
+                            let mut m = seen_at.borrow_mut();
+                            let held = m
+                                .entry(seen.clone())
+                                .or_insert_with(|| self.line_seats(&seen, s, o).into_keys().collect());
+                            !held.contains(k) // else removed beside it
                         })
                     })
                 })
