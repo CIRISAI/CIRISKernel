@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+**A delegation chain from a root grant** (the cross-object rest 5; the lead's shape). The seat a root grant gives is
+an offer of `Conf::Root`, naming the grant (`SeatRow::bundle`), of the grant's duty, over the room the grant names,
+to and signed by the key the grant names. It stands while the grant resolves at the reader of the root view
+(`RootView::seat_grant`: its voices a strict majority of the holders in force, the scope in force carrying the duty):
+a grant the holders' growth has let lapse ends it, and a reader the grant does not resolve for holds none. With no
+root read it seats nothing. The onward gate of a chain from it reads the charter in force at that reader
+(`RootView::sub_delegation`) and is closed with no root read; the row's own `sub` mark is not read for such a chain
+(chains from any other seat keep it). **BREAKING**: `Conf::Root` (a new variant); `RootView::seat_grant` (new, with a
+default); `RootGrant::Word` must be `AsRef<str>`. The root seat is read by THE ONE authority gate
+(`authority_gate`, the charter lane's): a seat of a group's authority is its authority body's act, and the one
+other path is a resolving root grant whose scope carries the duty. Eight cases in `check_delegation.py`
+(ROOT_CASES; a declared duty among them), in a new fixture `root_chains.json` replayed by `tests/root.rs`; plants
+`root_gate_unread`, `root_seat_unchecked`, `root_seat_any_duty`, `root_through_lone_gate`, with crate twins.
+
+**A duty holder's lone acts against a key or content, and their ways back** (CC 4.5.4 (iii), CC 4.5.5, CC 3.1.9.2,
+CC 4.4.3.12; the Constitution's 2b, with its registered family names). Three acts: a quarantine marker
+(`quarantine:{state}`: `withhold`, or `release` naming the withhold it lifts) of a KEY and a slashing verdict
+(`slashing:{outcome}`: `proven_rogue` or `not_proven`) about a KEY, both under the `slash` duty (there is no
+quarantine duty); a takedown notice (`takedown_notice:{basis}`, the legal basis an opaque word) of a CONTENT row
+under `takedown`. The family parameter is the kind's suffix (`SeatRow::family_param`), never a separate field. In a community none
+is counted: each is one duty holder's signature at the newest counted changes in its past, and in force by the end
+rule (the lone removal's, read for the act's duty: the signer's standing live, or another holder's receipt keeping
+it). One way back for all three: the members' lift (`moderation_overturn`, an offer of scope `act` naming the act and
+the objections in the overturn window the act opens), counted over the members seated at both the act's head and the
+lift's, the author apart, a strict majority, floor two. A takedown has a second: a concluded `reconsideration:{grounds}`
+(grounds `new_evidence`, `procedural_error`, `quorum_compromise`) with the row member outcome `reversed` naming it, a
+`review` holder's lone act; `partial` and `upheld` fell no notice on one content row. The member a release, a notice
+and a reconsideration name their target by (`of`) is PROVISIONAL, read in one place. A withhold outranks a release whatever their instants:
+only a release that names it lifts it; the marker plane never withholds itself. A verdict fires only on a proven
+ground. In an affiliation each act is the body's, over its officers; with one officer it is decided only by a
+countersign naming it. New: `seat::act_in_force`, `seat::lone_act_duty`. **BREAKING**: `SeatKind::Quarantine`,
+`SeatKind::Slashing`, `SeatKind::TakedownNotice`, `SeatKind::Reconsideration` (new variants, the families);
+`SeatRow::family_param`, `SeatRow::outcome` (a reconsideration's), `SeatRow::target_key` (new, default `None`). The table's affiliation rows for the three acts are
+held in code (`PENDING_AFFILIATION_ACTS`) until rc23-next has them. 31 cases in `check_lone_acts.py`, in the `seat`
+fixture (`in_force`); eight plants, with crate twins.
+
 **An affiliation's officers** (CC 4.4.3.12, the Constitution's ruling on officers). An officer is a member whose seat
 carries `role: officer` (`seat::OFFICER`, a canonical member role): the founding record's signers it lists with that
 role (a `duty_holders` entry `officer`) are the first officers; after founding an officer is seated as a family's
@@ -20,7 +56,9 @@ affiliation founded with no officer is dissolved; the charter and trust-rows cas
 **An agent's duty rests on its owner's signature** (CC 4.5.4, "An agent's key MAY hold a duty, by its own statement and
 its owner's signature"; the cross-object rest (2)). A duty seat of an agent's key (a key holding an `agent` seat over
 the room) stands only where the one live owner of that key (its `owner` seat over the key's own roster) signed the
-conferral, by an owner-binding in the conferral's past, and only while that binding stands for the reader: the
+seating, by an owner-binding in the signed row's past: carried either way (the Constitution's answer), the owner
+cosigning the conferral row, or the owner cosigning the agent's own acceptance of it (a row that only cites the
+binding is no signature; plant `owner_acceptance_unread`), and only while that binding stands for the reader: the
 owner's revocation stops the seat (it has the binding in its past), and two owners are none (CC 3.2). **An answer
 changes:** a duty conferred on an agent with no owner's signature seats nothing. Five cases in `check_agent_seat.py`,
 and its worlds now carry the agent's owner-binding; plants `agent_duty_owner_unread` and `agent_owner_end_unread`,
@@ -148,6 +186,43 @@ instant, `R: Dated`), `seat::affiliation_removal`, `SeatRow::licence_classes` ((
   twice, else the edge is refused at admission (`trust_accepts_classes_malformed`) and the walk reads it as no edge.
 - A licence of a class the charter does not declare is admitted as a row and honoured by no reader
   (`licence_class_not_trusted`); a class the reader's walk does not reach is `authority_not_reached`.
+
+**The trust root's fork fold** (persist's item 15; CC 3.2 T6, CC 2.7.8), both languages: `root` (`models/trust_root`),
+with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
+- A root is the lineage of a genesis bundle (`RootBundle`, a signed object the store presents with its statements
+  checked). The first bundle is counted over every holder it lists, a later one over a strict majority of its
+  predecessor's live holders, a join (two predecessors) over those common to them. An iat that disagrees is Invalid
+  on its own; a key revoked with no bound leaves the live holders and unmakes nothing (the first bundle's count
+  stands); a statement after a key's bound does not count. A holder's own key recovery concludes on its recovery key
+  alone, changing only its own seat; a spent commitment concludes nothing, and two recoveries of one seat, neither
+  in the other's past, are contested (its causal form). Version and family are consistency checks, never ranked. S''
+  and T apply to a forked bundle as to a roster change.
+- Several tips' holders and seats are the guarded fold; tips whose charters differ (the whole charter, one value)
+  do not fold, and the holders and seats are those common to them until a bundle names both. Two joins of the same
+  tips under different charters are contested: neither stands, a reader keeps the tips they tried to join, and a
+  bundle naming every one settles them, counted over those tips' common holders. Two successors of one bundle, and
+  joins under one charter, fold as tips.
+- The bundles in force are per reader (`Reader`: its anchor, else `genesis_bundle_not_anchored`, and its
+  acknowledgements). A root grant (`RootGrant`, a row of the root's lane with the acceptance edges) exists where it
+  is counted at a strict majority over the live holders of the bundles it names, under charters carrying its duty,
+  naming the newest bundles in its signers' own past: the bundles named by rows in the grant's causal past (an
+  acceptance edge's attached_head_digest, an earlier grant's bundles). It resolves for a reader only while every voice
+  it holds (its issuance and the cosignatures of it held since, `RootGrant::cosigns`) is a strict majority of ALL
+  the holders in force at that reader (same key, live: a voice under a retired key is no voice; a recovered holder
+  cosigns again under its new key), and the scope in force there carries the duty. The cost: a grant lapses when its
+  voices stop being a strict majority of the holders in force, whether by signers leaving or holders being added,
+  and resolves again once enough present holders have cosigned it. `Root::sub_delegation` (and
+  `RootView::sub_delegation`) answers whether the charter in force carries sub_delegation for the grant's duty. The reader's
+  line is monotone: every bundle behind any bundle it acknowledged is void for it, an acknowledged one included,
+  and every bundle built on one, a join included.
+- A stalled recovery (`seat::recovery_verdict`) is judged against the root this node reads (`CutSpec::trust_root`,
+  default none: undecided, as before; `root::RootReading` is the kernel's view, the store supplying only each key's
+  identity type), by its six checks.
+- The costs, stated: a recovery concurrent with an amend that changes the charter leaves the recovering holder no
+  seat in force until a bundle names both tips (it gives a holder majority nothing it lacks: the same majority could
+  remove that holder by an amend). **The residual, stated:** "a holder's statement over a sibling bundle is not ordered against its grant, so it is not read; a grant on one tip is judged by the rows in its own past". It can matter only where that holder's voice is the
+  deciding one of an exact majority, and the statement over s2 and the grant on s1 are held evidence the other holders
+  can cite when they name both tips.
 
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone

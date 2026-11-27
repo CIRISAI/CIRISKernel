@@ -53,6 +53,7 @@ step "check_ranked (ranked choice)"       ranked    python3 -I models/causal_ker
 step "check_election (C1 to C5)"          election  python3 -I models/causal_kernel/check_election.py
 step "check_acts (act to policy)"        acts      python3 -I models/causal_kernel/check_acts.py
 step "check_charter (licence classes)"   charter   python3 -I models/causal_kernel/check_charter.py
+step "check_lone_acts (quarantine, slash, takedown)" loneacts python3 -I models/causal_kernel/check_lone_acts.py
 step "check_trust_rows (the walk)"       trustrows python3 -I models/causal_kernel/check_trust_rows.py
 step "check_resignation (wrap, dissolved)" resign   python3 -I models/causal_kernel/check_resignation.py
 step "check_agent_removal (the lift)"     agent     python3 -I models/causal_kernel/check_agent_removal.py
@@ -68,6 +69,7 @@ step "check_cut (the cut)"                cut       python3 -I models/causal_ker
 step "check_roomkey (private rooms)"      roomkey   python3 -I models/causal_kernel/check_roomkey.py
 step "fork_check (roster tips)"           fork      python3 -I models/roster_fork/fork_check.py --check
 step "fold_check (the fold at tips)"      fold      python3 -I models/roster_fork/fold_check.py
+step "check_root (the trust root's fold)"  root      python3 -I models/trust_root/check_root.py
 step "key_plane_model (writer's keys)"    keyplane  python3 -I models/key_plane/key_plane_model.py --check
 step "divergence list (counts)"           diverge   python3 -I tools/divergence_counts.py
 step "kernel_fixtures (fixtures current)"   fixtures  python3 -I tools/kernel_fixtures.py --check

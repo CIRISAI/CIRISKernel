@@ -104,7 +104,16 @@ migrations, and the local operational store.
   a change of the record naming the key in `to()` with `role()` `founder`, signed by it, restating `quorum:{M}/{N}`
   for the founders after it, counted at the present M. Refuse any other word at your door
   (`federation_community_consensus_protocol_violation`). A stalled room's recovery widening (`SeatRow::bundle()`) is
-  undecided: ask `seat::stalled_recovery` and settle it against the trust root's bundle yourself.
+  undecided with no trust root read: give the seat rule one (`CutSpec::trust_root`, returning a
+  `root::RootReading` over a `root::Root` of the bundles, revocations and the root's lane rows you hold, this node as
+  its `Reader`, and each key's identity type from its key record), and `seat::recovery_verdict` judges it.
+- The trust root (`root`): present each bundle as a `RootBundle`, its statements' signatures checked; present root
+  grants and acceptance edges as rows of the root's lane (`RootGrant`, naming the rows in their own past). When a
+  holder's own node signs a bundle, have it also write an acceptance edge to that bundle, so the bundle is in the
+  past of whatever the holder signs next: that closes, for an honest holder and at no cost, the residual the kernel
+  states: "a holder's statement over a sibling bundle is not ordered against its grant, so it is not read; a grant on one tip is judged by the rows in its own past". It can matter only where that holder's voice is the deciding one of an exact majority, and the
+  statement over the sibling and the grant on the one tip are held evidence the other holders can cite when they name
+  both tips.
 - A community's protocol is a word of the set under which no one voice decides (`seat::community_protocol`): not
   `quorum:1/{n}`, not `founder_only` (a family's; families are not built), not a weighted record one of whose
   weights reaches its threshold. A change of its record states no policy and meets both the protocol in force and
@@ -160,6 +169,22 @@ Present:
   affiliation is counted over its officers (`counted` `officer`); with no officer it is dissolved. With one officer
   the removal concludes as a proposal and is in force only where a countersign naming it counts; the acting seat's
   withdrawal of the removal clears it; with two or more it decides on two voices at least, the member removed apart.
+
+**A duty holder's lone acts** (CC 4.5.5, CC 3.1.9.2; CHANGELOG). Present each by its family, its parameter as
+`family_param()`: a quarantine marker (`quarantine:{state}`) as `SeatKind::Quarantine` (`target_key()` the key, the
+state `withhold` or `release`, a release's `of()` the withhold it lifts), a slashing verdict (`slashing:{outcome}`) as
+`SeatKind::Slashing` (`target_key()`, the outcome `proven_rogue` or `not_proven`), a takedown notice
+(`takedown_notice:{basis}`, the basis opaque) as `SeatKind::TakedownNotice` (`of()` the content row), each with `obj()` the room, `head()` the newest
+counted changes in its past, and the members' `moderation_overturn` window named (its `window()`, and its
+`WinKind::Open`); a reconsideration (`reconsideration:{grounds}`) as `SeatKind::Reconsideration` (`of()` the takedown, `outcome()`
+`reversed`, `partial` or `upheld`; `of()` is provisional); the members'
+lift of any of them as an Offer of scope `act`, `content()` the act, under `moderation_overturn`, naming the
+objections. Ask `seat::act_in_force` whether one is in force for a reader.
+
+**A seat from a root grant.** Present it as an Offer of `Conf::Root`, `bundle()` the grant's id, `scope()` the
+grant's duty, `obj()` the room the grant names, `to()` and `signer()` the key the grant names; and give the seat rule
+the trust root this node reads (`CutSpec::trust_root`, a `root::RootReading`). Onward hops under it are ordinary
+`Conf::Seat` offers; whether they pass is the charter's (`RootView::sub_delegation`), never the row's `sub` mark.
 
 **The moderator election** (C1 to C5, E1 to E3, F1 to F4; CHANGELOG). Present:
 - each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` its election's id row: the
@@ -369,8 +394,9 @@ trusting an adapter.
   `founding_duty_holder_agent_owner_unsigned`): the seat rows carry no owner of an agent's key. Until it does, a
   caller must not present an agent's duty seat without the owner's statement having been checked at the door.
 - A duty conferred on an agent is a duty seat of its own (a counted `duty_confer` row), live while its `agent`
-  seat is, and only by its own statement and its owner's signature: the agent's key cosigns the conferral, and so
-  does the one live owner of the agent's key, the conferral naming that owner-binding (the owner's `owner` seat over
+  seat is, and only by its own statement and its owner's signature: the agent's key cosigns the conferral (or
+  accepts it by its own row), and the one live owner of the agent's key cosigns the conferral or that acceptance,
+  the row it signs naming that owner-binding (the owner's `owner` seat over
   the agent's own roster: an Offer of scope `owner` over the key, the key's and the owner's signatures). The seat
   stops when that binding ends (the owner's revocation), and with two owners there is none. It acts alone within that duty. It is still no voice in any count, the duty holders' own included.
 - A moderator's lone removal of an agent's key is an Unseat of its `agent` seat, `Conf::Group`, signed by the

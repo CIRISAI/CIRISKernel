@@ -39,6 +39,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     one_leaves_agents    a window's clause one holder's act resolves leaves out an agent's act (window.py)
     agent_duty_owner_unread  an agent's key holds a duty with no owner's signature
     agent_owner_end_unread   an end of the owner-binding does not stop the agent's duty seat
+    owner_acceptance_unread  the owner's cosignature on the agent's acceptance is not read as its signature
 
     python3 -I check_agent_seat.py      exit 1 on any difference
 """
@@ -83,6 +84,11 @@ RAG = ST.offer("rag", "AG", "AG", "registered", "AG", "self")
 OAG = ST.offer("oag", "AG", "OW", "owner", "AG", "self", ("rag",), cosigners=("OW",))
 ORV = ST.unseat("orv", "OW", "OW", "owner", "AG", "seat", ("oag",), under="oag")       # OW revokes its binding
 OAG2 = ST.offer("oag2", "AG", "OV", "owner", "AG", "self", ("rag",), cosigners=("OV",))   # a second owner beside OW
+
+
+# a conferral of review on AG with neither the agent's nor its owner's signature: AG accepts by its own row
+CRA = ST.offer("cr", "p1", "AG", "review", OBJ, "group", ("ag",), head=("ag",), policy="duty_confer", counted="duty",
+               cosigners=("p2",))
 
 
 def aconfer(i, scope, signers, heads, owner="OW", cites=("oag",)):
@@ -200,9 +206,16 @@ CASES = [
      W3R + [ORV], {"orv": T}, P3, P3 | {"AG"}, [("AG", "review", F), ("AG", "agent", T)], {}),
     ("a second owner-binding beside the first: two owners are none (CC 3.2), and the duty seat stands on no owner",
      W3R + [OAG2], {"oag2": T}, P3, P3 | {"AG"}, [("AG", "review", F)], {}),
+    ("the owner's signature carried on the agent's own acceptance (the agent accepts by its own row, the owner "
+     "cosigning it and the acceptance naming the binding): the duty seat stands",
+     W3 + [CRA, ST.accept("acr", "AG", "cr", ("cr", "oag")) | {"cosigners": ("OW",)}], {"cr": T}, P3, P3 | {"AG"},
+     [("AG", "review", T)], {}),
+    ("the same acceptance with no owner's cosignature (it only names the binding): no signature, no duty",
+     W3 + [CRA, ST.accept("acr", "AG", "cr", ("cr", "oag"))], {"cr": T}, P3, P3 | {"AG"}, [("AG", "review", F)], {}),
 ]
 PLANTS = ("agent_voice", "agent_counted_over", "agent_unread", "lone_any_key", "roster_cut_any_scope", "stay_scope_ungated",
-          "one_leaves_agents", "agent_duty_owner_unread", "agent_owner_end_unread")      # scope_keeps_agents is caught by COUNTED_CASE, read in main()
+          "one_leaves_agents", "agent_duty_owner_unread", "agent_owner_end_unread",
+          "owner_acceptance_unread")      # scope_keeps_agents is caught by COUNTED_CASE, read in main()
 # A counted clause over moderate (no table of the policy has one, so this window is the check's own and is not in
 # the fixture): a strict majority of the moderators approves. p1 and the agent moderator approve; the moderators
 # counted are the persons p1 and p2, so one of two, and nothing lands.

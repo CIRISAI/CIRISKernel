@@ -30,6 +30,7 @@
 //! | [`charter`] | CC 3.4.7, CC 4.4.3.12 | a community's charter: the licence classes its record in force declares |
 //! | [`trust_rows`] | CC 4.4.3.34 | the reader's walk from acceptance edge rows, and the issuer's standing |
 //! | [`ranked`] | 5 (the door's parameters) | the ranked count, with and without a declared order |
+//! | [`root`] | CC 3.2 (T6), CC 2.7.8 | the trust root's lineage: its count, the fold at tips, bundles in force, grants |
 #![no_std]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -50,6 +51,7 @@ pub mod layers;
 pub mod line;
 pub mod ops;
 pub mod ranked;
+pub mod root;
 pub mod seat;
 pub mod standing;
 pub mod trust;

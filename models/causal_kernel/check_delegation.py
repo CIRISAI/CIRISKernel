@@ -24,6 +24,11 @@ Planted breaks, each of which must change a case's answer:
     no_attenuation a hop may bear any scope
     one_consent    the delegate's acceptance is not asked
 
+Root chains (ROOT_CASES, cross-object rest 5): the grantee's seat from a root grant (conf `root`, `bundle` the grant)
+stands while the grant resolves at the reader of the root view; the onward gate reads the charter in force there
+(Root.sub_delegation), and closes with no root read. Plants root_gate_unread, root_seat_unchecked, root_seat_any_duty, root_through_lone_gate (the root seat read by the
+lone-holder gate, not as the one gate's other path).
+
 Not here: the term of an edge that carries sub-delegation (a shape rule of one row, and the caller's); an act
 done under the chain after an edge ends (conferral_end.py, one call per edge); the aggregate-weight cap that
 CC 2.4.1.3 names, which this walk does not have; a chain across two objects.
@@ -99,6 +104,65 @@ CASES = [
 ]
 
 
+# ---- a chain from a ROOT grant (cross-object rest 5): the grantee's seat names the grant (`bundle`) and stands while
+# it resolves at the reader of the root view; the onward gate reads the charter in force there (Root.sub_delegation),
+# closed with no root read. The room `room`; root grant gA (b0's holders h1 and h2 of three) names uA for it, duty infra
+sys.path.insert(0, os.path.join(HERE, "..", "trust_root"))
+import root as RT  # noqa: E402
+
+ROOM = ST.found("room", "p1", ("p1", "p2"), cosigners=("p2",))
+ROOMD = ST.found("room", "p1", ("p1", "p2", "uA"), {"moderate": ("p1",)}, cosigners=("p2", "uA"),
+                 duties=("infra",))                              # infra declared; uA a member (a duty seat stands on one)
+RS = ST.offer("rs", "uA", "uA", "infra", "room", "root", ("room",), bundle="gA", sub=True)   # the grantee's root seat
+RD1 = ST.offer("rd1", "uA", "B", "infra:detect", "room", "seat", ("rs",), under="rs", cosigners=("B",))
+CSUB = {"name": "c0s", "duties": ("infra",), "sub_delegation": ("infra",)}
+B0R = RT.bundle("b0", "fam", 0, ("h1", "h2", "h3"), seats=("n1",))
+GA = RT.grant("gA", "b0", "uA", "room", ("h1", "h2"))
+GROW = RT.bundle("b1", "fam", 1, ("h1", "h2", "h3", "h4", "h5"), prev=("b0",), charter=CSUB, seats=("n1",),
+                 stmts=[("h1", 0), ("h2", 0), ("h3", 0)])                     # holders grow to five: gA's two lapse
+ANCHOR = RT.reader(anchor="b0")
+# (name, bundles or None for no root read, reader, rows, [(key, scope, stands)])
+ROOT_CASES = [
+    ("a root grant in force seats its grantee, and the charter's sub_delegation lets it pass the duty on",
+     [dict(B0R, charter=CSUB)], ANCHOR, [ROOM, RS, RD1], [("uA", "infra", T), ("B", "infra:detect", T)]),
+    ("the charter in force carries no sub_delegation: the onward hop is refused, the row's own `sub` mark not read",
+     [B0R], ANCHOR, [ROOM, RS, RD1], [("uA", "infra", T), ("B", "infra:detect", F)]),
+    ("the holders grow to five at the reader (b1 acknowledged): gA's two voices lapse, and the seat ends with it",
+     [dict(B0R, charter=CSUB), GROW], RT.reader(anchor="b0", acks=("b1",)), [ROOM, RS, RD1],
+     [("uA", "infra", F), ("B", "infra:detect", F)]),
+    ("a reader whose anchor is not the genesis: the grant does not resolve for it, and the seat is nothing",
+     [dict(B0R, charter=CSUB)], RT.reader(anchor="zz"), [ROOM, RS, RD1], [("uA", "infra", F)]),
+    ("no root read: the root seat seats nothing and the gate is closed", None, None, [ROOM, RS, RD1],
+     [("uA", "infra", F), ("B", "infra:detect", F)]),
+    ("a root seat of another duty than the grant's seats nothing",
+     [dict(B0R, charter=CSUB)], ANCHOR, [ROOM, dict(RS, scope="other")], [("uA", "other", F)]),
+    ("a root grant's seat of a duty the room's record declares (uA a member): not the lone holder's act, the one gate's other "
+     "path (a resolving grant whose scope carries the duty); it stands",
+     [dict(B0R, charter=CSUB)], ANCHOR, [ROOMD, RS], [("uA", "infra", T)]),
+    ("a root seat signed by a key the grant does not name seats nothing",
+     [dict(B0R, charter=CSUB)], ANCHOR, [ROOM, dict(RS, signer="X", to=("X",))], [("X", "infra", F)]),
+]
+ROOT_PLANTS = ("root_gate_unread", "root_seat_unchecked", "root_seat_any_duty", "root_through_lone_gate")
+
+
+def root_answers(case, plant=None, order=None):
+    _name, bundles, rd, rows, asks = case
+    rows = order or rows
+    saved = set(ST.MUT)
+    if plant: ST.MUT.add(plant)
+    try:
+        ctx = ST.root_view(RT.Root(bundles, (), (GA,)), rd) if bundles is not None else None
+        if ctx: ctx.__enter__()
+        try:
+            S = CK.concluded(CK.kept(list(rows)), lambda r, P, past: ST.seat_rule(r, P, past))
+            Q = ST.Seats(S)
+            return [Q.stands(k, sc, "room") for k, sc, _ in asks]
+        finally:
+            if ctx: ctx.__exit__()
+    finally:
+        ST.MUT.clear(); ST.MUT |= saved
+
+
 def read(rows, plant=None):
     S = CK.State(list(rows), {r["id"]: True for r in rows})
     Q = ST.Seats(S, depth=10 ** 6 if plant == "no_cap" else ST.DEPTH)
@@ -136,6 +200,18 @@ def main():
             if answers([rows[0]] + list(p), asks) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in p]))
                 break
+    for case in ROOT_CASES:
+        want = [w for _, _, w in case[4]]
+        for o in itertools.permutations(case[3][1:]):
+            if root_answers(case, order=[case[3][0]] + list(o)) != want:
+                problems.append("root %s: got %s, expected %s" % (case[0], root_answers(case), want))
+                break
+    root_caught = 0
+    for plant in ROOT_PLANTS:
+        hit = [c[0] for c in ROOT_CASES if root_answers(c, plant) != [w for _, _, w in c[4]]]
+        root_caught += bool(hit)
+        if not hit:
+            problems.append("plant %s not caught by a root case" % plant)
     caught = 0
     for plant in ("no_cap", "no_gate", "no_attenuation", "one_consent"):
         hit = [name for name, rows, asks in CASES if answers(rows, asks, plant) != [w for _, _, w in asks]]
@@ -145,8 +221,10 @@ def main():
             problems.append("plant %s not caught" % plant)
     for p in problems:
         print(p)
-    print("RESULT: %s: %d cases, %d answers, %d orders, %d of 4 planted breaks caught"
-          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), sum(len(a) for _, _, a in CASES), orders, caught))
+    print("RESULT: %s: %d cases, %d answers, %d orders, %d of 4 planted breaks caught; %d root-chain cases, %d of %d "
+          "planted breaks caught" % ("ok" if not problems else "%d problems" % len(problems), len(CASES),
+                                     sum(len(a) for _, _, a in CASES), orders, caught, len(ROOT_CASES), root_caught,
+                                     len(ROOT_PLANTS)))
     return 1 if problems else 0
 
 

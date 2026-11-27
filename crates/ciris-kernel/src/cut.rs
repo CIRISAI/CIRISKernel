@@ -42,6 +42,12 @@ pub trait CutSpec<R: Row> {
     fn is_voice_for(&self, _cosign: &R, _cut: &R) -> bool {
         false
     }
+    /// The trust root this node reads, for a stalled recovery ([`crate::seat::recovery_verdict`]); None (the
+    /// default): such a recovery is undecided, and concludes nothing.
+    #[allow(clippy::type_complexity)]
+    fn trust_root(&self) -> Option<&dyn crate::root::RootView<R::Id, R::Key, crate::seat::Obj<R::Id, R::Key>>> {
+        None
+    }
 }
 
 /// The status of a row under the cut.
