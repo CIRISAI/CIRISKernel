@@ -69,10 +69,15 @@ plant):
   licence stating an instant earlier than a row it cites is `licensure_instant_before_its_past`; an acceptance edge's
   own term (`asserted_at`, `valid_until`) is read at the caller's instant or the licence's (`trust_rows::edges_of`
   takes it). An edge or a license seat from before a lock stands until its term ends or it is withdrawn: a locked
-  group signs no NEW edge.
-- The residual: within a term the instant a licence states is its holder's word. Its bound is its own past (it cannot
-  predate what it cites) and the seat's ends, read by ancestry; the door's checks on a single row's fields stay the
-  door's (ADOPTING).
+  group signs no NEW edge, confers no new seat and issues no licence of its own.
+- The gate reaches founding too: a founding record's first officers and holders are the founding signers' joint act
+  only, and give no key a lone path later.
+- **Named residual (the term):** within its term a licence's instant is its holder's word, bounded below by the
+  latest instant in its own past. So a holder whose term has run can sign a licence dated inside the term, as long as
+  nothing later-dated is in its past. **Caller duty beside it:** a node honours a licence under a term that has ended
+  by its own clock only where the licence is in the past of a row the node already held when the term ended, or of a
+  row by a key in its trust set that it held then. A licence first seen after the term's end with no such anchor is
+  not honoured (ADOPTING).
 
 **The reader's trust walk from rows, and the issuer's standing** (CC 4.4.3.34, CC 4.5.4, with the Constitution's
 rulings (a) to (d) of 2026-11-27; `trust_rows.py`, `check_trust_rows.py`; fixture `trust_rows.json`). Whether a reader

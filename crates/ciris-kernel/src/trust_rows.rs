@@ -121,7 +121,7 @@ fn counted(yes: usize, n: usize) -> bool {
 }
 
 /// CC 4.5.4 (v): community `c` has no live duty holder over the rows `seats` was built on, and is LOCKED: it signs no
-/// NEW onward acceptance edge, confers no license seat (the duty holders' count takes none) and issues no licence of
+/// NEW onward acceptance edge, confers no new license seat (the duty holders' count takes none) and issues no licence of
 /// its own, until an election seats a holder. A license seat's holder is no duty holder and keeps no room from
 /// locking. A license seat, or an edge, from before the lock stands until its term ends or it is withdrawn, by
 /// ancestry ([`ended_for_reader`]). An affiliation is never locked: with no officer (its authority body,

@@ -100,7 +100,7 @@ def counted(yes, n):
 
 def locked(T, community):
     """CC 4.5.4 (v): a community with no live duty holder is LOCKED: it signs no NEW onward acceptance edge, confers no
-    license seat (the duty holders' count, seat.py, takes none) and issues no licence of its own, until an election
+    new license seat (the duty holders' count, seat.py, takes none) and issues no licence of its own, until an election
     seats a holder. A license seat's holder is no duty holder and keeps no room from locking. A license seat, or an
     edge, from before the lock stands until its term ends (seat_term, edge_term) or it is withdrawn, by ancestry
     (ended_for_reader). An affiliation is never locked:
