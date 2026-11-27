@@ -12,9 +12,9 @@ authority it speaks for (`on_behalf`).
                             (scope `key` over it); for a community, CC 4.5.4's authority_set(C), counted as a duty
                             conferral is (the acts row accept / trust_edge / community -> duty_confer, held in
                             seat.PENDING_ACTS until rc23-next has it): a strict majority of all its live duty holders,
-                            never fewer than two where there are two or more, or a lone holder alone; the members' count
-                            where no duty holder is left. A community record of any kind (an affiliation included) reads
-                            that row.
+                            never fewer than two where there are two or more, or a lone holder alone. There is no
+                            members' fallback: a community with no duty holder is LOCKED (CC 4.5.4 (v)) and signs no
+                            edge. A community record of any kind (an affiliation included) reads that row.
     admission               a `trust_classes` list that is present must be non-empty, sorted and name no class twice
                             (`trust_accepts_classes_malformed`, charter.edge_refusal); `trust_depth` absent reads as 0,
                             0 to 5 is admitted, any other is refused (`trust_accepts_depth_out_of_range`). A refused
@@ -26,11 +26,15 @@ authority it speaks for (`on_behalf`).
                             classes intersect hop by hop; a key expanded again only with more budget than before, so a
                             cycle is visited once; nothing is cached; within the cap of five (CC 4.1.1).
     (b) the issuer          a licence is the authority's act where, over the licence's own causal past, its emitter's
-                            key IS the authority, or holds a `license` seat over it (a delegation whose chain resolves
-                            to the authority: seat.Seats.stands), or, for a community, the licence is cosigned by its
-                            quorum (a strict majority of its members, never fewer than two where there are two or more:
-                            no bootstrap). Any other is testimony, out of the fold: `licensure_delegator_not_authority`.
-                            A licence naming a link that is not held is not kept: it waits.
+                            key IS the authority (a person is one voice across its keys: any live key of its roster),
+                            or holds a `license` seat over it (a delegation whose chain resolves to the authority:
+                            seat.Seats.stands; over a community the seat is conferred and withdrawn by its duty
+                            holders' count, the acts rows seat_confer / seat_withdraw of scope `license`, held in
+                            seat.PENDING_ACTS), or, for a community, the licence is cosigned by its quorum under its
+                            DECLARED consensus_protocol (no bootstrap). Any other is testimony, out of the fold:
+                            `licensure_delegator_not_authority`; a locked community's own licence is
+                            `licensure_authority_locked`. A licence naming a link that is not held is not kept: it
+                            waits.
     (d) by ancestry         the standing is judged at issuance, over the issuance's own past, never at receipt: a
                             withdrawal of a link in that past stops it; a withdrawal concurrent with the issuance holds
                             it out of force for a reader that holds the withdrawal (`licensure_link_withdrawn`); a
@@ -94,26 +98,38 @@ def counted(yes, n):
     return yes >= 2 and 2 * yes > n
 
 
-# ---- three readings with the Constitution (the lead's suggestions: the community's DECLARED protocol for (1) and
-# (2), any live key of a person's roster for (3)). Each is read in this one place until it rules.
-def members_count(T, signers, community):
-    """READING (2), pending: the members' count of a community with no duty holder left, for its onward edge: a strict
-    majority of its members, never fewer than two where there are two or more, or a lone member alone."""
-    mem = ST.Seats(T).holders("member", community)
-    return counted(len(signers & mem), len(mem))
+def locked(T, community):
+    """CC 4.5.4 (v): a community with no live duty holder is LOCKED: it signs no onward acceptance edge, confers no
+    license seat (the duty holders' count, seat.py, takes none) and issues no licence of its own, until an election
+    seats a holder. A license seat's holder is no duty holder and keeps no room from locking."""
+    return "lock_unread" not in MUT and not ST.Seats(T).holders("duty", community)
 
 
-def community_quorum(T, signers, community):
-    """READING (1), pending: the quorum whose cosignatures make a licence a community's act: a strict majority of its
-    members, never fewer than two where there are two or more, or a lone member alone."""
+def declared_count(T, signers, community):
+    """(1) The cosignatures `signers` meet `community`'s DECLARED consensus_protocol in force over the rows T (a row's
+    own past), counted over its members, as the seat rule counts a protocol row: the protocol's own numbers and
+    weights, never the row's."""
     mem = ST.Seats(T).holders("member", community)
-    return counted(len(signers & mem), len(mem))
+    if "quorum_fixed_majority" in MUT:
+        return counted(len(signers & mem), len(mem))
+    rec = ST.protocol_record({q["id"]: q for q in T.Cs}, community)
+    if rec is None:
+        return False
+    pr = ST.community_rule(rec.get("consensus_protocol"), rec.get("need"), rec.get("weights"))
+    if pr is None:
+        return False
+    kind, m, _n = pr
+    need = m if kind == "quorum" else rec.get("need") if kind == "weighted" else None
+    weights = rec.get("weights") if kind == "weighted" else None
+    return ST.count_of("P:" + kind, True, (), mem, signers & mem, need, weights, signed=signers)
 
 
 def is_the_authority(T, k, a):
-    """READING (3), pending: the licence's emitter `k` IS authority `a`: the authority's own key, not another live key
-    of its roster (that one issues only by holding a license seat)."""
-    return k == a
+    """(3) The licence's emitter `k` IS authority `a`: a person is one voice across its keys, so any live key of its
+    roster (scope `key` over it, over the licence's own past) is the person."""
+    if k == a:
+        return True
+    return a not in T.by and "roster_issuer_unread" not in MUT and k in ST.Seats(T).holders("key", a)
 
 
 def speaks_for(T, signers, src):
@@ -128,12 +144,13 @@ def speaks_for(T, signers, src):
         if rule is None or rule[0] != ("duty_confer",):
             return False
         Q = ST.Seats(T)
-        duty = frozenset() if "duty_unread" in MUT else Q.holders("duty", src)
-        if duty:
-            return counted(len(signers & duty), len(duty))
-        if "members_fallback_unread" in MUT:
+        if "duty_unread" in MUT:
+            return counted(len(signers & Q.holders("member", src)), len(Q.holders("member", src)))
+        # (2) no members' fallback: a community with no duty holder is locked, and signs no edge
+        if locked(T, src):
             return False
-        return members_count(T, signers, src)
+        duty = Q.holders("duty", src)
+        return counted(len(signers & duty), len(duty))
     # a person: the key itself, or a live key of its roster
     if src in signers:
         return True
@@ -218,8 +235,14 @@ def standing(S, lic):
     T = past_state(S, r)
     if is_the_authority(T, k, a) or "issuer_unread" in MUT:
         return None
-    if is_community(T, a) and "quorum_unread" not in MUT and community_quorum(T, ST.signers(r), a):
-        return None
+    if is_community(T, a) and "quorum_unread" not in MUT:
+        # (2) a locked community issues no licence of its own: its quorum's licence is `licensure_authority_locked`
+        # (a license seat conferred before the lock is read below, as any)
+        if declared_count(T, ST.signers(r), a):
+            if not locked(T, a):
+                return None
+            if not ST.Seats(T).stands(k, "license", a):
+                return "licensure_authority_locked"
     if "chain_unread" in MUT or not ST.Seats(T).stands(k, "license", a):
         return "licensure_delegator_not_authority"
     if "concurrent_unread" in MUT:

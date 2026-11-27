@@ -213,7 +213,14 @@ def acts_table(path=None):
 # A row the model reads before the Constitution's table carries it, read only where the table has no row for its (act,
 # scope, kind): a community's onward acceptance edge (trust_rows.py) is counted over its authority set as a duty
 # conferral is (CC 4.5.4's authority_set(C), the ruling of 2026-11-27), being added to rc23-next. Drop it when it lands.
-PENDING_ACTS = (("accept", "trust_edge", "community", ("duty_confer",), "fixed"),)
+# A community's license seat (trust_rows.py, the issuer's standing) is conferred and withdrawn by its duty holders, as a
+# detector seat is (the ruling of 2026-11-27): seat_confer / seat_withdraw of scope `license`. The affiliation's rows are
+# this model's reading (an affiliation is a community record), until the table says otherwise.
+PENDING_ACTS = (("accept", "trust_edge", "community", ("duty_confer",), "fixed"),
+                ("seat_confer", "license", "community", ("duty_confer",), "fixed"),
+                ("seat_withdraw", "license", "community", ("duty_withdraw",), "fixed"),
+                ("seat_confer", "license", "affiliation", ("duty_confer",), "fixed"),
+                ("seat_withdraw", "license", "affiliation", ("duty_withdraw",), "fixed"))
 
 
 def with_pending(table, pending=PENDING_ACTS):
@@ -287,6 +294,10 @@ def act_of(r, by, is_key=False):
                 and tuple(c.get("to", ())) == tuple(r.get("to", ())) and "lift_unread" not in MUT:
             return ("lift", sc, kind)                        # the seat re-seated: the table's row is of scope `agent`
         if sc in ROSTER_SEATS: return ("admit" if offer else "remove", sc, kind)
+        # a license seat (the issuer's standing over the community, trust_rows.py): conferred and withdrawn by the duty
+        # holders' count; its holder is no duty holder
+        if sc == "license" and "license_seat_unread" not in MUT:
+            return ("seat_confer" if offer else "seat_withdraw", "license", kind)
         # a detector seat (CC 4.5.7: `detect:{list id}`, conferred and "withdrawn by the count of (iv)"): no declared duty
         if (sc == "detect" or sc.startswith("detect:")) and "detect_unread" not in MUT:
             return ("seat_confer" if offer else "seat_withdraw", "detect", kind)
@@ -327,6 +338,8 @@ def act_of(r, by, is_key=False):
             return ("dissolve" if r.get("dissolved_at") is not None else "record_change", "record", kind)
         if sc == "member" and (not offer or "affiliation_admit_unread" not in MUT):
             return ("admit" if offer else "remove", "member", kind)
+        if sc == "license" and "license_seat_unread" not in MUT:
+            return ("seat_confer" if offer else "seat_withdraw", "license", kind)
         return None
     if kind == "self":
         own = by.get(obj, {}).get("scope")

@@ -11,7 +11,10 @@ Planted breaks, each of which must change a case's answer:
     edge_any_signer          an edge is its owner's whoever signs it
     roster_unread            (a) a person's roster keys do not speak for it
     duty_unread              (a) a community's edge is counted over its members, not its duty holders
-    members_fallback_unread  (a) a community with no duty holder has no authority set
+    lock_unread              (a), (b) a community with no duty holder is not locked: its members' count stands in
+    quorum_fixed_majority    (b) a community's own licence is counted as a strict majority, not its declared protocol
+    roster_issuer_unread     (b) a live key of a person's roster is not the person
+    license_seat_unread      (seat.py) a license seat over a community is no act: its duty holders confer none
     pending_unread           (a) the acts row accept / trust_edge / community is not read
     judged_at_read           (a), (b) authority is judged over the reader's rows, not the row's own past
     bears_unread             a delegates_to row not bearing trust:accepts:v1 is read as an edge
@@ -43,7 +46,22 @@ M, L = "medical", "legal"
 A = TR.accepts
 
 AF = ST.found("af", "A", ("A", "B", "C"), cosigners=("B", "C"), declared_cohort="affiliations",
-              licence_classes=((M, True), (L, False)))           # no duty holders: the members' count
+              licence_classes=((M, True), (L, False)))           # no duty holders: LOCKED
+AFD = ST.found("af", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"), declared_cohort="affiliations",
+               licence_classes=((M, True), (L, False)))          # a duty holder: majority declared
+AFU = dict(AFD, consensus_protocol="unanimous")                  # unanimous declared
+GN = ST.found("g", "A", ("A", "B", "C"), cosigners=("B", "C"), licence_classes=((M, False),))   # no duty holder
+# the community confers a license seat on X by its duty holders' count (A and B of two), X accepts
+GLO = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty")
+GLO1 = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), counted="duty")      # A alone
+GLA = ST.accept("gla", "X", "glo")
+GLU = ST.unseat("glu", "A", "X", "license", "g", "group", ("glo", "gla"), head=("glo",), cosigners=("B",),
+                counted="duty", policy="duty_withdraw")          # the duty holders withdraw it
+# a lone duty holder A confers a license seat on X, then lays down its duty: no duty holder is left
+G1LO = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), counted="duty")
+G1LD = ST.withdraw("ld", "A", "g", ("glo", "gla"), scope="moderate")
+# the person K's roster seats its key d
+KRO, KRA = ST.offer("kro", "K", ("d",), "key", "K", "self"), ST.accept("kra", "d", "kro")
 GD = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B")}, cosigners=("B", "C"),
               licence_classes=((M, False),))                     # duty holders A and B
 G1 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"),
@@ -87,6 +105,7 @@ CASES = [
     ("trust_classes not sorted: refused", [A("e", "RD", "K", (M, L)), klic("l")], "RD", "l", KCH, NR),
     ("trust_classes listing the class", [A("e", "RD", "K", (L, M)), klic("l")], "RD", "l", KCH, OK),
     ("trust_classes not listing it", [A("e", "RD", "K", (L,)), klic("l")], "RD", "l", KCH, NR),
+    ("(c) a depth below 0 is refused", [A("e", "RD", "K", depth=-1), klic("l")], "RD", "l", KCH, NR),
     ("(c) a depth above 5 is refused", [A("e", "RD", "X", depth=6), A("f", "X", "K"), klic("l")], "RD", "l", KCH, NR),
     ("(c) an onward hop at depth 1", [A("e", "RD", "X", depth=1), A("f", "X", "K"), klic("l")], "RD", "l", KCH, OK),
     ("(c) depth absent reads as 0: no hop past the first authority", [A("e", "RD", "X"), A("f", "X", "K"), klic("l")],
@@ -110,11 +129,21 @@ CASES = [
      "RD", "l", KCH, NR),
     ("(a) a lone duty holder alone",
      [G1, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD", "l", KCH, OK),
-    ("(a) no duty holder: the members' count, two of three",
-     [AF, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B",)), klic("l")],
+    ("(a) no duty holder: LOCKED, no edge, whatever the members sign",
+     [AF, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B", "C")),
+      klic("l")], "RD", "l", KCH, NR),
+    ("(a) with a duty holder, its lone holder alone signs the edge",
+     [AFD, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH,
+     OK),
+    ("(a) its lone duty holder signs the edge, before it lays its duty down",
+     [G1, G1LO, GLA, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("gla",)), klic("l")],
      "RD", "l", KCH, OK),
-    ("(a) and one of three is not", [AF, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)),
-                                     klic("l")], "RD", "l", KCH, NR),
+    ("(a) after: locked, and the license seat's holder keeps it from locking: no edge",
+     [G1, G1LO, GLA, G1LD, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("ld",)), klic("l")],
+     "RD", "l", KCH, NR),
+    ("(b) and its members' quorum issues no licence of its own",
+     [G1, G1LO, GLA, G1LD, A("e", "RD", "g"), glic("l", "g", cosigners=("B",)) | {"names": ("ld",)}], "RD", "l",
+     None, (False, "licensure_authority_locked")),
     ("(d) a community's edge withdrawn by one duty holder alone stands",
      [GD, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",), cosigners=("B",)),
       ST.withdraw("w", "A", "f"), klic("l")], "RD", "l", KCH, OK),
@@ -133,9 +162,25 @@ CASES = [
      [E0, LO, LA, ST.withdraw("w", "K", "lo", ("la",)), klic("l", signer="X", names=("la",))], "RD", "l", KCH, LW),
     ("(d) a withdrawal after the issuance reaches nothing back",
      [E0, LO, LA, klic("l", signer="X", names=("la",)), ST.withdraw("w", "K", "lo", ("l",))], "RD", "l", KCH, OK),
-    ("(b) a community's licence cosigned by its quorum", [AF, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD",
-     "l", None, OK),
-    ("(b) one member's is testimony", [AF, A("e", "RD", "af"), glic("l")], "RD", "l", None, NA),
+    ("(b) a community's licence cosigned by its quorum under its declared majority",
+     [AFD, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD", "l", None, OK),
+    ("(b) one member's is testimony", [AFD, A("e", "RD", "af"), glic("l")], "RD", "l", None, NA),
+    ("(b) under a declared unanimous protocol two of three are not its quorum",
+     [AFU, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD", "l", None, NA),
+    ("(b) and three of three are", [AFU, A("e", "RD", "af"), glic("l", cosigners=("B", "C"))], "RD", "l", None, OK),
+    ("(b) a locked community issues no licence of its own", [AF, A("e", "RD", "af"), glic("l", cosigners=("B", "C"))],
+     "RD", "l", None, (False, "licensure_authority_locked")),
+    ("(b) a live key of the person's roster is the person", [E0, KRO, KRA, klic("l", signer="d", names=("kra",))],
+     "RD", "l", KCH, OK),
+    ("(b) a key not seated in the licence's past is not", [E0, KRO, KRA, klic("l", signer="d")], "RD", "l", KCH, NA),
+    ("(b) a license seat its duty holders conferred: the holder's licence is the community's act",
+     [GD, A("e", "RD", "g"), GLO, GLA, glic("l", "g", "X", cls=M) | {"names": ("gla",)}], "RD", "l", None, OK),
+    ("(b) one of two duty holders confers no license seat",
+     [GD, A("e", "RD", "g"), GLO1, GLA, glic("l", "g", "X", cls=M) | {"names": ("gla",)}], "RD", "l", None, NA),
+    ("(b) a locked community confers no license seat",
+     [GN, A("e", "RD", "g"), GLO, GLA, glic("l", "g", "X", cls=M) | {"names": ("gla",)}], "RD", "l", None, NA),
+    ("(d) the duty holders withdraw the seat: a licence after it is testimony",
+     [GD, A("e", "RD", "g"), GLO, GLA, GLU, glic("l", "g", "X", cls=M) | {"names": ("glu",)}], "RD", "l", None, NA),
     ("a class the charter does not declare", [E0, klic("l", "dental")], "RD", "l", KCH,
      (False, "licence_class_not_trusted")),
 ]
@@ -155,7 +200,8 @@ REFUSALS = [
 
 REF_FIELDS = ("dst", "on_behalf", "authority")      # the objects an edge row and a licence name, for the fixture
 
-PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "members_fallback_unread", "pending_unread",
+PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quorum_fixed_majority",
+          "roster_issuer_unread", "license_seat_unread", "pending_unread",
           "judged_at_read", "bears_unread", "refusal_unread", "depth_unread", "depth_absent_refused",
           "withdrawn_unread", "withdraw_by_anyone", "issuer_unread", "chain_unread", "quorum_unread",
           "concurrent_unread")
@@ -163,13 +209,15 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "members_fallback_u
 
 @contextlib.contextmanager
 def planted(plant):
-    saved = set(TR.MUT)
+    saved = (set(TR.MUT), set(ST.MUT))
     if plant:
         TR.MUT.add(plant)
+        ST.MUT.add(plant)
     try:
         yield
     finally:
-        TR.MUT.clear(); TR.MUT |= saved
+        TR.MUT.clear(); TR.MUT |= saved[0]
+        ST.MUT.clear(); ST.MUT |= saved[1]
 
 
 def arrive(order):

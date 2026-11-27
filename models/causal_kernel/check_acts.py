@@ -228,6 +228,12 @@ CASES = [
     ("a dissolution of an affiliation is the act dissolve", [GAF, grp("d", "offer", (), "record", None, cosigners=("B",),
                                                                     dissolved_at=100)], "d",
      ("dissolve", "record", "affiliation")),
+    ("a license seat over a community is its duty holders' conferral (the issuer's standing; the row is pending)",
+     [FH, grp("r", "offer", "X", "license", None, counted="duty")], "r", ("seat_confer", "license", "community")),
+    ("and its unseat their withdrawal", [FH, grp("r", "unseat", "X", "license", None, counted="duty")], "r",
+     ("seat_withdraw", "license", "community")),
+    ("a license seat over an affiliation too", [GAF, grp("r", "offer", "X", "license", None, counted="duty")], "r",
+     ("seat_confer", "license", "affiliation")),
     ("a moderator's seat over an affiliation is no act", [GAF, grp("r", "offer", "B", "moderate", "duty_confer",
                                                                  counted="duty")], "r", None),
     ("a row that is not counted is no act", [GM, ST.offer("r", "A", "D", "member", OBJ, "seat", ("g",), under="g")], "r", None),
@@ -264,6 +270,8 @@ QUERIES = [
     (("admit", "member", "affiliation"), (("cosigned_act",), "fixed")),
     (("dissolve", "record", "affiliation"), (("cosigned_act",), "fixed")),
     (("accept", "trust_edge", "community"), (("duty_confer",), "fixed")),   # seat.PENDING_ACTS, until rc23-next has it
+    (("seat_confer", "license", "community"), (("duty_confer",), "fixed")),     # seat.PENDING_ACTS
+    (("seat_withdraw", "license", "community"), (("duty_withdraw",), "fixed")),  # seat.PENDING_ACTS
     (("admit", "founder", "infrastructure"), None),        # rc23 8c75ae7: a founder seat comes only by a record change
     (("remove", "node", "infrastructure"), (("cosigned_act",), "fixed")),
     (("record_change", "record", "infrastructure"), (("cosigned_act",), "fixed")),
