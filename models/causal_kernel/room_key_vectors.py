@@ -30,9 +30,10 @@ sys.path.insert(0, HERE)
 sys.dont_write_bytecode = True
 import roomkey as RK  # noqa: E402
 
-ST, CK, RT = RK.ST, RK.CK, RK.RT
+ST, CK, RT, R = RK.ST, RK.CK, RK.RT, RK.R
 ROOM, OTHER = RK.ROOM, "g2"
 LEDGER = "CIRISConstitution#224: a room row's signer and its voice (CC 3.1.3.2)"
+NODE_LEDGER = "CIRISConstitution#224: a node's row in a private room (ruled)"
 
 # the voices of the room: vA with three device keys, the second and third added by the voice's own count; vB with one
 DEVS_A = ("rk:a0", "rk:a1", "rk:a2")
@@ -50,6 +51,72 @@ RECORDS["rk:x0"] = {"key": "rk:x0", "room": OTHER, "identity_type": "person"}   
 RECORDS["rk:n0"] = {"key": "rk:n0", "room": ROOM, "identity_type": "person"}      # a room key no voice seats
 RECORDS["id:A"] = {"key": "id:A", "room": None, "identity_type": "person"}        # an identity key
 RECORDS["node:nA"] = {"key": "node:nA", "room": None, "identity_type": "node"}    # a node key
+NODE, NODE2 = "rk:node", "rk:node2"
+RECORDS[NODE] = {"key": NODE, "room": ROOM, "identity_type": "node"}             # a node's room key
+RECORDS[NODE2] = {"key": NODE2, "room": ROOM, "identity_type": "node"}           # another node's room key
+
+# ---- a node's row (ruled on CIRISConstitution#224): the room, its voices, and the node's in-room owner-binding --------
+VC, HC = RK.voice_rows("vC", ["rk:c0"])
+GR = ST.offer("g", "vA", ("vA", "vB", "vC"), "member", "@", "self", cosigners=("vB", "vC"), membership="private",
+              names=(HA, HB, HC))
+OB = ST.offer("ob", NODE, "rk:a0", "owner", NODE, "self", ("g",), cosigners=("rk:a0",))      # rk:a0 (of vA) owns the node
+OB2 = ST.offer("ob2", NODE, "rk:b0", "owner", NODE, "self", ("g",), cosigners=("rk:b0",))    # a second owner, rk:b0 (of vB)
+OB3 = ST.offer("ob3", NODE, NODE2, "owner", NODE, "self", ("g",), cosigners=(NODE2,))       # a node's key owning the node
+M1 = R("m1", "note", "vB", ("ob",))                                                           # a later row of the room
+WOB_C = ST.withdraw("wob", "rk:a0", "ob", ("ob", "m1"))         # the owner ends the binding, at the head m1
+EVO = ST.unseat("evo", "rk:a1", "rk:a0", "key", "vA", "group", (HA,), head=(HA,), policy="self_roster_evict",
+                counted="key", cosigners=("rk:a2",))            # the owning key evicted from its voice
+XV = ST.unseat("xv", "vB", "vA", "member", "g", "group", ("g",), head=("g",), policy="community_remove",
+               cosigners=("vC",))                                # the room's count removes vA
+AN2 = ST.offer("an2", "rk:a0", NODE2, "key", "vA", "group", (HA,), head=(HA,), policy="self_roster_add", counted="key",
+               cosigners=("rk:a1", NODE2))                       # a node's room key seated in vA's own roster
+NODE_BASE = VA + VB + VC + [GR]
+
+
+def node_row(i, under, voice_heads, cites=()):
+    """A node's row as the wire states it: iss = kid = the node's room key; refs.also.under its owner-binding,
+    refs.also.voice the owning voice's key-roster head."""
+    return {"id": i, "kind": "detection", "room": ROOM, "iss": NODE, "kid": NODE,
+            "refs": {"also": {"under": list(under), "voice": list(voice_heads)}}, "cites": list(cites)}
+
+
+def kernel_row(r):
+    """The same row for the kernel: signed by the node's key, naming what it refers to."""
+    also = r["refs"]["also"]
+    return R(r["id"], r["kind"], r["kid"], tuple(dict.fromkeys(also.get("under", []) + also.get("voice", []) + r["cites"])),
+             room=ROOM)
+
+
+# (name, extra rows, row, verdict, refusal)
+NODE_CASES = [
+    ("a node's row under a live owner-binding, the owner live in its voice at the head named", [OB],
+     node_row("n1", ["ob"], [HA]), "admitted", None),
+    ("the binding withdrawn concurrently, the row before the withdrawal's head: it counts at its own head", [OB, M1, WOB_C],
+     node_row("n2", ["ob"], [HA]), "admitted", None),
+    ("the binding withdrawn concurrently, the row at the withdrawal's head: out of force from that head on",
+     [OB, M1, WOB_C], node_row("n3", ["ob"], [HA], ("m1",)), "concludes_nothing", None),
+    ("the binding withdrawn before the row (the withdrawal in its past)", [OB, M1, WOB_C],
+     node_row("n4", ["ob"], [HA], ("wob",)), "concludes_nothing", None),
+    ("two live owner-bindings of the node key in the row's past", [OB, OB2], node_row("n5", ["ob"], [HA], ("ob2",)),
+     "concludes_nothing", None),
+    ("the owning key evicted from its voice, the eviction in the row's past", [OB, EVO],
+     node_row("n6", ["ob"], [HA], ("evo",)), "concludes_nothing", None),
+    ("the owning voice removed from the room, the removal in the row's past", [OB, XV],
+     node_row("n7", ["ob"], [HA], ("xv",)), "concludes_nothing", None),
+    ("a node owned by another node's room key, that key even seated in a voice (no chains)", [OB3, AN2],
+     node_row("n8", ["ob3"], ["an2"]), "concludes_nothing", None),
+    ("the owning key's eviction concurrent with the row, the row at its head: out of force from that head on", [OB, EVO],
+     node_row("n13", ["ob"], [HA]), "concludes_nothing", None),
+    ("the owning voice's removal concurrent with the row, the row at its head: out of force from that head on",
+     [OB, XV], node_row("n14", ["ob"], [HA]), "concludes_nothing", None),
+    ("the head named is another voice's, not the owner's", [OB], node_row("n9", ["ob"], [HB]), "concludes_nothing", None),
+    ("no owner-binding named", [OB], node_row("n10", [], [HA]), "refused", "room_row_owner_binding_malformed"),
+    ("two owner-bindings named", [OB, OB2], node_row("n11", ["ob", "ob2"], [HA]), "refused",
+     "room_row_owner_binding_malformed"),
+    ("no voice head named", [OB], node_row("n12", ["ob"], []), "refused", "room_row_voice_head_malformed"),
+]
+NODE_PLANTS = ("node_rule4_unread", "node_binding_end_unread", "node_two_owners_kept", "node_owner_kind_unread",
+               "node_owner_eviction_unread", "node_voice_removal_unread")
 
 
 def row(i, voice, kid, voice_refs, room=ROOM):
@@ -114,15 +181,31 @@ def kernel_reading(r):
     return r["kid"] in view_at(r["iss"], heads)
 
 
+def node_state(extra, r):
+    rows = NODE_BASE + list(extra) + [kernel_row(r)]
+    return CK.concluded(CK.kept(rows), lambda q, P, past: ST.seat_rule(q, P, past))
+
+
+def node_verdict(extra, r):
+    """A node's row: the facts the kernel folds over its rows, and the verdict the pure check gives from them."""
+    f = RK.node_row_facts(node_state(extra, r), r, RECORDS)
+    return f, RK.node_row_check(r, RECORDS, f)
+
+
 def cases():
     out = []
     for name, membership, r, verdict, refusal in CASES:
         view = view_at(r["iss"], r["refs"]["also"]["voice"])
-        out.append({"name": name, "ledger": LEDGER, "membership": membership, "room": ROOM, "row": r,
+        out.append({"name": name, "ledger": LEDGER, "arm": "voice", "membership": membership, "room": ROOM, "row": r,
                     "records": [RECORDS[r["kid"]]] if r["kid"] in RECORDS else [],
                     "view": {"voice": r["iss"], "heads": r["refs"]["also"]["voice"], "live_keys": view},
                     "verdict": verdict, "refusal": refusal,
                     "kernel": kernel_reading(r) if membership == "private" else None})
+    for name, extra, r, verdict, refusal in NODE_CASES:
+        f, _ = node_verdict(extra, r)
+        out.append({"name": name, "ledger": NODE_LEDGER, "arm": "node", "membership": "private", "room": ROOM, "row": r,
+                    "rows": list(extra), "records": [RECORDS[k] for k in (r["kid"], f["owner"]) if k in RECORDS],
+                    "view": f, "verdict": verdict, "refusal": refusal, "kernel": None})
     return out
 
 
@@ -130,12 +213,19 @@ def fixture():
     """The vector file: the voice rosters the views are folded from, the key records, and the cases."""
     return {"about": "CIRISConstitution#224, CC 3.1.3.2: a private room's row door (signer a room key, its record's room, "
                      "one voice head, a live key of the voice there); views folded by seat.members_at",
-            "room": ROOM, "roster_rows": ROSTER, "records": sorted(RECORDS.values(), key=lambda x: x["key"]), "cases": cases()}
+            "room": ROOM, "roster_rows": ROSTER, "node_rows": NODE_BASE,
+            "records": sorted(RECORDS.values(), key=lambda x: x["key"]), "cases": cases()}
 
 
 def main():
     bad = 0
     for c in cases():
+        if c["arm"] == "node":
+            got = RK.node_row_check(c["row"], RECORDS, c["view"])
+            ok = got == (c["verdict"], c["refusal"])
+            bad += not ok
+            print("  %s %-70s %s %s" % ("ok  " if ok else "FAIL", c["name"][:70], c["verdict"], c["refusal"] or ""))
+            continue
         got = check(c["membership"], c["row"], {x["key"]: x for x in c["records"]}, c["view"]["live_keys"])
         ok = got == (c["verdict"], c["refusal"])
         # the kernel's device clause agrees wherever the check reaches it (a room key of this room, one voice head)
@@ -145,7 +235,19 @@ def main():
         bad += not ok
         print("  %s %-70s %s %s view=%s" % ("ok  " if ok else "FAIL", c["name"][:70], c["verdict"], c["refusal"] or "",
                                            c["view"]["live_keys"]))
-    print("RESULT: %s: %d cases" % ("ok" if not bad else "%d differ" % bad, len(CASES)))
+    caught = 0
+    for plant in NODE_PLANTS:
+        ST.MUT.add(plant)
+        try:
+            hit = [n for n, extra, r, v, ref in NODE_CASES if node_verdict(extra, r)[1] != (v, ref)]
+        finally:
+            ST.MUT.discard(plant)
+        caught += bool(hit)
+        print("  plant %-28s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0]) if hit else "NOT CAUGHT"))
+        bad += not hit
+    print("RESULT: %s: %d cases (%d of a voice, %d of a node), %d of %d planted breaks caught"
+          % ("ok" if not bad else "%d problems" % bad, len(CASES) + len(NODE_CASES), len(CASES), len(NODE_CASES), caught,
+             len(NODE_PLANTS)))
     return 1 if bad else 0
 
 
