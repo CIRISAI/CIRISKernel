@@ -881,7 +881,9 @@ where
         let mut out: BTreeSet<B::Id> = ids
             .iter()
             .filter(|i| {
+                // a bounded settler states nothing of its own and decides its head: no line closes it
                 !keep.contains(*i)
+                    && !self.b(i).is_some_and(|b| self.bounded_settler(b))
                     && self
                         .b(i)
                         .is_some_and(|bi| settled.iter().any(|a| self.b(a).is_some_and(|ba| self.behind(bi, ba))))

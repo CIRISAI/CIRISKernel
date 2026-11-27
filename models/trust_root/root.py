@@ -544,7 +544,10 @@ class Root:
     def _rv(self, settled, ids, keep=frozenset()):
         """The bundles of `ids` behind any of the bundles `settled`, and every bundle built on one but a join; `keep`
         (bundles a concurrent row of the reader settled) apart."""
-        out = {i for i in ids if i not in keep and any(self.behind(self.by[i], self.by[a]) for a in settled)}
+        # (a bounded settler states nothing of its own and decides its head: no line closes it; MUTATION
+        # settler_closed_by_line: a later settled bundle closes it as any bundle behind it)
+        out = {i for i in ids if i not in keep and any(self.behind(self.by[i], self.by[a]) for a in settled)
+               and ("settler_closed_by_line" in MUT or not self.bounded_settler(self.by[i]))}
         changed = True
         while changed:
             changed = False

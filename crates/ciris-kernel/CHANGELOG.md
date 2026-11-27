@@ -30,6 +30,12 @@ with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
   own: the reader is at the sibling it names.
 - Settler equivocation (rule 6 read over settlers): a holder that signs two settlers at one head naming different
   siblings has no say in settling that head; both its settler signatures count for nothing.
+- The fork-point residual (r81), stated: "At a fork point the honest line's removals are not yet in force, so the
+  holders it removed keep a say there. With one turncoat (a double signer of the bare-majority step), they can force
+  a split among those with a say, and hold a reader whose devices saw both sides at the fork point, where it reads
+  them as holders and they can halt it. The exit is re-rooting, or one of them signing the honest settler." A
+  bounded settler is closed by no line: it states nothing and decides its head, so a reader whose device settled
+  past the fork point still reads it.
 - The halt residual, stated: holders a later line removed can halt a reader that has not yet settled onto that line.
 - A root is the lineage of a genesis bundle (`RootBundle`, a signed object the store presents with its statements
   checked). The first bundle is counted over every holder it lists, a later one over a strict majority of its

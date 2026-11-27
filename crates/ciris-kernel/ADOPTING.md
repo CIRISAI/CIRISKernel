@@ -129,6 +129,10 @@ migrations, and the local operational store.
   line on the sibling that stands (b2 and b3 in the stall world) as its own mechanical act, with no step for the
   person: an acknowledgement settles only over its own past, so the earlier ones made before the settler do not.
   A holder that signs two settlers at one head naming different siblings has no say in settling that head.
+- The fork-point residual: "At a fork point the honest line's removals are not yet in force, so the holders it
+  removed keep a say there. With one turncoat (a double signer of the bare-majority step), they can force a split
+  among those with a say, and hold a reader whose devices saw both sides at the fork point, where it reads them as
+  holders and they can halt it. The exit is re-rooting, or one of them signing the honest settler."
 - A community's protocol is a word of the set under which no one voice decides (`seat::community_protocol`): not
   `quorum:1/{n}`, not `founder_only` (a family's; families are not built), not a weighted record one of whose
   weights reaches its threshold. A change of its record states no policy and meets both the protocol in force and

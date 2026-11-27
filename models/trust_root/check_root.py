@@ -503,8 +503,8 @@ def SETTLE(i, x, signers, sib, head="b0"):
     """A bounded settler at `head`: it names the contested siblings `sib` and settles toward `x`, stating nothing of
     its own (x's holders, seats, charter and recovery commitments)."""
     X = sib[x]
-    return nxt(i, head, X["holders"], signers, seats=X["seats"], charter=X["charter"], names=tuple(sorted(sib)),
-               settles=x, recovery=X["recovery"])
+    return nxt(i, head, X["holders"], signers, version=X["version"], seats=X["seats"], charter=X["charter"],
+               names=tuple(sorted(sib)), settles=x, recovery=X["recovery"])
 STS = {"b1": SB1, "s0": SS0}
 # five holders, h1 h2 h3 double-signed (c1 keeps all and adds h6, c0 cuts h4 and h5): h4 and h5 have a say
 SC1 = nxt("b1", "b0", H5 + ("h6",), ("h1", "h2", "h3"))
@@ -514,6 +514,11 @@ SC5 = {"b1": SC1, "s0": SC0}
 SA1 = nxt("b1", "b0", H3 + ("h4",), ("h1", "h2", "h3"))
 SA0 = nxt("s0", "b0", ("h1", "h2"), ("h1", "h2", "h3"))
 SA = {"b1": SA1, "s0": SA0}
+# r81 jr.py: a recovery successor and the settler's base
+JB1 = nxt("b1", "b0", H3 + ("h4",), ("h1", "h2", "h3"))
+JS0 = nxt("s0", "b0", ("h1", "h2", "X"), ("h1", "h2"))
+JB2 = nxt("b2", "b1", H5, ("h1", "h3", "h4"), version=2)
+JRC = nxt("rc", "b0", ("h1", "h2", "h3x"), ("r:h3",), recovers=("h3", "h3x"), recovery={"h1": "r:h1", "h2": "r:h2", "h3x": "r:h3x"})
 CASES += [
     ("settle", "ST1, the stall: a reader that acknowledged s0 first, then b2 and b3, is at b0", STL, (), (),
      RD(anchor="b0", acks=("s0", "b2", "b3")), {"heads": ("b0",), "holders": set(H3)}),
@@ -563,6 +568,16 @@ CASES += [
                "toward b1 decides, whatever order the two are read in: b1",
      STL + [SETTLE("sz", "s0", ("h1", "h2"), {"s0": SS0}), SETTLE("st", "b1", ("h3",), STS)], (), (),
      RD(anchor="b0", acks=("s0", "b2", "b3", "sz", "st")), {"concluded": {"sz": Fa, "st": T}, "heads": ("b1",)}),
+    ("settle", "JR0: h1 and h2 double-signed at b0 (b1 keeps all and adds h4; s0 cuts h3); h3 settles toward b1: b1",
+     [B0, JB1, JS0, JB2, SETTLE("st", "b1", ("h3",), {"b1": JB1, "s0": JS0})], (), (), RD(anchor="b0", acks=("s0", "b1", "st")),
+     {"concluded": {"st": T}, "heads": ("b1",), "holders": {"h1", "h2", "h3", "h4"}}),
+    ("settle", "JR1: a recovery of h3's seat at b0 (by r:h3) neither shrinks nor inflates the settler's base: it is "
+               "behind b1, which h3 signed (recovery_behind_head), concludes nothing, and h3's settler stands: b1",
+     [B0, JB1, JS0, JB2, JRC, SETTLE("st", "b1", ("h3",), {"b1": JB1, "s0": JS0})], (), (),
+     RD(anchor="b0", acks=("s0", "b1", "st")), {"concluded": {"rc": Fa, "st": T}, "heads": ("b1",)}),
+    ("settle", "JR1b: the reader that acknowledged b2 first is at b2",
+     [B0, JB1, JS0, JB2, JRC, SETTLE("st", "b1", ("h3",), {"b1": JB1, "s0": JS0})], (), (), RD(anchor="b0", acks=("b2",)),
+     {"heads": ("b2",), "holders": set(H5)}),
     ("settle", "(5) EDGE (stated): every holder double-signed (h1 h2 h3 on a1 and a0): the base is empty, nothing "
                "settles, and the reader re-roots", [B0, SA1, SA0, SETTLE("st", "b1", ("h1", "h2", "h3"), SA)], (), (),
      RD(anchor="b0", acks=("s0", "b1", "st")), {"concluded": {"st": Fa}, "heads": ("b0",)}),
@@ -600,6 +615,34 @@ CASES += [
               "t, b2 for b3), so over what the reader holds b2 and t1 contest (rule 6): the reader is at b1, and X is "
               "not in force", DL + [DB3], (), (), RD(anchor="b0", acks=("b2", "b3", "t"), after=((), (0,), ())),
      {"heads": ("b1",), "holders": set(H5)}),
+    ("rules", "CD1 EDGE (the fork-point residual, r81): one device at b3, the other concurrently at t: at b1", DL + [DB3],
+     (), (), RD(anchor="b0", acks=("b2", "b3", "t"), after=((), (0,), ())), {"heads": ("b1",), "holders": set(H5)}),
+    ("rules", "CD2 EDGE: the other device acks t1 and t in two rows: at b1", DL + [DB3], (), (),
+     RD(anchor="b0", acks=("b2", "b3", "t1", "t"), after=((), (0,), (), (2,))), {"heads": ("b1",), "holders": set(H5)}),
+    ("rules", "CD3 EDGE (the newcomer residual): a new reader whose only device acks t is at t", DL + [DB3], (), (),
+     RD(anchor="b0", acks=("t",)), {"heads": ("t",), "holders": {"h1", "h2", "h3", "X"}}),
+    ("rules", "CD4 EDGE: at a fork point the honest line's removals are not yet in force, so the holders it removed "
+              "keep a say there: at b1 those with a say are h1 h2 h4 h5 (h3 double-signed); h4 and h5's settler "
+              "toward b2 is two of four: refused, and the reader stays at b1",
+     DL + [DB3, SETTLE("sb", "b2", ("h4", "h5"), {"b2": DB2, "t1": DT1}, head="b1")], (), (),
+     RD(anchor="b0", acks=("b2", "b3", "t", "sb"), after=((), (0,), (), (0, 1, 2))),
+     {"concluded": {"sb": Fa}, "heads": ("b1",), "holders": set(H5)}),
+    ("rules", "CD5 EDGE: h1 and h2 (removed at b2, a say at b1) settle toward t1: two of four, refused: b1",
+     DL + [DB3, SETTLE("st", "t1", ("h1", "h2"), {"b2": DB2, "t1": DT1}, head="b1")], (), (),
+     RD(anchor="b0", acks=("b2", "b3", "t", "st"), after=((), (0,), (), (0, 1, 2))),
+     {"concluded": {"st": Fa}, "heads": ("b1",), "holders": set(H5)}),
+    ("rules", "CD6 EDGE: both settlers: a split among those with a say, the reader held at b1, where it reads h1 and "
+              "h2 as holders (they can halt it); the exit is re-rooting, or one of them signing the honest settler",
+     DL + [DB3, SETTLE("sb", "b2", ("h4", "h5"), {"b2": DB2, "t1": DT1}, head="b1"),
+           SETTLE("st", "t1", ("h1", "h2"), {"b2": DB2, "t1": DT1}, head="b1")], (), (HALT("hx", "h1"),),
+     RD(anchor="b0", acks=("b2", "b3", "t", "sb", "st"), after=((), (0,), (), (0, 1, 2), (0, 1, 2, 3))),
+     {"concluded": {"sb": Fa, "st": Fa}, "heads": ("b1",), "halt": {"hx": (True, None)}}),
+    ("rules", "and the exit: h1 signs the honest settler too (h1 h4 h5, three of four): b2 stands, t1 and t fall, and "
+              "the reader is at b3, which its first device settled onto (a settler is closed by no line: it states "
+              "nothing and decides its head)",
+     DL + [DB3, SETTLE("sb", "b2", ("h1", "h4", "h5"), {"b2": DB2, "t1": DT1}, head="b1")], (), (),
+     RD(anchor="b0", acks=("b2", "b3", "t", "sb"), after=((), (0,), (), (0, 1, 2))),
+     {"concluded": {"sb": T}, "heads": ("b3",), "holders": {"h3", "h4", "h5", "h6"}}),
     ("rules", "order case (1): the honest line advanced first (b3), a reader at b3: t1 is behind its line, and b2 and b3 "
               "stand", [B0, DB1, DB2, DB3, DT1], (), (), RD(anchor="b0", acks=("b3",)), {"heads": ("b3",)}),
     ("rules", "order case (2): a reader that acknowledged only b2, holding t1 and b3: t1 contests b2 (rule 6), and b3 "
@@ -712,7 +755,8 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "double_signer_halt_suppressed", "double_signer_mark_carried",
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
           "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names",
-          "concurrent_keep_bundle_only")
+          "concurrent_keep_bundle_only",
+          "settler_closed_by_line")
 
 
 def answer(bs, rv, gs, rd, want):
