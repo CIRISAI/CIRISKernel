@@ -171,6 +171,26 @@ The fixture is also for adopters. Each case has `rows` (`id`, `kind`, `signer`, 
 null holds a row the Constitution's text refuses at the door (`act_names_no_head`); an adopter runs the cases
 whose `refused` is null.
 
+### A private room's row door, for a verifier
+
+`tests/fixtures/room_keys.json` is written from `models/causal_kernel/room_key_vectors.py` (16 cases,
+CIRISConstitution#224, CC 3.1.3.2) for a verifier's pure check of one row of a room: the signer is a room key at
+all (its key record names a room), its record names this room, the row names exactly one head of the voice's key
+roster under `refs.also.voice`, and the key is a live key of the voice at that head. The roster fold stays the
+kernel's: each case carries the view it gives.
+
+- `roster_rows`: the voices' own rosters (seat rows of scope `key` over the voice, as `seat.py` writes them),
+  from which every view is folded; `records`: every key record (`key`, `room` or null, `identity_type`).
+- each case: `name`, `ledger`, `membership` (`private` or `public`), `room`, `row` (`id`, `kind`, `room`, `iss`
+  the voice, `kid` the key that signed, `refs.also.voice` the heads named), `records` (the signer's record, or
+  none), `view` (`voice`, `heads`, `live_keys`: the voice's live room keys at that head by `seat.members_at`,
+  empty unless exactly one head is named), `verdict` (`admitted`, `refused` or `concludes_nothing`), `refusal`
+  (`room_row_signer_not_room_key`, `room_key_other_room`, or null), and `kernel` (the kernel's own reading of the
+  live-key clause, `roomkey.rule`, which the generator checks against the verdict).
+- the text names no refusal for a row with no voice head, several, or a key that is not live there: such a row
+  concludes nothing, with `refusal` null. The order "signer a room key" before "its record's room" is the
+  generator's; no case meets both. A public room's row is not checked.
+
 ### Room content after a member's seat ends
 
 `content::answers` is checked against `models/causal_kernel/conferral_content.py`:

@@ -778,6 +778,10 @@ def main():
     dump("conferral_content_worlds.json", CK.worlds_fixture(), out)
     import check_conferral_two as C2
     dump("conferral_two.json", C2.fixture(), out)
+    # a private room's row door for a verifier (CIRISConstitution#224): the cases of room_key_vectors.py, each with its
+    # row, the key records, the voice's roster view the kernel folds and the verdict
+    import room_key_vectors as RKV
+    dump("room_keys.json", enc(RKV.fixture()), out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():
