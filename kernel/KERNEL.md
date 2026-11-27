@@ -249,11 +249,11 @@ delegate only with the delegate's own signature (CC 4.4.3.19), and a custodian h
 need none and say why: a node in an infrastructure community, a key of a person's own roster, and a device
 under its owner. **open**: how the second signature travels and from when a delegation without it stops
 seating are not settled. **measured** (`manifests/family_model.json` (parent repository), `formal/derivation/confers_text.tsv` (parent repository)): what a family confers is
-stated for 162 of 188 families (the family model at the Constitution's `rc23` `f73162c`, sha256 `47cd8fec`, the
-pin of `data/family_placement.json`). 138 claim and content families take one default, that a claim seats no one
+stated for 163 of 189 families (the family model at the Constitution's `rc23-next` `d103e60`, sha256 `f5a38b47`,
+the pin of `data/family_placement.json`). 139 claim and content families take one default, that a claim seats no one
 (CC 3.4.5.1). Twenty consents take their seat from `family_shapes.tsv`, and four families have a sentence of
 their own. **open**: 26 families confer nothing that a sentence states: 23 doors, two consents the shape
-table cannot run, and the consent prefix. Which segment of a family's name binds a key is filled for 160
+table cannot run, and the consent prefix. Which segment of a family's name binds a key is filled for 161
 families; 28 have a segment that names another row and no word yet says so, a limit CC 8.3.4 names. Which answers read a family's
 rows is filled for all 184 from the expression language: every family is read by **state** and **stands**
 through the default fold, a default checked for none of the 83 that take it, and 42 are also read by another
@@ -280,12 +280,14 @@ signed both (CC 5.2). No member carries another member's signed row out. **prove
 `nothing_leaves`, `others_elsewhere_change_nothing`, `author_carries`, `same_room_unchanged`. The cost: a cut
 that names a row of another room waits until that row's signer carries it. What must not travel is proof of
 who said it or of who is in the room, which is section 7b. **measured** (`formal/derivation/placement_text.tsv` (parent repository)): no placement cell
-is empty. Of 188 families, 143 take the one default, the scope each row carries with the audience CC 5.2 gives
-it, 23 are pinned by the CC table, and 22 are placed by code, prose or a gap rather than the table. **run**
+is empty. Of 189 families (the family model at the Constitution's `rc23-next` `d103e60`, sha256 `f5a38b47`), 143
+take the one default, the scope each row carries with the audience CC 5.2 gives it, 34 are pinned by the CC table,
+and 12 are placed by code, prose or a gap rather than the table. **run**
 (`models/causal_kernel/audience.py`, `check_audience.py`, over `data/family_placement.json`; the crate's
 `audience`): every family in every cohort scope is placed with its audience as keys, refused, or Undecided naming
-the family; the copy rule is run with it. **open**: the 22 families whose placement cell is not table data answer
-Undecided until the Constitution states them. CC 8.3.4 names this as a limit.
+the family; the copy rule is run with it. **open**: the 12 families whose placement cell is not table data (the five held
+shut, custody, duty, ownership, stream:head, and the code cells of community:listing, group:roster and membership)
+answer Undecided until the Constitution states them. CC 8.3.4 names this as a limit.
 
 **window.** A row opens a clock. An answering row closes it, or time does, and the table states the outcome at
 the close. A window names its opener and the acknowledgement by which the concluding party first held it. Where the
@@ -367,7 +369,7 @@ most one lease against that person's other devices.
 
 Every row family is one of four shapes: a **consent**, a **door**, a **claim** or **content**. A roster is a
 consent given by a count, and an acknowledgement is a claim. **measured**
-(`formal/derivation/family_shapes.tsv` (parent repository), `formal/causal_kernel/check_shapes.py` (parent repository)): of the 188 families (the same pin), 114
+(`formal/derivation/family_shapes.tsv` (parent repository), `formal/causal_kernel/check_shapes.py` (parent repository)): of the 189 families (the same pin), 115
 are claims, 24 content, 25 doors, 15 consents and 7 both a consent and a door. Three fit none.
 
 The four are labels over two mechanisms. Removing the shapes in order, three orders leave the same two:
@@ -694,7 +696,7 @@ that the ending row has not seen from counting.
 | Which rows seat which key in which role: what 20 doors and 3 other families confer, 29 name segments that point at another row, the 23 roles as one walk | table data | `manifests/family_model.json` (parent repository) |
 | A roster version naming several heads: an optional list beside the head it names now | wire | agreed with the store |
 | One acknowledgement of a head covering everything beneath it, in place of one for each row | wire | agreed with the store |
-| The placement of the 22 families whose cell is not table data (they answer Undecided); the transport reading placement and the copy rule as the `missing` answer | table data, with transport | `manifests/family_model.json` (parent repository) |
+| The placement of the 12 families whose cell is not table data (they answer Undecided); the transport reading placement and the copy rule as the `missing` answer | table data, with transport | `manifests/family_model.json` (parent repository) |
 | 16 things `doors.tsv` lists as stated by no table, and three stated and not run | table data | `formal/causal_kernel/doors.tsv` (parent repository) |
 | 47 cells with a word the expression language does not carry, and eight folds a reaction calls that no cell defines, each listed with the sentence it needs | table data | `tools/kx_maxima.tsv` (parent repository) |
 | Constants out of config | table data | `constitution/constants.tsv` (parent repository) |

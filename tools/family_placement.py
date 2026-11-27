@@ -16,7 +16,9 @@ For each family the placement cell gives one of:
 
 A re-pin is one command:
 
-    python3 -I tools/family_placement.py [path/to/family_model.json] [--provisional]
+    python3 -I tools/family_placement.py [path/to/family_model.json] [--provisional | --final]
+        [--branch B --commit C]       the source's branch and commit, where the file is not read from a checkout
+                                      at that commit (`git show C:manifests/family_model.json > file`)
     python3 -I tools/family_placement.py --check [path]   exit 1 if the Rust constant is not the vendored table's,
                                                           or (with a path) the vendored table is not that file's
 """
@@ -34,9 +36,15 @@ RUST_NAME = {"self_collective": "SelfCollective", "targeted_family": "TargetedFa
              "targeted_room": "TargetedRoom", "commons": "Commons", "addressed": "Addressed"}
 
 
+def opt(argv, name):
+    """The value after `--name`, where given."""
+    return argv[argv.index(name) + 1] if name in argv else None
+
+
 def source_path(argv):
+    vals = {opt(argv, "--branch"), opt(argv, "--commit")}
     for a in argv[1:]:
-        if not a.startswith("--"):
+        if not a.startswith("--") and a not in vals:
             return os.path.abspath(a)
     for p in (os.path.join(ROOT, "..", "CIRISConstitution", "manifests", "family_model.json"),
               os.path.join(os.path.expanduser("~"), "CIRISConstitution", "manifests", "family_model.json")):
@@ -76,7 +84,8 @@ def derive(path):
     meta = model["_meta"]["placement"]
     return {
         "_source": {"repository": "CIRISConstitution", "path": "manifests/family_model.json",
-                    "branch": git(repo, "rev-parse", "--abbrev-ref", "HEAD"), "commit": git(repo, "rev-parse", "HEAD"),
+                    "branch": opt(sys.argv, "--branch") or git(repo, "rev-parse", "--abbrev-ref", "HEAD"),
+                    "commit": opt(sys.argv, "--commit") or git(repo, "rev-parse", "HEAD"),
                     "sha256": hashlib.sha256(raw).hexdigest(), "families": len(fams),
                     "on_the_default": sum(f["allowed"] == list(PLACEMENTS[:4]) and f["undecided"] is None
                                           and _is_default(model, f["family"]) for f in fams),
@@ -131,7 +140,8 @@ def main():
         # the Rust constant is the vendored table's; with a source path given, the table is that file's too
         table = json.load(open(DATA, encoding="utf-8"))
         bad = [] if open(RUST).read() == rust(table) else [RUST]
-        if any(not a.startswith("--") for a in sys.argv[1:]):
+        if any(not a.startswith("--") and a not in {opt(sys.argv, "--branch"), opt(sys.argv, "--commit")}
+               for a in sys.argv[1:]):
             fresh = derive(source_path(sys.argv))
             fresh["_source"]["provisional"] = table["_source"].get("provisional", False)
             if json.dumps(fresh, indent=1, ensure_ascii=False) + "\n" != open(DATA, encoding="utf-8").read():

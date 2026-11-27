@@ -142,10 +142,22 @@ CASES = [
     ("targeted_no_room", "a targeted row names its room",
      [row("m", "chat:general", "community")], {"m": REF("no_room")}),
     ("undecided_family", "a family whose placement cell is not table data answers Undecided naming the family",
-     [row("k", "act:ack", "community", room="r1"), row("q", "key:record", "self")],
-     {"k": UND("act:ack"), "q": UND("key:record")}),
+     [row("k", "stream:head", "community", room="r1"), row("q", "preserve_request", "self")],
+     {"k": UND("stream:head"), "q": UND("preserve_request")}),
     ("undecided_by_pattern", "an undecided family matched by a pattern names the pattern",
-     [row("k", "window:open", "community", room="r1")], {"k": UND("window:{state}")}),
+     [row("k", "custody:blob", "community", room="r1")], {"k": UND("custody:{kind}")}),
+    # families the Constitution's placement lane stated (d103e60): undecided before it
+    ("ack_placed", "an acknowledgement (act:ack) is placed by its scope: at the community, the roster",
+     [row("k", "act:ack", "community", room="r1")], {"k": P("targeted_room", ROOM)}),
+    ("window_not_commons", "a window row is placed at self, a family or a room, never the commons",
+     [row("k", "window:open", "community", room="r1"), row("q", "window:open", "federation")],
+     {"k": P("targeted_room", ROOM), "q": REF("placement_not_allowed")}),
+    ("key_record_room_or_commons", "a key record is placed at a room or the commons, not at self",
+     [row("k", "key:record", "federation"), row("q", "key:record", "self")],
+     {"k": P("commons", AU.EVERYONE), "q": REF("placement_not_allowed")}),
+    ("contribution_commons", "a contribution is pinned to the commons",
+     [row("k", "contribution:person", "federation"), row("q", "contribution:person", "community", room="r1")],
+     {"k": P("commons", AU.EVERYONE), "q": REF("placement_not_allowed")}),
     ("unknown_family", "a family no pattern matches is refused",
      [row("m", "nosuch:thing", "community", room="r1")], {"m": REF("family_unknown")}),
     ("most_literal_pattern", "accord:lifecycle is its own family, not accord:*",
@@ -198,17 +210,20 @@ def generated():
     return out
 
 
-# A family pinned to two placements apart, self and federation: regard:{subject_kind} (a reader's weight at self, a
-# vouch at federation), approved and landing with the 22 placements. Its cases run once the pinned table holds it.
+# regard:{subject_kind} (a reader's weight at self, a vouch at federation), new at d103e60. The table states it at the
+# four scopes of the default (a cc-table cell naming all four), so it is placed at a family and a room too. Its cases
+# run once the pinned table holds it.
 REGARD = "regard:{subject_kind}"
 REGARD_CASES = [
     ("regard_self", "a regard placed at self: the reader's own weight, its own keys",
      [row("g", "regard:person", "self")], {"g": P("self_collective", ["a", "a2"])}),
     ("regard_federation", "a regard placed at the federation: a vouch, for everyone",
      [row("g", "regard:person", "federation")], {"g": P("commons", AU.EVERYONE)}),
-    ("regard_not_in_a_room", "a regard is not placed at a family or a room",
+    ("regard_in_a_room", "the table states regard at a family and a room as well: placed there, the roster",
      [row("g", "regard:person", "community", room="r1"), row("h", "regard:person", "family", room="r1")],
-     {"g": REF("placement_not_allowed"), "h": REF("placement_not_allowed")}),
+     {"g": P("targeted_room", ROOM), "h": P("targeted_family", ROOM)}),
+    ("regard_not_addressed", "regard is not addressed",
+     [row("g", "regard:person", "addressed", named=["d"])], {"g": REF("placement_not_allowed")}),
 ]
 
 

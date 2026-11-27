@@ -4,8 +4,11 @@
 
 **Audience and placement, family by family** (new module `audience`, both languages). The family model's placement
 cells (the Constitution's `manifests/family_model.json`, derived and pinned by `tools/family_placement.py` into
-`data/family_placement.json` and `audience::FAMILIES`; a provisional pin at `rc23` `f73162c`): 188 families, 143 on
-the default, 23 pinned by the CC table, 22 whose cell is not table data. `audience::place` gives a row's placement
+`data/family_placement.json` and `audience::FAMILIES`; a provisional pin at `rc23-next` `d103e60`, sha256 `f5a38b47`, until it
+reaches `rc23`): 189 families, 143 on the default, 34 pinned by the CC table, 12 whose cell is not table data (the
+re-pin from `f73162c` added `regard:{subject_kind}` and stated ten families from the text: `act:ack`,
+`admission:unit`, `contribution`, `identity:occurrence`, `identity:occurrence_revocation`, `key:record`,
+`key:revocation`, `key_grant`, `location_proof`, `window`). `audience::place` gives a row's placement
 from the cohort scope it states and its audience as KEYS (the room's roster, the signer's own keys, the keys it
 names; everyone in the commons), or the refusal (`family_unknown`, `scope_unknown`, `placement_not_allowed`,
 `named_outside_audience`, `no_room`), or `Placed::Undecided` naming the family where its cell is not table data;
@@ -14,7 +17,7 @@ names; everyone in the commons), or the refusal (`family_unknown`, `scope_unknow
 removal its removed key; any other key off the roster is still refused. The roster is the roster as it stands (CC 5.2 as ruled: a member removed later is
 owed nothing further), less the members admitted after the row unless its `history_on_join` is `full`: the row's own
 (`AudienceRow::history_on_join`), else the room record's (`audience::Joins::history`), else `from_join` (CC 2.1, CC
-4.4.3.16); a member admitted concurrently with the row (neither in the other's past) is owed it. **BREAKING** within this release: `audience::place` and `audiences` take `&audience::Joins`. `check_audience.py` (940 generated answers, 35 cases, nine
+4.4.3.16); a member admitted concurrently with the row (neither in the other's past) is owed it. **BREAKING** within this release: `audience::place` and `audiences` take `&audience::Joins`. `check_audience.py` (945 generated answers, 43 cases, nine
 planted breaks), fixture `audience.json`, `tests/audience.rs`, seven crate plants.
 
 **Room content: receipts, the reader's line, key removals, rooms** (`content`, both languages, with cases, planted
