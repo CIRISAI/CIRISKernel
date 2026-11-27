@@ -102,6 +102,8 @@ pub const HOP_CAP: u32 = 5;
 
 /// Whether the walk from `from`, with `budget` hops, reaches authority `a` for class `c`
 /// (`TrustSet.reaches`). Each key is expanded only with the greatest budget it has been reached with.
+///
+/// Reach only: no licence answer. Whether a reader honours a licence is [`crate::trust_rows::read_licence`], from rows.
 pub fn reaches<K: Ord + Clone, C: Ord>(edges: &[Accepts<K, C>], from: &K, c: &C, budget: u32, a: &K) -> bool {
     walk_from(from, c, budget, a, |k, see| edges.iter().filter(|e| e.src == *k).any(see))
 }
@@ -158,7 +160,8 @@ impl<'e, K: Ord + Clone, C: Ord> EdgeIndex<'e, K, C> {
         by_src.sort_by(|&x, &y| edges[x].src.cmp(&edges[y].src));
         EdgeIndex { edges, by_src }
     }
-    /// [`reaches`] over the indexed edges: the same answer.
+    /// [`reaches`] over the indexed edges: the same answer. Reach only: no licence answer; use
+    /// [`crate::trust_rows::read_licence`].
     pub fn reaches(&self, from: &K, c: &C, budget: u32, a: &K) -> bool {
         walk(self.edges, &self.by_src, from, c, budget, a)
     }

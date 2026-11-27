@@ -94,6 +94,28 @@ def counted(yes, n):
     return yes >= 2 and 2 * yes > n
 
 
+# ---- three readings with the Constitution (the lead's suggestions: the community's DECLARED protocol for (1) and
+# (2), any live key of a person's roster for (3)). Each is read in this one place until it rules.
+def members_count(T, signers, community):
+    """READING (2), pending: the members' count of a community with no duty holder left, for its onward edge: a strict
+    majority of its members, never fewer than two where there are two or more, or a lone member alone."""
+    mem = ST.Seats(T).holders("member", community)
+    return counted(len(signers & mem), len(mem))
+
+
+def community_quorum(T, signers, community):
+    """READING (1), pending: the quorum whose cosignatures make a licence a community's act: a strict majority of its
+    members, never fewer than two where there are two or more, or a lone member alone."""
+    mem = ST.Seats(T).holders("member", community)
+    return counted(len(signers & mem), len(mem))
+
+
+def is_the_authority(T, k, a):
+    """READING (3), pending: the licence's emitter `k` IS authority `a`: the authority's own key, not another live key
+    of its roster (that one issues only by holding a license seat)."""
+    return k == a
+
+
 def speaks_for(T, signers, src):
     """(a) The keys `signers` are `src`'s authority set over the rows T (a row's own past)."""
     if "edge_any_signer" in MUT:
@@ -111,8 +133,7 @@ def speaks_for(T, signers, src):
             return counted(len(signers & duty), len(duty))
         if "members_fallback_unread" in MUT:
             return False
-        mem = Q.holders("member", src)
-        return counted(len(signers & mem), len(mem))
+        return members_count(T, signers, src)
     # a person: the key itself, or a live key of its roster
     if src in signers:
         return True
@@ -194,13 +215,11 @@ def standing(S, lic):
     withdrawal concurrent with it, held, ends a link of its standing)."""
     r = S.by[lic]
     a, k = r["authority"], r["signer"]
-    if k == a or "issuer_unread" in MUT:
-        return None
     T = past_state(S, r)
-    if is_community(T, a) and "quorum_unread" not in MUT:
-        mem = ST.Seats(T).holders("member", a)
-        if counted(len(ST.signers(r) & mem), len(mem)):
-            return None
+    if is_the_authority(T, k, a) or "issuer_unread" in MUT:
+        return None
+    if is_community(T, a) and "quorum_unread" not in MUT and community_quorum(T, ST.signers(r), a):
+        return None
     if "chain_unread" in MUT or not ST.Seats(T).stands(k, "license", a):
         return "licensure_delegator_not_authority"
     if "concurrent_unread" in MUT:

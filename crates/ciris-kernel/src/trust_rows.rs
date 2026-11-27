@@ -119,6 +119,37 @@ fn past_of<'a, R: Row>(c: &Concluded<'a, R>, i: usize, extra: &[usize]) -> Concl
     Concluded::with(g, Some(idx.iter().map(|&j| c.concluded(j)).collect()))
 }
 
+// ---- three readings with the Constitution (the lead's suggestions: the community's DECLARED protocol for (1) and
+// (2), any live key of a person's roster for (3)). Each is read in this one place until it rules.
+
+/// READING (2), pending: the members' count of a community with no duty holder left, for its onward edge: a strict
+/// majority of its members, never fewer than two where there are two or more, or a lone member alone.
+fn members_count<R: SeatRow, S: CutSpec<R>>(
+    seats: &Seats<'_, '_, R, S>,
+    who: &BTreeSet<&R::Key>,
+    c: &ObjOf<R>,
+) -> bool {
+    let mem = seats.holders("member", c, None);
+    counted(mem.iter().filter(|k| who.contains(k)).count(), mem.len())
+}
+
+/// READING (1), pending: the quorum whose cosignatures make a licence a community's act: a strict majority of its
+/// members, never fewer than two where there are two or more, or a lone member alone.
+fn community_quorum<R: SeatRow, S: CutSpec<R>>(
+    seats: &Seats<'_, '_, R, S>,
+    who: &BTreeSet<&R::Key>,
+    c: &ObjOf<R>,
+) -> bool {
+    let mem = seats.holders("member", c, None);
+    counted(mem.iter().filter(|k| who.contains(k)).count(), mem.len())
+}
+
+/// READING (3), pending: the licence's emitter `k` IS authority `a`: the authority's own key, not another live key of
+/// its roster (that one issues only by holding a license seat). `seats` is over the licence's own past.
+fn is_the_authority<R: SeatRow, S: CutSpec<R>>(_seats: &Seats<'_, '_, R, S>, k: &R::Key, a: &ObjOf<R>) -> bool {
+    *a == Obj::Key(k.clone())
+}
+
 /// Whether the keys `who` are `src`'s authority set over the rows `seats` was built on (a row's own past).
 fn speaks_for<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, who: &BTreeSet<&R::Key>, src: &ObjOf<R>) -> bool {
     match src {
@@ -133,8 +164,10 @@ fn speaks_for<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, who: &BTre
                 return false;
             }
             let duty = seats.holders("duty", src, None);
-            let body = if duty.is_empty() { seats.holders("member", src, None) } else { duty };
-            counted(body.iter().filter(|k| who.contains(k)).count(), body.len())
+            if duty.is_empty() {
+                return members_count(seats, who, src);
+            }
+            counted(duty.iter().filter(|k| who.contains(k)).count(), duty.len())
         }
         // a person: the key itself, or a live key of its roster
         Obj::Key(k) => who.contains(k) || seats.holders("key", src, None).iter().any(|x| who.contains(x)),
@@ -209,19 +242,15 @@ pub fn standing<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, i: usiz
     let c = seats.c();
     let r = c.g.row(i);
     let Some(a) = r.licence_authority() else { return Some(NOT_AUTHORITY) };
-    if a == Obj::Key(r.signer().clone()) {
-        return None;
-    }
     let (law, spec) = (seats.law(), seats.spec());
     let sub = past_of(c, i, &[]);
     let (rc, _) = for_reader(&sub, law, spec, None);
     let at = Seats::new(&rc, law, spec, None);
-    if is_community(&at, &a) {
-        let mem = at.holders("member", &a, None);
-        let who = signers(r);
-        if counted(mem.iter().filter(|k| who.contains(k)).count(), mem.len()) {
-            return None;
-        }
+    if is_the_authority(&at, r.signer(), &a) {
+        return None;
+    }
+    if is_community(&at, &a) && community_quorum(&at, &signers(r), &a) {
+        return None;
     }
     if !at.stands(r.signer(), "license", &a, None) {
         return Some(NOT_AUTHORITY);
