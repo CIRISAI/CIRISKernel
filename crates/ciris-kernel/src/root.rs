@@ -121,6 +121,8 @@ pub struct Reader<I: Ord, K: Ord> {
     pub thumbs: Option<BTreeSet<K>>,
     /// The bundles it acknowledged.
     pub acks: BTreeSet<I>,
+    /// Its own acknowledgement rows in the root's lane (read only with [`Root::with_grant_line`]).
+    pub rows: BTreeSet<I>,
 }
 
 /// Why a bundle or a grant does not stand.
@@ -133,6 +135,8 @@ pub struct Root<'a, B: RootBundle, G: RootGrant> {
     revs: &'a [Revocation<B::Id, B::Key>],
     grants: BTreeMap<&'a B::Id, &'a G>,
     lane: crate::graph::Graph<'a, G>,
+    own: BTreeMap<B::Key, B::Key>,
+    grant_line: bool,
     past_memo: RefCell<BTreeMap<B::Id, BTreeSet<B::Id>>>,
     counted_memo: RefCell<BTreeMap<B::Id, Result<(), Reason>>>,
     void_memo: RefCell<Option<(BTreeSet<B::Id>, BTreeSet<B::Id>)>>,
@@ -151,10 +155,52 @@ where
             revs,
             grants: grants.iter().filter(|g| g.is_grant()).map(|g| (g.id(), g)).collect(),
             lane: crate::graph::Graph::new(grants.iter()),
+            own: Self::owners_of(bundles),
+            grant_line: false,
             past_memo: RefCell::new(BTreeMap::new()),
             counted_memo: RefCell::new(BTreeMap::new()),
             void_memo: RefCell::new(None),
         }
+    }
+
+    /// PROPOSED, pending the Constitution: grants on the reader's line, with bundles as heads. A grant naming a bundle
+    /// strictly older than one the reader acknowledged, and not in the past of the reader's own acknowledgement rows
+    /// ([`Reader::rows`]), is void for that reader. Off by default.
+    pub fn with_grant_line(mut self, on: bool) -> Self {
+        self.grant_line = on;
+        self
+    }
+
+    /// The union of a holder's keys: its key, its recovery key, and the key a recovery seats.
+    fn owners_of(bundles: &'a [B]) -> BTreeMap<B::Key, B::Key> {
+        let by: BTreeMap<&B::Id, &B> = bundles.iter().map(|b| (b.id(), b)).collect();
+        let mut own: BTreeMap<B::Key, B::Key> = BTreeMap::new();
+        fn find<K: Ord + Clone>(own: &BTreeMap<K, K>, k: &K) -> K {
+            let mut k = k.clone();
+            while let Some(n) = own.get(&k) {
+                if *n == k {
+                    break;
+                }
+                k = n.clone();
+            }
+            k
+        }
+        for b in bundles {
+            let Some((h, new)) = b.recovers() else { continue };
+            if b.prev().len() != 1 {
+                continue;
+            }
+            let Some(p) = by.get(&b.prev()[0]) else { continue };
+            let rk = Self::commitment(p, h);
+            for k in [Some(new.clone()), rk].into_iter().flatten() {
+                let (ra, rb) = (find(&own, h), find(&own, &k));
+                if ra != rb {
+                    let (lo, hi) = if ra < rb { (ra, rb) } else { (rb, ra) };
+                    own.insert(hi, lo);
+                }
+            }
+        }
+        own
     }
 
     fn b(&self, i: &B::Id) -> Option<&'a B> {
@@ -267,6 +313,23 @@ where
         {
             return self.prev_base(ps[0].prev());
         }
+        // a bundle naming recoveries of one seat contested among themselves: the seat as it was, their predecessor's
+        if ps.len() >= 2
+            && ps.iter().all(|q| q.recovers().is_some() && q.prev().len() == 1)
+            && ps
+                .iter()
+                .map(|q| (q.prev()[0].clone(), q.recovers().map(|(h, _)| h.clone())))
+                .collect::<BTreeSet<_>>()
+                .len()
+                == 1
+            && !prevs.iter().any(|a| prevs.iter().any(|b| self.in_past(a, b)))
+        {
+            return self.prev_base(ps[0].prev());
+        }
+        // several under one charter: their fold; whose charters differ: their common holders
+        if ps.len() >= 2 && ps.iter().map(|q| q.charter()).collect::<BTreeSet<_>>().len() == 1 {
+            return self.live(self.fold(prevs).0);
+        }
         let mut it = ps.iter();
         let Some(first) = it.next() else { return BTreeSet::new() };
         let mut hs: BTreeSet<B::Key> = first.holders().iter().cloned().collect();
@@ -374,10 +437,33 @@ where
         b.prev().iter().all(|p| cp.contains(p) && !c.prev().contains(p))
     }
 
+    /// The holder a key speaks for: a holder's key, its recovery key, and the key a recovery seats are one voice.
+    fn owner(&self, k: &B::Key) -> B::Key {
+        let mut k = k.clone();
+        while let Some(n) = self.own.get(&k) {
+            if *n == k {
+                break;
+            }
+            k = n.clone();
+        }
+        k
+    }
+
+    fn owners<'k>(&self, ks: impl IntoIterator<Item = &'k B::Key>) -> BTreeSet<B::Key>
+    where
+        B::Key: 'k,
+    {
+        ks.into_iter().map(|k| self.owner(k)).collect()
+    }
+
+    /// b's counted voices, as the holders they speak for: a recovery's is the recovering holder.
     fn voices_of(&self, b: &B) -> BTreeSet<B::Key> {
+        if let Some((h, _)) = b.recovers() {
+            return BTreeSet::from([self.owner(h)]);
+        }
         let base: BTreeSet<B::Key> =
             if b.prev().is_empty() { b.holders().iter().cloned().collect() } else { self.base(b) };
-        self.voices(b).intersection(&base).cloned().collect()
+        self.owners(self.voices(b).intersection(&base))
     }
 
     /// S'' and T: the bundles void (and contested recoveries).
@@ -396,21 +482,54 @@ where
         v
     }
 
+    /// Built on: void, but a join of both lines, which is counted without the void bundles it names.
+    fn close(&self, cs: &[&'a B], tv: &mut BTreeSet<B::Id>) {
+        loop {
+            let mut changed = false;
+            for c in cs {
+                if tv.contains(c.id()) || !c.prev().iter().any(|p| tv.contains(p)) {
+                    continue;
+                }
+                let pc = self.past(c.id());
+                let join = tv.iter().any(|f| {
+                    pc.contains(f)
+                        && self.b(f).is_some_and(|fb| cs.iter().any(|x| self.behind(fb, x) && pc.contains(x.id())))
+                });
+                if join {
+                    let keep: Vec<B::Id> = c.prev().iter().filter(|p| !tv.contains(*p)).cloned().collect();
+                    if !keep.is_empty() {
+                        let base = self.prev_base(&keep);
+                        if 2 * self.voices(c).intersection(&base).count() > base.len() {
+                            continue; // counted without the void bundles it names
+                        }
+                    }
+                }
+                tv.insert(c.id().clone());
+                changed = true;
+            }
+            if !changed {
+                break;
+            }
+        }
+    }
+
     fn void_of(&self) -> (BTreeSet<B::Id>, BTreeSet<B::Id>) {
         let mut contest: BTreeSet<B::Id> = BTreeSet::new();
         let cs = self.concluded();
         let forked = |b: &B| {
-            if b.prev().is_empty() || b.recovers().is_some() {
+            let first = b.prev().is_empty(); // a recovery is no exemption
+            if first {
                 return false;
             }
             let v = self.voices_of(b);
-            !v.is_empty() && v.iter().all(|k| cs.iter().any(|c| self.voices(c).contains(k) && self.behind(b, c)))
+            !v.is_empty()
+                && v.iter().all(|k| cs.iter().any(|c| self.owners(&self.voices(c)).contains(k) && self.behind(b, c)))
         };
         let out: Vec<&B> = cs.iter().copied().filter(|b| forked(b)).collect();
         let mut tv: BTreeSet<B::Id> = BTreeSet::new();
         for b in &out {
             let i = b.id();
-            let mem = self.base(b);
+            let mem = self.owners(&self.base(b));
             let beh: Vec<&B> = cs.iter().copied().filter(|c| self.behind(b, c)).collect();
             let fp = self.line(&b.prev()[0]);
             let mut chain: BTreeSet<B::Id> = BTreeSet::new();
@@ -441,28 +560,10 @@ where
                 tv.insert(i.clone());
             }
         }
-        // built on: void, unless a join of both lines
-        loop {
-            let mut changed = false;
-            for c in &cs {
-                if tv.contains(c.id()) || !c.prev().iter().any(|p| tv.contains(p)) {
-                    continue;
-                }
-                let pc = self.past(c.id());
-                let join = tv.iter().any(|f| {
-                    pc.contains(f)
-                        && self.b(f).is_some_and(|fb| cs.iter().any(|x| self.behind(fb, x) && pc.contains(x.id())))
-                });
-                if !join {
-                    tv.insert(c.id().clone());
-                    changed = true;
-                }
-            }
-            if !changed {
-                break;
-            }
-        }
-        // two recoveries of one seat, neither in the other's past, are contested
+        self.close(&cs, &mut tv);
+        // two recoveries of one seat, neither in the other's past: settled by T between them (of the live holders at
+        // their predecessor, those who built only on one recovery's line); short of the most, void; a tie at the
+        // most is contested, and neither replaces the seat until a bundle names both
         let recs: Vec<&B> = cs.iter().copied().filter(|c| c.recovers().is_some() && !tv.contains(c.id())).collect();
         let seat = |c: &B| (c.prev()[0].clone(), c.recovers().map(|(h, _)| h.clone()));
         let mut groups: BTreeMap<(B::Id, Option<B::Key>), BTreeSet<B::Id>> = BTreeMap::new();
@@ -483,23 +584,54 @@ where
                 g.insert(c.id().clone());
             }
         }
-        for g in groups.values() {
+        for ((pv, _), g) in &groups {
             if cs.iter().any(|c| !tv.contains(c.id()) && g.is_subset(&self.past(c.id()))) {
                 continue; // a bundle names both
             }
+            let mem = self.owners(&self.live(self.b(pv).map(|b| b.holders().to_vec()).unwrap_or_default()));
+            let mut side: BTreeMap<B::Id, BTreeSet<B::Key>> = BTreeMap::new();
+            for r in g {
+                let mut ks = BTreeSet::new();
+                for x in &cs {
+                    let line = self.line(x.id());
+                    if line.contains(r) && !g.iter().any(|q| q != r && line.contains(q)) {
+                        ks.extend(self.voices_of(x).intersection(&mem).cloned());
+                    }
+                }
+                side.insert(r.clone(), ks);
+            }
+            let only: BTreeMap<B::Id, usize> = g
+                .iter()
+                .map(|r| {
+                    let others: BTreeSet<B::Key> =
+                        g.iter().filter(|q| *q != r).flat_map(|q| side[q].iter().cloned()).collect();
+                    (r.clone(), side[r].difference(&others).count())
+                })
+                .collect();
+            let top = only.values().copied().max().unwrap_or(0);
+            let tied: BTreeSet<B::Id> = g.iter().filter(|r| only[*r] == top).cloned().collect();
+            for r in g {
+                if only[r] < top {
+                    tv.insert(r.clone()); // short of the most: void
+                }
+            }
+            if tied.len() < 2 {
+                continue;
+            }
             for c in &cs {
                 let line = self.line(c.id());
-                if !line.is_disjoint(g) && !g.is_subset(&line) {
+                if !line.is_disjoint(&tied) && !tied.is_subset(&line) {
                     tv.insert(c.id().clone());
-                    if g.contains(c.id()) {
+                    if tied.contains(c.id()) {
                         contest.insert(c.id().clone());
                     }
                 }
             }
         }
+        self.close(&cs, &mut tv);
         // a forked join: joins of the same tips under different charters are contested, neither stands, and a reader
-        // keeps the tips they tried to join; a bundle naming every one settles them (counted over those tips' common
-        // holders, prev_base); one built on some and not all is void with them
+        // keeps the tips they tried to join; a bundle naming every one settles them (counted over those tips' fold,
+        // or common holders, prev_base); one built on some and not all is void with them
         let mut jgroups: BTreeMap<BTreeSet<B::Id>, BTreeSet<B::Id>> = BTreeMap::new();
         for c in &cs {
             if self.contested_join(c.id()) {
@@ -527,6 +659,7 @@ where
                 break;
             }
         }
+        self.close(&cs, &mut tv);
         (tv, contest)
     }
 
@@ -705,6 +838,9 @@ where
         if named.is_empty() || named.iter().any(|n| !valid.contains(n)) {
             return false;
         }
+        if !self.antichain(named) {
+            return false;
+        }
         if named.iter().any(|n| self.b(n).is_none_or(|b| !b.duties().contains(g.duty()))) {
             return false;
         }
@@ -714,6 +850,11 @@ where
         }
         let base = self.live(self.fold(named).0);
         2 * g.signers().iter().collect::<BTreeSet<_>>().into_iter().filter(|k| base.contains(*k)).count() > base.len()
+    }
+
+    /// The bundles a grant names are an antichain: none in another's past.
+    fn antichain(&self, named: &[B::Id]) -> bool {
+        !named.iter().any(|a| named.iter().any(|b| self.in_past(a, b)))
     }
 
     /// The bundles a grant's signers had seen, derived from the rows in the grant row's own causal past: those
@@ -756,8 +897,25 @@ where
         if g.bundles().iter().any(|n| !valid.contains(n)) {
             return Err("grant_bundle_void");
         }
+        if !self.antichain(g.bundles()) {
+            return Err("grant_bundles_not_antichain");
+        }
         if !self.grant_row(gid) {
             return Err("grant_count_short");
+        }
+        if self.grant_line {
+            let mut seen: BTreeSet<usize> = BTreeSet::new();
+            for r in &rd.rows {
+                if let Some(i) = self.lane.idx(r) {
+                    seen.extend(self.lane.past(i, false));
+                }
+            }
+            let inside = self.lane.idx(gid).is_some_and(|gi| seen.contains(&gi));
+            let behind =
+                g.bundles().iter().any(|n| rd.acks.iter().any(|a| self.by.contains_key(a) && self.in_past(n, a)));
+            if !inside && behind {
+                return Err("grant_behind_reader_line");
+            }
         }
         if !g.bundles().iter().all(|n| hs.iter().any(|h| self.line(h).contains(n))) {
             return Err("grant_not_in_reader_lineage");

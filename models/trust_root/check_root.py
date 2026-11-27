@@ -475,9 +475,9 @@ def fixture(with_refs):
     def renc(rd):
         if rd is None: return None
         return {"anchor": rd["anchor"], "thumbs": sorted(rd["thumbs"]) if rd["thumbs"] is not None else None,
-                "acks": sorted(rd["acks"])}
+                "acks": sorted(rd["acks"]), "rows": sorted(rd.get("rows", ()))}
     cases = []
-    for rule, name, bs, rv, gs, rd, _ in CASES:
+    def one(rule, name, bs, rv, gs, rd, line):
         R = RT.Root(bs, rv, gs)
         f = R.in_force(rd)
         hs = R.heads(rd)
@@ -487,7 +487,15 @@ def fixture(with_refs):
                       "void": sorted(R.void()), "heads": list(hs) if hs is not None else None,
                       "holders": sorted(f[0]) if f else None, "seats": sorted(f[1]) if f else None,
                       "grant": {g["id"]: list(R.grant_in_force(g["id"], rd)) for g in gs if g["kind"] == "grant"},
-                      "row": {g["id"]: R.grant_row(g["id"]) for g in gs if g["kind"] == "grant"}})
+                      "row": {g["id"]: R.grant_row(g["id"]) for g in gs if g["kind"] == "grant"}, "line": line})
+    for rule, name, bs, rv, gs, rd, _ in CASES:
+        one(rule, name, bs, rv, gs, rd, False)
+    RT.GRANT_LINE.append(True)
+    try:
+        for name, bs, gs, rd, _ in LINE_CASES:
+            one("line", name, bs, (), gs, rd, True)
+    finally:
+        RT.GRANT_LINE.pop()
     rec = []
     for name, rows, bs, gs, rd, c, why, f4 in RECOVERY:
         refs = {}
