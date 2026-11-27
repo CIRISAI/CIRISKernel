@@ -368,8 +368,9 @@ def t06(t):
     o1 = ST.offer("o1", "A", "K", "moderate", "g", "seat", ("mk",), under="g")
     a1 = ST.accept("a1", "K", "o1")
     wd1 = ST.withdraw("wd1", "K", "a1")                                         # leave
-    # A, the lone holder, withdraws its first offer before conferring again (a lone holder with an offer of a duty seat
-    # standing confers no other alone until that offer is accepted or withdrawn)
+    # A, the lone holder, withdraws its first offer before conferring again. Since rule (2) (no second end of a seat) that
+    # withdrawal concludes nothing, K's leaving having ended the seat; nor is it needed: an offer K accepted and then
+    # left is consumed, and no standing offer (check_duty_seats.py) keeps the lone holder from conferring again
     wo1 = ST.withdraw("wo1", "A", "o1", ("wd1",))
     o2 = ST.offer("o2", "A", "K", "moderate", "g", "seat", ("wo1",), under="g")
     a2 = ST.accept("a2", "K", "o2")                                             # join again

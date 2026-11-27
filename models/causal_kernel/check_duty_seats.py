@@ -436,7 +436,19 @@ PLANTS = ("duty_no_member", "duty_revives", "resign_keeps_duty", "member_cut_onl
           "unsigned_seated", "scope_unread", "member_rule_duty_rooms_only",
           "unsigned_no_map", "duty_gate_off", "duty_gate_wrong_row", "own_duty_ungated", "lone_founder_unread",
           "gate_counted_any_duty", "declared_roster_kept",
-          "head_any_row")         # (the heads ruling: `over` refused for every count, H2; a head is a counted change, H1)
+          "head_any_row",         # (the heads ruling: `over` refused for every count, H2; a head is a counted change, H1)
+          "left_offer_stands")
+# the lone holder confers again on a key that accepted and then left (attacks.py's Hotel California): the first offer
+# was consumed by the acceptance, so it is no standing offer, and the conferrer need not (and, under rule (2), an end
+# of an ended seat being no end, cannot) withdraw it first (MUTATION left_offer_stands)
+_HG = ST.offer("g", "A", "A", "duty", "@", "self")
+_HK = ST.offer("mk", "A", "K", "member", OBJ, "group", ("g",), head=("g",), policy="community_invite", cosigners=("K",))
+_HO = [ST.offer("o1", "A", "K", "moderate", OBJ, "seat", ("mk",), under="g"), ST.accept("a1", "K", "o1"),
+       ST.withdraw("wd1", "K", "a1"), ST.offer("o2", "A", "K", "moderate", OBJ, "seat", ("wd1",), under="g"),
+       ST.accept("a2", "K", "o2")]
+CASES += [("the lone holder confers again on a key that accepted and left: the first offer was consumed, no standing "
+           "offer blocks the second, and K holds moderate again", [_HG, _HK] + _HO, [("K", "moderate", T), ("K", "member", T)],
+           None)]
 
 
 @contextlib.contextmanager

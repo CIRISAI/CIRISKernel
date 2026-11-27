@@ -4291,12 +4291,9 @@ fn lone_offer_stands<R: SeatRow>(law: &SeatLaw, p: &Past<'_, '_, R>, r: &R, mem:
             && o.to().iter().any(|k| {
                 !mem.contains(k)
                     && !signed_by(o, k)
-                    && !p.rows().any(|a| {
-                        a.seat_kind() == SeatKind::Accept
-                            && a.signer() == k
-                            && a.of() == Some(o.id())
-                            && !gone.contains(a.id())
-                    })
+                    // an offer the key once accepted is consumed, though it then withdrew the acceptance (left
+                    // the seat): rule (2) makes the conferrer's withdrawal of it no end of the ended seat
+                    && !p.rows().any(|a| a.seat_kind() == SeatKind::Accept && a.signer() == k && a.of() == Some(o.id()))
             })
             && !gone.contains(o.id())
     })

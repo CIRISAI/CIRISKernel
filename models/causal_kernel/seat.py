@@ -1053,14 +1053,17 @@ def duty_count(r, P, yes, mem):
 def lone_offer_stands(r, P, mem):
     """The lone holder's own conferral of any duty over r's room still standing in r's past P: an offer of a duty
     scope, signed by a holder in mem, to a key not among them that has not consented to it (neither signed it nor
-    accepted it there), not withdrawn there (by its conferrer or the key offered). It counts for the lone test only: the key offered holds nothing until it accepts. MUTATIONS
+    accepted it there), not withdrawn there (by its conferrer or the key offered). An offer the key accepted, and then left, is consumed. It counts for the lone test only: the key offered holds nothing until it accepts. MUTATIONS
     lone_offer_unread (never read); lone_offer_same_scope (read for r's own scope only)."""
     if "lone_offer_unread" in MUT: return False
     by = {q["id"]: q for q in P}
     obj = r.get("obj")
     gone = {w["target"] for w in P if w["kind"] == "withdraw"}
     dec = declared(by, obj)
-    accepted = {(a["of"], a["signer"]) for a in P if a["kind"] == "accept" and a["id"] not in gone}
+    # an offer the key once accepted is consumed, though the key then withdrew its acceptance (it left the seat): rule
+    # (2) makes the conferrer's withdrawal of it no end of the ended seat, so it is no standing offer either (MUTATION
+    # left_offer_stands: a withdrawn acceptance leaves the offer standing, and the lone holder can never confer again)
+    accepted = {(a["of"], a["signer"]) for a in P if a["kind"] == "accept" and ("left_offer_stands" not in MUT or a["id"] not in gone)}
     unaccepted = lambda o: any(k not in mem and k not in signers(o) and (o["id"], k) not in accepted for k in o.get("to", ()))
     return any(o["kind"] == "offer" and o["id"] != r["id"] and o.get("obj") == obj and o["id"] != obj
                and o["signer"] in mem and is_duty(o.get("scope"), dec) and unaccepted(o)
