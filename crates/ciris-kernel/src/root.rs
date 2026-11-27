@@ -76,6 +76,11 @@ pub trait RootBundle {
     }
     /// The recovery commitments: (holder, its recovery key), keys exactly the holders.
     fn recovery(&self) -> &[(Self::Key, Self::Key)];
+    /// For a settler at a head: the one contested sibling there it names as the one that stands
+    /// ([`Root::bounded_settler`]). Default: none.
+    fn settles(&self) -> Option<&Self::Id> {
+        None
+    }
     /// For a holder's own key recovery: (the holder, its new key).
     fn recovers(&self) -> Option<(&Self::Key, &Self::Key)>;
     /// The payload's iat.
@@ -477,11 +482,44 @@ where
         if let Some(r) = self.recovery_ok(b) {
             return r;
         }
+        if self.bounded_settler(b) {
+            // the bounded settler (the ruling on the genesis stall): counted over the head's holders who have a say
+            // there, rule 6's double signers at that head (over the siblings it names) out of the base for this one
+            // count, by strict majority of them. Each sibling it can choose was already signed by a strict
+            // majority, so the reduced base only decides which majority-signed bundle stands, and a holder cannot be
+            // made a double signer against its will. Every holder double-signed: an empty base, nothing settles.
+            let named: Vec<&B> =
+                b.names().iter().filter(|n| self.counted(n).is_ok()).filter_map(|n| self.b(n)).collect();
+            let ds = self.double_signers(&named);
+            let p: BTreeSet<B::Id> = b.prev().iter().cloned().collect();
+            let none = BTreeSet::new();
+            let d = ds.get(&p).unwrap_or(&none);
+            let head = self.b(&b.prev()[0]).map(|h| h.holders().to_vec()).unwrap_or_default();
+            let base: BTreeSet<B::Key> = self.live(head).into_iter().filter(|k| !d.contains(&self.owner(k))).collect();
+            return if !base.is_empty() && self.meets(b, &v, Some(&base)) {
+                Ok(())
+            } else {
+                Err("genesis_bundle_count_unmet")
+            };
+        }
         if self.meets(b, &v, None) {
             Ok(())
         } else {
             Err("genesis_bundle_count_unmet")
         }
+    }
+
+    /// A settler at a head that names one contested sibling there ([`RootBundle::settles`]) as the one that stands
+    /// and states nothing of its own: its holders, seats, charter and recovery commitments are that sibling's. One
+    /// stating anything else is counted over the full base, as any bundle is.
+    pub fn bounded_settler(&self, b: &B) -> bool {
+        let Some(x) = b.settles().and_then(|x| self.b(x)) else { return false };
+        // it states something of its own: holders, seats, charter or recovery commitments not the sibling's
+        let states = x.holders() != b.holders()
+            || x.seats() != b.seats()
+            || x.charter() != b.charter()
+            || x.recovery() != b.recovery();
+        b.prev().len() == 1 && x.prev() == b.prev() && b.names().contains(x.id()) && !states
     }
 
     fn concluded(&self) -> Vec<&'a B> {
@@ -582,7 +620,8 @@ where
         let cs = self.concluded();
         let forked = |b: &B| {
             let first = b.prev().is_empty(); // a recovery is no exemption
-            if first {
+                                             // a bounded settler states nothing of its own: it decides its head, and is no fork of the lines on it
+            if first || self.bounded_settler(b) {
                 return false;
             }
             let v = self.voices_of(b);
@@ -853,6 +892,14 @@ where
                 }
             }
         }
+        // a bounded settler is no head of its own: the reader is at the sibling it names
+        let acked: BTreeSet<B::Id> = acked
+            .into_iter()
+            .map(|i| match self.b(&i) {
+                Some(b) if self.bounded_settler(b) => b.settles().cloned().unwrap_or(i),
+                _ => i,
+            })
+            .collect();
         if acked.is_empty() {
             return Some(Vec::from([f]));
         }
@@ -935,6 +982,10 @@ where
         let ds = self.double_signers(&bs);
         let none = BTreeSet::new();
         for b in &bs {
+            if self.bounded_settler(b) {
+                no.insert(b.id().clone(), BTreeSet::new()); // counted by its own rule
+                continue;
+            }
             let p: BTreeSet<B::Id> = b.prev().iter().cloned().collect();
             let d = ds.get(&p).unwrap_or(&none);
             let ks: BTreeSet<B::Key> = self.voices(b).into_iter().filter(|k| d.contains(&self.owner(k))).collect();
@@ -947,7 +998,8 @@ where
             no.insert(b.id().clone(), ks);
         }
         // rule 5
-        let live: Vec<&'a B> = bs.iter().copied().filter(|b| !out.contains(b.id())).collect();
+        let live: Vec<&'a B> =
+            bs.iter().copied().filter(|b| !out.contains(b.id()) && !self.bounded_settler(b)).collect();
         let needs = |y: &B, k: &B::Key| {
             let v: BTreeSet<B::Key> = self.voices(y).difference(&no[y.id()]).cloned().collect();
             let mut less = v.clone();
@@ -967,6 +1019,20 @@ where
             }
         }
         out.extend(dep);
+        // a bounded settler held (it concluded) decides its head: the sibling it names stands, the others at that head
+        // fall (and what is built on them)
+        for b in &bs {
+            if !self.bounded_settler(b) || out.contains(b.id()) {
+                continue;
+            }
+            let Some(x) = b.settles().and_then(|x| self.b(x)) else { continue };
+            out.remove(x.id());
+            for c in &bs {
+                if c.id() != x.id() && c.id() != b.id() && self.siblings(x, c) && !self.bounded_settler(c) {
+                    out.insert(c.id().clone());
+                }
+            }
+        }
         loop {
             let mut changed = false;
             for i in ids {

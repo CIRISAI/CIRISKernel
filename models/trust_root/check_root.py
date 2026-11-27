@@ -492,6 +492,64 @@ CASES += [
 ]
 
 
+# the genesis stall (r76 ST1) and the BOUNDED SETTLER (the Constitution's ruling): b0 (h1 h2 h3); h1 and h2 sign b1
+# (keeps all, adds h4 h5) and s0 (cuts h3): double signers at b0; b2, b3 the honest line on b1
+SB1 = nxt("b1", "b0", H5, ("h1", "h2"))
+SS0 = nxt("s0", "b0", ("h1", "h2", "X"), ("h1", "h2"))
+SB2 = nxt("b2", "b1", ("h3", "h4", "h5"), ("h3", "h4", "h5"), version=2)
+SB3 = nxt("b3", "b2", ("h3", "h4", "h5", "h6"), ("h3", "h4", "h5"), version=3)
+STL = [B0, SB1, SB2, SB3, SS0]
+def SETTLE(i, x, signers, sib, head="b0"):
+    """A bounded settler at `head`: it names the contested siblings `sib` and settles toward `x`, stating nothing of
+    its own (x's holders, seats, charter and recovery commitments)."""
+    X = sib[x]
+    return nxt(i, head, X["holders"], signers, seats=X["seats"], charter=X["charter"], names=tuple(sorted(sib)),
+               settles=x, recovery=X["recovery"])
+STS = {"b1": SB1, "s0": SS0}
+# five holders, h1 h2 h3 double-signed (c1 keeps all and adds h6, c0 cuts h4 and h5): h4 and h5 have a say
+SC1 = nxt("b1", "b0", H5 + ("h6",), ("h1", "h2", "h3"))
+SC0 = nxt("s0", "b0", ("h1", "h2", "h3", "X"), ("h1", "h2", "h3"))
+SC5 = {"b1": SC1, "s0": SC0}
+# all three double-signed: a1 keeps all, a0 cuts h3
+SA1 = nxt("b1", "b0", H3 + ("h4",), ("h1", "h2", "h3"))
+SA0 = nxt("s0", "b0", ("h1", "h2"), ("h1", "h2", "h3"))
+SA = {"b1": SA1, "s0": SA0}
+CASES += [
+    ("settle", "ST1, the stall: a reader that acknowledged s0 first, then b2 and b3, is at b0", STL, (), (),
+     RD(anchor="b0", acks=("s0", "b2", "b3")), {"heads": ("b0",), "holders": set(H3)}),
+    ("settle", "(1) the bounded settler: h3, the one holder at b0 with a say (h1 and h2 double-signed), settles toward "
+               "b1, stating nothing of its own: counted over {h3}, one of one; b1 stands, s0 falls, and the reader's "
+               "later acknowledgements of b2 and b3 settle: b3", STL + [SETTLE("st", "b1", ("h3",), STS)], (), (),
+     RD(anchor="b0", acks=("s0", "b2", "b3", "st", "b2", "b3")),
+     {"concluded": {"st": T}, "heads": ("b3",), "holders": {"h3", "h4", "h5", "h6"}}),
+    ("settle", "and acknowledging the settler alone puts the reader at b1 (a settler is no head of its own)",
+     STL + [SETTLE("st", "b1", ("h3",), STS)], (), (), RD(anchor="b0", acks=("s0", "b2", "b3", "st")),
+     {"heads": ("b1",), "holders": set(H5)}),
+    ("settle", "(2) h3 settling toward s0 is allowed: s0 was signed by a strict majority of b0 (h1 and h2 of three), "
+               "so the reduced base only chooses which majority-signed bundle stands; the reader is at s0",
+     STL + [SETTLE("st", "s0", ("h3",), STS)], (), (), RD(anchor="b0", acks=("s0", "b2", "b3", "st")),
+     {"concluded": {"st": T}, "heads": ("s0",), "holders": {"h1", "h2", "X"}}),
+    ("settle", "(3) a settler by h3 that also seats a holder (h9) states something: counted over the full base, one "
+               "of three, it concludes nothing; the reader stays at b0",
+     STL + [dict(SETTLE("st", "b1", ("h3",), STS), holders=H5 + ("h9",), recovery={k: "r:" + k for k in H5 + ("h9",)})],
+     (), (), RD(anchor="b0", acks=("s0", "b2", "b3", "st")), {"concluded": {"st": Fa}, "heads": ("b0",)}),
+    ("settle", "(4) the holders with a say split: of five, h1 h2 h3 double-signed; h4 settles toward b1, h5 toward s0: "
+               "each is one of two, neither settles: the reader stays at b0 (an even split settles nothing)",
+     [B0_5, SC1, SC0, SETTLE("st", "b1", ("h4",), SC5), SETTLE("su", "s0", ("h5",), SC5)], (), (),
+     RD(anchor="b0", acks=("s0", "b1", "st", "su")), {"concluded": {"st": Fa, "su": Fa}, "heads": ("b0",)}),
+    ("settle", "and both together (h4 and h5 toward b1) settle it: b1", [B0_5, SC1, SC0, SETTLE("st", "b1", ("h4", "h5"), SC5)],
+     (), (), RD(anchor="b0", acks=("s0", "b1", "st")), {"concluded": {"st": T}, "heads": ("b1",)}),
+    ("settle", "(5) EDGE (stated): every holder double-signed (h1 h2 h3 on a1 and a0): the base is empty, nothing "
+               "settles, and the reader re-roots", [B0, SA1, SA0, SETTLE("st", "b1", ("h1", "h2", "h3"), SA)], (), (),
+     RD(anchor="b0", acks=("s0", "b1", "st")), {"concluded": {"st": Fa}, "heads": ("b0",)}),
+    ("settle", "EDGE (the halt residual, stated): holders a later line removed can halt a reader that has not yet "
+               "settled onto that line: h1, removed at b2, halts a reader at b0; for a reader at b2 it does not",
+     RL, (), (HALT("hx", "h1"),), ANC, {"halt": {"hx": (True, None)}}),
+    ("settle", "and for a reader settled at b2: halt_signer_not_in_force", RL, (), (HALT("hx", "h1"),),
+     RD(anchor="b0", acks=("b2",)), {"halt": {"hx": (False, "halt_signer_not_in_force")}}),
+]
+
+
 # the third attack (dp.py): a sibling chain t1, t at b1 by h1, h2 (removed at b2) and the double-signing h3
 DB1 = nxt("b1", "b0", H5, ("h1", "h2"))
 DB2 = nxt("b2", "b1", ("h3", "h4", "h5"), ("h3", "h4", "h5"), version=2)
@@ -623,7 +681,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "rotation_outlives_seat", "retired_unread", "join_prev_unread", "cosign_unread", "double_signer_voices",
           "ack_settles_over_all", "recovery_head_unread", "double_signer_grant_voices", "double_signer_settles",
           "double_signer_halt_suppressed", "double_signer_mark_carried",
-          "concurrent_acks_chained")
+          "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base")
 
 
 def answer(bs, rv, gs, rd, want):
@@ -709,7 +767,7 @@ def benc(b):
             "charter": json.dumps(b["charter"], sort_keys=True), "duties": sorted(RT.duties(b["charter"])),
             "sub_delegation": sorted(RT.sub_delegations(b["charter"])),
             "iat": b["iat"], "recovery": [[k, v] for k, v in sorted(b["recovery"].items())],
-            "names": list(b.get("names", ())),
+            "names": list(b.get("names", ())), "settles": b.get("settles"),
             "recovers": list(b["recovers"]) if b.get("recovers") else None,
             "stmts": [[k, i] for k, i in b["stmts"]]}
 def genc(g):

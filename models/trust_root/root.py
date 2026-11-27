@@ -82,14 +82,14 @@ C0 = {"name": "c0", "duties": ("infra",)}
 
 
 def bundle(id, family, version, holders, prev=(), charter=C0, seats=(), stmts=None, iat=0, recovery=None,
-           recovers=None, names=()):
+           recovers=None, names=(), settles=None):
     """A bundle. stmts defaults to every holder of the predecessor... callers name them. recovers: (holder, new key)."""
     holders = tuple(holders)
     rec = dict(recovery) if recovery is not None else {k: "r:" + k for k in holders}
     return {"id": id, "kind": "bundle", "family": family, "version": version, "holders": holders,
             "prev": tuple(prev), "charter": charter, "seats": tuple(seats), "iat": iat, "recovery": rec,
             "stmts": tuple(stmts if stmts is not None else ((k, iat) for k in holders)), "recovers": recovers,
-            "names": tuple(names)}
+            "names": tuple(names), "settles": settles}
 
 
 def revoke(key, bound=None):
@@ -341,7 +341,34 @@ class Root:
             return (True, None) if bool(hs) and hs <= v else (False, "genesis_bundle_count_unmet")
         rec = self.recovery_ok(b)
         if rec is not None: return rec
+        if self.bounded_settler(b):
+            # THE BOUNDED SETTLER (the ruling on the genesis stall, ST1): counted over the head's holders who have a
+            # say there, rule 6's double signers at that head (over the siblings it names) out of the base for this
+            # one count, by strict majority of them (MUTATION settler_double_signers_in_base: they stay in). Each
+            # sibling it can choose was already signed by a strict majority, so the reduced base only decides which
+            # majority-signed bundle stands, and a holder cannot be made a double signer against its will. Every
+            # holder double-signed: an empty base, nothing settles (the reader re-roots); those with a say split
+            # evenly: nothing settles; a lone holder with a say settles alone, choosing only between majority-signed
+            # bundles.
+            D = {} if "settler_double_signers_in_base" in MUT else self.double_signers(
+                [self.by[n] for n in b["names"] if n in self.by and self.counted(n)[0]])
+            d = D.get(frozenset(b["prev"]), set())
+            base = frozenset(k for k in self.live(self.by[b["prev"][0]]["holders"]) if self.owner(k) not in d)
+            ok = bool(base) and self.meets(b, v, within=base)
+            return (True, None) if ok else (False, "genesis_bundle_count_unmet")
         return (True, None) if self.meets(b, v) else (False, "genesis_bundle_count_unmet")
+
+    def bounded_settler(self, b):
+        """A settler at a head that names one contested sibling there (`settles`) as the one that stands and states
+        nothing of its own: its holders, seats, charter and recovery commitments are that sibling's. One stating
+        anything else is counted over the full base, as any bundle is (MUTATION settler_states_counted_reduced: it is
+        counted over the reduced base too)."""
+        x = self.by.get(b.get("settles"))
+        if x is None or len(b["prev"]) != 1 or tuple(x["prev"]) != tuple(b["prev"]) or x["id"] not in b["names"]:
+            return False
+        if "settler_states_counted_reduced" in MUT: return True
+        return (x["holders"] == b["holders"] and x["seats"] == b["seats"] and x["charter"] == b["charter"]
+                and x["recovery"] == b["recovery"])
 
     def concluded(self):
         return [i for i in self.by if self.counted(i)[0]]
@@ -374,6 +401,8 @@ class Root:
         def forked(b):
             if not b["prev"]: return False
             if b.get("recovers") is not None and "recovery_exempt" in MUT: return False
+            # a bounded settler states nothing of its own: it decides its head, and is no fork of the lines on it
+            if self.bounded_settler(b): return False
             v = voices_of(b)
             rv = rivals(b)
             return bool(v) and all(any(k in own(self.voices(c)) for c in rv) for k in v)
@@ -597,6 +626,8 @@ class Root:
         D = self.double_signers(bs)
         no = {}
         for b in bs:
+            if self.bounded_settler(b):
+                no[b["id"]] = set(); continue           # counted by its own rule
             d = D.get(frozenset(b["prev"]), set())
             if "double_signer_settles" in MUT and not any(self._cut(b, c) for c in bs): d = set()
             ks = {k for k in self.voices(b) if self.owner(k) in d}
@@ -604,7 +635,7 @@ class Root:
             if ks and (b.get("recovers") is not None or not self.meets(b, self.voices(b) - ks)): out.add(b["id"])
         # rule 5
         if "rule5_unread" not in MUT:
-            live = [b for b in bs if b["id"] not in out]
+            live = [b for b in bs if b["id"] not in out and not self.bounded_settler(b)]
             def needs(y, k):
                 v = self.voices(y) - no[y["id"]]
                 return k in v and self.meets(y, v) and not self.meets(y, v - {k})
@@ -614,6 +645,14 @@ class Root:
                     if self._siblings(x, y) and any(self._removes(x, k) and needs(y, k) for k in self.by[x["prev"][0]]["holders"]):
                         dep.add(y["id"])            # y needs a voice x removes
             out |= dep
+        # a bounded settler held (it concluded) decides its head: the sibling it names stands, the others at that head
+        # fall (and what is built on them)
+        for b in bs:
+            if self.bounded_settler(b) and b["id"] not in out:
+                x = self.by[b["settles"]]
+                out.discard(x["id"])
+                out |= {c["id"] for c in bs if c["id"] not in (x["id"], b["id"]) and self._siblings(x, c)
+                        and not self.bounded_settler(c)}
         changed = True
         while changed:
             changed = False
@@ -662,6 +701,8 @@ class Root:
             for p in self.by[x]["prev"]:
                 if p in held: acked.add(p)
                 elif p in down: todo.append(p)
+        # a bounded settler is no head of its own: the reader is at the sibling it names
+        acked = {self.by[i]["settles"] if self.bounded_settler(self.by[i]) else i for i in acked}
         if not acked: return (self.first(rd),)
         return tuple(sorted(i for i in acked if not any(i in self.past(j) for j in acked)))
 

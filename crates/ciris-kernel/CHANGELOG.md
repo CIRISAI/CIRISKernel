@@ -12,6 +12,17 @@ with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
 - A reader's acknowledgements are rows with their own pasts (r76 q4; BREAKING: `Reader::after`, None for one
   chain): each is judged over its own causal past, two concurrent rows (a person's two devices) each without the
   other, and the line is drawn over their union; a row closes nothing a row concurrent with it settled.
+- The bounded settler (the ruling on the genesis stall, r76 ST1; `RootBundle::settles`, defaulted;
+  `Root::bounded_settler`): a settler at a head that names one contested sibling there as the one that stands, and
+  states nothing of its own (its holders, seats, charter and recovery commitments are that sibling's), is counted over
+  the head's holders who have a say there, rule 6's double signers out of the base for this one count, by strict
+  majority of them. Each sibling it can choose was already signed by a strict majority, so the reduced base only
+  decides which majority-signed bundle stands, and a holder cannot be made a double signer against its will. A
+  settler stating anything else is counted over the full base, as any bundle is. Edges: every holder double-signed,
+  an empty base, nothing settles and the reader re-roots; the holders with a say split evenly, nothing settles; a
+  lone holder with a say settles alone, choosing only between majority-signed bundles. A settler is no head of its
+  own: the reader is at the sibling it names.
+- The halt residual, stated: holders a later line removed can halt a reader that has not yet settled onto that line.
 - A root is the lineage of a genesis bundle (`RootBundle`, a signed object the store presents with its statements
   checked). The first bundle is counted over every holder it lists, a later one over a strict majority of its
   predecessor's live holders, a join (two predecessors) over those common to them. An iat that disagrees is Invalid

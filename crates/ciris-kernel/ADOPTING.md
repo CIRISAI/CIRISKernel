@@ -121,6 +121,10 @@ migrations, and the local operational store.
   residual: "a reader stalled at b0 leaves it by acknowledging a bundle that counts over its own past without the
   double signers, or by re-rooting. So a strict majority that double-signs can stall a reader that saw the bad
   side first, and cannot capture it."
+- A settler of a contested head is a bundle at that head naming the contested siblings, with `RootBundle::settles`
+  the one that stands, and carrying that sibling's holders, seats, charter and recovery commitments unchanged (it
+  states nothing of its own); it is counted over the holders with a say there. Holders a later line removed can halt
+  a reader that has not yet settled onto that line.
 - A community's protocol is a word of the set under which no one voice decides (`seat::community_protocol`): not
   `quorum:1/{n}`, not `founder_only` (a family's; families are not built), not a weighted record one of whose
   weights reaches its threshold. A change of its record states no policy and meets both the protocol in force and
