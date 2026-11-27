@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**One line across the models: the end of a conferral reads the sibling-safe line** (the ruling of 2026-11-27, ruling
+A of the superseded-bundle read, persist's item 13). `conferral::answers`'s `end_void.line` now voids an end for a
+reader only where the head the end names is strictly in the past of a head the acknowledged one extends, as the
+seat model's line does. An end at the head an acknowledged version directly extends is its sibling and stands.
+**An answer changes:** an end at G0, read by a reader that acknowledged G1 (G1 extending G0), was void for it and
+now stands (`conferral_two.json`: "(d) reader at the later"; `conferral_end.json`: `end_sibling_for_reader`; the
+strictly-behind case is now `end_old_fork_for_reader` with a third head). The TLA spec's end line drops its
+acknowledgement clause (its two heads have no strictly-behind end). Plants `line_not_sibling_safe` (the reference)
+and one in the crate.
+
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone
   removal out of force) ended nothing, and does not block a later end (the settling count, S4).

@@ -132,7 +132,7 @@ ask no question the table lacks. What these runs check is the kernel's door, rec
 derived answers over the model's conclusions. The answers the witnesses compute are per-case functions of
 the model and are not ported.
 
-`tools/kernel_crate_plants.sh` plants 381 breaks, one at a time on a copy of the crate, and each must fail a
+`tools/kernel_crate_plants.sh` plants 385 breaks, one at a time on a copy of the crate, and each must fail a
 test. Count them with `grep -c '^plant' tools/kernel_crate_plants.sh`; the script prints how many were caught.
 
 **The cycle reading.** "A cycle is visited once" (CC 2.7.5) has two readings. Under the first, a walk never
@@ -146,7 +146,7 @@ more budget.
 ### The end of a conferral
 
 `conferral::answers` is checked against the case table of `models/causal_kernel/conferral_end.py`
-(`tests/fixtures/conferral_end.json`; 42 cases, each with its rows listed in every order the fixture gives
+(`tests/fixtures/conferral_end.json`; 43 cases, each with its rows listed in every order the fixture gives
 and in reverse). That reference is the weakR reading of `models/tla/ConferralEnd.tla`, and is compared with
 that spec state by state.
 

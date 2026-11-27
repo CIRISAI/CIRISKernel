@@ -400,7 +400,7 @@ Wire cost:
 ## H. Conformance fixtures for persist
 
 The fixture is `crates/ciris-kernel/tests/fixtures/conferral_end.json`, in the kernel's fixture format. It has
-42 cases and 93 act answers. Each act has `counted`, `in_force` and the `rule` that decides it, and 14 rules
+43 cases and 94 act answers. Each act has `counted`, `in_force` and the `rule` that decides it, and 14 rules
 appear.
 
 The same cases are a plain table, one line per act, in `conferral_end.tsv` next to it. That is the
@@ -711,7 +711,7 @@ are hand-written from them (the act stands on A0 under B0, so the first owner's 
 | (b) | an act naming G0, at a reader that acknowledged G1; no end held | counted at G0 and in force. Nothing refuses a row for naming an older version, and the reader's line is not applied to an authored act (section C) |
 | (c) | the grant's end naming G1; acts at G0 and at G1 | both counted, neither in force (E2); the one the count receipted is in force (E8) |
 | (d) | the grant's end naming G0; acts at G0 and at G1 | the act at G0 counted, not in force (E2); the act at G1 not counted (E3), unless the count holds a clean receipt of it concurrent with its end: then counted, not in force (one say) |
-| (d), a reader at G1 | the same rows, at a reader that acknowledged G1, which does not have the end in its past | the end is void for that reader (the line on the end), and both acts are counted and in force |
+| (d), a reader at G1 | the same rows, at a reader that acknowledged G1, which does not have the end in its past | as for a reader with no acknowledgement: the end at G0 is G1's sibling (G1 extends G0), not behind it, since the line is sibling-safe (the ruling of 2026-11-27). Until that ruling the end was void for this reader |
 | | the grant's end naming G0 with G1 in its own past | the end concludes nothing (E1); both acts counted and in force |
 
 **For the Constitution, on those answers.** None of these is a ruling; no rule was added to change one.
@@ -721,12 +721,13 @@ are hand-written from them (the act stands on A0 under B0, so the first owner's 
   it, or a grant to be counted again under a new version, that is a rule this model does not have.
 - (b) with (c): a node that is behind, or says it is, keeps signing acts at G0 after the end at G1, and each
   counts at G0 and is never in force. That is the limit section A states for any act at an old head.
-- (d), a reader at G1: the count's end at G0 is void for every reader that acknowledged a G1 the end is not
-  in the past of, so the grant has not ended for them and an act at G1 is in force. That is CC 2.7.8 applied
-  to the end as to any counted cut (`end_old_fork_for_reader`). For a grant it means an end signed at the
-  earlier version, concurrent with the new version, ends nothing for readers of the new version: the count
-  has to end the grant again at G1. Two readers of the same rows then differ on (d) by their own
-  acknowledgement, as the line intends, and the difference lasts until that second end.
+- (d), a reader at G1: the line is sibling-safe (the ruling of 2026-11-27, the same line as the seat model's
+  `checkpoint.behind`): an end is behind an acknowledged head only where the head it names is strictly in the
+  past of a head that one extends. An end at G0 is a sibling of G1, which extends G0, so it stands for a reader
+  at G1 as for one with no acknowledgement. It is void for a reader that acknowledged a G2 extending G1 and
+  not having the end in its past (`end_old_fork_for_reader`); `end_sibling_for_reader` states the sibling.
+  Before the ruling the end at G0 was void for every reader at G1, and the count had to end the grant again
+  at G1.
 
 **Fixture.** `crates/ciris-kernel/tests/fixtures/conferral_two.json` has 21 cases under `acc` (the 11 of the
 first round, two on the chain read from the rows, eight with the later bundle version), each with a

@@ -308,9 +308,16 @@ impl<'a, R: ConferralRow, P: Past<R::Id>> Ctx<'a, R, P> {
             return Ok(Some(Rule::EndVoidKeyRemoved));
         }
         let held = |h: &R::Id| self.rows.iter().any(|r| r.id() == h);
-        let line = any3(self.st.reader_acks.iter().filter(|h| held(h)), |h| {
-            Ok(self.later(Some(h), e.head())? && !self.past.in_past(e.id(), h)?)
-        })?;
+        // the line is sibling-safe (the ruling of 2026-11-27, as the seat model's line): the end is behind an
+        // acknowledged head only where the head it names is strictly in the past of a head that one extends; an
+        // end at the head an acknowledged version directly extends is its sibling, not behind it
+        let behind = |h: &R::Id| {
+            any3(self.of_kind(Kind::Head), |g| {
+                Ok(self.later(Some(g.id()), e.head())? && self.later(Some(h), Some(g.id()))?)
+            })
+        };
+        let line =
+            any3(self.st.reader_acks.iter().filter(|h| held(h)), |h| Ok(behind(h)? && !self.past.in_past(e.id(), h)?))?;
         Ok(line.then_some(Rule::EndVoidLine))
     }
 
