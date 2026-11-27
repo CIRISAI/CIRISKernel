@@ -16,6 +16,9 @@
   current roster is read only for who is owed.
 - The keys a seat row seats or removes are derived (`audience::seats_of`: an offer or unseat whose `obj` is its
   room, its `to`). **BREAKING**: `AudienceRow::seats` is gone; `seat_act`, `obj` and `to` replace it.
+- Review r82: only a seat family's offer or unseat seats keys within its audience (`audience::SEAT_FAMILIES`,
+  derived by the generator from the confers cells); the key grant exclusion reads the resolved family
+  (`audience::KEY_GRANT`); `person` is the person's current, concluded key roster (a contract, stated).
 - An unknown `history_on_join` word is absent and falls through (the door refuses it), in `history_of`.
 - Family patterns that tie on a name refuse (`Refusal::FamilyAmbiguous`, `audience::family_in`); the generator
   refuses to write a table with a tie.

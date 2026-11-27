@@ -56,7 +56,7 @@ def row(i, family, scope, signer="a", room=None, named=(), names=(), concluded=T
 
 def seat_row(i, kind, room, to, **kw):
     """A seat offer or unseat over `room`, naming the keys it seats or removes."""
-    return row(i, "partner_role:member", "community", room=room, named=list(to), kind=kind, obj=room, to=to, **kw)
+    return row(i, "ballot:moderator_acceptance", "community", room=room, named=list(to), kind=kind, obj=room, to=to, **kw)
 
 
 def joins_of(w):
@@ -112,7 +112,8 @@ CASES = [
     ("named_outside_audience", "a row at the community may name only keys within its audience: z is off the roster",
      [row("m", "chat:general", "community", room="r1", named=["z"])], {"m": REF("named_outside_audience")}),
     # a seat offer or unseat over the room: the keys it seats or removes are within its audience. group:roster and
-    # membership answer Undecided at this pin, so the rule is shown on a placed consent family (partner_role)
+    # membership answer Undecided at this pin, so the rule is shown on ballot:moderator_acceptance, a seat family the
+    # table pins to the room
     ("admission_names_joiner", "a pending admission of j at the room names j, who is not on the roster yet: j is "
      "in its audience",
      [seat_row("v", "offer", "r1", ["j"], concluded=False)],
@@ -130,7 +131,11 @@ CASES = [
      [dict(seat_row("g", "offer", "r1", ["j"]), family="group:roster")], {"g": UND("group:roster")}),
     ("seats_derived_not_stated", "an offer over ANOTHER object names j: its `to` is no seat of this room, and j is "
      "held to named_within",
-     [row("v", "partner_role:member", "community", room="r1", named=["j"], kind="offer", obj="r9", to=["j"])],
+     [row("v", "ballot:moderator_acceptance", "community", room="r1", named=["j"], kind="offer", obj="r9", to=["j"])],
+     {"v": REF("named_outside_audience")}),
+    ("seats_only_a_seat_family", "a chat row shaped as an offer over its room names j in `to`: chat is no seat "
+     "family, so j is held to named_within and the row is refused (review r82, 5d)",
+     [row("v", "chat:general", "community", room="r1", named=["j"], kind="offer", obj="r1", to=["j"])],
      {"v": REF("named_outside_audience")}),
     # history_on_join changes no audience (CC 4.4.3.16 as the Constitution corrected it): j, admitted to r3 by `adm`
     # after m, is SERVED m, sealed by keys it lacks: served is not readable. `full` acts only on a kept stream, the
@@ -195,6 +200,10 @@ CASES = [
     ("copy_person_carries", "the self row named by a concluded room row of a2, a key of a's person: carried",
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", signer="a2", room="r1", names=["s"])],
      {"s": P("self_collective", ["a", "a2", "b", "c"]), "m": P("targeted_room", ["a", "a2", "b", "c"])}),
+    ("copy_evicted_device", "a3 was a device of a, evicted from a's key roster: person(a) is the current roster "
+     "(a, a2), so a3's room row naming a's self row carries nothing",
+     [row("s", "chat:general", "self"), row("m", "chat:general", "community", signer="a3", room="r1", names=["s"])],
+     {"s": P("self_collective", ["a", "a2"]), "m": P("targeted_room", ["a", "a3", "b", "c"])}),
     ("copy_unconcluded", "a namer that does not conclude carries nobody",
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", room="r1", names=["s"], concluded=False)],
      {"s": P("self_collective", ["a", "a2"]), "m": P("targeted_room", ROOM)}),
@@ -269,6 +278,7 @@ PLANTS = [(("undecided_defaulted",), "undecided_family"), (("pinned_unread",), "
           (("key_grant_carried",), "key_grant_never_carried"),
           (("match_first",), "table"), (("seats_not_within",), "admission_names_joiner"),
           (("seats_any_obj",), "seats_derived_not_stated"),
+          (("seats_any_family",), "seats_only_a_seat_family"),
           (("named_within_current",), "named_at_own_head"),
           (("history_unread",), "history"), (("word_read",), "history"),
           (("tie_first",), "ties")]
@@ -326,6 +336,11 @@ def check_derivation():
     # the generator refuses a table whose patterns tie on a name, and finds no tie in the pinned one
     if not FP.ties(["x:{a}", "{b}:y"]) or not FP.ties(["x:*", "x:{a}"]) or FP.ties(["x:*", "x:y"]):
         problems.append("derivation: the tie check")
+    if AU.KEY_GRANT not in AU.FAMILIES:
+        problems.append("derivation: the key grant family %s is not in the table" % AU.KEY_GRANT)
+    if AU.SEAT_FAMILIES != {"ballot:moderator_acceptance", "group:roster", "identity:occurrence",
+                            "identity:occurrence_revocation", "membership:{stage}", "self:delegates_to"}:
+        problems.append("derivation: the seat families are %s" % sorted(AU.SEAT_FAMILIES))
     if FP.ties(list(AU.FAMILIES)):
         problems.append("derivation: the pinned table ties: %s" % FP.ties(list(AU.FAMILIES))[:3])
     return problems

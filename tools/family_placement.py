@@ -122,6 +122,18 @@ def ties(patterns):
     return out
 
 
+def seat_family(row):
+    """A family whose rows seat or end a seat conferred by a body (a room's roster, or a person's own key roster):
+    its confers cell is a seat or an ending binding the body and the holder, or a selector that seats by the body's
+    count. Only a seat offer or unseat of such a family seats keys within its audience (audience.seats_of)."""
+    c = row.get("confers")
+    v = c.get("value") if isinstance(c, dict) else c
+    if isinstance(v, dict):
+        rel = str(v.get("relation", "")).split("|")
+        return ("seat" in rel or "ending" in rel) and "body" in str(v.get("binds", ""))
+    return isinstance(v, str) and "seat (the body's count" in v
+
+
 def placement_of(row):
     """(allowed placements, None) or (None, why it is undecided)."""
     p = row["placement"]
@@ -141,7 +153,7 @@ def derive(path):
     fams = []
     for row in model["rows"]:
         allowed, why = placement_of(row)
-        fams.append({"family": row["family"], "allowed": allowed, "undecided": why})
+        fams.append({"family": row["family"], "allowed": allowed, "undecided": why, "seat": seat_family(row)})
     fams.sort(key=lambda f: f["family"])
     tied = ties([f["family"] for f in fams])
     if tied:
@@ -197,6 +209,11 @@ def rust(table):
         else:
             ps = ", ".join("Placement::" + RUST_NAME[p] for p in f["allowed"])
             out.append("    (%s, FamilyPlacement::Allowed(&[%s]))," % (json.dumps(f["family"]), ps))
+    out.append("];")
+    out += ["", "/// The families whose seat offers and unseats seat or remove keys over a body (a room's roster, or a person's",
+            "/// own key roster): the only ones whose `to` is within a row's audience ([`super::seats_of`]).",
+            "pub const SEAT_FAMILIES: &[&str] = &["]
+    out += ["    %s," % json.dumps(f["family"]) for f in table["families"] if f.get("seat")]
     out.append("];")
     return "\n".join(out) + "\n"
 

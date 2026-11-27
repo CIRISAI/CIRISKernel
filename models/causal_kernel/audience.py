@@ -67,6 +67,8 @@ for _s in TABLE["scopes"]:
         SCOPE_PLACEMENT[_c] = _s["placement"]
 SCOPE_PLACEMENT["addressed"] = "addressed"
 FAMILIES = {f["family"]: f for f in TABLE["families"]}
+SEAT_FAMILIES = frozenset(f["family"] for f in TABLE["families"] if f.get("seat"))
+KEY_GRANT = "key_grant:{axis}"            # the key grant family's pattern, read as the resolved family
 EVERYONE = "everyone"
 TARGETED = ("targeted_family", "targeted_room")
 MUT = set()            # planted breaks, switched on by check_audience.py
@@ -139,8 +141,13 @@ def history_of(row, joins):
 
 def seats_of(row):
     """The keys a seat offer or unseat over the row's own room seats or removes (its `to`), derived from the row:
-    no caller states them. Empty on every other row. MUTATION seats_any_obj: a seat row over another object too."""
+    no caller states them. Only a row of a SEAT FAMILY (one whose seats a body confers: group:roster, membership,
+    the moderator's acceptance, the person's key roster's rows, a delegation by the body's count) seats anyone: a
+    chat row cannot use `to` to pass named_within. Empty on every other row. MUTATIONS seats_any_obj: a seat row
+    over another object too; seats_any_family: a row of any family."""
     if row.get("kind") not in ("offer", "unseat"):
+        return frozenset()
+    if family_of(row["family"]) not in SEAT_FAMILIES and "seats_any_family" not in MUT:
         return frozenset()
     if row.get("obj") != row.get("room") and "seats_any_obj" not in MUT:
         return frozenset()
@@ -222,13 +229,16 @@ def carried(r, a, d, ad, roster, person):
         c.2  only to keys on the room's current roster: nothing reaches a key off it (an offered key that never
              accepted, a removed key);
         c.3  a self or an addressed row is carried only by a concluded row of its own signer (or that signer's
-             person), into that row's audience (bounded by c.2 where the carrier is a room row);
+             person), into that row's audience (bounded by c.2 where the carrier is a room row). THE CONTRACT: the
+             caller's `person(key)` is the person's CURRENT, concluded key roster (seat.as_persons on the key-person
+             lane, once merged; no separate notion): an evicted or revoked key leaves the person and carries
+             nothing;
     the gate of CC 5.2 kept: the carrier's signer is already in r's audience. A key grant is never carried: it
     reaches only the key it names. MUTATIONS copy_cross_room, copy_off_roster, copy_any_carrier, copy_any_signer,
     copy_unconcluded, key_grant_carried."""
     if not d.get("concluded") and "copy_unconcluded" not in MUT:
         return None
-    if r["family"].startswith("key_grant:") and "key_grant_carried" not in MUT:
+    if family_of(r["family"]) == KEY_GRANT and "key_grant_carried" not in MUT:
         return None
     if not _within(d["signer"], a[2]) and "copy_any_signer" not in MUT:
         return None

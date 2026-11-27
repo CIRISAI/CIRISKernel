@@ -211,3 +211,14 @@ pub const FAMILIES: &[(&str, FamilyPlacement)] = &[
     ("window:{state}", FamilyPlacement::Allowed(&[Placement::SelfCollective, Placement::TargetedFamily, Placement::TargetedRoom])),
     ("witness_diversity:{contribution_id}", FamilyPlacement::Allowed(&[Placement::SelfCollective, Placement::TargetedFamily, Placement::TargetedRoom, Placement::Commons])),
 ];
+
+/// The families whose seat offers and unseats seat or remove keys over a body (a room's roster, or a person's
+/// own key roster): the only ones whose `to` is within a row's audience ([`super::seats_of`]).
+pub const SEAT_FAMILIES: &[&str] = &[
+    "ballot:moderator_acceptance",
+    "group:roster",
+    "identity:occurrence",
+    "identity:occurrence_revocation",
+    "membership:{stage}",
+    "self:delegates_to",
+];

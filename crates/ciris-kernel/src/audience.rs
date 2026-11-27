@@ -41,7 +41,10 @@ use alloc::vec::Vec;
 #[rustfmt::skip]
 #[path = "audience_table.rs"]
 mod table;
-pub use table::{FAMILIES, FAMILY_MODEL_SHA256, SCOPES};
+pub use table::{FAMILIES, FAMILY_MODEL_SHA256, SCOPES, SEAT_FAMILIES};
+
+/// The key grant family's pattern: a row that resolves to it is never carried.
+pub const KEY_GRANT: &str = "key_grant:{axis}";
 
 /// Where a row is placed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -324,9 +327,11 @@ pub fn family_of(name: &str) -> Option<&'static (&'static str, FamilyPlacement)>
 }
 
 /// The keys a seat offer or unseat over the row's own room seats or removes (its `to`): derived from the row, never
-/// stated by the caller. Empty on every other row.
+/// stated by the caller. Only a row of a seat family ([`SEAT_FAMILIES`]: one whose seats a body confers) seats
+/// anyone, so a content row cannot use `to` to pass `named_within`. Empty on every other row.
 pub fn seats_of<R: AudienceRow>(r: &R) -> &[R::Key] {
-    if r.seat_act().is_some() && r.obj().is_some() && r.obj() == r.room() {
+    let seat_family = family_of(r.family()).is_some_and(|f| SEAT_FAMILIES.contains(&f.0));
+    if seat_family && r.seat_act().is_some() && r.obj().is_some() && r.obj() == r.room() {
         r.to()
     } else {
         &[]
@@ -399,7 +404,9 @@ fn same_person<K: Ord + Clone>(person: &dyn Fn(&K) -> BTreeSet<K>, k: &K, of: &K
 /// * c.2: only to keys on the room's current roster (an offered key that never accepted gets the offer alone, a
 ///   removed key its removal alone);
 /// * c.3: a self or an addressed row is carried only by a concluded row of its own signer or that signer's person,
-///   into that row's audience (bounded by c.2 where it is a room row).
+///   into that row's audience (bounded by c.2 where it is a room row). The contract: `person` is the person's
+///   CURRENT, concluded key roster (`seat::Persons` on the key-person lane, once merged; no separate notion), so an
+///   evicted or revoked key leaves the person and carries nothing.
 ///
 /// The carrier's signer is already in `r`'s audience (CC 5.2's gate). A key grant is never carried: it reaches only
 /// the key it names.
@@ -412,7 +419,8 @@ pub fn carried<R: AudienceRow>(
     person: &dyn Fn(&R::Key) -> BTreeSet<R::Key>,
 ) -> Option<Audience<R::Key>> {
     let (Placed::Placed(pr, ar), Placed::Placed(pd, aud)) = (a, ad) else { return None };
-    if !d.concluded() || r.family().starts_with("key_grant:") || !ar.holds(d.signer()) {
+    let key_grant = family_of(r.family()).is_some_and(|f| f.0 == KEY_GRANT);
+    if !d.concluded() || key_grant || !ar.holds(d.signer()) {
         return None;
     }
     let targeted = |p: &Placement| matches!(p, Placement::TargetedFamily | Placement::TargetedRoom);
