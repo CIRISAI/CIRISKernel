@@ -37,6 +37,10 @@ with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
   bounded settler is closed by the reader's line exactly when the sibling it names is one that line holds void:
   it rescues a stalled reader (whose line holds both sides) and never overturns a reader that already settled past
   the contest.
+- The per-device cost (r82), stated: "The settler's protection is per device, not per person: if one of a person's
+  devices settled past a contest while another concurrently acknowledged the other side, the person is stalled at
+  the fork point, and a say-majority there (which can include holders the honest line removed, plus one of its own
+  signers turning) can decide it the other way, overturning the settled device."
 - The halt residual, stated: holders a later line removed can halt a reader that has not yet settled onto that line.
 - A root is the lineage of a genesis bundle (`RootBundle`, a signed object the store presents with its statements
   checked). The first bundle is counted over every holder it lists, a later one over a strict majority of its

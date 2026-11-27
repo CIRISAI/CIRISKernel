@@ -133,6 +133,10 @@ migrations, and the local operational store.
   removed keep a say there. With one turncoat (a double signer of the bare-majority step), they can force a split
   among those with a say, and hold a reader whose devices saw both sides at the fork point, where it reads them as
   holders and they can halt it. The exit is re-rooting, or one of them signing the honest settler."
+- The per-device cost: "The settler's protection is per device, not per person: if one of a person's devices settled
+  past a contest while another concurrently acknowledged the other side, the person is stalled at the fork point,
+  and a say-majority there (which can include holders the honest line removed, plus one of its own signers turning)
+  can decide it the other way, overturning the settled device."
 - A community's protocol is a word of the set under which no one voice decides (`seat::community_protocol`): not
   `quorum:1/{n}`, not `founder_only` (a family's; families are not built), not a weighted record one of whose
   weights reaches its threshold. A change of its record states no policy and meets both the protocol in force and

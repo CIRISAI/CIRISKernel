@@ -622,6 +622,10 @@ DT = nxt("t", "t1", ("h1", "h2", "h3", "X"), ("h1", "h2", "h3"), version=3)
 DB3 = nxt("b3", "b2", ("h3", "h4", "h5", "h6"), ("h4", "h5", "h3"), version=3)
 DL = [B0, DB1, DB2, DT1, DT]
 DS = nxt("s", "b1", ("h3", "h4", "h5"), ("h3", "h4", "h5"), version=2, names=("b2", "t1"))   # rule 3: names both
+CLST = SETTLE("sT", "t1", ("h1", "h2", "h4"), {"b2": DB2, "t1": DT1}, head="b1")
+CLS0 = nxt("s0", "b0", ("h1", "h2", "X"), ("h1", "h2"))
+CLS0T = SETTLE("s0t", "s0", ("h3",), {"b1": DB1, "s0": CLS0})
+CLS0B = SETTLE("s0b", "b1", ("h3",), {"b1": DB1, "s0": CLS0})
 CASES += [
     ("rules", "DP0: a reader that acknowledged b2: h3 signed b2 (cutting h1 h2) and t1 (keeping them) at b1: no say on "
               "either (rule 6), and b2 and t1 are two of b1's five: neither counts; the reader is at b1", DL, (), (),
@@ -668,6 +672,31 @@ CASES += [
      DL + [DB3, SETTLE("sb", "b2", ("h1", "h4", "h5"), {"b2": DB2, "t1": DT1}, head="b1")], (), (),
      RD(anchor="b0", acks=("b2", "b3", "t", "sb"), after=((), (0,), (), (0, 1, 2))),
      {"concluded": {"sb": T}, "heads": ("b3",), "holders": {"h3", "h4", "h5", "h6"}}),
+    ("rules", "CL0 (r82): sT, a settler at b1 toward t1 by h1 h2 (removed at b2) and a turned h4, three of the four "
+              "with a say: a reader at b3 that then acknowledges it stays at b3 (its line holds t1 void)",
+     DL + [DB3, CLST], (), (), RD(anchor="b0", acks=("b2", "b3", "sT")), {"concluded": {"sT": T}, "heads": ("b3",)}),
+    ("rules", "CL1: a reader that acknowledged b2 only, then sT: b2 settled over a past without t1, so its line holds "
+              "nothing of t1 void, and sT decides: t1", DL + [DB3, CLST], (), (), RD(anchor="b0", acks=("b2", "sT")),
+     {"heads": ("t1",), "holders": {"h1", "h2", "h3", "X"}}),
+    ("rules", "CL1b: the same reader before acknowledging sT is at b1", DL + [DB3, CLST], (), (),
+     RD(anchor="b0", acks=("b2",)), {"heads": ("b1",)}),
+    ("rules", "CL2: a new reader acknowledging sT only: t1", DL + [DB3, CLST], (), (), RD(anchor="b0", acks=("sT",)),
+     {"heads": ("t1",)}),
+    ("rules", "CL3: one device at b3, the other concurrently acknowledging sT: b3", DL + [DB3, CLST], (), (),
+     RD(anchor="b0", acks=("b2", "b3", "sT"), after=((), (0,), ())), {"heads": ("b3",)}),
+    ("rules", "CL3b: the same rows, sT's device first: b3", DL + [DB3, CLST], (), (),
+     RD(anchor="b0", acks=("sT", "b2", "b3"), after=((), (), (1,))), {"heads": ("b3",)}),
+    ("rules", "CL4 EDGE (the settler's protection is per device, not per person): one device at b3, the other "
+              "concurrently at t and then sT: the person is stalled at b1, and the say-majority there decides it the "
+              "other way, overturning the settled device: t", DL + [DB3, CLST], (), (),
+     RD(anchor="b0", acks=("b2", "b3", "t", "sT"), after=((), (0,), (), (2,))),
+     {"heads": ("t",), "holders": {"h1", "h2", "h3", "X"}}),
+    ("rules", "CL5: s0 at b0 and h3's settler toward it; a reader at b3 (its line holds s0 void): b3",
+     DL + [DB3, CLS0, CLS0T], (), (), RD(anchor="b0", acks=("b2", "b3", "s0t")), {"void": {"s0"}, "heads": ("b3",)}),
+    ("rules", "CL5b: the same for a reader that acknowledged b2 only: b1", DL + [DB3, CLS0, CLS0T], (), (),
+     RD(anchor="b0", acks=("b2", "s0t")), {"heads": ("b1",)}),
+    ("rules", "CL6: chained settlers, b0 toward b1 and b1 toward t1, the reader acknowledging s0, b2, both: t1",
+     DL + [DB3, CLS0, CLS0B, CLST], (), (), RD(anchor="b0", acks=("s0", "b2", "s0b", "sT")), {"heads": ("t1",)}),
     ("rules", "order case (1): the honest line advanced first (b3), a reader at b3: t1 is behind its line, and b2 and b3 "
               "stand", [B0, DB1, DB2, DB3, DT1], (), (), RD(anchor="b0", acks=("b3",)), {"heads": ("b3",)}),
     ("rules", "order case (2): a reader that acknowledged only b2, holding t1 and b3: t1 contests b2 (rule 6), and b3 "
