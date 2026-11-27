@@ -496,3 +496,31 @@ an arm for it. `window::author_apart` takes the opener's signer out of the concl
 clause of which is over `others`: such a table is a judgment of its opener's signer (the members' check, where the
 act opens its own window). Present an opener whose signer is a proposer, and not the subject, under a table that
 counts some clause over another base.
+
+**Charters, acceptance edges and licences**, for `charter::declared` and `trust_rows::read_licence`. Present rows
+only: the crate reads the edges, the charter and the issuer's standing from them, and takes no edge list.
+- A community's charter is its record's `licence_classes` (`SeatRow::licence_classes`: (class, legal_weight)
+  pairs), on the founding record and on each change of the record (scope `record`). A version is the whole
+  record: a change that states none declares none. An affiliation is a community record whose `declared_cohort`
+  is `affiliations` (`SeatRow::declared_cohort`).
+- An acceptance edge: a `delegates_to` row (`TrustRow::is_delegates_to`) bearing `trust:accepts:v1`, its
+  authority `accepts_dst`, `trust_classes` (`None` where absent; a present list is passed as stated, the crate
+  refuses an empty, unsorted or repeating one), `trust_depth` (`None` where absent; the crate refuses one outside
+  0 to 5), and `on_behalf` where it speaks for a community. A community's edge carries its duty holders'
+  signatures as cosigners and names the community's newest counted changes.
+- A licence: `licence_authority` and `licence_class`, naming the rows its standing rests on (the license seat's
+  offer and acceptance, or the community's record). Its `asserted_at` (`Dated`) is the instant its seat's term is
+  read at.
+- A license seat: an Offer of scope `license` over the authority; over a key, by that key (`Conf::Own`), and onward
+  under it (`Conf::Seat`, `sub` for a chain); over a community, `Conf::Group` counted by its duty holders
+  (`counted` `duty`); over an affiliation, by its body under its protocol. Its term is its own `asserted_at` and
+  `valid_until` (`Dated`, persist: `expires_at`).
+- **The door's checks, a single row's own fields, which the crate does not make:** refuse a license-seat offer
+  that states no term (`valid_until`), or a term longer than 365 days from its `asserted_at` (or than the charter's
+  `role_term` where it states a shorter one). The crate reads a seat with no term as unbounded, and the cap needs
+  instant arithmetic the crate's `Dated::Instant` does not have.
+- Every reason `read_licence` gives is a reading: the licence row stays admitted, and its reason
+  (`licence_class_not_trusted`, `licensure_delegator_not_authority`, `licensure_authority_locked`,
+  `licensure_link_withdrawn`, `authority_not_reached`) is no refusal at the door.
+- Cases: `models/causal_kernel/check_charter.py` and `check_trust_rows.py`, in the `charter` and `trust_rows`
+  fixtures.
