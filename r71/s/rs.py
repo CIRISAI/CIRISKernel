@@ -1,0 +1,25 @@
+exec(open(__file__.replace("rs.py","lib.py")).read())
+REC = CR.REC                                                   # h3's own recovery at b0: h3 -> h3b
+H = ("h1","h2","h3b")
+b2 = nxt("b2","rc",H + ("h4",),("h1","h2"),version=2, recovery={"h1":"r:h1","h2":"r:h2","h3b":"r:h3b","h4":"r:h4"})
+b3 = nxt("b3","b2",H + ("h4","h5"),("h1","h2","h4"),version=3, recovery={"h1":"r:h1","h2":"r:h2","h3b":"r:h3b","h4":"r:h4","h5":"r:h5"})
+L = [B0, REC, b2, b3]
+rd = RD(anchor="b0", acks=("b3",))
+run("RS0 honest: h3 recovers, the room grows on it to five", L, rd=rd)
+rc2 = nxt("rc2","b0",("h1","h2","h3x"),("r:h3",),recovers=("h3","h3x"),recovery={"h1":"r:h1","h2":"r:h2","h3x":"r:h3x"})
+run("RS1 later, r:h3 signs a second recovery at b0 (h3 -> h3x)", L + [rc2], rd=rd)
+g = GR("g1","b3","uX","room",("h1","h2","h4"))
+run("RS1g a grant on b3 by three of five", L + [rc2], gs=(g,), rd=rd, gids=("g1",))
+# the settle: h1,h2 join b3 and rc2
+j = nxt("j",("b3","rc2"),H + ("h4","h5"),("h1","h2"),version=4, recovery={"h1":"r:h1","h2":"r:h2","h3b":"r:h3b","h4":"r:h4","h5":"r:h5"})
+run("RS2 + h1,h2 settle with a join naming b3 and rc2", L + [rc2, j], rd=RD(anchor="b0", acks=("j",)))
+rc3 = nxt("rc3","b0",("h1","h2","h3y"),("r:h3",),recovers=("h3","h3y"),recovery={"h1":"r:h1","h2":"r:h2","h3y":"r:h3y"})
+run("RS3 + r:h3 signs a third recovery at b0", L + [rc2, j, rc3], rd=RD(anchor="b0", acks=("j",)))
+js = nxt("js",("b3","rc2"),("h1","h2"),("h1","h2"),version=4, recovery={"h1":"r:h1","h2":"r:h2"})
+run("RS4 r:h3 forks its recovery; h1,h2 (2 of 5) 'settle' with a join seating only h1,h2", L + [rc2, js], rd=RD(anchor="b0", acks=("js",)))
+run("RS4r the same read by a reader that acknowledged b3 only", L + [rc2, js], rd=rd)
+g5 = GR("g5","js","uX","room",("h1","h2"))
+run("RS4g + h1,h2 grant on js", L + [rc2, js], gs=(g5,), rd=RD(anchor="b0", acks=("js",)), gids=("g5",))
+# without the recovery fork, a join is impossible (one tip); a plain amend by h1,h2 on b3 is 2 of 5
+am = nxt("am","b3",("h1","h2"),("h1","h2"),version=4, recovery={"h1":"r:h1","h2":"r:h2"})
+run("RS4 control: h1,h2 amend b3 to themselves", L + [am], rd=RD(anchor="b0", acks=("am",)))
