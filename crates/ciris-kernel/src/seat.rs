@@ -3525,7 +3525,11 @@ fn ack_void<R: SeatRow, S: CutSpec<R>>(
     // the row's own void is read with them (the reference's _ack_void reads the same)
     let mut out: BTreeSet<usize> = reader.map(|rv| rv.iter().filter_map(|i| c.g.idx(i)).collect()).unwrap_or_default();
     let ar = c.g.row(a);
-    if LineSpec::<R>::counted_act(&SeatLine, ar).is_none() {
+    // one rule for bundles and rosters: an acknowledgement settles only if the acknowledged change counts over that
+    // acknowledgement row's own past, so an explicit acknowledgement reads S'' over its own past too, over the room
+    // it names, as a counted row does over its object
+    let explicit = if ar.seat_kind() == SeatKind::Ack { ar.room() } else { None };
+    if LineSpec::<R>::counted_act(&SeatLine, ar).is_none() && explicit.is_none() {
         return out;
     }
     let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| c.g.in_past(q, a)).collect();
@@ -3534,7 +3538,11 @@ fn ack_void<R: SeatRow, S: CutSpec<R>>(
     if let Some(rv) = reader {
         *cache.rvoid.borrow_mut() = rv.clone();
     }
-    out.extend(void_changes(&pa, law, spec, Some(&cache)).iter().filter_map(|i| c.g.idx(i)));
+    let v = match explicit {
+        Some(room) => void_changes_in(&c.g, &anc, &room, law, spec, Some(&cache)),
+        None => void_changes(&pa, law, spec, Some(&cache)),
+    };
+    out.extend(v.iter().filter_map(|i| c.g.idx(i)));
     out
 }
 

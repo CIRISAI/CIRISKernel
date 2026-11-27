@@ -132,7 +132,7 @@ pub struct Reader<I: Ord, K: Ord> {
     pub anchor: Option<I>,
     /// The holders' thumbprints.
     pub thumbs: Option<BTreeSet<K>>,
-    /// The bundles it acknowledged (they accumulate: its own line).
+    /// The bundles it acknowledged, in causal order: each later acknowledgement row has the earlier ones in its past.
     pub acks: Vec<I>,
 }
 
@@ -264,38 +264,39 @@ where
         out
     }
 
-    fn consistent(&self, b: &B) -> bool {
+    /// Why b is Invalid or waits, by the text's names (CC 2.6.1.11, CC 3.2), or None.
+    fn inconsistency(&self, b: &B) -> Option<Reason> {
         let ps: Vec<&B> = b.prev().iter().filter_map(|p| self.b(p)).collect();
         if ps.len() != b.prev().len() {
-            return false;
+            return Some("genesis_bundle_prev_not_valid"); // one not held: it waits
         }
         let rk: BTreeSet<&B::Key> = b.recovery().iter().map(|(h, _)| h).collect();
         let hk: BTreeSet<&B::Key> = b.holders().iter().collect();
         if rk != hk {
-            return false; // recovery_commitments are keys exactly the holders
+            return Some("genesis_bundle_malformed"); // recovery_commitments are keys exactly the holders
         }
         if ps.is_empty() {
-            return true;
+            return None;
         }
         let top = ps.iter().map(|p| p.version()).max().unwrap_or(0);
         if b.version() != top + 1 {
-            return false;
+            return Some("version_prev_mismatch");
         }
         if !ps.iter().all(|p| p.family() == b.family()) {
-            return false;
+            return Some("version_prev_mismatch");
         }
         if ps.len() >= 2 {
             // the join's wire: refs.prev is the greatest version, least id among equals; refs.further_prev the
-            // rest; a named predecessor in the past of another concludes nothing
+            // rest; a named predecessor in the lineage past of another is Invalid
             let first = ps.iter().min_by(|x, y| (y.version(), x.id()).cmp(&(x.version(), y.id())));
             if first.map(|q| q.id()) != Some(&b.prev()[0]) {
-                return false;
+                return Some("version_prev_mismatch");
             }
             if b.prev().iter().any(|a| b.prev().iter().any(|c| self.in_past(a, c))) {
-                return false;
+                return Some("further_prev_not_newest");
             }
         }
-        true
+        None
     }
 
     /// The keys retired across the branches of `prevs`: every key a recovery in their lines rotated out. A join
@@ -380,9 +381,21 @@ where
             return Some(Err("recovery_changes_other_seat"));
         }
         let p = self.b(&b.prev()[0])?;
-        let Some(rk) = Self::commitment(p, h) else { return Some(Err("recovery_not_signed")) };
+        let Some(rk) = Self::commitment(p, h) else { return Some(Err("recovery_commitment_mismatch")) };
         if !b.statements().iter().any(|(k, iat)| *k == rk && *iat == b.iat()) {
-            return Some(Err("recovery_not_signed"));
+            return Some(Err("recovery_commitment_mismatch"));
+        }
+        // a recovery whose prev is in the lineage past of a bundle its holder signed (as a holder, under either key)
+        // concludes nothing
+        let behind_head = self.by.values().any(|x| {
+            x.id() != b.id()
+                && !self.in_past(b.id(), x.id())
+                && x.recovers().is_none()
+                && self.in_past(&b.prev()[0], x.id())
+                && x.statements().iter().any(|(k, _)| self.owner(k) == self.owner(h))
+        });
+        if behind_head {
+            return Some(Err("recovery_behind_head"));
         }
         let want: Vec<B::Key> = p.holders().iter().map(|k| if k == h { new.clone() } else { k.clone() }).collect();
         let others = |r: &[(B::Key, B::Key)], skip: &B::Key| -> BTreeSet<(B::Key, B::Key)> {
@@ -421,16 +434,16 @@ where
     }
 
     fn counted_of(&self, b: &B) -> Result<(), Reason> {
-        if !self.consistent(b) {
-            return Err("invalid");
+        if let Some(why) = self.inconsistency(b) {
+            return Err(why);
         }
         if b.prev().iter().any(|p| self.counted(p).is_err()) {
-            return Err("prev_not_concluded");
+            return Err("genesis_bundle_prev_not_valid");
         }
         let v = self.voices(b);
         if b.prev().is_empty() {
             let all = !b.holders().is_empty() && b.holders().iter().all(|k| v.contains(k));
-            return if all { Ok(()) } else { Err("count_short") };
+            return if all { Ok(()) } else { Err("genesis_bundle_count_unmet") };
         }
         if let Some(r) = self.recovery_ok(b) {
             return r;
@@ -438,7 +451,7 @@ where
         if self.meets(b, &v, None) {
             Ok(())
         } else {
-            Err("count_short")
+            Err("genesis_bundle_count_unmet")
         }
     }
 
@@ -698,24 +711,48 @@ where
             .cloned()
     }
 
-    /// The reader's own line: every bundle it acknowledged (they accumulate, in any order), and the bundles void
-    /// for the reader by it: every bundle behind ANY acknowledged bundle, an acknowledged one included, and every
-    /// bundle built on one but a join (a join is behind an acknowledged c only where every predecessor it names is
+    /// The reader's own line, and the bundles void for the reader by it. Its acknowledgements are its own rows, each
+    /// later one with the earlier ones in its past ([`Reader::acks`], in that causal order); an acknowledgement
+    /// settles only if the acknowledged bundle counts over that acknowledgement row's OWN PAST (the bundle's past, the
+    /// reader's earlier acknowledgement rows and the line they drew). The void: every bundle behind ANY settled
+    /// bundle, a settled one included, and every bundle built on one but a join (a join is behind an acknowledged c only where every predecessor it names is
     /// strictly in the past of c's heads; a void predecessor it names does not stop it). Acknowledging never
     /// revives.
     pub fn reader_line(&self, rd: &Reader<B::Id, B::Key>) -> (Vec<B::Id>, BTreeSet<B::Id>) {
-        let valid: Vec<&'a B> = self.valid();
-        let acked: Vec<B::Id> = rd.acks.iter().filter(|a| valid.iter().any(|b| b.id() == *a)).cloned().collect();
-        let mut out: BTreeSet<B::Id> = valid
+        let valid: BTreeSet<B::Id> = self.valid().into_iter().map(|b| b.id().clone()).collect();
+        let acks: Vec<B::Id> = rd.acks.iter().filter(|a| valid.contains(*a)).cloned().collect();
+        let mut settled: Vec<B::Id> = Vec::new();
+        let mut seen: BTreeSet<B::Id> = BTreeSet::new();
+        for a in &acks {
+            seen.extend(self.line(a));
+            let pool: BTreeSet<B::Id> = seen.intersection(&valid).cloned().collect();
+            let rv = self.rv_of(&settled, &pool);
+            let rest: Vec<B::Id> = pool.iter().filter(|i| !rv.contains(*i)).cloned().collect();
+            if !rv.contains(a) && !self.contested(&rest).contains(a) {
+                settled.push(a.clone()); // it counts over its own acknowledgement row's past: it settles
+            }
+        }
+        let out = self.rv_of(&settled, &valid);
+        (settled, out)
+    }
+
+    /// The bundles of `ids` behind any of the bundles `settled`, and every bundle built on one but a join.
+    fn rv_of(&self, settled: &[B::Id], ids: &BTreeSet<B::Id>) -> BTreeSet<B::Id> {
+        let mut out: BTreeSet<B::Id> = ids
             .iter()
-            .filter(|b| acked.iter().any(|a| self.b(a).is_some_and(|ba| self.behind(b, ba))))
-            .map(|b| b.id().clone())
+            .filter(|i| {
+                self.b(i).is_some_and(|bi| settled.iter().any(|a| self.b(a).is_some_and(|ba| self.behind(bi, ba))))
+            })
+            .cloned()
             .collect();
         loop {
             let mut changed = false;
-            for b in &valid {
-                if !out.contains(b.id()) && b.prev().len() < 2 && b.prev().iter().any(|p| out.contains(p)) {
-                    out.insert(b.id().clone());
+            for i in ids {
+                if out.contains(i) {
+                    continue;
+                }
+                if self.b(i).is_some_and(|b| b.prev().len() < 2 && b.prev().iter().any(|p| out.contains(p))) {
+                    out.insert(i.clone());
                     changed = true;
                 }
             }
@@ -723,7 +760,7 @@ where
                 break;
             }
         }
-        (acked, out)
+        out
     }
 
     /// The bundles in force for the reader: the newest it acknowledged, read by its line; none, its anchor.
@@ -795,13 +832,14 @@ where
             let mut ks: BTreeSet<B::Key> = BTreeSet::new();
             for c in &bs {
                 if self.siblings(b, c) && (self.cuts_kept(b, c) || self.cuts_kept(c, b)) {
-                    ks.extend(self.voices(b).intersection(&self.voices(c)).cloned());
-                    // rule 6
+                    // rule 6: the holder is the voice, under its key or its recovery key
+                    let oc: BTreeSet<B::Key> = self.voices(c).iter().map(|k| self.owner(k)).collect();
+                    ks.extend(self.voices(b).into_iter().filter(|k| oc.contains(&self.owner(k))));
                 }
             }
-            if !ks.is_empty() && b.recovers().is_none() {
+            if !ks.is_empty() {
                 let v: BTreeSet<B::Key> = self.voices(b).difference(&ks).cloned().collect();
-                if !self.meets(b, &v, None) {
+                if b.recovers().is_some() || !self.meets(b, &v, None) {
                     out.insert(b.id().clone());
                 }
             }
