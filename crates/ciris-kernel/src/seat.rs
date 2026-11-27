@@ -4440,6 +4440,38 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     group_count(&count, |k| wr.weights().iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x)).unwrap_or(false)
 }
 
+/// The kind of counted end an unseat is, for the one-target rule.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EndKind {
+    /// A removal from the roster (a roster seat).
+    Removal,
+    /// The members' recall of a duty holder.
+    Recall,
+    /// The duty holders' withdrawal of a duty seat.
+    DutyWithdraw,
+    /// A demotion: the `founder` role.
+    Demotion,
+}
+
+/// [`EndKind`] of unseat `r`: a demotion (scope `founder`), a removal (a roster seat or `member`), a recall (the
+/// ranked recall's policy, or counted over the members), else a duty withdrawal.
+fn end_kind<R: SeatRow>(law: &SeatLaw, r: &R) -> EndKind {
+    let sc = r.scope().map(|s| s.as_ref());
+    if sc == Some("founder") {
+        return EndKind::Demotion;
+    }
+    if sc.is_some_and(|s| s == "member" || law.roster_seats.iter().any(|x| x == s)) {
+        return EndKind::Removal;
+    }
+    let recall = matches!(law.policy_of(r.policy().map(|x| x.as_ref())), Some(Policy::Recall(..)))
+        || r.counted().map_or("member", |c| c.as_ref()) == "member";
+    if recall {
+        EndKind::Recall
+    } else {
+        EndKind::DutyWithdraw
+    }
+}
+
 fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
     law: &SeatLaw,
@@ -4522,6 +4554,17 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     r.under().and_then(|u| by.get(u)).is_some_and(|u| u.to().contains(r.signer()))
                 }
                 Some(Conf::Group) => {
+                    // one target per counted end (the Constitution's ruling on review-54's multi-target hole): a
+                    // removal, a recall, a duty withdrawal or a demotion naming more than one key concludes nothing;
+                    // several are several rows, each judged alone at its head
+                    if !is_offer && r.to().len() != 1 {
+                        match end_kind(law, r) {
+                            EndKind::Removal => return false,
+                            EndKind::Recall => return false,
+                            EndKind::DutyWithdraw => return false,
+                            EndKind::Demotion => return false,
+                        }
+                    }
                     // an infrastructure room's recovery widening while stalled is undecided ([`stalled_recovery`]): the
                     // kernel holds no bundle holders, so it concludes nothing
                     if r.bundle().is_some() {

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
+more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.
+Several removals are several rows, each judged alone at its head. The same for a recall (one holder), a duty
+withdrawal (one holder, one duty seat) and a demotion (one founder). Under `quorum:2/n` two voices remove any one
+member: that is the declared protocol.
+
 **Open admission cut** (Eric, for 1.0; the Constitution's rc23 at 76965eb, policy pin a304b485). **BREAKING**:
 `seat::Policy::SelfAdmit`, `seat::RoomProtocol::SelfAdmit`, `RoomProtocol::states` and `SeatLaw::community_floor` are
 removed. A public room is an ordinary invitation-only community anyone may read; membership comes only by

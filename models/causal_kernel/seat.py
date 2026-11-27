@@ -3019,6 +3019,16 @@ def end_of_ended(r, P, past, by):
         P, past, o, k, q, lambda m: sc in seat_scopes(m, k))) and in_force(q) for q in P) for k, sc, o in seats)
 
 
+def end_kind(r):
+    """The kind of counted end an unseat is, for the one-target rule: a demotion (the `founder` role), a removal from
+    the roster (a roster seat), a recall (the members' count of a duty holder) or a duty withdrawal (the holders')."""
+    sc = r.get("scope")
+    if sc == "founder": return "demotion"
+    if sc in ROSTER_SEATS or sc == "member": return "removal"
+    return "recall" if K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "recall" or r.get("counted", "member") == "member" \
+        else "duty_withdraw"
+
+
 def seat_rule(r, P, past, table=None, other=None):
     """The conclusion rule. P: r's concluded ancestors."""
     k, by = r["kind"], {q["id"]: q for q in P}
@@ -3060,6 +3070,11 @@ def seat_rule(r, P, past, table=None, other=None):
             # an infrastructure room's recovery widening while stalled is undecided here (stalled_recovery): the kernel
             # holds no bundle holders, so it concludes nothing
             if r.get("bundle") is not None and "recovery_concludes" not in MUT: return False
+            # one target per counted end (the Constitution's ruling on review-54's multi-target hole): a removal, a
+            # recall, a duty withdrawal or a demotion naming more than one key concludes nothing; several are several
+            # rows, each judged alone at its head (MUTATIONS multi_target_removal, multi_target_recall,
+            # multi_target_duty_withdraw, multi_target_demotion: that kind may name several)
+            if k == "unseat" and len(r.get("to", ())) != 1 and "multi_target_" + end_kind(r) not in MUT: return False
             # H1, H4: every counted row names the newest counted changes over its object in its own past, a lone removal,
             # a self-admission, a lift and an election's seating included (a seating's count reads its election, never
             # its heads: its heads place it; MUTATION election_exempt: a seating names no head)

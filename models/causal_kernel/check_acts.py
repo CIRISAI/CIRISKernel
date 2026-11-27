@@ -89,6 +89,10 @@ Planted breaks, each of which must change a case's answer:
     wait_reader_unread            the founders' amendment wait is read over a row's own past only, not the reader's (C2)
     contested_one_sided           a one-sided cut is contested too: rule 5 read beyond mutual dependence
     self_voice_on_offer           a key an offer seats is a voice of it (a member re-seated by its own signature)
+    multi_target_removal          a counted removal may name several members (the one-target ruling)
+    multi_target_recall           a recall may name several holders
+    multi_target_duty_withdraw    a duty withdrawal may name several holders
+    multi_target_demotion         a demotion may name several founders
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
@@ -849,6 +853,15 @@ PENDING += [
 # (2) reads only ends in force), FA6 (a dissolution contested as a cut), T5 (restated to the sibling-safe line) and C2
 # (the amendment wait read through reader_state)
 HELD = ("A1:", "A3:", "K2:", "T5b:", "C1:", "the settling count (S4)", "FA6", "T5:", "C2:")
+# rule 5 as built for one-target removals at one head whose targets are each other's voices: mutual dependence is
+# contested and neither counts (one-sided, the dependent one falls: the one-sided sibling below)
+TIPS += [
+    ("one target, mutual: A, B, C and D remove E while E, F, G and B remove A, both at g: each needs a voice the other "
+     "removes, so both are contested and A and E stay", [G7_ := ST.offer("g", "A", tuple("ABCDEFG"), "member", "@",
+                                                                         "self", cosigners=tuple("BCDEFG")),
+                                                         _krem("x1", "E", "ABCD", ("g",)), _krem("x2", "A", "EFGB", ("g",))],
+     [("A", "member", True), ("E", "member", True)]),
+]
 # the guard on the restatement (the Constitution's ruling, 2026-11-27): only MUTUAL dependence is contested. A lawful
 # removal at head h of a voice a sibling change at h needed, the sibling touching no voice of the remover, stands, and
 # the sibling falls (rule 4, from the head the cut names)
@@ -876,6 +889,36 @@ CONCLUDE_Q4 += [
     ("no key admits itself: B's own signature is no voice of B's re-seating; A alone of three is short of a majority",
      [G3, grp("rb", "offer", "B", "member", "cosigned_act", signer="B", cosigners=("A",))], "rb", False),
 ]
+# One target per counted end (the Constitution's ruling on review-54's multi-target hole, r69 m1 and m2): a counted
+# removal naming more than one target concludes nothing; the target is not counted over and is no voice, the floor of
+# two stands; several removals are several rows, each judged alone at its head. The same for a recall (one holder), a
+# duty withdrawal (one holder, one duty seat) and a demotion (one founder)
+def several(r, keys):
+    """An unseat row naming several targets (seat.unseat names one)."""
+    return dict(r, to=tuple(keys), cuts=tuple(c for k in keys for c in ST._slots(k, r["scope"], r["obj"])))
+
+
+G7 = ST.offer("g", "A", tuple("ABCDEFG"), "member", "@", "self", cosigners=tuple("BCDEFG"))       # seven, majority
+G7Q = dict(G7, consensus_protocol="quorum:2/7")
+FAM3 = ST.found("g", "A", ("A", "B", "C"), {"founder": ("A", "B", "C")}, cosigners=("B", "C"), group_kind="family",
+                family_key_id="FK", consensus_protocol="founder_only")
+CONCLUDE_Q4 += [
+    ("one target: A and B remove C, D, E, F and G in one row of a room of seven: it concludes nothing",
+     [G7, several(grp("x", "unseat", "C", "member", None, cosigners=("B",)), "CDEFG")], "x", False),
+    ("a minority one at a time: A and B remove C, two of the six others, short of a majority: the first step never "
+     "starts", [G7, grp("x", "unseat", "C", "member", None, cosigners=("B",))], "x", False),
+    ("under quorum:2/7, the room's declared protocol, two voices remove any one member", [G7Q, grp(
+        "x", "unseat", "C", "member", None, cosigners=("B",))], "x", True),
+    ("and under it a removal of two in one row concludes nothing", [G7Q, several(grp(
+        "x", "unseat", "C", "member", None, cosigners=("B",)), "CD")], "x", False),
+    ("a recall names one holder: C, D, E and F recall A and B together: nothing",
+     [G6, several(grp("r", "unseat", "A", "moderate", None, signer="C", cosigners=("D", "E", "F")), "AB")], "r", False),
+    ("a duty withdrawal names one holder: the holders withdraw A's and B's moderate together: nothing",
+     [G6, several(grp("r", "unseat", "A", "moderate", None, signer="C", cosigners=("D", "E", "F"), counted="duty"), "AB")],
+     "r", False),
+    ("a demotion names one founder: A demotes B and C together: nothing",
+     [FAM3, several(FREM("x", "B", scope="founder"), "BC")], "x", False),
+]
 PENDING_CONCLUDE = []
 
 PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread",
@@ -894,7 +937,8 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "concurrent_amendments_free", "infra_word_restated_always", "contested_scoped_to_kinds",
           "contested_voice_everywhere", "negative_weight", "removal_counts_target", "removal_floor_unread",
           "end_of_contested_end", "dissolve_uncontested", "wait_reader_unread", "contested_one_sided",
-          "self_voice_on_offer")
+          "self_voice_on_offer", "multi_target_removal", "multi_target_recall", "multi_target_duty_withdraw",
+          "multi_target_demotion")
 
 
 @contextlib.contextmanager

@@ -373,6 +373,8 @@ fn ballot(g: &mut Lcg) -> Ballot {
     let offer = pick(g, 3) != 0;
     let to: Vec<u32> = if offer { to } else { to.into_iter().filter(|k| !gone_member.contains(k)).collect() };
     let to = if to.is_empty() { vec![51] } else { to };
+    // one target per counted end (the Constitution's ruling): a removal names one key
+    let to = if offer { to } else { to[..1].to_vec() };
     let mut c =
         S::new(2000, [vec![head], in_c].concat(), signer, if offer { SeatKind::Offer } else { SeatKind::Unseat });
     c.to = to.clone();
