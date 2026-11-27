@@ -39,6 +39,10 @@ Planted breaks, each of which must change a case's answer:
     instant_unread           (b) a licence may state an instant earlier than a row it cites
     edge_term_unread         (d) an edge's own term is not read
     amendment_as_cut         (d) a licence failing only under a concurrent amendment reads as cut (link_withdrawn)
+    instant_over_reader      (b) a licence's instant is bounded below by every row the reader holds, not its own past
+    scope_unread             (d) an end cuts every act of its key over the object, whatever scope it ends
+    line_unread              (a), (b) an authority act behind the reader's line over the body concludes
+    termless_edge_walked     (d) an edge stating no term is walked
 
     python3 -I check_trust_rows.py      exit 1 on any difference
 """
@@ -55,7 +59,15 @@ import trust_rows as TR  # noqa: E402
 CH, ST, CK = TR.CH, TR.ST, TR.CK
 ORDER_CAP = 24
 M, L = "medical", "legal"
-A = TR.accepts
+TERM = {"asserted_at": 0, "expires_at": 10 ** 6}     # every edge carries a term (CC 4.4.3.12); the cases read at NOW_AT
+
+
+def A(*a, **k):
+    """An acceptance edge row with a term (an edge stating none is not walked)."""
+    return dict(TR.accepts(*a, **k), **TERM)
+
+
+NOW_AT = 50                                           # the caller's instant every case reads at, unless NOW says
 
 AF = ST.found("af", "A", ("A", "B", "C"), cosigners=("B", "C"), declared_cohort="affiliations",
               licence_classes=((M, True), (L, False)))           # no officer: an affiliation DISSOLVED (CC 4.4.3.12)
@@ -320,14 +332,65 @@ CASES += [
      [GD, R_SO("license", "g", "C"), A("e", "RD", "g"), glic("l", "g", "C") | {"names": ("so",)}], "RD", "l", None, NA),
     ("and a founding duty holder of two, its own license seat alone",
      [GD, R_SO("license", "g", "A"), A("e", "RD", "g"), glic("l", "g", "A") | {"names": ("so",)}], "RD", "l", None, NA),
-    ("an edge within its term at the licence's instant",
+    ("an edge within its term at the caller's instant (50)",
      [A("e", "RD", "K") | {"asserted_at": 10, "expires_at": 100}, klic("l") | {"asserted_at": 50}], "RD", "l", KCH, OK),
-    ("an edge whose term has ended at the licence's instant",
-     [A("e", "RD", "K") | {"asserted_at": 10, "expires_at": 100}, klic("l") | {"asserted_at": 150}], "RD", "l", KCH,
+    ("an edge whose term has ended at the caller's instant (150)",
+     [A("e", "RD", "K") | {"asserted_at": 10, "expires_at": 100}, klic("l") | {"asserted_at": 50}], "RD", "l", KCH,
      NR),
-    ("a term-bearing edge and a licence stating no instant",
-     [A("e", "RD", "K") | {"asserted_at": 10, "expires_at": 100}, klic("l")], "RD", "l", KCH, NR),
+    ("r77 N8 a term-bearing edge read with no caller's instant: not walked (never at the licence's own instant)",
+     [A("e", "RD", "K") | {"asserted_at": 0, "expires_at": 100}, klic("l") | {"asserted_at": 50}], "RD", "l", KCH, NR),
+    ("r77 K3 an edge stating no term is not walked (every edge carries one)",
+     [dict(TR.accepts("e", "RD", "K")), klic("l")], "RD", "l", KCH, NR),
 ]
+# ---- the r77 attack (review-scratch ebd8200, r77/n1 to n5), each a case ------------------------------------------
+ACK = lambda i, obj, head: CK.row(i, "ack", "RD", (head,), room=obj, head=(head,))   # the reader takes up a change
+R_DC, R_DCA = ST.offer("dc", "A", "C", "moderate", "g", "self", ("g",)), ST.accept("dca", "C", "dc")  # A confers on C
+R_LS, R_LSA = ST.offer("ls", "A", "X", "license", "g", "self", ("g",)), ST.accept("lsa", "X", "ls")   # A alone, at g
+R_AOB = ST.offer("aob", "A", ("B",), "member", "af", "group", ("af",), head=("af",), cosigners=("B",),
+                 counted=ST.OFFICER, role=ST.OFFICER)                                              # A appoints B
+R_G2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B"), "review": ("A",)}, cosigners=("B", "C"),
+                licence_classes=((M, False),))
+R_LDR = ST.withdraw("ldr", "A", "g", (), scope="review")         # A lays down review only; it still holds moderate
+R_ZO = ST.offer("zo", "Z", "Z", "x", "Z", "self")
+R_ZW = dict(ST.withdraw("zw", "Z", "zo", ("zo",)), asserted_at=10 ** 9)   # an unrelated key's late-dated row
+GROWN = [dict(GD, consensus_protocol="majority")]
+for _k, _m, _pv in zip("DEFG", ("ABC", "ABCD", "ABCDE", "ABCDEF"), ("g", "aD", "aE", "aF")):
+    GROWN.append(ST.offer("a" + _k, _m[0], (_k,), "member", "g", "group", (_pv,), head=(_pv,),
+                          cosigners=tuple(_m[1:]) + (_k,), policy="community_invite"))
+CASES += [
+    ("r77 N1 A and C hold; A alone signs g's edge naming dca: not the body",
+     [G1, R_DC, R_DCA, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("dca",)), klic("l")], "RD",
+     "l", KCH, NR),
+    ("r77 N1b and naming only g, behind the reader's line (it took up dca): concludes nothing",
+     [G1, R_DC, R_DCA, ACK("ak", "g", "dca"), A("e", "RD", "g", depth=1),
+      A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD", "l", KCH, NR),
+    ("r77 N1b' the same for a reader that took up nothing: the newcomer residual",
+     [G1, R_DC, R_DCA, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD",
+     "l", KCH, OK),
+    ("r77 N2 A alone confers a license seat naming only g, behind the line: X's licence is testimony",
+     [G1, R_DC, R_DCA, R_LS, R_LSA, ACK("ak", "g", "dca"), A("e", "RD", "g"),
+      glic("l", "g", "X") | {"names": ("lsa", "dca")}], "RD", "l", None, NA),
+    ("r77 N4c A alone, lone officer before B's appointment, licenses naming only af, behind the line",
+     [AFD1, R_AOB, ACK("ak", "af", "aob"), A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
+    ("r77 N4e and an edge for af naming only af, behind the line",
+     [AFD1, R_AOB, ACK("ak", "af", "aob"), A("e", "RD", "af", depth=1),
+      A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH, NR),
+    ("r77 N5b a grown community: A and B's quorum licence naming only g, behind the line (it took up aG)",
+     GROWN + [ACK("ak", "g", "aG"), A("e", "RD", "g"), glic("l", "g", cosigners=("B",))], "RD", "l", None, NA),
+    ("r77 N5 and naming aG: two of seven, not its quorum", GROWN + [A("e", "RD", "g"),
+                                                                  glic("l", "g", cosigners=("B",)) | {"names": ("aG",)}],
+     "RD", "l", None, NA),
+    ("r77 N6 A lays down review, still holding moderate: the concurrent license seat is not cut",
+     [R_G2, R_LDR, A("e", "RD", "g"), GLO, GLA, glic("l", "g", "X") | {"names": ("gla",)}], "RD", "l", None, OK),
+    ("r77 D1 an unrelated key's late-dated row sets no lower bound on a licence",
+     [E0, klic("l") | {"asserted_at": 50}, R_ZO, R_ZW], "RD", "l", KCH, OK),
+    ("r77 D2b nor on one under a termed seat", [G1, G1LT, GLA, A("e", "RD", "g"),
+                                               glic("l", "g", "X") | {"names": ("gla",), "asserted_at": 50}, R_ZO,
+                                               R_ZW], "RD", "l", None, OK),
+]
+
+NOW = {"an edge whose term has ended at the caller's instant (150)": 150,
+       "r77 N8 a term-bearing edge read with no caller's instant: not walked (never at the licence's own instant)": None}
 
 # (name, the edge row, the refusal or None)
 REFUSALS = [
@@ -351,7 +414,8 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "judged_at_read", "bears_unread", "refusal_unread", "depth_unread", "depth_absent_refused",
           "withdrawn_unread", "withdraw_by_anyone", "issuer_unread", "chain_unread", "quorum_unread",
           "ends_unread", "cut_unread", "self_seat_ungated", "untimed_term_met", "instant_unread",
-          "edge_term_unread", "amendment_as_cut")
+          "edge_term_unread", "amendment_as_cut",
+          "instant_over_reader", "scope_unread", "line_unread", "termless_edge_walked")
 
 
 @contextlib.contextmanager
@@ -377,7 +441,7 @@ def answers(case, every_order=False):
     for o in (itertools.islice(itertools.permutations(rows), ORDER_CAP) if every_order else [rows]):
         S = arrive(o)
         kept &= bool(S.C.get(lid))
-        out.add(TR.read_licence(S, reader, lid, supplied=supplied))
+        out.add(TR.read_licence(S, reader, lid, supplied=supplied, now=NOW.get(case[0], NOW_AT)))
     return out, kept
 
 
@@ -419,9 +483,10 @@ def fixture(with_refs):
     for name, rows, reader, lid, supplied, _want in CASES:
         refs = {}
         S = arrive(rows)
-        ok, why = TR.read_licence(S, reader, lid, supplied=supplied)
+        now = NOW.get(name, NOW_AT)
+        ok, why = TR.read_licence(S, reader, lid, supplied=supplied, now=now)
         out["cases"].append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "reader": reader,
-                             "licence": lid, "supplied": {k: sorted(v) for k, v in sorted((supplied or {}).items())},
+                             "licence": lid, "now": now, "supplied": {k: sorted(v) for k, v in sorted((supplied or {}).items())},
                              "honoured": ok, "reason": why})
     for name, r, _want in REFUSALS:
         refs = {}

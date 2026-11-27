@@ -91,6 +91,19 @@ role ends with any leaving. `false` for any other object and at the founding row
 `check_acts.py` (FOUNDERS), recorded in the `seat` fixture (`founder`); plants `founder_at_tips` and
 `founder_leavings_unread`, and a crate plant.
 
+**The r77 attack on the trust walk, closed** (both languages; every attack a case, each fix a plant):
+- A licence's instant is bounded below by its OWN past alone: the reader's ends cut, and never set the lower bound
+  (an unrelated late-dated row no longer voids it).
+- Body growth is a counted change, not an end: an authority act (an edge, a license or officer seat, an own licence, a
+  record act) whose named heads are behind the READER'S LINE over the authority's body (the reader holds and has
+  taken up a newer change of that body) concludes nothing for that reader. `read_licence` reads the line of the
+  reader's own key; a reader that has taken up nothing is the stated newcomer residual.
+- Ends are keyed by (key, object, SCOPE): an end cuts only rows whose standing rests on the scope it ends, and only
+  where the key holds that standing no more (a lay-down of `review` leaves the holder's `moderate` acts).
+- Every edge carries a term (CC 4.4.3.12): an edge stating none is not walked. Edge terms are read only at the
+  caller's `now`; with no `now` no edge is walked (never at the licence's own instant). `edges_of` and `standing`
+  take the reader's key. **Caller duty:** pass `now`.
+
 **The r73 attack on the trust walk, closed** (both languages; every attack a case in `check_trust_rows.py`, each fix a
 plant):
 - One gate (`seat.authority_gate`, the seat rule's `authority_gate`): a single key's offer (own or under a seat) of an

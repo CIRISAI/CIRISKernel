@@ -57,9 +57,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.dont_write_bytecode = True
 import charter as CH  # noqa: E402
+import checkpoint as CPT  # noqa: E402
 
 ST, CK = CH.ST, CH.CK
 MUT = set()          # planted breaks, switched on by check_trust_rows.py
+CK_ACKS = lambda S, own, o: CPT.acknowledgements(S, own, o)   # a reader's rows over a group (checkpoint's one read)
 BEARS = "trust:accepts:v1"
 HOP_CAP = CH.HOP_CAP
 
@@ -211,32 +213,137 @@ def is_amendment(q):
     return q["kind"] == "offer" and q.get("conf") == "group" and q.get("scope") == "record"
 
 
+def seat_scopes_of(S, t, k):
+    """The scopes offer `t` gives key `k`: a founding row's `member` and each duty its map names `k` in; any other
+    offer's own scope."""
+    if t.get("obj") == t["id"] and t.get("duty_holders"):
+        return {t.get("scope", "member")} | {d for d, ks in t.get("duty_holders") if k in ks}
+    return {t.get("scope")}
+
+
 def ends_keys(S, e):
-    """The (key, object) seats end `e` ends: an unseat's keys over its object; a withdrawal by a seated key of its own
-    seat, or by the conferrer of an offer's seats (a counted offer's conferrer is its count, and its signer ends
-    nothing alone); a change of the record ends no seat."""
+    """The (key, object, SCOPE) seats end `e` ends: an unseat's keys over its object in its scope; a withdrawal by a
+    seated key of its own seat (the one scope it names, or every scope the row gives it), or by the conferrer of an
+    offer's seats (a counted offer's conferrer is its count, and its signer ends nothing alone); a change of the
+    record ends no seat."""
     if e["kind"] == "unseat":
-        return {(k, e.get("obj")) for k in e.get("to", ())}
+        return {(k, e.get("obj"), e.get("scope")) for k in e.get("to", ())}
     if e["kind"] != "withdraw":
         return set()
     t = S.by.get(e.get("target"))
     if t is None:
         return set()
     if t["kind"] == "accept":
-        return {(e["signer"], object_of(S, t))}
+        o = S.by.get(t.get("of"))
+        return {(e["signer"], object_of(S, t), o.get("scope") if o else None)}
     if t["kind"] != "offer":
         return set()
     if e["signer"] in t.get("to", ()):
-        return {(e["signer"], t.get("obj"))}
+        scs = {e["scope"]} if e.get("scope") is not None else seat_scopes_of(S, t, e["signer"])
+        return {(e["signer"], t.get("obj"), sc) for sc in scs}
     if e["signer"] in ST.signers(t) and t.get("conf") != "group":
-        return {(k, t.get("obj")) for k in t.get("to", ())}
+        return {(k, t.get("obj"), t.get("scope")) for k in t.get("to", ())}
     return set()
 
 
-def cut_state(S, rows):
-    """The rows `rows` with every row an end among them cuts taken out: a row signed by a key whose seat over the row's
-    object the end ends, concurrent with that end (neither in the other's past). Rows in an end's past stand (nothing
-    reaches back); rows after it are judged at their own past."""
+def scope_class(S, o, sc):
+    """The standing a seat of scope `sc` over `o` gives: `duty` for any duty (a holder of any one duty is a duty
+    holder), the officer seat, or the scope itself."""
+    if sc is not None and (sc == "duty" or ST.is_duty(sc, ST.declared(S.by, o))):
+        return "duty"
+    return sc
+
+
+def rests_on(S, q, o):
+    """The standings act `q` over `o` rests on (the classes scope_class gives): a counted row's body (`counted`); a
+    row conferred under a seat, that seat's; a single key's own offer over a group, its authority body's; an edge
+    speaking for a group, its authority body's, and for a person, the roster's `key`; a licence, its seat's or its
+    quorum's."""
+    body = ST.OFFICER if ST.kind_of(S.by, o) == "affiliation" else "duty"
+    if q["kind"] in ("offer", "unseat"):
+        if q.get("conf") == "group":
+            return {scope_class(S, o, q.get("counted", "member"))}
+        if q.get("conf") == "seat":
+            up = S.by.get(q.get("under"))
+            return {scope_class(S, o, up.get("scope"))} if up else set()
+        if q.get("conf") == "self" and q.get("obj") != q["id"] and ST.founding_row(S.by, o):
+            return {body}
+        return set()
+    if q["kind"] == "delegates_to":
+        return {body} if o in S.by else {"key"}
+    if q["kind"] == "licensure":
+        return {"license", "member", ST.OFFICER}
+    return set()
+
+
+def still_holds(S, e, k, o, cls):
+    """Key `k` still holds standing `cls` over `o` once end `e` is read: over e's own past and e."""
+    rows = [q for q in S.rows if q["id"] in S.anc[e["id"]] or q["id"] == e["id"]]
+    Q = ST.Seats(CK.State(rows, {q["id"]: S.C.get(q["id"]) for q in rows}))
+    return k in Q.holders(cls if cls != "duty" else "duty", o)
+
+
+# ---- the reader's line over a group's body (the r77 attack: body growth is a counted change, not an end) ----------
+def body_change(q, o):
+    """A change of group `o`'s body: a counted act over it (conf group, naming its head), or a single key's own or
+    conferred offer of a seat over it other than a roster seat (a lone conferral of a duty, an officer or license seat)."""
+    if q["kind"] not in ("offer", "unseat") or q.get("obj") != o or q["id"] == o:
+        return False
+    if q.get("conf") == "group":
+        return bool(q.get("head"))
+    return q.get("conf") in ("self", "seat") and q.get("scope") not in ("member", ST.AGENT)
+
+
+def line_of(S, own, o):
+    """The changes of `o`'s body reader `own` has taken up: each concluded change in the past of (or equal to) a row
+    `own` signed or cosigned over `o` (CC 2.7.8; checkpoint.acknowledgements), or named as a head by its `ack`."""
+    if own is None or "line_unread" in MUT:
+        return []
+    acks = CK_ACKS(S, own, o)
+    out = []
+    for c in S.Cs:
+        if not body_change(c, o):
+            continue
+        for a in acks:
+            named = tuple(a.get("head", ())) if a["kind"] == "ack" else ()
+            if c["id"] == a["id"] or c["id"] in S.anc[a["id"]] or c["id"] in named or any(
+                    c["id"] in S.anc.get(h, ()) for h in named):
+                out.append(c)
+                break
+    return out
+
+
+def behind_line(S, own, q, o):
+    """Authority act `q` over `o` is BEHIND reader `own`'s line: the heads it names (its named changes of `o`'s body and
+    `o` itself, or every row it names where it names none) are all strictly in the past of a change the reader has
+    taken up, which `q` does not have in its own past. It concludes nothing for that reader (the checkpoint's monotone
+    line, as rosters read it). A reader with no row of its own is the newcomer residual."""
+    line = line_of(S, own, o)
+    if not line:
+        return False
+    heads = [n for n in q["names"] if n == o or (n in S.by and body_change(S.by[n], o))] or list(q["names"])
+    return bool(heads) and any(
+        c["id"] != q["id"] and q["id"] not in S.anc[c["id"]] and c["id"] not in S.anc[q["id"]]
+        and all(h in S.anc[c["id"]] for h in heads) for c in line)
+
+
+def authority_act_over(S, q):
+    """The group an authority act `q` acts for, or None: a change of a group's body (body_change), an edge speaking for
+    a group, or a licence of a group."""
+    if q["kind"] in ("offer", "unseat") and q.get("obj") in S.by and body_change(q, q.get("obj")):
+        return q["obj"]
+    if q["kind"] == "delegates_to" and q.get("on_behalf") in S.by:
+        return q["on_behalf"]
+    if q["kind"] == "licensure" and q.get("authority") in S.by:
+        return q["authority"]
+    return None
+
+
+def cut_state(S, rows, own=None):
+    """The rows `rows` with every row an end among them cuts taken out, and every authority act behind the reader's
+    line: an end cuts a row signed by a key whose seat over the row's object, of a scope whose standing the row rests
+    on, the end ends (and the key holds that standing no more), concurrent with that end (neither in the other's past).
+    Rows in an end's past stand (nothing reaches back); rows after it are judged at their own past."""
     ends = [e for e in rows if is_end(e) and S.C.get(e["id"])]
     cut = set()
     if "cut_unread" not in MUT:
@@ -248,19 +355,29 @@ def cut_state(S, rows):
                 if q["id"] == e["id"] or q["id"] in S.anc[e["id"]] or e["id"] in S.anc[q["id"]]:
                     continue
                 o = object_of(S, q)
-                if any(k in ST.signers(q) and o == ob for k, ob in ks):
-                    cut.add(q["id"])
+                need = rests_on(S, q, o) if "scope_unread" not in MUT else None
+                for k, ob, sc in ks:
+                    if k not in ST.signers(q) or o != ob:
+                        continue
+                    cls = scope_class(S, ob, sc)
+                    if need is None or (cls in need and not still_holds(S, e, k, ob, cls)):
+                        cut.add(q["id"])
+                        break
+    for q in rows:
+        o = authority_act_over(S, q)
+        if o is not None and behind_line(S, own, q, o):
+            cut.add(q["id"])
     kept = [q for q in rows if q["id"] not in cut]
     return CK.State(kept, {q["id"]: S.C.get(q["id"]) for q in kept})
 
 
-def ended_for_reader(S, r, read=True, amend=True):
+def ended_for_reader(S, r, read=True, amend=True, own=None):
     """THE END RULE (the r73 attack), the one read of ends for every path (the emitter, the quorum, the seat, the edge):
     an END cuts every row of what it ends that is not in the end's past. The rows row `r`'s authority is judged over:
     its own past, with every end in it cutting the rows concurrent with it (`read` False: its existence at issuance);
     with `read`, every end the READER holds concurrent with `r` too (a key's eviction, an unseat, a lay-down and so the
-    lock, an edge's withdrawal, an amendment of the record), each cutting what it ends there. Dissolution is read the
-    same way (read_licence)."""
+    lock, an edge's withdrawal, an amendment of the record), each cutting what it ends there. Authority acts behind
+    reader `own`'s line are cut too (cut_state). Dissolution is read the same way (read_licence)."""
     if "judged_at_read" in MUT:
         return S
     past = S.anc[r["id"]]
@@ -268,7 +385,7 @@ def ended_for_reader(S, r, read=True, amend=True):
     if read and "ends_unread" not in MUT:
         rows += [q for q in S.rows if S.C.get(q["id"]) and is_end(q) and q["id"] not in past and q["id"] != r["id"]
                  and r["id"] not in S.anc[q["id"]] and (amend or not is_amendment(q))]
-    return cut_state(S, rows)
+    return cut_state(S, rows, own)
 
 
 def depth_of(r):
@@ -294,30 +411,35 @@ def owner(r):
     return r.get("on_behalf", r["signer"])
 
 
-def ended(S, r):
+def ended(S, r, own=None):
     """(d) A concluded withdrawal of edge r whose signatures are its owner's authority set over its own past."""
     if "withdrawn_unread" in MUT:
         return False
     return any(w["kind"] == "withdraw" and w.get("target") == r["id"] and S.C.get(w["id"])
                and ("withdraw_by_anyone" in MUT or all(speaks_for(T, ST.signers(w), owner(r)) for T in (
-                   ended_for_reader(S, w, False), ended_for_reader(S, w))))
+                   ended_for_reader(S, w, False, own=own), ended_for_reader(S, w, own=own))))
                for w in S.rows)
 
 
-def edge_term(r, t):
-    """An edge's own term (`asserted_at <= t < expires_at`, as a license seat's) covers instant `t`: the caller's
-    instant, or the licence's own; with no instant, only an edge that states no term."""
+def edge_term(r, now):
+    """An edge's own term (`asserted_at <= now < expires_at`) covers the CALLER's instant `now`: every edge carries a
+    term (CC 4.4.3.12), so an edge stating none is not walked, and with no `now` no term is read and no edge is walked
+    (never at the licence's own stated instant: that would let the issuer's word reach the reader's own edge). The
+    caller passes `now`."""
     if "edge_term_unread" in MUT:
         return True
     lo, hi = r.get("asserted_at"), r.get("expires_at")
-    if t is None:
+    if hi is None and "termless_edge_walked" not in MUT:
+        return False
+    if now is None:
         return hi is None
-    return (lo is None or lo <= t) and (hi is None or t < hi)
+    return (lo is None or lo <= now) and (hi is None or now < hi)
 
 
-def edges_of(S, t=None):
-    """The acceptance edges the rows S holds give at instant `t`: each admitted, live edge its owner's authority set
-    signed (over its own past and with every end the reader holds), within its term, with its owner as `src`."""
+def edges_of(S, now=None, own=None):
+    """The acceptance edges the rows S holds give at the caller's instant `now`, for reader `own`: each admitted, live
+    edge its owner's authority set signed (over its own past and with every end the reader holds), not behind the
+    reader's line over its owner's body, within its term, with its owner as `src`."""
     out, Q = [], ST.Seats(S)
     for r in S.rows:
         if r["kind"] != "delegates_to" or not S.C.get(r["id"]):
@@ -327,11 +449,14 @@ def edges_of(S, t=None):
             continue
         if r.get("bears") != BEARS and "bears_unread" not in MUT:
             continue
-        if refusal(r) is not None or ended(S, r) or not edge_term(r, t):
+        if refusal(r) is not None or ended(S, r, own) or not edge_term(r, now):
+            continue
+        # an edge speaking for a group, behind the reader's line over its body, concludes nothing for that reader
+        if owner(r) in S.by and behind_line(S, own, r, owner(r)):
             continue
         # its owner's authority set over its own past, and with every end the reader holds (ended_for_reader)
         if not all(speaks_for(T, ST.signers(r), owner(r))
-                   for T in (ended_for_reader(S, r, False), ended_for_reader(S, r))):
+                   for T in (ended_for_reader(S, r, False, own=own), ended_for_reader(S, r, own=own))):
             continue
         out.append(dict(CH.edge(owner(r), r["dst"], r.get("trust_classes"), depth_of(r)), row=r["id"]))
     return out
@@ -367,9 +492,6 @@ def issuance(T, r):
     `licensure_authority_locked` (a locked community's quorum) or INSTANT_BEFORE_PAST (an instant earlier than a row
     it cites: a row cannot claim to predate what it names)."""
     a, k, t = r["authority"], r["signer"], r.get("asserted_at")
-    if t is not None and "instant_unread" not in MUT and any(
-            q.get("asserted_at") is not None and q["asserted_at"] > t for q in T.rows):
-        return INSTANT_BEFORE_PAST
     if is_the_authority(T, k, a) or "issuer_unread" in MUT:
         return None
     if is_community(T, a) and "quorum_unread" not in MUT:
@@ -385,7 +507,7 @@ def issuance(T, r):
     return None
 
 
-def standing(S, lic):
+def standing(S, lic, own=None):
     """(b), (d): None where licence `lic` is its authority's act in force for the reader holding S; else the reason it
     CONCLUDES NOTHING in the authority's fold (never a refusal: the licence row is admitted, and the reason reads other
     rows, CC 2.7.3). Its existence is judged over its own past (ended_for_reader with read False): issuance()'s reason.
@@ -393,17 +515,26 @@ def standing(S, lic):
     so is `licensure_link_withdrawn`, or `licensure_authority_locked` where the end locks its community; one that fails
     only under an amendment of the record the reader holds is judged under it: `licensure_delegator_not_authority`."""
     r = S.by[lic]
-    why = issuance(ended_for_reader(S, r, False), r)
+    # the instant's lower bound is the licence's OWN past alone: the reader's ends cut, they never set it
+    t = r.get("asserted_at")
+    rows = S.rows if "instant_over_reader" in MUT else [q for q in S.rows if q["id"] in S.anc[lic]]
+    if t is not None and "instant_unread" not in MUT and any(
+            q.get("asserted_at") is not None and q["asserted_at"] > t for q in rows if q["id"] != lic):
+        return INSTANT_BEFORE_PAST
+    # an authority act behind the reader's line over the authority's body concludes nothing for that reader
+    if r["authority"] in S.by and behind_line(S, own, r, r["authority"]):
+        return "licensure_delegator_not_authority"
+    why = issuance(ended_for_reader(S, r, False, own=own), r)
     if why is not None:
         return why
-    why = issuance(ended_for_reader(S, r), r)
+    why = issuance(ended_for_reader(S, r, own=own), r)
     if why is None:
         return None
     if why == "licensure_authority_locked":
         return why
     # an amendment cuts nothing: it changes the rule the licence is judged under, so a licence that fails under the
     # amended record (and stands with every other end the reader holds) is judged so: testimony
-    if "amendment_as_cut" not in MUT and issuance(ended_for_reader(S, r, amend=False), r) is None:
+    if "amendment_as_cut" not in MUT and issuance(ended_for_reader(S, r, amend=False, own=own), r) is None:
         return "licensure_delegator_not_authority"
     return "licensure_link_withdrawn"
 
@@ -417,12 +548,13 @@ def read_licence(S, reader, lic, own=None, supplied=None, now=None):
     if r is None:
         return False, "not_held"
     a, c = r["authority"], r["licence_class"]
+    line = own if own is not None else reader          # the reader's line is the reader's own (the r77 attack)
     # a dissolved authority (CC 4.4.3.12, "What stands after dissolution"): an issued licence stands, its authority
     # judged at issuance, and reads `lapsed` for every later use; one with no standing over its own past is testimony
     # (the issuance judgement first, over the licence's own past: its standing, then its class; only a licence that
     # stood then reads `lapsed`. MUTATION lapsed_class_unread: the class is not judged at issuance)
     if a in S.by and is_community(S, a) and ST.Seats(S).dissolved(a) and "lapsed_unread" not in MUT:
-        why = standing(S, lic)
+        why = standing(S, lic, line)
         if why is not None:
             return False, why
         if "lapsed_class_unread" not in MUT and \
@@ -431,9 +563,9 @@ def read_licence(S, reader, lic, own=None, supplied=None, now=None):
         return False, "lapsed"
     if c not in CH.charters(S, own, supplied, now).get(a, frozenset()):
         return False, "licence_class_not_trusted"
-    why = standing(S, lic)
+    why = standing(S, lic, line)
     if why is not None:
         return False, why
-    if not reaches(edges_of(S, now if now is not None else r.get("asserted_at")), reader, c, HOP_CAP, a):
+    if not reaches(edges_of(S, now, line), reader, c, HOP_CAP, a):
         return False, "authority_not_reached"
     return True, None
