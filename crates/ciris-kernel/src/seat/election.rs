@@ -229,8 +229,12 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                 return window;
             }
         }
+        // signed by a member of the electorate, or by a live key of one (counts over persons; ruled on #224)
         if !el.contains(q.signer()) {
-            return false;
+            let rows: Vec<&R> = p.iter().map(|&i| self.row(i)).collect();
+            if persons_of(&rows, self.law, self.spec, &BTreeSet::from([q.signer().clone()]), el).is_empty() {
+                return false;
+            }
         }
         let named = |b: &R| b.of().and_then(in_p).is_some_and(|ei| self.ekey(ei) == *ek);
         match q.seat_kind() {

@@ -13,8 +13,11 @@ roster's own keys stays a count of keys (each is a member of its base). `GroupCo
 `voices` are persons. No existing answer changes; the reference: `seat.persons_of`, `seat.person_for`,
 `seat.person_in`; six cases of `check_key_person.py` (three persons, a device key speaking for its person, an
 evicted device, a key in two rosters, a self roster's count) replayed by `tests/key_person.rs`; one plant in each
-language (a count of keys, not persons), and three crate plants retargeted to the reshaped text. Not covered by a
-case of its own: the window's and the election's mapping (the same function; the plant reads all sites).
+language (a count of keys, not persons), and three crate plants retargeted to the reshaped text. A window's answers
+and an election's ballots have cases of their own (in the seat fixture): a device key's objection counts for its
+person, and two keys of one person object as one voice; a device key's ballot counts for its person (it is also a
+row of the election's set, signed for a member of the electorate), two keys of one person ranking the same cast one
+ballot, and ranking differently the person says two things and casts nothing (the tally groups ballots by voter).
 
 **A key's person at a row, with no instant** (0.5.0; the rule ruled on CIRISConstitution#224). New:
 `seat::person_at(c, at, law, spec, k)`, the person key `k` is at row `at` of a concluded set: the self roster (an

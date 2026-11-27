@@ -31,6 +31,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, HERE)
 import seat as ST  # noqa: E402
 import roomkey as RK  # noqa: E402
+import window as WN  # noqa: E402
+import check_election as EL  # noqa: E402
 
 CK, R = ST.CK, ST.R
 RULE = lambda r, P, past: ST.seat_rule(r, P, past)
@@ -130,6 +132,45 @@ def concludes(rows, rid):
     return bool(CK.concluded(CK.kept(list(rows)), RULE).C.get(rid))
 
 
+# a window's answers by person: p2 has a second key p2b; p1 opens a proposal the others refuse by more than half of
+# them and never fewer than two (proposal@others over p2, p3, p4)
+P2B = add("a2b", "S2", "p2b", ("p2",), ("S2",))
+GW = dict(GC, names=("a1b", "a2b", "S3", "S4"))
+WBASE = [SP[1], SP[2], SP[3], SP[4], P1B, P2B, GW, WN.opener("op", "p1", "proposal@others", "gc", ("gc",))]
+obj_ = lambda i, k: WN.answer(i, k, "op", "object", ("op",))
+# (name, rows, opener, outcome)
+WINDOW_CASES = [
+    ("a device key's objection counts for its person: p2b and p3, two of three, refuse", WBASE + [obj_("o1", "p2b"),
+                                                                                              obj_("o2", "p3")], "refused"),
+    ("two keys of one person object: one voice, short of two", WBASE + [obj_("o1", "p2"), obj_("o2", "p2b")], "open"),
+]
+RULE_W = lambda r, P, past: WN.rule(r, P, past)
+
+
+def window_outcome(rows):
+    return WN.outcome(CK.concluded(CK.kept(list(rows)), RULE_W), "op", "recount")
+
+
+# an election's ballots by person (check_election.py's five members A to E, A laying moderate down): D has a second
+# key d2, admitted to D's own roster (its genesis key D)
+SD = found("SD", "D")
+D2 = add("ad2", "SD", "d2", ("D",), ("SD",))
+EG = dict(EL.G5, names=("ad2",))
+def bal(i, k, r):
+    return EL.ballot(i, k, r, ("lm", "ad2"))
+B5 = [bal("ba", "A", "B"), bal("bb", "B", "B"), bal("bc", "C", "C"), bal("be", "E", "C")]
+BALLOT_CASES = [
+    ("a device key's ballot counts for its person: d2 ranks C for D, and C is seated (three of five)",
+     [SD, D2, EG, EL.LM] + B5 + [bal("bd", "d2", "C"), EL.elect("ec", "C", ("ba", "bb", "bc", "be", "bd"))], "ec", True),
+    ("two keys of one person rank the same: one ballot, C seated",
+     [SD, D2, EG, EL.LM] + B5 + [bal("bd", "D", "C"), bal("bd2", "d2", "C"),
+                                 EL.elect("ec", "C", ("ba", "bb", "bc", "be", "bd", "bd2"))], "ec", True),
+    ("two keys of one person rank differently: the person says two things and casts nothing; B and C tie, nobody",
+     [SD, D2, EG, EL.LM] + B5 + [bal("bd", "D", "C"), bal("bd2", "d2", "B"),
+                                 EL.elect("ec", "C", ("ba", "bb", "bc", "be", "bd", "bd2"))], "ec", False),
+]
+
+
 PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
           "persons_unread")
 
@@ -174,12 +215,22 @@ def main():
             if bool(CK.arrive(o, RULE).C.get(rid)) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
                 break
+    for name, rows, want in WINDOW_CASES:
+        got = window_outcome(rows)
+        if got != want:
+            problems.append("%s: got %r, expected %r" % (name, got, want))
+    for name, rows, rid, want in BALLOT_CASES:
+        got = concludes(rows, rid)
+        if got != want:
+            problems.append("%s: got %r, expected %r" % (name, got, want))
     caught = 0
     for plant in PLANTS:
         ST.MUT.add(plant)
         try:
             hit = [c[0] for c in CASES if answer(c[1], c[2]) != c[3]] + \
-                  [c[0] for c in COUNT_CASES if concludes(c[1], c[2]) != c[3]]
+                  [c[0] for c in COUNT_CASES if concludes(c[1], c[2]) != c[3]] + \
+                  [c[0] for c in WINDOW_CASES if window_outcome(c[1]) != c[2]] + \
+                  [c[0] for c in BALLOT_CASES if concludes(c[1], c[2]) != c[3]]
         finally:
             ST.MUT.discard(plant)
         caught += bool(hit)
@@ -188,9 +239,11 @@ def main():
             problems.append("plant %s not caught" % plant)
     for p in problems:
         print(p)
-    print("RESULT: %s: %d cases (%d of a key's person, %d of a count over persons), %d arrival orders, %d of %d planted "
-          "breaks caught" % ("ok" if not problems else "%d problems" % len(problems), len(CASES) + len(COUNT_CASES),
-                             len(CASES), len(COUNT_CASES), n, caught, len(PLANTS)))
+    print("RESULT: %s: %d cases (%d of a key's person, %d of a count over persons, %d of a window's answers, %d of "
+          "ballots), %d arrival orders, %d of %d planted breaks caught"
+          % ("ok" if not problems else "%d problems" % len(problems),
+             len(CASES) + len(COUNT_CASES) + len(WINDOW_CASES) + len(BALLOT_CASES), len(CASES), len(COUNT_CASES),
+             len(WINDOW_CASES), len(BALLOT_CASES), n, caught, len(PLANTS)))
     return 1 if problems else 0
 
 

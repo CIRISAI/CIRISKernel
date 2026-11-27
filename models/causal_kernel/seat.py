@@ -1273,7 +1273,9 @@ def election_rows(q, Ek, elect, by, rows, past, obj=None, ends=()):
         return bool(set(q["to"]) & elect) and window
     if q["kind"] == "withdraw" and obj is not None and any(g == obj and k in elect for _, k, g in stay_ends([q], by, lambda a, w: a["id"] in by and past(a["id"], w["id"]))):
         return window
-    if q["signer"] not in elect and "set_any_signer" not in MUT: return False
+    # signed by a member of the electorate, or by a live key of one (counts over persons; ruled on #224)
+    signer_in = q["signer"] in elect or ("persons_unread" not in MUT and person_for(q["signer"], elect, rows, by) is not None)
+    if not signer_in and "set_any_signer" not in MUT: return False
     named = lambda b: b.get("of") in by and ekey(by[b["of"]], rows, past) == Ek
     if q["kind"] in ("ballot", "decline"): return named(q)
     if q["kind"] == "withdraw":

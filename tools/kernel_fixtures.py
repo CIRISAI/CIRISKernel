@@ -408,6 +408,13 @@ def seat_cases():
     import check_room_keys as RKC
     for case in RKC.CASES + RKC.OPEN:
         record(case[2], A.WIN, [(k, sc, RKC.OBJ) for k, sc, _ in case[5]])
+    # counts over persons (CIRISConstitution#224): check_key_person.py's window and ballot cases, a device key answering
+    # a window and casting a ballot for its person (the window's outcome and the seating's conclusion are replayed)
+    import check_key_person as KPC
+    for _name, rows, _want in KPC.WINDOW_CASES:
+        record(rows, A.WIN)
+    for _name, rows, _rid, _want in KPC.BALLOT_CASES:
+        record(rows, A.SEAT)
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
