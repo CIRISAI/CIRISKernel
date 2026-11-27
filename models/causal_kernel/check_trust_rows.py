@@ -19,6 +19,7 @@ Planted breaks, each of which must change a case's answer:
     affiliation_edge_duty_count  (a) an affiliation's edge is counted as a duty conferral, not under its declared protocol
     dissolved_edges_kept     (d) a dissolved authority's own edges are walked
     lapsed_unread            (d) a dissolved authority's licences are read as live, not lapsed
+    lapsed_class_unread      (d) a dissolved authority's licence reads lapsed whatever class it states
     pending_unread           (a) the acts row accept / trust_edge / community is not read
     judged_at_read           (a), (b) authority is judged over the reader's rows, not the row's own past
     bears_unread             a delegates_to row not bearing trust:accepts:v1 is read as an edge
@@ -195,6 +196,9 @@ CASES = [
      [AF, A("e", "RD", "af"), glic("l", cosigners=("B", "C"))], "RD", "l", None, NA),
     ("(d) a licence issued before the affiliation's dissolution stands and reads lapsed",
      [AFD, A("e", "RD", "af"), glic("l", cosigners=("B",)), ADIS("dis", ("l",))], "RD", "l", None, (False, "lapsed")),
+    ("(d) a dissolved authority's licence of a class its record did not declare at issuance never stood",
+     [AFD, A("e", "RD", "af"), glic("l", cosigners=("B",), cls="dental"), ADIS("dis", ("l",))], "RD", "l", None,
+     (False, "licence_class_not_trusted")),
     ("(d) one issued after it is testimony", [AFD, A("e", "RD", "af"), ADIS("dis", ("af",)),
                                              glic("l", cosigners=("B",)) | {"names": ("dis",)}], "RD", "l", None, NA),
     ("(d) a dissolved authority's own edges end with its record: no hop through it",
@@ -250,7 +254,8 @@ REF_FIELDS = ("dst", "on_behalf", "authority")      # the objects an edge row an
 
 PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quorum_fixed_majority",
           "roster_issuer_unread", "license_seat_unread", "term_unread",
-          "affiliation_edge_duty_count", "dissolved_edges_kept", "lapsed_unread", "pending_unread",
+          "affiliation_edge_duty_count", "dissolved_edges_kept", "lapsed_unread", "lapsed_class_unread",
+          "pending_unread",
           "judged_at_read", "bears_unread", "refusal_unread", "depth_unread", "depth_absent_refused",
           "withdrawn_unread", "withdraw_by_anyone", "issuer_unread", "chain_unread", "quorum_unread",
           "concurrent_unread")

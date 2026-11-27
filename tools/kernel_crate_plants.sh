@@ -630,6 +630,7 @@ plant "a license seat's term is not read"             src/trust_rows.rs 'if r.as
 plant "an affiliation's edge is a duty conferral"      src/trust_rows.rs 'if kind_of(seats.law(), &get, src) == Some(CommunityKind::Affiliation) {' 'if false {'
 plant "a dissolved authority's edges are walked"       src/trust_rows.rs 'if matches!(e.src, Obj::Row(_)) && seats.dissolved(&e.src) {' 'if false {'
 plant "a dissolved authority's licence is live"        src/trust_rows.rs 'if is_community(seats, &auth) && seats.dissolved(&auth) {' 'if false {'
+plant "a dissolved authority's class is not judged at issuance" src/trust_rows.rs 'if !charters(&at, supplied, now).declares(&auth, cls) {' 'if false {'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

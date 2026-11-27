@@ -84,8 +84,9 @@ removed; `trust::reaches` and `EdgeIndex::reaches` stay as the walk. New: the mo
   officers' act under its declared protocol (`accept / trust_edge / affiliation -> cosigned_act`, held in
   `seat.PENDING_ACTS`); a dissolved authority's own edges end with its record, so no walk hops through it; and a
   licence whose authority is dissolved stands, its authority judged at issuance, and reads `lapsed` for every later
-  use (`Unhonoured::Lapsed`; CC 4.4.3.12, "What stands after dissolution"), one with no standing over its own past
-  staying testimony.
+  use (`Unhonoured::Lapsed`; CC 4.4.3.12, "What stands after dissolution"). The issuance judgement comes first, over
+  the licence's own past: one with no standing there stays testimony, and one of a class the record did not declare
+  then never stood and reads `licence_class_not_trusted`.
 - (b) A licence is the authority's act where, over its own past, its emitter's key is the authority, or holds a
   `license` seat over it (a delegation chain resolving to it), or, for a community, the licence is cosigned by its
   quorum under its declared protocol. Any other is testimony: `licensure_delegator_not_authority`.

@@ -326,7 +326,8 @@ pub enum Unhonoured {
     Standing(&'static str),
     /// The reader's walk does not reach the authority for the class (`authority_not_reached`).
     NotReached,
-    /// Its authority is dissolved: issued with standing, the licence stands and reads `lapsed` for every later use.
+    /// Its authority is dissolved: a licence that stood at issuance (its standing and its class over its own past)
+    /// stands and reads `lapsed` for every later use.
     Lapsed,
 }
 
@@ -363,8 +364,19 @@ pub fn read_licence<R: TrustRow + Dated, S: CutSpec<R>>(
     };
     // a dissolved authority (CC 4.4.3.12, "What stands after dissolution"): an issued licence stands, its authority
     // judged at issuance, and reads `lapsed` for every later use; one with no standing over its own past is testimony
+    // (the issuance judgement first, over the licence's own past: its standing, then its class; only a licence that
+    // stood then reads `lapsed`)
     if is_community(seats, &auth) && seats.dissolved(&auth) {
-        return Err(standing(seats, i).map_or(Unhonoured::Lapsed, Unhonoured::Standing));
+        if let Some(why) = standing(seats, i) {
+            return Err(Unhonoured::Standing(why));
+        }
+        let sub = past_of(c, i, &[]);
+        let (rc, _) = for_reader(&sub, seats.law(), seats.spec(), None);
+        let at = Seats::new(&rc, seats.law(), seats.spec(), None);
+        if !charters(&at, supplied, now).declares(&auth, cls) {
+            return Err(Unhonoured::ClassNotTrusted);
+        }
+        return Err(Unhonoured::Lapsed);
     }
     if !charters(seats, supplied, now).declares(&auth, cls) {
         return Err(Unhonoured::ClassNotTrusted);

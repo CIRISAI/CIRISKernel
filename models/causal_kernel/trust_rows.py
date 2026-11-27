@@ -290,8 +290,8 @@ def standing(S, lic):
 
 def read_licence(S, reader, lic, own=None, supplied=None, now=None):
     """(honoured, reason) for licence row `lic` held in S, read by `reader` over the rows S holds:
-    `lapsed` (its authority is dissolved: a licence issued with standing stands and reads lapsed for every later
-    use), `licence_class_not_trusted` (the authority's record does not declare the class), the standing's reason
+    `lapsed` (its authority is dissolved: a licence that stood at issuance, its class declared and its standing
+    held over its own past, stands and reads lapsed for every later use), `licence_class_not_trusted` (the authority's record does not declare the class), the standing's reason
     (standing()), or `authority_not_reached` (the reader's walk does not reach the authority for the class)."""
     r = S.by.get(lic)
     if r is None:
@@ -299,8 +299,16 @@ def read_licence(S, reader, lic, own=None, supplied=None, now=None):
     a, c = r["authority"], r["licence_class"]
     # a dissolved authority (CC 4.4.3.12, "What stands after dissolution"): an issued licence stands, its authority
     # judged at issuance, and reads `lapsed` for every later use; one with no standing over its own past is testimony
+    # (the issuance judgement first, over the licence's own past: its standing, then its class; only a licence that
+    # stood then reads `lapsed`. MUTATION lapsed_class_unread: the class is not judged at issuance)
     if a in S.by and is_community(S, a) and ST.Seats(S).dissolved(a) and "lapsed_unread" not in MUT:
-        return False, standing(S, lic) or "lapsed"
+        why = standing(S, lic)
+        if why is not None:
+            return False, why
+        if "lapsed_class_unread" not in MUT and \
+                c not in CH.charters(past_state(S, r), own, supplied, now).get(a, frozenset()):
+            return False, "licence_class_not_trusted"
+        return False, "lapsed"
     if c not in CH.charters(S, own, supplied, now).get(a, frozenset()):
         return False, "licence_class_not_trusted"
     why = standing(S, lic)
