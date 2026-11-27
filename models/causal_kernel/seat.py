@@ -2158,6 +2158,10 @@ def contested_out(S, unseats):
              and cut_keys[u2["id"]] & vs]
         if t: threats[u["id"]] = t
     if not threats: return frozenset()
+    # MUTATION contested_one_sided: every cut in a threat, threatened or threatening, contested (rule 5 read too widely:
+    # only mutual dependence is contested, and a one-sided cut stands, rule 4 from the head it names)
+    if "contested_one_sided" in MUT:
+        return frozenset(threats) | frozenset(i for t in threats.values() for i, _ in t)
     past = lambda a, b: a in S.anc[b]
     memo = {}
 

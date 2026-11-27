@@ -369,8 +369,9 @@ plant "C1: the electorate read at the id row, not its vacancy" src/seat/election
 plant "C1: one end of the seat read, the others not" src/seat/election.rs '(ended.len() == seats.len()).then_some(ends)' '(ended.len() == seats.len()).then_some(ends.iter().copied().max_by_key(|&w| self.row(w).id().clone()).into_iter().collect())'
 plant "C1: the electorate read over the whole past" src/seat/election.rs 'let heads: Vec<R::Id> = v.iter().map(|&h| self.row(h).id().clone()).collect();' 'let heads: Vec<R::Id> = self.c.g.frontier(p).iter().map(|&h| self.row(h).id().clone()).collect();'
 plant "C1: the ends of the vacancy read as one fold" src/seat/election.rs 'for h in heads.chunks(1) {' 'for h in core::iter::once(&heads[..]) {'
-# retired at the batch merge: "C1: a leaver a voice" (since the head rules the members at a head are read with every
-# withdrawal in the counting row's past, so a leaver is no member at the vacancy and the plant changes no answer)
+# restored after the batch merge: the electorate is read per end over its own past (C1, F1, F2), so a leaver the
+# seating's set names is struck by the count alone, as check_election.py's leaver_voice cases show
+plant "C1: a leaver a voice" src/seat/election.rs 'let voters: BTreeSet<R::Key> = el.iter().filter(|k| !left.contains(k)).cloned().collect();' 'let voters: BTreeSet<R::Key> = el.iter().cloned().collect();'
 plant "C2: a seating beside a live duty holder" src/seat/election.rs 'if seats.holders("duty", &obj, None).iter().any(|k| !agents.contains(k)) {' 'if false {'
 plant "C2: a later election's row in the past unread" src/seat/election.rs '|| is_election(law, q)) && of_later(q))' '|| is_election(law, q)) && of_later(q) && false)'
 plant "C4: every seating stands" src/seat/election.rs '        let sets: Vec<BTreeSet<R::Id>> = seatings.iter().map(|&q| self.view(q).2).collect();' '        return seatings.iter().copied().collect();'
@@ -434,6 +435,7 @@ plant "(2): a contested end blocks a later end" src/seat.rs '        !dropped.co
     };' '        let _ = dropped;
         true
     };'
+plant "rule 5: a one-sided cut contested too" src/seat.rs '    grp.iter().copied().filter(|u| !d.contains(u)).map(|u| g.row(u).id().clone()).collect()' '    grp.iter().copied().filter(|u| threats.contains_key(u) || threats.values().any(|t| t.iter().any(|(x, _)| x == u))).map(|u| g.row(u).id().clone()).collect()'
 plant "FA6: a dissolution read apart from rule 5" src/seat.rs 'is_dissolve(q) && cut.counts(i) && !stale.contains(&i) && !dropped.contains(q.id())' 'false && is_dissolve(q)'
 plant "C2: the amendment wait read over a row's own past only" src/seat.rs 'mem.retain(|k| !held.contains(k));' 'let _ = &held;'
 plant "H4: a lay-down behind the reader's line read as a vacancy end" src/seat/election.rs 'if self.memo.rends.borrow().contains(wr.id()) {' 'if false {'

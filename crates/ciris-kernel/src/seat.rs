@@ -1866,7 +1866,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let elections = cs.iter().any(|&i| election::is_election(law, g.row(i)));
         // for a reader, the seat ends behind its line are no vacancy ends ([`reader_ends`])
         if let (true, Some(k)) = (elections, own) {
-            *local_e.rends.borrow_mut() = reader_ends(c, law, k);
+            *local_e.rends.borrow_mut() = reader_ends(c, law, spec, k, reader);
         }
         let memo_e = if own.is_some() { &local_e } else { cache.unwrap_or(&local_e) };
         let ecx = election::Ctx { c, law, spec, memo: memo_e };
@@ -3523,7 +3523,7 @@ pub fn for_reader<'a, R: SeatRow, S: CutSpec<R>>(
         None => BTreeSet::new(),
     };
     let pairs = held_pairs(c);
-    let ends = own.map(|k| reader_ends(c, law, k)).unwrap_or_default();
+    let ends = own.map(|k| reader_ends(c, law, spec, k, None)).unwrap_or_default();
     if rv.is_empty() && pairs.is_empty() && ends.is_empty() {
         return (c.clone(), rv);
     }
@@ -3580,8 +3580,16 @@ fn held_pairs<R: SeatRow>(c: &Concluded<'_, R>) -> Vec<HeldPair<R>> {
 /// names the newest counted changes over its room and sits on the reader's line by them): each withdrawal of a
 /// seat over a community whose newest named counted changes (the room's founding row where it names none) are all
 /// strictly in the past of the own heads of a counted act on the reader's line, it not in that act's past (the
-/// sibling-safe line). Such an end is no vacancy end for that reader.
-pub(crate) fn reader_ends<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, own: &R::Key) -> BTreeSet<R::Id> {
+/// sibling-safe line). Such an end is no vacancy end for that reader. The line is read as the reader's roster
+/// reads it: a counted row the reader signed does not acknowledge the changes void for it ([`ack_void`], with
+/// `reader` the changes void for the reader where `c` holds the rows concluded for it).
+pub(crate) fn reader_ends<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    own: &R::Key,
+    reader: Option<&BTreeSet<R::Id>>,
+) -> BTreeSet<R::Id> {
     let g = &c.g;
     let by: BTreeMap<&R::Id, &R> = c.cs().iter().map(|&i| (g.row(i).id(), g.row(i))).collect();
     let mut lines: BTreeMap<ObjOf<R>, Vec<usize>> = BTreeMap::new();
@@ -3599,7 +3607,9 @@ pub(crate) fn reader_ends<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, own: 
         if !community(&by, &room) {
             continue;
         }
-        let line = lines.entry(room.clone()).or_insert_with(|| line::own_line(c, &SeatLine, Some(own), &room));
+        let line = lines.entry(room.clone()).or_insert_with(|| {
+            line::own_line_with(c, &SeatLine, Some(own), &room, &|a: usize| ack_void(c, law, spec, a, reader))
+        });
         if line.is_empty() {
             continue;
         }

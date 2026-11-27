@@ -87,6 +87,7 @@ Planted breaks, each of which must change a case's answer:
     end_of_contested_end          rule (2) reads a removal rule 5 holds contested out as an earlier end (the settling count)
     dissolve_uncontested          a dissolution is read apart from rule 5: it is no cut over every seat (FA6)
     wait_reader_unread            the founders' amendment wait is read over a row's own past only, not the reader's (C2)
+    contested_one_sided           a one-sided cut is contested too: rule 5 read beyond mutual dependence
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
@@ -818,7 +819,9 @@ PENDING = [
       dict(FRMF("f4", ("f1", "f2", "f3"), heads=("x", "x2")), id="xs")], [("f4", "founder", False), ("f3", "founder", True)]),
     # FA6, restated by the ruling of 2026-11-27: A's demotion of B and B's dissolution at g are concurrent cuts that each
     # undo the other (the demotion removes the voice the dissolution needs, the dissolution ends the seat the demotion
-    # needs): a dissolution is a cut over every seat for rule 5, so the two are contested and neither counts
+    # needs): a dissolution is a cut over every seat for rule 5, so the two are contested and neither counts. The edge
+# (confirmed by the Constitution): with only the two founders under founder_only nothing settles the pair (no third
+# founder's count exists), so the family stands, and its members can leave
     ("FA6: A demotes B and B dissolves, both at g: contested cuts (rule 5, a dissolution a cut over every seat), neither "
      "counts: the family stands and B is still a founder", [FAM2, FREM("dm", "B", scope="founder"), FDIS("d", signer="B")],
      [("A", "member", True), ("C", "member", True), ("B", "founder", True)]),
@@ -868,6 +871,16 @@ PENDING += [
 # (2) reads only ends in force), FA6 (a dissolution contested as a cut), T5 (restated to the sibling-safe line) and C2
 # (the amendment wait read through reader_state)
 HELD = ("A1:", "A3:", "K2:", "T5b:", "C1:", "the settling count (S4)", "FA6", "T5:", "C2:")
+# the guard on the restatement (the Constitution's ruling, 2026-11-27): only MUTUAL dependence is contested. A lawful
+# removal at head h of a voice a sibling change at h needed, the sibling touching no voice of the remover, stands, and
+# the sibling falls (rule 4, from the head the cut names)
+G8 = ST.offer("g", "A", tuple("ABCDEFGH"), "member", "@", "self", cosigners=tuple("BCDEFGH"))
+TIPS += [
+    ("the one-sided sibling: B, C, D and E remove F at g; A, B, F and G remove H at g, needing F's voice, and touching "
+     "none of the first removal's: the first stands (F out) and the sibling falls (H kept): only mutual dependence is "
+     "contested", [G8, _krem("x", "F", "BCDE", ("g",)), _krem("y", "H", "ABFG", ("g",))],
+     [("F", "member", False), ("H", "member", True)]),
+]
 TIPS += [c for c in PENDING if c[0].startswith(HELD)]
 PENDING = [c for c in PENDING if not c[0].startswith(HELD)]
 # Q4, restated by the ruling of 2026-11-27: am2 names am, the newest counted change in its past (n did not conclude), so
@@ -895,7 +908,7 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "contested_both_out", "role_on_own_offer", "entrenched_weights_free",
           "concurrent_amendments_free", "infra_word_restated_always", "contested_scoped_to_kinds",
           "contested_voice_everywhere", "negative_weight", "removal_counts_target", "removal_floor_unread",
-          "end_of_contested_end", "dissolve_uncontested", "wait_reader_unread")
+          "end_of_contested_end", "dissolve_uncontested", "wait_reader_unread", "contested_one_sided")
 
 
 @contextlib.contextmanager
