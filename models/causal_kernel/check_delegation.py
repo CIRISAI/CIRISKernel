@@ -121,6 +121,10 @@ GA = RT.grant("gA", "b0", "uA", "room", ("h1", "h2"))
 GROW = RT.bundle("b1", "fam", 1, ("h1", "h2", "h3", "h4", "h5"), prev=("b0",), charter=CSUB, seats=("n1",),
                  stmts=[("h1", 0), ("h2", 0), ("h3", 0)])                     # holders grow to five: gA's two lapse
 ANCHOR = RT.reader(anchor="b0")
+import check_root as CR  # noqa: E402
+AOW = CR.AO                                                      # root-fold's AO world: b0, b1, b2, and the sibling s0
+GS = RT.grant("gs", "s0", "uA", "room", ("h1", "h2", "X"))
+RSS = dict(RS, bundle="gs")
 # (name, bundles or None for no root read, reader, rows, [(key, scope, stands)])
 ROOT_CASES = [
     ("a root grant in force seats its grantee, and the charter's sub_delegation lets it pass the duty on",
@@ -139,6 +143,12 @@ ROOT_CASES = [
     ("a root grant's seat of a duty the room's record declares (uA a member): not the lone holder's act, the one gate's other "
      "path (a resolving grant whose scope carries the duty); it stands",
      [dict(B0R, charter=CSUB)], ANCHOR, [ROOMD, RS], [("uA", "infra", T)]),
+    # the reader's monotone line (root-fold's AO world): gs is a grant on s0 (h1, h2 and X: h1 and h2's sibling at b0)
+    ("the reader's line: a grant on a bundle the reader's line holds void (it acknowledged s0, then b2, which s0 is "
+     "behind) seats nothing for that reader", AOW, RT.reader(anchor="b0", acks=("s0", "b2")), [ROOM, RSS],
+     [("uA", "infra", F)], (GS,)),
+    ("and for a reader whose line holds it (it acknowledged only s0) the same rows seat uA",
+     AOW, RT.reader(anchor="b0", acks=("s0",)), [ROOM, RSS], [("uA", "infra", T)], (GS,)),
     ("a root seat signed by a key the grant does not name seats nothing",
      [dict(B0R, charter=CSUB)], ANCHOR, [ROOM, dict(RS, signer="X", to=("X",))], [("X", "infra", F)]),
 ]
@@ -146,12 +156,13 @@ ROOT_PLANTS = ("root_gate_unread", "root_seat_unchecked", "root_seat_any_duty", 
 
 
 def root_answers(case, plant=None, order=None):
-    _name, bundles, rd, rows, asks = case
+    _name, bundles, rd, rows, asks = case[:5]
+    grants = case[5] if len(case) > 5 else (GA,)
     rows = order or rows
     saved = set(ST.MUT)
     if plant: ST.MUT.add(plant)
     try:
-        ctx = ST.root_view(RT.Root(bundles, (), (GA,)), rd) if bundles is not None else None
+        ctx = ST.root_view(RT.Root(bundles, (), grants), rd) if bundles is not None else None
         if ctx: ctx.__enter__()
         try:
             S = CK.concluded(CK.kept(list(rows)), lambda r, P, past: ST.seat_rule(r, P, past))
@@ -203,6 +214,7 @@ def main():
     for case in ROOT_CASES:
         want = [w for _, _, w in case[4]]
         for o in itertools.permutations(case[3][1:]):
+            o = list(o)
             if root_answers(case, order=[case[3][0]] + list(o)) != want:
                 problems.append("root %s: got %s, expected %s" % (case[0], root_answers(case), want))
                 break

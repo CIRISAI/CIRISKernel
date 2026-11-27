@@ -12,8 +12,9 @@ root read it seats nothing. The onward gate of a chain from it reads the charter
 (chains from any other seat keep it). **BREAKING**: `Conf::Root` (a new variant); `RootView::seat_grant` (new, with a
 default); `RootGrant::Word` must be `AsRef<str>`. The root seat is read by THE ONE authority gate
 (`authority_gate`, the charter lane's): a seat of a group's authority is its authority body's act, and the one
-other path is a resolving root grant whose scope carries the duty. Eight cases in `check_delegation.py`
-(ROOT_CASES; a declared duty among them), in a new fixture `root_chains.json` replayed by `tests/root.rs`; plants
+other path is a resolving root grant whose scope carries the duty. Ten cases in `check_delegation.py`
+(ROOT_CASES; a declared duty among them, and the reader's monotone line: a grant on a bundle one reader's line holds
+void seats nothing for it and seats for a reader whose line holds the bundle), in a new fixture `root_chains.json` replayed by `tests/root.rs`; plants
 `root_gate_unread`, `root_seat_unchecked`, `root_seat_any_duty`, `root_through_lone_gate`, with crate twins.
 
 **A duty holder's lone acts against a key or content, and their ways back** (CC 4.5.4 (iii), CC 4.5.5, CC 3.1.9.2,
