@@ -33,6 +33,9 @@ Planted breaks (seat.MUT), each of which must change a case's answer:
     release_unread          a release naming a withhold does not lift it
     unproven_fires          a not_proven verdict fires
     countersign_unread      (the countersign) an affiliation's one-officer act is decided without a countersign
+    self_release            the key withheld releases its own withhold; a content's author reverses its takedown
+    target_any_room         a takedown's content, or a marker's key, need not be the room's
+    lift_base_lift_head     (the lift) counted at the lift's heads alone: members admitted after the act carry it
 
     python3 -I check_lone_acts.py      exit 1 on any difference
 """
@@ -91,6 +94,16 @@ AWD = ST.withdraw("awd", "A", "atd", ("atd",))
 A2 = ST.found("a1", "A", ("A", "C"), {ST.OFFICER: ("A", "C")}, cosigners=("C",), declared_cohort="affiliations")
 A2B = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("C", "B"), counted=ST.OFFICER)
 
+# r75 rows: content c4 by p4 (the review holder); another room g2 and its content c2; p5 and p6 admitted after the act
+C4 = CK.row("c4", "post", "p4", ("g",), room=OBJ)
+G2 = ST.found("g2", "q1", ("q1", "q2", "q3"), {"takedown": ("q1",), "review": ("q2",)}, cosigners=("q2", "q3"))
+C2 = CK.row("c2", "post", "q3", ("g2",), room="g2")
+A5 = ST.offer("a5", "p1", "p5", "member", OBJ, "group", ("g",), head=("g",), policy="community_invite",
+              cosigners=("p2", "p3", "p5"))
+A6 = ST.offer("a6", "p1", "p6", "member", OBJ, "group", ("a5",), head=("a5",), policy="community_invite",
+              cosigners=("p2", "p3", "p5", "p6"))
+LIFT6 = ST.offer("lf", "p2", (), "act", OBJ, "group", ("td", "o2", "o5", "o6", "a6"), head=("a6",), content="td",
+                 policy="moderation_overturn")
 # (name, rows, {row: concludes}, {act: in force})
 CASES = [
     ("a takedown by a takedown holder, alone, at the newest change: concluded and in force", W + [TD], {"td": T},
@@ -137,6 +150,21 @@ CASES = [
     ("a slashing verdict on a proven ground fires", W + [SP], {"sp": T}, {"sp": T}),
     ("not proven: the verdict concludes and fires nothing", W + [SN], {"sn": T}, {"sn": F}),
     ("an outcome outside the two concludes nothing", W + [dict(SN, kind="slashing:maybe")], {"sn": F}, {"sn": F}),
+    # ---- r75 ---------------------------------------------------------------------------------------------------------
+    ("r75: the key withheld never releases its own withhold: p2 withholds p1, p1's release concludes nothing",
+     W + [act("qw1", "quarantine:withhold", "p2", target="p1"),
+          act("qr1", "quarantine:release", "p1", names=("qw1",), target="p1", of="qw1")], {"qr1": F}, {"qw1": T}),
+    ("r75: the author of the content never reconsiders its own takedown: p4 (review) posts c4, p1 takes it down, p4's "
+     "reversal concludes nothing", W + [C4, act("td", TDK, "p1", names=("c4",), of="c4"),
+                                       act("rc", "reconsideration:new_evidence", "p4", names=("td",), of="td",
+                                           outcome="reversed")], {"rc": F}, {"td": T}),
+    ("r75: a takedown's content is the room's: p1 takes down c2, a row of another room, and concludes nothing",
+     W + [G2, C2, act("td", TDK, "p1", names=("c2",), of="c2")], {"td": F}, {"td": F}),
+    ("r75: a marker's key is seated in the room: p1 withholds X, no key of g, and concludes nothing",
+     W + [act("qx", "quarantine:withhold", "p1", target="X")], {"qx": F}, {"qx": F}),
+    ("r75: the lift at both heads: p5 and p6, admitted after the takedown, object with p2; the base is the members at "
+     "both heads (p2, p3, p4), so one of three lifts nothing", W + [TD, A5, A6, OB("o2", "p2"), OB("o5", "p5"),
+                                                                  OB("o6", "p6"), LIFT6], {"a6": T, "lf": F}, {"td": T}),
     # ---- an affiliation (CC 4.4.3.12): the body's act, over its officers ---------------------------------------------
     ("a one-officer affiliation's takedown of a member's content: a proposal, not in force", AF + [ATD],
      {"atd": T}, {"atd": F}),
@@ -148,7 +176,8 @@ CASES = [
      {"atd": T}),
 ]
 PLANTS = ("lone_act_counted", "lone_act_cosigned", "lone_act_end_unread", "lone_act_lift_unread",
-          "reconsideration_unread", "release_unread", "unproven_fires", "countersign_unread")
+          "reconsideration_unread", "release_unread", "unproven_fires", "countersign_unread", "self_release",
+          "target_any_room", "lift_base_lift_head")
 
 
 def answer(rows, concl, force):

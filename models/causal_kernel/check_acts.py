@@ -960,8 +960,11 @@ FOUNDERS = [
     ("f3 leaves (its withdrawal of the founding row): at a count with the leaving in its past f3 is no founder",
      [GI, W3, INODE(("f1", "f2"), cites=("w3",))], [("f3", "r", False), ("f1", "r", True)]),
     ("a community is neither: no key is a founder of it", [GM, NOTE("n", ("g",))], [("A", "n", False)]),
+    ("r75: a row naming a stale head (the founding row, with B's demotion in its past) is read at the newest counted "
+     "change in its past, never at the head it states: B is no founder there",
+     [FAM2, FREM("x", "B", scope="founder"), dict(NOTE("nb", ("g", "x")), head=("g",))], [("B", "nb", False), ("A", "nb", True)]),
 ]
-FOUNDER_PLANTS = ("founder_at_tips", "founder_leavings_unread")
+FOUNDER_PLANTS = ("founder_at_tips", "founder_leavings_unread", "founder_raw_head")
 
 
 def founder_answers(plant=None):

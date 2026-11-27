@@ -280,6 +280,7 @@ pub struct TRow {
     pub kind: String,
     pub to: Vec<String>,
     pub cosigners: Vec<String>,
+    pub identity: Vec<String>,
     pub subjects: Vec<String>,
     pub head: Vec<String>,
     pub options: Vec<String>,
@@ -390,6 +391,7 @@ impl TRow {
             kind: opt(&m, "kind").unwrap_or_default(),
             to: strs(&m, "to"),
             cosigners: strs(&m, "cosigners"),
+            identity: strs(&m, "identity"),
             subjects: strs(&m, "subjects"),
             head: strs(&m, "head"),
             options: strs(&m, "options"),
@@ -574,6 +576,9 @@ impl SeatRow for TRow {
     }
     fn outcome(&self) -> Option<&String> {
         self.outcome.as_ref()
+    }
+    fn agent_registration(&self) -> bool {
+        self.identity.iter().any(|i| i == "agent")
     }
     fn target_key(&self) -> Option<&String> {
         self.target.as_ref()

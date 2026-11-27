@@ -40,6 +40,7 @@ Planted breaks, each of which must change a case's answer:
     officer_from_founders (seat.py) the deciding seats are the founding record's signers, not the officer role
     affiliation_body_members  (seat.py) an affiliation's acts are counted over its members, not its officers
     no_officer_locks      (seat.py) an affiliation with no officer is not dissolved
+    overseer_end_unread   (seat.py) an overseer's lay-down does not cut its countersign
 
     python3 -I check_charter.py      exit 1 on any difference
 """
@@ -250,6 +251,16 @@ COUNTERSIGN = [
     ("and one voice of such a body removes nobody", [AF, dict(REM, cosigners=())], {"rm": False}, [("C", "af", True)]),
     ("a key that is no deciding seat signs no removal: B, appointed, with A", ONE + [RMB(cos=("B",))], {"rm": False},
      [("B", "a1", True)]),
+    ("r75: an overseer seated AFTER the removal is no overseer of it: R1 confers review over ob on R2, R2 countersigns",
+     ONE + [RMB(), ST.offer("rv", "R1", "R2", "review", "ob", "group", ("ob",), head=("ob",), policy="duty_confer",
+                            counted="duty", cosigners=("R2",)), CS("R2", ("rm", "rv"))], {"cs": False},
+     [("B", "a1", True)]),
+    ("r75: an ex-overseer countersigns nothing: R1 lays its review down after the removal, then countersigns",
+     ONE + [RMB(), ST.withdraw("ld", "R1", "ob", ("ob",), scope="review"), CS("R1", ("rm", "ld"))], {"cs": False},
+     [("B", "a1", True)]),
+    ("r75: and R1's lay-down concurrent with its countersign cuts it (the end rule): nothing decided",
+     ONE + [RMB(), CS("R1", ("rm", "ob")), ST.withdraw("ld", "R1", "ob", ("ob",), scope="review")], {"cs": True},
+     [("B", "a1", True)]),
     ("the acting seat's withdrawal after the decision (the countersign in its past) is a new act and undoes nothing: "
      "B stays out", ONE + [RMB(), CS("O"), ST.withdraw("wrm", "A", "rm", ("cs",))], {"cs": True, "wrm": True},
      [("B", "a1", False)]),
@@ -326,7 +337,7 @@ PLANTS = ("charter_unread", "at_issuance", "below_protocol_read", "fork_union", 
           "edge_classes_unread", "last_hop_only", "affiliation_unread", "affiliation_admit_unread",
           "countersign_unread", "countersign_inside_seat", "official_at_founding", "overseers_unread",
           "withdrawal_clears_unread", "two_voices_unread", "officer_from_founders", "affiliation_body_members",
-          "no_officer_locks")
+          "no_officer_locks", "overseer_end_unread")
 
 
 def show(x):

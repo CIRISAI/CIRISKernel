@@ -251,6 +251,11 @@ pub trait SeatRow: Row {
     fn outcome(&self) -> Option<&Self::Word> {
         None
     }
+    /// A key's registration (an offer of scope `registered` over its own key) that states the key is an AI agent's
+    /// (its identity type): such a key is an agent's wherever it is seated. Default `false`.
+    fn agent_registration(&self) -> bool {
+        false
+    }
     /// The key a quarantine marker or a slashing verdict is about. Default `None`.
     fn target_key(&self) -> Option<&Self::Key> {
         None
@@ -1408,6 +1413,10 @@ fn lone_act_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, 
                 {
                     return false;
                 }
+                // no act lifts itself by its own target: the key withheld never releases its own withhold
+                if r.target_key() == Some(r.signer()) {
+                    return false;
+                }
             }
         }
         SeatKind::Slashing => {
@@ -1416,8 +1425,10 @@ fn lone_act_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, 
             }
         }
         _ => {
-            // a notice's legal basis (its family parameter) is an opaque word, and must be there
-            if r.family_param().is_none() || r.of().and_then(|i| p.get(i)).is_none() {
+            // a notice's legal basis (its family parameter) is an opaque word, and must be there; its content row is
+            // the room's (its `room`, or its object)
+            let Some(cr) = r.of().and_then(|i| p.get(i)) else { return false };
+            if r.family_param().is_none() || cr.room().or(cr.obj()).as_ref() != Some(&obj) {
                 return false;
             }
         }
@@ -1425,6 +1436,14 @@ fn lone_act_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, 
     let heads = r.head();
     if heads.is_empty() || newer_head_in_past(p, law, &obj, heads, &signers(r)) {
         return false;
+    }
+    // a marker's or a verdict's key is seated over the room at the act's heads
+    if let Some(t) = r.target_key().filter(|_| matches!(k, SeatKind::Quarantine | SeatKind::Slashing)) {
+        if !members_at_with(p, law, spec, &obj, heads, "member", None).contains(t)
+            && !members_at_with(p, law, spec, &obj, heads, AGENT, None).contains(t)
+        {
+            return false;
+        }
     }
     if kind_of(law, &|i: &R::Id| p.get(i), &obj) == Some(CommunityKind::Affiliation) {
         return affiliation_count(p, law, spec);
@@ -1441,6 +1460,10 @@ fn reconsideration_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &Se
     let r = p.row();
     let Some(t) = r.of().and_then(|i| p.get(i)) else { return false };
     let Some(obj) = t.obj() else { return false };
+    // no act is reversed by its own target: the content's author never reconsiders its takedown
+    if act_targets(t, &|i: &R::Id| p.get(i)).contains(r.signer()) {
+        return false;
+    }
     let heads = r.head();
     let is = |w: Option<&R::Word>, xs: &[&str]| w.is_some_and(|w| xs.contains(&w.as_ref()));
     t.seat_kind() == SeatKind::TakedownNotice
@@ -1495,7 +1518,11 @@ pub fn act_in_force<R: SeatRow, S: CutSpec<R>>(
                 })
                 .collect();
             let cs: Vec<usize> = held(&|x: &R| x.seat_kind() == SeatKind::Countersign && x.of() == Some(act));
-            if !cs.iter().any(|&ci| wd.iter().all(|&w| g.in_past(ci, w))) {
+            let body = record_value(&p, &obj, |v: &R| v.overseen_by()).map(|b| Obj::Row(b.clone()));
+            let cut_by_end = |ci: usize| {
+                body.as_ref().is_some_and(|b| overseer_cut(g, c.cs().iter().copied(), Some(ci), b, g.row(ci).signer()))
+            };
+            if !cs.iter().any(|&ci| wd.iter().all(|&w| g.in_past(ci, w)) && !cut_by_end(ci)) {
                 return false;
             }
         }
@@ -1655,14 +1682,15 @@ fn countersign_ok<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw,
     }
     let Some(body) = record_value(&pt, &obj, |v: &R| v.overseen_by()) else { return false };
     let body = Obj::Row(body.clone());
-    if !matches!(&body, Obj::Row(b) if p.get(b).is_some()) {
+    // the overseers are read in the ACT's own past
+    if !matches!(&body, Obj::Row(b) if pt.get(b).is_some()) {
         return false;
     }
-    let room = room_in(p, &body);
-    let chs: Vec<&R> = p.rows().filter(|q| change(law, *q, &body, room.as_deref())).collect();
+    let room = room_in(&pt, &body);
+    let chs: Vec<&R> = pt.rows().filter(|q| change(law, *q, &body, room.as_deref())).collect();
     let mut heads: Vec<R::Id> = chs
         .iter()
-        .filter(|q| !chs.iter().any(|q2| q.id() != q2.id() && p.past(q.id(), q2.id())))
+        .filter(|q| !chs.iter().any(|q2| q.id() != q2.id() && pt.past(q.id(), q2.id())))
         .map(|q| q.id().clone())
         .collect();
     if heads.is_empty() {
@@ -1670,7 +1698,39 @@ fn countersign_ok<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw,
             heads.push(b.clone());
         }
     }
-    members_at_with(p, law, spec, &body, &heads, "review", None).contains(k)
+    members_at_with(&pt, law, spec, &body, &heads, "review", None).contains(k)
+        && !overseer_cut(g, p.rows().map(|w| g.idx(w.id()).unwrap_or(usize::MAX)), g.idx(r.id()), &body, k)
+}
+
+/// By the end rule, an end of countersigner `k`'s `review` seat over the overseeing body `body` (its withdrawal naming
+/// the scope, or an unseat of it) among `rows` that does not have the countersign `c` in its past cuts it: an
+/// ex-overseer countersigns nothing.
+fn overseer_cut<R: SeatRow>(
+    g: &Graph<'_, R>,
+    rows: impl Iterator<Item = usize>,
+    c: Option<usize>,
+    body: &ObjOf<R>,
+    k: &R::Key,
+) -> bool {
+    let Some(c) = c else { return false };
+    let by_id = |i: &R::Id| g.idx(i).map(|j| g.row(j));
+    rows.filter(|&w| w != usize::MAX && w != c).any(|w| {
+        let wr = g.row(w);
+        let end = match wr.seat_kind() {
+            SeatKind::Withdraw => {
+                wr.signer() == k
+                    && wr.scope().is_some_and(|s| s.as_ref() == "review")
+                    && wr.target().and_then(by_id).and_then(|t| t.obj()).as_ref() == Some(body)
+            }
+            SeatKind::Unseat => {
+                wr.to().contains(k)
+                    && wr.scope().is_some_and(|s| s.as_ref() == "review")
+                    && wr.obj().as_ref() == Some(body)
+            }
+            _ => false,
+        };
+        end && !g.in_past(c, w)
+    })
 }
 
 /// A stalled infrastructure room's recovery widening (CC 3.2), judged against the trust root this node reads
@@ -2420,10 +2480,13 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         // (the seat's withdrawal clears the proposal)
         let decided = |u: usize| {
             let anc: Vec<usize> = cs.iter().copied().filter(|&q| g.in_past(q, u)).collect();
-            if !needs_countersign(&Past::new(g, u, &anc), law, spec) {
+            let pu = Past::new(g, u, &anc);
+            if !needs_countersign(&pu, law, spec) {
                 return true;
             }
             let ur = g.row(u);
+            let body =
+                ur.obj().and_then(|ob| record_value(&pu, &ob, |v: &R| v.overseen_by()).map(|b| Obj::Row(b.clone())));
             let wd: Vec<usize> = cs
                 .iter()
                 .copied()
@@ -2439,6 +2502,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     && cut.counts(ci)
                     && !stale.contains(&ci)
                     && wd.iter().all(|&w| g.in_past(ci, w))
+                    && !body.as_ref().is_some_and(|b| overseer_cut(g, cs.iter().copied(), Some(ci), b, cr.signer()))
             })
         };
         let unseats: Vec<(usize, Option<ObjOf<R>>)> = cs
@@ -2599,6 +2663,11 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             if o.seat_kind() != SeatKind::Offer || !cut.counts(oi) || stale.contains(&oi) || beaten.contains(&oi) {
                 continue;
             }
+            // a root grant's seat is re-read at the reader: held only while its grant resolves in this node's root view
+            // now, whatever it concluded under
+            if o.conf() == Some(Conf::Root) && !o.obj().is_some_and(|ob| root_seat(spec, o, &ob)) {
+                continue;
+            }
             if !gone.is_empty() && o.obj().is_some_and(|ob| gone.contains(&ob)) {
                 continue;
             }
@@ -2705,9 +2774,26 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 // an agent's key holds a duty "by its own statement and its owner's signature" (CC 4.5.4, an agent's
                 // key): the one live owner of the agent's key, by an owner-binding in the conferral's past, signed it;
                 // the duty seat stands while that binding does (two owners are none)
+                // an agent is recognised by its agent seat (over any room) or its agent registration, whatever scope
+                // it was admitted under (as ruled for KP5)
+                let mut agent_keys: BTreeSet<&R::Key> =
+                    at.keys().filter(|&&(_, _, sc)| sc.s() == AGENT).map(|&(_, k, _)| k).collect();
+                for &q in c.cs() {
+                    let qr = g.row(q);
+                    if qr.seat_kind() == SeatKind::Offer
+                        && qr.scope().is_some_and(|s| s.as_ref() == "registered")
+                        && qr.agent_registration()
+                    {
+                        if let Some(Obj::Key(k)) = qr.obj() {
+                            if let Some(&(_, kk, _)) = at.keys().find(|&&(_, x, _)| *x == k) {
+                                agent_keys.insert(kk);
+                            }
+                        }
+                    }
+                }
                 let agents: BTreeSet<(ObjOf<R>, &R::Key)> = at
                     .keys()
-                    .filter(|&&(_, _, sc)| sc.s() == AGENT)
+                    .filter(|&&(_, k, _)| agent_keys.contains(k))
                     .filter_map(|&(oid, k, _)| by[oid].obj().map(|x| (x, k)))
                     .collect();
                 let mut owners: BTreeMap<ObjOf<R>, Vec<(&R::Key, &R::Id)>> = BTreeMap::new();
@@ -2731,10 +2817,11 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                             ar.seat_kind() == SeatKind::Accept && ar.signer() == k && ar.of() == Some(o.id())
                         }))
                         .collect();
+                    // the duty is tied to the binding: the binding is in the CONFERRAL's own past (a new binding
+                    // revives no old conferral; the end of the one it stands on ends it for good)
                     one && ws.iter().any(|&(w, b)| {
-                        carriers
-                            .iter()
-                            .any(|&ci| signed_by(g.row(ci), w) && g.idx(b).is_some_and(|bi| g.in_past(bi, ci)))
+                        g.idx(b).is_some_and(|bi| g.in_past(bi, oi))
+                            && carriers.iter().any(|&ci| signed_by(g.row(ci), w))
                     })
                 };
                 let mut dropped = false;
@@ -3139,6 +3226,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     let Some((author, v)) = lift_voices_with(&p, self.law, self.spec, Some(&members)) else {
                         return false;
                     };
+                    // the base: the persons at both the removal's head and the lift's own heads ([`lift_base`])
+                    let base = lift_base(&p, self.law, self.spec, &over, Some(&members));
+                    mem.retain(|m| base.contains(m));
                     mem.remove(&author); // the removal's author apart (the key removed is an agent's: in no count)
                     v
                 } else {
@@ -4486,8 +4576,8 @@ fn lone_removal<R: SeatRow, S: CutSpec<R>>(
 /// each objection to the removal (an answer `object` in its `moderation_overturn` window) as such a
 /// cosignature. The removal's author is no voice. The row's own signers are no voices either.
 ///
-/// Returns the removal's author and the voices. The count ([`Policy::Lift`]) is taken of the members at the
-/// head (persons: the agents apart) less that author. The key removed is an agent's, so it is in no count
+/// Returns the removal's author and the voices. The count ([`Policy::Lift`]) is taken of the persons seated at
+/// both the removal's head and the lift's own heads (the agents apart) less that author. The key removed is an agent's, so it is in no count
 /// (an agent "acts under its own key and has no vote").
 pub fn lift_voices<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
@@ -4531,6 +4621,27 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
     // voice there; it is taken out here too for a caller that counts these voices over members of its own
     v.remove(rem.signer());
     Some((rem.signer().clone(), v))
+}
+
+/// The base of a lift (`p.row()`, a re-seating citing a lone removal): the persons seated at BOTH the removal's
+/// head and the lift's own heads, the newest counted changes in its past (H4, no exemption). A member removed, or
+/// that left, since the removal is out of it; one admitted since is out of it too, so a room that grows after a
+/// removal cannot pack its lift; a member removed and re-admitted is in it. The caller takes the removal's author
+/// apart. Where the row cites no held removal, the persons at its own heads.
+fn lift_base<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+    cache: Option<&MembersAt<R>>,
+) -> BTreeSet<R::Key> {
+    let r = p.row();
+    let mut mem = persons_at_with(p, law, spec, obj, r.head(), "member", cache);
+    if let Some(rem) = r.content().and_then(|c| p.get(c)) {
+        let at_rem = persons_at_with(p, law, spec, obj, rem.head(), "member", cache);
+        mem.retain(|k| at_rem.contains(k));
+    }
+    mem
 }
 
 /// Whether a count is met: `yes` voices of `n`, under `policy`.
@@ -4890,10 +5001,9 @@ pub fn is_founder<R: SeatRow, S: CutSpec<R>>(
     if !matches!(kind, Some(CommunityKind::Family) | Some(CommunityKind::Infrastructure)) {
         return false;
     }
-    let r = p.row();
-    let heads: Vec<R::Id> = if !r.head().is_empty() {
-        r.head().to_vec()
-    } else {
+    // read at the newest counted changes in the row's own past, never at the heads it states (a stale head is read
+    // past, as newer_head_in_past refuses it for a count)
+    let heads: Vec<R::Id> = {
         let room = room_in(&p, obj);
         let chs: Vec<&R> = p.rows().filter(|q| change(law, *q, obj, room.as_deref())).collect();
         let newest: Vec<R::Id> = chs
@@ -5089,9 +5199,9 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         // a lift restores and does not admit: the removal it cites is a lone removal, so the key held its
         // agent's seat at that head (lone_removal)
         let Some((author, v)) = lift_voices_with(p, law, spec, cache) else { return false };
-        // the members are persons: the key removed is an agent's, no voice and not counted over (the base, the
-        // members at both heads, is roster-kinds' follow-up)
-        let mut mem = persons_at_with(p, law, spec, &obj, r.head(), "member", cache);
+        // the members are persons: the key removed is an agent's, no voice and not counted over; the base is the
+        // persons at both heads ([`lift_base`])
+        let mut mem = lift_base(p, law, spec, &obj, cache);
         mem.remove(&author); // the author is not among the members the majority is taken of
         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
     }
@@ -5522,9 +5632,10 @@ fn end_of_ended<R: SeatRow, S: CutSpec<R>>(
 /// - `voices` is [`voices`]: the row's signer, its cosigners, and the signers of the cosignatures it names
 ///   that name every head it is counted over.
 /// - Under [`Policy::Lift`] the two are read otherwise: `voices` is [`lift_voices`] (the objections the row
-///   names, the removal's author left out) and `members` is [`members_at`] at the head less the agents (the
-///   key removed among them) and less that author, with no leaving subtracted. The seat rule asks besides
-///   that the key seated held the seat it seats (`agent`) at that head.
+///   names, the removal's author left out) and `members` is [`members_at`] at both the removal's head and the
+///   lift's own heads (the keys seated at both), less the agents (the key removed among them) and less that
+///   author, with no leaving subtracted. The seat rule asks besides that the key seated held the seat it seats
+///   (`agent`) at the removal's head.
 /// - `to`, `members`, `voices` and the weights are in **one** key space. A caller counting persons (KERNEL.md
 ///   7b) collapses `to` the same way, once each: two devices of one person in `to` are one key.
 #[derive(Clone, Copy, Debug)]

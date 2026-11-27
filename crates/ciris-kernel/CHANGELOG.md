@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+**The r75 attack's fixes** (review-58 on e9672d8), each a case and a plant, in both languages:
+- An agent's owner: the owner seat is held only by the owner's own signature (the seat walk's live owner seat, as
+  for a node's binding); the duty is TIED to the binding, which must be in the conferral's own past, so a new
+  binding (a sock owner) revives no old conferral and the end of the one it stands on ends it for good; an agent is
+  recognised by its agent registration (`SeatRow::agent_registration`, new, default `false`) or its agent seat, so
+  one admitted as a member still needs its owner.
+- No lone act lifts or reverses itself by its own target: the key withheld never releases its own withhold, and a
+  content's author never reconsiders its takedown.
+- `is_founder` reads at the newest counted changes in the row's own past, never at the heads it states.
+- Targets are the room's: a takedown's content row is of the room it acts in, and a marker's or verdict's key is
+  seated over the room at the act's heads.
+- The countersign: the overseers are read in the act's own past (the crate now as the model), and by the end rule
+  an overseer's lay-down or removal not having the countersign in its past cuts it.
+- A root grant's seat is re-read at the reader: held only while the grant resolves in the reader's root view now.
+- The lift at both heads (ported from the lift lane, 2f9b46f): counted over the members at both the act's head and
+  the lift's, so members admitted after the act cannot carry it.
+Residual, to the Constitution: a lone officer can appoint a second key as officer and then decide without a
+countersign.
+
 **A delegation chain from a root grant** (the cross-object rest 5; the lead's shape). The seat a root grant gives is
 an offer of `Conf::Root`, naming the grant (`SeatRow::bundle`), of the grant's duty, over the room the grant names,
 to and signed by the key the grant names. It stands while the grant resolves at the reader of the root view
@@ -219,6 +238,26 @@ with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
   remove that holder by an amend). **The residual, stated:** "a holder's statement over a sibling bundle is not ordered against its grant, so it is not read; a grant on one tip is judged by the rows in its own past". It can matter only where that holder's voice is the
   deciding one of an exact majority, and the statement over s2 and the grant on s1 are held evidence the other holders
   can cite when they name both tips.
+
+**The lift's base: the persons at both heads** (the lift follow-up, after the head rules). A lift (a re-seating
+citing a moderator's lone removal of an agent's key) names the newest counted changes in its own past (H4, no
+exemption) and is counted over the persons seated at BOTH the removal's head and its own heads, the removal's
+author apart; the removed key still must have held its `agent` seat at the removal's head. **An answer changes:**
+a member admitted after the removal is no voice of the lift and not counted over, so a room that grows after a
+removal cannot pack its lift (a room of two that grew lifts nothing: its base is one person, under the floor of two;
+the room's own count can admit the key again); a member removed since is out of it, and one removed and re-admitted
+is in it. Seven cases in `check_agent_removal.py`; plants `lift_base_lift_head` and `lift_base_removal_head` in
+both languages.
+
+**One line across the models: the end of a conferral reads the sibling-safe line** (the ruling of 2026-11-27, ruling
+A of the superseded-bundle read, persist's item 13). `conferral::answers`'s `end_void.line` now voids an end for a
+reader only where the head the end names is strictly in the past of a head the acknowledged one extends, as the
+seat model's line does. An end at the head an acknowledged version directly extends is its sibling and stands.
+**An answer changes:** an end at G0, read by a reader that acknowledged G1 (G1 extending G0), was void for it and
+now stands (`conferral_two.json`: "(d) reader at the later"; `conferral_end.json`: `end_sibling_for_reader`; the
+strictly-behind case is now `end_old_fork_for_reader` with a third head). The TLA spec's end line drops its
+acknowledgement clause (its two heads have no strictly-behind end). Plants `line_not_sibling_safe` (the reference)
+and one in the crate.
 
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone

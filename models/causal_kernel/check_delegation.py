@@ -174,6 +174,30 @@ def root_answers(case, plant=None, order=None):
         ST.MUT.clear(); ST.MUT |= saved
 
 
+# r75: standing is re-read at the reader. Rows concluded while the grant resolved are read after it lapsed (the holders
+# grew at the reader): the seat is not held. (concluded under, read under, [(key, scope, stands)])
+LIVE_VIEW = ([dict(B0R, charter=CSUB)], ANCHOR)
+LAPSED_VIEW = ([dict(B0R, charter=CSUB), GROW], RT.reader(anchor="b0", acks=("b1",)))
+REREAD = [("concluded while the grant resolved, read after it lapsed: no seat, and no onward hop", LIVE_VIEW, LAPSED_VIEW,
+           [("uA", "infra", F), ("B", "infra:detect", F)]),
+          ("the control: concluded and read while it resolves", LIVE_VIEW, LIVE_VIEW,
+           [("uA", "infra", T), ("B", "infra:detect", T)])]
+
+
+def reread_answers(case, plant=None):
+    _n, at, now, asks = case
+    saved = set(ST.MUT)
+    if plant: ST.MUT.add(plant)
+    try:
+        with ST.root_view(RT.Root(at[0], (), (GA,)), at[1]):
+            S = CK.concluded(CK.kept([ROOM, RS, RD1]), lambda r, P, past: ST.seat_rule(r, P, past))
+        with ST.root_view(RT.Root(now[0], (), (GA,)), now[1]):
+            Q = ST.Seats(S)
+            return [Q.stands(k, sc, "room") for k, sc, _ in asks]
+    finally:
+        ST.MUT.clear(); ST.MUT |= saved
+
+
 def read(rows, plant=None):
     S = CK.State(list(rows), {r["id"]: True for r in rows})
     Q = ST.Seats(S, depth=10 ** 6 if plant == "no_cap" else ST.DEPTH)
@@ -218,6 +242,11 @@ def main():
             if root_answers(case, order=[case[3][0]] + list(o)) != want:
                 problems.append("root %s: got %s, expected %s" % (case[0], root_answers(case), want))
                 break
+    for case in REREAD:
+        if reread_answers(case) != [w for _, _, w in case[3]]:
+            problems.append("reread %s: got %s" % (case[0], reread_answers(case)))
+    if all(reread_answers(c, "root_seat_stored") == [w for _, _, w in c[3]] for c in REREAD):
+        problems.append("plant root_seat_stored not caught by a reread case")
     root_caught = 0
     for plant in ROOT_PLANTS:
         hit = [c[0] for c in ROOT_CASES if root_answers(c, plant) != [w for _, _, w in c[4]]]

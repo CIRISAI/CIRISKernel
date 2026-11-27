@@ -84,12 +84,13 @@ members may lift that act as they may any act of a moderator."
                   so signed is counted as any removal is.
     the lift      the removal opens a `moderation_overturn` window (window.py: `window` on the row). The lift's
                   effect is a row: a counted offer of policy `moderation_overturn` that seats the key again, cites
-                  the removal (`content`), names the head the removal names, and names objections (answers
-                  `object` to the removal). Its voices are the signers of those objections and no other key; the
-                  removal's author is no voice, and the key it seats is an agent's, so it is in no count. It
-                  concludes when those voices are a strict majority of the members (persons) at that head, the
-                  removal's author apart, never fewer than two: the overturn's count.
-                  It restores and does not admit: the key it seats held its `agent` seat at that head.
+                  the removal (`content`), names the newest counted changes in its own past (H4, no exemption), and
+                  names objections (answers `object` to the removal). Its voices are the signers of those objections
+                  and no other key; the removal's author is no voice, and the key it seats is an agent's, so it is
+                  in no count. It concludes when those voices are a strict majority of the persons seated at BOTH
+                  the removal's head and the lift's own heads (lift_base), the removal's author apart, never fewer
+                  than two: the overturn's count. It restores and does not admit: the key it seats held its `agent`
+                  seat at the removal's head.
                   No reading of the roster reads a window: until that row is written the key is out.
     in force      the removal is an act under the remover's `moderate` standing, and the seat walk counts it as a
                   live unseat only where the end rule (conferral_end.py, E2 to E8) gives it in force over the rows
@@ -549,6 +550,18 @@ def needs_countersign(u, P, past):
     return against_member(u, by) and len(deciding_seats(P, past, u["obj"], u.get("head", ()))) == 1
 
 
+def overseer_cut(c, rows, past, body):
+    """By the end rule, an end of a countersigner's `review` seat over the overseeing body (its withdrawal naming the
+    scope, or an unseat of it) that does not have the countersign c in its past cuts it: an ex-overseer countersigns
+    nothing (MUTATION overseer_end_unread)."""
+    if "overseer_end_unread" in MUT or body is None: return False
+    k = c["signer"]
+    return any((w["kind"] == "withdraw" and w["signer"] == k and w.get("scope") == "review"
+                and (rows.get(w.get("target")) or {}).get("obj") == body or
+                w["kind"] == "unseat" and k in w.get("to", ()) and w.get("scope") == "review" and w.get("obj") == body)
+               and not past(c["id"], w["id"]) for w in rows.values())
+
+
 def overseers(P, past, body):
     """The review holders of the overseeing body, at the newest counted changes over it in P (the act's own past)."""
     by = {q["id"]: q for q in P}
@@ -575,7 +588,8 @@ def countersign_ok(r, P, past):
     byt = {q["id"]: q for q in Pt}
     if k == record_value(byt, t["obj"], "official"): return True
     body = record_value(byt, t["obj"], OVERSEEN_BY)
-    return body is not None and "overseers_unread" not in MUT and k in overseers(Pt, past, body)
+    return body is not None and "overseers_unread" not in MUT and k in overseers(Pt, past, body) \
+        and not overseer_cut(r, by, past, body)
 
 
 # the trust root this node reads (models/trust_root/root.py): (Root, reader), or None. With none, a stalled recovery is
@@ -1368,7 +1382,7 @@ def lift_voices(r, P, past, by):
         return v if "author_voice" in MUT else v - {rem["signer"]}
     if r["kind"] != "offer" or rem is None or rem["kind"] != "unseat" or not lone_removal(rem, P, past): return None
     # the same seat. The re-seating names the newest counted changes in its own past, as every roster row does (H4),
-    # so it no longer names the removal's head (its base, the members at both heads, is roster-kinds' follow-up)
+    # so it no longer names the removal's head; its base is the members at both heads (lift_base)
     if (rem["obj"], rem["scope"], tuple(rem["to"])) != (r["obj"], r["scope"], tuple(r["to"])):
         return None
     v = frozenset(a["signer"] for a in P if a["kind"] == "answer" and a.get("of") == rem["id"] and a.get("says") == "object"
@@ -1383,18 +1397,30 @@ def room_count(yes, base):
     return 2 * len(yes) > len(base) and (len(yes) >= 2 or "lift_no_floor" in MUT)
 
 
+def lift_base(r, P, past, by):
+    """(over, voters) of a lift: the persons seated at BOTH the removal's head and the lift's own heads (the newest
+    counted changes in the lift's past, H4). A member removed, or that left, since the removal is out of it; one
+    admitted since is out of it too, so a room that grows after a removal cannot pack its lift; a member removed and
+    re-admitted is in it. The removal's author is taken apart by the caller. A lift restores: the key held its
+    `agent` seat at the removal's head (lone_removal), so a moderator's "removal" of a key never seated, and a strict
+    majority's objections, admit nothing past the room's own protocol. The members are persons: the key removed is an
+    agent's, no voice and not counted over. MUTATIONS lift_base_lift_head (the base read at the lift's heads alone)
+    and lift_base_removal_head (at the removal's head alone)."""
+    rem_heads = by[r["content"]].get("head", ())
+    if "lift_base_removal_head" in MUT: return counted_keys(P, past, r["obj"], rem_heads)
+    mem, vot = counted_keys(P, past, r["obj"], r.get("head", ()))
+    if "lift_base_lift_head" in MUT: return mem, vot
+    mr, vr = counted_keys(P, past, r["obj"], rem_heads)
+    return mem & mr, vot & vr
+
+
 def lift_count(r, P, past, by):
     """The overturn's count (window.py, moderation_overturn) over the objections a re-seating row names: a strict
     majority of the members at the head, the removal's author apart and the key seated apart (each no voice, and
     not counted over); never fewer than two."""
     v = lift_voices(r, P, past, by)
     if v is None: return False
-    heads = r.get("head", ())                             # the base is roster-kinds' follow-up; read at the lift's heads
-    # a lift restores: the key held its `agent` seat at the head the removal names, since the removal is a lone
-    # removal only of such a key (lone_removal). So a moderator's "removal" of a key never seated, and a strict
-    # majority's objections, admit nothing past the room's own protocol
-    # the members are persons: the key removed is an agent's, so it is no voice and is not counted over
-    mem, vot = counted_keys(P, past, r["obj"], heads)
+    mem, vot = lift_base(r, P, past, by)
     yes = v & vot
     if "lift_over_all" not in MUT: mem = mem - {by[r["content"]]["signer"]}    # MUTATION lift_over_all: the author counted over
     return room_count(yes, mem)
@@ -1880,7 +1906,8 @@ class Seats:
             if "countersign_unread" in MUT: return True
             Pu = [q for q in Cs if q["id"] in S.anc[u["id"]]]
             if not needs_countersign(u, Pu, past_): return True
-            cs = [c for c in Cs if c["kind"] == "countersign" and c.get("of") == u["id"] and C.counts(c) and c["id"] not in V]
+            cs = [c for c in Cs if c["kind"] == "countersign" and c.get("of") == u["id"] and C.counts(c) and c["id"] not in V
+                  and not overseer_cut(c, S.by, past_, record_value({q["id"]: q for q in Pu}, u["obj"], OVERSEEN_BY))]
             wu = [w for w in Cs if w["kind"] == "withdraw" and w.get("target") == u["id"] and w["signer"] == u["signer"]
                   and "withdrawal_clears_unread" not in MUT]
             return any(all(c["id"] in S.anc[w["id"]] for w in wu) for c in cs)
@@ -1966,8 +1993,10 @@ class Seats:
         # a concluded dissolution of a group ends every seat over it (it reads as the withdrawal of the group's record)
         gone = frozenset(q["obj"] for q in Cs if is_dissolve(q) and C.counts(q) and q["id"] not in self.dropped) \
             if "dissolve_leaves_seats" not in MUT else frozenset()
+        # a root grant's seat is re-read at the reader: held only while its grant resolves in the reader's root view
+        # now, whatever it concluded under (MUTATION root_seat_stored)
         base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V and o["obj"] not in gone
-                and o["id"] not in beaten
+                and o["id"] not in beaten and (o.get("conf") != "root" or "root_seat_stored" in MUT or root_seat_rule(o))
                 for k in o["to"] if accepted(o, k) for sc in seat_scopes(o, k)
                 if not off_ended(o, k, sc) and not unseated(o, k, sc) and not resigned(o, k, sc)]
 
@@ -2000,7 +2029,13 @@ class Seats:
             # the one live owner of the agent's key, by an owner-binding in the conferral's past, signed it; the
             # duty seat stands while that binding does (an end of the binding stops the seat, which has it in its
             # past; two owners are none). MUTATIONS agent_duty_owner_unread, agent_owner_end_unread
-            agents = {(S.by[oid]["obj"], k) for oid, k, sc, _, _ in self.live if sc == AGENT}
+            # an agent is recognised by its agent seat (over any room) or its agent registration, whatever scope it was
+            # admitted under (as ruled for KP5; MUTATION agent_by_seat_only: only an agent seat in that room)
+            agent_keys_ = {k for oid, k, sc, _, _ in self.live if sc == AGENT} | {
+                q["obj"] for q in Cs if q["kind"] == "offer" and q.get("scope") == "registered"
+                and "agent" in (q.get("identity") or ())}
+            agents = {(S.by[oid]["obj"], k) for oid, k, sc, _, _ in self.live
+                      if (sc == AGENT if "agent_by_seat_only" in MUT else k in agent_keys_)}
             owners = {}
             for oid, k2, sc2, _, _ in self.live:
                 if sc2 == "owner": owners.setdefault(S.by[oid]["obj"], set()).add((k2, oid))
@@ -2010,8 +2045,12 @@ class Seats:
             # (MUTATION owner_acceptance_unread: only the conferral carries it)
             carriers = lambda o, k: [o] + ([] if "owner_acceptance_unread" in MUT else [
                 a for a in Cs if a["kind"] == "accept" and a["signer"] == k and a.get("of") == o["id"]])
+            # the duty is tied to the binding: the binding is in the CONFERRAL's own past (a new binding revives no old
+            # conferral, and the end of the one it stands on ends it for good), and the binding's owner signed the
+            # seating, on the conferral or on the agent's acceptance (MUTATION binding_on_carrier: any carrier's past)
+            tied = lambda o, row, b: b in S.anc[(row if "binding_on_carrier" in MUT else o)["id"]]
             bound = lambda o, k: "agent_duty_owner_unread" in MUT or (lambda ws: len({w for w, _ in ws}) == 1 and any(
-                w in signers(row) and b in S.anc[row["id"]] for w, b in ws for row in carriers(o, k)))(
+                w in signers(row) and tied(o, row, b) for w, b in ws for row in carriers(o, k)))(
                 owners.get(k, set()) if "agent_owner_end_unread" not in MUT else owner_bindings(S, k, o))
             # MUTATION resign_keeps_duty: a key that ended its own stay still reads as a member for its duty seats
             keep = [(o, k, sc) for o, k, sc in base if not duty_held(S.by, o, sc) or (
@@ -2212,8 +2251,10 @@ class Seats:
                         act_of(r, {q["id"]: q for q in P}, r.get("obj") not in {q["id"] for q in P}) if BOUND else None):
                     # a re-seating (its act the lift): its voices are the objections it names, over the members the fold seats
                     v = lift_voices(r, P, past, {q["id"]: q for q in P}) or frozenset()
+                    if v:                                   # the base: the persons at both heads (lift_base), the author apart
+                        mem = mem & lift_base(r, P, past, {q["id"]: q for q in P})[0]
+                        mem = mem - {S.by[r["content"]]["signer"]}   # (the key removed is an agent's: in no count)
                     yes = v & mem
-                    if v: mem = mem - {S.by[r["content"]]["signer"]}   # the author apart (the key removed is an agent's: in no count)
                     if not room_count(yes, mem): return False
                 elif not count_of(r.get("policy"), True, r.get("to", ()), mem, yes, r.get("need"), r.get("weights"),
                                   signed=voices(r, P)):
@@ -2511,11 +2552,22 @@ def lone_act_rule(r, P, past):
             w = by.get(r.get(ACT_OF))
             if w is None or w["kind"] != "quarantine:withhold" or w.get("target") != r["target"] or w.get("obj") != obj:
                 return False
+            # no act lifts itself by its own target: the key withheld never releases its own withhold (MUTATION
+            # self_release)
+            if r["signer"] == r["target"] and "self_release" not in MUT: return False
     if k == "slashing" and (param not in SLASH_OUTCOMES or r.get("target") is None): return False
     if k == "takedown_notice" and (param is None or r.get(ACT_OF) not in by): return False
+    # the target is the room's: a takedown's content row is of obj (its `room`, or its object), and a marker's or a
+    # verdict's key is seated over obj at the act's heads (MUTATION target_any_room)
+    if k == "takedown_notice" and by[r[ACT_OF]].get("room", by[r[ACT_OF]].get("obj")) != obj \
+            and "target_any_room" not in MUT:
+        return False
     kind = kind_of(by, obj)
     heads = r.get("head", ())
     if not heads or newer_head_in_past(heads, None, P, past, obj, signers(r)): return False
+    if k in ("quarantine", "slashing") and "target_any_room" not in MUT and r["target"] not in (
+            members_at(P, past, obj, heads, "member") | members_at(P, past, obj, heads, AGENT)):
+        return False
     if kind == "affiliation":
         return affiliation_count(r, P, past)
     if not community(by, obj): return False
@@ -2535,6 +2587,8 @@ def reconsideration_rule(r, P, past):
     by = {q["id"]: q for q in P}
     t = by.get(r.get(ACT_OF))
     if t is None or family(t) != "takedown_notice" or not reconsidered(r): return False
+    # no act is reversed by its own target: the author of the content taken down never reconsiders it (self_release)
+    if r["signer"] in act_targets(t, by) and "self_release" not in MUT: return False
     obj, heads = t.get("obj"), r.get("head", ())
     if not heads or newer_head_in_past(heads, None, P, past, obj, signers(r)): return False
     return r["signer"] in members_at(P, past, obj, heads, "review")
@@ -2562,7 +2616,8 @@ def act_in_force(S, act, own=None):
     if kind_of(S.by, obj) == "affiliation":
         if needs_countersign(r, P, past) and "countersign_unread" not in MUT:
             wd = [w for w in S.Cs if w["kind"] == "withdraw" and w.get("target") == act and w["signer"] == r["signer"]]
-            cs = held("countersign", lambda c: c.get("of") == act)
+            body = record_value({q["id"]: q for q in P}, obj, OVERSEEN_BY)
+            cs = held("countersign", lambda c: c.get("of") == act and not overseer_cut(c, S.by, past, body))
             if not any(all(c["id"] in S.anc[w["id"]] for w in wd) for c in cs): return False
     else:
         unseats = [u for u in S.Cs if u["kind"] == "unseat" and Q.cut.counts(u) and u["id"] not in Q.stale]
@@ -3164,7 +3219,9 @@ def is_founder(S, key, obj, at_row):
     past = lambda a, b: a in S.anc[b]
     by = {q["id"]: q for q in P}
     if kind_of(by, obj) not in ("family", "infrastructure"): return False
-    heads = tuple(r.get("head", ())) or newest_changes(P, past, obj, by)
+    # read at the newest counted changes in the row's own past, never at the heads it states: a stale head is read
+    # past, as newer_head_in_past refuses it for a count (MUTATION founder_raw_head)
+    heads = (tuple(r.get("head", ())) if "founder_raw_head" in MUT else ()) or newest_changes(P, past, obj, by)
     unread = "founder_leavings_unread" in MUT and "ends_at_heads_unread" not in MUT
     if unread: MUT.add("ends_at_heads_unread")
     try:
