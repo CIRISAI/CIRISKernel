@@ -1133,8 +1133,12 @@ def lift_count(r, P, past, by):
     # majority's objections, admit nothing past the room's own protocol
     # the members are persons: the key removed is an agent's, so it is no voice and is not counted over
     mem, vot = counted_keys(P, past, r["obj"], heads)
-    yes = persons_of(v, vot, P)
-    if "lift_over_all" not in MUT: mem = mem - {by[r["content"]]["signer"]}    # MUTATION lift_over_all: the author counted over
+    author = by[r["content"]]["signer"]
+    # the author's own keys are the author (KP1): the objections mapped to persons, then the author apart
+    apart = frozenset() if MUT & {"author_voice", "lift_author_device"} else {rep_of(P, author)}
+    yes = persons_of(v, vot, P, r["obj"]) - apart              # (MUTATION lift_author_device: only the author's own key)
+    mem = as_persons(mem, P, r["obj"])
+    if "lift_over_all" not in MUT: mem = mem - {rep_of(P, author), author}    # MUTATION lift_over_all: the author counted over
     return room_count(yes, mem)
 
 
@@ -1890,7 +1894,8 @@ class Seats:
                 else: ok = self.tips_fold(counted, over)                 # another scope's own fold; None: one tip there
                 mem = counted_keys(P, past, over, r.get("head", ()), counted)[0] - count_left(P, past, over, counted)
                 if ok is not None: mem = mem & ok
-                yes = persons_of(voices(r, P), mem, P)
+                yes = persons_of(voices(r, P), mem, P, over)
+                mem = as_persons(mem, P, over)
                 if is_election(r) and "fold_ranked_counted" not in MUT:
                     continue                    # an election's seating is read by C1 to C5 alone (beaten, the seat rule)
                 if r.get("policy") in DUTY_POLICY:
@@ -2027,11 +2032,12 @@ def count_receipt(S, q, x):
     mem, vot = counted_keys(P, past, over, tuple(q.get("head", ())), scope)
     left = left_in_past(P, over, scope)
     mem, vot = mem - left, vot - left
-    yes = persons_of(voices(q, P), vot, P)
-    if "count_receipt_unchecked" not in MUT: yes = yes - {x["signer"]}
+    yes = persons_of(voices(q, P), vot, P, over)
+    if "count_receipt_unchecked" not in MUT: yes = yes - {x["signer"], rep_of(P, x["signer"])}
     # the room less the remover, in the base as in the voices (R5: one rule for a count that judges one member's act,
     # as the overturn and the lift; MUTATION remover_counted_over)
-    if "remover_counted_over" not in MUT: mem = mem - {x["signer"]}
+    mem = as_persons(mem, P, over)
+    if "remover_counted_over" not in MUT: mem = mem - {x["signer"], rep_of(P, x["signer"])}
     if "receipt_row_policy" in MUT: return met(q.get("policy"), len(yes), len(mem), q.get("need"))
     return room_count(yes, mem)
 
@@ -2618,20 +2624,25 @@ def evicted_from(S, rid, g, k):
     return False
 
 
-def person_in(P, k, keep=lambda g: True):
-    """The person key k is over P (a row's concluded past) alone: person_of with no rule 4 (a conclusion reads its
-    row's past only; a concurrent eviction is no part of it). `keep(g)`: a self roster g still in play (person_of's
-    rule 4). None for no person or two."""
-    if key_record_ended(P, k): return None
+def rosters_of(P, k, keep=lambda g: True):
+    """The self rosters k holds a live seat of over P (a row's concluded past), in their own scope: their ids, sorted.
+    `keep(g)`: a self roster still in play (person_of's rule 4). A key that revoked itself is in none."""
+    if key_record_ended(P, k): return []
     by = {q["id"]: q for q in P}
     selves = [g for g in P if g["kind"] == "offer" and g.get("obj") == g["id"]
               and (kind_of(by, g["id"]) == "self" or "person_any_kind" in MUT)]   # MUTATION person_any_kind: any group
     if "person_evict_unread" in MUT:                              # MUTATION: an admission in the past is enough
-        hit = sorted({g["id"] for g in selves if any(q["kind"] == "offer" and q.get("obj") == g["id"] and k in q["to"]
-                                                     for q in P)})
-    else:
-        Q = seats_of(P)
-        hit = sorted({g["id"] for g in selves if k in Q.holders(g["scope"], g["id"]) and keep(g)})
+        return sorted({g["id"] for g in selves if any(q["kind"] == "offer" and q.get("obj") == g["id"] and k in q["to"]
+                                                      for q in P)})
+    Q = seats_of(P)
+    return sorted({g["id"] for g in selves if k in Q.holders(g["scope"], g["id"]) and keep(g)})
+
+
+def person_in(P, k, keep=lambda g: True):
+    """The person key k is over P (a row's concluded past) alone: person_of with no rule 4 (a conclusion reads its
+    row's past only; a concurrent eviction is no part of it). `keep(g)`: a self roster g still in play (person_of's
+    rule 4). None for no person or two."""
+    hit = rosters_of(P, k, keep)
     if len(hit) == 1 or ("person_first" in MUT and hit): return hit[0]   # MUTATION person_first: two persons, the first
     return None
 
@@ -2661,28 +2672,76 @@ def person_key(P, g):
     return None if row is None else row["signer"]
 
 
-def person_for(k, base, P, by):
-    """The member key k speaks for in a count over `base` (a set of members) read over P: k itself where k is a
-    member; else the key its person is named by (person_key of person_in) where that is a member; else None (no
-    voice). Kept per (P, k): a count reads it once per row."""
-    if k in base: return k
-    key = (frozenset(id(q) for q in P), k, frozenset(MUT))
+def agent_keys(P):
+    """The keys holding an AI agent's seat over P (CC 4.5.13: "an agent has no vote"): they are in no count and never
+    speak for a person."""
+    return frozenset(x["k"] for x in seats_of(P).recs if x["scope"] == AGENT)
+
+
+def rep_of(P, k, member=False):
+    """The one voice and one member key k counts as in a count read over P (ruled on CIRISConstitution#224: "one
+    voice however many live keys sign", one member however many keys are seated): the key its person is named by
+    (its self roster's genesis key, person_key) where k is a live key of exactly one self roster; k itself where k is
+    a live key of none (a key that has no roster of its own is its own person). None, no voice and no member: a key
+    of two persons; a key that revoked itself (KP6); a key whose person's genesis key revoked itself (its devices
+    then speak for no one); an agent's key (KP5: never for its owner). `member`: the member k counts as in a base,
+    where none of those ends a seat: a key of one self roster is its person, any other key itself. Kept per (P, k)."""
+    key = (frozenset(id(q) for q in P), k, member, frozenset(MUT))
     if key not in _PERSON_IN:
-        g = person_in(P, k)
-        _PERSON_IN[key] = (tuple(P), None if g is None else person_key(P, g))
-    p = _PERSON_IN[key][1]
-    return p if p is not None and p in base else None
+        _PERSON_IN[key] = (tuple(P), _rep(P, k) if not member else _member_rep(P, k))
+    return _PERSON_IN[key][1]
 
 
-def persons_of(vs, base, P):
-    """A count over persons (ruled on CIRISConstitution#224: "one voice however many live keys sign"): the members of
-    `base` that the keys `vs` speak for (person_for), one voice each, however many of their live keys sign. A key with
-    no person, or two, is no voice. A key that is itself in `base` is its own voice, so a count over a self roster's own
-    keys (each a member of its base) stays a count of keys. MUTATION persons_unread: the keys themselves."""
-    base = frozenset(base)
-    if "persons_unread" in MUT: return frozenset(vs) & base
+def _member_rep(P, k):
+    hit = rosters_of(P, k, keep=lambda g: True) if not key_record_ended(P, k) else []
+    if len(hit) != 1:                                             # a revoked key, a key of two rosters: still a member
+        return k
+    return person_key(P, hit[0])
+
+
+def _rep(P, k):
+    if key_record_ended(P, k) and "revoked_voice_kept" not in MUT: return None     # MUTATION: a revoked key keeps its voice
+    hit = rosters_of(P, k)
+    if not hit: return k                     # (an agent's own key is kept out of every base by counted_keys already)
+    if k in agent_keys(P) and "agent_speaks" not in MUT: return None   # never for its owner (MUTATION agent_speaks)
+    if len(hit) > 1 and "person_first" not in MUT: return None
+    g = person_key(P, hit[0])
+    if key_record_ended(P, g) and "revoked_voice_kept" not in MUT: return None
+    return g
+
+
+def keys_counted(P, obj):
+    """A count over obj is a count of keys, not persons, where obj is a self roster (its own keys are what it counts:
+    self_roster_add, self_roster_evict) or a key object."""
+    if obj is None: return False
     by = {q["id"]: q for q in P}
-    return frozenset(x for x in (person_for(v, base, P, by) for v in vs) if x is not None)
+    return obj not in by or kind_of(by, obj) == "self"
+
+
+def as_persons(keys, P, obj=None):
+    """The persons a set of keys counts as (rep_of), one each, a key that counts as none left out: one member per
+    person however many of its keys are seated. A count over a self roster (keys_counted) reads the keys themselves.
+    MUTATION persons_unread: the keys themselves."""
+    if "persons_unread" in MUT or keys_counted(P, obj): return frozenset(keys)
+    if "base_by_key" in MUT: return frozenset(keys)              # MUTATION base_by_key: the base read by key
+    return frozenset(rep_of(P, k, member=True) for k in keys)
+
+
+def person_for(k, base, P, by=None, obj=None):
+    """The member key k speaks for in a count over `base` read over P: its person (rep_of) where that is one of the
+    persons `base` counts as; else None (no voice). Over a self roster, k itself where it is in base."""
+    if "persons_unread" in MUT or keys_counted(P, obj): return k if k in base else None
+    r = rep_of(P, k)
+    return r if r is not None and r in as_persons(base, P, obj) else None
+
+
+def persons_of(vs, base, P, obj=None):
+    """A count over persons (ruled on CIRISConstitution#224): the persons of `base` (as_persons) that the keys `vs`
+    speak for, one voice each, however many of their live keys sign. A key with no person (two persons, revoked, an
+    agent's) is no voice. A count over a self roster's own keys stays a count of keys (keys_counted)."""
+    if "persons_unread" in MUT or keys_counted(P, obj): return frozenset(vs) & frozenset(base)
+    b = as_persons(base, P, obj)
+    return frozenset(x for x in (rep_of(P, v) for v in vs) if x is not None and x in b)
 
 
 def seats_of(rows):
@@ -3059,7 +3118,7 @@ def _count_under(r, P, past, by, table=None):
             new_r = frozenset(r.get("to", ())) - union if k == "offer" else frozenset()
             if pr is None or pr[2] != len(union) + len(new_r) or pr[1] < m: return False
             if not new_r <= voices(r, P): return False
-            return met("P:quorum", len(persons_of(voices(r, P), vot, P)), len(mem), m)
+            return met("P:quorum", len(persons_of(voices(r, P), vot, P, obj)), len(mem), m)
         # C2 (the ruling on reader_state): for a reader holding two concurrent founders' amendments, a founders' count
         # whose own past holds only one of them reads the founders common to the two: neither line's later count is
         # counted over the keys one line alone seated (MUTATION wait_reader_unread: read over its own past only)
@@ -3097,15 +3156,17 @@ def _count_under(r, P, past, by, table=None):
     if r.get("exclude_target"): vot = vot - frozenset(r.get("to", ()))
     if r.get("base_excludes_target"):
         mem, vot = mem - frozenset(r.get("to", ())), vot - frozenset(r.get("to", ()))
+    # one member per person, as one voice (ruled on CIRISConstitution#224): the base counted by person (as_persons)
+    mem = as_persons(mem, P, obj)
     # a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
     if r.get("no_self_removal") and voices(r, P) - r.get("void_voices", frozenset()) <= frozenset(r.get("to", ())):
         return False
     # the community floor, where a policy row governs alone in place of a protocol that states no rule (the `&` reading)
-    if r.get("floor") is not None and len(persons_of(voices(r, P), vot, P) - frozenset(r.get("to", ()))) < r["floor"]: return False
+    if r.get("floor") is not None and len(persons_of(voices(r, P), vot, P, obj) - frozenset(r.get("to", ()))) < r["floor"]: return False
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
         # the election's seating (C1 to C5): its electorate read at its election's vacancy, not at a head
         return election_count(r, P, past, by)
-    if r.get("policy") in DUTY_POLICY: return duty_count(r, P, persons_of(voices(r, P), vot, P), mem)
+    if r.get("policy") in DUTY_POLICY: return duty_count(r, P, persons_of(voices(r, P), vot, P, obj), mem)
     # the recall is told by its act where the binding reads one (act_of: an unseat of a duty counted over the
     # members), by its policy otherwise; Policy::Recall is only the threshold its fixed row maps to
     is_recall = (a[0] == "recall") if a is not None else \
@@ -3114,10 +3175,10 @@ def _count_under(r, P, past, by, table=None):
         # the recall judges one holder: counted over the members less the holder it recalls, and that holder no voice
         # of it, as the lift is counted over the room less the one it judges
         judged = frozenset(r["to"])
-        base = mem if "recall_holder_in_base" in MUT else mem - judged
-        yes = persons_of(voices(r, P), vot, P) - (frozenset() if "recall_holder_voice" in MUT else judged)
+        base = mem if "recall_holder_in_base" in MUT else mem - as_persons(judged, P, obj)
+        yes = persons_of(voices(r, P), vot, P, obj) - (frozenset() if "recall_holder_voice" in MUT else judged)
         return met(r.get("policy"), len(yes), len(base), r.get("need"), table)
-    return count_of(r.get("policy"), k == "offer", r.get("to", ()), mem, persons_of(voices(r, P), vot, P), r.get("need"),
+    return count_of(r.get("policy"), k == "offer", r.get("to", ()), mem, persons_of(voices(r, P), vot, P, obj), r.get("need"),
                     r.get("weights"), table, signed=voices(r, P))
 
 

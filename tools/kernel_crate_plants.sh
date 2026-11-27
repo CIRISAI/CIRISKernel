@@ -124,7 +124,7 @@ plant "a window's opener held to the counted scope"     src/window.rs 'let scope
 plant "a floored majority read without its floor"       src/window.rs '&How::MoreAtLeast(num, den, least) => more(num, den, n) && y >= least as u128,' '&How::MoreAtLeast(num, den, _) => more(num, den, n),'
 plant "the fallback counted over silent members"        src/window.rs 'more(*num, *den, y + no as u128) && y >= *least as u128' 'more(*num, *den, n) && y >= *least as u128'
 plant "the fallback read without its floor"             src/window.rs 'more(*num, *den, y + no as u128) && y >= *least as u128' 'more(*num, *den, y + no as u128)'
-plant "a vote beside a moderator's answer unsays it"    src/window.rs 'let moot = |a: &R| acted.contains(a.signer()) && duty_word(a).is_none();' 'let moot = |_a: &R| false;'
+plant "a vote beside a moderator's answer unsays it"    src/window.rs 'let moot = |a: &R| person(a).is_some_and(|p| acted.contains(&p)) && duty_word(a).is_none();' 'let moot = |_a: &R| false;'
 plant "an act that opens its own window skips the seat" src/window.rs 'if matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && !seat_rule(p, law, spec, &|_| true) {' 'if false {'
 plant "a withdrawn ballot is still a ballot"           src/window.rs '.filter(|a| !says(*a).is_some_and(|v| words.contains(v)) || !wd.contains(&(a.id(), a.signer())))' '.filter(|_| true)'
 plant "a ballot's withdrawal concurrent with a landing not recounted" src/window.rs 'let wrows: Vec<&R> = mine.iter().chain(&conc).map(|&q| g.row(q)).collect();' 'let wrows: Vec<&R> = mine.iter().map(|&q| g.row(q)).collect();'
@@ -160,8 +160,7 @@ plant "a failed counted receipt read as its signer's" src/seat.rs 'return count_
                 }'
 plant "the count's receipt over any room" src/seat.rs 'if qr.obj().as_ref() != Some(&obj) || qr.over().is_some_and(|o| o != obj) {' 'if false {'
 plant "the count's receipt at an older head" src/seat.rs 'if qr.head().is_empty() || !qr.head().iter().all(fresh) {' 'if qr.head().is_empty() {'
-plant "the remover a voice of the count's receipt" src/seat.rs '    v.remove(xr.signer());
-    let yes' '    let yes'
+plant "the remover a voice of the count's receipt" src/seat.rs '    v.remove(&pp.member(xr.signer()));' ''
 plant "a founding duty read as the offer's scope" src/seat.rs '        && (seat_scopes(m, k, signed_by(m, k)).iter().any(|s| s.s() == us.as_ref())' '        && (m.scope() == Some(us)'
 plant "an agent's receipt keeps a lone removal" src/seat.rs '    duty.retain(|k| !agents.contains(k));
 ' ''
@@ -295,15 +294,24 @@ plant "a key's person: the key's own end is not read" src/seat.rs 'if keep(&o, s
 plant "a key's person: an admission in the past is enough (evictions unread)" src/seat.rs '        for k in seats.holders(s.as_ref(), &o, None) {' '        let seated: BTreeSet<R::Key> = rows.iter().filter(|q| q.seat_kind() == SeatKind::Offer && q.obj().as_ref() == Some(&o)).flat_map(|q| q.to().iter().cloned()).collect();
         for k in seated.into_iter().chain(seats.holders(s.as_ref(), &o, None)) {'
 plant "a key's person: an eviction concurrent with the row is not read (rule 4)" src/seat.rs 'let keep = |g: &ObjOf<R>, s: &str, key: &R::Key| key != k || !evicted_from(c, at, g, s, k);' 'let keep = |g: &ObjOf<R>, s: &str, key: &R::Key| key != k || !(false && evicted_from(c, at, g, s, k));'
-plant "a count of keys, not persons" src/seat.rs '    if voices.iter().all(|v| base.contains(v)) {
-        return voices.clone();
-    }' '    if true {
-        return voices.intersection(base).cloned().collect();
-    }'
+plant "a count of keys, not persons" src/seat.rs '        let b = self.base(base);
+        voices.iter().filter_map(|v| self.voice(v)).filter(|p| b.contains(p)).collect()' '        voices.intersection(base).cloned().collect()'
+plant "the base read by key: a person seated by two keys is two members" src/seat.rs '        keys.iter().map(|k| self.member(k)).collect()' '        keys.clone()'
+plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '        if self.revoked.contains(k) {
+            return None;
+        }
+        match self.rosters.get(k).map(|v| v.as_slice()) {
+            None | Some([]) => Some(k.clone()),
+            Some([g]) if !self.agents.contains(k) && !self.revoked.contains(g.signer()) => Some(g.signer().clone()),' '        match self.rosters.get(k).map(|v| v.as_slice()) {
+            None | Some([]) => Some(k.clone()),
+            Some([g]) if !self.agents.contains(k) => Some(g.signer().clone()),'
+plant "an agent's key of a person's roster speaks for that person" src/seat.rs 'Some([g]) if !self.agents.contains(k) && !self.revoked.contains(g.signer()) => Some(g.signer().clone()),' 'Some([g]) if !self.revoked.contains(g.signer()) => Some(g.signer().clone()),'
+plant "the lift reads the author's devices as other voices" src/seat.rs '        mem.remove(&author); // the author is not among the members the majority is taken of' '        mem.insert(author.clone());'
+plant "a window's answers read by key before the opener's withdrawal" src/window.rs '    let is_wd = |a: &&R| person(a).as_ref() == Some(&opener) && a.says().is_some_and(|w| w.as_ref() == "withdraw");' '    let is_wd = |a: &&R| *a.signer() == x.opener_signer && a.says().is_some_and(|w| w.as_ref() == "withdraw");'
 plant "a room key's offer accepted again re-seats it" src/seat.rs 'SeatKind::Accept if revoked_before(law, spec, r, p, &by, cache) => false,' 'SeatKind::Accept if false => false,'
 plant "a window's base read when asked keeps the agents" src/window.rs '            m = persons(m, &agents);' ''
 plant "two bindings one in the other's past read as one stint" src/standing.rs 'if rebinds(*c, b, rows) || rebinds(b, *c, rows) {' 'if past.in_past(c.id(), b.id())? || past.in_past(b.id(), c.id())? {'
-plant "a One clause over a duty leaves out an agent's act" src/window.rs '        let keys = if cl.how == How::One { x.held(&cl.over) } else { x.base(&cl.over) };' '        let keys = x.base(&cl.over);'
+plant "a One clause over a duty leaves out an agent's act" src/window.rs '        let keys = if cl.how == How::One { held(&cl.over) } else { base(&cl.over) };' '        let keys = base(&cl.over);'
 plant "the tips read as their common members" src/seat.rs 'let t = self.fold_of(s, o, &at);' 'let t = self.tips_common(s, o);'
 plant "the fold counts a voice it does not seat" src/seat.rs 'let ok = if over == *o && counted == s { Some(seated.clone()) } else { self.tips_fold(counted, &over) };' 'let ok: Option<BTreeSet<R::Key>> = None;'
 plant "a member another tip removed stays in the fold" src/seat.rs 'union.iter().filter(|k| !common.contains(*k) && survives(k)).cloned().collect();' 'union.iter().filter(|k| !common.contains(*k)).cloned().collect();'

@@ -2,22 +2,26 @@
 
 ## Unreleased
 
-**Counts are over persons** (ruled on CIRISConstitution#224: "one voice however many live keys sign"). New:
-`seat::persons_of(rows, law, spec, voices, base)`, the members of `base` a set of signing keys speaks for: a key in
-`base` is its own voice; another key speaks for the key its person is named by (its self roster's genesis key, the
-founding record's signer), where that is in `base`; a key with no person, or two, is no voice. Every count reads its
-voices through it: the seat rule's count (the policy count, quorum, floor, the duty count, the recall), the fold at
-tips, the lift, the count's receipt of a lone removal, the election's ballots (one ballot a person; a person whose
-keys cast two rankings says nothing), and a window's answers (the base reads persons already). A count over a self
-roster's own keys stays a count of keys (each is a member of its base). `GroupCount`'s contract states that its
-`voices` are persons. No existing answer changes; the reference: `seat.persons_of`, `seat.person_for`,
-`seat.person_in`; six cases of `check_key_person.py` (three persons, a device key speaking for its person, an
-evicted device, a key in two rosters, a self roster's count) replayed by `tests/key_person.rs`; one plant in each
-language (a count of keys, not persons), and three crate plants retargeted to the reshaped text. A window's answers
-and an election's ballots have cases of their own (in the seat fixture): a device key's objection counts for its
-person, and two keys of one person object as one voice; a device key's ballot counts for its person (it is also a
-row of the election's set, signed for a member of the electorate), two keys of one person ranking the same cast one
-ballot, and ranking differently the person says two things and casts nothing (the tally groups ballots by voter).
+**Counts are over persons: one voice and one member per person** (ruled on CIRISConstitution#224: "one voice
+however many live keys sign"). New: `seat::Persons`, the persons a count reads over a counted row's past, and
+`seat::persons_of`. A person is named by its self roster's genesis key (the founding record's signer). A key of
+exactly one self roster counts as its person, a key of none as itself. In a base, a key counts as that member,
+so a person seated by two keys is one member. As a voice it counts for nobody where:
+- it is a key of two rosters;
+- it revoked itself (its member seat stands);
+- its person's genesis key revoked itself (its devices then speak for no one);
+- it is an AI agent's key of a person's roster (CC 4.5.13: never for its owner).
+Every count reads its base and its voices through it: the seat rule's count (the policy count, quorum, floor, the duty
+count, the recall), the fold at tips, the lift (the remover's devices are the remover), the count's receipt of a lone
+removal, the election's ballots and set (one ballot a person; two rankings say nothing; a member's device signs for
+it), and a window's answers and bases (each answer read as its signer's person before the opener's withdrawal, a duty
+holder's act and the moot are read). Voices are mapped first and then held to the voting base, so a device of an
+excluded target or a voided member is no voice. A count over a self roster's own keys (or a key object) reads keys.
+`GroupCount`'s contract states that its `voices` are persons. No existing answer changes. The reference:
+`seat.rep_of`, `seat.as_persons`, `seat.persons_of`, `seat.person_for`; `check_key_person.py`, 39 cases (the review
+r74's rows among them: a person seated by two keys, a revoked key and its devices, an agent's key, the lift's
+author's device, a window over a self roster) and ten planted breaks; the window, ballot and r74 rows are in the seat
+fixture; seven crate plants for it, four retargeted.
 
 **A key's person at a row, with no instant** (0.5.0; the rule ruled on CIRISConstitution#224). New:
 `seat::person_at(c, at, law, spec, k)`, the person key `k` is at row `at` of a concluded set: the self roster (an

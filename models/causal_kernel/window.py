@@ -217,12 +217,18 @@ def table_outcome(spec, p, answers, inside, base, elapsed):
     # an answer is its person's (ruled on CIRISConstitution#224: one voice however many live keys sign): a key that is
     # no member answers for the member it is a live key of (seat.person_for); a key with no person stays as it signed,
     # and is no voice of any base. Two answers of one person that differ say two things, and so nothing.
-    members = base("all") | base.raw("moderate") | tv
     rows = getattr(base, "rows", None)
-    if rows is not None and "persons_unread" not in ST.MUT:
-        by_ = {q["id"]: q for q in rows}
-        answers = [a if a["signer"] in members else dict(a, signer=ST.person_for(a["signer"], members, rows, by_) or a["signer"])
-                   for a in answers]
+    if rows is not None and "persons_unread" not in ST.MUT and not ST.keys_counted(rows, p["obj"]):
+        # one member and one voice per person: the bases by person, each answer its signer's person (rep_of; a key that
+        # counts as none answers for nobody), the opener its own person
+        key_base, NONE = base, ("no person",)
+        def base(name):
+            return ST.as_persons(key_base(name), rows, p["obj"])
+        base.raw = lambda name: ST.as_persons(key_base.raw(name), rows, p["obj"])
+        rep = lambda k: ST.rep_of(rows, k) or (NONE, k)
+        answers = [dict(a, signer=rep(a["signer"])) for a in answers]
+        p = dict(p, signer=rep(p["signer"]))
+        tv = {rep(t) for t in tv}
     withdrawn = any(a["signer"] == p["signer"] and a["says"] == "withdraw" for a in answers)
     heard = [a for a in answers if a["signer"] in base("all") | base.raw("moderate") | tv
              and not (a["signer"] == p["signer"] and a["says"] == "withdraw")]

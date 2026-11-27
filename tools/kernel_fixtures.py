@@ -415,6 +415,10 @@ def seat_cases():
         record(rows, A.WIN)
     for _name, rows, _rid, _want in KPC.BALLOT_CASES:
         record(rows, A.SEAT)
+    # the review r74's rows: a person seated by two keys, a revoked key and its devices, an agent's key of a person's
+    # roster, the lift's author's device, a window over a self roster
+    for _name, rows, _rid, _want, rule in KPC.R74_CASES:
+        record(rows, A.WIN if rule is not KPC.RULE else A.SEAT)
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")

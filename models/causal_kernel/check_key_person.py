@@ -18,6 +18,10 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     person_end_unread     the key's own end is not read: a revoked key keeps its person
     concurrent_eviction_unread  rule 4 not read: a key evicted concurrently keeps its person at the eviction's head
     persons_unread        a count of keys, not persons: two keys of one person are two voices, a device no voice
+    base_by_key           the base read by key: a person seated by two keys is two members (KP4)
+    revoked_voice_kept    a key's own revocation leaves its voice, and its devices speak for it (KP6)
+    agent_speaks          an agent's key that is also a key of a person's roster speaks for that person (KP5)
+    lift_author_device    the lift leaves out only the remover's own key, not its devices (KP1)
 
     python3 -I check_key_person.py      exit 1 on any difference
 """
@@ -33,6 +37,7 @@ import seat as ST  # noqa: E402
 import roomkey as RK  # noqa: E402
 import window as WN  # noqa: E402
 import check_election as EL  # noqa: E402
+import check_room_keys as CR  # noqa: E402
 
 CK, R = ST.CK, ST.R
 RULE = lambda r, P, past: ST.seat_rule(r, P, past)
@@ -132,6 +137,46 @@ def concludes(rows, rid):
     return bool(CK.concluded(CK.kept(list(rows)), RULE).C.get(rid))
 
 
+# ---- the review r74's rows (CIRISConstitution#224, counts over persons) --------------------------------------------
+AB = ST.offer("ab", "p1", "p1b", "member", "gc", "group", ("gc",), head=("gc",), policy="community_invite",
+              cosigners=("p2", "p3", "p1b"))                     # p1's device also admitted to the room as a member
+def admit_y(signers):
+    return ST.offer("ay", signers[0], "y", "member", "gc", "group", ("ab",), head=("ab",), policy="community_invite",
+                    cosigners=tuple(signers[1:]) + ("y",))
+REC1 = ST.offer("rec", "p1", "p1", "registered", "p1", "self")
+RV1 = ST.unseat("rv", "p1", "p1", "registered", "p1", "self", ("rec", "a1b"))
+SM = found("Sm1", "m1")
+AM1B = add("am1b", "Sm1", "m1b", ("m1",), ("Sm1",))
+AAG = add("aAG", "Sm1", "AG", ("m1",), ("Sm1",))                   # the room's agent key, also a key of m1's roster
+def admit_cr(i, signers, extra):
+    return ST.offer(i, signers[0], "y", "member", "g", "group", ("ag",) + tuple(extra), head=("ag",),
+                    policy="community_invite", cosigners=tuple(signers[1:]) + ("y",))
+def lift_with(objectors):
+    objs = [WN.answer("o_" + k, k, "x", "object", ("x", "am1b")) for k in objectors]
+    return CR.PV + [SM, AM1B, CR.XL] + objs + [CR.lift("rs", "m2", "AG", "x", ("x",), tuple(o["id"] for o in objs))]
+R74_CASES = [
+    ("KP4: a person seated by two keys is one member: three of four persons admit y (five keys seated)",
+     BASE + [AB, admit_y(("p1", "p2", "p3"))], "ay", True, RULE),
+    ("KP4: and its two keys signing are one voice: p1, p1b and p2 are two of four persons, short",
+     BASE + [AB, admit_y(("p1", "p1b", "p2"))], "ay", False, RULE),
+    ("KP6: p1 revoked itself: its device p1b speaks for no one, so p1b, p2 and p3 are two voices of four",
+     BASE + [REC1, RV1, admit_z(("p1b", "p2", "p3"), ("rv",))], "az", False, RULE),
+    ("KP6: and p1's own signature is no voice though p1 is still a member", BASE + [REC1, RV1, admit_z(("p1", "p2", "p3"), ("rv",))],
+     "az", False, RULE),
+    ("KP5: the room's agent key, also a key of m1's roster, never speaks for m1: AG, m2, m3, m4 are three of five",
+     CR.PV + [SM, AAG, admit_cr("ay", ("AG", "m2", "m3", "m4"), ("Sm1", "aAG"))], "ay", False, CR.RULE),
+    ("KP5: m1 itself with m2, m3, m4 admits", CR.PV + [admit_cr("ay", ("m1", "m2", "m3", "m4"), ())], "ay", True, CR.RULE),
+    ("KP1: the lift's objections: the remover's device is the remover, so m1b, m2, m3 are two of the others, short",
+     lift_with(("m1b", "m2", "m3")), "rs", False, CR.RULE),
+    ("KP1: m2, m3, m4 lift", lift_with(("m2", "m3", "m4")), "rs", True, CR.RULE),
+]
+# KP3: a window over a self roster is counted by key: p1's key of another roster withdrawing is not the opener
+WS1, WA = found("S1", "p1"), add("a1b", "S1", "p1b", ("p1",), ("S1",))
+WS1X, WD = found("S1x", "p1"), add("ad", "S1x", "d", ("p1",), ("S1x",))
+WOP = dict(WN.opener("op", "p1", "self_roster_add", "S1", ("a1b",)), to=("k7",))
+SELF_WINDOW = [WS1, WA, WS1X, WD, WOP]
+
+
 # a window's answers by person: p2 has a second key p2b; p1 opens a proposal the others refuse by more than half of
 # them and never fewer than two (proposal@others over p2, p3, p4)
 P2B = add("a2b", "S2", "p2b", ("p2",), ("S2",))
@@ -145,6 +190,12 @@ WINDOW_CASES = [
     ("two keys of one person object: one voice, short of two", WBASE + [obj_("o1", "p2"), obj_("o2", "p2b")], "open"),
 ]
 RULE_W = lambda r, P, past: WN.rule(r, P, past)
+WINDOW_CASES += [
+    ("KP3: over a self roster the opener's own withdrawal refuses", SELF_WINDOW + [WN.answer("w", "p1", "op", "withdraw",
+                                                                                            ("op", "ad"))], "refused"),
+    ("KP3: another roster's key of p1 is no opener of this one (a self roster is counted by key)",
+     SELF_WINDOW + [WN.answer("w", "d", "op", "withdraw", ("op", "ad"))], "open"),
+]
 
 
 def window_outcome(rows):
@@ -172,7 +223,7 @@ BALLOT_CASES = [
 
 
 PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
-          "persons_unread")
+          "persons_unread", "base_by_key", "revoked_voice_kept", "agent_speaks", "lift_author_device")
 
 
 def answer(rows, k):
@@ -215,6 +266,10 @@ def main():
             if bool(CK.arrive(o, RULE).C.get(rid)) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
                 break
+    for name, rows, rid, want, rule in R74_CASES:
+        got = bool(CK.concluded(CK.kept(list(rows)), rule).C.get(rid))
+        if got != want:
+            problems.append("%s: got %r, expected %r" % (name, got, want))
     for name, rows, want in WINDOW_CASES:
         got = window_outcome(rows)
         if got != want:
@@ -230,7 +285,8 @@ def main():
             hit = [c[0] for c in CASES if answer(c[1], c[2]) != c[3]] + \
                   [c[0] for c in COUNT_CASES if concludes(c[1], c[2]) != c[3]] + \
                   [c[0] for c in WINDOW_CASES if window_outcome(c[1]) != c[2]] + \
-                  [c[0] for c in BALLOT_CASES if concludes(c[1], c[2]) != c[3]]
+                  [c[0] for c in BALLOT_CASES if concludes(c[1], c[2]) != c[3]] + \
+                  [c[0] for c in R74_CASES if bool(CK.concluded(CK.kept(list(c[1])), c[4]).C.get(c[2])) != c[3]]
         finally:
             ST.MUT.discard(plant)
         caught += bool(hit)
@@ -240,10 +296,10 @@ def main():
     for p in problems:
         print(p)
     print("RESULT: %s: %d cases (%d of a key's person, %d of a count over persons, %d of a window's answers, %d of "
-          "ballots), %d arrival orders, %d of %d planted breaks caught"
+          "ballots, %d of the review r74), %d arrival orders, %d of %d planted breaks caught"
           % ("ok" if not problems else "%d problems" % len(problems),
-             len(CASES) + len(COUNT_CASES) + len(WINDOW_CASES) + len(BALLOT_CASES), len(CASES), len(COUNT_CASES),
-             len(WINDOW_CASES), len(BALLOT_CASES), n, caught, len(PLANTS)))
+             len(CASES) + len(COUNT_CASES) + len(WINDOW_CASES) + len(BALLOT_CASES) + len(R74_CASES), len(CASES),
+             len(COUNT_CASES), len(WINDOW_CASES), len(BALLOT_CASES), len(R74_CASES), n, caught, len(PLANTS)))
     return 1 if problems else 0
 
 
