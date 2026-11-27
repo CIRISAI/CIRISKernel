@@ -90,8 +90,8 @@ pub trait RootBundle {
 /// derived from rows, never stated: a bundle is in a row's past only by being named there. For a row that is no
 /// grant, the grant accessors are not read.
 pub trait RootGrant: crate::Row {
-    /// A duty, as the bundles' words.
-    type Word: Ord + Clone;
+    /// A duty, as the bundles' words (read as text where a seat names the grant's duty: [`RootView::seat_grant`]).
+    type Word: Ord + Clone + AsRef<str>;
     /// The row is a root grant (else an acceptance edge, or another row of the lane).
     fn is_grant(&self) -> bool;
     /// For an acceptance edge: the bundle its attached_head_digest names.
@@ -499,6 +499,15 @@ where
         let base: BTreeSet<B::Key> =
             if b.prev().is_empty() { b.holders().iter().cloned().collect() } else { self.base(b) };
         self.owners(self.voices(b).intersection(&base))
+    }
+
+    /// Why bundle `i` is void, where it is: `genesis_join_contested` for a join a rival under another charter
+    /// contests (the text's report token, CC 3.2), `void` otherwise; None where it is not void.
+    pub fn void_reason(&self, i: &B::Id) -> Option<Reason> {
+        if !self.void().contains(i) {
+            return None;
+        }
+        Some(if self.contested_join(i) { "genesis_join_contested" } else { "void" })
     }
 
     /// S'' and T: the bundles void (and contested recoveries).
@@ -1187,6 +1196,18 @@ where
     fn sub_delegation(&self, grant: &B::Id) -> Option<bool> {
         self.root.sub_delegation(grant, &self.reader)
     }
+
+    fn seat_grant(&self, grant: &B::Id, room: &crate::seat::Obj<B::Id, B::Key>, duty: &str) -> Result<B::Key, Reason> {
+        self.root.grant_in_force(grant, &self.reader)?;
+        let g = self.root.grant(grant).ok_or("grant_unknown")?;
+        if *room != crate::seat::Obj::Row(g.scope().clone()) {
+            return Err("grant_scope_not_this_room");
+        }
+        if g.duty().as_ref() != duty {
+            return Err("grant_duty_not_this_seat");
+        }
+        Ok(g.to().clone())
+    }
 }
 
 /// What the seat rule asks of the trust root a node reads, for a stalled recovery
@@ -1202,5 +1223,10 @@ pub trait RootView<I, K, O> {
     /// gate's question for a chain from a root grant); None: the grant does not resolve here, or no root is read.
     fn sub_delegation(&self, _grant: &I) -> Option<bool> {
         None
+    }
+    /// The key a root grant seats in room `room` for duty `duty` (the seat a root grant gives, cross-object rest 5),
+    /// where the grant resolves here, names this room and this duty; or why not. Default: no root is read.
+    fn seat_grant(&self, _grant: &I, _room: &O, _duty: &str) -> Result<K, Reason> {
+        Err("no_root_read")
     }
 }

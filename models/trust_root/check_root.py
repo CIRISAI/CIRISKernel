@@ -176,6 +176,8 @@ CASES = [
              "reader that acknowledged both keeps s1 and s2 (their fold, h1..h5)",
      FJ(("h1", "h2", "h3", "h4", "h5"), ("h1", "h2", "h3", "h4")), (), (), RD(anchor="b0", acks=("j1", "j2")),
      {"concluded": {"j1": T, "j2": T}, "void": {"j1", "j2"}, "heads": ("s1", "s2"), "holders": {"h1", "h2", "h3", "h4", "h5"}}),
+    ("join", "a contested join's token: genesis_join_contested (the text's report token, CC 3.2)",
+     FJ(("h1", "h4"), ("h2", "h5")), (), (), RD(anchor="b0", acks=("j1", "j2")), {"reasons": {"j1": "genesis_join_contested"}}),
     ("join", "two joins with disjoint holders (h1 h4; h2 h5) leave no hole: they are contested, and the reader keeps "
              "s1 and s2", FJ(("h1", "h4"), ("h2", "h5")), (), (), RD(anchor="b0", acks=("j1", "j2")),
      {"void": {"j1", "j2"}, "heads": ("s1", "s2"), "holders": {"h1", "h2", "h3", "h4", "h5"}}),
@@ -436,6 +438,10 @@ CASES += [
     ("attack", "AO2: acknowledged b1, s0, then b2: b1 settles, s0 does not (over its past b1 and s0 contest), and b2 "
                "is built on b1, which the final reading holds contested: b0", AO, (), (), RD(anchor="b0", acks=("b1", "s0", "b2")),
      {"heads": ("b0",), "holders": set(H3)}),
+    ("attack", "OPEN (a capture, reported; the proposed fix is root.DOUBLE_SIGNER_GRANTS, off): a reader that "
+               "acknowledged s0 first is at b0 (h1 h2 h3), and a grant by h1 and h2, the double signers at b0, is two "
+               "of three there: it resolves", AO, (), (GR("gx", "b0", "uX", "room", ("h1", "h2")),),
+     RD(anchor="b0", acks=("s0", "b2")), {"heads": ("b0",), "grant": {"gx": (True, None)}}),
     ("attack", "AO0: a reader that acknowledged b2 first: s0 is behind its line and no input; b2 stands", AO, (), (),
      RD(anchor="b0", acks=("b2", "s0")), {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
     ("attack", "AO3: a reader that acknowledged only s0: h1 and h2 signed s0 (cutting h3) and b1 (keeping it) at b0, "
@@ -580,6 +586,7 @@ def answer(bs, rv, gs, rd, want):
     got = {}
     if "concluded" in want: got["concluded"] = {i: R.counted(i)[0] for i in want["concluded"]}
     if "void" in want: got["void"] = set(R.void())
+    if "reasons" in want: got["reasons"] = {i: R.void_reason(i) for i in want["reasons"]}
     if "heads" in want: got["heads"] = R.heads(rd)
     f = R.in_force(rd)
     if "holders" in want: got["holders"] = set(f[0]) if f else None
@@ -648,29 +655,31 @@ def reader_vectors():
                      "the common holders and seats where they differ", "cases": out}
 
 
+import json
+def benc(b):
+    return {"id": b["id"], "family": b["family"], "version": b["version"], "prev": list(b["prev"]),
+            "holders": list(b["holders"]), "seats": list(b["seats"]),
+            "charter": json.dumps(b["charter"], sort_keys=True), "duties": sorted(RT.duties(b["charter"])),
+            "sub_delegation": sorted(RT.sub_delegations(b["charter"])),
+            "iat": b["iat"], "recovery": [[k, v] for k, v in sorted(b["recovery"].items())],
+            "names": list(b.get("names", ())),
+            "recovers": list(b["recovers"]) if b.get("recovers") else None,
+            "stmts": [[k, i] for k, i in b["stmts"]]}
+def genc(g):
+    if g["kind"] == "ack": return {"id": g["id"], "kind": "ack", "head": g["head"], "names": list(g["names"])}
+    if g["kind"] == "cosign": return {"id": g["id"], "kind": "cosign", "of": g["of"], "signers": [g["signer"]],
+                                      "names": list(g["names"])}
+    return {"id": g["id"], "kind": "grant", "bundles": list(g["bundles"]), "names": list(g["names"]), "to": g["to"], "scope": g["scope"], "signers": list(g["signers"]),
+            "identity": list(g["identity"]), "duty": g["duty"]}
+def renc(rd):
+    if rd is None: return None
+    return {"anchor": rd["anchor"], "thumbs": sorted(rd["thumbs"]) if rd["thumbs"] is not None else None,
+            "acks": list(rd["acks"])}
+
+
 def fixture(with_refs):
     """The cases as a fixture for the crate (tests/root.rs): every bundle's count, the void, and the reader's heads,
     holders, seats and grants, as the model gives them; and the stalled recoveries with their seat rows."""
-    import json
-    def benc(b):
-        return {"id": b["id"], "family": b["family"], "version": b["version"], "prev": list(b["prev"]),
-                "holders": list(b["holders"]), "seats": list(b["seats"]),
-                "charter": json.dumps(b["charter"], sort_keys=True), "duties": sorted(RT.duties(b["charter"])),
-                "sub_delegation": sorted(RT.sub_delegations(b["charter"])),
-                "iat": b["iat"], "recovery": [[k, v] for k, v in sorted(b["recovery"].items())],
-                "names": list(b.get("names", ())),
-                "recovers": list(b["recovers"]) if b.get("recovers") else None,
-                "stmts": [[k, i] for k, i in b["stmts"]]}
-    def genc(g):
-        if g["kind"] == "ack": return {"id": g["id"], "kind": "ack", "head": g["head"], "names": list(g["names"])}
-        if g["kind"] == "cosign": return {"id": g["id"], "kind": "cosign", "of": g["of"], "signers": [g["signer"]],
-                                          "names": list(g["names"])}
-        return {"id": g["id"], "kind": "grant", "bundles": list(g["bundles"]), "names": list(g["names"]), "to": g["to"], "scope": g["scope"], "signers": list(g["signers"]),
-                "identity": list(g["identity"]), "duty": g["duty"]}
-    def renc(rd):
-        if rd is None: return None
-        return {"anchor": rd["anchor"], "thumbs": sorted(rd["thumbs"]) if rd["thumbs"] is not None else None,
-                "acks": list(rd["acks"])}
     cases = []
     def one(rule, name, bs, rv, gs, rd, line):
         R = RT.Root(bs, rv, gs)
@@ -680,6 +689,7 @@ def fixture(with_refs):
                       "revokes": [{"key": r["key"], "bound": r["bound"]} for r in rv], "grants": [genc(g) for g in gs],
                       "reader": renc(rd), "concluded": {b["id"]: R.counted(b["id"])[0] for b in bs},
                       "void": sorted(R.void()), "heads": list(hs) if hs is not None else None,
+                      "void_reasons": {i: R.void_reason(i) for i in sorted(R.void())},
                       "holders": sorted(f[0]) if f else None, "seats": sorted(f[1]) if f else None,
                       "grant": {g["id"]: list(R.grant_in_force(g["id"], rd)) for g in gs if g["kind"] == "grant"},
                       "row": {g["id"]: R.grant_row(g["id"]) for g in gs if g["kind"] == "grant"}, "line": line})

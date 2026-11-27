@@ -223,6 +223,13 @@ fn root_replay() {
         if sorted(root.void()) != c.at("void").strs() {
             fail("void", format!("{:?}", root.void()));
         }
+        if let Some(rs) = c.get("void_reasons") {
+            for (i, want) in rs.obj() {
+                if root.void_reason(i).map(String::from) != want.opt_s() {
+                    fail(&format!("void reason {i}"), format!("{:?}", root.void_reason(i)));
+                }
+            }
+        }
         let heads = root.heads(&rd);
         let want_heads = c.get("heads").filter(|h| !h.is_null()).map(|h| h.strs());
         if heads.clone().map(sorted) != want_heads {

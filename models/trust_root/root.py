@@ -74,6 +74,10 @@ MUT holds planted breaks, switched on by check_root.py.
 
 MUT = set()
 
+# PROTOTYPE (pending the Constitution): a rule-6 double signer at a head is no voice either for a grant resolving at
+# a reader whose bundle in force is that head (the capture by acknowledging the bad side first). Off by default.
+DOUBLE_SIGNER_GRANTS = [False]
+
 INVALID, VOID, CONCLUDED, REFUSED = "invalid", "void", "concluded", "refused"
 
 
@@ -498,6 +502,27 @@ class Root:
         """b removes holder k: a predecessor seats k, and b does not."""
         return k not in b["holders"] and any(k in self.by[p]["holders"] for p in b["prev"])
 
+    def void_reason(self, i):
+        """Why bundle i is void, where it is: `genesis_join_contested` for a join a rival under another charter
+        contests (the text's report token, CC 3.2), `void` otherwise; None where it is not void."""
+        if i not in self.void(): return None
+        return "genesis_join_contested" if self.contested_join(i) else "void"
+
+    def double_signers(self, heads):
+        """The holders (under either key) that signed two successors of one of `heads`, one cutting a holder the other
+        keeps, neither naming the other: rule 6's double signers at those heads."""
+        out = set()
+        kids = [b for b in self.by.values() if self.counted(b["id"])[0] and b["prev"] and set(b["prev"]) <= set(heads)]
+        for b in kids:
+            for c in kids:
+                if not self._siblings(b, c): continue
+                p0 = self.by[b["prev"][0]]
+                if any(self._removes(b, k) and k in c["holders"] for k in p0["holders"]) or \
+                        any(self._removes(c, k) and k in b["holders"] for k in p0["holders"]):
+                    oc = {self.owner(k) for k in self.voices(c)}
+                    out |= {self.owner(k) for k in self.voices(b) if self.owner(k) in oc}
+        return frozenset(out)
+
     def contested(self, ids):
         """Of the bundles `ids` (those counting for a reader before these rules), the ones that do not count:
             RULE 6  on one slot at one head, a voice that acknowledged an act and voted to cut it, in two rows neither
@@ -753,7 +778,10 @@ class Root:
         if not self.antichain(g["bundles"]): return (False, "grant_bundles_not_antichain")
         if not self.grant_row(gid): return (False, "grant_count_short")
         H = self.live(self.fold(hs)[0])
-        if not 2 * len(self.grant_voices(gid) & H) > len(H) and "grant_count_unread" not in MUT:
+        gv = self.grant_voices(gid)
+        if DOUBLE_SIGNER_GRANTS[-1]:
+            gv = frozenset(k for k in gv if self.owner(k) not in self.double_signers(hs))
+        if not 2 * len(gv & H) > len(H) and "grant_count_unread" not in MUT:
             return (False, "grant_voices_not_in_force")
         if g["duty"] not in self.scope_in_force(rd) and "grant_scope_unread" not in MUT:
             return (False, "grant_scope_not_in_force")

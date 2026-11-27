@@ -2341,7 +2341,7 @@ def void_changes(r, P):
                      self-forked too
         built on     a counted change naming a void head is void, but a merge of both lines."""
     if not P or "self_fork_unread" in MUT: return frozenset()
-    key = (r["id"], r.get("obj"), frozenset(id(q) for q in P), frozenset(MUT), _RVOID[-1])
+    key = (r["id"], r.get("obj"), frozenset(id(q) for q in P), frozenset(MUT) | frozenset(CP.MUT), _RVOID[-1])
     got = _VOID_MEMO.get(key)
     if got is None:
         got = _VOID_MEMO[key] = (tuple(P), _void_changes(r, P))
@@ -2492,9 +2492,8 @@ def _ack_void(S, a):
     try:
         # one rule for bundles and rosters: an acknowledgement settles only if the acknowledged change counts over that
         # acknowledgement row's OWN PAST (its past, the reader's earlier rows and the line they drew), so an explicit
-        # `ack` reads S'' over its own past too, over the room it names (MUTATION ack_self_fork_unread: only a
-        # counted row does)
-        obj = a.get("obj") if a.get("obj") is not None else (a.get("room") if "ack_self_fork_unread" not in MUT else None)
+        # `ack` reads S'' over its own past too, over the room it names (checkpoint.own_line asks it)
+        obj = a.get("obj") if a.get("obj") is not None else a.get("room")
         return (void_changes(dict(a, obj=obj), P) if obj is not None else frozenset()) | rv
     finally:
         _RVOID.pop()
@@ -2550,7 +2549,7 @@ def reader_state(S, own, rule=None):
     for a reader with no row is in its roster, and one refused for it is not (CC 2.7.9: "A reader's own acknowledged
     head closes older heads for that reader only"). MUTATION reader_exclusion_unread: the rows as for every reader."""
     if "reader_exclusion_unread" in MUT: return S
-    key = (frozenset(id(q) for q in S.rows), frozenset(S.C.items()), own, frozenset(MUT))
+    key = (frozenset(id(q) for q in S.rows), frozenset(S.C.items()), own, frozenset(MUT) | frozenset(CP.MUT))
     got = _READER_MEMO.get(key)
     if got is not None: return got[1]
     RV = reader_void(S, own) if own is not None else frozenset()
@@ -2651,7 +2650,7 @@ def seats_of(rows):
     row that names it, and a chain of lone removals reads every earlier one's (the run is polynomial in the chain,
     not exponential). The key is the rows themselves (by identity, held in the value so none is reused), the planted
     breaks switched on, and the tables a check may change (what a seat holds, the policies, the enders)."""
-    key = (frozenset(id(q) for q in rows), frozenset(MUT), repr(sorted(HOLDS.items())), repr(sorted(POLICY.items())),
+    key = (frozenset(id(q) for q in rows), frozenset(MUT) | frozenset(CP.MUT), repr(sorted(HOLDS.items())), repr(sorted(POLICY.items())),
            repr(sorted(ENDS.items())))
     got = _SEATS_OF.get(key)
     if got is None:

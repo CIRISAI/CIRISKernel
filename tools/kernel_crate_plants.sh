@@ -598,6 +598,8 @@ plant "the root: a grant's cosignatures unread" src/root.rs '            if r.co
 plant "the root: a double signer a voice on both siblings (rule 6)" src/root.rs 'ks.extend(self.voices(b).into_iter().filter(|k| oc.contains(&self.owner(k))));' 'let _ = &oc;'
 plant "the root: rule 5 unread" src/root.rs '        out.extend(dep);' '        let _ = dep;'
 plant "the root: a recovery behind its holder's head concludes" src/root.rs 'if behind_head {' 'if false {'
+plant "an explicit acknowledgement reads no S'' over its own past" src/seat.rs 'let explicit = if ar.seat_kind() == SeatKind::Ack { ar.room() } else { None };' 'let explicit: Option<ObjOf<R>> = None;'
+plant "the root: a contested join's token unread" src/root.rs 'Some(if self.contested_join(i) { "genesis_join_contested" } else { "void" })' 'Some("void")'
 plant "the root: the fold always common" src/root.rs '        if charters.len() > 1 {' '        if true {'
 plant "the root: differing charters fold" src/root.rs '        if charters.len() > 1 {' '        if false {'
 plant "the root: the fold unguarded" src/root.rs 'self.removals(t2, k, field).iter().all(|r| a.as_ref().is_some_and(|a| self.in_past(r, a)))' 'true'

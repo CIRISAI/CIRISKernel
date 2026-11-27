@@ -740,6 +740,11 @@ CASES = [
     (SF, "BN: B, who holds review at g, takes moderate at g by its own yes with A; A and B then admit D and E without "
          "it: the beneficiary is no evidence for its side, so A alone against A and B: void, and only A holds moderate",
      BN, None, {"cf": T, "aE": T}, {"member": frozenset("ABCDE"), "moderate": frozenset("A")}, {"cf"}),
+    (SF, "one rule for bundles and rosters: an explicit acknowledgement settles only what counts over its own past. "
+         "R's ack names the cheap tip's xd as its head and aG beside it: over that past dc is self-forked, so xd is no "
+         "part of R's line (R acknowledges the honest line only)",
+     ROOM + [DC("dc", "B", ("g",)), admit("xd", "X", ("A", "B"), ("dc",)), CK.row("k", "ack", "R", ("xd", "aG"), room=OBJ, head=("xd",))],
+     "R", {"xd": T}, {"member": SEVEN}, {"dc"}),
     # the lone holder's window, stated: closed for a reader by any later counted change that reader has acknowledged,
     # and for every reader once the lone holder itself signs a later change; each sibling is a row by one key that said
     # two things at one head, and the two rows are the evidence a recall cites (the members recall any duty holder,
@@ -832,7 +837,7 @@ PLANTS = (("count_heads_unread", ST.MUT), ("all_heads_read", ST.MUT), ("head_any
           ("heads_not_antichain", ST.MUT), ("window_opener_old_head", ST.MUT), ("lone_offer_self_path", ST.MUT),
           ("self_fork_unread", ST.MUT), ("t_unread", ST.MUT), ("fork_by_depth", ST.MUT), ("meet_tips", ST.MUT),
           ("regime_before_change", ST.MUT), ("reader_exclusion_unread", ST.MUT),           ("ack_unvoids", CP.MUT), ("void_cuts_in_roster", ST.MUT),
-          ("t_counts_beneficiary", ST.MUT), ("t_counts_posts", ST.MUT), ("t_counts_sided_seat", ST.MUT),
+          ("t_counts_beneficiary", ST.MUT), ("ack_self_fork_unread", CP.MUT), ("t_counts_posts", ST.MUT), ("t_counts_sided_seat", ST.MUT),
           ("t_strict_standing", ST.MUT), ("regime_protocol_only", ST.MUT))
 # retired with T at the fork point (the third attack): rescue_unread, tie_unread and rescuer_signed_both (S' 's rescue
 # and tie, which T replaces; fork_by_depth plants the S' form whole)
