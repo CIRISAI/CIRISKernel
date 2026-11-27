@@ -7,7 +7,7 @@ pub mod eager;
 use ciris_kernel::cut::CutSpec;
 use ciris_kernel::head::{Duty, Entry, Kind};
 use ciris_kernel::key_end::{EndRule, KeyEndRow, Record};
-use ciris_kernel::seat::{Conf, Obj, Reference, SeatKind, SeatRow};
+use ciris_kernel::seat::{is_identity_reference, Conf, Obj, Reference, SeatKind, SeatRow};
 use ciris_kernel::window::{WinKind, WindowRow};
 use ciris_kernel::Row;
 use std::collections::{BTreeMap, BTreeSet};
@@ -302,6 +302,14 @@ pub struct TRow {
     pub cohort_subkind: Option<String>,
     pub group_kind: Option<String>,
     pub declared_cohort: Option<String>,
+    /// An acceptance edge row's `bears`, `dst`, `on_behalf` and `trust_classes`; a licence's `authority` and
+    /// `licence_class`. An object field written as a plain name (not a reference) is read as absent.
+    pub bears: Option<String>,
+    pub dst: Option<Obj<String, String>>,
+    pub on_behalf: Option<Obj<String, String>>,
+    pub trust_classes: Option<Vec<String>>,
+    pub authority: Option<Obj<String, String>>,
+    pub licence_class: Option<String>,
     pub bundle: Option<String>,
     pub role: Option<String>,
     pub admission_quorum_basis: Option<String>,
@@ -363,6 +371,14 @@ impl TRow {
                 x => panic!("{k}: {x:?}"),
             }
         };
+        // an object field a fixture may write as a plain name: read only where it is a reference
+        let ol = |k: &str| -> Option<Obj<String, String>> {
+            match m.get(k) {
+                Some(J::Arr(_)) => o(k),
+                Some(J::Str(t)) if is_identity_reference(t) => o(k),
+                _ => None,
+            }
+        };
         TRow {
             id: m["id"].s().to_string(),
             names: strs(&m, "names"),
@@ -399,6 +415,12 @@ impl TRow {
             cohort_subkind: opt(&m, "cohort_subkind"),
             group_kind: opt(&m, "group_kind"),
             declared_cohort: opt(&m, "declared_cohort"),
+            bears: opt(&m, "bears"),
+            dst: ol("dst"),
+            on_behalf: ol("on_behalf"),
+            trust_classes: m.get("trust_classes").filter(|x| matches!(x, J::Arr(_))).map(|x| x.strs()),
+            authority: ol("authority"),
+            licence_class: opt(&m, "licence_class"),
             bundle: opt(&m, "bundle"),
             role: opt(&m, "role"),
             admission_quorum_basis: opt(&m, "admission_quorum_basis"),
@@ -587,6 +609,33 @@ impl SeatRow for TRow {
     }
     fn declared_cohort(&self) -> Option<&String> {
         self.declared_cohort.as_ref()
+    }
+}
+
+impl ciris_kernel::trust_rows::TrustRow for TRow {
+    fn is_delegates_to(&self) -> bool {
+        self.kind == "delegates_to"
+    }
+    fn bears(&self) -> Option<&String> {
+        self.bears.as_ref()
+    }
+    fn accepts_dst(&self) -> Option<Obj<String, String>> {
+        self.dst.clone()
+    }
+    fn on_behalf(&self) -> Option<Obj<String, String>> {
+        self.on_behalf.clone()
+    }
+    fn trust_classes(&self) -> Option<&[String]> {
+        self.trust_classes.as_deref()
+    }
+    fn trust_depth(&self) -> Option<i64> {
+        self.fi("trust_depth")
+    }
+    fn licence_authority(&self) -> Option<Obj<String, String>> {
+        self.authority.clone()
+    }
+    fn licence_class(&self) -> Option<&String> {
+        self.licence_class.as_ref()
     }
 }
 

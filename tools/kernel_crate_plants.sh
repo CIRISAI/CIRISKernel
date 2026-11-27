@@ -587,6 +587,13 @@ plant "a supplied charter widens the one read"          src/trust.rs 'Some(have)
 plant "an acceptance edge admits every class"           src/trust.rs 'if e.refusal().is_some() || !e.admits(c) {' 'if e.refusal().is_some() {'
 plant "an empty trust_classes list is admitted"         src/trust.rs 'Some(cs) if cs.is_empty() || cs.windows(2).any(|w| w[0] >= w[1]) => Some(CLASSES_MALFORMED),' 'Some(cs) if cs.windows(2).any(|w| w[0] >= w[1]) => Some(CLASSES_MALFORMED),'
 plant "a refused edge is walked"                        src/trust.rs 'if e.refusal().is_some() || !e.admits(c) {' 'if !e.admits(c) {'
+plant "an edge for another counts whoever signs it"   src/trust_rows.rs 'if *src == Obj::Key(row.signer().clone()) {' 'if true {'
+plant "a delegates_to bearing anything is an edge"     src/trust_rows.rs 'if !r.is_delegates_to() || r.bears().is_none_or(|b| b.as_ref() != BEARS) {' 'if !r.is_delegates_to() {'
+plant "an edge row's malformed classes are admitted"   src/trust_rows.rs 'if let Some(why) = e.refusal() {' 'if let Some(why) = None::<&'"'"'static str> {'
+plant "an edge's depth past five is capped"            src/trust_rows.rs '(0..=HOP_CAP as i64).contains(&d).then_some(d as u32)' 'Some(d.clamp(0, HOP_CAP as i64) as u32)'
+plant "a withdrawn edge is walked"                     src/trust_rows.rs 'if rulings.ended(seats, i) {' 'if false {'
+plant "any key's licence is the authority's act"       src/trust_rows.rs 'if *auth == Obj::Key(lic.signer().clone()) {' 'if true {'
+plant "an edge whose owner is pending is walked"       src/trust_rows.rs 'es.iter().filter(|(_, why)| why.is_none()).map(|(e, _)| e.clone()).collect();' 'es.iter().map(|(e, _)| e.clone()).collect();'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

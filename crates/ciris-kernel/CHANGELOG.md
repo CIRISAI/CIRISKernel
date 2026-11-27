@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+**The reader's trust walk from rows, and the issuer's standing** (CC 4.4.3.34; `trust_rows.py`,
+`check_trust_rows.py`; fixture `trust_rows.json`). New: the module `trust_rows` (`TrustRow`, `Rulings`, `Pending`,
+`Ruled`, `edges_of`, `refusal`, `read_licence`, `Unhonoured`, `is_community`, `BEARS`, `DEPTH_MALFORMED`). An
+acceptance edge is a `delegates_to` row bearing `trust:accepts:v1`, signed by its owner (or speaking for an authority,
+`on_behalf`), with `trust_classes` and `trust_depth`; a malformed list or depth is refused at admission and is no
+edge; the walk runs from the reader's own edges, onward only from an authority's own, classes intersected, a cycle
+once, nothing cached. A licence is honoured iff the walk reaches its authority for its class, the authority's record
+declares the class, and the licence is the authority's act. Four rulings are with the Constitution and plug in
+through `Rulings`: (a) who speaks for a community authority, (b) what makes a licence a community's act, (c) the depth
+range, (d) when a withdrawal ends an edge. `Pending` reads a key as speaking for and issuing as itself, depth 0 to 5,
+and a concluded withdrawal by the signer as an end; for a community authority (a) and (b) answer
+`authority_set_pending` and `issuer_standing_pending` (`Unhonoured::Pending`), never a silent pass.
+
 **Charter coverage for licensing authorities** (CC 3.4.7; CC 4.4.3.12, 4.4.3.34, with the Constitution's answers of
 2026-11-27), both languages, with cases and planted breaks (`charter.py`, `check_charter.py`; fixture
 `charter.json`). Whether an authority's charter declares a class is read from rows, not asked of the caller.

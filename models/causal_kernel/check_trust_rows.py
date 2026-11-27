@@ -124,6 +124,8 @@ REFUSALS = [
     ("a negative depth", A("e", "RD", "K", depth=-1), "trust_accepts_depth_malformed"),
 ]
 
+REF_FIELDS = ("dst", "on_behalf", "authority")      # the objects an edge row and a licence name, for the fixture
+
 PLANTS = ("edge_any_signer", "bears_unread", "refusal_unread", "depth_unread", "withdrawn_unread",
           "withdraw_by_anyone", "issuer_unread", "pending_silent")
 
