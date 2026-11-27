@@ -422,20 +422,21 @@ def stalled_recovery(r, P, past):
 
 
 def merge_tip_rows(P, past, t):
-    """Tip t's own line among the rows P: t and its past."""
-    return [q for q in P if q["id"] == t or past(q["id"], t)]
+    """Tip t's own side among the rows P: t, its past, and the rows built on it (no counted change, t being a
+    newest: a member's own end after the tip is on its side)."""
+    return [q for q in P if q["id"] == t or past(q["id"], t) or past(t, q["id"])]
 
 
-def merge_tip_roster(P, past, obj, t):
+def merge_tip_roster(P, past, obj, t, side=True):
     """Tip t's roster as its own line gives it, READER-INDEPENDENT: read over t's past alone, with S'' and T over it,
     and no reader's line (MUTATION merge_tip_reader: read under the reader's void as the row is concluded for it).
     (members, {duty: holders})."""
-    sub = merge_tip_rows(P, past, t)
+    sub = merge_tip_rows(P, past, t) if side else [q for q in P if q["id"] == t or past(q["id"], t)]
     if "merge_tip_reader" not in MUT: _RVOID.append(frozenset()); _VOID.append(frozenset())
     try:
         Q = Seats(CK.State(sub, {q["id"]: True for q in sub}), roster=True, pairs=False)
         dec = declared({q["id"]: q for q in sub}, obj)
-        ds = set(DUTIES) | set(dec)
+        ds = set(DUTIES) | set(dec) | {"founder", NODE}
         return frozenset(Q.holders("member", obj)), {d: frozenset(Q.holders(d, obj)) for d in sorted(ds)}
     finally:
         if "merge_tip_reader" not in MUT: _RVOID.pop(); _VOID.pop()
@@ -450,16 +451,17 @@ def merge_content(P, past, obj, tips):
     by = {q["id"]: q for q in P}
     ever = {}
     for t in tips:
-        line = [q for q in merge_tip_rows(P, past, t) if q.get("obj") == obj and q.get("conf") == "group" and q["kind"] in ("offer", "unseat")
+        line = [q for q in P if (q["id"] == t or past(q["id"], t)) and q.get("obj") == obj and q.get("conf") == "group" and q["kind"] in ("offer", "unseat")
                 or q["id"] == obj]
-        rs = [merge_tip_roster(P, past, obj, q["id"]) for q in line]
+        rs = [merge_tip_roster(P, past, obj, q["id"], side=False) for q in line] + [at[t]]
         ever[t] = (frozenset().union(*[r[0] for r in rs]) if rs else frozenset(),
                    {d: frozenset().union(*[r[1].get(d, frozenset()) for r in rs]) for d in at[t][1]})
     gone = frozenset().union(*[ever[t][0] - at[t][0] for t in tips])
     members = frozenset().union(*[at[t][0] for t in tips]) - gone
     duties = {}
     for d in sorted(set().union(*[set(at[t][1]) for t in tips])):
-        held = frozenset().union(*[at[t][1].get(d, frozenset()) for t in tips]) & members
+        held = frozenset().union(*[at[t][1].get(d, frozenset()) for t in tips])
+        if d not in ("founder", NODE): held &= members      # a duty is held by a member; a founder or node by its seat
         ended = frozenset().union(*[ever[t][1].get(d, frozenset()) - at[t][1].get(d, frozenset()) for t in tips])
         if held - ended: duties[d] = held - ended
     return members, duties
@@ -474,15 +476,15 @@ def merge_concludes(r, P, past):
     obj, tips = r["obj"], tuple(r.get("head", ()))
     by = {q["id"]: q for q in P}
     if len(tips) < 2 or any(t not in by for t in tips): return False
-    # an infrastructure room: until the Constitution rules what a merge is counted as there, it concludes nothing
-    # (MUTATION merge_infra_counted: counted as anywhere else)
-    if kind_of(by, obj) == "infrastructure" and "merge_infra_counted" not in MUT: return False
+    infra = kind_of(by, obj) == "infrastructure"
     if any(past(a, b) for a in tips for b in tips): return False
     acts = [q for q in P if q.get("obj") == obj and q.get("conf") == "group" and q["kind"] in ("offer", "unseat") or q["id"] == obj]
     newest = {q["id"] for q in acts if not any(past(q["id"], x["id"]) for x in acts)}
     if newest != set(tips): return False
     rr = dict(r, merge=False, scope="member", to=("__merge__",), policy=r.get("policy", "community_invite"))
-    if "merge_over_fold" in MUT:
+    if infra:
+        if not merge_infra_count(r, P, past, obj, tips): return False
+    elif "merge_over_fold" in MUT:
         if not count_met(rr, P, past): return False
     else:
         for t in tips:
@@ -496,7 +498,61 @@ def merge_concludes(r, P, past):
     if "merge_free_roster" in MUT: return True
     members, duties = merge_content(P, past, obj, tips)
     stated = {d: frozenset(ks) for d, ks in r.get("duty_seats", ())}
-    return frozenset(r["to"]) == members and stated == duties
+    # a founder holds the member seat by its founder seat (HOLDS), so the member roster is the stated members and founders
+    if frozenset(r.get("members", r["to"])) | stated.get("founder", frozenset()) != members or stated != duties: return False
+    return not infra or merge_word_ok(r, P, past, obj, tips, len(duties.get("founder", ())))
+
+
+def merge_infra_founders(P, past, obj, t):
+    """The active founders at tip t (T7, read at that tip): the founder seats at it less those who left."""
+    sub = merge_tip_rows(P, past, t)
+    _RVOID.append(frozenset()); _VOID.append(frozenset())
+    try:
+        line = [q for q in sub if q["id"] == t or past(q["id"], t)]
+        return members_at(line, past, obj, (t,), "founder") - count_left(sub, past, obj, "founder")
+    finally:
+        _RVOID.pop(); _VOID.pop()
+
+
+def merge_infra_rule(P, past, obj, t):
+    """(M, N) of the record's word in force at tip t."""
+    sub = merge_tip_rows(P, past, t)
+    rec = protocol_record({q["id"]: q for q in sub}, obj)
+    return infrastructure_rule(rec.get("consensus_protocol")) if rec is not None else None
+
+
+def merge_infra_count(r, P, past, obj, tips):
+    """An infrastructure room's merge is a founders' amendment on EACH tip: M of that tip's active founders sign it,
+    and a STALLED tip (at most M active founders) signs none, a merge being widening and removal both (MUTATION
+    merge_stalled_signs: a stalled tip's founders count). Nodes never sign or count."""
+    v = voices(r, P)
+    for t in tips:
+        pr = merge_infra_rule(P, past, obj, t)
+        if pr is None: return False
+        m = pr[1]
+        founders = merge_infra_founders(P, past, obj, t)
+        if len(founders) <= m and "merge_stalled_signs" not in MUT: return False
+        if len(v & founders) < m: return False
+    return True
+
+
+def merge_word_ok(r, P, past, obj, tips, n_founders):
+    """The word: a merge keeps each tip's `quorum:M/N` while the founders it states are at most N, and states the new
+    word above N (N its founders, M their strict majority, never below the M in force). Stating fewer than M + 1
+    founders is valid; the merged room is stalled after (MUTATION merge_word_unread)."""
+    if "merge_word_unread" in MUT: return True
+    stated = protocol_rule(r["consensus_protocol"]) if r.get("consensus_protocol") else None
+    for t in tips:
+        pr = merge_infra_rule(P, past, obj, t)
+        if pr is None: return False
+        m, n = pr[1], pr[2]
+        if n_founders <= n:
+            if stated is not None and stated != pr: return False
+        else:
+            if stated is None or stated[0] != "quorum" or stated[2] != n_founders or stated[1] != n_founders // 2 + 1 \
+                    or stated[1] < m:
+                return False
+    return True
 
 
 def is_amendment(q, obj):
@@ -866,14 +922,17 @@ def _slots(to, scope, obj):
     return tuple(("seat", k, scope, obj) for k in ((to,) if isinstance(to, str) else to))
 
 
-def merge(id, signer, obj, tips, members, duty_seats=None, cosigners=(), names=()):
+def merge(id, signer, obj, tips, members, duty_seats=None, cosigners=(), names=(), consensus_protocol=None):
     """A roster merge (the text's `group:roster` version, CC 4.4.3.17, CC 3.1.3.2, CC 2.7.8): a counted change naming two
     or more tips of room `obj`, none in another's past, stating its roster outright: `members`, and `duty_seats` (a
     map from a duty to the keys seated in it). Counted on each named tip by that tip's own members (merge_count)."""
     dh = tuple(sorted((d, tuple(sorted(ks))) for d, ks in (duty_seats or {}).items()))
-    return R(id, "offer", signer, tuple(tips) + tuple(names), to=tuple(sorted(members)), scope="member", obj=obj,
-             conf="group", head=tuple(tips), cosigners=tuple(cosigners), merge=True, duty_seats=dh,
-             on=_slots(tuple(sorted(members)), "member", obj))
+    # `to`: every key it seats in any scope; `members` the member seats (an infrastructure room's founders and nodes
+    # are in duty_seats under `founder` and `node`)
+    keys = tuple(sorted(set(members) | {k for _, ks in dh for k in ks}))
+    return R(id, "offer", signer, tuple(tips) + tuple(names), to=keys, members=tuple(sorted(members)), scope="member",
+             obj=obj, conf="group", head=tuple(tips), cosigners=tuple(cosigners), merge=True, duty_seats=dh,
+             on=_slots(keys, "member", obj), consensus_protocol=consensus_protocol)
 
 
 def is_merge(r):
@@ -883,7 +942,7 @@ def is_merge(r):
 def merge_states(m, k, sc):
     """Merge m states key k in scope sc: `member` in its members; a duty in its duty seats. Other scopes it states
     nothing of."""
-    if sc == "member": return k in m["to"]
+    if sc == "member": return k in m.get("members", m["to"])
     for d, ks in m.get("duty_seats", ()):
         if d == sc: return k in ks
     return None
@@ -982,7 +1041,7 @@ def seat_scopes(o, k):
     whatever it accepts later (CC 3.1.3.2, `membership_founding_member_unsigned`); one who signed it in its own scope,
     and where it carries a `duty_holders` map, in each duty whose entry names it."""
     if is_merge(o):
-        return ("member",) + tuple(d for d, ks in o.get("duty_seats", ()) if k in ks)
+        return (("member",) if k in o.get("members", o["to"]) else ()) + tuple(d for d, ks in o.get("duty_seats", ()) if k in ks)
     if o["obj"] != o["id"]:
         # an admission carrying `role: founder` (a family's one-row founder admission) seats the founder role too
         # (only on a counted row: an own or uncounted offer's role seats nothing, MUTATION role_on_own_offer)

@@ -45,11 +45,25 @@ X2R = remove("x2", "E", ("B", "C", "D", "F", "G"), ("aG",))
 Y2R = admit("y2", "L", ("B", "C", "D", "F", "G"), ("x2",))
 PARTR = ROOM + [X1, X2R, Y1, Y2R, ack("k1", "R1", "y1"), ack("k2", "R2", "y2")]
 NE = tuple("ABCDFGHKL")
-# an infrastructure room (f1 f2 f3 founders, quorum:2/3) with two concurrent node seatings
-INFRA = [ST.offer("g", "f1", ("f1", "f2", "f3"), "founder", "@", "self", cosigners=("f2", "f3"),
-                  cohort_subkind="infrastructure", consensus_protocol="quorum:2/3", consensus_protocol_entrenched=True),
-         ST.offer("n1", "f1", "N1", "node", OBJ, "group", ("g",), head=("g",), counted="founder", cosigners=("f2",)),
-         ST.offer("n2", "f2", "N2", "node", OBJ, "group", ("g",), head=("g",), counted="founder", cosigners=("f3",))]
+# an infrastructure room: f1..f5 found it under quorum:3/5 (M 3, N 5); two concurrent node seatings at g, each by
+# three founders (f3 on both)
+F5 = ("f1", "f2", "f3", "f4", "f5")
+GI5 = ST.offer("g", "f1", F5, "founder", "@", "self", cosigners=F5[1:], cohort_subkind="infrastructure",
+               consensus_protocol="quorum:3/5", consensus_protocol_entrenched=True)
+NA = ST.offer("na", "f1", "N1", "node", OBJ, "group", ("g",), head=("g",), counted="founder", cosigners=("f2", "f3"))
+NB = ST.offer("nb", "f3", "N2", "node", OBJ, "group", ("g",), head=("g",), counted="founder", cosigners=("f4", "f5"))
+INFRA = [GI5, NA, NB]
+IM = lambda i="mi", tips=("na", "nb"), founders=F5, nodes=("N1", "N2"), signers=F5, word=None: ST.merge(
+    i, signers[0], OBJ, tips, (), {"founder": founders, "node": nodes}, cosigners=tuple(signers[1:]), consensus_protocol=word)
+# a stalled tip: on side B, f4 and f5 leave (their own ends) after nb: three founders, at most M
+WB4 = ST.withdraw("w4", "f4", "g", ("nb",)); WB5 = ST.withdraw("w5", "f5", "g", ("nb",))
+# a new word: side A seats f6 by a founders' amendment, restating quorum:4/6
+AM6 = ST.offer("a6", "f1", "f6", "record", OBJ, "group", ("na",), head=("na",), counted="founder", role="founder",
+               consensus_protocol="quorum:4/6", consensus_protocol_entrenched=True, policy=None, cosigners=("f2", "f3", "f6"))
+F6 = F5 + ("f6",)
+# fewer than M + 1 stated: side A removes f5 (f1..f4), side B: f4 leaves after nb; the fixed roster states f1 f2 f3
+XA5 = ST.unseat("x5", "f1", "f5", "founder", OBJ, "group", ("na",), head=("na",), counted="founder", cosigners=("f2", "f3"))
+WB4b = ST.withdraw("w4", "f4", "g", ("nb",))
 # three tips: side 3 admits N at aG
 X3 = admit("x3", "N", ("A", "B", "C", "F", "G"), ("aG",))
 THREE = ROOM + [X1, X2, X3]
@@ -95,9 +109,30 @@ CASES = [
         M("m3", ("x1", "x2", "x3"), tuple("ABCDEFGHJN"), MOD, tuple("ABCDEFGHJN"))], None, {"m3": T}, set("ABCDEFGHJN"), MOD, None),
     ("three tips: short on one (x3's members A..G N: four of eight sign) concludes nothing", THREE + [
         M("m3", ("x1", "x2", "x3"), tuple("ABCDEFGHJN"), MOD, tuple("ABCDHJN"))], None, {"m3": F}, None, None, None),
-    ("an infrastructure room: a merge of two tips concludes nothing until the Constitution rules what it is counted "
-     "as there", INFRA + [ST.merge("mi", "f1", OBJ, ("n1", "n2"), ("f1", "f2", "f3"), {}, cosigners=("f2", "f3"))], None,
-     {"mi": F}, None, None, None),
+    ("an infrastructure room: a merge is a founders' amendment on each tip, M (3) of that tip's active founders "
+     "(five), stating the founders and the nodes: it concludes, and both nodes are seated",
+     INFRA + [IM()], None, {"mi": T}, None, {"founder": F5, "node": ("N1", "N2")}, None),
+    ("short on one tip: f1 and f2 with nothing of side B's but f3 (f1 f2 f3 sign) are three on each: the same; f1 "
+     "and f2 alone are two: refused", INFRA + [IM(signers=("f1", "f2"))], None, {"mi": F}, None, None, None),
+    ("a node never signs or counts: f1, f2 and the nodes are two founders", INFRA + [IM(signers=("f1", "f2", "N1", "N2"))],
+     None, {"mi": F}, None, None, None),
+    ("a merge from a stalled tip concludes nothing: on side B f4 and f5 left, three founders, at most M (the edge: a "
+     "partition leaving one side at M or fewer founders does not heal by merge)",
+     INFRA + [WB4, WB5, ST.merge("mi", "f1", OBJ, ("na", "nb"), (), {"founder": ("f1", "f2", "f3"), "node": ("N1", "N2")},
+                                  cosigners=("f2", "f3"), names=("w4", "w5"))], None, {"mi": F}, None, None, None),
+    ("the word kept: five stated founders, at most N (5): no new word", INFRA + [IM(word="quorum:3/5")], None, {"mi": T},
+     None, None, None),
+    ("a new word above N: side A seats f6 (quorum:4/6); six stated founders are above side B's N (5), so the merge "
+     "states quorum:4/6 (M never lowered)", INFRA + [AM6, IM(tips=("a6", "nb"), founders=F6, signers=F6, word="quorum:4/6")],
+     None, {"mi": T}, None, {"founder": F6, "node": ("N1", "N2")}, None),
+    ("and keeping the old word with six founders concludes nothing", INFRA + [AM6, IM(tips=("a6", "nb"), founders=F6, signers=F6)],
+     None, {"mi": F}, None, None, None),
+    ("fewer than M + 1 stated founders is valid (f5 removed on A, f4 left on B: f1 f2 f3), and the merged room is "
+     "stalled after: a node seating at the merge by f1 f2 f3 concludes nothing",
+     INFRA + [XA5, WB4b, ST.merge("mi", "f1", OBJ, ("x5", "nb"), (), {"founder": ("f1", "f2", "f3"), "node": ("N1", "N2")},
+                                       cosigners=("f2", "f3"), names=("w4",)),
+              ST.offer("nz", "f1", "NZ", "node", OBJ, "group", ("mi",), head=("mi",), counted="founder", cosigners=("f2", "f3"))],
+     None, {"mi": T, "nz": F}, None, {"founder": ("f1", "f2", "f3")}, None),
     ("tips in each other's past are no merge: x1 and y1", PART + [M("mx", ("x1", "y1"), tuple("ABCDEFGHK"))], None,
      {"mx": F}, None, None, None),
     ("a merge that leaves out a newest tip concludes nothing: x1 and y2 (y1 newer than x1)", PART + [M("mx", ("x1", "y2"))],
@@ -106,7 +141,7 @@ CASES = [
 
 PLANTS = (("merge_over_fold", ST.MUT), ("merge_free_roster", ST.MUT), ("merge_blocked_by_void", "both"),
           ("merge_revives", ST.MUT), ("merge_tip_reader", ST.MUT), ("merge_states_nothing", ST.MUT),
-          ("merge_consent_asked", ST.MUT))
+          ("merge_consent_asked", ST.MUT), ("merge_stalled_signs", ST.MUT), ("merge_word_unread", ST.MUT))
 # (merge_infra_counted is no plant: counted as an admission there, the founders' binding refuses a member-scope count
 # over an infrastructure room anyway, so the explicit refusal is the stated rule and no case can tell them apart)
 

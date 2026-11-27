@@ -305,8 +305,13 @@ pub trait SeatRow: Row {
     fn merge(&self) -> bool {
         false
     }
-    /// A roster merge's duty seats: each duty with the keys it seats.
+    /// A roster merge's duty seats: each duty with the keys it seats (an infrastructure room's founders and nodes too,
+    /// under `founder` and `node`).
     fn merge_duties(&self) -> &[(Self::Word, Vec<Self::Key>)] {
+        &[]
+    }
+    /// A roster merge's member seats ([`SeatRow::to`] is every key it seats in any scope).
+    fn merge_members(&self) -> &[Self::Key] {
         &[]
     }
     /// A record's whole-number weights, read by a `weighted:{rubric}` protocol on the record that declares it
@@ -1525,7 +1530,10 @@ fn lone_founding<R: SeatRow>(o: &R) -> bool {
 fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<Sc<'a, R::Word>> {
     let Some(own) = o.scope() else { return Vec::new() };
     if o.merge() {
-        let mut out = alloc::vec![Sc::Row(own)];
+        let mut out = Vec::new();
+        if o.merge_members().contains(k) {
+            out.push(Sc::Row(own));
+        }
         out.extend(o.merge_duties().iter().filter(|(_, ks)| ks.contains(k)).map(|(d, _)| Sc::Row(d)));
         return out;
     }
@@ -2068,7 +2076,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 mi != oi && g.in_past(oi, mi) && {
                     let m = g.row(mi);
                     if sc.s() == "member" {
-                        !m.to().contains(k)
+                        !m.merge_members().contains(k)
                     } else {
                         m.merge_duties().iter().any(|(d, ks)| d.as_ref() == sc.s() && !ks.contains(k))
                     }
@@ -4029,19 +4037,28 @@ fn merge_tip_roster<R: SeatRow, S: CutSpec<R>>(
     spec: &S,
     obj: &ObjOf<R>,
     t: usize,
-    memo: &RefCell<BTreeMap<usize, TipRoster<R::Key>>>,
+    side: bool,
+    memo: &RefCell<BTreeMap<(usize, bool), TipRoster<R::Key>>>,
 ) -> TipRoster<R::Key> {
-    if let Some(x) = memo.borrow().get(&t) {
+    if let Some(x) = memo.borrow().get(&(t, side)) {
         return x.clone();
     }
     let g = p.graph();
-    let rows: Vec<&R> =
-        p.ancestors().iter().copied().filter(|&x| x == t || g.in_past(x, t)).map(|x| g.row(x)).collect();
+    // a tip's side: its line and the rows built on it (a member's own end after the tip); an earlier change: its line
+    let rows: Vec<&R> = p
+        .ancestors()
+        .iter()
+        .copied()
+        .filter(|&x| x == t || g.in_past(x, t) || (side && g.in_past(t, x)))
+        .map(|x| g.row(x))
+        .collect();
     let cc = concluded_over(rows);
     let q = Seats::new(&cc, law, spec, None);
     let by: BTreeMap<&R::Id, &R> = cc.g.rows().iter().map(|r| (r.id(), *r)).collect();
     let mut duties: BTreeSet<String> = law.duties.iter().cloned().collect();
     duties.extend(declared(&by, obj).into_iter().map(String::from));
+    duties.insert(String::from("founder"));
+    duties.insert(String::from(NODE));
     let out: TipRoster<R::Key> = (
         q.holders("member", obj, None),
         duties
@@ -4052,7 +4069,7 @@ fn merge_tip_roster<R: SeatRow, S: CutSpec<R>>(
             })
             .collect(),
     );
-    memo.borrow_mut().insert(t, out.clone());
+    memo.borrow_mut().insert((t, side), out.clone());
     out
 }
 
@@ -4068,7 +4085,7 @@ fn merge_content<R: SeatRow, S: CutSpec<R>>(
     tips: &[usize],
 ) -> TipRoster<R::Key> {
     let g = p.graph();
-    let memo: RefCell<BTreeMap<usize, TipRoster<R::Key>>> = RefCell::new(BTreeMap::new());
+    let memo: RefCell<BTreeMap<(usize, bool), TipRoster<R::Key>>> = RefCell::new(BTreeMap::new());
     let is_change = |x: usize| {
         let q = g.row(x);
         (q.obj().as_ref() == Some(obj)
@@ -4081,13 +4098,15 @@ fn merge_content<R: SeatRow, S: CutSpec<R>>(
     let mut held: BTreeMap<String, BTreeSet<R::Key>> = BTreeMap::new();
     let mut ended: BTreeMap<String, BTreeSet<R::Key>> = BTreeMap::new();
     for &t in tips {
-        let (m, d) = merge_tip_roster(p, law, spec, obj, t, &memo);
+        let (m, d) = merge_tip_roster(p, law, spec, obj, t, true, &memo);
         let line: Vec<usize> =
             p.ancestors().iter().copied().filter(|&x| (x == t || g.in_past(x, t)) && is_change(x)).collect();
         let mut ever: BTreeSet<R::Key> = BTreeSet::new();
         let mut ever_d: BTreeMap<String, BTreeSet<R::Key>> = BTreeMap::new();
-        for x in line {
-            let (em, ed) = merge_tip_roster(p, law, spec, obj, x, &memo);
+        let mut rs: Vec<TipRoster<R::Key>> =
+            line.into_iter().map(|x| merge_tip_roster(p, law, spec, obj, x, false, &memo)).collect();
+        rs.push((m.clone(), d.clone()));
+        for (em, ed) in rs {
             ever.extend(em);
             for (k, v) in ed {
                 ever_d.entry(k).or_default().extend(v);
@@ -4107,7 +4126,10 @@ fn merge_content<R: SeatRow, S: CutSpec<R>>(
     let mut duties: BTreeMap<String, BTreeSet<R::Key>> = BTreeMap::new();
     for (dn, v) in held {
         let e = ended.get(&dn).cloned().unwrap_or_default();
-        let keep: BTreeSet<R::Key> = v.into_iter().filter(|k| members.contains(k) && !e.contains(k)).collect();
+        // a duty is held by a member; a founder or a node by its seat
+        let seat = dn == "founder" || dn == NODE;
+        let keep: BTreeSet<R::Key> =
+            v.into_iter().filter(|k| (seat || members.contains(k)) && !e.contains(k)).collect();
         if !keep.is_empty() {
             duties.insert(dn, keep);
         }
@@ -4146,30 +4168,79 @@ pub fn merge_concludes<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &Sea
     if newest != tips.iter().copied().collect::<BTreeSet<_>>() {
         return false;
     }
-    // infrastructure rooms: until the Constitution rules what a merge is counted as there, it concludes nothing
     let infra_merge = kind_of(law, &|i| p.get(i), &obj) == Some(CommunityKind::Infrastructure);
-    if infra_merge {
-        return false;
-    }
-    // counted on each tip as an admission at that tip is, through the seat rule's own count (count_met): over the
-    // tip's past alone, its heads that tip, with no reader's line, and seating no key of its own there
     let me = p.index();
-    for &t in &tips {
-        let anc: Vec<usize> = p.ancestors().iter().copied().filter(|&x| x == t || g.in_past(x, t)).collect();
-        let pt = Past::new(g, me, &anc);
-        let local = MembersAt::<R>::default();
-        *local.merge_tip.borrow_mut() = Some(g.row(t).id().clone());
-        let lv: BTreeSet<R::Id> = void_changes_in(g, &anc, &obj, law, spec, None);
-        local.void.borrow_mut().push(lv);
-        if !count_met(&pt, law, spec, Some(&local)) {
-            return false;
+    // each tip's side: its line and the rows built on it (a member's own end after the tip)
+    let side = |t: usize| -> Vec<usize> {
+        p.ancestors().iter().copied().filter(|&x| x == t || g.in_past(x, t) || g.in_past(t, x)).collect()
+    };
+    let word_at = |t: usize| -> Option<(usize, usize)> {
+        let line: Vec<usize> = p.ancestors().iter().copied().filter(|&x| x == t || g.in_past(x, t)).collect();
+        let pt = Past::new(g, t, &line);
+        match protocol_record(&pt, &obj)?.consensus_protocol().and_then(|w| RoomProtocol::parse_in(w.as_ref(), true)) {
+            Some(RoomProtocol::Quorum(m, n)) => Some((usize::try_from(m).ok()?, usize::try_from(n).ok()?)),
+            _ => None,
+        }
+    };
+    if infra_merge {
+        // an infrastructure room: a founders' amendment on EACH tip, M of that tip's active founders; a stalled tip
+        // (at most M active founders) signs no merge, a merge being widening and removal both; nodes never sign
+        let v = voices(r, p);
+        for &t in &tips {
+            let Some((m, _)) = word_at(t) else { return false };
+            let line: Vec<usize> = p.ancestors().iter().copied().filter(|&x| x == t || g.in_past(x, t)).collect();
+            let sd = side(t);
+            let pl = Past::new(g, t, &line);
+            let ps = Past::new(g, me, &sd);
+            let tid = [g.row(t).id().clone()];
+            let mut founders = persons_at_with(&pl, law, spec, &obj, &tid, "founder", None);
+            for k in left_in_past(&ps, &obj, "founder") {
+                founders.remove(&k);
+            }
+            if founders.len() <= m || v.iter().filter(|k| founders.contains(*k)).count() < m {
+                return false;
+            }
+        }
+    } else {
+        // counted on each tip as an admission at that tip is, through the seat rule's own count (count_met): over
+        // the tip's side alone, its heads that tip, with no reader's line, and seating no key of its own there
+        for &t in &tips {
+            let anc = side(t);
+            let pt = Past::new(g, me, &anc);
+            let local = MembersAt::<R>::default();
+            *local.merge_tip.borrow_mut() = Some(g.row(t).id().clone());
+            let lv: BTreeSet<R::Id> = void_changes_in(g, &anc, &obj, law, spec, None);
+            local.void.borrow_mut().push(lv);
+            if !count_met(&pt, law, spec, Some(&local)) {
+                return false;
+            }
         }
     }
     let (members, duties) = merge_content(p, law, spec, &obj, &tips);
-    let stated: BTreeSet<R::Key> = r.to().iter().cloned().collect();
     let stated_d: BTreeMap<String, BTreeSet<R::Key>> =
         r.merge_duties().iter().map(|(d, ks)| (String::from(d.as_ref()), ks.iter().cloned().collect())).collect();
-    stated == members && stated_d == duties
+    // a founder holds the member seat by its founder seat, so the member roster is the stated members and founders
+    let mut stated: BTreeSet<R::Key> = r.merge_members().iter().cloned().collect();
+    stated.extend(stated_d.get("founder").cloned().unwrap_or_default());
+    if stated != members || stated_d != duties {
+        return false;
+    }
+    if !infra_merge {
+        return true;
+    }
+    // the word: kept while the stated founders are at most N; above N a new word, N the founders, M their strict
+    // majority and never below the M in force. Stating fewer than M + 1 founders is valid: the merged room is stalled
+    let nf = stated_d.get("founder").map_or(0, |f| f.len());
+    let own = r.consensus_protocol().and_then(|w| RoomProtocol::parse_in(w.as_ref(), true));
+    tips.iter().all(|&t| {
+        let Some((m, n)) = word_at(t) else { return false };
+        if nf <= n {
+            own.is_none_or(|w| matches!(w, RoomProtocol::Quorum(m2, n2) if usize::try_from(m2) == Ok(m) && usize::try_from(n2) == Ok(n)))
+        } else {
+            matches!(own, Some(RoomProtocol::Quorum(m2, n2))
+                if usize::try_from(n2) == Ok(nf) && usize::try_from(m2) == Ok(nf / 2 + 1) && nf / 2 + 1 >= m)
+        }
+    })
 }
 
 pub fn seat_rule<R: SeatRow, S: CutSpec<R>>(

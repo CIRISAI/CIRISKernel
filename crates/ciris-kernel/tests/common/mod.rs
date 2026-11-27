@@ -289,6 +289,8 @@ pub struct TRow {
     pub duty_holders: Vec<(String, Vec<String>)>,
     /// A roster merge's `duty_seats`: (duty, keys) pairs.
     pub merge_duties: Vec<(String, Vec<String>)>,
+    /// A roster merge's `members`.
+    pub merge_members: Vec<String>,
     /// A record's `weights` (a weighted protocol's): (key, whole-number weight) pairs.
     pub weights: Vec<(String, u64)>,
     pub sigs: Vec<String>,
@@ -378,6 +380,7 @@ impl TRow {
                 .get("duty_holders")
                 .map(|x| x.arr().iter().map(|e| (e.arr()[0].s().to_string(), e.arr()[1].strs())).collect())
                 .unwrap_or_default(),
+            merge_members: strs(&m, "members"),
             merge_duties: m
                 .get("duty_seats")
                 .filter(|x| matches!(x, J::Arr(_)))
@@ -574,6 +577,9 @@ impl SeatRow for TRow {
     }
     fn merge_duties(&self) -> &[(String, Vec<String>)] {
         &self.merge_duties
+    }
+    fn merge_members(&self) -> &[String] {
+        &self.merge_members
     }
     fn options(&self) -> &[String] {
         &self.options
