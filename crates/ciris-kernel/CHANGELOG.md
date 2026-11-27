@@ -15,21 +15,25 @@ default); `RootGrant::Word` must be `AsRef<str>`. Seven cases in `check_delegati
 `root_seat_any_duty`, with crate twins.
 
 **A duty holder's lone acts against a key or content, and their ways back** (CC 4.5.4 (iii), CC 4.5.5, CC 3.1.9.2,
-CC 4.4.3.12; the Constitution's 2b). Three acts: a quarantine marker (state `withhold`, or `release` naming the
-withhold it lifts) of a KEY and a slashing verdict (`proven_rogue` or `not_proven`) about a KEY, both under the
-`slash` duty (there is no quarantine duty); a takedown notice of a CONTENT row under `takedown`. In a community none
+CC 4.4.3.12; the Constitution's 2b, with its registered family names). Three acts: a quarantine marker
+(`quarantine:{state}`: `withhold`, or `release` naming the withhold it lifts) of a KEY and a slashing verdict
+(`slashing:{outcome}`: `proven_rogue` or `not_proven`) about a KEY, both under the `slash` duty (there is no
+quarantine duty); a takedown notice (`takedown_notice:{basis}`, the legal basis an opaque word) of a CONTENT row
+under `takedown`. The family parameter is the kind's suffix (`SeatRow::family_param`), never a separate field. In a community none
 is counted: each is one duty holder's signature at the newest counted changes in its past, and in force by the end
 rule (the lone removal's, read for the act's duty: the signer's standing live, or another holder's receipt keeping
 it). One way back for all three: the members' lift (`moderation_overturn`, an offer of scope `act` naming the act and
 the objections in the overturn window the act opens), counted over the members seated at both the act's head and the
-lift's, the author apart, a strict majority, floor two. A takedown has a second: a concluded `reconsideration` with
-outcome `reversed` naming it, a `review` holder's lone act. A withhold outranks a release whatever their instants:
+lift's, the author apart, a strict majority, floor two. A takedown has a second: a concluded `reconsideration:{grounds}`
+(grounds `new_evidence`, `procedural_error`, `quorum_compromise`) with the row member outcome `reversed` naming it, a
+`review` holder's lone act; `partial` and `upheld` fell no notice on one content row. The member a release, a notice
+and a reconsideration name their target by (`of`) is PROVISIONAL, read in one place. A withhold outranks a release whatever their instants:
 only a release that names it lifts it; the marker plane never withholds itself. A verdict fires only on a proven
 ground. In an affiliation each act is the body's, over its officers; with one officer it is decided only by a
 countersign naming it. New: `seat::act_in_force`, `seat::lone_act_duty`. **BREAKING**: `SeatKind::Quarantine`,
-`SeatKind::Slashing`, `SeatKind::TakedownNotice`, `SeatKind::Reconsideration` (new variants); `SeatRow::state`,
-`SeatRow::outcome`, `SeatRow::target_key` (new, default `None`). The table's affiliation rows for the three acts are
-held in code (`PENDING_AFFILIATION_ACTS`) until rc23-next has them. 26 cases in `check_lone_acts.py`, in the `seat`
+`SeatKind::Slashing`, `SeatKind::TakedownNotice`, `SeatKind::Reconsideration` (new variants, the families);
+`SeatRow::family_param`, `SeatRow::outcome` (a reconsideration's), `SeatRow::target_key` (new, default `None`). The table's affiliation rows for the three acts are
+held in code (`PENDING_AFFILIATION_ACTS`) until rc23-next has them. 31 cases in `check_lone_acts.py`, in the `seat`
 fixture (`in_force`); eight plants, with crate twins.
 
 **An affiliation's officers** (CC 4.4.3.12, the Constitution's ruling on officers). An officer is a member whose seat

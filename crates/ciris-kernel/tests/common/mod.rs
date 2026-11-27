@@ -302,7 +302,7 @@ pub struct TRow {
     pub cohort_subkind: Option<String>,
     pub group_kind: Option<String>,
     pub official: Option<String>,
-    pub state: Option<String>,
+    pub family_param: Option<String>,
     pub outcome: Option<String>,
     pub overseen_by: Option<String>,
     pub declared_cohort: Option<String>,
@@ -419,7 +419,11 @@ impl TRow {
             cohort_subkind: opt(&m, "cohort_subkind"),
             group_kind: opt(&m, "group_kind"),
             official: opt(&m, "official"),
-            state: opt(&m, "state"),
+            family_param: m
+                .get("kind")
+                .and_then(|k| k.opt_s())
+                .and_then(|k| k.split_once(':').map(|(_, p)| p.to_string()))
+                .filter(|p| !p.is_empty()),
             outcome: opt(&m, "outcome"),
             overseen_by: opt(&m, "overseen_by"),
             declared_cohort: opt(&m, "declared_cohort"),
@@ -495,10 +499,11 @@ impl SeatRow for TRow {
             "ballot" => SeatKind::Ballot,
             "decline" => SeatKind::Decline,
             "countersign" => SeatKind::Countersign,
-            "quarantine" => SeatKind::Quarantine,
-            "slashing" => SeatKind::Slashing,
-            "takedown_notice" => SeatKind::TakedownNotice,
-            "reconsideration" => SeatKind::Reconsideration,
+            // the registered families: the kind before its parameter
+            k if k.split(':').next() == Some("quarantine") => SeatKind::Quarantine,
+            k if k.split(':').next() == Some("slashing") => SeatKind::Slashing,
+            k if k.split(':').next() == Some("takedown_notice") => SeatKind::TakedownNotice,
+            k if k.split(':').next() == Some("reconsideration") => SeatKind::Reconsideration,
             "ack" => SeatKind::Ack,
             // an objection in a window is presented as a voice for the row it answers (seat::lift_voices)
             "answer" if self.says.as_deref() == Some("object") => SeatKind::Cosign,
@@ -564,8 +569,8 @@ impl SeatRow for TRow {
     fn official(&self) -> Option<&String> {
         self.official.as_ref()
     }
-    fn state(&self) -> Option<&String> {
-        self.state.as_ref()
+    fn family_param(&self) -> Option<&String> {
+        self.family_param.as_ref()
     }
     fn outcome(&self) -> Option<&String> {
         self.outcome.as_ref()
@@ -688,7 +693,11 @@ impl WindowRow for TRow {
             // an act that names a window opens it (a moderator's lone removal of an agent's key)
             "unseat" if self.window.is_some() => Some(WinKind::Open),
             // a duty holder's lone act opens the members' overturn window
-            "quarantine" | "slashing" | "takedown_notice" if self.window.is_some() => Some(WinKind::Open),
+            k if self.window.is_some()
+                && matches!(k.split(':').next(), Some("quarantine" | "slashing" | "takedown_notice")) =>
+            {
+                Some(WinKind::Open)
+            }
             "answer" => Some(WinKind::Answer),
             "receipt" => Some(WinKind::Receipt),
             "landing" => Some(WinKind::Landing),

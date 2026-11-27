@@ -3,16 +3,18 @@
 check_lone_acts.py: a duty holder's lone acts against a key or content, and their ways back (seat.py: lone_act_rule,
 reconsideration_rule, act_in_force; CC 4.5.4 (iii), CC 4.5.5, CC 3.1.9.2, CC 4.4.3.12, as the Constitution ruled 2b).
 
-    the acts        a quarantine marker (`quarantine`, state withhold or release, of a KEY) and a slashing verdict
-                    (`slashing`, outcome proven_rogue or not_proven, about a KEY), both under the `slash` duty (there is
-                    no quarantine duty); a takedown notice (`takedown_notice`, of a CONTENT row) under `takedown`
+    the acts        a quarantine marker (`quarantine:{state}`, withhold or release, of a KEY) and a slashing verdict
+                    (`slashing:{outcome}`, proven_rogue or not_proven, about a KEY), both under the `slash` duty (there
+                    is no quarantine duty); a takedown notice (`takedown_notice:{basis}`, an opaque basis, of a CONTENT
+                    row) under `takedown`. The family parameter is the kind's suffix
     in a community  none is counted: each is one duty holder's signature at the newest counted changes in its past, in
                     force by the end rule (seat.removal_in_force read for the act's duty: the signer's standing live,
                     or another holder's receipt keeping it)
     the way back    one lift for all three: the members' moderation_overturn (an offer of scope `act` naming the act and
                     the objections to it), counted over the members seated at both the act's head and the lift's, the
                     author apart, a strict majority, floor two; and for a takedown a second one, a concluded
-                    `reconsideration` with outcome `reversed` naming it, the review duty's act
+                    `reconsideration:{grounds}` (new_evidence, procedural_error, quorum_compromise) with outcome
+                    `reversed` naming it, the review duty's act (`partial` and `upheld` fell nothing)
     the markers     a withhold outranks a release whatever their instants: only a release that names the withhold lifts
                     it; the marker plane never withholds itself (a quarantined key's own markers stand)
     the verdict     a slashing verdict fires only on a proven ground: not_proven fires nothing
@@ -63,23 +65,26 @@ def act(i, kind, signer, heads=("g",), names=(), obj=OBJ, **kw):
                 **kw)
 
 
-TD = act("td", "takedown_notice", "p1", names=("c1",), of="c1")
-QW = act("qw", "quarantine", "p1", target="p3", state="withhold")
-QR = act("qr", "quarantine", "p1", names=("qw",), target="p3", state="release", of="qw")
-SP = act("sp", "slashing", "p1", target="p3", outcome="proven_rogue")
-SN = act("sn", "slashing", "p1", target="p3", outcome="not_proven")
+# the registered families: the family parameter is the kind's suffix (a notice's basis is an opaque word)
+TDK = "takedown_notice:legal_order"
+TD = act("td", TDK, "p1", names=("c1",), of="c1")
+QW = act("qw", "quarantine:withhold", "p1", target="p3")
+QR = act("qr", "quarantine:release", "p1", names=("qw",), target="p3", of="qw")
+SP = act("sp", "slashing:proven_rogue", "p1", target="p3")
+SN = act("sn", "slashing:not_proven", "p1", target="p3")
 LAY = ST.withdraw("ld", "p1", "g", ("td",), scope="takedown")          # p1 lays its takedown duty down after td
 OB = lambda i, k, a="td": WN.answer(i, k, a, "object")
 LIFT = lambda objs, a="td": ST.offer("lf", "p2", (), "act", OBJ, "group", (a,) + tuple(objs) + ("g",), head=("g",),
                                      content=a, policy="moderation_overturn", cosigners=())
-RC = lambda k, outcome="reversed": act("rc", "reconsideration", k, names=("td",), of="td", outcome=outcome)
+RC = lambda k, outcome="reversed", grounds="new_evidence": act("rc", "reconsideration:" + grounds, k, names=("td",), of="td",
+                                                              outcome=outcome)
 
 # a one-officer affiliation a1: A its officer, B appointed (a member), O its designated official; B posts b1
 A1 = ST.found("a1", "A", ("A",), {ST.OFFICER: ("A",)}, declared_cohort="affiliations", official="O")
 A1B = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("B",), counted=ST.OFFICER)
 B1 = CK.row("b1", "post", "B", ("a1b",), room="a1")
 AF = [A1, A1B, B1]
-ATD = act("atd", "takedown_notice", "A", heads=("a1b",), names=("b1",), obj="a1", of="b1")
+ATD = act("atd", TDK, "A", heads=("a1b",), names=("b1",), obj="a1", of="b1")
 ACS = ST.R("acs", "countersign", "O", ("atd",), of="atd")
 AWD = ST.withdraw("awd", "A", "atd", ("atd",))
 # two officers: A and C
@@ -90,15 +95,14 @@ A2B = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",
 CASES = [
     ("a takedown by a takedown holder, alone, at the newest change: concluded and in force", W + [TD], {"td": T},
      {"td": T}),
-    ("a takedown by a key holding no takedown duty concludes nothing", W + [act("td", "takedown_notice", "p3",
-                                                                                names=("c1",), of="c1")],
+    ("a takedown by a key holding no takedown duty concludes nothing", W + [act("td", TDK, "p3", names=("c1",), of="c1")],
      {"td": F}, {"td": F}),
     ("a lone act is one signature: a takedown cosigned by another holder is no lone act",
      W + [dict(TD, cosigners=("p2",))], {"td": F}, {"td": F}),
     ("a takedown at an old head (a counted change in its past it does not name) concludes nothing",
      W + [ST.offer("a5", "p1", "p5", "member", OBJ, "group", ("g",), head=("g",), policy="community_invite",
                    cosigners=("p2", "p3", "p5")),
-          act("td", "takedown_notice", "p1", names=("c1", "a5"), of="c1")], {"a5": T, "td": F}, {"td": F}),
+          act("td", TDK, "p1", names=("c1", "a5"), of="c1")], {"a5": T, "td": F}, {"td": F}),
     ("its signer lays the takedown duty down after it: counted at its own head, out of force from there (E2)",
      W + [TD, LAY], {"td": T, "ld": T}, {"td": F}),
     ("the same, and p2, the other takedown holder, receipts it: in force (E8)",
@@ -113,18 +117,26 @@ CASES = [
      {"td": F}),
     ("a reconsideration by a key holding no review duty concludes nothing", W + [TD, RC("p2")], {"rc": F}, {"td": T}),
     ("a reconsideration that upholds it leaves it in force", W + [TD, RC("p4", "upheld")], {"rc": T}, {"td": T}),
+    ("a partial reversal does not fell a notice on one content row", W + [TD, RC("p4", "partial")], {"rc": T},
+     {"td": T}),
+    ("a reconsideration on other grounds (procedural error) reversing it: down", W + [TD, RC("p4", grounds="procedural_error")],
+     {"rc": T}, {"td": F}),
+    ("grounds outside the three conclude nothing", W + [TD, RC("p4", grounds="whim")], {"rc": F}, {"td": T}),
+    ("an outcome outside the three concludes nothing", W + [TD, RC("p4", "maybe")], {"rc": F}, {"td": T}),
+    ("a takedown notice with no basis concludes nothing", W + [act("td", "takedown_notice", "p1", names=("c1",), of="c1")],
+     {"td": F}, {"td": F}),
     ("a quarantine withhold by a slash holder: in force", W + [QW], {"qw": T}, {"qw": T}),
     ("a release naming the withhold lifts it", W + [QW, QR], {"qr": T}, {"qw": F, "qr": T}),
     ("a release naming no withhold concludes nothing, and the withhold holds whatever their order",
-     W + [QW, act("qr", "quarantine", "p2", target="p3", state="release")], {"qr": F}, {"qw": T}),
+     W + [QW, act("qr", "quarantine:release", "p2", target="p3")], {"qr": F}, {"qw": T}),
     ("a release by a key holding no slash duty concludes nothing", W + [QW, dict(QR, signer="p3")], {"qr": F},
      {"qw": T}),
-    ("there is no quarantine duty: slash authorises the marker, and p4, holding review, concludes nothing", W + [act("qw", "quarantine", "p4", target="p3", state="withhold")], {"qw": F}, {"qw": F}),
+    ("there is no quarantine duty: slash authorises the marker, and p4, holding review, concludes nothing", W + [act("qw", "quarantine:withhold", "p4", target="p3")], {"qw": F}, {"qw": F}),
     ("the marker plane never withholds itself: p2 quarantines p1, and p1's own withhold of p3 stands",
-     W + [QW, act("q1", "quarantine", "p2", target="p1", state="withhold")], {"qw": T, "q1": T}, {"qw": T, "q1": T}),
+     W + [QW, act("q1", "quarantine:withhold", "p2", target="p1")], {"qw": T, "q1": T}, {"qw": T, "q1": T}),
     ("a slashing verdict on a proven ground fires", W + [SP], {"sp": T}, {"sp": T}),
     ("not proven: the verdict concludes and fires nothing", W + [SN], {"sn": T}, {"sn": F}),
-    ("an outcome outside the two concludes nothing", W + [dict(SN, outcome="maybe")], {"sn": F}, {"sn": F}),
+    ("an outcome outside the two concludes nothing", W + [dict(SN, kind="slashing:maybe")], {"sn": F}, {"sn": F}),
     # ---- an affiliation (CC 4.4.3.12): the body's act, over its officers ---------------------------------------------
     ("a one-officer affiliation's takedown of a member's content: a proposal, not in force", AF + [ATD],
      {"atd": T}, {"atd": F}),

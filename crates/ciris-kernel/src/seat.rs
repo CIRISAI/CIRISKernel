@@ -241,11 +241,13 @@ pub trait SeatRow: Row {
     fn overseen_by(&self) -> Option<&Self::Id> {
         None
     }
-    /// A quarantine marker's state (`withhold`, `release`). Default `None`.
-    fn state(&self) -> Option<&Self::Word> {
+    /// The row's family parameter (the registered family names `quarantine:{state}`, `slashing:{outcome}`,
+    /// `takedown_notice:{basis}`, `reconsideration:{grounds}`): a marker's state, a verdict's outcome, a notice's legal
+    /// basis (an opaque word the kernel does not read but must have), a reconsideration's grounds. Default `None`.
+    fn family_param(&self) -> Option<&Self::Word> {
         None
     }
-    /// A slashing verdict's or a reconsideration's outcome. Default `None`.
+    /// A reconsideration's outcome (`reversed`, `partial`, `upheld`), a row member. Default `None`.
     fn outcome(&self) -> Option<&Self::Word> {
         None
     }
@@ -1394,13 +1396,13 @@ fn lone_act_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, 
     let is = |w: Option<&R::Word>, xs: &[&str]| w.is_some_and(|w| xs.contains(&w.as_ref()));
     match k {
         SeatKind::Quarantine => {
-            if !is(r.state(), &["withhold", "release"]) || r.target_key().is_none() {
+            if !is(r.family_param(), &["withhold", "release"]) || r.target_key().is_none() {
                 return false;
             }
-            if is(r.state(), &["release"]) {
+            if is(r.family_param(), &["release"]) {
                 let Some(w) = r.of().and_then(|i| p.get(i)) else { return false };
                 if w.seat_kind() != SeatKind::Quarantine
-                    || !is(w.state(), &["withhold"])
+                    || !is(w.family_param(), &["withhold"])
                     || w.target_key() != r.target_key()
                     || w.obj() != r.obj()
                 {
@@ -1409,12 +1411,13 @@ fn lone_act_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, 
             }
         }
         SeatKind::Slashing => {
-            if !is(r.outcome(), &["proven_rogue", "not_proven"]) || r.target_key().is_none() {
+            if !is(r.family_param(), &["proven_rogue", "not_proven"]) || r.target_key().is_none() {
                 return false;
             }
         }
         _ => {
-            if r.of().and_then(|i| p.get(i)).is_none() {
+            // a notice's legal basis (its family parameter) is an opaque word, and must be there
+            if r.family_param().is_none() || r.of().and_then(|i| p.get(i)).is_none() {
                 return false;
             }
         }
@@ -1439,7 +1442,10 @@ fn reconsideration_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &Se
     let Some(t) = r.of().and_then(|i| p.get(i)) else { return false };
     let Some(obj) = t.obj() else { return false };
     let heads = r.head();
+    let is = |w: Option<&R::Word>, xs: &[&str]| w.is_some_and(|w| xs.contains(&w.as_ref()));
     t.seat_kind() == SeatKind::TakedownNotice
+        && is(r.family_param(), &["new_evidence", "procedural_error", "quorum_compromise"])
+        && is(r.outcome(), &["reversed", "partial", "upheld"])
         && !heads.is_empty()
         && !newer_head_in_past(p, law, &obj, heads, &signers(r))
         && members_at_with(p, law, spec, &obj, heads, "review", None).contains(r.signer())
@@ -1527,7 +1533,7 @@ pub fn act_in_force<R: SeatRow, S: CutSpec<R>>(
             }
         }
     }
-    if r.seat_kind() == SeatKind::Quarantine && r.state().is_some_and(|s| s.as_ref() == "withhold") {
+    if r.seat_kind() == SeatKind::Quarantine && r.family_param().is_some_and(|s| s.as_ref() == "withhold") {
         let releases: Vec<usize> = c
             .cs()
             .iter()
@@ -1535,7 +1541,7 @@ pub fn act_in_force<R: SeatRow, S: CutSpec<R>>(
             .filter(|&j| {
                 let x = g.row(j);
                 x.seat_kind() == SeatKind::Quarantine
-                    && x.state().is_some_and(|s| s.as_ref() == "release")
+                    && x.family_param().is_some_and(|s| s.as_ref() == "release")
                     && x.of() == Some(act)
             })
             .collect();
@@ -1543,7 +1549,7 @@ pub fn act_in_force<R: SeatRow, S: CutSpec<R>>(
             return false;
         }
     }
-    if r.seat_kind() == SeatKind::Slashing && r.outcome().is_none_or(|o| o.as_ref() != "proven_rogue") {
+    if r.seat_kind() == SeatKind::Slashing && r.family_param().is_none_or(|o| o.as_ref() != "proven_rogue") {
         return false;
     }
     true

@@ -289,7 +289,7 @@ def act_of(r, by, is_key=False):
         return None
     if kind == "community":
         c = by.get(r.get("content"))
-        if offer and sc == "act" and c is not None and c["kind"] in LONE_ACTS and c.get("obj") == obj:
+        if offer and sc == "act" and c is not None and family(c) in LONE_ACTS and c.get("obj") == obj:
             return ("lift", "act", kind)                     # the lift of a duty holder's lone act
         if offer and c is not None and c["kind"] == "unseat" and c.get("obj") == obj and c.get("scope") == sc \
                 and tuple(c.get("to", ())) == tuple(r.get("to", ())) and "lift_unread" not in MUT:
@@ -536,7 +536,7 @@ def against_member(u, by):
     """u is one of the four acts against a member of an affiliation (CC 4.4.3.12): a removal, a quarantine, a slashing
     verdict, a takedown of the member's content (the three held in code until the table has their affiliation rows:
     PENDING_AFFILIATION_ACTS)."""
-    return affiliation_removal(u, by) or (u["kind"] in LONE_ACTS and kind_of(by, u.get("obj")) == "affiliation")
+    return affiliation_removal(u, by) or (family(u) in LONE_ACTS and kind_of(by, u.get("obj")) == "affiliation")
 
 
 def needs_countersign(u, P, past):
@@ -1337,7 +1337,7 @@ def lift_voices(r, P, past, by):
     """The voices of a re-seating row, or None where it is none: the signers of the objections it names to the lone
     removal it cites, less that removal's author."""
     rem = by.get(r.get("content"))
-    if r["kind"] == "offer" and rem is not None and rem["kind"] in LONE_ACTS and r.get("scope") == "act" \
+    if r["kind"] == "offer" and rem is not None and family(rem) in LONE_ACTS and r.get("scope") == "act" \
             and rem.get("obj") == r.get("obj") and "lone_act_lift_unread" not in MUT:
         # the lift of a duty holder's lone act (quarantine, slash, takedown): the objections it names to that act
         v = frozenset(a["signer"] for a in P if a["kind"] == "answer" and a.get("of") == rem["id"]
@@ -2431,9 +2431,29 @@ def removal_in_force(S, x, unseats, now, not_ends=frozenset(), lone_ids=frozense
 # The act each row kind is, and the duty that authorises it: a quarantine marker (`quarantine:{state}`, of a KEY: in a
 # private room a room key) and a slashing verdict (`slashing:{outcome}`, about a KEY) under `slash`; a takedown
 # notice (of a CONTENT row) under `takedown`. There is no quarantine duty.
+# The row families (the Constitution's registered names): `quarantine:{state}`, `slashing:{outcome}`,
+# `takedown_notice:{basis}`, `reconsideration:{grounds}`. The family parameter is the kind's suffix (family_param):
+# a marker's state, a verdict's outcome, a notice's legal basis (an opaque word of a closed set the kernel does not
+# read), a reconsideration's grounds. A reconsideration's outcome is a row member (`outcome`).
 LONE_ACTS = {"quarantine": "slash", "slashing": "slash", "takedown_notice": "takedown"}
 QUARANTINE_STATES = ("withhold", "release")
 SLASH_OUTCOMES = ("proven_rogue", "not_proven")       # a verdict fires only on a proven ground
+RECONSIDERATION_GROUNDS = ("new_evidence", "procedural_error", "quorum_compromise")
+RECONSIDERATION_OUTCOMES = ("reversed", "partial", "upheld")    # only `reversed` fells a notice on one content row
+# PROVISIONAL: the member a release, a takedown notice and a reconsideration name their target row by (the table's
+# name follows with the placement cells); read here and nowhere else
+ACT_OF = "of"
+
+
+def family(r):
+    """A row's family: its kind before the parameter (`slashing:proven_rogue` -> `slashing`)."""
+    return r["kind"].split(":", 1)[0]
+
+
+def family_param(r):
+    """A row's family parameter: its kind after the family (`slashing:proven_rogue` -> `proven_rogue`), or None."""
+    parts = r["kind"].split(":", 1)
+    return parts[1] if len(parts) == 2 and parts[1] else None
 # the affiliation rows the table will carry (quarantine, slash and takedown of scope member over affiliation ->
 # affiliation_member_action), held in code until rc23-next has them
 PENDING_AFFILIATION_ACTS = (("quarantine", "member", "affiliation", ("affiliation_member_action",), "fixed"),
@@ -2444,9 +2464,9 @@ PENDING_AFFILIATION_ACTS = (("quarantine", "member", "affiliation", ("affiliatio
 def act_targets(r, by):
     """The keys an act is against: an unseat's `to`; a quarantine marker's or a slashing verdict's `target`; a takedown
     notice's content row's signer (the member whose content it takes down)."""
-    if r["kind"] in ("quarantine", "slashing"): return frozenset((r.get("target"),)) - {None}
-    if r["kind"] == "takedown_notice":
-        c = by.get(r.get("of"))
+    if family(r) in ("quarantine", "slashing"): return frozenset((r.get("target"),)) - {None}
+    if family(r) == "takedown_notice":
+        c = by.get(r.get(ACT_OF))
         return frozenset((c["signer"],)) if c is not None else frozenset()
     return frozenset(r.get("to", ()))
 
@@ -2461,16 +2481,15 @@ def lone_act_rule(r, P, past):
     Shapes: a marker's state is withhold or release, and a release names (`of`) the withhold it lifts, of the same key,
     in its past; a verdict's outcome is proven_rogue or not_proven; a takedown names (`of`) a content row in its past."""
     by = {q["id"]: q for q in P}
-    obj, k = r.get("obj"), r["kind"]
+    obj, k, param = r.get("obj"), family(r), family_param(r)
     if k == "quarantine":
-        if r.get("state") not in QUARANTINE_STATES or r.get("target") is None: return False
-        if r["state"] == "release":
-            w = by.get(r.get("of"))
-            if w is None or w["kind"] != "quarantine" or w.get("state") != "withhold" or w.get("target") != r["target"] \
-                    or w.get("obj") != obj:
+        if param not in QUARANTINE_STATES or r.get("target") is None: return False
+        if param == "release":
+            w = by.get(r.get(ACT_OF))
+            if w is None or w["kind"] != "quarantine:withhold" or w.get("target") != r["target"] or w.get("obj") != obj:
                 return False
-    if k == "slashing" and (r.get("outcome") not in SLASH_OUTCOMES or r.get("target") is None): return False
-    if k == "takedown_notice" and r.get("of") not in by: return False
+    if k == "slashing" and (param not in SLASH_OUTCOMES or r.get("target") is None): return False
+    if k == "takedown_notice" and (param is None or r.get(ACT_OF) not in by): return False
     kind = kind_of(by, obj)
     heads = r.get("head", ())
     if not heads or newer_head_in_past(heads, None, P, past, obj, signers(r)): return False
@@ -2481,13 +2500,18 @@ def lone_act_rule(r, P, past):
     return r["signer"] in members_at(P, past, obj, heads, LONE_ACTS[k]) and (len(signers(r)) == 1 or "lone_act_cosigned" in MUT)
 
 
+def reconsidered(r):
+    """A reconsideration's shape: grounds (its family parameter) of the closed set, an outcome of the three."""
+    return family_param(r) in RECONSIDERATION_GROUNDS and r.get("outcome") in RECONSIDERATION_OUTCOMES
+
+
 def reconsideration_rule(r, P, past):
     """A `reconsideration:{grounds}` row (the review duty's act, CC 4.5.5): one review holder's signature, at the newest
     counted changes in its past, naming (`of`) a takedown notice in its past, with outcome `reversed` or not. A
     concluded reversal takes the takedown down (act_in_force)."""
     by = {q["id"]: q for q in P}
-    t = by.get(r.get("of"))
-    if t is None or t["kind"] != "takedown_notice": return False
+    t = by.get(r.get(ACT_OF))
+    if t is None or family(t) != "takedown_notice" or not reconsidered(r): return False
     obj, heads = t.get("obj"), r.get("head", ())
     if not heads or newer_head_in_past(heads, None, P, past, obj, signers(r)): return False
     return r["signer"] in members_at(P, past, obj, heads, "review")
@@ -2505,7 +2529,7 @@ def act_in_force(S, act, own=None):
     countersign naming it (rule 4: a concurrent withdrawal by the acting seat leaves nothing decided)."""
     r = S.by.get(act)
     if r is None or not S.C.get(act): return False
-    if r["kind"] not in LONE_ACTS: return bool(S.C.get(act))
+    if family(r) not in LONE_ACTS: return bool(S.C.get(act))
     Q = Seats(S, own=own)
     if act in Q.stale: return False
     obj = r.get("obj")
@@ -2520,18 +2544,18 @@ def act_in_force(S, act, own=None):
     else:
         unseats = [u for u in S.Cs if u["kind"] == "unseat" and Q.cut.counts(u) and u["id"] not in Q.stale]
         if "lone_act_end_unread" not in MUT and not removal_in_force(S, r, unseats, Seats(S, own=own, roster=False),
-                                                                  scope=LONE_ACTS[r["kind"]]):
+                                                                  scope=LONE_ACTS[family(r)]):
             return False
         lifted = held("offer", lambda q: q.get("scope") == "act" and q.get("content") == act and q.get("conf") == "group")
         if lifted and "lone_act_lift_unread" not in MUT: return False
-        if r["kind"] == "takedown_notice" and "reconsideration_unread" not in MUT and held(
-                "reconsideration", lambda q: q.get("of") == act and q.get("outcome") == "reversed"):
+        if family(r) == "takedown_notice" and "reconsideration_unread" not in MUT and [
+                q for q in S.Cs if family(q) == "reconsideration" and q.get(ACT_OF) == act and q.get("outcome") == "reversed"
+                and Q.cut.counts(q) and q["id"] not in Q.stale]:
             return False
-    if r["kind"] == "quarantine" and r["state"] == "withhold" and "release_unread" not in MUT:
-        if any(act_in_force(S, q["id"], own) for q in S.Cs if q["kind"] == "quarantine" and q.get("state") == "release"
-               and q.get("of") == act):
+    if r["kind"] == "quarantine:withhold" and "release_unread" not in MUT:
+        if any(act_in_force(S, q["id"], own) for q in S.Cs if q["kind"] == "quarantine:release" and q.get(ACT_OF) == act):
             return False
-    if r["kind"] == "slashing" and r["outcome"] != "proven_rogue" and "unproven_fires" not in MUT: return False
+    if family(r) == "slashing" and family_param(r) != "proven_rogue" and "unproven_fires" not in MUT: return False
     return True
 
 
@@ -3591,8 +3615,8 @@ def seat_rule(r, P, past, table=None, other=None):
         return True
     if k == "countersign":
         return countersign_ok(r, P, past)
-    if k in LONE_ACTS:
+    if family(r) in LONE_ACTS:
         return lone_act_rule(r, P, past)
-    if k == "reconsideration":
+    if family(r) == "reconsideration":
         return reconsideration_rule(r, P, past)
     return other(r, P, past) if other else True

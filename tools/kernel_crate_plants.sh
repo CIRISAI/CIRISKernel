@@ -563,7 +563,7 @@ plant "lone_act_end_unread: a lone act outlives its signer's standing" src/seat.
 plant "lone_act_lift_unread: the members' lift of a lone act not read" src/seat.rs '        if !lifted.is_empty() {' '        if false && !lifted.is_empty() {'
 plant "reconsideration_unread: a reversal keeps the takedown" src/seat.rs '            if !reversed.is_empty() {' '            if false && !reversed.is_empty() {'
 plant "release_unread: a release naming a withhold lifts nothing" src/seat.rs '        if releases.iter().any(|&j| act_in_force(c, law, spec, g.row(j).id(), own)) {' '        if false && releases.iter().any(|&j| act_in_force(c, law, spec, g.row(j).id(), own)) {'
-plant "unproven_fires: a not_proven verdict fires" src/seat.rs '    if r.seat_kind() == SeatKind::Slashing && r.outcome().is_none_or(|o| o.as_ref() != "proven_rogue") {' '    if false && r.seat_kind() == SeatKind::Slashing {'
+plant "unproven_fires: a not_proven verdict fires" src/seat.rs '    if r.seat_kind() == SeatKind::Slashing && r.family_param().is_none_or(|o| o.as_ref() != "proven_rogue") {' '    if false && r.seat_kind() == SeatKind::Slashing {'
 plant "a one-officer affiliation's lone act decided without a countersign" src/seat.rs '            if !cs.iter().any(|&ci| wd.iter().all(|&w| g.in_past(ci, w))) {' '            if false && !cs.iter().any(|&ci| wd.iter().all(|&w| g.in_past(ci, w))) {'
 plant "root_gate_unread: a root chain's gate read from the row's mark" src/seat.rs '    if top.conf() == Some(Conf::Root) {' '    if false && top.conf() == Some(Conf::Root) {'
 plant "root_seat_unchecked: a root seat stands without its grant" src/seat.rs 'Some(Conf::Root) => is_offer && root_seat(spec, r, &obj),' 'Some(Conf::Root) => is_offer,'
