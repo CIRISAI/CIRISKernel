@@ -320,9 +320,17 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         .map(|a| a.signer())
         .collect();
     let moot = |a: &R| acted.contains(a.signer()) && duty_word(a).is_none();
-    // a voice that says two things says nothing
-    let by = ops::group_by(answers.iter().copied().filter(|a| voters.contains(a.signer()) && !is_wd(a)), |a| {
-        a.signer().clone()
+    // an answer is its person's (ruled on CIRISConstitution#224: one voice however many live keys sign): a key that
+    // is no voter answers for the voter it is a live key of ([`seat::persons_of`] over the rows read); a key with no
+    // person is no voice. A voice that says two things says nothing.
+    let person = |a: &R| -> Option<R::Key> {
+        if voters.contains(a.signer()) {
+            return Some(a.signer().clone());
+        }
+        seat::persons_of(x.rows, x.law, x.spec, &BTreeSet::from([a.signer().clone()]), &voters).pop_first()
+    };
+    let by = ops::group_by(answers.iter().copied().filter(|a| person(a).is_some() && !is_wd(a)), |a| {
+        person(a).expect("a voter")
     });
     let mut said: BTreeMap<R::Key, String> = BTreeMap::new();
     for (s, rs) in by {

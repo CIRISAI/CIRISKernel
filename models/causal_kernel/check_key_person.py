@@ -17,6 +17,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     person_any_kind       any group is a person: a community's member seat makes the community a key's person
     person_end_unread     the key's own end is not read: a revoked key keeps its person
     concurrent_eviction_unread  rule 4 not read: a key evicted concurrently keeps its person at the eviction's head
+    persons_unread        a count of keys, not persons: two keys of one person are two voices, a device no voice
 
     python3 -I check_key_person.py      exit 1 on any difference
 """
@@ -95,7 +96,42 @@ CASES = [
     ("the same eviction, the row at an earlier head: the key's person then", [S, A2, A3, E2, at(("a2",))], "k2", "S"),
     ("the other keys at the eviction's head keep their person", [S, A2, A3, E2, at(("a3",))], "k3", "S"),
 ]
-PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread")
+# ---- Part 3: counts over persons (ruled on CIRISConstitution#224: one voice however many live keys sign) ------------
+# four persons, each a self roster named by its genesis key; p1 has a second device key p1b. They found a room whose
+# members are the persons' genesis keys; a counted admission of z (community_invite, two thirds of four: three voices)
+SP = {i: found("S%d" % i, "p%d" % i) for i in (1, 2, 3, 4)}
+P1B = add("a1b", "S1", "p1b", ("p1",), ("S1",))
+GC = ST.offer("gc", "p1", ("p1", "p2", "p3", "p4"), "member", "@", "self", cosigners=("p2", "p3", "p4"),
+              names=("a1b", "S2", "S3", "S4"))
+P1C = add("a1c", "S1", "p1c", ("p1", "p1b"), ("a1b",))                         # p1's third key
+EV1B = evict("e1b", "S1", "p1b", ("p1", "p1c"), ("a1c",))                       # p1b evicted by p1's two other keys
+X1B = add("x1b", "S2", "p1b", ("p2",), ("S2",))                                 # p1b seated in a second roster
+BASE = [SP[1], SP[2], SP[3], SP[4], P1B, GC]
+
+
+def admit_z(signers, extra=()):
+    return ST.offer("az", signers[0], "z", "member", "gc", "group", ("gc",) + tuple(extra), head=("gc",),
+                    policy="community_invite", cosigners=tuple(signers[1:]) + ("z",))
+
+
+# (name, rows, row asked, concludes)
+COUNT_CASES = [
+    ("three persons sign the admission: met", BASE + [admit_z(("p1", "p2", "p3"))], "az", True),
+    ("two keys of one person and one other: two voices, not met", BASE + [admit_z(("p1", "p1b", "p2"))], "az", False),
+    ("a person's device key speaks for its person: met", BASE + [admit_z(("p1b", "p2", "p3"))], "az", True),
+    ("an evicted device key is no voice: not met", BASE + [P1C, EV1B, admit_z(("p1b", "p2", "p3"), ("e1b",))], "az", False),
+    ("a key seated in two rosters has no person and is no voice: not met", BASE + [X1B, admit_z(("p1b", "p2", "p3"), ("x1b",))],
+     "az", False),
+    ("a self roster's own count stays a count of keys: two keys of S1 add a third", BASE + [P1C], "a1c", True),
+]
+
+
+def concludes(rows, rid):
+    return bool(CK.concluded(CK.kept(list(rows)), RULE).C.get(rid))
+
+
+PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
+          "persons_unread")
 
 
 def answer(rows, k):
@@ -129,11 +165,21 @@ def main():
             if answer_in(o, k) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
                 break
+    for name, rows, rid, want in COUNT_CASES:
+        got = concludes(rows, rid)
+        if got != want:
+            problems.append("%s: got %r, expected %r" % (name, got, want))
+        for o in orders(rows)[:41]:
+            n += 1
+            if bool(CK.arrive(o, RULE).C.get(rid)) != got:
+                problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
+                break
     caught = 0
     for plant in PLANTS:
         ST.MUT.add(plant)
         try:
-            hit = [c[0] for c in CASES if answer(c[1], c[2]) != c[3]]
+            hit = [c[0] for c in CASES if answer(c[1], c[2]) != c[3]] + \
+                  [c[0] for c in COUNT_CASES if concludes(c[1], c[2]) != c[3]]
         finally:
             ST.MUT.discard(plant)
         caught += bool(hit)
@@ -142,8 +188,9 @@ def main():
             problems.append("plant %s not caught" % plant)
     for p in problems:
         print(p)
-    print("RESULT: %s: %d cases, %d arrival orders, %d of %d planted breaks caught"
-          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), n, caught, len(PLANTS)))
+    print("RESULT: %s: %d cases (%d of a key's person, %d of a count over persons), %d arrival orders, %d of %d planted "
+          "breaks caught" % ("ok" if not problems else "%d problems" % len(problems), len(CASES) + len(COUNT_CASES),
+                             len(CASES), len(COUNT_CASES), n, caught, len(PLANTS)))
     return 1 if problems else 0
 
 

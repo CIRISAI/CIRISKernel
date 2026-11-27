@@ -116,7 +116,7 @@ plant "the line's first pass reads the cut (H5)"       src/seat.rs 'line::void_e
 plant "a reader's line read from explicit acks only (H6)" src/line.rs '        if !named.is_empty() || spec.acknowledges(r, own, &get).is_some_and(|o| o == *obj) {' '        if !named.is_empty() {'
 plant "the cut read before the reader's line"          src/seat.rs 'let cut = Cut::new_without(c, spec, &behind);' 'let cut = Cut::new(c, spec);'
 plant "a met count is read only by a landing" src/window.rs 'return if got == "open" { Outcome::Open } else { Outcome::Landed(got) };' 'return Outcome::Open;'
-plant "a withdrawal takes back the proposer's approval" src/window.rs 'let by = ops::group_by(answers.iter().copied().filter(|a| voters.contains(a.signer()) && !is_wd(a)), |a| {' 'let by = ops::group_by(answers.iter().copied().filter(|a| voters.contains(a.signer())), |a| {'
+plant "a withdrawal takes back the proposer's approval" src/window.rs 'let by = ops::group_by(answers.iter().copied().filter(|a| person(a).is_some() && !is_wd(a)), |a| {' 'let by = ops::group_by(answers.iter().copied().filter(|a| person(a).is_some()), |a| {'
 plant "an approval that names the withdrawal still approves" src/window.rs 'answers.iter().copied().filter(|a| !(says(a, "approve") && wd.iter().any(|w| past(w, a.id())))).collect()' 'answers.iter().copied().collect()'
 plant "concurrent answers not recounted"               src/window.rs 'answers.extend(ans);' ''
 plant "a receipt with the target's row in its past is still a receipt" src/window.rs 'return Some(!rows.iter().any(|q| q.signer() == t && q.id() != o.id() && !p.past(q.id(), o.id())));' 'return Some(true);'
@@ -174,7 +174,7 @@ plant "the holder's own end lifts" src/seat.rs '.is_some_and(|t| t.seat_kind() =
 plant "an ordered pair read as mutual" src/seat.rs '(0..n).map(|i| (0..n).filter(|&j| dep(i, j) && !after[i].contains(&j)).collect()).collect();' '(0..n).map(|i| (0..n).filter(|&j| dep(i, j)).collect()).collect();'
 plant "an act decided before an earlier act in its past (cascade through an ordered pair)" src/seat.rs '(0..n).map(|i| (0..n).filter(|&j| dep(i, j) && !after[i].contains(&j)).collect()).collect();' '(0..n).map(|i| (0..n).filter(|&j| dep(i, j) && !g.in_past(acts[j], acts[i])).collect()).collect();'
 plant "the remover left in the count's receipt's base" src/seat.rs '    mem.remove(xr.signer());
-    let mut v = voices(qr, &p);' '    let mut v = voices(qr, &p);'
+    let rows: Vec<&R> = p.rows().collect();' '    let rows: Vec<&R> = p.rows().collect();'
 plant "a mutual pair decided one then the other" src/seat.rs '                let v = removal_in_force(c, acts[j], law, spec, by, unseats, now, cache, &ex, &lone);' '                let ex: BTreeSet<usize> =
                     ex.iter().copied().chain(got.iter().filter(|(_, v)| !*v).map(|(j, _)| acts[*j])).collect();
                 let drop2: BTreeSet<R::Id> = ex.iter().map(|&y| g.row(y).id().clone()).collect();
@@ -291,13 +291,15 @@ plant "a key's person: two persons read as the first" src/seat.rs '    if hit.le
         hit.pop()' '    if !hit.is_empty() {
         hit.pop()'
 plant "a key's person: any group is a person" src/seat.rs 'if kind_of(law, &get, &o) != Some(CommunityKind::SelfRoster) {' 'if kind_of(law, &get, &o).is_none() {'
-plant "a key's person: the key's own end is not read" src/seat.rs '    if key_record_ended(&p, k) {
-        return None;
-    }' '    if false {
-        return None;
+plant "a key's person: the key's own end is not read" src/seat.rs 'if keep(&o, s.as_ref(), &k) && !revoked_itself(rows.iter().copied(), &k) {' 'if keep(&o, s.as_ref(), &k) {'
+plant "a key's person: an admission in the past is enough (evictions unread)" src/seat.rs '        for k in seats.holders(s.as_ref(), &o, None) {' '        let seated: BTreeSet<R::Key> = rows.iter().filter(|q| q.seat_kind() == SeatKind::Offer && q.obj().as_ref() == Some(&o)).flat_map(|q| q.to().iter().cloned()).collect();
+        for k in seated.into_iter().chain(seats.holders(s.as_ref(), &o, None)) {'
+plant "a key's person: an eviction concurrent with the row is not read (rule 4)" src/seat.rs 'let keep = |g: &ObjOf<R>, s: &str, key: &R::Key| key != k || !evicted_from(c, at, g, s, k);' 'let keep = |g: &ObjOf<R>, s: &str, key: &R::Key| key != k || !(false && evicted_from(c, at, g, s, k));'
+plant "a count of keys, not persons" src/seat.rs '    if voices.iter().all(|v| base.contains(v)) {
+        return voices.clone();
+    }' '    if true {
+        return voices.intersection(base).cloned().collect();
     }'
-plant "a key's person: an admission in the past is enough (evictions unread)" src/seat.rs '            && seats.holders(s.as_ref(), &o, None).contains(k)' '            && (seats.holders(s.as_ref(), &o, None).contains(k) || p.rows().any(|q| q.seat_kind() == SeatKind::Offer && q.obj().as_ref() == Some(&o) && q.to().contains(k)))'
-plant "a key's person: an eviction concurrent with the row is not read (rule 4)" src/seat.rs '            && !evicted_from(c, at, &o, s.as_ref(), k)' '            && !(false && evicted_from(c, at, &o, s.as_ref(), k))'
 plant "a room key's offer accepted again re-seats it" src/seat.rs 'SeatKind::Accept if revoked_before(law, spec, r, p, &by, cache) => false,' 'SeatKind::Accept if false => false,'
 plant "a window's base read when asked keeps the agents" src/window.rs '            m = persons(m, &agents);' ''
 plant "two bindings one in the other's past read as one stint" src/standing.rs 'if rebinds(*c, b, rows) || rebinds(b, *c, rows) {' 'if past.in_past(c.id(), b.id())? || past.in_past(b.id(), c.id())? {'

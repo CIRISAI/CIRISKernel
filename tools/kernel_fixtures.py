@@ -687,12 +687,16 @@ def key_person_cases():
     for name, rows, k, person in KP.CASES:
         refs = {}
         out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "key": k, "person": person})
+    counts = []
+    for name, rows, rid, concludes in KP.COUNT_CASES:
+        refs = {}
+        counts.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "concludes": concludes})
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
            "community_floor": ST.COMMUNITY_FLOOR, "removal_floor": ST.REMOVAL_FLOOR,
            "policy": {k: list(v) for k, v in ST.POLICY.items()},
            "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
-    return {"law": law, "cases": out}
+    return {"law": law, "cases": out, "counts": counts}
 
 
 def key_end_cases():

@@ -214,6 +214,15 @@ def table_outcome(spec, p, answers, inside, base, elapsed):
     """The outcome the table gives. answers: rows answering p; inside: rows read for the target's silence;
     base(name) -> the keys counted; elapsed: whether the concluder's two instants span the window."""
     tv = {p.get("target")} if spec.get("target_votes") else set()   # the joiner's own yes is a voice of the floor (CC 3.1.3.2)
+    # an answer is its person's (ruled on CIRISConstitution#224: one voice however many live keys sign): a key that is
+    # no member answers for the member it is a live key of (seat.person_for); a key with no person stays as it signed,
+    # and is no voice of any base. Two answers of one person that differ say two things, and so nothing.
+    members = base("all") | base.raw("moderate") | tv
+    rows = getattr(base, "rows", None)
+    if rows is not None and "persons_unread" not in ST.MUT:
+        by_ = {q["id"]: q for q in rows}
+        answers = [a if a["signer"] in members else dict(a, signer=ST.person_for(a["signer"], members, rows, by_) or a["signer"])
+                   for a in answers]
     withdrawn = any(a["signer"] == p["signer"] and a["says"] == "withdraw" for a in answers)
     heard = [a for a in answers if a["signer"] in base("all") | base.raw("moderate") | tv
              and not (a["signer"] == p["signer"] and a["says"] == "withdraw")]
@@ -277,6 +286,7 @@ def _base(rows, past, p):
             cache[("raw", name)] = ST.members_at(rows, past, p["obj"], p["head"], name)
         return cache[("raw", name)]
     base.raw = raw
+    base.rows = rows
     return base
 
 

@@ -382,7 +382,8 @@ trusting an adapter.
 signed by its first key in its own scope (`self` for a person, `key` for a voice), its further keys as counted
 admissions and evictions of that scope over it (`self_roster_add`, `self_roster_evict`), and a key's own
 revocation as an unseat of its `registered` seat by the key. `SeatLaw::kinds` must map those founding scopes to
-`self`, or no person is found. Ask at a row of the concluded set: the answer reads that row's own past, an eviction
+`self`, or no person is found. Counts read persons: seat a room's member as its person's genesis key (the key that
+signed its self roster's founding record), and a device key of that person signs for it. Ask at a row of the concluded set: the answer reads that row's own past, an eviction
 concurrent with the row by rule 4, and no instant.
 
 **A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,

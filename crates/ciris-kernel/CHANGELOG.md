@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+**Counts are over persons** (ruled on CIRISConstitution#224: "one voice however many live keys sign"). New:
+`seat::persons_of(rows, law, spec, voices, base)`, the members of `base` a set of signing keys speaks for: a key in
+`base` is its own voice; another key speaks for the key its person is named by (its self roster's genesis key, the
+founding record's signer), where that is in `base`; a key with no person, or two, is no voice. Every count reads its
+voices through it: the seat rule's count (the policy count, quorum, floor, the duty count, the recall), the fold at
+tips, the lift, the count's receipt of a lone removal, the election's ballots (one ballot a person; a person whose
+keys cast two rankings says nothing), and a window's answers (the base reads persons already). A count over a self
+roster's own keys stays a count of keys (each is a member of its base). `GroupCount`'s contract states that its
+`voices` are persons. No existing answer changes; the reference: `seat.persons_of`, `seat.person_for`,
+`seat.person_in`; six cases of `check_key_person.py` (three persons, a device key speaking for its person, an
+evicted device, a key in two rosters, a self roster's count) replayed by `tests/key_person.rs`; one plant in each
+language (a count of keys, not persons), and three crate plants retargeted to the reshaped text. Not covered by a
+case of its own: the window's and the election's mapping (the same function; the plant reads all sites).
+
 **A key's person at a row, with no instant** (0.5.0; the rule ruled on CIRISConstitution#224). New:
 `seat::person_at(c, at, law, spec, k)`, the person key `k` is at row `at` of a concluded set: the self roster (an
 object of kind `self`: a person's own key roster, or a voice's room keys in a private room) where, in the row's own
