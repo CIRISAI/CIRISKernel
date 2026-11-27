@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CIRIS Kernel</title>
-<meta name="description" content="The causal kernel of the CIRIS Constitution: one function, with its proofs, by which each member's own device works out what a group's signed statements mean, with no one in the middle.">
+<meta name="description" content="The causal kernel of the CIRIS Constitution. Not a blockchain: one function, with its proofs, by which each member's own device works out what a group's signed messages mean, with no ledger, no global order and no one in the middle.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="CIRIS Kernel">
 <meta property="og:description" content="How people and AI agents that don't trust each other can act together with no one in the middle: one function, with its proofs and its limits.">
@@ -138,9 +138,11 @@ footer p{max-width:90ch}
 </div>
 </div>
 <div>
-<p class="lede">Today that takes a middleman: a company's server, or a blockchain that makes the whole world agree on one shared list.</p>
-<p class="answer">The kernel needs neither. Each member's own device checks the signed messages it holds and works out the result itself. It is a causal kernel: the only order it uses is which message names which. It is not a consensus algorithm and gives no total order.</p>
+<p class="lede">Today that takes a middleman: a company's server, or a blockchain that makes the whole world agree on one shared ledger.</p>
+<p class="answer">The kernel is neither. It is not a blockchain, and it is not a server. It is something new: <b>a closed set of statements that strangers can make to each other in any order, and that comes out fair.</b> The same rules apply to everyone, the order things arrive in never changes the result, and nobody can bind anyone who didn't sign. It runs on each member's own device, over that device's own copy of the group's signed messages. There is no ledger, no global order, and no miners, validators or tokens. Each device works out for itself what the messages mean, and any two devices holding the same messages reach the same answer.</p>
 <div class="scroll"><table class="cmp"><thead><tr><th></th><th>Bitcoin</th><th>Proof-of-stake chains</th><th>CIRIS kernel</th></tr></thead><tbody>
+<tr><td>Is there one shared list?</td><td>Yes: one ledger for the world</td><td>Yes: one ledger per chain</td><td>No. Each group's signed messages, held by its own members</td></tr>
+<tr><td>What puts things in order?</td><td>Mining races</td><td>Validators taking turns</td><td>Nothing. A message only names the earlier ones it builds on</td></tr>
 <tr><td>Who agrees?</td><td>Miners, worldwide</td><td>Validators, worldwide</td><td>Only the members involved</td></tr>
 <tr><td>When is it final?</td><td>By convention, after about an hour of new blocks</td><td>By the chain's own rule, once validators sign off</td><td>When enough members have signed</td></tr>
 <tr><td>Cost to take part</td><td>Fees and mining energy</td><td>Fees and staked tokens</td><td>No fees, no tokens</td></tr>
@@ -168,13 +170,49 @@ footer p{max-width:90ch}
 </header>
 
 <nav class="scroll" aria-label="Sections">
-<a href="#terms">Terms</a><a href="#function">The function</a><a href="#finality">Three kinds of finality</a><a href="#threshold">The n − t + 1 rule</a><a href="#cuts">Cuts and removals</a><a href="#forks">Forks</a><a href="#forget">Forgetting safely</a><a href="#stack">The stack</a><a href="#related">Related systems</a><a href="#maturity">Maturity tests</a><a href="#limits">Limits</a><a href="#run">Run it</a>
+<a href="#notchain">Not a blockchain</a><a href="#terms">Terms</a><a href="#shape">The shape</a><a href="#function">The function</a><a href="#finality">Three kinds of finality</a><a href="#threshold">The n − t + 1 rule</a><a href="#cuts">Cuts and removals</a><a href="#forks">Forks</a><a href="#forget">Forgetting safely</a><a href="#stack">The stack</a><a href="#related">Related systems</a><a href="#maturity">Maturity tests</a><a href="#limits">Limits</a><a href="#run">Run it</a>
 </nav>
 
 <main>
-<section class="band" id="terms"><div class="wrap">
-<h2>Six terms, defined before they're used</h2>
+<section class="band" id="notchain"><div class="wrap">
+<h2>Why this is not a blockchain, and what it is instead</h2>
+<div class="grid2">
+<div>
+<p>A blockchain solves one hard problem: getting strangers all over the world to agree on a single order of events, so that nobody can spend the same coin twice. To do that, everyone has to see everything, and a costly race or a stake decides whose turn it is to add the next block.</p>
+<p>Most groups don't have that problem. A co-op, a union, a family, a board or an online community needs to know who its members are, what it decided, and who may act for it. Only its own members need to agree on that, and they don't need to agree on an order of events, only on the outcome. The kernel answers exactly that question, so it needs no global order at all.</p>
+</div>
+<div>
+<p>What it does instead is new, though each piece rests on known results (listed at the foot of the page):</p>
+<ul>
+<li><b>A closed set of statements.</b> There is a fixed list of the kinds of thing anyone can say: admit, remove, vote, acknowledge, license, halt, and the rest. A statement outside the list means nothing, so no one can invent a new power for themselves.</li>
+<li><b>A web, not a chain.</b> Every message is signed and names the earlier messages it builds on. Two people can write at the same moment and neither waits for the other.</li>
+<li><b>The rules are part of the data.</b> Who may admit, remove, moderate or halt is itself written in signed messages that the group agreed to, and every device applies the same rules to them.</li>
+<li><b>Final without a referee.</b> "Is this decision final?" becomes "do I hold enough members' receipts that no group able to block it is left?" Any device can check that alone.</li>
+<li><b>Consent, not lists.</b> A seat, a role or an authority stands only where everyone it binds has signed. No one is handed authority by appearing on someone else's list.</li>
+</ul>
+</div>
+</div>
+</div></section>
+
+<section class="band" id="terms" style="background:var(--panel)"><div class="wrap">
+<h2>Eight terms, in plain words</h2>
 <dl class="gl" id="gloss"></dl>
+</div></section>
+
+<section class="band" id="shape"><div class="wrap">
+<h2>The shape it is taking</h2>
+<p>This is the design being built and attacked for kernel 0.5.0, the release the CIRIS store will be rebuilt on. <span class="tag t-r">In progress</span> None of it is released yet. The proofs and figures further down this page describe the released <code>kernel-v0.2.0</code>.</p>
+<div class="grid3" style="margin-top:18px">
+<div class="step"><div class="k">Groups decide for themselves</div><p style="margin:0">Each group, or room, keeps its own roster. Admitting someone, removing them, or giving them a role is counted among the members it affects, under the rule the group chose for itself. No outsider can do it for them.</p></div>
+<div class="step"><div class="k">People count, not keys</div><p style="margin:0">A person may have a phone, a laptop and a backup key. Every count is over people: many keys are still one member and one vote. An AI agent's key can act for its owner where no vote is needed. It never votes.</p></div>
+<div class="step"><div class="k">What you accepted stays accepted</div><p style="margin:0">When your device acknowledges something, the acknowledgement is itself a message you signed. Later messages can't argue you out of it, and nothing you set aside comes back. That is how a device that was offline catches up safely.</p></div>
+<div class="step"><div class="k">A split heals by a merge, not a winner</div><p style="margin:0">If a group is split while its members are cut off from each other, each side carries on. When they meet again, a merge restores one roster. It is counted separately on each side, and it states everyone either side had, less anyone either side properly removed or who left. One side can't do it alone, and a merge can't be used to purge anyone.</p></div>
+<div class="step"><div class="k">Founding charters held by people</div><p style="margin:0">A community's root is a charter held by named holders. Changing it takes a majority of them. Two competing changes cancel each other rather than race, and a holder who signs both loses their say on that choice. A lost key comes back only by a route committed to in advance.</p></div>
+<div class="step"><div class="k">Authority you can trace</div><p style="margin:0">Whether a licence or a moderator stands is worked out from signed messages, back to an authority the reader itself chose to accept, and never from a list someone hands over. A body with nobody left to act for it can sign nothing new.</p></div>
+<div class="step"><div class="k">Each message reaches the right people</div><p style="margin:0">Every kind of message has a stated audience: only you, your group's current members, or everyone. Someone who has been removed receives nothing further. Someone new receives older history only if the group allows it.</p></div>
+<div class="step"><div class="k">Devices can forget, safely</div><p style="margin:0">A device may set aside the details of decisions that are settled and keep only what the rules still need. No later message can make that change an answer.</p></div>
+<div class="step"><div class="k">The limits are written down</div><p style="margin:0">Where no rule can do better, the design says so in plain words: a side that won't sign a merge stays separate, a brand-new device that has only seen one side can be misled, and a deadline read on two different clocks can differ.</p></div>
+</div>
 </div></section>
 
 <section class="band alt" id="function" style="background:var(--panel)"><div class="wrap">
@@ -245,8 +283,9 @@ footer p{max-width:90ch}
 <section class="band" id="forks" style="background:var(--panel)"><div class="wrap">
 <div class="grid2">
 <div>
-<h2>A fork is resolved by each reader, not by the network</h2>
-<p>If two versions of the same head appear, both wait. Until a later version names both branches, the roster is the members common to every branch. A reader's acknowledged head voids older forks for that reader alone. Anything that binds other members must rest on receipts.</p>
+<h2>A split is settled by each reader, and healed by a merge</h2>
+<p>If two versions of the same roster appear, nobody on the network picks a winner. Each device reads them for itself. A version it has acknowledged stays acknowledged, and what that sets aside stays set aside, for that device alone. Anything that binds other members has to rest on their receipts.</p>
+<p>In the released kernel, until a later version names both branches, the roster is the members common to every branch. In the 0.5.0 work, that later version is a merge. It is counted on each side by that side's own members and states the whole roster outright, so both sides read one roster again. <span class="tag t-r">In progress</span></p>
 <p class="small">Run by <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/models/roster_fork/fork_check.py">fork_check.py</a>; the reader's line is proved in <a href="https://github.com/CIRISAI/CIRISKernel/blob/main/proofs/Reader.lean">Reader.lean</a>.</p>
 </div>
 <div>
@@ -334,12 +373,14 @@ all 17 steps passed</pre>
 {
 const $=id=>document.getElementById(id);
 const gloss=[
-["Member device (m1, m2 …)","One participant's own phone, laptop or node, somewhere on the network. It holds its own copy of the rows and computes every answer itself."],
-["Row","A signed statement by one key. It names earlier rows by digest; that naming is the only order. The device records when it first held each row."],
-["Head","A version of the roster: who the members are at that point. Every act names the head it is counted at."],
+["Member device (m1, m2 …)","One participant's own phone, laptop or node. It keeps its own copy of the group's messages and works out every answer itself."],
+["Row","One signed message. It names the earlier messages it builds on, and that naming is the only order there is."],
+["Room","A group with its own roster and its own rules: a family, a co-op, a board, an online community."],
+["Person","Someone who may hold several keys (a phone, a laptop, a backup). Every count is over people, not keys."],
+["Head","A version of the roster: who the members are at that point. Every decision names the version it is counted at."],
 ["Act","Something the group decides: a vote, a seat, a file change, a removal."],
-["Receipt","A row by a member at the act's head, with the act in its past. It gives away that member's power to cut the act."],
-["Cut","A row that blocks or ends something, by someone allowed to. Removing a member is a cut on their key."]];
+["Receipt","A member's signed note that they have seen a decision. It gives up that member's power to block it, and agrees to nothing else."],
+["Cut","A message that blocks or ends something, by someone allowed to. Removing a member is a cut on their key."]];
 $('gloss').innerHTML=gloss.map(g=>`<div><dt>${g[0]}</dt><dd>${g[1]}</dd></div>`).join('');
 
 const vars=[["Rᵢ","the signed rows device i holds, each with the moment i first held it"],["kᵢ","the key i signs with. Whom i trusts is a fold over rows that key signed, so there's no trust set and no configuration among the inputs"],["tᵢ","i's own clock, read only when a window closes or a stated end is reached"],["C","the Constitution's tables (roles, policies, windows), passed in as data"],["Aᵢ","what every row means to i: live or not, who stands where, whether a count is met, what i may do"]];
@@ -387,6 +428,7 @@ const lim=[
 ["No liveness under a withholding quorum","If t of the members who could cut withhold receipts, the act never becomes final. They can stop a count from being met, though not falsify one."],
 ["A reader with no acknowledgement of its own","It is exposed to a fork by keys that once met a count, and to whoever controls its first view."],
 ["Clocks","Windows read on each node's own clock can leave two nodes with different answers around a deadline."],
+["Splits that won't heal","If one side of a split group won't sign a merge, the group stays two groups for their two sets of readers. That is the truth of the situation, and the kernel reports it rather than picking a side."],
 ["Personhood","The kernel counts one person once through signed bindings. That each key is one living person is the group's own admission; the kernel doesn't establish it."],
 ["Coercion","Nothing stops a member who is watched or paid from signing as told, or protects an act signed from a device someone else controls."],
 ["Unproved","The smallest set of rows a node must keep, and whether a withdrawn receipt still blocks a cut."],
