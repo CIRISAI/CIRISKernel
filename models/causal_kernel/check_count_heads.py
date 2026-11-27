@@ -279,6 +279,13 @@ GBN = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",), "review": ("B",)}
 BN = [GBN, admit("aD", "D", ("A", "B"), ("g",)), admit("aE", "E", ("A", "B", "D"), ("aD",)), conf("cf", "B", ("g",))]
 
 
+# item 13: a room of four (A, B, C, and D admitted), the takedown at aD, and two later versions
+SV = [G, admit("aD", "D", ("A", "B", "C"), ("g",)),
+      ST.unseat("tk", "B", "A", "moderate", OBJ, "group", ("aD",), head=("aD",), policy="moderator_recall",
+                cosigners=("C", "D")),
+      admit("v1", "Y", ("A", "B", "D"), ("aD",)), admit("v2", "X", ("A", "B", "D", "Y"), ("v1",))]
+
+
 def invite(i, k, signers, heads, cites=()):
     """A counted invitation of k that k does not sign: a seat when k's own acceptance completes it."""
     return ST.offer(i, signers[0], k, "member", OBJ, "group", tuple(heads) + tuple(cites), head=tuple(heads),
@@ -392,6 +399,20 @@ CASES = [
          "the other is no change behind it, and both stand",
      ROOM + [admit("ax", "X", FIVE, ("aG",)), admit("ay", "Y", FIVE, ("aG",)), ack("ak", "R", "ax")], "R",
      {"ax": T, "ay": T}, {"member": SEVEN | {"X", "Y"}}, set()),
+    # ---- H5, the superseded version (persist's item 13 (a)): the room's roster versions play the bundle versions, and
+    # a counted takedown (B, C and D's recall of A's `moderate`, three of four) is at version aD; v1 (Y admitted at aD)
+    # and v2 (X admitted at v1) are later versions. No voice of the takedown is dropped (that is (b), held for a ruling)
+    (H5, "item 13 (a): a counted takedown at an older version, two versions behind the one a reader acknowledged "
+         "(v2, built on v1, built on the takedown's own head): void for that reader, and A keeps the seat",
+     SV + [ack("ak", "R", "v2")], "R", {"tk": T, "v1": T, "v2": T}, {"moderate": {"A"}}, {"tk"}),
+    (H5, "item 13 (a): the same rows for a reader with no row: the takedown stands, and the seat is ended",
+     SV, None, {"tk": T, "v1": T, "v2": T}, {"moderate": set()}, set()),
+    (H5, "item 13 (a): the same rows for Y, which signed v2 (its own rows are its acknowledgements, H6): void for it",
+     SV, "Y", {"tk": T, "v1": T, "v2": T}, {"moderate": {"A"}}, {"tk"}),
+    (H5, "item 13 (a), the sibling: a reader acknowledged v1, the version right after the takedown's own head. The "
+         "takedown is v1's sibling, not behind it (the line is sibling-safe, the ruling of 2026-11-27): it stands for "
+         "that reader, and the seat is ended",
+     SV + [ack("ak", "R", "v1")], "R", {"tk": T, "v1": T, "v2": T}, {"moderate": set()}, set()),
     # ---- H6 ---------------------------------------------------------------------------------------------------------
     (H6, "the same removal, for a founder that signed every admission and wrote no acknowledgement row",
      ROOM + [remove("xg", "G", ("A", "B"), ("g",))], "C", {"xg": T}, {"member": SEVEN}, {"xg"}),
