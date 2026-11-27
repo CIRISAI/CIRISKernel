@@ -4146,28 +4146,23 @@ pub fn merge_concludes<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &Sea
     if newest != tips.iter().copied().collect::<BTreeSet<_>>() {
         return false;
     }
-    let all_voices = voices(r, p);
+    // infrastructure rooms: until the Constitution rules what a merge is counted as there, it concludes nothing
+    let infra_merge = kind_of(law, &|i| p.get(i), &obj) == Some(CommunityKind::Infrastructure);
+    if infra_merge {
+        return false;
+    }
+    // counted on each tip as an admission at that tip is, through the seat rule's own count (count_met): over the
+    // tip's past alone, its heads that tip, with no reader's line, and seating no key of its own there
+    let me = p.index();
     for &t in &tips {
-        let anc: Vec<usize> = p.ancestors().iter().copied().filter(|&x| g.in_past(x, t)).collect();
-        let pt = Past::new(g, t, &anc);
-        let tid = [g.row(t).id().clone()];
-        let mut mem = persons_at_with(&pt, law, spec, &obj, &tid, "member", None);
-        for k in left_in_past(&pt, &obj, "member") {
-            mem.remove(&k);
-        }
-        let v: BTreeSet<R::Key> = all_voices.iter().filter(|k| mem.contains(*k)).cloned().collect();
-        let Ok(fs) = policy_in_force(law, &pt, r) else { return false };
-        if fs.is_empty() {
+        let anc: Vec<usize> = p.ancestors().iter().copied().filter(|&x| x == t || g.in_past(x, t)).collect();
+        let pt = Past::new(g, me, &anc);
+        let local = MembersAt::<R>::default();
+        *local.merge_tip.borrow_mut() = Some(g.row(t).id().clone());
+        let lv: BTreeSet<R::Id> = void_changes_in(g, &anc, &obj, law, spec, None);
+        local.void.borrow_mut().push(lv);
+        if !count_met(&pt, law, spec, Some(&local)) {
             return false;
-        }
-        for f in &fs {
-            let count = GroupCount { policy: f.pol, offer: true, to: &[], members: &mem, voices: &v, need: f.need };
-            let wr: &R = f.weights.unwrap_or(r);
-            if !group_count(&count, |k| wr.weights().iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x))
-                .unwrap_or(false)
-            {
-                return false;
-            }
         }
     }
     let (members, duties) = merge_content(p, law, spec, &obj, &tips);
@@ -4220,6 +4215,9 @@ struct MembersAt<R: SeatRow> {
     rpairs: RefCell<Vec<HeldPair<R>>>,
     // the seat ends behind the reader's line ([`reader_ends`]): no vacancy end for it (H4, the election)
     pub(crate) rends: RefCell<BTreeSet<<R as Row>::Id>>,
+    // a roster merge's count on one named tip: the tip it is counted at (its heads read as that tip alone, and it
+    // seats no key of its own there: counted as an admission at the tip is)
+    merge_tip: RefCell<Option<<R as Row>::Id>>,
 }
 
 /// Two concurrent founders' amendments a reader holds: their ids, the keys the two seat, and the room.
@@ -4249,6 +4247,7 @@ impl<R: SeatRow> Default for MembersAt<R> {
             views: RefCell::default(),
             rpairs: RefCell::default(),
             rends: RefCell::default(),
+            merge_tip: RefCell::default(),
         }
     }
 }
@@ -4358,7 +4357,12 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
     let Some(obj) = r.obj() else { return BTreeSet::new() };
     let over = obj; // H2: a counted row is counted over its own object
     let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
-    let mut mem = persons_at_with(p, law, spec, &over, r.head(), counted, cache);
+    let tip: Option<R::Id> = cache.and_then(|c| c.merge_tip.borrow().clone());
+    let heads: &[R::Id] = match &tip {
+        Some(t) => core::slice::from_ref(t),
+        None => r.head(),
+    };
+    let mut mem = persons_at_with(p, law, spec, &over, heads, counted, cache);
     for k in left_in_past(p, &over, counted) {
         mem.remove(&k);
     }
@@ -4553,6 +4557,9 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
 ) -> bool {
     let r = p.row();
     let is_offer = r.seat_kind() == SeatKind::Offer;
+    // a roster merge counted at one tip seats no key of its own there (merge_concludes)
+    let merging = cache.is_some_and(|c| c.merge_tip.borrow().is_some());
+    let to: &[R::Key] = if merging { &[] } else { r.to() };
     let Some(obj) = r.obj() else { return false };
     let pol = f.pol;
     // the lift is told by its act where the binding is on and the object has a kind, by its policy otherwise
@@ -4565,7 +4572,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         // members at both heads, is roster-kinds' follow-up)
         let mut mem = persons_at_with(p, law, spec, &obj, r.head(), "member", cache);
         mem.remove(&author); // the author is not among the members the majority is taken of
-        return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
+        return count_of(pol, is_offer, to, &mem, &v, None, |_| 0);
     }
     if pol == Some(Policy::Ranked) {
         // the election's seating (C1 to C5): its electorate read at its election's vacancy, not at a head
@@ -4613,7 +4620,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
             let common: BTreeSet<R::Key> = mem.iter().filter(|k| !pair_keys.contains(*k)).cloned().collect();
             let union: BTreeSet<R::Key> = common.iter().chain(pair_keys.iter()).cloned().collect();
             let new_r: Vec<&R::Key> =
-                if is_offer { r.to().iter().filter(|k| !union.contains(*k)).collect() } else { Vec::new() };
+                if is_offer { to.iter().filter(|k| !union.contains(*k)).collect() } else { Vec::new() };
             let Some(RoomProtocol::Quorum(m2, n2)) =
                 r.consensus_protocol().and_then(|w| RoomProtocol::parse_in(w.as_ref(), true))
             else {
@@ -4650,7 +4657,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
             // a founders' amendment: it seats its new keys, signed by each, and is a widening by the founders'
             // count, so a stalled room makes none
             let new: Vec<&R::Key> =
-                if is_offer { r.to().iter().filter(|k| !mem.contains(*k)).collect() } else { Vec::new() };
+                if is_offer { to.iter().filter(|k| !mem.contains(*k)).collect() } else { Vec::new() };
             let v = voices(r, p);
             if !new.iter().all(|k| v.contains(*k)) {
                 return false;
@@ -4689,15 +4696,15 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     // removal removes is neither counted over nor a voice
     let drop_to = f.exclude_target || f.base_excludes_target;
     let v: BTreeSet<R::Key> =
-        voices(r, p).into_iter().filter(|k| !void.contains(k) && !(drop_to && r.to().contains(k))).collect();
+        voices(r, p).into_iter().filter(|k| !void.contains(k) && !(drop_to && to.contains(k))).collect();
     let mem: BTreeSet<R::Key> =
-        if f.base_excludes_target { mem.into_iter().filter(|k| !r.to().contains(k)).collect() } else { mem };
+        if f.base_excludes_target { mem.into_iter().filter(|k| !to.contains(k)).collect() } else { mem };
     // a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
-    if f.no_self_removal && v.iter().all(|k| r.to().contains(k)) {
+    if f.no_self_removal && v.iter().all(|k| to.contains(k)) {
         return false;
     }
     // the community floor, where a policy row governs alone in place of a protocol that states no rule (`&`)
-    if f.floor > 0 && v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).count() < f.floor {
+    if f.floor > 0 && v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).count() < f.floor {
         return false;
     }
     // the recall is told by its act where the binding reads one (an unseat of a duty counted over the members), by
@@ -4712,7 +4719,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         return false; // a lone holder with a duty offer of its own standing confers no other alone
     }
     // the threshold and the weights in force: the record's under the room's protocol, the row's otherwise
-    let count = GroupCount { policy: pol, offer: is_offer, to: r.to(), members: &mem, voices: &v, need: f.need };
+    let count = GroupCount { policy: pol, offer: is_offer, to: to, members: &mem, voices: &v, need: f.need };
     let wr: &R = f.weights.unwrap_or(r);
     // a ranked count was answered above, so the count answers
     group_count(&count, |k| wr.weights().iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x)).unwrap_or(false)

@@ -474,6 +474,9 @@ def merge_concludes(r, P, past):
     obj, tips = r["obj"], tuple(r.get("head", ()))
     by = {q["id"]: q for q in P}
     if len(tips) < 2 or any(t not in by for t in tips): return False
+    # an infrastructure room: until the Constitution rules what a merge is counted as there, it concludes nothing
+    # (MUTATION merge_infra_counted: counted as anywhere else)
+    if kind_of(by, obj) == "infrastructure" and "merge_infra_counted" not in MUT: return False
     if any(past(a, b) for a in tips for b in tips): return False
     acts = [q for q in P if q.get("obj") == obj and q.get("conf") == "group" and q["kind"] in ("offer", "unseat") or q["id"] == obj]
     newest = {q["id"] for q in acts if not any(past(q["id"], x["id"]) for x in acts)}

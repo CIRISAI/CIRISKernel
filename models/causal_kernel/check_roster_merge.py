@@ -45,6 +45,11 @@ X2R = remove("x2", "E", ("B", "C", "D", "F", "G"), ("aG",))
 Y2R = admit("y2", "L", ("B", "C", "D", "F", "G"), ("x2",))
 PARTR = ROOM + [X1, X2R, Y1, Y2R, ack("k1", "R1", "y1"), ack("k2", "R2", "y2")]
 NE = tuple("ABCDFGHKL")
+# an infrastructure room (f1 f2 f3 founders, quorum:2/3) with two concurrent node seatings
+INFRA = [ST.offer("g", "f1", ("f1", "f2", "f3"), "founder", "@", "self", cosigners=("f2", "f3"),
+                  cohort_subkind="infrastructure", consensus_protocol="quorum:2/3", consensus_protocol_entrenched=True),
+         ST.offer("n1", "f1", "N1", "node", OBJ, "group", ("g",), head=("g",), counted="founder", cosigners=("f2",)),
+         ST.offer("n2", "f2", "N2", "node", OBJ, "group", ("g",), head=("g",), counted="founder", cosigners=("f3",))]
 # three tips: side 3 admits N at aG
 X3 = admit("x3", "N", ("A", "B", "C", "F", "G"), ("aG",))
 THREE = ROOM + [X1, X2, X3]
@@ -90,6 +95,9 @@ CASES = [
         M("m3", ("x1", "x2", "x3"), tuple("ABCDEFGHJN"), MOD, tuple("ABCDEFGHJN"))], None, {"m3": T}, set("ABCDEFGHJN"), MOD, None),
     ("three tips: short on one (x3's members A..G N: four of eight sign) concludes nothing", THREE + [
         M("m3", ("x1", "x2", "x3"), tuple("ABCDEFGHJN"), MOD, tuple("ABCDHJN"))], None, {"m3": F}, None, None, None),
+    ("an infrastructure room: a merge of two tips concludes nothing until the Constitution rules what it is counted "
+     "as there", INFRA + [ST.merge("mi", "f1", OBJ, ("n1", "n2"), ("f1", "f2", "f3"), {}, cosigners=("f2", "f3"))], None,
+     {"mi": F}, None, None, None),
     ("tips in each other's past are no merge: x1 and y1", PART + [M("mx", ("x1", "y1"), tuple("ABCDEFGHK"))], None,
      {"mx": F}, None, None, None),
     ("a merge that leaves out a newest tip concludes nothing: x1 and y2 (y1 newer than x1)", PART + [M("mx", ("x1", "y2"))],
@@ -99,6 +107,8 @@ CASES = [
 PLANTS = (("merge_over_fold", ST.MUT), ("merge_free_roster", ST.MUT), ("merge_blocked_by_void", "both"),
           ("merge_revives", ST.MUT), ("merge_tip_reader", ST.MUT), ("merge_states_nothing", ST.MUT),
           ("merge_consent_asked", ST.MUT))
+# (merge_infra_counted is no plant: counted as an admission there, the founders' binding refuses a member-scope count
+# over an infrastructure room anyway, so the explicit refusal is the stated rule and no case can tell them apart)
 
 
 def answer(rows, own, concl, members, duties, stale):
