@@ -14,7 +14,9 @@ head than the act's (the key stood at the act's head). An election's seating (C1
 are not read here. **An answer changes:** a counted act that needs the voice of a key removed concurrently, at or
 after the act's head, no longer stands. **The edge:** a counted act and a concurrent removal of a voice it needs do
 not both stand; the remedy is to sign the act again forward, by voices seated at the newer head. Cases in
-`check_count_heads.py` (rule 5, every act) and one in `check_duty_seats.py` (the fold's own case, now that rule 5
+`check_count_heads.py` (rule 5, every act; among them the settled pair: a count naming both rows of a contested pair
+that removes one member judges an act counting on that member's voice like any removal, by its heads, and the
+contested rows never reach the act) and one in `check_duty_seats.py` (the fold's own case, now that rule 5
 reaches the old one); plants `contested_unseats_only` and `contested_takes_voice`, in both languages.
 
 **The lift's base: the persons at both heads** (the lift follow-up, after the head rules). A lift (a re-seating

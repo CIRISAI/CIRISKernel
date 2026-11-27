@@ -295,6 +295,11 @@ SV = [G, admit("aD", "D", ("A", "B", "C"), ("g",)),
 TB = [G, admit("aD", "D", ("A", "B", "C"), ("g",))]
 TKB = admit("tk", "Z", ("B", "C", "D"), ("aD",))
 V1B = remove("v1", "C", ("A", "B", "D"), ("aD",))
+# the room of five with a contested pair (v1 removes C, v2 removes D, each needing a voice the other ends), and the
+# count naming both that settles it by removing C
+TP5 = TB + [admit("aE", "E", ("A", "B", "C", "D"), ("aD",)), remove("v1", "C", ("A", "B", "D"), ("aE",)),
+            remove("v2", "D", ("A", "B", "C"), ("aE",))]
+SP5 = remove("s", "C", ("A", "B", "D", "E"), ("v1", "v2"))
 
 
 def invite(i, k, signers, heads, cites=()):
@@ -439,6 +444,18 @@ CASES = [
      TB + [admit("aE", "E", ("A", "B", "C", "D"), ("aD",)), remove("v1", "C", ("A", "B", "D"), ("aE",)),
            remove("v2", "D", ("A", "B", "C"), ("aE",)), admit("tk", "Z", ("A", "C", "D", "E"), ("aE",))], None,
      {"tk": T, "v1": T, "v2": T}, {"member": set("ABCDEZ")}, set()),
+    (R5, "item 13 (b), the settled pair: the two contested removals of the room of five, and an act at their two "
+         "heads (Z admitted by A, B, C and E, four of five, C's voice needed): the contested rows never reach it, and "
+         "it stands", TP5 + [admit("tk", "Z", ("A", "B", "C", "E"), ("v1", "v2"))], None,
+     {"tk": T, "v1": T, "v2": T}, {"member": set("ABCDEZ")}, set()),
+    (R5, "item 13 (b), the settled pair: a count naming both (s, by A, B, D and E) settles it by removing C; the same "
+         "act, concurrent with s and at s's own heads, is judged by s like any other act: C's voice is not in force "
+         "from those heads on, and the act falls: C is out, Z is not seated",
+     TP5 + [SP5, admit("tk", "Z", ("A", "B", "C", "E"), ("v1", "v2"))], None,
+     {"tk": T, "v1": T, "v2": T, "s": T}, {"member": set("ABDE")}, set()),
+    (R5, "item 13 (b), the settled pair: an act with the settling removal in its past (Z admitted by A, B, D and E at "
+         "s): it stands", TP5 + [SP5, admit("tk", "Z", ("A", "B", "D", "E"), ("s",))], None,
+     {"tk": T, "v1": T, "v2": T, "s": T}, {"member": set("ABDEZ")}, set()),
     (R5, "item 13 (b): the removal at a newer head than the act (E admitted at aD, C removed at aE): C stood at tk's "
          "own head, so its voice counts there and tk stands: Z is seated, C is out",
      TB + [admit("aE", "E", ("A", "B", "D"), ("aD",)), remove("v1", "C", ("A", "B", "D", "E"), ("aE",)), TKB], None,
