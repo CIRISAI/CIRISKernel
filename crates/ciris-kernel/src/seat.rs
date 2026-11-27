@@ -207,8 +207,9 @@ pub trait SeatRow: Row {
         None
     }
     /// A group's founding record: its group kind (`family` for a family record, which carries a `family_key_id`;
-    /// `community` or none for a community). `family` makes the object a [`CommunityKind::Family`] ([`kind_of`]),
-    /// whatever its scope or `cohort_subkind`. Default `None`: a community.
+    /// `affiliation` for a licensing authority's; `community` or none for a community). `family` makes the object a
+    /// [`CommunityKind::Family`], `affiliation` a [`CommunityKind::Affiliation`] ([`kind_of`]), whatever its scope or
+    /// `cohort_subkind`. Default `None`: a community.
     fn group_kind(&self) -> Option<&Self::Word> {
         None
     }
@@ -322,6 +323,13 @@ pub trait SeatRow: Row {
     }
     /// An acknowledgement: the object (room) whose head it acknowledges.
     fn room(&self) -> Option<Obj<Self::Id, Self::Key>> {
+        None
+    }
+    /// An affiliation's record: the licence classes its charter declares (CC 3.4.7: "the charter enumerates the
+    /// licence classes the affiliation issues"), read by [`crate::charter`]. On the founding record `None` declares
+    /// none; on a change of the record (scope `record`) `None` states none and leaves the classes as they were at its
+    /// head. Default `None`.
+    fn licence_classes(&self) -> Option<&[Self::Word]> {
         None
     }
     /// A founding row that declares its community's `membership` `private` (CC 3.1.3.2): a private room, whose
@@ -714,6 +722,10 @@ pub fn kind_of<'r, R: SeatRow + 'r>(
     if g.group_kind().is_some_and(|k| k.as_ref() == "family") {
         return Some(CommunityKind::Family);
     }
+    // an affiliation (CC 3.4.7: a licensing authority) is a community record of kind `affiliation`
+    if g.group_kind().is_some_and(|k| k.as_ref() == "affiliation") {
+        return Some(CommunityKind::Affiliation);
+    }
     let kind = g.scope().and_then(|sc| law.kinds.get(sc.as_ref()).copied()).unwrap_or(CommunityKind::Community);
     // a community's record says whether it is an infrastructure community: `cohort_subkind`
     if kind == CommunityKind::Community && g.cohort_subkind().is_some_and(|c| c.as_ref() == "infrastructure") {
@@ -833,6 +845,17 @@ pub fn act_of<'r, R: SeatRow + 'r>(
             }
         }
         CommunityKind::Accord => Some((Act::StandingAct, ScopeClass::Any, kind)),
+        CommunityKind::Affiliation => {
+            // a change of the affiliation's record (its charter, [`crate::charter`]) under its declared protocol; a
+            // dissolution is the act dissolve, which the table does not bind for an affiliation. No other act over an
+            // affiliation is read here
+            match sc? {
+                "record" if offer => {
+                    Some((if r.dissolves() { Act::Dissolve } else { Act::RecordChange }, ScopeClass::Record, kind))
+                }
+                _ => None,
+            }
+        }
         CommunityKind::SelfRoster => {
             let sc = sc?;
             let own = match &obj {
@@ -2201,6 +2224,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     /// The concluded set.
     pub fn c(&self) -> &'c Concluded<'a, R> {
         self.c
+    }
+    /// The law it was built under.
+    pub fn law(&self) -> &'c SeatLaw {
+        self.law
     }
     /// The cut over it. For a reader (`own` set) it is that reader's: solved without the counted acts behind
     /// the reader's line, which cut nothing for it (0.5.0). With no reader it is the cut over the set.

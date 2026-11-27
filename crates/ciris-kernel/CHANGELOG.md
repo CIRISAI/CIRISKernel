@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+**Charter coverage for licensing authorities** (CC 3.4.7; CC 4.4.3.12, 4.4.3.34), both languages, with cases and
+planted breaks (`charter.py`, `check_charter.py`; fixture `charter.json`). Whether an authority's charter declares a
+class is read from rows, not asked of the caller. **BREAKING**: `trust::honours` and `trust::EdgeIndex::honours` take
+a `&trust::Charters` in place of the `charter_declares` callback. New: `trust::Charters` (per authority, the classes
+declared; `meet` intersects a charter supplied from elsewhere, such as the trust root's scope), the module `charter`
+(`declared`, `charters`, `read_licence`, `Untrusted`), `SeatRow::licence_classes` (default `None`) and `Seats::law`.
+- A licensing authority is an affiliation: a founding record whose `group_kind` is `affiliation`
+  (`CommunityKind::Affiliation`). Its charter is the record's own `licence_classes`.
+- The charter is read over the rows the reader holds, never at a licence's own instant: a class a later amendment
+  drops stops matching every licence of it.
+- A version is a change of the affiliation's record (scope `record`, the act `record_change`) that concludes under
+  the affiliation's declared protocol and counts for the reader. A change below the protocol leaves the charter as
+  it was. The Constitution's acts table has no row for it yet: the model's `seat.PENDING_ACTS` adds
+  `record_change / record / affiliation / cosigned_act / fixed`, and the fixtures' law carries it. A record change is
+  no act against a member, so a one-seat affiliation changes its charter alone.
+- A version stating no classes keeps those in force at its head. Two version tips that differ declare the classes
+  both list, until a version names both (the Constitution's derived reading).
+- A licence of a class the charter does not declare is admitted as a row and honoured by no reader
+  (`licence_class_not_trusted`); a class the reader's walk does not reach is `authority_not_reached`.
+
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone
   removal out of force) ended nothing, and does not block a later end (the settling count, S4).

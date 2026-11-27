@@ -587,6 +587,10 @@ fn the_walks_equal_the_walks_they_replaced() {
             .collect();
         let pairs: Vec<(u32, u32)> = edges.iter().map(|e| (e.src, e.dst)).collect();
         let index = trust::EdgeIndex::new(&edges);
+        let mut charter = trust::Charters::new();
+        for k in 0..keys {
+            charter.meet(k, (0..3u8).filter(|c| !(k + *c as u32).is_multiple_of(3)));
+        }
         for from in 0..keys {
             for depth in 0..5 {
                 cases += 1;
@@ -600,9 +604,8 @@ fn the_walks_equal_the_walks_they_replaced() {
                         bad += (trust::reaches(&edges, &from, &c, budget, &a) != want) as usize;
                         bad += (index.reaches(&from, &c, budget, &a) != want) as usize;
                     }
-                    let charter = |k: &u32, c: &u8| !(*k + *c as u32).is_multiple_of(3);
                     cases += 1;
-                    bad += (index.honours(&from, charter, &a, &c) != trust::honours(&edges, &from, charter, &a, &c))
+                    bad += (index.honours(&from, &charter, &a, &c) != trust::honours(&edges, &from, &charter, &a, &c))
                         as usize;
                 }
             }

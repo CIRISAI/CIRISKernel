@@ -32,6 +32,9 @@ Sources (all under models/):
               root grant), and a later bundle version: its case table, per act and owner, with why.
               tests/conferral_two.rs replays it through standing::answers; it is also for Verify's standing
               walk and an adopter's own code.
+    charter   causal_kernel/check_charter.py: an affiliation's charter (the licence classes its record in force
+              declares) and whether a reader honours a licence. tests/charter.rs replays it through
+              charter::declared and charter::read_licence.
 """
 import base64
 import hashlib
@@ -778,6 +781,8 @@ def main():
     dump("conferral_content_worlds.json", CK.worlds_fixture(), out)
     import check_conferral_two as C2
     dump("conferral_two.json", C2.fixture(), out)
+    import check_charter as CHC
+    dump("charter.json", CHC.fixture(with_refs), out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():

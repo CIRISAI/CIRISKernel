@@ -75,6 +75,7 @@ def declared(S, aff, own=None, seats=None):
     if ST.kind_of(S.by, aff) != "affiliation" and "any_record_kind" not in MUT:
         return None
     Q = seats if seats is not None else ST.Seats(S, own=own)
+    S = Q.S                                         # the rows as they conclude for this reader (seat.reader_state)
     rows = S.rows if "below_protocol_read" in MUT else S.Cs
     vs = [q for q in rows if is_version(q, aff)
           and ("below_protocol_read" in MUT or (Q.cut.counts(q) and q["id"] not in Q.stale))]

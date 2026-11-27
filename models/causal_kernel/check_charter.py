@@ -198,6 +198,30 @@ def misses(plant=None, every_order=False):
     return hit
 
 
+def fixture(with_refs):
+    """The cases with the model's answers, for the crate (tests/charter.rs, through tools/kernel_fixtures.py): rows as
+    the models build them, each object a reference (`refs` names them); an edge's ends and an authority are names, a
+    row where a row of the case has that id and a key otherwise. `with_refs`: kernel_fixtures.py's."""
+    out = {"declared": [], "licences": []}
+    for name, rows, a, own, _want in DECLARED:
+        refs = {}
+        d = CH.declared(arrive(rows), a, own)
+        out["declared"].append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "aff": a, "own": own,
+                                "declared": None if d is None else sorted(d)})
+    for name, rows, edges, reader, lid, supplied, _want in LICENCES:
+        refs = {}
+        S = arrive(rows)
+        ok, why = CH.read_licence(S, edges, reader, lid, supplied=supplied)
+        r = S.by[lid]
+        out["licences"].append({
+            "name": name, "rows": with_refs(rows, refs), "refs": refs, "reader": reader,
+            "edges": [[e["src"], e["dst"], list(e["classes"]), e["depth"]] for e in edges],
+            "licence": lid, "authority": r["authority"], "class": r["licence_class"],
+            "supplied": {k: sorted(v) for k, v in sorted((supplied or {}).items())},
+            "admitted": bool(S.C.get(lid)), "honoured": ok, "reason": why})
+    return out
+
+
 def main():
     problems = misses(every_order=True)
     caught = 0

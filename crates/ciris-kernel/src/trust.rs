@@ -6,9 +6,56 @@
 //! the lesser of what is left and the edge's own; an edge admits a class it lists, or every class when it
 //! lists none, so the classes along a walk intersect; and a cycle is visited once, since arriving again at a
 //! key with no more budget than before reaches nothing new (`reaches_mono_budget`).
+//!
+//! Whether an authority's charter declares a class is no caller's answer: [`Charters`] holds each authority's
+//! declared classes, read from rows by [`crate::charter::charters`] (an affiliation's record in force over the rows
+//! the reader holds), with any other charter supplied for an authority (the trust root's scope) met with it.
 
-use alloc::collections::BTreeMap;
+use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
+
+/// Per authority, the licence classes its charter declares. An authority with no entry declares none. Built by
+/// [`crate::charter::charters`]; a charter from elsewhere (the trust root bundle's scope) enters by [`Charters::meet`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Charters<K: Ord, C: Ord> {
+    by: BTreeMap<K, BTreeSet<C>>,
+}
+
+impl<K: Ord, C: Ord> Default for Charters<K, C> {
+    fn default() -> Self {
+        Charters { by: BTreeMap::new() }
+    }
+}
+
+impl<K: Ord, C: Ord> Charters<K, C> {
+    /// No authority declares anything.
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// Meet a charter for `auth` with the one held: the classes both declare (the first charter for an authority is
+    /// taken as it is).
+    pub fn meet(&mut self, auth: K, classes: impl IntoIterator<Item = C>) {
+        let new: BTreeSet<C> = classes.into_iter().collect();
+        match self.by.get_mut(&auth) {
+            Some(have) => have.retain(|c| new.contains(c)),
+            None => {
+                self.by.insert(auth, new);
+            }
+        }
+    }
+    /// Whether `auth`'s charter declares class `cls`.
+    pub fn declares(&self, auth: &K, cls: &C) -> bool {
+        self.by.get(auth).is_some_and(|s| s.contains(cls))
+    }
+    /// The classes `auth`'s charter declares, where it has one.
+    pub fn classes(&self, auth: &K) -> Option<&BTreeSet<C>> {
+        self.by.get(auth)
+    }
+    /// Every authority with a charter, and the classes it declares, in key order.
+    pub fn iter(&self) -> impl Iterator<Item = (&K, &BTreeSet<C>)> {
+        self.by.iter()
+    }
+}
 
 /// An acceptance edge: `src` trusts `dst` as a licensor, for the classes listed (all when empty), with
 /// `depth` further hops allowed past `dst`.
@@ -97,8 +144,11 @@ impl<'e, K: Ord + Clone, C: PartialEq> EdgeIndex<'e, K, C> {
         walk(self.edges, &self.by_src, from, c, budget, a)
     }
     /// [`honours`] over the indexed edges: the same answer.
-    pub fn honours(&self, reader: &K, charter_declares: impl Fn(&K, &C) -> bool, auth: &K, cls: &C) -> bool {
-        charter_declares(auth, cls) && self.reaches(reader, cls, HOP_CAP, auth)
+    pub fn honours(&self, reader: &K, charters: &Charters<K, C>, auth: &K, cls: &C) -> bool
+    where
+        C: Ord,
+    {
+        charters.declares(auth, cls) && self.reaches(reader, cls, HOP_CAP, auth)
     }
 }
 
@@ -120,12 +170,12 @@ fn walk<K: Ord + Clone, C: PartialEq>(
 
 /// Whether the reader honours a licence of class `cls` issued by `auth`: its own walk, within the cap,
 /// reaches the authority for that class, and the authority's charter declares the class (`TrustSet.honours`).
-pub fn honours<K: Ord + Clone, C: PartialEq>(
+pub fn honours<K: Ord + Clone, C: Ord>(
     edges: &[Accepts<K, C>],
     reader: &K,
-    charter_declares: impl Fn(&K, &C) -> bool,
+    charters: &Charters<K, C>,
     auth: &K,
     cls: &C,
 ) -> bool {
-    charter_declares(auth, cls) && reaches(edges, reader, cls, HOP_CAP, auth)
+    charters.declares(auth, cls) && reaches(edges, reader, cls, HOP_CAP, auth)
 }

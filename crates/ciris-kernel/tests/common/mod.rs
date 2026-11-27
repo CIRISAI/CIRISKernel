@@ -289,6 +289,8 @@ pub struct TRow {
     pub duty_holders: Vec<(String, Vec<String>)>,
     /// A record's `weights` (a weighted protocol's): (key, whole-number weight) pairs.
     pub weights: Vec<(String, u64)>,
+    /// An affiliation's record: its `licence_classes`, where the row states them.
+    pub licence_classes: Option<Vec<String>>,
     pub sigs: Vec<String>,
     pub obj: Option<Obj<String, String>>,
     pub over: Option<Obj<String, String>>,
@@ -381,6 +383,7 @@ impl TRow {
                 .filter(|x| matches!(x, J::Arr(_)))
                 .map(|x| x.arr().iter().map(|e| (e.arr()[0].s().to_string(), e.arr()[1].i() as u64)).collect())
                 .unwrap_or_default(),
+            licence_classes: m.get("licence_classes").filter(|x| matches!(x, J::Arr(_))).map(|x| x.strs()),
             sigs: strs(&m, "sigs"),
             obj: o("obj"),
             over: o("over"),
@@ -573,6 +576,9 @@ impl SeatRow for TRow {
     }
     fn private_room(&self) -> bool {
         self.fs("membership") == Some("private")
+    }
+    fn licence_classes(&self) -> Option<&[String]> {
+        self.licence_classes.as_deref()
     }
 }
 
