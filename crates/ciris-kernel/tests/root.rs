@@ -170,7 +170,7 @@ fn reader(j: &J) -> Reader<String, String> {
     Reader {
         anchor: j.get("anchor").and_then(|a| a.opt_s()),
         thumbs: j.get("thumbs").filter(|t| !t.is_null()).map(|t| t.str_set()),
-        acks: j.at("acks").str_set(),
+        acks: j.at("acks").strs(),
         rows: j.get("rows").filter(|r| !r.is_null()).map(|r| r.str_set()).unwrap_or_default(),
     }
 }
@@ -195,7 +195,7 @@ fn root_replay() {
             .collect();
         let gs = grants(c.at("grants"));
         let rd = reader(c.at("reader"));
-        let root = Root::new(&bs, &revs, &gs).with_grant_line(c.get("line").is_some_and(|l| l.b()));
+        let root = Root::new(&bs, &revs, &gs);
         let name = c.at("name").s();
         let mut fail = |what: &str, got: String| {
             bad += 1;

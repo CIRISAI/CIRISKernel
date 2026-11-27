@@ -119,9 +119,9 @@ pub struct Reader<I: Ord, K: Ord> {
     pub anchor: Option<I>,
     /// The holders' thumbprints.
     pub thumbs: Option<BTreeSet<K>>,
-    /// The bundles it acknowledged.
-    pub acks: BTreeSet<I>,
-    /// Its own acknowledgement rows in the root's lane (read only with [`Root::with_grant_line`]).
+    /// The bundles it acknowledged, in the order it acknowledged them (its own line).
+    pub acks: Vec<I>,
+    /// Its own acknowledgement rows in the root's lane.
     pub rows: BTreeSet<I>,
 }
 
@@ -136,7 +136,6 @@ pub struct Root<'a, B: RootBundle, G: RootGrant> {
     grants: BTreeMap<&'a B::Id, &'a G>,
     lane: crate::graph::Graph<'a, G>,
     own: BTreeMap<B::Key, B::Key>,
-    grant_line: bool,
     past_memo: RefCell<BTreeMap<B::Id, BTreeSet<B::Id>>>,
     counted_memo: RefCell<BTreeMap<B::Id, Result<(), Reason>>>,
     void_memo: RefCell<Option<(BTreeSet<B::Id>, BTreeSet<B::Id>)>>,
@@ -156,19 +155,10 @@ where
             grants: grants.iter().filter(|g| g.is_grant()).map(|g| (g.id(), g)).collect(),
             lane: crate::graph::Graph::new(grants.iter()),
             own: Self::owners_of(bundles),
-            grant_line: false,
             past_memo: RefCell::new(BTreeMap::new()),
             counted_memo: RefCell::new(BTreeMap::new()),
             void_memo: RefCell::new(None),
         }
-    }
-
-    /// PROPOSED, pending the Constitution: grants on the reader's line, with bundles as heads. A grant naming a bundle
-    /// strictly older than one the reader acknowledged, and not in the past of the reader's own acknowledgement rows
-    /// ([`Reader::rows`]), is void for that reader. Off by default.
-    pub fn with_grant_line(mut self, on: bool) -> Self {
-        self.grant_line = on;
-        self
     }
 
     /// The union of a holder's keys: its key, its recovery key, and the key a recovery seats.
@@ -280,7 +270,55 @@ where
         if b.version() != top + 1 {
             return false;
         }
-        ps.iter().all(|p| p.family() == b.family())
+        if !ps.iter().all(|p| p.family() == b.family()) {
+            return false;
+        }
+        if ps.len() >= 2 {
+            // the join's wire: refs.prev is the greatest version, least id among equals; refs.further_prev the
+            // rest; a named predecessor in the past of another concludes nothing
+            let first = ps.iter().min_by(|x, y| (y.version(), x.id()).cmp(&(x.version(), y.id())));
+            if first.map(|q| q.id()) != Some(&b.prev()[0]) {
+                return false;
+            }
+            if b.prev().iter().any(|a| b.prev().iter().any(|c| self.in_past(a, c))) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// The keys retired across the branches of `prevs`: every key a recovery in their lines rotated out. A join
+    /// inherits the union, and revives nothing.
+    fn retired(&self, prevs: &[B::Id]) -> BTreeSet<B::Key> {
+        let mut out = BTreeSet::new();
+        for p in prevs {
+            for x in self.line(p) {
+                if let Some((h, _)) = self.b(&x).and_then(|q| q.recovers()) {
+                    out.insert(h.clone());
+                }
+            }
+        }
+        out
+    }
+
+    /// b's count on `voices`: one predecessor, a strict majority of its live holders; a JOIN, a strict majority of
+    /// EACH named predecessor's live holders, each voice a key that predecessor seats under the same key, less the
+    /// keys retired across its branches, whatever the charters. `within`: only these holders (the fold's).
+    fn meets(&self, b: &B, voices: &BTreeSet<B::Key>, within: Option<&BTreeSet<B::Key>>) -> bool {
+        let prevs = b.prev();
+        if prevs.is_empty() {
+            return false;
+        }
+        let gone = if prevs.len() >= 2 { self.retired(prevs) } else { BTreeSet::new() };
+        prevs.iter().all(|p| {
+            let Some(q) = self.b(p) else { return false };
+            let base: BTreeSet<B::Key> = self
+                .live(q.holders().iter().cloned())
+                .into_iter()
+                .filter(|k| !gone.contains(k) && within.is_none_or(|w| w.contains(k)))
+                .collect();
+            2 * voices.intersection(&base).count() > base.len()
+        })
     }
 
     /// A join contested by a rival: a concluded join of the same predecessors under another charter, neither in
@@ -303,47 +341,21 @@ where
         })
     }
 
-    /// The live holders common to `prevs`; where they are joins contested among themselves (a bundle settling a
-    /// forked join), those common to the tips those joins tried to join.
-    fn prev_base(&self, prevs: &[B::Id]) -> BTreeSet<B::Key> {
-        let ps: Vec<&B> = prevs.iter().filter_map(|p| self.b(p)).collect();
-        if ps.len() >= 2
-            && prevs.iter().all(|p| self.contested_join(p))
-            && ps.iter().map(|q| q.prev().iter().collect::<BTreeSet<_>>()).collect::<BTreeSet<_>>().len() == 1
-        {
-            return self.prev_base(ps[0].prev());
-        }
-        // a bundle naming recoveries of one seat contested among themselves: the seat as it was, their predecessor's
-        if ps.len() >= 2
-            && ps.iter().all(|q| q.recovers().is_some() && q.prev().len() == 1)
-            && ps
-                .iter()
-                .map(|q| (q.prev()[0].clone(), q.recovers().map(|(h, _)| h.clone())))
-                .collect::<BTreeSet<_>>()
-                .len()
-                == 1
-            && !prevs.iter().any(|a| prevs.iter().any(|b| self.in_past(a, b)))
-        {
-            return self.prev_base(ps[0].prev());
-        }
-        // several under one charter: their fold; whose charters differ: their common holders
-        if ps.len() >= 2 && ps.iter().map(|q| q.charter()).collect::<BTreeSet<_>>().len() == 1 {
-            return self.live(self.fold(prevs).0);
-        }
-        let mut it = ps.iter();
-        let Some(first) = it.next() else { return BTreeSet::new() };
-        let mut hs: BTreeSet<B::Key> = first.holders().iter().cloned().collect();
-        for p in it {
-            let ph: BTreeSet<B::Key> = p.holders().iter().cloned().collect();
-            hs = hs.intersection(&ph).cloned().collect();
-        }
-        self.live(hs)
-    }
-
-    /// The live holders a later bundle is counted over: its predecessor's, or those common to a join's two (a
-    /// bundle settling a forked join: those common to the tips it joined).
+    /// The live holders whose statements on b are voices: its predecessor's; a join's, each named predecessor's
+    /// (the union, less the keys retired across its branches; its count is per predecessor, `meets`).
     fn base(&self, b: &B) -> BTreeSet<B::Key> {
-        self.prev_base(b.prev())
+        let ps: Vec<&B> = b.prev().iter().filter_map(|p| self.b(p)).collect();
+        match ps.len() {
+            0 => BTreeSet::new(),
+            1 => self.live(ps[0].holders().iter().cloned()),
+            _ => {
+                let gone = self.retired(b.prev());
+                self.live(ps.iter().flat_map(|p| p.holders().iter().cloned()))
+                    .into_iter()
+                    .filter(|k| !gone.contains(k))
+                    .collect()
+            }
+        }
     }
 
     fn commitment(p: &B, h: &B::Key) -> Option<B::Key> {
@@ -412,8 +424,7 @@ where
         if let Some(r) = self.recovery_ok(b) {
             return r;
         }
-        let base = self.base(b);
-        if 2 * v.intersection(&base).count() > base.len() {
+        if self.meets(b, &v, None) {
             Ok(())
         } else {
             Err("count_short")
@@ -482,7 +493,7 @@ where
         v
     }
 
-    /// Built on: void, but a join of both lines, which is counted without the void bundles it names.
+    /// Built on: void, a join naming a void predecessor included.
     fn close(&self, cs: &[&'a B], tv: &mut BTreeSet<B::Id>) {
         loop {
             let mut changed = false;
@@ -490,21 +501,7 @@ where
                 if tv.contains(c.id()) || !c.prev().iter().any(|p| tv.contains(p)) {
                     continue;
                 }
-                let pc = self.past(c.id());
-                let join = tv.iter().any(|f| {
-                    pc.contains(f)
-                        && self.b(f).is_some_and(|fb| cs.iter().any(|x| self.behind(fb, x) && pc.contains(x.id())))
-                });
-                if join {
-                    let keep: Vec<B::Id> = c.prev().iter().filter(|p| !tv.contains(*p)).cloned().collect();
-                    if !keep.is_empty() {
-                        let base = self.prev_base(&keep);
-                        if 2 * self.voices(c).intersection(&base).count() > base.len() {
-                            continue; // counted without the void bundles it names
-                        }
-                    }
-                }
-                tv.insert(c.id().clone());
+                tv.insert(c.id().clone()); // a join naming a void predecessor concludes nothing
                 changed = true;
             }
             if !changed {
@@ -631,7 +628,7 @@ where
         self.close(&cs, &mut tv);
         // a forked join: joins of the same tips under different charters are contested, neither stands, and a reader
         // keeps the tips they tried to join; a bundle naming every one settles them (counted over those tips' fold,
-        // or common holders, prev_base); one built on some and not all is void with them
+        // own count, each named join's majority); one built on some and not all is void with them
         let mut jgroups: BTreeMap<BTreeSet<B::Id>, BTreeSet<B::Id>> = BTreeMap::new();
         for c in &cs {
             if self.contested_join(c.id()) {
@@ -685,13 +682,62 @@ where
             .cloned()
     }
 
+    fn rv_of(&self, acked: &[B::Id], valid: &[B::Id]) -> BTreeSet<B::Id> {
+        let on: BTreeSet<B::Id> = acked.iter().flat_map(|a| self.line(a)).collect();
+        let mut out: BTreeSet<B::Id> = valid
+            .iter()
+            .filter(|i| {
+                !on.contains(*i)
+                    && self.b(i).is_some_and(|bi| acked.iter().any(|a| self.b(a).is_some_and(|ba| self.behind(bi, ba))))
+            })
+            .cloned()
+            .collect();
+        loop {
+            let mut changed = false;
+            for i in valid {
+                if !out.contains(i)
+                    && !on.contains(i)
+                    && self.b(i).is_some_and(|bi| bi.prev().iter().any(|p| out.contains(p)))
+                {
+                    out.insert(i.clone());
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        out
+    }
+
+    /// The reader's own line: its acknowledgements in order, each taken unless void for it by those before
+    /// (acknowledging never un-voids); and the bundles void for the reader by that line: one behind a bundle it
+    /// acknowledged and not on its line, and every bundle built on one, a join included (a join naming a predecessor
+    /// void for a reader concludes nothing for it).
+    pub fn reader_line(&self, rd: &Reader<B::Id, B::Key>) -> (Vec<B::Id>, BTreeSet<B::Id>) {
+        let valid: Vec<B::Id> = self.valid().into_iter().map(|b| b.id().clone()).collect();
+        let mut acc: Vec<B::Id> = Vec::new();
+        for a in &rd.acks {
+            if valid.contains(a) && !self.rv_of(&acc, &valid).contains(a) {
+                acc.push(a.clone());
+            }
+        }
+        let rv = self.rv_of(&acc, &valid);
+        (acc, rv)
+    }
+
     /// The bundles in force for the reader: the newest it acknowledged, read by its line; none, its anchor.
     /// None: `genesis_bundle_not_anchored`.
     pub fn heads(&self, rd: &Reader<B::Id, B::Key>) -> Option<Vec<B::Id>> {
         let f = self.first(rd)?;
-        let held: Vec<B::Id> =
-            self.valid().into_iter().map(|b| b.id().clone()).filter(|i| *i == f || self.in_past(&f, i)).collect();
-        let mut acked: BTreeSet<B::Id> = held.iter().filter(|i| rd.acks.contains(*i)).cloned().collect();
+        let (accepted, rv) = self.reader_line(rd);
+        let held: Vec<B::Id> = self
+            .valid()
+            .into_iter()
+            .map(|b| b.id().clone())
+            .filter(|i| (*i == f || self.in_past(&f, i)) && !rv.contains(i))
+            .collect();
+        let mut acked: BTreeSet<B::Id> = held.iter().filter(|i| accepted.contains(*i)).cloned().collect();
         // a contested bundle the reader acknowledged leaves it at the bundles it extends, and so on down
         let contest = self.void_and_contested().1;
         let held: BTreeSet<B::Id> = held.into_iter().collect();
@@ -781,6 +827,7 @@ where
         holders: Option<&BTreeSet<B::Key>>,
     ) -> BTreeSet<B::Key> {
         let at = |t: &B::Id, k: &B::Key| self.b(t).is_some_and(|b| field(b).contains(k));
+        let rotates = holders.is_none(); // the holders' field; seats are no seats a recovery rotates
         let union: BTreeSet<B::Key> =
             tips.iter().filter_map(|t| self.b(t)).flat_map(|b| field(b).iter().cloned()).collect();
         let survives = |k: &B::Key| {
@@ -789,8 +836,22 @@ where
                     .adding(t, k, field)
                     .into_iter()
                     .max_by(|x, y| (self.b(x).map(|b| b.version()), x).cmp(&(self.b(y).map(|b| b.version()), y)));
+                // a recovery is a rotation of an existing seat, not an addition (CC 2.6.1.11): the key it seats is in
+                // only where the holder's seat itself is in
+                let rot = a
+                    .as_ref()
+                    .and_then(|a| self.b(a))
+                    .and_then(|q| q.recovers())
+                    .filter(|(_, n)| *n == k && rotates)
+                    .map(|(h, _)| h.clone());
                 tips.iter().filter(|t2| !at(t2, k)).all(|t2| {
                     self.removals(t2, k, field).iter().all(|r| a.as_ref().is_some_and(|a| self.in_past(r, a)))
+                        && rot.as_ref().is_none_or(|h| {
+                            self.removals(t2, h, field).iter().all(|r| {
+                                self.b(r).and_then(|q| q.recovers()).is_some_and(|(rh, _)| rh == h)
+                                    || a.as_ref().is_some_and(|a| self.in_past(r, a))
+                            })
+                        })
                 })
             })
         };
@@ -808,8 +869,7 @@ where
                         if b.prev().is_empty() || b.recovers().is_some_and(|(_, n)| n == k) {
                             return true; // a first bundle; its own recovery
                         }
-                        let base: BTreeSet<B::Key> = self.base(b).intersection(&h).cloned().collect();
-                        2 * self.voices(b).intersection(&base).count() > base.len()
+                        self.meets(b, &self.voices(b), Some(&h))
                     })
                 });
                 if ok {
@@ -903,7 +963,7 @@ where
         if !self.grant_row(gid) {
             return Err("grant_count_short");
         }
-        if self.grant_line {
+        {
             let mut seen: BTreeSet<usize> = BTreeSet::new();
             for r in &rd.rows {
                 if let Some(i) = self.lane.idx(r) {
@@ -911,8 +971,7 @@ where
                 }
             }
             let inside = self.lane.idx(gid).is_some_and(|gi| seen.contains(&gi));
-            let behind =
-                g.bundles().iter().any(|n| rd.acks.iter().any(|a| self.by.contains_key(a) && self.in_past(n, a)));
+            let behind = g.bundles().iter().any(|n| self.reader_line(rd).0.iter().any(|a| self.in_past(n, a)));
             if !inside && behind {
                 return Err("grant_behind_reader_line");
             }
