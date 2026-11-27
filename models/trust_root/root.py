@@ -544,18 +544,27 @@ class Root:
     def _rv(self, settled, ids, keep=frozenset()):
         """The bundles of `ids` behind any of the bundles `settled`, and every bundle built on one but a join; `keep`
         (bundles a concurrent row of the reader settled) apart."""
-        # (a bounded settler states nothing of its own and decides its head: no line closes it; MUTATION
-        # settler_closed_by_line: a later settled bundle closes it as any bundle behind it)
-        out = {i for i in ids if i not in keep and any(self.behind(self.by[i], self.by[a]) for a in settled)
-               and ("settler_closed_by_line" in MUT or not self.bounded_settler(self.by[i]))}
-        changed = True
-        while changed:
-            changed = False
-            for i in ids:
-                if i not in out and i not in keep and any(p in out for p in self.by[i]["prev"]) \
-                        and (len(self.by[i]["prev"]) < 2 or "join_void_prev_blocks" in MUT):
-                    out.add(i); changed = True
-        return out
+        # A bounded settler states nothing of its own and decides its head: a line closes it EXACTLY WHEN the sibling
+        # it names is one that line holds void. So it rescues a stalled reader (whose line holds both sides) and never
+        # overturns a reader that already settled past the contest (MUTATION settler_overturns_settled: no line closes
+        # it; settler_closed_by_line: it is closed as any bundle behind a settled one).
+        ids = set(ids)
+        st = {i for i in ids if self.bounded_settler(self.by[i])}
+        if "settler_closed_by_line" in MUT: st = set()
+        rest = (ids - st) | {self.by[i]["settles"] for i in st}       # its target read even where not held here
+        out = {i for i in rest if i not in keep and any(self.behind(self.by[i], self.by[a]) for a in settled)}
+        def close():
+            changed = True
+            while changed:
+                changed = False
+                for i in rest:
+                    if i not in out and i not in keep and any(p in out for p in self.by[i]["prev"]) \
+                            and (len(self.by[i]["prev"]) < 2 or "join_void_prev_blocks" in MUT):
+                        out.add(i); changed = True
+        close()
+        if "settler_overturns_settled" not in MUT:
+            out |= {i for i in st if self.by[i]["settles"] in out}
+        return out & ids
 
     def reader_line(self, rd):
         """The reader's own line, and the bundles void for the reader by it. Its acknowledgements are its own rows,

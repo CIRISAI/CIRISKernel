@@ -514,6 +514,15 @@ SC5 = {"b1": SC1, "s0": SC0}
 SA1 = nxt("b1", "b0", H3 + ("h4",), ("h1", "h2", "h3"))
 SA0 = nxt("s0", "b0", ("h1", "h2"), ("h1", "h2", "h3"))
 SA = {"b1": SA1, "s0": SA0}
+# a late settler (r81 RB1-style): the honest line b1 .. b4; t1 a sibling of b2 at b1 by h1 h2 and the turncoat h3
+RLB1 = nxt("b1", "b0", H5, ("h1", "h2"))
+RLB2 = nxt("b2", "b1", ("h3", "h4", "h5"), ("h3", "h4", "h5"), version=2)
+RLB3 = nxt("b3", "b2", ("h3", "h4", "h5", "h6", "h7"), ("h3", "h4", "h5"), version=3)
+RLB4 = nxt("b4", "b3", ("h3", "h4", "h5", "h6", "h7", "h8", "h9"), ("h4", "h5", "h6", "h7"), version=4)
+RLT1 = nxt("t1", "b1", H5, ("h1", "h2", "h3"), version=2, seats=("n2",))
+RLL = [B0, RLB1, RLB2, RLB3, RLB4, RLT1]
+# h1, h2 and a turned h4 settle toward t1 at b1: of those with a say there (h1 h2 h4 h5; h3 double-signed), three of four
+RLS = SETTLE("lt", "t1", ("h1", "h2", "h4"), {"b2": RLB2, "t1": RLT1}, head="b1")
 # r81 jr.py: a recovery successor and the settler's base
 JB1 = nxt("b1", "b0", H3 + ("h4",), ("h1", "h2", "h3"))
 JS0 = nxt("s0", "b0", ("h1", "h2", "X"), ("h1", "h2"))
@@ -578,6 +587,22 @@ CASES += [
     ("settle", "JR1b: the reader that acknowledged b2 first is at b2",
      [B0, JB1, JS0, JB2, JRC, SETTLE("st", "b1", ("h3",), {"b1": JB1, "s0": JS0})], (), (), RD(anchor="b0", acks=("b2",)),
      {"heads": ("b2",), "holders": set(H5)}),
+    ("settle", "a late settler cannot overturn a reader settled past the contest: a reader at b4 (its line holds t1 "
+               "void) receives a settler at b1 toward t1, by three of the four with a say there: the sibling it names is "
+               "one the reader's line holds void, so its line closes the settler: b4",
+     RLL + [RLS], (), (), RD(anchor="b0", acks=("b2", "b3", "b4")),
+     {"concluded": {"lt": T}, "heads": ("b4",), "holders": {"h3", "h4", "h5", "h6", "h7", "h8", "h9"}}),
+    ("settle", "the same in the stall world: a reader settled at b3 (b2 first: s0 behind its line) and a late settler "
+               "by h3 toward s0: b3, not s0", STL + [SETTLE("st", "s0", ("h3",), STS)], (), (),
+     RD(anchor="b0", acks=("b2", "b3", "st")), {"concluded": {"st": T}, "heads": ("b3",)}),
+    ("settle", "and the reader acknowledging the settler later changes nothing: b4",
+     RLL + [RLS], (), (), RD(anchor="b0", acks=("b2", "b3", "b4", "lt")), {"heads": ("b4",)}),
+    ("settle", "the same settler for a stalled reader (one device at b4, the other at t1, concurrent: at b1) decides: "
+               "t1 stands", RLL + [RLS], (), (), RD(anchor="b0", acks=("b2", "b3", "b4", "t1", "lt"),
+                                                   after=((), (0,), (1,), (), (0, 1, 2, 3))),
+     {"heads": ("t1",)}),
+    ("settle", "and before it, that reader is at b1", RLL, (), (), RD(anchor="b0", acks=("b2", "b3", "b4", "t1"),
+                                                                     after=((), (0,), (1,), ())), {"heads": ("b1",)}),
     ("settle", "(5) EDGE (stated): every holder double-signed (h1 h2 h3 on a1 and a0): the base is empty, nothing "
                "settles, and the reader re-roots", [B0, SA1, SA0, SETTLE("st", "b1", ("h1", "h2", "h3"), SA)], (), (),
      RD(anchor="b0", acks=("s0", "b1", "st")), {"concluded": {"st": Fa}, "heads": ("b0",)}),
@@ -756,7 +781,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
           "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names",
           "concurrent_keep_bundle_only",
-          "settler_closed_by_line")
+          "settler_closed_by_line", "settler_overturns_settled")
 
 
 def answer(bs, rv, gs, rd, want):

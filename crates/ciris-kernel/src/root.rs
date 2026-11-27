@@ -878,12 +878,17 @@ where
     /// The bundles of `ids` behind any of the bundles `settled`, and every bundle built on one but a join; `keep`
     /// (bundles a concurrent row of the reader settled) apart.
     fn rv_of(&self, settled: &[B::Id], ids: &BTreeSet<B::Id>, keep: &BTreeSet<B::Id>) -> BTreeSet<B::Id> {
-        let mut out: BTreeSet<B::Id> = ids
+        // A bounded settler states nothing of its own and decides its head: a line closes it exactly when the sibling
+        // it names is one that line holds void. So it rescues a stalled reader and never overturns a reader that
+        // already settled past the contest.
+        let st: BTreeSet<B::Id> =
+            ids.iter().filter(|i| self.b(i).is_some_and(|b| self.bounded_settler(b))).cloned().collect();
+        let mut rest: BTreeSet<B::Id> = ids.difference(&st).cloned().collect();
+        rest.extend(st.iter().filter_map(|i| self.b(i).and_then(|b| b.settles()).cloned()));
+        let mut out: BTreeSet<B::Id> = rest
             .iter()
             .filter(|i| {
-                // a bounded settler states nothing of its own and decides its head: no line closes it
                 !keep.contains(*i)
-                    && !self.b(i).is_some_and(|b| self.bounded_settler(b))
                     && self
                         .b(i)
                         .is_some_and(|bi| settled.iter().any(|a| self.b(a).is_some_and(|ba| self.behind(bi, ba))))
@@ -892,7 +897,7 @@ where
             .collect();
         loop {
             let mut changed = false;
-            for i in ids {
+            for i in &rest {
                 if out.contains(i) || keep.contains(i) {
                     continue;
                 }
@@ -905,7 +910,12 @@ where
                 break;
             }
         }
-        out
+        for i in &st {
+            if self.b(i).and_then(|b| b.settles()).is_some_and(|x| out.contains(x)) {
+                out.insert(i.clone());
+            }
+        }
+        out.intersection(ids).cloned().collect()
     }
 
     /// The bundles in force for the reader: the newest it acknowledged, read by its line; none, its anchor.
