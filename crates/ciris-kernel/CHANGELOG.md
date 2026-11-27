@@ -102,7 +102,8 @@ plant):
   past, every end there cutting the rows concurrent with it; then every end the reader holds (a key's eviction, an
   unseat, a lay-down and so the lock, an edge's withdrawal, an amendment of the record) is read over the reader's rows.
   A licence that stood and is cut so is `licensure_link_withdrawn` (`licensure_authority_locked` where the end locks
-  its community).
+  its community). An amendment of the record cuts nothing: a licence that fails only under a concurrent amendment is
+  judged under it, `licensure_delegator_not_authority`.
 - Terms: a licence under a term-bearing seat that states no instant meets no term (`Seats::stands_within`, new); a
   licence stating an instant earlier than a row it cites is `licensure_instant_before_its_past`; an acceptance edge's
   own term (`asserted_at`, `valid_until`) is read at the caller's instant or the licence's (`trust_rows::edges_of`

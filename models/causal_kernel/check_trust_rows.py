@@ -38,6 +38,7 @@ Planted breaks, each of which must change a case's answer:
     untimed_term_met         (b) a licence stating no instant meets a term-bearing seat's term
     instant_unread           (b) a licence may state an instant earlier than a row it cites
     edge_term_unread         (d) an edge's own term is not read
+    amendment_as_cut         (d) a licence failing only under a concurrent amendment reads as cut (link_withdrawn)
 
     python3 -I check_trust_rows.py      exit 1 on any difference
 """
@@ -295,8 +296,8 @@ CASES += [
      (False, "licensure_instant_before_its_past")),
     ("r73 P1 af amends to unanimous; two officers' licence naming the amendment",
      [AFD, R_AMD, A("e", "RD", "af"), glic("l", cosigners=("B",)) | {"names": ("amd",)}], "RD", "l", None, NA),
-    ("r73 P2 and naming only af (concurrent with the amendment): judged under it, cut",
-     [AFD, R_AMD, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD", "l", None, LW),
+    ("r73 P2 and naming only af (concurrent with the amendment): judged under it, its count not met",
+     [AFD, R_AMD, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD", "l", None, NA),
     ("r73 B1 A and B lay down; their concurrent conferral is cut; X's licence naming both lay-downs",
      [GD, R_LDA, R_LDB, A("e", "RD", "g"), GLO, GLA, glic("l", "g", "X") | {"names": ("gla", "lda", "ldb")}], "RD", "l",
      None, NA),
@@ -350,7 +351,7 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "judged_at_read", "bears_unread", "refusal_unread", "depth_unread", "depth_absent_refused",
           "withdrawn_unread", "withdraw_by_anyone", "issuer_unread", "chain_unread", "quorum_unread",
           "ends_unread", "cut_unread", "self_seat_ungated", "untimed_term_met", "instant_unread",
-          "edge_term_unread")
+          "edge_term_unread", "amendment_as_cut")
 
 
 @contextlib.contextmanager

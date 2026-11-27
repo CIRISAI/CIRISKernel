@@ -687,6 +687,7 @@ plant "an edge is judged at issuance only"             src/trust_rows.rs '[false
 plant "a licence stating no instant meets a term"      src/seat.rs '.any(|r| r.k == *k && g.idx(&r.offer).is_some_and(|i| g.row(i).valid_until().is_none()));' '.any(|r| r.k == *k);'
 plant "a licence may predate what it cites"            src/trust_rows.rs 'if idx.iter().any(|&j| c.g.row(j).asserted_at().is_some_and(|u| u > t)) {' 'if false {'
 plant "an edge's term is not read"                     src/trust_rows.rs 'None => r.valid_until().is_none(),' 'None => true,'
+plant "a concurrent amendment reads as a cut"          src/trust_rows.rs 'Some(_) if issuance(seats, i, &ended_for_reader_with(c, i, true, false)).is_none() => Some(NOT_AUTHORITY),' 'Some(_) if false => Some(NOT_AUTHORITY),'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

@@ -245,12 +245,28 @@ fn sub_of<'a, R: Row>(c: &Concluded<'a, R>, idx: &[usize]) -> Concluded<'a, R> {
 /// unseat, a lay-down and so the lock, an edge's withdrawal, an amendment of the record), each cutting what it ends
 /// there. Dissolution is read the same way ([`read_licence`]).
 fn ended_for_reader<R: TrustRow>(c: &Concluded<'_, R>, i: usize, read: bool) -> Vec<usize> {
+    ended_for_reader_with(c, i, read, true)
+}
+
+/// A change of a group's record: it cuts nothing, and changes the rule a row is judged under.
+fn is_amendment<R: SeatRow>(q: &R) -> bool {
+    q.seat_kind() == SeatKind::Offer
+        && q.conf() == Some(Conf::Group)
+        && q.scope().is_some_and(|s| s.as_ref() == "record")
+}
+
+/// [`ended_for_reader`], with the reader's concurrent amendments of the record read in (`amend`) or left out.
+fn ended_for_reader_with<R: TrustRow>(c: &Concluded<'_, R>, i: usize, read: bool, amend: bool) -> Vec<usize> {
     let anc = c.g.ancestors(i);
     let mut rows: Vec<usize> = (0..c.g.len()).filter(|&j| anc.has(j)).collect();
     if read {
-        rows.extend(
-            c.cs().iter().copied().filter(|&j| j != i && !anc.has(j) && is_end(c.g.row(j)) && !c.g.ancestors(j).has(i)),
-        );
+        rows.extend(c.cs().iter().copied().filter(|&j| {
+            j != i
+                && !anc.has(j)
+                && is_end(c.g.row(j))
+                && !c.g.ancestors(j).has(i)
+                && (amend || !is_amendment(c.g.row(j)))
+        }));
         rows.sort_unstable();
     }
     let mut cut: BTreeSet<usize> = BTreeSet::new();
@@ -436,7 +452,8 @@ fn issuance<R: TrustRow + Dated, S: CutSpec<R>>(
 /// and the reason reads other rows, CC 2.7.3). Its existence is judged over its own past ([`ended_for_reader`],
 /// `read` false): [`NOT_AUTHORITY`] (testimony), [`AUTHORITY_LOCKED`] (a locked community's quorum) or
 /// [`INSTANT_BEFORE_PAST`]. Then every end the reader holds is read over the reader's rows: a licence that stood and is
-/// cut so is [`LINK_WITHDRAWN`], or [`AUTHORITY_LOCKED`] where the end locks its community.
+/// cut so is [`LINK_WITHDRAWN`], or [`AUTHORITY_LOCKED`] where the end locks its community; one that fails only under
+/// an amendment of the record the reader holds is judged under it: [`NOT_AUTHORITY`].
 pub fn standing<R: TrustRow + Dated, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, i: usize) -> Option<&'static str> {
     let c = seats.c();
     if let Some(why) = issuance(seats, i, &ended_for_reader(c, i, false)) {
@@ -445,6 +462,9 @@ pub fn standing<R: TrustRow + Dated, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>,
     match issuance(seats, i, &ended_for_reader(c, i, true)) {
         None => None,
         Some(AUTHORITY_LOCKED) => Some(AUTHORITY_LOCKED),
+        // an amendment cuts nothing: it changes the rule the licence is judged under, so a licence that fails under
+        // the amended record (and stands with every other end the reader holds) is judged so: testimony
+        Some(_) if issuance(seats, i, &ended_for_reader_with(c, i, true, false)).is_none() => Some(NOT_AUTHORITY),
         Some(_) => Some(LINK_WITHDRAWN),
     }
 }

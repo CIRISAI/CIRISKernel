@@ -206,6 +206,11 @@ def is_end(q):
                                                    and q.get("scope") == "record")
 
 
+def is_amendment(q):
+    """A change of a group's record: it cuts nothing, and changes the rule a row is judged under."""
+    return q["kind"] == "offer" and q.get("conf") == "group" and q.get("scope") == "record"
+
+
 def ends_keys(S, e):
     """The (key, object) seats end `e` ends: an unseat's keys over its object; a withdrawal by a seated key of its own
     seat, or by the conferrer of an offer's seats (a counted offer's conferrer is its count, and its signer ends
@@ -249,7 +254,7 @@ def cut_state(S, rows):
     return CK.State(kept, {q["id"]: S.C.get(q["id"]) for q in kept})
 
 
-def ended_for_reader(S, r, read=True):
+def ended_for_reader(S, r, read=True, amend=True):
     """THE END RULE (the r73 attack), the one read of ends for every path (the emitter, the quorum, the seat, the edge):
     an END cuts every row of what it ends that is not in the end's past. The rows row `r`'s authority is judged over:
     its own past, with every end in it cutting the rows concurrent with it (`read` False: its existence at issuance);
@@ -262,7 +267,7 @@ def ended_for_reader(S, r, read=True):
     rows = [q for q in S.rows if q["id"] in past]
     if read and "ends_unread" not in MUT:
         rows += [q for q in S.rows if S.C.get(q["id"]) and is_end(q) and q["id"] not in past and q["id"] != r["id"]
-                 and r["id"] not in S.anc[q["id"]]]
+                 and r["id"] not in S.anc[q["id"]] and (amend or not is_amendment(q))]
     return cut_state(S, rows)
 
 
@@ -385,7 +390,8 @@ def standing(S, lic):
     CONCLUDES NOTHING in the authority's fold (never a refusal: the licence row is admitted, and the reason reads other
     rows, CC 2.7.3). Its existence is judged over its own past (ended_for_reader with read False): issuance()'s reason.
     Then every end the reader holds is read over the reader's rows (ended_for_reader): a licence that stood and is cut
-    so is `licensure_link_withdrawn`, or `licensure_authority_locked` where the end locks its community."""
+    so is `licensure_link_withdrawn`, or `licensure_authority_locked` where the end locks its community; one that fails
+    only under an amendment of the record the reader holds is judged under it: `licensure_delegator_not_authority`."""
     r = S.by[lic]
     why = issuance(ended_for_reader(S, r, False), r)
     if why is not None:
@@ -393,7 +399,13 @@ def standing(S, lic):
     why = issuance(ended_for_reader(S, r), r)
     if why is None:
         return None
-    return why if why == "licensure_authority_locked" else "licensure_link_withdrawn"
+    if why == "licensure_authority_locked":
+        return why
+    # an amendment cuts nothing: it changes the rule the licence is judged under, so a licence that fails under the
+    # amended record (and stands with every other end the reader holds) is judged so: testimony
+    if "amendment_as_cut" not in MUT and issuance(ended_for_reader(S, r, amend=False), r) is None:
+        return "licensure_delegator_not_authority"
+    return "licensure_link_withdrawn"
 
 
 def read_licence(S, reader, lic, own=None, supplied=None, now=None):
