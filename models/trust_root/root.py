@@ -79,13 +79,14 @@ C0 = {"name": "c0", "duties": ("infra",)}
 
 
 def bundle(id, family, version, holders, prev=(), charter=C0, seats=(), stmts=None, iat=0, recovery=None,
-           recovers=None):
+           recovers=None, names=()):
     """A bundle. stmts defaults to every holder of the predecessor... callers name them. recovers: (holder, new key)."""
     holders = tuple(holders)
     rec = dict(recovery) if recovery is not None else {k: "r:" + k for k in holders}
     return {"id": id, "kind": "bundle", "family": family, "version": version, "holders": holders,
             "prev": tuple(prev), "charter": charter, "seats": tuple(seats), "iat": iat, "recovery": rec,
-            "stmts": tuple(stmts if stmts is not None else ((k, iat) for k in holders)), "recovers": recovers}
+            "stmts": tuple(stmts if stmts is not None else ((k, iat) for k in holders)), "recovers": recovers,
+            "names": tuple(names)}
 
 
 def revoke(key, bound=None):
@@ -457,12 +458,75 @@ class Root:
     def reader_void(self, rd):
         return self.reader_line(rd)[1]
 
+    # ---- rules 5, 6 and 3 for bundles (the Constitution's ruling on the third attack) ------------------------
+    def _siblings(self, b, c):
+        """b and c extend the same bundles, neither in the other's past, and neither names the other."""
+        return b["id"] != c["id"] and b["prev"] and frozenset(b["prev"]) == frozenset(c["prev"]) \
+            and b["id"] not in self.past(c["id"]) and c["id"] not in self.past(b["id"]) \
+            and b["id"] not in c.get("names", ()) and c["id"] not in b.get("names", ())
+
+    def _removes(self, b, k):
+        """b removes holder k: a predecessor seats k, and b does not."""
+        return k not in b["holders"] and any(k in self.by[p]["holders"] for p in b["prev"])
+
+    def contested(self, ids):
+        """Of the bundles `ids` (those counting for a reader before these rules), the ones that do not count:
+            RULE 6  on one slot at one head, a voice that acknowledged an act and voted to cut it, in two rows neither
+                    of which names the other, has no say there, and stays among the holders the count is over: a key
+                    that signed two siblings, one removing a holder the other keeps, is no voice on either
+                    (MUTATION double_signer_voices: it is a voice on both)
+            RULE 5  siblings that each remove a holder whose voice the other needs are contested, and neither
+                    counts; one-sided, the dependent one falls (MUTATION rule5_unread)
+        and every bundle built on one but a join (judged by its own count). RULE 3: a bundle at that head naming both
+        decides, counted over that head's holders (it names them, so rule 6 does not reach its voices)."""
+        ids = set(ids)
+        bs = [self.by[i] for i in ids if self.by[i]["prev"]]
+        out = set()
+        # rule 6
+        no = {}
+        for b in bs:
+            ks = set()
+            for c in bs:
+                if not self._siblings(b, c): continue
+                cut = any(self._removes(b, k) and k in c["holders"] for k in self.by[b["prev"][0]]["holders"]) or \
+                    any(self._removes(c, k) and k in b["holders"] for k in self.by[c["prev"][0]]["holders"])
+                if cut and "double_signer_voices" not in MUT:
+                    ks |= self.voices(b) & self.voices(c)
+            no[b["id"]] = ks
+            if ks and b.get("recovers") is None and not self.meets(b, self.voices(b) - ks): out.add(b["id"])
+        # rule 5
+        if "rule5_unread" not in MUT:
+            live = [b for b in bs if b["id"] not in out]
+            def needs(y, k):
+                v = self.voices(y) - no[y["id"]]
+                return k in v and self.meets(y, v) and not self.meets(y, v - {k})
+            dep = set()
+            for x in live:
+                for y in live:
+                    if self._siblings(x, y) and any(self._removes(x, k) and needs(y, k) for k in self.by[x["prev"][0]]["holders"]):
+                        dep.add(y["id"])            # y needs a voice x removes
+            out |= dep
+        changed = True
+        while changed:
+            changed = False
+            for i in ids:
+                b = self.by[i]
+                if i not in out and len(b["prev"]) < 2 and any(p in out for p in b["prev"]):
+                    out.add(i); changed = True
+        return frozenset(out)
+
     def held(self, rd):
-        """The bundles valid for the reader: of its anchored lineage, and not void by its line."""
+        """The bundles valid for the reader: of its anchored lineage, not void by its line, and counting under
+        rules 5 and 6 over the rest (a row void by the line is no input to them)."""
+        return self._held(rd)[0]
+
+    def _held(self, rd):
         f = self.first(rd)
-        if f is None: return []
+        if f is None: return [], frozenset()
         rv = self.reader_void(rd)
-        return [i for i in self.valid() if (i == f or f in self.past(i)) and i not in rv]
+        base = [i for i in self.valid() if (i == f or f in self.past(i)) and i not in rv]
+        ct = self.contested(base)
+        return [i for i in base if i not in ct], ct
 
     def heads(self, rd):
         """The bundles in force for the reader: the newest it acknowledged, read by its line (MUTATION
@@ -474,13 +538,17 @@ class Root:
         # a contested bundle the reader acknowledged leaves it at the bundles it extends (the tips a forked join
         # tried to join; the seat a contested recovery tried to replace), and so on down
         self.void()
-        todo = [i for i in rd["acks"] if i in self._contest]
+        ct = self._held(rd)[1]
+        # (and one the reader acknowledged that its own line holds void: a reader that acknowledged both sides of
+        # a split falls back to where they meet)
+        down = set(self._contest) | set(ct) | (set(rd["acks"]) & set(self.reader_void(rd)))
+        todo = [i for i in rd["acks"] if i in down]
         held = set(h)
         while todo and "inforce_global" not in MUT:
             x = todo.pop()
             for p in self.by[x]["prev"]:
                 if p in held: acked.add(p)
-                elif p in self._contest: todo.append(p)
+                elif p in down: todo.append(p)
         if not acked: return (self.first(rd),)
         return tuple(sorted(i for i in acked if not any(i in self.past(j) for j in acked)))
 
