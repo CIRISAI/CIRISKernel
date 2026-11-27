@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**The lift's base: the persons at both heads** (the lift follow-up, after the head rules). A lift (a re-seating
+citing a moderator's lone removal of an agent's key) names the newest counted changes in its own past (H4, no
+exemption) and is counted over the persons seated at BOTH the removal's head and its own heads, the removal's
+author apart; the removed key still must have held its `agent` seat at the removal's head. **An answer changes:**
+a member admitted after the removal is no voice of the lift and not counted over, so a room that grows after a
+removal cannot pack its lift (a room of two that grew lifts nothing: its base is one person, under the floor of two;
+the room's own count can admit the key again); a member removed since is out of it, and one removed and re-admitted
+is in it. Seven cases in `check_agent_removal.py`; plants `lift_base_lift_head` and `lift_base_removal_head` in
+both languages.
+
 **One line across the models: the end of a conferral reads the sibling-safe line** (the ruling of 2026-11-27, ruling
 A of the superseded-bundle read, persist's item 13). `conferral::answers`'s `end_void.line` now voids an end for a
 reader only where the head the end names is strictly in the past of a head the acknowledged one extends, as the

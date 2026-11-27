@@ -543,6 +543,20 @@ plant "a new entry voided by a head after it"           src/held_view.rs 'v.v.co
 plant "a resumed stub keeps its signatures"             src/held_view.rs '            if e.stub {' '            if false {'
 plant "a foreign row made dirty"                        src/held.rs '            if !fx {' '            if true {'
 plant "the end's line not sibling-safe"              src/conferral.rs '|h| Ok(behind(h)? && !self.past.in_past(e.id(), h)?))?;' '|h| Ok(self.later(Some(h), e.head())? && !self.past.in_past(e.id(), h)?))?;'
+plant "the lift's base read at its own heads alone"    src/seat.rs '        mem.retain(|k| at_rem.contains(k));
+    }
+    mem
+}' '        let _ = at_rem;
+    }
+    mem
+}'
+plant "the lift's base read at the removal's head alone" src/seat.rs '        mem.retain(|k| at_rem.contains(k));
+    }
+    mem
+}' '        mem = at_rem;
+    }
+    mem
+}'
 plant "an act naming the end still counts"            src/conferral.rs 'return Ok((false, false, Rule::NamesEnd));' 'return Ok((true, false, Rule::NamesEnd));'
 plant "the grantee receipts its own act"              src/conferral.rs 'Role::Grantee | Role::Other => Ok(false),' 'Role::Grantee | Role::Other => Ok(true),'
 plant "a receipt after the end keeps the act"         src/conferral.rs 'Ok(!self.key_cut(q)? && self.eligible(q, e)? && !self.past.in_past(e.id(), q.id())?)' 'Ok(!self.key_cut(q)? && self.eligible(q, e)?)'

@@ -32,6 +32,8 @@ Part 2. Planted breaks in the seat rule, each of which must change a case's answ
     author_voice       the removal's author's objection is a voice of the re-seating
     agent_voice        an agent's signature is a voice of a count (the removed key's objection counts)
     lift_over_all      the re-seating is counted over the whole roster, the author with it (the reading ruled out)
+    lift_base_lift_head  the lift's base read at its own heads alone (a room that grows after a removal packs its lift)
+    lift_base_removal_head  the lift's base read at the removal's head alone (a member removed since still a voice)
     restores_unseated  the re-seating seats a key that was not on the roster at the head the removal names (the
                        lone removal's own test that the key holds an agent's seat there, seen from the lift)
     agent_counted_over an agent is counted over, in the window and in the re-seating (the removed key with it)
@@ -263,8 +265,61 @@ CASES += [
                                                     WN.answer("o2", "m2", "x", "object", ("wa",)), O3],
      {"x": T, "au": T, "wa": T}, {"m1", "m2", "m3"}, {"x": "lifted"}),
 ]
+# The lift's base (roster-kinds' follow-up, after the head rules): the lift names the newest counted changes in its own
+# past (H4, no exemption), and is counted over the persons seated at BOTH the removal's head and its own heads, the
+# removal's author apart. World E: four founders p1 to p4 (p1 the moderator) and the agent's key AG; p1 removes AG
+# alone at ag. World Q: a room of two, q1 (the moderator) and q2, that grows after the removal
+GE = ST.found("g", "p1", ("p1", "p2", "p3", "p4"), {"moderate": ("p1",)}, cosigners=("p2", "p3", "p4"))
+E = [GE, admit("ag", "AG", ("p1", "p2", "p3"), "g", "agent")]
+XE = remove("x", "p1", "AG", "ag")
+OE2, OE3, OE4 = obj("o2", "p2"), obj("o3", "p3"), obj("o4", "p4")
+
+
+def cremove(i, who, signers, head):
+    """A counted removal of a person's seat."""
+    names, heads = at(head)
+    return ST.unseat(i, signers[0], who, "member", OBJ, "group", names, head=heads, policy="community_remove",
+                     cosigners=tuple(signers[1:]))
+
+
+R4 = cremove("r4", "p4", ("p1", "p2", "p3"), "x")
+L4 = ST.withdraw("l4", "p4", "g", ("x", "o4"))
+GQ = ST.found("g", "q1", ("q1", "q2"), {"moderate": ("q1",)}, cosigners=("q2",))
+QG = [GQ, admit("ag", "AG", ("q1", "q2"), "g", "agent"), remove("x", "q1", "AG", "ag"),
+      admit("n1", "N1", ("q1", "q2"), "x"), admit("n2", "N2", ("q1", "q2", "N1"), "n1"),
+      obj("oq", "q2"), obj("on1", "N1"), obj("on2", "N2")]
+CASES += [
+    ("E, the lift's base: p2 and p4 object and the lift names the removal, the newest change: two of the three at both "
+     "heads (p1 the author apart), lifted", E + [XE, OE2, OE4, reseat("rs", "p2", "AG", "x", "x", ("o2", "o4"))],
+     {"x": T, "rs": T}, {"p1", "p2", "p3", "p4", "AG"}, {"x": "lifted"}),
+    ("E, a member removed and re-admitted since the removal: p4 is seated at both heads, so its objection is a voice: "
+     "two of three, lifted",
+     E + [XE, R4, admit("a4", "p4", ("p1", "p2", "p3"), "r4"), OE2, OE4,
+          reseat("rs", "p2", "AG", "x", "a4", ("o2", "o4"))],
+     {"x": T, "rs": T}, {"p1", "p2", "p3", "p4", "AG"}, {"x": "open"}),
+    ("E, the same member removed and not re-admitted: p4 is not seated at the lift's head, so it is out of the base "
+     "and no voice: one of two, and nothing lifts",
+     E + [XE, R4, OE2, OE4, reseat("rs", "p2", "AG", "x", "r4", ("o2", "o4"))],
+     {"x": T, "rs": F}, {"p1", "p2", "p3"}, {"x": "open"}),
+    ("E, the author removed since: p1 is apart either way; p2 and p3 object, two of three, lifted (the removal is "
+     "out of force besides, its remover's standing ended)",
+     E + [XE, cremove("r1", "p1", ("p2", "p3", "p4"), "x"), OE2, OE3, reseat("rs", "p2", "AG", "x", "r1", ("o2", "o3"))],
+     {"x": T, "rs": T}, {"p2", "p3", "p4", "AG"}, {"x": "lifted"}),
+    ("E, a member who left in between: p4's leaving is in the lift's past, so p4 is out of the base and its objection "
+     "no voice: one of two, nothing lifts",
+     E + [XE, OE2, OE3, OE4, L4, reseat("rs", "p2", "AG", "x", "x", ("o2", "o4", "l4"))],
+     {"x": T, "rs": F}, {"p1", "p2", "p3"}, {}),
+    ("E, the same leaving, p2 and p3 objecting: two of the two left, lifted",
+     E + [XE, OE2, OE3, OE4, L4, reseat("rs", "p2", "AG", "x", "x", ("o2", "o3", "l4"))],
+     {"x": T, "rs": T}, {"p1", "p2", "p3", "AG"}, {}),
+    ("Q, a room of two that grew: q1 removes AG, then q1 and q2 admit N1 and N2; q2, N1 and N2 object. The newcomers "
+     "are not seated at the removal's head, so the base is q2 alone and the floor of two is not met: nothing lifts "
+     "(a room cannot pack its lift by admitting after the removal; the room's own count can admit the key again)",
+     QG + [reseat("rs", "q2", "AG", "x", "n2", ("oq", "on1", "on2"))], {"x": T, "rs": F}, {"q1", "q2", "N1", "N2"},
+     {"x": "open"}),
+]
 SEAT_PLANTS = ("agent_unread", "moderator_unread", "author_voice", "agent_voice", "lift_over_all", "restores_unseated", "agent_counted_over",
-               "lift_no_floor", "window_scope_roster_only")
+               "lift_no_floor", "window_scope_roster_only", "lift_base_lift_head", "lift_base_removal_head")
 
 
 def read(S, concl, wins):

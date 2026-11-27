@@ -2509,6 +2509,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     let Some((author, v)) = lift_voices_with(&p, self.law, self.spec, Some(&members)) else {
                         return false;
                     };
+                    // the base: the persons at both the removal's head and the lift's own heads ([`lift_base`])
+                    let base = lift_base(&p, self.law, self.spec, &over, Some(&members));
+                    mem.retain(|m| base.contains(m));
                     mem.remove(&author); // the removal's author apart (the key removed is an agent's: in no count)
                     v
                 } else {
@@ -3806,8 +3809,8 @@ fn lone_removal<R: SeatRow, S: CutSpec<R>>(
 /// each objection to the removal (an answer `object` in its `moderation_overturn` window) as such a
 /// cosignature. The removal's author is no voice. The row's own signers are no voices either.
 ///
-/// Returns the removal's author and the voices. The count ([`Policy::Lift`]) is taken of the members at the
-/// head (persons: the agents apart) less that author. The key removed is an agent's, so it is in no count
+/// Returns the removal's author and the voices. The count ([`Policy::Lift`]) is taken of the persons seated at
+/// both the removal's head and the lift's own heads (the agents apart) less that author. The key removed is an agent's, so it is in no count
 /// (an agent "acts under its own key and has no vote").
 pub fn lift_voices<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
@@ -3844,6 +3847,27 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
     // voice there; it is taken out here too for a caller that counts these voices over members of its own
     v.remove(rem.signer());
     Some((rem.signer().clone(), v))
+}
+
+/// The base of a lift (`p.row()`, a re-seating citing a lone removal): the persons seated at BOTH the removal's
+/// head and the lift's own heads, the newest counted changes in its past (H4, no exemption). A member removed, or
+/// that left, since the removal is out of it; one admitted since is out of it too, so a room that grows after a
+/// removal cannot pack its lift; a member removed and re-admitted is in it. The caller takes the removal's author
+/// apart. Where the row cites no held removal, the persons at its own heads.
+fn lift_base<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+    cache: Option<&MembersAt<R>>,
+) -> BTreeSet<R::Key> {
+    let r = p.row();
+    let mut mem = persons_at_with(p, law, spec, obj, r.head(), "member", cache);
+    if let Some(rem) = r.content().and_then(|c| p.get(c)) {
+        let at_rem = persons_at_with(p, law, spec, obj, rem.head(), "member", cache);
+        mem.retain(|k| at_rem.contains(k));
+    }
+    mem
 }
 
 /// Whether a count is met: `yes` voices of `n`, under `policy`.
@@ -4344,9 +4368,9 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         // a lift restores and does not admit: the removal it cites is a lone removal, so the key held its
         // agent's seat at that head (lone_removal)
         let Some((author, v)) = lift_voices_with(p, law, spec, cache) else { return false };
-        // the members are persons: the key removed is an agent's, no voice and not counted over (the base, the
-        // members at both heads, is roster-kinds' follow-up)
-        let mut mem = persons_at_with(p, law, spec, &obj, r.head(), "member", cache);
+        // the members are persons: the key removed is an agent's, no voice and not counted over; the base is the
+        // persons at both heads ([`lift_base`])
+        let mut mem = lift_base(p, law, spec, &obj, cache);
         mem.remove(&author); // the author is not among the members the majority is taken of
         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
     }
@@ -4770,9 +4794,10 @@ fn end_of_ended<R: SeatRow, S: CutSpec<R>>(
 /// - `voices` is [`voices`]: the row's signer, its cosigners, and the signers of the cosignatures it names
 ///   that name every head it is counted over.
 /// - Under [`Policy::Lift`] the two are read otherwise: `voices` is [`lift_voices`] (the objections the row
-///   names, the removal's author left out) and `members` is [`members_at`] at the head less the agents (the
-///   key removed among them) and less that author, with no leaving subtracted. The seat rule asks besides
-///   that the key seated held the seat it seats (`agent`) at that head.
+///   names, the removal's author left out) and `members` is [`members_at`] at both the removal's head and the
+///   lift's own heads (the keys seated at both), less the agents (the key removed among them) and less that
+///   author, with no leaving subtracted. The seat rule asks besides that the key seated held the seat it seats
+///   (`agent`) at the removal's head.
 /// - `to`, `members`, `voices` and the weights are in **one** key space. A caller counting persons (KERNEL.md
 ///   7b) collapses `to` the same way, once each: two devices of one person in `to` are one key.
 #[derive(Clone, Copy, Debug)]

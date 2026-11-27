@@ -84,12 +84,13 @@ members may lift that act as they may any act of a moderator."
                   so signed is counted as any removal is.
     the lift      the removal opens a `moderation_overturn` window (window.py: `window` on the row). The lift's
                   effect is a row: a counted offer of policy `moderation_overturn` that seats the key again, cites
-                  the removal (`content`), names the head the removal names, and names objections (answers
-                  `object` to the removal). Its voices are the signers of those objections and no other key; the
-                  removal's author is no voice, and the key it seats is an agent's, so it is in no count. It
-                  concludes when those voices are a strict majority of the members (persons) at that head, the
-                  removal's author apart, never fewer than two: the overturn's count.
-                  It restores and does not admit: the key it seats held its `agent` seat at that head.
+                  the removal (`content`), names the newest counted changes in its own past (H4, no exemption), and
+                  names objections (answers `object` to the removal). Its voices are the signers of those objections
+                  and no other key; the removal's author is no voice, and the key it seats is an agent's, so it is
+                  in no count. It concludes when those voices are a strict majority of the persons seated at BOTH
+                  the removal's head and the lift's own heads (lift_base), the removal's author apart, never fewer
+                  than two: the overturn's count. It restores and does not admit: the key it seats held its `agent`
+                  seat at the removal's head.
                   No reading of the roster reads a window: until that row is written the key is out.
     in force      the removal is an act under the remover's `moderate` standing, and the seat walk counts it as a
                   live unseat only where the end rule (conferral_end.py, E2 to E8) gives it in force over the rows
@@ -1103,7 +1104,7 @@ def lift_voices(r, P, past, by):
     rem = by.get(r.get("content"))
     if r["kind"] != "offer" or rem is None or rem["kind"] != "unseat" or not lone_removal(rem, P, past): return None
     # the same seat. The re-seating names the newest counted changes in its own past, as every roster row does (H4),
-    # so it no longer names the removal's head (its base, the members at both heads, is roster-kinds' follow-up)
+    # so it no longer names the removal's head; its base is the members at both heads (lift_base)
     if (rem["obj"], rem["scope"], tuple(rem["to"])) != (r["obj"], r["scope"], tuple(r["to"])):
         return None
     v = frozenset(a["signer"] for a in P if a["kind"] == "answer" and a.get("of") == rem["id"] and a.get("says") == "object"
@@ -1118,18 +1119,30 @@ def room_count(yes, base):
     return 2 * len(yes) > len(base) and (len(yes) >= 2 or "lift_no_floor" in MUT)
 
 
+def lift_base(r, P, past, by):
+    """(over, voters) of a lift: the persons seated at BOTH the removal's head and the lift's own heads (the newest
+    counted changes in the lift's past, H4). A member removed, or that left, since the removal is out of it; one
+    admitted since is out of it too, so a room that grows after a removal cannot pack its lift; a member removed and
+    re-admitted is in it. The removal's author is taken apart by the caller. A lift restores: the key held its
+    `agent` seat at the removal's head (lone_removal), so a moderator's "removal" of a key never seated, and a strict
+    majority's objections, admit nothing past the room's own protocol. The members are persons: the key removed is an
+    agent's, no voice and not counted over. MUTATIONS lift_base_lift_head (the base read at the lift's heads alone)
+    and lift_base_removal_head (at the removal's head alone)."""
+    rem_heads = by[r["content"]].get("head", ())
+    if "lift_base_removal_head" in MUT: return counted_keys(P, past, r["obj"], rem_heads)
+    mem, vot = counted_keys(P, past, r["obj"], r.get("head", ()))
+    if "lift_base_lift_head" in MUT: return mem, vot
+    mr, vr = counted_keys(P, past, r["obj"], rem_heads)
+    return mem & mr, vot & vr
+
+
 def lift_count(r, P, past, by):
     """The overturn's count (window.py, moderation_overturn) over the objections a re-seating row names: a strict
     majority of the members at the head, the removal's author apart and the key seated apart (each no voice, and
     not counted over); never fewer than two."""
     v = lift_voices(r, P, past, by)
     if v is None: return False
-    heads = r.get("head", ())                             # the base is roster-kinds' follow-up; read at the lift's heads
-    # a lift restores: the key held its `agent` seat at the head the removal names, since the removal is a lone
-    # removal only of such a key (lone_removal). So a moderator's "removal" of a key never seated, and a strict
-    # majority's objections, admit nothing past the room's own protocol
-    # the members are persons: the key removed is an agent's, so it is no voice and is not counted over
-    mem, vot = counted_keys(P, past, r["obj"], heads)
+    mem, vot = lift_base(r, P, past, by)
     yes = v & vot
     if "lift_over_all" not in MUT: mem = mem - {by[r["content"]]["signer"]}    # MUTATION lift_over_all: the author counted over
     return room_count(yes, mem)
@@ -1891,8 +1904,10 @@ class Seats:
                         act_of(r, {q["id"]: q for q in P}, r.get("obj") not in {q["id"] for q in P}) if BOUND else None):
                     # a re-seating (its act the lift): its voices are the objections it names, over the members the fold seats
                     v = lift_voices(r, P, past, {q["id"]: q for q in P}) or frozenset()
+                    if v:                                   # the base: the persons at both heads (lift_base), the author apart
+                        mem = mem & lift_base(r, P, past, {q["id"]: q for q in P})[0]
+                        mem = mem - {S.by[r["content"]]["signer"]}   # (the key removed is an agent's: in no count)
                     yes = v & mem
-                    if v: mem = mem - {S.by[r["content"]]["signer"]}   # the author apart (the key removed is an agent's: in no count)
                     if not room_count(yes, mem): return False
                 elif not count_of(r.get("policy"), True, r.get("to", ()), mem, yes, r.get("need"), r.get("weights"),
                                   signed=voices(r, P)):
