@@ -185,11 +185,11 @@ kernel's: each case carries the view it gives.
   the voice, `kid` the key that signed, `refs.also.voice` the heads named), `records` (the signer's record, or
   none), `view` (`voice`, `heads`, `live_keys`: the voice's live room keys at that head by `seat.members_at`,
   empty unless exactly one head is named), `verdict` (`admitted`, `refused` or `concludes_nothing`), `refusal`
-  (`room_row_signer_not_room_key`, `room_key_other_room`, or null), and `kernel` (the kernel's own reading of the
+  (`room_row_signer_not_room_key`, `room_key_other_room`, `room_row_voice_head_malformed`, or null), and `kernel` (the kernel's own reading of the
   live-key clause, `roomkey.rule`, which the generator checks against the verdict).
-- the text names no refusal for a row with no voice head, several, or a key that is not live there: such a row
-  concludes nothing, with `refusal` null. The order "signer a room key" before "its record's room" is the
-  generator's; no case meets both. A public room's row is not checked.
+- a row naming no voice head, or several, is refused, `room_row_voice_head_malformed` (CC 2.7.3). The text names
+  no refusal for a key that is not live at the head: such a row concludes nothing, with `refusal` null. The checks
+  run in the order above; no case meets two. A public room's row is not checked.
 
 ### Room content after a member's seat ends
 

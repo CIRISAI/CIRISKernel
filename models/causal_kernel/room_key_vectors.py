@@ -8,11 +8,12 @@ view at the head the row names, it answers:
        key or a node key is refused, `room_row_signer_not_room_key`.
     2. the signer's key record names this room. A row of another room signed under a room key is refused,
        `room_key_other_room`.
-    3. the row names the head of the voice's key roster under the `refs.also` role `voice`, exactly one row.
+    3. the row names the head of the voice's key roster under the `refs.also` role `voice`, exactly one row. A row
+       naming none, or several, is malformed and refused, `room_row_voice_head_malformed` (CC 2.7.3; ruled on #224).
     4. the room key is a live key of the voice at that head. "A row concludes only if the room key that signed it is a
-       live key of the voice at that head."
-The text names no refusal for 3 and 4: such a row concludes nothing (`refusal` null). The order of 1 before 2 is
-this file's (no case here meets both). A public room seats identity keys and the check is not engaged.
+       live key of the voice at that head." The text names no refusal: such a row concludes nothing (`refusal` null).
+The order 1, 2, 3, 4 is the check's (the Constitution states it; no case here meets two). A public room seats
+identity keys and the check is not engaged.
 
 The roster fold stays the kernel's: `view` is the voice's live room keys at the head the row names, computed by
 seat.members_at over the voice's roster rows (roomkey.py: a voice is a small counted roster of room keys, scope
@@ -72,8 +73,10 @@ CASES = [
     ("a key of another voice, presented as this voice's", "private", row("r8", "vA", "rk:b0", [HA]), "concludes_nothing", None),
     ("a voice head that is another voice's roster head", "private", row("r9", "vA", "rk:a0", [HB]), "concludes_nothing", None),
     ("the one key of a voice of one key", "private", row("r10", "vB", "rk:b0", [HB]), "admitted", None),
-    ("no head of the voice's roster named", "private", row("r11", "vA", "rk:a0", []), "concludes_nothing", None),
-    ("two heads named under `voice` (exactly one row)", "private", row("r12", "vA", "rk:a0", [HA, HA1]), "concludes_nothing", None),
+    ("no head of the voice's roster named", "private", row("r11", "vA", "rk:a0", []), "refused",
+     "room_row_voice_head_malformed"),
+    ("two heads named under `voice` (exactly one row)", "private", row("r12", "vA", "rk:a0", [HA, HA1]), "refused",
+     "room_row_voice_head_malformed"),
     ("a room key whose record names another room", "private", row("r13", "vA", "rk:x0", [HA]), "refused", "room_key_other_room"),
     ("a row of the private room signed under an identity key", "private", row("r14", "vA", "id:A", [HA]), "refused",
      "room_row_signer_not_room_key"),
@@ -100,7 +103,7 @@ def check(membership, r, records, view):
     if rec is None or rec.get("room") is None: return "refused", "room_row_signer_not_room_key"
     if rec["room"] != r["room"]: return "refused", "room_key_other_room"
     heads = r["refs"]["also"]["voice"]
-    if len(heads) != 1: return "concludes_nothing", None
+    if len(heads) != 1: return "refused", "room_row_voice_head_malformed"
     return ("admitted", None) if r["kid"] in view else ("concludes_nothing", None)
 
 
