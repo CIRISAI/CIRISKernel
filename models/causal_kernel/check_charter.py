@@ -37,6 +37,9 @@ Planted breaks, each of which must change a case's answer:
     overseers_unread      (seat.py) a review holder of the overseeing body may not countersign
     withdrawal_clears_unread  (seat.py) the acting seat's withdrawal does not clear its proposal
     two_voices_unread     (seat.py) a body of two or more seats removes on one voice
+    officer_from_founders (seat.py) the deciding seats are the founding record's signers, not the officer role
+    affiliation_body_members  (seat.py) an affiliation's acts are counted over its members, not its officers
+    no_officer_locks      (seat.py) an affiliation with no officer is not dissolved
 
     python3 -I check_charter.py      exit 1 on any difference
 """
@@ -57,21 +60,24 @@ M, L, D = "medical", "legal", "dental"
 MW, LW, DW = (M, True), (L, False), (D, False)       # a class with its legal weight
 
 
-def aff(i="af", to=("A", "B", "C"), cls=(MW, LW), cohort="affiliations", **kw):
-    """A community's founding record: its members, each seated by its own signature, and its charter."""
+def aff(i="af", to=("A", "B", "C"), cls=(MW, LW), cohort="affiliations", officers=None, **kw):
+    """A community's founding record: its members, each seated by its own signature, and its charter. An
+    affiliation's founding record lists its first officers (`officers`, every member by default) with the officer
+    role (CC 4.4.3.12: its body for every counted act)."""
     if cohort is not None:
         kw["declared_cohort"] = cohort
     if cls is not None:
         kw["licence_classes"] = tuple(cls)
-    return ST.found(i, to[0], to, cosigners=tuple(to[1:]), **kw)
+    roles = {ST.OFFICER: tuple(to if officers is None else officers)} if cohort == "affiliations" else None
+    return ST.found(i, to[0], to, roles, cosigners=tuple(to[1:]), **kw)
 
 
-def rec(i, cls, heads=("af",), signer="A", cosigners=("B",), obj="af", **kw):
-    """A version of the record, counted at `heads` (cls None: it states no classes)."""
+def rec(i, cls, heads=("af",), signer="A", cosigners=("B",), obj="af", counted=ST.OFFICER, **kw):
+    """A version of the record, counted at `heads` (cls None: it states no classes), by an affiliation's officers."""
     if cls is not None:
         kw["licence_classes"] = tuple(cls)
     return ST.offer(i, signer, (), "record", obj, "group", tuple(heads), head=tuple(heads), cosigners=tuple(cosigners),
-                    **kw)
+                    counted=counted, **kw)
 
 
 def lic(i, cls, authority="af", names=None):
@@ -95,7 +101,7 @@ DIS = rec("dis", None, dissolved_at=100)                   # a counted dissoluti
 A1 = aff("a1", to=("A",), cls=(MW,))                       # a one-seat affiliation
 A1V = rec("a1v", (MW, LW), heads=("a1",), cosigners=(), obj="a1")
 A1W = ST.withdraw("a1w", "A", "a1")                         # its one member lays down its seat: no seat is left
-A1B = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("B",))  # appoints B
+A1B = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("B",), counted=ST.OFFICER)  # appoints B
 A1VB = rec("a1v", (MW, LW), heads=("a1b",), cosigners=(), obj="a1")          # A alone, of two members
 A1VAB = rec("a1v", (MW, LW), heads=("a1b",), cosigners=("B",), obj="a1")     # A and B
 CM = aff("cm", cohort=None)                                # a community: no declared cohort
@@ -118,8 +124,9 @@ DECLARED = [
     ("a reader holding only one of the two reads it", [AF, VA], "af", None, None, {MW, DW}),
     ("a one-seat affiliation changes its charter alone: a record change is no act against a member",
      [A1, A1V], "a1", None, None, {MW, LW}),
-    ("an appointed member is a voice: A alone is one of two, below the protocol", [A1, A1B, A1VB], "a1", None, None, {MW}),
-    ("and A with B is two of two", [A1, A1B, A1VAB], "a1", None, None, {MW, LW}),
+    ("an appointed member is no voice (an affiliation's body for every act is its officers, CC 4.4.3.12): A, the one "
+     "officer, changes the record alone beside appointed B", [A1, A1B, A1VB], "a1", None, None, {MW, LW}),
+    ("and B's signature beside A's changes nothing", [A1, A1B, A1VAB], "a1", None, None, {MW, LW}),
     ("any community's record is a charter", [CM], "cm", None, None, {MW, LW}),
     ("a family's record is no charter", [FM], "fm", None, None, None),
     ("no founding row held: no charter", [V1], "af", None, None, None),
@@ -199,16 +206,20 @@ EDGES = [
 # placeholder field, seat.OVERSEEN_BY); ob is a community of R1 and R2, R1 holding `review` over it. A appoints B.
 OB = ST.found("ob", "R1", ("R1", "R2"), {"review": ("R1",)}, cosigners=("R2",))
 A1O = aff("a1", to=("A",), cls=(MW,), official="O", **{ST.OVERSEEN_BY: "ob"})
-A1OB = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("B",))
-RMB = lambda heads=("a1b",), signer="A", cos=(): ST.unseat("rm", signer, "B", "member", "a1", "group", tuple(heads),
-                                                         head=tuple(heads), cosigners=tuple(cos),
-                                                         policy="affiliation_member_action")
+A1OB = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("B",), counted=ST.OFFICER)
+RMB = lambda heads=("a1b",), signer="A", cos=(): ST.unseat("rm", signer, "B", "member", "a1", "group",
+                                                         tuple(heads) + ("ob",), head=tuple(heads), cosigners=tuple(cos),
+                                                         policy="affiliation_member_action", counted=ST.OFFICER)
 CS = lambda k, names=("rm",), i="cs": ST.R(i, "countersign", k, tuple(names), of="rm")
 WRM = ST.withdraw("wrm", "A", "rm", ("rm",))
 ONE = [OB, A1O, A1OB]
+# A, the one officer, appoints C an officer: an appointment carrying role officer, C cosigning (its own acceptance)
+AOC = ST.offer("aoc", "A", ("C",), "member", "a1", "group", ("a1b",), head=("a1b",), cosigners=("C",), counted=ST.OFFICER,
+               role=ST.OFFICER)
 VO2 = rec("v", (MW,), heads=("a1",), cosigners=(), obj="a1", official="O2", **{ST.OVERSEEN_BY: "ob"})
 A1OBV = dict(A1OB, names=("v",), head=("v",))
-REM = ST.unseat("rm", "A", "C", "member", "af", "group", ("af",), head=("af",), cosigners=("B",), policy="cosigned_act")
+REM = ST.unseat("rm", "A", "C", "member", "af", "group", ("af",), head=("af",), cosigners=("B",), policy="cosigned_act",
+               counted=ST.OFFICER)
 # (name, rows, {row: concludes}, [(key, the affiliation, stands as a member)])
 COUNTERSIGN = [
     ("a one-seat affiliation's removal of a member, alone: it concludes as a proposal and B stays a member",
@@ -239,6 +250,22 @@ COUNTERSIGN = [
     ("and one voice of such a body removes nobody", [AF, dict(REM, cosigners=())], {"rm": False}, [("C", "af", True)]),
     ("a key that is no deciding seat signs no removal: B, appointed, with A", ONE + [RMB(cos=("B",))], {"rm": False},
      [("B", "a1", True)]),
+    ("the acting seat's withdrawal after the decision (the countersign in its past) is a new act and undoes nothing: "
+     "B stays out", ONE + [RMB(), CS("O"), ST.withdraw("wrm", "A", "rm", ("cs",))], {"cs": True, "wrm": True},
+     [("B", "a1", False)]),
+    # ---- the officers (the ruling on officers: `role: officer`, the body of every counted act) ------------------------
+    ("A, the one officer, appoints C as an officer (role officer, C's own acceptance): two officers, so A alone no "
+     "longer removes B (two voices needed), countersign or not",
+     ONE + [AOC, RMB(("aoc",)), CS("O")], {"aoc": True, "rm": False}, [("C", "a1", True), ("B", "a1", True)]),
+    ("and A and C, the two officers, remove B: a decision, no countersign asked",
+     ONE + [AOC, RMB(("aoc",), cos=("C",))], {"rm": True}, [("B", "a1", False)]),
+    ("an appointment with the officer role and no acceptance seats nobody, and A stays the one officer: a proposal",
+     ONE + [dict(AOC, cosigners=()), RMB(("aoc",))], {"rm": True}, [("C", "a1", False), ("B", "a1", True)]),
+    ("the one officer lays its role down by its own row: no officer is left, and the affiliation is dissolved (not "
+     "locked, no election): every seat over it ends",
+     ONE + [ST.withdraw("lo", "A", "a1", ("a1b",), scope=ST.OFFICER)], {"lo": True}, [("A", "a1", False), ("B", "a1", False)]),
+    ("an affiliation founded with no officer listed is dissolved at founding", [aff("a0", to=("A", "B"), cls=(MW,), officers=())],
+     {}, [("A", "a0", False)]),
 ]
 
 
@@ -298,7 +325,8 @@ PLANTS = ("charter_unread", "at_issuance", "below_protocol_read", "fork_union", 
           "dissolved_declares", "dissolves_at_unread", "empty_edge_admits_all", "absent_means_none",
           "edge_classes_unread", "last_hop_only", "affiliation_unread", "affiliation_admit_unread",
           "countersign_unread", "countersign_inside_seat", "official_at_founding", "overseers_unread",
-          "withdrawal_clears_unread", "two_voices_unread")
+          "withdrawal_clears_unread", "two_voices_unread", "officer_from_founders", "affiliation_body_members",
+          "no_officer_locks")
 
 
 def show(x):

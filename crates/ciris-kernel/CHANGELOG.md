@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**An affiliation's officers** (CC 4.4.3.12, the Constitution's ruling on officers). An officer is a member whose seat
+carries `role: officer` (`seat::OFFICER`, a canonical member role): the founding record's signers it lists with that
+role (a `duty_holders` entry `officer`) are the first officers; after founding an officer is seated as a family's
+founder is, by an appointment carrying the role (or a promotion, an offer of scope `officer`), counted by the
+officers under the protocol, with the appointee's own acceptance. Taking the role away counts as a removal; an officer
+lays it down by its own withdrawal naming the scope. An affiliation's BODY for every counted act is its officers
+under its declared protocol (appointment, removal, record change, dissolution, license-seat conferral, an onward
+trust edge); members with role `member` or none are subjects and no voice (a charter granting a vote: a gap, none
+built). The one-seat rule of the countersign reads on officers. An affiliation with NO officer is DISSOLVED at that
+point, not locked, and has no election: every seat over it ends. One source of the body rule: `Seats::authority_body`
+and `Seats::protocol_body` (Python `seat.authority_body`, `seat.protocol_body`), read by `trust_rows`. **An answer
+changes:** an affiliation's appointed member is no voice of its record change, its edge or its licence; an
+affiliation founded with no officer is dissolved; the charter and trust-rows cases are restated over officers. Plants
+`officer_from_founders`, `affiliation_body_members`, `no_officer_locks`, with crate twins; six crate plants retargeted.
+
 **An agent's duty rests on its owner's signature** (CC 4.5.4, "An agent's key MAY hold a duty, by its own statement and
 its owner's signature"; the cross-object rest (2)). A duty seat of an agent's key (a key holding an `agent` seat over
 the room) stands only where the one live owner of that key (its `owner` seat over the key's own roster) signed the
@@ -13,18 +28,19 @@ and two crate plants (no owner asked; two owners read as one).
 
 **The countersign of a one-seat affiliation's removal** (CC 4.4.3.12; the Constitution's
 formal/affiliation/Affiliation.lean, its `admitted` and `validCountersign`, as the reference). A removal of a member of
-an affiliation is no longer undecided. The deciding seats are the keys its founding record seats by their signatures,
-while members (a member appointed later holds no vote; a charter granting one is not read). The body's own signature
-is every voice a deciding seat, at least one. With ONE deciding seat the removal concludes as a PROPOSAL (CC 4.5.5's
+an affiliation is no longer undecided. The deciding seats are its officers (below). The body's own signature is every
+voice a deciding seat, at least one. With ONE deciding seat the removal concludes as a PROPOSAL (CC 4.5.5's
 reconsideration path) and is in force only where a countersign naming it counts for the reader: a countersign row by
-the designated official (the record in force in the removal's own past names it) or by a review holder of the
-overseeing body (its `review` seat over that body, read in the countersign's past), outside the deciding seat. No
-window: it waits. The acting seat's withdrawal of the removal clears it (a countersign with the withdrawal in its past
-concludes nothing, and one concurrent with it decides nothing). With two or more seats the removal decides on two
+the designated official or by a review holder of the overseeing body (its `review` seat over that body), both read in
+the removal's own past, outside the deciding seat. No window: it waits. The acting seat's withdrawal of the removal
+clears it (rule 4: a countersign with the withdrawal in its past concludes nothing; a withdrawal concurrent with the
+countersign counts at its own head and the countersign is out of force from there, so nothing is decided; a
+withdrawal with the countersign in its past is a new act and undoes no decision). With two or more seats the removal decides on two
 voices at least, the member removed apart (CC 4.5.13). "Outside the seat" is asked of keys: of persons once room-keys
 gives key to person (a TODO). **BREAKING**: `SeatKind::Countersign` (a new variant); `SeatRow::official` and
-`SeatRow::overseen_by` (new, default `None`; the second's wire name is the Constitution's to give, and the accessor is
-its one reading); `seat::affiliation_removal` returns `bool` (the shape), no reason; `charter.json` has no `undecided`
+`SeatRow::overseen_by` (new, default `None`; the record member `overseen_by`, the Constitution's ruled name: optional,
+one group id, the overseeing body's community_key_id, changed like any record member; absent, only the designated
+official countersigns); `seat::affiliation_removal` returns `bool` (the shape), no reason; `charter.json` has no `undecided`
 cases. 14 cases in `check_charter.py` (COUNTERSIGN), in the `seat` fixture; plants `countersign_unread`,
 `countersign_inside_seat`, `official_at_founding`, `overseers_unread`, `withdrawal_clears_unread`, `two_voices_unread`,
 with crate twins; `affiliation_removal_passes` and its crate twin retired with the undecided reading.

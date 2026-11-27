@@ -331,11 +331,12 @@ def act_of(r, by, is_key=False):
     if kind == "accord": return ("standing_act", "any", kind)
     if kind == "affiliation":
         # an affiliation's acts (the table's affiliation rows, CC 4.4.3.12): an appointment of a member (the appointee's
-        # acceptance is the second consent), a removal of one (undecided: affiliation_removal), a change of the record
-        # and its dissolution. No duty seat
+        # acceptance is the second consent), a removal of one (affiliation_removal), a promotion to and a demotion from
+        # the officer role (counted as an appointment and as a removal, as a family's founder role), a change of the
+        # record and its dissolution. No duty seat
         if sc == "record" and offer:
             return ("dissolve" if r.get("dissolved_at") is not None else "record_change", "record", kind)
-        if sc == "member" and (not offer or "affiliation_admit_unread" not in MUT):
+        if sc in ("member", OFFICER) and (not offer or "affiliation_admit_unread" not in MUT):
             return ("admit" if offer else "remove", "member", kind)
         if sc == "license" and "license_seat_unread" not in MUT:
             return ("seat_confer" if offer else "seat_withdraw", "license", kind)
@@ -461,15 +462,31 @@ def stalled_recovery(r, P, past):
 def affiliation_removal(r, by):
     """A counted removal of a member of an affiliation (the acts row remove / member / affiliation:
     affiliation_member_action | cosigned_act)."""
-    return r["kind"] == "unseat" and r.get("conf") == "group" and r.get("scope") == "member" \
+    return r["kind"] == "unseat" and r.get("conf") == "group" and r.get("scope") in ("member", OFFICER) \
         and kind_of(by, r.get("obj")) == "affiliation"
 
 
 # ---- the countersign of a one-seat affiliation's act against a member (CC 4.4.3.12; the Constitution's
 # formal/affiliation/Affiliation.lean, `admitted` and `validCountersign`) -----------------------------------------
-# PLACEHOLDER: the record field that names the body that conferred or oversees the affiliation. The Constitution
-# names it; it is read here and nowhere else (record_value(.., OVERSEEN_BY))
+# the record member that names the body that conferred or oversees the affiliation (the Constitution's ruled name:
+# optional, one group id, changed like any record member; absent, only the designated official countersigns)
 OVERSEEN_BY = "overseen_by"
+OFFICER = "officer"     # the canonical MemberRole of an affiliation's deciding seat (CC 4.4.3.12)
+
+
+def authority_body(Q, obj):
+    """The keys a group's own authority is counted over (one source of the body rule, for the seat rule's readers):
+    an affiliation's officers (CC 4.4.3.12, the ruling on officers; MUTATION affiliation_body_members: its members);
+    any other community's duty holders (CC 4.5.4). `Q` a Seats reading."""
+    if kind_of(Q.S.by, obj) == "affiliation":
+        return Q.holders("member" if "affiliation_body_members" in MUT else OFFICER, obj)
+    return Q.holders("duty", obj)
+
+
+def protocol_body(Q, obj):
+    """The keys a group's declared protocol is counted over: an affiliation's officers, any other community's members."""
+    if kind_of(Q.S.by, obj) == "affiliation" and "affiliation_body_members" not in MUT: return Q.holders(OFFICER, obj)
+    return Q.holders("member", obj)
 
 
 def record_value(by, obj, field):
@@ -488,12 +505,16 @@ def record_value(by, obj, field):
 
 
 def deciding_seats(P, past, obj, heads):
-    """An affiliation's deciding seats at the heads (its officers under its protocol, CC 4.4.3.12): the keys its
-    founding record seats by their signatures, while they are members there. A member appointed later is subject to
-    the body's power and holds no vote (its charter granting one is not read: a gap)."""
-    g = {q["id"]: q for q in P}.get(obj)
-    if g is None: return frozenset()
-    return (signers(g) & frozenset(g["to"])) & members_at(P, past, obj, heads, "member")
+    """An affiliation's deciding seats at the heads: its officers (CC 4.4.3.12, the ruling on officers), the members
+    whose seat carries the `officer` role there (the founding record's signers listed with it, and those appointed or
+    promoted with it since, less demotions, lay-downs and leavings). A member with no role is subject to the body's
+    power and no voice (a charter granting one is not read: a gap). MUTATION officer_from_founders: the founding
+    record's seated signers, while members (the reading before the ruling)."""
+    if "officer_from_founders" in MUT:
+        g = {q["id"]: q for q in P}.get(obj)
+        if g is None: return frozenset()
+        return (signers(g) & frozenset(g["to"])) & members_at(P, past, obj, heads, "member")
+    return members_at(P, past, obj, heads, OFFICER)
 
 
 def affiliation_count(r, P, past):
@@ -515,7 +536,7 @@ def needs_countersign(u, P, past):
 
 
 def overseers(P, past, body):
-    """The review holders of the overseeing body, at the newest counted changes over it in P."""
+    """The review holders of the overseeing body, at the newest counted changes over it in P (the act's own past)."""
     by = {q["id"]: q for q in P}
     if by.get(body) is None: return frozenset()
     return members_at(P, past, body, newest_changes(P, past, body, by), "review")
@@ -524,7 +545,7 @@ def overseers(P, past, body):
 def countersign_ok(r, P, past):
     """A countersign row (`of` the act) concludes where the act it names is a one-seat affiliation's removal in its
     past, not withdrawn there by the acting seat, and its signer is outside the deciding seat and is the designated
-    official (the record in force in the ACT's own past) or a review holder of the overseeing body. Asked of keys:
+    official or a review holder of the overseeing body, both read in the ACT's own past. Asked of keys:
     TODO: of persons, once room-keys gives key to person (MUTATIONS countersign_inside_seat, overseers_unread)."""
     by = {q["id"]: q for q in P}
     t = by.get(r.get("of"))
@@ -540,7 +561,7 @@ def countersign_ok(r, P, past):
     byt = {q["id"]: q for q in Pt}
     if k == record_value(byt, t["obj"], "official"): return True
     body = record_value(byt, t["obj"], OVERSEEN_BY)
-    return body is not None and "overseers_unread" not in MUT and k in overseers(P, past, body)
+    return body is not None and "overseers_unread" not in MUT and k in overseers(Pt, past, body)
 
 
 def is_amendment(q, obj):
@@ -658,6 +679,9 @@ def _protocol_part(r, by, need, weights):
     # the body: a family under founder_only counts its active founders (the `founder` role standing at the row's
     # heads: the founding roles and later conferred ones, less demotions and leavings); every other count its members
     body = "founder" if family and kind == "founder_only" else "member"
+    # an affiliation's body for every counted act is its officers under its declared protocol (CC 4.4.3.12: its members
+    # are subjects and no voice; a charter granting them one is not read). MUTATION affiliation_body_members
+    if kind_of(by, obj) == "affiliation" and "affiliation_body_members" not in MUT: body = OFFICER
     if r.get("counted", "member") != body and "protocol_body_free" not in MUT: return REFUSED
     if family and kind == "founder_only":
         # each act takes one active founder; a removal (a demotion too) one other than the one it names
@@ -734,8 +758,9 @@ def in_force(r, by):
             if ok is None: return REFUSED
         # `role: founder` is read on a family's admission of the member seat and on an infrastructure community's
         # founders' amendment, and nowhere else
-        if r.get("role") is not None and not ((a[2] == "family" and r.get("scope") == "member") or (
-                a[2] == "infrastructure" and r.get("scope") == "record")) and "role_on_own_offer" not in MUT:
+        if r.get("role") is not None and not ((a[2] == "family" and r.get("scope") == "member" and r["role"] == "founder") or (
+                a[2] == "infrastructure" and r.get("scope") == "record") or (
+                a[2] == "affiliation" and r.get("scope") == "member" and r["role"] == OFFICER)) and "role_on_own_offer" not in MUT:
             return REFUSED
         # an entrenched record (`consensus_protocol_entrenched`): a change of its protocol, or of the flag itself,
         # concludes nothing (F5); every other amendment concludes under the protocol
@@ -820,6 +845,7 @@ def body_of(a, by, obj):
     every other act of a community (an admission, a removal, the recall, the lift, the election, a change of the
     record)."""
     act, _sc, kind = a
+    if kind == "affiliation": return "member" if "affiliation_body_members" in MUT else OFFICER   # its officers, every act
     if kind == "infrastructure": return "founder"
     if kind == "accord": return "holder"
     if kind == "family": return "member"
@@ -1008,6 +1034,9 @@ def seat_scopes(o, k):
         counted = o.get("conf") == "group" or "role_on_own_offer" in MUT
         if o.get("role") == "founder" and o["scope"] == "member" and counted and "role_unread" not in MUT:
             return ("member", "founder")
+        # an affiliation's appointment carrying `role: officer` seats the officer role too (CC 4.4.3.12)
+        if o.get("role") == OFFICER and o["scope"] == "member" and counted and "role_unread" not in MUT:
+            return ("member", OFFICER)
         # a founders' amendment of an infrastructure record seats its keys as founders (CC 3.1.3.2)
         if o.get("role") == "founder" and o["scope"] == "record" and counted: return ("founder",)
         return (o["scope"],)
@@ -1136,10 +1165,12 @@ def end_scope(by, w):
 
 
 def family_role_seat(by, o, sc):
-    """A family's founder role conferred after founding (a promotion, or an admission carrying the role): a seat of
-    scope `founder` over a family that stands only on the member's seat, and ends with the member's stay (F1)."""
+    """A family's founder role, or an affiliation's officer role, conferred after founding (a promotion, or an admission
+    carrying the role): a seat of scope `founder` over a family, or `officer` over an affiliation, that stands only on
+    the member's seat, and ends with the member's stay (F1; CC 4.4.3.12)."""
     g = by.get(o.get("obj"))
-    return sc == "founder" and g is not None and g.get("group_kind") == "family" and o["id"] != o["obj"]
+    if g is None or o["id"] == o["obj"]: return False
+    return (sc == "founder" and g.get("group_kind") == "family") or (sc == OFFICER and kind_of(by, o["obj"]) == "affiliation")
 
 
 def duty_held(by, o, sc=None):
@@ -1873,6 +1904,13 @@ class Seats:
             if len(keep) == len(base): break
             base[:] = keep
             self.live = K.fix(step, frozenset(), depth + 1)
+        # an affiliation with no officer is dissolved at that point (CC 4.4.3.12): every seat over it ends (MUTATION
+        # no_officer_locks: it locks, its members kept)
+        if "no_officer_locks" not in MUT:
+            objs = {S.by[oid]["obj"] for oid, _, _, _, _ in self.live}
+            with_officer = {S.by[oid]["obj"] for oid, _, sc, _, _ in self.live if sc == OFFICER}
+            ended = {o for o in objs if o not in with_officer and kind_of(S.by, o) == "affiliation"}
+            if ended: self.live = frozenset(x for x in self.live if S.by[x[0]]["obj"] not in ended)
         self.recs = [{"id": "%s/%s/%s" % (oid, k, sc), "offer": oid, "k": k, "scope": sc, "obj": S.by[oid]["obj"],
                       "depth": d, "root": root} for oid, k, sc, d, root in self.live]
 
@@ -1902,6 +1940,10 @@ class Seats:
         """Group o is dissolved: a concluded dissolution of it is held, or, with no signer, every member it seated has
         an end of their seat (its roster empty, folded at tips, and its founding row held): no row over it concludes."""
         if any(is_dissolve(q) and q.get("obj") == o and q["id"] not in self.dropped for q in self.S.Cs): return True
+        # an affiliation with no officer is dissolved at that point (CC 4.4.3.12): not locked, and no election
+        # (MUTATION no_officer_locks)
+        if kind_of(self.S.by, o) == "affiliation" and "no_officer_locks" not in MUT and not self.holders(OFFICER, o):
+            return True
         return founding_row(self.S.by, o) and not self.roster(o) and any(
             g == o for _, _, g in stay_ends(self.S.Cs, self.S.by,
                                           lambda a, w: bool(self.S.C.get(a["id"])) and a["id"] in self.S.anc[w["id"]]))
@@ -2826,7 +2868,8 @@ def count_left(P, past, obj, scope):
     by = {q["id"]: q for q in P}
     # a family's founder role ends with any leaving of the key (its member seat, or the founding row) in the row's
     # past, whatever head that row names (MUTATION founder_role_survives_leave)
-    role = scope == "founder" and kind_of(by, obj) == "family" and "founder_role_survives_leave" not in MUT
+    role = ((scope == "founder" and kind_of(by, obj) == "family") or (scope == OFFICER and kind_of(by, obj) == "affiliation")) \
+        and "founder_role_survives_leave" not in MUT
     return out | stay_ended_in_past(P, past, obj) if is_duty(scope, declared(by, obj)) or role else out
 
 

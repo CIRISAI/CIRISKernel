@@ -880,13 +880,14 @@ pub fn act_of<'r, R: SeatRow + 'r>(
         CommunityKind::Accord => Some((Act::StandingAct, ScopeClass::Any, kind)),
         CommunityKind::Affiliation => {
             // an affiliation's acts (the table's affiliation rows, CC 4.4.3.12): an appointment of a member (the
-            // appointee's acceptance is the second consent), a removal of one (undecided: [`affiliation_removal`]), a
+            // appointee's acceptance is the second consent), a removal of one ([`affiliation_removal`]), a promotion
+            // to and a demotion from the officer role (an appointment and a removal, as a family's founder role), a
             // change of the record (its charter, [`crate::charter`]) and its dissolution. No duty seat
             match sc? {
                 "record" if offer => {
                     Some((if r.dissolves() { Act::Dissolve } else { Act::RecordChange }, ScopeClass::Record, kind))
                 }
-                "member" => Some((if offer { Act::Admit } else { Act::Remove }, ScopeClass::Member, kind)),
+                "member" | OFFICER => Some((if offer { Act::Admit } else { Act::Remove }, ScopeClass::Member, kind)),
                 "license" => Some((if offer { Act::SeatConfer } else { Act::SeatWithdraw }, ScopeClass::License, kind)),
                 _ => None,
             }
@@ -989,6 +990,8 @@ fn body_of<'r, R: SeatRow + 'r>(
     obj: &ObjOf<R>,
 ) -> &'r str {
     match kind {
+        // an affiliation's body for every counted act is its officers (CC 4.4.3.12)
+        CommunityKind::Affiliation => OFFICER,
         CommunityKind::Infrastructure => "founder",
         CommunityKind::Accord => "holder",
         CommunityKind::Family => "member",
@@ -1124,8 +1127,10 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
                 // community's founders' amendment, and nowhere else
                 if r.role().is_some()
                     && !matches!(
-                        (kind, r.scope().map(|s| s.as_ref())),
-                        (CommunityKind::Family, Some("member")) | (CommunityKind::Infrastructure, Some("record"))
+                        (kind, r.scope().map(|s| s.as_ref()), r.role().map(|x| x.as_ref())),
+                        (CommunityKind::Family, Some("member"), Some("founder"))
+                            | (CommunityKind::Infrastructure, Some("record"), _)
+                            | (CommunityKind::Affiliation, Some("member"), Some(OFFICER))
                     )
                 {
                     return Err(());
@@ -1299,7 +1304,7 @@ pub fn declared_count<R: SeatRow>(
 pub fn affiliation_removal<'r, R: SeatRow + 'r>(law: &SeatLaw, get: &dyn Fn(&R::Id) -> Option<&'r R>, r: &R) -> bool {
     r.seat_kind() == SeatKind::Unseat
         && r.conf() == Some(Conf::Group)
-        && r.scope().is_some_and(|s| s.as_ref() == "member")
+        && r.scope().is_some_and(|s| s.as_ref() == "member" || s.as_ref() == OFFICER)
         && r.obj().is_some_and(|obj| kind_of(law, get, &obj) == Some(CommunityKind::Affiliation))
 }
 
@@ -1335,9 +1340,9 @@ fn record_value<'a, R: SeatRow, T: PartialEq + ?Sized + 'a>(
     vs.iter().all(|v| field(*v) == first).then_some(first).flatten()
 }
 
-/// An affiliation's deciding seats at `heads` (its officers under its protocol, CC 4.4.3.12): the keys its founding
-/// record seats by their signatures, while they are members there. A member appointed later is subject to the
-/// body's power and holds no vote (a charter granting one is not read).
+/// An affiliation's deciding seats at `heads`: its officers (CC 4.4.3.12), the members whose seat carries the
+/// officer role there ([`OFFICER`]). A member with no role is subject to the body's power and no voice (a charter
+/// granting one is not read).
 fn deciding_seats<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
     law: &SeatLaw,
@@ -1345,11 +1350,7 @@ fn deciding_seats<R: SeatRow, S: CutSpec<R>>(
     obj: &ObjOf<R>,
     heads: &[R::Id],
 ) -> BTreeSet<R::Key> {
-    let Obj::Row(f) = obj else { return BTreeSet::new() };
-    let Some(g) = p.get(f) else { return BTreeSet::new() };
-    let officers: BTreeSet<R::Key> = signers(g).into_iter().filter(|k| g.to().contains(k)).collect();
-    let mem = members_at_with(p, law, spec, obj, heads, "member", None);
-    officers.into_iter().filter(|k| mem.contains(k)).collect()
+    members_at_with(p, law, spec, obj, heads, OFFICER, None)
 }
 
 /// The Constitution's `admitted` for a removal from an affiliation (formal/affiliation/Affiliation.lean): the body's
@@ -1482,7 +1483,15 @@ fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> R
     };
     // the body: a family under founder_only counts its active founders (the `founder` role standing at the row's
     // heads: the founding roles and later conferred ones, less demotions and leavings); every other count its members
-    let body = if family && proto == RoomProtocol::FounderOnly { "founder" } else { "member" };
+    // an affiliation's body for every counted act is its officers under its declared protocol (CC 4.4.3.12)
+    let affiliation = kind_of(law, get, &obj) == Some(CommunityKind::Affiliation);
+    let body = if family && proto == RoomProtocol::FounderOnly {
+        "founder"
+    } else if affiliation {
+        OFFICER
+    } else {
+        "member"
+    };
     if counted != body {
         return Err(());
     }
@@ -1647,6 +1656,10 @@ impl<R: SeatRow> LineSpec<R> for SeatLine {
 
 /// The scope of an AI agent's seat over a room (CC 4.5.13): on the roster, and in no count.
 pub const AGENT: &str = "agent";
+/// The canonical member role of an affiliation's deciding seat (CC 4.4.3.12): a member whose seat carries
+/// `role: officer` (the founding record's signers listed with it, and those appointed or promoted with it since). An
+/// affiliation's body for every counted act is its officers under its declared protocol; with none it is dissolved.
+pub const OFFICER: &str = "officer";
 /// The seat of a node over an infrastructure community: on the roster, no voice and in no base, as an agent's
 /// seat ([`persons`] leaves its holders out of every count).
 pub const NODE: &str = "node";
@@ -1731,7 +1744,9 @@ fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<Sc<'a,
         // an admission carrying `role: founder` (a family's one-row founder admission) seats the founder role too; a
         // founders' amendment of an infrastructure record (scope `record`) seats its keys as founders
         // (only on a counted row: an own or uncounted offer's role seats nothing)
-        if let Some(role) = o.role().filter(|x| x.as_ref() == "founder" && o.conf() == Some(Conf::Group)) {
+        if let Some(role) =
+            o.role().filter(|x| (x.as_ref() == "founder" || x.as_ref() == OFFICER) && o.conf() == Some(Conf::Group))
+        {
             match own.as_ref() {
                 "member" => return alloc::vec![Sc::Row(own), Sc::Row(role)],
                 "record" => return alloc::vec![Sc::Row(role)],
@@ -1764,11 +1779,12 @@ fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<Sc<'a,
 /// A family's founder role conferred after founding (a promotion, or an admission carrying the role): a seat of scope
 /// `founder` over a family that stands only on the member's seat, and ends with the member's stay (F1).
 fn family_role_seat<R: SeatRow>(by: &BTreeMap<&R::Id, &R>, o: &R, sc: &str) -> bool {
-    sc == "founder"
-        && !founding(o)
-        && o.obj()
-            .and_then(|ob| row_of(by, &ob))
-            .is_some_and(|g| g.group_kind().is_some_and(|k| k.as_ref() == "family"))
+    // a family's founder role, or an affiliation's officer role (CC 4.4.3.12), conferred after founding
+    !founding(o)
+        && o.obj().and_then(|ob| row_of(by, &ob)).is_some_and(|g| {
+            (sc == "founder" && g.group_kind().is_some_and(|k| k.as_ref() == "family"))
+                || (sc == OFFICER && g.declared_cohort().is_some_and(|c| c.as_ref() == "affiliations"))
+        })
 }
 
 /// A duty seat a founding row gives by its `duty_holders` map, or to its lone signer: a seat of that row in a
@@ -2436,6 +2452,18 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 at = walk(&kept);
             }
         }
+        // an affiliation with no officer is dissolved at that point (CC 4.4.3.12): every seat over it ends
+        let objs: BTreeSet<ObjOf<R>> = at.keys().filter_map(|&(oid, _, _)| by[oid].obj()).collect();
+        let with_officer: BTreeSet<ObjOf<R>> =
+            at.keys().filter(|&&(_, _, sc)| sc.s() == OFFICER).filter_map(|&(oid, _, _)| by[oid].obj()).collect();
+        let get = |i: &R::Id| by.get(i).copied();
+        let ended: BTreeSet<ObjOf<R>> = objs
+            .into_iter()
+            .filter(|o| !with_officer.contains(o) && kind_of(law, &get, o) == Some(CommunityKind::Affiliation))
+            .collect();
+        if !ended.is_empty() {
+            at.retain(|&(oid, _, _), _| !by[oid].obj().is_some_and(|o| ended.contains(&o)));
+        }
         let recs: Vec<Live<R::Id, R::Key, R::Word>> = at
             .into_iter()
             .filter_map(|((oid, k, sc), (depth, root))| {
@@ -2530,13 +2558,36 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         any && self.tips_fold(s, o).is_none_or(|c| c.contains(k))
     }
 
+    /// The keys a group's own authority is counted over (one source of the body rule): an affiliation's officers
+    /// (CC 4.4.3.12); any other community's duty holders (CC 4.5.4).
+    pub fn authority_body(&self, o: &ObjOf<R>) -> BTreeSet<R::Key> {
+        if kind_of(self.law, &|i: &R::Id| self.by.get(i).copied(), o) == Some(CommunityKind::Affiliation) {
+            return self.holders(OFFICER, o, None);
+        }
+        self.holders("duty", o, None)
+    }
+
+    /// The keys a group's declared protocol is counted over: an affiliation's officers, any other community's members.
+    pub fn protocol_body(&self, o: &ObjOf<R>) -> BTreeSet<R::Key> {
+        if kind_of(self.law, &|i: &R::Id| self.by.get(i).copied(), o) == Some(CommunityKind::Affiliation) {
+            return self.holders(OFFICER, o, None);
+        }
+        self.holders("member", o, None)
+    }
+
     /// Group `o` is dissolved: a concluded dissolution of it is held ([`SeatRow::dissolves`]), or, with no signer,
     /// every member it seated has an end of their seat (its roster empty, folded at tips, its founding row held, and
-    /// a member's own end of its stay among the rows): no row over it concludes.
+    /// a member's own end of its stay among the rows): no row over it concludes. An affiliation with no officer is dissolved (CC 4.4.3.12).
     pub fn dissolved(&self, o: &ObjOf<R>) -> bool {
         let g = &self.c.g;
         let rows = || self.c.cs().iter().map(|&i| g.row(i));
         if rows().any(|q| is_dissolve(q) && q.obj().as_ref() == Some(o) && !self.dropped.contains(q.id())) {
+            return true;
+        }
+        // an affiliation with no officer is dissolved at that point (CC 4.4.3.12): not locked, and no election
+        if kind_of(self.law, &|i: &R::Id| self.by.get(i).copied(), o) == Some(CommunityKind::Affiliation)
+            && self.holders(OFFICER, o, None).is_empty()
+        {
             return true;
         }
         community(&self.by, o)
@@ -4428,11 +4479,13 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
     };
     // and a family's founder role ends with any leaving of the key (its member seat, or the founding row) in the
     // row's past, whatever head that row names
-    let role = counted == "founder"
-        && match &over {
-            Obj::Row(i) => p.get(i).is_some_and(|g| g.group_kind().is_some_and(|k| k.as_ref() == "family")),
-            Obj::Key(_) => false,
-        };
+    let role = match &over {
+        Obj::Row(i) => p.get(i).is_some_and(|g| {
+            (counted == "founder" && g.group_kind().is_some_and(|k| k.as_ref() == "family"))
+                || (counted == OFFICER && g.declared_cohort().is_some_and(|c| c.as_ref() == "affiliations"))
+        }),
+        Obj::Key(_) => false,
+    };
     if !mem.is_empty() && (law.is_duty(counted, &duties) || role) {
         for k in stay_ended_in_past(p, law, &over) {
             mem.remove(&k);

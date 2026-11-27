@@ -102,14 +102,16 @@ def locked(T, community):
     """CC 4.5.4 (v): a community with no live duty holder is LOCKED: it signs no onward acceptance edge, confers no
     license seat (the duty holders' count, seat.py, takes none) and issues no licence of its own, until an election
     seats a holder. A license seat's holder is no duty holder and keeps no room from locking."""
-    return "lock_unread" not in MUT and not ST.Seats(T).holders("duty", community)
+    # (an affiliation's authority is its officers: with none it is DISSOLVED, CC 4.4.3.12, and signs nothing either;
+    # seat.authority_body is the one source of whose keys these are)
+    return "lock_unread" not in MUT and not ST.authority_body(ST.Seats(T), community)
 
 
 def declared_count(T, signers, community):
     """(1) The cosignatures `signers` meet `community`'s DECLARED consensus_protocol in force over the rows T (a row's
     own past), counted over its members, as the seat rule counts a protocol row: the protocol's own numbers and
     weights, never the row's."""
-    mem = ST.Seats(T).holders("member", community)
+    mem = ST.protocol_body(ST.Seats(T), community)
     if "quorum_fixed_majority" in MUT:
         return counted(len(signers & mem), len(mem))
     rec = ST.protocol_record({q["id"]: q for q in T.Cs}, community)
@@ -149,7 +151,7 @@ def speaks_for(T, signers, src):
         # (2) no members' fallback: a community with no duty holder is locked, and signs no edge
         if locked(T, src):
             return False
-        duty = Q.holders("duty", src)
+        duty = ST.authority_body(Q, src)
         return counted(len(signers & duty), len(duty))
     # a person: the key itself, or a live key of its roster
     if src in signers:

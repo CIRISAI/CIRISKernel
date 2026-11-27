@@ -131,7 +131,8 @@ fn past_of<'a, R: Row>(c: &Concluded<'a, R>, i: usize, extra: &[usize]) -> Concl
 /// onward acceptance edge, confers no license seat (the duty holders' count takes none) and issues no licence of its
 /// own, until an election seats a holder. A license seat's holder is no duty holder and keeps no room from locking.
 fn locked<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, c: &ObjOf<R>) -> bool {
-    seats.holders("duty", c, None).is_empty()
+    // an affiliation's authority is its officers: with none it is dissolved (CC 4.4.3.12), and signs nothing either
+    seats.authority_body(c).is_empty()
 }
 
 /// The licence's emitter `k` IS authority `a`: a person is one voice across its keys, so any live key of its roster
@@ -160,7 +161,7 @@ fn speaks_for<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, who: &BTre
             if locked(seats, src) {
                 return false;
             }
-            let duty = seats.holders("duty", src, None);
+            let duty = seats.authority_body(src);
             counted(duty.iter().filter(|k| who.contains(k)).count(), duty.len())
         }
         // a person: the key itself, or a live key of its roster
@@ -249,7 +250,7 @@ pub fn standing<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, i: usiz
         let p: Vec<usize> = c.cs().iter().copied().filter(|&j| c.g.ancestors(i).has(j)).collect();
         let past = Past::new(&c.g, i, &p);
         let voices: BTreeSet<R::Key> = signers(r).into_iter().cloned().collect();
-        if declared_count(&past, &a, &at.holders("member", &a, None), &voices) {
+        if declared_count(&past, &a, &at.protocol_body(&a), &voices) {
             if !locked(&at, &a) {
                 return None;
             }

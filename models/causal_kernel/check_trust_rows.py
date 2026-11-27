@@ -46,9 +46,11 @@ M, L = "medical", "legal"
 A = TR.accepts
 
 AF = ST.found("af", "A", ("A", "B", "C"), cosigners=("B", "C"), declared_cohort="affiliations",
-              licence_classes=((M, True), (L, False)))           # no duty holders: LOCKED
-AFD = ST.found("af", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"), declared_cohort="affiliations",
-               licence_classes=((M, True), (L, False)))          # a duty holder: majority declared
+              licence_classes=((M, True), (L, False)))           # no officer: an affiliation DISSOLVED (CC 4.4.3.12)
+AFD = ST.found("af", "A", ("A", "B", "C"), {ST.OFFICER: ("A", "B", "C")}, cosigners=("B", "C"),
+               declared_cohort="affiliations", licence_classes=((M, True), (L, False)))   # three officers: majority declared
+AFD1 = ST.found("af", "A", ("A", "B", "C"), {ST.OFFICER: ("A",)}, cosigners=("B", "C"), declared_cohort="affiliations",
+                licence_classes=((M, True), (L, False)))         # one officer: its authority (the body is its officers)
 AFU = dict(AFD, consensus_protocol="unanimous")                  # unanimous declared
 GN = ST.found("g", "A", ("A", "B", "C"), cosigners=("B", "C"), licence_classes=((M, False),))   # no duty holder
 # the community confers a license seat on X by its duty holders' count (A and B of two), X accepts
@@ -129,11 +131,11 @@ CASES = [
      "RD", "l", KCH, NR),
     ("(a) a lone duty holder alone",
      [G1, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD", "l", KCH, OK),
-    ("(a) no duty holder: LOCKED, no edge, whatever the members sign",
+    ("(a) an affiliation with no officer: DISSOLVED (CC 4.4.3.12), no edge, whatever the members sign",
      [AF, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B", "C")),
       klic("l")], "RD", "l", KCH, NR),
-    ("(a) with a duty holder, its lone holder alone signs the edge",
-     [AFD, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH,
+    ("(a) an affiliation with one officer: its officer alone signs the edge (its authority is its officers)",
+     [AFD1, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH,
      OK),
     ("(a) its lone duty holder signs the edge, before it lays its duty down",
      [G1, G1LO, GLA, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("gla",)), klic("l")],
@@ -168,8 +170,11 @@ CASES = [
     ("(b) under a declared unanimous protocol two of three are not its quorum",
      [AFU, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD", "l", None, NA),
     ("(b) and three of three are", [AFU, A("e", "RD", "af"), glic("l", cosigners=("B", "C"))], "RD", "l", None, OK),
-    ("(b) a locked community issues no licence of its own", [AF, A("e", "RD", "af"), glic("l", cosigners=("B", "C"))],
-     "RD", "l", None, (False, "licensure_authority_locked")),
+    ("(b) an affiliation with no officer is dissolved: it declares nothing, so its members' licence is of no trusted class",
+     [AF, A("e", "RD", "af"), glic("l", cosigners=("B", "C"))], "RD", "l", None, (False, "licence_class_not_trusted")),
+    ("(b) a locked community (no duty holder) issues no licence of its own",
+     [GN, A("e", "RD", "g"), glic("l", auth="g", cosigners=("B", "C"))], "RD", "l", None,
+     (False, "licensure_authority_locked")),
     ("(b) a live key of the person's roster is the person", [E0, KRO, KRA, klic("l", signer="d", names=("kra",))],
      "RD", "l", KCH, OK),
     ("(b) a key not seated in the licence's past is not", [E0, KRO, KRA, klic("l", signer="d")], "RD", "l", KCH, NA),
