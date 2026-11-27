@@ -455,6 +455,7 @@ impl SeatRow for TRow {
             "unseat" => SeatKind::Unseat,
             "cosign" => SeatKind::Cosign,
             "ballot" => SeatKind::Ballot,
+            "decline" => SeatKind::Decline,
             "ack" => SeatKind::Ack,
             // an objection in a window is presented as a voice for the row it answers (seat::lift_voices)
             "answer" if self.says.as_deref() == Some("object") => SeatKind::Cosign,
@@ -469,6 +470,14 @@ impl SeatRow for TRow {
     }
     fn obj(&self) -> Option<Obj<String, String>> {
         self.obj.clone()
+    }
+    // the test's model of the verified signing key: `dev`, the room key whose signature the door checked
+    // (roomkey.by_dev); the row body's own `device_label` is never read
+    fn signing_key(&self) -> Option<&String> {
+        match self.m.get("dev") {
+            Some(J::Str(d)) => Some(d),
+            _ => None,
+        }
     }
     fn conf(&self) -> Option<Conf> {
         match self.fs("conf") {

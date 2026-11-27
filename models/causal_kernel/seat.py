@@ -1145,6 +1145,401 @@ def own_keys(by, obj):
     return frozenset({obj})
 
 
+# ---- the moderator election (CC 4.5.13, CC 4.5.4 (v) and rule 2), as ruled C1 to C5 ---------------------------
+# The rows. An election is named by its id row E: the room's founding row, or the closed seating of the election
+# before (C5). A ballot (kind `ballot`, `ranking` best first) and a decline (kind `decline`) are a member's own rows,
+# each naming its election by `of`. The seating is a counted offer of `moderate` over the room under the ranked
+# count (`moderator_election`), signed by the winner (its acceptance), `to` the winner, `of` its election, naming
+# the rows it is counted over (its set); it names no head. A receipt of a seating is an `ack` whose `of` is it.
+#   C1  the electorate (persons) and the candidates are read at the VACANCY its id row defines: every end of a seat E
+#       gave (the end of its holder; for the founding row, of each duty seat it gives), in the reading row's past, the
+#       members at all of them; the founding row itself where it gives no duty seat. A member admitted after the
+#       vacancy neither votes nor stands. A leaver (its own leaving in the reading row's past) is no voice and no
+#       candidate.
+#   C2  a seating concludes only where no person holds a duty over the room in the seats read over its whole past,
+#       and no row of a later election (one whose id is a seating of this election) is in its past.
+#   C3  an id row's standing is read in the naming row's past.
+#   C4  CONTAINS: a seating stands only where its set strictly contains every other seating's set of its election
+#       (seatings over equal sets are one seat); sets not nested: nobody, until a seating over the union.
+#   C5  the CAUSAL CLOSE: an election is closed when a strict majority of its electorate, the winner apart (and a
+#       leaver apart, read in the receipts' past), has receipted one seating, each receipt counting only where that
+#       seating stood under C4 in the receipt's own past; one say per person, read causally. Once closed, no rival
+#       seating counts.
+ELECTION_RANKS = 3               # "Each person ranks up to three": a ballot ranking more is void, the whole ballot
+#   E3  once its holder's seat has ended, a seating that stood (C4) and never closed names the next election, C3
+#       deciding between rival ids by past.
+#   F1  every input to a seating's count comes from the set it names: its ballots, the withdrawals of them, the
+#       declines, the leavings it reads, and (F2) the end or ends of the seat it reads the electorate at. Seatings
+#       over equal sets count alike.
+#   F3  a next election stands only while its id row stands, for the rows held: beating or un-standing a seating
+#       takes with it every election named on it.
+_EMEMO = {}
+
+
+def is_election(o, table=None):
+    """A seating by the election: a counted offer under the ranked count (`moderator_election`). A roster change: it
+    names the newest counted changes over the room as its heads (H4) and sits on the reader's line by them; its count
+    is its election's (C1 to C5: the electorate its id and vacancy fix), never read at its heads."""
+    return o.get("kind") == "offer" and o.get("conf") == "group" and \
+        K.rule(table or POLICY, o.get("policy"), ("unknown",))[0] == "ranked"
+
+
+def _memo(tag, row, f, rows=()):
+    # keyed by the row and the rows it is read over (one row object may stand in two sets of rows)
+    key = (tag, id(row), frozenset(MUT), frozenset(id(x) for x in rows))
+    got = _EMEMO.get(key)
+    if got is None or got[0] is not row:
+        got = _EMEMO[key] = (row, f())
+    return got[1]
+
+
+def id_seats(E):
+    """The seats id row E gave: for a founding row, each duty seat it gives a signer (its map's, the one-founder's
+    `moderate`, the older presentation's `duty`); for a seating, its winner's `moderate`. [(offer, key, scope)]."""
+    if E.get("obj") == E["id"]:
+        return [(E["id"], k, sc) for k in E["to"] for sc in seat_scopes(E, k)
+                if (sc != E["scope"] or sc == "duty") and is_duty(sc, record_duties(E))]
+    return [(E["id"], E["to"][0], "moderate")] if E.get("to") else []
+
+
+def vacancy(E, P, past, named=None):
+    """C1: the rows of P that end a seat E gave (each row whose own past holds that seat live and whose past with it
+    does not), or (E's id,) where E gives no seat; None while a seat E gave has no end in P. `named` (F2): only the
+    rows a seating names are read as ends. Only a holder's own withdrawal, or an unseat naming a holder, can end one."""
+    seats = id_seats(E)
+    if not seats or "vacancy_founding" in MUT: return (E["id"],)
+    live = lambda rows: {(r["offer"], r["k"], r["scope"]) for r in seats_of(rows).recs}
+    holders = {k for _, k, _ in seats}
+    ends, ended = [], set()
+    for w in P:
+        if w["kind"] not in ("withdraw", "unseat") or not past(E["id"], w["id"]): continue
+        if named is not None and w["id"] not in named and "vacancy_unnamed" not in MUT: continue
+        if not (w["signer"] in holders if w["kind"] == "withdraw" else set(w["to"]) & holders): continue
+        pre = [q for q in P if past(q["id"], w["id"])]
+        gone = {s for s in seats if s in live(pre) and s not in live(pre + [w])}
+        if gone:
+            ends.append(w["id"]); ended |= gone
+    if ended != set(seats): return None
+    if "vacancy_first_end" in MUT: ends = sorted(ends)[-1:]        # MUTATION: one end read, the others not
+    return tuple(ends)
+
+
+def electorate(E, P, past, obj, named=None):
+    """C1: the persons seated at every row of E's vacancy (the agents apart), or empty where E has no vacancy in P."""
+    v = vacancy(E, P, past, named)
+    if v is None: return frozenset()
+    if "electorate_at_seating" in MUT:                              # MUTATION: the persons seated over the whole past
+        Q = seats_of(P)
+        return Q.holders("member", obj) - Q.holders(AGENT, obj)
+    # the members at EVERY end, each end read alone: since the head rules several heads are folded (members_at), so
+    # the persons common to the ends are taken here (MUTATION electorate_folded: the ends read as one fold)
+    if "electorate_folded" in MUT: return counted_keys(P, past, obj, v)[0]
+    return frozenset.intersection(*[frozenset(counted_keys(P, past, obj, (e,))[0]) for e in v])
+
+
+def _past_of(rows, past, q):
+    return [x for x in rows if past(x["id"], q["id"])]
+
+
+def ekey(E, rows, past):
+    """The election id row E names, as a key: the row's id for a founding row (or any row that is no seating); for a
+    seating, (room, its own election's key, its set). Seatings over equal sets of one election are one seat (C4), so
+    an election named by either is one election. rows: a set holding E's past."""
+    if not is_election(E) or "twin_ids_apart" in MUT: return ("id", E["id"])
+    v = seating_view(E, _past_of(rows, past, E), past)
+    return ("s", E["obj"], v[0], v[2])
+
+
+def election_rows(q, Ek, elect, by, rows, past, obj=None, ends=()):
+    """q is a row of election Ek's set: a ballot or decline naming that election, a withdrawal of such a ballot by
+    its own signer, or a leaving (its own end of its stay, or a counted removal from the roster) of a member of the
+    electorate in the election's window (F1, N2: not in the past of the vacancy end the seating reads, which already
+    settled every leaving and re-admission before it); signed by a member of the electorate (a removal: of one)."""
+    if q is None: return False
+    window = "leaving_before_vacancy_read" in MUT or not any(past(q["id"], e) for e in ends)
+    if q["kind"] == "unseat" and q.get("conf") == "group" and q.get("obj") == obj and q.get("scope") in ROSTER_SEATS:
+        return bool(set(q["to"]) & elect) and window
+    if q["kind"] == "withdraw" and obj is not None and any(g == obj and k in elect for _, k, g in stay_ends([q], by, lambda a, w: a["id"] in by and past(a["id"], w["id"]))):
+        return window
+    if q["signer"] not in elect and "set_any_signer" not in MUT: return False
+    named = lambda b: b.get("of") in by and ekey(by[b["of"]], rows, past) == Ek
+    if q["kind"] in ("ballot", "decline"): return named(q)
+    if q["kind"] == "withdraw":
+        t = by.get(q.get("target"))
+        return t is not None and t["kind"] == "ballot" and named(t) and t["signer"] == q["signer"]
+    return False
+
+
+def seating_view(S, P, past):
+    """(its election's key, the electorate, the set) of seating S, read over its own past P."""
+    def f():
+        by = {q["id"]: q for q in P}
+        E = by.get(S.get("of"))
+        if E is None: return (None, frozenset(), frozenset(), frozenset())
+        Ek = ekey(E, P, past)
+        named = frozenset(S["names"])
+        # (3): an end of the seat is in the set only where a ballot of the set names it, the ballot's signer a member
+        # there (it votes on that end); an end no such ballot names is part of no set (MUTATION end_unnamed_by_ballot)
+        if "end_unnamed_by_ballot" not in MUT:
+            bal = [by[n] for n in named if n in by and by[n]["kind"] == "ballot" and by[n].get("of") == E["id"]]
+            cand = vacancy(E, P, past, named) or ()
+            named = frozenset(n for n in named if n not in cand or n == E["id"] or any(
+                n in b["names"] and b["signer"] in counted_keys(P, past, S["obj"], (n,))[0] for b in bal))
+        el = electorate(E, P, past, S["obj"], named)
+        v = vacancy(E, P, past, named) or ()
+        rows = {n for n in S["names"] if election_rows(by.get(n), Ek, el, by, P, past, S["obj"], v)}
+        ends = frozenset(set(v) & named)
+        return (Ek, el, frozenset(rows | ends), ends)
+    return _memo("view", S, f, P)
+
+
+def c4_standing(seatings, sets):
+    """C4 over one election's seatings: the ids that stand (the seatings over the one set that strictly contains every
+    other set, equal sets one seat), empty where the sets are not so nested."""
+    if not seatings: return frozenset()
+    if "contains_unread" in MUT: return frozenset(x["id"] for x in seatings)
+    groups = {sets[x["id"]] for x in seatings}
+    top = [g for g in groups if all(h <= g for h in groups)]
+    if len(top) != 1: return frozenset()
+    return frozenset(x["id"] for x in seatings if sets[x["id"]] == top[0])
+
+
+def _view(rows, past, q):
+    return seating_view(q, _past_of(rows, past, q), past)
+
+
+def _seatings_of(Ek, rows, past, obj):
+    return [q for q in rows if is_election(q) and q.get("obj") == obj and _view(rows, past, q)[0] == Ek]
+
+
+def closure(Ek, rows, past, obj):
+    """C5 over rows (a causally closed set): the set of the seatings that closed election Ek, or None. A receipt is an
+    `ack` whose `of` is a seating of the election; it counts where that seating stood under C4 in the receipt's own
+    past. A person's say: its earliest receipts of the election's seatings (none of the others in their past); where
+    those are of different sets, no say; a later one counts for nothing."""
+    if "close_unread" in MUT: return None
+    seat_ids = {q["id"]: q for q in _seatings_of(Ek, rows, past, obj)}
+    if not seat_ids: return None
+    view = lambda q: _view(rows, past, q)
+    acks = [a for a in rows if a["kind"] == "ack" and a.get("of") in seat_ids]
+    # (2): a key that said two things in the election, for this reader, is no voice and is out of the base
+    fork = forkers(Ek, rows, past, obj, {q["id"]: q for q in rows})
+    if fork and "fork_reopens_close" in MUT: return None      # MUTATION: the old E2, a fork reopens the close for all
+    by_p = {}
+    for a in acks: by_p.setdefault(a["signer"], []).append(a)
+    says = {}
+    for p, rs in by_p.items():
+        first = rs if "say_any_receipt" in MUT else [a for a in rs if not any(past(b["id"], a["id"]) for b in rs if b is not a)]
+        if p in fork or (len({view(seat_ids[a["of"]])[2] for a in first}) != 1 and "say_any_receipt" not in MUT):
+            continue
+        for a in first:
+            A = _past_of(rows, past, a)
+            here = _seatings_of(Ek, A, past, obj)
+            st = c4_standing(here, {x["id"]: view(x)[2] for x in here})
+            if a["of"] in st or "receipt_standing_unread" in MUT:
+                says.setdefault(view(seat_ids[a["of"]])[2], []).append(a)
+                if "say_any_receipt" not in MUT: break
+    # E1 (the fifth read, G2): one base per election for a reader: a key departed (left, or removed, not seated
+    # again) over the rows held is out of it for every group alike, and its receipts count for nothing; H1: unless
+    # its leaving (or removal) holds its receipt, which then counts, the key staying in the base (MUTATION
+    # leaving_after_receipt_voids)
+    def held_receipt(k, d):
+        return "leaving_after_receipt_voids" not in MUT and any(past(a["id"], d["id"]) for a in by_p.get(k, ()))
+    gone = frozenset() if "close_leavers_kept" in MUT else frozenset(
+        k for k, d in departures(rows, past, obj) if not any(held_receipt(k, d2) for k2, d2 in departures(rows, past, obj) if k2 == k))
+    # the base is the INTERSECTION of the members at every end any seating of the election names, over the rows held:
+    # C1 applied election-wide (each seating still counts its own electorate, C1/F2). A lay-down that does not stand
+    # for the reader (H4: behind its line) is no end for it; that comes with the head rules (MUTATIONS
+    # base_per_seating_electorate: each group its own seating's electorate; close_base_union: the union)
+    els = [frozenset(view(q)[1]) for q in seat_ids.values()]
+    union = frozenset().union(*els) if "close_base_union" in MUT else frozenset.intersection(*els)
+    met_ = []
+    for group, rs in sorted(says.items(), key=lambda x: sorted(x[0])):
+        S = next(q for q in seat_ids.values() if view(q)[2] == group)
+        el, winner = (view(S)[1] if "base_per_seating_electorate" in MUT else union), S["to"][0]
+        base = el - {winner} - gone
+        if "base_per_group" in MUT:              # MUTATION: departed read per group, over its receipts' pasts
+            base = el - {winner} - set().union(*[departed(_past_of(rows, past, a), past, obj) for a in rs])
+        if "fork_base_kept" not in MUT: base = base - fork
+        yes = {a["signer"] for a in rs} & base
+        if 2 * len(yes) > len(base) or not base: met_.append(group)
+    # (ii), the rule: where more than one group meets its close over the rows held, none is closed; nothing is picked
+    # by order (MUTATION two_closes_both_stand: the first met)
+    if len(met_) == 1 or (met_ and "two_closes_both_stand" in MUT): return met_[0]
+    if len(met_) > 1: return None
+    # a room of one, or one whose every other elector has departed (E1, the limit): a standing seating closes itself
+    here = list(seat_ids.values())
+    st = c4_standing(here, {x["id"]: view(x)[2] for x in here})
+    if "fork_base_kept" not in MUT: gone = gone | fork
+    for q in here:
+        el = view(q)[1]
+        if q["id"] in st and el and not (el - {q["to"][0]} - gone):
+            return view(q)[2]
+    return None
+
+
+def forkers(Ek, rows, past, obj, by, ends0=frozenset()):
+    """(2): the keys that said two things in election Ek among rows: two rows of the election's own, signed by the key,
+    neither in the other's past. The election's own rows: a ballot or decline naming it, a withdrawal of such a
+    ballot, a receipt of one of its seatings, one of its seatings, a lay-down read as its vacancy (an end in a set of
+    one of its seatings). Rows in two rooms, or of two elections, are never a fork (MUTATION fork_across_objects: any
+    two rows of these kinds by the key)."""
+    across = "fork_across_objects" in MUT
+    seats = [q for q in rows if is_election(q) and (across or (q.get("obj") == obj and _view(rows, past, q)[0] == Ek))]
+    sids = {q["id"] for q in seats}
+    ends = set(ends0).union(*[_view(rows, past, q)[3] for q in seats])
+    # G1: a counted unseat (a room act others cosign) is never its signer's election row: only a holder's own
+    # lay-down of the seat is (MUTATION counted_end_forks_signer)
+    if "counted_end_forks_signer" not in MUT:
+        ends = {e for e in ends if e in by and by[e]["kind"] == "withdraw"}
+    named = lambda b: across or (b.get("of") in by and ekey(by[b["of"]], rows, past) == Ek)
+    if "seating_not_a_say" in MUT: sids = set()        # MUTATION: a seating is no say of its signer's
+    mine = {}
+    # (4): the fork is per key: a voice's rows signed through two room or device keys are two keys' rows. The key is the
+    # VERIFIED signing key (`dev` in these models: the room key whose signature the door checked; roomkey.by_dev), never
+    # a value the row states; with none, the signer (MUTATIONS fork_per_voice: one voice, one key; fork_by_stated_device:
+    # a device label the row body states read as the key)
+    if "fork_per_voice" in MUT: key = lambda q: q["signer"]
+    elif "fork_by_stated_device" in MUT: key = lambda q: (q["signer"], q.get("device_label") or q.get("dev") or q["signer"])
+    else: key = lambda q: (q["signer"], q.get("dev") or q["signer"])
+    for q in rows:
+        own = (q["kind"] in ("ballot", "decline") and named(q)) or q["id"] in sids or q["id"] in ends or \
+            (q["kind"] == "ack" and (q.get("of") in sids or (across and q.get("of") in by and is_election(by[q["of"]])))) or \
+            (q["kind"] == "withdraw" and q.get("target") in by and by[q["target"]]["kind"] == "ballot"
+             and by[q["target"]]["signer"] == q["signer"] and named(by[q["target"]]))
+        if own: mine.setdefault(key(q), []).append(q)
+        # a row the key only cosigns is never part of a fork (MUTATION fork_cosigned: it is)
+        if "fork_cosigned" in MUT and q.get("obj") == obj:
+            for c in q.get("cosigners", ()):
+                mine.setdefault(c if "fork_per_voice" in MUT else (c, c), []).append(q)
+    out = {k for k, rs in mine.items()
+           if any(not past(a["id"], b["id"]) and not past(b["id"], a["id"]) for i, a in enumerate(rs) for b in rs[i + 1:])}
+    return frozenset(k if isinstance(k, str) else k[0] for k in out)
+
+
+def departures(P, past, obj):
+    """[(key, row)]: each leaving of the room (the key's own end of its stay) or counted removal from its roster in P,
+    the key not seated again after it there."""
+    by = {q["id"]: q for q in P}
+    out = []
+    again = lambda k, d: any(m["kind"] == "offer" and m.get("obj") == obj and k in m["to"] and roster_seat(m)
+                             and past(d["id"], m["id"]) for m in P)
+    for w in P:
+        if w["kind"] == "withdraw":
+            for _, k, g in stay_ends([w], by, lambda a, w: a["id"] in by and past(a["id"], w["id"])):
+                if g == obj and not again(k, w): out.append((k, w))
+        elif w["kind"] == "unseat" and w.get("obj") == obj and w.get("scope") in ROSTER_SEATS and w.get("conf") == "group":
+            out += [(k, w) for k in w["to"] if not again(k, w)]
+    return out
+
+
+def departed(P, past, obj):
+    """The keys that have left the room (their own leaving) or been removed from its roster (a counted unseat of
+    their roster seat) in P, and not been seated again after it there."""
+    out = set(count_left(P, past, obj, "member"))
+    for u in P:
+        if u["kind"] == "unseat" and u.get("obj") == obj and u.get("scope") in ROSTER_SEATS and u.get("conf") == "group":
+            for k in u["to"]:
+                if not any(m["kind"] == "offer" and m.get("obj") == obj and k in m["to"] and roster_seat(m)
+                           and past(u["id"], m["id"]) for m in P):
+                    out.add(k)
+    return frozenset(out)
+
+
+def valid_id(E, r, P, past, by):
+    """C3 and C5: id row E names an election for row r, read in r's past P: the room's founding row, or a seating of
+    the room that closed its own election in r's past, or (E3) a seating of the room that stood under C4 in r's past
+    and whose seat has ended there."""
+    e = by.get(E)
+    obj = r.get("obj")
+    if e is None or "election_id_any" in MUT: return e is not None
+    if e["id"] == obj: return True
+    if not (is_election(e) and e.get("obj") == obj): return False
+    v = _view(P, past, e)
+    if closure(v[0], P, past, obj) == v[2]: return True
+    if "wait_close" not in MUT:                  # MUTATION: the candidate rule E3 replaced (closed seatings only)
+        here = _seatings_of(v[0], P, past, obj)
+        return e["id"] in c4_standing(here, {x["id"]: _view(P, past, x)[2] for x in here}) and vacancy(e, P, past) is not None
+    return False
+
+
+def superseded(E, r, P, past, by):
+    """E3, C3: election E is no longer the room's for row r where a seating of it that stood (C4) in r's past, and
+    whose seat has ended there, names the next election (r must name that one)."""
+    e = by.get(E)
+    obj = r.get("obj")
+    if e is None or "superseded_unread" in MUT: return False
+    Ek = ekey(e, P, past)
+    if "wait_close" in MUT: return closure(Ek, P, past, obj) is not None
+    here = _seatings_of(Ek, P, past, obj)
+    st = c4_standing(here, {x["id"]: _view(P, past, x)[2] for x in here})
+    return any(vacancy(x, P, past) is not None for x in here if x["id"] in st)
+
+
+def election_beaten(rows, past, void=frozenset()):
+    """The seatings among rows (a causally closed set) that do not stand: per election, every one but the closed set's
+    where it closed (C5), else every one but those C4 stands. `void`: the counted acts behind the reader's line; a
+    seating among them does not stand for that reader and takes no part in C4 (MUTATION void_seating_read)."""
+    if "void_seating_read" in MUT: void = frozenset()
+    out = {q["id"] for q in rows if is_election(q) and q["id"] in void}
+    groups = {}
+    for q in rows:
+        if is_election(q) and q["id"] not in void: groups.setdefault((q.get("obj"), _view(rows, past, q)[0]), []).append(q)
+    for (obj, Ek), el in groups.items():
+        sets = {x["id"]: _view(rows, past, x)[2] for x in el}
+        grp = closure(Ek, rows, past, obj)
+        if grp is not None and "closed_rivals_count" not in MUT:
+            out |= {x["id"] for x in el if sets[x["id"]] != grp}
+        else:
+            st = c4_standing(el, sets)
+            out |= {x["id"] for x in el if x["id"] not in st}
+    # F3: a next election stands only while its id row stands, for the rows held (MUTATION id_cascade_unread)
+    more = "id_cascade_unread" not in MUT
+    every = [q for q in rows if is_election(q)]
+    while more:
+        add = {q["id"] for q in every if q["id"] not in out and q.get("of") in out}
+        more = bool(add); out |= add
+    return frozenset(out)
+
+
+def election_count(r, P, past, by):
+    """The seating's count (C1, C2, C5 and the carried-over ballot rules), over its concluded past P."""
+    E, obj = r.get("of"), r["obj"]
+    if r["kind"] != "offer" or not r.get("to") or E not in by: return False
+    if not valid_id(E, r, P, past, by) or superseded(E, r, P, past, by): return False
+    # C2: no person holds a duty over the room in the seats over the whole past
+    Q = seats_of(P)
+    if "c2_holder_unread" not in MUT and Q.holders("duty", obj) - Q.holders(AGENT, obj): return False
+    Ek, el, mine, mine_ends = seating_view(r, P, past)
+    # C2: no row of a later election (one named by a seating of this election) in the past
+    later = {ekey(q, P, past) for q in _seatings_of(Ek, P, past, obj)}
+    if "c2_later_unread" not in MUT and any(q.get("of") in by and ekey(by[q["of"]], P, past) in later
+                                            for q in P if q["kind"] in ("ballot", "decline") or is_election(q)):
+        return False
+    # C5: an election closed in the past takes no further seating but its own
+    grp = closure(Ek, P, past, obj)
+    if grp is not None and grp != mine and "closed_rivals_count" not in MUT: return False
+    if not el: return False
+    # F1: the leavings and the withdrawals read are the set's
+    named = [q for q in P if q["id"] in mine] if "set_inputs_unread" not in MUT else P
+    left = {k for w in named if w["kind"] == "withdraw" for _, k, g in stay_ends([w], by, lambda a, w: a["id"] in by and past(a["id"], w["id"])) if g == obj} | \
+        {k for u in named if u["kind"] == "unseat" and u.get("conf") == "group" and u.get("obj") == obj
+         and u.get("scope") in ROSTER_SEATS for k in u["to"]}
+    voters = el - (frozenset() if "leaver_voice" in MUT else left)
+    # (2): a key whose two forked rows are both in the set is no ballot (the set alone decides: F1)
+    voters = voters - forkers(Ek, named, past, obj, by, mine_ends)
+    gone = {w["target"] for w in named if w["kind"] == "withdraw" and w["target"] in by
+            and by[w["target"]]["kind"] == "ballot" and w["signer"] == by[w["target"]]["signer"]}
+    declined = {d["signer"] for d in K.sel(P, kind="decline") if d["id"] in mine and d["signer"] in el}
+    ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot")
+               if b["id"] in mine and b["signer"] in voters and b["id"] not in gone
+               and (set(b["ranking"]) <= voters or "ballot_nonmember_ranked" in MUT)
+               and (len(b["ranking"]) <= ELECTION_RANKS or "ballot_ranks_unbounded" in MUT)]
+    if not ballots: return False
+    won = RANKED(ballots, sorted(voters - declined), 2, declared=False)[0]
+    return won == r["to"][0] and (r["signer"] == won or "seating_any_signer" in MUT)
+
+
 # ---- derived: the live seats ---------------------------------------------------------------------------
 class Seats:
     def __init__(self, S, holds=HOLDS, confers=CONFERS, depth=DEPTH, by_arrival=False, own=None, checkpoint=False, drop=None,
@@ -1181,10 +1576,21 @@ class Seats:
         # alone; it ends by its holder's withdrawal or a count (duty_withdraw, or the members' recall)
         eq = lambda o: duty_seat(S.by, o) and "duty_ranked" not in MUT
         # a withdrawal that names a scope ends that one seat of the row it withdraws (a founding holder lays down a duty)
-        off_ended = lambda o, k, sc: any(w["target"] == o["id"] and (w["signer"] == k or (w["signer"] not in o["to"] and o["conf"] != "group" and not eq(o)))
+        # the election (C4): seatings over equal sets of one election are one seat, so the holder's withdrawal of any
+        # of them ends it (MUTATION twin_withdrawal_unread)
+        past_ = lambda a, b: a in S.anc[b]
+        twins = {}
+        if any(is_election(o) for o in Cs) and "twin_withdrawal_unread" not in MUT:
+            el = [o for o in Cs if is_election(o)]
+            key = {o["id"]: ekey(o, Cs, past_) for o in el}
+            for o in el: twins[o["id"]] = {x["id"] for x in el if key[x["id"]] == key[o["id"]]}
+        tgt = lambda w, o: w["target"] == o["id"] or (w["target"] in twins.get(o["id"], ()) and w["signer"] in o["to"])
+        off_ended = lambda o, k, sc: any(tgt(w, o) and (w["signer"] == k or (w["signer"] not in o["to"] and o["conf"] != "group" and not eq(o)))
                                          and (w.get("scope") in (None, sc) or "scope_unread" in MUT) and not late(w, o) for w in wd)
         # (MUTATION line_void_unlisted: the acts of the first pass not listed as void)
         self.stale = V = (frozenset() if "line_void_unlisted" in MUT else L) | CP.void(S, C, own, checkpoint)     # counted acts built on one that does not count, or behind the reader's line
+        # the election's seatings that do not stand (C4, C5): read over the concluded rows, as the fold at tips is
+        self.beaten = beaten = election_beaten(Cs, past_, V) if any(is_election(o) for o in Cs) else frozenset()
         unseats = [u for u in K.sel(Cs, kind="unseat") if C.counts(u) and u["id"] not in V]
         # a moderator's lone removal is an act under its `moderate` standing, in force only while the end rule says so
         # (out_of_force). `drop`: the lone removals already judged out of force over the whole set, for a reading of
@@ -1264,6 +1670,7 @@ class Seats:
         gone = frozenset(q["obj"] for q in Cs if is_dissolve(q) and C.counts(q)) if "dissolve_leaves_seats" not in MUT \
             else frozenset()
         base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V and o["obj"] not in gone
+                and o["id"] not in beaten
                 for k in o["to"] if accepted(o, k) for sc in seat_scopes(o, k)
                 if not off_ended(o, k, sc) and not unseated(o, k, sc) and not resigned(o, k, sc)]
 
@@ -1343,7 +1750,7 @@ class Seats:
     def tips(self, o):
         """The frontier of the counted acts on o that count, with its founding row."""
         acts = [r for r in self.S.Cs if r["kind"] in ("offer", "unseat") and r.get("obj") == o and (r.get("conf") == "group" or r["id"] == o)
-                and self.cut.counts(r) and r["id"] not in self.stale]
+                and self.cut.counts(r) and r["id"] not in self.stale and r["id"] not in self.beaten]
         return K.frontier(self.S.anc, acts)
 
     def tips_common(self, s, o):
@@ -1457,6 +1864,8 @@ class Seats:
                 mem = counted_keys(P, past, over, r.get("head", ()), counted)[0] - count_left(P, past, over, counted)
                 if ok is not None: mem = mem & ok
                 yes = voices(r, P) & mem
+                if is_election(r) and "fold_ranked_counted" not in MUT:
+                    continue                    # an election's seating is read by C1 to C5 alone (beaten, the seat rule)
                 if r.get("policy") in DUTY_POLICY:
                     if not duty_count(r, P, yes, mem): return False
                 elif (lambda a: a[0] == "lift" if a is not None else K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "lift")(
@@ -2235,14 +2644,6 @@ def count_heads(heads, P, past):
     return newest(heads, past)
 
 
-def is_election(r):
-    """An election's seating: an offer conferred by a count whose policy reads as the ranked count
-    (`moderator_election`). A roster change: it names the newest counted changes over the room as its heads (H4) and
-    sits on the reader's line by them; its count is its election's (roster-kinds' election2: the electorate its id
-    and vacancy fix), never read at its heads."""
-    return r["kind"] == "offer" and r.get("conf") == "group" and K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "ranked"
-
-
 def change(q, obj, by=None):
     """A counted change of obj's roster, q concluded: a roster-changing row that concludes under the policy the room's
     record binds to its act, however many voices that policy needs (the ruling of 2026-11-26). The line's counted act
@@ -2528,10 +2929,8 @@ def _count_under(r, P, past, by, table=None):
     # the community floor, where a policy row governs alone in place of a protocol that states no rule (the `&` reading)
     if r.get("floor") is not None and len((voices(r, P) & vot) - frozenset(r.get("to", ()))) < r["floor"]: return False
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
-        # the count is the ranked tally: the ballots the row names, one voice each, and the row seats the winner
-        ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot") if b["id"] in r["names"] and b["signer"] in vot]
-        # the one ranked row is the election, which declares no order: a tie for weakest seats nobody (CC 4.5.13)
-        return k == "offer" and bool(ballots) and RANKED(ballots, list(r["options"]), declared=False)[0] == r["to"][0]
+        # the election's seating (C1 to C5): its electorate read at its election's vacancy, not at a head
+        return election_count(r, P, past, by)
     if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
     # the recall is told by its act where the binding reads one (act_of: an unseat of a duty counted over the
     # members), by its policy otherwise; Policy::Recall is only the threshold its fixed row maps to
@@ -2548,9 +2947,38 @@ def _count_under(r, P, past, by, table=None):
                     r.get("weights"), table, signed=voices(r, P))
 
 
+def ends_of(r, by):
+    """The seats (key, scope, object) row r ends: an unseat, each key it names in its scope; a withdrawal, of the seat
+    its target gives (its signer's own where it holds it, else every key the target seats), in end_scope's scope.
+    A removal of an agent's key is none here: a lone one may be lifted or fall out of force, and then it ended nothing."""
+    if r["kind"] == "unseat":
+        return () if r["scope"] == AGENT else tuple((k, r["scope"], r["obj"]) for k in r["to"])
+    if r["kind"] != "withdraw": return ()
+    t = by.get(r.get("target"))
+    if t is None: return ()
+    sc = end_scope(by, r)
+    if t["kind"] == "accept":
+        o = by.get(t["of"]) if t.get("of") is not None else t
+        return ((r["signer"], sc, o.get("obj")),) if o is not None and t["signer"] == r["signer"] else ()
+    if t["kind"] != "offer": return ()
+    return tuple((k, sc, t["obj"]) for k in ((r["signer"],) if r["signer"] in t["to"] else t["to"]))
+
+
+def end_of_ended(r, P, past, by):
+    """(2): an end of a seat that has an end of that seat in its own past is no end, whoever signed either: a lay-down,
+    a counted unseat, a withdrawal of the offer. Every seat r ends has a concluded end in r's past with no seating of
+    the key in that scope after it there (MUTATION end_of_ended_seat; end_reseat_unread: a re-seating not read, so a
+    re-admitted key's second leaving ends nothing)."""
+    seats = ends_of(r, by)
+    if not seats or "end_of_ended_seat" in MUT: return False
+    return all(any((k, sc, o) in ends_of(q, by) and ("end_reseat_unread" in MUT or not seated_after(
+        P, past, o, k, q, lambda m: sc in seat_scopes(m, k))) for q in P) for k, sc, o in seats)
+
+
 def seat_rule(r, P, past, table=None, other=None):
     """The conclusion rule. P: r's concluded ancestors."""
     k, by = r["kind"], {q["id"]: q for q in P}
+    if k in ("unseat", "withdraw") and end_of_ended(r, P, past, by): return False   # (2): no second end of a seat
     if k in ("offer", "unseat"):
         conf = r["conf"]
         # after a group's dissolution no row over it concludes (group_dissolved)

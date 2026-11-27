@@ -150,11 +150,13 @@ def gate_offer(signer, cosigners, names=("md",), head=("md",), **kw):
     return ST.offer("c1", signer, "D", "moderate", OBJ, "group", names, head=head, cosigners=tuple(cosigners), **kw)
 
 
-def ELECT(i, k, heads):
-    """An election (rule 2): ballots of B and C ranking k first, and its acceptance seating k to moderate."""
-    bs = [ST.R("b" + v + i, "ballot", v, tuple(heads), ranking=(k, "C")) for v in ("B", "C")]
-    return bs + [ST.offer(i, "B", k, "moderate", OBJ, "group", tuple(heads) + tuple(b["id"] for b in bs), head=tuple(heads),
-                          policy="moderator_election", options=(k, "C"), cosigners=(k,))]
+def ELECT(i, k, heads, voters=("B", "C"), ranking=None):
+    """An election (rule 2, check_election.py): ballots of `voters` ranking k first, naming the founding row as their
+    election, and k's own seating over them (the winner's acceptance; it names no head)."""
+    bs = [ST.R("b" + v + i, "ballot", v, tuple(heads), ranking=ranking or (k, "C"), of="g") for v in voters]
+    # the seating names its set and, beside it, the rows at `heads` (the end of the seat it reads the electorate at, F2)
+    return bs + [ST.offer(i, k, k, "moderate", OBJ, "group", tuple(b["id"] for b in bs) + tuple(heads),
+                          policy="moderator_election", of="g")]
 
 
 G1 = ST.offer("g", "A", ("A",), "duty", "@", "self")                     # a lone founder (scope duty, no map)
@@ -321,28 +323,27 @@ CASES = [
      [GM, admit("md", "D", ("A", "B", "C"), ("g",)), MCD("cd", "D", ("md",))], [("D", "moderate", F), ("D", "member", T), ("A", "duty", F)], None),
     (DG + "a room whose holders have all left: the members' admission count confers nothing",
      GV + [admit("md", "D", ("A", "B", "C"), ("la",)), MCD("cd", "D", ("md",))], [("D", "moderate", F), ("D", "member", T)], None),
-    (DG + "the same room: an election's acceptance seats a member", GV + [admit("md", "D", ("A", "B", "C"), ("la",))] + ELECT("cd", "D", ("md",)),
-     [("D", "moderate", T), ("D", "duty", T)], None),
-    (DG + "an election of a key that is no member seats nobody (a duty seat stands only on a member)",
-     GV + ELECT("cd", "D", ("la",)), [("D", "moderate", F), ("D", "member", F)], None),
+    (DG + "the same room: an election's seating seats a member of its electorate (B, a member when A laid the duty down)",
+     GV + ELECT("cd", "B", ("la",)), [("B", "moderate", T), ("B", "duty", T)], None),
+    (DG + "an election of a key that is no member seats nobody (C1: D, admitted after the vacancy, does not stand; a "
+     "duty seat stands only on a member)",
+     GV + [admit("md", "D", ("A", "B", "C"), ("la",))] + ELECT("cd", "D", ("md",)), [("D", "moderate", F), ("D", "member", T)], None),
     (DG + "the elected member resigns: its duty seat ends",
-     GV + [admit("md", "D", ("A", "B", "C"), ("la",))] + ELECT("cd", "D", ("md",)) + [ST.withdraw("wd", "D", "md", ("cd",))],
-     [("D", "moderate", F), ("D", "member", F)], None),
+     GV + ELECT("cd", "B", ("la",)) + [ST.withdraw("wd", "B", "g", ("cd",))], [("B", "moderate", F), ("B", "member", F)], None),
     (DG + "re-admitted after that, nothing revives",
-     GV + [admit("md", "D", ("A", "B", "C"), ("la",))] + ELECT("cd", "D", ("md",)) + [ST.withdraw("wd", "D", "md", ("cd",)),
-      admit("md2", "D", ("A", "B", "C"), ("cd",), ("wd",))], [("D", "moderate", F), ("D", "member", T)], None),
+     GV + ELECT("cd", "B", ("la",)) + [ST.withdraw("wd", "B", "g", ("cd",)), admit("mb2", "B", ("A", "C"), ("wd",))],
+     [("B", "moderate", F), ("B", "member", T)], None),
     (DG + "a counted removal from the roster ends the elected member's duty seat",
-     GV + [admit("md", "D", ("A", "B", "C"), ("la",))] + ELECT("cd", "D", ("md",)) + [remove("xd", "D", ("A", "B", "C"), ("cd",))],
-     [("D", "moderate", F), ("D", "member", F)], None),
+     GV + ELECT("cd", "B", ("la",)) + [remove("xb", "B", ("A", "C"), ("cd",))], [("B", "moderate", F), ("B", "member", F)], None),
     (DG + "a member-only founding, handed one: a founder's own offer of moderate seats nobody (a single key's own offer "
      "of a duty concludes only from the lone person duty holder, and there is none)",
      [GM, admit("md", "D", ("A", "B", "C"), ("g",)), ST.offer("cs", "A", "D", "moderate", OBJ, "self", ("md",), cosigners=("D",))],
      [("D", "moderate", F), ("D", "member", T)], None),
-    (DG + "a member-only founding, handed one: an election seats a member, the one way a duty is placed there",
-     [GM, admit("md", "D", ("A", "B", "C"), ("g",))] + ELECT("cd", "D", ("md",)), [("D", "moderate", T)], None),
+    (DG + "a member-only founding, handed one: an election seats a member, the one way a duty is placed there (its "
+     "vacancy is the founding row itself: it gives no duty seat)",
+     [GM] + ELECT("cd", "B", ("g",)), [("B", "moderate", T)], None),
     (DG + "and that member's resignation ends it: a duty seat stands only on a member, in every room",
-     [GM, admit("md", "D", ("A", "B", "C"), ("g",))] + ELECT("cd", "D", ("md",)) + [ST.withdraw("wd", "D", "md", ("cd",))],
-     [("D", "moderate", F), ("D", "member", F)], None),
+     [GM] + ELECT("cd", "B", ("g",)) + [ST.withdraw("wd", "B", "g", ("cd",))], [("B", "moderate", F), ("B", "member", F)], None),
     (DG + "a lone holder's own offer of a duty concludes, with the new holder's acceptance",
      [G1, admit("md", "D", ("A",), ("g",)), ST.offer("cs", "A", "D", "moderate", OBJ, "self", ("md",), cosigners=("D",))],
      [("D", "moderate", T)], None),
@@ -353,10 +354,14 @@ CASES = [
      [("A", "member", T), ("A", "moderate", T), ("A", "duty", T), ("A", "review", F)], None),
     (DG + "a lone founder whose record declares review: moderate and review, not slash", [LFR],
      [("A", "moderate", T), ("A", "review", T), ("A", "slash", F)], None),
-    (DG + "the lone founder lays moderate down: no holder is left, and an election seats a member",
+    (DG + "the lone founder lays moderate down; B and C, admitted after, neither vote nor stand (C1): B's election "
+     "seats nobody",
      [LF, ST.withdraw("la", "A", "g", ("g",), scope="moderate"), admit("mb", "B", ("A",), ("la",)),
       admit("mc", "C", ("A", "B"), ("mb",))] + ELECT("ce", "B", ("mc",)),
-     [("A", "moderate", F), ("A", "member", T), ("B", "moderate", T)], None),
+     [("A", "moderate", F), ("A", "member", T), ("B", "moderate", F)], None),
+    (DG + "A alone is that election's electorate, and its own ballot seats it again",
+     [LF, ST.withdraw("la", "A", "g", ("g",), scope="moderate"), admit("mb", "B", ("A",), ("la",))]
+     + ELECT("ca", "A", ("la",), voters=("A",), ranking=("A",)), [("A", "moderate", T), ("B", "moderate", F)], None),
     (DG + "a lone founder's record naming a map: the map decides", [ST.found("g", "A", ("A",), {"review": ("A",)})],
      [("A", "review", T), ("A", "moderate", F)], None),
     (DG + "several signers and no map: members, no duty", [GM], [("A", "moderate", F), ("A", "member", T), ("A", "duty", F)], None),

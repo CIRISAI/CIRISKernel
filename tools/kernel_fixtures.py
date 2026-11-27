@@ -316,20 +316,22 @@ def seat_cases():
     rules = {id(A.SEAT): "seat", id(A.WIN): "window", id(A.ROUTE): "route"}
     seen, scen, skipped = {}, [], {"rules": 0}
 
-    def record(rows, rule, asks=None, table=None, readers=()):
+    def record(rows, rule, asks=None, table=None, readers=(), closed=None):
         """`asks`: (key, scope, object) the scenario also states `stands` for. `table`: read under another HOLDS
-        (check_duty_seats.py's `persist`); the scenario then carries its own `holds`."""
+        (check_duty_seats.py's `persist`); the scenario then carries its own `holds`. `readers`: the readers it is
+        also read for. `closed`: a seating whose
+        election's close the scenario states (`closed`)."""
         name = rules.get(id(rule))
         if name is None:
             skipped["rules"] += 1
             return
-        key = (name, table, json.dumps([row_enc(r) for r in rows], sort_keys=True))
+        key = (name, table, closed, json.dumps([row_enc(r) for r in rows], sort_keys=True))
         if key not in seen:
             seen[key] = len(scen)
-            scen.append((name, list(rows), list(asks or ()), table, tuple(readers)))
+            scen.append((name, list(rows), list(asks or ()), table, tuple(readers), closed))
         elif readers:                                # the same rows named again with a reader: read it too
-            n, r0, a0, t0, rd = scen[seen[key]]
-            scen[seen[key]] = (n, r0, a0, t0, tuple(sorted(set(rd) | set(readers))))
+            n, r0, a0, t0, rd, cl = scen[seen[key]]
+            scen[seen[key]] = (n, r0, a0, t0, tuple(sorted(set(rd) | set(readers))), cl)
 
     orig_conc = A.conc
 
@@ -370,6 +372,17 @@ def seat_cases():
     import check_recall as RC
     for _name, rows, asks in RC.CASES:
         record(rows, A.SEAT, [(k, sc, RC.OBJ) for k, sc, _ in asks])
+    # the moderator election (C1 to C5): check_election.py's cases, its open cases, and those read with the open
+    # case's alternative on
+    import check_election as EL
+    for _name, rows, asks, _item in EL.CASES:
+        record(rows, A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks])
+    for _name, rows, seating, _want in EL.CLOSE_CASES:
+        record(rows, A.SEAT, closed=seating)
+    for _name, rows, own, asks in EL.LINE_CASES:
+        record(rows, A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks], readers=(own,) if own else ())
+    for _name, rows, _rid, _want in EL.CONCL_CASES:
+        record(rows, A.SEAT)
     # a moderator's lone removal of an agent's key and the members' lift (CC 4.5.13): check_agent_removal.py's cases,
     # under the window rule (the removal is the opener of its own window; every other row goes to the seat rule)
     import check_agent_removal as AR
@@ -415,7 +428,7 @@ def seat_cases():
         record(rows, A.SEAT)
     rulefn = {"seat": A.SEAT, "window": A.WIN, "route": A.ROUTE}
     problems, out = [], []
-    for i, (name, rows, asks, tab, rdrs) in enumerate(scen):
+    for i, (name, rows, asks, tab, rdrs, closed) in enumerate(scen):
         check_rows(rows, problems, "scenario %d" % i)
         with DS.table(tab):
             S = CK.concluded(CK.kept(list(rows)), rulefn[name])
@@ -426,6 +439,8 @@ def seat_cases():
                 e["stands"] = [[k, sc, o, Q.stands(k, sc, o)] for k, sc, o in asks]
             if tab:
                 e["holds"] = enc(ST.HOLDS)
+            if closed:
+                e["closed"] = [closed, EL.closed(rows, closed)]
         out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "community_floor": ST.COMMUNITY_FLOOR, "removal_floor": ST.REMOVAL_FLOOR,

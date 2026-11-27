@@ -12,7 +12,7 @@ One trait, [`Row`](src/lib.rs), and for each answer persist asks, the spec trait
 | Trait | What persist supplies | From |
 |---|---|---|
 | `Row` | `Id` = `persist_row_hash` (or the `RowId([u8; 32])` of KERNEL_SEAMS §5.2); `Key` = key id; `names()` = every digest the row's signed bytes name; `signer()` = `attesting_key_id` | `Attestation` (`federation/types.rs:1632`): `persist_row_hash` `:1669`, `attesting_key_id` `:1636`; the named digests are `references_attestation_id` (`federation/precedence.rs:71`), `prev_head_digest` and `charter_digest` on a group version (`federation/types.rs:3191`, `:3200`) |
-| `seat::SeatRow` | the kind (offer, accept, withdraw, unseat, cosign, ballot, ack), `to`, `scope`, `obj`, `conf`, `under`, `cosigners`, `subjects`, `head`, `policy` | `attestation_type` `:1642`; `subject_key_ids` `:1684`; `additional_scrubs` (verified cosignatures) `:1768`; the body members the family's grammar names |
+| `seat::SeatRow` | the kind (offer, accept, withdraw, unseat, cosign, ballot, decline, ack), `to`, `scope`, `obj`, `conf`, `under`, `cosigners`, `subjects`, `head`, `policy` | `attestation_type` `:1642`; `subject_key_ids` `:1684`; `additional_scrubs` (verified cosignatures) `:1768`; the body members the family's grammar names |
 | `cut::CutSpec` | the slots a row is on and cuts, and what it says | the family tables (`family_model.json`); the slot of a seat is `(seat, key, scope, object)` |
 | `window::WindowRow` | the opener's window name, an answer's word, a landing's receipt and its signer's own instant | the window families; the instant is the signed `asserted_at` of one signer, compared only with that signer's own (`:1647`) |
 | `key_end::KeyEndRow` | a key record's `valid_from`, `valid_until`, the old key of a rotation and the signatures it carries | `KeyRecord` (`federation/types.rs:1343`): `valid_from` `:1362`, `valid_until` `:1365`, `identity_type` `:1358` (persist maps it to `EndRule`) |
@@ -143,7 +143,30 @@ migrations, and the local operational store.
 - The windows' specs (`window::WindowSpec`, chosen by a row's `window()` name) stay the caller's: no act binding
   reads them in this tag.
 - The election's seating is the one act read from the policy the row states (`Policy::Ranked`), and of
-  `moderate` only. The election is not answered safely by this tag: a caller must not rely on a ranked seating.
+  `moderate` only.
+
+**The moderator election** (C1 to C5, E1 to E3, F1 to F4; CHANGELOG). Present:
+- each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` its election's id row: the
+  room's founding row for the first election, then the seating of the one before; naming the end of the last
+  holder's seat it votes on;
+- RULE: each election row a key signs (ballot, withdrawal, decline, receipt, seating) builds on that key's earlier
+  rows of that election: a row that does not is the key saying two things, and the key is out of the election (a
+  device restored from an old backup included). The
+  fork is per verified signing key: return from `SeatRow::signing_key` the key whose signature the door verified
+  (the room key in a private room), never a client-supplied value; return `None` where the signer signed;
+- a decline as `SeatKind::Decline`, `of()` its election;
+- a holder's lay-down of `moderate` (its withdrawal of its own seat) is a roster change: it names the newest
+  heads, as any roster change (H4). A seat ends once: an end (a lay-down, a counted recall, a
+  withdrawal of the offer) with an end of the same seat in its past concludes nothing;
+- GUIDANCE (not a rule): build every other row a key signs on that key's own tips, so the rule above holds
+  whatever later becomes an election row;
+- the winner's own seating: an Offer of `moderate`, `Conf::Group`, policy `moderator_election`, signed by the
+  winner, `to()` the winner, `of()` its election, naming its whole set: the ballots, the voters' own withdrawals
+  of their ballots, the declines, the leavings it reads, and the end or ends of the last holder's seat it reads
+  the electorate at. Nothing it does not name is read for the count. No `options()`;
+- each member's receipt of the seating as `SeatKind::Ack` with `of()` the seating: a strict majority of the
+  electorate, the winner and the departed apart, closes the election. A room re-closes an election an equivocator
+  reopened by removing it by count and a receipt after the removal.
 
 ## Points to settle before adoption
 

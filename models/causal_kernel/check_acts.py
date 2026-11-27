@@ -10,8 +10,8 @@ one row of a set and the act it is; each query case names (act, scope class, kin
 table gives. CONCLUDE: whether a row concludes with the acts table and without it; the protocol rows are counted under
 the room's protocol in force, one of the closed set (data/consensus_protocols.tsv, PROTOCOL_WORDS), with the record's
 numbers and over the protocol's body. TIPS: who stands (the wait at tips across a change of protocol; a node's seat
-by scope and kind). PENDING: two rows of the independent read (A1, A3) that hold once the head rules and room-keys-fix
-are merged; reported, not failed on.
+by scope and kind). PENDING: rows of the independent reads that do not hold on the merged tree (the settling count, FA6, T5, C2, Q4);
+reported, not failed on (A1, A3, K2, T5b and C1 held at the merge and are TIPS cases now).
 
 Planted breaks, each of which must change a case's answer:
     lift_unread         an offer naming a removal of the same seat is read as an admission, not the lift
@@ -845,6 +845,12 @@ PENDING += [
     ("C2: for that reader neither line's later removal stands: f3 and f1 are kept",
      GI9_6 + [C1A, C1B, C2XA, C2XB], [("f3", "founder", True), ("f1", "founder", True)]),
 ]
+# flipped at the batch merge (heads b2d5aa4, room-keys-fix 1a059be, election2 8910e02): the pending rows that hold on
+# the merged tree are failing cases now (A1, A3, K2, T5b, C1); the settling count, FA6, T5 and C2 do not hold on
+# it, and stay reported here
+HELD = ("A1:", "A3:", "K2:", "T5b:", "C1:")
+TIPS += [c for c in PENDING if c[0].startswith(HELD)]
+PENDING = [c for c in PENDING if not c[0].startswith(HELD)]
 # Q4: a change of the record names the record in force as its head (N5's rows: am2 names only a row that did not
 # conclude, so it lacks am's head): the head rules' H1. (name, rows, the row asked, concludes)
 PENDING_CONCLUDE = [
@@ -957,11 +963,11 @@ def main():
             problems.append("undecided %s: got %s, expected %s" % (name, undecided(rows, rid), want))
     for name, rows, rid, want in PENDING_CONCLUDE:
         got = concludes(rows, rid, True)
-        print("  pending the heads and room-keys-fix merge: %s: %s" % (name, "holds" if got == want else
+        print("  pending (does not hold on the merged tree): %s: %s" % (name, "holds" if got == want else
                                                                      "does not hold yet (got %s)" % got))
     for c, got in zip(PENDING, tip_answers(cases=PENDING)):
         want = [w for _, _, w in c[2]]
-        print("  pending the heads and room-keys-fix merge: %s: %s" % (c[0], "holds" if got == want else
+        print("  pending (does not hold on the merged tree): %s: %s" % (c[0], "holds" if got == want else
                                                                      "does not hold yet (got %s)" % got))
     caught = 0
     for plant in PLANTS:

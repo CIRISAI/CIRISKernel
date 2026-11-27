@@ -120,11 +120,13 @@ LIFT = lambda heads: ST.offer("lf", "m1", "AG", "agent", OBJ, "group", ("xl", "o
                               content="xl", policy="moderation_overturn", cosigners=("m2", "AG"))
 
 
-def elect(i, k, heads):
-    """An election's seating of k to `moderate`: ballots of B and C ranking k first, and the offer counting them."""
-    bs = [ST.R("b" + v + i, "ballot", v, tuple(heads), ranking=(k, "C")) for v in ("B", "C")]
-    return bs + [ST.offer(i, "B", k, "moderate", OBJ, "group", tuple(heads) + tuple(b["id"] for b in bs), head=tuple(heads),
-                          policy="moderator_election", options=(k, "C"), cosigners=(k,))]
+def elect(i, k, heads, vac=("lm",)):
+    """An election's seating of k to `moderate` (election2's C1 to C5, merged): ballots of B and C ranking k first,
+    each naming its election (the founding row, `of`) and the vacancy end `vac`; the seating signed by k itself, `to`
+    k, `of` the founding row, naming its set (the ballots and the end) and its heads, which place it (H4)."""
+    bs = [ST.R("b" + v + i, "ballot", v, tuple(vac), ranking=(k, "C"), of="g") for v in ("B", "C")]
+    return bs + [ST.offer(i, k, k, "moderate", OBJ, "group", tuple(b["id"] for b in bs) + tuple(vac) + tuple(heads),
+                          head=tuple(heads), policy="moderator_election", of="g")]
 
 
 H1, H2, H3, H4, H5, H6, H7, H8, EL, AC, LO, SF, EDGE = ("H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "election",
@@ -425,10 +427,11 @@ CASES = [
      [dict(q, names=tuple(q["names"]) + ("aG",), head=("g",)) if q["id"] == "se" else q for q in elect("se", "D", ("g",))],
      None, {"se": F}, {"moderate": set()}, set()),
     (EL, "the seating at the newest admission, a sibling of a later admission a reader acknowledged: not behind (the line "
-         "is sibling-safe)",
+         "is sibling-safe), and at the two tips the fold seats D (an election's seating is read by C1 to C5, not counted "
+         "as a plain count: election2's fold, merged)",
      ROOM + [admit("aH", "H", tuple(sorted(SEVEN)), ("aG",)), ack("ak", "R", "aH"),
              ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)), "R",
-     {"se": T}, {"moderate": set()}, set()),
+     {"se": T}, {"moderate": {"D"}}, set()),
     (EL, "the seating at the head before an admission built on a later one the reader acknowledged: behind that "
          "reader's line by its heads, as any roster change",
      ROOM + [admit("aH", "H", tuple(sorted(SEVEN)), ("aG",)), admit("aI", "I", tuple(sorted(SEVEN | {"H"})), ("aH",)),

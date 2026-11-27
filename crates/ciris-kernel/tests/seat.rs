@@ -5,7 +5,7 @@
 mod common;
 use ciris_kernel::cut::{Cut, Status};
 use ciris_kernel::layers::{conclude, kept, Past};
-use ciris_kernel::seat::{self, members_at, seat_rule, Obj, Policy, Root, SeatLaw, Seats};
+use ciris_kernel::seat::{self, election_closed, members_at, seat_rule, Obj, Policy, Root, SeatLaw, Seats};
 use ciris_kernel::window::{self, Outcome, WindowSpec};
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -164,6 +164,11 @@ fn seat_scenarios() {
                 let got = q.stands(&k.to_string(), s, &obj_named(&rows, o), None);
                 cmp(got == want, format!("{k} stands in {s} over {o}"));
             }
+        }
+        // an election's close, asked by name (check_election.py's CLOSE_CASES)
+        if let Some(cl) = sc.get("closed") {
+            let (s, want) = (cl.arr()[0].s().to_string(), cl.arr()[1].b());
+            cmp(election_closed(&c, &w.law, &spec, &s) == want, format!("election closed by {s}"));
         }
         for (pid, want) in a.at("windows").obj() {
             let i = c.g.idx(pid).unwrap();

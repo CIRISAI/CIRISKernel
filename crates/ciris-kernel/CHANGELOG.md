@@ -2,6 +2,97 @@
 
 ## Unreleased
 
+**The moderator election, rebuilt on C1 to C5** (CC 4.5.13; CC 4.5.4 (v) and rule 2; CIRISConstitution#241, with
+the rulings E1 to E3 and F1 to F4). The election is back in this tag. **BREAKING**: `SeatKind::Decline` (a new
+variant; an exhaustive match must add it). New: `seat::election_closed`. The presentation changes:
+- An election is named by its id row: the room's founding row, or a seating of the election before (closed, or
+  stood with its holder's seat ended: E3). A ballot (`SeatKind::Ballot`, `ranking()` best first) and a decline
+  (`SeatKind::Decline`) are a member's own rows, each naming its election by `of()`. The seating is a counted offer
+  of `moderate` under `Policy::Ranked`, signed by the winner (its acceptance), `to()` the winner, `of()` its
+  election, naming its set: the ballots, the voters' own withdrawals of them, the declines, the leavings it reads,
+  and the end or ends of the seat it reads the electorate at. **`options()` is not read**; the seating's heads are
+  placement only and are not read for the count. A receipt of a seating is a `SeatKind::Ack` whose `of()` is it.
+- C1, F2: the electorate (persons) and the candidates are read at the vacancy the seating names: the ends of the
+  id row's seat it names (the members at all of them); the founding row itself where it gives no seat. A member
+  admitted after the vacancy neither votes nor stands. Different vacancies are different sets. An end is in a set
+  only where a counted ballot of the set names it (a ballot names the end it votes on, beside the election's id):
+  an end no such ballot names (a backdated lay-down) is part of no set. Honest concurrent ends: the voters name what
+  they saw, and the union seating names both ends and reads the members at both.
+- F1: every input to the count comes from the set: a withdrawal or a leaving counts only where the seating names it,
+  so seatings over equal sets count alike (C4's "one seat" is sound). A named leaving strikes a key only in the
+  election's window: one in the past of the vacancy end the seating reads is settled there (a member removed or
+  gone and re-admitted before the vacancy votes and stands), and is no row of the set.
+- C2: a seating concludes only where no person holds a duty over the room in the seats over its whole past, and no
+  row of a later election is in its past.
+- C3, E3: an id row's standing is read in the naming row's past; once its holder's seat has ended, a seating that
+  stood and never closed names the next election, and a row of an election so superseded in its past concludes
+  nothing.
+- C4: CONTAINS replaces LARGER: a seating stands only where its set contains every other seating's set of its
+  election (equal sets one seat: the holder's withdrawal of either ends it, and an election named by either is one
+  election); sets not nested seat nobody until a seating over the union.
+- C5, E1: the causal close: a strict majority of the electorate, the winner and the departed apart, receipting one
+  seating that stood under C4 in each receipt's own past; one say per person read causally. One base per election
+  for a reader: the intersection of the members at every end any seating of the election names (C1 read
+  election-wide), over the rows held (each seating still counts its own electorate), less the departed and the
+  forkers. The union is a plant (`close_base_union`): a backdated second end then widens the base past an honest
+  close. The departed (left, or removed, not
+  seated again) are read over the rows held, for every group alike, and a departed key's receipt counts for
+  nothing, unless its leaving or removal holds that receipt: then the receipt counts and the key stays in the base
+  (an honest leaving after the close does not reopen it). With everyone but the winner gone the seating closes
+  itself. (ii), the rule and the backstop: where more than one group of an election meets its close over the rows
+  held, none is closed; nothing is picked by order.
+- The self-fork (replacing E2's "an equivocator reopens a close for all"): two rows by one key over ONE election,
+  neither in the other's past, are that key saying two things. The election's own rows only, authored by the key:
+  a ballot, a withdrawal of one, a decline, a receipt, a holder's own lay-down read as its vacancy (a counted
+  unseat, others' act too, never forks its signer), a seating (a seating is its signer's say, like a receipt: a
+  winner that receipts a rival has said two things). A row the key only cosigns is never part of a fork; rows in
+  two rooms, or of two elections, are never a fork. The fork is per verified signing key: `SeatRow::signing_key`
+  (new, default `None`) is the key whose signature verified the row, as checked by the door, never a value the row
+  states; a voice's rows through two room keys are two keys' rows, one say per voice reading its duplicate
+  ballots. With none, the signer is the key, so concurrent rows of one signer fork unless chained; a device label
+  in the row body is never read. With a seating a say, no two seatings of one election both close over the rows
+  held (the receipters are disjoint and both winners out), shown by the partition and a room of four. For a reader
+  holding both rows the key is no voice (and no candidate) and out of that election's close base, as a leaver; the
+  honest receipters keep their receipts, and a close that still holds a majority of the remaining base stands. It
+  reaches no count already determined: a seating counts only its named set, and a key whose two forked rows are
+  both in the set is no ballot there. It is not a roster rule: outside an election a fork is evidence and the
+  reader's line, with no automatic effect. The edge: a minimal close on an odd base can still fail (three of five
+  becomes two of four), and F3's cost then applies: it is rarer, not gone. There is no carve-out for an honest
+  self-fork (a device restored from an old backup): that key is out of that election.
+- No second end: an end of a seat that has any end of that seat in its own past is no end and concludes nothing,
+  whoever signed either: a holder's lay-down with a counted recall of the seat in its past, a counted recall with
+  the lay-down in its past, a second counted recall with the first, a second withdrawal. An end read so is a
+  withdrawal of a row seating the key (its own, or the conferrer's of the offer) or an unseat, with no seating of
+  the key in that scope after it in the row's past (a re-admitted member's second leaving is an end). A removal
+  of an agent's key is not read as an earlier end (a moderator's lone one may be lifted or fall out of force); the
+  cost: a second counted removal of an agent's key is not reached by (2). A row that ends several seats is no end
+  only where every seat it ends was already ended.
+  Plants `end_of_ended_seat` and `end_reseat_unread`, in both languages.
+- A lay-down is a roster change: with the head rules (`heads`) it names the newest heads and is held to H4, and a
+  lay-down behind a reader's line is no end for it; until then two cases wait on them (H2b and G3c with a reader
+  that acknowledged the newcomers, D for both). The stated residual, no-acknowledgement reader: a backdated
+  lay-down can shrink the close's base for a reader with no acknowledgement, and that reaches an honest close made
+  before the attack.
+- F3: a next election stands only while its id row stands, for the rows held: beating or un-standing a seating
+  takes with it every election named on it (a late superset of election 1's set beats its seating, and election 2,
+  named on it, falls).
+- Carried over: a ballot ranking a key outside the electorate, a leaver or more than three (`ELECTION_RANKS`) is
+  void, the whole ballot; a decline strikes its signer; the floor of two ballots; a tie for weakest seats nobody.
+- Removed: the LARGER reading (sizes by persons and rows), the seating's options, and the test that no holder
+  outside the election's seatings is live (C2 replaces it).
+- A seating names the newest counted changes over the room as its heads, for its place on a reader's line only:
+  a seating behind the reader's line does not stand for that reader and takes no part in C4 there (and an election
+  named on it falls with it, F3). The head rules (`heads`) will hold a seating to H4; the old-head removal reaching
+  an election (the third read's b5) is theirs, a case pending them.
+- Two concurrent seatings of election 1 not nested, each line opening a next election: where both are held neither
+  stands and both next elections fall (F3): nobody until a seating over the union.
+- Rule for clients: each election row a key signs builds on that key's earlier rows of that election; a row that
+  does not is the key saying two things, and the key is out of the election, a restored device included. Guidance
+  (not a rule): build every other row a key signs on that key's own tips.
+- The reference: `models/causal_kernel/check_election.py`, 111 cases, 22 of the close read directly
+  (`seat::election_closed`), 3 of the line, 4 pending the head rules, every one in arrival orders and in the `seat`
+  fixture; 41 planted breaks, each with a crate plant. The rule is `seat/election.rs`.
+
 **A member who left and was re-admitted counts** (CIRISConstitution#218, pin list: a re-admitted member counts).
 
 - `seat::left_in_past` read a key's own leaving and ignored a later admission, unlike `stay_ended_in_past`. So
@@ -219,8 +310,7 @@ no answer of any case changes.
   `policy_for(law, act, scope, kind)` is the store's query: the policy rows an act may take, and whether the row
   chooses.
 - **The one act read from the stated policy**: an offer of a duty under the ranked count (`Policy::Ranked`) is the
-  election's seating. **The election is not answered safely by this tag, and a caller must not rely on a ranked
-  seating** (CIRISConstitution#241: the election is out of 0.5.0).
+  election's seating (the election is answered by C1 to C5: see its entry above).
 - **BREAKING for an exhaustive struct literal of `SeatLaw`**: two new fields. `acts: Option<Vec<ActRule>>` is
   `None` where a law binds no act to a policy: the behaviour before, with the binding left to the caller.
   `kinds` maps a founding row's scope to an object's kind. The seat fixture's law carries `Some(acts)` and the

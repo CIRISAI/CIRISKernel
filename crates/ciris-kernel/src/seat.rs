@@ -46,12 +46,14 @@ use crate::cut::{Cut, CutSpec};
 use crate::graph::Graph;
 use crate::layers::{Concluded, Past};
 use crate::line::{self, LineSpec};
-use crate::ranked::ranked;
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::cell::RefCell;
+
+mod election;
+pub use election::{election_closed, ELECTION_RANKS};
 
 /// What a seat is over: a row (a group is the row that founded it) or a key.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -127,8 +129,10 @@ pub enum SeatKind {
     Unseat,
     /// A cosignature, a voice for a counted row.
     Cosign,
-    /// A ranked ballot.
+    /// A ranked ballot ([`SeatRow::ranking`], best first), naming its election by [`SeatRow::of`].
     Ballot,
+    /// A member's decline of the election its [`SeatRow::of`] names: the count is read with its signer struck.
+    Decline,
     /// A reader's acknowledgement of a head (with [`SeatRow::room`]). With [`SeatRow::of`] naming a
     /// moderator's lone removal instead, a receipt of that act, which keeps it in force after the moderator's
     /// standing ends: a duty holder's, or with [`Conf::Group`] the room's count's, met over the persons at the
@@ -308,6 +312,13 @@ pub trait SeatRow: Row {
     /// A ballot's ranking.
     fn ranking(&self) -> &[Self::Key] {
         &[]
+    }
+    /// The key whose signature verified this row, as checked by the door (the room key a voice signed through in a
+    /// private room); never a value the row states. The election reads a fork per signing key: two keys of one voice
+    /// are two keys. `None`: the signer is read as the signing key, so two concurrent rows of one signer are a fork
+    /// unless chained.
+    fn signing_key(&self) -> Option<&Self::Key> {
+        None
     }
     /// An acknowledgement: the object (room) whose head it acknowledges.
     fn room(&self) -> Option<Obj<Self::Id, Self::Key>> {
@@ -1745,6 +1756,8 @@ pub struct Seats<'c, 'a, R: SeatRow, S: CutSpec<R>> {
     spec: &'c S,
     by: BTreeMap<&'a R::Id, &'a R>,
     stale: BTreeSet<usize>,
+    /// The election's seatings that do not stand (C4, C5): they seat nobody and are no tip.
+    beaten: BTreeSet<usize>,
     /// The moderators' lone removals the end rule holds out of force over this set ([`removal_in_force`]):
     /// they end nothing here, and a reading of one line of the set (a tip, the fold) leaves them out too.
     dropped: BTreeSet<R::Id>,
@@ -1847,17 +1860,33 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let wd_of = |id: &R::Id| wd.get(id).unwrap_or(&none);
         let ended = |row: &R| !wd_of(row.id()).is_empty();
         let eq = |o: &R| duty_seat(law, &by, o);
+        // the election (C4, C5): the seatings that do not stand, and per seating its twins (the seatings over its
+        // set of its election: one seat, so its holder's withdrawal of any of them ends it)
+        let local_e = MembersAt::<R>::default();
+        let elections = cs.iter().any(|&i| election::is_election(law, g.row(i)));
+        let ecx = election::Ctx { c, law, spec, memo: cache.unwrap_or(&local_e) };
+        let twins = if elections { ecx.twins() } else { BTreeMap::new() };
+        let twin_ids: BTreeMap<&R::Id, Vec<&R::Id>> = twins
+            .iter()
+            .map(|(&q, ts)| (g.row(q).id(), ts.iter().filter(|&&t| t != q).map(|&t| g.row(t).id()).collect()))
+            .collect();
+        let none_ids: Vec<&R::Id> = Vec::new();
         // a withdrawal that names a scope ends that one seat of the row it withdraws
         let off_ended = |o: &R, k: &R::Key, sc: Sc<'a, R::Word>| {
-            wd_of(o.id()).iter().any(|w| {
+            let own = |w: &&R| {
                 w.target() == Some(o.id())
                     && (w.signer() == k || (!o.to().contains(w.signer()) && o.conf() != Some(Conf::Group) && !eq(o)))
                     && w.scope().is_none_or(|ws| ws.as_ref() == sc.s())
-            })
+            };
+            // the holder's withdrawal of a twin seating ends this one
+            let twin = |t: &&R::Id| wd_of(t).iter().any(|w| w.signer() == k && o.to().contains(w.signer()));
+            wd_of(o.id()).iter().any(own) || twin_ids.get(o.id()).unwrap_or(&none_ids).iter().any(twin)
         };
         let mut stale =
             line::void_except(c, &SeatLine, own, |i| cut.counts(i) && !behind.contains(&i), |_| false, &except);
         stale.extend(behind.iter().copied());
+        // a seating behind the reader's line does not stand for it and takes no part in C4
+        let beaten = if elections { ecx.beaten(&stale) } else { BTreeSet::new() };
         // each unseat that counts, with its object read once
         let unseats: Vec<(usize, Option<ObjOf<R>>)> = cs
             .iter()
@@ -1999,7 +2028,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             .collect();
         for &oi in cs {
             let o = g.row(oi);
-            if o.seat_kind() != SeatKind::Offer || !cut.counts(oi) || stale.contains(&oi) {
+            if o.seat_kind() != SeatKind::Offer || !cut.counts(oi) || stale.contains(&oi) || beaten.contains(&oi) {
                 continue;
             }
             if !gone.is_empty() && o.obj().is_some_and(|ob| gone.contains(&ob)) {
@@ -2139,6 +2168,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             spec,
             by,
             stale,
+            beaten,
             dropped,
             recs,
             duty,
@@ -2271,6 +2301,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     && (r.conf() == Some(Conf::Group) || Obj::Row(r.id().clone()) == *o)
                     && self.cut.counts(i)
                     && !self.stale.contains(&i)
+                    && !self.beaten.contains(&i)
             })
             .collect();
         g.frontier(&acts)
@@ -3814,6 +3845,8 @@ struct MembersAt<R: SeatRow> {
     // rows are concluded for ([`for_reader`])
     void: RefCell<Vec<BTreeSet<<R as Row>::Id>>>,
     rvoid: RefCell<BTreeSet<<R as Row>::Id>>,
+    // per election seating: its election's key, its electorate and its set, read over its own past
+    views: RefCell<BTreeMap<<R as Row>::Id, election::View<R>>>,
 }
 
 impl<R: SeatRow> MembersAt<R> {
@@ -3837,6 +3870,7 @@ impl<R: SeatRow> Default for MembersAt<R> {
             standing: RefCell::default(),
             void: RefCell::default(),
             rvoid: RefCell::default(),
+            views: RefCell::default(),
         }
     }
 }
@@ -4151,6 +4185,10 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         mem.remove(&author); // the author is not among the members the majority is taken of
         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
     }
+    if pol == Some(Policy::Ranked) {
+        // the election's seating (C1 to C5): its electorate read at its election's vacancy, not at a head
+        return is_offer && election::count(p, law, spec, cache);
+    }
     let mem = count_members_with(p, law, spec, cache);
     if let Some((m, n)) = f.infra {
         // CC 2.7.8's wait for founders' amendments: two concurrent ones are concurrent versions of the record. Until a
@@ -4266,15 +4304,6 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     if f.floor > 0 && v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).count() < f.floor {
         return false;
     }
-    if pol == Some(Policy::Ranked) {
-        let ballots: Vec<(R::Key, Vec<R::Key>)> = p
-            .rows()
-            .filter(|b| b.seat_kind() == SeatKind::Ballot && r.names().contains(b.id()) && mem.contains(b.signer()))
-            .map(|b| (b.signer().clone(), b.ranking().to_vec()))
-            .collect();
-        // the one ranked row is the election, which declares no order: a tie for weakest seats nobody
-        return is_offer && !ballots.is_empty() && ranked(&ballots, r.options(), 2, false).0.as_ref() == r.to().first();
-    }
     // the recall is told by its act where the binding reads one (an unseat of a duty counted over the members), by
     // its policy otherwise: the base exclusion of the holder follows Act::Recall, and Policy::Recall is only the
     // threshold its fixed row maps to
@@ -4302,6 +4331,9 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
 ) -> bool {
     let r = p.row();
     let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
+    if end_of_ended(p, &by, r) {
+        return false; // (2): no second end of a seat
+    }
     match r.seat_kind() {
         SeatKind::Offer | SeatKind::Unseat => {
             let is_offer = r.seat_kind() == SeatKind::Offer;
@@ -4460,6 +4492,60 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
         SeatKind::Cosign => true,
         _ => other(p),
     }
+}
+
+/// A seat a row ends, for rule (2): the key, the scope, the object.
+type EndedSeat<'a, R> = (&'a <R as Row>::Key, Option<&'a str>, Option<ObjOf<R>>);
+
+/// The seats row `r` ends (rule (2)): an unseat, each key it names in its scope; a withdrawal, the seat its
+/// target gives (its signer's own where it holds it, else every key the target seats), in [`end_scope`]'s
+/// scope. A removal of an agent's key is none here: a lone one may be lifted or fall out of force, and then it
+/// ended nothing.
+fn ends_of<'a, R: SeatRow>(by: &BTreeMap<&R::Id, &'a R>, r: &'a R) -> Vec<EndedSeat<'a, R>> {
+    match r.seat_kind() {
+        SeatKind::Unseat => {
+            let sc = r.scope().map(|s| s.as_ref());
+            if sc == Some(AGENT) {
+                return Vec::new();
+            }
+            r.to().iter().map(|k| (k, sc, r.obj())).collect()
+        }
+        SeatKind::Withdraw => {
+            let Some(t) = r.target().and_then(|t| by.get(t)).copied() else { return Vec::new() };
+            let sc = end_scope(by, r).map(|s| s.as_ref());
+            match t.seat_kind() {
+                SeatKind::Accept if t.signer() == r.signer() => {
+                    let o = match t.of() {
+                        Some(of) => by.get(of).copied(),
+                        None => Some(t),
+                    };
+                    o.map(|o| alloc::vec![(r.signer(), sc, o.obj())]).unwrap_or_default()
+                }
+                SeatKind::Offer if t.to().contains(r.signer()) => alloc::vec![(r.signer(), sc, t.obj())],
+                SeatKind::Offer => t.to().iter().map(|k| (k, sc, t.obj())).collect(),
+                _ => Vec::new(),
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// (2): an end of a seat that has an end of that seat in its own past is no end, whoever signed either (a
+/// lay-down, a counted unseat, a withdrawal of the offer): every seat `r` ends has a concluded end in `r`'s
+/// past with no seating of the key in that scope after it there.
+fn end_of_ended<R: SeatRow>(p: &Past<'_, '_, R>, by: &BTreeMap<&R::Id, &R>, r: &R) -> bool {
+    let seats = ends_of(by, r);
+    !seats.is_empty()
+        && seats.iter().all(|(k, sc, obj)| {
+            p.rows().any(|q| {
+                ends_of(by, q).iter().any(|e| e.0 == *k && e.1 == *sc && e.2 == *obj)
+                    && !obj.as_ref().is_some_and(|o| {
+                        seated_after(p, o, k, q.id(), |m| {
+                            seat_scopes(m, k, signed_by(m, k)).iter().any(|x| Some(x.s()) == *sc)
+                        })
+                    })
+            })
+        })
 }
 
 /// What a group's count reads, once the caller has resolved it: the count the policy row names, whether the

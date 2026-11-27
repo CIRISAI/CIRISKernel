@@ -548,9 +548,9 @@ def check_room(spec, inst, private):
         return ST.offer(id, signers[0], B_, "moderate", "g", "group", ("g",) + tuple(names), head=("g",),
                         policy=spec.add, counted="member", cosigners=tuple(signers[1:]))
     def elect(id, voters, names=()):
-        ballots = [ST.R("b" + v, "ballot", v, ("g",), ranking=(B_, "C")) for v in voters]
-        return ballots + [ST.offer(id, voters[0], B_, "moderate", "g", "group", ("g",) + tuple(names) + tuple(b["id"] for b in ballots),
-                                   head=("g",), policy="moderator_election", options=(B_, "C"))]
+        ballots = [ST.R("b" + v, "ballot", v, ("g",), ranking=(B_, P("C")), of="g") for v in voters]
+        return ballots + [ST.offer(id, B_, B_, "moderate", "g", "group", tuple(names) + tuple(b["id"] for b in ballots),
+                                   policy="moderator_election", of="g")]
     am = ST.accept("am", "B", None, ("g",), scope="moderate", obj="g")
     worlds = [world("an election seats B to moderate", [g, am] + elect("m", ("A", "C"), ("am",))),
               world("one ballot does not", [g, am] + elect("m", ("A",), ("am",))),
@@ -751,9 +751,9 @@ def check_infra(spec, inst):
     # a node's seat (scope `node`) over an infrastructure community needs no acceptance, by its scope and the kind
     node = RS.add(spec, "n1", ("I",), "node1", ("f1", "f2"), scope="node")
     aj = RS.accept(spec, "aj", "J", ("I",), scope="member")
-    # I1 a node is seated with no acceptance and never votes. EXPECTED TO PASS ONLY AFTER the binding's A5/A6 fix (kind_of
-    # total over founding rows: this founding row, of scope `founder` with cohort_subkind `infrastructure`, is an
-    # infrastructure community); until then kind_of reads no kind here and this case reads "does NOT hold"
+    # I1 a node is seated with no acceptance and never votes: kind_of is total over founding rows (the binding's A5/A6),
+    # so this founding row, of scope `founder` with cohort_subkind `infrastructure`, is an infrastructure community
+    # (it held once the binding and room-keys-fix were merged; recorded "holds" in roster_expected.tsv)
     worlds = [("founders seat node1; node1 and f1 widen J", [g, node, aj, RS.add(spec, "w", ("n1",), "J", ("f1", "node1"), names=("aj",))])]
     def i1(S, rows, n):
         if "node1" not in nodes(S): return "node not seated"
@@ -949,10 +949,12 @@ def check_key_revocation(inst="a key (its registration, its owner, its revokers)
         if S.C["rv"]: return "the former owner's revocation concluded"
         if not registered(S) or status(S, "mc") != "counts": return "registered %s, the key's row concurrent with it %s" % (registered(S), status(S, "mc"))
     base = run(spec, W4, k4)
-    with seat_mut("owner_unread"):
-        m = run(spec, W4, k4, orders=False)
+    # The plant "the binding the revocation names is read, not whether it is live" (owner_unread) is retired at the
+    # batch merge: election2's rule (2), no second end of a seat, refuses the revocation itself, an end of the owner's
+    # seat with the binding's withdrawal (an end of that seat) in its past, so no break remains to catch here; every way
+    # of ending the binding is an end of the seat, so no world shows the plant.
     res.append(result(inst, "a former owner, whose binding was withdrawn in the revocation's past, revokes nothing", src,
-                      verdict_of(base), base, "the binding the revocation names is read, not whether it is live", m))
+                      verdict_of(base), base, None, None))
 
     # K5 two live owner-bindings naming different owners: steward-less (CC 3.2), and neither alone revokes (derived)
     W5 = []
