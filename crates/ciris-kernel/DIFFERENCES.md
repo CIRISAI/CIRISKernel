@@ -69,9 +69,10 @@ KERNEL.md 8a.
 
 ## What the kernel gained
 
-- `seat::Policy::Unanimous`, `SelfAdmit` and `Weighted`, and `SeatRow::weights`.
+- `seat::Policy::Unanimous` and `Weighted`, and `SeatRow::weights` (`SelfAdmit`, added with them, was removed with
+  the cut of open admission at 0.5.0).
 - In `seat_rule`, no key admits itself: a key the counted row seats is no voice of its count. On a removal the
-  member removed is a voice unless the policy's own text excludes it, as `unanimous`, `open:self_admit` and the
+  member removed is a voice unless the policy's own text excludes it, as `unanimous` and the
   duty withdrawal do (CC 2.7.5; the Constitution's ruling of 2026-11-23).
 - `derived::fold_default` (CC 3.5.1).
 

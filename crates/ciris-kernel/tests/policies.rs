@@ -1,5 +1,5 @@
 //! The counts CC 3.3.4 and CC 4.4.3.6 state, each on the sentence's own case: `unanimous` (with its removal
-//! reading), `open:self_admit`, `weighted`, `founder_only` (as a count over the founder scope), and "no key
+//! reading), `weighted`, `founder_only` (as a count over the founder scope), and "no key
 //! admits itself" (CC 2.7.5). These rules are not in the Python models; the cases are the text's.
 
 mod common;
@@ -251,44 +251,6 @@ fn the_counts_the_text_states() {
                 &[],
             ),
             false,
-        ),
-        // CC 4.4.3.6 open:self_admit: "a widening naming exactly one new K and K signed it"
-        (
-            "self_admit: j admits itself",
-            admits(Policy::SelfAdmit, None, "member", &abc, &[], true, &["j"], &["j"], &[]),
-            true,
-        ),
-        (
-            "self_admit: another's signature is not j's",
-            admits(Policy::SelfAdmit, None, "member", &abc, &[], true, &["j"], &["a"], &[]),
-            false,
-        ),
-        // "a removal under this protocol runs under the CC 4.5.13 floor, never one vote"
-        (
-            "self_admit: one voice never removes",
-            admits(Policy::SelfAdmit, None, "member", &abc, &[], false, &["c"], &["a"], &[]),
-            false,
-        ),
-        (
-            "self_admit: two voices remove",
-            admits(Policy::SelfAdmit, None, "member", &abc, &[], false, &["c"], &["a", "b"], &[]),
-            true,
-        ),
-        (
-            "self_admit: the member named is no voice of this removal",
-            admits(Policy::SelfAdmit, None, "member", &abc, &[], false, &["c"], &["a", "c"], &[]),
-            false,
-        ),
-        // a seated member is not a new K: its self-signed widening is a change of role, two voices
-        (
-            "self_admit: a member's own re-seating is a role change",
-            admits(Policy::SelfAdmit, None, "member", &abc, &[], true, &["b"], &["b"], &[]),
-            false,
-        ),
-        (
-            "self_admit: two others change b's role",
-            admits(Policy::SelfAdmit, None, "member", &abc, &[], true, &["b"], &["a", "c"], &[]),
-            true,
         ),
         // CC 2.7.5 "no key admits itself"; CC 3.3.4 founder_only "cannot re-seat itself alone"
         (

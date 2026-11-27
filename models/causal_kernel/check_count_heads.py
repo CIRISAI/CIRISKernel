@@ -6,11 +6,11 @@ check_count_heads.py: the heads of a count, and the reader's line (the heads rul
         counted change over the row's own object or its founding row, and they must be exactly the newest counted
         changes over that object in the row's own past (seat.newer_head_in_past). Concurrent tips are intersected.
     H2  No `over`: a counted row is counted over its own object, and one stating another concludes nothing.
-    H3  No read-through of an authored head: a self-admission (one key's row) is no head a count may name, and no
-        counted change a count must name.
+    H3  (retired with the open:self_admit cut, Eric for 1.0: a self-admission, the one head a single key wrote, is no
+        row any room may make, so H3 has nothing left to read)
     H4  No exemption: every row that changes a roster names the newest counted changes over its object in its own
         past or concludes nothing: a moderator's lone removal (whose signer holds `moderate` at those heads, less a
-        laying down of it in the removal's past), a self-admission, a resignation (a withdrawal of a seat over a
+        laying down of it in the removal's past), a resignation (a withdrawal of a seat over a
         room, among the rows it names), a lift (counted at the head its act names).
     H5  The text's reader's line: no test of concurrency (checkpoint.settle, checkpoint.versions); the line is read
         before the cut (seat.Seats).
@@ -99,8 +99,6 @@ DC = lambda i, to, heads, cites=(): ST.offer(i, "A", to, "moderate", OBJ, "group
                                              policy="duty_confer", counted="duty", cosigners=(to,))
 RC = lambda heads, by, cites=(): ST.unseat("rc", by[0], "A", "moderate", OBJ, "group", tuple(heads) + tuple(cites), head=heads,
                                            policy="moderator_recall", cosigners=tuple(by[1:]))
-SA = lambda i, k, heads, cites=(): ST.offer(i, k, k, "member", OBJ, "group", tuple(heads) + tuple(cites), head=tuple(heads),
-                                            policy="open:self_admit")
 
 # world M: m1 and m2 found the room (m1 its moderator), admit an agent's key AG and MOD; m1, the lone holder, confers
 # `moderate` on MOD (md); the three admit N (an)
@@ -345,18 +343,6 @@ CASES = [
      ROOM + [ST.found("h", "A", ("A",), {}),
              ST.offer("ox", "A", "X", "member", "h", "group", ("h", "aG"), head=("h",), over="g", policy="community_invite",
                       cosigners=("X",))], None, {"ox": F}, {}, set()),
-    (H2, "a row counted over another object it writes itself (i3): an outsider's self-admission over its own note",
-     ROOM + [ack("x", "Z", "g"), dict(SA("y", "Z", ("x",), ("aG",)), over="x")], None, {"y": F}, {"member": SEVEN}, set()),
-    # ---- H3 ---------------------------------------------------------------------------------------------------------
-    (H3, "an outsider admits itself at the newest head; a removal by five names that self-admission as its head",
-     ROOM + [SA("sa", "Z", ("aG",)), remove("xg", "G", FIVE, ("sa",))], None, {"sa": T, "xg": F}, {"member": SEVEN | {"Z"}}, set()),
-    (H3, "the same removal names the fourth member's admission and the self-admission together",
-     ROOM + [SA("sa", "Z", ("aG",)), remove("xg", "G", FIVE, ("aD", "sa"))], None, {"sa": T, "xg": F}, {"member": SEVEN | {"Z"}}, set()),
-    (H3, "the same removal at the newest admission, the self-admission in its past: the self-admitted key is no voice of it",
-     ROOM + [SA("sa", "Z", ("aG",)), remove("xg", "G", FIVE, ("aG",), ("sa",))], None, {"sa": T, "xg": T},
-     {"member": (SEVEN | {"Z"}) - {"G"}}, set()),
-    (H3, "a founder's own 'self-admission' at the founding head (i1) is no head for a removal by two",
-     ROOM + [SA("y", "A", ("g",), ("aG",)), remove("xg", "G", ("A", "B"), ("y",))], None, {"y": F, "xg": F}, {"member": SEVEN}, set()),
     # ---- H4 ---------------------------------------------------------------------------------------------------------
     (H4, "a moderator's lone removal of an agent's key at its seat's head, with a later admission in its own past",
      WM + [LONE("xl", ("md",), ("an",))], None, {"xl": F}, {"member": {"m1", "m2", "MOD", "N"}, "agent": {"AG"}}, set()),
@@ -366,8 +352,6 @@ CASES = [
      WM + [WMD, LONE("xl", ("an",), ("wd",))], None, {"wd": T, "xl": F}, {"moderate": {"m1"}, "agent": {"AG"}}, set()),
     (H4, "the same removal concurrent with the moderator's laying down: it concludes",
      WM + [WMD, LONE("xl", ("an",))], None, {"wd": T, "xl": T}, {"moderate": {"m1"}}, set()),
-    (H4, "an outsider's self-admission at the founding head, with the newest admission in its own past",
-     ROOM + [SA("sa", "Z", ("g",), ("aG",))], None, {"sa": F}, {"member": SEVEN}, set()),
     (H4, "a member resigns, its withdrawal naming its admission and a note with a later admission in its past",
      ROOM + [admit("aH", "H", tuple(sorted(SEVEN)), ("aG",)), CK.row("k", "note", "D", ("aH",)),
              ST.withdraw("wg", "G", "aG", ("aG", "k"))], None, {"wg": F}, {"member": SEVEN | {"H"}}, set()),
@@ -823,7 +807,7 @@ def line_answer():
 
 
 PLANTS = (("count_heads_unread", ST.MUT), ("all_heads_read", ST.MUT), ("head_any_row", ST.MUT), ("past_disjunct_off", ST.MUT),
-          ("changes_any_object", ST.MUT), ("over_allowed", ST.MUT), ("authored_heads", ST.MUT), ("lone_exempt", ST.MUT),
+          ("changes_any_object", ST.MUT), ("over_allowed", ST.MUT), ("lone_exempt", ST.MUT),
           ("ends_at_heads_unread", ST.MUT), ("resign_exempt", ST.MUT), ("line_concurrent", CP.MUT), ("versions_concurrent", CP.MUT),
           ("cut_before_line", ST.MUT), ("line_void_unlisted", ST.MUT), ("acks_only", CP.MUT),
           ("line_not_sibling_safe", CP.MUT), ("election_exempt", ST.MUT),
@@ -847,10 +831,8 @@ import contextlib  # noqa: E402
 
 @contextlib.contextmanager
 def setting(rule):
-    """H3's cases run with the act-to-policy binding off: the binding has no act for a self-admission (the acts
-    table names none), so in the reference with it on a self-admission concludes nothing at all and H3 has nothing
-    to read. The crate's own cases (tests/fold.rs) read H3 under the self-admit policy."""
-    on = rule in (H3, SFB) and "binding_off" not in ST.MUT
+    """SFB's cases run with the act-to-policy binding off (their removal states `majority`)."""
+    on = rule == SFB and "binding_off" not in ST.MUT
     if on: ST.MUT.add("binding_off")
     try:
         yield

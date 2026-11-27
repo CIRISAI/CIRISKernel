@@ -364,10 +364,6 @@ pub enum Policy {
     /// CC 3.3.4 `unanimous`: every member at the head signs an admission; a removal is signed by every
     /// member but the one it names, and those signers are a strict majority of the roster.
     Unanimous,
-    /// CC 4.4.3.6 `open:self_admit`: the group's side of a widening naming one NEW key is that key's own
-    /// signature; a removal, or a widening naming a key already seated (a change of role), takes the floor
-    /// of two voices besides the member named (CC 4.5.13).
-    SelfAdmit,
     /// CC 3.3.4 `weighted:{rubric}`: the sum of the signing members' whole-number weights reaches the
     /// whole-number threshold, both carried on the group's signed record (here: the row's `weights` and
     /// `need`).
@@ -402,13 +398,10 @@ pub enum RoomProtocol {
     Quorum(u64, u64),
     /// `weighted:{rubric}`: the sum of the signing members' weights reaches the threshold, both on the record.
     Weighted,
-    /// `open:self_admit`: an admission is the joiner's own signature ([`Policy::SelfAdmit`]).
-    SelfAdmit,
 }
 
 /// The kinds of the protocol set, as `consensus_protocols.tsv` writes them, in its order.
-pub const PROTOCOL_KINDS: [&str; 6] =
-    ["founder_only", "unanimous", "majority", "quorum:{m}/{n}", "weighted:{rubric}", "open:self_admit"];
+pub const PROTOCOL_KINDS: [&str; 5] = ["founder_only", "unanimous", "majority", "quorum:{m}/{n}", "weighted:{rubric}"];
 
 /// A whole number of a protocol word: one to nine digits, no leading zero (one spelling per number).
 fn protocol_count(w: &str) -> Option<u64> {
@@ -427,7 +420,6 @@ impl RoomProtocol {
             "founder_only" => return Some(RoomProtocol::FounderOnly),
             "unanimous" => return Some(RoomProtocol::Unanimous),
             "majority" => return Some(RoomProtocol::Majority),
-            "open:self_admit" => return Some(RoomProtocol::SelfAdmit),
             _ => {}
         }
         if let Some(q) = w.strip_prefix("quorum:") {
@@ -453,22 +445,6 @@ impl RoomProtocol {
         match p {
             RoomProtocol::Quorum(m, n) if m >= 2 && m == n / 2 + 1 => Some(p),
             _ => None,
-        }
-    }
-    /// Whether the protocol states a rule for an act, as the protocol sheet (`consensus_protocols.tsv`) gives it:
-    /// an admission by its `rule` cell, a removal by its `removal_rule` cell (`unstated` for `open:self_admit` alone),
-    /// and
-    /// any other act counted under it (a change of the record) by a DERIVED column, as the sheet has none: a
-    /// protocol whose count set is the members states a rule; the joiner's own signature (`open:self_admit`) and the
-    /// founder role (`founder_only`) do not. Where the protocol states none,
-    /// the `cosigned_act` half of an `&` is no condition, and the other policy governs alone, with
-    /// [`SeatLaw::community_floor`] (the Constitution's reading of `&`).
-    pub fn states(self, act: Act) -> bool {
-        match act {
-            Act::Admit => true,
-            // the sheet at rc23 2b509c8 gives founder_only a removal rule (`founder-target`, `role_at:founder:1`)
-            Act::Remove => self != RoomProtocol::SelfAdmit,
-            _ => !matches!(self, RoomProtocol::FounderOnly | RoomProtocol::SelfAdmit),
         }
     }
     /// The body a count under it is taken over: the founders for `founder_only` (a family's protocol, Q3: the
@@ -520,10 +496,6 @@ pub struct SeatLaw {
     /// concludes nothing, and one over an object with a kind whose act has no row concludes nothing. The seat
     /// fixture's law carries `Some`.
     pub acts: Option<Vec<ActRule>>,
-    /// The community floor of voices (the policy table's `min_count.community`): a policy row that governs alone
-    /// where the room's protocol states no rule for the act (the reading of `&`, [`RoomProtocol::states`]) is met by
-    /// no fewer voices. 0: no floor.
-    pub community_floor: usize,
     /// A community's removal floor: the policy table's `community_remove` floor cell (`2 voices`): a counted removal
     /// takes that many voices besides the member it removes (CC 4.5.13, CC 3.1.3.2), under any community protocol. 0:
     /// no floor.
@@ -1099,36 +1071,12 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
         }
         return Ok(alloc::vec![protocol_part(law, p, r)?]);
     };
-    // policies joined by `&` (a change of the record: the protocol in force and the standing default): each is met.
-    // Where the protocol in force states no rule for the act (RoomProtocol::states, the protocol sheet), the
-    // cosigned_act half is no condition and the other governs alone, with the community floor (the Constitution's
-    // reading of `&`)
-    let unstated = || {
-        let obj = r.obj()?;
-        if kind_of(law, get, &obj) == Some(CommunityKind::Infrastructure) {
-            return None;
-        }
-        let rec = protocol_record(p, &obj)?;
-        let proto = community_protocol(rec.consensus_protocol()?.as_ref(), rec.need(), rec.weights())?;
-        let act = match r.seat_kind() {
-            SeatKind::Offer if r.scope().is_some_and(|s| law.roster_seats.iter().any(|x| x == s.as_ref())) => {
-                Act::Admit
-            }
-            SeatKind::Unseat => Act::Remove,
-            _ => Act::RecordChange,
-        };
-        (!proto.states(act)).then_some(())
-    };
-    let dropped = unstated().is_some();
+    // policies joined by `&` (a change of the record: the protocol in force and the standing default): each is met
     let mut out: Vec<InForce<'a, R>> = Vec::new();
     for part in w.split('&') {
         match law.policy_of(Some(part)) {
-            Some(Policy::Protocol) if dropped => {}
             Some(Policy::Protocol) => out.push(protocol_part(law, p, r)?),
-            pol => out.push(InForce {
-                floor: if dropped { law.community_floor } else { 0 },
-                ..InForce::plain(pol, r.need())
-            }),
+            pol => out.push(InForce::plain(pol, r.need())),
         }
     }
     Ok(out)
@@ -1212,8 +1160,7 @@ pub fn stalled_recovery<R: SeatRow, S: CutSpec<R>>(
 /// ([`community_protocol`]) over the members, with the record's numbers; in an infrastructure community, a strict
 /// majority of the `founder` seats at the row's heads (CC 3.2, the Constitution's P1 and Q5: N counted by the kernel,
 /// M = N / 2 + 1; the founding record's word is checked against its signers, [`founders_of`], and a change's word
-/// against the founders at its own heads). `open:self_admit` governs admissions alone (an offer of the member seat):
-/// the set states no removal under it, and a change of the record is never counted as an admission.
+/// against the founders at its own heads).
 fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> Result<InForce<'a, R>, ()> {
     let get = |i: &R::Id| p.get(i);
     let get: &dyn Fn(&R::Id) -> Option<&'a R> = &get;
@@ -1275,11 +1222,6 @@ fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> R
         let exclude_target = r.seat_kind() == SeatKind::Unseat;
         return Ok(InForce { exclude_target, ..InForce::plain(Some(Policy::One), None) });
     }
-    if proto == RoomProtocol::SelfAdmit
-        && (r.seat_kind() != SeatKind::Offer || !r.scope().is_some_and(|s| s.as_ref() == "member"))
-    {
-        return Err(());
-    }
     // a record weighing one key twice states no weights
     if proto == RoomProtocol::Weighted {
         let w = rec.weights();
@@ -1292,7 +1234,6 @@ fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> R
         RoomProtocol::Majority => (Policy::Strict(1, 2), None),
         RoomProtocol::Quorum(m, _) => (Policy::Declared, Some(usize::try_from(m).map_err(|_| ())?)),
         RoomProtocol::Weighted => (Policy::Weighted, rec.need()),
-        RoomProtocol::SelfAdmit => (Policy::SelfAdmit, None),
         // a family's protocol: no community declares it (community_protocol), so this arm is not reached
         RoomProtocol::FounderOnly => (Policy::One, None),
     };
@@ -2494,9 +2435,6 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 if r.conf() != Some(Conf::Group) {
                     return seated.contains(r.signer()) || !union.contains(r.signer());
                 }
-                if authored_head(self.law, r) {
-                    return true; // an outsider's own admission: its own signature is its count
-                }
                 let anc: Vec<usize> = self.c.cs().iter().copied().filter(|&q| g.in_past(q, i)).collect();
                 let p = Past::new(g, i, &anc);
                 let Some(obj) = r.obj() else { return false };
@@ -3082,22 +3020,8 @@ fn may_confer<R: SeatRow>(law: &SeatLaw, up: &R, o: &R) -> bool {
     scopes.iter().any(|s| covers(s, os.as_ref())) && o.obj() == want
 }
 
-/// A head one key wrote: an outsider's own admission to an open room (`open:self_admit`, signed by the key it
-/// seats). It narrows no count but by its own signer.
-fn authored_head<R: SeatRow>(law: &SeatLaw, r: &R) -> bool {
-    // read with the binding off only (a stated policy): with the acts table no row states `open:self_admit`'s
-    // count, and the reference reads no authored head
-    law.acts.is_none()
-        && r.seat_kind() == SeatKind::Offer
-        && law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::SelfAdmit)
-        && r.to().len() == 1
-        && r.to()[0] == *r.signer()
-}
-
 /// The heads a count is read over: the newest of the heads named (one in another named head's past is
-/// dropped). Several concurrent newest heads (tips) stay, and are intersected. An authored head is no head a
-/// count may name (H3, the heads ruling of 2026-11-26): it is not read through, and [`newer_head_in_past`]
-/// refuses a count naming one.
+/// dropped). Several concurrent newest heads (tips) stay, and are intersected.
 fn counted_heads<'r, 'h, R: SeatRow + 'r>(
     _law: &SeatLaw,
     heads: &'h [R::Id],
@@ -4212,7 +4136,7 @@ fn duty_gate<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, p: &Past<'_, 
 /// `Conf::Seat`, not the founding row, of a scope that is no roster seat: the lone holder's, on one voice).
 fn change<R: SeatRow>(law: &SeatLaw, q: &R, obj: &ObjOf<R>, room: Option<&[&str]>) -> bool {
     if LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj) {
-        return law.acts.is_some() || !authored_head(law, q);
+        return true;
     }
     room.is_some_and(|declared| own_conferral(law, q, obj, declared))
 }
@@ -4798,7 +4722,7 @@ pub struct GroupCount<'a, K> {
     pub offer: bool,
     /// The keys the row seats or removes (`SeatRow::to`).
     /// A key the row seats is no voice of its count; a key it removes is a voice like any other, except
-    /// under `unanimous`, `open:self_admit`, the duty withdrawal and the recall (`Policy::Recall`), whose
+    /// under `unanimous`, the duty withdrawal and the recall (`Policy::Recall`), whose
     /// text excludes it.
     pub to: &'a [K],
     /// The members at the head, less those whose own leaving is in the row's past.
@@ -4834,14 +4758,6 @@ fn count_of<K: Ord>(
     need: Option<usize>,
     weight: impl Fn(&K) -> u64,
 ) -> bool {
-    if pol == Some(Policy::SelfAdmit) {
-        // the joiner's own signature is the group's side; a removal takes two voices besides the member it names
-        return if is_offer && to.len() == 1 && !mem.contains(&to[0]) {
-            v.contains(&to[0])
-        } else {
-            v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).count() >= 2
-        };
-    }
     if matches!(pol, Some(Policy::DutyConfer) | Some(Policy::DutyWithdraw)) {
         let yes: BTreeSet<&K> = v.iter().filter(|k| mem.contains(*k)).collect();
         return duty_count_keys(pol == Some(Policy::DutyWithdraw), to, &yes, mem);
@@ -4862,8 +4778,8 @@ fn count_of<K: Ord>(
         return met(pol, yes, base, need);
     }
     // no key admits itself (CC 2.7.5): a key the row seats is no voice of its count. On a removal the member
-    // removed is a voice like any other unless the policy's own text excludes it: `unanimous` (below),
-    // `open:self_admit`, the duty withdrawal and the recall (above) do. The voices that are members, ascending
+    // removed is a voice like any other unless the policy's own text excludes it: `unanimous` (below), the duty
+    // withdrawal and the recall (above) do. The voices that are members, ascending
     // and each once, read off the two sorted sets with no set built.
     let unanimous = pol == Some(Policy::Unanimous);
     let yes = || v.intersection(mem).filter(move |k| !(is_offer || unanimous) || !to.contains(k));

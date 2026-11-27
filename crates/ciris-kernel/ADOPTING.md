@@ -90,7 +90,7 @@ migrations, and the local operational store.
 - You MUST implement `SeatRow::consensus_protocol()` on a community's records. It defaults to `None`, and with
   `None` no room has a protocol: no removal and no admission under the room's protocol concludes in any room.
   Present the founding record with its protocol, a word of the closed set (`seat::RoomProtocol::parse`:
-  `unanimous`, `majority`, `quorum:{m}/{n}`, `weighted:{rubric}`, `open:self_admit` for a community), and its
+  `unanimous`, `majority`, `quorum:{m}/{n}`, `weighted:{rubric}` for a community), and its
   `cohort_subkind()` (`infrastructure` for an infrastructure community). A quorum's `m` is the word's; a weighted
   protocol's weights and threshold are the declaring record's `weights()` and `need()`. A counted row's `need()`
   is never read under the protocol. Read the protocol with `seat::protocol_of(p, obj)` or `seat::protocol_record`
@@ -109,10 +109,10 @@ migrations, and the local operational store.
   `quorum:1/{n}`, not `founder_only` (a family's; families are not built), not a weighted record one of whose
   weights reaches its threshold. A change of its record states no policy and meets both the protocol in force and
   `default_standing`.
-- Under `open:self_admit` the room's protocol counts admissions alone (an offer of the member seat): no removal
-  concludes (open, with Eric). Where a room's protocol states no rule for an act (`RoomProtocol::states`), the
-  `cosigned_act` half of an `&` is no condition: an open room's record changes under `default_standing` alone, with
-  `SeatLaw::community_floor` (set it from the policy table's `min_count.community`; 0 sets no floor).
+- There is no open admission (Eric cut `open:self_admit` for 1.0): a public room is an ordinary invitation-only
+  community anyone may read, and membership comes only by `community_invite`. A record still declaring
+  `open:self_admit` names no protocol. A key's own signature on the row that seats it is its acceptance, never a
+  voice of the count (CC 2.7.5).
 - A family: present its founding record with `group_kind()` `family`, its founders as the `duty_holders` entry
   `founder` (no other entry: a duty map refuses the family), and its `consensus_protocol` (any of the set). Nothing
   signs as the family. Under `founder_only` state `counted()` `founder`; a promotion is an offer of scope `founder`

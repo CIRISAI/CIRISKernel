@@ -443,7 +443,7 @@ def seat_cases():
                 e["closed"] = [closed, EL.closed(rows, closed)]
         out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
-           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "community_floor": ST.COMMUNITY_FLOOR, "removal_floor": ST.REMOVAL_FLOOR,
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "removal_floor": ST.REMOVAL_FLOOR,
            "policy": {k: list(v) for k, v in ST.POLICY.items()},
            "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
     windows = {k: dict(enc(v), secs=WN.secs(k)) for k, v in WN.WINDOWS.items()}
@@ -582,7 +582,7 @@ def table_cases():
                                "c": [S.C[r["id"]] for r in S.rows], "c_settled": [P.C[r["id"]] for r in P.rows],
                                "arrivals": arr, "d": enc(derived_of(P, ST, WN, CUT))})
     out["law"] = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
-                  "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "community_floor": ST.COMMUNITY_FLOOR,
+                  "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
                   "policy": {k: list(v) for k, v in ST.POLICY.items()}}
     out["windows"] = windows_now(WN)
     return out
@@ -745,9 +745,7 @@ def acts_cases():
             "infrastructure_words": [[w, list(ST.infrastructure_rule(w)) if ST.infrastructure_rule(w) else None]
                                      for w, _ in AC.INFRA_WORDS],
             "undecided": undecided_cases(AC),
-            "protocol_states": [[w, act, got] for w, act, got in AC.SHEET_ANSWERS],
-            "dissolved": dissolved_cases(AC),
-            "community_floor": ST.COMMUNITY_FLOOR}
+            "dissolved": dissolved_cases(AC)}
 
 
 def main():

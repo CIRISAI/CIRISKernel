@@ -313,7 +313,7 @@ def act_of(r, by, is_key=False):
 # column): each a count over a body, for an admission and for a removal. A word outside the set is no protocol. A
 # quorum's number, and a weighted count's weights and threshold, are the RECORD's (the word, and the record row that
 # states it), never a counted row's. The kind each word parses to, read by met()/count_of() as a policy row is.
-PROTOCOL_KINDS = ("founder_only", "unanimous", "majority", "quorum:{m}/{n}", "weighted:{rubric}", "open:self_admit")
+PROTOCOL_KINDS = ("founder_only", "unanimous", "majority", "quorum:{m}/{n}", "weighted:{rubric}")
 
 
 def protocol_sheet(path=None):
@@ -329,13 +329,11 @@ def protocol_sheet(path=None):
 
 
 SHEET = protocol_sheet()
-# the community floor of voices (the policy table's min_count): a count under a policy row alone never takes fewer
-COMMUNITY_FLOOR = json.load(open(os.path.join(ROOT, "data", "governance_policy.json"), encoding="utf-8"))["min_count"]["community"]
 
 
 def removal_floor(path=None):
     """A community's removal floor, read from the policy table's community_remove row (its floor cell, `2 voices` at
-    pin 6b7471d6: "never fewer than two voices, so a room of two removes nobody"); 0 where the cell states none."""
+    pin a304b485: "never fewer than two voices, so a room of two removes nobody"); 0 where the cell states none."""
     path = path or os.path.join(ROOT, "data", "governance_policy.json")
     for f in json.load(open(path, encoding="utf-8"))["families"]:
         if f["family"] == "community_remove":
@@ -347,21 +345,6 @@ def removal_floor(path=None):
 REMOVAL_FLOOR = removal_floor()
 
 
-# The protocol sheet has no column for a change of the record (or any act but an admission and a removal): the column
-# is DERIVED from the count set. A protocol whose count set is the members states a rule for it; open:self_admit (the
-# joiner's own signature) and founder_only (the founder role) do not (ruled with the reading of `&`).
-def protocol_states(kind, act):
-    """Whether protocol `kind` (protocol_rule's) states a rule for `act`, read from the sheet: an admission by its
-    `rule` cell, a removal by its `removal_rule` cell (`unstated` states none); any other act counted under the
-    protocol (a change of the record) by its count set: a count of the members states one, the joiner's own
-    signature (open:self_admit) and the founder role (founder_only) do not."""
-    row = SHEET.get(kind)
-    if row is None: return False
-    if act == "admit": return row["rule"] != "unstated"
-    if act == "remove": return row["removal_rule"] != "unstated"
-    return row["count_set"] == "member"
-
-
 def _count(w):
     """A whole number of the protocol word: one to nine digits, no leading zero (one spelling per number)."""
     return int(w) if 1 <= len(w) <= 9 and w.isascii() and w.isdigit() and w[0] != "0" else None
@@ -371,7 +354,7 @@ def protocol_rule(word):
     """The protocol a record's word names: (kind, m, n) with kind one of PROTOCOL_KINDS' heads and m, n a quorum's
     numbers (None otherwise), or None for a word outside the set."""
     if not isinstance(word, str): return None
-    if word in ("founder_only", "unanimous", "majority", "open:self_admit"): return (word, None, None)
+    if word in ("founder_only", "unanimous", "majority"): return (word, None, None)
     if "protocol_set_open" in MUT: return (word, None, None)     # MUTATION: any word is a protocol (read as majority)
     if word.startswith("quorum:") and word.count("/") == 1:
         m, n = (_count(x) for x in word[len("quorum:"):].split("/"))
@@ -543,13 +526,6 @@ def _protocol_part(r, by, need, weights):
         if r["kind"] == "unseat": out["exclude_target"] = True
         if "family_founders_fixed" in MUT: out["founders_fixed"] = True
         return out
-    # open:self_admit governs admissions alone (an offer of the member seat): the set states no removal under it, and
-    # a removal concludes nothing (Q2: an explicit exception, not the `&` reading, until Eric answers whether an open
-    # room may remove anyone); a change of the record is never counted as an admission
-    if kind == "open:self_admit":
-        if r["kind"] != "offer":
-            if "self_admit_removal_counted" not in MUT: return REFUSED
-        elif r.get("scope") != "member" and "record_change_as_admission" not in MUT: return REFUSED
     need, weights = None, None
     if "row_need" in MUT: need = r.get("need")                 # MUTATION: the row's need, not the record's number
     elif kind == "quorum": need = m
@@ -627,30 +603,15 @@ def in_force(r, by):
             if r.get("counted", "member") != body_of(a, by, r.get("obj")):
                 return REFUSED
     parts = word.split("&") if isinstance(word, str) and "&" in word else [word]
-    out, dropped = [], False
+    out = []
     for w in parts:
         if K.rule(POLICY, w, ("unknown",))[0] == "protocol" and "protocol_unread" not in MUT:
-            # the reading of `&` (the Constitution's ruling): where the protocol in force states no rule for the act
-            # (the sheet: protocol_states), the cosigned_act half is no condition, and the other policy governs alone,
-            # with the community floor of voices
-            if len(parts) > 1 and "unstated_cosigned_blocks" not in MUT:
-                rec = protocol_record(by, r.get("obj"))
-                # (a protocol its room may declare: one it may not, founder_only say, leaves no protocol in force)
-                pr = community_rule(rec.get("consensus_protocol"), rec.get("need"), rec.get("weights")) \
-                    if rec is not None else None
-                act = "admit" if r["kind"] == "offer" and r.get("scope") in ROSTER_SEATS else \
-                    "remove" if r["kind"] == "unseat" else "other"
-                if pr is not None and kind_of(by, r.get("obj")) != "infrastructure" and not protocol_states(pr[0], act):
-                    dropped = True
-                    continue
             f = _protocol_part(r, by, need, weights)
         else:
             f = dict(policy=w, need=need, weights=weights)
         if f is not REFUSED: out.append(f)
         elif "record_change_either_policy" not in MUT: return REFUSED   # MUTATION: one joined policy is enough
     if not out: return REFUSED
-    if dropped and "unstated_floor_unread" not in MUT:
-        out = [dict(f, floor=COMMUNITY_FLOOR) for f in out]
     if len(out) == 1 and len(parts) == 1: return out[0]
     return dict(policy=word, all=out, any="record_change_either_policy" in MUT)
 
@@ -731,7 +692,7 @@ POLICY["moderator_recall"] = ("recall", 2, 3, 2)
 # (`protocol` in their enact cell: cosigned_act, community_remove, wa_adjudication) are counted under the room's protocol
 # in force, never one a row states. A quorum's m and a weighted count's threshold reach met()/count_of() as `need`.
 PROTOCOLS = {"P:majority": ("strict", 1, 2), "P:unanimous": ("unanimous", 0, 0), "P:quorum": ("declared", 0, 0),
-             "P:weighted": ("weighted", 0, 0), "P:open:self_admit": ("self_admit", 0, 0), "P:founder_only": ("one", 1, 1)}
+             "P:weighted": ("weighted", 0, 0), "P:founder_only": ("one", 1, 1)}
 POLICY.update(PROTOCOLS)
 # a count a row may state under a law that binds no act (roster.py's instances, the head rules' binding-off cases):
 # a strict majority. With the binding on no act takes it
@@ -742,14 +703,10 @@ DEFAULT_PROTOCOL = "majority"
 
 def count_of(policy, is_offer, to, mem, v, need=None, weights=None, table=None, signed=None):
     """A count met by voices v (read over the voters) over the members mem, under policy: the crate's count_of. The
-    protocols' own kinds (unanimous, open:self_admit, weighted) are read here; every other kind by met(). `signed`: every
-    key that signed the row (open:self_admit reads the joiner's own signature, the joiner no member yet)."""
+    protocols' own kinds (unanimous, weighted) are read here; every other kind by met(). `signed`: every key that
+    signed the row (kept for callers; no count reads it since open admission was cut)."""
     kind = K.rule(table or POLICY, policy, ("unknown", 0, 0))[0]
     to = tuple(to)
-    if kind == "self_admit":
-        # the joiner's own signature is the group's side; a removal takes two voices besides the member it names
-        if is_offer and len(to) == 1 and to[0] not in mem: return to[0] in (v if signed is None else signed)
-        return len([k for k in v if k in mem and k not in to]) >= 2
     if kind in ("unanimous", "weighted"):
         # no key admits itself; under unanimous the member a removal names is no voice either
         yes = [k for k in v & mem if not (is_offer or kind == "unanimous") or k not in to]
@@ -764,10 +721,6 @@ def count_of(policy, is_offer, to, mem, v, need=None, weights=None, table=None, 
     if is_offer and "self_voice_on_offer" not in MUT: v = frozenset(k for k in v if k not in to)
     return met(policy, len(v), len(mem), need, table)              # the caller has read v over its voters
 
-# CC 4.4.3.6 `open:self_admit`: an outsider's own admission to an open room. The group's side of a widening naming one
-# new key is that key's own signature; a removal, or a widening naming a key already seated, takes two voices besides
-# the member named. A head it writes narrows no count: a count naming it is read at the heads it names (count_heads)
-POLICY["open:self_admit"] = ("self_admit", 0, 0)
 
 
 def met(policy, yes, n, declared=None, table=None):
@@ -2718,28 +2671,18 @@ def newest(heads, past):
     return tuple(h for h in hs if not any(h != o and past(h, o) for o in hs))
 
 
-def authored_head(r):
-    """A head one key wrote: an outsider's own admission to an open room (`open:self_admit`, signed by the key it
-    seats). It narrows no count but by its own signer."""
-    return r["kind"] == "offer" and K.rule(POLICY, r.get("policy"), ("unknown",))[0] == "self_admit" \
-        and len(r["to"]) == 1 and r["to"][0] == r["signer"]
-
-
 def count_heads(heads, P, past):
-    """The heads a count is read over (seat.rs counted_heads): the newest of the heads named. An authored head is
-    no head a count may name (H3): it is not read through, and newer_head_in_past refuses a count naming one."""
+    """The heads a count is read over (seat.rs counted_heads): the newest of the heads named."""
     return newest(heads, past)
 
 
 def change(q, obj, by=None):
     """A counted change of obj's roster, q concluded: a roster-changing row that concludes under the policy the room's
     record binds to its act, however many voices that policy needs (the ruling of 2026-11-26). The line's counted act
-    (checkpoint.is_counted_act), not an authored row under a policy it states itself (a self-admission with the binding
-    off, H3: no head a count may name; MUTATION authored_heads: it is one); and a duty holder's own conferral of a
-    duty over the room (an offer `self` or `seat`, the lone holder's: it concludes on one voice; MUTATION
-    own_conferral_no_change: it is none)."""
-    if CP.is_counted_act(q, obj):
-        return "authored_heads" in MUT or not authored_head(q) or (BOUND and "binding_off" not in MUT)
+    (checkpoint.is_counted_act); and a duty holder's own conferral of a duty over the room (an offer `self` or `seat`,
+    the lone holder's: it concludes on one voice; MUTATION own_conferral_no_change: it is none). (An outsider's own
+    admission to an open room, the one head a single key wrote, went with open:self_admit.)"""
+    if CP.is_counted_act(q, obj): return True
     return by is not None and own_conferral(q, obj, by) and "own_conferral_no_change" not in MUT
 
 

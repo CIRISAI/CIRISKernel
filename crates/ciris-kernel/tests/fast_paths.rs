@@ -181,7 +181,6 @@ const POLICIES: &[(&str, Policy)] = &[
     ("atleast", Policy::AtLeast(2, 3)),
     ("declared", Policy::Declared),
     ("unanimous", Policy::Unanimous),
-    ("self_admit", Policy::SelfAdmit),
     ("weighted", Policy::Weighted),
     ("duty_confer", Policy::DutyConfer),
     ("duty_withdraw", Policy::DutyWithdraw),
@@ -405,13 +404,6 @@ fn ballot(g: &mut Lcg) -> Ballot {
 
 /// The seat rule's `Conf::Group` arm written a second time, inline over the counted row, from its voices on.
 fn count_before(r: &S, is_offer: bool, pol: Option<Policy>, mem: &BTreeSet<u32>, v: &BTreeSet<u32>) -> bool {
-    if pol == Some(Policy::SelfAdmit) {
-        return if is_offer && r.to().len() == 1 && !mem.contains(&r.to()[0]) {
-            v.contains(&r.to()[0])
-        } else {
-            v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).count() >= 2
-        };
-    }
     if matches!(pol, Some(Policy::DutyConfer) | Some(Policy::DutyWithdraw)) {
         let yes: BTreeSet<&u32> = v.iter().filter(|k| mem.contains(*k)).collect();
         let withdraw = pol == Some(Policy::DutyWithdraw);

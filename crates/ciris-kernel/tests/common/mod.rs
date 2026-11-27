@@ -736,7 +736,6 @@ pub fn law_of(j: &J) -> SeatLaw {
         final_scopes: j.at("final").strs(),
         roster_seats: j.at("roster_seats").strs(),
         depth: j.at("depth").i() as usize,
-        community_floor: j.get("community_floor").map_or(0, |x| x.i() as usize),
         removal_floor: j.get("removal_floor").map_or(0, |x| x.i() as usize),
         ..Default::default()
     };
@@ -766,7 +765,6 @@ pub fn law_of(j: &J) -> SeatLaw {
             "duty" if k == "duty_confer" => Policy::DutyConfer,
             "duty" if k == "duty_withdraw" => Policy::DutyWithdraw,
             "lift" => Policy::Lift,
-            "self_admit" => Policy::SelfAdmit,
             _ => Policy::NotACount,
         };
         law.policy.insert(k.clone(), p);

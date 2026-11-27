@@ -1,5 +1,8 @@
 //! The fold at tips (`Seats::tips_fold`; KERNEL.md section 7; `models/roster_fork/fold.py`), on cases the
-//! Python seat model does not hold: `open:self_admit`, a head one key wrote, and tips that differ in policy.
+//! Python seat model does not hold: tips that differ in policy. (Its cases of a head one key wrote, an outsider's
+//! own admission under `open:self_admit`, are retired with the cut of open admission: the one-key counted change
+//! left, a lone duty holder's own conferral, places a duty seat and no member, so it shows nothing of the members'
+//! fold.)
 //! The seat fixture (`tests/seat.rs`) carries the fold's other cases, from `attacks.py`.
 
 mod common;
@@ -129,25 +132,10 @@ fn change(id: &str, heads: &[&str], add: bool, to: &[&str], signers: &[&str], po
         ..Default::default()
     }
 }
-/// An outsider's own admission to an open room, on `head`.
-fn joins(id: &str, head: &str, k: &str) -> K {
-    K {
-        id: id.into(),
-        names: s(&[head]),
-        signer: k.into(),
-        kind: Some(SeatKind::Offer),
-        to: s(&[k]),
-        conf: Some(Conf::Group),
-        head: s(&[head]),
-        policy: Some("open".into()),
-        ..Default::default()
-    }
-}
 fn law() -> SeatLaw {
     let mut law = SeatLaw { depth: 5, roster_seats: s(&["member"]), ..Default::default() };
     law.policy.insert("maj".into(), Policy::Strict(1, 2));
     law.policy.insert("three".into(), Policy::Declared);
-    law.policy.insert("open".into(), Policy::SelfAdmit);
     law
 }
 /// (the fold's members, the keys common to the tips, whether row `x` concluded)
@@ -191,34 +179,6 @@ fn the_fold_at_tips() {
     );
     let mut p2 = x2.clone();
     p2.regime = Some("two thirds".into());
-    t(
-        read(&[g.clone(), x1.clone(), p2], "x2"),
-        ("abc", "abc", true),
-        "tips that differ in policy wait: the common members",
-    );
-    // an outsider's own admission is a head one key wrote
-    let d = change("x1", &["g"], true, &["d"], &["a", "b", "c"], "maj", None);
-    let z = joins("s1", "g", "z");
-    t(
-        read(&[g.clone(), d.clone(), z.clone()], "s1"),
-        ("abcdz", "abc", true),
-        "an outsider's own admission on an old head seats it and takes nobody out",
-    );
-    // a version with both in its past, at the newest counted change: an authored head is no head a count may name
-    // (H3, the heads ruling of 2026-11-26), so it names x1 as its head and the self-admission among its rows
-    let mut m = change("m", &["x1"], true, &["e"], &["a", "b", "d"], "three", Some(3));
-    m.names.push("s1".into());
-    t(
-        read(&[g.clone(), d.clone(), z.clone(), m], "m"),
-        ("abcdez", "one tip", true),
-        "an authored head narrows no count: d's voice counts in the version that names both",
-    );
-    let mut m2 = change("m", &["x1"], true, &["e"], &["a", "b", "z"], "three", Some(3));
-    m2.names.push("s1".into());
-    t(
-        read(&[g, d, z, m2], "m"),
-        ("abcdz", "abc", false),
-        "and it adds no voice to that count: the joiner's does not count there",
-    );
-    report("the fold at tips: self-admission, a head one key wrote, tips that differ in policy", n, 0);
+    t(read(&[g, x1, p2], "x2"), ("abc", "abc", true), "tips that differ in policy wait: the common members");
+    report("the fold at tips: tips that differ in policy", n, 0);
 }

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**Open admission cut** (Eric, for 1.0; the Constitution's rc23 at 76965eb, policy pin a304b485). **BREAKING**:
+`seat::Policy::SelfAdmit`, `seat::RoomProtocol::SelfAdmit`, `RoomProtocol::states` and `SeatLaw::community_floor` are
+removed. A public room is an ordinary invitation-only community anyone may read; membership comes only by
+`community_invite`, whose base is now `standing` (a vouch counts the full roster). A record declaring
+`open:self_admit` names no protocol (a word outside the set). With `unstated` gone from the sheet, the reading of
+`&` where a protocol states no rule has no user and is gone: a change of the record meets the protocol in force and
+`default_standing`, a family's under its founder_only part as before. A self-admission was the one head a single key
+wrote, so the heads rules' H3 (no read-through of an authored head) is retired with it. And no key admits itself under
+every count: a key an offer seats, a member re-seated in another role included, is no voice of it (both languages).
+
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone
   removal out of force) ended nothing, and does not block a later end (the settling count, S4).

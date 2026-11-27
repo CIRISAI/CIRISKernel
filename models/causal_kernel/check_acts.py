@@ -54,8 +54,8 @@ Planted breaks, each of which must change a case's answer:
     record_change_either_policy   a record change meets one of its joined policies, not both (Q1)
     one_voice_community_protocol  a community may declare a protocol under which one voice decides (Q1)
     founder_only_community        a community may declare founder_only (Q3)
-    unstated_cosigned_blocks      the cosigned_act half of an `&` is a condition where the protocol states no rule
-    unstated_floor_unread         the policy governing alone there takes no floor of two voices
+    (unstated_cosigned_blocks and unstated_floor_unread, retired with the open:self_admit cut: the sheet at pin a304b485
+    has no `unstated` cell, so the reading of `&` where a protocol states no rule has no user and is gone)
     founders_all_signers          an infrastructure founding row's founders are all its signers, not those it seats (H5)
     family_founders_fixed         a family's founders are its founding roles alone, not the role standing at the heads (F1)
     family_floor_two              a family takes the community's closed set (no one-voice protocol)
@@ -92,9 +92,8 @@ Planted breaks, each of which must change a case's answer:
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
-    record_change_as_admission    under open:self_admit an offer of another seat (an agent's, the record) is counted as an
-                                  admission (N1)
-    self_admit_removal_counted    a removal under open:self_admit takes two voices (the set states none) (N1)
+    (record_change_as_admission and self_admit_removal_counted, retired with the open:self_admit cut: Eric cut open
+    admission for 1.0, so no room declares it and its branch is gone)
     body_from_row       the body an act counts is the one the row states (`counted`, `over`), not the act's (N2)
 
     python3 -I check_acts.py      exit 1 on any difference
@@ -272,12 +271,10 @@ GQ = dict(GM4, consensus_protocol="quorum:3/4")                                 
 GU = dict(GM4, consensus_protocol="unanimous")
 GF = ST.offer("g", "A", ("A", "B", "C"), "founder", "@", "self", cosigners=("B", "C"), consensus_protocol="founder_only")
 GW = dict(GM4, consensus_protocol="weighted:stake", need=5, weights=(("A", 3), ("B", 2), ("C", 1), ("D", 1)))
+# a record still declaring the cut open:self_admit: a word outside the set, so no protocol is in force
 GO = dict(GM4, consensus_protocol="open:self_admit")
 GWE = dict(GW, consensus_protocol_entrenched=True)
 W_NEW = (("A", 3), ("B", 1), ("C", 1), ("D", 1))
-GO3 = ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", "C"), consensus_protocol="open:self_admit")
-GO2 = ST.offer("g", "A", ("A", "B"), "member", "@", "self", cosigners=("B",), consensus_protocol="open:self_admit")
-GO1 = ST.offer("g", "A", ("A",), "member", "@", "self", consensus_protocol="open:self_admit")
 AG = grp("ag", "offer", ("X", "Y", "Z"), "agent", "cosigned_act", cosigners=("B", "C", "X", "Y", "Z"))   # three agents
 G6 = ST.found("g", "A", ("A", "B", "C", "D", "E", "F"), {"moderate": ("A", "B", "F"), "review": ("C", "D", "E")},
               cosigners=("B", "C", "D", "E", "F"))
@@ -582,10 +579,12 @@ CONCLUDE = [
     ("a weighted record that weighs one key twice states no weights: A and B admit nobody",
      [dict(GW, weights=(("A", 3), ("A", 2), ("B", 2), ("C", 1), ("D", 1))),
       grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "E"))], "r", False, False),
-    ("open:self_admit: E's own signature admits E", [GO, grp("r", "offer", "E", "member", "cosigned_act", signer="E")], "r",
-     True, True),
-    ("and an admission E did not sign does not", [GO, grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "C"))],
-     "r", False, False),
+    # open:self_admit is cut (Eric, for 1.0; the sheet at a304b485): a record declaring it names no protocol, so a row
+    # counted under the room's protocol concludes nothing, the outsider's own signature included
+    ("a record declaring the cut open:self_admit names no protocol: E's own signature admits nobody",
+     [GO, grp("r", "offer", "E", "member", "cosigned_act", signer="E")], "r", False, False),
+    ("nor does an admission every member signs", [GO, grp("r", "offer", "E", "member", "cosigned_act",
+                                                           cosigners=("B", "C", "D", "E"))], "r", False, False),
     # ---- a family (CC 3.3.4, 3.1.3.2, 4.5.12.5; the Constitution's family rulings and F1 to F5) -------------------
     ("under founder_only one active founder admits, with the joiner's own acceptance", [FAM, FADM("r", "D")], "r", True, False),
     ("a member who is no founder does not", [FAM, FADM("r", "D", signer="B")], "r", False, False),
@@ -652,26 +651,10 @@ CONCLUDE = [
      "r", False, False),
     ("two of the five other duty holders do not withdraw B's moderate by counting the moderators alone",
      [G6, grp("r", "unseat", "B", "moderate", None, signer="A", cosigners=("F",), counted="moderate")], "r", False, False),
-    # ---- N1: open:self_admit and founder_only govern admissions alone ----------------------------------------------
-    ("in an open room (open:self_admit) a key's own change of the record is no admission: X alone changes nothing",
-     [GO, REC("am", "quorum:2/4", signer="X", cosigners=(), to=("X",))], "am", False, False),
-    # the reading of `&`: where the protocol states no rule for the act (the sheet), the other policy governs alone,
-    # with the community floor of two voices
-    ("an open room changes its record under default_standing alone (open:self_admit states no rule for it): two of "
-     "three", [GO3, REC("am", "majority", cosigners=("B",))], "am", True, False),
-    ("and one of three does not", [GO3, REC("am", "majority", cosigners=())], "am", False, False),
-    ("a two-member open room needs both", [GO2, REC("am", "majority", cosigners=())], "am", False, False),
-    ("and both change it", [GO2, REC("am", "majority", cosigners=("B",))], "am", True, False),
-    ("an open room's protocol admits to the member seat alone: X's own offer of an agent's seat concludes nothing",
-     [GO, grp("r", "offer", "X", "agent", "cosigned_act", signer="X")], "r", False, False),
-    ("a one-member open room's one member does not: the community floor of two voices",
-     [GO1, REC("am", "majority", cosigners=())], "am", False, False),
-    ("open:self_admit states no removal: A and B do not remove D",
-     [GO, grp("r", "unseat", "D", "member", None, cosigners=("B",))], "r", False, False),
+    # ---- N1: founder_only governs a family's acts alone, and no community may declare it --------------------------
     ("nor in a room naming founder_only (no community protocol)", [GF, REC("am", "majority")], "am", False, False),
     ("in an infrastructure community no key admits itself: X's own founder admission concludes nothing",
-     [dict(GI, consensus_protocol="open:self_admit"), grp("r", "offer", "X", "founder", "cosigned_act", signer="X",
-                                                         counted="founder")], "r", False, False),
+     [GI, grp("r", "offer", "X", "founder", "cosigned_act", signer="X", counted="founder")], "r", False, False),
     # ---- N2: the body an act counts is the act's own ---------------------------------------------------------------
     ("A, the one moderator, does not admit X by counting over `moderate`: an admission counts the members",
      [FH4, grp("r", "offer", "X", "member", "community_invite", cosigners=("X",), counted="moderate")], "r", False, True),
@@ -760,7 +743,7 @@ TIPS = [
 # The protocol set (data/consensus_protocols.tsv): (word, what seat.protocol_rule reads it as, or None)
 PROTOCOL_WORDS = [
     ("founder_only", ("founder_only", None, None)), ("unanimous", ("unanimous", None, None)), ("majority", ("majority", None, None)),
-    ("open:self_admit", ("open:self_admit", None, None)), ("quorum:2/3", ("quorum", 2, 3)), ("quorum:3/3", ("quorum", 3, 3)),
+    ("open:self_admit", None), ("quorum:2/3", ("quorum", 2, 3)), ("quorum:3/3", ("quorum", 3, 3)),
     ("quorum:999999999/999999999", ("quorum", 999999999, 999999999)), ("weighted:stake", ("weighted", None, None)),
     ("quorum:4/3", None), ("quorum:0/3", None), ("quorum:03/4", None), ("quorum:1000000000/1000000000", None),
     ("quorum:2", None), ("quorum:2/3/4", None), ("quorum:+2/3", None), ("quorum: 2/3", None), ("quorum", None),
@@ -768,12 +751,6 @@ PROTOCOL_WORDS = [
     ("accord_halt", None), ("cosigned_act", None), ("", None), ("quorum:２/3", None),
     ("quorum:2/4", ("quorum", 2, 4)), ("quorum:3/5", ("quorum", 3, 5)), ("quorum:1/1", ("quorum", 1, 1)),
 ]
-# What the sheet says each protocol states a rule for (seat.protocol_states): (word, act, states)
-SHEET_ANSWERS = [(w, act, ST.protocol_states(ST.protocol_rule(w)[0], act))
-                 for w in ("founder_only", "unanimous", "majority", "quorum:2/3", "weighted:stake", "open:self_admit")
-                 for act in ("admit", "remove", "other")]
-EXPECT_SHEET = {("founder_only", "other"): False, ("open:self_admit", "remove"): False,
-                ("open:self_admit", "other"): False}
 # The protocol of an infrastructure community (P1): a quorum of its founders' strict majority, N // 2 + 1 of N
 INFRA_WORDS = [("quorum:2/3", ("quorum", 2, 3)), ("quorum:3/4", ("quorum", 3, 4)), ("quorum:3/5", ("quorum", 3, 5)),
                ("quorum:2/2", ("quorum", 2, 2)), ("quorum:4/7", ("quorum", 4, 7)), ("quorum:1/1", None), ("quorum:1/2", None),
@@ -908,9 +885,9 @@ PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "
           "record_by_founding", "body_free", "kind_partial", "election_any_duty", "node_consent_asked",
           "consent_one_waives", "infra_any_quorum", "infra_body_members", "infra_m_recomputed", "infra_stalled_admits",
           "infra_m_lowered", "infra_word_n_free", "infra_unentrenched", "infra_record_frozen",
-          "infra_record_simple_majority", "record_change_as_admission", "self_admit_removal_counted", "body_from_row",
+          "infra_record_simple_majority", "body_from_row",
           "record_change_either_policy", "one_voice_community_protocol", "founder_only_community",
-          "unstated_cosigned_blocks", "unstated_floor_unread", "founders_all_signers", "weights_twice_at_change",
+          "founders_all_signers", "weights_twice_at_change",
           "family_founders_fixed", "family_floor_two", "family_last_founder_refused", "entrenched_amendable",
           "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "role_unread",
           "contested_both_out", "role_on_own_offer", "entrenched_weights_free",
@@ -997,9 +974,6 @@ def main():
         got = dissolved(rows)
         if got != want:
             problems.append("dissolved %s: got %s, expected %s" % (name, got, want))
-    for w, act, got in SHEET_ANSWERS:
-        if got != EXPECT_SHEET.get((w, act), True):
-            problems.append("the sheet: %s states a rule for %s: got %s" % (w, act, got))
     for w, want in INFRA_WORDS:
         if ST.infrastructure_rule(w) != want:
             problems.append("an infrastructure protocol word %r: got %s, expected %s" % (w, ST.infrastructure_rule(w), want))
