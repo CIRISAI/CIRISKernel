@@ -241,26 +241,26 @@ CASES = [
      (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4")),), RD(anchor="b0", acks=("s1",)), {"row": {"g1": True},
                                                                                        "grant": {"g1": (True, None)}}),
     ("grant", "the head rule: signers who saw s2 but name only s1 conclude nothing (they must name both)", FORK, (),
-     (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), seen=("b0", "s1", "s2")),), RD(anchor="b0", acks=("s1",)),
+     (AK("k2", "s2"), GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), names=("k2",))), RD(anchor="b0", acks=("s1",)),
      {"row": {"g1": False}}),
     ("grant", "the seen bundles are derived from the grant row's own past: an acceptance edge naming s2 there, and "
               "the grant naming only s1 concludes nothing", FORK, (),
-     (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), past=(AK("b0"), AK("s1"), AK("s2"))),), RD(anchor="b0", acks=("s1",)),
+     (AK("k1", "s1"), AK("k2", "s2", names=("k1",)), GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), names=("k2",))),
+     RD(anchor="b0", acks=("s1",)),
      {"row": {"g1": False}}),
     ("grant", "and from earlier grants in its past: one naming s2", FORK, (),
-     (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), past=(AK("s1"), GR("g0", "s2", "uB", "room", ("h2", "h3", "h5")))),),
+     (GR("g0", "s2", "uB", "room", ("h2", "h3", "h5")), AK("k1", "s1"),
+      GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), names=("k1", "g0"))),
      RD(anchor="b0", acks=("s1",)), {"row": {"g1": False}}),
     ("grant", "a past that acknowledges s1 alone: the grant on s1 stands", FORK, (),
-     (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), past=(AK("b0"), AK("s1"))),), RD(anchor="b0", acks=("s1",)),
+     (AK("k0", "b0"), AK("k1", "s1", names=("k0",)), GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), names=("k1",))),
+     RD(anchor="b0", acks=("s1",)),
      {"row": {"g1": True}}),
-    ("grant", "a stated `seen` does not override the rows: a past acknowledging s2, and a stated seen of s1 alone",
-     FORK, (), (GR("g1", "s1", "uA", "room", ("h1", "h2", "h4"), seen=("s1",), past=(AK("s2"),)),),
-     RD(anchor="b0", acks=("s1",)), {"row": {"g1": False}}),
     ("grant", "naming both, they are counted over the fold (h1..h5): h1, h2 and h4 are three of five", FORK, (),
-     (GR("g1", ("s1", "s2"), "uA", "room", ("h1", "h2", "h4"), seen=("b0", "s1", "s2")),), RD(anchor="b0", acks=("s1", "s2")),
+     (AK("k2", "s2"), GR("g1", ("s1", "s2"), "uA", "room", ("h1", "h2", "h4"), names=("k2",))), RD(anchor="b0", acks=("s1", "s2")),
      {"row": {"g1": True}, "grant": {"g1": (True, None)}}),
     ("grant", "naming both under different charters, over the common holders (h1 h2 h3): h1 and h2", FORKC, (),
-     (GR("g1", ("s1", "s2"), "uA", "room", ("h1", "h2"), seen=("b0", "s1", "s2")),), RD(anchor="b0", acks=("s1", "s2")),
+     (AK("k2", "s2"), GR("g1", ("s1", "s2"), "uA", "room", ("h1", "h2"), names=("k2",))), RD(anchor="b0", acks=("s1", "s2")),
      {"row": {"g1": True}}),
     ("grant", "a grant is counted over its own bundle's live holders: on s1 (h1..h4), h1 and h2 are two of four, short",
      FORK, (), (GR("g1", "s1", "uA", "room", ("h1", "h2")),), RD(anchor="b0", acks=("s1", "s2")),
@@ -340,7 +340,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "family_unread", "commitments_unread", "recovery_other_seat", "spent_unread", "fold_common", "fold_union",
           "charter_folds", "join_union", "anchor_unread", "inforce_global", "root_sf_unread", "root_t_unread",
           "grant_any_bundle", "grant_charter_unread", "grant_scope_unread", "recovery_fork_both", "joins_fork_both",
-          "grant_head_unread", "seen_stated")
+          "grant_head_unread")
 
 
 def answer(bs, rv, gs, rd, want):
@@ -381,9 +381,8 @@ def fixture(with_refs):
                 "recovers": list(b["recovers"]) if b.get("recovers") else None,
                 "stmts": [[k, i] for k, i in b["stmts"]]}
     def genc(g):
-        seen = RT.Root([]).seen_of(g)          # the derived form, as the crate reads it until the field is dropped
-        return {"id": g["id"], "bundles": list(g["bundles"]), "seen": sorted(seen) if seen is not None else None,
-                "to": g["to"], "scope": g["scope"], "signers": list(g["signers"]),
+        if g["kind"] == "ack": return {"id": g["id"], "kind": "ack", "head": g["head"], "names": list(g["names"])}
+        return {"id": g["id"], "kind": "grant", "bundles": list(g["bundles"]), "names": list(g["names"]), "to": g["to"], "scope": g["scope"], "signers": list(g["signers"]),
                 "identity": list(g["identity"]), "duty": g["duty"]}
     def renc(rd):
         if rd is None: return None
@@ -399,8 +398,8 @@ def fixture(with_refs):
                       "reader": renc(rd), "concluded": {b["id"]: R.counted(b["id"])[0] for b in bs},
                       "void": sorted(R.void()), "heads": list(hs) if hs is not None else None,
                       "holders": sorted(f[0]) if f else None, "seats": sorted(f[1]) if f else None,
-                      "grant": {g["id"]: list(R.grant_in_force(g["id"], rd)) for g in gs},
-                      "row": {g["id"]: R.grant_row(g["id"]) for g in gs}})
+                      "grant": {g["id"]: list(R.grant_in_force(g["id"], rd)) for g in gs if g["kind"] == "grant"},
+                      "row": {g["id"]: R.grant_row(g["id"]) for g in gs if g["kind"] == "grant"}})
     rec = []
     for name, rows, bs, gs, rd, c, why, f4 in RECOVERY:
         refs = {}

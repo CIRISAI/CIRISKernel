@@ -68,10 +68,13 @@ impl RootBundle for TB {
     }
 }
 
+/// A row of the root's lane: a grant, or an acceptance edge (`head`).
 struct TG {
     id: String,
+    names: Vec<String>,
+    grant: bool,
+    head: Option<String>,
     bundles: Vec<String>,
-    seen: Option<Vec<String>>,
     to: String,
     scope: String,
     signers: Vec<String>,
@@ -79,18 +82,30 @@ struct TG {
     duty: String,
 }
 
-impl RootGrant for TG {
+impl ciris_kernel::Row for TG {
     type Id = String;
     type Key = String;
-    type Word = String;
     fn id(&self) -> &String {
         &self.id
     }
+    fn names(&self) -> &[String] {
+        &self.names
+    }
+    fn signer(&self) -> &String {
+        self.signers.first().unwrap_or(&self.to)
+    }
+}
+
+impl RootGrant for TG {
+    type Word = String;
+    fn is_grant(&self) -> bool {
+        self.grant
+    }
+    fn attached_head(&self) -> Option<&String> {
+        self.head.as_ref()
+    }
     fn bundles(&self) -> &[String] {
         &self.bundles
-    }
-    fn seen(&self) -> Option<&[String]> {
-        self.seen.as_deref()
     }
     fn to(&self) -> &String {
         &self.to
@@ -132,17 +147,21 @@ fn bundles(j: &J) -> Vec<TB> {
 }
 
 fn grants(j: &J) -> Vec<TG> {
+    let st = |g: &J, k: &str| g.get(k).and_then(|x| x.opt_s()).unwrap_or_default();
+    let ss = |g: &J, k: &str| g.get(k).filter(|x| !x.is_null()).map(|x| x.strs()).unwrap_or_default();
     j.arr()
         .iter()
         .map(|g| TG {
             id: g.at("id").s().into(),
-            bundles: g.at("bundles").strs(),
-            seen: g.get("seen").filter(|x| !x.is_null()).map(|x| x.strs()),
-            to: g.at("to").s().into(),
-            scope: g.at("scope").s().into(),
-            signers: g.at("signers").strs(),
-            identity: g.at("identity").strs(),
-            duty: g.at("duty").s().into(),
+            names: ss(g, "names"),
+            grant: g.at("kind").s() == "grant",
+            head: g.get("head").and_then(|h| h.opt_s()),
+            bundles: ss(g, "bundles"),
+            to: st(g, "to"),
+            scope: st(g, "scope"),
+            signers: ss(g, "signers"),
+            identity: ss(g, "identity"),
+            duty: st(g, "duty"),
         })
         .collect()
 }

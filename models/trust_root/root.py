@@ -76,20 +76,20 @@ def revoke(key, bound=None):
     return {"kind": "revoke", "key": key, "bound": bound}
 
 
-def ack(head):
-    """A row in a grant's causal past: an acceptance edge whose attached_head_digest names bundle `head`."""
-    return {"kind": "ack", "head": head}
+def ack(id, head, names=()):
+    """A row of the root's lane: an acceptance edge whose attached_head_digest names bundle `head`."""
+    return {"id": id, "kind": "ack", "head": head, "names": tuple(names)}
 
 
-def grant(id, bundle_id, to, scope, signers, identity=("user",), duty="infra", seen=None, past=None):
+def grant(id, bundle_id, to, scope, signers, identity=("user",), duty="infra", names=()):
     """A root grant: a row counted over the holders of the bundles it names (`bundle_id`, one id or several), naming
-    key `to` for room `scope`, of `duty` (the duty the bundles' charters must carry). `past`: the rows in the
-    grant row's own causal past (acceptance edges, `ack`, and earlier grants), from which the bundles its signers had
-    seen are derived (seen_of). `seen`: the old stated form, kept for the tests until the Constitution rules."""
+    key `to` for room `scope`, of `duty` (the duty the bundles' charters must carry). `names`: the rows it names
+    (acceptance edges and earlier grants); the bundles its signers had seen are derived from its causal past
+    (seen_of)."""
     named = (bundle_id,) if isinstance(bundle_id, str) else tuple(bundle_id)
     return {"id": id, "kind": "grant", "bundle": named[0], "bundles": named, "to": to, "scope": scope,
             "signers": tuple(signers), "identity": tuple(identity), "duty": duty,
-            "seen": tuple(seen) if seen is not None else None, "past": tuple(past) if past is not None else None}
+            "names": tuple(names)}
 
 
 def duties(charter):
@@ -106,7 +106,8 @@ class Root:
     def __init__(self, bundles, revokes=(), grants=()):
         self.by = {b["id"]: b for b in bundles}
         self.revokes = list(revokes)
-        self.grants = {g["id"]: g for g in grants}
+        self.rows = {g["id"]: g for g in grants}            # the root's lane: grants and acceptance edges
+        self.grants = {g["id"]: g for g in grants if g["kind"] == "grant"}
         self._past, self._concl = {}, {}
 
     # ---- the lineage --------------------------------------------------------------------------------------
@@ -446,24 +447,32 @@ class Root:
         if any(g["duty"] not in duties(self.by[n]["charter"]) for n in named) and "grant_charter_unread" not in MUT:
             return False
         seen = self.seen_of(g)
-        if seen is not None and "grant_head_unread" not in MUT:
+        if "grant_head_unread" not in MUT:
             lines = set().union(*[self.line(n) for n in named])
             if any(x not in lines for x in seen): return False
         base = self.live(self.fold(named)[0])
         return 2 * len(frozenset(g["signers"]) & base) > len(base)
 
+    def row_past(self, i):
+        """The rows of the root's lane in row i's causal past, by what they name."""
+        out, todo = set(), list(self.rows[i]["names"])
+        while todo:
+            x = todo.pop()
+            if x in out or x not in self.rows: continue
+            out.add(x); todo.extend(self.rows[x]["names"])
+        return out
+
     def seen_of(self, g):
-        """The bundles a grant's signers had seen, DERIVED from the rows in the grant row's own causal past: the
-        bundles acknowledged there (acceptance edges with attached_head_digest) and those earlier grants name
-        (MUTATION seen_stated: the grant's stated `seen` field, a caller's claim). None: no past given (the lines of
-        the bundles it names)."""
-        if g.get("past") is not None and "seen_stated" not in MUT:
-            out = set()
-            for r in g["past"]:
-                if r.get("kind") == "ack": out.add(r["head"])
-                elif r.get("kind") == "grant": out |= set(r.get("bundles", (r.get("bundle"),)))
-            return frozenset(out)
-        return frozenset(g["seen"]) if g.get("seen") is not None else None
+        """The bundles a grant's signers had seen, DERIVED from the rows in the grant row's own causal past: a
+        bundle is there only by being named, by an acceptance edge's attached_head_digest or by an earlier grant
+        naming the bundles it is counted over (a named bundle brings its whole prev chain, so the head rule reads
+        the bundle itself)."""
+        out = set()
+        for x in self.row_past(g["id"]):
+            r = self.rows[x]
+            if r["kind"] == "ack": out.add(r["head"])
+            elif r["kind"] == "grant": out |= set(r["bundles"])
+        return frozenset(out)
 
     def scope_in_force(self, rd):
         """The duties the reader's bundles in force carry: one head's charter; several, what all carry."""

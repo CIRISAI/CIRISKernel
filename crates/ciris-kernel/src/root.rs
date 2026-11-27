@@ -72,30 +72,29 @@ pub trait RootBundle {
     fn statements(&self) -> &[(Self::Key, u64)];
 }
 
-/// A root grant, a row counted over the holders of the bundle it names.
-pub trait RootGrant {
-    /// Ids, as the bundles'.
-    type Id: Ord + Clone;
-    /// Keys, as the bundles'.
-    type Key: Ord + Clone;
+/// A row of the root's lane, as the store presents it: a root grant (counted over the holders of the bundles it
+/// names), or an acceptance edge (whose attached_head_digest names a bundle). The kernel reads each grant's own
+/// causal past through these rows' names ([`crate::graph::Graph`]), so the bundles a grant's signers had seen are
+/// derived from rows, never stated: a bundle is in a row's past only by being named there. For a row that is no
+/// grant, the grant accessors are not read.
+pub trait RootGrant: crate::Row {
     /// A duty, as the bundles' words.
     type Word: Ord + Clone;
-    /// The grant's id.
-    fn id(&self) -> &Self::Id;
-    /// The bundles it names (the newest in its signers' own past), and is counted over: one, or several.
-    fn bundles(&self) -> &[Self::Id];
-    /// The bundles in its signers' own past, where the store knows them (None: the lines of those it names). A
-    /// grant naming only one tip, by signers who had seen another, concludes nothing (the head rule).
-    fn seen(&self) -> Option<&[Self::Id]> {
+    /// The row is a root grant (else an acceptance edge, or another row of the lane).
+    fn is_grant(&self) -> bool;
+    /// For an acceptance edge: the bundle its attached_head_digest names.
+    fn attached_head(&self) -> Option<&Self::Id> {
         None
     }
-    /// The key it names.
+    /// The bundles a grant names, and is counted over: one, or several.
+    fn bundles(&self) -> &[Self::Id];
+    /// The key a grant names.
     fn to(&self) -> &Self::Key;
-    /// The room its scope names.
+    /// The room a grant's scope names.
     fn scope(&self) -> &Self::Id;
-    /// Its signers.
+    /// A grant's signers.
     fn signers(&self) -> &[Self::Key];
-    /// The duty it grants, which the bundle's charter must carry.
+    /// The duty a grant grants, which the bundles' charters must carry.
     fn duty(&self) -> &Self::Word;
 }
 
@@ -123,12 +122,13 @@ pub struct Reader<I: Ord, K: Ord> {
 /// Why a bundle or a grant does not stand.
 pub type Reason = &'static str;
 
-/// One root: its bundles, revocations and grants.
-pub struct Root<'a, B: RootBundle, G> {
+/// One root: its bundles, revocations, and the rows of its lane (grants and acceptance edges).
+pub struct Root<'a, B: RootBundle, G: RootGrant> {
     by: BTreeMap<&'a B::Id, &'a B>,
     order: Vec<&'a B::Id>,
     revs: &'a [Revocation<B::Id, B::Key>],
     grants: BTreeMap<&'a B::Id, &'a G>,
+    lane: crate::graph::Graph<'a, G>,
     past_memo: RefCell<BTreeMap<B::Id, BTreeSet<B::Id>>>,
     counted_memo: RefCell<BTreeMap<B::Id, Result<(), Reason>>>,
     void_memo: RefCell<Option<(BTreeSet<B::Id>, BTreeSet<B::Id>)>>,
@@ -139,13 +139,14 @@ where
     B: RootBundle,
     G: RootGrant<Id = B::Id, Key = B::Key, Word = B::Word>,
 {
-    /// A root over these bundles, revocations and grants.
+    /// A root over these bundles, revocations, and rows of its lane (grants and acceptance edges).
     pub fn new(bundles: &'a [B], revs: &'a [Revocation<B::Id, B::Key>], grants: &'a [G]) -> Self {
         Root {
             by: bundles.iter().map(|b| (b.id(), b)).collect(),
             order: bundles.iter().map(|b| b.id()).collect(),
             revs,
-            grants: grants.iter().map(|g| (g.id(), g)).collect(),
+            grants: grants.iter().filter(|g| g.is_grant()).map(|g| (g.id(), g)).collect(),
+            lane: crate::graph::Graph::new(grants.iter()),
             past_memo: RefCell::new(BTreeMap::new()),
             counted_memo: RefCell::new(BTreeMap::new()),
             void_memo: RefCell::new(None),
@@ -703,14 +704,29 @@ where
         if named.iter().any(|n| self.b(n).is_none_or(|b| !b.duties().contains(g.duty()))) {
             return false;
         }
-        if let Some(seen) = g.seen() {
-            let lines: BTreeSet<B::Id> = named.iter().flat_map(|n| self.line(n)).collect();
-            if seen.iter().any(|x| !lines.contains(x)) {
-                return false; // the head rule
-            }
+        let lines: BTreeSet<B::Id> = named.iter().flat_map(|n| self.line(n)).collect();
+        if self.seen_of(gid).iter().any(|x| !lines.contains(x)) {
+            return false; // the head rule
         }
         let base = self.live(self.fold(named).0);
         2 * g.signers().iter().collect::<BTreeSet<_>>().into_iter().filter(|k| base.contains(*k)).count() > base.len()
+    }
+
+    /// The bundles a grant's signers had seen, derived from the rows in the grant row's own causal past: those
+    /// acknowledged there (acceptance edges' attached_head_digest) and those earlier grants name. A named bundle
+    /// brings its whole prev chain, so the head rule reads the bundle itself.
+    pub fn seen_of(&self, gid: &B::Id) -> BTreeSet<B::Id> {
+        let Some(i) = self.lane.idx(gid) else { return BTreeSet::new() };
+        let mut out = BTreeSet::new();
+        for p in self.lane.past(i, false) {
+            let r = self.lane.row(p);
+            if let Some(h) = r.attached_head() {
+                out.insert(h.clone());
+            } else if r.is_grant() {
+                out.extend(r.bundles().iter().cloned());
+            }
+        }
+        out
     }
 
     /// The duties the reader's bundles in force carry: what every head's charter carries.
@@ -774,7 +790,7 @@ pub struct Identity {
 /// The trust root as one node reads it: the kernel's [`RootView`] over a [`Root`], for the seat rule's stalled
 /// recovery. The store supplies only the reader (its anchor and acknowledgements) and each key's identity type; the
 /// grant's resolution, its room scope and the identity rule are the kernel's.
-pub struct RootReading<'r, 'a, B: RootBundle, G> {
+pub struct RootReading<'r, 'a, B: RootBundle, G: RootGrant> {
     /// The root.
     pub root: &'r Root<'a, B, G>,
     /// This node, as a reader of it.
