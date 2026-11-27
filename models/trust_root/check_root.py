@@ -551,6 +551,18 @@ CASES += [
                "the base is empty, and nothing settles (a stall)",
      STL + [SETTLE("st", "b1", ("h3",), STS), SETTLE("su", "s0", ("h3",), STS)], (), (),
      RD(anchor="b0", acks=("s0", "b2", "b3", "st", "su")), {"concluded": {"st": Fa, "su": Fa}, "heads": ("b0",)}),
+    ("settle", "a dummy target: a settler toward d, a sibling at b0 that did not conclude on its own count (h3 alone, "
+               "one of three), concludes nothing, and the head is not wiped: the reader stays at b0",
+     STL + [nxt("d", "b0", ("h3", "Y"), ("h3",)), SETTLE("st", "d", ("h3",), dict(STS, d=nxt("d", "b0", ("h3", "Y"), ("h3",))))],
+     (), (), RD(anchor="b0", acks=("s0", "b2", "b3", "st")), {"concluded": {"st": Fa}, "heads": ("b0",)}),
+    ("settle", "and a target no rival contests (b1 with no s0): concludes nothing, the reader is at b3 by its own acks",
+     [B0, SB1, SB2, SB3, SETTLE("st", "b1", ("h3",), {"b1": SB1})], (), (), RD(anchor="b0", acks=("b2", "b3", "st")),
+     {"concluded": {"st": Fa}, "heads": ("b3",)}),
+    ("settle", "one base per head: h1 and h2 settle toward s0 naming only s0 (and so no double signing in what it "
+               "names); the double signers at b0 are read over every successor there, so it is none of one; h3's settler "
+               "toward b1 decides, whatever order the two are read in: b1",
+     STL + [SETTLE("sz", "s0", ("h1", "h2"), {"s0": SS0}), SETTLE("st", "b1", ("h3",), STS)], (), (),
+     RD(anchor="b0", acks=("s0", "b2", "b3", "sz", "st")), {"concluded": {"sz": Fa, "st": T}, "heads": ("b1",)}),
     ("settle", "(5) EDGE (stated): every holder double-signed (h1 h2 h3 on a1 and a0): the base is empty, nothing "
                "settles, and the reader re-roots", [B0, SA1, SA0, SETTLE("st", "b1", ("h1", "h2", "h3"), SA)], (), (),
      RD(anchor="b0", acks=("s0", "b1", "st")), {"concluded": {"st": Fa}, "heads": ("b0",)}),
@@ -694,7 +706,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "ack_settles_over_all", "recovery_head_unread", "double_signer_grant_voices", "double_signer_settles",
           "double_signer_halt_suppressed", "double_signer_mark_carried",
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
-          "settler_double_sign_counted")
+          "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names")
 
 
 def answer(bs, rv, gs, rd, want):

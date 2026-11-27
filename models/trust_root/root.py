@@ -350,20 +350,37 @@ class Root:
             # holder double-signed: an empty base, nothing settles (the reader re-roots); those with a say split
             # evenly: nothing settles; a lone holder with a say settles alone, choosing only between majority-signed
             # bundles.
-            D = {} if "settler_double_signers_in_base" in MUT else self.double_signers(
-                [self.by[n] for n in b["names"] if n in self.by and self.counted(n)[0]])
+            # its `settles` must be one of the CONTESTED siblings at that head that concluded on its own count, else it
+            # concludes nothing (a target that did not conclude would wipe the head; MUTATION settler_target_unchecked)
+            kids = self.head_successors(b["prev"])
+            x = self.by[b["settles"]]
+            if "settler_target_unchecked" not in MUT and not (
+                    x in kids and any(self._cut(x, c) or self._cut(c, x) for c in kids)):
+                return (False, "genesis_bundle_count_unmet")
+            # the double signers at that head, over every successor there that concluded (not only those it names:
+            # every settler at a head is counted over one base, so two settlers toward different siblings cannot both
+            # conclude, and none depends on the order they are read in)
+            # (MUTATION settler_base_from_names: over the siblings it names only)
+            over = [self.by[n] for n in b["names"] if n in self.by and self.counted(n)[0]] \
+                if "settler_base_from_names" in MUT else kids
+            D = {} if "settler_double_signers_in_base" in MUT else self.double_signers(over)
             d = set(D.get(frozenset(b["prev"]), set())) | self.settler_double_signers(b["prev"])
             base = frozenset(k for k in self.live(self.by[b["prev"][0]]["holders"]) if self.owner(k) not in d)
             ok = bool(base) and self.meets(b, v, within=base)
             return (True, None) if ok else (False, "genesis_bundle_count_unmet")
         return (True, None) if self.meets(b, v) else (False, "genesis_bundle_count_unmet")
 
+    def head_successors(self, prev):
+        """The successors at head `prev` that concluded on their own count, settlers apart, in id order."""
+        return [self.by[i] for i in sorted(self.by) if tuple(self.by[i]["prev"]) == tuple(prev)
+                and not self.bounded_settler(self.by[i]) and self.counted(i)[0]]
+
     def settler_double_signers(self, prev):
         """Rule 6 read over settlers: the holders (owner classes) that signed two bounded settlers at head `prev`
         naming different siblings. Such a holder has no say in settling that head: both its settler signatures count
         for nothing (MUTATION settler_double_sign_counted: they count)."""
         if "settler_double_sign_counted" in MUT: return set()
-        ss = [x for x in self.by.values() if tuple(x["prev"]) == tuple(prev) and self.bounded_settler(x)]
+        ss = [self.by[i] for i in sorted(self.by) if tuple(self.by[i]["prev"]) == tuple(prev) and self.bounded_settler(self.by[i])]
         out = set()
         for a in ss:
             for c in ss:
@@ -631,7 +648,7 @@ class Root:
                     counts; one-sided, the dependent one falls (MUTATION rule5_unread)
         and every bundle built on one but a join (judged by its own count). RULE 3: a bundle at that head naming both
         decides, counted over that head's holders (it names them, so rule 6 does not reach its voices)."""
-        ids = set(ids)
+        ids = sorted(set(ids))                   # a total order: nothing may depend on set iteration order
         bs = [self.by[i] for i in ids if self.by[i]["prev"]]
         out = set()
         # rule 6: a double signer at a head has no say in ANY count at that head: the two successors it signed, a

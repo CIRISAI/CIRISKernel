@@ -488,9 +488,17 @@ where
             // count, by strict majority of them. Each sibling it can choose was already signed by a strict
             // majority, so the reduced base only decides which majority-signed bundle stands, and a holder cannot be
             // made a double signer against its will. Every holder double-signed: an empty base, nothing settles.
-            let named: Vec<&B> =
-                b.names().iter().filter(|n| self.counted(n).is_ok()).filter_map(|n| self.b(n)).collect();
-            let ds = self.double_signers(&named);
+            // Its target must be one of the CONTESTED siblings at that head that concluded on its own count, else it
+            // concludes nothing (a target that did not conclude would wipe the head).
+            let kids = self.head_successors(b.prev());
+            let target = b.settles().and_then(|x| kids.iter().copied().find(|k| k.id() == x));
+            let Some(x) = target else { return Err("genesis_bundle_count_unmet") };
+            if !kids.iter().any(|c| self.siblings(x, c) && (self.cuts_kept(x, c) || self.cuts_kept(c, x))) {
+                return Err("genesis_bundle_count_unmet");
+            }
+            // the double signers at that head, over every successor there that concluded (one base per head: two
+            // settlers toward different siblings cannot both conclude, whatever order they are read in)
+            let ds = self.double_signers(&kids);
             let p: BTreeSet<B::Id> = b.prev().iter().cloned().collect();
             let none = BTreeSet::new();
             let mut d: BTreeSet<B::Key> = ds.get(&p).unwrap_or(&none).clone();
@@ -513,6 +521,15 @@ where
     /// Rule 6 read over settlers: the holders (owner classes) that signed two bounded settlers at head `prev` naming
     /// different siblings. Such a holder has no say in settling that head: both its settler signatures count for
     /// nothing.
+    /// The successors at head `prev` that concluded on their own count, settlers apart, in id order.
+    fn head_successors(&self, prev: &[B::Id]) -> Vec<&'a B> {
+        self.by
+            .values()
+            .copied()
+            .filter(|x| x.prev() == prev && !self.bounded_settler(x) && self.counted(x.id()).is_ok())
+            .collect()
+    }
+
     fn settler_double_signers(&self, prev: &[B::Id]) -> BTreeSet<B::Key> {
         let ss: Vec<&B> = self.by.values().copied().filter(|x| x.prev() == prev && self.bounded_settler(x)).collect();
         let mut out = BTreeSet::new();
@@ -992,6 +1009,9 @@ where
     /// siblings that each remove a holder whose voice the other needs are contested; one-sided, the dependent one
     /// falls. And every bundle built on one but a join. RULE 3: a bundle at that head naming both decides.
     pub fn contested(&self, ids: &[B::Id]) -> BTreeSet<B::Id> {
+        // a total order: nothing may depend on the order the caller lists the bundles in
+        let ids: Vec<B::Id> = ids.iter().cloned().collect::<BTreeSet<_>>().into_iter().collect();
+        let ids = &ids[..];
         let bs: Vec<&'a B> = ids.iter().filter_map(|i| self.b(i)).filter(|b| !b.prev().is_empty()).collect();
         let mut out: BTreeSet<B::Id> = BTreeSet::new();
         let mut no: BTreeMap<B::Id, BTreeSet<B::Key>> = BTreeMap::new();
