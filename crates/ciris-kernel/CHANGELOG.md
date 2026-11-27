@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**New: `seat::is_founder`** (persist's gap list). Who is a founder of a family or an infrastructure community at a
+row, by the reading a count uses: the `founder` seats over the object at the heads the row names, or for a row naming
+none at the newest counted changes over the object in its past (the founding row where there is none); persons only;
+read with every withdrawal in the row's past, so a key whose own leaving is there is no founder, and a family's founder
+role ends with any leaving. `false` for any other object and at the founding row itself (it has no past). Ten cases in
+`check_acts.py` (FOUNDERS), recorded in the `seat` fixture (`founder`); plants `founder_at_tips` and
+`founder_leavings_unread`, and a crate plant.
+
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone
   removal out of force) ended nothing, and does not block a later end (the settling count, S4).

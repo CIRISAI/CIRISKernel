@@ -2683,6 +2683,35 @@ def count_left(P, past, obj, scope):
     return out | stay_ended_in_past(P, past, obj) if is_duty(scope, declared(by, obj)) or role else out
 
 
+def is_founder(S, key, obj, at_row):
+    """Whether key is a founder of obj at row `at_row` (an id or a row of S), for a family or an infrastructure
+    community (False for any other object): by the reading a count uses, over the row's own concluded past. The
+    `founder` seats over obj at the heads the row names, or, for a row naming none, at the newest counted changes
+    over obj in its past (the founding row where there is none); persons only. members_at reads every withdrawal in
+    the row's past with the heads, so a key whose own leaving is there is no founder, and a family's founder role,
+    which stands on the member seat, ends with any leaving of it (count_left's subtraction finds nothing more here).
+    The founding row itself has no past: no founder at it. MUTATIONS founder_at_tips (read at the tips of everything
+    held, not at the row) and founder_leavings_unread (the withdrawals of the row's past not read)."""
+    r = S.by[at_row] if isinstance(at_row, str) else at_row
+    if "founder_at_tips" in MUT:
+        return kind_of(S.by, obj) in ("family", "infrastructure") and key in Seats(S).holders("founder", obj)
+    P = [q for q in S.Cs if q["id"] in S.anc[r["id"]]]
+    past = lambda a, b: a in S.anc[b]
+    by = {q["id"]: q for q in P}
+    if kind_of(by, obj) not in ("family", "infrastructure"): return False
+    heads = tuple(r.get("head", ()))
+    if not heads:
+        chs = [q for q in P if change(q, obj, by)]
+        heads = tuple(q["id"] for q in chs if not any(q is not q2 and past(q["id"], q2["id"]) for q2 in chs)) or (obj,)
+    unread = "founder_leavings_unread" in MUT and "ends_at_heads_unread" not in MUT
+    if unread: MUT.add("ends_at_heads_unread")
+    try:
+        founders = counted_keys(P, past, obj, heads, "founder")[0]
+    finally:
+        if unread: MUT.discard("ends_at_heads_unread")
+    return key in founders
+
+
 def voices(r, P, past=None):
     """The keys that signed r: its signer, its cosigners, and the signers of the cosign rows it names that themselves
     name every head r is counted over. (A cosign row counts only where r names it, so r's own past holds the cosign's:

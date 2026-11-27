@@ -4165,6 +4165,49 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
     mem
 }
 
+/// Whether `key` is a founder of `obj` at row `at` (a row of `c`), for a family or an infrastructure community
+/// (`false` for any other object): by the reading a count uses, over the row's own concluded past. The `founder`
+/// seats over `obj` at the heads the row names, or, for a row naming none, at the newest counted changes over
+/// `obj` in its past (the founding row where there is none); persons only. [`members_at`] reads every withdrawal
+/// in the row's past with the heads, so a key whose own leaving is there is no founder, and a family's founder
+/// role, which stands on the member seat, ends with any leaving of it. The founding row itself has no past: no
+/// founder at it. A row `c` does not hold is read as none.
+pub fn is_founder<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    key: &R::Key,
+    obj: &ObjOf<R>,
+    at: &R::Id,
+) -> bool {
+    let g = &c.g;
+    let Some(i) = g.idx(at) else { return false };
+    let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, i)).collect();
+    let p = Past::new(g, i, &anc);
+    let kind = kind_of(law, &|x| p.get(x), obj);
+    if !matches!(kind, Some(CommunityKind::Family) | Some(CommunityKind::Infrastructure)) {
+        return false;
+    }
+    let r = p.row();
+    let heads: Vec<R::Id> = if !r.head().is_empty() {
+        r.head().to_vec()
+    } else {
+        let room = room_in(&p, obj);
+        let chs: Vec<&R> = p.rows().filter(|q| change(law, *q, obj, room.as_deref())).collect();
+        let newest: Vec<R::Id> = chs
+            .iter()
+            .filter(|q| !chs.iter().any(|q2| q.id() != q2.id() && p.past(q.id(), q2.id())))
+            .map(|q| q.id().clone())
+            .collect();
+        match (newest.is_empty(), obj) {
+            (false, _) => newest,
+            (true, Obj::Row(f)) => alloc::vec![f.clone()],
+            (true, Obj::Key(_)) => return false,
+        }
+    };
+    persons_at_with(&p, law, spec, obj, &heads, "founder", None).contains(key)
+}
+
 /// CC 4.5.4: a duty seat is placed only by the founding record, by "the duty holders of C, counted under line
 /// (iv)", or by "the members' count under line (v)", which "is the election of rule 2". So a counted offer of a
 /// duty scope over a community concludes only where it is the duty holders' count or an election's acceptance
