@@ -457,6 +457,21 @@ CASES += [
                "stall a reader that saw the bad side first, and cannot capture it",
      AO, (), (GR("gy", "b0", "uY", "room", ("h1", "h2", "h3")),), RD(anchor="b0", acks=("s0", "b2")),
      {"heads": ("b0",), "grant": {"gy": (False, "grant_voices_not_in_force")}}),
+    ("attack", "concurrent own acknowledgements (a person's two devices, r76 q4): one acks b2, the other s0, neither "
+               "naming the other; each is judged over its own past (b2 settles without s0, s0 without b1) and the line "
+               "is their union: neither closes the other (depth between two devices decides nothing), and over what "
+               "the reader holds h1 and h2 double-signed at b0: the reader is at b0", AO, (), (),
+     RD(anchor="b0", acks=("b2", "s0"), after=((), ())), {"heads": ("b0",), "holders": set(H3)}),
+    ("attack", "the same rows in the other order: b0", AO, (), (), RD(anchor="b0", acks=("s0", "b2"), after=((), ())),
+     {"heads": ("b0",), "holders": set(H3)}),
+    ("attack", "and a later acknowledgement naming both (of b2): over its own past s0 and b1 contest (rule 6), and b2 "
+               "built on b1 does not settle: b0", AO, (), (), RD(anchor="b0", acks=("b2", "s0", "b2"), after=((), (), (0, 1))),
+     {"heads": ("b0",), "holders": set(H3)}),
+    ("attack", "the control, one device: b2 then s0 in a chain: s0 is behind the line, and the reader holds b2", AO, (), (),
+     RD(anchor="b0", acks=("b2", "s0")), {"heads": ("b2",)}),
+    ("attack", "concurrent acknowledgements of two tips no rule contests (s1 and s2 under different charters at b0): "
+               "both stand, as for one device", FORKC, (), (), RD(anchor="b0", acks=("s1", "s2"), after=((), ())),
+     {"heads": ("s1", "s2")}),
     ("attack", "AO0: a reader that acknowledged b2 first: s0 is behind its line and no input; b2 stands", AO, (), (),
      RD(anchor="b0", acks=("b2", "s0")), {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
     ("attack", "AO3: a reader that acknowledged only s0: h1 and h2 signed s0 (cutting h3) and b1 (keeping it) at b0, "
@@ -607,7 +622,8 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "join_void_prev_blocks", "grant_antichain_unread", "regime_reads_commitments", "reader_line_unread",
           "rotation_outlives_seat", "retired_unread", "join_prev_unread", "cosign_unread", "double_signer_voices",
           "ack_settles_over_all", "recovery_head_unread", "double_signer_grant_voices", "double_signer_settles",
-          "double_signer_halt_suppressed", "double_signer_mark_carried")
+          "double_signer_halt_suppressed", "double_signer_mark_carried",
+          "concurrent_acks_chained")
 
 
 def answer(bs, rv, gs, rd, want):
@@ -675,7 +691,8 @@ def reader_vectors():
                                  "charter": json.dumps(b["charter"], sort_keys=True), "recovers": list(b["recovers"]) if b.get("recovers") else None,
                                  "stmts": [[k, i] for k, i in b["stmts"]], "iat": b["iat"]} for b in bs],
                     "revokes": [{"key": r["key"], "bound": r["bound"]} for r in rv],
-                    "reader": {"anchor": rd["anchor"], "acks": list(rd["acks"])},
+                    "reader": {"anchor": rd["anchor"], "acks": list(rd["acks"]),
+                               "after": [list(a) for a in rd["after"]] if rd.get("after") is not None else None},
                     "tips": list(hs), "holders": sorted(f[0]), "seats": sorted(f[1]),
                     "reason": "one regime: the guarded fold" if same else "regimes differ: the common holders and seats",
                     "intersect": {"holders": sorted(meet), "seats": sorted(meet_s)},
@@ -705,7 +722,7 @@ def genc(g):
 def renc(rd):
     if rd is None: return None
     return {"anchor": rd["anchor"], "thumbs": sorted(rd["thumbs"]) if rd["thumbs"] is not None else None,
-            "acks": list(rd["acks"])}
+            "acks": list(rd["acks"]), "after": [list(a) for a in rd["after"]] if rd.get("after") is not None else None}
 
 
 def fixture(with_refs):

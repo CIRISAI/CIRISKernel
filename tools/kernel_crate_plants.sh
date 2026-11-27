@@ -603,6 +603,7 @@ plant "the root: the double signer's mark carried to later heads" src/root.rs '.
 plant "the root: rule 5 unread" src/root.rs '        out.extend(dep);' '        let _ = dep;'
 plant "the root: a recovery behind its holder's head concludes" src/root.rs 'if behind_head {' 'if false {'
 plant "an explicit acknowledgement reads no S'' over its own past" src/seat.rs 'let explicit = if ar.seat_kind() == SeatKind::Ack { ar.room() } else { None };' 'let explicit: Option<ObjOf<R>> = None;'
+plant "the root: concurrent acknowledgements read as one chain" src/root.rs 'Some(a) => a.get(i).cloned().unwrap_or_default(),' 'Some(_) => (0..i).collect(),'
 plant "the root: a contested join's token unread" src/root.rs 'Some(if self.contested_join(i) { "genesis_join_contested" } else { "void" })' 'Some("void")'
 plant "the root: the fold always common" src/root.rs '        if charters.len() > 1 {' '        if true {'
 plant "the root: differing charters fold" src/root.rs '        if charters.len() > 1 {' '        if false {'

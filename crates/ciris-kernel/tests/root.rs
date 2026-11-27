@@ -191,6 +191,10 @@ fn reader(j: &J) -> Reader<String, String> {
         anchor: j.get("anchor").and_then(|a| a.opt_s()),
         thumbs: j.get("thumbs").filter(|t| !t.is_null()).map(|t| t.str_set()),
         acks: j.at("acks").strs(),
+        after: j
+            .get("after")
+            .filter(|a| !a.is_null())
+            .map(|a| a.arr().iter().map(|x| x.arr().iter().map(|i| i.i() as usize).collect()).collect()),
     }
 }
 

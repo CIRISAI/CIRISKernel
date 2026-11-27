@@ -137,8 +137,32 @@ pub struct Reader<I: Ord, K: Ord> {
     pub anchor: Option<I>,
     /// The holders' thumbprints.
     pub thumbs: Option<BTreeSet<K>>,
-    /// The bundles it acknowledged, in causal order: each later acknowledgement row has the earlier ones in its past.
+    /// The bundle each of its acknowledgement rows acknowledges, in a causal order (no row before one in its past).
     pub acks: Vec<I>,
+    /// Per acknowledgement row, the positions in `acks` of the reader's earlier rows its own causal past names (a
+    /// person's devices sign concurrently: two rows neither naming the other). None: one chain, each row with every
+    /// earlier one in its past.
+    pub after: Option<Vec<Vec<usize>>>,
+}
+
+impl<I: Ord, K: Ord> Reader<I, K> {
+    /// Per acknowledgement row, the positions of the reader's rows in its own causal past (closed).
+    pub fn ack_pasts(&self) -> Vec<BTreeSet<usize>> {
+        let mut out: Vec<BTreeSet<usize>> = Vec::new();
+        for i in 0..self.acks.len() {
+            let direct: Vec<usize> = match &self.after {
+                None => (0..i).collect(),
+                Some(a) => a.get(i).cloned().unwrap_or_default(),
+            };
+            let mut got = BTreeSet::new();
+            for j in direct.into_iter().filter(|&j| j < i) {
+                got.insert(j);
+                got.extend(out[j].iter().copied());
+            }
+            out.push(got);
+        }
+        out
+    }
 }
 
 /// Why a bundle or a grant does not stand.
@@ -734,35 +758,62 @@ where
     /// revives.
     pub fn reader_line(&self, rd: &Reader<B::Id, B::Key>) -> (Vec<B::Id>, BTreeSet<B::Id>) {
         let valid: BTreeSet<B::Id> = self.valid().into_iter().map(|b| b.id().clone()).collect();
-        let acks: Vec<B::Id> = rd.acks.iter().filter(|a| valid.contains(*a)).cloned().collect();
-        let mut settled: Vec<B::Id> = Vec::new();
-        let mut seen: BTreeSet<B::Id> = BTreeSet::new();
-        for a in &acks {
-            seen.extend(self.line(a));
+        // each row judged over its OWN causal past; two concurrent rows (a person's two devices) each without the
+        // other, and the reader's line drawn over their union
+        let pasts = rd.ack_pasts();
+        let mut won: BTreeMap<usize, B::Id> = BTreeMap::new();
+        // what the bundles settled at `rows` close among `ids`: each closes what is behind it, a bundle settled by a
+        // row not in its own row's past apart (a row closes nothing a row concurrent with it settled, so depth between
+        // a person's two devices decides nothing)
+        let closes = |won: &BTreeMap<usize, B::Id>, rows: &mut dyn Iterator<Item = usize>, ids: &BTreeSet<B::Id>| {
+            let mut out = BTreeSet::new();
+            for j in rows {
+                let Some(a) = won.get(&j) else { continue };
+                let keep: BTreeSet<B::Id> =
+                    won.iter().filter(|(m, _)| **m != j && !pasts[j].contains(*m)).map(|(_, x)| x.clone()).collect();
+                out.extend(self.rv_of(core::slice::from_ref(a), ids, &keep));
+            }
+            out
+        };
+        for (i, a) in rd.acks.iter().enumerate() {
+            if !valid.contains(a) {
+                continue;
+            }
+            let mut seen: BTreeSet<B::Id> = self.line(a).into_iter().collect();
+            for &j in &pasts[i] {
+                if valid.contains(&rd.acks[j]) {
+                    seen.extend(self.line(&rd.acks[j]));
+                }
+            }
             let pool: BTreeSet<B::Id> = seen.intersection(&valid).cloned().collect();
-            let rv = self.rv_of(&settled, &pool);
-            let rest: Vec<B::Id> = pool.iter().filter(|i| !rv.contains(*i)).cloned().collect();
+            let rv = closes(&won, &mut pasts[i].iter().copied(), &pool);
+            let rest: Vec<B::Id> = pool.iter().filter(|x| !rv.contains(*x)).cloned().collect();
             if !rv.contains(a) && !self.contested(&rest).contains(a) {
-                settled.push(a.clone()); // it counts over its own acknowledgement row's past: it settles
+                won.insert(i, a.clone()); // it counts over its own acknowledgement row's past: it settles
             }
         }
-        let out = self.rv_of(&settled, &valid);
+        let settled: Vec<B::Id> = won.values().cloned().collect();
+        let out = closes(&won, &mut won.keys().copied(), &valid);
         (settled, out)
     }
 
-    /// The bundles of `ids` behind any of the bundles `settled`, and every bundle built on one but a join.
-    fn rv_of(&self, settled: &[B::Id], ids: &BTreeSet<B::Id>) -> BTreeSet<B::Id> {
+    /// The bundles of `ids` behind any of the bundles `settled`, and every bundle built on one but a join; `keep`
+    /// (bundles a concurrent row of the reader settled) apart.
+    fn rv_of(&self, settled: &[B::Id], ids: &BTreeSet<B::Id>, keep: &BTreeSet<B::Id>) -> BTreeSet<B::Id> {
         let mut out: BTreeSet<B::Id> = ids
             .iter()
             .filter(|i| {
-                self.b(i).is_some_and(|bi| settled.iter().any(|a| self.b(a).is_some_and(|ba| self.behind(bi, ba))))
+                !keep.contains(*i)
+                    && self
+                        .b(i)
+                        .is_some_and(|bi| settled.iter().any(|a| self.b(a).is_some_and(|ba| self.behind(bi, ba))))
             })
             .cloned()
             .collect();
         loop {
             let mut changed = false;
             for i in ids {
-                if out.contains(i) {
+                if out.contains(i) || keep.contains(i) {
                     continue;
                 }
                 if self.b(i).is_some_and(|b| b.prev().len() < 2 && b.prev().iter().any(|p| out.contains(p))) {

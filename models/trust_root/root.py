@@ -135,9 +135,27 @@ def duties(charter):
     return frozenset(charter.get("duties", ())) if isinstance(charter, dict) else frozenset()
 
 
-def reader(anchor=None, thumbs=None, acks=()):
-    """A reader: its anchor (a first bundle's id, or the holders' thumbprints), and the bundles it acknowledged."""
-    return {"anchor": anchor, "thumbs": frozenset(thumbs) if thumbs is not None else None, "acks": tuple(acks)}
+def reader(anchor=None, thumbs=None, acks=(), after=None):
+    """A reader: its anchor (a first bundle's id, or the holders' thumbprints), and its acknowledgement rows: `acks`
+    the bundle each acknowledges, and `after`, per row, the positions of the reader's earlier rows its own causal past
+    names (a person's devices sign concurrently: two rows neither naming the other). None: one chain, each row with
+    every earlier one in its past."""
+    if after is not None: after = tuple(tuple(a) for a in after)
+    return {"anchor": anchor, "thumbs": frozenset(thumbs) if thumbs is not None else None, "acks": tuple(acks),
+            "after": after}
+
+
+def ack_pasts(rd):
+    """Per acknowledgement row (by position), the positions of the reader's rows in its own causal past (closed)."""
+    n, after = len(rd["acks"]), rd.get("after")
+    out = []
+    for i in range(n):
+        direct = range(i) if after is None else after[i]
+        got = set()
+        for j in direct:
+            if j < i: got |= {j} | out[j]
+        out.append(got)
+    return out
 
 
 
@@ -457,14 +475,15 @@ class Root:
                 return i
         return None
 
-    def _rv(self, settled, ids):
-        """The bundles of `ids` behind any of the bundles `settled`, and every bundle built on one but a join."""
-        out = {i for i in ids if any(self.behind(self.by[i], self.by[a]) for a in settled)}
+    def _rv(self, settled, ids, keep=frozenset()):
+        """The bundles of `ids` behind any of the bundles `settled`, and every bundle built on one but a join; `keep`
+        (bundles a concurrent row of the reader settled) apart."""
+        out = {i for i in ids if i not in keep and any(self.behind(self.by[i], self.by[a]) for a in settled)}
         changed = True
         while changed:
             changed = False
             for i in ids:
-                if i not in out and any(p in out for p in self.by[i]["prev"]) \
+                if i not in out and i not in keep and any(p in out for p in self.by[i]["prev"]) \
                         and (len(self.by[i]["prev"]) < 2 or "join_void_prev_blocks" in MUT):
                     out.add(i); changed = True
         return out
@@ -480,16 +499,33 @@ class Root:
         Acknowledging never revives (MUTATION reader_line_unread: nothing is void by the line)."""
         valid = self.valid()
         vs = set(valid)
-        acks = [a for a in rd["acks"] if a in vs]
-        if "reader_line_unread" in MUT: return acks, frozenset()
-        settled, seen = [], set()
-        for a in acks:
-            seen |= self.line(a)
+        if "reader_line_unread" in MUT: return [a for a in rd["acks"] if a in vs], frozenset()
+        # each row judged over its OWN causal past: the bundles its earlier rows (those it names, transitively) and
+        # it acknowledged, and what those rows settled; two concurrent rows (a person's two devices) are each judged
+        # without the other, and the reader's line is drawn over their union (MUTATION concurrent_acks_chained: every
+        # earlier row read as in its past)
+        pasts = ack_pasts(dict(rd, after=None) if "concurrent_acks_chained" in MUT else rd)
+        acks = rd["acks"]
+        won = {}                                      # position: the bundle it settled
+        def closes(rows, ids):
+            # what the bundles settled at `rows` close among `ids`: each closes what is behind it, a bundle settled by
+            # a row not in its own row's past apart (acknowledging closes older heads; a row closes nothing a row
+            # concurrent with it settled, so depth between a person's two devices decides nothing)
+            out = set()
+            for j in rows:
+                if j not in won: continue
+                keep = frozenset(won[m] for m in won if m != j and m not in pasts[j])
+                out |= self._rv([won[j]], ids, keep=keep)
+            return out
+        for i, a in enumerate(acks):
+            if a not in vs: continue
+            seen = set(self.line(a)).union(*[self.line(acks[j]) for j in pasts[i] if acks[j] in vs])
             pool = vs if "ack_settles_over_all" in MUT else (seen & vs)
-            rv = self._rv(settled, pool)
-            rest = [i for i in pool if i not in rv]
-            if a not in rv and a not in self.contested(rest): settled.append(a)
-        return settled, frozenset(self._rv(settled, vs))
+            rv = closes(sorted(pasts[i]), pool)
+            rest = [x for x in pool if x not in rv]
+            if a not in rv and a not in self.contested(rest): won[i] = a
+        settled = [won[i] for i in sorted(won)]
+        return settled, frozenset(closes(sorted(won), vs))
 
     def reader_void(self, rd):
         return self.reader_line(rd)[1]
