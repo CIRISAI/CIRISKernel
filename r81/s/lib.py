@@ -1,22 +1,17 @@
 import sys, os, random
-T = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tree", "models", "causal_kernel")
-sys.path.insert(0, T); sys.dont_write_bytecode = True
-import check_trust_rows as C
-TR, CH, ST, CK = C.TR, C.CH, C.ST, C.CK
-M, L = C.M, C.L
-NOW = 1000
-_acc = TR.accepts
-def A(*a, **k):                      # every edge gets a term covering NOW (r80: termless edges are not walked)
-    r = _acc(*a, **k)
-    return r if "expires_at" in r else dict(r, asserted_at=0, expires_at=10**6)
-def arrive(o): return CK.arrive(list(o), lambda r, P, past: ST.seat_rule(r, P, past))
-def run(name, rows, reader, lic, supplied=None, n=40, want=None, extra=None, now=NOW):
-    S = arrive(rows); a = TR.read_licence(S, reader, lic, supplied=supplied, now=now)
-    x = extra(S) if extra else None
-    rnd = random.Random(5); d = 0
+sys.path.insert(0, os.path.join(sys.argv[1], "models/trust_root"))
+sys.dont_write_bytecode = True
+import root as RT, check_root as CR
+B, RV, GR, RD, AK, nxt = RT.bundle, RT.revoke, RT.grant, RT.reader, RT.ack, CR.nxt
+B0, F, H3, C1, C2 = CR.B0, CR.F, CR.H3, CR.C1, CR.C2
+def ans(bs, rv, gs, rd, gids=()):
+    R = RT.Root(bs, rv, gs)
+    f = R.in_force(rd)
+    return (R.heads(rd), tuple(sorted(f[0])) if f else None, tuple(sorted(R.void())),
+            {g: R.grant_in_force(g, rd) for g in gids}, {i: R.counted(i)[0] for i in sorted(R.by)})
+def run(name, bs, rv=(), gs=(), rd=None, gids=(), n=60):
+    a = ans(bs, rv, gs, rd, gids); rnd = random.Random(7); d = 0
     for _ in range(n):
-        t = list(rows); rnd.shuffle(t)
-        S2 = arrive(t)
-        if TR.read_licence(S2, reader, lic, supplied=supplied, now=now) != a or (extra and extra(S2) != x): d += 1
-    flag = "" if want is None else ("  <-- BREAK (claim: %s)" % (want,) if a != want else "  (as claimed)")
-    print("%-78s %s%s | orders %d/%d%s" % (name, a, " " + str(x) if extra else "", d, n, flag))
+        b2 = list(bs); rnd.shuffle(b2); g2 = list(gs); rnd.shuffle(g2)
+        if ans(b2, rv, g2, rd, gids) != a: d += 1
+    print(name); print("   heads=%s holders=%s void=%s grants=%s" % a[:4]); print("   concluded=%s | orders differing %d/%d" % (a[4], d, n))
