@@ -5,7 +5,7 @@
 //!   path persist's adapter first took: a founding row, one offer per seat, the version, the counted row);
 //! * `graph::Graph::frontier` against the pairwise frontier, before and after pasts are known, and a graph
 //!   given duplicate ids against the eager closure;
-//! * `trust::reaches`, `trust::EdgeIndex::reaches` and `honours`, and `derived::reach`, against the walks they
+//! * `trust::reaches` and `trust::EdgeIndex::reaches`, and `derived::reach`, against the walks they
 //!   replaced;
 //! * `key_end::retained` against the per-row reading of `key_end::ended`.
 
@@ -591,10 +591,6 @@ fn the_walks_equal_the_walks_they_replaced() {
             .collect();
         let pairs: Vec<(u32, u32)> = edges.iter().map(|e| (e.src, e.dst)).collect();
         let index = trust::EdgeIndex::new(&edges);
-        let mut charter = trust::Charters::new();
-        for k in 0..keys {
-            charter.meet(k, (0..3u8).filter(|c| !(k + *c as u32).is_multiple_of(3)));
-        }
         for from in 0..keys {
             for depth in 0..5 {
                 cases += 1;
@@ -608,9 +604,6 @@ fn the_walks_equal_the_walks_they_replaced() {
                         bad += (trust::reaches(&edges, &from, &c, budget, &a) != want) as usize;
                         bad += (index.reaches(&from, &c, budget, &a) != want) as usize;
                     }
-                    cases += 1;
-                    bad += (index.honours(&from, &charter, &a, &c) != trust::honours(&edges, &from, &charter, &a, &c))
-                        as usize;
                 }
             }
         }

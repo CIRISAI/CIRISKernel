@@ -11,7 +11,9 @@
 //!
 //! Whether an authority's charter declares a class is no caller's answer: [`Charters`] holds each authority's
 //! declared classes, read from rows by [`crate::charter::charters`] (a community's record in force over the rows
-//! the reader holds), with any other charter supplied for an authority (the trust root's scope) met with it.
+//! the reader holds), with any other charter supplied for an authority (the trust root's scope) met with it. Whether a
+//! reader honours a licence is read from rows alone, its edges included: [`crate::trust_rows::read_licence`], the
+//! only public path; no caller supplies edges to it.
 
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
@@ -160,10 +162,6 @@ impl<'e, K: Ord + Clone, C: Ord> EdgeIndex<'e, K, C> {
     pub fn reaches(&self, from: &K, c: &C, budget: u32, a: &K) -> bool {
         walk(self.edges, &self.by_src, from, c, budget, a)
     }
-    /// [`honours`] over the indexed edges: the same answer.
-    pub fn honours(&self, reader: &K, charters: &Charters<K, C>, auth: &K, cls: &C) -> bool {
-        charters.declares(auth, cls) && self.reaches(reader, cls, HOP_CAP, auth)
-    }
 }
 
 /// [`reaches`] with the edges from a key read as their run in `by_src` (the edges' positions sorted by source),
@@ -180,16 +178,4 @@ fn walk<K: Ord + Clone, C: Ord>(
         let lo = by_src.partition_point(|&x| edges[x].src < *k);
         by_src[lo..].iter().map(|&x| &edges[x]).take_while(|e| e.src == *k).any(see)
     })
-}
-
-/// Whether the reader honours a licence of class `cls` issued by `auth`: its own walk, within the cap,
-/// reaches the authority for that class, and the authority's charter declares the class (`TrustSet.honours`).
-pub fn honours<K: Ord + Clone, C: Ord>(
-    edges: &[Accepts<K, C>],
-    reader: &K,
-    charters: &Charters<K, C>,
-    auth: &K,
-    cls: &C,
-) -> bool {
-    charters.declares(auth, cls) && reaches(edges, reader, cls, HOP_CAP, auth)
 }

@@ -263,6 +263,7 @@ QUERIES = [
     (("record_change", "record", "affiliation"), (("cosigned_act",), "fixed")),
     (("admit", "member", "affiliation"), (("cosigned_act",), "fixed")),
     (("dissolve", "record", "affiliation"), (("cosigned_act",), "fixed")),
+    (("accept", "trust_edge", "community"), (("duty_confer",), "fixed")),   # seat.PENDING_ACTS, until rc23-next has it
     (("admit", "founder", "infrastructure"), None),        # rc23 8c75ae7: a founder seat comes only by a record change
     (("remove", "node", "infrastructure"), (("cosigned_act",), "fixed")),
     (("record_change", "record", "infrastructure"), (("cosigned_act",), "fixed")),

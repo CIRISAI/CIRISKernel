@@ -210,7 +210,19 @@ def acts_table(path=None):
     return tuple(out)
 
 
-ACTS = acts_table()     # read by policy_in_force (the refusal), with the binding on (BOUND)
+# A row the model reads before the Constitution's table carries it, read only where the table has no row for its (act,
+# scope, kind): a community's onward acceptance edge (trust_rows.py) is counted over its authority set as a duty
+# conferral is (CC 4.5.4's authority_set(C), the ruling of 2026-11-27), being added to rc23-next. Drop it when it lands.
+PENDING_ACTS = (("accept", "trust_edge", "community", ("duty_confer",), "fixed"),)
+
+
+def with_pending(table, pending=PENDING_ACTS):
+    """The acts table with each pending row whose (act, scope, kind) it does not yet have."""
+    have = {r[:3] for r in table}
+    return tuple(table) + tuple(r for r in pending if r[:3] not in have)
+
+
+ACTS = with_pending(acts_table())     # read by policy_in_force (the refusal), with the binding on (BOUND)
 
 # The kind of an object (the acts table's `community_kind`, the policy table's `corridor` reading), from its founding row's
 # scope: the scopes named here found an accord or a self roster; every other founding row founds a community. A key

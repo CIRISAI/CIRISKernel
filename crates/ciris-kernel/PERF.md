@@ -260,7 +260,8 @@ cases.
   are faster here at every size (section 2). The remaining regressions in those benches are adapter work
   (section 3).
 - **Repeated trust walks over one reader's edges** (`check_federation`, a licence check per row): build
-  `trust::EdgeIndex::new(&edges)` once and call `index.honours(...)`.
+  `trust::EdgeIndex::new(&edges)` once and call `index.reaches(...)`. (`honours` is gone: whether a reader honours a
+  licence is `trust_rows::read_licence`, from rows.)
 - **Rows concluded by the seat rule**: `seat::conclude(kept, law, spec, other, root)` in place of
   `layers::conclude(kept, |p| seat_rule(p, ...), root)`. It gives the same conclusions, with each head's
   members read once per pass.

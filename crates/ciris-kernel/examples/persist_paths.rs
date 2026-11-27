@@ -751,9 +751,7 @@ fn main() {
             let near = key(3.min(n));
             h.run("trust::reaches/hit", n, || trust::reaches(&e, &key(0), &(), trust::HOP_CAP, &near));
             h.run("trust::reaches/miss", n, || trust::reaches(&e, &key(0), &(), trust::HOP_CAP, &key(n + 9)));
-            let mut every = trust::Charters::new();
-            every.meet(last_key.clone(), [()]);
-            h.run("trust::honours", n, || trust::honours(&e, &key(0), &every, &last_key, &()));
+            h.run("trust::reaches/last", n, || trust::reaches(&e, &key(0), &(), trust::HOP_CAP, &last_key));
             let pairs: Vec<(String, String)> = e.iter().map(|x| (x.src.clone(), x.dst.clone())).collect();
             h.run("derived::reach/5", n, || derived::reach(&key(0), 5, &pairs).len());
             // <index>

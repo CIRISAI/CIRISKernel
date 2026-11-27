@@ -616,6 +616,9 @@ words! {
         Change = "change",
         /// The group's dissolution: a terminal version of its record carrying `dissolved_at`.
         Dissolve = "dissolve",
+        /// A community's acceptance of an authority: its onward trust edge, counted over its authority set
+        /// ([`crate::trust_rows`]).
+        Accept = "accept",
     }
 }
 
@@ -652,6 +655,8 @@ words! {
         Custodian = "custodian",
         /// Any scope.
         Any = "any",
+        /// A trust edge: a community's onward acceptance of an authority ([`crate::trust_rows`]).
+        TrustEdge = "trust_edge",
     }
 }
 
@@ -2254,6 +2259,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     /// The law it was built under.
     pub fn law(&self) -> &'c SeatLaw {
         self.law
+    }
+    /// The cut's spec it was built with.
+    pub fn spec(&self) -> &'c S {
+        self.spec
     }
     /// The cut over it. For a reader (`own` set) it is that reader's: solved without the counted acts behind
     /// the reader's line, which cut nothing for it (0.5.0). With no reader it is the cut over the set.

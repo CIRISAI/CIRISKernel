@@ -27,10 +27,10 @@
 //! - **The reader's side** is [`crate::trust`]: an acceptance edge admits the classes it lists (every class when its
 //!   `trust_classes` is absent; a malformed list is refused at admission, [`crate::trust::Accepts::refusal`]), the
 //!   walk intersects them hop by hop, and a licence is honoured where the walk reaches its authority for its class
-//!   and the authority's charter declares the class ([`crate::trust::honours`] over [`charters`]).
+//!   and the authority's charter declares the class ([`crate::trust_rows::read_licence`] over [`charters`]).
 //! - **A licence** (a `licensure` row) is admitted as a row whatever class it states; a class the charter does not
-//!   declare is honoured by no reader ([`Untrusted::LicenceClassNotTrusted`]). That is a reading, never a refusal at
-//!   the door.
+//!   declare is honoured by no reader (`licence_class_not_trusted`, [`crate::trust_rows::read_licence`]). That is a
+//!   reading, never a refusal at the door.
 //!
 //! **The root's charter** (the trust root bundle's `charter`: its scope list, `sub_delegation`) is another fold. It
 //! meets this one at [`charters`]' `supplied`: a charter supplied for an authority is met with the one read from
@@ -40,7 +40,7 @@ use crate::cut::CutSpec;
 use crate::graph::Graph;
 use crate::layers::Concluded;
 use crate::seat::{kind_of, CommunityKind, Conf, Obj, SeatKind, SeatRow, Seats};
-use crate::trust::{reaches, Accepts, Charters, HOP_CAP};
+use crate::trust::Charters;
 use crate::{Dated, Row};
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
@@ -132,8 +132,8 @@ pub fn declared<R: SeatRow + Dated, S: CutSpec<R>>(
 
 /// Every community whose concluded founding row `seats` holds, as `Obj::Row(id)`, with the classes its record in
 /// force declares for the reader at `now` ([`declared`]), each met with the charter `supplied` gives for it; a
-/// supplied charter for an authority that is no community held stands alone. The value [`crate::trust::honours`]
-/// reads.
+/// supplied charter for an authority that is no community held stands alone. The value
+/// [`crate::trust_rows::read_licence`] reads.
 pub fn charters<R: SeatRow + Dated, S: CutSpec<R>>(
     seats: &Seats<'_, '_, R, S>,
     supplied: &Charters<ObjOf<R>, R::Word>,
@@ -153,45 +153,4 @@ pub fn charters<R: SeatRow + Dated, S: CutSpec<R>>(
         out.meet(a.clone(), cs.iter().cloned());
     }
     out
-}
-
-/// Why a reader does not honour a licence.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Untrusted {
-    /// The authority's charter does not declare the licence's class (`licence_class_not_trusted`).
-    LicenceClassNotTrusted,
-    /// The reader's walk does not reach the authority for the class.
-    AuthorityNotReached,
-}
-
-impl Untrusted {
-    /// The reason's word (`charter.py`'s).
-    pub fn word(self) -> &'static str {
-        match self {
-            Untrusted::LicenceClassNotTrusted => "licence_class_not_trusted",
-            Untrusted::AuthorityNotReached => "authority_not_reached",
-        }
-    }
-}
-
-/// Whether `reader` honours a licence of class `cls` issued under `authority` (the licence row's own fields), read
-/// over the rows `seats` was built on at the caller's instant `now`, with the reader's acceptance edges and the
-/// charters `supplied` from elsewhere: `Ok` where the authority's charter declares the class and the reader's walk,
-/// within the cap, reaches it for that class. The licence row itself is admitted whatever this answers.
-pub fn read_licence<R: SeatRow + Dated, S: CutSpec<R>>(
-    seats: &Seats<'_, '_, R, S>,
-    edges: &[Accepts<ObjOf<R>, R::Word>],
-    reader: &ObjOf<R>,
-    authority: &ObjOf<R>,
-    cls: &R::Word,
-    supplied: &Charters<ObjOf<R>, R::Word>,
-    now: Option<&R::Instant>,
-) -> Result<(), Untrusted> {
-    if !charters(seats, supplied, now).declares(authority, cls) {
-        return Err(Untrusted::LicenceClassNotTrusted);
-    }
-    if !reaches(edges, reader, cls, HOP_CAP, authority) {
-        return Err(Untrusted::AuthorityNotReached);
-    }
-    Ok(())
 }
