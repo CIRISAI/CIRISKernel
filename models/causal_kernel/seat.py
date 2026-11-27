@@ -421,6 +421,81 @@ def stalled_recovery(r, P, past):
     return "stalled_recovery_needs_bundle" if len(founders) < pr[1] + 1 else None
 
 
+def merge_tip_rows(P, past, t):
+    """Tip t's own line among the rows P: t and its past."""
+    return [q for q in P if q["id"] == t or past(q["id"], t)]
+
+
+def merge_tip_roster(P, past, obj, t):
+    """Tip t's roster as its own line gives it, READER-INDEPENDENT: read over t's past alone, with S'' and T over it,
+    and no reader's line (MUTATION merge_tip_reader: read under the reader's void as the row is concluded for it).
+    (members, {duty: holders})."""
+    sub = merge_tip_rows(P, past, t)
+    if "merge_tip_reader" not in MUT: _RVOID.append(frozenset()); _VOID.append(frozenset())
+    try:
+        Q = Seats(CK.State(sub, {q["id"]: True for q in sub}), roster=True, pairs=False)
+        dec = declared({q["id"]: q for q in sub}, obj)
+        ds = set(DUTIES) | set(dec)
+        return frozenset(Q.holders("member", obj)), {d: frozenset(Q.holders(d, obj)) for d in sorted(ds)}
+    finally:
+        if "merge_tip_reader" not in MUT: _RVOID.pop(); _VOID.pop()
+
+
+def merge_content(P, past, obj, tips):
+    """The roster a merge of `tips` must state (fixed): every member seated at any named tip, less every member a
+    removal or the member's own end on any named tip's line took out; and the duty seats standing on any tip for a
+    member it seats, less those an end on any tip took. Removed stays removed; nobody is dropped who was not removed."""
+    at = {t: merge_tip_roster(P, past, obj, t) for t in tips}
+    # what each tip's line once seated and no longer does: the roster at every counted change on that line
+    by = {q["id"]: q for q in P}
+    ever = {}
+    for t in tips:
+        line = [q for q in merge_tip_rows(P, past, t) if q.get("obj") == obj and q.get("conf") == "group" and q["kind"] in ("offer", "unseat")
+                or q["id"] == obj]
+        rs = [merge_tip_roster(P, past, obj, q["id"]) for q in line]
+        ever[t] = (frozenset().union(*[r[0] for r in rs]) if rs else frozenset(),
+                   {d: frozenset().union(*[r[1].get(d, frozenset()) for r in rs]) for d in at[t][1]})
+    gone = frozenset().union(*[ever[t][0] - at[t][0] for t in tips])
+    members = frozenset().union(*[at[t][0] for t in tips]) - gone
+    duties = {}
+    for d in sorted(set().union(*[set(at[t][1]) for t in tips])):
+        held = frozenset().union(*[at[t][1].get(d, frozenset()) for t in tips]) & members
+        ended = frozenset().union(*[ever[t][1].get(d, frozenset()) - at[t][1].get(d, frozenset()) for t in tips])
+        if held - ended: duties[d] = held - ended
+    return members, duties
+
+
+def merge_concludes(r, P, past):
+    """A roster merge concludes where: it names two or more tips of its room, none in another's past, and they are the
+    newest counted changes in its past; it is counted on EACH named tip separately, by that tip's own members as that
+    tip's own line gives them, under the room's protocol as an admission is counted there, never over a reader's fold
+    (MUTATION merge_over_fold: over the members at all its heads together); and it states exactly the fixed roster
+    (merge_content; MUTATION merge_free_roster: any roster)."""
+    obj, tips = r["obj"], tuple(r.get("head", ()))
+    by = {q["id"]: q for q in P}
+    if len(tips) < 2 or any(t not in by for t in tips): return False
+    if any(past(a, b) for a in tips for b in tips): return False
+    acts = [q for q in P if q.get("obj") == obj and q.get("conf") == "group" and q["kind"] in ("offer", "unseat") or q["id"] == obj]
+    newest = {q["id"] for q in acts if not any(past(q["id"], x["id"]) for x in acts)}
+    if newest != set(tips): return False
+    rr = dict(r, merge=False, scope="member", to=("__merge__",), policy=r.get("policy", "community_invite"))
+    if "merge_over_fold" in MUT:
+        if not count_met(rr, P, past): return False
+    else:
+        for t in tips:
+            sub = merge_tip_rows(P, past, t)
+            rt = dict(rr, head=(t,), names=(t,))
+            _RVOID.append(frozenset()); _VOID.append(void_changes(rt, sub))
+            try:
+                if not count_met(rt, sub, past): return False
+            finally:
+                _RVOID.pop(); _VOID.pop()
+    if "merge_free_roster" in MUT: return True
+    members, duties = merge_content(P, past, obj, tips)
+    stated = {d: frozenset(ks) for d, ks in r.get("duty_seats", ())}
+    return frozenset(r["to"]) == members and stated == duties
+
+
 def is_amendment(q, obj):
     """A change of community obj's record that states its consensus_protocol: a counted offer of scope `record` over
     obj (the act record_change), carrying the new protocol."""
@@ -788,6 +863,29 @@ def _slots(to, scope, obj):
     return tuple(("seat", k, scope, obj) for k in ((to,) if isinstance(to, str) else to))
 
 
+def merge(id, signer, obj, tips, members, duty_seats=None, cosigners=(), names=()):
+    """A roster merge (the text's `group:roster` version, CC 4.4.3.17, CC 3.1.3.2, CC 2.7.8): a counted change naming two
+    or more tips of room `obj`, none in another's past, stating its roster outright: `members`, and `duty_seats` (a
+    map from a duty to the keys seated in it). Counted on each named tip by that tip's own members (merge_count)."""
+    dh = tuple(sorted((d, tuple(sorted(ks))) for d, ks in (duty_seats or {}).items()))
+    return R(id, "offer", signer, tuple(tips) + tuple(names), to=tuple(sorted(members)), scope="member", obj=obj,
+             conf="group", head=tuple(tips), cosigners=tuple(cosigners), merge=True, duty_seats=dh,
+             on=_slots(tuple(sorted(members)), "member", obj))
+
+
+def is_merge(r):
+    return bool(r.get("merge"))
+
+
+def merge_states(m, k, sc):
+    """Merge m states key k in scope sc: `member` in its members; a duty in its duty seats. Other scopes it states
+    nothing of."""
+    if sc == "member": return k in m["to"]
+    for d, ks in m.get("duty_seats", ()):
+        if d == sc: return k in ks
+    return None
+
+
 def offer(id, signer, to, scope, obj, conf, names=(), **kw):
     if obj == "@" and KINDS.get(scope) == "community":
         kw.setdefault("consensus_protocol", DEFAULT_PROTOCOL)   # a community's record declares its protocol (CC 3.3.4)
@@ -880,6 +978,8 @@ def seat_scopes(o, k):
     row seats by the signatures on it, with or without a map: a listed member who did not sign it is seated in nothing,
     whatever it accepts later (CC 3.1.3.2, `membership_founding_member_unsigned`); one who signed it in its own scope,
     and where it carries a `duty_holders` map, in each duty whose entry names it."""
+    if is_merge(o):
+        return ("member",) + tuple(d for d, ks in o.get("duty_seats", ()) if k in ks)
     if o["obj"] != o["id"]:
         # an admission carrying `role: founder` (a family's one-row founder admission) seats the founder role too
         # (only on a counted row: an own or uncounted offer's role seats nothing, MUTATION role_on_own_offer)
@@ -1603,6 +1703,8 @@ class Seats:
                                          and (w.get("scope") in (None, sc) or "scope_unread" in MUT) and not late(w, o) for w in wd)
         # (MUTATION line_void_unlisted: the acts of the first pass not listed as void)
         self.stale = V = (frozenset() if "line_void_unlisted" in MUT else L) | CP.void(S, C, own, checkpoint)     # counted acts built on one that does not count, or behind the reader's line
+        if "merge_revives" in MUT:      # MUTATION: a roster merge revives the voided rows in its past
+            V = self.stale = frozenset(v for v in V if not any(is_merge(m) and v in S.anc[m["id"]] for m in S.Cs))
         # the election's seatings that do not stand (C4, C5): read over the concluded rows, as the fold at tips is
         _RENDS.append(reader_ends(S, own) if roster else frozenset())     # the seat ends behind the reader's line
         try:
@@ -1675,6 +1777,8 @@ class Seats:
                        and (S.concurrent(w["id"], row["id"]) or before(w)) for w, k2, g in left)
 
         def accepted(o, k):
+            # a roster merge restates seats each key already took by its own consent on a named tip
+            if is_merge(o) and "merge_consent_asked" not in MUT: return True
             if k in signers(o): return not own_void(o, o, k)
             # a node's seat over an infrastructure community stands on the founders' count alone (a node has no agency):
             # by its scope and the object's kind; every other seat needs the seated key's own acceptance
@@ -1688,13 +1792,21 @@ class Seats:
                 if paired and not ended(a) and C.counts(a) and not own_void(a, o, k): return True
             return False
 
+        # a roster merge states the roster outright: a member or duty seat placed in its past that it does not state is
+        # ended by it (MUTATION merge_states_nothing: it adds and ends nothing)
+        merges = [m for m in Cs if is_merge(m) and C.counts(m) and m["id"] not in V]
+
+        def merged_out(o, k, sc):
+            if "merge_states_nothing" in MUT: return False
+            return any(m["id"] != o["id"] and o["id"] in S.anc[m["id"]] and merge_states(m, k, sc) is False for m in merges)
+
         # a concluded dissolution of a group ends every seat over it (it reads as the withdrawal of the group's record)
         gone = frozenset(q["obj"] for q in Cs if is_dissolve(q) and C.counts(q) and q["id"] not in self.dropped) \
             if "dissolve_leaves_seats" not in MUT else frozenset()
         base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V and o["obj"] not in gone
                 and o["id"] not in beaten
                 for k in o["to"] if accepted(o, k) for sc in seat_scopes(o, k)
-                if not off_ended(o, k, sc) and not unseated(o, k, sc) and not resigned(o, k, sc)]
+                if not off_ended(o, k, sc) and not unseated(o, k, sc) and not resigned(o, k, sc) and not merged_out(o, k, sc)]
 
         def step(live):
             at = {(oid, k, sc): (d, root) for oid, k, sc, d, root in live}
@@ -2265,13 +2377,15 @@ _RENDS = [frozenset()]       # the seat ends (lay-downs, leavings) behind the re
 
 
 def _built_closure(acts, void, stop=lambda q: False):
-    """void, and every counted change of acts built on one in it (a head it names in it), but those `stop` keeps."""
+    """void, and every counted change of acts built on one in it (a head it names in it), but those `stop` keeps (and
+    a roster merge, judged by its own count on each tip it names)."""
     out = set(void)
     changed = True
     while changed:
         changed = False
         for q in acts:
-            if q["id"] not in out and any(h in out for h in q["head"]) and not stop(q):
+            if q["id"] not in out and any(h in out for h in q["head"]) and not stop(q) \
+                    and not (is_merge(q) and "merge_blocked_by_void" not in MUT):
                 out.add(q["id"]); changed = True
     return out
 
@@ -2506,7 +2620,12 @@ def reader_state(S, own, rule=None):
         return S
     _RVOID.append(frozenset(RV)); _RPAIRS.append(PR); _RENDS.append(RE)
     try:
-        R = CK.concluded(CK.kept(list(S.rows)), rule or (lambda r, P, past: seat_rule(r, P, past)))
+        base = rule or (lambda r, P, past: seat_rule(r, P, past))
+        # a roster merge is concluded as for every reader: its count is on each named tip, reader-independent, and a
+        # tip the reader holds void does not block it (MUTATION merge_tip_reader: concluded again for the reader, its tips read under its void)
+        rl = (lambda r, P, past: bool(S.C.get(r["id"])) if is_merge(r) and "merge_tip_reader" not in MUT
+              else base(r, P, past))
+        R = CK.concluded(CK.kept(list(S.rows)), rl)
     finally:
         _RVOID.pop(); _RPAIRS.pop(); _RENDS.pop()
     R._reader, R._rvoid, R._paired = own, frozenset(RV), True
@@ -3098,6 +3217,7 @@ def seat_rule(r, P, past, table=None, other=None):
             if k == "unseat": return _ender(r, P, by)
             return k == "offer" and r.get("under") in by and r["signer"] in by[r["under"]]["to"]
         if conf == "group":
+            if is_merge(r): return merge_concludes(r, P, past)
             # an infrastructure room's recovery widening while stalled is undecided here (stalled_recovery): the kernel
             # holds no bundle holders, so it concludes nothing
             if r.get("bundle") is not None and "recovery_concludes" not in MUT: return False

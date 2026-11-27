@@ -167,7 +167,9 @@ def settle(S, C, obj, own=None, group=False, never_behind=lambda r: False):
         line = [c for c in live if c["id"] in mine]
         out = set()
         for r in live:                                                  # ancestors first
-            if r["id"] in mine or (all(h in out for h in built[r["id"]]) and not any(line_behind(r, c) for c in line)
+            # a roster merge is judged on the line by its own heads: a head the reader holds void does not block it
+            heads_ok = all(h in out for h in built[r["id"]]) or (r.get("merge") and "merge_blocked_by_void" not in MUT)
+            if r["id"] in mine or (heads_ok and not any(line_behind(r, c) for c in line)
                                    and not any(group_behind(r, c) for c in marks)):
                 out.add(r["id"])
         return frozenset(out)
