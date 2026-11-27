@@ -558,6 +558,8 @@ plant "the official read from the founding record"   src/seat.rs '    if vs.is_e
         return alloc::vec![g];'
 plant "an overseer's review seat not read"           src/seat.rs 'members_at_with(p, law, spec, &body, &heads, "review", None).contains(k)' 'false && members_at_with(p, law, spec, &body, &heads, "review", None).contains(k)'
 plant "a body of two seats removes on one voice"     src/seat.rs 'seats.len() == 1 || vs.iter().filter(|k| !r.to().contains(k)).count() >= 2' 'seats.len() == 1 || vs.iter().filter(|k| !r.to().contains(k)).count() >= 1'
+plant "an agent's duty with no owner's signature"   src/seat.rs 'if on[j] && held[j] && (!member || (agent && !bound(oi, k))) {' 'if on[j] && held[j] && (!member || (agent && false && !bound(oi, k))) {'
+plant "two owners of an agent's key read as one"     src/seat.rs 'let one = ws.iter().all(|(w, _)| *w == ws[0].0);' 'let one = true;'
 plant "an act naming the end still counts"            src/conferral.rs 'return Ok((false, false, Rule::NamesEnd));' 'return Ok((true, false, Rule::NamesEnd));'
 plant "the grantee receipts its own act"              src/conferral.rs 'Role::Grantee | Role::Other => Ok(false),' 'Role::Grantee | Role::Other => Ok(true),'
 plant "a receipt after the end keeps the act"         src/conferral.rs 'Ok(!self.key_cut(q)? && self.eligible(q, e)? && !self.past.in_past(e.id(), q.id())?)' 'Ok(!self.key_cut(q)? && self.eligible(q, e)?)'

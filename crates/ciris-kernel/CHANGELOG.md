@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+**An agent's duty rests on its owner's signature** (CC 4.5.4, "An agent's key MAY hold a duty, by its own statement and
+its owner's signature"; the cross-object rest (2)). A duty seat of an agent's key (a key holding an `agent` seat over
+the room) stands only where the one live owner of that key (its `owner` seat over the key's own roster) signed the
+conferral, by an owner-binding in the conferral's past, and only while that binding stands for the reader: the
+owner's revocation stops the seat (it has the binding in its past), and two owners are none (CC 3.2). **An answer
+changes:** a duty conferred on an agent with no owner's signature seats nothing. Five cases in `check_agent_seat.py`,
+and its worlds now carry the agent's owner-binding; plants `agent_duty_owner_unread` and `agent_owner_end_unread`,
+and two crate plants (no owner asked; two owners read as one).
+
 **The countersign of a one-seat affiliation's removal** (CC 4.4.3.12; the Constitution's
 formal/affiliation/Affiliation.lean, its `admitted` and `validCountersign`, as the reference). A removal of a member of
 an affiliation is no longer undecided. The deciding seats are the keys its founding record seats by their signatures,

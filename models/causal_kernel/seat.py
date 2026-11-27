@@ -1831,9 +1831,21 @@ class Seats:
         # walk is run again without the duty seats of keys that are not members, until none is left (a seat under one falls too)
         while "duty_no_member" not in MUT:
             mem = {(S.by[oid]["obj"], k) for oid, k, sc, _, _ in self.live if roster_seat(S.by[oid], holds, sc)}
+            # an agent's key holds a duty "by its own statement and its owner's signature" (CC 4.5.4, an agent's key):
+            # the one live owner of the agent's key, by an owner-binding in the conferral's past, signed it; the
+            # duty seat stands while that binding does (an end of the binding stops the seat, which has it in its
+            # past; two owners are none). MUTATIONS agent_duty_owner_unread, agent_owner_end_unread
+            agents = {(S.by[oid]["obj"], k) for oid, k, sc, _, _ in self.live if sc == AGENT}
+            owners = {}
+            for oid, k2, sc2, _, _ in self.live:
+                if sc2 == "owner": owners.setdefault(S.by[oid]["obj"], set()).add((k2, oid))
+            bound = lambda o, k: "agent_duty_owner_unread" in MUT or (lambda ws: len({w for w, _ in ws}) == 1 and any(
+                w in signers(o) and b in S.anc[o["id"]] for w, b in ws))(
+                owners.get(k, set()) if "agent_owner_end_unread" not in MUT else owner_bindings(S, k, o))
             # MUTATION resign_keeps_duty: a key that ended its own stay still reads as a member for its duty seats
-            keep = [(o, k, sc) for o, k, sc in base if not duty_held(S.by, o, sc) or (o["obj"], k) in mem
-                    or ("resign_keeps_duty" in MUT and (k, o["obj"]) in gone)]
+            keep = [(o, k, sc) for o, k, sc in base if not duty_held(S.by, o, sc) or (
+                ((o["obj"], k) in mem or ("resign_keeps_duty" in MUT and (k, o["obj"]) in gone))
+                and ((o["obj"], k) not in agents or bound(o, k)))]
             if len(keep) == len(base): break
             base[:] = keep
             self.live = K.fix(step, frozenset(), depth + 1)
@@ -2792,6 +2804,13 @@ def count_left(P, past, obj, scope):
     # past, whatever head that row names (MUTATION founder_role_survives_leave)
     role = scope == "founder" and kind_of(by, obj) == "family" and "founder_role_survives_leave" not in MUT
     return out | stay_ended_in_past(P, past, obj) if is_duty(scope, declared(by, obj)) or role else out
+
+
+def owner_bindings(S, k, o):
+    """The owner-bindings of key k in row o's past, as made (MUTATION agent_owner_end_unread: an end of a binding not
+    read): (owner, binding row) for every offer of scope `owner` over k in o's past."""
+    return {(w, q["id"]) for q in S.Cs if q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == k
+            and q["id"] in S.anc[o["id"]] for w in q["to"]}
 
 
 def newest_changes(P, past, obj, by):

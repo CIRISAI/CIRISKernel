@@ -2353,9 +2353,35 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                         }
                     })
                     .collect();
+                // an agent's key holds a duty "by its own statement and its owner's signature" (CC 4.5.4, an agent's
+                // key): the one live owner of the agent's key, by an owner-binding in the conferral's past, signed it;
+                // the duty seat stands while that binding does (two owners are none)
+                let agents: BTreeSet<(ObjOf<R>, &R::Key)> = at
+                    .keys()
+                    .filter(|&&(_, _, sc)| sc.s() == AGENT)
+                    .filter_map(|&(oid, k, _)| by[oid].obj().map(|x| (x, k)))
+                    .collect();
+                let mut owners: BTreeMap<ObjOf<R>, Vec<(&R::Key, &R::Id)>> = BTreeMap::new();
+                for &(oid, k2, sc) in at.keys() {
+                    if sc.s() == "owner" {
+                        if let Some(x) = by[oid].obj() {
+                            owners.entry(x).or_default().push((k2, oid));
+                        }
+                    }
+                }
+                let bound = |oi: usize, k: &R::Key| {
+                    let Some(ws) = owners.get(&Obj::Key(k.clone())) else { return false };
+                    let one = ws.iter().all(|(w, _)| *w == ws[0].0);
+                    one && ws
+                        .iter()
+                        .any(|&(w, b)| signed_by(g.row(oi), w) && g.idx(b).is_some_and(|bi| g.in_past(bi, oi)))
+                };
                 let mut dropped = false;
                 for (j, &(oi, k, _)) in base.iter().enumerate() {
-                    if on[j] && held[j] && !g.row(oi).obj().is_some_and(|x| mem.contains(&(x, k))) {
+                    let room = g.row(oi).obj();
+                    let member = room.as_ref().is_some_and(|x| mem.contains(&(x.clone(), k)));
+                    let agent = room.is_some_and(|x| agents.contains(&(x, k)));
+                    if on[j] && held[j] && (!member || (agent && !bound(oi, k))) {
                         on[j] = false;
                         dropped = true;
                     }
