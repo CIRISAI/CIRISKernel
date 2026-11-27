@@ -115,6 +115,8 @@ FH = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "
 GA = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))       # an accord
 GS = ST.offer("g", "d1", ("d1", "d2", "d3"), "self", "@", "self", cosigners=("d2", "d3"))         # a self roster
 GC = ST.offer("g", "A", ("A", "B", "C"), "club", "@", "self", cosigners=("B", "C"))         # a room founded in `club`
+GAF = ST.found("g", "A", ("A", "B", "C"), cosigners=("B", "C"), group_kind="affiliation",
+               licence_classes=("medical", "legal"))                                               # an affiliation
 GI = ST.offer("g", "f1", ("f1", "f2", "f3"), "founder", "@", "self", cosigners=("f2", "f3"),
               cohort_subkind="infrastructure", consensus_protocol="quorum:2/3",
               consensus_protocol_entrenched=True)                                                   # an infrastructure community
@@ -214,6 +216,11 @@ CASES = [
     ("a change of a community's record is record_change", [GM, grp("r", "offer", (), "record", "cosigned_act",
                                                                     consensus_protocol="quorum:2/4")], "r",
      ("record_change", "record", "community")),
+    ("a change of an affiliation's record (its charter) is record_change (CC 3.4.7; the acts table's row is pending)",
+     [GAF, grp("r", "offer", (), "record", None, cosigners=("B",), licence_classes=("medical",))], "r",
+     ("record_change", "record", "affiliation")),
+    ("a member's seat over an affiliation is no act read here", [GAF, grp("r", "offer", "D", "member", None,
+                                                                         cosigners=("B", "D"))], "r", None),
     ("a row that is not counted is no act", [GM, ST.offer("r", "A", "D", "member", OBJ, "seat", ("g",), under="g")], "r", None),
     ("a counted row with no scope is no act (an answer, as the crate's, not an exception)",
      [GM, grp("r", "offer", "X", None, "accord_halt")], "r", None),
@@ -244,6 +251,7 @@ QUERIES = [
     (("standing_act", "any", "accord"), (("accord_majority",), "fixed")),
     (("admit", "key", "self"), (("self_roster_add",), "fixed")),
     (("remove", "member", "affiliation"), (("affiliation_member_action", "cosigned_act"), "row")),
+    (("record_change", "record", "affiliation"), (("cosigned_act",), "fixed")),   # seat.PENDING_ACTS
     (("admit", "founder", "infrastructure"), None),        # rc23 8c75ae7: a founder seat comes only by a record change
     (("remove", "node", "infrastructure"), (("cosigned_act",), "fixed")),
     (("record_change", "record", "infrastructure"), (("cosigned_act",), "fixed")),

@@ -210,7 +210,20 @@ def acts_table(path=None):
     return tuple(out)
 
 
-ACTS = acts_table()     # read by policy_in_force (the refusal), with the binding on (BOUND)
+# Rows the model reads before the Constitution's table carries them, each read only where the table has no row for its
+# (act, scope, kind). A change of an affiliation's record (its charter: the licence classes it issues, CC 3.4.7) is
+# counted under the affiliation's declared protocol, fixed: the record names the protocol, and a change of it is no act
+# against a member, so the outside countersign of CC 4.4.3.12 is not asked.
+PENDING_ACTS = (("record_change", "record", "affiliation", ("cosigned_act",), "fixed"),)
+
+
+def with_pending(table, pending=PENDING_ACTS):
+    """The acts table with each pending row whose (act, scope, kind) it does not yet have."""
+    have = {r[:3] for r in table}
+    return tuple(table) + tuple(r for r in pending if r[:3] not in have)
+
+
+ACTS = with_pending(acts_table())     # read by policy_in_force (the refusal), with the binding on (BOUND)
 
 # The kind of an object (the acts table's `community_kind`, the policy table's `corridor` reading), from its founding row's
 # scope: the scopes named here found an accord or a self roster; every other founding row founds a community. A key
@@ -229,6 +242,8 @@ def kind_of(by, obj, is_key=False):
     # the group kind of the founding record (a family record carries `family_key_id`): `family` or `community`; a
     # community's cohort_subkind then splits off an infrastructure community
     if g.get("group_kind") == "family": return "family"
+    # an affiliation (CC 3.4.7: a licensing authority) is a community record of kind `affiliation`
+    if g.get("group_kind") == "affiliation" and "affiliation_unread" not in MUT: return "affiliation"
     k = KINDS.get(g["scope"]) if "kind_partial" in MUT else KINDS.get(g["scope"], "community")   # MUTATION kind_partial
     # a community's record says whether it is an infrastructure community: `cohort_subkind` (any other value, or none,
     # is a community)
@@ -303,6 +318,12 @@ def act_of(r, by, is_key=False):
             return ("record_change", "record", kind)
         return ("admit" if offer else "remove", sc, kind) if sc in ("founder", NODE) else None
     if kind == "accord": return ("standing_act", "any", kind)
+    if kind == "affiliation":
+        # a change of the affiliation's record (its charter) under its declared protocol; a dissolution is the act
+        # dissolve, which the table does not bind for an affiliation. No other act over an affiliation is read here
+        if sc == "record" and offer:
+            return ("dissolve" if r.get("dissolved_at") is not None else "record_change", "record", kind)
+        return None
     if kind == "self":
         own = by.get(obj, {}).get("scope")
         return ("admit" if offer else "remove", "key", kind) if sc is not None and sc in ("key", own) else None
