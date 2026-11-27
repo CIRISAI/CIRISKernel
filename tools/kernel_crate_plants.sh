@@ -574,6 +574,25 @@ plant "a row between seats counts"                      src/content.rs 'if at.se
 plant "a row naming the removal as its head waits on it" src/content.rs 'if ends.iter().any(|e| e.id() == h) {' 'if false {'
 plant "a retraction is read in its own seat only"       src/content.rs 'out.extend(seat_answers(&sub, seat, past, &retracted));' 'let sr: BTreeSet<&R::Id> = retracted.iter().copied().filter(|t| sub.iter().any(|w| w.retracts() == Some(*t))).collect(); out.extend(seat_answers(&sub, seat, past, &sr));'
 plant "an end with an end in its past still ends"       src/content.rs 'Ok(seated.then_some(Void::SeatEnded))' 'Ok(seated.then_some(Void::SeatEnded).filter(|_| false))'
+plant "an affiliation's record is a plain community's"  src/seat.rs 'if kind == CommunityKind::Community && g.declared_cohort().is_some_and(|c| c.as_ref() == "affiliations") {' 'if false {'
+plant "a change of an affiliation's record is no act"   src/seat.rs 'CommunityKind::Affiliation => {' 'CommunityKind::Affiliation if false => {'
+plant "an appointment to an affiliation is no act"      src/seat.rs '"member" => Some((if offer { Act::Admit } else { Act::Remove }, ScopeClass::Member, kind)),' '"member" if !offer => Some((Act::Remove, ScopeClass::Member, kind)),'
+plant "a removal from an affiliation passes silently"   src/seat.rs 'if affiliation_removal(law, &|i: &R::Id| by.get(i).copied(), r).is_some() {' 'if false {'
+plant "only an affiliation's record is a charter"       src/charter.rs '[CommunityKind::Community, CommunityKind::Infrastructure, CommunityKind::Affiliation];' '[CommunityKind::Affiliation, CommunityKind::Affiliation, CommunityKind::Affiliation];'
+plant "a dissolved group still declares"                src/charter.rs 'if seats.dissolved(&obj) {' 'if false {'
+plant "a record's stated end is not read"               src/charter.rs 'if now.is_some_and(|t| r.valid_until().is_some_and(|u| *t >= u)) {' 'if false {'
+plant "a class's legal weight is not read"              src/charter.rs 'r.licence_classes().map(|c| c.iter().cloned().collect()).unwrap_or_default()' 'r.licence_classes().map(|c| c.iter().map(|(k, _)| (k.clone(), false)).collect()).unwrap_or_default()'
+plant "the founding classes stay in force"              src/charter.rs 'if vs.is_empty() {
+        return Some(classes_of(g.row(gi), now));' 'if true {
+        return Some(classes_of(g.row(gi), now));'
+plant "two version tips declare what either lists"      src/charter.rs 'Some(o) => o.intersection(&here).cloned().collect(),' 'Some(o) => o.union(&here).cloned().collect(),'
+plant "a version naming both tips decides nothing"      src/charter.rs 'for &t in vs.iter().filter(|&&t| !vs.iter().any(|x| anc[x].contains(&t))) {' 'for &t in vs.iter() {'
+plant "a licence's class is not held to the charter"    src/charter.rs 'if !charters(seats, supplied, now).declares(authority, cls) {' 'if false {'
+plant "a licence's authority need not be reached"       src/charter.rs 'if !reaches(edges, reader, cls, HOP_CAP, authority) {' 'if false {'
+plant "a supplied charter widens the one read"          src/trust.rs 'Some(have) => have.retain(|c| new.contains(c)),' 'Some(have) => have.extend(new),'
+plant "an acceptance edge admits every class"           src/trust.rs 'if e.refusal().is_some() || !e.admits(c) {' 'if e.refusal().is_some() {'
+plant "an empty trust_classes list is admitted"         src/trust.rs 'Some(cs) if cs.is_empty() || cs.windows(2).any(|w| w[0] >= w[1]) => Some(CLASSES_MALFORMED),' 'Some(cs) if cs.windows(2).any(|w| w[0] >= w[1]) => Some(CLASSES_MALFORMED),'
+plant "a refused edge is walked"                        src/trust.rs 'if e.refusal().is_some() || !e.admits(c) {' 'if !e.admits(c) {'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

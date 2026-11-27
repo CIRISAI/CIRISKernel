@@ -557,7 +557,7 @@ fn reaches_before(edges: &[Accepts<u32, u8>], from: &u32, c: &u8, budget: u32, a
         if b == 0 {
             continue;
         }
-        for e in edges.iter().filter(|e| e.src == k && e.admits(c)) {
+        for e in edges.iter().filter(|e| e.src == k && e.refusal().is_none() && e.admits(c)) {
             if e.dst == *a {
                 return true;
             }
@@ -596,12 +596,20 @@ fn the_walks_equal_the_walks_they_replaced() {
             .map(|_| Accepts {
                 src: pick(&mut g, keys as u64) as u32,
                 dst: pick(&mut g, keys as u64) as u32,
-                classes: (0..pick(&mut g, 3)).map(|_| pick(&mut g, 3) as u8).collect(),
+                // absent, or a list of up to two classes: empty, unsorted or twice is refused at admission
+                classes: match pick(&mut g, 4) {
+                    0 => None,
+                    n => Some((1..n).map(|_| pick(&mut g, 3) as u8).collect()),
+                },
                 depth: pick(&mut g, 4) as u32,
             })
             .collect();
         let pairs: Vec<(u32, u32)> = edges.iter().map(|e| (e.src, e.dst)).collect();
         let index = trust::EdgeIndex::new(&edges);
+        let mut charter = trust::Charters::new();
+        for k in 0..keys {
+            charter.meet(k, (0..3u8).filter(|c| !(k + *c as u32).is_multiple_of(3)));
+        }
         for from in 0..keys {
             for depth in 0..5 {
                 cases += 1;
@@ -615,9 +623,8 @@ fn the_walks_equal_the_walks_they_replaced() {
                         bad += (trust::reaches(&edges, &from, &c, budget, &a) != want) as usize;
                         bad += (index.reaches(&from, &c, budget, &a) != want) as usize;
                     }
-                    let charter = |k: &u32, c: &u8| !(*k + *c as u32).is_multiple_of(3);
                     cases += 1;
-                    bad += (index.honours(&from, charter, &a, &c) != trust::honours(&edges, &from, charter, &a, &c))
+                    bad += (index.honours(&from, &charter, &a, &c) != trust::honours(&edges, &from, &charter, &a, &c))
                         as usize;
                 }
             }

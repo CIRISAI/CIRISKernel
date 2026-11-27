@@ -324,6 +324,18 @@ pub trait SeatRow: Row {
     fn room(&self) -> Option<Obj<Self::Id, Self::Key>> {
         None
     }
+    /// A community's record: the licence classes its charter declares (CC 3.4.7, CC 4.4.3.12: "the charter enumerates
+    /// the licence classes the affiliation issues"; any community may be an authority), each with its `legal_weight`,
+    /// read by [`crate::charter`]. A version is the whole record: `None` (or none listed) declares none. Default
+    /// `None`.
+    fn licence_classes(&self) -> Option<&[(Self::Word, bool)]> {
+        None
+    }
+    /// A community's founding record: its `declared_cohort`. `affiliations` makes the object a
+    /// [`CommunityKind::Affiliation`] ([`kind_of`]). Default `None`.
+    fn declared_cohort(&self) -> Option<&Self::Word> {
+        None
+    }
     /// A founding row that declares its community's `membership` `private` (CC 3.1.3.2): a private room, whose
     /// roster seats room keys. Read on a founding row only. Default false: a founding row with no `membership`
     /// reads public. A room is private or public by its founding row, and no record change moves it (people
@@ -719,6 +731,11 @@ pub fn kind_of<'r, R: SeatRow + 'r>(
     if kind == CommunityKind::Community && g.cohort_subkind().is_some_and(|c| c.as_ref() == "infrastructure") {
         return Some(CommunityKind::Infrastructure);
     }
+    // an affiliation (CC 3.4.7, CC 4.4.3.12: a licensing authority) is a community record whose `declared_cohort` is
+    // `affiliations`
+    if kind == CommunityKind::Community && g.declared_cohort().is_some_and(|c| c.as_ref() == "affiliations") {
+        return Some(CommunityKind::Affiliation);
+    }
     Some(kind)
 }
 
@@ -833,6 +850,18 @@ pub fn act_of<'r, R: SeatRow + 'r>(
             }
         }
         CommunityKind::Accord => Some((Act::StandingAct, ScopeClass::Any, kind)),
+        CommunityKind::Affiliation => {
+            // an affiliation's acts (the table's affiliation rows, CC 4.4.3.12): an appointment of a member (the
+            // appointee's acceptance is the second consent), a removal of one (undecided: [`affiliation_removal`]), a
+            // change of the record (its charter, [`crate::charter`]) and its dissolution. No duty seat
+            match sc? {
+                "record" if offer => {
+                    Some((if r.dissolves() { Act::Dissolve } else { Act::RecordChange }, ScopeClass::Record, kind))
+                }
+                "member" => Some((if offer { Act::Admit } else { Act::Remove }, ScopeClass::Member, kind)),
+                _ => None,
+            }
+        }
         CommunityKind::SelfRoster => {
             let sc = sc?;
             let own = match &obj {
@@ -1206,6 +1235,26 @@ pub fn stalled_recovery<R: SeatRow, S: CutSpec<R>>(
     };
     let founders = count_members_with(p, law, spec, None).len() as u64;
     (founders < m + 1).then_some("stalled_recovery_needs_bundle")
+}
+
+/// A counted removal of a member of an affiliation (the acts row `remove / member / affiliation`:
+/// `affiliation_member_action | cosigned_act`). A one-seat affiliation removes only with a countersign from outside it
+/// (CC 4.4.3.12), which the kernel does not read, so such a row is UNDECIDED: the reason
+/// `affiliation_remove_member_undecided` (the seat rule concludes nothing for it), never a silent pass. `None` for a
+/// row of another shape. `get` looks a row up among those the caller holds (the row's past).
+pub fn affiliation_removal<'r, R: SeatRow + 'r>(
+    law: &SeatLaw,
+    get: &dyn Fn(&R::Id) -> Option<&'r R>,
+    r: &R,
+) -> Option<&'static str> {
+    if r.seat_kind() != SeatKind::Unseat
+        || r.conf() != Some(Conf::Group)
+        || r.scope().is_none_or(|s| s.as_ref() != "member")
+    {
+        return None;
+    }
+    let obj = r.obj()?;
+    (kind_of(law, get, &obj) == Some(CommunityKind::Affiliation)).then_some("affiliation_remove_member_undecided")
 }
 
 /// The room's protocol in force at protocol row `r` ([`policy_in_force`]): in a community, the record's protocol
@@ -2201,6 +2250,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     /// The concluded set.
     pub fn c(&self) -> &'c Concluded<'a, R> {
         self.c
+    }
+    /// The law it was built under.
+    pub fn law(&self) -> &'c SeatLaw {
+        self.law
     }
     /// The cut over it. For a reader (`own` set) it is that reader's: solved without the counted acts behind
     /// the reader's line, which cut nothing for it (0.5.0). With no reader it is the cut over the set.
@@ -4629,6 +4682,11 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     // an infrastructure room's recovery widening while stalled is undecided ([`stalled_recovery`]): the
                     // kernel holds no bundle holders, so it concludes nothing
                     if r.bundle().is_some() {
+                        return false;
+                    }
+                    // a removal from an affiliation is undecided ([`affiliation_removal`]): the outside countersign is
+                    // not read
+                    if affiliation_removal(law, &|i: &R::Id| by.get(i).copied(), r).is_some() {
                         return false;
                     }
                     // H2: a counted row is counted over its own object; one stating another concludes nothing

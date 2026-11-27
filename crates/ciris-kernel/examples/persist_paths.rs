@@ -371,12 +371,12 @@ fn ledger(n: usize) -> Vec<B> {
 
 fn chain_edges(n: usize, extra: usize) -> Vec<Accepts<String, ()>> {
     let mut e: Vec<Accepts<String, ()>> =
-        (0..n).map(|i| Accepts { src: key(i), dst: key(i + 1), classes: Vec::new(), depth: 5 }).collect();
+        (0..n).map(|i| Accepts { src: key(i), dst: key(i + 1), classes: None, depth: 5 }).collect();
     let mut g = dag::Lcg(3);
     for _ in 0..extra {
         let a = (g.next() as usize) % (n + 1);
         let b = (g.next() as usize) % (n + 1);
-        e.push(Accepts { src: key(a), dst: key(b), classes: Vec::new(), depth: (g.next() % 6) as u32 });
+        e.push(Accepts { src: key(a), dst: key(b), classes: None, depth: (g.next() % 6) as u32 });
     }
     e
 }
@@ -751,7 +751,9 @@ fn main() {
             let near = key(3.min(n));
             h.run("trust::reaches/hit", n, || trust::reaches(&e, &key(0), &(), trust::HOP_CAP, &near));
             h.run("trust::reaches/miss", n, || trust::reaches(&e, &key(0), &(), trust::HOP_CAP, &key(n + 9)));
-            h.run("trust::honours", n, || trust::honours(&e, &key(0), |_, _| true, &last_key, &()));
+            let mut every = trust::Charters::new();
+            every.meet(last_key.clone(), [()]);
+            h.run("trust::honours", n, || trust::honours(&e, &key(0), &every, &last_key, &()));
             let pairs: Vec<(String, String)> = e.iter().map(|x| (x.src.clone(), x.dst.clone())).collect();
             h.run("derived::reach/5", n, || derived::reach(&key(0), 5, &pairs).len());
             // <index>

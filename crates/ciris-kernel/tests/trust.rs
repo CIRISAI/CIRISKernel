@@ -3,7 +3,7 @@
 //! There is no Python model of this walk, so the reference here is the Lean definition itself.
 
 mod common;
-use ciris_kernel::trust::{honours, reaches, Accepts, HOP_CAP};
+use ciris_kernel::trust::{honours, reaches, Accepts, Charters, HOP_CAP};
 use common::report;
 
 type E = Accepts<u8, u8>;
@@ -33,22 +33,22 @@ const MEDICAL: u8 = 1;
 const LEGAL: u8 = 2;
 
 fn e(src: u8, dst: u8, classes: &[u8], depth: u32) -> E {
-    Accepts { src, dst, classes: classes.to_vec(), depth }
+    // a list the Lean world writes empty is `trust_classes` absent: every class
+    Accepts { src, dst, classes: (!classes.is_empty()).then(|| classes.to_vec()), depth }
 }
 
-fn charter0(k: &u8, c: &u8) -> bool {
-    match *k {
-        BOARD => [MEDICAL, LEGAL].contains(c),
-        STRANGER => *c == MEDICAL,
-        _ => false,
-    }
+fn charter0() -> Charters<u8, u8> {
+    let mut ch = Charters::new();
+    ch.meet(BOARD, [MEDICAL, LEGAL]);
+    ch.meet(STRANGER, [MEDICAL]);
+    ch
 }
 
-fn charter1(k: &u8, c: &u8) -> bool {
-    match *k {
-        BOARD | COLLEGE => *c == MEDICAL,
-        _ => false,
-    }
+fn charter1() -> Charters<u8, u8> {
+    let mut ch = Charters::new();
+    ch.meet(BOARD, [MEDICAL]);
+    ch.meet(COLLEGE, [MEDICAL]);
+    ch
 }
 
 #[test]
@@ -58,6 +58,7 @@ fn trust_set_worked_world() {
     let shipped = vec![root.clone()];
     let with_board = vec![root.clone(), board.clone()];
     let without_ciris = vec![board.clone()];
+    let (charter0, charter1) = (&charter0(), &charter1());
     let mut n = 0;
     let mut t = |ok: bool, name: &str| {
         n += 1;

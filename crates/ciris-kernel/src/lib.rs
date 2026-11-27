@@ -26,7 +26,8 @@
 //! | [`held`] | 3 | the two layers held across admissions: one row admitted at a time, only what it releases recomputed |
 //! | [`held_view`] | 3, 3a | the head layer held: `head::View` across admissions, only its dirty set recomputed; its checkpoint |
 //! | [`key_end`] | 5 (two notions of time) | a key's own end and the rows that lapse |
-//! | [`trust`] | 5 (stands), CC 4.4.3.34 | the reader's trust walk over acceptance edges |
+//! | [`trust`] | 5 (stands), CC 4.4.3.34 | the reader's trust walk over acceptance edges, and the charters it reads |
+//! | [`charter`] | CC 3.4.7, CC 4.4.3.12 | an affiliation's charter: the licence classes its record in force declares |
 //! | [`ranked`] | 5 (the door's parameters) | the ranked count, with and without a declared order |
 #![no_std]
 #![forbid(unsafe_code)]
@@ -34,6 +35,7 @@
 
 extern crate alloc;
 
+pub mod charter;
 pub mod conferral;
 pub mod content;
 pub mod cut;

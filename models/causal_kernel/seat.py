@@ -234,6 +234,10 @@ def kind_of(by, obj, is_key=False):
     # is a community)
     if k == "community" and g.get("cohort_subkind") == "infrastructure" and "subkind_unread" not in MUT:
         return "infrastructure"
+    # an affiliation (CC 3.4.7, CC 4.4.3.12: a licensing authority) is a community record whose `declared_cohort` is
+    # `affiliations`
+    if k == "community" and g.get("declared_cohort") == "affiliations" and "affiliation_unread" not in MUT:
+        return "affiliation"
     return k
 
 
@@ -303,6 +307,15 @@ def act_of(r, by, is_key=False):
             return ("record_change", "record", kind)
         return ("admit" if offer else "remove", sc, kind) if sc in ("founder", NODE) else None
     if kind == "accord": return ("standing_act", "any", kind)
+    if kind == "affiliation":
+        # an affiliation's acts (the table's affiliation rows, CC 4.4.3.12): an appointment of a member (the appointee's
+        # acceptance is the second consent), a removal of one (undecided: affiliation_removal), a change of the record
+        # and its dissolution. No duty seat
+        if sc == "record" and offer:
+            return ("dissolve" if r.get("dissolved_at") is not None else "record_change", "record", kind)
+        if sc == "member" and (not offer or "affiliation_admit_unread" not in MUT):
+            return ("admit" if offer else "remove", "member", kind)
+        return None
     if kind == "self":
         own = by.get(obj, {}).get("scope")
         return ("admit" if offer else "remove", "key", kind) if sc is not None and sc in ("key", own) else None
@@ -419,6 +432,17 @@ def stalled_recovery(r, P, past):
     if pr is None: return None
     founders = members_at(P, past, r["obj"], r.get("head", ()), "founder") - count_left(P, past, r["obj"], "founder")
     return "stalled_recovery_needs_bundle" if len(founders) < pr[1] + 1 else None
+
+
+def affiliation_removal(r, by):
+    """A counted removal of a member of an affiliation (the acts row remove / member / affiliation:
+    affiliation_member_action | cosigned_act). A one-seat affiliation removes only with a countersign from outside it
+    (CC 4.4.3.12), which the kernel does not read, so such a row is UNDECIDED: the reason
+    `affiliation_remove_member_undecided` (the seat rule concludes nothing for it), never a silent pass. None for a
+    row of another shape."""
+    if r["kind"] != "unseat" or r.get("conf") != "group" or r.get("scope") != "member": return None
+    if kind_of(by, r.get("obj")) != "affiliation": return None
+    return "affiliation_remove_member_undecided"
 
 
 def is_amendment(q, obj):
@@ -3130,6 +3154,8 @@ def seat_rule(r, P, past, table=None, other=None):
             # an infrastructure room's recovery widening while stalled is undecided here (stalled_recovery): the kernel
             # holds no bundle holders, so it concludes nothing
             if r.get("bundle") is not None and "recovery_concludes" not in MUT: return False
+            # a removal from an affiliation is undecided (affiliation_removal): the outside countersign is not read
+            if affiliation_removal(r, by) is not None and "affiliation_removal_passes" not in MUT: return False
             # H1, H4: every counted row names the newest counted changes over its object in its own past, a lone removal,
             # a self-admission, a lift and an election's seating included (a seating's count reads its election, never
             # its heads: its heads place it; MUTATION election_exempt: a seating names no head)
