@@ -173,8 +173,8 @@ whose `refused` is null.
 
 ### A private room's row door, for a verifier
 
-`tests/fixtures/room_keys.json` is written from `models/causal_kernel/room_key_vectors.py` (31 cases: 16 of a
-voice's row, 15 of a node's,
+`tests/fixtures/room_keys.json` is written from `models/causal_kernel/room_key_vectors.py` (41 cases: 16 of a
+voice's row, 25 of a node's,
 CIRISConstitution#224, CC 3.1.3.2) for a verifier's pure check of one row of a room: the signer is a room key at
 all (its key record names a room), its record names this room, the row names exactly one head of the voice's key
 roster under `refs.also.voice`, and the key is a live key of the voice at that head. The roster fold stays the
@@ -194,9 +194,15 @@ kernel's: each case carries the view it gives.
   `node_rows` is the room it is read in, each case's `rows` the rows added to it, and `view` the facts the kernel
   folds over the row's own past with rule 4 for a concurrent end: `binding_held`, `binding_ended`,
   `live_bindings`, `owner`, `owner_record`, `owner_voice`, `owner_live` (live at the head named, no eviction
-  reaching the row), `voice_seated` (the voice holds its room seat, no removal reaching the row). It concludes
-  (`admitted`) only where the binding is held and not ended, it is the one live binding, the owner is a room key of
-  this room whose record is not a node's, the owner is live and its voice seated; otherwise it concludes nothing.
+  reaching the row), `voice_seated` (the voice holds its room seat, no removal reaching the row), `node_revoked`
+  and `owner_revoked` (either key's own revocation reaching the row). The signer's own record is checked first, as
+  for a voice's row: none, refused `room_row_signer_not_room_key`; another room's, `room_key_other_room`; and `iss`
+  must be `kid`. The binding is held only as a live owner seat read by the seat walk: every key it names holds it by
+  its own signature, so a binding the owner never signed is none, and one naming two owners is none. Its ends are
+  its withdrawal and the owner's revocation of the owner seat, by past with rule 4. It concludes (`admitted`) only
+  where the binding is held and not ended, it is the one live binding, neither key revoked itself, the owner is a
+  room key of this room whose record is not a node's, the owner is live and its voice seated; otherwise it
+  concludes nothing.
 - a row naming no voice head, or several, is refused, `room_row_voice_head_malformed` (CC 2.7.3). The text names
   no refusal for a key that is not live at the head: such a row concludes nothing, with `refusal` null. The checks
   run in the order above; no case meets two. A public room's row is not checked.

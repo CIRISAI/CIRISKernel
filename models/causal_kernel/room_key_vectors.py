@@ -54,6 +54,9 @@ RECORDS["node:nA"] = {"key": "node:nA", "room": None, "identity_type": "node"}  
 NODE, NODE2 = "rk:node", "rk:node2"
 RECORDS[NODE] = {"key": NODE, "room": ROOM, "identity_type": "node"}             # a node's room key
 RECORDS[NODE2] = {"key": NODE2, "room": ROOM, "identity_type": "node"}           # another node's room key
+NODE_X, NODE_0 = "rk:nodex", "rk:node0"
+RECORDS[NODE_X] = {"key": NODE_X, "room": OTHER, "identity_type": "node"}        # a node's room key of another room
+# (NODE_0 has no key record at all)
 
 # ---- a node's row (ruled on CIRISConstitution#224): the room, its voices, and the node's in-room owner-binding --------
 VC, HC = RK.voice_rows("vC", ["rk:c0"])
@@ -75,13 +78,21 @@ AD = ST.offer("ad", "vB", "vD", "member", "g", "group", ("g", HD), head=("g",), 
               cosigners=("vC", "vD"))                            # the room admits vD: a counted change after g
 XV_OLD = ST.unseat("xvo", "vB", "vA", "member", "g", "group", ("g", "ad"), head=("g",), policy="community_remove",
                    cosigners=("vC",))                            # vA's removal naming the old head g, with ad in its past
+# the review r74's rows (RV1 to RV4)
+OBX = ST.offer("obx", NODE, "rk:b0", "owner", NODE, "self", ("g",))                       # rk:b0 never signed it
+UO = ST.unseat("uo", "rk:a0", "rk:a0", "owner", NODE, "seat", ("ob",), under="ob")         # the owner revokes the binding
+RECN = ST.offer("recn", NODE, NODE, "registered", NODE, "self", ("g",))
+RVN = ST.unseat("rvn", NODE, NODE, "registered", NODE, "self", ("recn", "ob"))           # the node key revokes itself
+OB2T = ST.offer("obt", NODE, ("rk:b0", "rk:a0"), "owner", NODE, "self", ("g",), cosigners=("rk:a0",))
+RECA = ST.offer("reca", "rk:a0", "rk:a0", "registered", "rk:a0", "self", ("g",))
+RVA = ST.unseat("rva", "rk:a0", "rk:a0", "registered", "rk:a0", "self", ("reca", "ob"))  # the owning key revokes itself
 NODE_BASE = VA + VB + VC + [GR]
 
 
-def node_row(i, under, voice_heads, cites=()):
+def node_row(i, under, voice_heads, cites=(), kid=NODE, iss=None):
     """A node's row as the wire states it: iss = kid = the node's room key; refs.also.under its owner-binding,
     refs.also.voice the owning voice's key-roster head."""
-    return {"id": i, "kind": "detection", "room": ROOM, "iss": NODE, "kid": NODE,
+    return {"id": i, "kind": "detection", "room": ROOM, "iss": iss or kid, "kid": kid,
             "refs": {"also": {"under": list(under), "voice": list(voice_heads)}}, "cites": list(cites)}
 
 
@@ -118,13 +129,34 @@ NODE_CASES = [
     ("the owning voice's removal concurrent with the row, the row at its head: out of force from that head on",
      [OB, XV], node_row("n14", ["ob"], [HA]), "concludes_nothing", None),
     ("the head named is another voice's, not the owner's", [OB], node_row("n9", ["ob"], [HB]), "concludes_nothing", None),
+    ("RV1: a binding the owner never signed (the node's own offer of the owner seat to rk:b0) is no owner seat",
+     [OBX], node_row("n16", ["obx"], [HB]), "concludes_nothing", None),
+    ("RV4: a binding naming two owners, one of whom did not sign: none (each must sign for itself)", [OB2T],
+     node_row("n17", ["obt"], [HA]), "concludes_nothing", None),
+    ("RV4: the same, the row naming the other owner's voice head", [OB2T], node_row("n18", ["obt"], [HB]),
+     "concludes_nothing", None),
+    ("RV2: the owner revokes the owner seat (an unseat of it), the revocation in the row's past", [OB, UO],
+     node_row("n19", ["ob"], [HA], ("uo",)), "concludes_nothing", None),
+    ("RV2: the owner's revocation concurrent with the row, the row at its head: out of force from that head on",
+     [OB, UO], node_row("n25", ["ob"], [HA]), "concludes_nothing", None),
+    ("RV3: the node key revoked itself, in the row's past", [OB, RECN, RVN], node_row("n20", ["ob"], [HA], ("rvn",)),
+     "concludes_nothing", None),
+    ("RV3: the owning key revoked itself, in the row's past", [OB, RECA, RVA], node_row("n21", ["ob"], [HA], ("rva",)),
+     "concludes_nothing", None),
+    ("RV3: the node key's record names another room", [OB], node_row("n22", ["ob"], [HA], kid=NODE_X), "refused",
+     "room_key_other_room"),
+    ("RV3: the node key has no record", [OB], node_row("n23", ["ob"], [HA], kid=NODE_0), "refused",
+     "room_row_signer_not_room_key"),
+    ("RV3: iss names a voice, not the node key (a voice's row, and the node key no key of that voice)", [OB],
+     node_row("n24", ["ob"], [HA], iss="vA"), "concludes_nothing", None),
     ("no owner-binding named", [OB], node_row("n10", [], [HA]), "refused", "room_row_owner_binding_malformed"),
     ("two owner-bindings named", [OB, OB2], node_row("n11", ["ob", "ob2"], [HA]), "refused",
      "room_row_owner_binding_malformed"),
     ("no voice head named", [OB], node_row("n12", ["ob"], []), "refused", "room_row_voice_head_malformed"),
 ]
 NODE_PLANTS = ("node_rule4_unread", "node_binding_end_unread", "node_two_owners_kept", "node_owner_kind_unread",
-               "node_owner_eviction_unread", "node_voice_removal_unread")
+               "node_owner_eviction_unread", "node_voice_removal_unread", "node_owner_seat_unread",
+               "node_owner_revocation_unread", "node_key_end_unread", "node_record_unread")
 
 
 def row(i, voice, kid, voice_refs, room=ROOM):
@@ -212,7 +244,7 @@ def cases():
     for name, extra, r, verdict, refusal in NODE_CASES:
         f, _ = node_verdict(extra, r)
         out.append({"name": name, "ledger": NODE_LEDGER, "arm": "node", "membership": "private", "room": ROOM, "row": r,
-                    "rows": list(extra), "records": [RECORDS[k] for k in (r["kid"], f["owner"]) if k in RECORDS],
+                    "rows": list(extra), "records": [RECORDS[k] for k in dict.fromkeys((r["kid"], f["owner"])) if k in RECORDS],
                     "view": f, "verdict": verdict, "refusal": refusal, "kernel": None})
     return out
 
