@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**Room content: receipts, the reader's line on an end, key removals, rooms** (`content`, both languages, with
+cases, planted breaks and the run's `keys` histories). **BREAKING**: `content::Kind` has `Ack` and `KeyEnd`, and
+`content::Rule` has `KeyRemoved` (`"K.key_removed"`); an exhaustive match must add them.
+- A receipt of a content row is not read, the count's own included (`Kind::Other`).
+- The reader's line on an end, sibling-safe as `line::behind`: the reader's acknowledgements (`Kind::Ack`) put
+  the heads and ends in their past on its line, and an end behind it ends nothing for that reader. New:
+  `ContentRow::parents` (a head's own heads).
+- A key removal (`Kind::KeyEnd`, `ContentRow::removes`) cuts the member's rows under that key outside its past,
+  in every room; a counted one also voids the member's end under that key.
+- `ContentRow::room`: each room is judged by its own rows. A content row naming a held row that is not a roster
+  version of its room has no seat (it was undecided).
+
 **The wrap set is replayed by the crate** (`tests/resignation.rs`, fixture `resignation.json`): who may read a room,
 `Seats::holders` over the fold of the tips less every member whose own end of its seat is held, with
 `Seats::roster` and `Seats::dissolved`, for `check_resignation.py`'s 8 cases and every one of its 152 sets of rows.

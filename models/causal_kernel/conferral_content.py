@@ -36,9 +36,25 @@ The proposal.
      brings nothing back;
    - a row naming a head at which the member does not sit belongs to no seat and does not count.
 
+7. RECEIPTS. No rule reads a receipt of a content row (`receipt`): no co-member receipts content, and the
+   count's own receipt keeps nothing, since the count's word is its tips.
+8. THE READER'S LINE ON AN END (CC 2.7.8, sibling-safe: checkpoint.behind, the ruling of 2026-11-27). The
+   reader's acknowledgements (`ack`, signer R: every row the reader signs in the room) put the heads and ends in
+   their past on its line. An end not on the line whose head is strictly in the past of one of a line act's
+   OWN heads (a roster version's, the versions it names; an end's, its `head`) and which is not in that act's
+   past is behind the line: `end_void.line`, it ends nothing for this reader. A sibling at a line act's own
+   head is not behind it. The line voids no content row (conferral_end.py, section C).
+9. KEY REMOVALS (`keyend`, `removes` a key of the member), read where the count or a key of the member signs
+   it, cut every row of the member that key signs which is not in the removal's past, in every room. A cut
+   content row does not count (`K.key_removed`), is not held good and is not followed; a cut retraction is
+   not read. A counted key removal also voids the member's own end under that key (`end_void.key_removed`);
+   the member's own key removal voids no end, since it would undo its resignation.
+10. ROOMS. Every row but a key removal belongs to its `room` (one room where none is named), and each room is
+   judged by its own rows alone: a tip, a predecessor, a retraction's target, an end, a head or an
+   acknowledgement of another room is not read.
+
 No instant is read and no arrival order: the answer is a function of the held rows. One member and its content
-are modelled (keys B and B2); other members' content is untouched by any of this. Not modelled here: receipts
-(conferral_end.py), the reader's line on the end (conferral_end.py: `end_void.line`), key removals.
+are modelled (keys B and B2); other members' content is untouched by any of this.
 
 Rows (the kernel's row shape: `id`, `kind`, `signer`, the ids it `names`, and the fields a rule reads):
     head   a roster version; `names` the heads it extends; `seat`: "admits" where the version admits the member
@@ -52,12 +68,19 @@ Rows (the kernel's row shape: `id`, `kind`, `signer`, the ids it `names`, and th
            hold none, which on the wire is the member's absence). The tips are NOT in `names`
     tips   a later row naming further tips: `extends` the end it adds to (which it names), `trusted_through`,
            and `head`, the roster head it is counted over (a counted row names one; no rule here reads it)
+    receipt  a receipt of a content row (`of`), by the count or a co-member. Not read
+    ack    the reader's acknowledgement: `names` what it acknowledges (signer R)
+    keyend a removal of the member's key `removes`, by the count or a key of the member; it has no room
+Every row may name its `room`.
 
 Which ends count:
     end_void.stale_head  E1: the end has a head later than h_e in its own past: it concludes nothing
+    end_void.key_removed the member's own end under a key a counted key removal cuts
+    end_void.line        the end is behind the reader's line (8.)
     end_void.seat_ended  the end has a counting end of the seat in its own past: the seat was already ended
-Whether an end counts is decided by its own causal past alone, so no row signed later changes it. In
-particular the member's own end is NOT voided for naming a head later than another end's: under that rule the
+Whether an end counts is decided by its own causal past alone, so no row the member signs later changes it;
+the reader's own acknowledgements and a counted removal of the key that signed it are the only other rows
+read. In particular the member's own end is NOT voided for naming a head later than another end's: under that rule the
 exhaustive check found the member reviving a row that named its first resignation, by signing a second one at
 an older head. An extra end of the member's own only ever takes rows out (E3, E4, and the rule below).
 
@@ -75,6 +98,7 @@ resignation at the head it last sat at. The reference's default closes that:
 
 Rules for a content row, in the order they decide (the name a failing test reports):
     no_seat          the row names a head at which the member does not sit: not counted
+    K.key_removed    a key removal that is read cuts the row: not counted
     no_end           no end counts: counted and in force
     E4.names_end     the row has a counting end in its past: not counted
     E3.later_head    the row names a head that has a counting end's h_e in its past: the seat is ended there
@@ -90,6 +114,7 @@ Rules for a content row, in the order they decide (the name a failing test repor
 
 KEYS, COUNT = ("B", "B2"), "count"
 MERGES = ("count_first", "union", "count_first_self_union")
+MUT = set()            # planted breaks, switched on by check_conferral_content.py (PLANTS)
 
 
 def _past(rows):
@@ -109,12 +134,62 @@ def _past(rows):
     return by, anc
 
 
-def counting_ends(rows, world=None):
-    """{end id: None if it counts, else the rule that voids it}, for the ends among `rows` (one seat's). The
-    causal past is read over `world`, every held row: an end's past is what it names, in any seat."""
+def key_cuts(rows):
+    """({row id}, {row id}): the member's rows cut by a key removal that is read, and those cut by a counted one. A
+    key removal (`keyend`, `removes` the key) is read where the count signs it or a key of the member does; it cuts
+    every row that key signs which is not in its past. A key is one key in every room: read over all the rows."""
+    if "key_end_unread" in MUT:
+        return set(), set()
+    by, anc = _past(rows)
+    ends = [q for q in rows if q["kind"] == "keyend" and (q["signer"] == COUNT or q["signer"] in KEYS)]
+    cut, by_count = set(), set()
+    for r in rows:
+        if r["signer"] not in KEYS or r["kind"] == "keyend":
+            continue
+        for q in ends:
+            if q["removes"] == r["signer"] and r["id"] not in anc(q["id"]):
+                cut.add(r["id"])
+                if q["signer"] == COUNT or "member_key_end_voids" in MUT:
+                    by_count.add(r["id"])
+    return cut, by_count
+
+
+def own_heads(m):
+    """The heads a line act is counted over: a roster version's own (the versions it names), an end's `head`."""
+    return [n for n in m.get("names", ()) if n != m["id"]] if m["kind"] == "head" else [m["head"]]
+
+
+def line_of(rows, world=None):
+    """The reader's line in one room (CC 2.7.8): the roster versions and the ends that are in the past of a held
+    acknowledgement of the reader's (`ack`, which names what it acknowledges)."""
+    if "line_unread" in MUT:
+        return []
     by, anc = _past(world or rows)
+    acks = [a["id"] for a in rows if a["kind"] == "ack"]
+    return [m for m in rows if m["kind"] in ("head", "end") and any(m["id"] in anc(a) for a in acks)]
+
+
+def behind(e, m, anc):
+    """The sibling-safe line (checkpoint.behind, the ruling of 2026-11-27): end e is behind line act m where its head
+    is strictly in the past of one of m's OWN heads and e is not in m's past. A sibling at m's head is not behind it.
+    MUTATION line_not_sibling_safe: e's head strictly in the past of m itself."""
+    if e["id"] == m["id"] or e["id"] in anc(m["id"]) or e["head"] is None:
+        return False
+    if "line_not_sibling_safe" in MUT:
+        return e["head"] in anc(m["id"])
+    return any(e["head"] in anc(h) for h in own_heads(m))
+
+
+def counting_ends(rows, world=None, cuts=None):
+    """{end id: None if it counts, else the rule that voids it}, for the ends among `rows` (one seat's). The
+    causal past is read over `world`, every held row: an end's past is what it names, in any seat. `cuts` is
+    key_cuts over the world."""
+    by, anc = _past(world or rows)
+    _, by_count = cuts if cuts is not None else key_cuts(world or rows)
     ends = [r for r in rows if r["kind"] == "end"]
     later = lambda h, he: he in anc(h) if h in by else False
+    line = line_of(rows, world)
+    on_line = {m["id"] for m in line}
     memo = {}
 
     def void(e):
@@ -124,21 +199,30 @@ def counting_ends(rows, world=None):
         if any(later(h, e["head"]) for h in anc(i) if h in by and by[h]["kind"] == "head"):
             memo[i] = "end_void.stale_head"     # decided from the heads alone, before any other end is asked
             return memo[i]
+        if i in by_count:
+            memo[i] = "end_void.key_removed"    # the member's own end, under a key a counted key removal cuts
+            return memo[i]
+        if i not in on_line and any(behind(e, m, anc) for m in line):
+            memo[i] = "end_void.line"           # behind the reader's line: no end for this reader
+            return memo[i]
         seated = any(o["id"] in anc(i) and void(o) is None for o in ends if o is not e)   # ends in e's own past
         memo[i] = "end_void.seat_ended" if seated else None
         return memo[i]
     return {e["id"]: void(e) for e in ends}
 
 
-def held_good(rows, r):
+def held_good(rows, r, cut=frozenset()):
     """The content rows a row's tips hold good: each named tip that is held and is a content row of the member,
-    and its ancestors along every `prev` that is a held row of the member (by any of its keys)."""
+    and its ancestors along every `prev` that is a held row of the member (by any of its keys). A row a key
+    removal cuts is neither held good nor followed."""
     by = {x["id"]: x for x in rows}
     out, todo = set(), list(r.get("trusted_through", ()))
     while todo:
         t = todo.pop()
         x = by.get(t)
         if x is None or x["kind"] != "act" or x["signer"] not in KEYS or t in out:
+            continue
+        if t in cut and "cut_row_followed" not in MUT:
             continue
         out.add(t)
         for q in x.get("prev") or ():
@@ -148,38 +232,50 @@ def held_good(rows, r):
     return out
 
 
-def kept(rows, merge="count_first", self_tips=False, world=None):
+def _adds(rows, self_tips):
+    """The rows adding tips that are read: counted `tips` rows (and, under the plant receipt_keeps, a counted
+    receipt of a content row, read as naming it)."""
+    out = [r for r in rows if r["kind"] == "tips" and (r["signer"] == COUNT or self_tips)]
+    if "receipt_keeps" in MUT:
+        out += [dict(r, trusted_through=[r["of"]]) for r in rows if r["kind"] == "receipt" and r["signer"] == COUNT]
+    return out
+
+
+def kept(rows, merge="count_first", self_tips=False, world=None, cuts=None):
     """The content rows held good by the tips that are read under `merge`. `self_tips` is a plant: a `tips` row
     signed by the member is read."""
-    void = counting_ends(rows, world)
+    cuts = cuts if cuts is not None else key_cuts(world or rows)
+    void = counting_ends(rows, world, cuts)
     ends = [r for r in rows if r["kind"] == "end"]
     counts = [e for e in ends if void[e["id"]] is None]
     c_ends = [e for e in ends if e["signer"] == COUNT and void[e["id"]] != "end_void.stale_head"]
     own = [e for e in counts if e["signer"] in KEYS]
-    adds = [r for r in rows if r["kind"] == "tips" and (r["signer"] == COUNT or self_tips)]
-    union = lambda rs: set().union(*[held_good(rows, r) for r in rs]) if rs else set()
+    adds = _adds(rows, self_tips)
+    union = lambda rs: set().union(*[held_good(rows, r, cuts[0]) for r in rs]) if rs else set()
     if merge == "union":
         return union(counts + adds)
     if any(e["signer"] == COUNT for e in counts):
         return union(c_ends + adds)
     if merge == "count_first_self_union":
         return union(own + adds)
-    good = [held_good(rows, e) for e in own]
+    good = [held_good(rows, e, cuts[0]) for e in own]
     return (set.intersection(*good) if good else set()) | union(adds)
 
 
-def seats(rows):
+def seats(rows, world=None):
     """{row id: its seat} for every content row, end and tips row. A seat is the set of the newest admitting
     heads in the past of the head the row names, that head included (the empty set where none admits: the one
     seat of a history with no re-admission). None for a row that names a head at which the member does not
-    sit, a head that is not held, or (a tips row) an end that is not held: it belongs to no seat. A removal is
-    the member's end and also a version of the roster: a row that names an end as its head names a head at
-    which the member is out."""
-    by, anc = _past(rows)
+    sit, a held row that is not a roster version of the room, a head that is not held, or (a tips row) an end
+    that is not held: it belongs to no seat. A removal is the member's end and also a version of the roster: a
+    row that names an end as its head names a head at which the member is out. `rows` are one room's;
+    `world`, every held row, is read for the past."""
+    by = {r["id"]: r for r in rows}
+    _, anc = _past(world or rows)
     admits = [r["id"] for r in rows if r["kind"] == "head" and r.get("seat") == "admits"]
 
     def of_head(h):
-        if h not in by or by[h].get("seat") == "out" or by[h]["kind"] == "end":
+        if h not in by or by[h].get("seat") == "out" or by[h]["kind"] != "head":
             return None                       # an end of the member's seat named as a head: the member is out at it
         mine = [a for a in admits if a == h or a in anc(h)]
         return frozenset(a for a in mine if not any(a in anc(b) for b in mine))
@@ -190,56 +286,92 @@ def seats(rows):
     for r in rows:
         if r["kind"] == "tips":
             out[r["id"]] = out.get(r["extends"])
+        if r["kind"] == "receipt" and "receipt_keeps" in MUT:
+            out[r["id"]] = out.get(r["of"])
+    return out
+
+
+def rooms(rows):
+    """{room: its rows}: every row but a key removal belongs to the room it names (`room`; one room where none
+    is named). A room's content is judged by its own rows alone. MUTATION rooms_mixed: one room."""
+    out = {}
+    for r in rows:
+        if r["kind"] != "keyend":
+            out.setdefault(None if "rooms_mixed" in MUT else r.get("room"), []).append(r)
     return out
 
 
 def ended_seats(rows, merge="count_first"):
-    """({seats with an end that counts}, {seats with a counted end that counts})."""
-    seat = seats(rows)
-    heads = [r for r in rows if r["kind"] == "head"]
+    """({(room, seat) with an end that counts}, {(room, seat) with a counted end that counts})."""
+    cuts = key_cuts(rows)
     some, counted = set(), set()
-    for s in {v for v in seat.values() if v is not None}:
-        sub = heads + [r for r in rows if seat.get(r["id"]) == s]
-        void = counting_ends(sub, rows)
-        ends = [r for r in sub if r["kind"] == "end" and void[r["id"]] is None]
-        if ends:
-            some.add(s)
-        if any(e["signer"] == COUNT for e in ends):
-            counted.add(s)
+    for room, rr in rooms(rows).items():
+        seat = seats(rr, rows)
+        heads = [r for r in rr if r["kind"] == "head"]
+        for s in {v for v in seat.values() if v is not None}:
+            sub = heads + [r for r in rr if seat.get(r["id"]) == s] + [r for r in rr if r["kind"] == "ack"]
+            void = counting_ends(sub, rows, cuts)
+            ends = [r for r in sub if r["kind"] == "end" and void[r["id"]] is None]
+            if ends:
+                some.add((room, s))
+            if any(e["signer"] == COUNT for e in ends):
+                counted.add((room, s))
     return some, counted
 
 
-def answers(rows, merge="count_first", self_tips=False):
-    """{content row id: {"counted": bool, "in_force": bool, "rule": str}} over the held `rows`: each seat's rows
-    judged by that seat's own ends and tips."""
-    seat = seats(rows)
-    heads = [r for r in rows if r["kind"] == "head"]
-    out = {r["id"]: {"counted": False, "in_force": False, "rule": "no_seat"}
-           for r in rows if r["kind"] == "act" and r["signer"] in KEYS and seat[r["id"]] is None}
-    # a retraction is read over all the held rows, whatever seat it or its target belongs to
-    by = {r["id"]: r for r in rows}
-    retracted = {r["target"] for r in rows if r["kind"] == "act" and r.get("compose") == "retract"
-                 and r["signer"] in KEYS and r.get("target") in by and by[r["target"]]["signer"] in KEYS}
-    for s in {v for v in seat.values() if v is not None}:
-        out.update(_seat_answers(heads + [r for r in rows if seat.get(r["id"]) == s], merge, self_tips, retracted,
-                                 rows))
+def seat_of(rows):
+    """{content row id: (room, seat)}, the key ended_seats uses."""
+    out = {}
+    for room, rr in rooms(rows).items():
+        for i, s in seats(rr, rows).items():
+            out[i] = (room, s) if s is not None else None
     return out
 
 
-def _seat_answers(rows, merge, self_tips, retracted, world):
-    """The answers over the rows of one seat (and the roster heads)."""
+def answers(rows, merge="count_first", self_tips=False):
+    """{content row id: {"counted": bool, "in_force": bool, "rule": str}} over the held `rows`: each room's rows
+    judged by that room's own rows, and each seat's by that seat's own ends and tips."""
+    cuts = key_cuts(rows)
+    out = {}
+    for rr in rooms(rows).values():
+        out.update(_room_answers(rr, rows, merge, self_tips, cuts))
+    return out
+
+
+def _room_answers(rr, world, merge, self_tips, cuts):
+    seat = seats(rr, world)
+    heads = [r for r in rr if r["kind"] == "head"]
+    acks = [r for r in rr if r["kind"] == "ack"]
+    out = {r["id"]: {"counted": False, "in_force": False, "rule": "no_seat"}
+           for r in rr if r["kind"] == "act" and r["signer"] in KEYS and seat[r["id"]] is None}
+    # a retraction is read over all the room's held rows, whatever seat it or its target belongs to; one a key
+    # removal cuts is not read
+    by = {r["id"]: r for r in rr}
+    retracted = {r["target"] for r in rr if r["kind"] == "act" and r.get("compose") == "retract"
+                 and r["signer"] in KEYS and r.get("target") in by and by[r["target"]]["signer"] in KEYS
+                 and (r["id"] not in cuts[0] or "cut_retraction_read" in MUT)}
+    for s in {v for v in seat.values() if v is not None}:
+        out.update(_seat_answers(heads + acks + [r for r in rr if seat.get(r["id"]) == s], merge, self_tips,
+                                 retracted, world, cuts))
+    return out
+
+
+def _seat_answers(rows, merge, self_tips, retracted, world, cuts):
+    """The answers over the rows of one seat (and the roster heads and the reader's acknowledgements)."""
     assert merge in MERGES, merge
     by, anc = _past(world)
-    void = counting_ends(rows, world)
+    void = counting_ends(rows, world, cuts)
     ends = [by[i] for i in sorted(void) if void[i] is None]
     later = lambda h, he: he in anc(h) if h in by else False
-    good = kept(rows, merge, self_tips, world)
+    good = kept(rows, merge, self_tips, world, cuts)
     out = {}
     for r in rows:
         if r["kind"] != "act" or r["signer"] not in KEYS:      # another member's row is not this member's content
             continue
         x = r["id"]
-        if any(e["id"] in anc(x) for e in ends):
+        if x in cuts[0]:
+            a = (False, False, "K.key_removed")
+        elif any(e["id"] in anc(x) for e in ends):
             a = (False, False, "E4.names_end")
         elif any(later(r["head"], e["head"]) for e in ends):
             a = (False, False, "E3.later_head")
@@ -266,8 +398,13 @@ def shown_first_held(rows, order, merge="count_first"):
 
 
 # ---- the case table: hand-written expectations, which the reference must meet --------------------------------
-def head(i, *names, seat=None):
-    return dict({"id": i, "kind": "head", "signer": COUNT, "names": list(names)}, **({"seat": seat} if seat else {}))
+def _room(r, room):
+    return dict(r, room=room) if room is not None else r
+
+
+def head(i, *names, seat=None, room=None):
+    return _room(dict({"id": i, "kind": "head", "signer": COUNT, "names": list(names)}, **({"seat": seat} if seat else {})),
+                 room)
 
 
 def act(i, h, prev=(), names=(), signer="B", **kw):
@@ -278,18 +415,34 @@ def act(i, h, prev=(), names=(), signer="B", **kw):
                  "names": sorted(set(names) | {h})}, **kw)
 
 
-def end(i, h, tips=(), signer=COUNT, names=()):
-    return {"id": i, "kind": "end", "signer": signer, "head": h, "trusted_through": sorted(tips),
-            "names": sorted(set(names) | {h})}                 # the tips are not named: the end never waits
+def end(i, h, tips=(), signer=COUNT, names=(), room=None):
+    return _room({"id": i, "kind": "end", "signer": signer, "head": h, "trusted_through": sorted(tips),
+                  "names": sorted(set(names) | {h})}, room)          # the tips are not named: the end never waits
 
 
-def tips(i, extends, tps, signer=COUNT, h="H0"):
-    return {"id": i, "kind": "tips", "signer": signer, "head": h, "extends": extends,
-            "trusted_through": sorted(tps), "names": sorted({extends, h})}
+def tips(i, extends, tps, signer=COUNT, h="H0", room=None):
+    return _room({"id": i, "kind": "tips", "signer": signer, "head": h, "extends": extends,
+                  "trusted_through": sorted(tps), "names": sorted({extends, h})}, room)
+
+
+def receipt(i, of, signer, names=(), room=None):
+    """A receipt of a content row (`of`). No rule here reads it."""
+    return _room({"id": i, "kind": "receipt", "signer": signer, "of": of, "names": sorted(set(names) | {of})}, room)
+
+
+def ack(i, names, room=None, signer="R"):
+    """The reader's acknowledgement of the rows it names: they and their past are on its line."""
+    return _room({"id": i, "kind": "ack", "signer": signer, "names": sorted(names)}, room)
+
+
+def keyend(i, removes, signer=COUNT, names=()):
+    """A removal of one key of the member (`removes`), in every room."""
+    return {"id": i, "kind": "keyend", "signer": signer, "removes": removes, "names": sorted(names)}
 
 
 H0, H1 = head("H0"), head("H1", "H0")
 HX, HA = head("HX", "H0", seat="out"), head("HA", "HX", seat="admits")
+H2, G0 = head("H2", "H1"), head("G0", room="r2")
 T, F = True, False
 M1, M2, M3 = act("m1", "H0"), act("m2", "H0", "m1"), act("m3", "H0", "m2")
 KEPT, OUT = (T, T, "T.held_good"), (T, F, "E2.forward")
@@ -506,6 +659,86 @@ CASES = [
     ("tip_not_the_members", "a tip that is not a content row of the member is not read: here the end names a "
      "roster head as a tip, and nothing is held good",
      [H0, M1, end("E", "H0", ["H0"])], {}, {"m1": OUT}),
+    # receipts together with tips: no rule reads a receipt of content; the count's word is its tips
+    ("receipt_by_co_member_keeps_nothing", "a co-member receipts m2, which the end did not hold good: no "
+     "co-member receipts content, and m2 stays out",
+     [H0, M1, M2, end("E", "H0", ["m1"]), receipt("q2", "m2", "M")], {}, {"m1": KEPT, "m2": OUT}),
+    ("counted_receipt_keeps_nothing", "the count receipts m2 after the end: a receipt is not a tip, and m2 stays "
+     "out until a counted row names it in `trusted_through`",
+     [H0, M1, M2, end("E", "H0", ["m1"]), receipt("q2", "m2", COUNT, ["E"])], {}, {"m1": KEPT, "m2": OUT}),
+    ("counted_receipt_then_tips", "the same, and a counted row then names m2 as a tip: m2 is in by the tip",
+     [H0, M1, M2, end("E", "H0", ["m1"]), receipt("q2", "m2", COUNT, ["E"]), tips("A", "E", ["m2"])], {},
+     {"m1": KEPT, "m2": KEPT}),
+    ("receipt_takes_nothing_out", "a receipt of a kept row changes nothing, whoever signs it",
+     [H0, M1, end("E", "H0", ["m1"]), receipt("q1", "m1", "M", ["E"]), receipt("q2", "m1", COUNT, ["E"])], {},
+     {"m1": KEPT}),
+    ("receipt_with_no_end", "with no end held, a receipt changes nothing either",
+     [H0, M1, receipt("q1", "m1", COUNT)], {}, {"m1": (T, T, "no_end")}),
+    # the reader's line on an end (CC 2.7.8, sibling-safe: checkpoint.behind)
+    ("line_voids_backdated_resignation", "the member was removed at H1 with m2 kept, then signed a resignation "
+     "at H0 (backdated_resignation_uncounts_own_rows); a reader that acknowledged the removal holds the "
+     "resignation behind its line (H0 is strictly older than H1, the removal's head), so for that reader it "
+     "ends nothing and m2 still counts",
+     [H0, H1, M1, act("m2", "H1", "m1"), end("E", "H1", ["m2"]), end("R", "H0", [], "B"), ack("k1", ["E"])], {},
+     {"m1": KEPT, "m2": KEPT}),
+    ("line_sibling_safe", "a removal at H0 and a reader that acknowledged H1, which is counted over H0: the "
+     "removal is a sibling of H1, not behind it, and it ends the seat for that reader",
+     [H0, H1, M1, M2, end("E", "H0", ["m1"]), ack("k1", ["H1"])], {}, {"m1": KEPT, "m2": OUT}),
+    ("line_voids_end_two_heads_back", "a removal at H0 and a reader that acknowledged H2 (on H1, on H0): H0 is "
+     "strictly older than H2's own head and the removal is not in H2's past, so it is behind the line and ends "
+     "nothing for that reader",
+     [H0, H1, H2, M1, M2, end("E", "H0", ["m1"]), ack("k1", ["H2"])], {},
+     {"m1": (T, T, "no_end"), "m2": (T, T, "no_end")}),
+    ("line_holds_what_it_acknowledges", "the same, where the reader acknowledged the removal too: an end on the "
+     "reader's line is never behind it",
+     [H0, H1, H2, M1, M2, end("E", "H0", ["m1"]), ack("k1", ["H2", "E"])], {}, {"m1": KEPT, "m2": OUT}),
+    ("line_not_for_content", "the line voids no content row: a row at H0 for a reader that acknowledged H2 "
+     "counts (section C)",
+     [H0, H1, H2, M1, ack("k1", ["H2"])], {}, {"m1": (T, T, "no_end")}),
+    # key removals
+    ("key_removed_rows_after_it_cut", "a key of the member is removed with n1 in the removal's past: n1 counts, "
+     "and n2, which that key signed later, is cut",
+     [H0, M1, act("n1", "H0", signer="B2"), keyend("x", "B2", names=["n1"]), act("n2", "H0", "n1", signer="B2")],
+     {}, {"m1": (T, T, "no_end"), "n1": (T, T, "no_end"), "n2": (F, F, "K.key_removed")}),
+    ("cut_tip_keeps_nothing", "the end names as a tip a row a key removal cuts: it is not held good and the walk "
+     "does not pass through it, so m1 behind it is out",
+     [H0, M1, act("n2", "H0", "m1", signer="B2"), keyend("x", "B2"), end("E", "H0", ["n2"])], {},
+     {"m1": OUT, "n2": (F, F, "K.key_removed")}),
+    ("key_removed_after_end", "the key is removed after the end, with the kept rows in its past: they stay; a "
+     "later row of that key is cut",
+     [H0, M1, act("n1", "H0", "m1", signer="B2"), end("E", "H0", ["n1"]), keyend("x", "B2", names=["E", "n1"]),
+      act("n2", "H0", "n1", signer="B2")], {}, {"m1": KEPT, "n1": KEPT, "n2": (F, F, "K.key_removed")}),
+    ("resignation_under_a_removed_key", "a resignation signed by a key the count removes, not in the removal's "
+     "past: it is not the member's word, and ends nothing",
+     [H0, M1, end("R", "H0", ["m1"], "B2"), keyend("x", "B2")], {}, {"m1": (T, T, "no_end")}),
+    ("member_revokes_key_keeps_its_resignation", "the member revokes the key it resigned under: its own key "
+     "removal voids no end (it would undo its resignation and bring every row back)",
+     [H0, M1, M2, end("R", "H0", ["m1"], "B2"), keyend("x", "B2", "B")], {},
+     {"m1": KEPT, "m2": OUT}),
+    ("retraction_under_a_removed_key", "a retraction signed by a removed key, not in the removal's past, is not "
+     "read: the kept row stays",
+     [H0, M1, end("E", "H0", ["m1"]), act("w2", "H0", target="m1", compose="retract", signer="B2"),
+      keyend("x", "B2")], {}, {"m1": KEPT, "w2": (F, F, "K.key_removed")}),
+    # more than one room: each room is judged by its own rows; a key is one key in every room
+    ("end_in_another_room", "the member's seat ends in this room; in room r2, where it sits on, its row counts "
+     "and is in force",
+     [H0, G0, M1, act("p1", "G0", room="r2"), end("E", "H0", ["m1"])], {},
+     {"m1": KEPT, "p1": (T, T, "no_end")}),
+    ("tip_in_another_room", "an end names a row of room r2 as a tip: a tip holds good rows of its own room only, "
+     "and when r2's seat ends without it, the row is out",
+     [H0, G0, M1, act("p1", "G0", room="r2"), end("E", "H0", ["m1", "p1"]), end("E2", "G0", [], room="r2")], {},
+     {"m1": KEPT, "p1": OUT}),
+    ("head_of_another_room", "a content row of this room naming a roster version of room r2 names no head of its "
+     "room: no seat",
+     [H0, G0, act("m1", "G0")], {}, {"m1": (F, F, "no_seat")}),
+    ("retraction_from_another_room", "a retraction in room r2 of a row of this room is not read",
+     [H0, G0, M1, act("w1", "G0", target="m1", compose="retract", room="r2")], {},
+     {"m1": (T, T, "no_end"), "w1": (T, T, "no_end")}),
+    ("ack_in_another_room", "the reader's line is the room's: an acknowledgement in room r2 leaves this room's "
+     "end in force",
+     [H0, H1, H2, G0, M1, end("E", "H0", ["m1"]), ack("k1", ["G0", "H2"], room="r2")], {}, {"m1": KEPT}),
+    ("key_removal_reaches_every_room", "a key removal is of the key, in every room: its later row in r2 is cut",
+     [H0, G0, act("p1", "G0", signer="B2", room="r2"), keyend("x", "B2")], {}, {"p1": (F, F, "K.key_removed")}),
 ]
 
 
@@ -561,6 +794,7 @@ def fixture():
                      "v62.0. Generated from models/causal_kernel/conferral_content.py; checked by "
                      "check_conferral_content.py. A PROPOSAL until the Constitution rules it",
             "roles": {"B": "a key of the member whose seat ends", "B2": "a second key of the same member",
+                      "R": "the reader: its acknowledgements (`ack`) are its line",
                       "M": "a co-member: its rows are not this member's content and get no answer here",
                       "count": "a counted row (a roster version, a removal, a row adding tips)"},
             "merge": "whose tips are read: count_first (the reference's default), union (the proposal's third "

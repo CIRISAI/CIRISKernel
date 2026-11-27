@@ -1,7 +1,8 @@
 //! Differential: room content after a member's seat ends, against the case table of
 //! `models/causal_kernel/conferral_content.py` (fixture `conferral_content.json`, which persist also runs):
 //! every content row's `counted`, `in_force` and deciding rule, with the rows listed in each arrival order the
-//! fixture gives and in reverse; then what a past that cannot tell does.
+//! fixture gives and in reverse; then what a past that cannot tell does. The table holds receipts beside tips,
+//! the reader's line on an end, removals of the member's keys and rows of two rooms.
 
 mod common;
 use ciris_kernel::content::{answers, changed, Answer, ContentRow, Kind, Seat, SeatAt};
@@ -20,6 +21,8 @@ struct CRow {
     retracts: Option<String>,
     extends: Option<String>,
     seat: SeatAt,
+    room: Option<String>,
+    removes: Option<String>,
 }
 
 impl ContentRow for CRow {
@@ -52,6 +55,19 @@ impl ContentRow for CRow {
     fn seat(&self) -> SeatAt {
         self.seat
     }
+    fn parents(&self) -> &[String] {
+        if self.kind == Kind::Head {
+            &self.names
+        } else {
+            &[]
+        }
+    }
+    fn room(&self) -> Option<&String> {
+        self.room.as_ref()
+    }
+    fn removes(&self) -> Option<&String> {
+        self.removes.as_ref()
+    }
 }
 
 fn row(j: &J) -> CRow {
@@ -64,6 +80,9 @@ fn row(j: &J) -> CRow {
             "act" => Kind::Content,
             "end" => Kind::End,
             "tips" => Kind::Tips,
+            "ack" => Kind::Ack,
+            "keyend" => Kind::KeyEnd,
+            "receipt" => Kind::Other,
             k => panic!("kind {k}"),
         },
         signer: j.at("signer").s().to_string(),
@@ -78,6 +97,8 @@ fn row(j: &J) -> CRow {
             Some("out") => SeatAt::Out,
             _ => SeatAt::Sits,
         },
+        room: opt("room"),
+        removes: opt("removes"),
     }
 }
 
@@ -229,8 +250,9 @@ fn the_fold_by_arrival() {
 }
 
 /// With no end among the rows, every content row of the member at a head where it sits is counted, and in
-/// force unless the member's own retraction of it is held: a caller need not call this module before it holds an end of the member's seat.
-/// Over every history of the worlds fixture, with its ends taken out.
+/// force unless the member's own retraction of it is held or a key removal cuts it: a caller need not call this
+/// module before it holds an end of the member's seat (or a removal of one of its keys). Over every history of
+/// the worlds fixture, with its ends taken out.
 #[test]
 fn no_end_among_the_rows() {
     let fx = fixture("conferral_content_worlds.json");
@@ -238,15 +260,29 @@ fn no_end_among_the_rows() {
     for (heads, w) in worlds(&fx) {
         let rows: Vec<CRow> = w.at("rows").arr().iter().map(row).collect();
         let list: Vec<&CRow> = heads.iter().chain(rows.iter()).filter(|r| r.kind != Kind::End).collect();
+        let by: BTreeMap<&str, &CRow> = list.iter().map(|r| (r.id.as_str(), *r)).collect();
+        let member = |k: &str| k == "B" || k == "B2";
+        // a row of the member a held key removal (the count's or the member's) cuts: its key, not in its past
+        let cut = |r: &CRow| {
+            member(r.signer.as_str())
+                && r.kind != Kind::KeyEnd
+                && list.iter().any(|q| {
+                    q.kind == Kind::KeyEnd
+                        && (q.signer == "count" || member(q.signer.as_str()))
+                        && q.removes.as_deref() == Some(r.signer.as_str())
+                        && !in_past(&by, None, &r.id, &q.id).expect("held")
+                })
+        };
         for (x, a) in run(&list, None) {
             n += 1;
             let me = list.iter().find(|r| r.id == x).expect("row");
             let out = list.iter().any(|h| Some(&h.id) == me.head.as_ref() && h.seat == SeatAt::Out);
-            let member = |r: &&&CRow| r.signer == "B" || r.signer == "B2";
-            let retracted = list.iter().filter(member).any(|r| r.retracts.as_ref() == Some(&x));
-            let want = match (out, retracted) {
-                (true, _) => (false, false, "no_seat"),
-                (_, true) => (true, false, "W.retracted"),
+            let retracted =
+                list.iter().any(|r| member(r.signer.as_str()) && !cut(*r) && r.retracts.as_ref() == Some(&x));
+            let want = match (out, cut(*me), retracted) {
+                (true, _, _) => (false, false, "no_seat"),
+                (_, true, _) => (false, false, "K.key_removed"),
+                (_, _, true) => (true, false, "W.retracted"),
                 _ => (true, true, "no_end"),
             };
             let (counted, in_force, rule) = show(&a);
@@ -255,7 +291,7 @@ fn no_end_among_the_rows() {
             }
         }
     }
-    report("room content with no end held (counted where seated; in force unless retracted)", n, bad);
+    report("room content with no end held (counted where seated; in force unless retracted or cut)", n, bad);
     assert_eq!(bad, 0);
 }
 

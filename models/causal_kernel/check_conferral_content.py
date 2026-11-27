@@ -31,10 +31,18 @@ check_conferral_content.py: room content after a member's seat ends, where the e
         further_end     a further counted end takes a row out only by E3.later_head
         counted_alike   whether a row counts never depends on whose tips are read
         set_function    the answer does not depend on the order the rows are listed in
+        receipt_inert   a receipt of a content row changes no answer (the `keys` histories)
+
+    The `keys` histories (the plain heads, one row shallower) may also hold a removal of the member's key B2,
+    counted or the member's own, the reader's acknowledgement of a head or an end, and a receipt; there a row
+    the member's own key removal cuts may leave the content (word_stands admits K.key_removed).
 
     Plants, each of which must break cannot_add: `union` (the proposal's third point read literally: the
     member's own ends add), `count_first_self_union` (the member's own ends add where no counted end counts),
-    and a `tips` row signed by the member that is read.
+    and a `tips` row signed by the member that is read. And planted breaks in the reference (PLANTS,
+    conferral_content.MUT), each caught by the case it names: a counted receipt read as a tip, the reader's line
+    unread or not sibling-safe, a key removal unread, a cut row followed or a cut retraction read, the member's
+    own key removal voiding its end, and the rooms read as one.
 
     The node-local fallback (a row held before the end stays shown to that reader) is not part of the proposal.
     The run reports, over the case table, in how many cases two arrival orders of one set of rows show
@@ -59,14 +67,20 @@ FIXTURE = os.path.join(ROOT, "crates", "ciris-kernel", "tests", "fixtures", "con
 # second version admits the member again, so a history has rows of two seats. `gap`: seated, not listed, admitted
 # again (three heads: run one row shallower)
 # Each with the keys that sign content: B and B2 are the member's, M a co-member's.
+# `keys`: the plain heads, one row shallower, where a history may also hold a removal of the member's key B2
+# (counted or the member's own, naming nothing or one earlier row), the reader's acknowledgement of a head or an
+# end, and a receipt of a content row (counted or a co-member's)
 PROFILES = {"plain": ([CC.head("H0"), CC.head("H1", "H0")], 0, ("B", "B2")),
             "rejoin": ([CC.head("H0"), CC.head("H1", "H0", seat="admits")], 0, ("B", "M")),
             "gap": ([CC.head("H0"), CC.head("HX", "H0", seat="out"), CC.head("HA", "HX", seat="admits")], 1,
-                    ("B", "B2"))}
+                    ("B", "B2")),
+            "keys": ([CC.head("H0"), CC.head("H1", "H0")], 1, ("B", "B2"))}
+EXTRA = {"keys"}       # the profiles whose histories hold key removals, acknowledgements and receipts
 HEADS = PROFILES["plain"][0]
 SIGNERS = PROFILES["plain"][2]
 MAX_ROWS, MAX_ACTS, MAX_ENDS, MAX_TIPS = 4, 3, 2, 1
 WIDE = True      # two keys of the member; --one-key has one (for a deeper --rows)
+EXTRAS = False   # the `keys` profile's further rows
 
 
 def next_rows(rows):
@@ -101,6 +115,33 @@ def next_rows(rows):
             for e in ends:
                 for tp in tip_sets[1:]:
                     yield CC.tips("t1", e, tp, signer)      # no rule reads an adding row's own head
+    if not EXTRAS:
+        return
+    kinds = {r["kind"] for r in rows}
+    if "keyend" not in kinds:
+        for signer in (CC.COUNT, "B"):
+            for names in [()] + [(x,) for x in acts + ends]:
+                yield CC.keyend("x1", "B2", signer, names)
+    if "ack" not in kinds:
+        for x in [h["id"] for h in HEADS] + ends:
+            yield CC.ack("k1", [x])
+    if "receipt" not in kinds:
+        for signer in (CC.COUNT, "M"):
+            for x in acts:
+                yield CC.receipt("q1", x, signer)
+
+
+# planted breaks in the reference, each with the case that catches it
+PLANTS = [
+    ("receipt_keeps", "counted_receipt_keeps_nothing"),        # a counted receipt of a content row is read as a tip
+    ("line_unread", "line_voids_backdated_resignation"),       # the reader's line is not read on an end
+    ("line_not_sibling_safe", "line_sibling_safe"),            # an end at a line act's own head is behind it
+    ("key_end_unread", "key_removed_rows_after_it_cut"),       # a key removal cuts nothing
+    ("cut_row_followed", "cut_tip_keeps_nothing"),             # the walk passes through a cut row
+    ("cut_retraction_read", "retraction_under_a_removed_key"),  # a retraction a key removal cuts is read
+    ("member_key_end_voids", "member_revokes_key_keeps_its_resignation"),   # the member's key removal voids its end
+    ("rooms_mixed", "tip_in_another_room"),                    # the rooms are read as one
+]
 
 
 def by_member(r):
@@ -126,7 +167,7 @@ class Run:
         if self.limit is not None and self.bad:
             return
         a = self.ans(rows)
-        seat = CC.seats(rows)
+        seat = CC.seat_of(rows)
         info = (a,) + CC.ended_seats(rows, self.merge)
         self.worlds += 1
         added = rows[len(HEADS):]
@@ -155,13 +196,17 @@ class Run:
                         if seat[x] in p_count_end and v["in_force"] and not a[x]["in_force"]:
                             if a[x]["rule"] == "E3.later_head":
                                 self.e3 += 1
-                            elif a[x]["rule"] != "W.retracted":
+                            elif a[x]["rule"] not in ("W.retracted", "K.key_removed"):
                                 self.fail("word_stands", rows, "%s leaves the content by %s" % (x, a[x]["rule"]))
             pa, p_end, p_count_end = path[len(rows) - 1 - len(HEADS)]
             if last["signer"] == "M":
                 self.pairs += 1
                 if any(a[x] != v for x, v in pa.items()) or set(a) != set(pa):
                     self.fail("co_member_inert", rows, "a co-member's row changes an answer")
+            if last["kind"] == "receipt":
+                self.pairs += 1
+                if a != pa:
+                    self.fail("receipt_inert", rows, "a receipt changes an answer")
             if last.get("compose") == "retract":
                 self.pairs += 1
                 for x, v in pa.items():
@@ -215,9 +260,10 @@ class Run:
 
 def _subtree(job):
     """One worker's share: the histories that begin with the two rows of `job`."""
-    kw, rows_max, wide, heads, signers, r1, r2 = job
-    global MAX_ROWS, WIDE, HEADS, SIGNERS
-    MAX_ROWS, WIDE, HEADS, SIGNERS = rows_max, wide, heads, signers
+    kw, rows_max, wide, heads, signers, extras, muts, r1, r2 = job
+    global MAX_ROWS, WIDE, HEADS, SIGNERS, EXTRAS
+    MAX_ROWS, WIDE, HEADS, SIGNERS, EXTRAS = rows_max, wide, heads, signers, extras
+    CC.MUT.clear(); CC.MUT.update(muts)
     run = Run(**kw)
     path = [run.go(list(HEADS), [], descend=False)]
     path.append(run.go(HEADS + [r1], path, descend=False))
@@ -235,7 +281,7 @@ def explore(workers=3, **kw):
     for r1 in next_rows(list(HEADS)):
         top.go(HEADS + [r1], path, descend=False)
         if MAX_ROWS >= 2:
-            jobs += [(kw, MAX_ROWS, WIDE, HEADS, SIGNERS, r1, r2) for r2 in next_rows(HEADS + [r1])]
+            jobs += [(kw, MAX_ROWS, WIDE, HEADS, SIGNERS, EXTRAS, set(CC.MUT), r1, r2) for r2 in next_rows(HEADS + [r1])]
     with multiprocessing.Pool(workers) as pool:
         for w, p, e, bad in pool.imap_unordered(_subtree, jobs, chunksize=8):
             top.worlds += w; top.pairs += p; top.e3 += e
@@ -250,12 +296,12 @@ def worlds_fixture(full=3, deeper=4, every=53):
     `deeper` rows. For the heads with a second seat (`rejoin`, `gap`): every history of up to `full` rows. Each
     history is its rows (as conferral_content.json has them) and {content row: [counted, in_force, rule]}
     under count_first."""
-    global MAX_ROWS, WIDE, HEADS, SIGNERS
-    keep = (MAX_ROWS, WIDE, HEADS, SIGNERS)
+    global MAX_ROWS, WIDE, HEADS, SIGNERS, EXTRAS
+    keep = (MAX_ROWS, WIDE, HEADS, SIGNERS, EXTRAS)
     groups = []
-    for name, (heads, _, signers) in PROFILES.items():
-        depth = deeper if name == "plain" else full - (len(heads) - 2)
-        MAX_ROWS, WIDE, HEADS, SIGNERS = depth, True, heads, signers
+    for name, (heads, shallower, signers) in PROFILES.items():
+        depth = deeper if name == "plain" else full - (len(heads) - 2) - (name in EXTRA)
+        MAX_ROWS, WIDE, HEADS, SIGNERS, EXTRAS = depth, True, heads, signers, name in EXTRA
         out, seen = [], [0]
 
         def go(rows):
@@ -274,7 +320,7 @@ def worlds_fixture(full=3, deeper=4, every=53):
                     go(rows + [r])
         go(list(HEADS))
         groups.append({"name": name, "heads": heads, "worlds": out})
-    MAX_ROWS, WIDE, HEADS, SIGNERS = keep
+    MAX_ROWS, WIDE, HEADS, SIGNERS, EXTRAS = keep
     return {"about": "room content after a member's seat ends: histories built row by row as "
                      "models/causal_kernel/check_conferral_content.py builds them, each with the answers of "
                      "conferral_content.py under count_first. `plain`: every history of up to %d rows beyond two "
@@ -326,11 +372,11 @@ def main():
     if {c["name"] for c in fx["cases"]} != {c[0] for c in CC.CASES}:
         problems.append("the fixture's cases are not the table's")
 
-    global HEADS, SIGNERS
+    global HEADS, SIGNERS, EXTRAS
     workers = int(sys.argv[sys.argv.index("--workers") + 1]) if "--workers" in sys.argv else 3
     rows_max, run, sizes = MAX_ROWS, None, []
     for name, (heads, shallower, signers) in PROFILES.items():
-        HEADS, MAX_ROWS, SIGNERS = heads, rows_max - shallower, signers
+        HEADS, MAX_ROWS, SIGNERS, EXTRAS = heads, rows_max - shallower, signers, name in EXTRA
         r = explore(workers)
         sizes.append("%s %d" % (name, r.worlds))
         if run is None:
@@ -339,7 +385,7 @@ def main():
             run.worlds += r.worlds; run.pairs += r.pairs; run.e3 += r.e3
             for k, v in r.bad.items():
                 run.bad.setdefault(k, v)
-    HEADS, MAX_ROWS, SIGNERS = PROFILES["plain"][0], rows_max, PROFILES["plain"][2]
+    HEADS, MAX_ROWS, SIGNERS, EXTRAS = PROFILES["plain"][0], rows_max, PROFILES["plain"][2], False
     for prop, (note, rows) in sorted(run.bad.items()):
         problems.append("%s: %s\n    %s" % (prop, note, "\n    ".join(map(str, rows))))
 
@@ -354,6 +400,18 @@ def main():
         else:
             problems.append("plant %s: not caught" % name)
 
+    # planted breaks in the reference (conferral_content.MUT), each caught by the case it names
+    for mut, case in PLANTS:
+        CC.MUT.clear(); CC.MUT.add(mut)
+        try:
+            _, got = CC.check_cases()
+        finally:
+            CC.MUT.clear()
+        if any(g.startswith(case + ":") for g in got):
+            caught += 1
+        else:
+            problems.append("plant %s: not caught by %s" % (mut, case))
+
     differ, shows_out = first_held()
     for p in problems:
         print(p)
@@ -363,7 +421,7 @@ def main():
           "member's backdated end took a kept row out by E3 in %d; plants caught %d of %d"
           % ("ok" if not problems else "%d problems" % len(problems), n, answers, run.worlds, MAX_ROWS,
              "" if WIDE else ", one key", "; ".join(sizes), run.pairs,
-             run.e3, caught, len(plants)))
+             run.e3, caught, len(plants) + len(PLANTS)))
     return 1 if problems else 0
 
 
