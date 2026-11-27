@@ -21,10 +21,13 @@ with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
   acknowledgements). A root grant (`RootGrant`, a row of the root's lane with the acceptance edges) exists where it
   is counted at a strict majority over the live holders of the bundles it names, under charters carrying its duty,
   naming the newest bundles in its signers' own past: the bundles named by rows in the grant's causal past (an
-  acceptance edge's attached_head_digest, an earlier grant's bundles). It resolves for a reader only while its voices
-  are a strict majority of the holders in force at that reader (same key, live: a voice under a retired key is no
-  voice) and the scope in force there carries the duty. A grant lapses when enough of its signers leave, and is
-  re-issued; an amend swapping one of three holders leaves a grant signed by the other two standing. The reader's
+  acceptance edge's attached_head_digest, an earlier grant's bundles). It resolves for a reader only while every voice
+  it holds (its issuance and the cosignatures of it held since, `RootGrant::cosigns`) is a strict majority of ALL
+  the holders in force at that reader (same key, live: a voice under a retired key is no voice; a recovered holder
+  cosigns again under its new key), and the scope in force there carries the duty. The cost: a grant lapses when its
+  voices stop being a strict majority of the holders in force, whether by signers leaving or holders being added,
+  and resolves again once enough present holders have cosigned it. `Root::sub_delegation` (and
+  `RootView::sub_delegation`) answers whether the charter in force carries sub_delegation for the grant's duty. The reader's
   line is monotone: every bundle behind any bundle it acknowledged is void for it, an acknowledged one included,
   and every bundle built on one, a join included.
 - A stalled recovery (`seat::recovery_verdict`) is judged against the root this node reads (`CutSpec::trust_root`,

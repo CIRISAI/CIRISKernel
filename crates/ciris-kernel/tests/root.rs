@@ -20,6 +20,7 @@ struct TB {
     seats: Vec<String>,
     charter: String,
     duties: Vec<String>,
+    sub: Vec<String>,
     iat: u64,
     recovery: Vec<(String, String)>,
     recovers: Option<(String, String)>,
@@ -54,6 +55,9 @@ impl RootBundle for TB {
     fn duties(&self) -> &[String] {
         &self.duties
     }
+    fn sub_delegation(&self) -> &[String] {
+        &self.sub
+    }
     fn recovery(&self) -> &[(String, String)] {
         &self.recovery
     }
@@ -74,6 +78,7 @@ struct TG {
     names: Vec<String>,
     grant: bool,
     head: Option<String>,
+    of: Option<String>,
     bundles: Vec<String>,
     to: String,
     scope: String,
@@ -103,6 +108,9 @@ impl RootGrant for TG {
     }
     fn attached_head(&self) -> Option<&String> {
         self.head.as_ref()
+    }
+    fn cosigns(&self) -> Option<&String> {
+        self.of.as_ref()
     }
     fn bundles(&self) -> &[String] {
         &self.bundles
@@ -138,6 +146,7 @@ fn bundles(j: &J) -> Vec<TB> {
             seats: b.at("seats").strs(),
             charter: b.at("charter").s().into(),
             duties: b.at("duties").strs(),
+            sub: b.get("sub_delegation").filter(|x| !x.is_null()).map(|x| x.strs()).unwrap_or_default(),
             iat: b.at("iat").i() as u64,
             recovery: b.at("recovery").arr().iter().map(pair).collect(),
             recovers: b.get("recovers").filter(|x| !x.is_null()).map(pair),
@@ -156,6 +165,7 @@ fn grants(j: &J) -> Vec<TG> {
             names: ss(g, "names"),
             grant: g.at("kind").s() == "grant",
             head: g.get("head").and_then(|h| h.opt_s()),
+            of: g.get("of").and_then(|h| h.opt_s()),
             bundles: ss(g, "bundles"),
             to: st(g, "to"),
             scope: st(g, "scope"),
@@ -235,6 +245,19 @@ fn root_replay() {
             }
         }
         cases += 1;
+    }
+    for c in fx.at("sub_delegation").arr() {
+        let bs = bundles(c.at("bundles"));
+        let revs: Vec<Revocation<String, String>> = Vec::new();
+        let gs = grants(c.at("grants"));
+        let root = Root::new(&bs, &revs, &gs);
+        let got = root.sub_delegation(&c.at("grant").s().to_string(), &reader(c.at("reader")));
+        let want = c.get("sub_delegation").filter(|x| !x.is_null()).map(|x| x.b());
+        cases += 1;
+        if got != want {
+            bad += 1;
+            eprintln!("root sub_delegation {}: got {got:?}", c.at("name").s());
+        }
     }
     report("the trust root's lineage against check_root.py", cases, bad);
     assert_eq!(bad, 0);

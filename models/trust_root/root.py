@@ -43,9 +43,11 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
                  the holders IN FORCE at that reader (the fold at unjoined tips, the common holders where charters
                  differ; live and under the same key, so a voice under a key a recovery retired is no voice) and the
                  scope in force there carries the duty (several tips: what all carry). A later bundle re-scopes
-                 existing grants with no re-issuance. The cost: a grant lapses when enough of its signers leave (or
-                 rotate), and is re-issued; an amend swapping one of three holders leaves a grant signed by the
-                 other two standing.
+                 existing grants with no re-issuance. Voices are addable: a holder seated later cosigns the same
+                 grant (`cosign`), and resolution counts every voice the grant holds (existence stays the issuance
+                 count over the bundle it names). The cost: a grant lapses when its voices stop being a strict
+                 majority of the holders in force, whether by signers leaving or holders being added, and resolves
+                 again once enough present holders have cosigned it.
     contested    two recoveries of one seat, neither in the other's past, are contested: neither replaces the seat
                  until a bundle names both, and the old key's seat stays as it was (the causal form of a spent
                  commitment).
@@ -96,6 +98,12 @@ def ack(id, head, names=()):
     return {"id": id, "kind": "ack", "head": head, "names": tuple(names)}
 
 
+def cosign(id, of, signer, names=()):
+    """A row of the root's lane: a later cosignature of grant `of` by `signer` (under the grant's own family and row
+    id, as a cosigned row short of its count is held, CC 3.3.4): a voice added to the grant."""
+    return {"id": id, "kind": "cosign", "of": of, "signer": signer, "names": tuple(names)}
+
+
 def grant(id, bundle_id, to, scope, signers, identity=("user",), duty="infra", names=()):
     """A root grant: a row counted over the holders of the bundles it names (`bundle_id`, one id or several), naming
     key `to` for room `scope`, of `duty` (the duty the bundles' charters must carry). `names`: the rows it names
@@ -105,6 +113,11 @@ def grant(id, bundle_id, to, scope, signers, identity=("user",), duty="infra", n
     return {"id": id, "kind": "grant", "bundle": named[0], "bundles": named, "to": to, "scope": scope,
             "signers": tuple(signers), "identity": tuple(identity), "duty": duty,
             "names": tuple(names)}
+
+
+def sub_delegations(charter):
+    """The duties for which a charter carries sub_delegation."""
+    return frozenset(charter.get("sub_delegation", ())) if isinstance(charter, dict) else frozenset()
 
 
 def duties(charter):
@@ -600,6 +613,24 @@ class Root:
             elif r["kind"] == "grant": out |= set(r["bundles"])
         return frozenset(out)
 
+    def grant_voices(self, gid):
+        """Every voice a grant holds: its own signers (its issuance, which its existence is counted on over the bundle
+        it names) and the signers of the cosignatures of it held since (MUTATION cosign_unread: its issuance alone).
+        A retired key is no voice where it is not in force; a recovered holder cosigns again under its new key."""
+        g = self.grants[gid]
+        out = set(g["signers"])
+        if "cosign_unread" not in MUT:
+            out |= {r["signer"] for r in self.rows.values() if r["kind"] == "cosign" and r["of"] == gid}
+        return frozenset(out)
+
+    def sub_delegation(self, gid, rd):
+        """Whether the scope in force at the reader carries sub_delegation for the grant's duty: what every bundle in
+        force carries (as for the duty itself). None: the grant does not resolve for this reader."""
+        if not self.grant_in_force(gid, rd)[0]: return None
+        hs = self.heads(rd)
+        return self.grants[gid]["duty"] in frozenset.intersection(
+            *[sub_delegations(self.by[h]["charter"]) for h in hs])
+
     def scope_in_force(self, rd):
         """The duties the reader's bundles in force carry: one head's charter; several, what all carry."""
         hs = self.heads(rd)
@@ -607,8 +638,9 @@ class Root:
         return frozenset.intersection(*[duties(self.by[h]["charter"]) for h in hs])
 
     def grant_in_force(self, gid, rd):
-        """(True|False, reason): the grant exists and RESOLVES for the reader only while (i) its voices are a strict
-        majority of the holders IN FORCE at that reader (the fold at unjoined tips, or the common holders where
+        """(True|False, reason): the grant exists and RESOLVES for the reader only while (i) its voices (every voice
+        it holds: its own signers and later cosignatures, grant_voices) are a strict majority of ALL the holders IN
+        FORCE at that reader (the fold at unjoined tips, or the common holders where
         charters differ; live, and under the same key: a voice under a key a recovery retired is no voice;
         MUTATION grant_count_unread) and (ii) the scope in force there carries its duty (MUTATION
         grant_scope_unread). A later bundle re-scopes existing grants with no re-issuance; a grant lapses when
@@ -621,7 +653,7 @@ class Root:
         if not self.antichain(g["bundles"]): return (False, "grant_bundles_not_antichain")
         if not self.grant_row(gid): return (False, "grant_count_short")
         H = self.live(self.fold(hs)[0])
-        if not 2 * len(frozenset(g["signers"]) & H) > len(H) and "grant_count_unread" not in MUT:
+        if not 2 * len(self.grant_voices(gid) & H) > len(H) and "grant_count_unread" not in MUT:
             return (False, "grant_voices_not_in_force")
         if g["duty"] not in self.scope_in_force(rd) and "grant_scope_unread" not in MUT:
             return (False, "grant_scope_not_in_force")

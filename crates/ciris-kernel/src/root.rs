@@ -66,6 +66,10 @@ pub trait RootBundle {
     fn charter(&self) -> &Self::Word;
     /// The duties the charter carries (its scope).
     fn duties(&self) -> &[Self::Word];
+    /// The duties for which the charter carries sub_delegation.
+    fn sub_delegation(&self) -> &[Self::Word] {
+        &[]
+    }
     /// The recovery commitments: (holder, its recovery key), keys exactly the holders.
     fn recovery(&self) -> &[(Self::Key, Self::Key)];
     /// For a holder's own key recovery: (the holder, its new key).
@@ -88,6 +92,11 @@ pub trait RootGrant: crate::Row {
     fn is_grant(&self) -> bool;
     /// For an acceptance edge: the bundle its attached_head_digest names.
     fn attached_head(&self) -> Option<&Self::Id> {
+        None
+    }
+    /// For a later cosignature of a grant (under the grant's own family and row id, CC 3.3.4): the grant it
+    /// cosigns. Its signer ([`crate::Row::signer`]) is the voice it adds.
+    fn cosigns(&self) -> Option<&Self::Id> {
         None
     }
     /// The bundles a grant names, and is counted over: one, or several.
@@ -915,6 +924,30 @@ where
         out
     }
 
+    /// Every voice a grant holds: its own signers (its issuance, which its existence is counted on over the bundles
+    /// it names) and the signers of the cosignatures of it held since. A retired key is no voice where it is not in
+    /// force; a recovered holder cosigns again under its new key.
+    pub fn grant_voices(&self, gid: &B::Id) -> BTreeSet<B::Key> {
+        let Some(g) = self.grants.get(gid) else { return BTreeSet::new() };
+        let mut out: BTreeSet<B::Key> = g.signers().iter().cloned().collect();
+        for i in 0..self.lane.len() {
+            let r = self.lane.row(i);
+            if r.cosigns() == Some(gid) {
+                out.insert(r.signer().clone());
+            }
+        }
+        out
+    }
+
+    /// Whether the scope in force at the reader carries sub_delegation for the grant's duty (what every bundle in
+    /// force carries); None: the grant does not resolve for this reader.
+    pub fn sub_delegation(&self, gid: &B::Id, rd: &Reader<B::Id, B::Key>) -> Option<bool> {
+        self.grant_in_force(gid, rd).ok()?;
+        let g = self.grants.get(gid)?;
+        let hs = self.heads(rd)?;
+        Some(hs.iter().all(|h| self.b(h).is_some_and(|b| b.sub_delegation().contains(g.duty()))))
+    }
+
     /// The duties the reader's bundles in force carry: what every head's charter carries.
     pub fn scope_in_force(&self, rd: &Reader<B::Id, B::Key>) -> BTreeSet<B::Word> {
         let Some(hs) = self.heads(rd) else { return BTreeSet::new() };
@@ -946,9 +979,10 @@ where
         if !self.grant_row(gid) {
             return Err("grant_count_short");
         }
-        // (i) its voices are a strict majority of the holders in force at this reader (live, under the same key)
+        // (i) its voices (its issuance and every cosignature since) are a strict majority of ALL the holders in force
+        // at this reader (live, under the same key)
         let held = self.live(self.fold(&hs).0);
-        let voices = g.signers().iter().collect::<BTreeSet<_>>().into_iter().filter(|k| held.contains(*k)).count();
+        let voices = self.grant_voices(gid).into_iter().filter(|k| held.contains(k)).count();
         if 2 * voices <= held.len() {
             return Err("grant_voices_not_in_force");
         }
@@ -1010,6 +1044,10 @@ where
         }
         Ok(g.to().clone())
     }
+
+    fn sub_delegation(&self, grant: &B::Id) -> Option<bool> {
+        self.root.sub_delegation(grant, &self.reader)
+    }
 }
 
 /// What the seat rule asks of the trust root a node reads, for a stalled recovery
@@ -1021,4 +1059,9 @@ pub trait RootView<I, K, O> {
     /// `genesis_bundle_not_anchored`, `grant_bundle_void`, `grant_count_short`, `grant_voices_not_in_force`,
     /// `grant_scope_not_in_force`, `grant_scope_not_this_room`, `grant_identity_not_user`.
     fn recovery_grant(&self, grant: &I, room: &O) -> Result<K, Reason>;
+    /// Whether the charter in force at this node carries sub_delegation for the grant's duty (the delegation
+    /// gate's question for a chain from a root grant); None: the grant does not resolve here, or no root is read.
+    fn sub_delegation(&self, _grant: &I) -> Option<bool> {
+        None
+    }
 }

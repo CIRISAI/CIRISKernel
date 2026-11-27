@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.dont_write_bytecode = True
 import root as RT  # noqa: E402
 
-B, RV, GR, RD, AK = RT.bundle, RT.revoke, RT.grant, RT.reader, RT.ack
+B, RV, GR, RD, AK, CS = RT.bundle, RT.revoke, RT.grant, RT.reader, RT.ack, RT.cosign
 F = "fam"
 H3 = ("h1", "h2", "h3")
 H5 = ("h1", "h2", "h3", "h4", "h5")
@@ -255,6 +255,23 @@ CASES = [
     ("grant", "the cost: a grant lapses when enough of its signers leave: at b1 (h1..h4) h1 and h2 are two of four",
      LIN, (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b1",)),
      {"grant": {"gA": (False, "grant_voices_not_in_force")}}),
+    ("grant", "growth lapses a grant: b1 adds h4 and h5 (by h1, h2 and h3); h1 and h2 are two of five",
+     [B0, nxt("b1", "b0", H5, ("h1", "h2", "h3"))], (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),),
+     RD(anchor="b0", acks=("b1",)), {"row": {"gA": True}, "grant": {"gA": (False, "grant_voices_not_in_force")}}),
+    ("grant", "voices are addable: h4 cosigns the same grant, and it resolves again (three of five); its existence "
+              "stays the issuance count over b0", [B0, nxt("b1", "b0", H5, ("h1", "h2", "h3"))], (),
+     (GR("gA", "b0", "uA", "room", ("h1", "h2")), CS("c4", "gA", "h4")), RD(anchor="b0", acks=("b1",)),
+     {"row": {"gA": True}, "grant": {"gA": (True, None)}}),
+    ("grant", "a recovered holder re-cosigns under its new key: h2 recovers to h2b, the grant lapses (h1 one of h1 "
+              "h2b h3), and h2b cosigns it: two of three, it resolves", [B0, nxt("rc", "b0", ("h1", "h2b", "h3"), ("r:h2",),
+                                                                         recovers=("h2", "h2b"), recovery={"h1": "r:h1", "h2b": "r:h2b", "h3": "r:h3"})],
+     (), (GR("gA", "b0", "uA", "room", ("h1", "h2")), CS("c2", "gA", "h2b")), RD(anchor="b0", acks=("rc",)),
+     {"grant": {"gA": (True, None)}}),
+    ("grant", "the named-bundle hole stays shut: h1, the last survivor of b0's set, and the removed h2 grant naming b0 "
+              "(two of b0's three, so it exists); after b1 grows to ten without h2, h1 is one of ten: refused",
+     [B0, nxt("b1", "b0", ("h1", "h3") + tuple("h%d" % i for i in range(4, 12)), ("h1", "h3"))], (),
+     (GR("gA", "b0", "uA", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b1",)),
+     {"row": {"gA": True}, "grant": {"gA": (False, "grant_voices_not_in_force")}}),
     ("grant", "an amend swapping one of three holders (h3 for h6) leaves a grant by the other two standing",
      [B0, nxt("b1", "b0", ("h1", "h2", "h6"), ("h1", "h2"))], (), (GR("gA", "b0", "uA", "room", ("h1", "h2")),),
      RD(anchor="b0", acks=("b1",)), {"grant": {"gA": (True, None)}}),
@@ -509,7 +526,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "grant_count_unread", "grant_charter_unread", "grant_scope_unread", "recovery_fork_both", "joins_fork_both",
           "grant_head_unread", "join_common_base", "recovery_exempt", "recovery_t_unread",
           "join_void_prev_spared", "grant_antichain_unread", "regime_reads_commitments", "reader_line_unread",
-          "rotation_outlives_seat", "retired_unread", "join_prev_unread")
+          "rotation_outlives_seat", "retired_unread", "join_prev_unread", "cosign_unread")
 
 
 def answer(bs, rv, gs, rd, want):
@@ -536,6 +553,23 @@ def run():
         got = answer(bs, rv, gs, rd, want)
         if got != norm(want): bad.append("%s %s: got %s" % (rule, name, got))
     return bad
+
+
+# sub_delegation from the root's charter (for the delegation gate): (name, bundles, grants, reader, grant, answer)
+CSUB = {"name": "c0s", "duties": ("infra",), "sub_delegation": ("infra",)}
+SUB_CASES = [
+    ("the charter in force carries sub_delegation for the grant's duty", [dict(B0, charter=CSUB)],
+     (GR("gA", "b0", "uA", "room", ("h1", "h2")),), ANC, "gA", True),
+    ("it does not", [B0], (GR("gA", "b0", "uA", "room", ("h1", "h2")),), ANC, "gA", False),
+    ("the grant does not resolve for the reader: None", [B0], (GR("gA", "b0", "uA", "room", ("h1",)),), ANC, "gA", None),
+    ("the scope in force decides: a later bundle dropping it", [dict(B0, charter=CSUB), nxt("b1", "b0", H3, ("h1", "h2", "h3"))],
+     (GR("gA", "b0", "uA", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b1",)), "gA", False),
+]
+
+
+def run_sub():
+    return ["sub %s: got %s" % (n, got) for n, bs, gs, rd, gid, want in SUB_CASES
+            for got in [RT.Root(bs, (), gs).sub_delegation(gid, rd)] if got != want]
 
 
 def reader_vectors():
@@ -576,11 +610,14 @@ def fixture(with_refs):
         return {"id": b["id"], "family": b["family"], "version": b["version"], "prev": list(b["prev"]),
                 "holders": list(b["holders"]), "seats": list(b["seats"]),
                 "charter": json.dumps(b["charter"], sort_keys=True), "duties": sorted(RT.duties(b["charter"])),
+                "sub_delegation": sorted(RT.sub_delegations(b["charter"])),
                 "iat": b["iat"], "recovery": [[k, v] for k, v in sorted(b["recovery"].items())],
                 "recovers": list(b["recovers"]) if b.get("recovers") else None,
                 "stmts": [[k, i] for k, i in b["stmts"]]}
     def genc(g):
         if g["kind"] == "ack": return {"id": g["id"], "kind": "ack", "head": g["head"], "names": list(g["names"])}
+        if g["kind"] == "cosign": return {"id": g["id"], "kind": "cosign", "of": g["of"], "signers": [g["signer"]],
+                                          "names": list(g["names"])}
         return {"id": g["id"], "kind": "grant", "bundles": list(g["bundles"]), "names": list(g["names"]), "to": g["to"], "scope": g["scope"], "signers": list(g["signers"]),
                 "identity": list(g["identity"]), "duty": g["duty"]}
     def renc(rd):
@@ -607,11 +644,13 @@ def fixture(with_refs):
         rec.append({"name": name, "rows": with_refs(rows, refs), "refs": refs,
                     "bundles": [benc(b) for b in bs] if bs is not None else None, "grants": [genc(g) for g in gs],
                     "reader": renc(rd), "concluded": c, "reason": why, "f4": f4})
-    return {"cases": cases, "recovery": rec}
+    sub = [{"name": n, "bundles": [benc(b) for b in bs], "grants": [genc(g) for g in gs], "reader": renc(rd),
+            "grant": gid, "sub_delegation": want} for n, bs, gs, rd, gid, want in SUB_CASES]
+    return {"cases": cases, "recovery": rec, "sub_delegation": sub}
 
 
 def main():
-    bad = run() + run_recovery()
+    bad = run() + run_recovery() + run_sub()
     for b in bad: print(b)
     missed = []
     for p in PLANTS:
