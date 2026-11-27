@@ -54,7 +54,7 @@ pub const BEARS: &str = "trust:accepts:v1";
 pub const DEPTH_OUT_OF_RANGE: &str = "trust_accepts_depth_out_of_range";
 /// A licence whose emitter has no standing for its authority over its own past: testimony, out of the fold.
 pub const NOT_AUTHORITY: &str = "licensure_delegator_not_authority";
-/// A locked community's own licence (CC 4.5.4 (v): no duty holder is left).
+/// A locked community's own licence (CC 4.5.4 (v): no duty holder is left): it concludes nothing, with this reason.
 pub const AUTHORITY_LOCKED: &str = "licensure_authority_locked";
 /// A licence a withdrawal concurrent with it, held by the reader, holds out of force.
 pub const LINK_WITHDRAWN: &str = "licensure_link_withdrawn";
@@ -130,7 +130,15 @@ fn past_of<'a, R: Row>(c: &Concluded<'a, R>, i: usize, extra: &[usize]) -> Concl
 /// CC 4.5.4 (v): community `c` has no live duty holder over the rows `seats` was built on, and is LOCKED: it signs no
 /// onward acceptance edge, confers no license seat (the duty holders' count takes none) and issues no licence of its
 /// own, until an election seats a holder. A license seat's holder is no duty holder and keeps no room from locking.
+///
+/// A license seat conferred before the lock stands, and its holder keeps issuing while the seat's term covers the
+/// licence's instant. An affiliation is never locked: with no officer it is dissolved.
 fn locked<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, c: &ObjOf<R>) -> bool {
+    let g = &seats.c().g;
+    let get = |i: &R::Id| g.idx(i).map(|x| g.row(x));
+    if kind_of(seats.law(), &get, c) == Some(CommunityKind::Affiliation) {
+        return false;
+    }
     seats.holders("duty", c, None).is_empty()
 }
 
@@ -230,9 +238,11 @@ pub fn edges_of<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>) -> Vec<
 }
 
 /// Whether licence row `i` is its authority's act in force for the reader holding the rows `seats` was built on:
-/// `None`, or [`NOT_AUTHORITY`] (no standing over its own past: testimony) or [`LINK_WITHDRAWN`] (a withdrawal
-/// concurrent with it, held, ends a link of its standing).
-pub fn standing<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, i: usize) -> Option<&'static str> {
+/// `None`, or the reason it CONCLUDES NOTHING in the authority's fold (never a refusal: the licence row is admitted,
+/// and the reason reads other rows, CC 2.7.3): [`NOT_AUTHORITY`] (testimony: no standing over its own past, or a
+/// license seat whose term does not cover the licence's instant), [`AUTHORITY_LOCKED`] (a locked community's quorum)
+/// or [`LINK_WITHDRAWN`] (a withdrawal concurrent with it, held, ends a link of its standing).
+pub fn standing<R: TrustRow + Dated, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, i: usize) -> Option<&'static str> {
     let c = seats.c();
     let r = c.g.row(i);
     let Some(a) = r.licence_authority() else { return Some(NOT_AUTHORITY) };
@@ -259,6 +269,11 @@ pub fn standing<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, i: usiz
         }
     }
     if !at.stands(r.signer(), "license", &a, None) {
+        return Some(NOT_AUTHORITY);
+    }
+    // the seat's term: its seating offer's own instants cover the licence's (where it states one; the door holds the
+    // term to at most 365 days)
+    if r.asserted_at().is_some_and(|t| !at.stands_at_instant(r.signer(), "license", &a, None, &t)) {
         return Some(NOT_AUTHORITY);
     }
     // (d) the withdrawals the reader holds that are concurrent with the issuance, read with its own past

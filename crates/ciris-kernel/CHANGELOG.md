@@ -23,6 +23,12 @@ removed; `trust::reaches` and `EdgeIndex::reaches` stay as the walk. New: the mo
   live key of a person's roster is the person; a license seat over a community is conferred and
   withdrawn by its duty holders' count (`seat_confer` / `seat_withdraw` of scope `license`, `ScopeClass::License`,
   rows held in `seat.PENDING_ACTS`), and its holder is no duty holder.
+- A locked community's quorum licence concludes nothing in the fold, its reason `licensure_authority_locked` (never a
+  refusal). A license seat conferred before the lock stands, and its holder keeps issuing while the seat's term (its
+  seating offer's own instants) covers the licence's; after it, testimony. New: `Seats::stands_at_instant`. An
+  affiliation is never locked; its license seat is its body's act under its declared protocol (`seat_confer` /
+  `seat_withdraw` / `license` / `affiliation` -> `cosigned_act`, held in `seat.PENDING_ACTS`; the body its officers once
+  that lands, its members until then).
 - (b) A licence is the authority's act where, over its own past, its emitter's key is the authority, or holds a
   `license` seat over it (a delegation chain resolving to it), or, for a community, the licence is cosigned by its
   quorum under its declared protocol. Any other is testimony: `licensure_delegator_not_authority`.

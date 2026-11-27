@@ -605,6 +605,8 @@ plant "a community's licence counts a fixed majority"  src/trust_rows.rs 'if dec
 plant "a community's quorum does not issue"            src/trust_rows.rs 'if is_community(&at, &a) {' 'if false {'
 plant "a person's roster key is not the person"        src/trust_rows.rs 'Obj::Key(x) => x == k || seats.holders("key", a, None).contains(k),' 'Obj::Key(x) => x == k,'
 plant "a community's license seat is no act"           src/seat.rs 'if sc == "license" {' 'if false {'
+plant "a license seat's term is not read"             src/trust_rows.rs 'if r.asserted_at().is_some_and(|t| !at.stands_at_instant(r.signer(), "license", &a, None, &t)) {' 'if false {'
+plant "an affiliation is locked as a community is"     src/trust_rows.rs 'if kind_of(seats.law(), &get, c) == Some(CommunityKind::Affiliation) {' 'if false {'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

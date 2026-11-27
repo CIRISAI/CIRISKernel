@@ -2712,8 +2712,21 @@ impl<'c, 'a, R: SeatRow + crate::Dated, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         at: &R::Id,
     ) -> Option<bool> {
         let t = self.c.g.instant_of(at)?;
-        let any = self.giving(s, o, root).any(|r| r.k == *k && self.offer_covers(&r.offer, &t));
-        Some(any && self.tips_fold(s, o).is_none_or(|c| c.contains(k)))
+        Some(self.stands_at_instant(k, s, o, root, &t))
+    }
+
+    /// Whether key `k` stands in scope `s` over `o` at instant `t`: [`Seats::stands_at`] at an instant the caller
+    /// read from a row these seats do not hold (a licence read over its own past, [`crate::trust_rows`]).
+    pub fn stands_at_instant(
+        &self,
+        k: &R::Key,
+        s: &str,
+        o: &ObjOf<R>,
+        root: Option<&Root<R::Id, R::Key>>,
+        t: &R::Instant,
+    ) -> bool {
+        let any = self.giving(s, o, root).any(|r| r.k == *k && self.offer_covers(&r.offer, t));
+        any && self.tips_fold(s, o).is_none_or(|c| c.contains(k))
     }
 }
 
