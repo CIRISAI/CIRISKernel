@@ -580,8 +580,9 @@ CASES += [
 
 _GLO_4 = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B", "C", "D"),
                   counted="duty")                                 # all four duty holders
-_U_AB = ST.unseat("u12", "C", ("A", "B"), "moderate", "g", "group", ("g",), head=("g",), cosigners=("D",),
-                  counted="duty", policy="duty_withdraw")         # C and D remove A's and B's duty in one row
+_U_AB = dict(ST.unseat("u12", "C", "A", "moderate", "g", "group", ("g",), head=("g",), cosigners=("D",),
+                       counted="duty", policy="duty_withdraw"),
+             to=("A", "B"), cuts=ST._slots(("A", "B"), "moderate", "g"))   # C and D remove A's and B's duty in one row
 CASES += [
     ("review-53 D1 one unseat removing two voices of a counted row discounts both: C and D are two of four, cut",
      [_G4, _GLO_4, GLA, _U_AB, A("e", "RD", "g"), _X], "RD", "l", None, LW),
