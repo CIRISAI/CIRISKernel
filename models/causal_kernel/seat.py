@@ -219,26 +219,14 @@ def acts_table(path=None):
 # officers' act under its protocol (the officers ruling, built on persist-gaps).
 # An affiliation's license seat is its body's act under its declared protocol (the ruling: its officers; until the
 # officer body lands, body_of reads its members).
-PENDING_ACTS = (("accept", "trust_edge", "community", ("duty_confer",), "fixed"),
-                ("seat_confer", "license", "community", ("duty_confer",), "fixed"),
-                ("seat_withdraw", "license", "community", ("duty_withdraw",), "fixed"),
-                ("seat_confer", "license", "affiliation", ("cosigned_act",), "fixed"),
-                ("seat_withdraw", "license", "affiliation", ("cosigned_act",), "fixed"),
-                ("accept", "trust_edge", "affiliation", ("cosigned_act",), "fixed"))
-
-
-def with_pending(table, pending=PENDING_ACTS):
-    """The acts table with each pending row whose (act, scope, kind) it does not yet have."""
-    have = {r[:3] for r in table}
-    return tuple(table) + tuple(r for r in pending if r[:3] not in have)
-
-
-ACTS = with_pending(acts_table())     # read by policy_in_force (the refusal), with the binding on (BOUND)
+ACTS = acts_table()     # read by policy_in_force (the refusal), with the binding on (BOUND); policy pin 8ec76cce
 
 # The kind of an object (the acts table's `community_kind`, the policy table's `corridor` reading), from its founding row's
 # scope: the scopes named here found an accord or a self roster; every other founding row founds a community. A key
 # object is a self roster. An object with no founding row has no kind and no act.
-KINDS = {"member": "community", "duty": "community", "holder": "accord", "self": "self", "key": "self"}
+# a founding row of scope `key` founds a voice's roster of room keys (CC 3.1.3.2): the table's kind `voice`, bound to the
+# self roster's rows; a self roster's founding scope is `self`
+KINDS = {"member": "community", "duty": "community", "holder": "accord", "self": "self", "key": "voice"}
 
 
 def kind_of(by, obj, is_key=False):
@@ -276,8 +264,11 @@ def act_of(r, by, is_key=False):
                    duty holders (`counted` `duty`) is their withdrawal, one counted over the members (`member`, or
                    none) is the recall, and one counting any other body is no act. Any other scope, or none, is no
                    act.
-        accord     any counted row is a standing act.
-        self       an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
+        accord     a counted row over the selection (`selection`) is a steward purge; any other is a standing act.
+        self, voice  an offer or unseat of a key, or of the roster's own seat, admits or removes a key (a voice's room
+                   keys: a founding scope `key`, CC 3.1.3.2).
+    election_open (the members' opening of an election) has a row in the acts table and no arm here: its row's shape is
+    the election-close lane's.
     A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's."""
     if r["kind"] not in ("offer", "unseat") or r.get("conf") != "group": return None
     obj, sc, offer = r.get("obj"), r.get("scope"), r["kind"] == "offer"
@@ -335,7 +326,10 @@ def act_of(r, by, is_key=False):
         if sc == "record" and offer and "record_unread" not in MUT and "infra_record_frozen" not in MUT:
             return ("record_change", "record", kind)
         return ("admit" if offer else "remove", sc, kind) if sc in ("founder", NODE) else None
-    if kind == "accord": return ("standing_act", "any", kind)
+    if kind == "accord":
+        # a steward purge (CC 2.4.1.1, CC 3.3.2): a counted row over the selection the trust root's holders count
+        if sc == "selection" and "purge_unread" not in MUT: return ("purge", "selection", kind)
+        return ("standing_act", "any", kind)
     if kind == "affiliation":
         # an affiliation's acts (the table's affiliation rows, CC 4.4.3.12): an appointment of a member (the appointee's
         # acceptance is the second consent), a removal of one (affiliation_removal), a promotion to and a demotion from
@@ -348,7 +342,8 @@ def act_of(r, by, is_key=False):
         if sc == "license" and "license_seat_unread" not in MUT:
             return ("seat_confer" if offer else "seat_withdraw", "license", kind)
         return None
-    if kind == "self":
+    if kind in ("self", "voice"):
+        # a self roster's keys, and a voice's room keys (CC 3.1.3.2: the self roster's door, kind `voice`)
         own = by.get(obj, {}).get("scope")
         return ("admit" if offer else "remove", "key", kind) if sc is not None and sc in ("key", own) else None
     return None
@@ -1029,7 +1024,7 @@ def body_of(a, by, obj):
     if kind == "infrastructure": return "founder"
     if kind == "accord": return "holder"
     if kind == "family": return "member"
-    if kind == "self": return by[obj]["scope"] if obj in by else "key"
+    if kind in ("self", "voice"): return by[obj]["scope"] if obj in by else "key"
     if act in ("duty_confer", "duty_withdraw", "seat_confer", "seat_withdraw"): return "duty"
     return "member"
 

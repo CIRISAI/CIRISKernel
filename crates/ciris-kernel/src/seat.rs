@@ -678,6 +678,18 @@ words! {
         /// A community's acceptance of an authority: its onward trust edge, counted over its authority set
         /// ([`crate::trust_rows`]).
         Accept = "accept",
+        /// A steward purge: one `takedown_notice` cosigned under the trust root's protocol, counted over the holders
+        /// of the bundle in force (CC 2.4.1.1, CC 3.3.2).
+        Purge = "purge",
+        /// The members' opening of an election for an ended duty seat (CC 4.5.13). No row is this act yet: the
+        /// opening row's shape is the election's.
+        ElectionOpen = "election_open",
+        /// An affiliation's quarantine of a member (CC 4.4.3.12). No row is this act yet.
+        Quarantine = "quarantine",
+        /// An affiliation's slashing verdict on a member (CC 4.4.3.12). No row is this act yet.
+        Slash = "slash",
+        /// An affiliation's takedown against a member (CC 4.4.3.12). No row is this act yet.
+        Takedown = "takedown",
     }
 }
 
@@ -719,6 +731,8 @@ words! {
         /// A license seat: the issuer's standing over an authority ([`crate::trust_rows`]); over a community its duty
         /// holders confer and withdraw it, and its holder is no duty holder.
         License = "license",
+        /// The selection a steward purge takes down (CC 2.4.1.1, CC 3.3.2).
+        Selection = "selection",
     }
 }
 
@@ -742,6 +756,9 @@ words! {
         Body = "body",
         /// A custody.
         Custody = "custody",
+        /// A voice's roster of room keys (CC 3.1.3.2): a founding row of scope `key`; its keys come and go by the self
+        /// roster's door.
+        Voice = "voice",
     }
 }
 
@@ -943,6 +960,8 @@ pub fn act_of<'r, R: SeatRow + 'r>(
                 _ => None,
             }
         }
+        // a counted row over the selection is the steward purge; any other is a standing act
+        CommunityKind::Accord if sc == Some("selection") => Some((Act::Purge, ScopeClass::Selection, kind)),
         CommunityKind::Accord => Some((Act::StandingAct, ScopeClass::Any, kind)),
         CommunityKind::Affiliation => {
             // an affiliation's acts (the table's affiliation rows, CC 4.4.3.12): an appointment of a member (the
@@ -958,7 +977,8 @@ pub fn act_of<'r, R: SeatRow + 'r>(
                 _ => None,
             }
         }
-        CommunityKind::SelfRoster => {
+        // a self roster's keys, and a voice's room keys (CC 3.1.3.2: the self roster's door)
+        CommunityKind::SelfRoster | CommunityKind::Voice => {
             let sc = sc?;
             let own = match &obj {
                 Obj::Row(i) => get(i).and_then(|g| g.scope()).map(|s| s.as_ref() == sc),
@@ -1071,7 +1091,7 @@ fn body_of<'r, R: SeatRow + 'r>(
         CommunityKind::Infrastructure => "founder",
         CommunityKind::Accord => "holder",
         CommunityKind::Family => "member",
-        CommunityKind::SelfRoster => match obj {
+        CommunityKind::SelfRoster | CommunityKind::Voice => match obj {
             Obj::Row(i) => {
                 let key: &'r str = "key";
                 get(i).and_then(|g| g.scope()).map_or(key, |s| s.as_ref())
