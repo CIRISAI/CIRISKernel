@@ -76,8 +76,6 @@ import trust_rows as TR  # noqa: E402
 CH, ST, CK = TR.CH, TR.ST, TR.CK
 ORDER_CAP = 24
 M, L = "medical", "legal"
-PENDING_EDGE = ("pending the Constitution: pin 8ec76cce has no accept / trust_edge / affiliation row, so an "
-                "affiliation's onward edge concludes nothing")
 TERM = {"asserted_at": 0, "expires_at": 10 ** 6}     # every edge carries a term (CC 4.4.3.12); the cases read at NOW_AT
 
 
@@ -196,18 +194,18 @@ CASES = [
     ("item 8: a one-officer affiliation's edge by its officer alone is a proposal: not walked",
      [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH,
      NR),
-    ("and countersigned by its designated official O: walked once the row exists; " + PENDING_EDGE,
+    ("and countersigned by its designated official O: walked",
      [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), ECS, klic("l")], "RD", "l",
-     KCH, NR),
+     KCH, OK),
     ("and the officer withdraws the edge concurrently with the countersign (rule 4): not walked",
      [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), ECS, EWD, klic("l")], "RD",
      "l", KCH, NR),
     ("a countersign by the one officer itself decides nothing: not walked",
      [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)),
       ST.R("ecs", "countersign", "A", ("f",), of="f"), klic("l")], "RD", "l", KCH, NR),
-    ("(a) an affiliation's edge, two of three officers: walked once the row exists; " + PENDING_EDGE,
+    ("(a) an affiliation's edge is its officers' act under its declared protocol: two of three officers",
      [AFD, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B",)), klic("l")],
-     "RD", "l", KCH, NR),
+     "RD", "l", KCH, OK),
     ("(a) under a declared unanimous protocol two of three officers sign no edge",
      [AFU, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B",)), klic("l")],
      "RD", "l", KCH, NR),
