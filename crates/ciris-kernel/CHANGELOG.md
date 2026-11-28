@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**The rulings of 2026-11-28.** The accord's halt: a table whose concluder is `local` concludes no receipt and no
+landing (each node's own fuse); the halt fires and is no confirming voice. A counted row at the window stays open
+(`at_window` is read for nothing). `moderation_action`'s `role_at` enact: a moderator's ballot `for` lands and
+`against` refuses at once; **an answer changes:** two clauses one holder's act resolves over one named scope, met at
+once with different outcomes, resolve nothing (a contested pair of moderator ballots), and the window runs on to the
+members' count. The default rows' opener is `member` (filled in the model's table for the next pin).
+
 **Policy pin 8ec76cce** (CIRISConstitution 67f7ec2; `data/governance_policy.json` sha256 f1b3f4b4..., and
 `data/family_model.json`). **BREAKING**: `window::PolicyRow` carries the new cells (`concluder`, `opener`,
 `opener_says`, `outcome_words`, `answer_words` as `window::Words`, `default_at_close`, `landed_means`,

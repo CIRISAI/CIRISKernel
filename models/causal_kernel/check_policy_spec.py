@@ -37,15 +37,12 @@ BUILT = {"ballot@once", "proposal@others", "holders@count"}
 
 # Each reference table that differs from its row's (in a clause, or in an outcome over a scenario), with what differs
 # and the side the table supports. The rows of policy pin 8ec76cce (CIRISConstitution 67f7ec2), after the rulings of
-# 2026-11-27.
-ACTIVE = ("refused: the row's opener is `unstated` (explicit_columns.unstated_cells), so nothing says whose act opens "
-          "the window; the reference opens it by a member (the counted scope). The rest of the row gives the reference's "
-          "table (strictly more than 2/3, the ruling of 2026-11-27)")
+# 2026-11-27 and 2026-11-28; the cells ruled for the next pin are filled (window.RULED_CELLS).
 DIFFERS = {
-    "moderation_fallback": "refused: the enact is role_at moderate 1, a holder's act, and no cell says the word it says "
-                           "or the leaf it gives (the reference: `answered`, its own word, which is no leaf). The members' "
-                           "count is the row's (a ballot's for over those who voted, floor two, `landed`; default "
-                           "`refused`); the reference's leaves are `fallback` and `lapsed`",
+    "moderation_fallback": "the table before the ruling of 2026-11-28 (a moderator's `answered`, the members' `fallback`, "
+                           "the default `lapsed`); the row's table is moderation_action, a moderator's ballot `for` "
+                           "landed and `against` refused at once, two that disagree resolving nothing, the members' "
+                           "count at the close, the default `refused`. The window adversary table runs both",
     "halt_fuse": "refused: the row's concluder is `local` (each node's own fuse, no landing), RULED 2026-11-28; the "
                  "reference now has the same (no landing of it concludes; the halt fires and is no confirming voice); "
                  "its confirmation, a strict majority of the standing holders, is a separate cosigned row, which the "
@@ -60,12 +57,6 @@ DIFFERS = {
     "L:community_add:quorum:2": "as L:community_add:majority; and the reference's enact, the declared quorum read as "
                                 "(`atleast`, 0, 0), is no count a window can read (it divides by zero; no scenario reads "
                                 "the table)",
-    "default_content@active": ACTIVE,
-    "default_content@active@3": ACTIVE,
-    "default_content@active@5": ACTIVE,
-    "default_content@active@6": ACTIVE,
-    "default_content@active@4294967296": ACTIVE,
-    "default_content@active@4294967309": ACTIVE,
 }
 # The words: the row's answers say assent and raised (objection:{state}) and its landings state the leaves; the
 # reference writes approve and object, and its own reading words for some leaves (landed_means, refused_means). The
@@ -359,13 +350,17 @@ def bound_cases():
     a = lambda i, who: WN.answer(i, who, "p", "approve")
     W = TABLE["default_content"]["window_secs"]
     out += [
-        # default_content's opener is `unstated` (explicit_columns.unstated_cells): the row gives no table, so a
-        # bound change of content concludes nothing until the table states who opens it
-        ("a room's content change, three of three approve: default_content's opener is unstated, no table",
-         [m, bind(op, "change", "content"), a("a2", "m2"), a("a3", "m3")], None, "none"),
-        ("a room's content change, two of three approve and a member lands at the close: no table",
+        # default_content's opener: a member (ruled 2026-11-28, window.RULED_CELLS)
+        ("a room's content change, two of three approve: strictly more than 2/3 needs three",
+         [m, bind(op, "change", "content"), a("a2", "m2")], None, "open"),
+        ("a room's content change, three of three approve", [m, bind(op, "change", "content"), a("a2", "m2"), a("a3", "m3")],
+         None, "landed"),
+        ("a room's content change, two of three approve and a member lands the floor at the close",
          [m, bind(op, "change", "content"), a("a2", "m2"), WN.receipt("r", "m2", "p", 0),
-          WN.landing("L", "m2", "p", "r", "landed", W, ("a2",))], None, "none"),
+          WN.landing("L", "m2", "p", "r", "landed", W, ("a2",))], None, "landed"),
+        ("a room's content change, the proposer alone and a member lands at the close: the floor is two voices",
+         [m, bind(op, "change", "content"), WN.receipt("r", "m2", "p", 0), WN.landing("L", "m2", "p", "r", "landed", W)],
+         None, "open"),
         ("an opener that proposes nothing is bound to no family", [m, dict(op, window="unbound"), a("a2", "m2")], None, "none"),
         ("an opener the name alone would bind: the binding reads no name",
          [m, dict(op, window="default_content@active"), a("a2", "m2"), a("a3", "m3")], None, "none"),
@@ -591,6 +586,15 @@ def main():
     finally:
         WN.MUT.discard("local_lands")
     print("  plant local_lands: %s" % ("caught by %d rows" % len(hit) if hit else "NOT CAUGHT"))
+    # the ruling on moderation_action: two moderators' ballots that disagree resolve nothing
+    WN.MUT.add("holders_disagree_unread")
+    try:
+        hit = [t["case"] for t in WN.adversary_table() if t["needs"] is not None and not t["holds"]["recount"]]
+    finally:
+        WN.MUT.discard("holders_disagree_unread")
+    print("  plant holders_disagree_unread: %s" % ("caught by %d rows" % len(hit) if hit else "NOT CAUGHT"))
+    if not hit:
+        problems.append("plant holders_disagree_unread not caught")
     if not hit:
         problems.append("plant local_lands not caught")
     print("\nPart 3. plants")

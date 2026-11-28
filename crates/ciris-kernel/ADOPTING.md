@@ -267,7 +267,7 @@ it with the reference's own tables.
 | `answer_words`, `counted.voices` | objection `assent`/`raised`, or a ballot's `for`/`against`: the clauses' values |
 | `outcome_words`, `default_at_close` | the leaves `landed`, `refused` (CC 3.1.3 `window:{state}`) of every clause; `default` the leaf at the close |
 | `comparison` | `more_than`: `MoreAtLeast(num, den, least)` (`Strict` for 1/2 with at most one voice); `at_least`: `AtLeast(num, den, least)` |
-| `enact_rule` | two_path: the yes word over the base, `landed`, at once (at the close where `irreversible`), least `min_count`; mirror: a strict majority of the one answer word, least the floor's voices, at once; `role_at`: refused, `NoCell` (no cell says what a holder's act says) |
+| `enact_rule` | two_path: the yes word over the base, `landed`, at once (at the close where `irreversible`), least `min_count`; mirror: a strict majority of the one answer word, least the floor's voices, at once; `role_at` (ruled 2026-11-28): the role holder's ballot, `for` `landed` and `against` `refused`, `One` over `Base::Scope(role)`, at once; two holders' that disagree resolve nothing (`window::rule` reads such a pair as met by neither) |
 | `cancel_rule`, `cancel_over` | the no word, `refused`: a fraction over `base` at the close; `strict_majority_of_others` over `others`, at once (CC 3.3.6.4) |
 | `floor_rule`, `reverse_path` | two_path with `reverse_path`: the yes word at the close, `landed`, left out where `default_at_close` is `landed`; mirror `voted_majority`: a ballot's `for` over those who voted (`MoreOfVoted`) |
 | `enact`, `cancel`, `floor` | checked against their `_rule`: `null` only with `none`, a fraction only with the same fraction |
@@ -280,9 +280,12 @@ it with the reference's own tables.
 | `window_secs`, `window_class` | `secs`; the class must give the same length; `0` is refused, `NoWindow` |
 | `at_window`, `landed_means`, `refused_means`, `family`, `cc_ref`, `model`, `status`, `note` | carried; no spec cell (`at_window` is the text's description; the two `_means` say what a leaf means for the row) |
 
-At pin 8ec76cce four rows give a table: `community_invite`, `self_roster_add`, `self_roster_evict` and
-`moderation_overturn`. `default_content`, `default_standing` and `default_irreversible` are refused on `opener`
-(`unstated` in the table), `moderation_action` on its `role_at` enact, and `accord_halt` on its `local` concluder.
+At pin 8ec76cce, with the cells ruled for the next pin filled (`window.RULED_CELLS`: the default rows' opener is
+`member`), eight rows give a table: `default_content`, `default_standing`, `default_irreversible`, `community_invite`,
+`self_roster_add`, `self_roster_evict`, `moderation_action` and `moderation_overturn`. `accord_halt` is refused on its
+`local` concluder. As vendored, the three default rows read their opener `unstated` and are refused on it; a caller
+reading the pin as it stands gets that refusal until the next pin states the cell.
+
 Ruled 2026-11-28: `accord_halt`'s concluder is `local` (each node's own fuse, no landing; `window::rule` concludes
 no receipt and no landing of a table whose concluder is `local`), its opener_says `fires` (the halt is no confirming
 voice; the confirmation is a cosigned row of a strict majority of the standing holders), and a counted row at the

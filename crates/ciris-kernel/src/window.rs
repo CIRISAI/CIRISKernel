@@ -450,8 +450,14 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
             How::Strict => more(1, 2, n),
         }
     };
-    for cl in &w.at_once {
-        if met(cl, false) {
+    // two holders' acts that disagree resolve nothing (the ruling of 2026-11-28 on moderation_action: concurrent
+    // moderator ballots `for` and `against` are contested, and the window runs on): a clause one holder's act resolves
+    // over a named scope is read only where no other such clause over that scope, with another outcome, is met too
+    let met_once: Vec<&Clause> = w.at_once.iter().filter(|cl| met(cl, false)).collect();
+    let one_over = |cl: &Clause| cl.how == How::One && matches!(cl.over, Base::Scope(_));
+    let disagree = |cl: &Clause| met_once.iter().any(|o| one_over(o) && o.over == cl.over && o.out != cl.out);
+    for cl in met_once.iter().copied() {
+        if !(one_over(cl) && disagree(cl)) {
             return cl.out.clone();
         }
     }
@@ -1093,8 +1099,9 @@ const NONE: &str = "\u{2014}";
 ///   over `cancel_over`, at once on the self corridor (CC 3.3.6.4), at the close otherwise; `floor_rule` with
 ///   `reverse_path` at the close, left out where `default_at_close` is `landed` too; the self corridor's proposer's
 ///   withdrawal, `refused` at once (CC 3.3.6.4).
-/// - mirror: a strict majority enact of the one answer word with the floor's voices, at once; a `role_at` enact is
-///   refused ([`Why::NoCell`]: no cell says the word a holder's act says).
+/// - mirror: a strict majority enact of the one answer word with the floor's voices, at once; a `role_at` enact (one
+///   holder of the role, a ballot's words), as ruled 2026-11-28: the holder's `for` landed and `against` refused at
+///   once over [`Base::Scope`] of the role, two that disagree resolving nothing.
 /// - `counted.target_silent` `yes`: `silent` `refused`; `counted.target_voice` `yes`: `target_votes`.
 /// - `base`, `stated_census`: the members; [`Base::Stated`] of the census; `active` as the caller says.
 /// - `window_secs`, which `window_class` must give too.
@@ -1305,7 +1312,6 @@ pub fn spec_from_policy<T: TryFrom<u64>>(
     let (mut at_once, mut at_close) = (Vec::new(), Vec::new());
     let mut unknown: Vec<&'static str> = Vec::new();
     let mut disagree: Vec<(&'static str, &'static str)> = Vec::new();
-    let mut nocell: Vec<(&'static str, &'static str)> = Vec::new();
     if kind == "two_path" {
         if er.kind != "fraction" {
             unknown.push("enact_rule");
@@ -1387,7 +1393,16 @@ pub fn spec_from_policy<T: TryFrom<u64>>(
                 }
             }
             ("role_at", f, k) => {
-                nocell.push(("enact_rule", "the word a role holder's act says, and the leaf it gives"));
+                // the ruling of 2026-11-28 (moderation_action): a holder of the role resolves the window by its own
+                // ballot, `for` landed and `against` refused, at once; two holders' ballots that disagree resolve
+                // nothing (`table_outcome`) and the window runs on to the members' count
+                match (er.roles.as_slice(), er.count, c.voices.value.as_str()) {
+                    ([role], Some(1), "ballot") => {
+                        at_once.push(clause(yes_w, How::One, Base::Scope(role.clone()), leaf("landed")));
+                        at_once.push(clause(no_w, How::One, Base::Scope(role.clone()), leaf("refused")));
+                    }
+                    _ => unknown.push("enact_rule"),
+                }
                 match (f, k, c.voices.value.as_str()) {
                     ("voted_majority", Some(k), "ballot") => at_close.push(clause(
                         yes_w,
@@ -1424,9 +1439,6 @@ pub fn spec_from_policy<T: TryFrom<u64>>(
     }
     for (cell, other) in disagree {
         no(cell, Why::Disagrees(other));
-    }
-    for (cell, what) in nocell {
-        no(cell, Why::NoCell(what));
     }
     let secs = T::try_from(row.window_secs).ok();
     if secs.is_none() {

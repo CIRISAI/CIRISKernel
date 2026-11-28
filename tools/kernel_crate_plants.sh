@@ -157,6 +157,8 @@ plant "policy row: target_voice unread" src/window.rs 'let tv = c.target_voice.v
 plant "policy row: window_secs not the length" src/window.rs 'let secs = T::try_from(row.window_secs).ok();' 'let secs = T::try_from(row.window_secs / 2).ok();'
 plant "window binding: the binding unread: the opener's name names its table" src/window.rs 'f(bound_family(law, get, o)?, &obj, founding.and_then(|g| g.scope()).map(|w| w.as_ref()))' 'o.window().and_then(windows)'
 plant "window: a local concluder lands" src/window.rs '    if w.concluder == "local" {' '    if false {'
+plant "window: two holders' disagreeing acts resolve" src/window.rs '        if !(one_over(cl) && disagree(cl)) {' '        if true {'
+plant "policy row: a role holder's ballot unread" src/window.rs '([role], Some(1), "ballot") => {' '([role], Some(9), "ballot") => {'
 plant "window binding: a fixed row's other stated policy unread" src/window.rs 'Choice::Fixed if pols.len() == 1 && stated.is_none_or(|s| s == pols[0]) => pols[0].as_str(),' 'Choice::Fixed if pols.len() == 1 => pols[0].as_str(),'
 plant "window binding: a row row's stated policy unread" src/window.rs 'Choice::Row => pols.iter().map(|p| p.as_str()).find(|p| Some(*p) == stated)?,' 'Choice::Row => pols[0].as_str(),'
 plant "window binding: two counts at once bound as a window" src/window.rs '(!name.contains('\''&'\'')).then_some(name)' 'Some(name)'
