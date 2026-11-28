@@ -789,7 +789,8 @@
           "enum": [
             "ceg-genesis-bundle/2",
             "ceg-revocation-snapshot/2"
-          ]
+          ],
+          "description": "A genesis bundle's statements carry iss, sub (equal to the payload's family_key_id, written by the minter: the case states none), the edition and iat (ruled; object-claims is being amended)."
         },
         "author": {
           "oneOf": [

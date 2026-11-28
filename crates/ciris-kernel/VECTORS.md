@@ -190,8 +190,12 @@ never written.
 | `payload` | the members of the `typ`'s rule, `refs` apart |
 | `refs` | as for a row (`prev` naming an object; `further_prev` on a join) |
 
-An object's signers are its statements in `statements`, one per holder. An object's CWT claims are `iss`, `iat`
-and the edition only (`object-claims`, CC 2.6.1.11): it carries no `sub`. A `ceg-revocation-snapshot/2` is
+An object's signers are its statements in `statements`, one per holder. A genesis bundle's statements carry
+the CWT claims `iss`, `sub`, the edition and `iat` (RULED by the Constitution from the signed trust root; the
+`object-claims` rule of `manifests/signed_object_v2.cddl` and CC 2.6.1.11 are being amended to match, into -05):
+the minter writes `sub` equal to the payload's `family_key_id`, and a mismatch is the verifier's refusal. The case
+states no `sub` for an object; the minter derives it. A revocation snapshot carries `iss` and the edition, and no
+`iat`; whether it carries a `sub` is not yet stated. A `ceg-revocation-snapshot/2` is
 mintable, but Verify has no verdict reader for it: its vectors check bytes and signatures only.
 
 ## Statements
