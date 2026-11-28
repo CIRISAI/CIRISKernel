@@ -66,7 +66,10 @@ No stated instant decides a verdict, and the host clock decides none.
     their counts from the table: `custodian_replace` and `affiliation_member_action` at least 2 of 2, and
     `cosigned_act` under the room's declared protocol. `poll` has no count (`NotACount`). The unstated voice cell is
     not read there, and no fallback is stated. A count reads voices by person through `seat::Persons`, not from
-    this cell. [lead: the unstated voice cells are with the Constitution]
+    this cell. `cosigned_act` and `affiliation_member_action` are read with the voices the Constitution's rulings
+    give (the body's deciding seats under its protocol; one officer and one eligible outside key), pending those
+    cells in the policy table; `custodian_replace` is held shut. The cells go into the table with the text after
+    the tag.
   - `window::spec_from_policy` gives none of the four a window table. Each is refused by its kind (`not_a_window`:
     cosigned and tally rows give no window table even with every cell stated), and also on its unstated cells. So
     the unstated cells block nothing in the window path today. A poll is not in this tag, and the adopter holds it
