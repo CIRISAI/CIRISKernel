@@ -19,11 +19,21 @@
 - The lift at both heads (ported from the lift lane, 2f9b46f): counted over the members at both the act's head and
   the lift's, so members admitted after the act cannot carry it.
 
-**The Constitution's G21, G23, G24: a release, a reconsideration and a lift cite.** A quarantine release names its
-withhold, a reconsideration its takedown notice, and a lift the act it lifts (a lone act, or a lone removal) by
-`SeatRow::cites()` (new, default none: the wire's `refs.also.cites`), replacing the provisional `of()` for the first
-two and `content()` for a lift. A takedown notice still names its content row by `of()`, and a reconsideration keeps
-its `outcome`.
+**G15 native, and exactly one cite (r98).** A countersign is the outside key's own voice on the act's row, not a
+separate row: `SeatKind::Countersign` is removed (**BREAKING**), and a one-officer affiliation's act is decided where
+an eligible outside voice (the designated official, or a review holder of `overseen_by`, read in the act's own past)
+is among its own signers, with no end of that voice's overseer seat concurrent with the act. An ineligible outside
+voice on the act refuses it. The decision and its countersign are one row, so a later withdrawal naming the act has
+both in its past. A reconsideration, a lift (and any row read by `cites`) names exactly one row: a row whose cites are
+not exactly one names nothing, and `act_in_force` reads the same one cite the act's own rule validated.
+
+**The Constitution's G23, G24: a reconsideration and a lift cite; G21: a release supersedes.** A reconsideration
+names its takedown notice, and a lift the act it lifts (a lone act, or a lone removal), by `SeatRow::cites()` (new,
+default none: the wire's `refs.also.cites`), replacing the provisional `of()` and a lift's `content()`. A quarantine
+release is no citation (G21 as re-ruled): it is the withholding holder's `supersedes` of its own withhold, named by
+`SeatRow::target()` (its key read from the withhold); only the holder that withheld releases it, and another holder's
+release concludes nothing (its routes are the members' lift or a review). A takedown notice still names its content
+row by `of()`, and a reconsideration keeps its `outcome`.
 
 **r81 B2 at the roster (the r87 attack): a lone conferral concurrent with the grown body's counted act is re-counted
 in Seats.** A lone holder's own conferral of a duty, concurrent with a counted act of conf `group` over the room by the

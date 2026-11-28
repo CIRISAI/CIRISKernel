@@ -466,7 +466,7 @@ fn growth_of<R: SeatRow>(c: &Concluded<'_, R>, o: &ObjOf<R>) -> Vec<usize> {
         .filter(|&x| {
             let q = c.g.row(x);
             body_change(q, o)
-                || (matches!(q.seat_kind(), SeatKind::Accept | SeatKind::Countersign)
+                || (q.seat_kind() == SeatKind::Accept
                     && q.of().and_then(|i| c.g.idx(i)).is_some_and(|i| body_change(c.g.row(i), o)))
         })
         .collect()

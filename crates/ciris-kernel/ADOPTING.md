@@ -160,27 +160,28 @@ Present:
   designated official's key, and `SeatRow::overseen_by`, the record member `overseen_by` (optional, one group id: the
   body that conferred or oversees it), whose `review` holders may countersign. Each version is a whole record: one
   stating no official names none;
-- a countersign as `SeatKind::Countersign`, signed by the countersigning key, `of()` the act it countersigns (on the
-  wire a countersign is the outside key's voice on the act's own row, the Constitution's G15: present each eligible
-  outside voice on the act's row as one such row view, `of()` the act's id, its signer the outside key),
-  naming the removal and, for an overseer, the overseeing body's rows its `review` seat stands on (its basis);
+- a countersign as the outside key's own voice on the act's row (the Constitution's G15): a cosigner of the act
+  (`SeatRow::cosigners`), not a separate row. The act names, for an overseer's voice, the overseeing body's rows its
+  `review` seat stands on (its basis);
 - a removal of a member of an affiliation as a counted Unseat of scope `member` under `affiliation_member_action` or
   `cosigned_act`, `counted` `officer`. The deciding seats are the officers: a member whose seat carries `role:
   officer` (`seat::OFFICER`; the founding record lists the first officers in a `duty_holders` entry `officer`, and an
   appointment carrying the role, with the appointee's acceptance, seats one later). Every counted act of an
   affiliation is counted over its officers (`counted` `officer`); with no officer it is dissolved. With one officer
-  the removal concludes as a proposal and is in force only where a countersign naming it counts; the acting seat's
-  withdrawal of the removal clears it; with two or more it decides on two voices at least, the member removed apart.
+  the removal on the officer's voice alone concludes as a proposal (held) and is in force only with an eligible
+  outside voice on its own row (the designated official, or a review holder of `overseen_by`, read in the act's own
+  past); an ineligible outside voice refuses it; with two or more officers it decides on two voices at least, the
+  member removed apart.
 - with one officer, every other counted act of the affiliation but an admission of a member (no role) is a proposal
   the same way: a lone act, an appointment carrying the officer role, any unseat, a change of the record, a
-  dissolution, a license seat. The countersign's `of()` names that act; a change of the official is countersigned by
-  the official it replaces or an overseer. An onward trust edge on behalf of the affiliation is such an act: present
-  `SeatRow::edge_body()` (the group a `delegates_to` row speaks for, or a licence's authority) so a countersign can name it; `trust_rows`
-  walks it only where `seat::countersigned` holds.
+  dissolution, a license seat. Its countersign is a voice on that act's own row; a change of the official is
+  countersigned by the official it replaces or an overseer. An onward trust edge on behalf of the affiliation, and its
+  own licence, are such acts: present `SeatRow::edge_body()` (the group a `delegates_to` row speaks for, or a
+  licence's authority); `trust_rows` walks or honours it only where `seat::countersigned` holds.
 
 **A duty holder's lone acts** (CC 4.5.5, CC 3.1.9.2; CHANGELOG). Present each by its family, its parameter as
 `family_param()`: a quarantine marker (`quarantine:{state}`) as `SeatKind::Quarantine` (`target_key()` the key, the
-state `withhold` or `release`, a release's `cites()` the withhold it lifts), a slashing verdict (`slashing:{outcome}`) as
+state `withhold` or `release`, a release's `target()` the withhold it supersedes, signed by the holder that withheld it), a slashing verdict (`slashing:{outcome}`) as
 `SeatKind::Slashing` (`target_key()`, the outcome `proven_rogue` or `not_proven`), a takedown notice
 (`takedown_notice:{basis}`, the basis opaque) as `SeatKind::TakedownNotice` (`of()` the content row), each with `obj()` the room, `head()` the newest
 counted changes in its past, and the members' `moderation_overturn` window named (its `window()`, and its

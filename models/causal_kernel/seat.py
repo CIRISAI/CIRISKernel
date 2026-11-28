@@ -532,8 +532,12 @@ def affiliation_count(r, P, past):
     two voices at least, the member removed not counted (CC 4.5.13; MUTATION two_voices_unread: on one)."""
     seats = deciding_seats(P, past, r["obj"], r.get("head", ()))
     vs = voices(r, P)
-    if not vs or not vs <= seats: return False
-    if len(seats) == 1: return True
+    if not vs & seats: return False
+    if len(seats) == 1:
+        # the officer's voice, and any outside voice on the row an eligible countersigner (G15): its decision
+        # (MUTATION outside_voice_taken: any outside voice taken)
+        return "outside_voice_taken" in MUT or vs - seats <= countersigners(r, P, past)
+    if not vs <= seats: return False
     return len(vs - act_targets(r, {q["id"]: q for q in P})) >= (1 if "two_voices_unread" in MUT else 2)
 
 
@@ -556,7 +560,7 @@ def regrown_fails(S, q, void=frozenset()):
     counted = lambda x: x is not None and x.get("conf") == "group" and x.get("obj") == obj and CP.is_counted_act(x, obj)
     growth = [x for x in S.Cs if x["id"] not in void and x["id"] != q["id"] and x["id"] not in S.anc[q["id"]]
               and q["id"] not in S.anc[x["id"]]
-              and (counted(x) or (x["kind"] in ("accept", "countersign") and counted(S.by.get(x.get("of")))))]
+              and (counted(x) or (x["kind"] == "accept" and counted(S.by.get(x.get("of")))))]
     if not growth: return False
     ids = set(S.anc[q["id"]])
     for x in growth:
@@ -611,16 +615,32 @@ def countersigned(S, r):
     return not needs_countersign(r, Pr, past) or decided_in(r, by, past)
 
 
+def countersigners(u, Pu, past):
+    """The eligible outside voices on act u's OWN row (the Constitution's G15: a countersign is the outside key's voice
+    on the act, its own statement over the act's row, not a separate row naming it): u's signers outside its deciding
+    seat that are the designated official of the record in force in u's own past Pu, or a review holder of the body
+    the record's overseen_by names, at the newest counted changes over it there. Asked of keys: TODO: of persons, once
+    key-person merges (MUTATIONS countersign_inside_seat, overseers_unread)."""
+    byu = {q["id"]: q for q in Pu}
+    obj = act_obj(u)
+    seats = deciding_seats(Pu, past, obj, act_heads(u, Pu, past))
+    outside = signers(u) if "countersign_inside_seat" in MUT else signers(u) - seats
+    off = record_value(byu, obj, "official")
+    body = record_value(byu, obj, OVERSEEN_BY)
+    ov = overseers(Pu, past, body) if body is not None and "overseers_unread" not in MUT else frozenset()
+    return frozenset(k for k in outside if k == off or k in ov)
+
+
 def decided_in(u, by, past):
-    """A proposal u is decided over the rows `by` (a row's concluded past, or a reader's): a countersign naming it is
-    there, with no withdrawal of u by its acting seat there that does not have the countersign in its past (rule 4), and
-    no end of the countersigner's overseer seat there that does not have it in its past (overseer_cut)."""
+    """A proposal u (a one-officer affiliation's act) is decided over the rows `by` (a row's concluded past, or a
+    reader's): an eligible outside voice is on u's own row (countersigners), and no end of that voice's overseer seat
+    there lacks u in its past (overseer_cut). The decision and its countersign are one row, so a later withdrawal
+    naming the act has both in its past: an act held on the officer's voice alone is decided by no other row."""
     Pu = [q for q in by.values() if past(q["id"], u["id"])]
-    body = record_value({q["id"]: q for q in Pu}, act_obj(u), OVERSEEN_BY)
-    wd = [w for w in by.values() if w["kind"] == "withdraw" and w.get("target") == u["id"] and w["signer"] == u["signer"]
-          and "withdrawal_clears_unread" not in MUT]
-    return any(c["kind"] == "countersign" and c.get("of") == u["id"] and all(past(c["id"], w["id"]) for w in wd)
-               and not overseer_cut(c, by, past, body) for c in by.values())
+    byu = {q["id"]: q for q in Pu}
+    off = record_value(byu, act_obj(u), "official")
+    body = record_value(byu, act_obj(u), OVERSEEN_BY)
+    return any(k == off or not overseer_cut(u, by, past, body, k) for k in countersigners(u, Pu, past))
 
 
 def in_force_change(q, by):
@@ -632,12 +652,12 @@ def in_force_change(q, by):
     return not needs_countersign(q, Pq, past) or decided_in(q, by, past)
 
 
-def overseer_cut(c, rows, past, body):
-    """By the end rule, an end of a countersigner's `review` seat over the overseeing body (its withdrawal naming the
-    scope, or an unseat of it) that does not have the countersign c in its past cuts it: an ex-overseer countersigns
-    nothing (MUTATION overseer_end_unread)."""
+def overseer_cut(c, rows, past, body, k=None):
+    """By the end rule, an end of countersigner k's `review` seat over the overseeing body (its withdrawal naming the
+    scope, or an unseat of it) that does not have the countersigned act c in its past cuts k's voice on it: an
+    ex-overseer countersigns nothing (MUTATION overseer_end_unread)."""
     if "overseer_end_unread" in MUT or body is None: return False
-    k = c["signer"]
+    k = c["signer"] if k is None else k
     return any((w["kind"] == "withdraw" and w["signer"] == k and w.get("scope") == "review"
                 and (rows.get(w.get("target")) or {}).get("obj") == body or
                 w["kind"] == "unseat" and k in w.get("to", ()) and w.get("scope") == "review" and w.get("obj") == body)
@@ -649,29 +669,6 @@ def overseers(P, past, body):
     by = {q["id"]: q for q in P}
     if by.get(body) is None: return frozenset()
     return members_at(P, past, body, newest_changes(P, past, body, by), "review")
-
-
-def countersign_ok(r, P, past):
-    """A countersign row (`of` the act) concludes where the act it names is a one-seat affiliation's removal in its
-    past, not withdrawn there by the acting seat, and its signer is outside the deciding seat and is the designated
-    official or a review holder of the overseeing body, both read in the ACT's own past. Asked of keys:
-    TODO: of persons, once room-keys gives key to person (MUTATIONS countersign_inside_seat, overseers_unread)."""
-    by = {q["id"]: q for q in P}
-    t = by.get(r.get("of"))
-    if t is None or not affiliation_act(t, by): return False
-    Pt = [q for q in P if past(q["id"], t["id"])]
-    seats = deciding_seats(Pt, past, act_obj(t), act_heads(t, Pt, past))
-    if len(seats) != 1: return False
-    if any(w["kind"] == "withdraw" and w.get("target") == t["id"] and w["signer"] == t["signer"] for w in P) \
-            and "withdrawal_clears_unread" not in MUT:
-        return False
-    k = r["signer"]
-    if k in seats and "countersign_inside_seat" not in MUT: return False
-    byt = {q["id"]: q for q in Pt}
-    if k == record_value(byt, act_obj(t), "official"): return True
-    body = record_value(byt, act_obj(t), OVERSEEN_BY)
-    return body is not None and "overseers_unread" not in MUT and k in overseers(Pt, past, body) \
-        and not overseer_cut(r, by, past, body)
 
 
 # the trust root this node reads (models/trust_root/root.py): (Root, reader), or None. With none, a stalled recovery is
@@ -1988,11 +1985,7 @@ class Seats:
             if "countersign_unread" in MUT: return True
             Pu = [q for q in Cs if q["id"] in S.anc[u["id"]]]
             if not needs_countersign(u, Pu, past_): return True
-            cs = [c for c in Cs if c["kind"] == "countersign" and c.get("of") == u["id"] and C.counts(c) and c["id"] not in V
-                  and not overseer_cut(c, S.by, past_, record_value({q["id"]: q for q in Pu}, u["obj"], OVERSEEN_BY))]
-            wu = [w for w in Cs if w["kind"] == "withdraw" and w.get("target") == u["id"] and w["signer"] == u["signer"]
-                  and "withdrawal_clears_unread" not in MUT]
-            return any(all(c["id"] in S.anc[w["id"]] for w in wu) for c in cs)
+            return decided_in(u, {q["id"]: q for q in Cs}, past_)
         unseats = [u for u in unseats if decided(u)]
         # every other undecided proposal of a one-officer affiliation (an officer's appointment, a license seat, a change
         # of its record, a dissolution) is void for this reading as a row behind the line is: it seats, cuts and
@@ -2603,19 +2596,30 @@ RECONSIDERATION_OUTCOMES = ("reversed", "partial", "upheld")    # only `reversed
 # PROVISIONAL: the member a release, a takedown notice and a reconsideration name their target row by (the table's
 # name follows with the placement cells); read here and nowhere else
 ACT_OF = "of"          # a takedown notice's content row
-CITES = "cites"        # the wire's refs.also.cites (G21, G23, G24)
+CITES = "cites"        # the wire's refs.also.cites (G23, G24)
 
 
 def cites(r):
-    """The rows a row cites (the wire's `refs.also.cites`; the Constitution's G21, G23, G24): a release names its
-    withhold, a reconsideration its takedown notice, and a lift the act it lifts, by citing it."""
+    """The rows a row cites (the wire's `refs.also.cites`; the Constitution's G23, G24): a reconsideration names its
+    takedown notice, and a lift the act it lifts, by citing it. (A release is no citation: it names its withhold by
+    `target`, G21 as re-ruled.)"""
     c = r.get(CITES, ())
     return (c,) if isinstance(c, str) else tuple(c)
 
 
+def the_cite(r):
+    """The one row r cites, or None: a reconsideration names ITS notice and a lift THE act, so a row whose cites are
+    not exactly one names nothing (r98; MUTATION first_cite: the first of several). The one accessor: the rule that
+    validates the row and every reader of what it acts on (act_in_force) read the same id."""
+    c = cites(r)
+    if "first_cite" in MUT: return c[0] if c else None
+    return c[0] if len(c) == 1 else None
+
+
 def cited(r, by, pick=lambda q: True):
-    """The row among `by` that r cites and `pick` takes (the first in its order), or None."""
-    return next((by[i] for i in cites(r) if i in by and pick(by[i])), None)
+    """The row among `by` that r cites (the_cite) where `pick` takes it, or None."""
+    q = by.get(the_cite(r))
+    return q if q is not None and pick(q) else None
 
 
 def lifted(r, by):
@@ -2639,10 +2643,19 @@ PENDING_AFFILIATION_ACTS = (("quarantine", "member", "affiliation", ("affiliatio
                             ("takedown", "member", "affiliation", ("affiliation_member_action",), "fixed"))
 
 
+def marker_key(r, by):
+    """The key a quarantine marker or a slashing verdict is about: its `target`; for a release, its withhold's (a
+    release names its withhold, not a key)."""
+    if r["kind"] == "quarantine:release":
+        w = by.get(r.get("target"))
+        return None if w is None else w.get("target")
+    return r.get("target")
+
+
 def act_targets(r, by):
     """The keys an act is against: an unseat's `to`; a quarantine marker's or a slashing verdict's `target`; a takedown
     notice's content row's signer (the member whose content it takes down)."""
-    if family(r) in ("quarantine", "slashing"): return frozenset((r.get("target"),)) - {None}
+    if family(r) in ("quarantine", "slashing"): return frozenset((marker_key(r, by),)) - {None}
     if family(r) == "takedown_notice":
         c = by.get(r.get(ACT_OF))
         return frozenset((c["signer"],)) if c is not None else frozenset()
@@ -2656,19 +2669,22 @@ def lone_act_rule(r, P, past):
                          past (H4, as every act read on a seat); never counted (MUTATION lone_act_counted: a count asked);
         in an affiliation  the body's act, counted over its officers (affiliation_count): one officer makes it a proposal,
                          in force only with a countersign (act_in_force).
-    Shapes: a marker's state is withhold or release, and a release cites (`cites`, G21) the withhold it lifts, of the same key,
+    Shapes: a marker's state is withhold or release, and a release is its withholder's `supersedes` of the withhold, named by `target` (G21), of the same key,
     in its past; a verdict's outcome is proven_rogue or not_proven; a takedown names (`of`) a content row in its past."""
     by = {q["id"]: q for q in P}
     obj, k, param = r.get("obj"), family(r), family_param(r)
     if k == "quarantine":
         if param not in QUARANTINE_STATES or r.get("target") is None: return False
         if param == "release":
-            w = cited(r, by, lambda q: q["kind"] == "quarantine:withhold")
-            if w is None or w["kind"] != "quarantine:withhold" or w.get("target") != r["target"] or w.get("obj") != obj:
+            # a release is the withholding holder's `supersedes` of its own withhold, named by `target` (the
+            # Constitution's G21 as re-ruled: the quarantine fold ranks withhold over release, and "released
+            # supersedes withheld"); a release of anything else concludes nothing
+            w = by.get(r["target"])
+            if w is None or w["kind"] != "quarantine:withhold" or w.get("obj") != obj or w.get("target") is None:
                 return False
-            # no act lifts itself by its own target: the key withheld never releases its own withhold (MUTATION
-            # self_release)
-            if r["signer"] == r["target"] and "self_release" not in MUT: return False
+            # only the holder that withheld releases it: another holder's release does nothing (its routes are the
+            # members' lift, which cites the act, or a review; MUTATION release_by_any_holder)
+            if w["signer"] != r["signer"] and "release_by_any_holder" not in MUT: return False
     if k == "slashing" and (param not in SLASH_OUTCOMES or r.get("target") is None): return False
     if k == "takedown_notice" and (param is None or r.get(ACT_OF) not in by): return False
     # the target is the room's: a takedown's content row is of obj (its `room`, or its object), and a marker's or a
@@ -2679,7 +2695,7 @@ def lone_act_rule(r, P, past):
     kind = kind_of(by, obj)
     heads = r.get("head", ())
     if not heads or newer_head_in_past(heads, None, P, past, obj, signers(r)): return False
-    if k in ("quarantine", "slashing") and "target_any_room" not in MUT and r["target"] not in (
+    if k in ("quarantine", "slashing") and "target_any_room" not in MUT and marker_key(r, by) not in (
             members_at(P, past, obj, heads, "member") | members_at(P, past, obj, heads, AGENT)):
         return False
     if kind == "affiliation":
@@ -2728,24 +2744,22 @@ def act_in_force(S, act, own=None):
     past = lambda a, b: a in S.anc[b]
     held = lambda kind, pred: [q for q in S.Cs if q["kind"] == kind and pred(q) and Q.cut.counts(q) and q["id"] not in Q.stale]
     if kind_of(S.by, obj) == "affiliation":
-        if needs_countersign(r, P, past) and "countersign_unread" not in MUT:
-            wd = [w for w in S.Cs if w["kind"] == "withdraw" and w.get("target") == act and w["signer"] == r["signer"]]
-            body = record_value({q["id"]: q for q in P}, obj, OVERSEEN_BY)
-            cs = held("countersign", lambda c: c.get("of") == act and not overseer_cut(c, S.by, past, body))
-            if not any(all(c["id"] in S.anc[w["id"]] for w in wd) for c in cs): return False
+        if needs_countersign(r, P, past) and "countersign_unread" not in MUT \
+                and not decided_in(r, {q["id"]: q for q in S.Cs}, past):
+            return False
     else:
         unseats = [u for u in S.Cs if u["kind"] == "unseat" and Q.cut.counts(u) and u["id"] not in Q.stale]
         if "lone_act_end_unread" not in MUT and not removal_in_force(S, r, unseats, Seats(S, own=own, roster=False),
                                                                   scope=LONE_ACTS[family(r)]):
             return False
-        lifted = held("offer", lambda q: q.get("scope") == "act" and act in cites(q) and q.get("conf") == "group")
+        lifted = held("offer", lambda q: q.get("scope") == "act" and the_cite(q) == act and q.get("conf") == "group")
         if lifted and "lone_act_lift_unread" not in MUT: return False
         if family(r) == "takedown_notice" and "reconsideration_unread" not in MUT and [
-                q for q in S.Cs if family(q) == "reconsideration" and act in cites(q) and q.get("outcome") == "reversed"
+                q for q in S.Cs if family(q) == "reconsideration" and the_cite(q) == act and q.get("outcome") == "reversed"
                 and Q.cut.counts(q) and q["id"] not in Q.stale]:
             return False
     if r["kind"] == "quarantine:withhold" and "release_unread" not in MUT:
-        if any(act_in_force(S, q["id"], own) for q in S.Cs if q["kind"] == "quarantine:release" and act in cites(q)):
+        if any(act_in_force(S, q["id"], own) for q in S.Cs if q["kind"] == "quarantine:release" and q.get("target") == act):
             return False
     if family(r) == "slashing" and family_param(r) != "proven_rogue" and "unproven_fires" not in MUT: return False
     return True
@@ -3151,10 +3165,6 @@ def members_at(P, past, obj, heads, scope="member"):
     sids = {q["id"] for q in sub}
     by = {q["id"]: q for q in P}
     ends = [] if "ends_at_heads_unread" in MUT else [w for w in P if w["kind"] == "withdraw" and w["id"] not in sids]
-    # and the countersigns in that past of the heads' rows: a one-officer body's proposal decided there is decided at
-    # the heads (MUTATION countersign_at_heads_unread)
-    ends += [] if "countersign_at_heads_unread" in MUT else [c for c in P if c["kind"] == "countersign"
-                                                             and c["id"] not in sids and c.get("of") in sids]
     return seats_of(sub + ends + [by[a] for a in completing(sids, P, by, obj, past)]).holders(scope, obj)
 
 
@@ -3810,8 +3820,6 @@ def seat_rule(r, P, past, table=None, other=None):
         return True
     if k == "cosign":
         return True
-    if k == "countersign":
-        return countersign_ok(r, P, past)
     if family(r) in LONE_ACTS:
         return lone_act_rule(r, P, past)
     if family(r) == "reconsideration":

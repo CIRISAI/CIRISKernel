@@ -502,7 +502,6 @@ impl SeatRow for TRow {
             "cosign" => SeatKind::Cosign,
             "ballot" => SeatKind::Ballot,
             "decline" => SeatKind::Decline,
-            "countersign" => SeatKind::Countersign,
             // the registered families: the kind before its parameter
             k if k.split(':').next() == Some("quarantine") => SeatKind::Quarantine,
             k if k.split(':').next() == Some("slashing") => SeatKind::Slashing,

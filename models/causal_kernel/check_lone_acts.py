@@ -19,7 +19,7 @@ reconsideration_rule, act_in_force; CC 4.5.4 (iii), CC 4.5.5, CC 3.1.9.2, CC 4.4
                     it; the marker plane never withholds itself (a quarantined key's own markers stand)
     the verdict     a slashing verdict fires only on a proven ground: not_proven fires nothing
     an affiliation  the act is its body's, counted over its officers: with one officer a proposal, decided only by a
-                    countersign naming it (rule 4: a concurrent withdrawal by the acting seat leaves nothing decided);
+                    countersign: the designated official's or an overseer's own voice on the act's row (G15);
                     with two or more, two voices, the member concerned apart
 
 Each case is a hand-written answer (which rows conclude, and which acts are in force), read in arrival orders.
@@ -33,7 +33,9 @@ Planted breaks (seat.MUT), each of which must change a case's answer:
     release_unread          a release naming a withhold does not lift it
     unproven_fires          a not_proven verdict fires
     countersign_unread      (the countersign) an affiliation's one-officer act is decided without a countersign
-    self_release            the key withheld releases its own withhold; a content's author reverses its takedown
+    self_release            a content's author reverses its takedown
+    release_by_any_holder   another holder's release of a withhold lifts it (G21: only the holder that withheld)
+    first_cite              a row citing several reads its first cite (r98: exactly one cite, or nothing)
     target_any_room         a takedown's content, or a marker's key, need not be the room's
     lift_base_lift_head     (the lift) counted at the lift's heads alone: members admitted after the act carry it
 
@@ -72,7 +74,7 @@ def act(i, kind, signer, heads=("g",), names=(), obj=OBJ, **kw):
 TDK = "takedown_notice:legal_order"
 TD = act("td", TDK, "p1", names=("c1",), of="c1")
 QW = act("qw", "quarantine:withhold", "p1", target="p3")
-QR = act("qr", "quarantine:release", "p1", names=("qw",), target="p3", cites=("qw",))
+QR = act("qr", "quarantine:release", "p1", names=("qw",), target="qw")        # p1's supersedes of its own withhold
 SP = act("sp", "slashing:proven_rogue", "p1", target="p3")
 SN = act("sn", "slashing:not_proven", "p1", target="p3")
 LAY = ST.withdraw("ld", "p1", "g", ("td",), scope="takedown")          # p1 lays its takedown duty down after td
@@ -88,7 +90,7 @@ A1B = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",
 B1 = CK.row("b1", "post", "B", ("a1b",), room="a1")
 AF = [A1, A1B, B1]
 ATD = act("atd", TDK, "A", heads=("a1b",), names=("b1",), obj="a1", of="b1")
-ACS = ST.R("acs", "countersign", "O", ("atd",), of="atd")
+ATDO = dict(ATD, cosigners=("O",))          # the countersign: the official's own voice on the act's row (G15)
 AWD = ST.withdraw("awd", "A", "atd", ("atd",))
 # two officers: A and C
 A2 = ST.found("a1", "A", ("A", "C"), {ST.OFFICER: ("A", "C")}, cosigners=("C",), declared_cohort="affiliations")
@@ -153,7 +155,16 @@ CASES = [
     # ---- r75 ---------------------------------------------------------------------------------------------------------
     ("r75: the key withheld never releases its own withhold: p2 withholds p1, p1's release concludes nothing",
      W + [act("qw1", "quarantine:withhold", "p2", target="p1"),
-          act("qr1", "quarantine:release", "p1", names=("qw1",), target="p1", cites=("qw1",))], {"qr1": F}, {"qw1": T}),
+          act("qr1", "quarantine:release", "p1", names=("qw1",), target="qw1")], {"qr1": F}, {"qw1": T}),
+    # ---- G21 as re-ruled: a release is the withholding holder's supersedes of its own withhold -------------------
+    ("G21: another slash holder's release is refused: p1 withholds p3, p2 releases it, and the withhold holds",
+     W + [QW, act("qr2", "quarantine:release", "p2", names=("qw",), target="qw")], {"qr2": F}, {"qw": T}),
+    ("G21: a double release: p1 releases its withhold twice; both conclude and the withhold is lifted",
+     W + [QW, QR, act("qr2", "quarantine:release", "p1", names=("qw",), target="qw")], {"qr": T, "qr2": T},
+     {"qw": F}),
+    ("G21: a release of a release concludes nothing", W + [QW, QR, act("qr3", "quarantine:release", "p1",
+                                                                          names=("qr",), target="qr")],
+     {"qr3": F}, {"qw": F}),
     ("r75: the author of the content never reconsiders its own takedown: p4 (review) posts c4, p1 takes it down, p4's "
      "reversal concludes nothing", W + [C4, act("td", TDK, "p1", names=("c4",), of="c4"),
                                        act("rc", "reconsideration:new_evidence", "p4", names=("td",), cites=("td",),
@@ -165,18 +176,44 @@ CASES = [
     ("r75: the lift at both heads: p5 and p6, admitted after the takedown, object with p2; the base is the members at "
      "both heads (p2, p3, p4), so one of three lifts nothing", W + [TD, A5, A6, OB("o2", "p2"), OB("o5", "p5"),
                                                                   OB("o6", "p6"), LIFT6], {"a6": T, "lf": F}, {"td": T}),
+    # ---- r98 (review-58): a reconsideration names ITS notice and a lift THE act: exactly one cite ------------------
+    ("r98 M1: p1 releases p2's withhold of p1 (target qw1, the second withhold cited too): only the holder that "
+     "withheld releases, so nothing", W + [QW, act("qw1", "quarantine:withhold", "p2", target="p1"),
+                                           act("qr", "quarantine:release", "p1", names=("qw", "qw1"), target="qw1",
+                                               cites=("qw", "qw1"))], {"qr": F}, {"qw": T, "qw1": T}),
+    ("r98 M2: a lift citing two acts (td, objected; qw, not) concludes nothing, and both stay in force",
+     W + [TD, QW, OB("o2", "p2"), OB("o3", "p3"), OB("o4", "p4"),
+          ST.offer("lf", "p2", (), "act", OBJ, "group", ("td", "qw", "o2", "o3", "o4", "g"), head=("g",),
+                   cites=("td", "qw"), policy="moderation_overturn")], {"lf": F}, {"td": T, "qw": T}),
+    ("r98 M2b: the same with its cites the other way round", W + [TD, QW, OB("o2", "p2"), OB("o3", "p3"), OB("o4", "p4"),
+          ST.offer("lf", "p2", (), "act", OBJ, "group", ("td", "qw", "o2", "o3", "o4", "g"), head=("g",),
+                   cites=("qw", "td"), policy="moderation_overturn")], {"lf": F}, {"td": T, "qw": T}),
+    ("r98 M3: p4 reconsiders citing td and td2 (a takedown of p4's own c4): two cites, nothing reversed",
+     W + [TD, C4, act("td2", TDK, "p2", names=("c4",), of="c4"),
+          act("rc", "reconsideration:new_evidence", "p4", names=("td", "td2"), cites=("td", "td2"), outcome="reversed")],
+     {"rc": F}, {"td": T, "td2": T}),
+    ("r98 M3b: p4 (review in g) reconsiders citing td and a takedown in another room: nothing reversed",
+     W + [TD, G2, C2, act("tdx", TDK, "q1", heads=("g2",), names=("c2",), obj="g2", of="c2"),
+          act("rc", "reconsideration:new_evidence", "p4", names=("td", "tdx"), cites=("td", "tdx"), outcome="reversed")],
+     {"rc": F, "tdx": T}, {"td": T, "tdx": T}),
+    ("r98 M6: a lift whose one cite is the content row, not the act, lifts nothing",
+     W + [TD, OB("o2", "p2"), OB("o3", "p3"), OB("o4", "p4"),
+          ST.offer("lf", "p2", (), "act", OBJ, "group", ("td", "o2", "o3", "o4", "g"), head=("g",), cites=("c1",),
+                   policy="moderation_overturn")], {"lf": F}, {"td": T}),
     # ---- an affiliation (CC 4.4.3.12): the body's act, over its officers ---------------------------------------------
     ("a one-officer affiliation's takedown of a member's content: a proposal, not in force", AF + [ATD],
      {"atd": T}, {"atd": F}),
-    ("countersigned by its designated official: decided, in force", AF + [ATD, ACS], {"acs": T}, {"atd": T}),
-    ("the acting officer's withdrawal concurrent with the countersign: nothing decided (rule 4)", AF + [ATD, ACS, AWD],
-     {"acs": T}, {"atd": F}),
+    ("with its designated official's voice on the act's row (G15): decided, in force", AF + [ATDO], {"atd": T},
+     {"atd": T}),
+    ("an ineligible outside voice on the act (X): refused", AF + [dict(ATD, cosigners=("X",))], {"atd": F}, {"atd": F}),
+    ("the acting officer's withdrawal of its held takedown decides nothing: not in force", AF + [ATD, AWD], {"atd": T},
+     {"atd": F}),
     ("two officers: one alone takes nothing down", [A2, A2B, B1, ATD], {"atd": F}, {"atd": F}),
     ("and the two together: decided, no countersign asked", [A2, A2B, B1, dict(ATD, cosigners=("C",))], {"atd": T},
      {"atd": T}),
 ]
 PLANTS = ("lone_act_counted", "lone_act_cosigned", "lone_act_end_unread", "lone_act_lift_unread",
-          "reconsideration_unread", "release_unread", "unproven_fires", "countersign_unread", "self_release",
+          "reconsideration_unread", "release_unread", "unproven_fires", "countersign_unread", "self_release", "release_by_any_holder", "first_cite",
           "target_any_room", "lift_base_lift_head")
 
 
