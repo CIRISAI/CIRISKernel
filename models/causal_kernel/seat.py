@@ -2410,9 +2410,7 @@ class Seats:
             # past; two owners are none). MUTATIONS agent_duty_owner_unread, agent_owner_end_unread
             # an agent is recognised by its agent seat (over any room) or its agent registration, whatever scope it was
             # admitted under (as ruled for KP5; MUTATION agent_by_seat_only: only an agent seat in that room)
-            agent_keys_ = {k for oid, k, sc, _, _ in self.live if sc == AGENT} | {
-                q["obj"] for q in Cs if q["kind"] == "offer" and q.get("scope") == "registered"
-                and "agent" in (q.get("identity") or ())}
+            agent_keys_ = {k for oid, k, sc, _, _ in self.live if sc == AGENT} | registered_agents(Cs)
             agents = {(S.by[oid]["obj"], k) for oid, k, sc, _, _ in self.live
                       if (sc == AGENT if "agent_by_seat_only" in MUT else k in agent_keys_)}
             owners = {}
@@ -3737,10 +3735,20 @@ def person_key(P, g):
     return None if row is None else row["signer"]
 
 
+def registered_agents(P):
+    """The keys an agent registration names over P: a `registered` offer whose identity says `agent`. With
+    agent_keys, THE ONE agent recognition (an agent seat, over any room, or an agent registration, whatever scope the
+    key was admitted under): Seats' duty reading and the person map both read it (MUTATION agent_by_seat_only: the
+    registration unread)."""
+    if "agent_by_seat_only" in MUT: return frozenset()
+    return frozenset(q["obj"] for q in P if q["kind"] == "offer" and q.get("scope") == "registered"
+                     and "agent" in (q.get("identity") or ()))
+
+
 def agent_keys(P):
-    """The keys holding an AI agent's seat over P (CC 4.5.13: "an agent has no vote"): they are in no count and never
-    speak for a person."""
-    return frozenset(x["k"] for x in seats_of(P).recs if x["scope"] == AGENT)
+    """The keys of AI agents over P (CC 4.5.13: "an agent has no vote"): an agent seat over any room, or an agent
+    registration, whatever scope the key was admitted under. They are in no count and never speak for a person."""
+    return frozenset(x["k"] for x in seats_of(P).recs if x["scope"] == AGENT) | registered_agents(P)
 
 
 def rep_of(P, k, member=False):
@@ -3957,7 +3965,8 @@ def agents_at(P, past, obj, heads):
     for sc in (AGENT, NODE):
         if any(q.get("scope") == sc for q in P):
             out |= members_at(P, past, obj, heads, sc)
-    return out
+    # an agent registered, whatever scope it was admitted under, is in no count either (the one recognition)
+    return out | registered_agents(P)
 
 
 def counted_keys(P, past, obj, heads, scope="member"):
