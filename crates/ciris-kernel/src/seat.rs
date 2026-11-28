@@ -1757,6 +1757,10 @@ pub struct Seats<'c, 'a, R: SeatRow, S: CutSpec<R>> {
     /// The moderators' lone removals the end rule holds out of force over this set ([`removal_in_force`]):
     /// they end nothing here, and a reading of one line of the set (a tip, the fold) leaves them out too.
     dropped: BTreeSet<R::Id>,
+    /// The ends this roster TAKES, (key, row, object): its counted removals from a roster seat that count, are not
+    /// void for the reader, not out of force and not contested, and the holders' own ends of a stay. The one reading
+    /// of a departure: the election's close reads it, so the election and the roster cannot disagree.
+    ended: Vec<(R::Key, usize, ObjOf<R>)>,
     recs: Vec<Live<R::Id, R::Key, R::Word>>,
     /// Per live seat, whether it is a duty seat proper ([`duty_held`]): such a seat follows the folded roster.
     duty: Vec<bool>,
@@ -1952,6 +1956,15 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             unseats.into_iter().filter(|(u, _)| !contested.contains(g.row(*u).id())).collect()
         };
         dropped.extend(contested);
+        let roster_scope = |q: &R| q.scope().is_some_and(|s| law.roster_seats.iter().any(|x| x == s.as_ref()));
+        let ended: Vec<(R::Key, usize, ObjOf<R>)> = unseats
+            .iter()
+            .filter(|(u, _)| roster_scope(g.row(*u)))
+            .flat_map(|(u, o)| {
+                o.iter().flat_map(move |o| g.row(*u).to().iter().map(move |k| (k.clone(), *u, o.clone())))
+            })
+            .chain(left.iter().map(|(w, k, room)| ((*k).clone(), *w, room.clone())))
+            .collect();
         // a removal from the roster: of a member's seat, or of any seat the law names the roster's own
         let member = |s: Option<&R::Word>| {
             s.is_some_and(|x| x.as_ref() == "member" || law.roster_seats.iter().any(|r| r == x.as_ref()))
@@ -2212,6 +2225,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             stale,
             beaten,
             dropped,
+            ended,
             recs,
             duty,
             tips_memo: RefCell::default(),

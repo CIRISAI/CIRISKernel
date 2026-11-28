@@ -151,9 +151,14 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         let g = &self.c.g;
         let mine = self.end_slots(ei, p, obj);
         let counted = self.row(ei).seat_kind() == SeatKind::Unseat;
+        if mine.is_empty() {
+            return false;
+        }
+        // only an end the roster TAKES forks: a counted removal it holds contested or out of force is none (rule 5)
+        let dropped = self.roster_ends(p).1;
         !mine.is_empty()
             && p.iter().copied().any(|f| {
-                if f == ei || g.in_past(f, ei) || g.in_past(ei, f) {
+                if f == ei || g.in_past(f, ei) || g.in_past(ei, f) || dropped.contains(&f) {
                     return false;
                 }
                 let fk = self.row(f).seat_kind();
@@ -184,7 +189,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                         .cites()
                         .first()
                         .and_then(held)
-                        .is_some_and(|f| !self.end_slots(f, rows, &obj).is_disjoint(&mine))
+                        .is_some_and(|f| f == ei || !self.end_slots(f, rows, &obj).is_disjoint(&mine))
             })
             .collect();
         if !out.contains(&oi) {
@@ -703,11 +708,24 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             .collect()
     }
 
-    /// Each leaving of the room (the key's own end of its stay) or counted removal from its roster among `p`, with
-    /// the row, the key not seated again after it there.
+    /// The roster's own reading over `p` less the election's seatings (a person's departure is the roster's, never a
+    /// seat's): the ends it takes, (key, row, object), and the counted ends it does not take (contested, or a lone
+    /// removal out of force), as rows of this set. [`Seats`] computes both; nothing here reads them a second way.
+    fn roster_ends(&self, p: &[usize]) -> (Vec<(R::Key, usize, ObjOf<R>)>, BTreeSet<usize>) {
+        let rows: Vec<&'a R> = p.iter().map(|&q| self.row(q)).filter(|q| !is_election(self.law, *q)).collect();
+        let sub = concluded_over(rows.iter().copied());
+        let seats = Seats::build(&sub, self.law, self.spec, None, None, Some(self.memo));
+        let here = |i: usize| self.idx(sub.g.row(i).id());
+        let ended = seats.ended.iter().filter_map(|(k, w, o)| Some((k.clone(), here(*w)?, o.clone()))).collect();
+        let dropped = seats.dropped.iter().filter_map(|id| self.idx(id)).collect();
+        (ended, dropped)
+    }
+
+    /// Each departure from the room among `p` AS THE ROSTER TAKES IT ([`Seats`]'s taken ends: a counted removal
+    /// from a roster seat that counts and is in force, not contested, or a holder's own end of its stay), with the
+    /// row, the key not seated again after it there.
     fn departures(&self, p: &[usize], obj: &ObjOf<R>) -> Vec<(R::Key, usize)> {
         let g = &self.c.g;
-        let by: BTreeMap<&R::Id, &R> = p.iter().map(|&i| (self.row(i).id(), self.row(i))).collect();
         let again = |k: &R::Key, d: usize| {
             p.iter().any(|&m| {
                 let mr = self.row(m);
@@ -718,26 +736,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                     && g.in_past(d, m)
             })
         };
-        let mut out = Vec::new();
-        for &w in p {
-            let wr = self.row(w);
-            match wr.seat_kind() {
-                SeatKind::Withdraw => {
-                    let held = |a: &R| by.contains_key(a.id()) && self.idx(a.id()).is_some_and(|ai| g.in_past(ai, w));
-                    if stay_end(self.law, &by, wr, &held).as_ref() == Some(obj) && !again(wr.signer(), w) {
-                        out.push((wr.signer().clone(), w));
-                    }
-                }
-                SeatKind::Unseat => {
-                    let roster = wr.scope().is_some_and(|s| self.law.roster_seats.iter().any(|x| x == s.as_ref()));
-                    if wr.obj().as_ref() == Some(obj) && roster && wr.conf() == Some(Conf::Group) {
-                        out.extend(wr.to().iter().filter(|k| !again(k, w)).map(|k| (k.clone(), w)));
-                    }
-                }
-                _ => {}
-            }
-        }
-        out
+        let taken = self.roster_ends(p).0;
+        taken.into_iter().filter(|(k, w, o)| o == obj && !again(k, *w)).map(|(k, w, _)| (k, w)).collect()
     }
 
     /// E3, C3: the election id row `ei` names is no longer the room's for row `ri` (read over its past `p`) where
@@ -928,27 +928,12 @@ pub(super) fn count<R: SeatRow, S: CutSpec<R>>(
     let all: Vec<&R> = past.iter().map(|&q| sub.g.row(q)).collect();
     let by: BTreeMap<&R::Id, &R> = all.iter().map(|q| (q.id(), *q)).collect();
     let rows: Vec<&R> = all.iter().copied().filter(|q| mine.contains(q.id())).collect();
-    let roster = |s: Option<&R::Word>| s.is_some_and(|s| law.roster_seats.iter().any(|x| x == s.as_ref()));
-    let left: BTreeSet<&R::Key> = rows
-        .iter()
-        .filter(|w| {
-            let held = |a: &R| {
-                by.contains_key(a.id())
-                    && sub.g.idx(a.id()).zip(sub.g.idx(w.id())).is_some_and(|(ai, wi)| sub.g.in_past(ai, wi))
-            };
-            w.seat_kind() == SeatKind::Withdraw && stay_end(law, &by, **w, &held).as_ref() == Some(&obj)
-        })
-        .map(|w| w.signer())
-        .chain(
-            rows.iter()
-                .filter(|u| {
-                    u.seat_kind() == SeatKind::Unseat
-                        && u.conf() == Some(Conf::Group)
-                        && u.obj().as_ref() == Some(&obj)
-                        && roster(u.scope())
-                })
-                .flat_map(|u| u.to().iter()),
-        )
+    // departures as the roster takes them (rule 5; one reading with the roster's, departures), among the set's rows
+    let left: BTreeSet<R::Key> = cx
+        .departures(&past, &obj)
+        .into_iter()
+        .filter(|(_, w)| mine.contains(sub.g.row(*w).id()))
+        .map(|(k, _)| k)
         .collect();
     // a key read as its person (rule 7), over the past less the election's seatings
     let all_np: Vec<&R> = all.iter().copied().filter(|q| !is_election(law, *q)).collect();
@@ -1081,7 +1066,10 @@ pub(super) fn open_concludes<R: SeatRow, S: CutSpec<R>>(
     let cx = Ctx { c: &sub, law, spec, memo: cache.unwrap_or(&local) };
     let (Some(ri), Some(ei)) = (sub.g.idx(r.id()), sub.g.idx(end)) else { return false };
     let past = cx.past(ri);
-    if cx.end_slots(ei, &past, &obj).is_empty() || cx.end_fork(ei, &past, &obj) {
+    // the first election of a room whose founding row gives no duty seat: its vacancy is the founding row itself (C1)
+    let er = sub.g.row(ei);
+    let founding_vacancy = Obj::Row(er.id().clone()) == obj && cx.id_seats(er).is_empty();
+    if !founding_vacancy && (cx.end_slots(ei, &past, &obj).is_empty() || cx.end_fork(ei, &past, &obj)) {
         return false;
     }
     // its heads are the newest counted changes over the room in its past (the void changes apart)
