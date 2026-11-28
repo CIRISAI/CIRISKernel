@@ -661,10 +661,9 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
             }
         }
     }
-    // a row built on a cut row (one naming it, down the line) is cut with it: the one place this lane's cuts reach
-    // what rests on them
-    let built: Vec<usize> = rows.iter().copied().filter(|&q| cut.iter().any(|&x| c.g.ancestors(q).has(x))).collect();
-    cut.extend(built);
+    // (what rests on a cut row is the seat model's to void: a counted act counts only if every counted act among its
+    // heads counts, and a lone conferral regrown against the body seats nothing; a cut row is simply absent from the
+    // rows the Seats here are built over)
     rows.retain(|j| !cut.contains(j));
     rows
 }
@@ -830,6 +829,24 @@ fn issuance<R: TrustRow + Dated, S: CutSpec<R>>(
     None
 }
 
+/// Licence row `i` is its authority's OWN licence over the rows `idx`: a community's, met by its quorum under its
+/// declared protocol, its emitter not the authority's own key.
+fn own_licence<R: TrustRow + Dated, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, i: usize, idx: &[usize]) -> bool {
+    let c = seats.c();
+    let r = c.g.row(i);
+    let Some(a) = r.licence_authority() else { return false };
+    let (sub, with) = judged(c, i, idx);
+    let (rc, _) = for_reader(&sub, seats.law(), seats.spec(), None);
+    let at = Seats::new(&rc, seats.law(), seats.spec(), None);
+    if !is_community(&at, &a) || is_the_authority(&at, r.signer(), &a) {
+        return false;
+    }
+    let last = with.g.len() - 1;
+    let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
+    let voices: BTreeSet<R::Key> = signers(r).into_iter().cloned().collect();
+    declared_count(&Past::new(&with.g, last, &p), at.law(), at.spec(), &a, &at.protocol_body(&a), &voices)
+}
+
 /// Whether licence row `i` is its authority's act in force for the reader holding the rows `seats` was built on:
 /// `None`, or the reason it CONCLUDES NOTHING in the authority's fold (never a refusal: the licence row is admitted,
 /// and the reason reads other rows, CC 2.7.3). Its existence is judged over its own past ([`ended_for_reader`],
@@ -861,6 +878,11 @@ pub fn standing<R: TrustRow + Dated, S: CutSpec<R>>(
         return Some(why);
     }
     match issuance(seats, i, &ended_for_reader(seats, i, true, own)) {
+        // the body's OWN licence (its quorum's, not a seat holder's or the authority's key's) is a counted act of the
+        // body: while it has one officer it needs the countersign, read by seat::countersigned over the reader's rows
+        None if own_licence(seats, i, &ended_for_reader(seats, i, false, own)) && !countersigned(seats, i) => {
+            Some(NOT_AUTHORITY)
+        }
         None => None,
         Some(AUTHORITY_LOCKED) => Some(AUTHORITY_LOCKED),
         // an amendment cuts nothing: it changes the rule the licence is judged under, so a licence that fails under

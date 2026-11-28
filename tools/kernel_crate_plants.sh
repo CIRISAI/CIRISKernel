@@ -740,11 +740,11 @@ plant "a holder's own lone conferrals regrow each other" src/trust_rows.rs '&& !
 plant "an end cuts whatever its key still holds"       src/trust_rows.rs '*ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, k, ob, cls))' '*ob == o && who.contains(k)'
 plant "a second end cancels the first's cut"           src/trust_rows.rs 'let without: Vec<usize> = judged.iter().copied().filter(|&x| !mine.contains(&x) && !after(x)).collect();' 'let without: Vec<usize> = judged.iter().copied().filter(|&x| mine.first() != Some(&x) && !after(x)).collect();'
 plant "a re-seat masks the cut"                        src/trust_rows.rs 'let after = |x: usize| mine.iter().any(|&m| c.g.ancestors(x).has(m));' 'let after = |_x: usize| false;'
-plant "a row built on a cut row is kept"               src/trust_rows.rs '    cut.extend(built);' '    let _ = built;'
 plant "an end cuts a whole counted row"                src/trust_rows.rs 'if !is_counted_row(c.g.row(*q)) || !recount_without(seats, *q, gone) {' 'if true {'
 plant "a full end cuts only its named scope"           src/trust_rows.rs '            for (k, ob, _) in &ks {
                 if *ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, k, ob, cls)) {' '            for (k, ob, sc) in &ks {
                 if *ob == o && who.contains(k) && need.iter().any(|cls| scope_class(c, seats.law(), ob, sc.as_ref().map(|w| w.as_ref())).as_deref() == Some(cls.as_str()) && loses(seats, &judged, k, ob, cls)) {'
+plant "a one-officer body's own licence needs no countersign" src/trust_rows.rs 'None if own_licence(seats, i, &ended_for_reader(seats, i, false, own)) && !countersigned(seats, i) => {' 'None if false => {'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

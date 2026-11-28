@@ -139,7 +139,8 @@ role ends with any leaving. `false` for any other object and at the founding row
 **The r87 attack on the trust walk** (both languages): for a COUNTED row an end discounts the ended key's voice and
 re-counts over the voices left, cutting the row only where the count then fails (as rule 5's contest drops voices); a
 single key's own row (its own offer, an edge, its licence) is cut as before. A backdated resignation no longer voids
-a counted act that holds without it.
+a counted act that holds without it. A one-officer affiliation's OWN licence (its quorum's) is a counted act of the
+body and needs the countersign: `seat::countersigned`, read over the reader's rows (C2c).
 
 **The r81 attack on the trust walk, closed** (both languages; every attack a case, each fix a plant):
 - A key's loss of a standing is read over the judged rows with EVERY end of its seats over the object taken out, and
@@ -147,8 +148,8 @@ a counted act that holds without it.
   later re-seat does not mask the cut of a vote concurrent with the end (a vote after the re-seat stands).
 - A lone conferral is batched only with the same signer's other lone conferrals, and re-counted against every other
   growth or counted act of the body the reader holds and it does not have in its past.
-- A row built on a row this lane cuts (naming it, down the line) is cut with it: the one place the cuts reach what
-  rests on them.
+- What rests on a row this lane cuts is the seat model's to void (built on; a regrown lone conferral seats nothing,
+  `regrown_fails`): the lane's own wider built-on cut is retired.
 
 **The r80 attack on the trust walk, closed** (both languages; every attack a case, each fix a plant):
 - A holder's own concurrent lone duty conferrals are one batch, as the tips fold reads them: they are not growth

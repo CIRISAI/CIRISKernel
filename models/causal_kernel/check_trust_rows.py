@@ -50,8 +50,11 @@ Planted breaks, each of which must change a case's answer:
     end_scope_keyed          (d) an end cuts by the scope its target names, not by every standing its key loses
     one_end_at_a_time        (d) a key's loss is read with only the one end removed: a second end cancels the cut
     reseat_masks             (d) a re-seat after the end masks the cut of a vote concurrent with the end
+    own_licence_uncountersigned  (b) a one-officer body's own licence stands without the countersign
     end_cuts_counted_row     (d) an end cuts a whole counted row its key signed, not only its voice
-    built_on_cut_kept        (d) a row built on a row this lane cuts is kept
+    (retired: built_on_cut_kept, a row built on a cut row kept. The seat model voids what rests on a cut row itself:
+    a counted act counts only if the counted acts among its heads count, and a regrown lone conferral seats nothing;
+    the lane's own built-on cut, wider than that, is gone)
     still_holds_end_past     (d) whether the key still holds a standing is read over the end's past, not the judged rows
     growth_held_unread       (a), (b) an authority act concurrent with growth of its body the reader holds is not
                              re-counted over the grown body
@@ -404,9 +407,10 @@ CASES += [
      [G1, R_LS, R_LSA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("lsa",)}], "RD", "l", None, OK),
     ("r77 N4c the outsider holding aob and its countersign: A's own licence counted over officers A and B",
      [AFD1O, R_AOB, R_ACS, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
-    ("r77 N4c' holding aob uncountersigned (item 8): B is no officer, A's licence stands",
-     [AFD1O, R_AOB, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, OK),
-    ("r77 N4c holding none: the residual", [AFD1, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, OK),
+    ("r77 N4c' holding aob uncountersigned (item 8): B is no officer, A's countersigned licence stands",
+     [AFD1O, R_AOB, A("e", "RD", "af"), glic("l", "af", "A"), ST.R("cs", "countersign", "O", ("l",), of="l")], "RD", "l", None, OK),
+    ("r77 N4c holding none: the residual (A's licence countersigned, as item 8 asks of a one-officer body)",
+     [AFD1O, A("e", "RD", "af"), glic("l", "af", "A"), ST.R("cs", "countersign", "O", ("l",), of="l")], "RD", "l", None, OK),
     ("r77 N4e the outsider holding aob: A's edge for af", [AFD1O, R_AOB, R_ACS, A("e", "RD", "af", depth=1),
                                                           A("f", "A", "K", on_behalf="af", names=("af",)),
                                                           klic("l")], "RD", "l", KCH, NR),
@@ -534,6 +538,22 @@ CASES += [
      [_G3, _GLO_G, GLA, _RC_B, A("e", "RD", "g"), _X], "RD", "l", None, LW),
 ]
 
+_GLO_AB = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty")
+_GY_BC = ST.offer("gy", "B", ("Y",), "license", "g", "group", ("gla",), head=("glo",), cosigners=("C",), counted="duty")
+CASES += [
+    ("r87 C2c a one-officer affiliation's own licence, uncountersigned: a proposal, testimony",
+     [AFD1O, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
+    ("r87 C2c with its official's countersign: honoured",
+     [AFD1O, A("e", "RD", "af"), glic("l", "af", "A"), ST.R("cs", "countersign", "O", ("l",), of="l")], "RD", "l",
+     None, OK),
+    ("r87 C2c' countersigned by the one officer itself: no countersign, testimony",
+     [AFD1O, A("e", "RD", "af"), glic("l", "af", "A"), ST.R("cs", "countersign", "A", ("l",), of="l")], "RD", "l",
+     None, NA),
+    ("a row built on a conferral an END cuts is cut with it: B and C's seat for Y on A and B's, A laying down",
+     [_G3, _GLO_AB, GLA, _GY_BC, ST.accept("gya", "Y", "gy"), _L1, A("e", "RD", "g"),
+      glic("ly", "g", "Y") | {"names": ("gya",)}], "RD", "ly", None, LW),
+]
+
 NOW = {"an edge whose term has ended at the caller's instant (150)": 150,
        "r77 N8 a term-bearing edge read with no caller's instant: not walked (never at the licence's own instant)": None}
 
@@ -562,8 +582,8 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "edge_term_unread", "amendment_as_cut",
           "instant_over_reader", "scope_unread", "termless_edge_walked",
           "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
-          "one_end_at_a_time", "reseat_masks", "built_on_cut_kept",
-          "end_cuts_counted_row")
+          "one_end_at_a_time", "reseat_masks",
+          "end_cuts_counted_row", "own_licence_uncountersigned")
 
 
 @contextlib.contextmanager

@@ -478,10 +478,9 @@ def cut_state(S, rows, own=None):
         o = authority_act_over(S, q)
         if o is not None and (behind_line(S, own, q, o) or (q["kind"] != "licensure" and not recounted(S, q, o))):
             cut.add(q["id"])
-    # a row built on a cut row (one naming it, down the line) is cut with it: the one place this lane's cuts reach
-    # what rests on them (MUTATION built_on_cut_kept)
-    if "built_on_cut_kept" not in MUT:
-        cut |= {q["id"] for q in rows if S.anc[q["id"]] & cut}
+    # (what rests on a cut row is the seat model's to void: a counted act counts only if every counted act among its
+    # heads counts (checkpoint, built on), and a lone conferral regrown against the body seats nothing (Seats); a cut
+    # row is simply absent from the rows the Seats here are built over)
     kept = [q for q in rows if q["id"] not in cut]
     return CK.State(kept, {q["id"]: S.C.get(q["id"]) for q in kept})
 
@@ -656,6 +655,14 @@ def standing(S, lic, own=None):
         return why
     why = issuance(ended_for_reader(S, r, own=own), r)
     if why is None:
+        # the body's OWN licence (its quorum's, not a seat holder's or the authority's key's) is a counted act of the
+        # body: while it has one officer it needs the countersign, read by seat.countersigned over the reader's rows
+        T = ended_for_reader(S, r, False, own=own)
+        a = r["authority"]
+        own_licence = is_community(T, a) and not is_the_authority(T, r["signer"], a) and \
+            declared_count(T, ST.signers(r), a)
+        if own_licence and "own_licence_uncountersigned" not in MUT and not ST.countersigned(S, r):
+            return "licensure_delegator_not_authority"
         return None
     if why == "licensure_authority_locked":
         return why
