@@ -283,8 +283,10 @@ it with the reference's own tables.
 At pin 8ec76cce four rows give a table: `community_invite`, `self_roster_add`, `self_roster_evict` and
 `moderation_overturn`. `default_content`, `default_standing` and `default_irreversible` are refused on `opener`
 (`unstated` in the table), `moderation_action` on its `role_at` enact, and `accord_halt` on its `local` concluder.
-OPEN with the reference and taken from the table, with no verdict built on them: `accord_halt`'s concluder `local`
-(the reference's `holder`) and opener_says `fires` (`confirm`), and the counted rows' at_window `dropped` (`open`).
+Ruled 2026-11-28: `accord_halt`'s concluder is `local` (each node's own fuse, no landing; `window::rule` concludes
+no receipt and no landing of a table whose concluder is `local`), its opener_says `fires` (the halt is no confirming
+voice; the confirmation is a cosigned row of a strict majority of the standing holders), and a counted row at the
+window stays open (`at_window` is read for nothing).
 
 The crate embeds no table and parses none; the caller decodes. `tables::law_from_tables(acts, families, protocols)`
 gives the `SeatLaw` cells the tables state, from the acts table's rows (`ActsRow`, its six columns), the policy rows

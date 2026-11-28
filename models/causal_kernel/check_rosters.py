@@ -657,7 +657,7 @@ def check_accord(spec, inst):
     # A2 frozen after decimation, survivors keep fire
     hs = ("h1", "h2", "h3", "h4", "h5")
     g = RS.found(spec, hs, recovery={h: "r" + h for h in hs})
-    rows = [g, RS.accept(spec, "a6", "h6", ("A",)), RS.add(spec, "y", ("A",), "h6", ("h4", "h5"), names=("a6",)), WN.opener("fire", "h5", "halt_fuse", "A", ("A",))]
+    rows = [g, RS.accept(spec, "a6", "h6", ("A",)), RS.add(spec, "y", ("A",), "h6", ("h4", "h5"), names=("a6",)), WN.opener("fire", "h5", "holders@count", "A", ("A",))]
     def a2(S, rows, n):
         if "h6" in roster(S): return None
         return "frozen: roster %s; a survivor's fire concludes: %s" % (sorted(roster(S)), S.C.get("fire"))
@@ -699,8 +699,8 @@ def check_accord(spec, inst):
                       verdict_of(base), base, "the landing voids concurrent answers", {"fails": [("void", "%d cases broken" % broken)] if broken else []}))
     # A6 the fire against a removal: lame duck, latch, and a removed holder
     x = RS.remove(spec, "x", ("A",), "h3", ("h1", "h2"))
-    f_conc = WN.opener("fc", "h3", "halt_fuse", "A", ("A",))
-    f_after = WN.opener("fa", "h3", "halt_fuse", "A", ("A",), names=("x",))
+    f_conc = WN.opener("fc", "h3", "holders@count", "A", ("A",))
+    f_after = WN.opener("fa", "h3", "holders@count", "A", ("A",), names=("x",))
     S = RS.state([g3] + x + [f_conc, f_after])
     plain = (S.C["fc"], S.C["fa"])
     # the fire naming the removal on the old head is refused once an opening names the newest counted changes (H1 on

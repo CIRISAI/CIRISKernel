@@ -30,9 +30,10 @@
 //! there but the act's author (W2): a key no clause counts is no concluder, so where every counted clause of
 //! the table is over [`Base::Others`] ([`author_apart`]) the opener's signer signs no receipt and no landing.
 //!
-//! A table modelling the accord's halt (`halt_fuse` in the reference) is the holders' confirmation of a halt, a
-//! count (CC 4.2.1.1); the halted node's own fuse, on its own clock with no landing, is the node's and is not
-//! read here.
+//! A table whose concluder is `local` (the accord's halt, ruled 2026-11-28: each node's own fuse, with no landing)
+//! has no receipt and no landing that concludes; its at-once counts are read as any table's (the halt's confirmation,
+//! a strict majority of the standing holders). The node's own fuse, on its own clock, is the node's and is not read
+//! here.
 
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
@@ -636,6 +637,11 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
     }
     let get = |i: &R::Id| p.get(i);
     let (Some(w), Some(obj)) = (table_of(o, &get, law, windows, families), o.obj()) else { return Some(Ok(false)) };
+    // a `local` concluder (the accord's halt, ruled 2026-11-28): each node reads its own close and signs nothing, so
+    // no receipt and no landing of it concludes
+    if w.concluder == "local" {
+        return Some(Ok(false));
+    }
     let x = Ctx {
         rows: &rows,
         past: &past,
@@ -1094,9 +1100,9 @@ const NONE: &str = "\u{2014}";
 /// - `window_secs`, which `window_class` must give too.
 ///
 /// Carried and read for no cell: `at_window`, `landed_means`, `refused_means`, `cc_ref`, `model`, `status`, `note`.
-/// OPEN with the reference, taken from the table and judged by nothing here: `accord_halt`'s concluder `local` and
-/// opener_says `fires` (the reference lands its confirmation by a holder, opening with `confirm`), and the counted
-/// rows' at_window `dropped` (the reference's `open`).
+/// Ruled 2026-11-28: `accord_halt`'s concluder `local` (each node's own fuse, no landing: refused, [`Why::Local`]) and
+/// opener_says `fires` (no confirming voice); a counted row at the window stays open (`at_window` `dropped` is a
+/// storage note, read for nothing; a `cosigned` row is refused).
 pub fn spec_from_policy<T: TryFrom<u64>>(
     row: &PolicyRow,
     table: &PolicyTable,

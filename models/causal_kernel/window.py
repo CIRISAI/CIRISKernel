@@ -79,9 +79,13 @@ The fallback's is signed by any member at the opener's head. The overturn's is s
 act's author (W2): a key no clause counts is no concluder of the window, so where every counted clause is over
 `others` (author_apart) the opener's signer signs no receipt and no landing of it.
 
-`halt_fuse` is the holders' confirmation of a halt, a count (CC 4.2.1.1); the halted node's own fuse, on its own
-clock with no landing, is the node's and is not read here (reactions.json `fuse local, late closed`). The name is a
-misnomer kept for now: the adversary table and the fixtures carry it.
+`halt_fuse` is the accord's halt as the Constitution rules it (2026-11-28, policy pin 8ec76cce): its concluder is
+`local`, each node's own fuse (halt_fuse_secs after its receipt) with no landing, so no receipt and no landing of it
+concludes here; its opener `fires`, the act in force and no confirming voice. The confirmation is a strict majority of
+the standing holders (the halting holder may confirm as anyone), read here as answers that say `confirm`: met at
+once, with no landing. The lapse is the node's own clock, which is not read here. Before the ruling this table landed
+by a holder and counted the halt as its holder's confirmation; that table is `holders@count`, built for a path: the
+attack tests read the recount through a holder's landing on it.
 
 A duty holder's single-signature answer (a value an at-once clause reads as "one" over a named scope, said by a
 holder of that scope) is what that key said: a vote the same key also cast is moot, and does not make its answer
@@ -127,9 +131,15 @@ WINDOWS = {
                             "silent": None, "at_close": (("for", ("voted", 1, 2, 2, "against"), "all", "fallback"),), "default": "lapsed"},
     # CC 4.2.1.1: one holder fires at once; the holders' confirmation of the halt, a count (a strict majority). The
     # halted node's own fuse, on its own clock with no landing, is the node's and is not read here (the name misleads)
-    "halt_fuse": {"policy": "accord_halt", "counted": "holder", "concluder": "holder", "opener_says": "confirm",
+    # the ruling of 2026-11-28: concluder `local` (no landing concludes), opener_says `fires` (no voice)
+    "halt_fuse": {"policy": "accord_halt", "counted": "holder", "concluder": "local", "opener_says": None,
                   "at_once": (("confirm", "strict", "all", "confirmed"),),
                   "silent": None, "at_close": (), "default": "lapsed"},
+    # built for a path: a holders' count closed by a holder's landing, the halt as it was read before the ruling (the
+    # halting holder's open counted as its confirmation). The attack tests read the recount through it
+    "holders@count": {"policy": "accord_halt", "counted": "holder", "concluder": "holder", "opener_says": "confirm",
+                      "at_once": (("confirm", "strict", "all", "confirmed"),),
+                      "silent": None, "at_close": (), "default": "lapsed"},
     # CC 4.5.13, the members' check: a duty holder's act takes effect at once and is itself the opener. "The act is
     # lifted when a strict majority of the members seated at the head the act names, the act's author apart, has
     # objected within the 48-hour window. ... The floor is two voices. The author's own objection is no voice, and the
@@ -242,9 +252,9 @@ def spec_from_policy(row, table=None, active=None, seat=None):
         window_secs        the length, which window_class must give too
     Carried and read for no spec cell: at_window (the text's description), landed_means and refused_means (what a
     leaf means for the row), cc_ref, model, status, note.
-    OPEN with the reference (taken from the table, no verdict built on them): accord_halt's concluder `local` (the
-    reference lands by a holder), its opener_says `fires` (the reference's `confirm`), and the counted rows'
-    at_window `dropped` (the reference's `open`)."""
+    Ruled 2026-11-28: accord_halt's concluder `local` (each node's own fuse, no landing: refused here, and the
+    reference's halt_fuse concludes no landing either) and opener_says `fires` (no confirming voice); a counted row
+    at the window stays open (at_window `dropped` is a storage note, read for nothing; a cosigned row is refused)."""
     t = table if table is not None else policy_table()
     why = []
     no = lambda cell, w, other=None: why.append((cell, w, other))
@@ -636,6 +646,11 @@ def rule(r, P, past):
     if k == "answer": return True                              # whether its voice counts is read against the roster at p's head
     spec = spec_of(p, P)
     if spec is None: return False
+    # a `local` concluder (the accord's halt, ruled 2026-11-28): each node reads its own close and signs nothing, so no
+    # receipt and no landing concludes (MUTATION local_lands: a holder lands it)
+    if spec["concluder"] == "local":
+        if "local_lands" not in MUT: return False
+        spec = dict(spec, concluder=spec["counted"])        # the planted break: a holder of the count lands it
     base = _base(P, past, p, spec)
     if r["signer"] not in ST.members_at(P, past, p["obj"], p["head"], spec["concluder"]): return False
     if r["signer"] == p["signer"] and author_apart(spec): return False     # out of every count, so no concluder of it
@@ -964,10 +979,10 @@ def moderation_world():
     return "moderation fallback (48 h, absent moderator, a majority of the members who voted)", cases
 
 
-def halt_world():
+def holders_world():
     g = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))
-    W = secs("halt_fuse")
-    p = opener("p", "h1", "halt_fuse", "g", ("g",))
+    W = secs("holders@count")
+    p = opener("p", "h1", "holders@count", "g", ("g",))
     c2 = answer("c2", "h2", "p", "confirm")
     cases = [
         ("false landing: the halting holder lands 'confirmed' with no other voice",
@@ -990,7 +1005,34 @@ def halt_world():
         ("confirm signed just after, unnamed: a second holder confirms after the lapse and leaves the landing unnamed",
          [g, p, receipt("r", "h3", "p", 0), landing("L", "h3", "p", "r", "lapsed", W), c2], "(a late majority against the lapse)", None),
     ]
-    return "halt fuse (24 h, lapses unless a strict majority confirms)", cases
+    return "a holders' count closed by a holder's landing (built for a path: the halt as read before the ruling of 2026-11-28)", cases
+
+
+def halt_world():
+    """The accord's halt as ruled (2026-11-28): no landing concludes (concluder local: each node's own fuse); the halt
+    fires and is no confirming voice; a strict majority of the standing holders confirms, the halting holder as anyone."""
+    g = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))
+    W = secs("halt_fuse")
+    p = opener("p", "h1", "halt_fuse", "g", ("g",))
+    c = lambda i, who, names=(): answer(i, who, "p", "confirm", names)
+    R = "the ruling of 2026-11-28 on accord_halt"
+    cases = [
+        ("the halt alone: the halting holder's act is no confirming voice", [g, p], R + ": opener_says fires", "open"),
+        ("the halting holder and one other confirm: two of three", [g, p, c("c1", "h1"), c("c2", "h2")],
+         R + ": the halting holder may confirm as anyone", "confirmed"),
+        ("one holder other than the halting one confirms", [g, p, c("c2", "h2")], R + ": opener_says fires, so one of three",
+         "open"),
+        ("the two other holders confirm", [g, p, c("c2", "h2"), c("c3", "h3")], R + ": a strict majority of the standing holders",
+         "confirmed"),
+        ("a holder lands the lapse at the fuse: no landing of a local close concludes",
+         [g, p, receipt("r", "h2", "p", 0), landing("L", "h2", "p", "r", "lapsed", W)], R + ": concluder local", "open"),
+        ("the halting holder lands 'confirmed' alone: it concludes nothing and confirms nothing",
+         [g, p, receipt("r", "h1", "p", 0), landing("L", "h1", "p", "r", "confirmed", W)], R + ": concluder local", "open"),
+        ("two confirm and a holder lands 'confirmed' naming them: the count is met with no landing",
+         [g, p, c("c2", "h2"), c("c3", "h3"), receipt("r", "h2", "p", 0), landing("L", "h2", "p", "r", "confirmed", 0, ("c2", "c3"))],
+         R + ": a met count needs no landing", "confirmed"),
+    ]
+    return "the accord's halt (a local fuse; a strict majority confirms)", cases
 
 
 def overturn_world():
@@ -1140,7 +1182,7 @@ def active_world():
     return "default content above k (the base active: a stated count of twenty)", cases
 
 
-WORLDS = (self_world, add_world, moderation_world, halt_world, overturn_world, active_world)
+WORLDS = (self_world, add_world, moderation_world, holders_world, halt_world, overturn_world, active_world)
 
 
 def holds(need, got):

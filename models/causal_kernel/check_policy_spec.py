@@ -33,7 +33,7 @@ POL = WN.policy_table()
 TABLE = {f["family"]: f for f in POL["families"]}
 
 # The reference's tables that no policy row is meant to give: tables built to reach a path (window.py says so)
-BUILT = {"ballot@once", "proposal@others"}
+BUILT = {"ballot@once", "proposal@others", "holders@count"}
 
 # Each reference table that differs from its row's (in a clause, or in an outcome over a scenario), with what differs
 # and the side the table supports. The rows of policy pin 8ec76cce (CIRISConstitution 67f7ec2), after the rulings of
@@ -46,9 +46,10 @@ DIFFERS = {
                            "or the leaf it gives (the reference: `answered`, its own word, which is no leaf). The members' "
                            "count is the row's (a ballot's for over those who voted, floor two, `landed`; default "
                            "`refused`); the reference's leaves are `fallback` and `lapsed`",
-    "halt_fuse": "refused: the row's concluder is `local` (each node reads its own close and signs nothing), so no landing "
-                 "is judged. OPEN with the reference, which lands by a holder: concluder `local` vs `holder`, opener_says "
-                 "`fires` vs `confirm`; taken from the table, no verdict built on them",
+    "halt_fuse": "refused: the row's concluder is `local` (each node's own fuse, no landing), RULED 2026-11-28; the "
+                 "reference now has the same (no landing of it concludes; the halt fires and is no confirming voice); "
+                 "its confirmation, a strict majority of the standing holders, is a separate cosigned row, which the "
+                 "reference reads as `confirm` answers met at once",
     "L:community_add:majority": "the enact: the row's is strictly more than 2/3 of the base with min_count voices; the "
                                 "reference enacts by the room's declared protocol (CC 3.1.3.2). RULED 2026-11-27: two "
                                 "paths. The reference is the cosigned_act path (the declared protocol and the joiner's "
@@ -572,6 +573,26 @@ def main():
             problems.append("bound: %s: %s, want %s" % (name, got[1], exp))
             print("  %s: %s, WANT %s" % (name, got[1], exp))
     print("  %d bound cases" % nb)
+    print("\nPart 5. at_window is the text's description: no value of it changes what any row gives (ruled 2026-11-28)")
+    words = sorted({f["at_window"] for f in POL["families"]} | {"dropped", "open", "cancelled"})
+    moved = [(f["family"], w) for f in POL["families"] for w in words if give(dict(f, at_window=w)) != give(f)]
+    print("  %d rows x %d words: %s" % (len(POL["families"]), len(words), "none moves" if not moved else moved[:3]))
+    if moved:
+        problems.append("at_window read: %s" % moved[:3])
+    counted = [f["family"] for f in POL["families"] if f["kind"] == "cosigned" and give(f)[0] == "spec"]
+    if counted:
+        problems.append("a counted row gives a window: %s" % counted)
+    print("  every counted row (kind cosigned) is refused, not_a_window: no window, it stays open")
+    # the plant: a holder lands a local close (MUTATION local_lands) must break a row of the ruled halt
+    WN.MUT.add("local_lands")
+    try:
+        hit = [t["case"] for t in WN.adversary_table() if t["window"].startswith("the accord") and t["needs"] is not None
+               and not t["holds"]["recount"]]
+    finally:
+        WN.MUT.discard("local_lands")
+    print("  plant local_lands: %s" % ("caught by %d rows" % len(hit) if hit else "NOT CAUGHT"))
+    if not hit:
+        problems.append("plant local_lands not caught")
     print("\nPart 3. plants")
     caught, out = run_plants()
     for cell, fam, v, hit in out:
