@@ -223,6 +223,11 @@ any other arrival.
   kept; a recovery widening concluded before its grant arrived concluded nothing there. When the row a
   `seat_rule_why` wait names arrives, conclude that row and its descendants again (a `Held` built afresh over
   the kept rows, or `seat::conclude`), not only the row.
+- **A late voice re-presents the row.** A counted row's later voices arrive as further statements on the SAME
+  row id, and the store presents that one row again with a longer `cosigners()` (WIRE_MAP's id trap). "`Ok(false)`
+  is final" holds for a row as presented: on a new voice, drop the row's cached answer, present it again, and
+  conclude it and its descendants again, as for a recovery wait (`check_acts.py`: "a late voice", a count short by
+  one of M that concludes once the last voice is presented).
 - **A group referenced by id alone** (an acceptance edge to a community, a licence's authority, `overseen_by`, a
   root grant's room token, a listing's group) never picks between two founding rows held under that id (the
   Constitution's ruling). Present a founding record's declared id as `SeatRow::group_id`, and resolve every such

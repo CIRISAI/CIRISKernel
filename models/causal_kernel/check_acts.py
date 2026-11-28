@@ -448,6 +448,12 @@ CONCLUDE = [
     ("no weakening: an amendment moving admission_quorum_basis away from founders concludes nothing",
      [GI, IAM("quorum:2/3", admission_quorum_basis="members")], "am", False, False),
     ("live at three of three (M = 2): f1 and f2 seat a node", [GI, INODE(("f1", "f2"))], "r", True, False),
+    # a late voice (ADOPTING.md, "Re-asking"): a later statement on the same row id is the same row re-presented with a
+    # longer cosigners(); the store concludes it again, and its descendants
+    ("a late voice: row r with f1's statement alone is short by one of M = 2, and concludes nothing",
+     [GI, INODE(("f1",))], "r", False, False),
+    ("the same row r re-presented with f2's later statement on it: it concludes", [GI, INODE(("f1", "f2"))], "r", True,
+     False),
     ("one founder leaves, and the room is stalled: f1 and f2 seat no node", [GI, W3, INODE(("f1", "f2"), heads=("g",), cites=("w3",))],
      "r", False, False),
     ("nor remove one", [GI, IN1, dict(W3, names=("na",)), FRMN(("f1", "f2"), heads=("na",), cites=("w3",))], "xn", False, False),
