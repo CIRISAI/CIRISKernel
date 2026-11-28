@@ -2551,8 +2551,8 @@ def reader_rivals(S, own):
     out = set()
     for fs in mine.values():
         if len(fs) < 2: continue
-        t = [f for f in fs if CP.takes_up(S, own, f["id"])]
-        if len(t) == 1: out |= {f["id"] for f in fs if f["id"] != t[0]["id"]}
+        t = CP.takes_up(S, own, [f["id"] for f in fs], MUT | CP.MUT)
+        if len(t) == 1: out |= {f["id"] for f in fs if f["id"] not in t}
     return frozenset(out)
 
 

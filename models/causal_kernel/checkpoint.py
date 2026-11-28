@@ -89,17 +89,28 @@ def acknowledgements(S, own, obj, rows=None):
     return [a for a in rows if (a["signer"] == own or own in a.get("cosigners", ())) and object_of(a, S.by) == obj]
 
 
-def takes_up(S, own, f):
-    """THE READER'S LINE taking up row f (the ruling on one self roster per identity: a reader's roster for an identity
-    is the founding its line takes up): a concluded row `own` signed or cosigned is f or has f in its past, the row
-    counting only where own's key stands there (its own revocation, a `registered` unseat by it, not in that row's
-    past: the K1 rule). A reader with no rows takes up nothing. MUTATION line_takes_nothing."""
-    if own is None or "line_takes_nothing" in MUT: return False
+def takes_up(S, own, fs, mut=None):
+    """THE READER'S LINE taking up an identity's foundings `fs` (the ruling on one self roster per identity: a reader's
+    roster for an identity is the founding its line takes up), MONOTONE, in the line's order: the reader's own rows
+    (every row it signed or cosigned, concluded for everyone or not, each counting only where its key stands: its
+    own revocation, a `registered` unseat by it, not in that row's past, the K1 rule) that reach a founding of fs (are
+    it, or have it in their past); of those, the EARLIEST (none of the others in its past) fix what the line took
+    up: the foundings they reach. A later row reaching another founding takes up nothing, the other being already void
+    for the line (acknowledging never un-voids). Returns that set: one founding is the reader's roster; two (first rows
+    reaching both) or none is a wait. MUTATIONS line_takes_nothing; line_order_unread (every row's reach counts)."""
+    mut = MUT if mut is None else mut                         # the caller's planted breaks (seat's)
+    if own is None or "line_takes_nothing" in mut: return frozenset()
+    fs = frozenset(fs)
     def stands(a):
         return not any(S.by[x]["kind"] == "unseat" and S.by[x].get("scope") == "registered" and S.by[x]["signer"] == own
-                       and own in S.by[x].get("to", ()) for x in S.anc[a["id"]] if x in S.by)
-    return any((a["signer"] == own or own in a.get("cosigners", ())) and (a["id"] == f or f in S.anc[a["id"]]) and stands(a)
-               for a in S.Cs)
+                       and own in S.by[x].get("to", ()) for x in S.anc.get(a["id"], ()) if x in S.by)
+    mine = [a for a in S.rows if (a["signer"] == own or own in a.get("cosigners", ())) and stands(a)]
+    reach = {a["id"]: {f for f in fs if a["id"] == f or f in S.anc.get(a["id"], ())} for a in mine}
+    taking = [a for a in mine if reach[a["id"]]]
+    if "line_order_unread" in mut:
+        return frozenset().union(*(reach[a["id"]] for a in taking)) if taking else frozenset()
+    first = [a for a in taking if not any(b["id"] in S.anc.get(a["id"], ()) for b in taking if b is not a)]
+    return frozenset().union(*(reach[a["id"]] for a in first)) if first else frozenset()
 
 
 def own_line(S, own, obj):

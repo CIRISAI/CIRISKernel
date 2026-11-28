@@ -3299,25 +3299,34 @@ fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &s
     })
 }
 
-/// THE READER'S LINE taking up row `f` (the ruling on one self roster per identity): a concluded row `own` signed or
-/// cosigned is `f` or has it in its past, counting only where `own`'s key stands there (its own revocation, an unseat
-/// of its `registered` seat, not in that row's past: the K1 rule). A reader with no rows takes up nothing. The
-/// reference is `checkpoint.takes_up`.
-pub fn takes_up<R: SeatRow>(c: &Concluded<'_, R>, own: &R::Key, f: usize) -> bool {
+/// THE READER'S LINE taking up an identity's foundings `fs` (the ruling on one self roster per identity), MONOTONE,
+/// in the line's order: the reader's own rows (every row it signed or cosigned, concluded for everyone or not, each
+/// counting only where its key stands: its own revocation, an unseat of its `registered` seat, not in that row's past,
+/// the K1 rule) that reach a founding of `fs` (are it, or have it in their past); of those, the EARLIEST (none of the
+/// others in its past) fix what the line took up, the foundings they reach. A later row reaching another founding
+/// takes up nothing (acknowledging never un-voids). One founding is the reader's roster; two or none is a wait. The
+/// reference is `checkpoint.takes_up`; key_end's reader line is the same rule.
+pub fn takes_up<R: SeatRow>(c: &Concluded<'_, R>, own: &R::Key, fs: &[usize]) -> BTreeSet<usize> {
     let g = &c.g;
-    c.cs().iter().copied().any(|a| {
-        let ar = g.row(a);
-        (ar.signer() == own || ar.cosigners().contains(own))
-            && (a == f || g.in_past(f, a))
-            && !c.cs().iter().copied().any(|x| {
-                let xr = g.row(x);
-                xr.seat_kind() == SeatKind::Unseat
-                    && xr.scope().is_some_and(|s| s.as_ref() == "registered")
-                    && xr.signer() == own
-                    && xr.to().contains(own)
-                    && g.in_past(x, a)
-            })
-    })
+    let n = g.rows().len();
+    let stands = |a: usize| {
+        !(0..n).any(|x| {
+            let xr = g.row(x);
+            xr.seat_kind() == SeatKind::Unseat
+                && xr.scope().is_some_and(|s| s.as_ref() == "registered")
+                && xr.signer() == own
+                && xr.to().contains(own)
+                && g.in_past(x, a)
+        })
+    };
+    let reach = |a: usize| -> BTreeSet<usize> { fs.iter().copied().filter(|&f| a == f || g.in_past(f, a)).collect() };
+    let taking: Vec<usize> = (0..n)
+        .filter(|&a| {
+            let ar = g.row(a);
+            (ar.signer() == own || ar.cosigners().contains(own)) && stands(a) && !reach(a).is_empty()
+        })
+        .collect();
+    taking.iter().copied().filter(|&a| !taking.iter().any(|&b| b != a && g.in_past(b, a))).flat_map(reach).collect()
 }
 
 /// The rival self-roster foundings for reader `own`: of an identity's foundings held, the one the reader's line takes
@@ -3331,9 +3340,9 @@ fn reader_rivals<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, own: Option<&R
     }
     let mut out = BTreeSet::new();
     for fs in mine.values().filter(|fs| fs.len() > 1) {
-        let t: Vec<usize> = fs.iter().copied().filter(|&f| takes_up(c, own, f)).collect();
-        if let [one] = t.as_slice() {
-            out.extend(fs.iter().filter(|&&f| f != *one).map(|&f| c.g.row(f).id().clone()));
+        let t = takes_up(c, own, fs);
+        if t.len() == 1 {
+            out.extend(fs.iter().filter(|f| !t.contains(f)).map(|&f| c.g.row(f).id().clone()));
         }
     }
     out

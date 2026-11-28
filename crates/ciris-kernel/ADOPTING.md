@@ -391,9 +391,11 @@ the room seats under that identity: only the roster's live keys speak for it. An
 thumbprint as proof that the key speaks for the person; only a live key of the person's self roster does. The key a
 self roster evicts is no voice of its eviction, so a roster whose only live key is its genesis key cannot evict it. One
 self roster per identity (ruled): a second founding of a self roster by an identity whose roster the row's past holds
-concludes nothing. Of an identity's foundings a reader holds, the reader's roster is the founding its LINE takes up (a
-row the reader signed or cosigned is that founding or has it in its past, the row counting only where the reader's
-key stands: `seat::takes_up`); a rival founding concludes nothing for that reader, and neither does everything built
+concludes nothing. Of an identity's foundings a reader holds, the reader's roster is the founding its LINE takes up, in
+the line's order (`seat::takes_up`): of every row the reader signed or cosigned (concluded for everyone or not, each
+counting only where the reader's key stands) that is a founding of the identity or has one in its past, the earliest
+(none of the others in its past) fix the roster, and a later row over a rival takes up nothing (acknowledging never
+un-voids); first rows reaching two foundings are a wait; a rival founding concludes nothing for that reader, and neither does everything built
 on it; neither or both taken up is a wait (a fresh reader holding two waits). A thief cannot put its rival on an
 honest reader's line. The genesis key keeps its voice on the roster the reader takes up, as any key of that roster
 does, until that roster evicts it: no special rule for the first key either way. The restore case (a one-key identity
