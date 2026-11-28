@@ -581,6 +581,13 @@ AOP = dict(WN.opener("opa", "k1", "self_roster_add", "S", ("d1",)), to=("k2",), 
 AOP_NC = dict(WN.opener("opa", "k1", "self_roster_add", "S", ("d1",)), to=("k2",))                   # k2 does not
 ADDED = [GS, GD1, AOP, WN.receipt("ra", "k1", "opa", 0), WN.landing("La", "k1", "opa", "ra", "landed", AW)]
 ADDED_NC = [GS, GD1, AOP_NC, WN.receipt("ra", "k1", "opa", 0), WN.landing("La", "k1", "opa", "ra", "landed", AW)]
+def R3ADD(objectors):
+    rows = [dict(WN.opener("op", "p1", "self_roster_add", "S1", ("a1c",), target="k9"), to=("k9",), cosigners=("k9",))]
+    rows += [WN.answer("o" + o, o, "op", "object", ("op",)) for o in objectors]
+    return rows + [WN.receipt("r", "p1", "op", 0),
+                   WN.landing("L", "p1", "op", "r", "landed", AW, tuple("o" + o for o in objectors))]
+
+
 def landed_state(rows):
     return CK.concluded(CK.kept(list(rows)), RULE_W)
 # (name, rows, what is read, want)
@@ -608,6 +615,15 @@ LANDED_CASES = [
     ("r99 M1: two concurrent lone-path evictions of each other, both silent, are contested: neither lands",
      [GS, GD1] + lone_evict("k1", "g1", False) + lone_evict("g1", "k1", False, "op2", "2"),
      lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
+    # R3, the text (CC 3.3.6.4, a stated cost: "One objection of two others does not stop a lone addition... only a
+    # strict majority of the others refuses it. That is weaker than the eviction"): a live thief genesis key lone-adds
+    # its own key k9 to the honest roster S1
+    ("R3 (CC 3.3.6.4, a stated cost): the live thief p1 lone-adds k9 to S1, no objection: k9 is a key of p1",
+     GW + R3ADD(()), lambda S: sorted(ST.person_keys(S, "p1")), ["k9", "p1", "p1b", "p1c"]),
+    ("R3: one objection of the two others does not stop it", GW + R3ADD(("p1b",)),
+     lambda S: sorted(ST.person_keys(S, "p1")), ["k9", "p1", "p1b", "p1c"]),
+    ("R3: a strict majority of the others (both) refuses it", GW + R3ADD(("p1b", "p1c")),
+     lambda S: sorted(ST.person_keys(S, "p1")), ["p1", "p1b", "p1c"]),
     ("a landed addition without the new key's own consent seats nothing", ADDED_NC,
      lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
 ]
@@ -670,8 +686,16 @@ LWORLD.update({
     "T6": TB + [LM4N, tadm(("k1", "m2", "m3"), ("tx2",))],
     "Q": GW + [LRX, LQ1, LQ2, admit_z(LH, ("a1c", "S1r"))],
 })
+# P2: v4 names only the rival, not p4's own earlier row gc: an honest client's rows always have its own last row in
+# their past, so a reader row omitting it is the reader's own self-fork, and waiting is the honest answer (ruled)
+LSD = R("sd", "note", "p1", ("S1r",), cosigners=("p4",))     # the thief's row CLAIMING p4 as a cosigner (R2)
+LWORLD["R2"] = GW + [LRX, LSD, admit_z(LH, ("a1c", "S1r"))]
 LWANT += [("P1", "p4", True), ("P1'", "p4", True), ("P2", "p4", False), ("P3", "p4", True), ("P3", None, False),
-          ("T6", "m4", True), ("Q", "q", False), ("Q", "p4", True)]
+          ("T6", "m4", True), ("Q", "q", False), ("Q", "p4", True),
+          # R2, the caller's fault: a row listing p4 among its cosigners without p4's own verified statement over its
+          # payload seeds p4's line, and p4 waits. CALLER DUTY (ADOPTING): cosigners() lists only keys whose own
+          # statement over the row's payload the store verified, for takes_up and for every count
+          ("R2", "p4", False)]
 LWANT += [("restore", "m4", True), ("restore", None, False)]
 LINE_CASES = [("r100 %s, %s" % (k, "a fresh reader" if rd is None else "reader " + rd), LWORLD[k], rd, "az", w)
               for k, rd, w in LWANT]
