@@ -295,8 +295,8 @@ QUERIES = [
     (("seat_withdraw", "license", "community"), (("duty_withdraw",), "fixed")),
     (("seat_confer", "license", "affiliation"), (("affiliation_member_action", "cosigned_act"), "row")),
     (("seat_withdraw", "license", "affiliation"), (("affiliation_member_action", "cosigned_act"), "row")),
-    # policy pin 8ec76cce has no row for an affiliation's acceptance of an authority: it is no counted act there
-    (("accept", "trust_edge", "affiliation"), None),
+    # policy pin 85750784: an affiliation accepts an onward edge as a counted act of its officers
+    (("accept", "trust_edge", "affiliation"), (("affiliation_member_action", "cosigned_act"), "row")),
     (("purge", "selection", "accord"), (("cosigned_act",), "fixed")),
     (("election_open", "moderate", "community"), (("election_open",), "fixed")),
     (("admit", "key", "voice"), (("self_roster_add",), "fixed")),
