@@ -20,8 +20,9 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
                  recovery in the bundle's past used) concludes nothing. A recovery takes S'' like any bundle, the
                  holder (either key) its voice; recoveries of one seat are settled by T between them.
     the heads    `version` is prev's plus one (a join: the greater plus one) and `family` is prev's: a consistency
-                 check, never ranked; a mismatch is Invalid (`version_prev_mismatch`); a join naming a predecessor in
-                 another's lineage past is Invalid (`further_prev_not_newest`); a recovery whose prev is in the
+                 check, never ranked; a mismatch is Invalid, `genesis_bundle_malformed` with the detail `version_prev_mismatch`
+                 (`family_key_id_changed` for the family); a join naming a predecessor in another's lineage past is
+                 Invalid, `further_prev_not_newest`, a refusal of its own (the token table); a recovery whose prev is in the
                  lineage past of a bundle its holder signed concludes nothing (`recovery_behind_head`). A later bundle is a counted change of the holders'
                  roster: it names the newest bundle in its signers' own past, and S'' and T at the fork point
                  apply to it as to a roster change (MINE, the Constitution's derived reading).
@@ -73,6 +74,19 @@ MUT holds planted breaks, switched on by check_root.py.
 """
 
 MUT = set()
+
+# The details and the refusal each is a detail of (the Constitution's token table, manifests/refusal_tokens.tsv at
+# rc23-next 0e80f21, and CC 2.6.1.11's table of a malformed bundle's details). further_prev_not_newest is a refusal
+# of its own there (CC 2.6.1.11, the order of verification, step 3), not a detail. MUTATION detail_as_name: counted()
+# and refusal() give the detail as the refusal name, with none.
+DETAIL_OF = {
+    "version_prev_mismatch": "genesis_bundle_malformed",
+    "family_key_id_changed": "genesis_bundle_malformed",
+    "recovery_commitments_not_holders": "genesis_bundle_malformed",
+    "recovery_changes_other_seat": "genesis_bundle_malformed",
+    "recovery_commitment_mismatch": "genesis_bundle_count_unmet",
+    "recovery_commitment_spent": "genesis_bundle_count_unmet",
+}
 
 # PROTOTYPE (r78 q4, pending the Constitution): UNION VOIDING. A bundle behind ANY of the reader's settled
 # acknowledgements is void, whatever their concurrency (the monotone line over the union of the person's
@@ -233,13 +247,14 @@ class Root:
         return self.inconsistency(b) is None
 
     def inconsistency(self, b):
-        """Why b is Invalid or waits, by the text's names (CC 2.6.1.11, CC 3.2), or None."""
+        """Why b is Invalid or waits, by the text's tokens (CC 2.6.1.11, CC 3.2), or None: a refusal name, or a detail
+        (DETAIL_OF), which counted() reports under its refusal name and refusal() gives apart."""
         ps = [self.by[p] for p in b["prev"] if p in self.by]
         if len(ps) != len(b["prev"]): return "genesis_bundle_prev_not_valid"      # one not held: waits
-        if set(b["recovery"]) != set(b["holders"]) and "commitments_unread" not in MUT: return "genesis_bundle_malformed"
+        if set(b["recovery"]) != set(b["holders"]) and "commitments_unread" not in MUT: return "recovery_commitments_not_holders"
         if not ps: return None
         if "version_unread" not in MUT and b["version"] != max(p["version"] for p in ps) + 1: return "version_prev_mismatch"
-        if "family_unread" not in MUT and any(p["family"] != b["family"] for p in ps): return "version_prev_mismatch"
+        if "family_unread" not in MUT and any(p["family"] != b["family"] for p in ps): return "family_key_id_changed"
         if len(ps) >= 2:
             # the join's wire: refs.prev is the greatest version, least id among equals; refs.further_prev the rest;
             # a named predecessor in the lineage past of another is Invalid
@@ -277,7 +292,30 @@ class Root:
             gone = self.retired(prevs) if len(prevs) >= 2 else frozenset()
             bases = [self.live(self.by[p]["holders"]) - gone for p in prevs]
         if within is not None: bases = [x & within for x in bases]
-        return all(2 * len(frozenset(voices) & x) > len(x) for x in bases)
+        if not all(2 * len(frozenset(voices) & x) > len(x) for x in bases): return False
+        # who else signs a join (CIRISVerify's per-bundle read, the Constitution's reading 1; MUTATION
+        # join_signers_unread: nobody else)
+        if len(prevs) >= 2 and "count_over_own" not in MUT and "join_common_base" not in MUT and "join_union" not in MUT \
+                and "join_signers_unread" not in MUT:
+            return all(frozenset(voices) & ks for _, ks in self.join_signers(b, prevs))
+        return True
+
+    def join_signers(self, b, prevs=None):
+        """The holders of join b that must sign it, each with the keys its statement may be under (reading 1): (a) a
+        holder no named predecessor seats, under its own key; (b) a holder whose recovery commitment in b differs from
+        the one any named predecessor seating it carries, under a key some predecessor seats it at and no recovery in
+        the join's branches retired. So after a recovery on one branch, the join carries the recovered holder's voice.
+        [(holder, keys)], in b's holder order."""
+        prevs = tuple(prevs if prevs is not None else b["prev"])
+        gone = self.retired(prevs)
+        out = []
+        for h in b["holders"]:
+            at = [(p, k) for p in prevs for k in self.by[p]["holders"] if self.owner(k) == self.owner(h)]
+            if not at:
+                out.append((h, frozenset([h])))
+            elif any(self.by[p]["recovery"].get(k) != b["recovery"].get(h) for p, k in at):
+                out.append((h, frozenset(k for _, k in at if k not in gone)))
+        return out
 
     def contested_join(self, i):
         """A join (two predecessors or more) contested by a rival: a concluded join of the same predecessors under
@@ -310,8 +348,10 @@ class Root:
         if rk is None or not any(k == rk and iat == b["iat"] for k, iat in b["stmts"]): return (False, "recovery_commitment_mismatch")
         # a recovery whose prev is in the lineage past of a bundle its holder signed concludes nothing (the holder is
         # the voice under its key or its recovery key; MUTATION recovery_head_unread)
+        # behind: the model's `behind` exactly (a sibling on the same predecessor is a fork, both valid; MUTATION
+        # recovery_behind_sibling: any bundle with the recovery's prev in its past)
         if "recovery_head_unread" not in MUT and any(
-                b["prev"][0] in self.past(x["id"]) and any(self.owner(k) == self.owner(h) for k, _ in x["stmts"])
+                (b["prev"][0] in self.past(x["id"]) if "recovery_behind_sibling" in MUT else self.behind(b, x)) and any(self.owner(k) == self.owner(h) for k, _ in x["stmts"])
                 for x in self.by.values() if x["id"] != b["id"] and b["id"] not in self.past(x["id"])
                 and x.get("recovers") is None):   # a bundle it signed as a holder, not another recovery
             return (False, "recovery_behind_head")
@@ -328,7 +368,20 @@ class Root:
         return (True, None)
 
     def counted(self, i):
-        """The bundle's own count, its predecessors concluded: (True|False, reason)."""
+        """The bundle's own count, its predecessors concluded: (True|False, the refusal name). The detail, where the
+        token table gives the refusal one, is refusal(i)'s."""
+        ok, why = self._counted_raw(i)
+        return (ok, DETAIL_OF.get(why, why) if "detail_as_name" not in MUT else why)
+
+    def refusal(self, i):
+        """None where bundle i counts; else (name, detail), the detail None where the refusal carries none: the
+        malformed bundle's (genesis_bundle_malformed, version_prev_mismatch), a recovery's statement that does not
+        count (genesis_bundle_count_unmet, recovery_commitment_mismatch), as manifests/refusal_tokens.tsv names them."""
+        ok, why = self._counted_raw(i)
+        if ok: return None
+        return (DETAIL_OF[why], why) if why in DETAIL_OF and "detail_as_name" not in MUT else (why, None)
+
+    def _counted_raw(self, i):
         if i in self._concl: return self._concl[i]
         b = self.by[i]
         self._concl[i] = (False, "cycle")
@@ -536,9 +589,11 @@ class Root:
         """The reader's first bundle, or None (`genesis_bundle_not_anchored`)."""
         firsts = [i for i in self.valid() if not self.by[i]["prev"]]
         if "anchor_unread" in MUT: return firsts[0] if firsts else None
-        for i in sorted(firsts):
-            if rd["anchor"] == i or (rd["thumbs"] is not None and frozenset(self.by[i]["holders"]) == rd["thumbs"]):
-                return i
+        if rd["anchor"] in firsts: return rd["anchor"]
+        # under a thumbprint (holders) anchor, two first bundles that both match give NEITHER (CIRISVerify v23.8.0;
+        # MUTATION thumbs_pick_first: the least id of them)
+        m = sorted(i for i in firsts if rd["thumbs"] is not None and frozenset(self.by[i]["holders"]) == rd["thumbs"])
+        if len(m) == 1 or (m and "thumbs_pick_first" in MUT): return m[0]
         return None
 
     def _rv(self, settled, ids, keep=frozenset()):

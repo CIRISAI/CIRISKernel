@@ -314,6 +314,27 @@ acts table's rows (`ActsRow`) and the policy table (`PolicyRow`, `ProtocolRow`),
 rows the crate's words do not read yet (scope `license`, `trust_edge`; act `accept`; `quarantine`, `slash`, `takedown`
 on `affiliation`), added by the charter and persist-gaps lanes; once those merge, re-vendor the acts table and re-run
 `tools/kernel_fixtures.py` and `tests/policy_spec.rs`, so `law_from_tables` is checked against it.
+**A bundle's refusal name and its detail, from the token table** (the Constitution's `manifests/refusal_tokens.tsv`
+at rc23-next 0e80f21, CC 2.6.1.11). **BREAKING** within 0.5.0: `Root::counted` gives the refusal NAME;
+`Root::refusal` gives (name, detail), and `root::detail_of` maps a detail to its refusal. A malformed bundle is
+`genesis_bundle_malformed` with the detail `version_prev_mismatch`, `family_key_id_changed` (a family mismatch was
+`version_prev_mismatch`), `recovery_commitments_not_holders` or `recovery_changes_other_seat`; a recovery's
+statement that does not count is `genesis_bundle_count_unmet` with `recovery_commitment_mismatch` or
+`recovery_commitment_spent`. `further_prev_not_newest` stays a refusal of its own: the table lists it as one (step 3
+of the order of verification), not as a detail. `root.json` carries each bundle's refusal; plant `detail_as_name`.
+
+**Who else signs a join; behind exactly; a thumbprint anchor matching two** (CIRISVerify's per-bundle read, the
+Constitution's readings 1 and 3), both languages. A join is counted only where, besides each predecessor's
+majority, a holder no named predecessor seats signs it under its own key, and a holder whose recovery commitment in
+the join differs from one a predecessor seating it carries signs it under a key some predecessor seats it at (not
+a retired one): after a recovery on one branch, the join carries the recovered holder's voice
+(`Root::join_signers`). A recovery is `recovery_behind_head` exactly where it is `behind` a bundle its holder signed:
+a sibling on the same predecessor is a fork, both valid. Under a thumbprint anchor, two first bundles matching the
+holders give neither (`Root::first`). **Answers change:** a join adding a holder, or changing a commitment, without
+that holder's voice concludes nothing (`check_root.py`'s settling bundle now carries h3's voice, the two-recoveries
+join h3b's); RJ0's recovery beside its holder's own b1 now concludes, a reader holding both lines is at b0 until a
+join names both, and that join (jx) settles them. Cases for retired and left keys; plants `join_signers_unread`,
+`recovery_behind_sibling`, `thumbs_pick_first`.
 
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.

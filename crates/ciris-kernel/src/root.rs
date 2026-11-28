@@ -173,6 +173,19 @@ impl<I: Ord, K: Ord> Reader<I, K> {
 /// Why a bundle or a grant does not stand.
 pub type Reason = &'static str;
 
+/// The refusal a detail is a detail of (the Constitution's token table, `manifests/refusal_tokens.tsv`, and CC
+/// 2.6.1.11's table of a malformed bundle's details); None for a refusal name.
+pub fn detail_of(d: Reason) -> Option<Reason> {
+    match d {
+        "version_prev_mismatch"
+        | "family_key_id_changed"
+        | "recovery_commitments_not_holders"
+        | "recovery_changes_other_seat" => Some("genesis_bundle_malformed"),
+        "recovery_commitment_mismatch" | "recovery_commitment_spent" => Some("genesis_bundle_count_unmet"),
+        _ => None,
+    }
+}
+
 /// One root: its bundles, revocations, and the rows of its lane (grants and acceptance edges).
 pub struct Root<'a, B: RootBundle, G: RootGrant> {
     by: BTreeMap<&'a B::Id, &'a B>,
@@ -298,7 +311,8 @@ where
         out
     }
 
-    /// Why b is Invalid or waits, by the text's names (CC 2.6.1.11, CC 3.2), or None.
+    /// Why b is Invalid or waits, by the text's tokens (CC 2.6.1.11, CC 3.2), or None: a refusal name, or a detail
+    /// ([`detail_of`]), which [`Root::counted`] reports under its refusal name and [`Root::refusal`] gives apart.
     fn inconsistency(&self, b: &B) -> Option<Reason> {
         let ps: Vec<&B> = b.prev().iter().filter_map(|p| self.b(p)).collect();
         if ps.len() != b.prev().len() {
@@ -307,7 +321,7 @@ where
         let rk: BTreeSet<&B::Key> = b.recovery().iter().map(|(h, _)| h).collect();
         let hk: BTreeSet<&B::Key> = b.holders().iter().collect();
         if rk != hk {
-            return Some("genesis_bundle_malformed"); // recovery_commitments are keys exactly the holders
+            return Some("recovery_commitments_not_holders"); // a detail of genesis_bundle_malformed
         }
         if ps.is_empty() {
             return None;
@@ -317,7 +331,7 @@ where
             return Some("version_prev_mismatch");
         }
         if !ps.iter().all(|p| p.family() == b.family()) {
-            return Some("version_prev_mismatch");
+            return Some("family_key_id_changed");
         }
         if ps.len() >= 2 {
             // the join's wire: refs.prev is the greatest version, least id among equals; refs.further_prev the
@@ -364,7 +378,31 @@ where
                 .filter(|k| !gone.contains(k) && within.is_none_or(|w| w.contains(k)))
                 .collect();
             2 * voices.intersection(&base).count() > base.len()
-        })
+        }) && (prevs.len() < 2 || self.join_signers(b).iter().all(|(_, ks)| ks.iter().any(|k| voices.contains(k))))
+    }
+
+    /// The holders of join `b` that must sign it, each with the keys its statement may be under (CIRISVerify's
+    /// per-bundle read, the Constitution's reading 1): a holder no named predecessor seats, under its own key; a
+    /// holder whose recovery commitment in `b` differs from the one any named predecessor seating it carries, under
+    /// a key some predecessor seats it at and no recovery in the join's branches retired. So after a recovery on one
+    /// branch, the join carries the recovered holder's voice. In `b`'s holder order.
+    pub fn join_signers(&self, b: &B) -> Vec<(B::Key, BTreeSet<B::Key>)> {
+        let prevs = b.prev();
+        let gone = self.retired(prevs);
+        let mut out = Vec::new();
+        for h in b.holders() {
+            let at: Vec<(&B, &B::Key)> = prevs
+                .iter()
+                .filter_map(|p| self.b(p))
+                .flat_map(|p| p.holders().iter().filter(|k| self.owner(k) == self.owner(h)).map(move |k| (p, k)))
+                .collect();
+            if at.is_empty() {
+                out.push((h.clone(), BTreeSet::from([h.clone()])));
+            } else if at.iter().any(|(p, k)| Self::commitment(p, k) != Self::commitment(b, h)) {
+                out.push((h.clone(), at.iter().map(|(_, k)| (*k).clone()).filter(|k| !gone.contains(k)).collect()));
+            }
+        }
+        out
     }
 
     /// A join contested by a rival: a concluded join of the same predecessors under another charter, neither in
@@ -419,13 +457,14 @@ where
         if !b.statements().iter().any(|(k, iat)| *k == rk && *iat == b.iat()) {
             return Some(Err("recovery_commitment_mismatch"));
         }
-        // a recovery whose prev is in the lineage past of a bundle its holder signed (as a holder, under either key)
-        // concludes nothing
+        // a recovery behind a bundle its holder signed (as a holder, under either key; `behind`: its prev strictly in
+        // the past of what that bundle extends, so a sibling on the same predecessor is a fork, both valid) concludes
+        // nothing
         let behind_head = self.by.values().any(|x| {
             x.id() != b.id()
                 && !self.in_past(b.id(), x.id())
                 && x.recovers().is_none()
-                && self.in_past(&b.prev()[0], x.id())
+                && self.behind(b, x)
                 && x.statements().iter().any(|(k, _)| self.owner(k) == self.owner(h))
         });
         if behind_head {
@@ -453,8 +492,25 @@ where
         Some(Ok(()))
     }
 
-    /// The bundle's own count, its predecessors concluded.
+    /// The bundle's own count, its predecessors concluded; refused, the refusal NAME (the detail, where the token
+    /// table gives the refusal one, is [`Root::refusal`]'s).
     pub fn counted(&self, i: &B::Id) -> Result<(), Reason> {
+        self.counted_raw(i).map_err(|why| detail_of(why).unwrap_or(why))
+    }
+
+    /// None where bundle `i` counts; else its refusal name and its detail, the detail None where the refusal carries
+    /// none: a malformed bundle's (`genesis_bundle_malformed`, `version_prev_mismatch`), a recovery's statement that
+    /// does not count (`genesis_bundle_count_unmet`, `recovery_commitment_mismatch`), as the Constitution's token
+    /// table names them. `further_prev_not_newest` is a refusal of its own there.
+    pub fn refusal(&self, i: &B::Id) -> Option<(Reason, Option<Reason>)> {
+        let why = self.counted_raw(i).err()?;
+        Some(match detail_of(why) {
+            Some(name) => (name, Some(why)),
+            None => (why, None),
+        })
+    }
+
+    fn counted_raw(&self, i: &B::Id) -> Result<(), Reason> {
         if let Some(c) = self.counted_memo.borrow().get(i) {
             return *c;
         }
@@ -807,20 +863,20 @@ where
         self.concluded().into_iter().filter(|b| !v.contains(b.id())).collect()
     }
 
-    /// The reader's first bundle; None: `genesis_bundle_not_anchored`.
+    /// The reader's first bundle; None: `genesis_bundle_not_anchored`. Its anchor by id names that first bundle;
+    /// by the holders' thumbprints, the one first bundle whose holders they are: two or more that match give
+    /// neither (CIRISVerify v23.8.0).
     pub fn first(&self, rd: &Reader<B::Id, B::Key>) -> Option<B::Id> {
-        let mut firsts: Vec<&B::Id> =
-            self.valid().into_iter().filter(|b| b.prev().is_empty()).map(|b| b.id()).collect();
-        firsts.sort();
-        firsts
+        let firsts: Vec<&B::Id> = self.valid().into_iter().filter(|b| b.prev().is_empty()).map(|b| b.id()).collect();
+        if let Some(a) = rd.anchor.as_ref().filter(|a| firsts.contains(a)) {
+            return Some(a.clone());
+        }
+        let t = rd.thumbs.as_ref()?;
+        let m: Vec<&B::Id> = firsts
             .into_iter()
-            .find(|i| {
-                rd.anchor.as_ref() == Some(*i)
-                    || rd.thumbs.as_ref().is_some_and(|t| {
-                        self.b(i).is_some_and(|b| b.holders().iter().cloned().collect::<BTreeSet<_>>() == *t)
-                    })
-            })
-            .cloned()
+            .filter(|i| self.b(i).is_some_and(|b| b.holders().iter().cloned().collect::<BTreeSet<_>>() == *t))
+            .collect();
+        (m.len() == 1).then(|| m[0].clone())
     }
 
     /// The reader's own line, and the bundles void for the reader by it. Its acknowledgements are its own rows, each
