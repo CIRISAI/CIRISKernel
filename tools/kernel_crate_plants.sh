@@ -223,7 +223,7 @@ plant "a row is concluded before what it names"         src/layers.rs 'order.sor
 plant "an owner's revocation ends another owner's seat"  src/seat.rs 'if own { r.to()[0] != *r.signer() } else { Obj::Key(r.to()[0].clone()) != obj }' 'if own { false } else { Obj::Key(r.to()[0].clone()) != obj }'
 plant "one of two live owners revokes alone"            src/seat.rs 'sole.one(us.as_ref(), &obj).as_ref() == Some(r.signer())' 'sole.stands(r.signer(), us.as_ref(), &obj, None)'
 plant "a duty seat stands on a key that is not a member" src/seat.rs 'if held.contains(&true) {' 'if false {'
-plant "a resignation ends no duty seat by its past (revival)" src/seat.rs 'if !off_ended(o, k, sc) && !unseated(oi, k, sc) && !resigned(oi, k, sc) {' 'if !off_ended(o, k, sc) && !unseated(oi, k, sc) {'
+plant "a resignation ends no duty seat by its past (revival)" src/seat.rs 'if !off_ended(o, k, sc) && !unseated(oi, k, sc) && !resigned(oi, k, sc) && !merged_out(oi, k, sc) {' 'if !off_ended(o, k, sc) && !unseated(oi, k, sc) && !merged_out(oi, k, sc) {'
 plant "a removal from the roster cuts the member seat only (revival)" src/seat.rs '                    && (ur.scope().map(|x| x.as_ref()) == Some(sc.s())
                         || (dutyish' '                    && (ur.scope().map(|x| x.as_ref()) == Some(sc.s())
                         || (false'
@@ -233,7 +233,7 @@ plant "at tips a duty seat does not follow the folded roster" src/seat.rs '!self
 plant "the founding seat is no member seat" src/seat.rs 'let own = (o.obj() == Some(Obj::Row(o.id().clone())) && o.scope().map(|x| x.as_ref()) == Some(s)) || roster;' 'let own = roster;'
 plant "every seat over a community asks for membership" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty(sc, &declared(by, &obj))' 'community(by, &obj) && !founding(o) && !roster'
 plant "the duty-seat rule reaches duty rooms only" src/seat.rs 'community(by, &obj) && !founding(o) && !roster && law.is_duty' 'duty_room(by, &obj) && !founding(o) && !roster && law.is_duty'
-plant "a duty count counts a holder whose resignation is in its past" src/seat.rs 'if !mem.is_empty() && (law.is_duty(counted, &duties) || role) {' 'if false {'
+plant "a duty count counts a holder whose resignation is in its past" src/seat.rs 'if law.is_duty(scope, &duties) || role {' 'if false {'
 # retired at the heads merge: "a family founder's role survives its leaving" (H1 / the heads' reading of a leaving pre-empt it)
 plant "a holder admitted again stays out of the duty count" src/seat.rs 'if !seated_after(p, obj, k, w.id(), |m| roster_offer(law, m)) {' 'if true {'
 plant "a founding record's duty holders unread" src/seat.rs '    if o.duty_holders().is_empty() {
@@ -501,7 +501,7 @@ plant 'a conferred founder role outlives the stay'       src/seat.rs '    sc == 
         && !founding(o)'
 plant "a change of the record meets either joined policy" src/seat.rs '!fs.is_empty() && fs.iter().all(|f| count_under(p, law, spec, cache, f, void))' '!fs.is_empty() && fs.iter().any(|f| count_under(p, law, spec, cache, f, void))'
 # retired with the open:self_admit cut (Eric, for 1.0; the sheet at a304b485): 'the cosigned_act half blocks where the protocol states no rule' (the code it broke is gone)
-plant 'a policy governing alone takes no floor'          src/seat.rs '    if f.floor > 0 && v.iter().filter(|k| mem.contains(*k) && !r.to().contains(k)).count() < f.floor {' '    if false {'
+plant 'a policy governing alone takes no floor'          src/seat.rs '    if f.floor > 0 && v.iter().filter(|k| mem.contains(*k) && !to.contains(k)).count() < f.floor {' '    if false {'
 plant "a community removal's floor unread"              src/seat.rs 'floor: if r.seat_kind() == SeatKind::Unseat && !family { law.removal_floor } else { 0 },' 'floor: 0,'
 plant "the founders all the founding row's signers"     src/seat.rs '.filter(|k| g.to().contains(*k))' '.filter(|_| true)'
 plant 'a change may weigh one key twice'                 src/seat.rs 'if weights.iter().enumerate().any(|(i, (k, _))| weights[..i].iter().any(|(j, _)| j == k)) =>' 'if false =>'
@@ -646,6 +646,19 @@ plant "stalled read over the row's own counted scope" src/seat.rs '    let scope
 plant "a stalled recovery while live" src/seat.rs '    if founders >= m + 1 {' '    if false {'
 plant "a stalled recovery that changes more" src/seat.rs 'if r.to().len() != 1 || r.consensus_protocol().is_some() || !r.cosigners().is_empty() {' 'if false {'
 plant "a stalled recovery signed by another key" src/seat.rs 'if r.to()[0] != named || *r.signer() != named {' 'if false {'
+plant "a roster merge counted with its own keys as no voices (not as an admission at the tip)" src/seat.rs '    let to: &[R::Key] = if merging { &[] } else { r.to() };' '    let to: &[R::Key] = r.to();'
+plant "a roster merge in an infrastructure room counted" src/seat.rs 'let infra_merge = kind_of(law, &|i| p.get(i), &obj) == Some(CommunityKind::Infrastructure);' 'let infra_merge = false;'
+plant "a roster merge signed by a stalled tip (infrastructure)" src/seat.rs 'if founders.len() <= m ||' 'if false ||'
+plant "a roster merge keeps the old word above N (infrastructure)" src/seat.rs 'if nf <= n {' 'if true {'
+plant "a roster merge stating any roster" src/seat.rs 'if stated != members || stated_d != duties {' 'if false {'
+plant "a roster merge voided with a void head (S'')" src/seat.rs '&& !g.row(q).merge()' '&& !g.row(q).merge() || false'
+plant "a roster merge concluded again for the reader" src/seat.rs 'return c.g.idx(p.row().id()).is_some_and(|i| c.cs().contains(&i));' 'return seat_rule_with(p, law, spec, &|_| true, Some(&cache));'
+plant "a roster merge ends no seat it does not state" src/seat.rs '&& !resigned(oi, k, sc) && !merged_out(oi, k, sc) {' '&& !resigned(oi, k, sc) {'
+plant "a roster merge behind for a reader (its void head blocks it)" src/seat.rs '        r.merge()' '        false && r.merge()'
+plant "a roster merge asks each key's acceptance" src/seat.rs '            if o.merge() {' '            if false && o.merge() {'
+plant "merge: a void tip read (r76 MG6)" src/seat.rs 'if tips.iter().any(|&t| void.contains(g.row(t).id())) {' 'if tips.iter().any(|&t| void.contains(g.row(t).id()) && false) {'
+plant "merge: the tip's departed founders by the seat's own leaving only (drift)" src/seat.rs 'for k in count_left(&ps, law, &obj, "founder") {' 'for k in left_in_past(&ps, &obj, "founder") {'
+plant "left_in_past: a scopeless withdrawal of a role seat unread" src/seat.rs '&& seat_scopes(t, w.signer(), false).iter().any(|s| s.s() == scope);' '&& seat_scopes(t, w.signer(), false).iter().any(|s| s.s() == scope) && false;'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

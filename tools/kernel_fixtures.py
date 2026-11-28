@@ -782,6 +782,8 @@ def main():
     import check_root as CR
     dump("root.json", CR.fixture(with_refs), out)
     dump("root_reader.json", CR.reader_vectors(), out)
+    import check_roster_merge as RM
+    dump("roster_merge.json", RM.fixture(with_refs), out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():
