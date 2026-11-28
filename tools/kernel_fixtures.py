@@ -32,6 +32,9 @@ Sources (all under models/):
               root grant), and a later bundle version: its case table, per act and owner, with why.
               tests/conferral_two.rs replays it through standing::answers; it is also for Verify's standing
               walk and an adopter's own code.
+    policy_spec causal_kernel/window.py spec_from_policy: every row of the governance policy table, read under each
+              `active`, and every plant of check_policy_spec.py (one cell changed), with the window table each gives
+              or the cells it refuses on. tests/policy_spec.rs replays it through window::spec_from_policy.
     root      trust_root/check_root.py: the trust root's lineage (the count, S'' and T, the fold, the bundles in
               force per reader, grants) and stalled recoveries judged against it. tests/root.rs replays both.
 """
@@ -750,6 +753,43 @@ def acts_cases():
             "dissolved": dissolved_cases(AC)}
 
 
+# ---- policy_spec: a window's table from its policy row ------------------------------------------------------------
+def policy_spec_cases():
+    import window as WN
+    import check_policy_spec as PS
+    pol = WN.policy_table()
+    fams = {f["family"]: f for f in pol["families"]}
+    cut = lambda t: {"min_count": t["min_count"], "window_classes": t["window_classes"]}
+
+    def case(name, row, table, active):
+        e = {"name": name, "row": row, "table": cut(table), "active": enc(active), "spec": None, "refusals": None}
+        try:
+            e["spec"] = enc(WN.spec_from_policy(row, table, active))
+        except WN.PolicyRefusal as x:
+            e["refusals"] = [list(r) for r in x.reasons]
+        return e
+    out = []
+    for f in pol["families"]:
+        out.append(case(f["family"], f, pol, "within_k" if f["base"] == "active" else None))
+    for fam in ("default_content", "default_standing", "default_irreversible"):
+        for n in (20, 5, 2 ** 32 + 13):
+            out.append(case("%s, census %d" % (fam, n), fams[fam], pol, ("census", n)))
+        out.append(case("%s, no active" % fam, fams[fam], pol, None))
+    out.append(case("community_invite, an active stated", fams["community_invite"], pol, ("census", 20)))
+    for cell, fam, v, *act in PS.PLANTS:
+        a = act[0] if act else None
+        name = "plant %s = %s" % (cell, json.dumps(v))
+        if fam is None:
+            t = PS._set(pol, cell, v)
+            for f in pol["families"]:
+                out.append(case("%s: %s" % (name, f["family"]), f, t, "within_k" if f["base"] == "active" else None))
+        else:
+            row = PS._set(fams[fam], cell, v)
+            out.append(case("%s: %s" % (name, fam), row, pol, a if a is not None else ("within_k" if row["base"] == "active" else None)))
+    return {"source": "data/governance_policy.json (CIRISConstitution manifests/governance_policy.json)",
+            "policy_sha256": pol["_meta"]["policy_sha256"], "cases": out}
+
+
 def main():
     out = {}
     dump("lib.json", lib_cases(), out)
@@ -769,6 +809,7 @@ def main():
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
     dump("acts.json", acts_cases(), out)
+    dump("policy_spec.json", policy_spec_cases(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution

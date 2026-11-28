@@ -200,6 +200,44 @@ migrations, and the local operational store.
   electorate, the winner and the departed apart, closes the election. A room re-closes an election an equivocator
   reopened by removing it by count and a receipt after the removal.
 
+## A window's table from its policy row
+
+`window::spec_from_policy(row, table, active)` builds a `WindowSpec` from one row of the Constitution's
+`manifests/governance_policy.json` (`families`), so a store never writes a window's table itself. The caller
+decodes the row into `window::PolicyRow` unchanged (the crate reads no JSON; `tests/policy_spec.rs` shows the
+decoding), and the table's `min_count` and `window_classes` into `PolicyTable`. `active` is the base `active`:
+`Active::WithinK` (at most `base_law.k` members) or `Active::Census(n)`; `None` on a `standing` row. Where a cell
+stops the row, the answer is every `PolicyRefusal { cell, why }`; nothing is defaulted but what the text states.
+Only a `two_path` row gives a table. `window.py`'s `spec_from_policy` is the same reading;
+`models/causal_kernel/check_policy_spec.py` compares it with the reference's own tables.
+
+| Cell | What it gives |
+|---|---|
+| `kind` | `two_path`: a table. `mirror`: refused, `NoCell` (no cell states its answer or outcome words). `cosigned`, `ranked`, `tally`: refused, `NotAWindow` |
+| `counted.count_set` | `counted` and `concluder` (CC 4.5.13: every window of the table closes by one voice of its count); the proposer's scope (CC 3.1.9.2). One token only. An exclusion (`-target`) must match a `less` in `standing_set`, and the reverse |
+| `standing_set` | read only for that `less` |
+| `enact_rule` | a fraction: `approve`, `MoreAtLeast(num, den, min_count)` over the base, `landed` (the decider: strictly more, never fewer than `min_count`); in `at_once`, or `at_close` where `irreversible` |
+| `cancel_rule`, `cancel_over` | a fraction over `base`: `object`, `AtLeast(num, den, min_count)`, at the close. `strict_majority_of_others` over `others`: `object`, `Strict` over `Base::Others`, at once (CC 3.3.6.4). Any other pairing is refused |
+| `floor_rule`, `reverse_path` | with `reverse_path`: a fraction gives `approve`, `AtLeast(num, den, min_count)`; `one_of_n` gives `approve`, `One`; both at the close, `landed` |
+| `enact`, `cancel`, `floor` | checked against their `_rule`: `null` only with `none`, a fraction only with the same fraction |
+| `at_window` | `cancelled` or `refused`: the cancel's outcome, the default, a silent target's and a withdrawal's |
+| `irreversible` | no enact at once |
+| `counted.target_silent` | `yes` (with `changes_set` `removes`): `silent` is `at_window` |
+| `counted.target_voice` | `yes` (with `changes_set` `adds`): `target_votes` |
+| `counted.voice` | `person`, or `key` on a `self` corridor |
+| `counted.counted_at` | `named` or `act`: the head the opener names |
+| `counted.voices` | `objection`: the answers say `approve` and `object` (`objection:assent`, `objection:raised`) |
+| any `counted` cell `unstated` | refused, `Unstated` |
+| `base` | `standing`: `Base::All`. `active`: `Base::All` under `WithinK`, `Base::Stated(n)` under `Census(n)` |
+| `corridor` | the `min_count` key; `self` adds `withdraw`, `One` over `Base::Opener`, `at_window`, at once (CC 3.3.6.4) |
+| `window_secs`, `window_class` | `secs`; the class must give the same length; `0` is refused, `NoWindow` |
+| `family`, `cc_ref`, `model`, `status`, `note` | carried; no window cell |
+| (no cell) | `opener` `None`; `opener_says` `approve` (CC 3.1.9.2); `landed` (CC 3.1.3, `window:{state}`) |
+
+Six rows give a table today: `default_content`, `default_standing`, `default_irreversible`, `community_invite`,
+`self_roster_add`, `self_roster_evict`. The three mirror windows the reference runs (`moderation_action`,
+`moderation_overturn`, `accord_halt`) are refused, so a store keeps writing those until the table states them.
+
 ## Points to settle before adoption
 
 - **Persons and voices.** The adapter presents each signing key as its person's voice (`PersonsAt::voice`) and

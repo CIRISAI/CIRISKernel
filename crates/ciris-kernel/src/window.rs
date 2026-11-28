@@ -133,7 +133,7 @@ pub enum Base {
 }
 
 /// One clause of a window's table: if `value` is said by enough of `over`, the outcome is `out`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Clause {
     /// What a voice says.
     pub value: String,
@@ -145,8 +145,9 @@ pub struct Clause {
     pub out: String,
 }
 
-/// A window's table (the policy row, the clauses read at once and at the close, and the default).
-#[derive(Clone, Debug)]
+/// A window's table (the policy row, the clauses read at once and at the close, and the default). A caller builds
+/// one from its policy row with [`spec_from_policy`], or writes it.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WindowSpec<T> {
     /// The scope counted.
     pub counted: String,
@@ -726,6 +727,388 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
         Some(v) => Outcome::Landed(v),
         None => Outcome::Contested,
     }
+}
+
+// ---- a window's table from its policy row -------------------------------------------------------------------
+
+/// A typed rule cell of a policy row (`enact_rule`, `cancel_rule`, `floor_rule`): `{kind, num, den, count, roles,
+/// choices}` as the table writes it, a field it leaves out `None` (or empty).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RuleCell {
+    /// `fraction`, `strict_majority`, `strict_majority_of_others`, `one_of_n`, `voices`, `voices_or_roster`,
+    /// `voted_majority`, `role_at`, `ranked_irv`, `protocol` or `none`.
+    pub kind: String,
+    /// A fraction's numerator.
+    pub num: Option<u64>,
+    /// A fraction's denominator.
+    pub den: Option<u64>,
+    /// A count of voices.
+    pub count: Option<u64>,
+    /// The roles of `role_at`.
+    pub roles: Vec<String>,
+    /// The choices of `ranked_irv`.
+    pub choices: Option<u64>,
+}
+
+/// A cell of a policy row's `counted` object: its value and the section that states it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Cell {
+    /// The value (`unstated` where the text does not state it).
+    pub value: String,
+    /// The section, where the table cites one.
+    pub cc_ref: Option<String>,
+}
+
+/// The `counted` object of a policy row (the table's `counted_columns`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CountedCells {
+    /// The role tokens counted, joined by `+`, less `-target`, `-proposer` or `-node`.
+    pub count_set: Cell,
+    /// `person` or `key`.
+    pub voice: Cell,
+    /// `signed`, `named`, `act` or `founding`.
+    pub counted_at: Cell,
+    /// `scrubs`, `objection` or `ballot`.
+    pub voices: Cell,
+    /// `yes`: a row of the target inside the window refuses it.
+    pub target_silent: Cell,
+    /// `adds`, `removes` or `no`.
+    pub changes_set: Cell,
+    /// `yes`: the target's own yes is a voice.
+    pub target_voice: Cell,
+}
+
+/// A prose cell of a policy row (`enact`, `cancel`, `floor`): JSON `null`, a string, or a `{num, den}` fraction.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Stated {
+    /// `null`.
+    Null,
+    /// A string.
+    Text(String),
+    /// `{num, den}`.
+    Fraction(u64, u64),
+}
+
+/// One row of the governance policy table (the Constitution's `manifests/governance_policy.json`, `families`),
+/// every field as the table carries it. The crate reads no JSON: the caller decodes the row into this, unchanged.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PolicyRow {
+    /// The family.
+    pub family: String,
+    /// The sections.
+    pub cc_ref: String,
+    /// `two_path`, `mirror`, `cosigned`, `ranked` or `tally`.
+    pub kind: String,
+    /// The standing set, in words.
+    pub standing_set: String,
+    /// `standing` or `active`.
+    pub base: String,
+    /// The enact, in words or a fraction.
+    pub enact: Stated,
+    /// The cancel, in words or a fraction.
+    pub cancel: Stated,
+    /// The floor, in words or a fraction.
+    pub floor: Stated,
+    /// The enact, typed.
+    pub enact_rule: RuleCell,
+    /// The cancel, typed.
+    pub cancel_rule: RuleCell,
+    /// The floor, typed.
+    pub floor_rule: RuleCell,
+    /// The counted columns.
+    pub counted: CountedCells,
+    /// `base`, `others` or `—`.
+    pub cancel_over: String,
+    /// What the table gives a proposal that has not landed when its window closes.
+    pub at_window: String,
+    /// The window's length.
+    pub window_secs: u64,
+    /// The window's class (a key of the table's `window_classes`).
+    pub window_class: String,
+    /// No instant landing.
+    pub irreversible: bool,
+    /// A floored, unopposed proposal lands at the close.
+    pub reverse_path: bool,
+    /// The corridor (a key of the table's `min_count`, for a row that has one).
+    pub corridor: String,
+    /// The models.
+    pub model: Vec<String>,
+    /// `default` or `normative`.
+    pub status: String,
+    /// The note.
+    pub note: String,
+}
+
+/// The cells of the policy table every row is read with: `min_count` and `window_classes`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PolicyTable {
+    /// The least voices, by corridor.
+    pub min_count: BTreeMap<String, u64>,
+    /// The length of each window class.
+    pub window_classes: BTreeMap<String, u64>,
+}
+
+/// The base `active`, which the table states as a law and not a count (CC 4.5.13, `base_law`): the caller says which.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Active {
+    /// The room has at most `base_law.k` members: the base is the members (`base(N) = N`).
+    WithinK,
+    /// The census's figure (CC 6.1.9), which the kernel takes and does not check ([`Base::Stated`]).
+    Census(u64),
+}
+
+/// Why a cell stops a row giving a window's table.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Why {
+    /// The cell reads `unstated`.
+    Unstated,
+    /// A value [`spec_from_policy`] does not read as a window.
+    Unknown,
+    /// The cell disagrees with another cell of the row (named).
+    Disagrees(&'static str),
+    /// The row carries no window (`window_secs` 0).
+    NoWindow,
+    /// The row's kind is a counted row, a ranked count or a tally, which no window table closes.
+    NotAWindow,
+    /// The table has no column for what the table needs (named).
+    NoCell(&'static str),
+    /// The cell needs a figure the caller states and did not (named).
+    Caller(&'static str),
+}
+
+/// A cell that stops a row giving a window's table, and why.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PolicyRefusal {
+    /// The cell, as the table names it (`counted.voices`, `cancel_over`, ...).
+    pub cell: &'static str,
+    /// Why.
+    pub why: Why,
+}
+
+const MIRROR_WORDS: &str = "a mirror window's answer words and outcome words";
+
+/// The window table one row of the policy table gives, every cell read, nothing defaulted but where the
+/// Constitution's text states it; or every cell that stops it. `window.py`'s `spec_from_policy`, the same reading;
+/// ADOPTING.md lists each cell and what it gives.
+///
+/// Only a `two_path` row gives a table. Its cells:
+/// - `counted.count_set`: the scope counted, the concluder's (CC 4.5.13: "Every window of this table closes by two
+///   rows of one voice of its count") and the proposer's (CC 3.1.9.2); one token, no exclusion.
+/// - `enact_rule` (a fraction): approvals strictly more than the fraction of the base and at least `min_count` voices
+///   (the table's decider), at once, or at the close only where the row is `irreversible`.
+/// - `cancel_rule` over `cancel_over`: a fraction, objections at least it and never fewer than `min_count`, at the
+///   close (the decider); `strict_majority_of_others`, at once (CC 3.3.6.4, "A count that is met").
+/// - `floor_rule`, with `reverse_path`: approvals at the close, a fraction as the cancel, `one_of_n` one voice.
+/// - `at_window` (`cancelled` or `refused`): the word of the cancel, the default, a silent target and the
+///   proposer's withdrawal. `landed` is the word of an enact or a floor met (CC 3.1.3, `window:{state}`).
+/// - `counted.target_silent` `yes` (an eviction: `changes_set` `removes`): a row of the target inside the window
+///   gives `at_window`. `counted.target_voice` `yes` (an addition): the target's yes is a voice of the floor.
+/// - `base`: `standing`, the members at the opener's head; `active`, as `active` says.
+/// - `window_secs`, which `window_class` must give too. `corridor`: `min_count`'s key; `self` adds the proposer's
+///   withdrawal, `refused` at once (CC 3.3.6.4, "The proposer's own withdrawal").
+///
+/// The proposal is the proposer's approval (CC 3.1.9.2). The answers say `approve` and `object` (`objection:assent`
+/// and `objection:raised`, CC 3.1.9.2), the caller's words for them.
+pub fn spec_from_policy<T: TryFrom<u64>>(
+    row: &PolicyRow,
+    table: &PolicyTable,
+    active: Option<Active>,
+) -> Result<WindowSpec<T>, Vec<PolicyRefusal>> {
+    let mut why: Vec<PolicyRefusal> = Vec::new();
+    let mut no = |cell: &'static str, w: Why| why.push(PolicyRefusal { cell, why: w });
+    let c = &row.counted;
+    for (name, cell) in [
+        ("counted.count_set", &c.count_set),
+        ("counted.voice", &c.voice),
+        ("counted.counted_at", &c.counted_at),
+        ("counted.voices", &c.voices),
+        ("counted.target_silent", &c.target_silent),
+        ("counted.changes_set", &c.changes_set),
+        ("counted.target_voice", &c.target_voice),
+    ] {
+        if cell.value == "unstated" {
+            no(name, Why::Unstated);
+        }
+    }
+    match table.window_classes.get(&row.window_class) {
+        None => no("window_class", Why::Unknown),
+        Some(&s) if s != row.window_secs => no("window_secs", Why::Disagrees("window_class")),
+        _ => {}
+    }
+    if row.window_secs == 0 {
+        no("window_secs", Why::NoWindow);
+    }
+    for (cell, prose, rule, other) in [
+        ("enact", &row.enact, &row.enact_rule, "enact_rule"),
+        ("cancel", &row.cancel, &row.cancel_rule, "cancel_rule"),
+        ("floor", &row.floor, &row.floor_rule, "floor_rule"),
+    ] {
+        let fits = match prose {
+            Stated::Null => rule.kind == "none",
+            Stated::Text(_) => rule.kind != "none",
+            Stated::Fraction(n, d) => rule.kind == "fraction" && rule.num == Some(*n) && rule.den == Some(*d),
+        };
+        if !fits {
+            no(cell, Why::Disagrees(other));
+        }
+    }
+    let mut toks = c.count_set.value.split('-');
+    let incl: Vec<&str> = toks.next().unwrap_or("").split('+').collect();
+    let excl = toks.count();
+    let less = row.standing_set.replace(',', " ").split_whitespace().any(|w| w == "less");
+    if less != (excl > 0) {
+        no("counted.count_set", Why::Disagrees("standing_set"));
+    }
+    match row.kind.as_str() {
+        "two_path" => {}
+        "cosigned" | "ranked" | "tally" => no("kind", Why::NotAWindow),
+        "mirror" => no("kind", Why::NoCell(MIRROR_WORDS)),
+        _ => no("kind", Why::Unknown),
+    }
+    if row.kind != "two_path" {
+        return Err(why);
+    }
+    // ---- a two_path row
+    let mc = table.min_count.get(&row.corridor).copied();
+    if mc.is_none() {
+        no("corridor", Why::Unknown);
+    }
+    let mc = mc.unwrap_or(0);
+    if excl > 0 || incl.len() != 1 {
+        no("counted.count_set", Why::Unknown);
+    }
+    let scope = String::from(incl[0]);
+    match c.voice.value.as_str() {
+        "key" if row.corridor != "self" => no("counted.voice", Why::Disagrees("corridor")),
+        "person" | "key" | "unstated" => {}
+        _ => no("counted.voice", Why::Unknown),
+    }
+    if !matches!(c.counted_at.value.as_str(), "named" | "act" | "unstated") {
+        no("counted.counted_at", Why::Unknown);
+    }
+    if !matches!(c.voices.value.as_str(), "objection" | "unstated") {
+        no("counted.voices", Why::Unknown);
+    }
+    let over = match (row.base.as_str(), active) {
+        ("standing", None) => Base::All,
+        ("standing", Some(_)) => {
+            no("base", Why::Disagrees("active"));
+            Base::All
+        }
+        ("active", None) => {
+            no("base", Why::Caller("the census figure (CC 6.1.9), or within_k"));
+            Base::All
+        }
+        ("active", Some(Active::WithinK)) => Base::All,
+        ("active", Some(Active::Census(n))) => Base::Stated(n),
+        _ => {
+            no("base", Why::Unknown);
+            Base::All
+        }
+    };
+    let no_word = match row.at_window.as_str() {
+        w @ ("cancelled" | "refused") => String::from(w),
+        _ => {
+            no("at_window", Why::Unknown);
+            String::new()
+        }
+    };
+    let clause =
+        |value: &str, how: How, over: Base, out: &str| Clause { value: value.into(), how, over, out: out.into() };
+    let (cr, co) = (&row.cancel_rule, row.cancel_over.as_str());
+    let mut cancel = None;
+    match cr.kind.as_str() {
+        "fraction" => {
+            if co != "base" {
+                no("cancel_over", Why::Disagrees("cancel_rule"));
+            }
+            let (n, d) = (cr.num.unwrap_or(0), cr.den.unwrap_or(0));
+            cancel = Some(clause("object", How::AtLeast(n, d, mc), over.clone(), &no_word));
+        }
+        "strict_majority_of_others" => {
+            if co != "others" {
+                no("cancel_over", Why::Disagrees("cancel_rule"));
+            } else if over != Base::All {
+                no("cancel_over", Why::Disagrees("base"));
+            }
+            cancel = Some(clause("object", How::Strict, Base::Others, &no_word));
+        }
+        "none" => {
+            if co != "\u{2014}" {
+                no("cancel_over", Why::Disagrees("cancel_rule"));
+            }
+        }
+        _ => no("cancel_rule", Why::Unknown),
+    }
+    let er = &row.enact_rule;
+    if er.kind != "fraction" {
+        no("enact_rule", Why::Unknown);
+    }
+    let (en, ed) = (er.num.unwrap_or(0), er.den.unwrap_or(0));
+    let more = if mc > 0 { How::MoreAtLeast(en, ed, mc) } else { How::More(en, ed) };
+    let enact = clause("approve", more, over.clone(), "landed");
+    let fr = &row.floor_rule;
+    let floor = match fr.kind.as_str() {
+        "fraction" => {
+            Some(clause("approve", How::AtLeast(fr.num.unwrap_or(0), fr.den.unwrap_or(0), mc), over.clone(), "landed"))
+        }
+        "one_of_n" => Some(clause("approve", How::One, over.clone(), "landed")),
+        "none" => None,
+        _ => {
+            no("floor_rule", Why::Unknown);
+            None
+        }
+    };
+    let mut silent = None;
+    if c.target_silent.value == "yes" {
+        if c.changes_set.value != "removes" {
+            no("counted.target_silent", Why::Disagrees("counted.changes_set"));
+        }
+        silent = Some(no_word.clone());
+    }
+    let tv = c.target_voice.value == "yes";
+    if tv && c.changes_set.value != "adds" {
+        no("counted.target_voice", Why::Disagrees("counted.changes_set"));
+    }
+    let secs = T::try_from(row.window_secs).ok();
+    if secs.is_none() {
+        no("window_secs", Why::Unknown);
+    }
+    let Some(secs) = secs.filter(|_| why.is_empty()) else { return Err(why) };
+    let lone = row.corridor == "self";
+    let mut at_once = Vec::new();
+    if !row.irreversible {
+        at_once.push(enact.clone());
+    }
+    if lone {
+        at_once.push(clause("withdraw", How::One, Base::Opener, &no_word));
+    }
+    let mut at_close = Vec::new();
+    if let Some(cl) = cancel {
+        if lone {
+            at_once.push(cl)
+        } else {
+            at_close.push(cl)
+        }
+    }
+    if row.irreversible {
+        at_close.push(enact);
+    }
+    if let (true, Some(f)) = (row.reverse_path, floor) {
+        at_close.push(f);
+    }
+    Ok(WindowSpec {
+        counted: scope.clone(),
+        concluder: scope,
+        opener: None,
+        opener_says: Some("approve".into()),
+        at_once,
+        silent,
+        at_close,
+        default: no_word,
+        target_votes: tv,
+        secs,
+    })
 }
 
 #[cfg(test)]

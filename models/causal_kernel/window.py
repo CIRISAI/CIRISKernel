@@ -175,6 +175,142 @@ MUT = set()            # planted breaks, switched on by a check
 BASES = ("all", "others", "opener")
 
 
+def policy_table():
+    """The governance policy table (data/governance_policy.json, the Constitution's manifests/governance_policy.json)."""
+    import json
+    return json.load(open(os.path.join(ROOT, "data", "governance_policy.json"), encoding="utf-8"))
+
+
+# ---- a window's table from its policy row --------------------------------------------------------------
+class PolicyRefusal(Exception):
+    """The row does not give a window's table. `reasons`: (cell, why, other) for every cell that stops it, where why is
+        unstated      the cell reads `unstated`
+        unknown       a value this function does not read as a window
+        disagrees     two cells of the row disagree (other: the second cell)
+        no_window     the row carries no window (window_secs 0)
+        not_a_window  the row's kind is a counted row, a ranked count or a tally, which no window table closes
+        no_cell       the spec needs what no column of the table states (other: what)
+        caller        the cell needs a figure the caller states and did not (other: what)"""
+    def __init__(self, reasons):
+        self.reasons = list(reasons)
+        super().__init__("; ".join("%s %s%s" % (c, w, " (%s)" % o if o else "") for c, w, o in self.reasons))
+
+
+COUNTED_CELLS = ("count_set", "voice", "counted_at", "voices", "target_silent", "changes_set", "target_voice")
+NOT_A_WINDOW = ("cosigned", "ranked", "tally")
+
+
+def spec_from_policy(row, table=None, active=None):
+    """The window table (WINDOWS' shape) one row of the policy table gives, every cell read and none defaulted
+    but where the Constitution's text states it (cited below). `table`: the policy table the row is of (its
+    min_count and window_classes); `active`: the base `active`, which the table does not state as a count: None,
+    "within_k" (the room has at most base_law.k members, so the base is N, CC 4.5.13) or ("census", n), the census's
+    figure (CC 6.1.9). Raises PolicyRefusal naming every cell that stops it.
+
+    The cells of a two_path row, the only kind it gives a table for:
+        counted.count_set  the scope counted, and the concluder's (CC 4.5.13: "Every window of this table closes by
+                           two rows of one voice of its count") and the proposer's (CC 3.1.9.2)
+        enact_rule         approvals strictly more than the fraction of the base and at least min_count voices (the
+                           table's decider); at once, but where the row is irreversible only at the close
+        cancel_rule        objections over cancel_over: a fraction at least it, never fewer than min_count, at the
+                           close (decider); the strict majority of the others at once (CC 3.3.6.4, "A count that is
+                           met")
+        floor_rule         with reverse_path, approvals at the close: a fraction as cancel, one_of_n one voice
+        at_window          the word of the cancel, the default, a silent target and the proposer's withdrawal
+        target_silent      yes: a row of the target inside the window gives at_window (door_text: silent at_window)
+        target_voice       yes: the target's own yes is a voice of the floor
+        base               standing: the members at the head; active: `active`
+        window_secs        the length, which window_class must give too
+        corridor           min_count's key; `self` adds the proposer's withdrawal (CC 3.3.6.4, "The proposer's own
+                           withdrawal": `refused` at once)
+    `landed` is the word of an enact or a floor met (CC 3.1.3, window:{state}; CC 3.3.6.4). The proposal is the
+    proposer's approval (CC 3.1.9.2; door_text opener_counts yes)."""
+    t = table if table is not None else policy_table()
+    why = []
+    no = lambda cell, w, other=None: why.append((cell, w, other))
+    c = row["counted"]
+    val = lambda k: c[k]["value"]
+    for k in COUNTED_CELLS:
+        if val(k) == "unstated": no("counted." + k, "unstated")
+    classes = t["window_classes"]
+    if row["window_class"] not in classes: no("window_class", "unknown")
+    elif classes[row["window_class"]] != row["window_secs"]: no("window_secs", "disagrees", "window_class")
+    if row["window_secs"] == 0: no("window_secs", "no_window")
+    for cell in ("enact", "cancel", "floor"):
+        prose, rule = row[cell], row[cell + "_rule"]
+        if (prose is None) != (rule["kind"] == "none"): no(cell, "disagrees", cell + "_rule")
+        elif isinstance(prose, dict) and (rule["kind"] != "fraction" or (prose["num"], prose["den"]) != (rule["num"], rule["den"])):
+            no(cell, "disagrees", cell + "_rule")
+    toks = val("count_set").split("-")
+    incl, excl = toks[0].split("+"), toks[1:]
+    if ("less" in row["standing_set"].replace(",", " ").split()) != bool(excl): no("counted.count_set", "disagrees", "standing_set")
+    kind = row["kind"]
+    if kind in NOT_A_WINDOW: no("kind", "not_a_window")
+    elif kind == "mirror": no("kind", "no_cell", "a mirror window's answer words and outcome words")
+    elif kind != "two_path": no("kind", "unknown")
+    if kind != "two_path":
+        raise PolicyRefusal(why)
+    # ---- a two_path row
+    mc = t["min_count"].get(row["corridor"])
+    if mc is None: no("corridor", "unknown")
+    if excl or len(incl) != 1: no("counted.count_set", "unknown")
+    scope = incl[0]
+    if val("voice") == "key" and row["corridor"] != "self": no("counted.voice", "disagrees", "corridor")
+    elif val("voice") not in ("person", "key", "unstated"): no("counted.voice", "unknown")
+    if val("counted_at") not in ("named", "act", "unstated"): no("counted.counted_at", "unknown")
+    if val("voices") not in ("objection", "unstated"): no("counted.voices", "unknown")
+    if row["base"] == "standing":
+        over = "all"
+        if active is not None: no("base", "disagrees", "active")
+    elif row["base"] == "active":
+        over = "all"
+        if active is None: no("base", "caller", "the census figure (CC 6.1.9), or within_k")
+        elif active != "within_k": over = ("stated", active[1])
+    else:
+        over = None; no("base", "unknown")
+    no_word = row["at_window"] if row["at_window"] in ("cancelled", "refused") else None
+    if no_word is None: no("at_window", "unknown")
+    cr, co = row["cancel_rule"], row["cancel_over"]
+    cancel = None
+    if cr["kind"] == "fraction":
+        if co != "base": no("cancel_over", "disagrees", "cancel_rule")
+        cancel = ("object", ("atleast", cr["num"], cr["den"], mc), over, no_word)
+    elif cr["kind"] == "strict_majority_of_others":
+        if co != "others": no("cancel_over", "disagrees", "cancel_rule")
+        elif over != "all": no("cancel_over", "disagrees", "base")
+        cancel = ("object", "strict", "others", no_word)
+    elif cr["kind"] == "none":
+        if co != "—": no("cancel_over", "disagrees", "cancel_rule")
+    else:
+        no("cancel_rule", "unknown")
+    er = row["enact_rule"]
+    if er["kind"] != "fraction": no("enact_rule", "unknown")
+    enact = ("approve", ("more", er.get("num"), er.get("den"), mc), over, "landed")
+    fr = row["floor_rule"]
+    floor = None
+    if fr["kind"] == "fraction": floor = ("approve", ("atleast", fr["num"], fr["den"], mc), over, "landed")
+    elif fr["kind"] == "one_of_n": floor = ("approve", "one", over, "landed")
+    elif fr["kind"] != "none": no("floor_rule", "unknown")
+    silent = None
+    if val("target_silent") == "yes":
+        if val("changes_set") != "removes": no("counted.target_silent", "disagrees", "counted.changes_set")
+        silent = no_word
+    tv = val("target_voice") == "yes"
+    if tv and val("changes_set") != "adds": no("counted.target_voice", "disagrees", "counted.changes_set")
+    if why:
+        raise PolicyRefusal(why)
+    lone = row["corridor"] == "self"
+    at_once = [] if row["irreversible"] else [enact]
+    if lone: at_once.append(("withdraw", "one", "opener", no_word))
+    at_close = []
+    if cancel: (at_once if lone else at_close).append(cancel)
+    if row["irreversible"]: at_close.append(enact)
+    if row["reverse_path"] and floor: at_close.append(floor)
+    return {"policy": row["family"], "counted": scope, "concluder": scope, "opener_says": "approve",
+            "at_once": tuple(at_once), "silent": silent, "at_close": tuple(at_close), "default": no_word,
+            "target_votes": tv, "secs": row["window_secs"]}
+
+
 def is_opener(r):
     """A row that opens a window: an `open` row, or a counted act that names a window."""
     return r["kind"] == "open" or (r["kind"] == "unseat" and r.get("window") in WINDOWS)
