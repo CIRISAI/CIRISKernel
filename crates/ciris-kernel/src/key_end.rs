@@ -10,7 +10,7 @@
 
 use crate::graph::Bits;
 use crate::layers::{Concluded, Past};
-use crate::seat::{SeatKind, SeatRow};
+use crate::seat::SeatRow;
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;

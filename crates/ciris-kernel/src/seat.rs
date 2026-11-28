@@ -838,23 +838,6 @@ pub fn kind_of<'r, R: SeatRow + 'r>(
     Some(kind)
 }
 
-/// The act a counted row is, decided from its kind, its scope and its object, never from the policy it states:
-/// (act, scope class, kind) as the acts table writes them, or `None` (not a counted act, or an object with no
-/// kind). `get` looks a row up among those the caller holds (the row's past).
-///
-/// - Over a community: an offer whose `content()` names an unseat of the same seat (object, scope, keys) is the
-///   lift, of that seat's scope class (the table binds the agent's); an offer or unseat of a roster seat
-///   ([`SeatLaw::roster_seats`]) is an admission or a removal of that seat; one of a detector seat
-///   (`detect:*`) is the holders' conferral or withdrawal of that seat; an offer of a duty under the ranked count
-///   ([`Policy::Ranked`]) of `moderate` is the election's seating, THE ONE ACT READ FROM THE STATED POLICY in this
-///   tag (the election is not answered safely by it: a caller must not rely on a ranked seating); another offer of
-///   a duty is the duty holders' conferral; an unseat of a duty counted over all the duty holders (`counted()`
-///   `duty`) is their withdrawal, and one counted over the members (`member`, or none) is the recall; an unseat of
-///   a duty counting any other body is no act. Any other scope, or none, is no act.
-/// - Over an accord: any counted row is a standing act.
-/// - Over a self roster: an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
-///
-/// A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's.
 /// The row `r` cites ([`the_cite`]) where `pick` takes it, among the rows `get` holds.
 fn cited<'r, R: SeatRow + 'r>(
     r: &R,
@@ -879,6 +862,23 @@ fn lifted<'r, R: SeatRow + 'r>(r: &R, get: &dyn Fn(&R::Id) -> Option<&'r R>) -> 
     cited(r, get, &|q: &R| lone_act_duty(q.seat_kind()).is_some() || q.seat_kind() == SeatKind::Unseat)
 }
 
+/// The act a counted row is, decided from its kind, its scope and its object, never from the policy it states:
+/// (act, scope class, kind) as the acts table writes them, or `None` (not a counted act, or an object with no
+/// kind). `get` looks a row up among those the caller holds (the row's past).
+///
+/// - Over a community: an offer whose `content()` names an unseat of the same seat (object, scope, keys) is the
+///   lift, of that seat's scope class (the table binds the agent's); an offer or unseat of a roster seat
+///   ([`SeatLaw::roster_seats`]) is an admission or a removal of that seat; one of a detector seat
+///   (`detect:*`) is the holders' conferral or withdrawal of that seat; an offer of a duty under the ranked count
+///   ([`Policy::Ranked`]) of `moderate` is the election's seating, THE ONE ACT READ FROM THE STATED POLICY in this
+///   tag (the election is not answered safely by it: a caller must not rely on a ranked seating); another offer of
+///   a duty is the duty holders' conferral; an unseat of a duty counted over all the duty holders (`counted()`
+///   `duty`) is their withdrawal, and one counted over the members (`member`, or none) is the recall; an unseat of
+///   a duty counting any other body is no act. Any other scope, or none, is no act.
+/// - Over an accord: any counted row is a standing act.
+/// - Over a self roster: an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
+///
+/// A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's.
 pub fn act_of<'r, R: SeatRow + 'r>(
     law: &SeatLaw,
     get: &dyn Fn(&R::Id) -> Option<&'r R>,
@@ -1305,7 +1305,7 @@ fn policy_in_force<'a, R: SeatRow, S: CutSpec<R>>(
     let mut out: Vec<InForce<'a, R>> = Vec::new();
     for part in w.split('&') {
         match law.policy_of(Some(part)) {
-            Some(Policy::Protocol) => out.push(protocol_part(law, p, r)?),
+            Some(Policy::Protocol) => out.push(protocol_part(law, spec, p, r)?),
             pol => out.push(InForce::plain(pol, r.need())),
         }
     }
@@ -1495,15 +1495,6 @@ fn act_targets<'r, R: SeatRow + 'r>(r: &R, get: &dyn Fn(&R::Id) -> Option<&'r R>
         SeatKind::TakedownNotice => r.of().and_then(get).map(|c| c.signer().clone()).into_iter().collect(),
         _ => r.to().iter().cloned().collect(),
     }
-}
-
-/// One of the four acts against a member of an affiliation (CC 4.4.3.12): a removal, a quarantine marker, a slashing
-/// verdict, a takedown of the member's content (the three new acts' affiliation rows are held in code until the
-/// table has them).
-fn against_member<'r, R: SeatRow + 'r>(law: &SeatLaw, get: &dyn Fn(&R::Id) -> Option<&'r R>, r: &R) -> bool {
-    affiliation_removal(law, get, r)
-        || (lone_act_duty(r.seat_kind()).is_some()
-            && r.obj().is_some_and(|obj| kind_of(law, get, &obj) == Some(CommunityKind::Affiliation)))
 }
 
 /// Whether a quarantine marker, a slashing verdict or a takedown notice (`p.row()`) concludes: its shape holds (a
@@ -4830,7 +4821,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
             .iter()
             .filter(|g| {
                 g.seat_kind() == SeatKind::Offer
-                    && founding(*g)
+                    && founding(**g)
                     && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
             })
             .map(|g| g.signer().clone())
@@ -6183,7 +6174,10 @@ pub fn merge_concludes<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &Sea
     let word_at = |t: usize| -> Option<(usize, usize)> {
         let line: Vec<usize> = p.ancestors().iter().copied().filter(|&x| x == t || g.in_past(x, t)).collect();
         let pt = Past::new(g, t, &line);
-        match protocol_record(&pt, &obj)?.consensus_protocol().and_then(|w| RoomProtocol::parse_in(w.as_ref(), true)) {
+        match protocol_record(&pt, law, spec, &obj)?
+            .consensus_protocol()
+            .and_then(|w| RoomProtocol::parse_in(w.as_ref(), true))
+        {
             Some(RoomProtocol::Quorum(m, n)) => Some((usize::try_from(m).ok()?, usize::try_from(n).ok()?)),
             _ => None,
         }
@@ -6371,7 +6365,7 @@ pub fn infra_live<R: SeatRow, S: CutSpec<R>>(
     if kind_of(law, &get, obj) != Some(CommunityKind::Infrastructure) {
         return None;
     }
-    let rec = protocol_record(&p, obj)?;
+    let rec = protocol_record(&p, law, spec, obj)?;
     let Some(RoomProtocol::Quorum(m, _)) = RoomProtocol::parse_in(rec.consensus_protocol()?.as_ref(), true) else {
         return None;
     };
@@ -6605,17 +6599,15 @@ pub fn count_left<R: SeatRow>(p: &Past<'_, '_, R>, law: &SeatLaw, obj: &ObjOf<R>
     };
     // and a family's founder role ends with any leaving of the key (its member seat, or the founding row) in the
     // row's past, whatever head that row names
-    let role = match &over {
+    let role = match obj {
         Obj::Row(i) => p.get(i).is_some_and(|g| {
-            (counted == "founder" && g.group_kind().is_some_and(|k| k.as_ref() == "family"))
-                || (counted == OFFICER && g.declared_cohort().is_some_and(|c| c.as_ref() == "affiliations"))
+            (scope == "founder" && g.group_kind().is_some_and(|k| k.as_ref() == "family"))
+                || (scope == OFFICER && g.declared_cohort().is_some_and(|c| c.as_ref() == "affiliations"))
         }),
         Obj::Key(_) => false,
     };
-    if !mem.is_empty() && (law.is_duty(counted, &duties) || role) {
-        for k in stay_ended_in_past(p, law, &over) {
-            mem.remove(&k);
-        }
+    if law.is_duty(scope, &duties) || role {
+        out.extend(stay_ended_in_past(p, law, obj));
     }
     out
 }
