@@ -34,7 +34,7 @@
 //!   receipt's signer, no cut of the seating in its past) and one say per person; the winner, the departed and the
 //!   forkers read as persons.
 use super::{
-    concluded_over, for_reader, founding, members_at_with, newer_head_in_past_v, persons_at_with, persons_of,
+    concluded_over, for_reader, founding, kv_of, members_at_with, newer_head_in_past_v, persons_at_with, persons_of,
     reader_ends, roster_offer, roster_word, seat_scopes, signed_by, signers, stay_end, voices_with, Conf, MembersAt,
     Obj, ObjOf, Persons, Policy, SeatKind, SeatLaw, SeatRow, Seats, AGENT,
 };
@@ -260,7 +260,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             // rule 6: a person cosigning two rival openings has no say in either; a rival whose count fails without
             // such persons is none (with two majorities of one base this leaves neither: the contest stands)
             let rows_np: Vec<&R> = rows.iter().map(|&q| self.row(q)).filter(|q| !is_election(self.law, *q)).collect();
-            let pp = Persons::over(&rows_np, self.law, self.spec, None);
+            let pp = Persons::over(&rows_np, self.law, self.spec, None, kv_of::<R, _>(self.spec));
             let sig: Vec<BTreeSet<R::Key>> = newest
                 .iter()
                 .map(|&o| signers(self.row(o)).iter().map(|k| pp.voice(k).unwrap_or_else(|| k.clone())).collect())
@@ -354,7 +354,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             let past = Past::new(&self.c.g, si, p);
             let mem = open_members(&past, self.law, self.spec, &obj, e.head(), Some(self.memo));
             let rows: Vec<&R> = p.iter().map(|&q| self.row(q)).collect();
-            return Persons::over(&rows, self.law, self.spec, Some(&obj)).base(&mem);
+            return Persons::over(&rows, self.law, self.spec, Some(&obj), kv_of::<R, _>(self.spec)).base(&mem);
         }
         let Some(v) = self.vacancy(ei, p, named) else { return BTreeSet::new() };
         let Some(obj) = self.row(si).obj() else { return BTreeSet::new() };
@@ -615,7 +615,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                 .filter(|&q| g.in_past(q, a) && !is_election(self.law, self.row(q)))
                 .map(|q| self.row(q))
                 .collect();
-            Persons::over(&pa, self.law, self.spec, Some(obj))
+            Persons::over(&pa, self.law, self.spec, Some(obj), kv_of::<R, _>(self.spec))
                 .voices(&BTreeSet::from([k.clone()]), &el0)
                 .pop_first()
                 .unwrap_or_else(|| k.clone())
@@ -676,7 +676,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         let common: BTreeSet<R::Key> = els.fold(first, |acc, e| acc.intersection(&e).cloned().collect());
         // keys read as their persons over the rows held (a winner, a departed key, a forker): one person, one say
         let rows_np: Vec<&R> = rows.iter().map(|&q| self.row(q)).filter(|q| !is_election(self.law, *q)).collect();
-        let pp = Persons::over(&rows_np, self.law, self.spec, None);
+        let pp = Persons::over(&rows_np, self.law, self.spec, None, kv_of::<R, _>(self.spec));
         let pk = |k: &R::Key| -> R::Key {
             match op {
                 Some(_) => pp.member(k),
@@ -1010,7 +1010,7 @@ pub(super) fn count<R: SeatRow, S: CutSpec<R>>(
         .collect();
     // a key read as its person (rule 7), over the past less the election's seatings
     let all_np: Vec<&R> = all.iter().copied().filter(|q| !is_election(law, *q)).collect();
-    let pp = Persons::over(&all_np, law, spec, None);
+    let pp = Persons::over(&all_np, law, spec, None, kv_of::<R, _>(spec));
     let left: BTreeSet<R::Key> = left.iter().map(|k| pp.member(k)).collect();
     let voters: BTreeSet<R::Key> = el.iter().filter(|k| !left.contains(k)).cloned().collect();
     // (2): a key whose two forked rows are both in the set is no ballot (the set alone decides: F1)
@@ -1143,7 +1143,7 @@ fn open_count<R: SeatRow, S: CutSpec<R>>(
     let rows: Vec<&R> = p.rows().collect();
     // its voices through persons and the key view (rule 7: every close input)
     let vs = voices_with(r, p, spec);
-    let (base, yes) = Persons::over(&rows, law, spec, Some(&obj)).count(&mem, &vs, None, &[]);
+    let (base, yes) = Persons::over(&rows, law, spec, Some(&obj), kv_of::<R, _>(spec)).count(&mem, &vs, None, &[]);
     let yes: BTreeSet<R::Key> = yes.into_iter().filter(|k| !no_say.contains(k)).collect();
     let n = base.len();
     n > 0 && 2 * yes.len() > n && yes.len() >= n.min(2)

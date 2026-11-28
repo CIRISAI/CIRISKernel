@@ -374,7 +374,8 @@ pub trait SeatRow: Row {
         None
     }
     /// The rows a row cites (the wire's `refs.also.cites`; the Constitution's G23, G24): a reconsideration its
-    /// takedown notice, a lift the act it lifts. Default none. (A quarantine release is no citation: it names its
+    /// takedown notice, a lift the act it lifts, an election's opening ([`SeatKind::ElectionOpen`]) the seat end it
+    /// opens for. Each cites one row. Default none. (A quarantine release is no citation: it names its
     /// withhold by [`SeatRow::target`], G21.)
     fn cites(&self) -> &[Self::Id] {
         &[]
@@ -418,10 +419,6 @@ pub trait SeatRow: Row {
     }
     /// A ballot's ranking.
     fn ranking(&self) -> &[Self::Key] {
-        &[]
-    }
-    /// An election's opening ([`SeatKind::ElectionOpen`]): the seat end it opens for, one row.
-    fn cites(&self) -> &[Self::Id] {
         &[]
     }
     /// The key whose signature verified this row, as checked by the door (the room key a voice signed through in a
