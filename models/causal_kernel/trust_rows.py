@@ -285,14 +285,7 @@ def loses(S, judged, e, k, o, cls):
 
 
 # ---- the reader's line over a group's body (the r77 attack: body growth is a counted change, not an end) ----------
-def body_change(q, o):
-    """A change of group `o`'s body: a counted act over it (conf group, naming its head), or a single key's own or
-    conferred offer of a seat over it other than a roster seat (a lone conferral of a duty, an officer or license seat)."""
-    if q["kind"] not in ("offer", "unseat") or q.get("obj") != o or q["id"] == o:
-        return False
-    if q.get("conf") == "group":
-        return bool(q.get("head"))
-    return q.get("conf") in ("self", "seat") and q.get("scope") not in ("member", ST.AGENT)
+body_change = ST.body_change          # the change of a group's body: seat.py's, the one reading
 
 
 def line_of(S, own, o):
@@ -340,62 +333,21 @@ def authority_act_over(S, q):
     return None
 
 
-# ---- body growth over the rows the reader HOLDS (the tips fold's rule, which a lone duty conferral already reads) ---
-def growth_of(S, o):
-    """The rows that grow group `o`'s body, among the concluded rows S holds: its changes (body_change) and the
-    acceptances completing them (a one-officer body's countersign is a voice on the act's own row, G15)."""
-    out = []
-    for q in S.Cs:
-        if body_change(q, o):
-            out.append(q)
-        elif q["kind"] == "accept" and q.get("of") in S.by and body_change(S.by[q["of"]], o):
-            out.append(q)          # the acceptance completing it (a one-officer body's countersign is on the act's row)
-    return out
-
-
-def concurrent_growth(S, q, o):
-    """The growth of `o`'s body the reader holds concurrent with row `q` (neither in the other's past)."""
-    if "growth_held_unread" in MUT:
-        return []
-    return [c for c in growth_of(S, o) if c["id"] != q["id"] and c["id"] not in S.anc[q["id"]]
-            and q["id"] not in S.anc[c["id"]] and not one_batch(S, q, c, o)]
-
-
-def one_batch(S, q, c, o):
-    """A holder's own concurrent lone duty conferrals are one batch, as the tips fold reads them: growth row `c` (or
-    the offer it accepts) and act `q`, both a single key's own or conferred offer of a duty over `o` by the same key,
-    are not growth against each other. (MUTATION lone_batch_unread.)"""
-    if "lone_batch_unread" in MUT:
-        return False
-    off = S.by.get(c.get("of")) if c["kind"] == "accept" else c
-    lone = lambda x: x is not None and x["kind"] == "offer" and x.get("conf") in ("self", "seat") \
-        and scope_class(S, o, x.get("scope")) == "duty"
-    return lone(q) and lone(off) and off["signer"] == q["signer"]
-
-
-def with_growth(S, q, o):
-    """The rows `q`'s authority over `o` is re-counted over: its own past, with the concurrent growth the reader holds
-    and their pasts: the body at the newest counted changes the reader holds."""
-    ids = set(S.anc[q["id"]])
-    for c in concurrent_growth(S, q, o):
-        ids |= {c["id"]} | set(S.anc[c["id"]])
-    rows = [x for x in S.rows if x["id"] in ids]
-    return CK.State(rows, {x["id"]: S.C.get(x["id"]) for x in rows})
+# ---- body growth over the rows the reader HOLDS: seat.py's one reading (seat.growth_of, concurrent_growth, one_batch,
+# with_growth; the DRY item "re-count on growth"), read here as the seat walk reads it -----------------------------------
+growth_of, concurrent_growth, one_batch = ST.growth_of, ST.concurrent_growth, ST.one_batch
 
 
 def recounted(S, q, o):
     """Authority act `q` over `o`, CONCURRENT with growth of the body the reader holds, still holds counted over the
-    grown body (as the tips fold re-counts a lone duty conferral): a single key's own or conferred seat by the one
-    gate (seat.authority_gate), an edge by its owner's authority set (speaks_for). An act the growth has in its past
-    stands as made; a counted act (conf group) is the tips fold's."""
-    if not concurrent_growth(S, q, o):
-        return True
-    T = with_growth(S, q, o)
-    if q["kind"] == "offer" and q.get("conf") in ("self", "seat") and "seat_recount_unread" not in MUT:
-        return ST.authority_gate(q, T.Cs, T.by)
-    if q["kind"] == "delegates_to":
-        return speaks_for(T, ST.voices(q, T.Cs), owner(q))
-    return True
+    grown body: seat.recount_on_growth, the one re-count (a lone conferral by the one gate, a counted conferral by its
+    count at the newest counted changes), with an edge read by its owner's authority set (speaks_for) over the grown
+    rows."""
+    def edge(T):
+        if q["kind"] != "delegates_to": return True
+        st = CK.State(T, {x["id"]: S.C.get(x["id"]) for x in T})
+        return speaks_for(st, ST.voices(q, st.Cs), owner(q))
+    return ST.recount_on_growth(S, q, o, other=edge)
 
 
 def is_counted_row(q):

@@ -63,6 +63,8 @@ Planted breaks, each of which must change a case's answer:
     duty_gate_wrong_row the gate reads `counted` off the room's founding row, not the offer
     lone_founder_unread a record one person signs with no map seats that person in no duty
     lone_regrowth_unread a lone holder's conferral concurrent with the grown body's counted act is not re-counted (r81 B2)
+    counted_recount_unread a counted conferral from an old past is not re-counted against the held growth of its body
+    growth_any_body      a counted conferral is re-counted against any growth, not only its deciding body's
     own_duty_ungated    a single key's own offer of a duty concludes outside a duty room though it is no lone holder
     gate_counted_any_duty  a count over one duty's holders passes the gate as the duty holders' count
     head_any_row        a head of another object's line counts (H1: a head is a counted change of the row's own object)
@@ -480,7 +482,35 @@ CASES += [
      [_BG, _BDC1, _BDA1, _BDC2, _BDA2, dict(_BWCU, names=("da1", "da2"), head=("dc1", "dc2"))],
      [("A", "moderate", T), ("C", "moderate", F), ("B", "moderate", T)], None),
 ]
-PLANTS += ("lone_regrowth_unread",)
+# the re-count on growth's counted arm (attack-r r95 f5 Q8, at the roster): A, B and C hold moderate; A, B and C seat D
+# and E concurrently (dde, counted, at g); A and B confer moderate on F from g (2 of 3, but 2 of 5 over the grown
+# body): re-counted at the newest changes it fails, and F holds nothing (MUTATION counted_recount_unread)
+_G3 = ST.found("g", "A", ("A", "B", "C", "D", "E", "F"), {"moderate": ("A", "B", "C")}, cosigners=("B", "C", "D", "E", "F"))
+_DDE = ST.offer("dde", "A", ("D", "E"), "moderate", OBJ, "group", ("g",), head=("g",), cosigners=("B", "C", "D", "E"),
+                counted="duty", policy="duty_confer")
+_DF = ST.offer("df", "A", "F", "moderate", OBJ, "group", ("g",), head=("g",), cosigners=("B", "F"), counted="duty",
+               policy="duty_confer")
+CASES += [
+    ("the re-count on growth, counted: A and B confer moderate on F from g, concurrent with the held counted seating of D "
+     "and E; over the grown body A and B are 2 of 5, so F holds nothing", [_G3, _DDE, _DF],
+     [("D", "moderate", T), ("E", "moderate", T), ("F", "moderate", F)], None),
+    ("and with dde in df's past (df names it), df is counted at the grown body as made: 2 of 5 refuses it at once",
+     [_G3, _DDE, dict(_DF, names=("dde",), head=("dde",))], [("F", "moderate", F)], None),
+    ("control: with no concurrent growth A and B (2 of 3) seat F", [_G3, _DF], [("F", "moderate", T)], None),
+]
+# the deciding body's growth only (the narrowing, check_acts and check_count_heads): A, the lone holder, confers
+# moderate on B and on C by two concurrent counted rows at g: the same deciding voice's conferrals of a duty are one
+# batch, no growth against each other, and both seat (MUTATION growth_any_body: re-counted against each other, both fail)
+_LG = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"))
+_CB = ST.offer("cb", "A", "B", "moderate", OBJ, "group", ("g",), head=("g",), cosigners=("B",), counted="duty",
+               policy="duty_confer")
+_CC = ST.offer("cc", "A", "C", "moderate", OBJ, "group", ("g",), head=("g",), cosigners=("C",), counted="duty",
+               policy="duty_confer")
+CASES += [
+    ("the lone holder's two concurrent counted conferrals of moderate (B, C) are one batch: both seat",
+     [_LG, _CB, _CC], [("B", "moderate", T), ("C", "moderate", T)], None),
+]
+PLANTS += ("lone_regrowth_unread", "counted_recount_unread", "growth_any_body")
 
 
 @contextlib.contextmanager
