@@ -54,7 +54,7 @@ IDS = tuple(b["id"] for b in H5)
 HONEST = [G5, LM, OP5] + H5 + [SEAT("ec", "C", IDS)]
 
 
-def answer(rows, sid, ask=("C", "moderate"), reader=None, keys=None):
+def answer(rows, sid, ask=("C", "moderate"), reader=None, keys=None, arrive=False):
     """(the ask's standing, sid closed for the reader) with the key view over `keys` (key rows) where given."""
     if keys is not None:
         KS = KE.state(list(rows) + list(keys))
@@ -63,7 +63,7 @@ def answer(rows, sid, ask=("C", "moderate"), reader=None, keys=None):
         ST.KEY_VIEW.append(None)
     try:
         for m in ("_READER_MEMO", "_VOID_MEMO", "_EMEMO", "_SEATS_OF"): getattr(ST, m).clear()
-        S = CK.concluded(CK.kept(list(rows)), RULE)
+        S = CK.arrive(list(rows), RULE) if arrive else CK.concluded(CK.kept(list(rows)), RULE)
         Q = ST.Seats(S, own=reader)
         return Q.stands(ask[0], ask[1], OBJ), closed(S, sid, reader)
     finally:
@@ -80,6 +80,19 @@ RULE5 = HONEST + [ST.unseat("u1", "A", "D", "member", OBJ, "group", ("g",), head
                   ST.unseat("u2", "C", "A", "member", OBJ, "group", ("g",), head=("g",), policy="community_remove",
                            cosigners=("D", "E")),
                   ACK("k1", "A", "ec", ("u1", "u2")), ACK("k2", "B", "ec"), ACK("k4", "D", "ec", ("u1", "u2"))]
+# r103-49: the honest election in the seven-room (A lays down at aG; D, E, F, G open; all rank D; closed by A, E, F,
+# G), and two founders' stale rows at g; and the same founders running a whole election at g
+_LM7 = ST.withdraw("lm", "A", "g", ("aG",), scope="moderate")
+_OP7 = OPEN("op", "lm", ("D", "E", "F", "G"), ("aG",))
+_HB7 = [B("b" + k.lower(), k, "D", "op") for k in "ABCDEFG"]
+HON7 = EL.N1R + [_LM7, _OP7] + _HB7 + [SEAT("ed", "D", tuple(b["id"] for b in _HB7), heads=("aG",))] + \
+    [ACK("k" + k.lower(), k, "ed") for k in "AEFG"]
+RCG = ST.unseat("rcg", "B", "A", "moderate", OBJ, "group", ("g",), head=("g",), policy="moderator_recall", cosigners=("C",))
+OPG = OPEN("opg", "rcg", ("B", "C"), ("rcg",))
+ACKR = R("akR", "ack", "R", ("aG",), room=OBJ, head=("aG",))
+STALE = EL.N1R + [RCG, ST.unseat("xag", "B", "A", "member", OBJ, "group", ("rcg",), head=("rcg",), policy="community_remove",
+                                 cosigners=("C",)), OPG, B("yb", "B", "B", "opg"), B("yc", "C", "B", "opg"),
+                  SEAT("eb", "B", ("yb", "yc"), op="opg", heads=("rcg",)), ACK("jc", "C", "eb")]
 RECS = [KE.rec("k" + k, k, 0, None, typ="pseudonym") for k in "ABCDEFGX"]
 CASES = [
     ("rule 2: the honest election: the opening (A, B, C of five) at g, C three to two; closed by A, B and D", 
@@ -150,6 +163,18 @@ CASES = [
     ("rule 5: a contested pair of counted removals (A, B, C remove D; C, D, E remove A, concurrently) is taken by no "
      "roster: no departure and no fork of A's lay-down; A, B and D receipt C's seating: closed", RULE5,
      "ec", {}, (T, T)),
+    ("r103 attack_block: two founders' stale recall of A at g (concluded, taken by no roster: S'' over the rows held) "
+     "forks nothing: the honest close holds, D moderates", HON7 + [RCG], "ed", {"ask": ("D", "moderate")}, (T, T)),
+    ("and for a reader that acknowledged aG", HON7 + [RCG, ACKR], "ed", {"ask": ("D", "moderate"), "reader": "R"}, (T, T)),
+    ("and with an opening citing the stale recall at g: still the honest close", HON7 + [RCG, OPG], "ed",
+     {"ask": ("D", "moderate")}, (T, T)),
+    ("a truly backdated opening (B and C open at g citing lm, which g does not hold) concludes nothing: the honest close "
+     "holds", HON7 + [dict(OPEN("opg", "lm", ("B", "C"), ("g",)), names=("lm", "g"))], "ed", {"ask": ("D", "moderate")},
+     (T, T)),
+    ("r103 attack_stale: B and C run a whole election at g (recall, removal of A, opening, ballots, B's seating, C's "
+     "receipt): taken by no roster: B is not moderator and the election is not closed, for a reader with no "
+     "acknowledgement", STALE, "eb", {"ask": ("B", "moderate")}, (F, F)),
+    ("and for a reader that acknowledged aG", STALE + [ACKR], "eb", {"ask": ("B", "moderate"), "reader": "R"}, (F, F)),
     ("G3c plus C (r90-49): A's backdated lay-down forks the end; C's receipt of B's seating closes nothing, and B is "
      "not seated", EL.G3C + [ACK("jc", "C", "eb")], "eb", {"ask": ("B", "moderate")}, (F, F)),
 ]
@@ -180,7 +205,7 @@ def _person_world():
 PLANTS = ("end_fork_unread", "open_old_heads", "open_by_key", "openings_both_stand",
           "close_no_wait", "close_key_view_unread", "close_receipt_unclean",
           "acceptance_key_view_unread", "inputs_key_view_unread", "rival_openings_read", "electorate_at_seating",
-          "departures_raw", "fork_untaken_end")
+          "departures_raw", "fork_untaken_end", "close_reads_concluded")
 
 
 def run():
@@ -191,11 +216,23 @@ def run():
             rows = person_world(sid == "open_persons"); sid = "eb"
         got = answer(rows, sid, kw.get("ask", ("C", "moderate")), kw.get("reader"), kw.get("keys"))
         if got != want: bad.append("%s: got %s" % (name, got))
+        if ORDERS[0]:
+            # every case in arrival orders of its rows above the founding one (a fixed sample)
+            for p in EL.orders(rows, ORDERS[0]):
+                ORDERS[1] += 1
+                if answer([rows[0]] + list(p), sid, kw.get("ask", ("C", "moderate")), kw.get("reader"), kw.get("keys"),
+                          arrive=True) != got:
+                    bad.append("%s: order %s differs" % (name, [r["id"] for r in p])); break
     return bad
 
 
+ORDERS = [0, 0]                   # [orders a case, orders read]: set by main for the unplanted run
+
+
 def main():
+    ORDERS[0] = 12
     bad = run()
+    ORDERS[0], n_orders = 0, ORDERS[1]
     for b in bad: print(b)
     missed = []
     for p in PLANTS:
@@ -207,8 +244,8 @@ def main():
         print("  plant %-28s %s" % (p, "caught by: " + hit[0][:80] if hit else "NOT CAUGHT"))
         if not hit: missed.append(p)
     ok = not bad and not missed
-    print("RESULT: %s: %d cases, %d of %d planted breaks caught" % ("ok" if ok else "%d problems" % (len(bad) + len(missed)),
-                                                                   len(CASES), len(PLANTS) - len(missed), len(PLANTS)))
+    print("RESULT: %s: %d cases, %d arrival orders, %d of %d planted breaks caught" % (
+        "ok" if ok else "%d problems" % (len(bad) + len(missed)), len(CASES), n_orders, len(PLANTS) - len(missed), len(PLANTS)))
     return 0 if ok else 1
 
 
