@@ -283,14 +283,24 @@ def holds_over(S, ids, k, o, cls):
 
 
 def loses(S, judged, e, k, o, cls):
-    """Key `k` LOSES standing `cls` over `o` by end `e`: it holds it over the JUDGED rows (the judged row's past, the
-    ends the reader holds and their pasts) without `e`, and no more with it. A partial end (one duty laid down, another
-    held, a seat gained beside it) loses nothing; a full end (a resignation, the withdrawal of an appointment) loses
-    every standing the seat it ends gave, whatever scope the end's target names."""
+    """Key `k` LOSES standing `cls` over `o` by its ends: it holds it over the JUDGED rows (the judged row's past, the
+    ends the reader holds and their pasts) with EVERY end of `k`'s seats over `o` taken out, and every row that has one
+    of those ends in its past (so a second end of the same seat cannot cancel the first's cut, and a later re-seat does
+    not mask it), and no more with the ends read in (and still without the rows after them). A partial end (one duty
+    laid down, another held, a seat gained beside it) loses nothing; a full end (a resignation, the withdrawal of an
+    appointment) loses every standing the seat it ends gave, whatever scope the end's target names."""
     if "still_holds_end_past" in MUT:
         ids = set(S.anc[e["id"]]) | {e["id"]}
         return holds_over(S, ids - {e["id"]}, k, o, cls) and not holds_over(S, ids, k, o, cls)
-    return holds_over(S, judged - {e["id"]}, k, o, cls) and not holds_over(S, judged, k, o, cls)
+    if "one_end_at_a_time" in MUT:
+        mine = {e["id"]}
+    else:
+        mine = {x for x in judged if S.C.get(x) and is_end(S.by[x]) and any(
+            kk == k and ob == o for kk, ob, _ in ends_keys(S, S.by[x]))}
+    after = {x for x in judged if any(m in S.anc[x] for m in mine)}
+    if "reseat_masks" in MUT:
+        after = set()
+    return holds_over(S, judged - mine - after, k, o, cls) and not holds_over(S, judged - after, k, o, cls)
 
 
 # ---- the reader's line over a group's body (the r77 attack: body growth is a counted change, not an end) ----------
@@ -441,6 +451,10 @@ def cut_state(S, rows, own=None):
         o = authority_act_over(S, q)
         if o is not None and (behind_line(S, own, q, o) or (q["kind"] != "licensure" and not recounted(S, q, o))):
             cut.add(q["id"])
+    # a row built on a cut row (one naming it, down the line) is cut with it: the one place this lane's cuts reach
+    # what rests on them (MUTATION built_on_cut_kept)
+    if "built_on_cut_kept" not in MUT:
+        cut |= {q["id"] for q in rows if S.anc[q["id"]] & cut}
     kept = [q for q in rows if q["id"] not in cut]
     return CK.State(kept, {q["id"]: S.C.get(q["id"]) for q in kept})
 

@@ -47,6 +47,9 @@ Planted breaks, each of which must change a case's answer:
     termless_edge_walked     (d) an edge stating no term is walked
     lone_batch_unread        (a), (b) a holder's own concurrent lone duty conferrals are re-counted against each other
     end_scope_keyed          (d) an end cuts by the scope its target names, not by every standing its key loses
+    one_end_at_a_time        (d) a key's loss is read with only the one end removed: a second end cancels the cut
+    reseat_masks             (d) a re-seat after the end masks the cut of a vote concurrent with the end
+    built_on_cut_kept        (d) a row built on a row this lane cuts is kept
     still_holds_end_past     (d) whether the key still holds a standing is read over the end's past, not the judged rows
     growth_held_unread       (a), (b) an authority act concurrent with growth of its body the reader holds is not
                              re-counted over the grown body
@@ -460,6 +463,40 @@ CASES += [
                                counted="duty"), GLA, _DC2, _DA2, A("e", "RD", "g"), _X], "RD", "l", None, OK),
 ]
 
+# ---- the r81 attack (review-scratch 2797fb0, r81/charter b1, b2), each a case -----------------------------------
+_GY = ST.offer("gy", "A", ("Y",), "license", "g", "group", ("da1",), head=("dc1",), cosigners=("C",), counted="duty")
+_GYA = ST.accept("gya", "Y", "gy")
+_B = [G1, _DC1, _DA1, _GY, _GYA, _DC2, _DA2]
+_L1 = ST.withdraw("l1", "A", "g", (), scope="moderate")
+_G3 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B", "C")}, cosigners=("B", "C"),
+               licence_classes=((M, False),))
+_GLO_G = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty")
+_U1 = ST.unseat("u1", "B", "A", "moderate", "g", "group", ("g",), head=("g",), cosigners=("C",), counted="duty",
+                policy="duty_withdraw")
+_RC = ST.offer("rc", "B", ("A",), "moderate", "g", "group", ("u1",), head=("u1",), cosigners=("C", "A"),
+               counted="duty", policy="duty_confer")             # B and C seat A again, naming its removal
+CASES += [
+    ("r81 B3 A's later lone conferral (dc2) re-counted against the grown body's counted act gy: X's licence via it falls",
+     _B + [ST.offer("gx", "A", ("X",), "license", "g", "group", ("da2", "gya"), head=("gy", "dc2"), cosigners=("B",),
+                    counted="duty"), ST.accept("gxa", "X", "gx"), A("e", "RD", "g"),
+           glic("l", "g", "X") | {"names": ("gxa",)}], "RD", "l", None, NA),
+    ("r81 B4 and A and B's edge for g on it", _B + [A("e", "RD", "g", depth=1),
+                                                     A("f", "A", "K", on_behalf="g", names=("da2", "gya"),
+                                                       cosigners=("B",)), klic("l")], "RD", "l", KCH, NR),
+    ("r81 E1 two identical lay-downs concurrent with A and B's conferral: still cut",
+     [GD, _L1, ST.withdraw("l2", "A", "g", (), scope="moderate"), A("e", "RD", "g"), GLO, GLA, _X], "RD", "l", None, LW),
+    ("r81 E2 a lay-down and a full resignation, both concurrent: still cut",
+     [GD, _L1, ST.withdraw("l3", "A", "g", ()), A("e", "RD", "g"), GLO, GLA, _X], "RD", "l", None, LW),
+    ("r81 E3 the same removal written twice", [_G3, _U1, dict(_U1, id="u2"), _GLO_G, GLA, A("e", "RD", "g"), _X], "RD",
+     "l", None, LW),
+    ("r81 E3b the removal and A's own resignation", [_G3, _U1, ST.withdraw("rs", "A", "g"), _GLO_G, GLA,
+                                                    A("e", "RD", "g"), _X], "RD", "l", None, LW),
+    ("r81 the re-seat does not mask the cut: A removed by u1, seated again naming it, voting concurrent with u1",
+     [_G3, _U1, _RC, _GLO_G, GLA, A("e", "RD", "g"), _X], "RD", "l", None, LW),
+    ("r81 and a vote after the genuine re-seat stands",
+     [_G3, _U1, _RC, dict(_GLO_G, names=("rc",), head=("rc",)), GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+]
+
 NOW = {"an edge whose term has ended at the caller's instant (150)": 150,
        "r77 N8 a term-bearing edge read with no caller's instant: not walked (never at the licence's own instant)": None}
 
@@ -487,7 +524,8 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "ends_unread", "cut_unread", "self_seat_ungated", "untimed_term_met", "instant_unread",
           "edge_term_unread", "amendment_as_cut",
           "instant_over_reader", "scope_unread", "termless_edge_walked",
-          "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past")
+          "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
+          "one_end_at_a_time", "reseat_masks", "built_on_cut_kept")
 
 
 @contextlib.contextmanager

@@ -318,20 +318,33 @@ fn holds_over<R: TrustRow, S: CutSpec<R>>(
     Seats::new(&rc, seats.law(), seats.spec(), None).holders(cls, o, None).contains(k)
 }
 
-/// Key `k` LOSES standing `cls` over `o` by end `e`: it holds it over the JUDGED rows (the judged row's past, the ends
-/// the reader holds and their pasts) without `e`, and no more with it. A partial end (one duty laid down, another held,
-/// a seat gained beside it) loses nothing; a full end (a resignation, the withdrawal of an appointment) loses every
-/// standing the seat it ends gave, whatever scope the end's target names.
+/// Key `k` LOSES standing `cls` over `o` by its ends: it holds it over the JUDGED rows (the judged row's past, the
+/// ends the reader holds and their pasts) with EVERY end of `k`'s seats over `o` taken out, and every row that has one
+/// of those ends in its past (so a second end of the same seat cannot cancel the first's cut, and a later re-seat does
+/// not mask it), and no more with the ends read in (and still without the rows after them). A partial end (one duty
+/// laid down, another held, a seat gained beside it) loses nothing; a full end (a resignation, the withdrawal of an
+/// appointment) loses every standing the seat it ends gave, whatever scope the end's target names.
 fn loses<R: TrustRow, S: CutSpec<R>>(
     seats: &Seats<'_, '_, R, S>,
     judged: &[usize],
-    e: usize,
     k: &R::Key,
     o: &ObjOf<R>,
     cls: &str,
 ) -> bool {
-    let without: Vec<usize> = judged.iter().copied().filter(|&j| j != e).collect();
-    holds_over(seats, &without, k, o, cls) && !holds_over(seats, judged, k, o, cls)
+    let c = seats.c();
+    let mine: Vec<usize> = judged
+        .iter()
+        .copied()
+        .filter(|&x| {
+            c.concluded(x)
+                && is_end(c.g.row(x))
+                && ends_keys(c, c.g.row(x)).iter().any(|(kk, ob, _)| kk == k && ob == o)
+        })
+        .collect();
+    let after = |x: usize| mine.iter().any(|&m| c.g.ancestors(x).has(m));
+    let without: Vec<usize> = judged.iter().copied().filter(|&x| !mine.contains(&x) && !after(x)).collect();
+    let with: Vec<usize> = judged.iter().copied().filter(|&x| !after(x)).collect();
+    holds_over(seats, &without, k, o, cls) && !holds_over(seats, &with, k, o, cls)
 }
 
 // ---- the reader's line over a group's body (the r77 attack: body growth is a counted change, not an end) ----------
@@ -595,7 +608,7 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
             let need = rests_on(c, seats.law(), qr, &o);
             // an end is keyed by every standing its key LOSES by it, whatever scope its target names
             let hit = ks.iter().any(|(k, ob, _)| {
-                *ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, e, k, ob, cls))
+                *ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, k, ob, cls))
             });
             if hit {
                 cut.insert(q);
@@ -610,6 +623,10 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
             }
         }
     }
+    // a row built on a cut row (one naming it, down the line) is cut with it: the one place this lane's cuts reach
+    // what rests on them
+    let built: Vec<usize> = rows.iter().copied().filter(|&q| cut.iter().any(|&x| c.g.ancestors(q).has(x))).collect();
+    cut.extend(built);
     rows.retain(|j| !cut.contains(j));
     rows
 }

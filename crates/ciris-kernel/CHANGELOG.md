@@ -91,6 +91,15 @@ role ends with any leaving. `false` for any other object and at the founding row
 `check_acts.py` (FOUNDERS), recorded in the `seat` fixture (`founder`); plants `founder_at_tips` and
 `founder_leavings_unread`, and a crate plant.
 
+**The r81 attack on the trust walk, closed** (both languages; every attack a case, each fix a plant):
+- A key's loss of a standing is read over the judged rows with EVERY end of its seats over the object taken out, and
+  every row that has one of them in its past: a second end of the same seat cannot cancel the first's cut, and a
+  later re-seat does not mask the cut of a vote concurrent with the end (a vote after the re-seat stands).
+- A lone conferral is batched only with the same signer's other lone conferrals, and re-counted against every other
+  growth or counted act of the body the reader holds and it does not have in its past.
+- A row built on a row this lane cuts (naming it, down the line) is cut with it: the one place the cuts reach what
+  rests on them.
+
 **The r80 attack on the trust walk, closed** (both languages; every attack a case, each fix a plant):
 - A holder's own concurrent lone duty conferrals are one batch, as the tips fold reads them: they are not growth
   against each other, so neither voids the other, nor what is built on both (F4e, F4g).
