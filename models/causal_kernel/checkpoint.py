@@ -120,7 +120,11 @@ def own_line(S, own, obj):
         return out
     got = {}
     for a in acks:
-        ex = ACK_VOID(S, a) if ACK_VOID and is_counted_act(a, obj) and "ack_reads_void" not in MUT else frozenset()
+        # one rule for bundles and rosters: an acknowledgement settles only if the acknowledged change counts over that
+        # acknowledgement row's own past, so an explicit `ack` reads S'' over its own past too (MUTATION
+        # ack_self_fork_unread: only a counted row does)
+        own_row = is_counted_act(a, obj) or (a["kind"] == "ack" and "ack_self_fork_unread" not in MUT)
+        ex = ACK_VOID(S, a) if ACK_VOID and own_row and "ack_reads_void" not in MUT else frozenset()
         cov = covered(a)
         if "ack_unvoids" in MUT:
             got[a["id"]] = {r for r in cov if r == a["id"] or r not in ex}

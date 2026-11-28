@@ -53,6 +53,80 @@ now stands (`conferral_two.json`: "(d) reader at the later"; `conferral_end.json
 strictly-behind case is now `end_old_fork_for_reader` with a third head). The TLA spec's end line drops its
 acknowledgement clause (its two heads have no strictly-behind end). Plants `line_not_sibling_safe` (the reference)
 and one in the crate.
+**The trust root's fork fold** (persist's item 15; CC 3.2 T6, CC 2.7.8), both languages: `root` (`models/trust_root`),
+with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
+- Rule 6 reaches every count at the head (the ruling of 2026-11-27): a double signer at a head has no say there for a
+  reader, for a grant resolving (`Root::no_say`) or a rule-3 bundle settling it; a halt (`RootGrant::halts`,
+  `Root::halt_in_force`) still halts; at a later head it counts as any holder.
+  It follows that a double signer has no say in a halt's confirmation count either (a count at that head); the
+  halt's own path is the Constitution's model and is not built here.
+- A reader's acknowledgements are rows with their own pasts (r76 q4; BREAKING: `Reader::after`, None for one
+  chain): each is judged over its own causal past, two concurrent rows (a person's two devices) each without the
+  other, and the line is drawn over their union; a row closes nothing on the line a row concurrent with it
+  settled onto. Two devices that disagree stall at the fork point (rules 5, 6 and 3 decide over what is held),
+  never by depth.
+- Considered and rejected (r78 q4): union voiding, a bundle behind ANY of the person's settled acknowledgements
+  void whatever their concurrency (`models/trust_root/proto_union_voiding.py`, `root.UNION_VOIDING`, off). It
+  decides by depth: one device at b2 and the other at the attacker's t (t1, t, one bundle deeper) puts the reader
+  on t, the attacker's key in force.
+- The bounded settler (the ruling on the genesis stall, r76 ST1; `RootBundle::settles`, defaulted;
+  `Root::bounded_settler`): a settler at a head that names one contested sibling there as the one that stands, and
+  states nothing of its own (its holders, seats, charter and recovery commitments are that sibling's), is counted over
+  the head's holders who have a say there, rule 6's double signers out of the base for this one count, by strict
+  majority of them. Each sibling it can choose was already signed by a strict majority, so the reduced base only
+  decides which majority-signed bundle stands, and a holder cannot be made a double signer against its will. A
+  settler stating anything else is counted over the full base, as any bundle is. Edges: every holder double-signed,
+  an empty base, nothing settles and the reader re-roots; the holders with a say split evenly, nothing settles; a
+  lone holder with a say settles alone, choosing only between majority-signed bundles. A settler is no head of its
+  own: the reader is at the sibling it names.
+- Settler equivocation (rule 6 read over settlers): a holder that signs two settlers at one head naming different
+  siblings has no say in settling that head; both its settler signatures count for nothing.
+- The fork-point residual (r81), stated: "At a fork point the honest line's removals are not yet in force, so the
+  holders it removed keep a say there. With one turncoat (a double signer of the bare-majority step), they can force
+  a split among those with a say, and hold a reader whose devices saw both sides at the fork point, where it reads
+  them as holders and they can halt it. The exit is re-rooting, or one of them signing the honest settler." A
+  bounded settler is closed by the reader's line exactly when the sibling it names is one that line holds void:
+  it rescues a stalled reader (whose line holds both sides) and never overturns a reader that already settled past
+  the contest.
+- The per-device cost (r82), stated: "The settler's protection is per device, not per person: if one of a person's
+  devices settled past a contest while another concurrently acknowledged the other side, the person is stalled at
+  the fork point, and a say-majority there (which can include holders the honest line removed, plus one of its own
+  signers turning) can decide it the other way, overturning the settled device."
+- The halt residual, stated: holders a later line removed can halt a reader that has not yet settled onto that line.
+- A root is the lineage of a genesis bundle (`RootBundle`, a signed object the store presents with its statements
+  checked). The first bundle is counted over every holder it lists, a later one over a strict majority of its
+  predecessor's live holders, a join (two predecessors) over those common to them. An iat that disagrees is Invalid
+  on its own; a key revoked with no bound leaves the live holders and unmakes nothing (the first bundle's count
+  stands); a statement after a key's bound does not count. A holder's own key recovery concludes on its recovery key
+  alone, changing only its own seat; a spent commitment concludes nothing, and two recoveries of one seat, neither
+  in the other's past, are contested (its causal form). Version and family are consistency checks, never ranked. S''
+  and T apply to a forked bundle as to a roster change.
+- Several tips' holders and seats are the guarded fold; tips whose charters differ (the whole charter, one value)
+  do not fold, and the holders and seats are those common to them until a bundle names both. Two joins of the same
+  tips under different charters are contested: neither stands, a reader keeps the tips they tried to join, and a
+  bundle naming every one settles them, counted over those tips' common holders. Two successors of one bundle, and
+  joins under one charter, fold as tips.
+- The bundles in force are per reader (`Reader`: its anchor, else `genesis_bundle_not_anchored`, and its
+  acknowledgements). A root grant (`RootGrant`, a row of the root's lane with the acceptance edges) exists where it
+  is counted at a strict majority over the live holders of the bundles it names, under charters carrying its duty,
+  naming the newest bundles in its signers' own past: the bundles named by rows in the grant's causal past (an
+  acceptance edge's attached_head_digest, an earlier grant's bundles). It resolves for a reader only while every voice
+  it holds (its issuance and the cosignatures of it held since, `RootGrant::cosigns`) is a strict majority of ALL
+  the holders in force at that reader (same key, live: a voice under a retired key is no voice; a recovered holder
+  cosigns again under its new key), and the scope in force there carries the duty. The cost: a grant lapses when its
+  voices stop being a strict majority of the holders in force, whether by signers leaving or holders being added,
+  and resolves again once enough present holders have cosigned it. `Root::sub_delegation` (and
+  `RootView::sub_delegation`) answers whether the charter in force carries sub_delegation for the grant's duty. The reader's
+  line is monotone: every bundle behind any bundle it acknowledged is void for it, an acknowledged one included,
+  and every bundle built on one, a join included.
+- A stalled recovery (`seat::recovery_verdict`) is judged against the root this node reads (`CutSpec::trust_root`,
+  default none: undecided, as before; `root::RootReading` is the kernel's view, the store supplying only each key's
+  identity type), by its six checks.
+- The costs, stated: a recovery concurrent with an amend that changes the charter leaves the recovering holder no
+  seat in force until a bundle names both tips (it gives a holder majority nothing it lacks: the same majority could
+  remove that holder by an amend). **The residual, stated:** "a holder's statement over a sibling bundle is not ordered against its grant, so it is not read; a grant on one tip is judged by the rows in its own past". It can matter only where that holder's voice is the
+  deciding one of an exact majority, and the statement over s2 and the grant on s1 are held evidence the other holders
+  can cite when they name both tips.
 
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone

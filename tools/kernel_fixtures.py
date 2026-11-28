@@ -32,6 +32,8 @@ Sources (all under models/):
               root grant), and a later bundle version: its case table, per act and owner, with why.
               tests/conferral_two.rs replays it through standing::answers; it is also for Verify's standing
               walk and an adopter's own code.
+    root      trust_root/check_root.py: the trust root's lineage (the count, S'' and T, the fold, the bundles in
+              force per reader, grants) and stalled recoveries judged against it. tests/root.rs replays both.
 """
 import base64
 import hashlib
@@ -776,6 +778,10 @@ def main():
     dump("conferral_content_worlds.json", CK.worlds_fixture(), out)
     import check_conferral_two as C2
     dump("conferral_two.json", C2.fixture(), out)
+    sys.path.insert(0, os.path.join(ROOT, "models", "trust_root"))
+    import check_root as CR
+    dump("root.json", CR.fixture(with_refs), out)
+    dump("root_reader.json", CR.reader_vectors(), out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():
