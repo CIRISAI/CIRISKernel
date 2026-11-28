@@ -499,10 +499,11 @@ CASES = [
     # for it the seating concludes nothing at all (no longer a concluded act its line voids: stale is empty)
     (EL, "the seating at the head before an admission built on a later one the reader acknowledged: its vacancy end, "
          "the lay-down at the same head, is behind that reader's line (a lay-down is a roster change, H4), so for that "
-         "reader the seating reads no vacancy and seats nobody",
+         "reader the seating seats nobody; restated (the ruling of 2026-11-28): the seating, a counted act of the "
+         "opening at that old head, is itself behind the reader's line and stale for it",
      ROOM + [admit("aH", "H", tuple(sorted(SEVEN)), ("aG",)), admit("aI", "I", tuple(sorted(SEVEN | {"H"})), ("aH",)),
              ack("ak", "R", "aI"), ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)), "R",
-     {"se": T}, {"moderate": set()}, set()),
+     {"se": T}, {"moderate": set()}, {"se"}),
     (EL, "a later admission at the newest admission, leaving the seating unnamed in its past (it names the ballots)",
      ROOM + [ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)) +
      [admit("ax", "X", FIVE, ("aG",), ("se",))], None, {"se": T, "ax": F}, {"moderate": {"D"}, "member": SEVEN}, set()),

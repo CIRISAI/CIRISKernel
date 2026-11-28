@@ -1275,7 +1275,10 @@ def open_concludes(r, P, past):
     obj, cites = r.get("obj"), r.get("cites", ())
     if obj not in by or len(cites) != 1 or cites[0] not in by: return False
     e = by[cites[0]]
-    if "open_end_unread" not in MUT and (not seat_end_slots(e, P, past, obj) or end_fork(e, P, past, obj)): return False
+    # the first election of a room whose founding row gives no duty seat: its vacancy is the founding row itself (C1)
+    founding_vacancy = e["id"] == obj and not id_seats(e)
+    if "open_end_unread" not in MUT and not founding_vacancy and (
+            not seat_end_slots(e, P, past, obj) or end_fork(e, P, past, obj)): return False
     heads = tuple(r.get("head", ()))
     if "open_old_heads" not in MUT and newer_head_in_past(heads, None, P, past, obj): return False
     mem = members_at(P, past, obj, heads, "member") - members_at(P, past, obj, heads, AGENT)
@@ -1298,7 +1301,7 @@ def openings_for(op, rows, past):
     for o in rows:
         if o["kind"] != "election_open" or o.get("obj") != op.get("obj"): continue
         f = by.get(o.get("cites", (None,))[0])
-        if f is not None and _seat(seat_end_slots(f, P, past, o["obj"])) & mine: out.append(o)
+        if f is not None and (f["id"] == e["id"] or _seat(seat_end_slots(f, P, past, o["obj"])) & mine): out.append(o)
     return out if op in out else out + [op]
 
 
