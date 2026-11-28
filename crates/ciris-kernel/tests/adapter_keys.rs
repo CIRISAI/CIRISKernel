@@ -16,13 +16,14 @@ const IGNORED: [&str; 6] = ["consent", "device_label", "family", "family_key_id"
 
 /// Each fixture whose rows a crate rule reads, with the sources of the adapters that read them. (`tables.json`
 /// replays recorded verdicts, not its rows.)
-const FIXTURES: [(&str, &[&str]); 6] = [
+const FIXTURES: [(&str, &[&str]); 7] = [
     ("seat.json", &[include_str!("common/mod.rs"), include_str!("seat.rs")]),
     ("acts.json", &[include_str!("common/mod.rs"), include_str!("acts.rs")]),
     ("conferral_two.json", &[include_str!("conferral_two.rs")]),
     ("conferral_end.json", &[include_str!("conferral_end.rs")]),
     ("conferral_content.json", &[include_str!("content.rs")]),
     ("conferral_content_worlds.json", &[include_str!("content.rs")]),
+    ("key_person.json", &[include_str!("common/mod.rs"), include_str!("key_person.rs")]),
 ];
 
 /// The keys of every row in `j`: an object with an `id` and a `kind` (or `k`).

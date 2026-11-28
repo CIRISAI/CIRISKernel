@@ -42,6 +42,7 @@ Planted breaks, each of which must change a case's answer:
     overseer_end_unread   (seat.py) an overseer's lay-down does not cut its countersign
     countersign_against_member_only  (seat.py) only the four acts against a member need a one-officer body's countersign
     outside_voice_taken   (seat.py) any outside voice on a one-officer act is taken, eligible or not (G15)
+    officers_by_key       (seat.py) officers are counted by key: two keys of one person are two officers
 
     python3 -I check_charter.py      exit 1 on any difference
 """
@@ -235,8 +236,27 @@ REM = ST.unseat("rm", "A", "C", "member", "af", "group", ("af",), head=("af",), 
 RV2 = ST.offer("rv", "R1", "R2", "review", "ob", "group", ("ob",), head=("ob",), policy="duty_confer", counted="duty",
                cosigners=("R2",))                                    # R1 confers review over ob on R2
 LD1 = ST.withdraw("ld", "R1", "ob", ("ob",), scope="review")          # R1 lays its review over ob down
+# by person (ruled on CIRISConstitution#224, as every count): A's self roster SA holds a second key A2 (A's device)
+SA = ST.offer("SA", "A", ("A",), "self", "@", "self")
+SAA2 = ST.offer("aa2", "A", "A2", "self", "SA", "group", ("SA",), head=("SA",), policy="self_roster_add", counted="self",
+                cosigners=("A2",))
+A1O2 = dict(aff("a1", to=("A", "A2"), cls=(MW,), official="O", **{ST.OVERSEEN_BY: "ob"}), names=("aa2", "ob"))
+A1O2B = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("B",), counted=ST.OFFICER)
 # (name, rows, {row: concludes}, [(key, the affiliation, stands as a member)])
 COUNTERSIGN = [
+    ("by person: A2, another key of A's own person, on A's removal is the officer itself, no countersign: held, B stays",
+     [OB, SA, SAA2, dict(A1O, names=("aa2", "ob")), A1OB, dict(RMB(cos=("A2",)), names=("a1b", "ob", "aa2"))],
+     {"rm": True}, [("B", "a1", True)]),
+    ("by person: the record names A2 (another key of the officer's own person) its official: A2's voice on A's removal "
+     "is the officer itself, no outside countersign: held, B stays",
+     [OB, SA, SAA2, dict(A1O, official="A2", names=("aa2", "ob")), A1OB,
+      dict(RMB(cos=("A2",)), names=("a1b", "ob", "aa2"))], {"rm": True}, [("B", "a1", True)]),
+    ("by person: two officer keys of one person in the roster are ONE officer: A and A2's removal is a proposal (held), "
+     "not two voices, and B stays", [OB, SA, SAA2, A1O2, A1O2B, dict(RMB(cos=("A2",)), names=("a1b", "ob", "aa2"))],
+     {"rm": True}, [("B", "a1", True)]),
+    ("and with the official's voice on it as well: decided, B is out",
+     [OB, SA, SAA2, A1O2, A1O2B, dict(RMB(cos=("A2", "O")), names=("a1b", "ob", "aa2"))], {"rm": True},
+     [("B", "a1", False)]),
     ("a one-seat affiliation's removal of a member on the officer's voice alone: it concludes as a proposal (held) and "
      "B stays a member", ONE + [RMB()], {"rm": True}, [("B", "a1", True)]),
     ("G15: the removal with the designated official's voice on its own row: a decision, B is out",
@@ -364,7 +384,7 @@ PLANTS = ("charter_unread", "at_issuance", "below_protocol_read", "fork_union", 
           "countersign_unread", "countersign_inside_seat", "official_at_founding", "overseers_unread",
           "two_voices_unread", "officer_from_founders", "affiliation_body_members",
           "no_officer_locks", "overseer_end_unread", "countersign_against_member_only",
-          "outside_voice_taken")
+          "outside_voice_taken", "officers_by_key")
 
 
 def show(x):

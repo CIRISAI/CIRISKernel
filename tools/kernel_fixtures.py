@@ -428,6 +428,20 @@ def seat_cases():
     import check_room_keys as RKC
     for case in RKC.CASES + RKC.OPEN:
         record(case[2], A.WIN, [(k, sc, RKC.OBJ) for k, sc, _ in case[5]])
+    # counts over persons (CIRISConstitution#224): check_key_person.py's window and ballot cases, a device key answering
+    # a window and casting a ballot for its person (the window's outcome and the seating's conclusion are replayed)
+    import check_key_person as KPC
+    for _name, rows, _want in KPC.WINDOW_CASES:
+        record(rows, A.WIN)
+    for _name, rows, _rid, _want in KPC.BALLOT_CASES:
+        record(rows, A.SEAT)
+    # the review r74's rows: a person seated by two keys, a revoked key and its devices, an agent's key of a person's
+    # roster, the lift's author's device, a window over a self roster
+    for _name, rows, _rid, _want, rule in KPC.R74_CASES:
+        record(rows, A.WIN if rule is not KPC.RULE else A.SEAT)
+    # the review r78k's rows: the fold's lift and the count's receipt by person (seat.count_persons), the roster pinned
+    for _name, rows, _want in KPC.R78K_CASES:
+        record(rows, A.WIN)
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
@@ -703,6 +717,48 @@ def purge_cases():
 
 
 # ---- key_end: every generated world at every instant ----------------------------------------------------------------
+def key_person_cases():
+    """check_key_person.py's cases: a key's person at a row (seat.person_of), each with the seat law it is read under."""
+    import seat as ST
+    import check_key_person as KP
+    out = []
+    for name, rows, k, person in KP.CASES:
+        refs = {}
+        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "key": k, "person": person})
+    counts = []
+    for name, rows, rid, concludes in KP.COUNT_CASES:
+        refs = {}
+        counts.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "concludes": concludes})
+    law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+           "community_floor": ST.COMMUNITY_FLOOR, "removal_floor": ST.REMOVAL_FLOOR,
+           "policy": {k: list(v) for k, v in ST.POLICY.items()},
+           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+    # the opener's own withdrawal (r78k, latent): a table entry of the case's own, its rows and the outcome
+    import window as WN
+    WN.WINDOWS[KP.LATENT] = KP.LATENT_SPEC
+    try:
+        windows = {KP.LATENT: dict(enc(KP.LATENT_SPEC), secs=WN.secs(KP.LATENT))}
+    finally:
+        WN.WINDOWS.pop(KP.LATENT, None)
+    wcases = []
+    for name, rows, outcome in KP.LATENT_CASES:
+        refs = {}
+        assert KP.latent_outcome(rows) == outcome
+        wcases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "opener": "op", "outcome": outcome})
+    # the keys a row reaches (persist): a person's live keys and an owner's nodes, over the concluded set
+    pkeys = []
+    for name, rows, k, keys in KP.PERSON_KEYS_CASES:
+        refs = {}
+        pkeys.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "person": k, "keys": keys})
+    nodes = []
+    for name, rows, k, ns in KP.NODES_CASES:
+        refs = {}
+        nodes.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "owner": k, "nodes": ns})
+    return {"law": law, "cases": out, "counts": counts, "windows": windows, "window_cases": wcases,
+            "person_keys": pkeys, "nodes_of": nodes}
+
+
 def key_end_cases():
     import check_key_end as CKE
     KE = CKE.KE
@@ -792,6 +848,7 @@ def main():
         dump("tables.json", table_cases(), out)
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
+    dump("key_person.json", key_person_cases(), out)
     dump("acts.json", acts_cases(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)

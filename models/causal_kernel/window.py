@@ -214,7 +214,26 @@ def table_outcome(spec, p, answers, inside, base, elapsed):
     """The outcome the table gives. answers: rows answering p; inside: rows read for the target's silence;
     base(name) -> the keys counted; elapsed: whether the concluder's two instants span the window."""
     tv = {p.get("target")} if spec.get("target_votes") else set()   # the joiner's own yes is a voice of the floor (CC 3.1.3.2)
-    withdrawn = any(a["signer"] == p["signer"] and a["says"] == "withdraw" for a in answers)
+    # an answer is its person's (ruled on CIRISConstitution#224: one voice however many live keys sign): a key that is
+    # no member answers for the member it is a live key of (seat.person_for); a key with no person stays as it signed,
+    # and is no voice of any base. Two answers of one person that differ say two things, and so nothing.
+    rows = getattr(base, "rows", None)
+    if rows is not None and "persons_unread" not in ST.MUT and not ST.keys_counted(rows, p["obj"]):
+        # one member and one voice per person: the bases by person, each answer its signer's person (rep_of; a key that
+        # counts as none answers for nobody), the opener its own person
+        key_base, NONE = base, ("no person",)
+        def base(name):
+            return ST.as_persons(key_base(name), rows, p["obj"])
+        base.raw = lambda name: ST.as_persons(key_base.raw(name), rows, p["obj"])
+        rep = lambda k: ST.rep_of(rows, k) or (NONE, k)
+        answers = [dict(a, signer=rep(a["signer"])) for a in answers]
+        p = dict(p, signer=rep(p["signer"]))
+        tv = {rep(t) for t in tv}
+    # the opener's own withdrawal: its signer read as the opener is, a key of no person as itself (no voter needed;
+    # MUTATION opener_withdrawal_voter: a key of no person withdraws nothing)
+    own = (lambda k: not (isinstance(k, tuple) and k[:1] == (("no person",),))) if "opener_withdrawal_voter" in ST.MUT \
+        else (lambda k: True)
+    withdrawn = any(a["signer"] == p["signer"] and own(a["signer"]) and a["says"] == "withdraw" for a in answers)
     heard = [a for a in answers if a["signer"] in base("all") | base.raw("moderate") | tv
              and not (a["signer"] == p["signer"] and a["says"] == "withdraw")]
     # a duty holder's single-signature answer is what that key said: its vote is moot
@@ -277,6 +296,7 @@ def _base(rows, past, p):
             cache[("raw", name)] = ST.members_at(rows, past, p["obj"], p["head"], name)
         return cache[("raw", name)]
     base.raw = raw
+    base.rows = rows
     return base
 
 
