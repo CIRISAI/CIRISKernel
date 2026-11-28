@@ -1,0 +1,3 @@
+r97-attackr: re-check of r95 on recount-on-growth 33f05da; P2 on affiliation-paths d9bf139.
+Extract: git archive 33f05da | tar -x -C r97-attackr/tree ; git archive d9bf139 | tar -x -C r97-attackr/tree2
+run: python3 -I r97-attackr/s/<x>.py  (f1b uses lib2 -> tree2). f1/f2/f5 re-run r95; g1 (acceptance-only growth, batch, void growth), g2 (batch capture).
