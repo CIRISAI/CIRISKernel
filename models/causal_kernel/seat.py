@@ -902,9 +902,10 @@ def merge_concludes(r, P, past):
                 _RVOID.pop(); _VOID.pop()
     if "merge_free_roster" in MUT: return True
     members, duties = merge_content(P, past, obj, tips)
-    stated = {d: frozenset(ks) for d, ks in r.get("duty_seats", ())}
-    # a founder holds the member seat by its founder seat (HOLDS), so the member roster is the stated members and founders
-    if frozenset(r.get("members", r["to"])) | stated.get("founder", frozenset()) != members or stated != duties: return False
+    # a merge states its member roster and carries no duty seats (the Constitution's N5): the duty seats, an
+    # infrastructure room's founders and nodes among them, are the fold of the conferral, withdrawal, resignation and
+    # election rows in its past over the roster it states (merge_content derives them, the word check reads them)
+    if frozenset(r.get("members", r["to"])) != members: return False
     return not infra or merge_word_ok(r, P, past, obj, tips, len(duties.get("founder", ())))
 
 
@@ -1309,17 +1310,15 @@ def _slots(to, scope, obj):
     return tuple(("seat", k, scope, obj) for k in ((to,) if isinstance(to, str) else to))
 
 
-def merge(id, signer, obj, tips, members, duty_seats=None, cosigners=(), names=(), consensus_protocol=None):
+def merge(id, signer, obj, tips, members, cosigners=(), names=(), consensus_protocol=None):
     """A roster merge (the text's `group:roster` version, CC 4.4.3.17, CC 3.1.3.2, CC 2.7.8): a counted change naming two
-    or more tips of room `obj`, none in another's past, stating its roster outright: `members`, and `duty_seats` (a
-    map from a duty to the keys seated in it). Counted on each named tip by that tip's own members (merge_count)."""
-    dh = tuple(sorted((d, tuple(sorted(ks))) for d, ks in (duty_seats or {}).items()))
-    # `to`: every key it seats in any scope; `members` the member seats (an infrastructure room's founders and nodes
-    # are in duty_seats under `founder` and `node`)
-    keys = tuple(sorted(set(members) | {k for _, ks in dh for k in ks}))
-    return R(id, "offer", signer, tuple(tips) + tuple(names), to=keys, members=tuple(sorted(members)), scope="member",
-             obj=obj, conf="group", head=tuple(tips), cosigners=tuple(cosigners), merge=True, duty_seats=dh,
-             on=_slots(keys, "member", obj), consensus_protocol=consensus_protocol)
+    or more tips of room `obj`, none in another's past, stating its member roster outright: `members` (a founder of
+    an infrastructure room among them, holding member by its founder seat). It carries no duty seats (the
+    Constitution's N5): they fold. Counted on each named tip by that tip's own members (merge_count)."""
+    keys = tuple(sorted(set(members)))
+    return R(id, "offer", signer, tuple(tips) + tuple(names), to=keys, members=keys, scope="member", obj=obj,
+             conf="group", head=tuple(tips), cosigners=tuple(cosigners), merge=True, on=_slots(keys, "member", obj),
+             consensus_protocol=consensus_protocol)
 
 
 def is_merge(r):
@@ -1327,12 +1326,10 @@ def is_merge(r):
 
 
 def merge_states(m, k, sc):
-    """Merge m states key k in scope sc: `member` in its members; a duty in its duty seats. Other scopes it states
-    nothing of."""
+    """Merge m states key k in scope sc: `member` in its members. It states nothing of any other scope: a duty seat
+    folds (N5)."""
     if sc == "member": return k in m.get("members", m["to"])
-    for d, ks in m.get("duty_seats", ()):
-        if d == sc: return k in ks
-    return None
+    return False if "merge_ends_duties" in MUT else None        # MUTATION: a merge ends every duty seat in its past
 
 
 def offer(id, signer, to, scope, obj, conf, names=(), **kw):
@@ -1428,7 +1425,7 @@ def seat_scopes(o, k):
     whatever it accepts later (CC 3.1.3.2, `membership_founding_member_unsigned`); one who signed it in its own scope,
     and where it carries a `duty_holders` map, in each duty whose entry names it."""
     if is_merge(o):
-        return (("member",) if k in o.get("members", o["to"]) else ()) + tuple(d for d, ks in o.get("duty_seats", ()) if k in ks)
+        return ("member",) if k in o.get("members", o["to"]) else ()
     if o["obj"] != o["id"]:
         # an admission carrying `role: founder` (a family's one-row founder admission) seats the founder role too
         # (only on a counted row: an own or uncounted offer's role seats nothing, MUTATION role_on_own_offer)
