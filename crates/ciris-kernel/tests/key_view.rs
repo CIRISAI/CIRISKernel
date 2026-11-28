@@ -150,6 +150,30 @@ fn key_view_cases() {
         }
     }
     // reader-level answers after the two passes (ROSTER_DIRECT)
+    // own_row over one causal order with the seat rows concluded by the seat rule and the key lane by key_end's rule
+    for d in fx.at("own_direct").arr() {
+        let refs: BTreeMap<String, String> =
+            d.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let all = rows_with_refs(d.at("rows").arr(), &refs);
+        let cs = conclude(
+            kept(&all, |_| true),
+            |p| match p.row().kind.as_str() {
+                "rec" | "att" | "edge" | "revoke" => conclude_rule(p),
+                _ => seat_rule(p, &law, &DictCut, &|_| true),
+            },
+            None,
+        );
+        let reader = d.get("reader").and_then(|r| r.opt_s());
+        let (row, key) = (d.at("row").s().to_string(), d.at("key").s().to_string());
+        let got =
+            cs.g.idx(&row)
+                .is_some_and(|i| counts_for(&cs, i, &key, reader.as_ref(), &BTreeSet::new(), &BTreeSet::new()));
+        cases += 1;
+        if got != d.at("want").b() {
+            bad += 1;
+            eprintln!("{}: counts_for = {got}", d.at("name").s());
+        }
+    }
     // the successor of a key with the self roster's acts: a voided rotation names none (key_end.successor)
     for d in fx.at("successor").arr() {
         let refs: BTreeMap<String, String> =
