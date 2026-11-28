@@ -547,8 +547,11 @@ def affiliation_count(r, P, past):
 
 def officer_key(P, k, seats, obj):
     """Key k is one of the officers' keys over P, BY PERSON (ruled on CIRISConstitution#224, as every count): a key
-    of the deciding seats, or another live key of an officer's person (its own device). MUTATION officers_by_key:
-    the seats' keys alone."""
+    of the deciding seats, or another live key of an officer's person (its own device). The person is read in P, the
+    act's own past, as every count reads it (the rival foundings are read at the row too): a verdict for a presented
+    row is fixed by its past, so a binding concurrent with the act, or written after it, does not make an outside
+    voice the officer's own (the unlinked-keys residual, stated once). MUTATION officers_by_key: the seats' keys
+    alone."""
     if k in seats: return True
     if "officers_by_key" in MUT: return False
     op = as_persons(seats, P, obj)

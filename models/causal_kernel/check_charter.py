@@ -251,6 +251,12 @@ COUNTERSIGN = [
      "is the officer itself, no outside countersign: held, B stays",
      [OB, SA, SAA2, dict(A1O, official="A2", names=("aa2", "ob")), A1OB,
       dict(RMB(cos=("A2",)), names=("a1b", "ob", "aa2"))], {"rm": True}, [("B", "a1", True)]),
+    ("persons are read in the act's own past (pinned, ruled with the Constitution): A's binding of A2, the record's "
+     "official, is CONCURRENT with the removal, so A2's voice decides it: B is out",
+     [OB, SA, SAA2, dict(A1O, official="A2"), A1OB, RMB(cos=("A2",))], {"rm": True}, [("B", "a1", False)]),
+    ("and with the binding written AFTER the removal (it names rm): the decision stands, B is out",
+     [OB, dict(A1O, official="A2"), A1OB, RMB(cos=("A2",)), SA, dict(SAA2, names=("SA", "rm"))], {"rm": True},
+     [("B", "a1", False)]),
     ("by person: two officer keys of one person in the roster are ONE officer: A and A2's removal is a proposal (held), "
      "not two voices, and B stays", [OB, SA, SAA2, A1O2, A1O2B, dict(RMB(cos=("A2",)), names=("a1b", "ob", "aa2"))],
      {"rm": True}, [("B", "a1", True)]),

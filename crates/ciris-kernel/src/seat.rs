@@ -1912,7 +1912,9 @@ fn officers<'r, R: SeatRow + 'r, S: CutSpec<R>>(
 }
 
 /// Key `k` is one of the officers' keys, by person: a key of the deciding `seats`, or another live key of an
-/// officer's person (its own device).
+/// officer's person (its own device). The person is read over the act's own past, as every count reads it: a verdict
+/// for a presented row is fixed by its past, so a binding concurrent with the act, or written after it, does not make
+/// an outside voice the officer's own (the unlinked-keys residual, stated once).
 fn officer_key<R: SeatRow>(pp: &Persons<'_, R>, seats: &BTreeSet<R::Key>, k: &R::Key) -> bool {
     if seats.contains(k) {
         return true;

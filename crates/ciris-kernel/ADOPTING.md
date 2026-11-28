@@ -178,6 +178,10 @@ Present:
   countersigned by the official it replaces or an overseer. An onward trust edge on behalf of the affiliation, and its
   own licence, are such acts: present `SeatRow::edge_body()` (the group a `delegates_to` row speaks for, or a
   licence's authority); `trust_rows` walks or honours it only where `seat::countersigned` holds.
+- officers are counted by person (`seat::Persons`): another live key of an officer's person on its act is the officer
+  itself, never its countersign. The person relation is read in the act's OWN past, as every count reads it: a
+  verdict for a presented row is fixed by its past, so a binding of the official as the officer's own device written
+  concurrently with the act, or after it, leaves the countersign standing (the unlinked-keys residual).
 
 **A duty holder's lone acts** (CC 4.5.5, CC 3.1.9.2; CHANGELOG). Present each by its family, its parameter as
 `family_param()`: a quarantine marker (`quarantine:{state}`) as `SeatKind::Quarantine` (`target_key()` the key, the

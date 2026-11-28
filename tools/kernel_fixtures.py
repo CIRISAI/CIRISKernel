@@ -237,7 +237,8 @@ def check_rows(rows, problems, where):
         for f in KEYFIELDS:
             v = r.get(f)
             vs = [v] if isinstance(v, str) else list(v) if isinstance(v, (tuple, list)) else []
-            if r["kind"] == "withdraw" and f == "target":
+            # a withdrawal's target is a row, and so is a quarantine release's (its withhold, G21 as re-ruled)
+            if r["kind"] in ("withdraw", "quarantine:release") and f == "target":
                 continue
             for x in vs:
                 if x in ids:
