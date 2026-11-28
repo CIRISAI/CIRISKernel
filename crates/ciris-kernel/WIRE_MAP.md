@@ -171,7 +171,7 @@ taken from the first version. A case that founds a group gives those inputs; the
 fedID, CC 3.3.6.4, and a genesis key can hold several `key:record` rows, so no one record is the object). The first
 bind names a genesis key's record in `refs.head`; that record is in the roster's past, not its name. **Crate note:**
 key-person's `person_at` finds a self roster through `SeatLaw::kinds` over a founding row; reading the roster by its
-identity is a change on that lane.
+identity is a change on that lane: room-keys is making it, with a case, and vector cases 26 to 30 follow it.
 
 ## 5. Instants
 
