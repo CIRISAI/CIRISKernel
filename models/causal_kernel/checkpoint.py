@@ -89,10 +89,11 @@ def acknowledgements(S, own, obj, rows=None):
     return [a for a in rows if (a["signer"] == own or own in a.get("cosigners", ())) and object_of(a, S.by) == obj]
 
 
-def takes_up(S, own, fs, mut=None):
+def takes_up(S, own, fs, mut=None, voices=None):
     """THE READER'S LINE taking up an identity's foundings `fs` (the ruling on one self roster per identity: a reader's
     roster for an identity is the founding its line takes up), MONOTONE, in the line's order: the reader's own rows
-    (every row it signed itself, its cosign rows among them, concluded for everyone or not, each counting only where its key stands: its
+    (its voices as the counted layer reads them: every row it signed itself, concluded for everyone or not, and a
+    concluded seat row it is a voice of, each counting only where its key stands: its
     own revocation, a `registered` unseat by it, not in that row's past, the K1 rule) that reach a founding of fs (are
     it, or have it in their past); of those, the EARLIEST (none of the others in its past) fix what the line took
     up: the foundings they reach. A later row reaching another founding takes up nothing, the other being already void
@@ -104,10 +105,20 @@ def takes_up(S, own, fs, mut=None):
     def stands(a):
         return not any(S.by[x]["kind"] == "unseat" and S.by[x].get("scope") == "registered" and S.by[x]["signer"] == own
                        and own in S.by[x].get("to", ()) for x in S.anc.get(a["id"], ()) if x in S.by)
-    # the reader's own rows: those it SIGNED ITSELF, its cosign rows among them; never another signer's claimed
-    # cosigners list (r101 R2; MUTATION claimed_cosigner_counted: every row listing it among its cosigners counts)
+    # the reader's own rows: its VOICES read exactly as the counted layer reads them (seat.voices, passed by the
+    # caller: one function): every row it signed itself, its cosign rows among them, and a seat row (an offer or an
+    # unseat) that CONCLUDED where it is one of the row's voices. A claimed cosigner on a note or any other row the
+    # counts do not read is never read, nor one on a seat row that concluded nothing (a forged voice on a concluded
+    # seat row breaks every count: the stated caller duty) (r101 R2; MUTATIONS claimed_cosigner_counted: every row
+    # listing it counts; unconcluded_cosigner_counted: a seat row listing it counts concluded or not)
     def own_row(a):
-        return a["signer"] == own or ("claimed_cosigner_counted" in mut and own in a.get("cosigners", ()))
+        if a["signer"] == own: return True
+        if "claimed_cosigner_counted" in mut: return own in a.get("cosigners", ())
+        if a["kind"] not in ("offer", "unseat"): return False
+        if not S.C.get(a["id"]) and "unconcluded_cosigner_counted" not in mut: return False
+        if voices is None: return own in a.get("cosigners", ())
+        P = [q for q in S.Cs if q["id"] in S.anc.get(a["id"], ())]
+        return own in voices(a, P)
     mine = [a for a in S.rows if own_row(a) and stands(a)]
     reach = {a["id"]: {f for f in fs if a["id"] == f or f in S.anc.get(a["id"], ())} for a in mine}
     taking = [a for a in mine if reach[a["id"]]]

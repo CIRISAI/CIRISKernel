@@ -44,6 +44,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     rival_line_unread     no reader's line is read: a reader on the first roster waits with a fresh one (the rival stalls)
     line_order_unread     the line read out of order: a later row over the rival takes it up too, and the reader waits (P1)
     claimed_cosigner_counted  another signer's claimed cosigners on a note seed the reader's line (r101 R2)
+    unconcluded_cosigner_counted  a seat row that concluded nothing seeds the reader's line by its cosigners (S5, S6)
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -695,7 +696,13 @@ LWANT += [("P1", "p4", True), ("P1'", "p4", True), ("P2", "p4", False), ("P3", "
           ("T6", "m4", True), ("Q", "q", False), ("Q", "p4", True),
           # R2 (r101, the safer form): the line reads the reader's own signed rows and the seat rows whose voice it is,
           # never another signer's claimed cosigners on any other row: the thief's note claiming p4 seeds nothing
-          ("R2", "p4", True)]
+          ("R2", "p4", True),
+          # S5, S6: a thief's seat row that concludes nothing, listing p4 as a cosigner, seeds nothing
+          ("S5", "p4", True), ("S6", "p4", True)]
+LWORLD["S5"] = GW + [LRX, ST.offer("sdo", "p1", "zz", "member", "gc", "group", ("S1r",), head=("S1r",),
+                                   policy="community_invite", cosigners=("p4", "zz")), admit_z(LH, ("a1c", "S1r"))]
+LWORLD["S6"] = GW + [LRX, ST.unseat("sdu", "p1", "p2", "member", "gc", "group", ("S1r",), head=("S1r",),
+                                    policy="community_remove", cosigners=("p4",)), admit_z(LH, ("a1c", "S1r"))]
 LWANT += [("restore", "m4", True), ("restore", None, False)]
 # a reader that signs the count itself names its own previous row in it (an honest client, ADOPTING): x and x9
 LWORLD["X5 (x names its own row)"] = GW + [LRX, R("xn", "note", "x", ("S1r",)),
@@ -705,8 +712,9 @@ LWORLD["restore (m4's row)"] = [RSg, RRM, RSg2, R("m4r", "note", "m4", ("rm",)),
 LWANT = [(k, rd, w) for k, rd, w in LWANT if (k, rd) not in (("X5", "x"), ("T3 (x9 signs)", "x9"), ("restore", "m4"))]
 LWANT += [("X5 (x names its own row)", "x", True), ("T3 (x9 signs, naming its own row)", "x9", True),
           ("restore (m4's row)", "m4", True),
-          # a reader whose own count omits its previous row has two first rows: a wait (the P2 rule)
-          ("X5", "x", False)]
+          # x's line begins at its own voice on the concluded rival founding S1r (its cosignature there): its count
+          # has S1r in its past, so the founding is its first row
+          ("X5", "x", True)]
 # each reader's own first row (a reader's line is only the rows it signed itself, r101 R2): p4 and m4 acknowledge
 # their rooms, x and x9 the rivals they hold; q's own rows are in its world
 READER_ROW = {"p4": R("p4n", "note", "p4", ("gc",)), "m4": R("m4r", "note", "m4", ("gr",)),
@@ -731,7 +739,7 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
           "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept",
           "rebinding_unread", "landed_eviction_unread", "landed_add_unread",
           "self_founding_family", "mutual_evictions_land", "rival_line_unread", "line_order_unread",
-          "claimed_cosigner_counted")
+          "claimed_cosigner_counted", "unconcluded_cosigner_counted")
 
 
 def answer(rows, k):

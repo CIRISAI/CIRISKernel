@@ -402,8 +402,9 @@ does, until that roster evicts it: no special rule for the first key either way.
 restores its genesis key onto a fresh install and founds before fetching its roster): the re-founding concludes
 nothing for readers on the first roster; the genesis key's voice there is unchanged; a fresh reader holding both
 waits. ADOPTER DUTY: a client holding a genesis key and no roster rows FETCHES the identity's roster before it signs
-anything, and never founds where one may exist. A reader's line reads only the rows the reader signed itself, its cosign rows among
-them, never another signer's claimed cosigners list. A reader's
+anything, and never founds where one may exist. A reader's line reads the reader's voices exactly as the counts do: the rows it
+signed itself (its cosign rows among them) and the seat rows it is a cosigner of that concluded; a claimed cosigner
+on a note or any other row the counts do not read, or on a seat row that concluded nothing, is never read. A reader's
 client names its own previous row in every row it signs, or two concurrent rows of its own can make it wait (P2).
 CALLER DUTY (for every count): `SeatRow::cosigners` lists only verified voices, keys whose own statement over the
 row's payload the store has verified (each voice is a further signed statement, the wire map's rule). Read for a reader through `seat::for_reader`. No key re-founds itself, or adds a device, by founding. The only way onto a self
