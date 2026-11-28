@@ -972,6 +972,9 @@ POLICY["majority"] = ("strict", 1, 2)
 # table binds to accord_halt is halt_confirm, its confirmation, counted by a strict majority of the standing holders:
 # the row's cancel cell (`more than 1/2 confirms`), not its enact (`1/N fires`). This read the enact (one voice) before
 POLICY["accord_halt"] = ("strict", 1, 2)
+# HELD SHUT in 0.5.0 (the Constitution's ruling): custodian_replace's voice and counted_at are unstated, so its count is
+# no count and an act bound to it concludes nothing (law_from_tables: held_shut). This read 2 of 2 before
+POLICY["custodian_replace"] = ("not_a_count", 0, 0)
 # a stand-in a check states for a count of one voice: no act takes it (with the binding on, a row stating it concludes
 # nothing). The checks read accord_halt so before the ruling above
 POLICY["one_voice"] = ("one", 1, 1)
@@ -3829,6 +3832,22 @@ CHOICE_WORDS = ("fixed", "row")
 #   moderator_recall             CC 4.5.13: "more than two thirds of the standing roster ... The floor is two voices":
 #                                enact_rule's fraction, strictly more, with floor_rule's voices
 STATED_COUNTS = {"duty_confer": ("duty", 0, 0), "duty_withdraw": ("duty", 0, 0), "moderation_overturn": ("lift", 1, 2)}
+# a row whose counted voice or counted_at is unstated is HELD SHUT (no count) unless the Constitution has ruled how it
+# counts: affiliation_member_action (one officer and one eligible outside key, the countersigned path) and
+# cosigned_act (the body's deciding seats under its declared protocol, as persons). custodian_replace is held shut
+VOICES_RULED = ("affiliation_member_action", "cosigned_act")
+
+
+def held_shut(policy):
+    """The families the seat law holds shut, each with the unstated cell that holds it: (policy, family, cell,
+    unstated)."""
+    out = []
+    for f in policy["families"]:
+        if f["family"] in VOICES_RULED: continue
+        for cell in ("voice", "counted_at"):
+            if f["counted"][cell]["value"] == "unstated":
+                out.append(("policy", f["family"], "counted." + cell, "unstated"))
+    return out
 # accord_halt (the ruling of 2026-11-28): the act bound to it is halt_confirm, counted by its cancel cell (`more than 1/2
 # confirms`, strict_majority), not its enact (`1/N fires`)
 
@@ -3852,7 +3871,8 @@ def law_from_tables(acts, policy):
     (its families and protocols), unchanged. The rest of the law (duties, holds, confers, ends, final scopes, roster
     seats, depth, kinds) is the text's and no table's. Raises LawRefusal naming every cell that stops it.
 
-    A family's count is its enact_rule, as policy_table reads it: a fraction of 1/2 a strict majority (CC 3.3.6.4),
+    A family held shut (held_shut: a counted voice or counted_at unstated, and no ruling) is no count. A family's count
+    is otherwise its enact_rule, as policy_table reads it: a fraction of 1/2 a strict majority (CC 3.3.6.4),
     another at least the fraction; strict_majority; one_of_n one; protocol the room's declared protocol; ranked_irv
     the ranked tally; any other not a count. STATED_COUNTS and moderator_recall are the text's (cited there). A
     protocol `P:{kind}` is its rule: strict_majority, all (unanimous), voices:{m} (the record's m), weight:{rubric},
@@ -3861,10 +3881,13 @@ def law_from_tables(acts, policy):
     no = lambda *r: why.append(r)
     pol = {}
     fams = {f["family"]: f for f in policy["families"]}
+    shut = {r[1] for r in held_shut(policy)}
     for fam, f in fams.items():
         e = f["enact_rule"]
         k = e["kind"]
-        if fam in STATED_COUNTS:
+        if fam in shut:
+            pol[fam] = ("not_a_count", 0, 0)                 # held shut: no count until the table states its voice
+        elif fam in STATED_COUNTS:
             pol[fam] = STATED_COUNTS[fam]
         elif fam == "accord_halt":
             if f["cancel_rule"]["kind"] != "strict_majority": no("policy", fam, "cancel_rule", "disagrees")

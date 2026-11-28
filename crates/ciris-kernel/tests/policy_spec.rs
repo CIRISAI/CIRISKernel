@@ -188,7 +188,7 @@ fn a_length_the_instant_cannot_hold_is_refused() {
 
 // ---- the seat law's table cells (`tables::law_from_tables`, fixture `law_tables.json`) ------------------------------
 use ciris_kernel::seat::{Act, ActRule, Choice, CommunityKind, Policy, ScopeClass};
-use ciris_kernel::tables::{law_from_tables, ActsRow, LawRefusal, LawWhy, ProtocolRow};
+use ciris_kernel::tables::{held_shut, law_from_tables, ActsRow, LawRefusal, LawWhy, ProtocolRow};
 
 fn policy_word(name: &str, a: &[J]) -> Policy {
     let n = |i: usize| a[i].i() as u64;
@@ -216,6 +216,7 @@ fn law_why(w: LawWhy) -> &'static str {
         LawWhy::Duplicate => "duplicate",
         LawWhy::NoRow => "no_row",
         LawWhy::Disagrees => "disagrees",
+        LawWhy::Unstated => "unstated",
     }
 }
 
@@ -441,4 +442,22 @@ fn a_bound_opener_that_waits_says_on_what() {
     assert_eq!(plain, Some(false), "rule_bound reads a wait as concluding nothing");
     let i = c.g.idx(&row).unwrap();
     assert_eq!(c.concluded(i), w.at("concluded").b(), "the model's conclusion");
+}
+
+/// custodian_replace is held shut in 0.5.0 (the Constitution's ruling): its voice and counted_at are unstated, so its
+/// count is no count; affiliation_member_action and cosigned_act, unstated too, are ruled and counted.
+#[test]
+fn custodian_replace_is_held_shut() {
+    let fx = fixture("law_tables.json");
+    let c = &fx.at("cases").arr()[0];
+    let fams: Vec<PolicyRow> = c.at("families").arr().iter().map(row_of).collect();
+    let shut: Vec<(String, &str)> = held_shut(&fams).into_iter().map(|r| (r.row, r.cell)).collect();
+    assert_eq!(
+        shut,
+        vec![
+            ("custodian_replace".to_string(), "counted.voice"),
+            ("custodian_replace".to_string(), "counted.counted_at")
+        ]
+    );
+    assert_eq!(c.at("law").at("policy").at("custodian_replace").arr()[0].s(), "not_a_count");
 }
