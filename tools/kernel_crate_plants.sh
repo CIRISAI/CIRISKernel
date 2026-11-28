@@ -698,6 +698,8 @@ plant "close: departures read raw, not as the roster takes them (departures_raw)
             .collect();'
 plant "close: the close reads the rows as concluded, not as the roster takes them (close_reads_concluded)" src/seat/election.rs '                !u.contains(id) && !v.contains(id) && !e.contains(id)' '                true || (u.contains(id) && v.contains(id) && e.contains(id))'
 plant "close: the opening's voices read with no key view (open_key_view_unread)" src/seat/election.rs '    let vs = voices_with(r, p, spec);' '    let vs = super::voices(r, p);'
+plant "r104: a lay-down behind the reader's line ends its seat in the roster (laydown_roster_unread)" src/seat.rs '                SeatKind::Withdraw if re0.contains(r.id()) => {}' '                SeatKind::Withdraw if re0.contains(r.id()) && false => {}'
+plant "r104: a lay-down an acknowledged act is built on stays behind the line (laydown_ack_unread)" src/seat.rs '        let on_line = line.iter().any(|&a| g.in_past(w, a));' '        let on_line = false && line.iter().any(|&a| g.in_past(w, a));'
 plant "close: an end the roster does not take forks (fork_untaken_end)" src/seat/election.rs '        let dropped = self.roster_ends(p).1;' '        let dropped: BTreeSet<usize> = BTreeSet::new();'
 plant "close: the opening's electorate read over the whole past (electorate_at_seating)" src/seat/election.rs 'let mem = open_members(&past, self.law, self.spec, &obj, e.head(), Some(self.memo));' 'let mem = {
                 let sub = concluded_over(p.iter().map(|&q| self.row(q)));
