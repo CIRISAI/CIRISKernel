@@ -655,9 +655,51 @@ CASES += [
      [_AF3, _AOD, A("e", "RD", "af"), glic("l", "af", "A", cosigners=("B",))], "RD", "l", None, NA),
 ]
 
+# ---- the r97 attack (review-scratch e78aaa5, r97-attackr/g1, g2): the edges of the re-count on growth ---------------
+_G6 = ST.found("g", "A", ("A", "B", "C", "D", "E", "F"), {"moderate": ("A", "B", "C")}, cosigners=("B", "C", "D", "E", "F"),
+               licence_classes=((M, False),))
+_DCD = ST.offer("dcc", "A", "D", "moderate", "g", "group", ("g",), head=("g",), cosigners=("B", "C"), counted="duty",
+                policy="duty_confer")                             # A, B and C offer D moderate (D's acceptance to come)
+_DCDA = ST.accept("dca", "D", "dcc")
+_GLO_DC = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dcc",), head=("dcc",), cosigners=("B",),
+                   counted="duty")                                # A and B at dcc: 2 of the 3 seated there
+_GLO_G6 = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty")
+_WDA = ST.withdraw("wd", "D", "dca", ("dca",))                    # D withdraws its acceptance: no longer seated
+_L1C = ST.withdraw("l1", "C", "g", (), scope="moderate")          # C lays down moderate
+_G10 = ST.found("g", "A", tuple("ABCDEFGHIJ"), {"moderate": ("A", "B", "C")}, cosigners=tuple("BCDEFGHIJ"),
+                licence_classes=((M, False),))
+_DDE2 = ST.offer("dde", "A", ("D", "E"), "moderate", "g", "group", ("g",), head=("g",), cosigners=("B", "D", "E"),
+                 counted="duty", policy="duty_confer")            # A and B seat D and E (2 of 3): five holders
+_SYB = ST.offer("syb", "A", ("F", "G", "H", "I"), "moderate", "g", "group", ("g",), head=("g",),
+                cosigners=("B", "F", "G", "H", "I"), counted="duty", policy="duty_confer")   # A and B again, from g
+_GL_SYB = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dde", "syb"), head=("dde", "syb"),
+                   cosigners=("B", "F", "G", "H", "I"), counted="duty")
+CASES += [
+    ("r97 A0 D offered, never accepting: A and B (2 of the 3 seated at dcc) confer X's license seat",
+     [_G6, _DCD, _GLO_DC, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r97 A1 and D's acceptance naming only dcc, concurrent with glo: an acceptance of an offer in the conferral's own "
+     "past is no growth against it (D alone voids nothing)",
+     [_G6, _DCD, _GLO_DC, GLA, _DCDA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r97 A1b and D's acceptance after glo (naming it)",
+     [_G6, _DCD, _GLO_DC, GLA, dict(_DCDA, names=("dcc", "glo")), A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r97 V0 A and B confer X's license seat from g, nothing beside it", [_G6, _GLO_G6, GLA, A("e", "RD", "g"), _X],
+     "RD", "l", None, OK),
+    ("r97 V1 D seated beside it and then withdrawing its acceptance, held: the growth no longer seats, 2 of 3 stands",
+     [_G6, _DCD, _DCDA, _WDA, _GLO_G6, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r97 V2 A and C seat D beside it while C lays down moderate, held: holders A, B, D, and A and B are 2 of 3",
+     [_G6, dict(_DCD, cosigners=("C", "D")), _L1C, _GLO_G6, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r97 B5 A and B seat D and E, and from g again F to I, then A, B and F to I confer X's license seat: the second "
+     "seating is re-counted against the five holders held (2 of 5), so 6 of 9 is not reached",
+     [_G10, _DDE2, _SYB, _GL_SYB, GLA, A("e", "RD", "g"), _X], "RD", "l", None, NA),
+]
+
 # the same worlds read at the seat (Seats.holders): whether X holds the license seat the counted conferral gives,
 # (name, rows, [(key, scope, object, holds)])
 SEATED = [
+    ("r97 seat B4 A and B seat D and E, and from g again F to I beside it, held: the second is 2 of 5, F to I unseated",
+     [_G10, _DDE2, _SYB], [("E", "duty", "g", True), ("F", "duty", "g", False), ("I", "duty", "g", False)]),
+    ("r97 seat V2 A and C seat D beside C's lay-down: holders A, B, D", [_G6, dict(_DCD, cosigners=("C", "D")), _L1C],
+     [("D", "duty", "g", True), ("C", "duty", "g", False)]),
     ("r95 seat Q5c A alone seats X's license from g", [G1, _G1L, GLA], [("X", "license", "g", True)]),
     ("r95 seat Q5 and the counted growth beside it, held: X holds no seat", [G1, _DCC, _G1L, GLA],
      [("C", "duty", "g", True), ("X", "license", "g", False)]),
