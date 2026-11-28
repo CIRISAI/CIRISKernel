@@ -637,7 +637,7 @@ plant "the root: differing charters fold" src/root.rs '        if charters.len()
 plant "the root: the fold unguarded" src/root.rs 'self.removals(t2, k, field).iter().all(|r| a.as_ref().is_some_and(|a| self.in_past(r, a)))' 'true'
 plant "the root: the anchor unread" src/root.rs 'rd.anchor.as_ref().filter(|a| firsts.contains(a))' 'firsts.first().copied()'
 plant "the root: two thumbprint matches pick one" src/root.rs '(m.len() == 1).then(|| m[0].clone())' 'm.first().map(|x| (*x).clone())'
-plant "the root: who else signs unread" src/root.rs '}) && self.join_signers(b).iter().all(|(_, ks)| ks.iter().any(|k| voices.contains(k)))' '})'
+plant "the root: who else signs unread" src/root.rs '|| self.join_signers(b).iter().all(|(_, ks)| ks.iter().any(|k| voices.contains(k))))' '|| true)'
 plant "the root: a retired or left key re-seated" src/root.rs 'if b.holders().iter().any(|k| retired.contains(k) || left.contains(k)) {' 'if false {'
 plant "the root: a commitment spent on a branch" src/root.rs 'if b.recovery().iter().any(|(_, c)| spent.contains(c)) {' 'if false {'
 plant "the root: behind read as any past" src/root.rs '&& self.behind(b, x)' '&& self.in_past(&b.prev()[0], x.id())'
