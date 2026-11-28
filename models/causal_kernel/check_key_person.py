@@ -29,6 +29,10 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     remover_counted_over  the count's receipt keeps the remover's person in its base (KP-C)
     opener_withdrawal_voter  the opener's own withdrawal needs a person: a revoked opener withdraws nothing (r78k)
     apart_by_key          a named key set apart by key only: a device-held duty's person votes on its recall (r78k)
+    person_keys_by_offer  a person's keys read as every key ever offered to its rosters: an evicted device kept
+    nodes_by_offer        an owner's nodes read from the offers, not the owner seat: an unsigned or ended binding binds
+    nodes_two_owners_kept a node bound to two live owners read as each one's
+    nodes_revocation_unread  the node key's (or the owner's) own revocation not read
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -323,10 +327,59 @@ def latent_outcome(rows):
         WN.WINDOWS.pop(LATENT, None)
 
 
+# the keys a row reaches, for persist (the node set = audiences o person_keys o nodes_of), over the concluded set
+# with no instant. person_keys: a person's live keys, the inverse of persons_of. nodes_of: the node keys an owner
+# owns, the inverse of a node's owner-binding.
+A1D = add("a1d", "S1", "p1d", ("p1", "p1b"), ("a1c",))
+E1D = evict("e1d", "S1", "p1d", ("p1", "p1b", "p1c"), ("a1d",))          # p1d evicted by the roster's count
+PKW = [SP[1], P1B, P1C, A1D, E1D]
+PREC = ST.offer("prec", "p1", "p1", "registered", "p1", "self")
+PRV = ST.unseat("prv", "p1", "p1", "registered", "p1", "self", ("prec", "e1d"))   # p1's genesis key revokes itself
+BREC = ST.offer("brec", "p1b", "p1b", "registered", "p1b", "self")
+BRV = ST.unseat("brv", "p1b", "p1b", "registered", "p1b", "self", ("brec", "e1d"))  # the device p1b revokes itself
+# (name, rows, person, its live keys)
+PERSON_KEYS_CASES = [
+    ("a person with two live devices and one evicted: its genesis key and the two", PKW, "p1", ["p1", "p1b", "p1c"]),
+    ("a device also in another person's roster is a key of two persons: none of p1's", PKW + [SP[2], X1B], "p1",
+     ["p1", "p1c"]),
+    ("and none of p2's", PKW + [SP[2], X1B], "p2", ["p2"]),
+    ("a device that revoked itself is no live key", PKW + [BREC, BRV], "p1", ["p1", "p1c"]),
+    ("a person whose genesis key revoked itself has no live key", PKW + [PREC, PRV], "p1", []),
+    ("a key of no roster is its own person", PKW, "zz", ["zz"]),
+]
+def bind(i, node, owner):
+    """An owner-binding: the node's offer of the owner seat over its key, the owner's cosignature its consent."""
+    return ST.offer(i, node, owner, "owner", node, "self", (), cosigners=(owner,))
+NB1, NB2 = bind("nb1", "n1", "o1"), bind("nb2", "n2", "o1")
+NUO = ST.unseat("nuo", "o1", "o1", "owner", "n2", "seat", ("nb2",), under="nb2")     # o1 revokes n2's binding
+NBU = ST.offer("nbu", "n3", "o1", "owner", "n3", "self")                             # n3's offer o1 never signed
+NB4A, NB4B = bind("nb4a", "n4", "o1"), bind("nb4b", "n4", "o2")                       # n4 bound to two owners
+NWB = ST.withdraw("nwb", "o1", "nb1", ("nb1",))                                       # o1 withdraws n1's binding
+NREC = ST.offer("nrec", "n1", "n1", "registered", "n1", "self")
+NRV = ST.unseat("nrv", "n1", "n1", "registered", "n1", "self", ("nrec", "nb1"))       # the node n1 revokes itself
+NOA = ST.offer("noa", "n5", "o1", "owner", "n5", "self")
+NAC = ST.accept("nac", "o1", "noa")                                                   # o1 accepts n5's offer
+# (name, rows, owner, its nodes)
+NODES_CASES = [
+    ("an owner with two bound nodes", [NB1, NB2], "o1", ["n1", "n2"]),
+    ("an owner with two bound nodes, one whose binding the owner revoked", [NB1, NB2, NUO], "o1", ["n1"]),
+    ("a binding the owner withdrew binds nothing", [NB1, NB2, NWB], "o1", ["n2"]),
+    ("a node's offer the owner never signed binds nothing", [NB1, NBU], "o1", ["n1"]),
+    ("the owner's own acceptance binds", [NOA, NAC], "o1", ["n5"]),
+    ("a node bound to two live owners is neither's", [NB1, NB4A, NB4B], "o1", ["n1"]),
+    ("and not the other's", [NB1, NB4A, NB4B], "o2", []),
+    ("a node key that revoked itself is no node of its owner", [NB1, NB2, NREC, NRV], "o1", ["n2"]),
+]
+
+
+def concluded_set(rows):
+    return CK.concluded(CK.kept(list(rows)), RULE)
+
+
 PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
           "persons_unread", "base_by_key", "revoked_voice_kept", "agent_speaks", "lift_author_device", "genesis_unread",
           "fold_lift_by_key", "fold_author_by_key", "remover_counted_over", "opener_withdrawal_voter",
-          "apart_by_key")
+          "apart_by_key", "person_keys_by_offer", "nodes_by_offer", "nodes_two_owners_kept", "nodes_revocation_unread")
 
 
 def answer(rows, k):
@@ -394,6 +447,24 @@ def main():
         got = latent_outcome(rows)
         if got != want:
             problems.append("%s: got %r, expected %r" % (name, got, want))
+    for name, rows, k, want in PERSON_KEYS_CASES:
+        got = sorted(ST.person_keys(concluded_set(rows), k))
+        if got != want:
+            problems.append("%s: got %r, expected %r" % (name, got, want))
+        for o in orders(rows)[:21]:
+            n += 1
+            if sorted(ST.person_keys(CK.arrive(o, RULE), k)) != got:
+                problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
+                break
+    for name, rows, k, want in NODES_CASES:
+        got = sorted(ST.nodes_of(concluded_set(rows), k))
+        if got != want:
+            problems.append("%s: got %r, expected %r" % (name, got, want))
+        for o in orders(rows)[:21]:
+            n += 1
+            if sorted(ST.nodes_of(CK.arrive(o, RULE), k)) != got:
+                problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
+                break
     caught = 0
     for plant in PLANTS:
         ST.MUT.add(plant)
@@ -404,7 +475,9 @@ def main():
                   [c[0] for c in BALLOT_CASES if concludes(c[1], c[2]) != c[3]] + \
                   [c[0] for c in R74_CASES if bool(CK.concluded(CK.kept(list(c[1])), c[4]).C.get(c[2])) != c[3]] + \
                   [c[0] for c in R78K_CASES if ag_held(c[1]) != c[2]] + \
-                  [c[0] for c in LATENT_CASES if latent_outcome(c[1]) != c[2]]
+                  [c[0] for c in LATENT_CASES if latent_outcome(c[1]) != c[2]] + \
+                  [c[0] for c in PERSON_KEYS_CASES if sorted(ST.person_keys(concluded_set(c[1]), c[2])) != c[3]] + \
+                  [c[0] for c in NODES_CASES if sorted(ST.nodes_of(concluded_set(c[1]), c[2])) != c[3]]
         finally:
             ST.MUT.discard(plant)
         caught += bool(hit)
@@ -414,12 +487,14 @@ def main():
     for p in problems:
         print(p)
     print("RESULT: %s: %d cases (%d of a key's person, %d of a count over persons, %d of a window's answers, %d of "
-          "ballots, %d of the review r74, %d of the review r78k, %d of the opener's withdrawal), %d arrival orders, "
+          "ballots, %d of the review r74, %d of the review r78k, %d of the opener's withdrawal, %d of a person's keys, "
+          "%d of an owner's nodes), %d arrival orders, "
           "%d of %d planted breaks caught"
           % ("ok" if not problems else "%d problems" % len(problems),
              len(CASES) + len(COUNT_CASES) + len(WINDOW_CASES) + len(BALLOT_CASES) + len(R74_CASES) + len(R78K_CASES)
-             + len(LATENT_CASES), len(CASES), len(COUNT_CASES), len(WINDOW_CASES), len(BALLOT_CASES), len(R74_CASES),
-             len(R78K_CASES), len(LATENT_CASES), n, caught, len(PLANTS)))
+             + len(LATENT_CASES) + len(PERSON_KEYS_CASES) + len(NODES_CASES), len(CASES), len(COUNT_CASES),
+             len(WINDOW_CASES), len(BALLOT_CASES), len(R74_CASES), len(R78K_CASES), len(LATENT_CASES),
+             len(PERSON_KEYS_CASES), len(NODES_CASES), n, caught, len(PLANTS)))
     return 1 if problems else 0
 
 

@@ -2768,6 +2768,46 @@ def persons_of(vs, base, P, obj=None):
     return frozenset(x for x in (rep_of(P, v) for v in vs) if x is not None and x in b)
 
 
+def person_keys(S, person):
+    """A person's live keys over the concluded set S, with no instant: the inverse of persons_of. The keys of the self
+    rosters founded by the person's genesis key `person` (Seats.holders over each in its own scope, read by
+    rosters_of) that count as that person (rep_of: a key of two persons, an agent's key, a key that revoked itself,
+    are none of its keys), and the genesis key itself while it counts as itself. A person whose genesis key revoked
+    itself has no live key. With audience.audiences and nodes_of, the keys a row reaches:
+    the node set = audiences o person_keys o nodes_of (ADOPTING.md)."""
+    P = list(S.Cs)
+    by = {q["id"]: q for q in P}
+    selves = [g["id"] for g in P if g["kind"] == "offer" and g.get("obj") == g["id"] and g["signer"] == person
+              and kind_of(by, g["id"]) == "self"]
+    cand = {person} | {k for q in P if q["kind"] == "offer" and q.get("obj") in selves for k in q.get("to", ())}
+    if "person_keys_by_offer" in MUT:                               # MUTATION: every key ever offered, no live read
+        return frozenset(cand)
+    return frozenset(k for k in cand if rep_of(P, k) == person)
+
+
+def nodes_of(S, owner):
+    """The node keys `owner` owns over the concluded set S, with no instant: the inverse of a node's owner-binding.
+    Every key object held in `owner` (Seats.holders: a key holds it only by its own signature or acceptance, two
+    consents, and the binding's withdrawal or the owner seat's unseat ends it) where the owner is its one live owner
+    (two live owners is none, as for the node's row), and neither the node key nor the owner revoked itself. Which
+    keys are nodes is the key records' (the caller's: identity_type `node`); the room's own reading of a node's row is
+    roomkey.node_row_check."""
+    P = list(S.Cs)
+    Q = seats_of(P)
+    objs = {q["obj"] for q in P if q["kind"] == "offer" and q.get("scope") == "owner" and isinstance(q.get("obj"), str)
+            and q["obj"] not in S.by}
+    if key_record_ended(P, owner) and "nodes_revocation_unread" not in MUT: return frozenset()
+    out = set()
+    for n in objs:
+        held = Q.holders("owner", n) if "nodes_by_offer" not in MUT else \
+            frozenset(k for q in P if q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == n for k in q["to"])
+        if owner not in held: continue
+        if len(held) != 1 and "nodes_two_owners_kept" not in MUT: continue   # MUTATION: two owners read as each one's
+        if key_record_ended(P, n) and "nodes_revocation_unread" not in MUT: continue
+        out.add(n)
+    return frozenset(out)
+
+
 def count_persons(P, obj, base, vs, voters=None, apart=None):
     """The one reading of a count by person (ruled on CIRISConstitution#224): (the base, the voices), the base
     counted by member (as_persons), the voices mapped to persons and held to the voting base (`voters`, else the

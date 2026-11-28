@@ -4,10 +4,10 @@
 mod common;
 use ciris_kernel::cut::Cut;
 use ciris_kernel::layers::{conclude, kept};
-use ciris_kernel::seat::{person_at, seat_rule, Obj};
+use ciris_kernel::seat::{nodes_of, person_at, person_keys, seat_rule, Obj};
 use ciris_kernel::window::{self, Outcome};
 use common::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[test]
 fn a_key_to_its_person_at_a_row() {
@@ -110,5 +110,43 @@ fn the_openers_own_withdrawal() {
         }
     }
     report("the opener's own withdrawal (check_key_person.py)", cases, bad);
+    assert_eq!(bad, 0);
+}
+
+/// The keys a row reaches, for persist (the node set = audiences ∘ person_keys ∘ nodes_of): a person's live keys
+/// (`seat::person_keys`) and an owner's nodes (`seat::nodes_of`) over the concluded set, against `seat.person_keys`
+/// and `seat.nodes_of` (fixture sections `person_keys` and `nodes_of`), the rows as listed and in reverse.
+#[test]
+fn a_persons_keys_and_an_owners_nodes() {
+    let fx = fixture("key_person.json");
+    let law = law_of(fx.at("law"));
+    let (mut cases, mut bad) = (0usize, 0usize);
+    for (section, who, what) in [("person_keys", "person", "keys"), ("nodes_of", "owner", "nodes")] {
+        for case in fx.at(section).arr() {
+            let refs: BTreeMap<String, String> =
+                case.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+            let rows = rows_with_refs(case.at("rows").arr(), &refs);
+            let k = case.at(who).s().to_string();
+            let want: BTreeSet<String> = case.at(what).strs().into_iter().collect();
+            for reversed in [false, true] {
+                let mut rs = rows.clone();
+                if reversed {
+                    rs.reverse();
+                }
+                let c = conclude(kept(&rs, |_| true), |p| seat_rule(p, &law, &DictCut, &|_| true), None);
+                let got = if section == "person_keys" {
+                    person_keys(&c, &law, &DictCut, &k)
+                } else {
+                    nodes_of(&c, &law, &DictCut, &k)
+                };
+                cases += 1;
+                if got != want {
+                    bad += 1;
+                    eprintln!("  {section} {}: got {got:?}, expected {want:?}", case.at("name").s());
+                }
+            }
+        }
+    }
+    report("a person's keys and an owner's nodes (check_key_person.py)", cases, bad);
     assert_eq!(bad, 0);
 }

@@ -3242,6 +3242,59 @@ pub fn person_at<R: SeatRow, S: CutSpec<R>>(
     }
 }
 
+/// A person's live keys over the concluded set `c`, with no instant: the inverse of [`persons_of`]. The keys of the
+/// self rosters founded by the person's genesis key `person` (live seats of each in its own scope, as
+/// [`person_at`] reads them) that count as that person ([`Persons`]: a key of two persons, an agent's key, a key
+/// that revoked itself are none of its keys), and the genesis key itself while it counts as itself. A person whose
+/// genesis key revoked itself has no live key. With `audience::audiences` and [`nodes_of`] it gives the keys a row
+/// reaches: the node set = audiences ∘ person_keys ∘ nodes_of (ADOPTING.md). The reference is `seat.person_keys`.
+pub fn person_keys<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    person: &R::Key,
+) -> BTreeSet<R::Key> {
+    let rows: Vec<&R> = c.cs().iter().map(|&q| c.g.row(q)).collect();
+    let pp = Persons::over(&rows, law, spec, None);
+    let mut cand: BTreeSet<R::Key> =
+        pp.rosters.iter().filter(|(_, gs)| gs.iter().any(|g| g.signer() == person)).map(|(k, _)| k.clone()).collect();
+    cand.insert(person.clone());
+    cand.into_iter().filter(|k| pp.voice(k).as_ref() == Some(person)).collect()
+}
+
+/// The node keys `owner` owns over the concluded set `c`, with no instant: the inverse of a node's owner-binding.
+/// Every key object `owner` holds the `owner` seat of ([`Seats::holders`]: a key holds it only by its own signature
+/// or acceptance, and the binding's withdrawal or the owner seat's unseat ends it) where `owner` is its one live
+/// owner (two live owners is none, as for the node's row), and neither the node key nor the owner revoked itself.
+/// Which keys are nodes is the key records' (the caller's: `identity_type` `node`). The reference is
+/// `seat.nodes_of`.
+pub fn nodes_of<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    owner: &R::Key,
+) -> BTreeSet<R::Key> {
+    let rows: Vec<&R> = c.cs().iter().map(|&q| c.g.row(q)).collect();
+    if revoked_itself(rows.iter().copied(), owner) {
+        return BTreeSet::new();
+    }
+    let seats = Seats::new(c, law, spec, None);
+    let objs: BTreeSet<R::Key> = rows
+        .iter()
+        .filter(|q| q.seat_kind() == SeatKind::Offer && q.scope().is_some_and(|s| s.as_ref() == "owner"))
+        .filter_map(|q| match q.obj() {
+            Some(Obj::Key(k)) => Some(k),
+            _ => None,
+        })
+        .collect();
+    objs.into_iter()
+        .filter(|n| {
+            let held = seats.holders("owner", &Obj::Key(n.clone()), None);
+            held.len() == 1 && held.contains(owner) && !revoked_itself(rows.iter().copied(), n)
+        })
+        .collect()
+}
+
 /// The persons a count reads over `rows` (a counted row's concluded past), ruled on CIRISConstitution#224: one voice
 /// and one member per person, however many of its keys sign or are seated. A person is named by its self roster's
 /// genesis key, the founding record's signer ("a voice is named by the identity reference of its first room key",

@@ -29,6 +29,19 @@ r74's rows among them: a person seated by two keys, a revoked key and its device
 author's device, a window over a self roster) and ten planted breaks; the window, ballot and r74 rows are in the seat
 fixture; seven crate plants for it, four retargeted.
 
+**Counts by person through one function; the keys a row reaches** (0.5.0; the review r78k, and persist). New:
+`seat::Persons::count`, the base and the voices by person with a named key set apart by person from both; every
+count reads it (the seat rule's count and lift, the fold and its lift, the count's receipt, the infrastructure
+quorum, the recall). The fold's lift and the count's receipt now take the author and the remover out by person
+(KP-B, KP-C), and the recall's holder is apart by person: a person whose device holds a duty is no voice of its
+recall (an answer moves only for a device-held duty). The opener's own withdrawal of a window reads its signer as the
+opener is read, a key of no person as itself, with no voter needed. New: `seat::person_keys(c, law, spec, person)`
+(a person's live keys, the inverse of `persons_of`) and `seat::nodes_of(c, law, spec, owner)` (the node keys whose
+one live owner-binding names the owner), over the concluded set with no instant: the node set = audiences ∘
+person_keys ∘ nodes_of (ADOPTING.md). The reference: `seat.count_persons`, `seat.person_keys`, `seat.nodes_of`;
+`check_key_person.py`, 67 cases, 20 planted breaks; seat.json gains six scenarios (none moved), `key_person.json` its
+window, person-keys and nodes sections (`tests/key_person.rs`); ten crate plants, four retargeted.
+
 **A key's person at a row, with no instant** (0.5.0; the rule ruled on CIRISConstitution#224). New:
 `seat::person_at(c, at, law, spec, k)`, the person key `k` is at row `at` of a concluded set: the self roster (an
 object of kind `self`: a person's own key roster, or a voice's room keys in a private room) where, in the row's own

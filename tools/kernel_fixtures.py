@@ -722,7 +722,17 @@ def key_person_cases():
         refs = {}
         assert KP.latent_outcome(rows) == outcome
         wcases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "opener": "op", "outcome": outcome})
-    return {"law": law, "cases": out, "counts": counts, "windows": windows, "window_cases": wcases}
+    # the keys a row reaches (persist): a person's live keys and an owner's nodes, over the concluded set
+    pkeys = []
+    for name, rows, k, keys in KP.PERSON_KEYS_CASES:
+        refs = {}
+        pkeys.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "person": k, "keys": keys})
+    nodes = []
+    for name, rows, k, ns in KP.NODES_CASES:
+        refs = {}
+        nodes.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "owner": k, "nodes": ns})
+    return {"law": law, "cases": out, "counts": counts, "windows": windows, "window_cases": wcases,
+            "person_keys": pkeys, "nodes_of": nodes}
 
 
 def key_end_cases():

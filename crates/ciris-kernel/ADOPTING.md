@@ -386,6 +386,15 @@ revocation as an unseat of its `registered` seat by the key. `SeatLaw::kinds` mu
 signed its self roster's founding record), and a device key of that person signs for it. Ask at a row of the concluded set: the answer reads that row's own past, an eviction
 concurrent with the row by rule 4, and no instant.
 
+**The keys a row reaches** (persist). Over the concluded set, with no instant: `seat::person_keys(c, law, spec,
+person)` gives a person's live keys (named by its genesis key; the inverse of `persons_of`: a key of two persons,
+an agent's key and a key that revoked itself are none of its keys, and a person whose genesis key revoked itself
+has none), and `seat::nodes_of(c, law, spec, owner)` gives the node keys whose one live owner-binding names
+`owner` (the `owner` seat over the node's key, held by the owner's own signature or acceptance; a withdrawn or
+revoked binding, two live owners, or the node's own revocation, and it is none). Which keys are nodes is the key
+records': filter by `identity_type` `node`. The node set = audiences ∘ person_keys ∘ nodes_of: for each key of a
+row's audience (`audience::audiences`), its person's live keys, and for each of those the nodes it owns.
+
 **A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,
 members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
 voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row

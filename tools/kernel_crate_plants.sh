@@ -300,6 +300,10 @@ plant "the remover a voice of the count's receipt" src/seat.rs '    let (mem, v)
     let yes = v.len();'
 plant "the count's receipt takes the remover out by key before the base is read by person (KP-C)" src/seat.rs '    let (mem, v) = pp.count(&mem, &voices(qr, &p), None, &[xr.signer().clone()]);' '    mem.remove(xr.signer());
     let (mem, v) = pp.count(&mem, &voices(qr, &p), None, &[]);'
+plant "a person's keys read without its persons (a key of two persons, a revoked genesis key's devices kept)" src/seat.rs '    cand.into_iter().filter(|k| pp.voice(k).as_ref() == Some(person)).collect()' '    cand'
+plant "an owner's nodes read from the offers, not the owner seat" src/seat.rs '            let held = seats.holders("owner", &Obj::Key(n.clone()), None);' '            let held: BTreeSet<R::Key> = rows.iter().filter(|q| q.seat_kind() == SeatKind::Offer && q.obj() == Some(Obj::Key(n.clone()))).flat_map(|q| q.to().iter().cloned()).collect();'
+plant "a node bound to two live owners read as each one's" src/seat.rs '            held.len() == 1 && held.contains(owner) && !revoked_itself(rows.iter().copied(), n)' '            held.contains(owner) && !revoked_itself(rows.iter().copied(), n)'
+plant "a node key that revoked itself stays its owner's node" src/seat.rs '            held.len() == 1 && held.contains(owner) && !revoked_itself(rows.iter().copied(), n)' '            held.len() == 1 && held.contains(owner)'
 plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '            [g] if !self.revoked.contains(g) => Some(g.clone()),' '            [g] => Some(g.clone()),'
 plant "an agent's key of a person's roster speaks for that person" src/seat.rs '        if self.agents.contains(k) {
             return Some(k.clone());
