@@ -43,6 +43,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     mutual_evictions_land two concurrent lone evictions of each other both land (r99 M1: the roster emptied)
     rival_line_unread     no reader's line is read: a reader on the first roster waits with a fresh one (the rival stalls)
     line_order_unread     the line read out of order: a later row over the rival takes it up too, and the reader waits (P1)
+    line_key_end_unread   the line reads no key end: a thief's row with the reader's revoked key seeds it (K1)
     claimed_cosigner_counted  another signer's claimed cosigners on a note seed the reader's line (r101 R2)
     unconcluded_cosigner_counted  a seat row that concluded nothing seeds the reader's line by its cosigners (S5, S6)
     line_voices_cosigners_only  the line reads a seat row's cosigners, not its voices (a cosign row's voice lost)
@@ -741,10 +742,29 @@ LINE_CASES = [("r100 %s, %s" % (k, "a fresh reader" if rd is None else "reader "
                "az", w) for k, rd, w in LWANT]
 
 
-def line_concludes(rows, reader, rid):
-    S = CK.concluded(CK.kept(list(rows)), RULE)
-    R = ST.reader_state(S, reader) if reader is not None else S
-    return bool(R.C.get(rid))
+def line_concludes(rows, reader, rid, kv=None):
+    if kv is not None: ST.KEY_VIEW.append(kv)
+    try:
+        S = CK.concluded(CK.kept(list(rows)), RULE)
+        R = ST.reader_state(S, reader) if reader is not None else S
+        return bool(R.C.get(rid))
+    finally:
+        if kv is not None: ST.KEY_VIEW.pop()
+
+
+# K1 on the person lane (the ruling, at the line fold): the reader's own rows seed its roster line only where its key
+# stands, by the key view the reader passes. A thief holding p4's stolen key writes a row naming the rival S1r,
+# concurrent with p4's revocation of that key: the key view does not count p4's signature there, so the row takes up
+# no founding and p4's line still takes up S1; with no key view passed, the thief's row seeds the line and p4 waits.
+# (The key view here stands in for key_end's reading of the revocation: it counts p4's signature on every row but tn.)
+_TN = ST.R("tn", "note", "p4", ("S1r",))
+_KV_THIEF = lambda rid, k: not (rid == "tn" and k == "p4")
+KV_LINE_CASES = [
+    ("K1 on the line: the thief's row with p4's revoked key, the key view passed: p4's line takes up S1, z admitted",
+     with_reader(LWORLD["P1"], "p4") + [_TN], "p4", "az", True, _KV_THIEF),
+    ("K1 on the line: the same rows with no key view: the thief's row seeds the line, p4 waits",
+     with_reader(LWORLD["P1"], "p4") + [_TN], "p4", "az", False, None),
+]
 
 
 PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
@@ -755,7 +775,7 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
           "rebinding_unread", "landed_eviction_unread", "landed_add_unread",
           "self_founding_family", "mutual_evictions_land", "rival_line_unread", "line_order_unread",
           "claimed_cosigner_counted", "unconcluded_cosigner_counted",
-          "line_voices_cosigners_only")
+          "line_voices_cosigners_only", "line_key_end_unread")
 
 
 def answer(rows, k):
@@ -854,6 +874,10 @@ def main():
         got = line_concludes(rows, rd, rid)
         if got != want:
             problems.append("%s: got %r, expected %r" % (name, got, want))
+    for name, rows, rd, rid, want, kv in KV_LINE_CASES:
+        got = line_concludes(rows, rd, rid, kv)
+        if got != want:
+            problems.append("%s: got %r, expected %r" % (name, got, want))
     caught = 0
     for plant in PLANTS:
         ST.MUT.add(plant)
@@ -868,7 +892,8 @@ def main():
                   [c[0] for c in PERSON_KEYS_CASES if sorted(ST.person_keys(concluded_set(c[1]), c[2])) != c[3]] + \
                   [c[0] for c in NODES_CASES if sorted(ST.nodes_of(concluded_set(c[1]), c[2])) != c[3]] + \
                   [c[0] for c in LANDED_CASES if c[2](landed_state(c[1])) != c[3]] + \
-                  [c[0] for c in LINE_CASES if line_concludes(c[1], c[2], c[3]) != c[4]]
+                  [c[0] for c in LINE_CASES if line_concludes(c[1], c[2], c[3]) != c[4]] + \
+                  [c[0] for c in KV_LINE_CASES if line_concludes(c[1], c[2], c[3], c[5]) != c[4]]
         finally:
             ST.MUT.discard(plant)
         caught += bool(hit)
