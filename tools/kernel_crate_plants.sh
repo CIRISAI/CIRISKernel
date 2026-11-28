@@ -86,7 +86,7 @@ plant "a lone holder's standing duty offer read for its own scope only" src/seat
 plant "a duty holder's own conferral is no counted change" src/seat.rs '    room.is_some_and(|declared| own_conferral(law, q, obj, declared))' '    room.is_some_and(|declared| false && own_conferral(law, q, obj, declared))'
 plant "the fold at tips reads no later acceptance" src/seat.rs '        ids.extend(completing(&rows, self.law, &by, o, &at, &in_past).iter().filter_map(|q| g.idx(q.id())));' ''
 plant "a count read at every head it names, not the newest (H1)" src/seat.rs '    if !heads.iter().any(behind_another) {' '    if true {'
-plant "a named head may be any row (H1, H3, H8)" src/seat.rs '.any(|&h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(|q| change(law, q, obj, room.as_deref())))' '.any(|_: &&R::Id| false)'
+plant "a named head may be any row (H1, H3, H8)" src/seat.rs '            && !p.get(h).is_some_and(|q| change(law, q, obj, room.as_deref()) || landed_change(p, q, obj))' '            && false'
 plant "a counted change of any object moves the head (H1)" src/seat.rs '    if LineSpec::<R>::counted_act(&SeatLine, q).is_some_and(|(o, _)| o == *obj) {' '    if LineSpec::<R>::counted_act(&SeatLine, q).is_some() {'
 plant "a counted change behind a named head moves it (H1)" src/seat.rs '&& !heads.iter().any(|&h| h == q.id() || p.past(q.id(), h))' '&& !heads.iter().any(|&h| h == q.id())'
 plant "a self-admission is a counted change (H3)"      src/seat.rs '        return law.acts.is_some() || !authored_head(law, q);' '        return true;'
@@ -301,7 +301,14 @@ plant "a key's person read per roster, not per identity key (two rosters of one 
 plant "an evicted genesis key still speaks as its person (r95 P1b)" src/seat.rs '            [] if self.founders.contains(k) => None,' ''
 plant "the key a self roster evicts is a voice of its own eviction" src/seat.rs '    let drop_to = f.exclude_target || f.base_excludes_target || evicts;' '    let drop_to = f.exclude_target || f.base_excludes_target || (evicts && false);'
 plant "a second self roster of one identity concludes (r96 G1: re-founding)" src/seat.rs '&& p.rows().any(|q| q.signer() == r.signer() && self_founding(law, q))' '&& false'
-plant "rival self rosters of one identity read as the person's (r96 G1)" src/seat.rs '        if founded.get(g.signer()).is_some_and(|&n| n > 1) {' '        if false {'
+plant "rival self rosters of one identity read as the person's (r96 G1)" src/seat.rs '        if self_founding(law, g) && !rosters.contains(g.id()) {' '        if false {'
+plant "an untaken rival founding makes the reader wait (r99 D1)" src/seat.rs '        let t: Vec<&R> = if gs.len() == 1 { gs.clone() } else { gs.iter().copied().filter(|g| taken(g)).collect() };' '        let t: Vec<&R> = gs.clone();'
+plant "a self roster's landed lone-path eviction ends nothing (the window an outcome only)" src/seat.rs '            if landed.iter().any(|(l, t, lo, lsc)| {' '            if false && landed.iter().any(|(l, t, lo, lsc)| {'
+plant "a self roster's landed lone-path addition seats nothing" src/seat.rs '            for k in keys.iter().filter(|k| p.signer() == *k || p.cosigners().contains(*k)) {' '            for k in keys.iter().filter(|_| false) {'
+plant "a family's founding read as a self roster's (r99 drift)" src/seat.rs '        && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
+}' '        && g.scope().and_then(|sc| law.kinds.get(sc.as_ref()).copied()) == Some(CommunityKind::SelfRoster)
+}'
+plant "a landed self-roster window is no head of a later count" src/seat.rs '        (change(law, q, obj, room.as_deref()) || landed_change(p, q, obj))' '        change(law, q, obj, room.as_deref())'
 plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '            [g] if !self.revoked.contains(g) => Some(g.clone()),' '            [g] => Some(g.clone()),'
 plant "an agent's key of a person's roster speaks for that person" src/seat.rs '        if self.agents.contains(k) {
             return Some(k.clone());
@@ -667,7 +674,7 @@ plant "an act naming the binding stands under it"      src/standing.rs 'Kind::Bi
 plant "any key's acceptance is the owner's"            src/standing.rs '    if b.owner() != Some(a.signer()) {' '    if false {'
 plant "a cited binding not live at the acceptance stands (N7)" src/standing.rs '        if past.in_past(e.id(), a.id())? {' '        if false && past.in_past(e.id(), a.id())? {'
 plant "an acceptance citing two rows read as citing the first (N7)" src/standing.rs '        _ => return Ok(Err(Nobody::AcceptanceOtherBinding)),' '        _ => &cites[0],'
-plant "a cited binding of another key than the grantee stands (N7)" src/standing.rs '    if b.node().is_some_and(|n| (grant.role)(n) != Role::Grantee) {' '    if false {'
+plant "a cited binding of another key than the grantee stands (N7)" src/standing.rs '    if !b.node().is_some_and(|n| (grant.role)(n) == Role::Grantee) {' '    if b.node().is_some_and(|n| (grant.role)(n) != Role::Grantee) {'
 plant "a re-binding does not end the binding before it" src/standing.rs 'Kind::Binding if row.on() == Some(bid) => (conferral::Kind::End, Some(bid)),' 'Kind::Binding if row.on() == Some(bid) => (conferral::Kind::Other, None),'
 plant "the member's own end adds tips beside a counted end" src/content.rs 'if ends.iter().any(|e| counts(e) && is_count(e)) {' 'if false {'
 plant "the member's own ends are joined, not met"       src/content.rs 'Some(o) => o.intersection(&g).copied().collect(),' 'Some(o) => o.union(&g).copied().collect(),'

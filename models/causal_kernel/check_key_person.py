@@ -37,6 +37,10 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     evicted_key_votes     the key a self roster evicts is a voice of its own eviction (the one-key residual evicts)
     rival_roster_kept     a second self roster of one identity is kept (r96 G1: re-founding, a device by founding)
     rebinding_unread      Seats.owner reads no re-binding: a re-bound node has two owners, none (consent-set's plant)
+    landed_eviction_unread  a self roster's landed lone-path eviction ends nothing (the window an outcome only)
+    landed_add_unread     a self roster's landed lone-path addition seats nothing
+    rival_untaken_counted an untaken rival founding makes the reader wait (r99 D1: a bare founding silences the person)
+    self_founding_family  a family's founding read as a self roster's (a rival of the person's roster)
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -264,9 +268,9 @@ BALLOT_CASES = [
                                  EL.elect("ec", "C", ("ba", "bb", "bc", "be", "bd", "bd2"))], "ec", False),
 ]
 R74_CASES += [
-    ("K7, under r96 G1: p2 founds S9 beside S2 (neither in the other's past; S9 lists p1b, unsigned, and seats only p2):"
-     " rival rosters, the reader waits, so p2 is no voice: p1b, p2 and p3 are two of four",
-     BASE + [S9, admit_z(("p1b", "p2", "p3"), ("S9",))], "az", False, RULE),
+    ("K7, under r96 G1 and r99 D1: p2 founds S9 beside S2 (S9 lists p1b, unsigned, and seats only p2); the row's past "
+     "takes up S2 (the room's founding names it) and not S9, so S2 is p2's roster: p2 is a voice, p1b, p2, p3 admit z",
+     BASE + [S9, admit_z(("p1b", "p2", "p3"), ("S9",))], "az", True, RULE),
     ("the floor of two (KP4): p1 and its device p1b, both seated, are one voice and never meet it: p2 is not removed",
      [SP[1], SP[2], P1B, GF, XF(("p1", "p1b"))], "xf", False, RULE),
     ("the electorate by person (KP4): D is seated only by its device d2, and D's own ballot counts for that member",
@@ -467,6 +471,31 @@ PERSON_KEYS_CASES += [
     ("r96: after p1's eviction and its rival founding, p1's live keys are its two devices", GW + [GEV, S1N], "p1",
      ["p1b", "p1c"]),
 ]
+# the review r99 (D1): rivals are judged in the judged row's own past. A founding names nothing, so a stolen genesis
+# key's bare founding S1r is concurrent with S1; the row's past takes up S1 (rows name it or are counted over it) and
+# not S1r, so S1 stays the person's roster and the honest devices still speak. A row whose past takes up both waits.
+RIV = found("S1r", "p1")
+RIVH = ST.cosign("hh", "p1b", "hh", ("S1", "S1r"))                     # a row naming both foundings
+R74_CASES += [
+    ("r99 D1: the evicted p1's bare founding S1r concludes (nothing in its past)", GW + [GEV, RIV], "S1r", True, RULE),
+    ("r99 D2: and the honest devices p1b, p2 and p3 still admit z, naming it", GW + [GEV, RIV,
+     admit_z(("p1b", "p2", "p3"), ("evg", "S1r"))], "az", True, RULE),
+    ("r99 D4: a row in the count's past naming both foundings takes up both: the reader waits, p1b no voice",
+     GW + [GEV, RIV, RIVH, admit_z(("p1b", "p2", "p3"), ("evg", "hh"))], "az", False, RULE),
+    ("r99 D5: the devices are no keys of the rival roster, so their eviction of p1 from it does not conclude",
+     GW + [GEV, RIV, evict("evr", "S1r", "p1", ("p1b", "p1c"), ("S1r",))], "evr", False, RULE),
+    ("r99 D6: no eviction; the stolen genesis key founds a rival: p1b, p2 and p3 admit z",
+     GW + [RIV, admit_z(("p1b", "p2", "p3"), ("a1c", "S1r"))], "az", True, RULE),
+    ("r99 D7: and p1 itself, live in the roster the row takes up, with p2 and p3",
+     GW + [RIV, admit_z(("p1", "p2", "p3"), ("a1c", "S1r"))], "az", True, RULE),
+]
+R74_CASES += [
+    ("r99 drift: a family founding by p1 (scope self, group_kind family) after S1 is no self roster, so no rival: it "
+     "concludes", GW + [dict(found("F1", "p1"), names=("a1c",), group_kind="family")], "F1", True, RULE),
+]
+PERSON_KEYS_CASES += [
+    ("r99 D3: with the bare rival held, p1's live keys are its devices", GW + [GEV, RIV], "p1", ["p1b", "p1c"]),
+]
 # the lone path in a two-key roster (CC 4.5.13; Eric's correction): one key proposes the other's eviction, and after
 # the window it LANDS unless the other key, the whole of "the other members" and a voice here, objects within it.
 # That covers a lost or dead device; an active stolen key that objects blocks its own eviction, and two live keys
@@ -489,13 +518,53 @@ WINDOW_CASES += [
     ("and g1's proposal", [GS, GD1] + lone_evict("g1", "k1", True) + lone_evict("k1", "g1", True, "op2", "2"), "refused"),
 ]
 
+# a landed lone-path eviction TAKES EFFECT (one ends reading): after k1's proposal lands with g1 silent, g1 is out of
+# the roster, no voice of the person, no live key of it, and its later rows read as a bare key's; k1 alone is the
+# person
+LANDED = [GS, GD1] + lone_evict("k1", "g1", False)
+LNOTE = R("ln", "note", "g1", ("L",))                                     # g1's own row after the landing
+LNOTE_K = R("lk", "note", "k1", ("L",))
+AW = WN.secs("self_roster_add")
+AOP = dict(WN.opener("opa", "k1", "self_roster_add", "S", ("d1",)), to=("k2",), cosigners=("k2",))   # k2 signs it
+AOP_NC = dict(WN.opener("opa", "k1", "self_roster_add", "S", ("d1",)), to=("k2",))                   # k2 does not
+ADDED = [GS, GD1, AOP, WN.receipt("ra", "k1", "opa", 0), WN.landing("La", "k1", "opa", "ra", "landed", AW)]
+ADDED_NC = [GS, GD1, AOP_NC, WN.receipt("ra", "k1", "opa", 0), WN.landing("La", "k1", "opa", "ra", "landed", AW)]
+def landed_state(rows):
+    return CK.concluded(CK.kept(list(rows)), RULE_W)
+# (name, rows, what is read, want)
+LANDED_CASES = [
+    ("the landed eviction ends g1's seat: the roster's live keys", LANDED,
+     lambda S: sorted(ST.Seats(S).holders("self", "S")), ["k1"]),
+    ("the evicted g1 is no voice of the person", LANDED, lambda S: ST.rep_of(list(S.Cs), "g1"), None),
+    ("person_keys excludes it: k1 alone is the person's", LANDED, lambda S: sorted(ST.person_keys(S, "g1")), ["k1"]),
+    ("g1's own later row reads as a bare key's: no person", LANDED + [LNOTE], lambda S: ST.person_of(S, "ln", "g1"), None),
+    ("and k1's later row is the person's", LANDED + [LNOTE_K], lambda S: ST.person_of(S, "lk", "k1"), "g1"),
+    ("an eviction the target objected to is refused and ends nothing", [GS, GD1] + lone_evict("k1", "g1", True),
+     lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
+    # rule 4: g1's row concurrent with the landing, at its head (it names what the landing names, not the landing)
+    ("a row of g1 concurrent with the landed eviction, at its head: g1 is out from that head on (rule 4)",
+     LANDED + [R("lc", "note", "g1", ("r",))], lambda S: ST.person_of(S, "lc", "g1"), None),
+    # the add twin: a landed self_roster_add seats its key, which consented (its own approving answer)
+    ("the add twin: k1's proposal to add k2 (k2 signing it) lands: k2 is a live key of the person",
+     ADDED, lambda S: sorted(ST.person_keys(S, "g1")), ["g1", "k1", "k2"]),
+    ("and k2's later row is the person's", ADDED + [R("k2n", "note", "k2", ("La",))],
+     lambda S: ST.person_of(S, "k2n", "k2"), "g1"),
+    ("after the landed eviction k1 alone is the roster: its addition of k3 at the landing, its head, concludes",
+     LANDED + [add("d3", "S", "k3", ("k1",), ("L",))], lambda S: bool(S.C.get("d3")), True),
+    ("and g1, evicted, adds nothing", LANDED + [add("d3", "S", "k3", ("g1",), ("L",))], lambda S: bool(S.C.get("d3")),
+     False),
+    ("a landed addition without the new key's own consent seats nothing", ADDED_NC,
+     lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
+]
+
 
 PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
           "persons_unread", "base_by_key", "revoked_voice_kept", "agent_speaks", "lift_author_device", "genesis_unread",
           "fold_lift_by_key", "fold_author_by_key", "remover_counted_over", "opener_withdrawal_voter",
           "apart_by_key", "person_keys_by_offer", "nodes_by_offer", "nodes_two_owners_kept", "nodes_revocation_unread",
           "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept",
-          "rebinding_unread")
+          "rebinding_unread", "landed_eviction_unread", "landed_add_unread", "rival_untaken_counted",
+          "self_founding_family")
 
 
 def answer(rows, k):
@@ -581,6 +650,15 @@ def main():
             if sorted(ST.nodes_of(CK.arrive(o, RULE), k)) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
                 break
+    for name, rows, f, want in LANDED_CASES:
+        got = f(landed_state(rows))
+        if got != want:
+            problems.append("%s: got %r, expected %r" % (name, got, want))
+        for o in orders(rows)[:21]:
+            n += 1
+            if f(CK.arrive(o, RULE_W)) != got:
+                problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
+                break
     caught = 0
     for plant in PLANTS:
         ST.MUT.add(plant)
@@ -593,7 +671,8 @@ def main():
                   [c[0] for c in R78K_CASES if ag_held(c[1]) != c[2]] + \
                   [c[0] for c in LATENT_CASES if latent_outcome(c[1]) != c[2]] + \
                   [c[0] for c in PERSON_KEYS_CASES if sorted(ST.person_keys(concluded_set(c[1]), c[2])) != c[3]] + \
-                  [c[0] for c in NODES_CASES if sorted(ST.nodes_of(concluded_set(c[1]), c[2])) != c[3]]
+                  [c[0] for c in NODES_CASES if sorted(ST.nodes_of(concluded_set(c[1]), c[2])) != c[3]] + \
+                  [c[0] for c in LANDED_CASES if c[2](landed_state(c[1])) != c[3]]
         finally:
             ST.MUT.discard(plant)
         caught += bool(hit)

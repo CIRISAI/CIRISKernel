@@ -327,6 +327,21 @@ pub trait SeatRow: Row {
     fn of(&self) -> Option<&Self::Id> {
         None
     }
+    /// A window's landing: the opener it lands and the outcome it states. A self roster's lone-path eviction that
+    /// lands `landed` ends the target's seat as a counted eviction does ([`SeatRow::evicts`]). Default `None`.
+    fn landing(&self) -> Option<(&Self::Id, &Self::Word)> {
+        None
+    }
+    /// An opener of a self roster's eviction window (`self_roster_evict`, CC 3.3.6.4): the key it proposes to evict.
+    /// Default `None`.
+    fn evicts(&self) -> Option<&Self::Key> {
+        None
+    }
+    /// An opener of a self roster's addition window (`self_roster_add`): the keys it proposes to add. A landed addition
+    /// seats each that signed the opener (its own consent). Default `None`.
+    fn adds(&self) -> Option<&[Self::Key]> {
+        None
+    }
     /// A withdrawal: the row it withdraws.
     fn target(&self) -> Option<&Self::Id> {
         None
@@ -2808,7 +2823,36 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let member = |s: Option<&R::Word>| {
             s.is_some_and(|x| x.as_ref() == "member" || law.roster_seats.iter().any(|r| r == x.as_ref()))
         };
+        // a self roster's lone-path eviction that LANDED (its `landed` landing concluded: the window's outcome, as
+        // every window) ends the target's seat as a counted eviction does: one ends reading
+        let landed: Vec<(usize, &R::Key, ObjOf<R>, &R::Word)> = cs
+            .iter()
+            .copied()
+            .filter(|i| !stale.contains(i))
+            .filter_map(|i| {
+                let (op, says) = g.row(i).landing()?;
+                if says.as_ref() != "landed" {
+                    return None;
+                }
+                let p = *by.get(op)?;
+                if !c.concluded_id(p.id()) {
+                    return None;
+                }
+                let t = p.evicts()?;
+                let o = p.obj()?;
+                let sc = match &o {
+                    Obj::Row(gid) => by.get(gid)?.scope()?,
+                    Obj::Key(_) => return None,
+                };
+                Some((i, t, o, sc))
+            })
+            .collect();
         let unseated = |oi: usize, k: &R::Key, sc: Sc<'a, R::Word>| {
+            if landed.iter().any(|(l, t, lo, lsc)| {
+                *t == k && g.row(oi).obj().as_ref() == Some(lo) && lsc.as_ref() == sc.s() && g.in_past(oi, *l)
+            }) {
+                return true;
+            }
             if unseats.is_empty() {
                 return false;
             }
@@ -3122,8 +3166,51 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 Some(Live { offer: oid.clone(), k: k.clone(), scope, obj: o.obj()?, depth, root })
             })
             .collect();
-        let duty =
+        let mut duty: Vec<bool> =
             recs.iter().map(|r| by.get(&r.offer).is_some_and(|o| duty_held(law, &by, *o, r.scope.as_ref()))).collect();
+        // a self roster's lone-path addition that LANDED seats each key that signed its opener, as a counted addition
+        // does, and the same ends reading ends it (a later counted or landed eviction, with the landing in its past)
+        let mut recs = recs;
+        for i in cs.iter().copied().filter(|i| !stale.contains(i)) {
+            let Some((op, says)) = g.row(i).landing() else { continue };
+            if says.as_ref() != "landed" {
+                continue;
+            }
+            let Some(p) = by.get(op).copied() else { continue };
+            if !c.concluded_id(p.id()) {
+                continue;
+            }
+            let Some(keys) = p.adds() else { continue };
+            let Some(o) = p.obj() else { continue };
+            let Some(sc) = (match &o {
+                Obj::Row(gid) => by.get(gid).and_then(|f| f.scope()),
+                Obj::Key(_) => None,
+            }) else {
+                continue;
+            };
+            for k in keys.iter().filter(|k| p.signer() == *k || p.cosigners().contains(*k)) {
+                let ended = unseats.iter().any(|(u, uo)| {
+                    let ur = g.row(*u);
+                    ur.to().contains(k)
+                        && uo.as_ref() == Some(&o)
+                        && ur.scope().is_some_and(|x| x.as_ref() == sc.as_ref())
+                        && g.in_past(i, *u)
+                }) || landed
+                    .iter()
+                    .any(|(l, t, lo, lsc)| *t == k && *lo == o && lsc.as_ref() == sc.as_ref() && g.in_past(i, *l));
+                if !ended {
+                    recs.push(Live {
+                        offer: g.row(i).id().clone(),
+                        k: k.clone(),
+                        scope: sc.clone(),
+                        obj: o.clone(),
+                        depth: 0,
+                        root: Root::Group(o.clone()),
+                    });
+                    duty.push(false);
+                }
+            }
+        }
         Seats {
             c,
             cut,
@@ -4255,17 +4342,31 @@ fn rosters_by_key<'r, R: SeatRow + 'r, S: CutSpec<R>>(
     let agents: BTreeSet<R::Key> =
         seats.recs().iter().filter(|x| x.scope.as_ref() == AGENT).map(|x| x.k.clone()).collect();
     let mut out: BTreeMap<R::Key, Vec<&'r R>> = BTreeMap::new();
-    // one self roster per identity (G1): two foundings by one identity, neither in the other's past, are rivals; a
-    // reader holding both waits and never picks, so neither is that identity's roster
-    let mut founded: BTreeMap<&R::Key, usize> = BTreeMap::new();
+    // one self roster per identity (G1), judged in the row's own past `rows` (r99 D1): of an identity's foundings
+    // there, the one TAKEN UP (named, or counted over, by another row of `rows`) is its roster; a rival nothing takes
+    // up is no part of it (a stolen genesis key's bare founding silences no one); where several are taken up, or none
+    // of several, the reader waits and never picks, and none is
+    let mut founded: BTreeMap<&R::Key, Vec<&R>> = BTreeMap::new();
     for g in rows.iter().copied().filter(|g| self_founding(law, *g)) {
-        *founded.entry(g.signer()).or_default() += 1;
+        founded.entry(g.signer()).or_default().push(g);
+    }
+    let taken = |g: &R| {
+        rows.iter().any(|q| {
+            q.id() != g.id() && (q.names().iter().any(|n| n == g.id()) || q.obj() == Some(Obj::Row(g.id().clone())))
+        })
+    };
+    let mut rosters: BTreeSet<&R::Id> = BTreeSet::new();
+    for gs in founded.values() {
+        let t: Vec<&R> = if gs.len() == 1 { gs.clone() } else { gs.iter().copied().filter(|g| taken(g)).collect() };
+        if let [g] = t.as_slice() {
+            rosters.insert(g.id());
+        }
     }
     for g in rows.iter().copied() {
         if g.seat_kind() != SeatKind::Offer || !founding(g) {
             continue;
         }
-        if founded.get(g.signer()).is_some_and(|&n| n > 1) {
+        if self_founding(law, g) && !rosters.contains(g.id()) {
             continue;
         }
         let o = Obj::Row(g.id().clone());
@@ -5703,6 +5804,16 @@ fn change<R: SeatRow>(law: &SeatLaw, q: &R, obj: &ObjOf<R>, room: Option<&[&str]
     room.is_some_and(|declared| own_conferral(law, q, obj, declared))
 }
 
+/// A self roster's landed lone-path window over `obj` is a counted change of it, as the counted eviction or addition
+/// it is (a head a later count names, H1): a landing that says `landed` of a [`SeatRow::evicts`] or [`SeatRow::adds`]
+/// opener over `obj`, held in `p`.
+fn landed_change<R: SeatRow>(p: &Past<'_, '_, R>, q: &R, obj: &ObjOf<R>) -> bool {
+    q.landing().is_some_and(|(op, says)| {
+        says.as_ref() == "landed"
+            && p.get(op).is_some_and(|o| (o.evicts().is_some() || o.adds().is_some()) && o.obj().as_ref() == Some(obj))
+    })
+}
+
 /// A one-key conferral of a duty over a room: an offer of `Conf::Own` or `Conf::Seat` over `obj`, not its founding
 /// row, of a duty scope (`declared`: the room's declared duties). An own offer of any other scope is no counted
 /// change.
@@ -5758,14 +5869,14 @@ fn newer_head_in_past_v<R: SeatRow>(
     }
     let heads: Vec<&R::Id> = heads.iter().filter(|h| !void.contains(*h)).collect();
     let room = room_in(p, obj);
-    if heads
-        .iter()
-        .any(|&h| *obj != Obj::Row(h.clone()) && !p.get(h).is_some_and(|q| change(law, q, obj, room.as_deref())))
-    {
+    if heads.iter().any(|&h| {
+        *obj != Obj::Row(h.clone())
+            && !p.get(h).is_some_and(|q| change(law, q, obj, room.as_deref()) || landed_change(p, q, obj))
+    }) {
         return true;
     }
     p.rows().any(|q| {
-        change(law, q, obj, room.as_deref())
+        (change(law, q, obj, room.as_deref()) || landed_change(p, q, obj))
             && !heads.iter().any(|&h| h == q.id() || p.past(q.id(), h))
             && !void.contains(q.id())
     })
