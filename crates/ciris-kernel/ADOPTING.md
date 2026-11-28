@@ -436,11 +436,12 @@ row's payload the store has verified (each voice is a further signed statement, 
 roster is that roster's own add (its count, or its lone path); an evicted genesis key is restored only by the
 roster's counted re-admission. A lone addition is weaker than a lone eviction, as the text has it (CC 3.3.6.4: "One
 objection of two others does not stop a lone addition... only a strict majority of the others refuses it"): a live
-genesis key in a three-key roster adds a key over one objection, a stated cost. A self roster's lone-path window that lands (its `landed` landing concluded) is the
+genesis key in a three-key roster adds a key over one objection, a stated cost. The residual, in the
+Constitution's words (0.5.0; to the steward after the tag): "a holder of one key of three that adds a key while one other is silent holds half the roster, and no count or lone path removes it". A self roster's lone-path window that lands (its `landed` landing concluded) is the
 counted change it proposes, read through the same ends reading: a landed eviction ends the target's seat, a landed
 addition seats each proposed key that signed its opener, and the landing is a head a later count over the roster
 names. Present a landing's opener and outcome as `SeatRow::landing`, an eviction opener's target as
-`SeatRow::evicts`, an addition opener's keys as `SeatRow::adds`. (The community lone paths change seats by their
+`SeatRow::evicts`, an addition opener's keys as `SeatRow::adds` (its `to`, one shape: a `target` alone seats nothing). (The community lone paths change seats by their
 own rows: a lone removal is the act, and the overturn's re-seating is a counted offer.) In a two-key roster the count cannot evict (the key evicted is no voice of
 it), but the lone path can (CC 4.5.13, the `self_roster_evict` window): one key proposes the other's eviction, and after the
 window it lands unless the other key, the whole of the other members and a voice there, objects within it; so a
