@@ -32,6 +32,9 @@ Sources (all under models/):
               root grant), and a later bundle version: its case table, per act and owner, with why.
               tests/conferral_two.rs replays it through standing::answers; it is also for Verify's standing
               walk and an adopter's own code.
+    consent   causal_kernel/check_consent.py: the consent peer set (CC 3.3.7): each case's rows and every ask (a
+              grant in force, a principal's peer set, whether a node may send a peer a row of a class) with the
+              model's answer. tests/consent.rs replays it through consent::in_force, peer_set and may_send.
     root      trust_root/check_root.py: the trust root's lineage (the count, S'' and T, the fold, the bundles in
               force per reader, grants) and stalled recoveries judged against it. tests/root.rs replays both.
 """
@@ -778,6 +781,8 @@ def main():
     dump("conferral_content_worlds.json", CK.worlds_fixture(), out)
     import check_conferral_two as C2
     dump("conferral_two.json", C2.fixture(), out)
+    import check_consent as CS
+    dump("consent.json", CS.fixture(), out)
     sys.path.insert(0, os.path.join(ROOT, "models", "trust_root"))
     import check_root as CR
     dump("root.json", CR.fixture(with_refs), out)
