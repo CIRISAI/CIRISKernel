@@ -645,6 +645,8 @@ plant "a lift's cited act is not read (G24)" src/seat.rs '    cited(r, get, &|q:
 plant "an outside voice on a one-officer act that is no countersigner is taken (G15)" src/seat.rs '        return vs.iter().all(|k| officer_key(&pp, &seats, k) || cs.contains(k));' '        return true;'
 plant "first_cite: a row citing several reads its first (r98)" src/seat.rs '        [one] => Some(one),' '        [one, ..] => Some(one),'
 plant "officers_by_key: two keys of one person are two officers" src/seat.rs '    officers(p, law, spec, &obj).base(&seats).len() == 1' '    seats.len() == 1'
+plant "release_end_read: a release falls with its author's standing" src/seat.rs '        if !release
+            && !removal_in_force' '        if !removal_in_force'
 plant "root_seat_stored: a lapsed root seat held from its conclusion" src/seat.rs '            if o.conf() == Some(Conf::Root) && !o.obj().is_some_and(|ob| root_seat(spec, o, &ob)) {' '            if false && o.conf() == Some(Conf::Root) {'
 plant "founder_raw_head: is_founder read at the heads the row states" src/seat.rs '    let heads: Vec<R::Id> = {
         let room = room_in(&p, obj);' '    let heads: Vec<R::Id> = if !p.row().head().is_empty() {

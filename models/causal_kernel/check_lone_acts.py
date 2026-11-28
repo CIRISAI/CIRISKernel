@@ -36,6 +36,7 @@ Planted breaks (seat.MUT), each of which must change a case's answer:
     self_release            a content's author reverses its takedown
     release_by_any_holder   another holder's release of a withhold lifts it (G21: only the holder that withheld)
     first_cite              a row citing several reads its first cite (r98: exactly one cite, or nothing)
+    release_end_read        a release is read through the end rule: its author's later lay-down brings the withhold back
     target_any_room         a takedown's content, or a marker's key, need not be the room's
     lift_base_lift_head     (the lift) counted at the lift's heads alone: members admitted after the act carry it
 
@@ -176,6 +177,15 @@ CASES = [
     ("r75: the lift at both heads: p5 and p6, admitted after the takedown, object with p2; the base is the members at "
      "both heads (p2, p3, p4), so one of three lifts nothing", W + [TD, A5, A6, OB("o2", "p2"), OB("o5", "p5"),
                                                                   OB("o6", "p6"), LIFT6], {"a6": T, "lf": F}, {"td": T}),
+    # ---- review-58 on da015c0: a release is no standing act -----------------------------------------------------------
+    ("a release stays in force after its author lays slash down: p2 receipts qw, p1 releases it, then p1 lays slash "
+     "down; the withhold does not come back", W + [QW, CK.row("rq", "ack", "p2", ("qw",), of="qw"), QR,
+                                                   ST.withdraw("ls", "p1", "g", ("qr",), scope="slash")],
+     {"qr": T}, {"qw": F, "qr": T}),
+    ("and the same with the lay-down concurrent with the release", W + [QW, CK.row("rq", "ack", "p2", ("qw",), of="qw"),
+                                                                        QR, ST.withdraw("ls", "p1", "g", ("qw",),
+                                                                                        scope="slash")],
+     {"qr": T}, {"qw": F, "qr": T}),
     # ---- r98 (review-58): a reconsideration names ITS notice and a lift THE act: exactly one cite ------------------
     ("r98 M1: p1 releases p2's withhold of p1 (target qw1, the second withhold cited too): only the holder that "
      "withheld releases, so nothing", W + [QW, act("qw1", "quarantine:withhold", "p2", target="p1"),
@@ -213,7 +223,7 @@ CASES = [
      {"atd": T}),
 ]
 PLANTS = ("lone_act_counted", "lone_act_cosigned", "lone_act_end_unread", "lone_act_lift_unread",
-          "reconsideration_unread", "release_unread", "unproven_fires", "countersign_unread", "self_release", "release_by_any_holder", "first_cite",
+          "reconsideration_unread", "release_unread", "unproven_fires", "countersign_unread", "self_release", "release_by_any_holder", "first_cite", "release_end_read",
           "target_any_room", "lift_base_lift_head")
 
 

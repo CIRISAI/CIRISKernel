@@ -38,7 +38,7 @@ names its takedown notice, and a lift the act it lifts (a lone act, or a lone re
 default none: the wire's `refs.also.cites`), replacing the provisional `of()` and a lift's `content()`. A quarantine
 release is no citation (G21 as re-ruled): it is the withholding holder's `supersedes` of its own withhold, named by
 `SeatRow::target()` (its key read from the withhold); only the holder that withheld releases it, and another holder's
-release concludes nothing (its routes are the members' lift or a review). A takedown notice still names its content
+release concludes nothing (its routes are the members' lift or a review). A release is no standing act: it stays in force on its own head whatever becomes of its author's standing after (review-58 on da015c0). A takedown notice still names its content
 row by `of()`, and a reconsideration keeps its `outcome`.
 
 **r81 B2 at the roster (the r87 attack): a lone conferral concurrent with the grown body's counted act is re-counted

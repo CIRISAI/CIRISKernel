@@ -2811,8 +2811,12 @@ def act_in_force(S, act, own=None):
             return False
     else:
         unseats = [u for u in S.Cs if u["kind"] == "unseat" and Q.cut.counts(u) and u["id"] not in Q.stale]
-        if "lone_act_end_unread" not in MUT and not removal_in_force(S, r, unseats, Seats(S, own=own, roster=False),
-                                                                  scope=LONE_ACTS[family(r)]):
+        # a release supersedes its withhold and is no standing act: it stays in force on its own head whatever becomes
+        # of its author's standing after (review-58 on da015c0: else the withhold comes back once its withholder, the
+        # only key that may release it, lays slash down). MUTATION release_end_read: the end rule reads the release too
+        standing = r["kind"] != "quarantine:release" or "release_end_read" in MUT
+        if standing and "lone_act_end_unread" not in MUT and not removal_in_force(
+                S, r, unseats, Seats(S, own=own, roster=False), scope=LONE_ACTS[family(r)]):
             return False
         lifted = held("offer", lambda q: q.get("scope") == "act" and the_cite(q) == act and q.get("conf") == "group")
         if lifted and "lone_act_lift_unread" not in MUT: return False

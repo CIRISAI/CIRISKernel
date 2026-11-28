@@ -142,7 +142,8 @@ pub enum SeatKind {
     /// heads it names.
     Ack,
     /// A quarantine marker (`quarantine:{state}`, CC 3.1.9.2) of a key ([`SeatRow::target_key`]): state `withhold`,
-    /// or `release` naming ([`SeatRow::of`]) the withhold it lifts. A lone act of a `slash` holder.
+    /// or `release`, its withholder's supersedes of the withhold it names by [`SeatRow::target`]. A lone act of a
+    /// `slash` holder.
     Quarantine,
     /// A slashing verdict (`slashing:{outcome}`) about a key ([`SeatRow::target_key`]): `proven_rogue` or
     /// `not_proven` ([`SeatRow::outcome`]); it fires only on a proven ground. A lone act of a `slash` holder.
@@ -1584,7 +1585,13 @@ pub fn act_in_force<R: SeatRow, S: CutSpec<R>>(
             .collect();
         let cache = MembersAt::<R>::default();
         let now = Seats::build(c, law, spec, own, None, Some(&cache));
-        if !removal_in_force(c, i, law, spec, &by, &unseats, &now, &cache, &BTreeSet::new(), &BTreeSet::new(), duty) {
+        // a release supersedes its withhold and is no standing act: it stays in force on its own head whatever becomes
+        // of its author's standing after
+        let release =
+            r.seat_kind() == SeatKind::Quarantine && r.family_param().is_some_and(|s| s.as_ref() == "release");
+        if !release
+            && !removal_in_force(c, i, law, spec, &by, &unseats, &now, &cache, &BTreeSet::new(), &BTreeSet::new(), duty)
+        {
             return false;
         }
         let lifted: Vec<usize> = held(&|x: &R| {
