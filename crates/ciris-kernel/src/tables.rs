@@ -49,6 +49,8 @@ pub enum LawWhy {
     NoRow,
     /// Two cells of a row disagree.
     Disagrees,
+    /// The cell reads `unstated`: the family is held shut ([`held_shut`]).
+    Unstated,
 }
 
 /// A cell that stops the tables giving the law: the table (`policy`, `protocols`, `acts`), the row (a family, a
@@ -65,6 +67,26 @@ pub struct LawRefusal {
     pub why: LawWhy,
 }
 
+/// The families whose counted voices the Constitution has ruled, though the table leaves their `voice` or
+/// `counted_at` unstated: `affiliation_member_action` (one officer and one eligible outside key, the countersigned
+/// path) and `cosigned_act` (the body's deciding seats under its declared protocol, as persons).
+const VOICES_RULED: [&str; 2] = ["affiliation_member_action", "cosigned_act"];
+
+/// The families the seat law holds shut in 0.5.0, each with the unstated cell that holds it: a row whose
+/// `counted.voice` or `counted.counted_at` is `unstated` and whose voices no ruling states (`custodian_replace`). Its
+/// count is [`Policy::NotACount`] in [`law_from_tables`], so an act bound to it concludes nothing.
+pub fn held_shut(families: &[PolicyRow]) -> Vec<LawRefusal> {
+    let mut out = Vec::new();
+    for f in families.iter().filter(|f| !VOICES_RULED.contains(&f.family.as_str())) {
+        for (cell, c) in [("counted.voice", &f.counted.voice), ("counted.counted_at", &f.counted.counted_at)] {
+            if c.value == "unstated" {
+                out.push(LawRefusal { table: "policy", row: f.family.clone(), cell, why: LawWhy::Unstated });
+            }
+        }
+    }
+    out
+}
+
 /// The count CC states for a family whose enact cell is not its seat count: CC 4.5.4 (iv) for `duty_confer` and
 /// `duty_withdraw` (over the duty holders, the other duty holders); CC 4.5.13 for `moderation_overturn` (the members'
 /// check as a counted row).
@@ -79,7 +101,8 @@ fn stated_count(family: &str) -> Option<Policy> {
 
 /// The [`SeatLaw`] cells the tables state, every other cell left at its default; or every cell that stops them.
 ///
-/// - `policy`, per family, its `enact_rule` as the reference reads it: a fraction of 1/2 a strict majority (CC
+/// - `policy`, per family: [`Policy::NotACount`] for a family [`held_shut`]; otherwise its `enact_rule` as the
+///   reference reads it: a fraction of 1/2 a strict majority (CC
 ///   3.3.6.4), another at least the fraction; `strict_majority` [`Policy::Strict`]`(1, 2)`; `one_of_n` one;
 ///   `protocol` the room's declared protocol; `ranked_irv` the ranked tally; any other not a count. `duty_confer`,
 ///   `duty_withdraw` and `moderation_overturn` take the count the text states ([`Policy::DutyConfer`],
@@ -100,9 +123,12 @@ pub fn law_from_tables(
         why.push(LawRefusal { table, row: row.into(), cell, why: w })
     };
     let mut law = SeatLaw::default();
+    let shut: Vec<String> = held_shut(families).into_iter().map(|r| r.row).collect();
     for f in families {
         let e = &f.enact_rule;
-        let p = if let Some(p) = stated_count(&f.family) {
+        let p = if shut.contains(&f.family) {
+            Policy::NotACount // held shut: no count until the table states its voice
+        } else if let Some(p) = stated_count(&f.family) {
             p
         } else if f.family == "accord_halt" {
             // the ruling of 2026-11-28: the act bound to accord_halt is halt_confirm, counted by its cancel cell (`more

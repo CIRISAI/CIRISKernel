@@ -176,6 +176,7 @@ plant "seat law tables: an unknown acts word dropped silently" src/tables.rs 'no
 plant "seat law tables: a duplicate acts row unrefused" src/tables.rs 'if seen.contains(&k) {' 'if false {'
 plant "seat law tables: an acts policy with no row unrefused" src/tables.rs 'if !families.iter().any(|f| f.family == q) {' 'if false {'
 plant "seat law tables: the removal floor unread" src/tables.rs 'law.removal_floor = r.count.unwrap_or(0) as usize,' 'law.removal_floor = 2,'
+plant "seat law tables: a held row counted" src/tables.rs '        let p = if shut.contains(&f.family) {' '        let p = if false {'
 plant "seat law tables: the halt counted by its enact" src/tables.rs '            Policy::Strict(1, 2)
         } else if f.family == "moderator_recall" {' '            Policy::One
         } else if f.family == "moderator_recall" {'

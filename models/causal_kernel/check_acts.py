@@ -388,6 +388,10 @@ CONTESTED = (True, True)          # the contested pair: neither removal in force
 CONCLUDE = [
     ("an admission stating one_voice (a stand-in of one voice) is no admission's policy: with the table it concludes "
      "nothing", [GM4, grp("r", "offer", "E", "member", "one_voice", cosigners=("E",))], "r", False, True),
+    # custodian_replace HELD SHUT in 0.5.0 (the ruling: its voice and counted_at unstated): no count, so a row counted
+    # under it concludes nothing, even signed by every key of the set (2 of 2 before)
+    ("a counted row under custodian_replace, signed by every member: held shut, it concludes nothing",
+     [GM, grp("r", "offer", "D", "member", "custodian_replace", cosigners=("B", "C", "D"))], "r", False, False),
     # the ruling of 2026-11-28: accord_halt counts the halt's confirmation, a strict majority of the standing holders.
     # No act_of arm gives halt_confirm until its row's shape is stated, so the count is read without the table, on a
     # counted row of the accord stating accord_halt (h4's seating: h4's own signature is no voice of it)
