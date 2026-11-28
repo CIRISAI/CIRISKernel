@@ -860,11 +860,11 @@ only: the crate reads the edges, the charter and the issuer's standing from them
   - a change of the record;
   - an acceptance of an offer already in the act's own past.
 - **Named residual (one batch at one head).** Duty conferrals by the same deciding voices at the same heads are one
-  batch, and none is re-counted against another. A majority at a head could seat them all in one row there, and a
-  concurrent row at that head is causally the same. So that majority can still add to its batch later, from that
-  head, and outvote the body it has grown into (A and B, 2 of 3 at g, seat D and E, then F to I at g, then confer
-  as 6 of 9). This is the majority's power at that head. The same voices at a later head, or other voices, are
-  re-counted.
+  batch, and none is re-counted against another: a majority at a head could seat them all in one row there. A late row
+  of that batch at the old head concludes nothing for a reader whose line has passed that head. It is void as a
+  self-fork for a reader that holds a later row by the same signers. The residual is only a fresh reader that holds
+  no later row by them. That reader reads the late row as part of the batch, which is the stated cost of the head
+  rule. The same voices at a later head, or other voices, are re-counted.
 - **Named residual (the term).** Within its term a licence's instant is its holder's word, bounded below by the latest
   instant in its own past (`licensure_instant_before_its_past`). So a holder whose term has run can sign a licence
   dated inside the term, as long as nothing later-dated is in its past; the crate cannot tell it from one signed in
