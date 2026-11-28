@@ -302,26 +302,12 @@ fn before<R: KeyEndRow>(c: &Concluded<'_, R>, x: usize, e: usize, ra: Option<R::
 ///      in the past of each of `own`'s own ends ([`ends`], the plain end rule): a row signed with the reader's key
 ///      after that key's end is no row of its line (r97 K1).
 /// Limb (b) reads these rows per row against each end, with no ordering; any order rule is the person lane's, on
-/// top. The reference is `key_end.own_row`.
+/// top. The body is [`crate::seat::own_row`]; this lane reads the key's own ends for it. The reference is
+/// `key_end.own_row`.
 pub fn own_row<R: KeyEndRow + SeatRow>(c: &Concluded<'_, R>, a: usize, own: &R::Key, roster: &BTreeSet<R::Id>) -> bool {
-    let r = c.g.row(a);
-    let mine = r.signer() == own
-        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
-            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| c.g.in_past(q, a)).collect();
-            crate::seat::voices(r, &Past::new(&c.g, a, &anc)).contains(own)
-        });
-    if !mine {
-        return false;
-    }
-    let revoked = (0..c.g.len()).any(|x| {
-        let xr = c.g.row(x);
-        xr.seat_kind() == SeatKind::Unseat
-            && xr.scope().is_some_and(|s| s.as_ref() == "registered")
-            && xr.signer() == own
-            && xr.to().contains(own)
-            && c.g.in_past(x, a)
-    });
-    !revoked && ends(c, own, roster).into_iter().all(|(e, ra)| before(c, a, e, ra))
+    // the one definition is seat's ([`crate::seat::own_row`]); the key's own ends are this lane's to read
+    let es = ends(c, own, roster);
+    crate::seat::own_row(c, a, own, &|a| es.iter().all(|&(e, ra)| before(c, a, e, ra)))
 }
 
 // THE END RULE over the reader's own rows `own` ([`own_row`]): `k`'s signature on concluded row `i` stands against

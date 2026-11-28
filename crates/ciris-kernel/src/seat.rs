@@ -4421,6 +4421,35 @@ fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &s
     })
 }
 
+/// THE READER'S OWN ROW, the one definition for every reader's line (`key_end`'s limb (b) and [`takes_up`]): row
+/// `a` is reader `own`'s where (i) `own` signed it itself, concluded or not; or (ii) it is a CONCLUDED seat row (an
+/// offer or an unseat) of which `own` is a voice by [`voices`] (a cosigner, or the signer of a cosign row it names);
+/// (iii) never because a row claims `own` as a cosigner on any other row (r101 R2); (iv) each only where `own`'s key
+/// stands at it: no `registered` unseat of `own` by `own` in its past, and `ends_ok(a)`, the caller's reading of the
+/// key's own ends (a key lane's revocations, rotations and roster voids, which `key_end` reads and passes; `|_| true`
+/// where the caller holds no key lane). The reference is `checkpoint.own_row`.
+pub fn own_row<R: SeatRow>(c: &Concluded<'_, R>, a: usize, own: &R::Key, ends_ok: &dyn Fn(usize) -> bool) -> bool {
+    let g = &c.g;
+    let r = g.row(a);
+    let mine = r.signer() == own
+        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
+            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();
+            voices(r, &Past::new(g, a, &anc)).contains(own)
+        });
+    if !mine {
+        return false;
+    }
+    let revoked = (0..g.rows().len()).any(|x| {
+        let xr = g.row(x);
+        xr.seat_kind() == SeatKind::Unseat
+            && xr.scope().is_some_and(|s| s.as_ref() == "registered")
+            && xr.signer() == own
+            && xr.to().contains(own)
+            && g.in_past(x, a)
+    });
+    !revoked && ends_ok(a)
+}
+
 /// THE READER'S LINE taking up an identity's foundings `fs` (the ruling on one self roster per identity), MONOTONE,
 /// in the line's order: the reader's own rows (every row it signed or cosigned, concluded for everyone or not, each
 /// counting only where its key stands: its own revocation, an unseat of its `registered` seat, not in that row's past,
@@ -4431,32 +4460,9 @@ fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &s
 pub fn takes_up<R: SeatRow>(c: &Concluded<'_, R>, own: &R::Key, fs: &[usize]) -> BTreeSet<usize> {
     let g = &c.g;
     let n = g.rows().len();
-    let stands = |a: usize| {
-        !(0..n).any(|x| {
-            let xr = g.row(x);
-            xr.seat_kind() == SeatKind::Unseat
-                && xr.scope().is_some_and(|s| s.as_ref() == "registered")
-                && xr.signer() == own
-                && xr.to().contains(own)
-                && g.in_past(x, a)
-        })
-    };
     let reach = |a: usize| -> BTreeSet<usize> { fs.iter().copied().filter(|&f| a == f || g.in_past(f, a)).collect() };
-    let taking: Vec<usize> = (0..n)
-        .filter(|&a| {
-            let ar = g.row(a);
-            // its voices as the counted layer reads them ([`voices`]): every row it signed itself, its cosign rows
-            // among them, and a seat row (an offer or an unseat) that CONCLUDED where it is a cosigner. A claimed
-            // cosigner on any other row, or on a seat row that concluded nothing, is never read (r101 R2)
-            let own_row = ar.signer() == own
-                || (matches!(ar.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
-                    // its voices as the counted layer reads them: signer, cosigners and cosign rows ([`voices`])
-                    let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();
-                    voices(ar, &Past::new(g, a, &anc)).contains(own)
-                });
-            own_row && stands(a) && !reach(a).is_empty()
-        })
-        .collect();
+    // the reader's own rows ([`own_row`], the one definition), its key's ends from a key lane not read here
+    let taking: Vec<usize> = (0..n).filter(|&a| own_row(c, a, own, &|_| true) && !reach(a).is_empty()).collect();
     taking.iter().copied().filter(|&a| !taking.iter().any(|&b| b != a && g.in_past(b, a))).flat_map(reach).collect()
 }
 

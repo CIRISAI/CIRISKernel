@@ -374,9 +374,19 @@ plant "a family's founding read as a self roster's (r99 drift)" src/seat.rs '   
 }'
 plant "a landed self-roster window is no head of a later count" src/seat.rs '        (change(law, q, obj, room.as_deref()) || landed_change(p, q, obj))' '        change(law, q, obj, room.as_deref())'
 plant "the reader's line read out of order: a later row over the rival takes it up too (r100r)" src/seat.rs '.filter(|&a| !taking.iter().any(|&b| b != a && g.in_past(b, a)))' '.filter(|_| true)'
-plant "another signer's claimed cosigners seed the reader's line (r101 R2)" src/seat.rs '            let own_row = ar.signer() == own' '            let own_row = ar.signer() == own || ar.cosigners().contains(own)'
-plant "a seat row that concluded nothing seeds the reader's line by its cosigners (r101 S5, S6)" src/seat.rs '(matches!(ar.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {' '(matches!(ar.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && {'
-plant "the line reads a seat row's voices without its cosign rows (cosigners only)" src/seat.rs '                    voices(ar, &Past::new(g, a, &anc)).contains(own)' '                    ar.cosigners().contains(own) && !anc.is_empty()'
+plant "another signer's claimed cosigners seed the reader's line (r101 R2)" src/seat.rs '    let mine = r.signer() == own
+        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
+            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();' '    let mine = r.signer() == own || r.cosigners().contains(own)
+        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
+            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();'
+plant "a seat row that concluded nothing seeds the reader's line by its cosigners (r101 S5, S6)" src/seat.rs '        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
+            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();' '        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && {
+            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();'
+plant "the line reads a seat row's voices without its cosign rows (cosigners only)" src/seat.rs '            voices(r, &Past::new(g, a, &anc)).contains(own)
+        });
+    if !mine {' '            r.cosigners().contains(own) && !anc.is_empty()
+        });
+    if !mine {'
 plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '            [g] if !self.revoked.contains(g) => Some(g.clone()),' '            [g] => Some(g.clone()),'
 plant "an agent's key of a person's roster speaks for that person" src/seat.rs '        if self.agents.contains(k) {
             return Some(k.clone());
@@ -899,10 +909,14 @@ plant "seat: a lift objection not read by the key view (lift_key_view_unread)" s
 plant "seat: a lone removal's single-key receipt not read by the key view (receipt_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer()) && false) {'
 plant "seat: a lone act not read by the key view (lone_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer()) && false) {'
 plant "key_end: a retired key's revocation an end (retired_key_revokes)" src/key_end.rs 'if rk == k && q.signer() == k && rots.is_empty() {' 'if rk == k && q.signer() == k {'
-plant "key_end: a reader's own row after its key's end on its line (reader_line_unchecked)" src/key_end.rs '    !revoked && ends(c, own, roster).into_iter().all(|(e, ra)| before(c, a, e, ra))' '    !revoked || ends(c, own, roster).is_empty()'
-plant "key_end: own_row reads only concluded rows the reader signed (own_unconcluded_unread)" src/key_end.rs '    let mine = r.signer() == own' '    let mine = (r.signer() == own && c.concluded(a))'
-plant "key_end: own_row reads no voice of a concluded seat row (own_voice_unread)" src/key_end.rs '            crate::seat::voices(r, &Past::new(&c.g, a, &anc)).contains(own)' '            crate::seat::voices(r, &Past::new(&c.g, a, &anc)).contains(own) && false'
-plant "key_end: own_row reads any row claiming the reader as a cosigner (own_claimed_cosigner)" src/key_end.rs '        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {' '        || r.cosigned_by().contains(own) || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {'
+plant "key_end: a reader's own row after its key's end on its line (reader_line_unchecked)" src/key_end.rs '    crate::seat::own_row(c, a, own, &|a| es.iter().all(|&(e, ra)| before(c, a, e, ra)))' '    crate::seat::own_row(c, a, own, &|_| es.is_empty() || true)'
+plant "key_end: own_row reads only concluded rows the reader signed (own_unconcluded_unread)" src/seat.rs '    let mine = r.signer() == own
+        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
+            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();' '    let mine = (r.signer() == own && c.concluded(a))
+        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
+            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();'
+# folded into the one own_row (seat::own_row): key_end: own_row reads no voice of a concluded seat row (own_voice_unread), as the r101 plants on it
+# folded into the one own_row (seat::own_row): key_end: own_row reads any row claiming the reader as a cosigner (own_claimed_cosigner), as the r101 plants on it
 plant "key_end: a voided rotation names a successor (successor_roster_unread)" src/key_end.rs '        .filter(|&i| !voided(c, i, roster))' '        .filter(|&i| !voided(c, i, roster) || true)'
 plant "key_end: the reader's taken-up line unread (taken_up_unread)" src/key_end.rs '|| own.iter().any(|&a| (a == i || c.g.in_past(i, a)) && !c.g.in_past(e, a))' '|| own.is_empty() && false'
 plant "key_end: a count final by acknowledgement reopened (final_count_unread)" src/key_end.rs '|| finals.iter().any(|&fi| !c.g.in_past(e, fi))' '|| (finals.is_empty() && false)'

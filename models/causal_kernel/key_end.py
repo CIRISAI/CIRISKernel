@@ -254,27 +254,22 @@ def own_row(S, a, own, roster=frozenset(), voices=None):
     Limb (b) reads these rows per row against each end, with no ordering; any order rule is the person lane's, on
     top. `voices`: seat.voices by default. MUTATIONS reader_line_unchecked ((iv) unread), own_unconcluded_unread
     ((i) concluded rows only), own_voice_unread ((ii) unread), own_claimed_cosigner ((iii): any row listing own)."""
-    if a["signer"] == own:
-        mine = bool(S.C.get(a["id"])) or "own_unconcluded_unread" not in MUT
-    elif "own_claimed_cosigner" in MUT:
-        mine = own in a.get("cosigners", ())
-    elif a["kind"] in ("offer", "unseat") and S.C.get(a["id"]) and "own_voice_unread" not in MUT:
-        import seat as _ST
-        vs = voices or _ST.voices
-        P = [q for q in S.Cs if q["id"] in S.anc[a["id"]]]
+    # the one definition is checkpoint.own_row (the crate's seat::own_row); the key's own ends are this lane's
+    import checkpoint as _CP
+    import seat as _ST
+    vs = voices or _ST.voices
+    def no_key_view(r, P):                   # (ii) is read with no key view: the key view is (iv)'s
         _ST.KEY_VIEW.append(None)
         try:
-            mine = own in vs(a, P)
+            return vs(r, P)
         finally:
             _ST.KEY_VIEW.pop()
-    else:
-        mine = False
-    if not mine or "reader_line_unchecked" in MUT:
-        return mine
-    if any(S.by[x]["kind"] == "unseat" and S.by[x].get("scope") == "registered" and S.by[x]["signer"] == own
-           and own in S.by[x].get("to", ()) for x in S.anc[a["id"]] if x in S.by):
-        return False
-    return all(_before(S, a["id"], e) for e in ends_of(S, own, roster))
+    es = None
+    def ends_ok(r):
+        nonlocal es
+        if es is None: es = ends_of(S, own, roster)
+        return all(_before(S, r["id"], e) for e in es)
+    return _CP.own_row(S, a, own, ends_ok, no_key_view, MUT)
 
 
 def _own_rows(S, reader, roster=frozenset()):
