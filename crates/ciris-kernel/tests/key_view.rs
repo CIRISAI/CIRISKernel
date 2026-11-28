@@ -8,6 +8,7 @@ use ciris_kernel::cut::CutSpec;
 use ciris_kernel::key_end::{conclude_rule, counts_by, KeyReading, KeyView};
 use ciris_kernel::layers::{conclude, kept, Past};
 use ciris_kernel::seat::{seat_rule, voices_with, SeatLaw};
+use ciris_kernel::window::{self, WindowSpec};
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -49,6 +50,7 @@ impl CutSpec<TRow> for KeyCut<'_> {
 fn key_view_cases() {
     let fx = fixture("key_end_counts.json");
     let law: SeatLaw = law_of(fx.at("law"));
+    let windows: BTreeMap<String, WindowSpec<i64>> = windows_of(fx.at("windows"));
     let (mut cases, mut bad) = (0, 0);
     for c in fx.at("cases").arr() {
         let name = c.at("name").s();
@@ -73,12 +75,26 @@ fn key_view_cases() {
         }
         let reading = KeyReading { c: &kc };
         let spec = KeyCut { kv: if c.at("view").b() { Some(&reading) } else { None } };
-        let sc = conclude(kept(&seat_rows, |_| true), |p| seat_rule(p, &law, &spec, &|_| true), None);
+        let win = c.at("rule").s() == "window";
+        let sc = conclude(
+            kept(&seat_rows, |_| true),
+            |p| {
+                if win {
+                    if let Some(v) = window::rule(p, &|w| windows.get(w).cloned(), &law, &spec) {
+                        return v;
+                    }
+                }
+                seat_rule(p, &law, &spec, &|_| true)
+            },
+            None,
+        );
         let x = sc.g.idx(&"x".to_string()).expect("x");
-        let anc: Vec<usize> = sc.cs().iter().copied().filter(|&q| sc.g.in_past(q, x)).collect();
-        let p = Past::new(&sc.g, x, &anc);
-        let v: Vec<String> = voices_with(sc.g.row(x), &p, &spec).into_iter().collect();
-        cmp(v == c.at("voices").strs(), format!("voices of x: {v:?}"));
+        if let Some(want) = c.get("voices").filter(|v| !v.is_null()) {
+            let anc: Vec<usize> = sc.cs().iter().copied().filter(|&q| sc.g.in_past(q, x)).collect();
+            let p = Past::new(&sc.g, x, &anc);
+            let v: Vec<String> = voices_with(sc.g.row(x), &p, &spec).into_iter().collect();
+            cmp(v == want.strs(), format!("voices of x: {v:?}"));
+        }
         cmp(sc.concluded(x) == c.at("concluded").b(), "x concluded".into());
     }
     report("the key view (check_key_view.py)", cases, bad);

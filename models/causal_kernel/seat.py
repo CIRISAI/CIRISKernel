@@ -1496,8 +1496,12 @@ def election_count(r, P, past, by):
     gone = {w["target"] for w in named if w["kind"] == "withdraw" and w["target"] in by
             and by[w["target"]]["kind"] == "ballot" and w["signer"] == by[w["target"]]["signer"]}
     declined = {d["signer"] for d in K.sel(P, kind="decline") if d["id"] in mine and d["signer"] in el}
+    # the key view: a ballot counts only where its signer's signature on it counts by the end rule (MUTATION
+    # ballot_key_view_unread: every ballot counts)
+    kv = KEY_VIEW[-1] if "ballot_key_view_unread" not in MUT else None
     ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot")
                if b["id"] in mine and b["signer"] in voters and b["id"] not in gone
+               and (kv is None or kv(b["id"], b["signer"]))
                and (set(b["ranking"]) <= voters or "ballot_nonmember_ranked" in MUT)
                and (len(b["ranking"]) <= ELECTION_RANKS or "ballot_ranks_unbounded" in MUT)]
     if not ballots: return False

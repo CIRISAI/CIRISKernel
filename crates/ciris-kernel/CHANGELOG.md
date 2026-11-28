@@ -8,7 +8,10 @@ seat count reads its voices, keeps the signer's and each cosigner's signature on
 cosign row's signer's, only where `counts_by` holds over one causal order of the key and seat lanes that the caller
 builds (`KeyEndRow::instant`, defaulted, a seat row's signed instant). A store with key records must supply it; with
 none every voice counts (a caller with no key lane). Cases in `check_key_view.py`, fixture `key_end_counts.json`
-(replayed by `tests/key_view.rs`); plants `key_view_unread`, `cosigner_key_unchecked`, crate twins.
+(replayed by `tests/key_view.rs`); plants `key_view_unread`, `cosigner_key_unchecked`, crate twins. Every lane that
+counts a voter reads the same key view: a window's answers (`window`) and an election's ballots (`seat::election`) too
+(plants `window_key_view_unread`, `ballot_key_view_unread`). Merged with the key-person map at the voices step, the
+key view comes first (dead keys out), then persons (living keys mapped).
 
 **An ended key's row counts by the end rule, never by a cite** (the Constitution's ruling: for counts, a removed or
 ended key's late vote cited by a friendly member stays cut; only content may be anchored by others' rows).

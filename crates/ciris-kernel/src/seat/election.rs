@@ -715,6 +715,8 @@ pub(super) fn count<R: SeatRow, S: CutSpec<R>>(
                 && mine.contains(b.id())
                 && voters.contains(b.signer())
                 && !gone.contains(b.id())
+                // the key view: a ballot counts only where its signer's signature on it counts by the end rule
+                && spec.key_view().is_none_or(|kv| kv.counts(b.id(), b.signer()))
                 && b.ranking().iter().all(|k| voters.contains(k))
                 && b.ranking().len() <= ELECTION_RANKS
         })

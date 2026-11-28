@@ -296,6 +296,16 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
     elapsed: bool,
 ) -> String {
     let w = x.w;
+    // the key view: an answer counts only where its signer's signature on it counts by the end rule
+    // (`CutSpec::key_view`; none: every answer counts)
+    let kept: Vec<&R>;
+    let answers: &[&R] = match x.spec.key_view() {
+        Some(kv) => {
+            kept = answers.iter().copied().filter(|a| kv.counts(a.id(), a.signer())).collect();
+            &kept
+        }
+        None => answers,
+    };
     let tv: BTreeSet<R::Key> = if w.target_votes { target.cloned().into_iter().collect() } else { BTreeSet::new() };
     let mut voters = x.base(&Base::All);
     voters.extend(x.held(&Base::Scope("moderate".into())));
