@@ -178,28 +178,39 @@ migrations, and the local operational store.
 - The election's seating is the one act read from the policy the row states (`Policy::Ranked`), and of
   `moderate` only.
 
-**The moderator election** (C1 to C5, E1 to E3, F1 to F4; CHANGELOG). Present:
-- each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` its election's id row: the
-  room's founding row for the first election, then the seating of the one before; naming the end of the last
-  holder's seat it votes on;
+**The moderator election** (the ruled close, the Constitution 2026-11-28; CHANGELOG). Present:
+- each seat end as it happened: a holder's lay-down of `moderate` (its withdrawal of its own seat), a counted
+  recall, a leaving. Each is a roster change and names the newest heads (H4). A seat ends once: an end with an end
+  of the same seat in its past concludes nothing. A holder's own lay-downs of ONE stay, however many and at
+  whatever heads, are ONE vacancy and no fork. Two concurrent counted ends are a fork, which opens nothing until a
+  counted end with both in its past resolves it;
+- the opening as `SeatKind::ElectionOpen`: it cites the one seat end it opens for, names the newest counted heads
+  in its past, and is counted by a strict majority of the members, as persons, at those heads, never fewer than
+  min(2, members). The electorate is the roster at its heads. Two openings for one vacancy, neither in the other's
+  past, are contested, and neither is in force until an opening with both in its past is counted. A person
+  cosigning both has no say in either. An opening whose heads are all strictly in the past of a rival's heads is
+  behind it, and is no rival;
+- each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` the opening;
 - RULE: each election row a key signs (ballot, withdrawal, decline, receipt, seating) builds on that key's earlier
   rows of that election: a row that does not is the key saying two things, and the key is out of the election (a
   device restored from an old backup included). The
   fork is per verified signing key: return from `SeatRow::signing_key` the key whose signature the door verified
   (the room key in a private room), never a client-supplied value; return `None` where the signer signed;
 - a decline as `SeatKind::Decline`, `of()` its election;
-- a holder's lay-down of `moderate` (its withdrawal of its own seat) is a roster change: it names the newest
-  heads, as any roster change (H4). A seat ends once: an end (a lay-down, a counted recall, a
-  withdrawal of the offer) with an end of the same seat in its past concludes nothing;
 - GUIDANCE (not a rule): build every other row a key signs on that key's own tips, so the rule above holds
   whatever later becomes an election row;
 - the winner's own seating: an Offer of `moderate`, `Conf::Group`, policy `moderator_election`, signed by the
-  winner, `to()` the winner, `of()` its election, naming its whole set: the ballots, the voters' own withdrawals
-  of their ballots, the declines, the leavings it reads, and the end or ends of the last holder's seat it reads
-  the electorate at. Nothing it does not name is read for the count. No `options()`;
-- each member's receipt of the seating as `SeatKind::Ack` with `of()` the seating: a strict majority of the
-  electorate, the winner and the departed apart, closes the election. A room re-closes an election an equivocator
-  reopened by removing it by count and a receipt after the removal.
+  winner, `to()` the winner, `of()` the opening, citing its ballots. No `options()`;
+- each member's receipt of the seating as `SeatKind::Ack` with `of()` the seating: clean receipts by a strict
+  majority of the electorate, read as persons through the key view, the winner and the departed apart, close the
+  election. Departures are read as the reader's roster takes them.
+- The close takes a reader (`election_closed`): it reads the rows as that reader's roster TAKES them (its void, its
+  line, the removals it holds contested or out of force). A lay-down behind the reader's line ends no seat in its
+  roster and is no vacancy for its elections, until an act on its line is built on it. A reader holding rival ends
+  or openings its roster takes gets no closed answer: it waits.
+- **Residual, stated (beside H4):** when the election cites a holder's OLDER lay-down, a reader that acknowledged
+  only the newest head sees the seat empty (A out by the newer lay-down; the cited one is behind its line) until it
+  acknowledges the seating, and then it converges.
 
 ## Points to settle before adoption
 
