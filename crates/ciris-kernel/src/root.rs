@@ -832,20 +832,20 @@ where
         self.concluded().into_iter().filter(|b| !v.contains(b.id())).collect()
     }
 
-    /// The reader's first bundle; None: `genesis_bundle_not_anchored`.
+    /// The reader's first bundle; None: `genesis_bundle_not_anchored`. Its anchor by id names that first bundle;
+    /// by the holders' thumbprints, the one first bundle whose holders they are: two or more that match give
+    /// neither (CIRISVerify v23.8.0).
     pub fn first(&self, rd: &Reader<B::Id, B::Key>) -> Option<B::Id> {
-        let mut firsts: Vec<&B::Id> =
-            self.valid().into_iter().filter(|b| b.prev().is_empty()).map(|b| b.id()).collect();
-        firsts.sort();
-        firsts
+        let firsts: Vec<&B::Id> = self.valid().into_iter().filter(|b| b.prev().is_empty()).map(|b| b.id()).collect();
+        if let Some(a) = rd.anchor.as_ref().filter(|a| firsts.contains(a)) {
+            return Some(a.clone());
+        }
+        let t = rd.thumbs.as_ref()?;
+        let m: Vec<&B::Id> = firsts
             .into_iter()
-            .find(|i| {
-                rd.anchor.as_ref() == Some(*i)
-                    || rd.thumbs.as_ref().is_some_and(|t| {
-                        self.b(i).is_some_and(|b| b.holders().iter().cloned().collect::<BTreeSet<_>>() == *t)
-                    })
-            })
-            .cloned()
+            .filter(|i| self.b(i).is_some_and(|b| b.holders().iter().cloned().collect::<BTreeSet<_>>() == *t))
+            .collect();
+        (m.len() == 1).then(|| m[0].clone())
     }
 
     /// The reader's own line, and the bundles void for the reader by it. Its acknowledgements are its own rows, each

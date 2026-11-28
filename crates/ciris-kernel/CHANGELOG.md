@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+**Who else signs a join; behind exactly; a thumbprint anchor matching two** (CIRISVerify's per-bundle read, the
+Constitution's readings 1 and 3), both languages. A join is counted only where, besides each predecessor's
+majority, a holder no named predecessor seats signs it under its own key, and a holder whose recovery commitment in
+the join differs from one a predecessor seating it carries signs it under a key some predecessor seats it at (not
+a retired one): after a recovery on one branch, the join carries the recovered holder's voice
+(`Root::join_signers`). A recovery is `recovery_behind_head` exactly where it is `behind` a bundle its holder signed:
+a sibling on the same predecessor is a fork, both valid. Under a thumbprint anchor, two first bundles matching the
+holders give neither (`Root::first`). **Answers change:** a join adding a holder, or changing a commitment, without
+that holder's voice concludes nothing (`check_root.py`'s settling bundle now carries h3's voice, the two-recoveries
+join h3b's); RJ0's recovery beside its holder's own b1 now concludes, a reader holding both lines is at b0 until a
+join names both, and that join (jx) settles them. Cases for retired and left keys; plants `join_signers_unread`,
+`recovery_behind_sibling`, `thumbs_pick_first`.
+
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.
 Several removals are several rows, each judged alone at its head. The same for a recall (one holder), a duty

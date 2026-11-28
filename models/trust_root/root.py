@@ -561,9 +561,11 @@ class Root:
         """The reader's first bundle, or None (`genesis_bundle_not_anchored`)."""
         firsts = [i for i in self.valid() if not self.by[i]["prev"]]
         if "anchor_unread" in MUT: return firsts[0] if firsts else None
-        for i in sorted(firsts):
-            if rd["anchor"] == i or (rd["thumbs"] is not None and frozenset(self.by[i]["holders"]) == rd["thumbs"]):
-                return i
+        if rd["anchor"] in firsts: return rd["anchor"]
+        # under a thumbprint (holders) anchor, two first bundles that both match give NEITHER (CIRISVerify v23.8.0;
+        # MUTATION thumbs_pick_first: the least id of them)
+        m = sorted(i for i in firsts if rd["thumbs"] is not None and frozenset(self.by[i]["holders"]) == rd["thumbs"])
+        if len(m) == 1 or (m and "thumbs_pick_first" in MUT): return m[0]
         return None
 
     def _rv(self, settled, ids, keep=frozenset()):

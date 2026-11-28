@@ -255,16 +255,22 @@ CASES = [
      (), (), RD(anchor="b0", acks=("k1", "k2")),
      {"concluded": {"k1": T, "k2": T}, "void": {"j1", "j2", "k1", "k2"}, "heads": ("s1", "s2"),
       "holders": {"h1", "h2", "h3", "h4", "h5"}}),
-    ("join", "and a bundle naming both settlers settles all, by each settler's majority (h1 and h2 of three)",
+    ("join", "and a bundle naming both settlers settles all, by each settler's majority (h1 and h2 of three); h3, whom "
+             "neither settler seats, signs it under its own key (reading 1)",
      FJ(("h1", "h4"), ("h2", "h5")) + [nxt("k1", ("j1", "j2"), ("h1", "h2", "h4"), ("h1", "h2", "h4", "h5"), version=3),
                                        nxt("k2", ("j1", "j2"), ("h1", "h2", "h5"), ("h1", "h2", "h4", "h5"), version=3, charter=C1),
-                                       nxt("m", ("k1", "k2"), ("h1", "h2", "h3"), ("h1", "h2"), version=4, charter=C3)],
+                                       nxt("m", ("k1", "k2"), ("h1", "h2", "h3"), ("h1", "h2", "h3"), version=4, charter=C3)],
      (), (), RD(anchor="b0", acks=("m",)), {"concluded": {"m": T}, "void": set(), "heads": ("m",), "holders": {"h1", "h2", "h3"}}),
     # ---- the reader ------------------------------------------------------------------------------------------------
     ("in force", "per reader: a reader that acknowledged s1 alone holds s1's holders; one that acknowledged nothing, "
                  "its anchor's", FORK, (), (), RD(anchor="b0", acks=("s1",)), {"heads": ("s1",), "holders": {"h1", "h2", "h3", "h4"}}),
     ("in force", "the same rows, a reader that acknowledged nothing: the anchor, b0", FORK, (), (), ANC,
      {"heads": ("b0",), "holders": set(H3)}),
+    ("anchor", "under a thumbprint anchor, two first bundles that both match the holders give NEITHER (CIRISVerify): "
+               "genesis_bundle_not_anchored", [B0, dict(B0, id="b0z", seats=("n2",))], (), (), RD(thumbs=H3),
+     {"heads": None, "holders": None}),
+    ("anchor", "the same pair under a bundle anchor: the one it names", [B0, dict(B0, id="b0z", seats=("n2",))], (), (),
+     RD(anchor="b0z"), {"heads": ("b0z",), "seats": {"n2"}}),
     ("anchor", "the reader's anchor by the holders' thumbprints", LIN, (), (), RD(thumbs=H3, acks=("b1",)),
      {"heads": ("b1",)}),
     ("anchor", "no anchor: genesis_bundle_not_anchored", LIN, (), (), RD(acks=("b1",)), {"heads": None}),
@@ -400,9 +406,10 @@ XB1 = nxt("b1", "b0", H3, ("h1", "h2", "h3"))
 XB2 = nxt("b2", "b1", H3 + ("h4",), ("h1", "h2", "h3"), version=2)
 XRC = nxt("rx", "b0", ("h1", "h2", "h3z"), ("r:h3",), recovers=("h3", "h3z"), recovery={"h1": "r:h1", "h2": "r:h2", "h3z": "r:h3z"})
 CASES += [
-    ("attack", "RJ0: a removed holder's recovery at b0 (h1, removed at b2, recovers to h1x): its prev b0 is in the "
-               "lineage past of b1, which h1 signed, so it concludes nothing (recovery_behind_head)", RL + [RA], (), (),
-     RD(anchor="b0", acks=("b2",)), {"concluded": {"ra": Fa}, "void": set(), "heads": ("b2",)}),
+    ("attack", "RJ0: a removed holder's recovery at b0 (h1, removed at b2, recovers to h1x). Its prev b0 is what b1, "
+               "which h1 signed, extends: ra is b1's sibling, a fork of siblings, both valid (the Constitution's reading "
+               "3; was recovery_behind_head before it). The reader at b2 stays there", RL + [RA], (), (),
+     RD(anchor="b0", acks=("b2",)), {"concluded": {"ra": T}, "void": set(), "heads": ("b2",)}),
     ("attack", "RJ1: h3 alone joins b2 and ra (one charter): the join is counted over their fold (h3 and h1x), and h3 "
                "is one of two: refused", RL + [RA, RJX], (), (), RD(anchor="b0", acks=("jx",)),
      {"concluded": {"jx": Fa}, "heads": ("b0",)}),
@@ -429,15 +436,16 @@ CASES += [
     ("attack", "G1: removed holders h1 and h2 grant on b0; at b2 (h3 h4 h5) they are no voices in force: refused",
      RL, (), (GR("g1", "b0", "uX", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b2",)),
      {"grant": {"g1": (False, "grant_voices_not_in_force")}}),
-    ("attack", "RJ0 read by a reader that acknowledged ra first, then b2: ra concludes nothing, and the reader holds "
-               "b2", RL + [RA], (), (), RD(anchor="b0", acks=("ra", "b2")), {"heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
+    ("attack", "RJ0 read by a reader that acknowledged ra first, then b2: both siblings' lines are its own, and it is at "
+               "b0 with b0's holders until a join names both (reading 3)", RL + [RA], (), (), RD(anchor="b0", acks=("ra", "b2")),
+     {"heads": ("b0",), "holders": {"h1", "h2", "h3"}}),
     ("attack", "RJ0 by a reader that acknowledged b2 first: ra is behind its line, void for it", RL + [RA], (), (),
      RD(anchor="b0", acks=("b2", "ra")), {"heads": ("b2",)}),
-    ("attack", "a join naming a refused predecessor (ra, recovery_behind_head) waits on nothing valid and concludes "
-               "nothing: the reader stays at b2",
+    ("attack", "a join naming both siblings' lines (b2 and ra) settles the fork, h1's voice under h1x, the key ra seats "
+               "it at (the Constitution's reading 3; ra was refused before it): the reader is at jx",
      RL + [RA, nxt("jx", ("b2", "ra"), ("h3", "h4", "h1x"), ("h3", "h4", "h1x"), version=3,
                    recovery={"h3": "r:h3", "h4": "r:h4", "h1x": "r:h1x"})], (), (), RD(anchor="b0", acks=("b2", "jx")),
-     {"concluded": {"jx": Fa}, "heads": ("b2",), "holders": {"h3", "h4", "h5"}}),
+     {"concluded": {"jx": T}, "heads": ("jx",), "holders": {"h3", "h4", "h1x"}}),
     ("attack", "RJ1 with ra under a different charter: h3 alone joins b2 and ra; one of b2's three: refused (only the "
                "per-predecessor count closes this cheap-tip shape)",
      RL + [dict(RA, charter=C1), nxt("jx", ("b2", "ra"), ("h3",), ("h3",), version=3, charter=C1, recovery={"h3": "r:h3"})],
@@ -842,7 +850,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
           "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names",
           "concurrent_keep_bundle_only",
-          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling")
+          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first")
 
 
 def answer(bs, rv, gs, rd, want):
