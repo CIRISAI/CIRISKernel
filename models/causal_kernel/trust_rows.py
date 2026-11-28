@@ -173,7 +173,9 @@ def speaks_for(T, signers, src):
         # accept / trust_edge / affiliation -> cosigned_act, held in seat.PENDING_ACTS)
         if ST.kind_of(T.by, src) == "affiliation" and "affiliation_edge_duty_count" not in MUT:
             rule = None if "pending_unread" in MUT else ST.policy_for("accept", "trust_edge", "affiliation")
-            return rule is not None and rule[0] == ("cosigned_act",) and declared_count(T, signers, src)
+            # (the row is `affiliation_member_action|cosigned_act`, choice `row`: the officers' count under the
+            # declared protocol, cosigned_act, is the path an edge takes)
+            return rule is not None and "cosigned_act" in rule[0] and declared_count(T, signers, src)
         # the acts row binds the count (MUTATION pending_unread: the table without the pending row)
         rule = None if "pending_unread" in MUT else ST.policy_for("accept", "trust_edge", "community")
         if rule is None or rule[0] != ("duty_confer",):

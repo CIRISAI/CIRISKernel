@@ -107,7 +107,6 @@ fn is_community<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, o: &ObjO
     c.concluded_id(id) && kind_of(seats.law(), &get, o).is_some_and(|k| CHARTER_KINDS.contains(&k))
 }
 
-
 /// A strict majority of `n`, never fewer than two where `n` is two or more; a lone holder alone (CC 4.5.4 (iv)).
 fn counted(yes: usize, n: usize) -> bool {
     match n {
@@ -155,7 +154,7 @@ fn speaks_for<R: SeatRow, S: CutSpec<R>>(
             let get = |i: &R::Id| g.idx(i).map(|x| g.row(x));
             if kind_of(seats.law(), &get, src) == Some(CommunityKind::Affiliation) {
                 let bound = policy_for(seats.law(), Act::Accept, ScopeClass::TrustEdge, CommunityKind::Affiliation)
-                    .is_some_and(|(p, _)| p.len() == 1 && p[0] == "cosigned_act");
+                    .is_some_and(|(p, _)| p.iter().any(|x| x == "cosigned_act"));
                 let voices: BTreeSet<R::Key> = who.iter().map(|k| (*k).clone()).collect();
                 return bound
                     && declared_count(past, seats.law(), seats.spec(), src, &seats.protocol_body(src), &voices);
