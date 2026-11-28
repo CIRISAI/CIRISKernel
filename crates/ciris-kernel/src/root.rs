@@ -453,7 +453,9 @@ where
             2 * voices.intersection(&base).count() > base.len()
         // each holder a later bundle adds signs it too, as does each holder whose recovery commitment it changes (CC
         // 2.6.1.11, "How a bundle is counted"; a join reads it over each predecessor)
-        }) && self.join_signers(b).iter().all(|(_, ks)| ks.iter().any(|k| voices.contains(k)))
+        // a bounded settler adds nobody: it states nothing of its own and names which contested sibling stands, whose
+        // added holders consented by signing it; it needs exactly its own count (the Constitution's ruling)
+        }) && (self.bounded_settler(b) || self.join_signers(b).iter().all(|(_, ks)| ks.iter().any(|k| voices.contains(k))))
     }
 
     /// The holders of later bundle `b` that must sign it beside its predecessors' majorities, each with the keys its

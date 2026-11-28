@@ -357,8 +357,12 @@ class Root:
         # each holder a later bundle adds signs it too, as does each holder whose recovery commitment it changes (CC
         # 2.6.1.11, "How a bundle is counted"; a join reads it over each predecessor). MUTATION join_signers_unread:
         # nobody else; added_signers_join_only: only a join's
+        # a bounded settler adds nobody: it states nothing of its own and names which contested sibling stands, whose
+        # added holders consented by signing it; it needs exactly its own count (the Constitution's ruling; MUTATION
+        # settler_signs_for_added: it is read as adding the sibling's holders)
         if prevs and "count_over_own" not in MUT and "join_common_base" not in MUT and "join_union" not in MUT \
-                and "join_signers_unread" not in MUT and ("added_signers_join_only" not in MUT or len(prevs) >= 2):
+                and "join_signers_unread" not in MUT and ("added_signers_join_only" not in MUT or len(prevs) >= 2) \
+                and ("settler_signs_for_added" in MUT or not self.bounded_settler(b)):
             return all(frozenset(voices) & ks for _, ks in self.join_signers(b, prevs))
         return True
 
