@@ -866,7 +866,22 @@ only: the crate reads the edges, the charter and the issuer's standing from them
   state its `asserted_at`, or it meets no term.
 - Body growth: an authority act concurrent with a change of its body the reader holds is counted over the grown
   body, and one behind the reader's own acknowledged line concludes nothing for it. Present every row the reader
-  holds: a reader holding none of the body's newer changes is the residual (it cannot know).
+  holds: a reader holding none of the body's newer changes is the residual (it cannot know). The same re-count
+  (`seat::recount_on_growth`, one function for the seat walk and the trust walk) covers every conferral of an
+  authority seat:
+  - a lone conferral is gated again against the grown body;
+  - a counted conferral is counted at the body's newest counted changes over the grown rows, with the ends the reader
+    holds read in.
+  Growth is seating only: offers and their acceptances. These are no growth against the act:
+  - an end;
+  - a change of the record;
+  - an acceptance of an offer already in the act's own past.
+- **Named residual (one batch at one head).** Duty conferrals by the same deciding voices at the same heads are one
+  batch, and none is re-counted against another: a majority at a head could seat them all in one row there. A late row
+  of that batch at the old head concludes nothing for a reader whose line has passed that head. It is void as a
+  self-fork for a reader that holds a later row by the same signers. The residual is only a fresh reader that holds
+  no later row by them. That reader reads the late row as part of the batch, which is the stated cost of the head
+  rule. The same voices at a later head, or other voices, are re-counted.
 - **Named residual (the term).** Within its term a licence's instant is its holder's word, bounded below by the latest
   instant in its own past (`licensure_instant_before_its_past`). So a holder whose term has run can sign a licence
   dated inside the term, as long as nothing later-dated is in its past; the crate cannot tell it from one signed in

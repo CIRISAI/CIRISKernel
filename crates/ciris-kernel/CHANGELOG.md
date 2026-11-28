@@ -13,6 +13,27 @@ own: its key-end cut is the caller's `ends_ok` (`key_end` passes `key_ends`; a r
 view as a fifth argument, so a caller can no longer build a person map that silently misses a key-lane revocation
 (r106 PG1). `key_end::none()` (`key_end::NoKeyLane`) is the named view for an adopter with no key lane, and gives up
 key-lane revocations; the seat counts pass their cut's key view, `none()` where the cut carries none.
+**The re-count on growth, one function (the DRY item; r81 B2 generalised; attack-r's r95, r97).**
+`seat::recount_on_growth` (both languages; `pub(crate)` in the crate) is the one re-count, read by the Seats build
+and by `trust_rows`' licence and edge path (`recounted`). The growth helpers move from `trust_rows` into `seat`
+(`body_change`, `growth_of`, `concurrent_growth`, `one_batch`, `with_growth`). An authority act concurrent with
+growth of its body the reader holds is re-counted over its own past with that growth, at the newest counted
+changes there:
+- a lone conferral by the one gate (B2's arm);
+- a counted conferral by its count, against the growth of its DECIDING body only: rows seating a key in the body
+  it is counted over, never a change of the record, and not the same deciding voices' duty conferrals at the
+  same heads, which are one batch;
+- an edge by its owner's authority set.
+Growth is seating changes and their acceptances; an end is no growth. An acceptance of a void offer, or of an offer
+in the act's own past, is no growth. The grown body reads the ends the reader holds. A conferral that fails seats
+nothing, and every row built on it is void with it. A change of the record, an election's seating and a lift are
+read by their own counts. **The batch, as the Constitution ruled (r98):** a row from behind the act (its heads in
+the act's own past, older than the act's: an acceptance of an offer in its past, or the same voices' new row at an
+old head after their own later row) is no growth against it and is itself the one re-counted; a reader whose line
+has passed the head reads such a row as behind its line. **Stated residual:** a reader with no line, holding no
+later row by the signers, reads the same voices' duty conferrals at one head as one batch (the head rule's stated
+cost). Plants: `counted_recount_unread`, `growth_ends_read`, `growth_any_body`,
+`behind_grows`, `growth_ends_unread`, `batch_any_heads`, `lone_regrowth_unread`.
 
 **Parity of `spec_from_policy` (review-53).** `window::Why` is ordered by its word and the cell it names
 (`Why::word`, `Why::other`), so the crate's refusals are in `window.py`'s order, and `tests/policy_spec.rs` compares

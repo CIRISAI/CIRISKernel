@@ -837,7 +837,6 @@ pub fn kind_of<'r, R: SeatRow + 'r>(
     }
     Some(kind)
 }
-
 /// The row `r` cites ([`the_cite`]) where `pick` takes it, among the rows `get` holds.
 fn cited<'r, R: SeatRow + 'r>(
     r: &R,
@@ -1987,19 +1986,38 @@ pub(crate) fn concurrent_growth<R: SeatRow>(
             // (an acceptance of a void offer is void growth too: it completes nothing)
             let xr = c.g.row(x);
             let of_void = xr.of().and_then(|i| c.g.idx(i)).is_some_and(|i| void.contains(&i));
-            // an acceptance of an offer in q's own past is no growth against q: q's signers saw that offer decided
-            // (r97 A1)
-            let of_past = xr.seat_kind() == SeatKind::Accept
-                && xr.of().and_then(|i| c.g.idx(i)).is_some_and(|i| c.g.ancestors(q).has(i));
             x != q
                 && !void.contains(&x)
                 && !of_void
-                && !of_past
+                && !behind_act(c, x, q)
                 && !c.g.ancestors(q).has(x)
                 && !c.g.ancestors(x).has(q)
                 && !one_batch(c, law, q, x, o)
         })
         .collect()
+}
+
+/// Growth row `x` (or the offer it accepts) is BEHIND act `q`: every head it names is in `q`'s own past, and `q`
+/// names a head `x`'s line has not reached (a row written at an older head than `q`'s, from the old past). It is no
+/// growth against `q`: `q` was counted at a newer head, and the row from behind it is the one re-counted (the
+/// Constitution's ruling on the batch, r98; an acceptance of an offer in `q`'s past among it, r97 A1).
+fn behind_act<R: SeatRow>(c: &Concluded<'_, R>, x: usize, q: usize) -> bool {
+    let g = &c.g;
+    let xr = g.row(x);
+    let off = if xr.seat_kind() == SeatKind::Accept {
+        match xr.of().and_then(|i| g.idx(i)) {
+            Some(i) => g.row(i),
+            None => return false,
+        }
+    } else {
+        xr
+    };
+    let hx: Vec<usize> = off.head().iter().filter_map(|h| g.idx(h)).collect();
+    let hq: Vec<usize> = g.row(q).head().iter().filter_map(|h| g.idx(h)).collect();
+    if hx.is_empty() || hq.is_empty() || !hx.iter().all(|&h| g.ancestors(q).has(h)) {
+        return false;
+    }
+    !hq.iter().all(|&h| hx.iter().any(|&a| a == h || g.ancestors(a).has(h)))
 }
 
 /// The growth of the DECIDING body of counted act `q` (the body it is counted over, [`SeatRow::counted`]) the reader
@@ -2042,13 +2060,9 @@ pub(crate) fn deciding_growth<R: SeatRow>(
     // its deciding voices: not the seated keys' own yes
     let own = |x: &R| -> BTreeSet<R::Key> { signers(x).into_iter().filter(|k| !x.to().contains(k)).collect() };
     let duty = |x: &R| cls(x.scope().map(|w| w.as_ref())).as_deref() == Some("duty");
-    // one batch: the same deciding voices' duty conferrals at the SAME heads (the lead's ruling on r97 B4/B5)
-    let same_heads = |x: &R| {
-        let a: BTreeSet<&R::Id> = x.head().iter().collect();
-        let b: BTreeSet<&R::Id> = qr.head().iter().collect();
-        a == b
-    };
-    let same_batch = |x: &R| duty(qr) && duty(x) && own(x) == own(qr) && same_heads(x);
+    // one batch: the same deciding voices' duty conferrals (the lead's ruling on r97 B4/B5); one at a later head is
+    // no batch with one behind it: the row from behind is re-counted against its signers' own later change
+    let same_batch = |x: &R| duty(qr) && duty(x) && own(x) == own(qr);
     concurrent_growth(c, law, q, o, void)
         .into_iter()
         .filter(|&x| offer_of(x).is_some_and(|xr| seats_body(xr) && !same_batch(xr)))
@@ -2107,7 +2121,35 @@ pub(crate) fn recount_on_growth<R: SeatRow, S: CutSpec<R>>(
     let r = g.row(q);
     let lone = r.seat_kind() == SeatKind::Offer && matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat));
     let counted = r.seat_kind() == SeatKind::Offer && r.conf() == Some(Conf::Group) && !r.head().is_empty();
-    let growth = if counted { deciding_growth(c, law, q, o, void) } else { concurrent_growth(c, law, q, o, void) };
+    let mut growth = if counted { deciding_growth(c, law, q, o, void) } else { concurrent_growth(c, law, q, o, void) };
+    // and an act from BEHIND its signers' own later counted change the reader holds (its heads strictly in that
+    // change's past, it not in it, one of its deciding voices among the change's signers, no change of the record):
+    // re-counted at the newest counted changes, whatever that change confers (the Constitution's batch ruling; r99)
+    {
+        let mine: BTreeSet<R::Key> = signers(r).into_iter().filter(|k| !r.to().contains(k)).collect();
+        let room = match o {
+            Obj::Row(i) => g.idx(i).map(|x| g.row(x).duties().iter().map(|d| d.as_ref()).collect::<Vec<&str>>()),
+            Obj::Key(_) => None,
+        };
+        for &x in c.cs() {
+            let xr = g.row(x);
+            if x == q || void.contains(&x) || growth.contains(&x) || g.ancestors(x).has(q) {
+                continue;
+            }
+            if xr.scope().is_some_and(|s| s.as_ref() == "record") || !change(law, xr, o, room.as_deref()) {
+                continue;
+            }
+            // (a change built on a row from behind q is no change ahead of q: it merges the stale line, r99 k3)
+            let stale_line = c
+                .cs()
+                .iter()
+                .copied()
+                .any(|y| y != q && g.ancestors(x).has(y) && !g.ancestors(q).has(y) && behind_act(c, y, q));
+            if signers(xr).iter().any(|k| mine.contains(k)) && behind_act(c, q, x) && !stale_line {
+                growth.push(x);
+            }
+        }
+    }
     if growth.is_empty() {
         return true;
     }
@@ -3112,24 +3154,50 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         // the re-count on growth ([`recount_on_growth`]; r81 B2 generalised): a conferral of an authority seat (no
         // roster seat, and no change of the record) concurrent with growth of its body the reader holds is re-counted
         // over the grown body; one that fails seats nothing, and every row built on it is void with it
-        let regrown: Vec<usize> = cs
+        // the re-counts agree (attack-r's M3): read to a fixed point, each pass over the previous pass's result (a
+        // conferral that failed is no growth, and what rests on it is void, for the next), until no seat changes
+        let cand: Vec<(usize, ObjOf<R>)> = cs
             .iter()
             .copied()
-            .filter(|&i| {
+            .filter_map(|i| {
                 let q = g.row(i);
-                cut.counts(i)
+                let ok = cut.counts(i)
                     && !stale.contains(&i)
                     && q.seat_kind() == SeatKind::Offer
-                    && q.scope().is_none_or(|s| !roster_word(s.as_ref()) && s.as_ref() != "record")
-                    && q.obj()
-                        .is_some_and(|o| body_change(q, &o) && !recount_on_growth(c, law, spec, i, &o, &stale, None))
+                    && q.scope().is_none_or(|s| !roster_word(s.as_ref()) && s.as_ref() != "record");
+                q.obj().filter(|o| ok && body_change(q, o)).map(|o| (i, o))
             })
             .collect();
+        let built = |f: &BTreeSet<usize>| -> BTreeSet<usize> {
+            cs.iter().copied().filter(|&j| f.iter().any(|&x| g.ancestors(j).has(x))).collect()
+        };
+        let mut regrown: BTreeSet<usize> = BTreeSet::new();
+        for _ in 0..=cand.len() {
+            let mut vn: BTreeSet<usize> = stale.clone();
+            vn.extend(regrown.iter().copied());
+            vn.extend(built(&regrown));
+            // inflationary: a conferral that failed stays failed, and the others are read again over that result,
+            // so the passes cannot oscillate; each pass only adds
+            let mut next: BTreeSet<usize> = regrown.clone();
+            next.extend(
+                cand.iter()
+                    .filter(|(i, o)| {
+                        let mut v = vn.clone();
+                        v.remove(i);
+                        !vn.contains(i) && !recount_on_growth(c, law, spec, *i, o, &v, None)
+                    })
+                    .map(|(i, _)| *i),
+            );
+            let done = next == regrown;
+            regrown = next;
+            if done {
+                break;
+            }
+        }
         if !regrown.is_empty() {
-            let built: Vec<usize> =
-                cs.iter().copied().filter(|&j| regrown.iter().any(|&x| g.ancestors(j).has(x))).collect();
+            let b = built(&regrown);
             stale.extend(regrown);
-            stale.extend(built);
+            stale.extend(b);
         }
         // a moderator's lone removal is an act under its `moderate` standing, live only while the end rule
         // says it is in force
