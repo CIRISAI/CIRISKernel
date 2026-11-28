@@ -160,7 +160,8 @@ fn speaks_for<R: SeatRow, S: CutSpec<R>>(
                 let bound = policy_for(seats.law(), Act::Accept, ScopeClass::TrustEdge, CommunityKind::Affiliation)
                     .is_some_and(|(p, _)| p.len() == 1 && p[0] == "cosigned_act");
                 let voices: BTreeSet<R::Key> = who.iter().map(|k| (*k).clone()).collect();
-                return bound && declared_count(past, src, &seats.protocol_body(src), &voices);
+                return bound
+                    && declared_count(past, seats.law(), seats.spec(), src, &seats.protocol_body(src), &voices);
             }
             // the acts row binds the count
             let bound = policy_for(seats.law(), Act::Accept, ScopeClass::TrustEdge, CommunityKind::Community)
@@ -415,7 +416,7 @@ fn issuance<R: TrustRow + Dated, S: CutSpec<R>>(
         let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
         let past = Past::new(&with.g, last, &p);
         let voices: BTreeSet<R::Key> = signers(r).into_iter().cloned().collect();
-        if declared_count(&past, &a, &at.protocol_body(&a), &voices) {
+        if declared_count(&past, at.law(), at.spec(), &a, &at.protocol_body(&a), &voices) {
             if !locked(&at, &a) {
                 return None;
             }

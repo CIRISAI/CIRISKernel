@@ -18,8 +18,23 @@
 - A root grant's seat is re-read at the reader: held only while the grant resolves in the reader's root view now.
 - The lift at both heads (ported from the lift lane, 2f9b46f): counted over the members at both the act's head and
   the lift's, so members admitted after the act cannot carry it.
-Residual, to the Constitution: a lone officer can appoint a second key as officer and then decide without a
-countersign.
+
+**Item 8, ruled by the Constitution: a one-officer affiliation's every counted act but an admission needs the
+countersign.** While an affiliation has one officer, admitting a member is its only act that needs none. The four
+acts against a member, an officer's appointment or removal, a change of the record (the official, `overseen_by`, the
+protocol, the licence classes), a license seat's conferral or withdrawal, and a dissolution each conclude as a
+proposal: until a countersign naming it counts, it seats, cuts and declares nothing for the reader, and a later row's
+past reads the record without it. An officer's own lay-down needs none (the last one's dissolves the body). The
+countersigner of a change of the official is the official it replaces (read in the change's own past) or a review
+holder of `overseen_by`, so an official refusing its replacement is replaced only through the overseer. A countersign
+in the past of an act's heads is read at those heads, so an appointment decided there seats its officer. Edges, each
+a case: a one-officer body with no official and no `overseen_by` can admit and do nothing else; r75 c1 (the one
+officer appoints a sock officer and the two remove a member) is refused, the appointment itself being a proposal.
+`protocol_record`, `protocol_of` and `declared_count` take the law and the cut spec (a change's in-force reading asks
+for the officers). Residual: two officer keys one person keeps unlinked, in no shared roster, are seen by no rule, and
+the members see two officers when they join. Officers are counted by key until key-person's persons function is
+merged (then by person, so two keys in one roster are one officer). An onward trust edge's countersign is the
+charter lane's (trust_rows reads this body).
 
 **A delegation chain from a root grant** (the cross-object rest 5; the lead's shape). The seat a root grant gives is
 an offer of `Conf::Root`, naming the grant (`SeatRow::bundle`), of the grant's duty, over the room the grant names,

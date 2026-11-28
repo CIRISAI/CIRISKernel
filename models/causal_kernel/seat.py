@@ -504,7 +504,7 @@ def record_value(by, obj, field):
     g = by.get(obj)
     if g is None or g["kind"] != "offer" or g.get("obj") != g["id"]: return None
     vs = [q for q in by.values() if q["kind"] == "offer" and q.get("conf") == "group" and q.get("obj") == obj
-          and q.get("scope") == "record"]
+          and q.get("scope") == "record" and in_force_change(q, by)]
     if not vs or "official_at_founding" in MUT: return g.get(field)      # MUTATION: the founding record alone
     anc = {q["id"]: K.ancestors(by, q["id"]) for q in vs}
     newest = [q for q in vs if not any(q["id"] in anc[x["id"]] for x in vs)]
@@ -544,10 +544,45 @@ def against_member(u, by):
     return affiliation_removal(u, by) or (family(u) in LONE_ACTS and kind_of(by, u.get("obj")) == "affiliation")
 
 
+def affiliation_act(u, by):
+    """u is a counted act of an affiliation that needs the countersign while the body has ONE officer (the
+    Constitution's ruling on item 8): every counted act but the admission of a member, so the four acts against a
+    member, an officer's appointment or removal, a change of the record (the official, overseen_by, the protocol, the
+    licence classes; a dissolution), a license seat's conferral or withdrawal. An officer's own lay-down is no counted
+    act and needs none (MUTATION countersign_against_member_only: only the four acts against a member, the reading
+    before the ruling)."""
+    if kind_of(by, u.get("obj")) != "affiliation": return False
+    if "countersign_against_member_only" in MUT: return against_member(u, by)
+    if family(u) in LONE_ACTS: return True
+    if u["kind"] not in ("offer", "unseat") or u.get("conf") != "group": return False
+    return not (u["kind"] == "offer" and u.get("scope") == "member" and u.get("role") != OFFICER)   # an admission
+
+
 def needs_countersign(u, P, past):
-    """u, a concluded act against a member of a one-seat affiliation, is a proposal until countersigned."""
+    """u, a concluded counted act of a one-officer affiliation (affiliation_act), is a proposal until countersigned."""
     by = {q["id"]: q for q in P}
-    return against_member(u, by) and len(deciding_seats(P, past, u["obj"], u.get("head", ()))) == 1
+    return affiliation_act(u, by) and len(deciding_seats(P, past, u["obj"], u.get("head", ()))) == 1
+
+
+def decided_in(u, by, past):
+    """A proposal u is decided over the rows `by` (a row's concluded past, or a reader's): a countersign naming it is
+    there, with no withdrawal of u by its acting seat there that does not have the countersign in its past (rule 4), and
+    no end of the countersigner's overseer seat there that does not have it in its past (overseer_cut)."""
+    Pu = [q for q in by.values() if past(q["id"], u["id"])]
+    body = record_value({q["id"]: q for q in Pu}, u.get("obj"), OVERSEEN_BY)
+    wd = [w for w in by.values() if w["kind"] == "withdraw" and w.get("target") == u["id"] and w["signer"] == u["signer"]
+          and "withdrawal_clears_unread" not in MUT]
+    return any(c["kind"] == "countersign" and c.get("of") == u["id"] and all(past(c["id"], w["id"]) for w in wd)
+               and not overseer_cut(c, by, past, body) for c in by.values())
+
+
+def in_force_change(q, by):
+    """A change of a record read in a row's past (`by`): a one-officer affiliation's change is in force there only once
+    decided there (its countersign in that past: a later row's own past decides whether it reads the change)."""
+    if "countersign_unread" in MUT: return True
+    past = lambda a, b: a in K.ancestors(by, b)
+    Pq = [x for x in by.values() if past(x["id"], q["id"])]
+    return not needs_countersign(q, Pq, past) or decided_in(q, by, past)
 
 
 def overseer_cut(c, rows, past, body):
@@ -576,7 +611,7 @@ def countersign_ok(r, P, past):
     TODO: of persons, once room-keys gives key to person (MUTATIONS countersign_inside_seat, overseers_unread)."""
     by = {q["id"]: q for q in P}
     t = by.get(r.get("of"))
-    if t is None or not against_member(t, by): return False
+    if t is None or not affiliation_act(t, by): return False
     Pt = [q for q in P if past(q["id"], t["id"])]
     seats = deciding_seats(Pt, past, t["obj"], t.get("head", ()))
     if len(seats) != 1: return False
@@ -678,7 +713,7 @@ def protocol_record(by, obj):
     one (CC 4.5.4)."""
     g = by.get(obj)
     if g is None or g["kind"] != "offer" or g.get("obj") != g["id"]: return None
-    am = [q for q in by.values() if is_amendment(q, obj)] if "amendment_unread" not in MUT else []
+    am = [q for q in by.values() if is_amendment(q, obj) and in_force_change(q, by)] if "amendment_unread" not in MUT else []
     if not am: return g
     if "any_amendment" in MUT: return am[0]                    # MUTATION: any change in the past, not the newest
     anc = {q["id"]: K.ancestors(by, q["id"]) for q in am}
@@ -1912,6 +1947,12 @@ class Seats:
                   and "withdrawal_clears_unread" not in MUT]
             return any(all(c["id"] in S.anc[w["id"]] for w in wu) for c in cs)
         unseats = [u for u in unseats if decided(u)]
+        # every other undecided proposal of a one-officer affiliation (an officer's appointment, a license seat, a change
+        # of its record, a dissolution) is void for this reading as a row behind the line is: it seats, cuts and
+        # declares nothing until a countersign naming it counts here
+        undecided = frozenset(q["id"] for q in Cs if q["kind"] == "offer" and C.counts(q) and q["id"] not in V
+                              and not decided(q))
+        self.stale = V = V | undecided
         # a moderator's lone removal is an act under its `moderate` standing, in force only while the end rule says so
         # (out_of_force). `drop`: the lone removals already judged out of force over the whole set, for a reading of
         # one line of it (the tips, the fold) or of the set with every removal taken as made (`frozenset()`)
@@ -1991,7 +2032,8 @@ class Seats:
             return False
 
         # a concluded dissolution of a group ends every seat over it (it reads as the withdrawal of the group's record)
-        gone = frozenset(q["obj"] for q in Cs if is_dissolve(q) and C.counts(q) and q["id"] not in self.dropped) \
+        gone = frozenset(q["obj"] for q in Cs if is_dissolve(q) and C.counts(q) and q["id"] not in self.dropped
+                         and q["id"] not in V) \
             if "dissolve_leaves_seats" not in MUT else frozenset()
         # a root grant's seat is re-read at the reader: held only while its grant resolves in the reader's root view
         # now, whatever it concluded under (MUTATION root_seat_stored)
@@ -2107,7 +2149,8 @@ class Seats:
     def dissolved(self, o):
         """Group o is dissolved: a concluded dissolution of it is held, or, with no signer, every member it seated has
         an end of their seat (its roster empty, folded at tips, and its founding row held): no row over it concludes."""
-        if any(is_dissolve(q) and q.get("obj") == o and q["id"] not in self.dropped for q in self.S.Cs): return True
+        if any(is_dissolve(q) and q.get("obj") == o and q["id"] not in self.dropped and q["id"] not in self.stale
+               for q in self.S.Cs): return True
         # an affiliation with no officer is dissolved at that point (CC 4.4.3.12): not locked, and no election
         # (MUTATION no_officer_locks)
         if kind_of(self.S.by, o) == "affiliation" and "no_officer_locks" not in MUT and not self.holders(OFFICER, o):
@@ -3037,6 +3080,10 @@ def members_at(P, past, obj, heads, scope="member"):
     sids = {q["id"] for q in sub}
     by = {q["id"]: q for q in P}
     ends = [] if "ends_at_heads_unread" in MUT else [w for w in P if w["kind"] == "withdraw" and w["id"] not in sids]
+    # and the countersigns in that past of the heads' rows: a one-officer body's proposal decided there is decided at
+    # the heads (MUTATION countersign_at_heads_unread)
+    ends += [] if "countersign_at_heads_unread" in MUT else [c for c in P if c["kind"] == "countersign"
+                                                             and c["id"] not in sids and c.get("of") in sids]
     return seats_of(sub + ends + [by[a] for a in completing(sids, P, by, obj, past)]).holders(scope, obj)
 
 

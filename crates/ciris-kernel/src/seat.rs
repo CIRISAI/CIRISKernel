@@ -141,7 +141,7 @@ pub enum SeatKind {
     /// standing ends: a duty holder's, or with [`Conf::Group`] the room's count's, met over the persons at the
     /// heads it names.
     Ack,
-    /// A countersign of a one-seat affiliation's act against a member ([`SeatRow::of`] the act), by a key outside
+    /// A countersign of a one-officer affiliation's counted act ([`SeatRow::of`] the act, any but an admission), by a key outside
     /// the deciding seat: the designated official ([`SeatRow::official`]) or a review holder of the overseeing body
     /// ([`SeatRow::overseen_by`]). CC 4.4.3.12.
     Countersign,
@@ -982,13 +982,18 @@ fn concluded_anc<'a, R: SeatRow>(by: &BTreeMap<&'a R::Id, &'a R>, from: &'a R) -
 /// the newest changes disagree (two concurrent changes stating different protocols, or the same with different
 /// numbers: none is in force). A seat outlasts a change of protocol: no seat is judged again under the new one (CC
 /// 4.5.4). The one read of a room's protocol: the binding's refusal, the count and the room-key rules call it.
-pub fn protocol_record<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> Option<&'a R> {
+pub fn protocol_record<'a, R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, 'a, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+) -> Option<&'a R> {
     let Obj::Row(i) = obj else { return None };
     let g = p.get(i)?;
     if g.seat_kind() != SeatKind::Offer || !founding(g) {
         return None;
     }
-    let am: Vec<&'a R> = p.rows().filter(|q| is_amendment(*q, obj)).collect();
+    let am: Vec<&'a R> = p.rows().filter(|q| is_amendment(*q, obj) && in_force_change(p, law, spec, q)).collect();
     if am.is_empty() {
         return Some(g);
     }
@@ -1006,8 +1011,13 @@ pub fn protocol_record<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> O
 
 /// The room's declared protocol in force in a row's past `p`: [`protocol_record`]'s `consensus_protocol` (`None`
 /// where it states none, or where no record is in force).
-pub fn protocol_of<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> Option<&'a R::Word> {
-    protocol_record(p, obj).and_then(|g| g.consensus_protocol())
+pub fn protocol_of<'a, R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, 'a, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+) -> Option<&'a R::Word> {
+    protocol_record(p, law, spec, obj).and_then(|g| g.consensus_protocol())
 }
 
 /// The founders an infrastructure community's founding row seats: its distinct signers that are among its `to()` (a
@@ -1118,7 +1128,12 @@ impl<'a, R: SeatRow> InForce<'a, R> {
 /// the room's protocol in force in the row's past ([`protocol_record`]), never one the row states, over the
 /// protocol's own body and with the record's numbers, never the row's `need()` ([`protocol_part`]). With the binding
 /// off, the row's own policy and need, a protocol row read the same way.
-fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> Result<Vec<InForce<'a, R>>, ()> {
+fn policy_in_force<'a, R: SeatRow, S: CutSpec<R>>(
+    law: &SeatLaw,
+    spec: &S,
+    p: &Past<'_, 'a, R>,
+    r: &R,
+) -> Result<Vec<InForce<'a, R>>, ()> {
     let get = |i: &R::Id| p.get(i);
     let get: &dyn Fn(&R::Id) -> Option<&'a R> = &get;
     let stated = r.policy().map(|x| x.as_ref());
@@ -1148,7 +1163,7 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
                     }
                 }
                 // a stated regime is a consistency check: it must be the room's protocol in force in the row's past
-                if r.regime().is_some_and(|g| r.obj().and_then(|o| protocol_of(p, &o)) != Some(g)) {
+                if r.regime().is_some_and(|g| r.obj().and_then(|o| protocol_of(p, law, spec, &o)) != Some(g)) {
                     return Err(());
                 }
                 // a change of the record that states a protocol names one its room may declare, or concludes nothing
@@ -1178,7 +1193,7 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
                     return Err(());
                 }
                 // an entrenched record: a change of its protocol, or of the flag, concludes nothing (F5)
-                if act == Act::RecordChange && !entrenchment_allows(law, p, r) {
+                if act == Act::RecordChange && !entrenchment_allows(law, spec, p, r) {
                     return Err(());
                 }
                 // the body an act counts is the act's own, over its own object, never one the row states; a
@@ -1202,7 +1217,7 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
         if pol != Some(Policy::Protocol) {
             return Ok(alloc::vec![InForce::plain(pol, r.need())]);
         }
-        return Ok(alloc::vec![protocol_part(law, p, r)?]);
+        return Ok(alloc::vec![protocol_part(law, spec, p, r)?]);
     };
     // policies joined by `&` (a change of the record: the protocol in force and the standing default): each is met.
     // Where the protocol in force states no rule for the act (RoomProtocol::states, the protocol sheet), the
@@ -1213,7 +1228,7 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
         if kind_of(law, get, &obj) == Some(CommunityKind::Infrastructure) {
             return None;
         }
-        let rec = protocol_record(p, &obj)?;
+        let rec = protocol_record(p, law, spec, &obj)?;
         let proto = community_protocol(rec.consensus_protocol()?.as_ref(), rec.need(), rec.weights())?;
         let act = match r.seat_kind() {
             SeatKind::Offer if r.scope().is_some_and(|s| law.roster_seats.iter().any(|x| x == s.as_ref())) => {
@@ -1229,7 +1244,7 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
     for part in w.split('&') {
         match law.policy_of(Some(part)) {
             Some(Policy::Protocol) if dropped => {}
-            Some(Policy::Protocol) => out.push(protocol_part(law, p, r)?),
+            Some(Policy::Protocol) => out.push(protocol_part(law, spec, p, r)?),
             pol => out.push(InForce {
                 floor: if dropped { law.community_floor } else { 0 },
                 ..InForce::plain(pol, r.need())
@@ -1243,9 +1258,9 @@ fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) ->
 /// force ([`protocol_record`]) carrying [`SeatRow::protocol_entrenched`], a change stating another protocol, or one
 /// stating a protocol without the flag (a change of the flag), concludes nothing; a change that states no protocol (a
 /// rename, a role, metadata) is allowed. A record not entrenched allows every change.
-fn entrenchment_allows<R: SeatRow>(law: &SeatLaw, p: &Past<'_, '_, R>, r: &R) -> bool {
+fn entrenchment_allows<R: SeatRow, S: CutSpec<R>>(law: &SeatLaw, spec: &S, p: &Past<'_, '_, R>, r: &R) -> bool {
     let Some(obj) = r.obj() else { return true };
-    let Some(rec) = protocol_record(p, &obj) else { return true };
+    let Some(rec) = protocol_record(p, law, spec, &obj) else { return true };
     if rec.protocol_entrenched() != Some(true) {
         return true;
     }
@@ -1303,7 +1318,7 @@ pub fn stalled_recovery<R: SeatRow, S: CutSpec<R>>(
     {
         return None;
     }
-    let rec = protocol_record(p, &obj)?;
+    let rec = protocol_record(p, law, spec, &obj)?;
     let Some(RoomProtocol::Quorum(m, _)) = RoomProtocol::parse_in(rec.consensus_protocol()?.as_ref(), true) else {
         return None;
     };
@@ -1315,13 +1330,15 @@ pub fn stalled_recovery<R: SeatRow, S: CutSpec<R>>(
 /// ([`protocol_record`]), counted over `members`, for an act that seats and removes nobody: the protocol's own numbers
 /// and weights, never a row's. `false` where no protocol a community may declare is in force. Read by
 /// [`crate::trust_rows`] for a community's own licence.
-pub fn declared_count<R: SeatRow>(
+pub fn declared_count<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
     obj: &ObjOf<R>,
     members: &BTreeSet<R::Key>,
     voices: &BTreeSet<R::Key>,
 ) -> bool {
-    let Some(rec) = protocol_record(p, obj) else { return false };
+    let Some(rec) = protocol_record(p, law, spec, obj) else { return false };
     let Some(word) = rec.consensus_protocol() else { return false };
     let Some(proto) = community_protocol(word.as_ref(), rec.need(), rec.weights()) else { return false };
     let (pol, need) = match proto {
@@ -1518,7 +1535,7 @@ pub fn act_in_force<R: SeatRow, S: CutSpec<R>>(
                 })
                 .collect();
             let cs: Vec<usize> = held(&|x: &R| x.seat_kind() == SeatKind::Countersign && x.of() == Some(act));
-            let body = record_value(&p, &obj, |v: &R| v.overseen_by()).map(|b| Obj::Row(b.clone()));
+            let body = record_value(&p, law, spec, &obj, |v: &R| v.overseen_by()).map(|b| Obj::Row(b.clone()));
             let cut_by_end = |ci: usize| {
                 body.as_ref().is_some_and(|b| overseer_cut(g, c.cs().iter().copied(), Some(ci), b, g.row(ci).signer()))
             };
@@ -1584,7 +1601,12 @@ pub fn act_in_force<R: SeatRow, S: CutSpec<R>>(
 
 /// The newest versions of `obj`'s record among `p`'s rows (its counted changes of scope `record`), or its founding
 /// row where there is none. Each version is a whole record.
-fn record_versions<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> Vec<&'a R> {
+fn record_versions<'a, R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, 'a, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+) -> Vec<&'a R> {
     let Obj::Row(f) = obj else { return Vec::new() };
     let Some(g) = p.get(f).filter(|g| founding(*g)) else { return Vec::new() };
     let vs: Vec<&'a R> = p
@@ -1594,6 +1616,7 @@ fn record_versions<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> Vec<&
                 && q.conf() == Some(Conf::Group)
                 && q.obj().as_ref() == Some(obj)
                 && q.scope().is_some_and(|s| s.as_ref() == "record")
+                && in_force_change(p, law, spec, q)
         })
         .collect();
     if vs.is_empty() {
@@ -1604,14 +1627,44 @@ fn record_versions<'a, R: SeatRow>(p: &Past<'_, 'a, R>, obj: &ObjOf<R>) -> Vec<&
 
 /// A field of `obj`'s record in force among `p`'s rows: the one value its newest versions agree on, or `None`
 /// where they disagree or state none.
-fn record_value<'a, R: SeatRow, T: PartialEq + ?Sized + 'a>(
+fn record_value<'a, R: SeatRow, S: CutSpec<R>, T: PartialEq + ?Sized + 'a>(
     p: &Past<'_, 'a, R>,
+    law: &SeatLaw,
+    spec: &S,
     obj: &ObjOf<R>,
     field: impl Fn(&'a R) -> Option<&'a T>,
 ) -> Option<&'a T> {
-    let vs = record_versions(p, obj);
+    let vs = record_versions(p, law, spec, obj);
     let first = field(*vs.first()?);
     vs.iter().all(|v| field(*v) == first).then_some(first).flatten()
+}
+
+/// A change `q` of a record read among `p`'s rows (a row's concluded past): a one-officer affiliation's change is in
+/// force there only once decided there: a countersign naming it is among those rows, with no withdrawal of it by its
+/// acting seat there that does not have the countersign in its past (rule 4), and no end of the countersigner's
+/// overseer seat there that does not have it in its past ([`overseer_cut`]).
+fn in_force_change<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S, q: &R) -> bool {
+    let g = p.graph();
+    let Some(qi) = g.idx(q.id()) else { return true };
+    let anc: Vec<usize> = p.ancestors().iter().copied().filter(|&x| g.in_past(x, qi)).collect();
+    let pq = Past::new(g, qi, &anc);
+    if !needs_countersign(&pq, law, spec) {
+        return true;
+    }
+    let Some(obj) = q.obj() else { return false };
+    let body = record_value(&pq, law, spec, &obj, |v: &R| v.overseen_by()).map(|b| Obj::Row(b.clone()));
+    let idx = |x: &R| g.idx(x.id());
+    let wd: Vec<usize> = p
+        .rows()
+        .filter(|w| w.seat_kind() == SeatKind::Withdraw && w.target() == Some(q.id()) && w.signer() == q.signer())
+        .filter_map(idx)
+        .collect();
+    p.rows().filter(|c| c.seat_kind() == SeatKind::Countersign && c.of() == Some(q.id())).filter_map(idx).any(|ci| {
+        wd.iter().all(|&w| g.in_past(ci, w))
+            && !body
+                .as_ref()
+                .is_some_and(|b| overseer_cut(g, p.rows().filter_map(idx), Some(ci), b, g.row(ci).signer()))
+    })
 }
 
 /// An affiliation's deciding seats at `heads`: its officers (CC 4.4.3.12), the members whose seat carries the
@@ -1643,16 +1696,38 @@ fn affiliation_count<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatL
     seats.len() == 1 || vs.iter().filter(|k| !targets.contains(*k)).count() >= 2
 }
 
-/// `u` (a concluded removal from an affiliation, read over its own past `p`) has one deciding seat: a proposal until
-/// countersigned.
+/// A counted act of an affiliation that needs the countersign while the body has ONE officer (the Constitution's
+/// ruling on item 8): every counted act but the admission of a member, so the four acts against a member, an
+/// officer's appointment or removal, a change of the record (the official, overseen_by, the protocol, the licence
+/// classes; a dissolution), a license seat's conferral or withdrawal. An officer's own lay-down is no counted act and
+/// needs none.
+fn affiliation_act<'r, R: SeatRow + 'r>(law: &SeatLaw, get: &dyn Fn(&R::Id) -> Option<&'r R>, r: &R) -> bool {
+    if !r.obj().is_some_and(|obj| kind_of(law, get, &obj) == Some(CommunityKind::Affiliation)) {
+        return false;
+    }
+    if lone_act_duty(r.seat_kind()).is_some() {
+        return true;
+    }
+    let k = r.seat_kind();
+    if !matches!(k, SeatKind::Offer | SeatKind::Unseat) || r.conf() != Some(Conf::Group) {
+        return false;
+    }
+    let admission = k == SeatKind::Offer
+        && r.scope().is_some_and(|s| s.as_ref() == "member")
+        && r.role().is_none_or(|x| x.as_ref() != OFFICER);
+    !admission
+}
+
+/// `u` (a concluded counted act of an affiliation, [`affiliation_act`], read over its own past `p`) has one deciding
+/// seat: a proposal until countersigned.
 fn needs_countersign<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> bool {
     let u = p.row();
-    against_member(law, &|i: &R::Id| p.get(i), u)
+    affiliation_act(law, &|i: &R::Id| p.get(i), u)
         && u.obj().is_some_and(|obj| deciding_seats(p, law, spec, &obj, u.head()).len() == 1)
 }
 
-/// Whether a countersign row (`p.row()`, [`SeatKind::Countersign`]) concludes: the act its `of` names is a one-seat
-/// affiliation's removal in its past, not withdrawn there by the acting seat, and its signer is outside the deciding
+/// Whether a countersign row (`p.row()`, [`SeatKind::Countersign`]) concludes: the act its `of` names is a one-officer
+/// affiliation's counted act in its past ([`affiliation_act`]), not withdrawn there by the acting seat, and its signer is outside the deciding
 /// seat and is the designated official (the record in force in the ACT's own past) or a review holder of the
 /// overseeing body (at the newest counted changes over it in the countersign's past). Asked of keys. TODO: of
 /// persons, once room-keys gives key to person.
@@ -1660,7 +1735,7 @@ fn countersign_ok<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw,
     let r = p.row();
     let g = p.graph();
     let Some(t) = r.of().and_then(|i| p.get(i)) else { return false };
-    if !against_member(law, &|i: &R::Id| p.get(i), t) {
+    if !affiliation_act(law, &|i: &R::Id| p.get(i), t) {
         return false;
     }
     let Some(ti) = g.idx(t.id()) else { return false };
@@ -1677,10 +1752,10 @@ fn countersign_ok<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw,
     if withdrawn || seats.contains(k) {
         return false;
     }
-    if record_value(&pt, &obj, |v: &R| v.official()) == Some(k) {
+    if record_value(&pt, law, spec, &obj, |v: &R| v.official()) == Some(k) {
         return true;
     }
-    let Some(body) = record_value(&pt, &obj, |v: &R| v.overseen_by()) else { return false };
+    let Some(body) = record_value(&pt, law, spec, &obj, |v: &R| v.overseen_by()) else { return false };
     let body = Obj::Row(body.clone());
     // the overseers are read in the ACT's own past
     if !matches!(&body, Obj::Row(b) if pt.get(b).is_some()) {
@@ -1754,7 +1829,7 @@ pub fn recovery_verdict<R: SeatRow, S: CutSpec<R>>(
     {
         return Err("not_a_recovery");
     }
-    let Some(rec) = protocol_record(p, &obj) else { return Err("not_a_recovery") };
+    let Some(rec) = protocol_record(p, law, spec, &obj) else { return Err("not_a_recovery") };
     let Some(RoomProtocol::Quorum(m, _)) =
         rec.consensus_protocol().and_then(|w| RoomProtocol::parse_in(w.as_ref(), true))
     else {
@@ -1781,11 +1856,16 @@ pub fn recovery_verdict<R: SeatRow, S: CutSpec<R>>(
 /// M = N / 2 + 1; the founding record's word is checked against its signers, [`founders_of`], and a change's word
 /// against the founders at its own heads). `open:self_admit` governs admissions alone (an offer of the member seat):
 /// the set states no removal under it, and a change of the record is never counted as an admission.
-fn protocol_part<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> Result<InForce<'a, R>, ()> {
+fn protocol_part<'a, R: SeatRow, S: CutSpec<R>>(
+    law: &SeatLaw,
+    spec: &S,
+    p: &Past<'_, 'a, R>,
+    r: &R,
+) -> Result<InForce<'a, R>, ()> {
     let get = |i: &R::Id| p.get(i);
     let get: &dyn Fn(&R::Id) -> Option<&'a R> = &get;
     let obj = r.obj().ok_or(())?;
-    let rec = protocol_record(p, &obj).ok_or(())?;
+    let rec = protocol_record(p, law, spec, &obj).ok_or(())?;
     let counted = r.counted().map_or("member", |c| c.as_ref());
     if kind_of(law, get, &obj) == Some(CommunityKind::Infrastructure) {
         // CC 3.2, "Live and stalled": the record's M founder voices (absolute, never recomputed), over the `founder`
@@ -2485,8 +2565,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 return true;
             }
             let ur = g.row(u);
-            let body =
-                ur.obj().and_then(|ob| record_value(&pu, &ob, |v: &R| v.overseen_by()).map(|b| Obj::Row(b.clone())));
+            let body = ur
+                .obj()
+                .and_then(|ob| record_value(&pu, law, spec, &ob, |v: &R| v.overseen_by()).map(|b| Obj::Row(b.clone())));
             let wd: Vec<usize> = cs
                 .iter()
                 .copied()
@@ -2511,6 +2592,15 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             .filter(|&i| g.row(i).seat_kind() == SeatKind::Unseat && cut.counts(i) && !stale.contains(&i) && decided(i))
             .map(|i| (i, g.row(i).obj()))
             .collect();
+        // every other undecided proposal of a one-officer affiliation (an officer's appointment, a license seat, a
+        // change of its record, a dissolution) is void for this reading as a row behind the line is: it seats, cuts
+        // and declares nothing until a countersign naming it counts here
+        let undecided: Vec<usize> = cs
+            .iter()
+            .copied()
+            .filter(|&i| g.row(i).seat_kind() == SeatKind::Offer && cut.counts(i) && !stale.contains(&i) && !decided(i))
+            .collect();
+        stale.extend(undecided);
         // a moderator's lone removal is an act under its `moderate` standing, live only while the end rule
         // says it is in force
         let local = MembersAt::<R>::default();
@@ -2653,7 +2743,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         // (one contested by rule 5, or carried out of force into this line's reading, ends nothing)
         let gone: Vec<ObjOf<R>> = cs
             .iter()
-            .filter(|&&i| cut.counts(i))
+            .filter(|&&i| cut.counts(i) && !stale.contains(&i))
             .map(|&i| g.row(i))
             .filter(|q| is_dissolve(*q) && !dropped.contains(q.id()))
             .filter_map(|q| q.obj())
@@ -2970,8 +3060,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     /// a member's own end of its stay among the rows): no row over it concludes. An affiliation with no officer is dissolved (CC 4.4.3.12).
     pub fn dissolved(&self, o: &ObjOf<R>) -> bool {
         let g = &self.c.g;
-        let rows = || self.c.cs().iter().map(|&i| g.row(i));
-        if rows().any(|q| is_dissolve(q) && q.obj().as_ref() == Some(o) && !self.dropped.contains(q.id())) {
+        if self.c.cs().iter().any(|&i| {
+            let q = g.row(i);
+            is_dissolve(q) && q.obj().as_ref() == Some(o) && !self.dropped.contains(q.id()) && !self.stale.contains(&i)
+        }) {
             return true;
         }
         // an affiliation with no officer is dissolved at that point (CC 4.4.3.12): not locked, and no election
@@ -3152,7 +3244,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 }
                 let anc: Vec<usize> = self.c.cs().iter().copied().filter(|&q| g.in_past(q, t)).collect();
                 let pt = Past::new(g, t, &anc);
-                (protocol_of(&pt, o), own)
+                (protocol_of(&pt, self.law, self.spec, o), own)
             })
             .collect();
         if regimes.len() > 1 {
@@ -3216,7 +3308,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 if let Some(ok) = ok {
                     mem.retain(|m| ok.contains(m));
                 }
-                let Ok(fs) = policy_in_force(self.law, &p, r) else { return false };
+                let Ok(fs) = policy_in_force(self.law, self.spec, &p, r) else { return false };
                 // joined policies are a change of the record's, which seats no key
                 let [f] = fs.as_slice() else { return true };
                 let pol = f.pol;
@@ -3959,7 +4051,15 @@ fn members_at_c<R: SeatRow, S: CutSpec<R>>(
     // laying down: a withdrawal is no counted change, so no head is read through)
     let at_row = |q: &R| g.idx(q.id()).is_some_and(at);
     let acc: BTreeSet<&R::Id> = completing(&rows, law, &by, obj, &at_row, &in_past).iter().map(|q| q.id()).collect();
-    let read = |q: usize| at(q) || g.row(q).seat_kind() == SeatKind::Withdraw || acc.contains(g.row(q).id());
+    // and the countersigns in that past of the heads' rows: a one-officer body's proposal decided there is decided at
+    // the heads
+    let countersigned = |q: usize| {
+        let qr = g.row(q);
+        qr.seat_kind() == SeatKind::Countersign && qr.of().and_then(|o| g.idx(o)).is_some_and(at)
+    };
+    let read = |q: usize| {
+        at(q) || g.row(q).seat_kind() == SeatKind::Withdraw || acc.contains(g.row(q).id()) || countersigned(q)
+    };
     let sc = concluded_over(anc.iter().filter(|&&q| read(q)).map(|&q| g.row(q)));
     Seats::build(&sc, law, spec, None, None, cache).holders(scope, obj, None)
 }
@@ -5028,14 +5128,20 @@ pub fn is_founder<R: SeatRow, S: CutSpec<R>>(
 /// [`SeatRow::over`] absent or the room. A members' count under an admission-style policy, one duty's holders, a
 /// policy such as `accord_halt`, or a count over another room confers no duty (CIRISConstitution#241). A seat
 /// that makes its holder no duty holder (a node's detector seat) is not reached.
-fn duty_gate<R: SeatRow>(law: &SeatLaw, by: &BTreeMap<&R::Id, &R>, p: &Past<'_, '_, R>, r: &R) -> bool {
+fn duty_gate<R: SeatRow, S: CutSpec<R>>(
+    law: &SeatLaw,
+    spec: &S,
+    by: &BTreeMap<&R::Id, &R>,
+    p: &Past<'_, '_, R>,
+    r: &R,
+) -> bool {
     let (Some(obj), Some(s)) = (r.obj(), r.scope()) else { return true };
     let declared = declared(by, &obj);
     if !community(by, &obj) || !law.is_duty(s.as_ref(), &declared) {
         return true;
     }
     // the gate reads the policy in force (the acts table's, where it binds: a fixed act's row may state none)
-    let Ok(fs) = policy_in_force(law, p, r) else { return false };
+    let Ok(fs) = policy_in_force(law, spec, p, r) else { return false };
     let pol = fs.first().and_then(|f| f.pol);
     if pol == Some(Policy::Ranked) {
         return true;
@@ -5176,7 +5282,7 @@ fn count_met_void<R: SeatRow, S: CutSpec<R>>(
 ) -> bool {
     // the count reads the policy in force (the acts table, the room's protocol), never the stated one; policies the
     // table joins by `&` are each met (a change of the record: the protocol in force and the standing default)
-    let Ok(fs) = policy_in_force(law, p, p.row()) else { return false };
+    let Ok(fs) = policy_in_force(law, spec, p, p.row()) else { return false };
     !fs.is_empty() && fs.iter().all(|f| count_under(p, law, spec, cache, f, void))
 }
 
@@ -5448,7 +5554,7 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                     if r.over().is_some_and(|o| o != obj) {
                         return false;
                     }
-                    if is_offer && !duty_gate(law, &by, p, r) {
+                    if is_offer && !duty_gate(law, spec, &by, p, r) {
                         return false; // CC 4.5.4: a duty is placed by its holders' count or an election
                     }
                     // the changes void for this row (S'') are no heads of it and add nothing to its members; the
@@ -5465,7 +5571,7 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
                         true // CC 4.5.13: a moderator, an agent's key
                     } else if affiliation_removal(law, &|i: &R::Id| by.get(i).copied(), r) {
                         // CC 4.4.3.12: the body's signature, and its seats' floor
-                        policy_in_force(law, p, r).is_ok() && affiliation_count(p, law, spec)
+                        policy_in_force(law, spec, p, r).is_ok() && affiliation_count(p, law, spec)
                     } else {
                         count_met(p, law, spec, Some(cache))
                     };

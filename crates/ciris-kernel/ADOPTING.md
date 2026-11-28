@@ -169,6 +169,10 @@ Present:
   affiliation is counted over its officers (`counted` `officer`); with no officer it is dissolved. With one officer
   the removal concludes as a proposal and is in force only where a countersign naming it counts; the acting seat's
   withdrawal of the removal clears it; with two or more it decides on two voices at least, the member removed apart.
+- with one officer, every other counted act of the affiliation but an admission of a member (no role) is a proposal
+  the same way: a lone act, an appointment carrying the officer role, any unseat, a change of the record, a
+  dissolution, a license seat. The countersign's `of()` names that act; a change of the official is countersigned by
+  the official it replaces or an overseer.
 
 **A duty holder's lone acts** (CC 4.5.5, CC 3.1.9.2; CHANGELOG). Present each by its family, its parameter as
 `family_param()`: a quarantine marker (`quarantine:{state}`) as `SeatKind::Quarantine` (`target_key()` the key, the
