@@ -2538,7 +2538,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     // the removal's author apart by person (the key removed is an agent's: in no count)
                     let base = lift_base(&p, self.law, self.spec, &over, Some(&members));
                     mem.retain(|m| base.contains(m));
-                    (vec![author], v)
+                    (alloc::vec![author], v)
                 } else {
                     (Vec::new(), voices_with(r, &p, self.spec))
                 };
@@ -3282,7 +3282,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         let none = Persons { rosters: BTreeMap::new(), revoked: BTreeSet::new(), agents: BTreeSet::new(), keys };
         let any_self = rows.iter().any(|g| {
             g.seat_kind() == SeatKind::Offer
-                && founding(g)
+                && founding(*g)
                 && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
         });
         let revoked: BTreeSet<R::Key> = rows
@@ -3371,7 +3371,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         let mut b = self.base(base);
         let mut v = self.voices(voices, voters.unwrap_or(base));
         for k in apart {
-            let mut ks = vec![k.clone()];
+            let mut ks = alloc::vec![k.clone()];
             if !self.keys {
                 ks.push(self.member(k));
                 ks.extend(self.voice(k));
