@@ -244,17 +244,16 @@ def _before(S, rid, e):
 def own_row(S, a, own, roster=frozenset(), voices=None):
     """THE READER'S OWN ROW, one definition for every reader's line (limb (b) of the end rule, and the line
     seat/checkpoint.takes_up reads): row `a` (a dict of S) is reader `own`'s where
-        (i)   own signed it itself, concluded or not; or
-        (ii)  it is a CONCLUDED seat row (an offer or an unseat) of which own is a voice by seat.voices (a cosigner,
-              or the signer of a cosign row it names), read with no key view (the key view is (iv)'s);
-        (iii) and never because a row claims own as a cosigner on any other row (a note included: r101 R2);
-        (iv)  each only where own's key stands at it, by the key-end cut over the key's one set of ends (ruled): the
+        (i)   own signed it itself, concluded or not (its cosign rows among them);
+        (ii)  never because another signer's row lists own as a cosigner, a seat row included (STRICT, review-48 R2s:
+              an offer over the signer's own object concludes on its word alone, so a forged cosigner breaks no count);
+        (iii) each only where own's key stands at it, by the key-end cut over the key's one set of ends (ruled): the
               row is in the PAST of each of key_ends(own) (the key lane's revocations, rotations and roster voids,
               and a concluded `registered` unseat of own by own; the plain end rule). A row concurrent with the key's end, or after
               it, is no row of its line (r97 K1); an honest revocation names its last honest rows, so they stay in.
     Limb (b) reads these rows per row against each end, with no ordering; any order rule is the person lane's, on
     top. `voices`: seat.voices by default. MUTATIONS reader_line_unchecked ((iv) unread), own_unconcluded_unread
-    ((i) concluded rows only), own_voice_unread ((ii) unread), own_claimed_cosigner ((iii): any row listing own)."""
+    ((i) concluded rows only), own_claimed_cosigner ((ii): any row listing own)."""
     # the one definition is checkpoint.own_row (the crate's seat::own_row); the key's own ends are this lane's
     import checkpoint as _CP
     import seat as _ST

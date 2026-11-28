@@ -45,8 +45,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     line_order_unread     the line read out of order: a later row over the rival takes it up too, and the reader waits (P1)
     line_key_end_unread   the line reads no key end: a thief's row with the reader's revoked key seeds it (K1)
     claimed_cosigner_counted  another signer's claimed cosigners on a note seed the reader's line (r101 R2)
-    unconcluded_cosigner_counted  a seat row that concluded nothing seeds the reader's line by its cosigners (S5, S6)
-    line_voices_cosigners_only  the line reads a seat row's cosigners, not its voices (a cosign row's voice lost)
+    seat_voice_counted    a concluded seat row listing the reader as a cosigner seeds its line (review-48 R2s)
     agent_by_seat_only    an agent recognised by its agent seat only: a registered agent admitted as a member speaks
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
@@ -715,7 +714,14 @@ LCQ = ST.cosign("cq4", "q4", "ra2", ("G2",))
 LRA2 = ST.offer("ra2", "p2", "w", "member", "G2", "group", ("G2", "cq4", "a1c"), head=("G2",), policy="community_invite",
                 cosigners=("p3", "w"))
 LWORLD["V"] = GW + [LRX, LG2, LCQ, LRA2, admit_z(LH, ("a1c", "S1r"))]
-LWANT += [("V", "q4", True)]
+# STRICT own_row (review-48 R2s): q4's only rows are its cosign row, which reaches no founding; the seat row it is a
+# voice of is not its own row, so q4 has no line and waits
+LWANT += [("V", "q4", False)]
+# review-48 R2s: X's self-conferred offer over its own object (it concludes on X's word alone) lists p4 as a cosigner
+# and names the rival: no row of p4's line, so p4's line takes up S1 and p4 admits
+LWORLD["R2s"] = GW + [LRX, ST.offer("ox", "X", "X2", "member", "X", "self", ("S1r",), cosigners=("p4",)),
+                      admit_z(LH, ("a1c", "S1r"))]
+LWANT += [("R2s", "p4", True)]
 LWORLD["S5"] = GW + [LRX, ST.offer("sdo", "p1", "zz", "member", "gc", "group", ("S1r",), head=("S1r",),
                                    policy="community_invite", cosigners=("p4", "zz")), admit_z(LH, ("a1c", "S1r"))]
 LWORLD["S6"] = GW + [LRX, ST.unseat("sdu", "p1", "p2", "member", "gc", "group", ("S1r",), head=("S1r",),
@@ -729,9 +735,9 @@ LWORLD["restore (m4's row)"] = [RSg, RRM, RSg2, R("m4r", "note", "m4", ("rm",)),
 LWANT = [(k, rd, w) for k, rd, w in LWANT if (k, rd) not in (("X5", "x"), ("T3 (x9 signs)", "x9"), ("restore", "m4"))]
 LWANT += [("X5 (x names its own row)", "x", True), ("T3 (x9 signs, naming its own row)", "x9", True),
           ("restore (m4's row)", "m4", True),
-          # x's line begins at its own voice on the concluded rival founding S1r (its cosignature there): its count
-          # has S1r in its past, so the founding is its first row
-          ("X5", "x", True)]
+          # STRICT own_row: x's cosignature on the rival founding is no row of its own; its own rows are xn and the
+          # count it signs, which names a1c and omits xn: two first rows reaching both foundings, a wait (P2's rule)
+          ("X5", "x", False)]
 # each reader's own first row (a reader's line is only the rows it signed itself, r101 R2): p4 and m4 acknowledge
 # their rooms, x and x9 the rivals they hold; q's own rows are in its world
 READER_ROW = {"p4": R("p4n", "note", "p4", ("gc",)), "m4": R("m4r", "note", "m4", ("gr",)),
@@ -793,8 +799,7 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
           "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept",
           "rebinding_unread", "landed_eviction_unread", "landed_add_unread",
           "self_founding_family", "mutual_evictions_land", "rival_line_unread", "line_order_unread",
-          "claimed_cosigner_counted", "unconcluded_cosigner_counted",
-          "line_voices_cosigners_only", "line_key_end_unread", "agent_by_seat_only")
+          "claimed_cosigner_counted", "seat_voice_counted", "line_key_end_unread", "agent_by_seat_only")
 
 
 def answer(rows, k):

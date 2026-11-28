@@ -4476,20 +4476,19 @@ fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &s
 }
 
 /// THE READER'S OWN ROW, the one definition for every reader's line (`key_end`'s limb (b) and [`takes_up`]): row
-/// `a` is reader `own`'s where (i) `own` signed it itself, concluded or not; or (ii) it is a CONCLUDED seat row (an
-/// offer or an unseat) of which `own` is a voice by [`voices`] (a cosigner, or the signer of a cosign row it names);
-/// (iii) never because a row claims `own` as a cosigner on any other row (r101 R2); (iv) each only where `own`'s key
+/// `a` is reader `own`'s where (i) `own` signed it itself, concluded or not (its cosign rows among them); (ii) never
+/// because another signer's row lists `own` as a cosigner, a seat row included (STRICT, review-48 R2s; r101 R2);
+/// (iii) each only where `own`'s key
 /// stands at it: the row in the PAST of each of `own`'s [`registered_ends`], and `ends_ok(a)`, the caller's reading of the
 /// key's own ends (a key lane's revocations, rotations and roster voids, which `key_end` reads and passes; `|_| true`
 /// where the caller holds no key lane). The reference is `checkpoint.own_row`.
 pub fn own_row<R: SeatRow>(c: &Concluded<'_, R>, a: usize, own: &R::Key, ends_ok: &dyn Fn(usize) -> bool) -> bool {
     let g = &c.g;
     let r = g.row(a);
-    let mine = r.signer() == own
-        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
-            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();
-            voices(r, &Past::new(g, a, &anc)).contains(own)
-        });
+    // STRICT (review-48 R2s): only the rows `own` signed itself (its cosign rows among them); never another signer's
+    // row listing it as a cosigner, a seat row included (an offer over the signer's own object concludes on its word
+    // alone, so a forged cosigner breaks no count)
+    let mine = r.signer() == own;
     if !mine {
         return false;
     }
