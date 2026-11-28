@@ -785,9 +785,21 @@ def recount_on_growth(S, q, o=None, void=frozenset(), other=None):
         # (a change built on a row from behind q is no change ahead of q: it merges the stale line, r99 k3)
         stale_line = lambda c: "stale_line_ahead" not in MUT and any(behind_act(S, S.by[x], q) for x in S.anc[c["id"]]
                                    if x in S.by and x not in S.anc[q["id"]] and x != q["id"] and x in S.C and S.C[x])
+        # ANY held row the signers signed on the room after q's heads (a vote, an admission, an acknowledgement, a
+        # message naming a later head: the Constitution's rule 2), its heads the ones it names, or the changes over
+        # the room among the rows it names (MUTATION ahead_changes_only: only their counted changes)
+        def later_heads(c):
+            if c.get("head"): return tuple(c["head"])
+            return tuple(n for n in c.get("names", ()) if n in S.by and change(S.by[n], o, S.by))
+        def on_room(c):
+            if "ahead_changes_only" in MUT: return change(c, o, S.by) and c.get("scope") != "record"
+            if c.get("scope") == "record": return False
+            return c.get("obj") == o or c.get("room") == o or any(
+                n in S.by and change(S.by[n], o, S.by) for n in c.get("names", ()))
         growth = growth + [c for c in S.Cs if c["id"] not in void and c["id"] != q["id"] and c not in growth
-                           and change(c, o, S.by) and c.get("scope") != "record" and q["id"] not in S.anc[c["id"]]
-                           and signers(c) & mine and behind_act(S, q, c) and not stale_line(c)]
+                           and on_room(c) and q["id"] not in S.anc[c["id"]] and signers(c) & mine
+                           and later_heads(c) and behind_act(S, q, dict(c, head=later_heads(c)))
+                           and not stale_line(c)]
     if not growth: return True
     T = with_growth(S, q, o, void, growth)
     byT = {x["id"]: x for x in T}

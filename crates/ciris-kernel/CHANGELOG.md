@@ -30,11 +30,12 @@ nothing, and every row built on it is void with it. A change of the record, an e
 read by their own counts. **The batch, as the Constitution ruled (r98):** a row from behind the act (its heads in
 the act's own past, older than the act's: an acceptance of an offer in its past, or the same voices' new row at an
 old head after their own later row) is no growth against it and is itself the one re-counted; a reader whose line
-has passed the head reads such a row as behind its line. **Stated residuals:** a reader with no line, holding no
-later row by the signers, reads the same voices' duty conferrals at one head as one batch (the head rule's stated
-cost); and a reader whose line holds only a sibling at that head reads the batch as one, until it acknowledges
-anything newer than the head or holds a later counted row by the signers (the sibling-safe line; with the
-Constitution). Plants: `counted_recount_unread`, `growth_ends_read`, `growth_any_body`,
+has passed the head reads such a row as behind its line. Rule 2 reads ANY held row the signers signed on the room after the head (a vote, an
+admission, an acknowledgement, a message naming a later head), not only their counted changes. **Stated residual
+(the Constitution's words):** a reader at g, whose line holds only g or a change AT g, reads the same voices' duty
+conferrals at g as one batch until it acknowledges anything newer than g or holds any later row by the signers (a
+row is behind an acknowledged change only where every head it names is strictly in the past of that change's own
+heads, so a sibling at g is not). Plants: `counted_recount_unread`, `growth_ends_read`, `growth_any_body`,
 `behind_grows`, `growth_ends_unread`, `batch_any_heads`, `lone_regrowth_unread`.
 
 **Parity of `spec_from_policy` (review-53).** `window::Why` is ordered by its word and the cell it names

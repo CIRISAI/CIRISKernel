@@ -1997,6 +1997,17 @@ pub(crate) fn concurrent_growth<R: SeatRow>(
         .collect()
 }
 
+/// Act `q` is behind the heads `later` (a later row's): every head `q` names is in the past of `later`, and `later`
+/// names a head `q`'s line has not reached.
+fn behind_heads<R: SeatRow>(c: &Concluded<'_, R>, q: usize, later: &[usize]) -> bool {
+    let g = &c.g;
+    let hq: Vec<usize> = g.row(q).head().iter().filter_map(|h| g.idx(h)).collect();
+    if hq.is_empty() || !hq.iter().all(|&h| later.iter().any(|&l| l == h || g.ancestors(l).has(h))) {
+        return false;
+    }
+    !later.iter().all(|&l| hq.iter().any(|&a| a == l || g.ancestors(a).has(l)))
+}
+
 /// Growth row `x` (or the offer it accepts) is BEHIND act `q`: every head it names is in `q`'s own past, and `q`
 /// names a head `x`'s line has not reached (a row written at an older head than `q`'s, from the old past). It is no
 /// growth against `q`: `q` was counted at a newer head, and the row from behind it is the one re-counted (the
@@ -2136,7 +2147,25 @@ pub(crate) fn recount_on_growth<R: SeatRow, S: CutSpec<R>>(
             if x == q || void.contains(&x) || growth.contains(&x) || g.ancestors(x).has(q) {
                 continue;
             }
-            if xr.scope().is_some_and(|s| s.as_ref() == "record") || !change(law, xr, o, room.as_deref()) {
+            // ANY held row the signers signed on the room after q's heads (a vote, an admission, an acknowledgement,
+            // a message naming a later head: the Constitution's rule 2), its heads the ones it names, or the changes
+            // over the room among the rows it names
+            if xr.scope().is_some_and(|s| s.as_ref() == "record") {
+                continue;
+            }
+            let named_changes: Vec<usize> = xr
+                .names()
+                .iter()
+                .filter_map(|n| g.idx(n))
+                .filter(|&n| change(law, g.row(n), o, room.as_deref()))
+                .collect();
+            let on_room = xr.obj().as_ref() == Some(o) || xr.room().as_ref() == Some(o) || !named_changes.is_empty();
+            if !on_room {
+                continue;
+            }
+            let later: Vec<usize> =
+                if xr.head().is_empty() { named_changes } else { xr.head().iter().filter_map(|h| g.idx(h)).collect() };
+            if later.is_empty() || !behind_heads(c, q, &later) {
                 continue;
             }
             // (a change built on a row from behind q is no change ahead of q: it merges the stale line, r99 k3)
@@ -2145,7 +2174,7 @@ pub(crate) fn recount_on_growth<R: SeatRow, S: CutSpec<R>>(
                 .iter()
                 .copied()
                 .any(|y| y != q && g.ancestors(x).has(y) && !g.ancestors(q).has(y) && behind_act(c, y, q));
-            if signers(xr).iter().any(|k| mine.contains(k)) && behind_act(c, q, x) && !stale_line {
+            if signers(xr).iter().any(|k| mine.contains(k)) && !stale_line {
                 growth.push(x);
             }
         }
