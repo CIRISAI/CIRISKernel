@@ -25,8 +25,8 @@
 //!   equivocator has no say and stays in the base). Once closed, no rival seating counts.
 //! - F3: a next election stands only while its id row stands, for the rows held.
 use super::{
-    concluded_over, founding, persons_at_with, roster_offer, roster_word, seat_scopes, signed_by, stay_end, Conf,
-    MembersAt, Obj, ObjOf, Policy, SeatKind, SeatLaw, SeatRow, Seats, AGENT,
+    concluded_over, founding, persons_at_with, persons_of, roster_offer, roster_word, seat_scopes, signed_by, stay_end,
+    Conf, MembersAt, Obj, ObjOf, Policy, SeatKind, SeatLaw, SeatRow, Seats, AGENT,
 };
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
@@ -229,8 +229,12 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                 return window;
             }
         }
+        // signed by a member of the electorate, or by a live key of one (counts over persons; ruled on #224)
         if !el.contains(q.signer()) {
-            return false;
+            let rows: Vec<&R> = p.iter().map(|&i| self.row(i)).collect();
+            if persons_of(&rows, self.law, self.spec, &BTreeSet::from([q.signer().clone()]), el).is_empty() {
+                return false;
+            }
         }
         let named = |b: &R| b.of().and_then(in_p).is_some_and(|ei| self.ekey(ei) == *ek);
         match q.seat_kind() {
@@ -708,17 +712,25 @@ pub(super) fn count<R: SeatRow, S: CutSpec<R>>(
         .filter(|d| d.seat_kind() == SeatKind::Decline && mine.contains(d.id()) && el.contains(d.signer()))
         .map(|d| d.signer())
         .collect();
+    // one ballot per person (ruled on CIRISConstitution#224): a ballot counts for the voter its key speaks for
+    // ([`persons_of`] over the seating's past); the tally takes one ranking a voter, and a voter whose keys cast two
+    // says nothing
+    let who = |k: &R::Key| -> Option<R::Key> {
+        if voters.contains(k) {
+            return Some(k.clone());
+        }
+        persons_of(&all, law, spec, &BTreeSet::from([k.clone()]), &voters).pop_first()
+    };
     let ballots: Vec<(R::Key, Vec<R::Key>)> = rows
         .iter()
         .filter(|b| {
             b.seat_kind() == SeatKind::Ballot
                 && mine.contains(b.id())
-                && voters.contains(b.signer())
                 && !gone.contains(b.id())
                 && b.ranking().iter().all(|k| voters.contains(k))
                 && b.ranking().len() <= ELECTION_RANKS
         })
-        .map(|b| (b.signer().clone(), b.ranking().to_vec()))
+        .filter_map(|b| Some((who(b.signer())?, b.ranking().to_vec())))
         .collect();
     if ballots.is_empty() {
         return false;

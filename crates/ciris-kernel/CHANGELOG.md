@@ -19,11 +19,27 @@
 - The lift at both heads (ported from the lift lane, 2f9b46f): counted over the members at both the act's head and
   the lift's, so members admitted after the act cannot carry it.
 
-**The Constitution's G21, G23, G24: a release, a reconsideration and a lift cite.** A quarantine release names its
-withhold, a reconsideration its takedown notice, and a lift the act it lifts (a lone act, or a lone removal) by
-`SeatRow::cites()` (new, default none: the wire's `refs.also.cites`), replacing the provisional `of()` for the first
-two and `content()` for a lift. A takedown notice still names its content row by `of()`, and a reconsideration keeps
-its `outcome`.
+**Officers counted by person** (key-person merged; ruled on CIRISConstitution#224, as every count). An affiliation's
+officers are read through `seat::Persons`: two keys of one person in the roster are one officer, so a one-officer body
+stays one-officer whatever devices sign, and another key of the officer's own person on its act is the officer
+itself, no countersign (even where the record names that key its official). Edge (c) of item 8 is closed for keys a
+shared roster links; keys one person keeps unlinked are, as for every count, two persons.
+
+**G15 native, and exactly one cite (r98).** A countersign is the outside key's own voice on the act's row, not a
+separate row: `SeatKind::Countersign` is removed (**BREAKING**), and a one-officer affiliation's act is decided where
+an eligible outside voice (the designated official, or a review holder of `overseen_by`, read in the act's own past)
+is among its own signers, with no end of that voice's overseer seat concurrent with the act. An ineligible outside
+voice on the act refuses it. The decision and its countersign are one row, so a later withdrawal naming the act has
+both in its past. A reconsideration, a lift (and any row read by `cites`) names exactly one row: a row whose cites are
+not exactly one names nothing, and `act_in_force` reads the same one cite the act's own rule validated.
+
+**The Constitution's G23, G24: a reconsideration and a lift cite; G21: a release supersedes.** A reconsideration
+names its takedown notice, and a lift the act it lifts (a lone act, or a lone removal), by `SeatRow::cites()` (new,
+default none: the wire's `refs.also.cites`), replacing the provisional `of()` and a lift's `content()`. A quarantine
+release is no citation (G21 as re-ruled): it is the withholding holder's `supersedes` of its own withhold, named by
+`SeatRow::target()` (its key read from the withhold); only the holder that withheld releases it, and another holder's
+release concludes nothing (its routes are the members' lift or a review). A release is an END of its withhold, not a standing act: it is read by the one end reading (an end, once in a row's past, is never revived; an end concurrent with it cuts it, rule 4), not by the E rules a standing lone act is read by, so it stands after its author's later lay-down and a concurrent lay-down cuts it (review-58's n1). A takedown notice still names its content
+row by `of()`, and a reconsideration keeps its `outcome`.
 
 **r81 B2 at the roster (the r87 attack): a lone conferral concurrent with the grown body's counted act is re-counted
 in Seats.** A lone holder's own conferral of a duty, concurrent with a counted act of conf `group` over the room by the
@@ -44,9 +60,8 @@ in the past of an act's heads is read at those heads, so an appointment decided 
 a case: a one-officer body with no official and no `overseen_by` can admit and do nothing else; r75 c1 (the one
 officer appoints a sock officer and the two remove a member) is refused, the appointment itself being a proposal.
 `protocol_record`, `protocol_of` and `declared_count` take the law and the cut spec (a change's in-force reading asks
-for the officers). Residual: two officer keys one person keeps unlinked, in no shared roster, are seen by no rule, and
-the members see two officers when they join. Officers are counted by key until key-person's persons function is
-merged (then by person, so two keys in one roster are one officer). An onward trust edge (`delegates_to`) on behalf of
+for the officers). Two officer keys one person keeps unlinked, in no shared roster, are seen by no rule (as for every
+count); officers are counted by person (below). An onward trust edge (`delegates_to`) on behalf of
 a one-officer affiliation is its counted act too: a countersign may name it (`SeatRow::edge_body`, new, default
 `None`: the group a `delegates_to` row speaks for, or a `licensure` row's authority, so the body's own licence is such an act too), and `edges_of` walks it only where `seat::countersigned` (new, the
 one reading trust_rows takes) holds: countersigned, with no concurrent withdrawal of it by its signer (rule 4) and no
@@ -343,6 +358,82 @@ now stands (`conferral_two.json`: "(d) reader at the later"; `conferral_end.json
 strictly-behind case is now `end_old_fork_for_reader` with a third head). The TLA spec's end line drops its
 acknowledgement clause (its two heads have no strictly-behind end). Plants `line_not_sibling_safe` (the reference)
 and one in the crate.
+
+**Counts are over persons: one voice and one member per person** (ruled on CIRISConstitution#224: "one voice
+however many live keys sign"). New: `seat::Persons`, the persons a count reads over a counted row's past, and
+`seat::persons_of`. A person is named by its self roster's genesis key (the founding record's signer). A key of
+exactly one self roster counts as its person, a key of none as itself. In a base, a key counts as that member,
+so a person seated by two keys is one member. As a voice it counts for nobody where:
+- it is a key of two persons, two rosters with different genesis keys (two rosters founded by one genesis key name
+  one person);
+- it revoked itself (its member seat stands);
+- its person's genesis key revoked itself (its devices then speak for no one).
+An AI agent's key is out before the map (CC 4.5.13: "an agent has no vote"): never its owner's voice whatever roster
+lists it, and no voice of its own, since no count's base holds an agent (a clause one holder's act resolves still reads
+an agent holder's act). The edge: a person who seats one of their own device keys as an agent loses that key as a
+voting key. Agent registration is not modelled apart from the agent seat. The base and the voices map to persons
+everywhere: the denominator, the numerator, the electorate and the floor of two (two keys of one person never meet
+it).
+Every count reads its base and its voices through it: the seat rule's count (the policy count, quorum, floor, the duty
+count, the recall), the fold at tips, the lift (the remover's devices are the remover), the count's receipt of a lone
+removal, the election's ballots and set (one ballot a person; two rankings say nothing; a member's device signs for
+it), and a window's answers and bases (each answer read as its signer's person before the opener's withdrawal, a duty
+holder's act and the moot are read). Voices are mapped first and then held to the voting base, so a device of an
+excluded target or a voided member is no voice. A count over a self roster's own keys (or a key object) reads keys.
+`GroupCount`'s contract states that its `voices` are persons. No existing answer changes. The reference:
+`seat.rep_of`, `seat.as_persons`, `seat.persons_of`, `seat.person_for`; `check_key_person.py`, 42 cases (the review
+r74's rows among them: a person seated by two keys, a revoked key and its devices, an agent's key, the lift's
+author's device, a window over a self roster) and ten planted breaks; the window, ballot and r74 rows are in the seat
+fixture; seven crate plants for it, four retargeted.
+
+**N7: an owner's acceptance cites its binding, checked** (0.5.0; ruled after the text was found, CC Part 3 "The
+owner's acceptance"). `standing::StandingRow::on` on an acceptance is the binding it cites (`refs.also.cites`); new
+`StandingRow::cites` (every cited row) and `StandingRow::node` (a binding's key), both defaulted. New
+`standing::owner_of`, the check: exactly one cited row, an owner binding its signer owns, of the grantee's key, live
+at the acceptance; not held, it waits naming it. One refusal, the text's `acceptance_other_binding`, replaces `acceptance_names_no_binding` and
+`not_the_owners_acceptance`. No
+existing answer changes. The reference: `owner_of` in `check_conferral_two.py`, seven cases and a planted break;
+`conferral_two.json` gains them; four crate plants (one retargeted).
+
+**Counts by person through one function; the keys a row reaches** (0.5.0; the review r78k, and persist). New:
+`seat::Persons::count`, the base and the voices by person with a named key set apart by person from both; every
+count reads it (the seat rule's count and lift, the fold and its lift, the count's receipt, the infrastructure
+quorum, the recall). The fold's lift and the count's receipt now take the author and the remover out by person
+(KP-B, KP-C), and the recall's holder is apart by person: a person whose device holds a duty is no voice of its
+recall (an answer moves only for a device-held duty). The opener's own withdrawal of a window reads its signer as the
+opener is read, a key of no person as itself, with no voter needed. New: `seat::person_keys(c, law, spec, person)`
+(a person's live keys, the inverse of `persons_of`) and `seat::nodes_of(c, law, spec, owner)` (the node keys whose
+one live owner-binding names the owner), over the concluded set with no instant. Changed (r95, G33): a genesis key its own self roster evicted is no voice of its person (the person
+is its identity; only a live key of its roster speaks for it), and its own rows read as a bare key's; a live device
+still votes as the person. The key a self roster evicts is no voice of its own eviction (the one-key
+residual cannot evict). One self roster per identity (r96 G1, ruled): a second founding of a self roster by an
+identity whose roster is in the row's past concludes nothing, and two foundings neither in the other's past are
+rivals no person is read through (a reader waits); a two-key roster evicts by the lone path when the other key is
+silent through the window (CC 4.5.13), and an objection within it refuses; a landed lone-path eviction ends the target's seat as a
+counted eviction does, a landed lone-path addition seats its consenting keys, and a landed window is a head of a
+later count (new defaulted `SeatRow::landing`, `SeatRow::evicts`, `SeatRow::adds`); one self roster per identity is read by the READER'S LINE (ruled): a reader's roster for an identity is the founding
+its line takes up, in the line's order (`seat::takes_up`: the earliest of the reader's own rows reaching a founding fix
+it; a later row over a rival takes up nothing), a rival and everything built on it conclude nothing for that reader, and
+neither or both taken up is a wait (new: `seat::for_reader` reads the reader's rivals); two concurrent landed lone
+evictions of each other are contested (r99 M1); a cited binding must carry its node (r99 A4). Changed: `seat::person_at`
+answers the person's identity key (`Obj::Key` of the genesis key), not the roster row, so two rosters of one genesis
+key, or a genesis key with two key records, are one person (the text's ruling G5). Together: the node set = audiences ∘
+person_keys ∘ nodes_of (ADOPTING.md). The reference: `seat.count_persons`, `seat.person_keys`, `seat.nodes_of`;
+`check_key_person.py`, 71 cases, 20 planted breaks; seat.json gains six scenarios (none moved), `key_person.json` its
+window, person-keys and nodes sections (`tests/key_person.rs`); ten crate plants, four retargeted.
+
+**A key's person at a row, with no instant** (0.5.0; the rule ruled on CIRISConstitution#224). New:
+`seat::person_at(c, at, law, spec, k)`, the person key `k` is at row `at` of a concluded set: the self roster (an
+object of kind `self`: a person's own key roster, or a voice's room keys in a private room) where, in the row's own
+past, `k` is the genesis key or was seated by a counted addition that landed (`self_roster_add`), no eviction of it
+has landed (`self_roster_evict`), an eviction concurrent with the row following rule 4 (it counts at its own head and
+is out of force from that head on); and the key's own revocation (an unseat of its `registered` seat by the key) is
+not in the row's past (`seat::key_record_ended`). `None` for none, or for several (two persons is none). The key
+record's stated end is the key's own instant on the key's own rows (`key_end`, the half-open end), not read here: no
+foreign clock. No existing answer changes. The reference: `seat.person_of`, `seat.evicted_from`,
+`seat.key_record_ended`; `check_key_person.py`, 18 cases in arrival orders, five planted breaks; fixture
+`key_person.json`, replayed as listed and reversed (`tests/key_person.rs`); five crate plants. `key_end::live(c, k,
+now)` is unchanged and still reads `now`; counts over persons do not read `person_at` yet.
 
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone

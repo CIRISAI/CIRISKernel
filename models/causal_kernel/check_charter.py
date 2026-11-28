@@ -6,7 +6,7 @@ DECLARED: the (class, legal_weight) pairs a community's record in force declares
 caller's instant, where a case gives one). LICENCES: whether a reader honours a licence, and why not; every licence
 row of every case is kept and concluded (admitted as a row, whatever class it states). EDGES: the admission of an
 acceptance edge's trust_classes. COUNTERSIGN: a removal from an affiliation (CC 4.4.3.12): a one-seat body's is a
-proposal, in force only with a countersign by the designated official or an overseer outside the seat. Every
+proposal, in force only with a countersign: the designated official's or an overseer's own voice on the act's row (G15). Every
 DECLARED and LICENCES case is read in every arrival order of its rows up to a cap, and gives one answer.
 
 Planted breaks, each of which must change a case's answer:
@@ -35,15 +35,14 @@ Planted breaks, each of which must change a case's answer:
     countersign_inside_seat  (seat.py) the acting seat may countersign its own act
     official_at_founding  (seat.py) the official is read from the founding record, not the record in force
     overseers_unread      (seat.py) a review holder of the overseeing body may not countersign
-    withdrawal_clears_unread  (seat.py) the acting seat's withdrawal does not clear its proposal
     two_voices_unread     (seat.py) a body of two or more seats removes on one voice
     officer_from_founders (seat.py) the deciding seats are the founding record's signers, not the officer role
     affiliation_body_members  (seat.py) an affiliation's acts are counted over its members, not its officers
     no_officer_locks      (seat.py) an affiliation with no officer is not dissolved
     overseer_end_unread   (seat.py) an overseer's lay-down does not cut its countersign
     countersign_against_member_only  (seat.py) only the four acts against a member need a one-officer body's countersign
-    countersign_at_heads_unread  (seat.py) a countersign in the past of a row's heads is not read with them: an
-                          appointment decided there seats no officer at the heads
+    outside_voice_taken   (seat.py) any outside voice on a one-officer act is taken, eligible or not (G15)
+    officers_by_key       (seat.py) officers are counted by key: two keys of one person are two officers
 
     python3 -I check_charter.py      exit 1 on any difference
 """
@@ -130,8 +129,8 @@ DECLARED = [
     ("item 8, ruled: a one-officer affiliation's change of its charter is a proposal (every act but an admission needs "
      "the countersign); with no official and no overseen_by nothing decides it, and the founding classes stand (edge "
      "(a): such a body can admit and do nothing else)", [A1, A1V], "a1", None, None, {MW}),
-    ("and with its designated official's countersign naming the change, decided: legal is added",
-     [A1OF, A1V, ST.R("vc", "countersign", "O", ("a1v",), of="a1v")], "a1", None, None, {MW, LW}),
+    ("and with its designated official's voice on the change (G15), decided: legal is added",
+     [A1OF, dict(A1V, cosigners=("O",))], "a1", None, None, {MW, LW}),
     ("an appointed member is no voice (the body is its officers, CC 4.4.3.12): A's change beside appointed B is still "
      "the one officer's proposal", [A1, A1B, A1VB], "a1", None, None, {MW}),
     ("and B's signature beside A's decides nothing", [A1, A1B, A1VAB], "a1", None, None, {MW}),
@@ -218,7 +217,6 @@ A1OB = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1"
 RMB = lambda heads=("a1b",), signer="A", cos=(): ST.unseat("rm", signer, "B", "member", "a1", "group",
                                                          tuple(heads) + ("ob",), head=tuple(heads), cosigners=tuple(cos),
                                                          policy="affiliation_member_action", counted=ST.OFFICER)
-CS = lambda k, names=("rm",), i="cs": ST.R(i, "countersign", k, tuple(names), of="rm")
 WRM = ST.withdraw("wrm", "A", "rm", ("rm",))
 ONE = [OB, A1O, A1OB]
 # A, the one officer, appoints C an officer: an appointment carrying role officer, C cosigning (its own acceptance)
@@ -227,81 +225,100 @@ AOC = ST.offer("aoc", "A", ("C",), "member", "a1", "group", ("a1b",), head=("a1b
 RM0 = ST.unseat("rm0", "A", "B", "member", "a1", "group", ("a1b",), head=("a1b",), policy="affiliation_member_action",
                counted=ST.OFFICER)
 DIS1 = rec("dis1", None, heads=("a1b",), cosigners=(), obj="a1", dissolved_at=100)   # A alone dissolves a1
-ACS = ST.R("acs", "countersign", "O", ("aoc",), of="aoc")             # the official's countersign of the appointment
-RMBA = lambda cos=(): dict(RMB(("aoc",), cos=cos), names=RMB(("aoc",), cos=cos)["names"] + ("acs",))
+# the countersign is the outside key's voice on the act's own row (the Constitution's G15): a cosigner of the act
+AOCO = dict(AOC, cosigners=("C", "O"))                               # the appointment, with the official's voice
 VO2 = dict(rec("v", (MW,), heads=("a1",), cosigners=(), obj="a1", official="O2", **{ST.OVERSEEN_BY: "ob"}),
            names=("a1", "ob"))
 A1OBV = dict(A1OB, names=("v",), head=("v",))
-VCO = ST.R("vc", "countersign", "O", ("v",), of="v")                       # the replaced official's countersign
-VCR = ST.R("vcr", "countersign", "R1", ("v", "ob"), of="v")               # the overseer's
-A1OBV2 = dict(A1OB, names=("v", "vc"), head=("v",))
-A1OBV3 = dict(A1OB, names=("v", "vcr"), head=("v",))
-RMBV = lambda c="vc": dict(RMB(), names=RMB()["names"] + (c,))
+RMBV = lambda cos=(): dict(RMB(("v",), cos=cos), names=("v", "ob"))
 REM = ST.unseat("rm", "A", "C", "member", "af", "group", ("af",), head=("af",), cosigners=("B",), policy="cosigned_act",
                counted=ST.OFFICER)
+RV2 = ST.offer("rv", "R1", "R2", "review", "ob", "group", ("ob",), head=("ob",), policy="duty_confer", counted="duty",
+               cosigners=("R2",))                                    # R1 confers review over ob on R2
+LD1 = ST.withdraw("ld", "R1", "ob", ("ob",), scope="review")          # R1 lays its review over ob down
+# by person (ruled on CIRISConstitution#224, as every count): A's self roster SA holds a second key A2 (A's device)
+SA = ST.offer("SA", "A", ("A",), "self", "@", "self")
+SAA2 = ST.offer("aa2", "A", "A2", "self", "SA", "group", ("SA",), head=("SA",), policy="self_roster_add", counted="self",
+                cosigners=("A2",))
+A1O2 = dict(aff("a1", to=("A", "A2"), cls=(MW,), official="O", **{ST.OVERSEEN_BY: "ob"}), names=("aa2", "ob"))
+A1O2B = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("B",), counted=ST.OFFICER)
 # (name, rows, {row: concludes}, [(key, the affiliation, stands as a member)])
 COUNTERSIGN = [
-    ("a one-seat affiliation's removal of a member, alone: it concludes as a proposal and B stays a member",
-     ONE + [RMB()], {"rm": True}, [("B", "a1", True)]),
-    ("countersigned by the designated official, outside the seat: a decision, B is out",
-     ONE + [RMB(), CS("O")], {"rm": True, "cs": True}, [("B", "a1", False), ("A", "a1", True)]),
-    ("countersigned by the acting seat itself: no countersign (the seat cannot be its own second voice)",
-     ONE + [RMB(), CS("A")], {"cs": False}, [("B", "a1", True)]),
-    ("countersigned by a review holder of the overseeing body (naming the body's record, its seat's basis): a "
-     "decision", ONE + [RMB(), CS("R1", ("rm", "ob"))], {"cs": True},
+    ("by person: A2, another key of A's own person, on A's removal is the officer itself, no countersign: held, B stays",
+     [OB, SA, SAA2, dict(A1O, names=("aa2", "ob")), A1OB, dict(RMB(cos=("A2",)), names=("a1b", "ob", "aa2"))],
+     {"rm": True}, [("B", "a1", True)]),
+    ("by person: the record names A2 (another key of the officer's own person) its official: A2's voice on A's removal "
+     "is the officer itself, no outside countersign: held, B stays",
+     [OB, SA, SAA2, dict(A1O, official="A2", names=("aa2", "ob")), A1OB,
+      dict(RMB(cos=("A2",)), names=("a1b", "ob", "aa2"))], {"rm": True}, [("B", "a1", True)]),
+    ("persons are read in the act's own past (pinned, ruled with the Constitution): A's binding of A2, the record's "
+     "official, is CONCURRENT with the removal, so A2's voice decides it: B is out",
+     [OB, SA, SAA2, dict(A1O, official="A2"), A1OB, RMB(cos=("A2",))], {"rm": True}, [("B", "a1", False)]),
+    ("and with the binding written AFTER the removal (it names rm): the decision stands, B is out",
+     [OB, dict(A1O, official="A2"), A1OB, RMB(cos=("A2",)), SA, dict(SAA2, names=("SA", "rm"))], {"rm": True},
      [("B", "a1", False)]),
-    ("countersigned by a member of the overseeing body holding no review seat: none", ONE + [RMB(), CS("R2", ("rm", "ob"))],
-     {"cs": False}, [("B", "a1", True)]),
-    ("countersigned by a key that is neither: none", ONE + [RMB(), CS("X")], {"cs": False}, [("B", "a1", True)]),
-    ("the acting seat withdraws the proposal, and a countersign naming the withdrawal concludes nothing",
-     ONE + [RMB(), WRM, CS("O", ("wrm",))], {"wrm": True, "cs": False}, [("B", "a1", True)]),
-    ("the withdrawal concurrent with the countersign clears the proposal: B stays",
-     ONE + [RMB(), WRM, CS("O")], {"wrm": True, "cs": True}, [("B", "a1", True)]),
-    ("item 8: a record change naming a new official O2, not countersigned, is a proposal: O is still the official, and "
-     "O's countersign of the removal decides it", [OB, A1O, VO2, A1OBV, RMB(), CS("O")],
-     {"v": True, "rm": True, "cs": True}, [("B", "a1", False)]),
-    ("the change countersigned by O, the official it replaces: O2 is the official, and O's countersign of the removal "
-     "is none", [OB, A1O, VO2, VCO, A1OBV2, RMBV(), CS("O")], {"vc": True, "rm": True, "cs": False},
+    ("by person: two officer keys of one person in the roster are ONE officer: A and A2's removal is a proposal (held), "
+     "not two voices, and B stays", [OB, SA, SAA2, A1O2, A1O2B, dict(RMB(cos=("A2",)), names=("a1b", "ob", "aa2"))],
+     {"rm": True}, [("B", "a1", True)]),
+    ("and with the official's voice on it as well: decided, B is out",
+     [OB, SA, SAA2, A1O2, A1O2B, dict(RMB(cos=("A2", "O")), names=("a1b", "ob", "aa2"))], {"rm": True},
+     [("B", "a1", False)]),
+    ("a one-seat affiliation's removal of a member on the officer's voice alone: it concludes as a proposal (held) and "
+     "B stays a member", ONE + [RMB()], {"rm": True}, [("B", "a1", True)]),
+    ("G15: the removal with the designated official's voice on its own row: a decision, B is out",
+     ONE + [RMB(cos=("O",))], {"rm": True}, [("B", "a1", False), ("A", "a1", True)]),
+    ("the removal with a review holder of the overseeing body's voice on it (the row naming the body's record): a "
+     "decision", ONE + [RMB(cos=("R1",))], {"rm": True}, [("B", "a1", False)]),
+    ("with the voice of a member of the overseeing body holding no review seat: no countersigner, and an ineligible "
+     "outside voice on the act refuses it", ONE + [RMB(cos=("R2",))], {"rm": False}, [("B", "a1", True)]),
+    ("with the voice of a key that is neither: refused", ONE + [RMB(cos=("X",))], {"rm": False}, [("B", "a1", True)]),
+    ("with the target's own voice: refused (B is no countersigner)", ONE + [RMB(cos=("B",))], {"rm": False},
      [("B", "a1", True)]),
-    ("and O2's decides", [OB, A1O, VO2, VCO, A1OBV2, RMBV(), CS("O2")], {"cs": True}, [("B", "a1", False)]),
-    ("edge (b): O refuses to sign its own replacement; only the overseer replaces it: R1 countersigns the change, and "
-     "O2's countersign then decides", [OB, A1O, VO2, VCR, A1OBV3, RMBV("vcr"), CS("O2")], {"vcr": True, "cs": True},
+    ("the acting seat withdraws its held proposal: nothing decided, B stays", ONE + [RMB(), WRM], {"wrm": True},
+     [("B", "a1", True)]),
+    ("the acting seat's withdrawal after the decision (the countersign on the act, so in the withdrawal's past) is a "
+     "new act and undoes nothing: B stays out", ONE + [RMB(cos=("O",)), WRM], {"rm": True, "wrm": True},
      [("B", "a1", False)]),
-    ("an official who is the seat (the record names A) is no outside key", [OB, aff("a1", to=("A",), cls=(MW,),
-                                                                             official="A"), A1OB, RMB(), CS("A")],
-     {"cs": False}, [("B", "a1", True)]),
+    ("item 8: a record change naming a new official O2 on the officer's voice alone is a proposal: O is still the "
+     "official, and O's voice on the removal decides it", [OB, A1O, VO2, A1OBV, RMBV(("O",))],
+     {"v": True, "rm": True}, [("B", "a1", False)]),
+    ("the change with O's voice on it (the official it replaces): O2 is the official, and O's voice on the removal is "
+     "an ineligible outside voice: refused", [OB, A1O, dict(VO2, cosigners=("O",)), A1OBV, RMBV(("O",))],
+     {"v": True, "rm": False}, [("B", "a1", True)]),
+    ("and O2's voice on it decides", [OB, A1O, dict(VO2, cosigners=("O",)), A1OBV, RMBV(("O2",))], {"rm": True},
+     [("B", "a1", False)]),
+    ("edge (b): O refuses to sign its own replacement; only the overseer replaces it: R1's voice on the change, and "
+     "O2's voice then decides", [OB, A1O, dict(VO2, cosigners=("R1",)), A1OBV, RMBV(("O2",))], {"v": True, "rm": True},
+     [("B", "a1", False)]),
+    ("an official who is the seat (the record names A) is no outside key: the removal stays held",
+     [OB, aff("a1", to=("A",), cls=(MW,), official="A"), A1OB, RMB()], {"rm": True}, [("B", "a1", True)]),
     ("a body of three deciding seats decides under its own protocol: A and B remove C, two voices, no countersign",
      [AF, REM], {"rm": True}, [("C", "af", False)]),
     ("and one voice of such a body removes nobody", [AF, dict(REM, cosigners=())], {"rm": False}, [("C", "af", True)]),
-    ("a key that is no deciding seat signs no removal: B, appointed, with A", ONE + [RMB(cos=("B",))], {"rm": False},
-     [("B", "a1", True)]),
-    ("r75: an overseer seated AFTER the removal is no overseer of it: R1 confers review over ob on R2, R2 countersigns",
-     ONE + [RMB(), ST.offer("rv", "R1", "R2", "review", "ob", "group", ("ob",), head=("ob",), policy="duty_confer",
-                            counted="duty", cosigners=("R2",)), CS("R2", ("rm", "rv"))], {"cs": False},
-     [("B", "a1", True)]),
-    ("r75: an ex-overseer countersigns nothing: R1 lays its review down after the removal, then countersigns",
-     ONE + [RMB(), ST.withdraw("ld", "R1", "ob", ("ob",), scope="review"), CS("R1", ("rm", "ld"))], {"cs": False},
-     [("B", "a1", True)]),
-    ("r75: and R1's lay-down concurrent with its countersign cuts it (the end rule): nothing decided",
-     ONE + [RMB(), CS("R1", ("rm", "ob")), ST.withdraw("ld", "R1", "ob", ("ob",), scope="review")], {"cs": True},
-     [("B", "a1", True)]),
-    ("the acting seat's withdrawal after the decision (the countersign in its past) is a new act and undoes nothing: "
-     "B stays out", ONE + [RMB(), CS("O"), ST.withdraw("wrm", "A", "rm", ("cs",))], {"cs": True, "wrm": True},
+    ("r75: an overseer seated AFTER the removal is no overseer of it: R2's voice on a removal that does not have R2's "
+     "review seat in its past is refused", ONE + [RV2, RMB(cos=("R2",))], {"rm": False}, [("B", "a1", True)]),
+    ("and with R2's review seat in the removal's past, R2's voice decides",
+     ONE + [RV2, dict(RMB(cos=("R2",)), names=("a1b", "ob", "rv"))], {"rm": True}, [("B", "a1", False)]),
+    ("r75: an ex-overseer countersigns nothing: R1 laid its review down in the removal's past, so its voice is refused",
+     ONE + [LD1, dict(RMB(cos=("R1",)), names=("a1b", "ob", "ld"))], {"rm": False}, [("B", "a1", True)]),
+    ("r75: R1's lay-down concurrent with the act its voice is on cuts that voice (the end rule): nothing decided",
+     ONE + [RMB(cos=("R1",)), LD1], {"rm": True, "ld": True}, [("B", "a1", True)]),
+    ("and R1's lay-down after the act (the act in its past) cuts nothing: B stays out",
+     ONE + [RMB(cos=("R1",)), ST.withdraw("ld", "R1", "ob", ("rm",), scope="review")], {"rm": True, "ld": True},
      [("B", "a1", False)]),
     # ---- the officers (the ruling on officers: `role: officer`, the body of every counted act) ------------------------
-    ("item 8: A, the one officer, appoints C as an officer, and O countersigns the appointment: two officers, so A alone "
-     "no longer removes B (two voices needed), countersign or not",
-     ONE + [AOC, ACS, RMBA(), CS("O")], {"aoc": True, "rm": False}, [("C", "a1", True), ("B", "a1", True)]),
+    ("item 8: A, the one officer, appoints C as an officer with O's voice on the appointment: two officers, so A alone "
+     "no longer removes B (two voices needed), and O's voice is no officer's",
+     ONE + [AOCO, RMB(("aoc",), cos=("O",))], {"aoc": True, "rm": False}, [("C", "a1", True), ("B", "a1", True)]),
     ("and A and C, the two officers, remove B: a decision, no countersign asked",
-     ONE + [AOC, ACS, RMBA(("C",))], {"rm": True}, [("B", "a1", False)]),
+     ONE + [AOCO, RMB(("aoc",), cos=("C",))], {"rm": True}, [("B", "a1", False)]),
     ("edge (a): a one-officer affiliation with no official and no overseen_by admits B (an admission is the one act "
      "needing no countersign), and its removal of B is a proposal nothing can decide",
      [A1, A1B, RM0], {"a1b": True, "rm0": True}, [("B", "a1", True)]),
-    ("item 8: the one officer's dissolution is a proposal: with no countersign every seat stands",
+    ("item 8: the one officer's dissolution is a proposal: on its voice alone every seat stands",
      ONE + [DIS1], {"dis1": True}, [("A", "a1", True), ("B", "a1", True)]),
-    ("and with the official's countersign naming it, the affiliation is dissolved: every seat over it ends",
-     ONE + [DIS1, ST.R("dc", "countersign", "O", ("dis1",), of="dis1")], {"dc": True},
-     [("A", "a1", False), ("B", "a1", False)]),
+    ("and with the official's voice on it, the affiliation is dissolved: every seat over it ends",
+     ONE + [dict(DIS1, cosigners=("O",))], {"dis1": True}, [("A", "a1", False), ("B", "a1", False)]),
     ("item 8, ruled (r75 c1): the appointment of a sock officer by the one officer is itself a proposal: without the "
      "countersign C is no officer, so A and C remove nobody", ONE + [AOC, RMB(("aoc",), cos=("C",))],
      {"aoc": True, "rm": False}, [("C", "a1", False), ("B", "a1", True)]),
@@ -371,9 +388,9 @@ PLANTS = ("charter_unread", "at_issuance", "below_protocol_read", "fork_union", 
           "dissolved_declares", "dissolves_at_unread", "empty_edge_admits_all", "absent_means_none",
           "edge_classes_unread", "last_hop_only", "affiliation_unread", "affiliation_admit_unread",
           "countersign_unread", "countersign_inside_seat", "official_at_founding", "overseers_unread",
-          "withdrawal_clears_unread", "two_voices_unread", "officer_from_founders", "affiliation_body_members",
+          "two_voices_unread", "officer_from_founders", "affiliation_body_members",
           "no_officer_locks", "overseer_end_unread", "countersign_against_member_only",
-          "countersign_at_heads_unread")
+          "outside_voice_taken", "officers_by_key")
 
 
 def show(x):

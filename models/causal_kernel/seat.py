@@ -529,11 +529,32 @@ def affiliation_count(r, P, past):
     one), and where the body has one deciding seat, the act stands as a PROPOSAL (CC 4.5.5's reconsideration path):
     it concludes, and is in force only where a countersign names it (Seats); a body of two or more seats decides on
     two voices at least, the member removed not counted (CC 4.5.13; MUTATION two_voices_unread: on one)."""
-    seats = deciding_seats(P, past, r["obj"], r.get("head", ()))
+    obj = r["obj"]
+    seats = deciding_seats(P, past, obj, r.get("head", ()))
     vs = voices(r, P)
-    if not vs or not vs <= seats: return False
-    if len(seats) == 1: return True
-    return len(vs - act_targets(r, {q["id"]: q for q in P})) >= (1 if "two_voices_unread" in MUT else 2)
+    off = frozenset(k for k in vs if officer_key(P, k, seats, obj))     # the officers' voices, by person
+    if not off: return False
+    if len(as_persons(seats, P, obj)) == 1:
+        # the officer's voice, and any outside voice on the row an eligible countersigner (G15): its decision
+        # (MUTATION outside_voice_taken: any outside voice taken)
+        return "outside_voice_taken" in MUT or vs - off <= countersigners(r, P, past)
+    if off != vs: return False
+    targets = act_targets(r, {q["id"]: q for q in P})
+    yes = persons_of(vs, seats, P, obj) - as_persons(targets, P, obj) - frozenset(rep_of(P, t) for t in targets)
+    return len(yes) >= (1 if "two_voices_unread" in MUT else 2)
+
+
+def officer_key(P, k, seats, obj):
+    """Key k is one of the officers' keys over P, BY PERSON (ruled on CIRISConstitution#224, as every count): a key
+    of the deciding seats, or another live key of an officer's person (its own device). The person is read in P, the
+    act's own past, as every count reads it (the rival foundings are read at the row too): a verdict for a presented
+    row is fixed by its past, so a binding concurrent with the act, or written after it, does not make an outside
+    voice the officer's own (the unlinked-keys residual, stated once). MUTATION officers_by_key: the seats' keys
+    alone."""
+    if k in seats: return True
+    if "officers_by_key" in MUT: return False
+    op = as_persons(seats, P, obj)
+    return rep_of(P, k) in op or rep_of(P, k, member=True) in op
 
 
 def against_member(u, by):
@@ -554,7 +575,7 @@ def regrown_fails(S, q, void=frozenset()):
     counted = lambda x: x is not None and x.get("conf") == "group" and x.get("obj") == obj and CP.is_counted_act(x, obj)
     growth = [x for x in S.Cs if x["id"] not in void and x["id"] != q["id"] and x["id"] not in S.anc[q["id"]]
               and q["id"] not in S.anc[x["id"]]
-              and (counted(x) or (x["kind"] in ("accept", "countersign") and counted(S.by.get(x.get("of")))))]
+              and (counted(x) or (x["kind"] == "accept" and counted(S.by.get(x.get("of")))))]
     if not growth: return False
     ids = set(S.anc[q["id"]])
     for x in growth:
@@ -596,7 +617,11 @@ def act_heads(u, P, past):
 def needs_countersign(u, P, past):
     """u, a concluded counted act of a one-officer affiliation (affiliation_act), is a proposal until countersigned."""
     by = {q["id"]: q for q in P}
-    return affiliation_act(u, by) and len(deciding_seats(P, past, act_obj(u), act_heads(u, P, past))) == 1
+    if not affiliation_act(u, by): return False
+    obj = act_obj(u)
+    seats = deciding_seats(P, past, obj, act_heads(u, P, past))
+    # officers are counted by person: two keys of one person in the roster are one officer (MUTATION officers_by_key)
+    return len(seats if "officers_by_key" in MUT else as_persons(seats, P, obj)) == 1
 
 
 def countersigned(S, r):
@@ -609,16 +634,34 @@ def countersigned(S, r):
     return not needs_countersign(r, Pr, past) or decided_in(r, by, past)
 
 
+def countersigners(u, Pu, past):
+    """The eligible outside voices on act u's OWN row (the Constitution's G15: a countersign is the outside key's voice
+    on the act, its own statement over the act's row, not a separate row naming it): u's signers outside its deciding
+    seat that are the designated official of the record in force in u's own past Pu, or a review holder of the body
+    the record's overseen_by names, at the newest counted changes over it there. The seat is read by person (officer_key)
+    (MUTATIONS countersign_inside_seat, overseers_unread)."""
+    byu = {q["id"]: q for q in Pu}
+    obj = act_obj(u)
+    seats = deciding_seats(Pu, past, obj, act_heads(u, Pu, past))
+    # outside the seat by person: another key of the officer's own person is the officer (MUTATION countersign_inside_seat)
+    outside = signers(u) if "countersign_inside_seat" in MUT else \
+        frozenset(k for k in signers(u) if not officer_key(Pu, k, seats, obj))
+    off = record_value(byu, obj, "official")
+    body = record_value(byu, obj, OVERSEEN_BY)
+    ov = overseers(Pu, past, body) if body is not None and "overseers_unread" not in MUT else frozenset()
+    return frozenset(k for k in outside if k == off or k in ov)
+
+
 def decided_in(u, by, past):
-    """A proposal u is decided over the rows `by` (a row's concluded past, or a reader's): a countersign naming it is
-    there, with no withdrawal of u by its acting seat there that does not have the countersign in its past (rule 4), and
-    no end of the countersigner's overseer seat there that does not have it in its past (overseer_cut)."""
+    """A proposal u (a one-officer affiliation's act) is decided over the rows `by` (a row's concluded past, or a
+    reader's): an eligible outside voice is on u's own row (countersigners), and no end of that voice's overseer seat
+    there lacks u in its past (overseer_cut). The decision and its countersign are one row, so a later withdrawal
+    naming the act has both in its past: an act held on the officer's voice alone is decided by no other row."""
     Pu = [q for q in by.values() if past(q["id"], u["id"])]
-    body = record_value({q["id"]: q for q in Pu}, act_obj(u), OVERSEEN_BY)
-    wd = [w for w in by.values() if w["kind"] == "withdraw" and w.get("target") == u["id"] and w["signer"] == u["signer"]
-          and "withdrawal_clears_unread" not in MUT]
-    return any(c["kind"] == "countersign" and c.get("of") == u["id"] and all(past(c["id"], w["id"]) for w in wd)
-               and not overseer_cut(c, by, past, body) for c in by.values())
+    byu = {q["id"]: q for q in Pu}
+    off = record_value(byu, act_obj(u), "official")
+    body = record_value(byu, act_obj(u), OVERSEEN_BY)
+    return any(k == off or not overseer_cut(u, by, past, body, k) for k in countersigners(u, Pu, past))
 
 
 def in_force_change(q, by):
@@ -630,12 +673,12 @@ def in_force_change(q, by):
     return not needs_countersign(q, Pq, past) or decided_in(q, by, past)
 
 
-def overseer_cut(c, rows, past, body):
-    """By the end rule, an end of a countersigner's `review` seat over the overseeing body (its withdrawal naming the
-    scope, or an unseat of it) that does not have the countersign c in its past cuts it: an ex-overseer countersigns
-    nothing (MUTATION overseer_end_unread)."""
+def overseer_cut(c, rows, past, body, k=None):
+    """By the end rule, an end of countersigner k's `review` seat over the overseeing body (its withdrawal naming the
+    scope, or an unseat of it) that does not have the countersigned act c in its past cuts k's voice on it: an
+    ex-overseer countersigns nothing (MUTATION overseer_end_unread)."""
     if "overseer_end_unread" in MUT or body is None: return False
-    k = c["signer"]
+    k = c["signer"] if k is None else k
     return any((w["kind"] == "withdraw" and w["signer"] == k and w.get("scope") == "review"
                 and (rows.get(w.get("target")) or {}).get("obj") == body or
                 w["kind"] == "unseat" and k in w.get("to", ()) and w.get("scope") == "review" and w.get("obj") == body)
@@ -647,29 +690,6 @@ def overseers(P, past, body):
     by = {q["id"]: q for q in P}
     if by.get(body) is None: return frozenset()
     return members_at(P, past, body, newest_changes(P, past, body, by), "review")
-
-
-def countersign_ok(r, P, past):
-    """A countersign row (`of` the act) concludes where the act it names is a one-seat affiliation's removal in its
-    past, not withdrawn there by the acting seat, and its signer is outside the deciding seat and is the designated
-    official or a review holder of the overseeing body, both read in the ACT's own past. Asked of keys:
-    TODO: of persons, once room-keys gives key to person (MUTATIONS countersign_inside_seat, overseers_unread)."""
-    by = {q["id"]: q for q in P}
-    t = by.get(r.get("of"))
-    if t is None or not affiliation_act(t, by): return False
-    Pt = [q for q in P if past(q["id"], t["id"])]
-    seats = deciding_seats(Pt, past, act_obj(t), act_heads(t, Pt, past))
-    if len(seats) != 1: return False
-    if any(w["kind"] == "withdraw" and w.get("target") == t["id"] and w["signer"] == t["signer"] for w in P) \
-            and "withdrawal_clears_unread" not in MUT:
-        return False
-    k = r["signer"]
-    if k in seats and "countersign_inside_seat" not in MUT: return False
-    byt = {q["id"]: q for q in Pt}
-    if k == record_value(byt, act_obj(t), "official"): return True
-    body = record_value(byt, act_obj(t), OVERSEEN_BY)
-    return body is not None and "overseers_unread" not in MUT and k in overseers(Pt, past, body) \
-        and not overseer_cut(r, by, past, body)
 
 
 # the trust root this node reads (models/trust_root/root.py): (Root, reader), or None. With none, a stalled recovery is
@@ -1500,9 +1520,20 @@ def lift_count(r, P, past, by):
     not counted over); never fewer than two."""
     v = lift_voices(r, P, past, by)
     if v is None: return False
+    # the base is the persons at BOTH heads (lift_base: the removal's and the lift's own); the author apart by person
+    # (KP1). A lift restores: the key held its `agent` seat at the head the removal names (lone_removal), so a
+    # moderator's "removal" of a key never seated, and a strict majority's objections, admit nothing past the room's
+    # own protocol; the key removed is an agent's, no voice and not counted over
     mem, vot = lift_base(r, P, past, by)
-    yes = v & vot
-    if "lift_over_all" not in MUT: mem = mem - {lifted(r, by)["signer"]}    # MUTATION lift_over_all: the author counted over
+    author = lifted(r, by)["signer"]
+    # the author's own keys are the author (KP1): base and objections by person, the author apart by person
+    # (MUTATION lift_author_device, author_voice: the author's keys voices of it; lift_over_all: the author counted over)
+    odd = MUT & {"author_voice", "lift_over_all", "lift_author_device"}
+    mem, yes = count_persons(P, r["obj"], mem, v, vot, apart=None if odd else author)
+    if odd:
+        a = {author, rep_of(P, author), rep_of(P, author, member=True)}
+        if "lift_over_all" not in MUT: mem = mem - a
+        if not MUT & {"author_voice", "lift_author_device"}: yes = yes - a
     return room_count(yes, mem)
 
 
@@ -1641,7 +1672,9 @@ def election_rows(q, Ek, elect, by, rows, past, obj=None, ends=()):
         return bool(set(q["to"]) & elect) and window
     if q["kind"] == "withdraw" and obj is not None and any(g == obj and k in elect for _, k, g in stay_ends([q], by, lambda a, w: a["id"] in by and past(a["id"], w["id"]))):
         return window
-    if q["signer"] not in elect and "set_any_signer" not in MUT: return False
+    # signed by a member of the electorate, or by a live key of one (counts over persons; ruled on #224)
+    signer_in = q["signer"] in elect or ("persons_unread" not in MUT and person_for(q["signer"], elect, rows, by) is not None)
+    if not signer_in and "set_any_signer" not in MUT: return False
     named = lambda b: b.get("of") in by and ekey(by[b["of"]], rows, past) == Ek
     if q["kind"] in ("ballot", "decline"): return named(q)
     if q["kind"] == "withdraw":
@@ -1911,11 +1944,14 @@ def election_count(r, P, past, by):
     gone = {w["target"] for w in named if w["kind"] == "withdraw" and w["target"] in by
             and by[w["target"]]["kind"] == "ballot" and w["signer"] == by[w["target"]]["signer"]}
     declined = {d["signer"] for d in K.sel(P, kind="decline") if d["id"] in mine and d["signer"] in el}
-    ballots = [(b["signer"], b["ranking"]) for b in K.sel(P, kind="ballot")
-               if b["id"] in mine and b["signer"] in voters and b["id"] not in gone
+    # one ballot per person (ruled on CIRISConstitution#224): a ballot counts for the voter its key speaks for; the
+    # tally takes one ranking a voter, and a voter whose keys cast two says nothing (MUTATION persons_unread: the key)
+    who = lambda b: b["signer"] if "persons_unread" in MUT else person_for(b["signer"], voters, P, by)
+    ballots = [(who(b), b["ranking"]) for b in K.sel(P, kind="ballot")
+               if b["id"] in mine and who(b) is not None and b["id"] not in gone
                and (set(b["ranking"]) <= voters or "ballot_nonmember_ranked" in MUT)
                and (len(b["ranking"]) <= ELECTION_RANKS or "ballot_ranks_unbounded" in MUT)]
-    if not ballots: return False
+    if not ballots: return False                    # (the ranked tally groups the ballots by voter: one says two, nothing)
     won = RANKED(ballots, sorted(voters - declined), 2, declared=False)[0]
     return won == r["to"][0] and (r["signer"] == won or "seating_any_signer" in MUT)
 
@@ -1986,11 +2022,7 @@ class Seats:
             if "countersign_unread" in MUT: return True
             Pu = [q for q in Cs if q["id"] in S.anc[u["id"]]]
             if not needs_countersign(u, Pu, past_): return True
-            cs = [c for c in Cs if c["kind"] == "countersign" and c.get("of") == u["id"] and C.counts(c) and c["id"] not in V
-                  and not overseer_cut(c, S.by, past_, record_value({q["id"]: q for q in Pu}, u["obj"], OVERSEEN_BY))]
-            wu = [w for w in Cs if w["kind"] == "withdraw" and w.get("target") == u["id"] and w["signer"] == u["signer"]
-                  and "withdrawal_clears_unread" not in MUT]
-            return any(all(c["id"] in S.anc[w["id"]] for w in wu) for c in cs)
+            return decided_in(u, {q["id"]: q for q in Cs}, past_)
         unseats = [u for u in unseats if decided(u)]
         # every other undecided proposal of a one-officer affiliation (an officer's appointment, a license seat, a change
         # of its record, a dissolution) is void for this reading as a row behind the line is: it seats, cuts and
@@ -2020,6 +2052,10 @@ class Seats:
         contested = contested_out(S, unseats + dis)
         unseats = [u for u in unseats if u["id"] not in contested]
         self.dropped = drop | contested
+        # a self roster's lone-path eviction that LANDED (its `landed` landing concluded: the window's outcome, as every
+        # window) ends the target's seat as a counted eviction does: one ends reading (MUTATION landed_eviction_unread)
+        if "landed_eviction_unread" not in MUT:
+            unseats = unseats + landed_evictions(S, Cs, V)
 
         left = stay_ends(wd, S.by, lambda a, w: bool(S.C.get(a["id"])) and a["id"] in S.anc[w["id"]], holds)   # the holders' own ends of a stay as a member
         gone = {(k, g) for _, k, g in left}
@@ -2161,6 +2197,14 @@ class Seats:
             if ended: self.live = frozenset(x for x in self.live if S.by[x[0]]["obj"] not in ended)
         self.recs = [{"id": "%s/%s/%s" % (oid, k, sc), "offer": oid, "k": k, "scope": sc, "obj": S.by[oid]["obj"],
                       "depth": d, "root": root} for oid, k, sc, d, root in self.live]
+        # a self roster's lone-path addition that LANDED seats its key, as a counted addition does, and the same ends
+        # reading ends it (a later counted or landed eviction, with the landing in its past) (MUTATION
+        # landed_add_unread)
+        if "landed_add_unread" not in MUT:
+            for L, k, sc, obj in landed_adds(S, Cs, V):
+                if unseated({"id": L["id"], "obj": obj, "scope": sc}, k, sc): continue
+                self.recs.append({"id": "%s/%s/%s" % (L["id"], k, sc), "offer": L["id"], "k": k, "scope": sc, "obj": obj,
+                                  "depth": 0, "root": ("group", obj), "landed": True})
 
     def may_confer(self, up, o):
         """May the holder of the seat offered by `up` confer the seat `o` offers? A chain from a root grant (its top seat
@@ -2188,7 +2232,8 @@ class Seats:
 
     def _member(self, rec):
         """A duty seat follows the folded roster: with several tips, its holder is among the members the fold seats."""
-        if "duty_no_member" in MUT or "duty_fold_unread" in MUT or not duty_held(self.S.by, self.S.by[rec["offer"]], rec["scope"]): return True
+        if rec.get("landed") or "duty_no_member" in MUT or "duty_fold_unread" in MUT \
+                or not duty_held(self.S.by, self.S.by[rec["offer"]], rec["scope"]): return True
         fold = self.tips_fold("member", rec["obj"])
         return fold is None or rec["k"] in fold or rec["k"] in (self.tips_fold(AGENT, rec["obj"]) or ())
 
@@ -2336,7 +2381,8 @@ class Seats:
                 else: ok = self.tips_fold(counted, over)                 # another scope's own fold; None: one tip there
                 mem = counted_keys(P, past, over, r.get("head", ()), counted)[0] - count_left(P, past, over, counted)
                 if ok is not None: mem = mem & ok
-                yes = voices(r, P) & mem
+                key_mem = mem
+                mem, yes = count_persons(P, over, key_mem, voices(r, P))
                 if is_election(r) and "fold_ranked_counted" not in MUT:
                     continue                    # an election's seating is read by C1 to C5 alone (beaten, the seat rule)
                 if r.get("policy") in DUTY_POLICY:
@@ -2345,10 +2391,18 @@ class Seats:
                         act_of(r, {q["id"]: q for q in P}, r.get("obj") not in {q["id"] for q in P}) if BOUND else None):
                     # a re-seating (its act the lift): its voices are the objections it names, over the members the fold seats
                     v = lift_voices(r, P, past, {q["id"]: q for q in P}) or frozenset()
-                    if v:                                   # the base: the persons at both heads (lift_base), the author apart
-                        mem = mem & lift_base(r, P, past, {q["id"]: q for q in P})[0]
-                        mem = mem - {lifted(r, S.by)["signer"]}   # (the key removed is an agent's: in no count)
-                    yes = v & mem
+                    # its objections and the members by person over the base at both heads (lift_base), the author
+                    # apart by person (KP-A; MUTATION fold_lift_by_key: the objections and the author read by key over
+                    # the persons; fold_author_by_key: the author taken out by key before the base is read by person)
+                    author = lifted(r, S.by)["signer"] if v else None
+                    if v: key_mem = key_mem & lift_base(r, P, past, {q["id"]: q for q in P})[0]
+                    if "fold_lift_by_key" in MUT:
+                        yes = v & mem
+                        if v: mem = mem - {author}
+                    elif "fold_author_by_key" in MUT:
+                        mem, yes = count_persons(P, over, key_mem - ({author} if v else set()), v)
+                    else:
+                        mem, yes = count_persons(P, over, key_mem, v, apart=author)
                     if not room_count(yes, mem): return False
                 elif not count_of(r.get("policy"), True, r.get("to", ()), mem, yes, r.get("need"), r.get("weights"),
                                   signed=voices(r, P)):
@@ -2379,6 +2433,19 @@ class Seats:
     def one(self, s, o):
         """The single holder, where the seat is single-valued (an owner): two live holders is none."""
         return K.group([r for r in K.sel(self.recs, obj=o) if self._has(r, s)], None, "one", "k")
+
+    def owner(self, node):
+        """THE ONE OWNER READING (CC 3.2), for every caller (consent, the node arm, audience; nodes_of is its inverse):
+        the one holder of the `owner` seat over key `node` (one(): two live owners is none), after the re-binding rule
+        of standing.answers: a concluded owner offer over the node that has an earlier binding's offer in its past
+        re-binds it and ends it (a stint, not a rival), whether or not the new owner has accepted yet. Read over the
+        rows the caller gives (a reading row's past). MUTATION rebinding_unread: one() alone."""
+        recs = [r for r in K.sel(self.recs, obj=node) if self._has(r, "owner")]
+        if "rebinding_unread" not in MUT:
+            S = self.S
+            rebinds = [q["id"] for q in S.Cs if q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == node]
+            recs = [r for r in recs if not any(q != r["offer"] and r["offer"] in S.anc[q] for q in rebinds)]
+        return K.group(recs, None, "one", "k")
 
     def snapshot(self):
         return frozenset((r["k"], r["scope"], r["obj"], r["depth"], r["root"]) for r in self.recs)
@@ -2475,11 +2542,15 @@ def count_receipt(S, q, x):
     mem, vot = counted_keys(P, past, over, tuple(q.get("head", ())), scope)
     left = left_in_past(P, over, scope)
     mem, vot = mem - left, vot - left
-    yes = voices(q, P) & vot
-    if "count_receipt_unchecked" not in MUT: yes = yes - {x["signer"]}
+    if "count_receipt_unchecked" in MUT: yes = persons_of(voices(q, P), vot, P, over)
     # the room less the remover, in the base as in the voices (R5: one rule for a count that judges one member's act,
     # as the overturn and the lift; MUTATION remover_counted_over)
-    if "remover_counted_over" not in MUT: mem = mem - {x["signer"]}
+    if "count_receipt_unchecked" in MUT: mem = as_persons(mem, P, over)
+    elif "remover_counted_over" in MUT:
+        mem, yes = as_persons(mem, P, over), count_persons(P, over, mem, voices(q, P), vot, apart=x["signer"])[1]
+    else:
+        # the room less the remover, by person, in the base as in the voices (KP-C)
+        mem, yes = count_persons(P, over, mem, voices(q, P), vot, apart=x["signer"])
     if "receipt_row_policy" in MUT: return met(q.get("policy"), len(yes), len(mem), q.get("need"))
     return room_count(yes, mem)
 
@@ -2601,19 +2672,30 @@ RECONSIDERATION_OUTCOMES = ("reversed", "partial", "upheld")    # only `reversed
 # PROVISIONAL: the member a release, a takedown notice and a reconsideration name their target row by (the table's
 # name follows with the placement cells); read here and nowhere else
 ACT_OF = "of"          # a takedown notice's content row
-CITES = "cites"        # the wire's refs.also.cites (G21, G23, G24)
+CITES = "cites"        # the wire's refs.also.cites (G23, G24)
 
 
 def cites(r):
-    """The rows a row cites (the wire's `refs.also.cites`; the Constitution's G21, G23, G24): a release names its
-    withhold, a reconsideration its takedown notice, and a lift the act it lifts, by citing it."""
+    """The rows a row cites (the wire's `refs.also.cites`; the Constitution's G23, G24): a reconsideration names its
+    takedown notice, and a lift the act it lifts, by citing it. (A release is no citation: it names its withhold by
+    `target`, G21 as re-ruled.)"""
     c = r.get(CITES, ())
     return (c,) if isinstance(c, str) else tuple(c)
 
 
+def the_cite(r):
+    """The one row r cites, or None: a reconsideration names ITS notice and a lift THE act, so a row whose cites are
+    not exactly one names nothing (r98; MUTATION first_cite: the first of several). The one accessor: the rule that
+    validates the row and every reader of what it acts on (act_in_force) read the same id."""
+    c = cites(r)
+    if "first_cite" in MUT: return c[0] if c else None
+    return c[0] if len(c) == 1 else None
+
+
 def cited(r, by, pick=lambda q: True):
-    """The row among `by` that r cites and `pick` takes (the first in its order), or None."""
-    return next((by[i] for i in cites(r) if i in by and pick(by[i])), None)
+    """The row among `by` that r cites (the_cite) where `pick` takes it, or None."""
+    q = by.get(the_cite(r))
+    return q if q is not None and pick(q) else None
 
 
 def lifted(r, by):
@@ -2661,10 +2743,19 @@ def confirmation_rule(r, P, past):
     return bool(v) if "confirmation_one_voice" in MUT else 2 * len(v) > len(holders)
 
 
+def marker_key(r, by):
+    """The key a quarantine marker or a slashing verdict is about: its `target`; for a release, its withhold's (a
+    release names its withhold, not a key)."""
+    if r["kind"] == "quarantine:release":
+        w = by.get(r.get("target"))
+        return None if w is None else w.get("target")
+    return r.get("target")
+
+
 def act_targets(r, by):
     """The keys an act is against: an unseat's `to`; a quarantine marker's or a slashing verdict's `target`; a takedown
     notice's content row's signer (the member whose content it takes down)."""
-    if family(r) in ("quarantine", "slashing"): return frozenset((r.get("target"),)) - {None}
+    if family(r) in ("quarantine", "slashing"): return frozenset((marker_key(r, by),)) - {None}
     if family(r) == "takedown_notice":
         c = by.get(r.get(ACT_OF))
         return frozenset((c["signer"],)) if c is not None else frozenset()
@@ -2678,19 +2769,22 @@ def lone_act_rule(r, P, past):
                          past (H4, as every act read on a seat); never counted (MUTATION lone_act_counted: a count asked);
         in an affiliation  the body's act, counted over its officers (affiliation_count): one officer makes it a proposal,
                          in force only with a countersign (act_in_force).
-    Shapes: a marker's state is withhold or release, and a release cites (`cites`, G21) the withhold it lifts, of the same key,
+    Shapes: a marker's state is withhold or release, and a release is its withholder's `supersedes` of the withhold, named by `target` (G21), of the same key,
     in its past; a verdict's outcome is proven_rogue or not_proven; a takedown names (`of`) a content row in its past."""
     by = {q["id"]: q for q in P}
     obj, k, param = r.get("obj"), family(r), family_param(r)
     if k == "quarantine":
         if param not in QUARANTINE_STATES or r.get("target") is None: return False
         if param == "release":
-            w = cited(r, by, lambda q: q["kind"] == "quarantine:withhold")
-            if w is None or w["kind"] != "quarantine:withhold" or w.get("target") != r["target"] or w.get("obj") != obj:
+            # a release is the withholding holder's `supersedes` of its own withhold, named by `target` (the
+            # Constitution's G21 as re-ruled: the quarantine fold ranks withhold over release, and "released
+            # supersedes withheld"); a release of anything else concludes nothing
+            w = by.get(r["target"])
+            if w is None or w["kind"] != "quarantine:withhold" or w.get("obj") != obj or w.get("target") is None:
                 return False
-            # no act lifts itself by its own target: the key withheld never releases its own withhold (MUTATION
-            # self_release)
-            if r["signer"] == r["target"] and "self_release" not in MUT: return False
+            # only the holder that withheld releases it: another holder's release does nothing (its routes are the
+            # members' lift, which cites the act, or a review; MUTATION release_by_any_holder)
+            if w["signer"] != r["signer"] and "release_by_any_holder" not in MUT: return False
     if k == "slashing" and (param not in SLASH_OUTCOMES or r.get("target") is None): return False
     if k == "takedown_notice" and (param is None or r.get(ACT_OF) not in by): return False
     # the target is the room's: a takedown's content row is of obj (its `room`, or its object), and a marker's or a
@@ -2701,7 +2795,7 @@ def lone_act_rule(r, P, past):
     kind = kind_of(by, obj)
     heads = r.get("head", ())
     if not heads or newer_head_in_past(heads, None, P, past, obj, signers(r)): return False
-    if k in ("quarantine", "slashing") and "target_any_room" not in MUT and r["target"] not in (
+    if k in ("quarantine", "slashing") and "target_any_room" not in MUT and marker_key(r, by) not in (
             members_at(P, past, obj, heads, "member") | members_at(P, past, obj, heads, AGENT)):
         return False
     if kind == "affiliation":
@@ -2730,6 +2824,22 @@ def reconsideration_rule(r, P, past):
     return r["signer"] in members_at(P, past, obj, heads, "review")
 
 
+def end_never_revived(S, r, scope, counts):
+    """THE end reading, as key ends and withdrawals read it: an end, once in a row's past, is never revived, and an
+    end concurrent with a row cuts it (rule 4). For an act that is itself an END (a release, its withhold's end):
+    whether an end of its author's `scope` seat over its room (ends_of: a lay-down, an unseat, the end of its stay)
+    that counts is concurrent with r, neither in the other's past, and so cuts it. An end in r's past left r's author
+    no standing to make it (the act's own rule refuses it); an end with r in its past cuts nothing (MUTATION
+    release_concurrent_kept: no concurrent end read)."""
+    if "release_concurrent_kept" in MUT: return False
+    obj, k = r.get("obj"), r["signer"]
+    for e in S.Cs:
+        if e["id"] == r["id"] or e["id"] in S.anc[r["id"]] or r["id"] in S.anc[e["id"]] or not counts(e): continue
+        if any(kk == k and ob == obj and (sc is None or sc == scope or sc in ROSTER_SEATS) for kk, sc, ob in ends_of(e, S.by)):
+            return True
+    return False
+
+
 def act_in_force(S, act, own=None):
     """Whether act `act` (a quarantine marker, a slashing verdict or a takedown notice; or any counted row) is in force
     for the reader holding S (`own`: its key, for its line). A lone act of a community: concluded, and in force by the
@@ -2750,24 +2860,30 @@ def act_in_force(S, act, own=None):
     past = lambda a, b: a in S.anc[b]
     held = lambda kind, pred: [q for q in S.Cs if q["kind"] == kind and pred(q) and Q.cut.counts(q) and q["id"] not in Q.stale]
     if kind_of(S.by, obj) == "affiliation":
-        if needs_countersign(r, P, past) and "countersign_unread" not in MUT:
-            wd = [w for w in S.Cs if w["kind"] == "withdraw" and w.get("target") == act and w["signer"] == r["signer"]]
-            body = record_value({q["id"]: q for q in P}, obj, OVERSEEN_BY)
-            cs = held("countersign", lambda c: c.get("of") == act and not overseer_cut(c, S.by, past, body))
-            if not any(all(c["id"] in S.anc[w["id"]] for w in wd) for c in cs): return False
+        if needs_countersign(r, P, past) and "countersign_unread" not in MUT \
+                and not decided_in(r, {q["id"]: q for q in S.Cs}, past):
+            return False
     else:
         unseats = [u for u in S.Cs if u["kind"] == "unseat" and Q.cut.counts(u) and u["id"] not in Q.stale]
-        if "lone_act_end_unread" not in MUT and not removal_in_force(S, r, unseats, Seats(S, own=own, roster=False),
-                                                                  scope=LONE_ACTS[family(r)]):
+        # a release is an END of its withhold (it supersedes it), not a standing act: it is read by the one end reading
+        # (end_never_revived), not by the E rules a standing lone act is read by (live standing, or a receipt). So it
+        # stands where its author's end has it in its past, and an end concurrent with it cuts it (rule 4). MUTATION
+        # release_end_read: the E rules read the release too (review-58's n1: the withhold comes back)
+        standing = r["kind"] != "quarantine:release" or "release_end_read" in MUT
+        if standing and "lone_act_end_unread" not in MUT and not removal_in_force(
+                S, r, unseats, Seats(S, own=own, roster=False), scope=LONE_ACTS[family(r)]):
             return False
-        lifted = held("offer", lambda q: q.get("scope") == "act" and act in cites(q) and q.get("conf") == "group")
+        counts = lambda e: Q.cut.counts(e) and e["id"] not in Q.stale
+        if not standing and end_never_revived(S, r, LONE_ACTS[family(r)], counts):
+            return False
+        lifted = held("offer", lambda q: q.get("scope") == "act" and the_cite(q) == act and q.get("conf") == "group")
         if lifted and "lone_act_lift_unread" not in MUT: return False
         if family(r) == "takedown_notice" and "reconsideration_unread" not in MUT and [
-                q for q in S.Cs if family(q) == "reconsideration" and act in cites(q) and q.get("outcome") == "reversed"
+                q for q in S.Cs if family(q) == "reconsideration" and the_cite(q) == act and q.get("outcome") == "reversed"
                 and Q.cut.counts(q) and q["id"] not in Q.stale]:
             return False
     if r["kind"] == "quarantine:withhold" and "release_unread" not in MUT:
-        if any(act_in_force(S, q["id"], own) for q in S.Cs if q["kind"] == "quarantine:release" and act in cites(q)):
+        if any(act_in_force(S, q["id"], own) for q in S.Cs if q["kind"] == "quarantine:release" and q.get("target") == act):
             return False
     if family(r) == "slashing" and family_param(r) != "proven_rogue" and "unproven_fires" not in MUT: return False
     return True
@@ -2903,6 +3019,7 @@ _VOID = [frozenset()]        # the changes void for the counting row being read
 _RVOID = [frozenset()]       # the changes void for the reader that row is read for
 _RPAIRS = [frozenset()]      # the concurrent founders' amendments the reader holds: (a, b, the keys the two seat)
 _RENDS = [frozenset()]       # the seat ends (lay-downs, leavings) behind the reader's line: no vacancy end for it
+_RRIVAL = [frozenset()]      # the rival self-roster foundings for the reader: its line took up another of the identity's
 
 
 def _built_closure(acts, void, stop=lambda q: False):
@@ -3128,6 +3245,32 @@ def held_pairs(S):
                      and not any(q["obj"] == a["obj"] and past(a["id"], q["id"]) and past(b["id"], q["id"]) for q in vs))
 
 
+def reader_rivals(S, own):
+    """The rival self-roster foundings for reader `own` (the ruling on one self roster per identity): of an identity's
+    foundings held, the one the reader's LINE takes up (checkpoint.takes_up) is its roster, and the others are rivals
+    for it. Where the line takes up neither or both, none is chosen: the reader waits (rosters_of). MUTATION
+    rival_line_unread: no reader's line is read."""
+    if own is None or "rival_line_unread" in MUT: return frozenset()
+    mine = {}
+    for g in S.Cs:
+        if is_self_founding(g): mine.setdefault(g["signer"], []).append(g)
+    out = set()
+    for fs in mine.values():
+        if len(fs) < 2: continue
+        t = CP.takes_up(S, own, [f["id"] for f in fs], MUT | CP.MUT, voices)
+        if len(t) == 1: out |= {f["id"] for f in fs if f["id"] not in t}
+    return frozenset(out)
+
+
+def rival_row(r, by, rivals):
+    """Row r is a rival founding, or built on one: a row over it, or the acceptance or withdrawal of a row over it."""
+    if r["id"] in rivals or r.get("obj") in rivals: return True
+    for f in ("of", "target"):
+        q = by.get(r.get(f))
+        if q is not None and (q["id"] in rivals or q.get("obj") in rivals): return True
+    return False
+
+
 def reader_state(S, own, rule=None):
     """The rows concluded again for reader `own`: the changes void for it by its line (over the rows as concluded for
     every reader) are left out of every counting row's fold and heads, so a count that stands for this reader and not
@@ -3142,14 +3285,16 @@ def reader_state(S, own, rule=None):
     PR = held_pairs(S) if "wait_reader_unread" not in MUT else frozenset()
     # the seat ends behind its line are no vacancy ends for it (H4, the election)
     RE = reader_ends(S, own)
-    if not RV and not PR and not RE:
+    # the rival self-roster foundings for it: its line took up another of the identity's
+    RR = reader_rivals(S, own)
+    if not RV and not PR and not RE and not RR:
         _READER_MEMO[key] = (tuple(S.rows), S)
         return S
-    _RVOID.append(frozenset(RV)); _RPAIRS.append(PR); _RENDS.append(RE)
+    _RVOID.append(frozenset(RV)); _RPAIRS.append(PR); _RENDS.append(RE); _RRIVAL.append(RR)
     try:
         R = CK.concluded(CK.kept(list(S.rows)), rule or (lambda r, P, past: seat_rule(r, P, past)))
     finally:
-        _RVOID.pop(); _RPAIRS.pop(); _RENDS.pop()
+        _RVOID.pop(); _RPAIRS.pop(); _RENDS.pop(); _RRIVAL.pop()
     R._reader, R._rvoid, R._paired = own, frozenset(RV), True
     _READER_MEMO[key] = (tuple(S.rows), R)
     return R
@@ -3173,10 +3318,6 @@ def members_at(P, past, obj, heads, scope="member"):
     sids = {q["id"] for q in sub}
     by = {q["id"]: q for q in P}
     ends = [] if "ends_at_heads_unread" in MUT else [w for w in P if w["kind"] == "withdraw" and w["id"] not in sids]
-    # and the countersigns in that past of the heads' rows: a one-officer body's proposal decided there is decided at
-    # the heads (MUTATION countersign_at_heads_unread)
-    ends += [] if "countersign_at_heads_unread" in MUT else [c for c in P if c["kind"] == "countersign"
-                                                             and c["id"] not in sids and c.get("of") in sids]
     return seats_of(sub + ends + [by[a] for a in completing(sids, P, by, obj, past)]).holders(scope, obj)
 
 
@@ -3232,6 +3373,294 @@ def completing(sub_ids, P, by, obj, past):
 
 
 _SEATS_OF = {}
+
+
+def key_record_ended(P, k):
+    """The key's own end in a row's past, for its person (ruled on CIRISConstitution#224): the key's own revocation
+    (CC 2.4.1.1: "only the key's own revocation ends its liveness"), an unseat of its `registered` seat by the key
+    itself, is in P (the row's concluded past). The key record's stated end is read against the key's own instant on
+    the key's own rows (key_end.covers, the half-open end), never here: no foreign clock is read."""
+    if "person_end_unread" in MUT: return False                    # MUTATION: the key's own end is not read
+    return any(q["kind"] == "unseat" and q.get("scope") == "registered" and q.get("obj") == k and k in q["to"]
+               and q["signer"] == k for q in P)
+
+
+def evicted_from(S, rid, g, k):
+    """Rule 4 for an eviction concurrent with the row: an eviction of k from self roster g (a counted unseat of its own
+    scope over g) that concluded, neither in the row's past nor having the row in its own, counts at its own head and
+    is out of force from that head on: the key is out for a row that has every head the eviction names in its past."""
+    if "concurrent_eviction_unread" in MUT: return False          # MUTATION: a concurrent eviction is not read
+    anc = S.anc[rid]
+    landed = landed_evictions(S, S.Cs) if "landed_eviction_unread" not in MUT else []
+    for e in list(S.Cs) + landed:
+        if e["kind"] != "unseat" or e.get("obj") != g["id"] or e.get("scope") != g["scope"] or k not in e["to"]: continue
+        if e["id"] in anc or rid in S.anc[e["id"]]: continue       # in the row's past (read by the walk), or after it
+        heads = e.get("head", ())
+        if heads and all(h == rid or h in anc for h in heads): return True
+    return False
+
+
+def rosters_of(P, k, keep=lambda g: True):
+    """The self rosters k holds a live seat of over P (a row's concluded past), in their own scope: their ids, sorted.
+    `keep(g)`: a self roster still in play (person_of's rule 4). A key that revoked itself is in none."""
+    if key_record_ended(P, k): return []
+    by = {q["id"]: q for q in P}
+    selves = [g for g in P if g["kind"] == "offer" and g.get("obj") == g["id"]
+              and (kind_of(by, g["id"]) == "self" or "person_any_kind" in MUT)]   # MUTATION person_any_kind: any group
+    # one self roster per identity (G1, as ruled): a reader's roster for an identity is the founding its LINE takes up
+    # (reader_rivals: the other foundings, and every row over them, conclude nothing for that reader, so they are not
+    # in P). Two foundings by one identity still in P are held by a reader whose line takes up neither (a fresh
+    # reader) or both: it waits and never picks, and neither is that identity's roster (MUTATION rival_roster_kept)
+    if "rival_roster_kept" not in MUT:
+        n = {}
+        for g in selves: n[g["signer"]] = n.get(g["signer"], 0) + 1
+        selves = [g for g in selves if n[g["signer"]] == 1]
+    if "person_evict_unread" in MUT:                              # MUTATION: an admission in the past is enough
+        return sorted({g["id"] for g in selves if any(q["kind"] == "offer" and q.get("obj") == g["id"] and k in q["to"]
+                                                      for q in P)})
+    Q = seats_of(P)
+    return sorted({g["id"] for g in selves if k in Q.holders(g["scope"], g["id"]) and keep(g)})
+
+
+def person_in(P, k, keep=lambda g: True):
+    """The person key k is over P (a row's concluded past) alone: person_of with no rule 4 (a conclusion reads its
+    row's past only; a concurrent eviction is no part of it). `keep(g)`: a self roster g still in play (person_of's
+    rule 4). The person is named by its identity key (person_key: the genesis key that signed its rosters' founding
+    records). None for no person or two."""
+    hit = rosters_of(P, k, keep)
+    # a person is its IDENTITY key (the self roster's object is the identity key, never one roster row or one key
+    # record): two rosters founded by one genesis key are one person (MUTATION genesis_unread: each roster a person)
+    names = sorted(set(hit)) if "genesis_unread" in MUT else sorted({person_key(P, g) for g in hit})
+    if len(names) == 1 or ("person_first" in MUT and names): return names[0]   # MUTATION person_first: the first
+    return None
+
+
+def person_of(S, rid, k):
+    """The person key k is at row rid, as a function of rows (ruled on CIRISConstitution#224), with no instant: the
+    self roster (an object of kind `self`: a person's own key roster, or a voice's room keys in a private room) where,
+    in the row's own past, k is the genesis key (it signed the founding record) or was seated by a counted addition
+    (an `identity:occurrence` that landed, self_roster_add), no eviction of it has landed (self_roster_evict), and
+    an eviction concurrent with the row follows rule 4 (evicted_from); and the key's own revocation is not in the
+    row's past (key_record_ended). The answer is the person's IDENTITY key (the self roster's object is the identity
+    key, the genesis key that signed the founding record, never one roster row or one key record), so two rosters
+    founded by one genesis key are one person. None where no self roster has k live there, or where rosters of
+    several identity keys do (two persons is none, as two owners are). A count is then over persons: one voice,
+    however many live keys sign (persons_of)."""
+    if not S.C.get(rid): return None
+    anc = S.anc[rid]
+    P = [q for q in S.Cs if q["id"] in anc]
+    return person_in(P, k, keep=lambda g: not evicted_from(S, rid, g, k))
+
+
+_PERSON_IN = {}
+
+
+def person_key(P, g):
+    """The key a person is named by in a room: its self roster's genesis key, the key that signed the roster's
+    founding record (CC 3.1.3.2: "a voice is named by the identity reference of its first room key"; a fedID by its
+    genesis key, CC 3.3.6.4)."""
+    row = next((q for q in P if q["id"] == g), None)
+    return None if row is None else row["signer"]
+
+
+def agent_keys(P):
+    """The keys holding an AI agent's seat over P (CC 4.5.13: "an agent has no vote"): they are in no count and never
+    speak for a person."""
+    return frozenset(x["k"] for x in seats_of(P).recs if x["scope"] == AGENT)
+
+
+def rep_of(P, k, member=False):
+    """The one voice and one member key k counts as in a count read over P (ruled on CIRISConstitution#224: "one
+    voice however many live keys sign", one member however many keys are seated): the key its person is named by
+    (its self roster's genesis key, person_key) where k is a live key of exactly one self roster; k itself where k is
+    a live key of none (a key that has no roster of its own is its own person). None, no voice and no member: a key
+    of two persons; a key that revoked itself (KP6); a key whose person's genesis key revoked itself (its devices
+    then speak for no one); an agent's key (KP5: never for its owner). `member`: the member k counts as in a base,
+    where none of those ends a seat: a key of one self roster is its person, any other key itself. Kept per (P, k)."""
+    key = (frozenset(id(q) for q in P), k, member, frozenset(MUT))
+    if key not in _PERSON_IN:
+        _PERSON_IN[key] = (tuple(P), _rep(P, k) if not member else _member_rep(P, k))
+    return _PERSON_IN[key][1]
+
+
+def is_self_founding(g):
+    """g is the founding record of a self roster (its founding scope read through KINDS as `self`)."""
+    return g["kind"] == "offer" and g.get("obj") == g["id"] and KINDS.get(g.get("scope")) == "self" \
+        and (g.get("group_kind") != "family" or "self_founding_family" in MUT)   # MUTATION: a family read as a self roster
+
+
+def founded_self(P, k):
+    """k signed the founding record of a self roster over P: it is a person's genesis key (its identity)."""
+    by = {q["id"]: q for q in P}
+    return any(g["kind"] == "offer" and g.get("obj") == g["id"] and g["signer"] == k and kind_of(by, g["id"]) == "self"
+               for g in P)
+
+
+def persons_named(P, k):
+    """The persons key k is a live key of over P: the genesis keys (person_key) of the self rosters it holds a live
+    seat of, one each. A person is NAMED by its genesis key, so two rosters founded by the same key are one person."""
+    if "genesis_unread" in MUT: return list(rosters_of(P, k))      # MUTATION genesis_unread: each roster a person
+    return sorted({person_key(P, g) for g in rosters_of(P, k)})
+
+
+def _member_rep(P, k):
+    names = persons_named(P, k) if not key_record_ended(P, k) else []
+    if len(names) != 1:                                           # a revoked key, a key of two persons: still a member
+        return k
+    return names[0] if "genesis_unread" not in MUT else person_key(P, names[0])
+
+
+def _rep(P, k):
+    if key_record_ended(P, k) and "revoked_voice_kept" not in MUT: return None     # MUTATION: a revoked key keeps its voice
+    # an agent's key (CC 4.5.13: "an agent has no vote") is out before the map: never its owner's voice, whatever
+    # roster lists it. It stays its own key, and is no voice of its own because no count's base holds an agent (a
+    # clause one holder's act resolves still reads an agent holder's act). MUTATION agent_speaks
+    if k in agent_keys(P) and "agent_speaks" not in MUT: return k
+    names = persons_named(P, k)
+    # a genesis key its own roster evicted is no voice of its person (G33: an eviction ends a key AS THE PERSON'S;
+    # the person is its identity, and only a live key of its roster speaks for it). Its own rows read as a bare key's,
+    # and the identity the room seats is no voice of it (MUTATION evicted_genesis_speaks)
+    if not names: return None if founded_self(P, k) and "evicted_genesis_speaks" not in MUT else k
+    if len(names) > 1 and "person_first" not in MUT: return None   # a key of two persons (two genesis keys)
+    g = names[0] if "genesis_unread" not in MUT else person_key(P, names[0])
+    if key_record_ended(P, g) and "revoked_voice_kept" not in MUT: return None
+    return g
+
+
+def keys_counted(P, obj):
+    """A count over obj is a count of keys, not persons, where obj is a self roster (its own keys are what it counts:
+    self_roster_add, self_roster_evict) or a key object."""
+    if obj is None: return False
+    by = {q["id"]: q for q in P}
+    return obj not in by or kind_of(by, obj) == "self"
+
+
+def as_persons(keys, P, obj=None):
+    """The persons a set of keys counts as (rep_of), one each, a key that counts as none left out: one member per
+    person however many of its keys are seated. A count over a self roster (keys_counted) reads the keys themselves.
+    MUTATION persons_unread: the keys themselves."""
+    if "persons_unread" in MUT or keys_counted(P, obj): return frozenset(keys)
+    if "base_by_key" in MUT: return frozenset(keys)              # MUTATION base_by_key: the base read by key
+    return frozenset(rep_of(P, k, member=True) for k in keys)
+
+
+def person_for(k, base, P, by=None, obj=None):
+    """The member key k speaks for in a count over `base` read over P: its person (rep_of) where that is one of the
+    persons `base` counts as; else None (no voice). Over a self roster, k itself where it is in base."""
+    if "persons_unread" in MUT or keys_counted(P, obj): return k if k in base else None
+    r = rep_of(P, k)
+    return r if r is not None and r in as_persons(base, P, obj) else None
+
+
+def persons_of(vs, base, P, obj=None):
+    """A count over persons (ruled on CIRISConstitution#224): the persons of `base` (as_persons) that the keys `vs`
+    speak for, one voice each, however many of their live keys sign. A key with no person (two persons, revoked, an
+    agent's) is no voice. A count over a self roster's own keys stays a count of keys (keys_counted)."""
+    if "persons_unread" in MUT or keys_counted(P, obj): return frozenset(vs) & frozenset(base)
+    b = as_persons(base, P, obj)
+    return frozenset(x for x in (rep_of(P, v) for v in vs) if x is not None and x in b)
+
+
+def person_keys(S, person):
+    """A person's live keys over the concluded set S, with no instant: the inverse of persons_of. The keys of the self
+    rosters founded by the person's genesis key `person` (Seats.holders over each in its own scope, read by
+    rosters_of) that count as that person (rep_of: a key of two persons, an agent's key, a key that revoked itself,
+    are none of its keys), and the genesis key itself while it counts as itself. A person whose genesis key revoked
+    itself has no live key. With audience.audiences and nodes_of, the keys a row reaches:
+    the node set = audiences o person_keys o nodes_of (ADOPTING.md)."""
+    P = list(S.Cs)
+    by = {q["id"]: q for q in P}
+    selves = [g["id"] for g in P if g["kind"] == "offer" and g.get("obj") == g["id"] and g["signer"] == person
+              and kind_of(by, g["id"]) == "self"]
+    cand = {person} | {k for q in P if q["kind"] == "offer" and q.get("obj") in selves for k in q.get("to", ())}
+    Q = seats_of(P)
+    cand |= {k for g in selves for k in Q.holders(by[g]["scope"], g)}      # a landed lone-path addition seats no offer
+    if "person_keys_by_offer" in MUT:                               # MUTATION: every key ever offered, no live read
+        return frozenset(cand)
+    return frozenset(k for k in cand if rep_of(P, k) == person)
+
+
+def nodes_of(S, owner):
+    """The node keys `owner` owns over the concluded set S, with no instant: the inverse of THE ONE OWNER READING,
+    Seats.owner (a key holds the owner seat only by its own signature or acceptance; the binding's withdrawal or the
+    owner seat's unseat ends it; two live owners is none; a re-binding ends the binding before it). Every key object
+    of an owner offer whose owner is `owner`, where neither the node key nor the owner revoked itself. Which keys are
+    nodes is the key records' (the caller's: identity_type `node`)."""
+    P = list(S.Cs)
+    objs = {q["obj"] for q in P if q["kind"] == "offer" and q.get("scope") == "owner" and isinstance(q.get("obj"), str)
+            and q["obj"] not in S.by}
+    if key_record_ended(P, owner) and "nodes_revocation_unread" not in MUT: return frozenset()
+    Q = Seats(S)
+    out = set()
+    for n in objs:
+        if "nodes_by_offer" in MUT:                                       # MUTATION: the offers, not the owner seat
+            held = frozenset(k for q in P if q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == n
+                             for k in q["to"])
+            if owner not in held or len(held) != 1: continue
+        elif "nodes_two_owners_kept" in MUT:                              # MUTATION: each live holder an owner
+            if owner not in Q.holders("owner", n): continue
+        elif Q.owner(n) != owner:
+            continue
+        if key_record_ended(P, n) and "nodes_revocation_unread" not in MUT: continue
+        out.add(n)
+    return frozenset(out)
+
+
+def count_persons(P, obj, base, vs, voters=None, apart=None):
+    """The one reading of a count by person (ruled on CIRISConstitution#224): (the base, the voices), the base
+    counted by member (as_persons), the voices mapped to persons and held to the voting base (`voters`, else the
+    base), and a named key set apart BY PERSON from both (`apart`: a lift's author, a receipt's remover), so its own
+    devices are it. Every count reads it: the seat rule's count and lift, the fold, the count's receipt."""
+    b = as_persons(base, P, obj)
+    v = persons_of(vs, base if voters is None else voters, P, obj)
+    if apart is None: return b, v
+    ks = frozenset({apart}) if isinstance(apart, str) else frozenset(apart)
+    if not keys_counted(P, obj) and "apart_by_key" not in MUT:   # MUTATION apart_by_key: only the key itself apart
+        ks = ks | {rep_of(P, k) for k in ks} | {rep_of(P, k, member=True) for k in ks}
+    return b - ks, v - ks
+
+
+def landed_windows(S, Cs, window, V=frozenset()):
+    """THE ONE READING of a self roster's lone-path window that LANDED (CC 3.3.6.4, 4.5.13; the `self_roster_evict` and
+    `self_roster_add` windows): each concluded landing that says `landed` of a concluded opener of `window`, with the
+    roster's own scope: (landing, opener, scope, roster)."""
+    out = []
+    for L in Cs:
+        if L["kind"] != "landing" or L.get("says") != "landed" or L["id"] in V: continue
+        p = S.by.get(L.get("of"))
+        if p is None or p.get("window") != window or not S.C.get(p["id"]): continue
+        g = S.by.get(p.get("obj"))
+        if g is None: continue
+        out.append((L, p, g.get("scope"), p["obj"]))
+    return out
+
+
+def landed_adds(S, Cs, V=frozenset()):
+    """The keys a landed self_roster_add seats: the opener's `to` (one shape: a `target` alone seats nothing), each that
+    consented by its own
+    signature on the opener (a seat is two consents)."""
+    out = []
+    for L, p, sc, obj in landed_windows(S, Cs, "self_roster_add", V):
+        for k in tuple(p.get("to") or ()):                         # the opener's `to` alone (no `target` fallback)
+            if k in signers(p): out.append((L, k, sc, obj))            # its own signature on the opener
+    return out
+
+
+def landed_evictions(S, Cs, V=frozenset()):
+    """The self rosters' lone-path evictions that landed (CC 3.3.6.4, 4.5.13: the `self_roster_evict` window): each
+    concluded landing that says `landed` of a concluded opener with a target, read as the counted eviction it is, an
+    unseat of the target's seat in the roster's own scope (its `cuts`), at the landing."""
+    ws = [(L, p, sc, obj) for L, p, sc, obj in landed_windows(S, Cs, "self_roster_evict", V) if p.get("target") is not None]
+    # two concurrent landed evictions of each other (each one's target the other's opener, over one roster) are
+    # contested (rule 4, CC 2.7.7 rule 5): neither lands, as where both object (MUTATION mutual_evictions_land)
+    def mutual(L, p, obj):
+        return "mutual_evictions_land" not in MUT and any(
+            L2["id"] != L["id"] and o2 == obj and p2["target"] == p["signer"] and p["target"] == p2["signer"]
+            and L["id"] not in S.anc.get(L2["id"], ()) and L2["id"] not in S.anc.get(L["id"], ())
+            for L2, p2, _, o2 in ws)
+    return [dict(L, kind="unseat", to=(p["target"],), scope=sc, obj=obj, head=tuple(L.get("names", ())),
+                 cuts=(("seat", p["target"], sc, obj),))
+            for L, p, sc, obj in ws if not mutual(L, p, obj)]
 
 
 def seats_of(rows):
@@ -3403,6 +3832,15 @@ def count_heads(heads, P, past):
     return newest(heads, past)
 
 
+def landed_change(q, obj, by):
+    """A self roster's landed lone-path window over obj is a counted change of it, as the counted eviction or addition
+    it is (a head a later count names, H1): a landing that says `landed` of a self_roster_evict or self_roster_add
+    opener over obj (MUTATION landed_eviction_unread)."""
+    if "landed_eviction_unread" in MUT or q["kind"] != "landing" or q.get("says") != "landed": return False
+    p = by.get(q.get("of"))
+    return p is not None and p.get("window") in ("self_roster_evict", "self_roster_add") and p.get("obj") == obj
+
+
 def change(q, obj, by=None):
     """A counted change of obj's roster, q concluded: a roster-changing row that concludes under the policy the room's
     record binds to its act, however many voices that policy needs (the ruling of 2026-11-26). The line's counted act
@@ -3467,11 +3905,13 @@ def newer_head_in_past(heads, of, P, past, obj, keys=frozenset()):
     hs = tuple(h for h in newest(heads, past) if h not in void)
     by = {q["id"]: q for q in P}
     # MUTATION head_any_row: a named head may be any row
-    if "head_any_row" not in MUT and any(h != obj and not (h in by and change(by[h], obj, by)) for h in hs):
+    if "head_any_row" not in MUT and any(h != obj and not (h in by and (change(by[h], obj, by) or landed_change(by[h], obj, by)))
+                                        for h in hs):
         return True
     # MUTATION changes_any_object: a counted change of any object moves the head; past_disjunct_off: a change behind a
     # named head moves it too
-    of_obj = (lambda q: CP.is_counted_act(q, q.get("obj"))) if "changes_any_object" in MUT else (lambda q: change(q, obj, by))
+    of_obj = (lambda q: CP.is_counted_act(q, q.get("obj"))) if "changes_any_object" in MUT else \
+        (lambda q: change(q, obj, by) or landed_change(q, obj, by))
     behind = (lambda q: False) if "past_disjunct_off" in MUT else (lambda q: any(past(q["id"], h) for h in hs))
     return any(of_obj(q) and (of is None or past(q["id"], of)) and q["id"] not in hs and not behind(q)
                and q["id"] not in void for q in P)
@@ -3658,7 +4098,8 @@ def _count_under(r, P, past, by, table=None):
             new_r = frozenset(r.get("to", ())) - union if k == "offer" else frozenset()
             if pr is None or pr[2] != len(union) + len(new_r) or pr[1] < m: return False
             if not new_r <= voices(r, P): return False
-            return met("P:quorum", len(voices(r, P) & vot), len(mem), m)
+            b, y = count_persons(P, obj, mem, voices(r, P), vot)
+            return met("P:quorum", len(y), len(b), m)
         # C2 (the ruling on reader_state): for a reader holding two concurrent founders' amendments, a founders' count
         # whose own past holds only one of them reads the founders common to the two: neither line's later count is
         # counted over the keys one line alone seated (MUTATION wait_reader_unread: read over its own past only)
@@ -3694,17 +4135,25 @@ def _count_under(r, P, past, by, table=None):
         mem = vot = frozenset(k for d, ks in (g.get("duty_holders") or ()) if d == "founder" for k in ks) & signers(g)
     # a family under founder_only: a removal takes an active founder other than the one it names
     if r.get("exclude_target"): vot = vot - frozenset(r.get("to", ()))
+    # an eviction from a self roster: the key evicted is no voice of it (no key keeps itself in by its own signature;
+    # a roster whose only live key is the one evicted cannot evict it: the one-key residual) (MUTATION
+    # evicted_key_votes)
+    if k == "unseat" and r.get("policy") == "self_roster_evict" and "evicted_key_votes" not in MUT:
+        vot = vot - frozenset(r.get("to", ()))
     if r.get("base_excludes_target"):
         mem, vot = mem - frozenset(r.get("to", ())), vot - frozenset(r.get("to", ()))
+    # one member per person, as one voice (ruled on CIRISConstitution#224): the base counted by person (as_persons)
+    key_mem = mem
+    mem, yes = count_persons(P, obj, key_mem, voices(r, P), vot)
     # a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
     if r.get("no_self_removal") and voices(r, P) - r.get("void_voices", frozenset()) <= frozenset(r.get("to", ())):
         return False
     # the community floor, where a policy row governs alone in place of a protocol that states no rule (the `&` reading)
-    if r.get("floor") is not None and len((voices(r, P) & vot) - frozenset(r.get("to", ()))) < r["floor"]: return False
+    if r.get("floor") is not None and len(yes - frozenset(r.get("to", ()))) < r["floor"]: return False
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
         # the election's seating (C1 to C5): its electorate read at its election's vacancy, not at a head
         return election_count(r, P, past, by)
-    if r.get("policy") in DUTY_POLICY: return duty_count(r, P, voices(r, P) & vot, mem)
+    if r.get("policy") in DUTY_POLICY: return duty_count(r, P, yes, mem)
     # the recall is told by its act where the binding reads one (act_of: an unseat of a duty counted over the
     # members), by its policy otherwise; Policy::Recall is only the threshold its fixed row maps to
     is_recall = (a[0] == "recall") if a is not None else \
@@ -3713,10 +4162,12 @@ def _count_under(r, P, past, by, table=None):
         # the recall judges one holder: counted over the members less the holder it recalls, and that holder no voice
         # of it, as the lift is counted over the room less the one it judges
         judged = frozenset(r["to"])
-        base = mem if "recall_holder_in_base" in MUT else mem - judged
-        yes = (voices(r, P) & vot) - (frozenset() if "recall_holder_voice" in MUT else judged)
+        base, yes_j = count_persons(P, obj, key_mem, voices(r, P), vot, apart=judged)
+        if "recall_holder_in_base" in MUT: base = mem
+        if "recall_holder_voice" in MUT: yes_j = yes
+        yes = yes_j
         return met(r.get("policy"), len(yes), len(base), r.get("need"), table)
-    return count_of(r.get("policy"), k == "offer", r.get("to", ()), mem, voices(r, P) & vot, r.get("need"),
+    return count_of(r.get("policy"), k == "offer", r.get("to", ()), mem, yes, r.get("need"),
                     r.get("weights"), table, signed=voices(r, P))
 
 
@@ -3758,6 +4209,9 @@ def end_of_ended(r, P, past, by):
 def seat_rule(r, P, past, table=None, other=None):
     """The conclusion rule. P: r's concluded ancestors."""
     k, by = r["kind"], {q["id"]: q for q in P}
+    # a rival founding concludes nothing for the reader whose line took up another of the identity's, and neither does
+    # everything built on it (a row over it, or accepting or withdrawing one over it) (reader_rivals)
+    if _RRIVAL[-1] and rival_row(r, by, _RRIVAL[-1]): return False
     if k in ("unseat", "withdraw") and end_of_ended(r, P, past, by): return False   # (2): no second end of a seat
     if k in ("offer", "unseat"):
         conf = r["conf"]
@@ -3784,7 +4238,13 @@ def seat_rule(r, P, past, table=None, other=None):
         if conf == "root":
             return k == "offer"                              # read by the one gate (authority_gate: root_seat_rule)
         if conf == "self":
-            if r["obj"] == r["id"]: return k == "offer"          # a founding row is its own object
+            if r["obj"] == r["id"]:                              # a founding row is its own object
+                # one self roster per identity (G1, ruled): a second founding of a self roster by an identity whose
+                # roster is in the row's past is a rival founding and concludes nothing; no key re-founds itself, or
+                # adds a device, by founding (MUTATION rival_roster_kept)
+                if k == "offer" and is_self_founding(r) and "rival_roster_kept" not in MUT and any(
+                        is_self_founding(q) and q["signer"] == r["signer"] for q in P): return False
+                return k == "offer"
             # over infrastructure a founder seat comes only by a founders' amendment: an own offer of one seats nothing
             if r.get("scope") == "founder" and kind_of(by, r["obj"]) == "infrastructure" and "role_on_own_offer" not in MUT:
                 return False
@@ -3839,8 +4299,6 @@ def seat_rule(r, P, past, table=None, other=None):
         return True
     if k == "cosign":
         return True
-    if k == "countersign":
-        return countersign_ok(r, P, past)
     if family(r) in LONE_ACTS:
         return lone_act_rule(r, P, past)
     if family(r) == "reconsideration":

@@ -502,7 +502,6 @@ impl SeatRow for TRow {
             "cosign" => SeatKind::Cosign,
             "ballot" => SeatKind::Ballot,
             "decline" => SeatKind::Decline,
-            "countersign" => SeatKind::Countersign,
             // the registered families: the kind before its parameter
             k if k.split(':').next() == Some("quarantine") => SeatKind::Quarantine,
             k if k.split(':').next() == Some("slashing") => SeatKind::Slashing,
@@ -662,6 +661,23 @@ impl SeatRow for TRow {
     }
     fn declared_cohort(&self) -> Option<&String> {
         self.declared_cohort.as_ref()
+    }
+    fn landing(&self) -> Option<(&String, &String)> {
+        if self.kind == "landing" {
+            self.of.as_ref().zip(self.says.as_ref())
+        } else {
+            None
+        }
+    }
+    fn evicts(&self) -> Option<&String> {
+        if self.kind == "open" && self.window.as_deref() == Some("self_roster_evict") {
+            self.target.as_ref()
+        } else {
+            None
+        }
+    }
+    fn adds(&self) -> Option<&[String]> {
+        (self.kind == "open" && self.window.as_deref() == Some("self_roster_add")).then_some(self.to.as_slice())
     }
 }
 
