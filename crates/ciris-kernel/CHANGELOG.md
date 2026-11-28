@@ -29,12 +29,13 @@ r74's rows among them: a person seated by two keys, a revoked key and its device
 author's device, a window over a self roster) and ten planted breaks; the window, ballot and r74 rows are in the seat
 fixture; seven crate plants for it, four retargeted.
 
-**N7: an owner's acceptance names no binding** (0.5.0; ruled). `standing::StandingRow::on` defaults to `None`
-and is not read on an acceptance: `standing::answers` derives the binding an acceptance stands on
-(`standing::owner_of`: its signer's owner binding in its past, not re-bound there). An acceptance by the current
-owner stands; one by a former owner (its binding ended in the acceptance's past) is nobody's. No existing answer
-changes. The reference: `owner_of` in `check_conferral_two.py`, four cases and a planted break; `conferral_two.json`
-gains them; two crate plants (one retargeted).
+**N7: an owner's acceptance cites its binding, checked** (0.5.0; ruled after the text was found, CC Part 3 "The
+owner's acceptance"). `standing::StandingRow::on` on an acceptance is the binding it cites (`refs.also.cites`); new
+`StandingRow::cites` (every cited row) and `StandingRow::node` (a binding's key), both defaulted. New
+`standing::owner_of`, the check: exactly one cited row, an owner binding its signer owns, of the grantee's key, live
+at the acceptance; not held, it waits naming it. New reasons `acceptance_cites_several` and `binding_not_live`. No
+existing answer changes. The reference: `owner_of` in `check_conferral_two.py`, seven cases and a planted break;
+`conferral_two.json` gains them; four crate plants (one retargeted).
 
 **Counts by person through one function; the keys a row reaches** (0.5.0; the review r78k, and persist). New:
 `seat::Persons::count`, the base and the voices by person with a named key set apart by person from both; every
@@ -49,7 +50,8 @@ is its identity; only a live key of its roster speaks for it), and its own rows 
 still votes as the person. The key a self roster evicts is no voice of its own eviction (the one-key
 residual cannot evict). One self roster per identity (r96 G1, ruled): a second founding of a self roster by an
 identity whose roster is in the row's past concludes nothing, and two foundings neither in the other's past are
-rivals no person is read through (a reader waits); K7's answer moves accordingly (p2's rival S9 leaves p2 no voice).
+rivals no person is read through (a reader waits); a two-key roster evicts by the lone path when the other key is
+silent through the window (CC 4.5.13), and an objection within it refuses; K7's answer moves accordingly (p2's rival S9 leaves p2 no voice).
 Changed: `seat::person_at`
 answers the person's identity key (`Obj::Key` of the genesis key), not the roster row, so two rosters of one genesis
 key, or a genesis key with two key records, are one person (the text's ruling G5). Together: the node set = audiences ∘

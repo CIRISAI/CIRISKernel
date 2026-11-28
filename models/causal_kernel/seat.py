@@ -1948,6 +1948,19 @@ class Seats:
         """The single holder, where the seat is single-valued (an owner): two live holders is none."""
         return K.group([r for r in K.sel(self.recs, obj=o) if self._has(r, s)], None, "one", "k")
 
+    def owner(self, node):
+        """THE ONE OWNER READING (CC 3.2), for every caller (consent, the node arm, audience; nodes_of is its inverse):
+        the one holder of the `owner` seat over key `node` (one(): two live owners is none), after the re-binding rule
+        of standing.answers: a concluded owner offer over the node that has an earlier binding's offer in its past
+        re-binds it and ends it (a stint, not a rival), whether or not the new owner has accepted yet. Read over the
+        rows the caller gives (a reading row's past). MUTATION rebinding_unread: one() alone."""
+        recs = [r for r in K.sel(self.recs, obj=node) if self._has(r, "owner")]
+        if "rebinding_unread" not in MUT:
+            S = self.S
+            rebinds = [q["id"] for q in S.Cs if q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == node]
+            recs = [r for r in recs if not any(q != r["offer"] and r["offer"] in S.anc[q] for q in rebinds)]
+        return K.group(recs, None, "one", "k")
+
     def snapshot(self):
         return frozenset((r["k"], r["scope"], r["obj"], r["depth"], r["root"]) for r in self.recs)
 
@@ -2815,23 +2828,26 @@ def person_keys(S, person):
 
 
 def nodes_of(S, owner):
-    """The node keys `owner` owns over the concluded set S, with no instant: the inverse of a node's owner-binding.
-    Every key object held in `owner` (Seats.holders: a key holds it only by its own signature or acceptance, two
-    consents, and the binding's withdrawal or the owner seat's unseat ends it) where the owner is its one live owner
-    (two live owners is none, as for the node's row), and neither the node key nor the owner revoked itself. Which
-    keys are nodes is the key records' (the caller's: identity_type `node`); the room's own reading of a node's row is
-    roomkey.node_row_check."""
+    """The node keys `owner` owns over the concluded set S, with no instant: the inverse of THE ONE OWNER READING,
+    Seats.owner (a key holds the owner seat only by its own signature or acceptance; the binding's withdrawal or the
+    owner seat's unseat ends it; two live owners is none; a re-binding ends the binding before it). Every key object
+    of an owner offer whose owner is `owner`, where neither the node key nor the owner revoked itself. Which keys are
+    nodes is the key records' (the caller's: identity_type `node`)."""
     P = list(S.Cs)
-    Q = seats_of(P)
     objs = {q["obj"] for q in P if q["kind"] == "offer" and q.get("scope") == "owner" and isinstance(q.get("obj"), str)
             and q["obj"] not in S.by}
     if key_record_ended(P, owner) and "nodes_revocation_unread" not in MUT: return frozenset()
+    Q = Seats(S)
     out = set()
     for n in objs:
-        held = Q.holders("owner", n) if "nodes_by_offer" not in MUT else \
-            frozenset(k for q in P if q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == n for k in q["to"])
-        if owner not in held: continue
-        if len(held) != 1 and "nodes_two_owners_kept" not in MUT: continue   # MUTATION: two owners read as each one's
+        if "nodes_by_offer" in MUT:                                       # MUTATION: the offers, not the owner seat
+            held = frozenset(k for q in P if q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == n
+                             for k in q["to"])
+            if owner not in held or len(held) != 1: continue
+        elif "nodes_two_owners_kept" in MUT:                              # MUTATION: each live holder an owner
+            if owner not in Q.holders("owner", n): continue
+        elif Q.owner(n) != owner:
+            continue
         if key_record_ended(P, n) and "nodes_revocation_unread" not in MUT: continue
         out.add(n)
     return frozenset(out)

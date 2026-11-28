@@ -36,6 +36,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     evicted_genesis_speaks  a genesis key its own roster evicted still speaks as its person (r95 P1b)
     evicted_key_votes     the key a self roster evicts is a voice of its own eviction (the one-key residual evicts)
     rival_roster_kept     a second self roster of one identity is kept (r96 G1: re-founding, a device by founding)
+    rebinding_unread      Seats.owner reads no re-binding: a re-bound node has two owners, none (consent-set's plant)
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -377,6 +378,8 @@ NREC = ST.offer("nrec", "n1", "n1", "registered", "n1", "self")
 NRV = ST.unseat("nrv", "n1", "n1", "registered", "n1", "self", ("nrec", "nb1"))       # the node n1 revokes itself
 NOA = ST.offer("noa", "n5", "o1", "owner", "n5", "self")
 NAC = ST.accept("nac", "o1", "noa")                                                   # o1 accepts n5's offer
+NRB = ST.offer("nrb", "n1", "o2", "owner", "n1", "self", ("nb1",), cosigners=("o2",))      # n1 re-bound to o2
+NRBU = ST.offer("nrbu", "n1", "o2", "owner", "n1", "self", ("nb1",))                       # o2 has not accepted
 # (name, rows, owner, its nodes)
 NODES_CASES = [
     ("an owner with two bound nodes", [NB1, NB2], "o1", ["n1", "n2"]),
@@ -387,6 +390,10 @@ NODES_CASES = [
     ("a node bound to two live owners is neither's", [NB1, NB4A, NB4B], "o1", ["n1"]),
     ("and not the other's", [NB1, NB4A, NB4B], "o2", []),
     ("a node key that revoked itself is no node of its owner", [NB1, NB2, NREC, NRV], "o1", ["n2"]),
+    # the one owner reading (Seats.owner): a re-binding ends the binding before it, a stint and not a rival
+    ("a re-binding of n1 to o2 (its offer has o1's in its past): n1 is o2's", [NB1, NB2, NRB], "o2", ["n1"]),
+    ("and no longer o1's", [NB1, NB2, NRB], "o1", ["n2"]),
+    ("an unaccepted re-binding ends o1's binding: n1 is nobody's yet", [NB1, NB2, NRBU], "o1", ["n2"]),
 ]
 
 
@@ -459,16 +466,26 @@ PERSON_KEYS_CASES += [
     ("r96: after p1's eviction and its rival founding, p1's live keys are its two devices", GW + [GEV, S1N], "p1",
      ["p1b", "p1c"]),
 ]
-# the lone path in a two-key roster does not rescue it either: each key is the whole of "the other members" for the
-# other's proposal, and objects
-def lone_evict(opener, target):
-    return [GS, GD1, WN.opener("op", opener, "self_roster_evict", "S", ("d1",), target=target),
-            WN.answer("ob", target, "op", "object", ("op",)), WN.receipt("r", opener, "op", 0),
-            WN.landing("L", opener, "op", "r", "landed", WN.secs("self_roster_evict"), ("ob",))]
+# the lone path in a two-key roster (CC 4.5.13; Eric's correction): one key proposes the other's eviction, and after
+# the window it LANDS unless the other key, the whole of "the other members" and a voice here, objects within it.
+# That covers a lost or dead device; an active stolen key that objects blocks its own eviction, and two live keys
+# proposing against each other, each objecting, stalemate.
+EW = WN.secs("self_roster_evict")
+def lone_evict(opener, target, objects, pid="op", tag=""):
+    rows = [WN.opener(pid, opener, "self_roster_evict", "S", ("d1",), target=target)]
+    if objects:
+        rows.append(WN.answer("ob" + tag, target, pid, "object", (pid,)))
+    rows += [WN.receipt("r" + tag, opener, pid, 0),
+             WN.landing("L" + tag, opener, pid, "r" + tag, "landed", EW, ("ob" + tag,) if objects else ())]
+    return rows
 WINDOW_CASES += [
-    ("r96: a two-key roster's lone path: k1 proposes evicting g1, g1 (the other members) objects: refused",
-     lone_evict("k1", "g1"), "refused"),
-    ("r96: and g1 proposing to evict k1, k1 objects: refused", lone_evict("g1", "k1"), "refused"),
+    ("two keys: k1 proposes evicting g1, and g1 is silent through the window: the eviction lands",
+     [GS, GD1] + lone_evict("k1", "g1", False), "landed"),
+    ("two keys: the same with g1 objecting within the window: refused", [GS, GD1] + lone_evict("k1", "g1", True),
+     "refused"),
+    ("two keys proposing against each other, each objecting: neither lands (k1's proposal)",
+     [GS, GD1] + lone_evict("k1", "g1", True) + lone_evict("g1", "k1", True, "op2", "2"), "refused"),
+    ("and g1's proposal", [GS, GD1] + lone_evict("g1", "k1", True) + lone_evict("k1", "g1", True, "op2", "2"), "refused"),
 ]
 
 
@@ -476,7 +493,8 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
           "persons_unread", "base_by_key", "revoked_voice_kept", "agent_speaks", "lift_author_device", "genesis_unread",
           "fold_lift_by_key", "fold_author_by_key", "remover_counted_over", "opener_withdrawal_voter",
           "apart_by_key", "person_keys_by_offer", "nodes_by_offer", "nodes_two_owners_kept", "nodes_revocation_unread",
-          "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept")
+          "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept",
+          "rebinding_unread")
 
 
 def answer(rows, k):

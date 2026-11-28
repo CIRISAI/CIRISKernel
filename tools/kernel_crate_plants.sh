@@ -299,9 +299,9 @@ plant "the remover a voice of the count's receipt" src/seat.rs '    let (mem, v)
 plant "the count's receipt takes the remover out by key before the base is read by person (KP-C)" src/seat.rs '    let (mem, v) = pp.count(&mem, &voices(qr, &p), None, &[xr.signer().clone()]);' '    mem.remove(xr.signer());
     let (mem, v) = pp.count(&mem, &voices(qr, &p), None, &[]);'
 plant "a person's keys read without its persons (a key of two persons, a revoked genesis key's devices kept)" src/seat.rs '    cand.into_iter().filter(|k| pp.voice(k).as_ref() == Some(person)).collect()' '    cand'
-plant "an owner's nodes read from the offers, not the owner seat" src/seat.rs '            let held = seats.holders("owner", &Obj::Key(n.clone()), None);' '            let held: BTreeSet<R::Key> = rows.iter().filter(|q| q.seat_kind() == SeatKind::Offer && q.obj() == Some(Obj::Key(n.clone()))).flat_map(|q| q.to().iter().cloned()).collect();'
-plant "a node bound to two live owners read as each one's" src/seat.rs '            held.len() == 1 && held.contains(owner) && !revoked_itself(rows.iter().copied(), n)' '            held.contains(owner) && !revoked_itself(rows.iter().copied(), n)'
-plant "a node key that revoked itself stays its owner's node" src/seat.rs '            held.len() == 1 && held.contains(owner) && !revoked_itself(rows.iter().copied(), n)' '            held.len() == 1 && held.contains(owner)'
+plant "an owner's nodes read from the offers, not the owner seat" src/seat.rs '        .filter(|n| seats.owner(n).as_ref() == Some(owner) && !revoked_itself(rows.iter().copied(), n))' '        .filter(|n| rows.iter().any(|q| q.seat_kind() == SeatKind::Offer && q.obj() == Some(Obj::Key(n.clone())) && q.to().contains(owner)) && !revoked_itself(rows.iter().copied(), n))'
+plant "a node bound to two live owners read as each one's" src/seat.rs '        .filter(|n| seats.owner(n).as_ref() == Some(owner) && !revoked_itself(rows.iter().copied(), n))' '        .filter(|n| seats.holders("owner", &Obj::Key(n.clone()), None).contains(owner) && !revoked_itself(rows.iter().copied(), n))'
+plant "a node key that revoked itself stays its owner's node" src/seat.rs '        .filter(|n| seats.owner(n).as_ref() == Some(owner) && !revoked_itself(rows.iter().copied(), n))' '        .filter(|n| seats.owner(n).as_ref() == Some(owner))'
 plant "a key's person read per roster, not per identity key (two rosters of one genesis key two persons)" src/seat.rs '    if names.len() == 1 {' '    if hit.len() == 1 {'
 plant "an evicted genesis key still speaks as its person (r95 P1b)" src/seat.rs '            [] if self.founders.contains(k) => None,' ''
 plant "the key a self roster evicts is a voice of its own eviction" src/seat.rs '    let drop_to = f.exclude_target || f.base_excludes_target || evicts;' '    let drop_to = f.exclude_target || f.base_excludes_target || (evicts && false);'
@@ -591,10 +591,10 @@ plant "sub-delegation asked of the act's own edge"     src/conferral.rs 'if let 
 plant "in force under the grant alone"                 src/standing.rs 'in_force: g.in_force && u.in_force,' 'in_force: g.in_force,'
 plant "counted under the binding alone"                src/standing.rs 'counted: g.counted && u.counted,' 'counted: u.counted,'
 plant "an act naming the binding stands under it"      src/standing.rs 'Kind::Binding => return Ok(Err(Nobody::NamesBinding)),' 'Kind::Binding => return Ok(Ok(a)),'
-plant "any key's acceptance is the owner's"            src/standing.rs 'b.kind() == Kind::Binding && b.owner() == Some(a.signer())' 'b.kind() == Kind::Binding'
-plant "a former owner's acceptance stands (N7: the re-binding at the acceptance not read)" src/standing.rs '        if !ended {
-            live.push(b);' '        if !ended || true {
-            live.push(b);'
+plant "any key's acceptance is the owner's"            src/standing.rs '    if b.owner() != Some(a.signer()) {' '    if false {'
+plant "a cited binding not live at the acceptance stands (N7)" src/standing.rs '            return Ok(Err(Nobody::BindingNotLive));' '            continue;'
+plant "an acceptance citing two rows read as citing the first (N7)" src/standing.rs '        _ => return Ok(Err(Nobody::SeveralCites)),' '        _ => &cites[0],'
+plant "a cited binding of another key than the grantee stands (N7)" src/standing.rs '    if b.node().is_some_and(|n| (grant.role)(n) != Role::Grantee) {' '    if false {'
 plant "a re-binding does not end the binding before it" src/standing.rs 'Kind::Binding if row.on() == Some(bid) => (conferral::Kind::End, Some(bid)),' 'Kind::Binding if row.on() == Some(bid) => (conferral::Kind::Other, None),'
 plant "the member's own end adds tips beside a counted end" src/content.rs 'if ends.iter().any(|e| counts(e) && is_count(e)) {' 'if false {'
 plant "the member's own ends are joined, not met"       src/content.rs 'Some(o) => o.intersection(&g).copied().collect(),' 'Some(o) => o.union(&g).copied().collect(),'

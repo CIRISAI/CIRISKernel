@@ -394,19 +394,22 @@ self roster per identity: a second founding of a self roster by an identity whos
 rival and concludes nothing, and two foundings neither in the other's past are rivals the reader waits on (neither
 is the identity's roster); so no key re-founds itself, or adds a device, by founding. The only way onto a self
 roster is that roster's own add (its count, or its lone path); an evicted genesis key is restored only by the
-roster's counted re-admission. The residual (CC 4.5.13): a person with two keys cannot put out a stolen one, by the
-count or by the lone path (each key is the whole of the other members for the other's proposal, and objects); with
-three or more, the other two can at once. The one move left with two keys: the stolen key ends by its own
-revocation (an unseat of its `registered` seat signed by that key, which the owner also holds), taking it out as a
-key, at the key-end rule's cost. Ask at a row of the concluded set: the answer reads that row's own past, an eviction
+roster's counted re-admission. In a two-key roster the count cannot evict (the key evicted is no voice of it), but
+the lone path can (CC 4.5.13, the `self_roster_evict` window): one key proposes the other's eviction, and after the
+window it lands unless the other key, the whole of the other members and a voice there, objects within it; so a
+lost or dead device is put out. The residual: an active stolen key that objects blocks its own eviction, and two
+live keys can stalemate each other; with three or more keys the majority path breaks it. Where the owner still holds
+a copy of the stolen key, that key can also end by its own revocation (an unseat of its `registered` seat signed by
+it), at the key-end rule's cost. Ask at a row of the concluded set: the answer reads that row's own past, an eviction
 concurrent with the row by rule 4, and no instant.
 
 **The keys a row reaches** (persist). Over the concluded set, with no instant: `seat::person_keys(c, law, spec,
 person)` gives a person's live keys (named by its genesis key; the inverse of `persons_of`: a key of two persons,
 an agent's key and a key that revoked itself are none of its keys, and a person whose genesis key revoked itself
-has none), and `seat::nodes_of(c, law, spec, owner)` gives the node keys whose one live owner-binding names
-`owner` (the `owner` seat over the node's key, held by the owner's own signature or acceptance; a withdrawn or
-revoked binding, two live owners, or the node's own revocation, and it is none). Which keys are nodes is the key
+has none), and `seat::nodes_of(c, law, spec, owner)` gives the node keys whose owner is `owner`, the inverse of
+the one owner reading `Seats::owner` (the `owner` seat over the node's key, held by the owner's own signature or
+acceptance; a withdrawn or revoked binding, two live owners, or the node's own revocation, and it is none; a
+re-binding ends the binding before it). Which keys are nodes is the key
 records': filter by `identity_type` `node`. The node set = audiences ∘ person_keys ∘ nodes_of: for each key of a
 row's audience (`audience::audiences`), its person's live keys, and for each of those the nodes it owns.
 
@@ -497,12 +500,14 @@ chain of `Seats::stands` above.
 - Each bundle version: `Kind::Bundle`. The causal past must have an earlier version in a later one's past.
 - Each owner binding: `Kind::Binding`, `owner()` the owner. A re-binding has `on()` the binding it ends. Two
   re-bindings of one binding are refused (`Refused::SeveralEnds`).
-- Each owner's acceptance of the grant: `Kind::Acceptance`, signed by that owner, naming the owner's binding
-  among the rows it names (its past); it names no binding as such and its `on()` is not read (N7). It stands
-  while its author owns the node at it: the binding is derived (`standing::owner_of`), the signer's owner
-  binding in its past with no re-binding of it there. One by a key that owns nothing there (a former owner, or
-  any other key) is nobody's acceptance. `owner_of` reads the bindings among the rows it is given: pass the rows of the grant's own
-  subject node only (or match each binding's node to it), or a binding of another node is read as this one's.
+- Each owner's acceptance of the grant: `Kind::Acceptance`, signed by that owner, `on()` the owner binding it is
+  made under, from its `refs.also.cites` (N7, CC Part 3 "The owner's acceptance"); present every cited row as
+  `cites()` where there may be several, and a binding's node as `node()` where the binding names it. `owner_of`
+  checks it: exactly one cited row (two is refused), an owner binding its signer owns, of the grantee's key, live at
+  the acceptance (no re-binding of it in its past). A cited binding not held waits, naming it. A re-binding of the
+  cited binding later ends the acceptance's standing: it does not follow the owner's newer binding; the owner
+  accepts again citing a live one. `owner_of` reads the bindings among the rows it is given: pass the rows of the
+  grant's own subject node only (or present each binding's `node()`).
 - Each act: `Kind::Act`, `head()` the bundle version it names, `on()` the acceptance it stands on. An act
   with `on()` a binding, or none, counts for nobody.
 - The grant's end: `Kind::GrantEnd`, `head()` its bundle version. A receipt: `Kind::Receipt`, `on()` the act.
