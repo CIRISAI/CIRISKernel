@@ -1,0 +1,9 @@
+grace-sched: 193618-164214 queued: CIRISKernel:review, peak 0.5 GB (learned (108 runs, below the declared 1)), cap 2.5 GB, low, small (half the floor)
+grace-sched: 193618-164214 running (cap 2.5 GB): python3 -I attack_g3.py ../src
+G3c as in the case table (control)                                       B=False D=False closed={'eb': False, 'ed': False}
++ C receipts B's seating (eb only in its past)                           B=True D=False closed={'eb': True, 'ed': False}
++ A and C receipt B's seating                                            B=True D=False closed={'eb': True, 'ed': False}
++ C receipts eb, reader acknowledged aG                                  B=False D=True closed={'eb': True, 'ed': False}
++ C receipts eb; and B, C later receipt ed too                           B=True D=False closed={'eb': True, 'ed': False}
+no honest receipts at all, C receipts eb                                 B=True D=False closed={'eb': True, 'ed': False}
+grace-sched: 193618-164214 done: rc 0, 1 s, need 0.02 GB (memory.peak 0.02, estimate 0.5)

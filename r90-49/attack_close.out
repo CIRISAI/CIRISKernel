@@ -1,0 +1,24 @@
+grace-sched: 193413-85ae34 queued: CIRISKernel:review, peak 0.5 GB (learned (106 runs, below the declared 1)), cap 2.5 GB, low, small (half the floor)
+grace-sched: 193413-85ae34 waits: memory: needs 2.5 GB for its cap and 0.5 GB plus the 6 GB floor for its expected peak, -2.0 GB projected free once running jobs reach their peaks
+grace-sched: 193413-85ae34 running (cap 2.5 GB): python3 -I attack_close.py ../src
+D1 C declines after its own closed seating; B's seating over set+decline, afte seats {'C': True, 'B': False}; closed(ec)=True
+D2 the same, B's seating concurrent with the receipts (names no receipt)       seats {'C': True, 'B': False}; closed(ec)=True
+D3 decline before any receipt: B's superset seating stands (control)           seats {'B': False, 'C': True}  (EXPECTED [True, False])
+D4 receipts of C's seating after B's superset seating is in their past: C's di seats {'B': False, 'C': True}  (EXPECTED [True, False]); closed(ec)=True  (EXPECTED False)
+D5 a voter's decline after the close (D declines), D's seating attempt         seats {'C': True}; closed(ec)=True
+T1 A,B for B against C,D for C: C's seating concludes nothing                  seats {'B': False, 'C': False}
+T2 the tie, both seatings written, three receipts each                         seats {'B': False, 'C': False}; closed(ec)=False
+T3 the tie broken by a concurrent second ballot of E (fork): E no voice        seats {'B': False, 'C': False}
+T4 a 3-way first-round tie A:B B:C C:D D:B E:C... weakest tie seats nobody     seats {'A': False, 'B': False, 'C': False, 'D': False, 'E': False}
+S1 X admitted after the vacancy ballots for B and receipts C's: no voice, not  seats {'C': True}; closed(ec)=False
+S2 an outsider Y's ballots named in B's seating: set ignores it                seats {'B': False}
+S3 B votes twice in a chain (no withdrawal), same ranking: one ballot          seats {'C': True}
+S4 A re-votes in a chain for C without withdrawing its ballot for B: A no ball seats {'C': True}
+S5 the winner's own receipt and repeated receipts by A: A, A, C close nothing  seats {'C': True}; closed(ec)=False
+S6 an outsider Y and the departed E receipt: A, B + Y, E(left before) of base  seats {'C': True}; closed(ec)=True
+S7 the same with E's receipt before its leaving (H1 holds it): base A,B,D,E, A seats {'C': True}; closed(ec)=True
+S8 E's receipt before leaving, and only A besides: 2 of 4, open                seats {'C': True}; closed(ec)=False
+R1 receipts split across C's seating and a rival containing it, 2 + 2: neither seats {'C': True}; closed(ex)=False
+R2 a person's concurrent receipts of two sets: no say (A); B, D: 2 of 4 open   seats {'C': True}; closed(ec)=True
+R3 the receipts name the rival before receipting C's narrower seating: C's did seats {'C': True}; closed(ec)=True  (EXPECTED False)
+grace-sched: 193413-85ae34 done: rc 0, 2 s, need 0.02 GB (memory.peak 0.02, estimate 0.5)

@@ -1,0 +1,49 @@
+grace-sched: 193117-828653 queued: CIRISKernel:review, peak 0.5 GB (learned (105 runs, below the declared 3)), cap 4.5 GB, low, small (half the floor)
+grace-sched: 193117-828653 waits: memory: needs 4.5 GB for its cap and 0.5 GB plus the 6 GB floor for its expected peak, 3.1 GB projected free once running jobs reach their peaks
+grace-sched: 193117-828653 running (cap 4.5 GB): python3 -I models/causal_kernel/check_election.py
+  plant vacancy_founding         caught by 19 cases, first: C1: a member admitted before the vacancy votes and stands: X, admitted at g, A laying mode
+  plant vacancy_first_end        caught by 5 cases, first: C1, concurrent ends: X, admitted in the recall's past only, is no member at lm, so the mem
+  plant electorate_folded        caught by 6 cases, first: C1, concurrent ends: X, admitted in the recall's past only, is no member at lm, so the mem
+  plant electorate_at_seating    caught by 8 cases, first: C1: a member admitted after the vacancy neither votes nor stands: X, admitted at lm, ranke
+  plant leaver_voice             caught by 2 cases, first: C1: a member who left after the vacancy is no voice: E leaves, its ballot for B does not c
+  plant electorate_reads_past    caught by 1 cases, first: F1: a leaving the seating does not name strikes nobody: E left in the past of D's ballot, 
+  plant laydown_off_line         caught by 3 cases, first: H2b, for a reader that acknowledged aI: lm1, a lay-down, is a roster change held to the ne
+  plant c2_holder_unread         caught by 2 cases, first: C2: a seating with the seated moderator in its past concludes nothing: C holds, D and E ra
+  plant c2_later_unread          caught by 1 cases, first: C2: a rerun of election 1 with a row of the next election in its past concludes nothing, w
+  plant contains_unread          caught by 34 cases, first: C4: two concurrent seatings, one set within the other: the containing one stands
+  plant twin_withdrawal_unread   caught by 2 cases, first: a row signed outside the electorate adds nothing to a set: X's ballot named beside the hon
+  plant close_unread             caught by 23 cases, first: C5, (2): a close that still holds a majority of the remaining base stands: of seven, C won
+  plant receipt_standing_unread  caught by 1 cases, first: C5: a receipt counts only where its seating stood in the receipt's past: receipts of B's s
+  plant say_any_receipt          caught by 1 cases, first: C5: a later receipt, with the first in its past, counts for nothing: D's say is B's subset
+  plant close_leavers_kept       caught by 7 cases, first: G2 (200 orders): the room of eight: B
+  plant closed_rivals_count      caught by 10 cases, first: C5, (2): a close that still holds a majority of the remaining base stands: of seven, C won
+  plant election_id_any          caught by 1 cases, first: C3: a seating naming as its election a row that is no election (A's laying down) concludes
+  plant set_any_signer           caught by 4 cases, first: a row signed outside the electorate adds nothing to a set: X's ballot named beside the hon
+  plant ballot_nonmember_ranked  caught by 1 cases, first: C1: a member admitted after the vacancy neither votes nor stands: X, admitted at lm, ranke
+  plant ballot_ranks_unbounded   caught by 1 cases, first: a ballot ranking four is void whole: without D's four-deep ballot for C, B and C tie and n
+  plant seating_any_signer       caught by 1 cases, first: the seating signed by another key than the winner, the winner accepting it: nothing
+  plant twin_ids_apart           caught by 2 cases, first: a row signed outside the electorate adds nothing to a set: X's ballot named beside the hon
+  plant fold_ranked_counted      caught by 7 cases, first: two tips, C's seating at one and X's admission at the other: the fold seats C (a seating i
+  plant fork_reopens_close       caught by 8 cases, first: C5, (2): a close that still holds a majority of the remaining base stands: of seven, C won
+  plant fork_base_kept           caught by 5 cases, first: C5, (2): a close that still holds a majority of the remaining base stands: of seven, C won
+  plant fork_across_objects      caught by 1 cases, first: (1): A's receipt in room g and its concurrent ballot in room h's election are no fork: A a
+  plant superseded_unread        caught by 1 cases, first: E3, C3: a rerun of election 1 after C's seating stood and ended concludes nothing (the nex
+  plant wait_close               caught by 9 cases, first: E3: two receipts of four do not close; C's seating stood and C laid it down, so it names t
+  plant id_cascade_unread        caught by 5 cases, first: F3, the stated cost: C's and B's seatings of election 1, concurrent, each laid down on its
+  plant vacancy_unnamed          caught by 2 cases, first: F2, (3): a seating naming both ends, lm1 named by no ballot, has the same set as F's: F's 
+  plant set_inputs_unread        caught by 7 cases, first: readmit: C left and was admitted again before the vacancy: it votes and stands
+  plant void_seating_read        caught by 1 cases, first: the line, sibling-safe: C's seating at F's admission, acknowledged by a reader; D's late s
+  plant seating_not_a_say        caught by 3 cases, first: C5, (2), the edge: closed by A, B and D (three of four); a concurrent rival over a contain
+  plant fork_per_voice           caught by 1 cases, first: (4): two devices of one voice: E's ballots through two verified room keys (`dev`, the mode
+  plant fork_cosigned            caught by 3 cases, first: H1: a counted removal of a receipter that holds its receipt leaves the close standing: C
+  plant fork_by_stated_device    caught by 1 cases, first: (4): a label the row body states is no key: E, signing through one verified key, states tw
+  plant two_closes_both_stand    caught by 1 cases, first: (ii), the backstop: the room of four, both held, with a seating no say: each seating meets
+  plant counted_end_forks_signer caught by 1 cases, first: G1 (G1d): E names B's recall row as an end: a counted unseat is never its signer's electio
+  plant base_per_group           caught by 4 cases, first: G2 (200 orders): the room of eight: B
+  plant leaving_after_receipt_voids caught by 3 cases, first: H1 (H1b): C's seating closed three of five (D, E, F); F leaves after, its leaving holding 
+  plant base_per_seating_electorate caught by 2 cases, first: G3c, the stated residual (a reader with no acknowledgement): E, F and G receipt D's seatin
+  plant close_base_union         caught by 3 cases, first: G3c, the stated residual (a reader with no acknowledgement): E, F and G receipt D's seatin
+  plant end_of_ended_seat        caught by 4 cases, first: J1, (2): lm1, with A's own lay-down of the same seat (lm2) in its past, concludes nothing
+  plant leaving_before_vacancy_read caught by 2 cases, first: N2 (F1b): C's seating names E's old, undone removal: it is before the vacancy and strikes 
+RESULT: ok: 113 cases, 22 of the close, 8 of the line, 0 pending the head rules, 10501 orders, 44 of 44 planted breaks caught (29s)
+grace-sched: 193117-828653 done: rc 0, 30 s, need 0.42 GB (memory.peak 0.42, estimate 0.5)
