@@ -336,7 +336,13 @@ RKR = [KE.rec("r0", "K", 0, 100), KE.att("a1", "K", 3, "r0"),
 QF = KE.rec("qT", "T", 1, None, names=("kC", "xr"), succ_of="C", at_old=1, typ="pseudonym")
 FK = CH.ROOM + SP + recs() + [KT, KE.att("xr", "C", 0, "kC"), QF, KREV("rvC", "C", 2, ("kC",))]
 FK_AFTER = CH.ROOM + SP + recs() + [KT, KE.att("xr", "C", 0, "kC"), QF, KREV("rvC", "C", 2, ("kC", "qT"))]
+# the lone act (windows-rows' read of f48958b): C's registered seat unseated by a GROUP count (no revocation of C), then
+# the roster's void of C's rotation qT: C is not ended (no closing void), and a later rotation qT2 concludes
+UXG = ST.unseat("ux", "C", "C", "registered", "C", "group", ("kC",), policy="accord_majority")
+LONE_W = CH.ROOM + SP + recs() + [KT, QT0, UXG, VOID("vT", ("P1", "P2"), "qT")]
 FK_CASES = [
+    ("the lone act: a group-counted unseat of C's registered seat is no end of C: C's row after the void counts",
+     LONE_W + [KE.att("xc", "C", 0, "kC", names=("vT",))], [], "xc", "C", None, True),
     ("r114 (a): an honest rotation and a concurrent revocation by a holder of the old key: the rotation stands, the "
      "revocation is no end, and the history the rotation kept counts (xr)", FK, [], "xr", "C", None, True),
     ("r114 (b): the owner's revocation and a concurrent rotation by another holder: the roster voids the rotation "
@@ -495,6 +501,8 @@ PERSON = [
     ("and a later rotation of C by its holder (qT2) yields no key of the person", STOLEN + [QT2], "T2", "T2"),
 ]
 SUCCESSOR = [
+    ("the lone act: a group-counted unseat of C's registered seat closes no void: the later rotation qT2 succeeds",
+     LONE_W + [KE.rec("qT2", "T2", 1, None, names=("kC", "vT"), succ_of="C", at_old=1, typ="pseudonym")], [], "C", "T2"),
     ("this device was stolen: the void and the eviction leave C no successor", STOLEN, [], "C", None),
     ("a rotation the self roster voided names no successor", CH.ROOM + SP + recs() + [KT, QT0, VOID("vT", ("P1", "P2"), "qT")],
      [], "C", None),
