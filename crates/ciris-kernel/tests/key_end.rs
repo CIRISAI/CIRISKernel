@@ -57,7 +57,10 @@ fn key_end_worlds() {
             cmp(en == a.at("ended").s(), format!("ended at {now}"));
             let succ: Vec<J> = keys
                 .iter()
-                .filter_map(|k| successor(&c, k, Some(&ret)).map(|s| J::Arr(vec![J::Str(k.clone()), J::Str(s)])))
+                .filter_map(|k| {
+                    successor(&c, k, Some(&ret), &std::collections::BTreeSet::new())
+                        .map(|s| J::Arr(vec![J::Str(k.clone()), J::Str(s)]))
+                })
                 .collect();
             cmp(succ == a.at("succ").arr(), format!("successor at {now}"));
             let edges: Vec<(String, String)> = c
