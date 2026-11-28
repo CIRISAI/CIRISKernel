@@ -222,6 +222,126 @@ def separating():
     return out
 
 
+# ---- the dump: per policy row, what the reference derives today and from which cell ------------------------------
+ROSTER_SOURCE = {        # roster.window_from_table: where each field of a lone path's table comes from
+    "counted": "caller: the roster instance's scope (roster.instances), no cell",
+    "concluder": "caller: the roster instance's scope, as counted; no cell",
+    "opener": "none: the counted scope; no cell",
+    "opener_says": "hand-written `approve`; no cell",
+    "at_once": "enact_rule (count_kind; community: the room's declared protocol, CC 3.1.3.2), over `all`, word "
+               "`landed` hand-written; cancel_rule strict_majority_of_others, over `others`, word `refused` hand-written",
+    "silent": "counted.target_silent (with the caller's evict flag), word `refused` hand-written",
+    "at_close": "cancel_rule fraction with min_count[corridor], over `all`, `refused`; floor_rule fraction with "
+                "reverse_path and min_count[corridor], over `all`, `landed`",
+    "default": "floor_rule: one_of_n gives `landed`, otherwise `refused`; at_window unread",
+    "target_votes": "counted.target_voice",
+    "secs": "window_secs (by the family's row)",
+}
+HAND = "hand-written in window.py WINDOWS; no cell read"
+ROW_SOURCE = {           # window.spec_from_policy: where each field comes from
+    "counted": "counted.count_set (one token)",
+    "concluder": "counted.count_set (CC 4.5.13: one voice of its count closes every window of the table)",
+    "opener": "none: counted.count_set proposes (CC 3.1.9.2)",
+    "opener_says": "`approve` (CC 3.1.9.2: the proposal is the proposer's approval)",
+    "at_once": "enact_rule (strictly more, min_count[corridor]) over base unless irreversible, `landed` (CC 3.1.3); "
+               "corridor self: withdraw (CC 3.3.6.4) and cancel_rule over cancel_over, word at_window",
+    "silent": "counted.target_silent (changes_set removes), word at_window",
+    "at_close": "cancel_rule over cancel_over (not corridor self), word at_window; enact_rule if irreversible; "
+                "floor_rule with reverse_path, `landed`",
+    "default": "at_window",
+    "target_votes": "counted.target_voice (changes_set adds)",
+    "secs": "window_secs (window_class must agree)",
+}
+# the hand-written mirror tables: the cell or text each field matches, though nothing reads it
+MIRROR_SOURCE = {
+    "moderation_overturn": {
+        "counted": "counted.count_set `member` (hand-written; matches)",
+        "concluder": "no cell; CC 4.5.13 (door_text): `member but the author`, the author apart by author_apart",
+        "opener": "no cell; the act is the opener: `moderate`, the duty holder's act (kind mirror, CC 4.5.13)",
+        "opener_says": "no cell; none (the act's author is no voice)",
+        "at_once": "enact_rule strict_majority + floor_rule voices 2 -> (more, 1, 2, 2); base `others` from standing_set "
+                   "`less the act's author` (count_set has no -proposer); value `object` from voices objection "
+                   "(raised); outcome `lifted`: no cell",
+        "silent": "counted.target_silent `no`",
+        "at_close": "none: cancel_rule none; reverse_path false",
+        "default": "no cell: `stands` (at_window reads `lapsed`: the lift lapses, the act stands)",
+        "target_votes": "counted.target_voice `no`",
+    },
+    "moderation_fallback": {
+        "counted": "counted.count_set `member`",
+        "concluder": "no cell; CC 4.5.13: any member lands the fallback",
+        "opener": "no cell; a member raising the action (counted scope)",
+        "opener_says": "no cell; none",
+        "at_once": "enact_rule role_at moderate 1 -> (answered, one, moderate, answered): the words `answered` have no "
+                   "cell (counted.voices `unstated`)",
+        "silent": "counted.target_silent `no`",
+        "at_close": "floor_rule voted_majority 2 -> (for, (voted, 1, 2, 2, against), all, fallback): ballot "
+                    "`ballot:moderation_action` for/against (CIRISConstitution#221); words have no cell",
+        "default": "no cell: `lapsed` (at_window reads `tallied`)",
+        "target_votes": "counted.target_voice `no`",
+    },
+    "halt_fuse": {
+        "counted": "counted.count_set `holder`",
+        "concluder": "no cell; a holder (door.py reads the halted node instead)",
+        "opener": "no cell; the halt is the opener (enact_rule one_of_n: one holder fires)",
+        "opener_says": "no cell; `confirm` (the halting holder's own confirmation)",
+        "at_once": "cancel_rule strict_majority (`more than 1/2 confirms`) over base -> (confirm, strict, all, "
+                   "confirmed); voices `scrubs` read as answers; words have no cell",
+        "silent": "counted.target_silent `no`",
+        "at_close": "none: floor_rule none",
+        "default": "at_window `lapsed`",
+        "target_votes": "counted.target_voice `no`",
+    },
+}
+DUMP_FIELDS = ("counted", "concluder", "opener", "opener_says", "at_once", "silent", "at_close", "default",
+               "target_votes", "secs")
+
+
+def dump():
+    """Per policy row: every reference table that reads it, each field's value and where it comes from; the table
+    spec_from_policy gives from the row (or the cells it refuses on); and the fields where the two disagree."""
+    RS.instances()
+    for p in ("two_thirds", "quorum:2"):
+        RS.instances(p)
+    RS.instances()
+    out = {}
+    for f in POL["families"]:
+        fam = f["family"]
+        g = give(f)
+        row = {"spec": None, "refused": None}
+        if g[0] == "spec":
+            row["spec"] = {k: {"value": g[1].get(k), "from": ROW_SOURCE[k]} for k in DUMP_FIELDS}
+        else:
+            row["refused"] = [list(r) for r in g[1]]
+        refs = {}
+        for name in sorted(WN.WINDOWS):
+            w = WN.WINDOWS[name]
+            if w["policy"] != fam:
+                continue
+            src = ROSTER_SOURCE if name.startswith("L:") else {k: HAND for k in DUMP_FIELDS}
+            if name in MIRROR_SOURCE:
+                src = {k: HAND + "; " + MIRROR_SOURCE[name][k] for k in MIRROR_SOURCE[name]}
+            if not name.startswith("L:"):
+                src = dict(src, secs="window_secs (window.secs, by the family's row)")
+            vals = dict(w, secs=WN.secs(name))
+            ref = {"built_for_a_path": name in BUILT,
+                   "fields": {k: {"value": vals.get(k, False if k == "target_votes" else None), "from": src[k]}
+                              for k in DUMP_FIELDS}}
+            d, _ = derived(name)
+            if d is not None:
+                ref["differs_from_row"] = clause_diff(w, d)
+            ref["note"] = DIFFERS.get(name)
+            refs[name] = ref
+        out[fam] = {"cells": f, "row_gives": row, "reference": refs}
+    return {"source": "data/governance_policy.json (CIRISConstitution manifests/governance_policy.json)",
+            "policy_sha256": POL["_meta"]["policy_sha256"],
+            "reading": "per family: `cells` the row as the table carries it; `row_gives` window.spec_from_policy's table "
+                       "(each field's value and the cell it comes from) or the cells it refuses on; `reference` every "
+                       "table the reference runs under that family today, each field's value and where it comes from, "
+                       "and `differs_from_row` the fields that differ from the row's table",
+            "families": out}
+
+
 # ---- plants: one cell changed, read in one row ---------------------------------------------------------
 def _set(row, path, v):
     row = copy.deepcopy(row)

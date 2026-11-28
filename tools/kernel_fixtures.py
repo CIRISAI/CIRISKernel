@@ -810,6 +810,8 @@ def main():
     dump("key_end.json", key_end_cases(), out)
     dump("acts.json", acts_cases(), out)
     dump("policy_spec.json", policy_spec_cases(), out)
+    import check_policy_spec as PS
+    dump("../vectors/policy_dump.json", PS.dump(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution
@@ -834,6 +836,7 @@ def main():
         print("kernel_fixtures: %d fixtures, %d out of date" % (len(out), bad))
         return 1 if bad else 0
     os.makedirs(OUT, exist_ok=True)
+    os.makedirs(os.path.join(OUT, "..", "vectors"), exist_ok=True)
     for name, text in out.items():
         with open(os.path.join(OUT, name), "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
