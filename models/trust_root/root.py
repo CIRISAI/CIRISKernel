@@ -256,7 +256,7 @@ class Root:
         """Why b is Invalid or waits, by the text's tokens (CC 2.6.1.11, CC 3.2), or None: a refusal name, or a detail
         (DETAIL_OF), which counted() reports under its refusal name and refusal() gives apart."""
         ps = [self.by[p] for p in b["prev"] if p in self.by]
-        if len(ps) != len(b["prev"]): return "genesis_bundle_prev_not_valid"      # one not held: waits
+        if len(ps) != len(b["prev"]): return "waiting"      # one not held: the verdict Waiting (no token: waits_on)
         if set(b["recovery"]) != set(b["holders"]) and "commitments_unread" not in MUT: return "recovery_commitments_not_holders"
         if not ps: return None
         if "version_unread" not in MUT and b["version"] != max(p["version"] for p in ps) + 1: return "version_prev_mismatch"
@@ -325,13 +325,16 @@ class Root:
         if not all(2 * len(frozenset(voices) & x) > len(x) for x in bases): return False
         # who else signs a join (CIRISVerify's per-bundle read, the Constitution's reading 1; MUTATION
         # join_signers_unread: nobody else)
-        if len(prevs) >= 2 and "count_over_own" not in MUT and "join_common_base" not in MUT and "join_union" not in MUT \
-                and "join_signers_unread" not in MUT:
+        # each holder a later bundle adds signs it too, as does each holder whose recovery commitment it changes (CC
+        # 2.6.1.11, "How a bundle is counted"; a join reads it over each predecessor). MUTATION join_signers_unread:
+        # nobody else; added_signers_join_only: only a join's
+        if prevs and "count_over_own" not in MUT and "join_common_base" not in MUT and "join_union" not in MUT \
+                and "join_signers_unread" not in MUT and ("added_signers_join_only" not in MUT or len(prevs) >= 2):
             return all(frozenset(voices) & ks for _, ks in self.join_signers(b, prevs))
         return True
 
     def join_signers(self, b, prevs=None):
-        """The holders of join b that must sign it, each with the keys its statement may be under (reading 1): (a) a
+        """The holders of later bundle b (a join or not) that must sign it, each with the keys its statement may be under (reading 1): (a) a
         holder no named predecessor seats, under its own key; (b) a holder whose recovery commitment in b differs from
         the one any named predecessor seating it carries, under a key some predecessor seats it at and no recovery in
         the join's branches retired. So after a recovery on one branch, the join carries the recovered holder's voice.
@@ -403,8 +406,14 @@ class Root:
         ok, why = self._counted_raw(i)
         return (ok, DETAIL_OF.get(why, why) if "detail_as_name" not in MUT else why)
 
+    def waits_on(self, i):
+        """The predecessors bundle i names that are not held: it is Waiting on them (CC 2.6.1.11, the order of
+        verification, step 3: Waiting where one is not held). Empty where it waits on none."""
+        return [p for p in self.by[i]["prev"] if p not in self.by]
+
     def refusal(self, i):
-        """None where bundle i counts; else (name, detail), the detail None where the refusal carries none: the
+        """None where bundle i counts; else (name, detail), the detail None where the refusal carries none (and
+        ("waiting", None) for the verdict Waiting, which has no token: waits_on names the rows): the
         malformed bundle's (genesis_bundle_malformed, version_prev_mismatch), a recovery's statement that does not
         count (genesis_bundle_count_unmet, recovery_commitment_mismatch), as manifests/refusal_tokens.tsv names them."""
         ok, why = self._counted_raw(i)

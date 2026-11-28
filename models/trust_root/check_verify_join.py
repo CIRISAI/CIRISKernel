@@ -131,7 +131,8 @@ def model(case_id):
     """The model's verdict for one case: (verdict, token, detail, holders, counted)."""
     held, b = CASES[case_id]
     R = RT.Root(held + [b])
-    if any(p not in R.by for p in b["prev"]):
+    if R.waits_on(b["id"]):
+        assert R.refusal(b["id"]) == ("waiting", None)
         return ("waiting", None, None, (), ())
     r = R.refusal(b["id"])
     if r is not None:
@@ -143,7 +144,7 @@ def model(case_id):
     elif not b["prev"]:
         voices = R.voices(b) & frozenset(b["holders"])
     else:
-        req = set().union(*[ks for _, ks in R.join_signers(b)]) if len(b["prev"]) >= 2 else set()
+        req = set().union(*[ks for _, ks in R.join_signers(b)])
         voices = R.voices(b) & (R.base(b) | req)
     return ("valid", None, None, tuple(sorted({WHO[k] for k in b["holders"]})), tuple(sorted({WHO[k] for k in voices})))
 

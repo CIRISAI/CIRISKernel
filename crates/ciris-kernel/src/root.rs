@@ -331,7 +331,7 @@ where
     fn inconsistency(&self, b: &B) -> Option<Reason> {
         let ps: Vec<&B> = b.prev().iter().filter_map(|p| self.b(p)).collect();
         if ps.len() != b.prev().len() {
-            return Some("genesis_bundle_prev_not_valid"); // one not held: it waits
+            return Some("waiting"); // one not held: the verdict Waiting, no token ([`Root::waits_on`])
         }
         let rk: BTreeSet<&B::Key> = b.recovery().iter().map(|(h, _)| h).collect();
         let hk: BTreeSet<&B::Key> = b.holders().iter().collect();
@@ -434,10 +434,12 @@ where
                 .filter(|k| !gone.contains(k) && within.is_none_or(|w| w.contains(k)))
                 .collect();
             2 * voices.intersection(&base).count() > base.len()
-        }) && (prevs.len() < 2 || self.join_signers(b).iter().all(|(_, ks)| ks.iter().any(|k| voices.contains(k))))
+        // each holder a later bundle adds signs it too, as does each holder whose recovery commitment it changes (CC
+        // 2.6.1.11, "How a bundle is counted"; a join reads it over each predecessor)
+        }) && self.join_signers(b).iter().all(|(_, ks)| ks.iter().any(|k| voices.contains(k)))
     }
 
-    /// The holders of join `b` that must sign it, each with the keys its statement may be under (CIRISVerify's
+    /// The holders of later bundle `b` (a join or not) that must sign it, each with the keys its statement may be under (CIRISVerify's
     /// per-bundle read, the Constitution's reading 1): a holder no named predecessor seats, under its own key; a
     /// holder whose recovery commitment in `b` differs from the one any named predecessor seating it carries, under
     /// a key some predecessor seats it at and no recovery in the join's branches retired. So after a recovery on one
@@ -552,6 +554,12 @@ where
     /// table gives the refusal one, is [`Root::refusal`]'s).
     pub fn counted(&self, i: &B::Id) -> Result<(), Reason> {
         self.counted_raw(i).map_err(|why| detail_of(why).unwrap_or(why))
+    }
+
+    /// The predecessors bundle `i` names that are not held: it is Waiting on them (CC 2.6.1.11, the order of
+    /// verification, step 3). Empty where it waits on none; [`Root::counted`] gives `waiting` (the verdict, no token).
+    pub fn waits_on(&self, i: &B::Id) -> Vec<B::Id> {
+        self.b(i).map(|b| b.prev().iter().filter(|p| self.b(p).is_none()).cloned().collect()).unwrap_or_default()
     }
 
     /// None where bundle `i` counts; else its refusal name and its detail, the detail None where the refusal carries

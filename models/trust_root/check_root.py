@@ -29,6 +29,29 @@ C1 = {"name": "c1", "duties": ("infra",)}           # another charter carrying t
 C2 = {"name": "c2", "duties": ()}                   # a charter that drops the duty
 
 
+def bare(b):
+    """A bundle left as its signers are written: resign() adds no statement to it (a case of a holder that does not
+    sign)."""
+    return dict(b, bare=True)
+
+
+def resign(bs):
+    """The bundles with each holder a later bundle adds, and each holder whose recovery commitment it changes, signing
+    it (CC 2.6.1.11, "How a bundle is counted"), under the least key the rule allows it: the cases were written before
+    the rule read every later bundle, and are re-signed here mechanically. A recovery, a first bundle, a bundle whose
+    predecessors are not all among `bs`, and a `bare` one are left as written."""
+    if bs is None: return None
+    R = RT.Root(bs)
+    out = []
+    for b in bs:
+        if b.get("bare") or not b["prev"] or b.get("recovers") is not None or any(p not in R.by for p in b["prev"]):
+            out.append(b); continue
+        have = {k for k, _ in b["stmts"]}
+        add = [min(ks) for _, ks in R.join_signers(b) if ks and not (ks & have)]
+        out.append(dict(b, stmts=tuple(b["stmts"]) + tuple((k, b["iat"]) for k in add)) if add else b)
+    return out
+
+
 def nxt(i, prev, holders, signers, version=None, charter=RT.C0, seats=("n1",), iat=0, family=F, recovers=None, **kw):
     """A later bundle on `prev` (one id, or a tuple for a join), signed by `signers`."""
     prev = (prev,) if isinstance(prev, str) else tuple(prev)
@@ -179,11 +202,12 @@ CASES = [
     # carries, each sign it, under a key some predecessor seats it at (not a retired one)
     ("join", "a recovery on one branch, then a join WITHOUT the recovered holder's voice: am still carries h3's "
              "commitment r:h3, the join carries h3b's r:h3b, so h3b signs it; by h1 and h2 alone it concludes nothing",
-     [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h1", "h2"), version=2,
-                        recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})], (), (), ANC, {"concluded": {"j": Fa}}),
+     [B0, REC, AMD, bare(nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h1", "h2"), version=2,
+                             recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"}))], (), (), ANC,
+     {"concluded": {"j": Fa}}),
     ("join", "a holder no named predecessor seats signs the join: h1, h2 and h3 join s1 and s2 adding h6, without h6's "
-             "voice it concludes nothing", FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5", "h6"), ("h1", "h2", "h3"),
-                                                       version=2)], (), (), ANC, {"concluded": {"j": Fa}}),
+             "voice it concludes nothing", FORK + [bare(nxt("j", ("s1", "s2"), H3 + ("h4", "h5", "h6"), ("h1", "h2", "h3"),
+                                                            version=2))], (), (), ANC, {"concluded": {"j": Fa}}),
     ("join", "and with it, it counts", FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5", "h6"), ("h1", "h2", "h3", "h6"),
                                                 version=2)], (), (), ANC, {"concluded": {"j": T}}),
     ("join", "a key a recovery replaced is RETIRED: h3 signing with h1 and h3b is no voice anywhere in the join, and "
@@ -234,6 +258,15 @@ CASES = [
      [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h1", "h2", "h3b"), version=2,
                         recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3", "h4": "r:h4"})], (), (), ANC,
      {"concluded": {"j": Fa}, "refusal": {"j": ("genesis_bundle_count_unmet", "recovery_commitment_spent")}}),
+    ("count", "each holder a later bundle adds signs it too (CC 2.6.1.11, How a bundle is counted): b1 adding h4, by h1 "
+              "and h2 alone, concludes nothing", [B0, bare(nxt("b1", "b0", H3 + ("h4",), ("h1", "h2")))], (), (), ANC,
+     {"concluded": {"b1": Fa}, "refusal": {"b1": ("genesis_bundle_count_unmet", None)}}),
+    ("count", "and with h4's statement it counts", [B0, nxt("b1", "b0", H3 + ("h4",), ("h1", "h2", "h4"))], (), (), ANC,
+     {"concluded": {"b1": T}}),
+    ("count", "as does each holder whose recovery commitment it changes: b1 re-committing h3, by h1 and h2 alone, "
+              "concludes nothing", [B0, bare(nxt("b1", "b0", H3, ("h1", "h2"), recovery={"h1": "r:h1", "h2": "r:h2",
+                                                                                     "h3": "r2:h3"}))], (), (), ANC,
+     {"concluded": {"b1": Fa}}),
     ("count", "the holder comes back only under a new key: on rc, h1 and h2 seat h3n, and it counts",
      [B0, REC, nxt("b2", "rc", ("h1", "h2", "h3b", "h3n"), ("h1", "h2"), version=2,
                    recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h3n": "r:h3n"})], (), (), ANC,
@@ -449,8 +482,8 @@ SB3 = nxt("b3", "b2", _H + ("h4", "h5"), ("h1", "h2", "h4"), version=3,
 SL = [B0, REC, SB2, SB3]
 SRC2 = nxt("rc2", "b0", ("h1", "h2", "h3x"), ("r:h3",), recovers=("h3", "h3x"), recovery={"h1": "r:h1", "h2": "r:h2", "h3x": "r:h3x"})
 SRC3 = nxt("rc3", "b0", ("h1", "h2", "h3y"), ("r:h3",), recovers=("h3", "h3y"), recovery={"h1": "r:h1", "h2": "r:h2", "h3y": "r:h3y"})
-SJ = nxt("j", ("b3", "rc2"), _H + ("h4", "h5"), ("h1", "h2"), version=4,
-         recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4", "h5": "r:h5"})
+SJ = bare(nxt("j", ("b3", "rc2"), _H + ("h4", "h5"), ("h1", "h2"), version=4,
+         recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4", "h5": "r:h5"}))
 # a recovery behind a bundle its holder signed: h1, h2 and h3 sign b1 and b2 (on b1); r:h3 then recovers at b0
 XB1 = nxt("b1", "b0", H3, ("h1", "h2", "h3"))
 XB2 = nxt("b2", "b1", H3 + ("h4",), ("h1", "h2", "h3"), version=2)
@@ -871,6 +904,10 @@ RECOVERY_PLANTS = ("recovery_inforce_unread", "recovery_scope_unread", "recovery
                    "recovery_stalled_unread", "recovery_more_unread")
 
 
+CASES = [(r, n, resign(bs), rv, gs, rd, w) for r, n, bs, rv, gs, rd, w in CASES]
+RECOVERY = [(n, rows, resign(bs), gs, rd, c, why, f4) for n, rows, bs, gs, rd, c, why, f4 in RECOVERY]
+
+
 def recovery_answer(rows, bs, gs, rd):
     view = (RT.Root(bs, (), gs), rd) if bs is not None else None
     ST.ROOT.append(view)
@@ -900,7 +937,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
           "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names",
           "concurrent_keep_bundle_only",
-          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name", "retired_reseat_allowed", "spent_on_branch_unread")
+          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name", "retired_reseat_allowed", "spent_on_branch_unread", "added_signers_join_only")
 
 
 def answer(bs, rv, gs, rd, want):
@@ -942,6 +979,9 @@ SUB_CASES = [
     ("the scope in force decides: a later bundle dropping it", [dict(B0, charter=CSUB), nxt("b1", "b0", H3, ("h1", "h2", "h3"))],
      (GR("gA", "b0", "uA", "room", ("h1", "h2")),), RD(anchor="b0", acks=("b1",)), "gA", False),
 ]
+
+
+SUB_CASES = [(n, resign(bs), gs, rd, gid, w) for n, bs, gs, rd, gid, w in SUB_CASES]
 
 
 def run_sub():

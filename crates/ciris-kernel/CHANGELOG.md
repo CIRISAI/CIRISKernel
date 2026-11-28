@@ -18,7 +18,15 @@ none) on any branch it names is Invalid, `genesis_bundle_malformed` with the det
 comes back only under a new key. One carrying a recovery commitment spent on any branch concludes nothing,
 `genesis_bundle_count_unmet` with `recovery_commitment_spent`. Plants `retired_reseat_allowed`,
 `spent_on_branch_unread`. `check_verify_join.py` replays CIRISVerify's `genesis_join_v1.json` (pinned by sha256) as a
-differential.
+differential, in `check.sh`: 41 of 46 cases agree, the other five of the wire alone.
+
+**Every later bundle is signed by each holder it adds, and each holder whose recovery commitment it changes** (CC
+2.6.1.11, "How a bundle is counted"; CIRISVerify enforces it). **An answer changes:** a later bundle adding a holder,
+or changing a holder's commitment, without that holder's statement concludes nothing, `genesis_bundle_count_unmet`;
+before, only a join needed them. `check_root.py`'s cases are re-signed mechanically (`resign`: each such holder signs
+the bundle under the least key the rule allows; the cases about a holder that does not sign are left `bare`); plant
+`added_signers_join_only`. **A predecessor not held** is the verdict Waiting, no longer `genesis_bundle_prev_not_valid`:
+`Root::counted` gives `waiting` (no token in the table) and `Root::waits_on` names the predecessors.
 
 **Who else signs a join; behind exactly; a thumbprint anchor matching two** (CIRISVerify's per-bundle read, the
 Constitution's readings 1 and 3), both languages. A join is counted only where, besides each predecessor's
