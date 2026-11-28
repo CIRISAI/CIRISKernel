@@ -472,7 +472,19 @@ OWN_DIRECT = TR_CASES + [
 ]
 
 # the successor of a key with the self roster's acts (name, seat rows, key rows, key, expected)
+# "this device was stolen" (ruled on r118, reading (a)): the self roster evicts the stolen key C and voids the thief's
+# rotation qT, two acts of one target each, signed together. C is then no key of the person, and no later rotation of
+# C (qT2, the thief's again) yields the person's key. (name, rows, key, the person it speaks for)
+STOLEN = CH.ROOM + SP + recs() + [KT, QT0, VOID("vT", ("P1", "P2"), "qT"), KP.evict("eC", "SP", "C", ("P1", "P2"), ("aC",))]
+QT2 = KE.rec("qT2", "T2", 1, None, names=("kC",), succ_of="C", at_old=1, typ="pseudonym")
+PERSON = [
+    ("this device was stolen: before the roster acts, C speaks for P1", CH.ROOM + SP + recs() + [KT, QT0], "C", "P1"),
+    ("this device was stolen: the roster's eviction of C and void of qT, two one-target acts: C speaks for no person",
+     STOLEN, "C", "C"),
+    ("and a later rotation of C by its holder (qT2) yields no key of the person", STOLEN + [QT2], "T2", "T2"),
+]
 SUCCESSOR = [
+    ("this device was stolen: the void and the eviction leave C no successor", STOLEN, [], "C", None),
     ("a rotation the self roster voided names no successor", CH.ROOM + SP + recs() + [KT, QT0, VOID("vT", ("P1", "P2"), "qT")],
      [], "C", None),
     ("the same rotation, not voided, names its key", CH.ROOM + SP + recs() + [KT, QT0], [], "C", "T"),
@@ -526,6 +538,10 @@ def run():
         KS, roster, final = plain(sr, kr, RULE)
         got = KE.successor(KS, k, None, roster)
         if got != want: bad.append("%s: got %s" % (name, got))
+    for name, rows, k, want in PERSON:
+        S = combined(rows)
+        got = ST.rep_of(list(S.Cs), k)
+        if got != want: bad.append("%s: got %s" % (name, got))
     for name, rows, rid, k, fin, want in DIRECT:
         got = KE.counts_by(KE.state(rows), rid, k, None, frozenset(fin))
         if got != want: bad.append("%s: got %s" % (name, got))
@@ -575,7 +591,7 @@ def main():
         if not hit: missed.append(p)
     ok = not bad and not missed
     print("RESULT: %s: %d cases, %d of %d planted breaks caught" % ("ok" if ok else "%d problems" % (len(bad) + len(missed)),
-                                                                   len(CASES) + len(LONE) + len(CUT) + len(DIRECT) + len(ROSTER_DIRECT) + len(SUCCESSOR) + len(OWN_DIRECT), len(PLANTS) - len(missed), len(PLANTS)))
+                                                                   len(CASES) + len(LONE) + len(CUT) + len(DIRECT) + len(ROSTER_DIRECT) + len(SUCCESSOR) + len(PERSON) + len(OWN_DIRECT), len(PLANTS) - len(missed), len(PLANTS)))
     return 0 if ok else 1
 
 
