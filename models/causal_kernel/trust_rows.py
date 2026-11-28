@@ -404,10 +404,15 @@ def cut_state(S, rows, own=None):
         o = authority_act_over(S, q)
         if o is not None and (behind_line(S, own, q, o) or (q["kind"] != "licensure" and not recounted(S, q, o))):
             cut.add(q["id"])
-    # (what rests on a cut row is the seat model's to void: a counted act counts only if every counted act among its
-    # heads counts (checkpoint, built on), and a lone conferral regrown against the body seats nothing (Seats); a cut
-    # row is simply absent from the rows the Seats here are built over)
-    kept = [q for q in rows if q["id"] not in cut]
+    # what rests on a void row is the seat model's to void (a counted act counts only if every counted act among its
+    # heads counts: checkpoint, built on; a lone conferral regrown against the body seats nothing, and every row built
+    # on it with it: Seats). The seat model over the rows judged is THE answer, so the cut keeps no row it voids: a row
+    # the lane cuts (an end's) leaves what rests on it to be read over rows without it, where the seat model could no
+    # longer see it rests on a void row (E6: an election's growth voids A's lone conferral of B, A's concurrent
+    # lay-down cuts it, and B and C's conferral built on it then counted as C's alone). MUTATION cut_keeps_voided.
+    void = frozenset() if "cut_keeps_voided" in MUT else \
+        ST.Seats(CK.State(rows, {q["id"]: S.C.get(q["id"]) for q in rows})).stale
+    kept = [q for q in rows if q["id"] not in cut and q["id"] not in void]
     return CK.State(kept, {q["id"]: S.C.get(q["id"]) for q in kept})
 
 

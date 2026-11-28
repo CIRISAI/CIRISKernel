@@ -512,11 +512,24 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
             }
         }
     }
-    // (what rests on a cut row is the seat model's to void: a counted act counts only if every counted act among its
-    // heads counts, and a lone conferral regrown against the body seats nothing; a cut row is simply absent from the
-    // rows the Seats here are built over)
-    rows.retain(|j| !cut.contains(j));
+    // what rests on a void row is the seat model's to void (a counted act counts only if every counted act among its
+    // heads counts; a lone conferral regrown against the body seats nothing, and every row built on it with it). The
+    // seat model over the rows judged is THE answer, so the cut keeps no row it voids: a row the lane cuts leaves what
+    // rests on it to be read over rows without it, where the seat model could no longer see it rests on a void row
+    // (E6: an election's growth voids A's lone conferral of B, A's concurrent lay-down cuts it, and B and C's
+    // conferral built on it was then counted as C's alone)
+    let void = voided_over(seats, &rows);
+    rows.retain(|j| !cut.contains(j) && !void.contains(j));
     rows
+}
+
+/// The rows among `idx` (indices of `seats`' set) that the seat model over those rows alone voids ([`Seats::stale`]):
+/// counted acts built on one that does not count, and regrown lone conferrals with every row built on them.
+fn voided_over<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, idx: &[usize]) -> BTreeSet<usize> {
+    let sub = sub_of(seats.c(), idx);
+    let (rc, _) = for_reader(&sub, seats.law(), seats.spec(), None);
+    let q = Seats::new(&rc, seats.law(), seats.spec(), None);
+    q.stale().iter().filter_map(|&j| idx.get(j).copied()).collect()
 }
 
 /// The rows `idx` of `c`, as their concluded set and with row `i` (not among them) beside them: the Seats are built
