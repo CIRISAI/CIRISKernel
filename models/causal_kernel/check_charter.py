@@ -397,43 +397,6 @@ PLANTS = ("charter_unread", "at_issuance", "below_protocol_read", "fork_union", 
           "outside_voice_taken", "officers_by_key")
 
 
-# REGROWN (the r95 attack, review-scratch 828398d, r95-attackr/f1 and f5): an affiliation's counted conferral of a seat
-# written from an old past is re-counted against the officers' growth the reader holds (recount_on_growth): (name, rows,
-# [(key, scope, the affiliation, holds)])
-_A1G = aff("a1", to=("A", "B"), cls=(MW,), officers=("A",), official="O")      # one officer A, its official O
-_A1AOB = ST.offer("aob", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("B", "O"),
-                  counted=ST.OFFICER, role=ST.OFFICER)            # A appoints B officer, O's voice on the row
-_A1LSO = ST.offer("lso", "A", ("X",), "license", "a1", "group", ("a1",), head=("a1",), cosigners=("O",),
-                  counted=ST.OFFICER, policy="affiliation_member_action")   # A with O's voice, from a1
-_AFD = aff("af", to=("A", "B", "C", "D"), officers=("A", "B", "C"))
-_AOD = ST.offer("aod", "A", ("D",), "member", "af", "group", ("af",), head=("af",), cosigners=("B", "D"),
-                counted=ST.OFFICER, role=ST.OFFICER, policy="cosigned_act")    # A and B appoint D officer: four
-_AFLSO = ST.offer("lso", "A", ("X",), "license", "af", "group", ("af",), head=("af",), cosigners=("B",),
-                  counted=ST.OFFICER, policy="cosigned_act")    # A and B, from af: 2 of 3, and 2 of the 4 held
-REGROWN = [
-    ("one officer: A with O's voice seats X's license, nothing beside it", [_A1G, _A1LSO, ST.accept("lsa", "X", "lso")],
-     [("X", "license", "a1", True)]),
-    ("one officer: and A's countersigned appointment of B as officer beside it, held: two officers, X holds no seat",
-     [_A1G, _A1AOB, _A1LSO, ST.accept("lsa", "X", "lso")], [("B", ST.OFFICER, "a1", True), ("X", "license", "a1", False)]),
-    ("three officers: A and B seat X's license (2 of 3)", [_AFD, _AFLSO, ST.accept("lsa", "X", "lso")],
-     [("X", "license", "af", True)]),
-    ("three officers: and D appointed beside it, held: A and B are 2 of 4, X holds no seat",
-     [_AFD, _AOD, _AFLSO, ST.accept("lsa", "X", "lso")], [("D", ST.OFFICER, "af", True), ("X", "license", "af", False)]),
-    ("three officers: A, B and D seat X's license after D's appointment (naming it): 3 of 4, X's seat stands",
-     [_AFD, _AOD, dict(_AFLSO, names=("aod",), head=("aod",), cosigners=("B", "D")), ST.accept("lsa", "X", "lso")],
-     [("X", "license", "af", True)]),
-]
-
-
-def regrown_answers(case, every_order=False):
-    _name, rows, asks = case
-    out = set()
-    for order in (orders(rows) if every_order else [rows]):
-        Q = ST.Seats(arrive(list(order)))
-        out.add(tuple(k in Q.holders(sc, o) for k, sc, o, _ in asks))
-    return out
-
-
 def show(x):
     return x if x is None else sorted(x)
 
@@ -456,11 +419,6 @@ def misses(plant=None, every_order=False):
             got = CH.edge_refusal(CH.edge("RD", "af", cs))
             if got != want:
                 hit.append("edge %s: got %s, expected %s" % (cs, got, want))
-        for c in REGROWN:
-            want = tuple(w for *_, w in c[2])
-            got = regrown_answers(c, every_order)
-            if got != {want}:
-                hit.append("regrown %s: got %s, expected %s" % (c[0], sorted(got), want))
         for c in COUNTERSIGN:
             want = (tuple(c[2][i] for i in sorted(c[2])), tuple(w for _, _, w in c[3]))
             got = countersign_answers(c, every_order)
@@ -481,9 +439,8 @@ def main():
     for p in problems:
         print(p)
     print("RESULT: %s: %d declared cases, %d licence cases (each in up to %d arrival orders), %d edge cases, %d countersign "
-          "cases, %d regrown cases, %d of %d planted breaks caught" % ("ok" if not problems else "%d problems" % len(problems),
+          "cases, %d of %d planted breaks caught" % ("ok" if not problems else "%d problems" % len(problems),
                                                     len(DECLARED), len(LICENCES), ORDER_CAP, len(EDGES), len(COUNTERSIGN),
-                                                    len(REGROWN),
                                                     caught, len(PLANTS)))
     return 1 if problems else 0
 

@@ -653,6 +653,28 @@ CASES += [
      [_AF3, _AOD, A("e", "RD", "af"), glic("l", "af", "A", cosigners=("B",))], "RD", "l", None, NA),
 ]
 
+# the same worlds read at the seat (Seats.holders): whether X holds the license seat the counted conferral gives,
+# (name, rows, [(key, scope, object, holds)])
+SEATED = [
+    ("r95 seat Q5c A alone seats X's license from g", [G1, _G1L, GLA], [("X", "license", "g", True)]),
+    ("r95 seat Q5 and the counted growth beside it, held: X holds no seat", [G1, _DCC, _G1L, GLA],
+     [("C", "duty", "g", True), ("X", "license", "g", False)]),
+    ("r95 seat Q6 and the lone growth beside it, held: X holds no seat", [G1, R_DC, R_DCA, _G1L, GLA],
+     [("C", "duty", "g", True), ("X", "license", "g", False)]),
+    ("r95 seat Q8 three holders grown to five beside A and B's conferral: X holds no seat", [_G5, _DDE, _GAB, GLA],
+     [("E", "duty", "g", True), ("X", "license", "g", False)]),
+    ("r95 seat Q4c one officer: A with O's voice seats X's license", [_AF1, _LSO(("A", "O"), "affiliation_member_action"),
+     _LSA], [("X", "license", "af", True)]),
+    ("r95 seat Q4 and B appointed officer beside it, held: X holds no seat",
+     [_AF1, R_AOBO, _LSO(("A", "O"), "affiliation_member_action"), _LSA],
+     [("B", ST.OFFICER, "af", True), ("X", "license", "af", False)]),
+    ("r95 seat Q7 three officers grown to four beside A and B's conferral: X holds no seat",
+     [_AF3, _AOD, _LSO(("A", "B"), "cosigned_act"), _LSA], [("D", ST.OFFICER, "af", True), ("X", "license", "af", False)]),
+    ("r95 seat Q7a A, B and D seat X's license after D's appointment (naming it): 3 of 4, X's seat stands",
+     [_AF3, _AOD, dict(_LSO(("A", "B", "D"), "cosigned_act"), names=("aod",), head=("aod",)), _LSA],
+     [("X", "license", "af", True)]),
+]
+
 NOW = {"an edge whose term has ended at the caller's instant (150)": 150,
        "r77 N8 a term-bearing edge read with no caller's instant: not walked (never at the licence's own instant)": None}
 
@@ -712,6 +734,15 @@ def answers(case, every_order=False):
     return out, kept
 
 
+def seated_answers(case, every_order=False):
+    _name, rows, asks = case
+    out = set()
+    for o in (itertools.islice(itertools.permutations(rows), ORDER_CAP) if every_order else [rows]):
+        Q = ST.Seats(arrive(o))
+        out.add(tuple(k in Q.holders(sc, ob) for k, sc, ob, _ in asks))
+    return out
+
+
 def misses(plant=None, every_order=False):
     hit = []
     with planted(plant):
@@ -721,6 +752,11 @@ def misses(plant=None, every_order=False):
                 hit.append("%s: got %s, expected %s" % (c[0], sorted(got, key=str), c[5]))
             if not kept:
                 hit.append("%s: the licence row is not admitted" % c[0])
+        for c in SEATED:
+            got = seated_answers(c, every_order)
+            want = tuple(w for *_, w in c[2])
+            if got != {want}:
+                hit.append("%s: got %s, expected %s" % (c[0], sorted(got), want))
         for name, r, want in REFUSALS:
             if TR.refusal(r) != want:
                 hit.append("refusal %s: got %s, expected %s" % (name, TR.refusal(r), want))
@@ -738,8 +774,9 @@ def main():
             problems.append("plant %s not caught" % plant)
     for p in problems:
         print(p)
-    print("RESULT: %s: %d cases (each in up to %d arrival orders), %d refusal cases, %d of %d planted breaks caught"
-          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), ORDER_CAP, len(REFUSALS), caught,
+    print("RESULT: %s: %d cases (each in up to %d arrival orders), %d seat cases, %d refusal cases, %d of %d planted "
+          "breaks caught" % ("ok" if not problems else "%d problems" % len(problems), len(CASES), ORDER_CAP, len(SEATED),
+                             len(REFUSALS), caught,
              len(PLANTS)))
     return 1 if problems else 0
 
