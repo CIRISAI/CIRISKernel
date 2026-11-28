@@ -605,6 +605,54 @@ CASES += [
      [_G4, _GLO_4, GLA, _U_A1, _U_B1, A("e", "RD", "g"), _X], "RD", "l", None, LW),
 ]
 
+# ---- the r95 attack (review-scratch 828398d, r95-attackr/f1, f2, f5): a counted conferral of a seat written from an
+# old past is re-counted against the body's growth the reader holds, as a licence and an edge are (recount_on_growth,
+# the one re-count) ---------------------------------------------------------------------------------------------------
+_G1L = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), counted="duty")   # A alone, from g
+_DCC = ST.offer("dcc", "A", "C", "moderate", "g", "group", ("g",), head=("g",), cosigners=("C",), counted="duty",
+                policy="duty_confer")                             # A (the lone holder) and C: C a holder, counted
+_G5 = ST.found("g", "A", ("A", "B", "C", "D", "E"), {"moderate": ("A", "B", "C")}, cosigners=("B", "C", "D", "E"),
+               licence_classes=((M, False),))
+_DDE = ST.offer("dde", "A", ("D", "E"), "moderate", "g", "group", ("g",), head=("g",), cosigners=("B", "C", "D", "E"),
+                counted="duty", policy="duty_confer")             # A, B and C seat D and E: five holders
+_GAB = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty")
+_AF1, _AF3 = dict(AFD1, official="O"), dict(AFD, official="O")    # one officer A; officers A, B, C (official O)
+_LSO = lambda signers, policy: ST.offer("lso", signers[0], ("X",), "license", "af", "group", ("af",), head=("af",),
+                                        cosigners=tuple(signers[1:]), counted=ST.OFFICER, policy=policy)
+_LSA = ST.accept("lsa", "X", "lso")
+_LX = glic("l", "af", "X") | {"names": ("lsa",)}
+_AOD = ST.offer("aod", "A", ("D",), "member", "af", "group", ("af",), head=("af",), cosigners=("B", "D"),
+                counted=ST.OFFICER, role=ST.OFFICER, policy="cosigned_act")   # A and B appoint D officer: four
+CASES += [
+    ("r95 Q5c A, the lone holder, confers a license seat on X by a counted row from g", [G1, _G1L, GLA, A("e", "RD", "g"),
+     _X], "RD", "l", None, OK),
+    ("r95 Q5 and A and C's counted conferral of moderate on C beside it, held: A alone is 1 of 2, X holds no seat",
+     [G1, _DCC, _G1L, GLA, A("e", "RD", "g"), _X], "RD", "l", None, NA),
+    ("r95 Q6 and A's lone conferral on C (accepted) beside it, held: A alone is 1 of 2, X holds no seat",
+     [G1, R_DC, R_DCA, _G1L, GLA, A("e", "RD", "g"), _X], "RD", "l", None, NA),
+    ("r95 Q8c A and B confer a license seat on X from g: 2 of the 3 holders", [_G5, _GAB, GLA, A("e", "RD", "g"), _X],
+     "RD", "l", None, OK),
+    ("r95 Q8 and D and E seated beside it by a counted conferral, held: A and B are 2 of 5, X holds no seat",
+     [_G5, _DDE, _GAB, GLA, A("e", "RD", "g"), _X], "RD", "l", None, NA),
+    ("r95 Q8a and a conferral after the growth, A, B, C and D from dde: 4 of 5, X's seat stands",
+     [_G5, _DDE, dict(_GAB, names=("dde",), head=("dde",), cosigners=("B", "C", "D")), GLA, A("e", "RD", "g"), _X],
+     "RD", "l", None, OK),
+    ("r95 Q6a and A and C's conferral after the lone growth (naming its acceptance): 2 of 2, X's seat stands",
+     [G1, R_DC, R_DCA, dict(_G1L, names=("dca",), head=("dc",), cosigners=("C",)), GLA, A("e", "RD", "g"), _X], "RD",
+     "l", None, OK),
+    ("r95 Q4c one officer: A with O's voice confers a license seat on X under affiliation_member_action",
+     [_AF1, _LSO(("A", "O"), "affiliation_member_action"), _LSA, A("e", "RD", "af"), _LX], "RD", "l", None, OK),
+    ("r95 Q4 and A's countersigned appointment of B as officer beside it, held: the conferral is re-counted against "
+     "two officers, X holds no seat",
+     [_AF1, R_AOBO, _LSO(("A", "O"), "affiliation_member_action"), _LSA, A("e", "RD", "af"), _LX], "RD", "l", None, NA),
+    ("r95 Q7c officers A, B, C: A and B confer a license seat on X under cosigned_act (2 of 3)",
+     [_AF3, _LSO(("A", "B"), "cosigned_act"), _LSA, A("e", "RD", "af"), _LX], "RD", "l", None, OK),
+    ("r95 Q7 and A, B and D's appointment of D as officer beside it, held: A and B are 2 of 4, X holds no seat",
+     [_AF3, _AOD, _LSO(("A", "B"), "cosigned_act"), _LSA, A("e", "RD", "af"), _LX], "RD", "l", None, NA),
+    ("r95 Q7b the officers' own quorum licence, A and B from af, D appointed beside it: 2 of 4 (held before r95)",
+     [_AF3, _AOD, A("e", "RD", "af"), glic("l", "af", "A", cosigners=("B",))], "RD", "l", None, NA),
+]
+
 NOW = {"an edge whose term has ended at the caller's instant (150)": 150,
        "r77 N8 a term-bearing edge read with no caller's instant: not walked (never at the licence's own instant)": None}
 
