@@ -1242,6 +1242,13 @@ fn policy_in_force<'a, R: SeatRow, S: CutSpec<R>>(
                         if !stated.is_some_and(|s| pols.iter().any(|p| p == s)) {
                             return Err(());
                         }
+                        // an affiliation's choice between its two paths
+                        if kind == CommunityKind::Affiliation
+                            && p.row().id() == r.id()
+                            && !affiliation_path(p, law, spec)
+                        {
+                            return Err(());
+                        }
                     }
                 }
                 // a stated regime is a consistency check: it must be the room's protocol in force in the row's past
@@ -1803,8 +1810,46 @@ fn deciding_seats<R: SeatRow, S: CutSpec<R>>(
 /// own signature (every voice a deciding seat, at least one); with one deciding seat the act stands as a proposal (it
 /// concludes, and is in force only where a countersign names it: [`Seats`]); with two or more, two voices at least,
 /// the member removed not counted.
+/// The one reading of an affiliation's two paths (the Constitution's ruling), wherever the acts row's choice
+/// `affiliation_member_action|cosigned_act, row` is read: a removal and the lone acts ([`affiliation_count`]), a
+/// change of the record, a dissolution, a license seat ([`policy_in_force`]), an accepted trust edge
+/// ([`affiliation_path_at`], `trust_rows`). `affiliation_member_action` is the one-officer countersigned path, its
+/// voices exactly one officer and the eligible outside voice on the act's row (G15), so a body of two officers or
+/// more does not meet it; `cosigned_act` is the officers under the declared protocol, the path of two officers or
+/// more. The officers are counted BY PERSON, at the act's own heads over its own object (an edge's: its body).
+/// `true` where `p.row()` states neither path.
+fn affiliation_path<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> bool {
+    let r = p.row();
+    let word = r.policy().map(|w| w.as_ref());
+    if !matches!(word, Some("affiliation_member_action" | "cosigned_act")) {
+        return true;
+    }
+    let Some(obj) = act_obj(r) else { return true };
+    if kind_of(law, &|i: &R::Id| p.get(i), &obj) != Some(CommunityKind::Affiliation) {
+        return true;
+    }
+    let n = officers(p, law, spec, &obj).base(&deciding_seats(p, law, spec, &obj, &act_heads(p, law, &obj))).len();
+    if word == Some("affiliation_member_action") {
+        n == 1
+    } else {
+        n >= 2
+    }
+}
+
+/// [`affiliation_path`] for row `i` of the set `seats` is built on, read over that row's own past.
+pub fn affiliation_path_at<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, i: usize) -> bool {
+    let c = seats.c();
+    let g = &c.g;
+    let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, i)).collect();
+    affiliation_path(&Past::new(g, i, &anc), seats.law(), seats.spec())
+}
+
 fn affiliation_count<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> bool {
     let r = p.row();
+    // the path the row states, before the officers are read
+    if !affiliation_path(p, law, spec) {
+        return false;
+    }
     let Some(obj) = r.obj() else { return false };
     let seats = deciding_seats(p, law, spec, &obj, r.head());
     let vs = voices(r, p);

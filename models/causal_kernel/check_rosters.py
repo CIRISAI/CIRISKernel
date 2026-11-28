@@ -685,7 +685,9 @@ def check_accord(spec, inst):
     with mutated(mut={"recovery_any_seat"}):
         m = run(spec, seize, a4, orders=False)
     res.append(result(inst, "recovery_keys_never_help_seizure", src, verdict_of(base), base, "a recovery version may change any seat", m))
-    # A5 the fuse: window.py's halt cases on the one rule
+    # A5 the fuse: window.py's halt cases on the one rule. The ruled halt (2026-11-28) lands no landing, so the
+    # mutation (the landing voids concurrent answers) is read on holders_world, the table the halt was read as before,
+    # whose landings it can break
     title, cases = WN.halt_world()
     bad, broken = [], 0
     for name, rows, prop, need in cases:
@@ -693,6 +695,9 @@ def check_accord(spec, inst):
         S2 = CK.concluded(CK.kept(rows), WN.rule)
         o1, o2 = WN.outcomes(S1, "p"), WN.outcomes(S2, "p")
         if o1 != o2 or (need and not WN.holds(need, o1["recount"])): bad.append(name)
+    for name, rows, prop, need in WN.holders_world()[1]:
+        S1 = CK.concluded(CK.kept(rows), RS.rule)
+        o1 = WN.outcomes(S1, "p")
         if need and not WN.holds(need, o1["void"]): broken += 1
     base = {"worlds": len(cases), "orders": 0, "fails": [(b, "") for b in bad], "order_differs": []}
     res.append(result(inst, "the halt fuse (window.py halt cases): one holder fires, lapses unless a strict majority confirms", "CC 4.2.1.1; window.py",

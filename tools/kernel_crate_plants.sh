@@ -51,6 +51,7 @@ plant_run() {  # plant_run <name> <file> <old> <new>: the conformance step must 
 plant "a removal voids rows in its own past"          src/derived.rs '|| c.g.in_past(i, x))' ')'
 plant "two cuts saying the same thing contest"         src/cut.rs 'if as_cut && self.spec.says(xr) == self.spec.says(rr) {' 'if false {'
 plant "a counted offer's proposer ends it alone"      src/seat.rs '&& o.conf() != Some(Conf::Group) && !eq(o)' '&& !eq(o)'
+plant "acts: an affiliation's stated path unread" src/seat.rs '    if !matches!(word, Some("affiliation_member_action" | "cosigned_act")) {' '    if true {'
 plant "acts: a purge read as a standing act" src/seat.rs 'CommunityKind::Accord if sc == Some("selection") =>' 'CommunityKind::Accord if false =>'
 plant "acts: a voice's room keys no act" src/seat.rs '        CommunityKind::SelfRoster | CommunityKind::Voice => {' '        CommunityKind::SelfRoster => {'
 plant "acts: a confirmation by one voice" src/seat.rs '    2 * v > holders.len()' '    v > 0'
@@ -127,7 +128,7 @@ plant "policy row: a policy cell read unstated is no refusal" src/window.rs 'if 
 plant "policy row: a window_secs its class does not give" src/window.rs 'Some(&s) if s != row.window_secs => no(' 'Some(&s) if false && s != row.window_secs => no('
 plant "policy row: a row of no window gives one" src/window.rs 'if row.window_secs == 0 {' 'if false {'
 plant "policy row: a prose fraction unread against its rule" src/window.rs 'Stated::Fraction(n, d) => rule.kind == "fraction" && rule.num == Some(*n) && rule.den == Some(*d),' 'Stated::Fraction(..) => true,'
-plant "policy row: the standing set's exclusion unread" src/window.rs 'if less != !excl.is_empty() {' 'if false {'
+plant "policy row: the standing set's exclusion unread" src/window.rs 'if less == excl.is_empty() {' 'if false {'
 plant "policy row: a local concluder unrefused" src/window.rs '    if row.concluder == "local" {
 ' '    if false {
 '
@@ -306,8 +307,8 @@ plant "a listed member who did not sign the record is seated" src/seat.rs '    i
         return Vec::new();'
 plant "a withdrawal's scope unread (laying down a duty ends every seat)" src/seat.rs '&& w.scope().is_none_or(|ws| ws.as_ref() == sc.s())' ''
 plant "a roster cut ends duty seats of a key that holds no such seat" src/seat.rs '                            && oo.as_ref().is_some_and(|x| holds_roster(c, law, u, k, x))));' '                            && oo.is_some()));'
-plant "a withdrawal naming a roster scope ends the stay whatever its target gives" src/seat.rs '            || !seat_scopes(t, k, signed_by(t, k)).iter().any(|s| s.s() == ws.as_ref())
-' ''
+plant "a withdrawal naming a roster scope ends the stay whatever its target gives" src/seat.rs '
+            && seat_scopes(t, k, signed_by(t, k)).iter().any(|s| s.s() == ws.as_ref()))' ')'
 plant "E7 read from any standing now" src/seat.rs 'if now.stands(m, scope, &obj, None) && standing.iter().any(|s| live.contains(&(&s.0, &s.1)) && !ended.contains(s)) {' 'if now.stands(m, scope, &obj, None) && !standing.is_empty() && !live.is_empty() && !ended.is_empty() && false {'
 plant "a removal the count carries is read as a lone act" src/seat.rs '&& !count_met(&p, law, spec, Some(cache))' ''
 plant "room-key finality unread (a removed room key seated again)" src/seat.rs 'if !row_of(by, &obj).is_some_and(|g| community(by, &obj) && g.private_room()) {' 'if true {'
@@ -577,8 +578,8 @@ plant "a weighted protocol reads the row's weights"      src/seat.rs '        we
 plant "the protocol's body unread"                      src/seat.rs '    if counted != body {' '    if false {'
 # retired with the open:self_admit cut (Eric, for 1.0; the sheet at a304b485): 'open:self_admit governs any act, not admissions alone' (the code it broke is gone)
 plant 'the order of changes read over the whole graph'  src/seat.rs 'let newest: Vec<&'"'"'a R> = am.iter().copied().filter(|q| !anc.iter().any(|a| a.contains(q.id()))).collect();' 'let newest: Vec<&'"'"'a R> = am.iter().copied().filter(|q| !am.iter().any(|x| x.id() != q.id() && p.past(q.id(), x.id()))).collect();'
-plant 'of disagreeing changes one in force'              src/seat.rs 'newest.iter().all(|q| stated(*q) == one).then_some(first)' 'Some(first)'
-plant 'any change of the record in force, not the newest' src/seat.rs 'newest.iter().all(|q| stated(*q) == one).then_some(first)' 'Some(am[0])'
+plant 'of disagreeing changes one in force'              src/seat.rs 'newest.iter().all(|q| stated(q) == one).then_some(first)' 'Some(first)'
+plant 'any change of the record in force, not the newest' src/seat.rs 'newest.iter().all(|q| stated(q) == one).then_some(first)' 'Some(am[0])'
 plant 'a change of the record counted under the founding protocol' src/seat.rs '    let rec = protocol_record(p, law, spec, &obj).ok_or(())?;' '    let rec = match &obj { Obj::Row(i) if r.scope().is_some_and(|s| s.as_ref() == "record") => p.get(i), o => protocol_record(p, law, spec, o) }.ok_or(())?;'
 plant "an infrastructure quorum not its N's strict majority" src/seat.rs 'RoomProtocol::Quorum(m, n) if m >= 2 && m == n / 2 + 1 => Some(p),' 'RoomProtocol::Quorum(m, _) if m >= 2 => Some(p),'
 plant 'an infrastructure quorum of one voice'           src/seat.rs 'RoomProtocol::Quorum(m, n) if m >= 2 && m == n / 2 + 1 => Some(p),' 'RoomProtocol::Quorum(m, n) if m == n / 2 + 1 => Some(p),'
@@ -630,8 +631,8 @@ plant 'concurrent counted removals both in force'        src/seat.rs '    if grp
         return BTreeSet::new();' '    if true {
         return BTreeSet::new();'
 plant "concurrent founders' amendments free"             src/seat.rs '        if !pair_keys.is_empty() {
-            if !r.scope()' '        if false {
-            if !r.scope()'
+            if r.scope()' '        if false {
+            if r.scope()'
 plant 'a dissolution leaves the seats'                   src/seat.rs '            if !gone.is_empty() && o.obj().is_some_and(|ob| gone.contains(&ob)) {' '            if false {'
 plant 'a row over a dissolved group concludes'           src/seat.rs '            if !founding(r) && r.obj().is_some_and(|o| dissolved_in(p, &o)) {' '            if false {'
 # retired at the heads merge: 'a dissolution at any heads' (H1 / the heads' reading of a leaving pre-empt it)
@@ -861,7 +862,7 @@ plant "the root: a recovery grant's resolution unread" src/root.rs '        self
 plant "the root: a recovery grant's room scope unread" src/root.rs 'if *room != crate::seat::Obj::Row(g.scope().clone()) {' 'if false {'
 plant "the root: a recovery key's identity unread" src/root.rs 'if !id.user || id.node {' 'if false {'
 plant "stalled read over the row's own counted scope" src/seat.rs '    let scope = "founder";' '    let scope = p.row().counted().map(|c| c.as_ref()).unwrap_or("member");'
-plant "a stalled recovery while live" src/seat.rs '    if founders >= m + 1 {' '    if false {'
+plant "a stalled recovery while live" src/seat.rs '    if founders > m {' '    if false {'
 plant "a stalled recovery that changes more" src/seat.rs 'if r.to().len() != 1 || r.consensus_protocol().is_some() || !r.cosigners().is_empty() {' 'if false {'
 plant "a stalled recovery signed by another key" src/seat.rs 'if r.to()[0] != named || *r.signer() != named {' 'if false {'
 plant "a roster merge counted with its own keys as no voices (not as an admission at the tip)" src/seat.rs '    let to: &[R::Key] = if merging { &[] } else { r.to() };' '    let to: &[R::Key] = r.to();'

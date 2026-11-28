@@ -434,8 +434,8 @@ where
                 .filter(|k| !gone.contains(k) && within.is_none_or(|w| w.contains(k)))
                 .collect();
             2 * voices.intersection(&base).count() > base.len()
-        // each holder a later bundle adds signs it too, as does each holder whose recovery commitment it changes (CC
-        // 2.6.1.11, "How a bundle is counted"; a join reads it over each predecessor)
+            // each holder a later bundle adds signs it too, as does each holder whose recovery commitment it changes (CC
+            // 2.6.1.11, "How a bundle is counted"; a join reads it over each predecessor)
         }) && self.join_signers(b).iter().all(|(_, ks)| ks.iter().any(|k| voices.contains(k)))
     }
 

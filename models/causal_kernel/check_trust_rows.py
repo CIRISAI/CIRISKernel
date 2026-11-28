@@ -738,6 +738,28 @@ SEATED = [
      [("X", "license", "af", True)]),
 ]
 
+# attack-r's r95 (review-scratch 828398d, r95-attackr/s/f1.py): a license seat conferred on X, X's acceptance, and X's
+# licence, under each path (seat.affiliation_path: affiliation_member_action one officer, cosigned_act two or more)
+_AF1, _AF3 = AFD1O, dict(AFD, official="O")
+_LSA = ST.accept("lsa", "X", "lso")
+_LX = dict(glic("l", "af", "X"), names=("lsa",))
+_LSO = lambda signers, policy: ST.offer("lso", signers[0], ("X",), "license", "af", "group", ("af",), head=("af",),
+                                        cosigners=tuple(signers[1:]), counted=ST.OFFICER, policy=policy)
+CASES += [
+    ("r95 P1 one officer, A and the official O confer the license seat under affiliation_member_action: honoured",
+     [_AF1, _LSO(("A", "O"), "affiliation_member_action"), _LSA, A("e", "RD", "af"), _LX], "RD", "l", None, OK),
+    ("r95 P2 one officer, A and O under cosigned_act: the protocol path is two officers or more, so no seat",
+     [_AF1, _LSO(("A", "O"), "cosigned_act"), _LSA, A("e", "RD", "af"), _LX], "RD", "l", None, NA),
+    ("r95 P3 one officer, A alone under cosigned_act: no seat",
+     [_AF1, _LSO(("A",), "cosigned_act"), _LSA, A("e", "RD", "af"), _LX], "RD", "l", None, NA),
+    ("r95 P4 three officers, A and O under affiliation_member_action: the one-officer path, so no seat",
+     [_AF3, _LSO(("A", "O"), "affiliation_member_action"), _LSA, A("e", "RD", "af"), _LX], "RD", "l", None, NA),
+    ("r95 P5 three officers, A and B under cosigned_act: honoured",
+     [_AF3, _LSO(("A", "B"), "cosigned_act"), _LSA, A("e", "RD", "af"), _LX], "RD", "l", None, OK),
+    ("r95 P6 three officers, A, B and O under affiliation_member_action: no seat",
+     [_AF3, _LSO(("A", "B", "O"), "affiliation_member_action"), _LSA, A("e", "RD", "af"), _LX], "RD", "l", None, NA),
+]
+
 NOW = {"an edge whose term has ended at the caller's instant (150)": 150,
        "r77 N8 a term-bearing edge read with no caller's instant: not walked (never at the licence's own instant)": None}
 

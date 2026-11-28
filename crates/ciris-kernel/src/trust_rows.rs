@@ -39,9 +39,9 @@ use crate::cut::CutSpec;
 use crate::graph::Graph;
 use crate::layers::{Concluded, Past};
 use crate::seat::{
-    body_change, concurrent_growth, countersigned, declared_count, ended_seats, for_reader, kind_of, policy_for,
-    recount_on_growth, scope_class, still_met, voices, Act, CommunityKind, Conf, Obj, ScopeClass, SeatKind, SeatLaw,
-    SeatRow, Seats, OFFICER,
+    affiliation_path_at, body_change, concurrent_growth, countersigned, declared_count, ended_seats, for_reader,
+    kind_of, policy_for, recount_on_growth, scope_class, still_met, voices, Act, CommunityKind, Conf, Obj, ScopeClass,
+    SeatKind, SeatLaw, SeatRow, Seats, OFFICER,
 };
 use crate::trust::{reaches, Accepts, Charters, HOP_CAP};
 use crate::{Dated, Row};
@@ -623,6 +623,10 @@ pub fn edges_of<R: TrustRow + Dated, S: CutSpec<R>>(
         }
         // a one-officer affiliation's edge is a proposal: it stands only where countersigned (the item-8 ruling)
         if !countersigned(seats, i) {
+            continue;
+        }
+        // the path an edge states, where it states one (seat::affiliation_path_at: by person, over its own past)
+        if !affiliation_path_at(seats, i) {
             continue;
         }
         let ended = c.cs().iter().any(|&j| {
