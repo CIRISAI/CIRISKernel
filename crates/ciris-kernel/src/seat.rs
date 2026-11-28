@@ -276,6 +276,16 @@ pub trait SeatRow: Row {
     fn of(&self) -> Option<&Self::Id> {
         None
     }
+    /// A window's landing: the opener it lands and the outcome it states. A self roster's lone-path eviction that
+    /// lands `landed` ends the target's seat as a counted eviction does ([`SeatRow::evicts`]). Default `None`.
+    fn landing(&self) -> Option<(&Self::Id, &Self::Word)> {
+        None
+    }
+    /// An opener of a self roster's eviction window (`self_roster_evict`, CC 3.3.6.4): the key it proposes to evict.
+    /// Default `None`.
+    fn evicts(&self) -> Option<&Self::Key> {
+        None
+    }
     /// A withdrawal: the row it withdraws.
     fn target(&self) -> Option<&Self::Id> {
         None
@@ -1941,7 +1951,36 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let member = |s: Option<&R::Word>| {
             s.is_some_and(|x| x.as_ref() == "member" || law.roster_seats.iter().any(|r| r == x.as_ref()))
         };
+        // a self roster's lone-path eviction that LANDED (its `landed` landing concluded: the window's outcome, as
+        // every window) ends the target's seat as a counted eviction does: one ends reading
+        let landed: Vec<(usize, &R::Key, ObjOf<R>, &R::Word)> = cs
+            .iter()
+            .copied()
+            .filter(|i| !stale.contains(i))
+            .filter_map(|i| {
+                let (op, says) = g.row(i).landing()?;
+                if says.as_ref() != "landed" {
+                    return None;
+                }
+                let p = *by.get(op)?;
+                if !c.concluded_id(p.id()) {
+                    return None;
+                }
+                let t = p.evicts()?;
+                let o = p.obj()?;
+                let sc = match &o {
+                    Obj::Row(gid) => by.get(gid)?.scope()?,
+                    Obj::Key(_) => return None,
+                };
+                Some((i, t, o, sc))
+            })
+            .collect();
         let unseated = |oi: usize, k: &R::Key, sc: Sc<'a, R::Word>| {
+            if landed.iter().any(|(l, t, lo, lsc)| {
+                *t == k && g.row(oi).obj().as_ref() == Some(lo) && lsc.as_ref() == sc.s() && g.in_past(oi, *l)
+            }) {
+                return true;
+            }
             if unseats.is_empty() {
                 return false;
             }

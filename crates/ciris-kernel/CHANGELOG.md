@@ -52,7 +52,8 @@ still votes as the person. The key a self roster evicts is no voice of its own e
 residual cannot evict). One self roster per identity (r96 G1, ruled): a second founding of a self roster by an
 identity whose roster is in the row's past concludes nothing, and two foundings neither in the other's past are
 rivals no person is read through (a reader waits); a two-key roster evicts by the lone path when the other key is
-silent through the window (CC 4.5.13), and an objection within it refuses; K7's answer moves accordingly (p2's rival S9 leaves p2 no voice).
+silent through the window (CC 4.5.13), and an objection within it refuses; a landed lone-path eviction ends the target's seat as a
+counted eviction does (new defaulted `SeatRow::landing` and `SeatRow::evicts`); K7's answer moves accordingly (p2's rival S9 leaves p2 no voice).
 Changed: `seat::person_at`
 answers the person's identity key (`Obj::Key` of the genesis key), not the roster row, so two rosters of one genesis
 key, or a genesis key with two key records, are one person (the text's ruling G5). Together: the node set = audiences ∘

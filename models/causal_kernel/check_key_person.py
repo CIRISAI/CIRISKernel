@@ -37,6 +37,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     evicted_key_votes     the key a self roster evicts is a voice of its own eviction (the one-key residual evicts)
     rival_roster_kept     a second self roster of one identity is kept (r96 G1: re-founding, a device by founding)
     rebinding_unread      Seats.owner reads no re-binding: a re-bound node has two owners, none (consent-set's plant)
+    landed_eviction_unread  a self roster's landed lone-path eviction ends nothing (the window an outcome only)
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -489,13 +490,33 @@ WINDOW_CASES += [
     ("and g1's proposal", [GS, GD1] + lone_evict("g1", "k1", True) + lone_evict("k1", "g1", True, "op2", "2"), "refused"),
 ]
 
+# a landed lone-path eviction TAKES EFFECT (one ends reading): after k1's proposal lands with g1 silent, g1 is out of
+# the roster, no voice of the person, no live key of it, and its later rows read as a bare key's; k1 alone is the
+# person
+LANDED = [GS, GD1] + lone_evict("k1", "g1", False)
+LNOTE = R("ln", "note", "g1", ("L",))                                     # g1's own row after the landing
+LNOTE_K = R("lk", "note", "k1", ("L",))
+def landed_state(rows):
+    return CK.concluded(CK.kept(list(rows)), RULE_W)
+# (name, rows, what is read, want)
+LANDED_CASES = [
+    ("the landed eviction ends g1's seat: the roster's live keys", LANDED,
+     lambda S: sorted(ST.Seats(S).holders("self", "S")), ["k1"]),
+    ("the evicted g1 is no voice of the person", LANDED, lambda S: ST.rep_of(list(S.Cs), "g1"), None),
+    ("person_keys excludes it: k1 alone is the person's", LANDED, lambda S: sorted(ST.person_keys(S, "g1")), ["k1"]),
+    ("g1's own later row reads as a bare key's: no person", LANDED + [LNOTE], lambda S: ST.person_of(S, "ln", "g1"), None),
+    ("and k1's later row is the person's", LANDED + [LNOTE_K], lambda S: ST.person_of(S, "lk", "k1"), "g1"),
+    ("an eviction the target objected to is refused and ends nothing", [GS, GD1] + lone_evict("k1", "g1", True),
+     lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
+]
+
 
 PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
           "persons_unread", "base_by_key", "revoked_voice_kept", "agent_speaks", "lift_author_device", "genesis_unread",
           "fold_lift_by_key", "fold_author_by_key", "remover_counted_over", "opener_withdrawal_voter",
           "apart_by_key", "person_keys_by_offer", "nodes_by_offer", "nodes_two_owners_kept", "nodes_revocation_unread",
           "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept",
-          "rebinding_unread")
+          "rebinding_unread", "landed_eviction_unread")
 
 
 def answer(rows, k):
@@ -581,6 +602,15 @@ def main():
             if sorted(ST.nodes_of(CK.arrive(o, RULE), k)) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
                 break
+    for name, rows, f, want in LANDED_CASES:
+        got = f(landed_state(rows))
+        if got != want:
+            problems.append("%s: got %r, expected %r" % (name, got, want))
+        for o in orders(rows)[:21]:
+            n += 1
+            if f(CK.arrive(o, RULE_W)) != got:
+                problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
+                break
     caught = 0
     for plant in PLANTS:
         ST.MUT.add(plant)
@@ -593,7 +623,8 @@ def main():
                   [c[0] for c in R78K_CASES if ag_held(c[1]) != c[2]] + \
                   [c[0] for c in LATENT_CASES if latent_outcome(c[1]) != c[2]] + \
                   [c[0] for c in PERSON_KEYS_CASES if sorted(ST.person_keys(concluded_set(c[1]), c[2])) != c[3]] + \
-                  [c[0] for c in NODES_CASES if sorted(ST.nodes_of(concluded_set(c[1]), c[2])) != c[3]]
+                  [c[0] for c in NODES_CASES if sorted(ST.nodes_of(concluded_set(c[1]), c[2])) != c[3]] + \
+                  [c[0] for c in LANDED_CASES if c[2](landed_state(c[1])) != c[3]]
         finally:
             ST.MUT.discard(plant)
         caught += bool(hit)

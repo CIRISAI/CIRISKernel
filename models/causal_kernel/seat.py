@@ -1638,6 +1638,10 @@ class Seats:
         contested = contested_out(S, unseats + dis)
         unseats = [u for u in unseats if u["id"] not in contested]
         self.dropped = drop | contested
+        # a self roster's lone-path eviction that LANDED (its `landed` landing concluded: the window's outcome, as every
+        # window) ends the target's seat as a counted eviction does: one ends reading (MUTATION landed_eviction_unread)
+        if "landed_eviction_unread" not in MUT:
+            unseats = unseats + landed_evictions(S, Cs, V)
 
         left = stay_ends(wd, S.by, lambda a, w: bool(S.C.get(a["id"])) and a["id"] in S.anc[w["id"]], holds)   # the holders' own ends of a stay as a member
         gone = {(k, g) for _, k, g in left}
@@ -2865,6 +2869,24 @@ def count_persons(P, obj, base, vs, voters=None, apart=None):
     if not keys_counted(P, obj) and "apart_by_key" not in MUT:   # MUTATION apart_by_key: only the key itself apart
         ks = ks | {rep_of(P, k) for k in ks} | {rep_of(P, k, member=True) for k in ks}
     return b - ks, v - ks
+
+
+def landed_evictions(S, Cs, V=frozenset()):
+    """The self rosters' lone-path evictions that landed (CC 3.3.6.4, 4.5.13: the `self_roster_evict` window): each
+    concluded landing that says `landed` of a concluded opener with a target, read as the counted eviction it is, an
+    unseat of the target's seat in the roster's own scope (its `cuts`), at the landing."""
+    out = []
+    for L in Cs:
+        if L["kind"] != "landing" or L.get("says") != "landed" or L["id"] in V: continue
+        p = S.by.get(L.get("of"))
+        if p is None or p.get("window") != "self_roster_evict" or not S.C.get(p["id"]) or p.get("target") is None:
+            continue
+        g = S.by.get(p.get("obj"))
+        if g is None: continue
+        sc = g.get("scope")
+        out.append(dict(L, kind="unseat", to=(p["target"],), scope=sc, obj=p["obj"],
+                        cuts=(("seat", p["target"], sc, p["obj"]),)))
+    return out
 
 
 def seats_of(rows):
