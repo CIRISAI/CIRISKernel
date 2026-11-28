@@ -6,8 +6,8 @@ exactly this map to present rows, and a minter reads it the other way, to turn a
 
 Sources read:
 
-- The Constitution at `origin/rc23-next` `d103e60`: `ietf/signed_object.cddl` (the row and object CDDL; the same
-  members as `manifests/signed_object_v2.cddl`), `manifests/family_payloads_v2.cddl`, `manifests/family_model.json`
+- The Constitution at `origin/rc23-next` `d5d42bf`: `manifests/signed_object_v2.cddl` (the row and object CDDL, the
+  schema CC 2.6.1.4 names; `ietf/signed_object.cddl` is the Internet-Draft's copy), `manifests/family_payloads_v2.cddl`, `manifests/family_model.json`
   (columns `authorship`, `second_signers`, `count`, `names_head`, `standing_act`, `confers`, `body`), and the text
   of CC 2.4.1.1, CC 2.4.1.2, CC 2.6.1.1 to 2.6.1.11, CC 3.1.3.2, CC 3.1.4, CC 4.4.3.12, CC 4.5.4, CC 4.5.13.
 - The crate at `release-0.5.0-wip` `11804e1` (root-fold merged), and the row fields the unmerged lanes add:
@@ -441,7 +441,7 @@ and the `ReceipterEnd` kind, not a row accessor.
 | `id` | object id | |
 | `family` | payload `family_key_id` (text) | |
 | `version` | payload `version` | |
-| `prev` | `refs.prev`, then `refs.further_prev` on a join | object ids. The CDDL `genesis-refs` lists `prev` and `also` only; the text (CC 2.6.1.11) adds `further_prev` |
+| `prev` | `refs.prev`, then `refs.further_prev` on a join | object ids. `genesis-refs` carries `further_prev` beside `prev` (`manifests/signed_object_v2.cddl`; CC 2.6.1.11) |
 | `holders` | payload `holders` (a set) | identity references |
 | `seats` | payload `serve_nodes` (a set) | identity references |
 | `charter` | payload `charter`, compared whole (its deterministic encoding) | |
@@ -493,7 +493,7 @@ and the `ReceipterEnd` kind, not a row accessor.
 ## NO WIRE FAMILY findings
 
 Each is a crate field a signed row should carry and that no family, member or `refs` role carries at
-`rc23-next` `d103e60`. They are findings for the Constitution.
+`rc23-next` `d5d42bf`. They are findings for the Constitution.
 
 | # | Crate field | What the crate reads | What the wire has |
 |---|---|---|---|
@@ -504,13 +504,15 @@ Each is a crate field a signed row should carry and that no family, member or `r
 | N5 | `SeatRow::merge_duties` (roster-merge) | a roster merge's duty seats | `duty_holders` is "on the first version of a community only" |
 | N6 | `WindowRow::says` on a landing | the outcome a landing states | `window-step` carries no outcome member; the leaves are `held`, `landed`, `refused` |
 | N7 | `StandingRow::on` on an acceptance | the binding an owner's acceptance of a grant is made under | `membership-reply` names only the grant under `refs.answers` |
-| N8 | `RootBundle::names` | the sibling bundles a bundle at a head names besides those it extends (rule 3) | `genesis-refs` carries `prev` and `also.cites` (rows), and the text adds `further_prev` (a join); no role names a sibling that is not a predecessor |
+| N8 | `RootBundle::names` | the sibling bundles a bundle at a head names besides those it extends (rule 3) | `genesis-refs` carries `prev`, `further_prev` (a join) and `also.cites` (rows); no role names a sibling that is not a predecessor |
 | N9 | `RootBundle::settles` | which contested sibling a settler names as the one that stands | no member |
 | N10 | `SeatRow::head` on a room count's receipt (`SeatKind::Ack`, `Conf::Group`, `of()` a lone removal) | the heads the count is read at (each the removal's head or later) | `act:ack` "names no head" (`family_payloads_v2.cddl`, `act-ack`) |
 
 Wire-side mismatches the map met, for the same list:
 
-- `genesis-refs` (CDDL) carries `prev` and `also` only; CC 2.6.1.11 gives a join `further_prev` beside `prev`.
+- The two CDDL copies differ on `genesis-refs`: `manifests/signed_object_v2.cddl` carries `further_prev` (since
+  `12615bd`), and `ietf/signed_object.cddl`, the Internet-Draft's copy, still lists `prev` and `also` only. The map
+  reads the manifests copy, the schema CC 2.6.1.4 names.
 - `trust:accepts` names its bundle in `attached_head_digest`, outside `refs`; a reader gathering the named set from
   `refs` alone misses it.
 - `ballot:moderator` and `ballot:moderator_acceptance` name the election and its counted set by digests (CC 3.1.4),
@@ -527,7 +529,7 @@ row, not a reading of the text: they are settled here, and a store and a minter 
 
 | # | Field | The reading taken | Status |
 |---|---|---|---|
-| G1 | `Row::signer` | `kid`, the key that signed, as an identity reference; `cosigners()` likewise. The person is derived by the persons map (`seat::Persons`, from the self roster: a device key to its genesis key, a room key to its voice). `iss` MUST name the person the persons map gives; a mismatch is a door refusal. Required by the key view (`seat::voices_with` calls `key_end::counts_by(row, signer)`, keyed by `kid`) and by key-person's persons map, which reads the signer as the device key. The root lane is the exception: `RootGrant::signers` and `RootBundle::statements` read `iss`, since a bundle names its holders by identity. ADOPTING.md's private-room sentence ("the signer of every row is the voice, not the room key that signed") is then read through the persons map, which gives the voice. | open: the Constitution to confirm that `iss` is checked against the persons map at the door |
+| G1 | `Row::signer` | `kid`, the key that signed, as an identity reference; `cosigners()` likewise. The person is derived by the persons map (`seat::Persons`, from the self roster: a device key to its genesis key, a room key to its voice). `iss` MUST name the person the persons map gives; a mismatch is a door refusal. Required by the key view (`seat::voices_with` calls `key_end::counts_by(row, signer)`, keyed by `kid`) and by key-person's persons map, which reads the signer as the device key. The root lane is the exception: `RootGrant::signers` and `RootBundle::statements` read `iss`, since a bundle names its holders by identity. ADOPTING.md's private-room sentence ("the signer of every row is the voice, not the room key that signed") is then read through the persons map, which gives the voice. | provisionally confirmed by the Constitution: the signer the rules read is `kid`, and `iss` gives the identity; final with its other rulings |
 | G2 | `Row::signer` of a counted row | the `kid` of the verified statement with the least statement id; the other voices' `kid`s are `cosigners()`. Rules that set one signer apart (a window table over `others`, `author_apart`) read whichever voice is chosen. | kernel's choice: the crate reads a counted row's voices as one set (signer with cosigners); one must be named signer, and the least statement id is fixed by the bytes, not by arrival. Consistent with G1: each voice is its signing key. |
 | G3 | `AudienceRow::scope` `addressed` | a row with no `cohort_scope` that names keys for delivery | open: a question for the text |
 | G4 | a group id | resolved to the row id of the group's first `group:roster` version; `Obj::from_reference` does not type a `group-…` reference | kernel's choice: the crate's object for a group is its founding row (`seat::Obj`); the group id is derived from that version, so the resolution is one-to-one. |
@@ -541,7 +543,7 @@ row, not a reading of the text: they are settled here, and a store and a minter 
 | G12 | an election's id row (`of()` of a ballot, a decline, a seating) | the wire's election id is a digest of the community id and the last seating row (or the roster's genesis); the store recomputes it and maps it to that row | kernel's choice: the text defines the election id from the last seating row (or the genesis); the crate names that row, so the store maps the digest back to it. |
 | G13 | the set an election seating names | the wire binds a digest of the counted ballots and withdrawals; the crate reads the seating's `names()`; the store presents the set the digest commits to as names | kernel's choice: the crate reads a seating's set through `names()`; the store presents the rows the digest commits to. |
 | G14 | `window:refused:v1` | a landing stating refused | open: a question for the text |
-| G15 | `SeatKind::Countersign` | a countersign key's further statement over the act's payload, presented as its own row (`Row::id` its statement id, `of()` the act's row id). The text says "countersigned by a key outside the officers" and names no row form. | kernel's choice: the crate reads a countersign as a row with `of()` the act; a further statement presented as its own row (id its statement id) fits whatever row form the text gives. |
+| G15 | `SeatKind::Countersign` | a countersign key's further statement over the act's payload, presented as its own row (`Row::id` its statement id, `of()` the act's row id). The text says "countersigned by a key outside the officers" and names no row form. | kernel's choice: the crate reads a countersign as a row with `of()` the act; a further statement presented as its own row (id its statement id) fits whatever row form the text gives. At `d5d42bf` the one-officer text (CC 4.4.3.12) says which acts are held until countersigned and who countersigns, and still names no row form. |
 | G16 | `standing::Kind::Removal` | a `membership:removal` whose `sub` is the key | kernel's choice: the crate's `Removal` is a removal of a key; `membership:removal` is that row. |
 | G17 | scope `agent` | read from the seated key's `key:record` `identity_type` (contains `agent`); the widening itself carries no scope | kernel's choice: the crate reads an agent's seat by scope `agent`; the key record's `identity_type` is the one place the wire says a key is an agent's. Consistent with G1: the record read is the seated key's own (an agent's key is itself, never its owner, CC 4.5.13). |
 | G18 | a `scope[]` with several tokens | one crate row per token, all under the one row id | kernel's choice: the crate reads one scope per seat row; a set of tokens is presented as one crate row per token under the one row id. |

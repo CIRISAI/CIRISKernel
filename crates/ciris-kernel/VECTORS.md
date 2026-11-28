@@ -14,7 +14,7 @@ below that the schema cannot state is marked **(prose)**; a minter checks it and
 ```json
 {
   "form": "ciris-kernel-cases/1",
-  "constitution": "CIRISConstitution rc23-next d103e60",
+  "constitution": "CIRISConstitution rc23-next d5d42bf",
   "cases": [ ... ]
 }
 ```
