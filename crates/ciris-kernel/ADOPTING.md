@@ -396,7 +396,11 @@ one taken up there, counted over (an addition, an eviction, a landed window) by 
 its roster. A row only naming a founding takes up nothing, and an evicted key is no live voice anywhere, so a
 thief's rival founding, or its rows, silence no one; the honest devices' eviction of a stolen genesis key ends the
 rival's claim. A founding seating only its genesis key is no rival. The reader waits only where two rosters both have
-live counted history (or a rival seats other keys); so no key re-founds itself, or adds a device, by founding. The only way onto a self
+live counted history (or a rival seats other keys). A genesis key that founds a second roster while its own rows on
+a held roster of its identity are not in that founding's past has self-forked (S''): it is no voice of the identity
+anywhere at once, its rows read as a bare key's, and each roster continues with its other live keys; where no
+roster is then taken up by a live voice, the one another key's row acknowledges is the identity's. A fresh reader
+holding only the rival sees no fork: the residual; so no key re-founds itself, or adds a device, by founding. The only way onto a self
 roster is that roster's own add (its count, or its lone path); an evicted genesis key is restored only by the
 roster's counted re-admission. A self roster's lone-path window that lands (its `landed` landing concluded) is the
 counted change it proposes, read through the same ends reading: a landed eviction ends the target's seat, a landed

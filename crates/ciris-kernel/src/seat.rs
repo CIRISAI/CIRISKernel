@@ -3299,6 +3299,59 @@ fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &s
     })
 }
 
+/// The genesis keys over `rows` (a row's concluded past) that self-forked their own roster (the S'' self-fork read for
+/// a person, r99c): `rows` hold two self-roster foundings by the key, and it signed a row on one of them (a row over
+/// it, not its founding) that is not in the other's past. Such a key is no voice of its identity anywhere, and each
+/// roster continues with its other live keys. The reference is `seat.self_forked`.
+fn self_forkers<R: SeatRow>(rows: &[&R], law: &SeatLaw) -> BTreeSet<R::Key> {
+    let by: BTreeMap<&R::Id, &R> = rows.iter().map(|q| (q.id(), *q)).collect();
+    let mut memo: BTreeMap<&R::Id, BTreeSet<&R::Id>> = BTreeMap::new();
+    fn anc<'r, R: SeatRow>(
+        i: &'r R::Id,
+        by: &BTreeMap<&'r R::Id, &'r R>,
+        memo: &mut BTreeMap<&'r R::Id, BTreeSet<&'r R::Id>>,
+    ) -> BTreeSet<&'r R::Id> {
+        if let Some(a) = memo.get(i) {
+            return a.clone();
+        }
+        memo.insert(i, BTreeSet::new());
+        let mut out = BTreeSet::new();
+        if let Some(r) = by.get(i) {
+            for n in r.names() {
+                if let Some((k, _)) = by.get_key_value(n) {
+                    out.insert(*k);
+                    out.extend(anc(*k, by, memo));
+                }
+            }
+        }
+        memo.insert(i, out.clone());
+        out
+    }
+    let mut founded: BTreeMap<&R::Key, Vec<&R>> = BTreeMap::new();
+    for g in rows.iter().copied().filter(|g| self_founding(law, *g)) {
+        founded.entry(g.signer()).or_default().push(g);
+    }
+    let mut out = BTreeSet::new();
+    for (k, fs) in founded.iter().filter(|(_, fs)| fs.len() > 1) {
+        let forked = fs.iter().any(|f| {
+            let past = anc(f.id(), &by, &mut memo);
+            fs.iter().filter(|r| r.id() != f.id()).any(|r| {
+                let at = Some(Obj::Row(r.id().clone()));
+                rows.iter().any(|q| {
+                    q.id() != r.id()
+                        && q.obj() == at
+                        && (q.signer() == *k || q.cosigners().contains(*k))
+                        && !past.contains(q.id())
+                })
+            })
+        });
+        if forked {
+            out.insert((*k).clone());
+        }
+    }
+    out
+}
+
 /// `g` is the founding record of a self roster: its founding scope read through [`SeatLaw::kinds`] as
 /// [`CommunityKind::SelfRoster`].
 fn self_founding<R: SeatRow>(law: &SeatLaw, g: &R) -> bool {
@@ -3340,9 +3393,12 @@ fn rosters_by_key<'r, R: SeatRow + 'r, S: CutSpec<R>>(
     // no voice. A founding only named, or counted over only by such keys, takes up nothing
     let by_id: BTreeMap<&R::Id, &R> = rows.iter().map(|q| (q.id(), *q)).collect();
     let in_rosters = |q: &R, ids: &BTreeSet<&R::Id>| matches!(q.obj(), Some(Obj::Row(o)) if ids.contains(&o));
+    let forkers = self_forkers(rows, law);
     let evicted = |gs: &[&R]| -> BTreeSet<R::Key> {
         let ids: BTreeSet<&R::Id> = gs.iter().map(|g| g.id()).collect();
         let mut out: BTreeSet<R::Key> = BTreeSet::new();
+        // a self-forked genesis key is no live voice
+        out.extend(gs.iter().map(|g| g.signer()).filter(|k| forkers.contains(*k)).cloned());
         for q in rows.iter().copied() {
             if q.seat_kind() == SeatKind::Unseat && in_rosters(q, &ids) {
                 out.extend(q.to().iter().cloned());
@@ -3391,7 +3447,28 @@ fn rosters_by_key<'r, R: SeatRow + 'r, S: CutSpec<R>>(
             continue;
         }
         let gone = evicted(gs);
-        let t: Vec<&R> = gs.iter().copied().filter(|g| taken(g, &gone) || !bare(g)).collect();
+        let mut t: Vec<&R> = gs.iter().copied().filter(|g| taken(g, &gone) || !bare(g)).collect();
+        if t.is_empty() {
+            // none taken by a live voice (the genesis key self-forked, its devices added by it alone): the roster
+            // another key's row acknowledges (names it, or a row over it; a key of no roster of it, and no key's own
+            // consent to its seat) is the identity's (r99c T3); a rival only its own genesis key builds on is none
+            let ack = |f: &R| {
+                let at = Some(Obj::Row(f.id().clone()));
+                let own: BTreeSet<R::Key> =
+                    f.scope().map(|s| seats.holders(s.as_ref(), &Obj::Row(f.id().clone()), None)).unwrap_or_default();
+                rows.iter().copied().filter(|q| q.id() != f.id()).any(|q| {
+                    let over = q.obj() == at;
+                    let others = core::iter::once(q.signer())
+                        .chain(q.cosigners().iter())
+                        .any(|k| k != f.signer() && !own.contains(k) && !(over && q.to().contains(k)));
+                    others && q.names().iter().any(|n| n == f.id() || by_id.get(n).is_some_and(|r| r.obj() == at))
+                })
+            };
+            t = gs.iter().copied().filter(|g| ack(g)).collect();
+            if t.len() != 1 {
+                t.clear();
+            }
+        }
         match t.as_slice() {
             [g] => {
                 rosters.insert(g.id());
@@ -3447,6 +3524,10 @@ pub fn person_at<R: SeatRow, S: CutSpec<R>>(
     }
     let rows: Vec<&R> = c.cs().iter().copied().filter(|&q| c.g.in_past(q, at)).map(|q| c.g.row(q)).collect();
     let keep = |g: &ObjOf<R>, s: &str, key: &R::Key| key != k || !evicted_from(c, at, g, s, k);
+    // a self-forked genesis key is a bare key (r99c)
+    if self_forkers(&rows, law).contains(k) {
+        return None;
+    }
     let hit = rosters_by_key(&rows, law, spec, &keep).0.remove(k).unwrap_or_default();
     // the person is its IDENTITY key, the genesis key that signed its rosters' founding records (the self roster's
     // object is the identity key, never one roster row or one key record): two rosters of one genesis key are one
@@ -3522,6 +3603,8 @@ pub struct Persons<'r, R: SeatRow> {
     agents: BTreeSet<R::Key>,
     // the genesis keys: the signers of the self rosters' founding records
     founders: BTreeSet<R::Key>,
+    // the genesis keys that self-forked their own roster (r99c)
+    forkers: BTreeSet<R::Key>,
     keys: bool,
 }
 
@@ -3539,6 +3622,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
             revoked: BTreeSet::new(),
             agents: BTreeSet::new(),
             founders: BTreeSet::new(),
+            forkers: BTreeSet::new(),
             keys,
         };
         let any_self = rows.iter().any(|g| {
@@ -3569,7 +3653,8 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
             })
             .map(|g| g.signer().clone())
             .collect();
-        Persons { rosters, revoked, agents, founders, keys }
+        let forkers = self_forkers(rows, law);
+        Persons { rosters, revoked, agents, founders, forkers, keys }
     }
 
     /// Whether this count reads keys, not persons (a self roster's own count).
@@ -3592,6 +3677,10 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         // key, which no count's base holds (CC 4.5.13: "an agent has no vote")
         if self.agents.contains(k) {
             return Some(k.clone());
+        }
+        // a self-forked genesis key is no voice of its identity anywhere (r99c)
+        if self.forkers.contains(k) {
+            return None;
         }
         let names = self.named(k);
         match names.as_slice() {

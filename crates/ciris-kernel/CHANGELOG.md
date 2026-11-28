@@ -57,7 +57,8 @@ counted eviction does, a landed lone-path addition seats its consenting keys, an
 later count (new defaulted `SeatRow::landing`, `SeatRow::evicts`, `SeatRow::adds`); rival foundings are judged in
 the judged row's own past (r99 D1, D8: the founding counted over there by a live voice of the identity is the
 roster; a named or bare rival silences no one), and K7 again admits; two concurrent landed lone evictions of each
-other are contested (r99 M1); a cited binding must name its node (r99 A4); K7's answer moves accordingly (p2's rival S9 leaves p2 no voice).
+other are contested (r99 M1); a genesis key's rival founding beside its own roster's rows is a self-fork (r99c): the key is no
+voice anywhere at once; a cited binding must name its node (r99 A4); K7's answer moves accordingly (p2's rival S9 leaves p2 no voice).
 Changed: `seat::person_at`
 answers the person's identity key (`Obj::Key` of the genesis key), not the roster row, so two rosters of one genesis
 key, or a genesis key with two key records, are one person (the text's ruling G5). Together: the node set = audiences ∘

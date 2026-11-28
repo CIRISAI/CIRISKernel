@@ -2687,6 +2687,7 @@ def rosters_of(P, k, keep=lambda g: True):
         def evicted(p):
             ids = {g["id"] for g in mine.get(p, ())}
             out = {k for q in P if q["kind"] == "unseat" and q.get("obj") in ids for k in q.get("to", ())}
+            if self_forked(P, p): out.add(p)                       # a self-forked genesis key is no live voice
             out |= {p_["target"] for L in P if L["kind"] == "landing" and L.get("says") == "landed"
                     for p_ in [by.get(L.get("of"))] if p_ is not None and p_.get("window") == "self_roster_evict"
                     and p_.get("obj") in ids and p_.get("target")}
@@ -2711,6 +2712,17 @@ def rosters_of(P, k, keep=lambda g: True):
         for gs in mine.values():
             if len(gs) == 1: one += gs; continue
             t = gs if "rival_untaken_counted" in MUT else [g for g in gs if taken(g) or not bare(g)]
+            if not t and "rival_ack_unread" not in MUT:
+                # none taken by a live voice (the genesis key self-forked, and its devices were added by it alone): the
+                # roster another key's row acknowledges (names it, or a row over it; a key of no roster of it) is the
+                # identity's (r99c T3: the room
+                # whose founding names the honest roster's addition); a rival only its own genesis key builds on is none
+                Qa = seats_of(P)
+                ack = lambda f: any(q["id"] != f["id"] and signers(q) - {f["signer"]} - Qa.holders(f["scope"], f["id"]) - (
+                    set(q.get("to", ())) if q.get("obj") == f["id"] else set()) and any(
+                    n == f["id"] or (n in by and by[n].get("obj") == f["id"]) for n in q.get("names", ())) for q in P)
+                t = [g for g in gs if ack(g)]
+                if len(t) != 1: t = []
             if len(t) == 1: one += t
             elif not t: one += gs                                  # bare foundings alone: each seats only the identity
         selves = one
@@ -2726,6 +2738,7 @@ def person_in(P, k, keep=lambda g: True):
     row's past only; a concurrent eviction is no part of it). `keep(g)`: a self roster g still in play (person_of's
     rule 4). The person is named by its identity key (person_key: the genesis key that signed its rosters' founding
     records). None for no person or two."""
+    if founded_self(P, k) and self_forked(P, k): return None      # a self-forked genesis key: a bare key (r99c)
     hit = rosters_of(P, k, keep)
     # a person is its IDENTITY key (the self roster's object is the identity key, never one roster row or one key
     # record): two rosters founded by one genesis key are one person (MUTATION genesis_unread: each roster a person)
@@ -2788,6 +2801,28 @@ def is_self_founding(g):
         and (g.get("group_kind") != "family" or "self_founding_family" in MUT)   # MUTATION: a family read as a self roster
 
 
+def self_forked(P, g):
+    """g, an identity's genesis key, self-forked its own roster over P (a row's concluded past; the S'' self-fork read
+    for a person, r99c): P holds two self-roster foundings by g, and g signed a row on one of them (a row over it,
+    not its founding) that is not in the other's past. The genesis key is then no voice of the identity anywhere; each
+    roster continues with its other live keys (MUTATION self_refounding_unread)."""
+    if "self_refounding_unread" in MUT: return False
+    fs = [q for q in P if is_self_founding(q) and q["signer"] == g]
+    if len(fs) < 2: return False
+    by = {q["id"]: q for q in P}
+    memo = {}
+    def anc(i):
+        if i not in memo:
+            memo[i] = set()
+            out = set()
+            for n in by[i].get("names", ()):
+                if n in by: out |= {n} | anc(n)
+            memo[i] = out
+        return memo[i]
+    return any(F["id"] != R["id"] and q.get("obj") == R["id"] and q["id"] != R["id"] and g in signers(q)
+               and q["id"] not in anc(F["id"]) for F in fs for R in fs for q in P)
+
+
 def founded_self(P, k):
     """k signed the founding record of a self roster over P: it is a person's genesis key (its identity)."""
     by = {q["id"]: q for q in P}
@@ -2820,6 +2855,7 @@ def _rep(P, k):
     # the person is its identity, and only a live key of its roster speaks for it). Its own rows read as a bare key's,
     # and the identity the room seats is no voice of it (MUTATION evicted_genesis_speaks)
     if not names: return None if founded_self(P, k) and "evicted_genesis_speaks" not in MUT else k
+    if founded_self(P, k) and self_forked(P, k): return None         # a self-forked genesis key: no voice anywhere
     if len(names) > 1 and "person_first" not in MUT: return None   # a key of two persons (two genesis keys)
     g = names[0] if "genesis_unread" not in MUT else person_key(P, names[0])
     if key_record_ended(P, g) and "revoked_voice_kept" not in MUT: return None

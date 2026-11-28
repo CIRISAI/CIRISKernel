@@ -43,6 +43,8 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     self_founding_family  a family's founding read as a self roster's (a rival of the person's roster)
     rival_named_taken     a row naming a rival founding takes it up (r99 D8: one thief row stalls the person)
     mutual_evictions_land two concurrent lone evictions of each other both land (r99 M1: the roster emptied)
+    self_refounding_unread  a genesis key's rival founding beside its own roster's rows is no self-fork (r99c T3)
+    rival_ack_unread      with no roster taken by a live voice, another key's acknowledgement is not read (T3's x9 speaks)
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -133,9 +135,12 @@ CASES = [
     # rosters is one person, whichever roster seats the key
     ("G5: a genesis key with two key records and two rosters: a key of the second roster is the same one person",
      [S, REC, REC2, SX, AX, at(("ax", "rec2"))], "kx", "k1"),
-    ("r96 G1 (one self roster per identity): the row holds both of k1's rosters, neither in the other's past: rivals,"
-     " the reader waits, so a key of either is no person", [S, A2, REC, REC2, SX, AX, at(("a2", "ax", "rec2"))], "k2", None),
-    ("r96 G1: and a key in both of them", [S, A2, REC, REC2, SX, AX2, at(("a2", "ax2", "rec2"))], "k2", None),
+    ("r99c: the row holds both of k1's rosters, k1's rows on each not in the other's past: k1 self-forked, no voice "
+     "anywhere; each roster continues with its other keys, and k2 is still the identity k1's",
+     [S, A2, REC, REC2, SX, AX, at(("a2", "ax", "rec2"))], "k2", "k1"),
+    ("r99c: and a key in both of them", [S, A2, REC, REC2, SX, AX2, at(("a2", "ax2", "rec2"))], "k2", "k1"),
+    ("r99c: the self-forked genesis key k1 itself is no person", [S, A2, REC, REC2, SX, AX, at(("a2", "ax", "rec2"))],
+     "k1", None),
 ]
 # ---- Part 3: counts over persons (ruled on CIRISConstitution#224: one voice however many live keys sign) ------------
 # four persons, each a self roster named by its genesis key; p1 has a second device key p1b. They found a room whose
@@ -370,7 +375,8 @@ PERSON_KEYS_CASES = [
     ("a key of no roster is its own person", PKW, "zz", ["zz"]),
     ("G5: a genesis key with two key records and one roster: one person, its keys", [S, A2, REC, REC2], "k1",
      ["k1", "k2"]),
-    ("r96 G1: with two rival rosters held, the reader waits: no live key", [S, A2, REC, REC2, SX, AX], "k1", []),
+    ("r99c: with both rosters held, k1 self-forked: the identity's live keys are its other keys",
+     [S, A2, REC, REC2, SX, AX], "k1", ["k2", "kx"]),
 ]
 def bind(i, node, owner):
     """An owner-binding: the node's offer of the owner seat over its key, the owner's cosignature its consent."""
@@ -489,8 +495,8 @@ R74_CASES += [
      GW + [GEV, RIV, evict("evr", "S1r", "p1", ("p1b", "p1c"), ("S1r",))], "evr", False, RULE),
     ("r99 D6: no eviction; the stolen genesis key founds a rival: p1b, p2 and p3 admit z",
      GW + [RIV, admit_z(("p1b", "p2", "p3"), ("a1c", "S1r"))], "az", True, RULE),
-    ("r99 D7: and p1 itself, live in the roster the row takes up, with p2 and p3",
-     GW + [RIV, admit_z(("p1", "p2", "p3"), ("a1c", "S1r"))], "az", True, RULE),
+    ("r99 D7, under r99c: p1 founds a rival with its own rows on S1 not in its past: a self-fork, p1 is no voice at "
+     "once, so p1, p2 and p3 are two of four", GW + [RIV, admit_z(("p1", "p2", "p3"), ("a1c", "S1r"))], "az", False, RULE),
 ]
 R74_CASES += [
     ("r99 drift: a family founding by p1 (scope self, group_kind family) after S1 is no self roster, so no rival: it "
@@ -509,12 +515,45 @@ R74_CASES += [
      True, RULE),
     ("r99 D10: with no eviction, the same thief row stalls nothing either",
      GW + [RIV, RT2, admit_z(("p1b", "p2", "p3"), ("a1c", "t2"))], "az", True, RULE),
-    ("r99: the thief (a live voice, no eviction yet) counts an addition on its rival: two rosters with live counted "
-     "history, the reader waits", GW + [RIV, RTA, admit_z(("p1b", "p2", "p3"), ("a1c", "ta"))], "az", False, RULE),
+    ("r99c T1: the thief's counted addition on its rival, no eviction: p1 self-forked is no live voice, so S1 alone, "
+     "and p1b, p2 and p3 admit z", GW + [RIV, RTA, admit_z(("p1b", "p2", "p3"), ("a1c", "ta"))], "az", True, RULE),
+    ("r99c T1: and the thief's device p1x speaks for no one", GW + [RIV, RTA, admit_z(("p1x", "p2", "p3"), ("a1c", "ta"))],
+     "az", False, RULE),
     ("r99: a rival founding cosigned by a thief's own device seats a key: no bare rival, the reader waits",
      GW + [RIVD, admit_z(("p1b", "p2", "p3"), ("a1c", "S1d"))], "az", False, RULE),
     ("r99: after the devices evict p1, its counted addition on the rival is by no live voice: S1 alone, z admitted",
      GW + [GEV, RIV, RTA, admit_z(("p1b", "p2", "p3"), ("evg", "ta"))], "az", True, RULE),
+]
+# the review r99c (T3, T4): a two-key person g1 (stolen) and k1. The thief founds Sr (its rows on S not in Sr's
+# past: a self-fork by the genesis key) and adds its own device by its count; g1 is no voice anywhere at once, and S
+# continues with k1. A fresh reader holding only the rival sees no fork: the residual.
+TGR = ST.offer("gr", "g1", ("g1", "m2", "m3", "m4"), "member", "@", "self", cosigners=("m2", "m3", "m4"), names=("d1",))
+TRV = found("Sr", "g1")
+TTX = add("tx2", "Sr", "x9", ("g1",), ("Sr",))
+def tadm(signers, names):
+    return ST.offer("az", signers[0], "z", "member", "gr", "group", ("gr",) + tuple(names), head=("gr",),
+                    policy="community_invite", cosigners=tuple(signers[1:]) + ("z",))
+TB = [GS, GD1, TGR, TRV, TTX]
+R74_CASES += [
+    ("r99c T3: the stolen genesis key's rival with a one-key counted add mutes no one: k1, m2 and m3 admit z",
+     TB + [tadm(("k1", "m2", "m3"), ("tx2",))], "az", True, RULE),
+    ("r99c T3: and the thief's device x9 is no key of the identity: the room's founding acknowledges S, not the rival",
+     TB + [tadm(("x9", "m2", "m3"), ("tx2",))], "az", False, RULE),
+    ("r99c T3: the thief's device x9 acknowledging its own rival acknowledges nothing (a key of that roster): x9 is no "
+     "voice", TB + [R("xn", "note", "x9", ("tx2",)), tadm(("x9", "m2", "m3"), ("xn",))], "az", False, RULE),
+    ("r99c T3: and the self-forked g1 is no voice: g1, m2 and m3 are two of four",
+     TB + [tadm(("g1", "m2", "m3"), ("tx2",))], "az", False, RULE),
+    ("r99c: an honest single founding is unaffected: g1, m2 and m3 admit z", [GS, GD1, TGR, tadm(("g1", "m2", "m3"), ("d1",))],
+     "az", True, RULE),
+    ("r99c residual: a fresh reader holding only the rival (S not held) sees no fork: g1, m2, m3 admit z",
+     [TRV, TTX, ST.offer("gr", "g1", ("g1", "m2", "m3", "m4"), "member", "@", "self", cosigners=("m2", "m3", "m4"),
+                         names=("tx2",)), tadm(("g1", "m2", "m3"), ("tx2",))], "az", True, RULE),
+]
+WINDOW_CASES += [
+    ("r99c T4: k1 lone-evicts g1 and the thief objects: refused (the target-silence clause), but no eviction is needed",
+     TB + [WN.opener("op", "k1", "self_roster_evict", "S", ("d1",), target="g1"), WN.answer("og", "g1", "op", "object", ("op",)),
+           WN.receipt("r", "k1", "op", 0), WN.landing("L", "k1", "op", "r", "landed", WN.secs("self_roster_evict"), ("og",))],
+     "refused"),
 ]
 PERSON_KEYS_CASES += [
     ("r99 D3: with the bare rival held, p1's live keys are its devices", GW + [GEV, RIV], "p1", ["p1b", "p1c"]),
@@ -590,7 +629,8 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
           "apart_by_key", "person_keys_by_offer", "nodes_by_offer", "nodes_two_owners_kept", "nodes_revocation_unread",
           "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept",
           "rebinding_unread", "landed_eviction_unread", "landed_add_unread", "rival_untaken_counted",
-          "self_founding_family", "rival_named_taken", "mutual_evictions_land")
+          "self_founding_family", "rival_named_taken", "mutual_evictions_land", "self_refounding_unread",
+          "rival_ack_unread")
 
 
 def answer(rows, k):

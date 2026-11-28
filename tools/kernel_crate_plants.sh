@@ -307,7 +307,7 @@ plant "an evicted genesis key still speaks as its person (r95 P1b)" src/seat.rs 
 plant "the key a self roster evicts is a voice of its own eviction" src/seat.rs '    let drop_to = f.exclude_target || f.base_excludes_target || evicts;' '    let drop_to = f.exclude_target || f.base_excludes_target || (evicts && false);'
 plant "a second self roster of one identity concludes (r96 G1: re-founding)" src/seat.rs '&& p.rows().any(|q| q.signer() == r.signer() && self_founding(law, q))' '&& false'
 plant "rival self rosters of one identity read as the person's (r96 G1)" src/seat.rs '        if self_founding(law, g) && !rosters.contains(g.id()) {' '        if false {'
-plant "an untaken rival founding makes the reader wait (r99 D1)" src/seat.rs '        let t: Vec<&R> = gs.iter().copied().filter(|g| taken(g, &gone) || !bare(g)).collect();' '        let t: Vec<&R> = gs.clone();'
+plant "an untaken rival founding makes the reader wait (r99 D1)" src/seat.rs '        let mut t: Vec<&R> = gs.iter().copied().filter(|g| taken(g, &gone) || !bare(g)).collect();' '        let mut t: Vec<&R> = gs.clone();'
 plant "a rival's counted rows read without the identity's evictions (r99 D8: an evicted thief takes up its rival)" src/seat.rs '            voices.iter().any(|k| !gone.contains(*k))' '            !voices.is_empty()'
 plant "two concurrent lone evictions of each other both land (r99 M1)" src/seat.rs '                    .any(|(j, t2, o2, _, s2)| j != i && o2 == o && t2 == s && t == s2 && g.concurrent(*i, *j))' '                    .any(|_| false)'
 plant "a self roster's landed lone-path eviction ends nothing (the window an outcome only)" src/seat.rs '            if landed.iter().any(|(l, t, lo, lsc)| {' '            if false && landed.iter().any(|(l, t, lo, lsc)| {'
@@ -316,6 +316,10 @@ plant "a family's founding read as a self roster's (r99 drift)" src/seat.rs '   
 }' '        && g.scope().and_then(|sc| law.kinds.get(sc.as_ref()).copied()) == Some(CommunityKind::SelfRoster)
 }'
 plant "a landed self-roster window is no head of a later count" src/seat.rs '        (change(law, q, obj, room.as_deref()) || landed_change(p, q, obj))' '        change(law, q, obj, room.as_deref())'
+plant "a genesis key's rival founding beside its own roster's rows is no self-fork (r99c)" src/seat.rs '        if forked {
+            out.insert((*k).clone());
+        }' ''
+plant "with no roster taken by a live voice, another key's acknowledgement is not read (r99c T3)" src/seat.rs '            t = gs.iter().copied().filter(|g| ack(g)).collect();' '            t = Vec::new();'
 plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '            [g] if !self.revoked.contains(g) => Some(g.clone()),' '            [g] => Some(g.clone()),'
 plant "an agent's key of a person's roster speaks for that person" src/seat.rs '        if self.agents.contains(k) {
             return Some(k.clone());
