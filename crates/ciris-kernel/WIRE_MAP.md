@@ -333,7 +333,7 @@ and the shape of `refs`. One wire row can be read by several views; each view's 
 | `private_room` | founding `group:roster` `membership` is `private` | |
 | `merge` (roster-merge) | a later `group:roster` version naming two or more tips (`refs.head` and `refs.further_heads`) | |
 | `merge_members` (roster-merge) | that version's `members[].key` | |
-| `merge_duties` (roster-merge) | none: a merge carries no duty seats; they are the fold of the conferral, withdrawal, resignation and election rows over the folded roster (RULED [N5]). The accessor is to be removed | |
+| `merge_duties` (roster-merge) | none: a merge carries no duty seats; they are the fold of the conferral, withdrawal, resignation and election rows over the folded roster (RULED [N5]). The accessor is removed (merge-duties-n5) | |
 
 ### 7.3 `window::WindowRow`
 

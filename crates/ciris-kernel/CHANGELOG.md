@@ -29,6 +29,13 @@ the answer words `assent`/`raised` (or a ballot's `for`/`against`), and returns 
 `community_invite`, both self roster rows, and `moderation_overturn` (the members less the author, `landed` the lift,
 `refused` the act standing); the default rows are refused on their `unstated` opener. The reference builds the self
 roster's lone paths from the row (`roster.window_from_table`), which adds the proposer's withdrawal it left out.
+**N5, ruled: a roster merge carries no duty seats; they fold.** A merge states its member roster (an infrastructure
+room's founders among them, holding member by their founder seats) and nothing else: `SeatRow::merge_duties` is
+removed (**BREAKING**). The duty seats after a merge, the founder and node seats among them, are the fold of the
+conferral, withdrawal, resignation and election rows in its past over the roster it states, read by the seat walk as
+any other: a duty conferred on one tip stands, one laid down on one tip is out, one on a member the merge drops falls
+with that member's seat. The merge is checked against the derived member roster only; the infrastructure word check
+reads the derived founders. Cases in `check_roster_merge.py`; plant `merge_ends_duties` in both languages.
 
 ### Adopting 0.5.0 from 0.2.2
 
@@ -51,7 +58,7 @@ right only for a store that does not carry the field. [`WIRE_MAP.md`](WIRE_MAP.m
 
 | Trait | Required | Defaulted, new since 0.2.2 |
 |---|---|---|
-| `seat::SeatRow` | `word(s: &'static str) -> Self::Word` | `consensus_protocol` (MUST be implemented: with `None` no room has a protocol), `cohort_subkind`, `group_kind`, `protocol_entrenched`, `admission_quorum_basis`, `dissolves`, `bundle`, `role`, `regime`, `lifts`, `duty_holders`, `signing_key`, `private_room`; roster-merge: `merge`, `merge_duties`, `merge_members`; charter: `official`, `overseen_by`, `family_param`, `outcome`, `agent_registration`, `target_key`, `licence_classes`, `declared_cohort`. persist-gaps: `cites` (a reconsideration's notice, a lift's act: exactly one). **Removed:** `consent_one` (no flag waives an acceptance). |
+| `seat::SeatRow` | `word(s: &'static str) -> Self::Word` | `consensus_protocol` (MUST be implemented: with `None` no room has a protocol), `cohort_subkind`, `group_kind`, `protocol_entrenched`, `admission_quorum_basis`, `dissolves`, `bundle`, `role`, `regime`, `lifts`, `duty_holders`, `signing_key`, `private_room`; roster-merge: `merge`, `merge_members`; charter: `official`, `overseen_by`, `family_param`, `outcome`, `agent_registration`, `target_key`, `licence_classes`, `declared_cohort`. persist-gaps: `cites` (a reconsideration's notice, a lift's act: exactly one). **Removed:** `consent_one` (no flag waives an acceptance); `merge_duties` (N5: a roster merge carries no duty seats, they fold). |
 | `Dated` (new, `lib.rs`) | `type Instant`, `asserted_at` | `valid_until` |
 | `key_end::KeyEndRow` | | key-end-retained: `instant` (override it to give a seat row its signed instant), `roster_end`, `cosigned_by` |
 | `key_end::KeyView` (new, key-end-retained) | `counts` | |
