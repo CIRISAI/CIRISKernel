@@ -11,7 +11,10 @@ derive `PartialEq` and `Eq`. ADOPTING.md lists each cell; `tests/policy_spec.rs`
 `spec_from_policy` (fixture `policy_spec.json`), and `check_policy_spec.py` compares it with the reference's tables. **The seat law's table cells:** new module
 `tables`, `law_from_tables(acts, families, protocols)` gives `SeatLaw`'s `policy`, `acts` and `removal_floor` from the
 acts table's rows (`ActsRow`) and the policy table (`PolicyRow`, `ProtocolRow`), or every `LawRefusal`; `seat.py`'s
-`law_from_tables` is the same reading (fixture `law_tables.json`).
+`law_from_tables` is the same reading (fixture `law_tables.json`). For the integrator: rc23-next's acts table has
+rows the crate's words do not read yet (scope `license`, `trust_edge`; act `accept`; `quarantine`, `slash`, `takedown`
+on `affiliation`), added by the charter and persist-gaps lanes; once those merge, re-vendor the acts table and re-run
+`tools/kernel_fixtures.py` and `tests/policy_spec.rs`, so `law_from_tables` is checked against it.
 
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.
