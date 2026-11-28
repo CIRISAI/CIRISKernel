@@ -253,13 +253,17 @@ def own_row(S, a, own, roster=frozenset(), voices=None):
               revocations, rotations, roster voids; the plain end rule). A row concurrent with the key's end, or after
               it, is no row of its line (r97 K1); an honest revocation names its last honest rows, so they stay in.
     Limb (b) reads these rows per row against each end, with no ordering; any order rule is the person lane's, on
-    top. `voices`: seat.voices by default. MUTATIONS reader_line_unchecked ((iv) unread), own_unconcluded_unread
-    ((i) concluded rows only), own_voice_unread ((ii) unread), own_claimed_cosigner ((iii): any row listing own)."""
+    top. `voices`: seat.voices by default. A seat row's conclusion is S's: the caller concludes the seat rows by the
+    seat rule and the key lane by key_end.RULE in one state (a key-lane-only state concludes every seat row).
+    MUTATIONS reader_line_unchecked ((iv) unread), own_unconcluded_unread ((i) concluded rows only),
+    own_voice_unread ((ii) unread), own_claimed_cosigner ((iii): any row listing own), unconcluded_cosigner_counted
+    ((ii): a seat row listing own counts concluded or not; key-person's plant of the same name)."""
     if a["signer"] == own:
         mine = bool(S.C.get(a["id"])) or "own_unconcluded_unread" not in MUT
     elif "own_claimed_cosigner" in MUT:
         mine = own in a.get("cosigners", ())
-    elif a["kind"] in ("offer", "unseat") and S.C.get(a["id"]) and "own_voice_unread" not in MUT:
+    elif a["kind"] in ("offer", "unseat") and (S.C.get(a["id"]) or "unconcluded_cosigner_counted" in MUT) \
+            and "own_voice_unread" not in MUT:
         import seat as _ST
         vs = voices or _ST.voices
         P = [q for q in S.Cs if q["id"] in S.anc[a["id"]]]

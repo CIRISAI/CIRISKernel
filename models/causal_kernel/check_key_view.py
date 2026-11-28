@@ -383,6 +383,20 @@ def answer(rule, seat_rows, key_rows, view):
         ST.KEY_VIEW.pop()
 
 
+# own_row over ONE state with the seat rows concluded by the seat rule and the key lane by key_end.RULE (the caller's
+# combined conclusion): (name, rows, row, key, reader, expected)
+def combined(rows):
+    rule = lambda r, P, past: KE.RULE(r, P, past) if r["kind"] in ("rec", "att", "edge", "revoke") else RULE(r, P, past)
+    return CK.concluded(CK.kept(list(rows)), rule)
+
+
+KUC = lambda cos: [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)),
+                   ST.offer("x", "Z", "F", "member", "Q", "self", ("aT",), cosigners=cos)]   # Z's offer over Q's key: no
+OWN_DIRECT = [
+    ("own_row (ii): a seat row listing the reader as a cosigner that concluded nothing is no row of its line (S5, S6)",
+     KUC(("F",)), "aT", "T", "F", False),
+]
+
 # the successor of a key with the self roster's acts (name, seat rows, key rows, key, expected)
 SUCCESSOR = [
     ("a rotation the self roster voided names no successor", CH.ROOM + SP + recs() + [KT, QT0, VOID("vT", ("P1", "P2"), "qT")],
@@ -393,7 +407,7 @@ PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("win
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
           ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT),
           ("taken_up_unread", KE.MUT), ("reader_line_unchecked", KE.MUT), ("own_unconcluded_unread", KE.MUT),
-          ("own_voice_unread", KE.MUT), ("own_claimed_cosigner", KE.MUT), ("registered_by_past", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
+          ("own_voice_unread", KE.MUT), ("own_claimed_cosigner", KE.MUT), ("registered_by_past", KE.MUT), ("unconcluded_cosigner_counted", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
           ("receipt_unclean_counts", ST.MUT), ("rotation_void_unread", KE.MUT), ("voided_successor_kept", KE.MUT),
           ("disputed_key_voices", ST.MUT), ("clean_signers_only", ST.MUT), ("roster_end_any_object", ST.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries
@@ -413,6 +427,11 @@ def run():
     for name, sr, kr, rid, k, reader, want in ROSTER_DIRECT:
         KS, roster, final = plain(sr, kr, RULE)
         got = KE.counts_by(KS, rid, k, reader, final, roster)
+        if got != want: bad.append("%s: got %s" % (name, got))
+    for name, rows, rid, k, reader, want in OWN_DIRECT:
+        CS = combined(rows)
+        if CS.C.get("x"): bad.append("%s: x concluded, the case reads nothing" % name)
+        got = KE.counts_by(CS, rid, k, reader)
         if got != want: bad.append("%s: got %s" % (name, got))
     for name, sr, kr, k, want in SUCCESSOR:
         KS, roster, final = plain(sr, kr, RULE)
@@ -467,7 +486,7 @@ def main():
         if not hit: missed.append(p)
     ok = not bad and not missed
     print("RESULT: %s: %d cases, %d of %d planted breaks caught" % ("ok" if ok else "%d problems" % (len(bad) + len(missed)),
-                                                                   len(CASES) + len(LONE) + len(CUT) + len(DIRECT) + len(ROSTER_DIRECT) + len(SUCCESSOR), len(PLANTS) - len(missed), len(PLANTS)))
+                                                                   len(CASES) + len(LONE) + len(CUT) + len(DIRECT) + len(ROSTER_DIRECT) + len(SUCCESSOR) + len(OWN_DIRECT), len(PLANTS) - len(missed), len(PLANTS)))
     return 0 if ok else 1
 
 
