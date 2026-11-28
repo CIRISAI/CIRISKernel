@@ -192,28 +192,57 @@ class Root:
         self.rows = {g["id"]: g for g in grants}            # the root's lane: grants and acceptance edges
         self.grants = {g["id"]: g for g in grants if g["kind"] == "grant"}
         self._past, self._concl = {}, {}
-        # a holder is one voice whatever key it signs with: its key, its recovery key, and the key a recovery seats
-        self._own = {}
-        for b in bundles:
+        # a holder is one voice whatever key it signs with: its key, its recovery key, and the key a recovery seats,
+        # or a routine rotation; read only from CONCLUDED recoveries and rotations (review-53's r116 K2: a row that
+        # concludes nothing merges no keys), over a bundle's own past while it is counted (owner(k, at))
+        self._order = [b["id"] for b in bundles]
+        self._own_at, self._own_all = {}, None
+
+    def _owner_map(self, ids, own_rotation=None):
+        """The union of keys from the concluded recoveries in `ids` (the holder, the key it seats and its recovery key)
+        and the concluded rotations signed by the old key (MUTATION owner_any_row: every held row, concluded or not, in
+        or out of the bundle's past, as before r116)."""
+        own = {}
+        def find(k):
+            while own.get(k, k) != k: k = own[k]
+            return k
+        def union(a, b):
+            ra, rb = find(a), find(b)
+            if ra != rb: own[max(ra, rb)] = min(ra, rb)
+        ids = set(ids)
+        for i in self._order:
+            if i not in ids: continue
+            b = self.by[i]
+            if "owner_any_row" not in MUT and not self.counted(i)[0]: continue
             if b.get("recovers") is not None and len(b["prev"]) == 1 and b["prev"][0] in self.by:
                 h, new = b["recovers"]
                 rk = self.by[b["prev"][0]]["recovery"].get(h)
                 for k in (new, rk):
-                    if k is not None: self._union(h, k)
-            if b.get("rotates"):                       # a routine rotation: the same holder under its new key
-                self._union(*b["rotates"])
+                    if k is not None: union(h, k)
+            if b.get("rotates") and ("owner_any_row" in MUT or b["rotates"][0] in self.voices(b)):
+                union(*b["rotates"])
+        # the bundle being counted reads its own rotation, where the old key signs it: the holder's consent under the
+        # key its predecessor seats (it cannot wait on its own conclusion)
+        r = self.by[own_rotation] if own_rotation is not None else None
+        if r is not None and r.get("rotates") and r["rotates"][0] in self.voices(r):
+            union(*r["rotates"])
+        return own
 
-    def _find(self, k):
-        while self._own.get(k, k) != k: k = self._own[k]
+    def owner(self, k, at=None):
+        """The holder a key speaks for: its key, its recovery key, and the key a recovery or a rotation seats are one
+        voice. `at`: as bundle `at` reads it while it is counted, from the concluded bundles in its own past; None: from
+        every concluded bundle (read only once the counts are done). A bundle being counted also reads its own rotation,
+        where the old key signs it."""
+        if at is None:
+            if self._own_all is None: self._own_all = self._owner_map(self.concluded())
+            m = self._own_all
+        else:
+            if at not in self._own_at:
+                self._own_at[at] = self._owner_map(self._order if "owner_any_row" in MUT else self.past(at),
+                                                   own_rotation=at)
+            m = self._own_at[at]
+        while m.get(k, k) != k: k = m[k]
         return k
-
-    def _union(self, a, b):
-        ra, rb = self._find(a), self._find(b)
-        if ra != rb: self._own[max(ra, rb)] = min(ra, rb)
-
-    def owner(self, k):
-        """The holder a key speaks for: its key, its recovery key, and the key a recovery seats are one voice."""
-        return self._find(k)
 
     # ---- the lineage --------------------------------------------------------------------------------------
     def past(self, i):
@@ -346,7 +375,8 @@ class Root:
         gone = self.retired(prevs)
         out = []
         for h in b["holders"]:
-            at = [(p, k) for p in prevs for k in self.by[p]["holders"] if self.owner(k) == self.owner(h)]
+            own = lambda k: self.owner(k, at=b["id"])
+            at = [(p, k) for p in prevs for k in self.by[p]["holders"] if own(k) == own(h)]
             if not at:
                 out.append((h, frozenset([h])))
             elif any(self.by[p]["recovery"].get(k) != b["recovery"].get(h) for p, k in at):
@@ -387,7 +417,7 @@ class Root:
         # behind: the model's `behind` exactly (a sibling on the same predecessor is a fork, both valid; MUTATION
         # recovery_behind_sibling: any bundle with the recovery's prev in its past)
         if "recovery_head_unread" not in MUT and any(
-                (b["prev"][0] in self.past(x["id"]) if "recovery_behind_sibling" in MUT else self.behind(b, x)) and any(self.owner(k) == self.owner(h) for k, _ in x["stmts"])
+                (b["prev"][0] in self.past(x["id"]) if "recovery_behind_sibling" in MUT else self.behind(b, x)) and any(self.owner(k, at=b["id"]) == self.owner(h, at=b["id"]) for k, _ in x["stmts"])
                 for x in self.by.values() if x["id"] != b["id"] and b["id"] not in self.past(x["id"])
                 and x.get("recovers") is None):   # a bundle it signed as a holder, not another recovery
             return (False, "recovery_behind_head")
@@ -469,9 +499,9 @@ class Root:
             # (MUTATION settler_base_from_names: over the siblings it names only)
             over = [self.by[n] for n in b["names"] if n in self.by and self.counted(n)[0]] \
                 if "settler_base_from_names" in MUT else kids
-            D = {} if "settler_double_signers_in_base" in MUT else self.double_signers(over)
-            d = set(D.get(frozenset(b["prev"]), set())) | self.settler_double_signers(b["prev"])
-            base = frozenset(k for k in self.live(self.by[b["prev"][0]]["holders"]) if self.owner(k) not in d)
+            D = {} if "settler_double_signers_in_base" in MUT else self.double_signers(over, at=b["id"])
+            d = set(D.get(frozenset(b["prev"]), set())) | self.settler_double_signers(b["prev"], at=b["id"])
+            base = frozenset(k for k in self.live(self.by[b["prev"][0]]["holders"]) if self.owner(k, at=b["id"]) not in d)
             ok = bool(base) and self.meets(b, v, within=base)
             return (True, None) if ok else (False, "genesis_bundle_count_unmet")
         return (True, None) if self.meets(b, v) else (False, "genesis_bundle_count_unmet")
@@ -481,7 +511,7 @@ class Root:
         return [self.by[i] for i in sorted(self.by) if tuple(self.by[i]["prev"]) == tuple(prev)
                 and not self.bounded_settler(self.by[i]) and self.counted(i)[0]]
 
-    def settler_double_signers(self, prev):
+    def settler_double_signers(self, prev, at=None):
         """Rule 6 read over settlers: the holders (owner classes) that signed two bounded settlers at head `prev`
         naming different siblings. Such a holder has no say in settling that head: both its settler signatures count
         for nothing (MUTATION settler_double_sign_counted: they count)."""
@@ -491,8 +521,8 @@ class Root:
         for a in ss:
             for c in ss:
                 if a["settles"] != c["settles"]:
-                    oc = {self.owner(k) for k in self.voices(c)}
-                    out |= {self.owner(k) for k in self.voices(a) if self.owner(k) in oc}
+                    oc = {self.owner(k, at) for k in self.voices(c)}
+                    out |= {self.owner(k, at) for k in self.voices(a) if self.owner(k, at) in oc}
         return out
 
     def bounded_settler(self, b):
@@ -736,7 +766,7 @@ class Root:
             any(self._removes(b, k) and k in c["holders"] for k in self.by[b["prev"][0]]["holders"]) or
             any(self._removes(c, k) and k in b["holders"] for k in self.by[c["prev"][0]]["holders"]))
 
-    def double_signers(self, bs):
+    def double_signers(self, bs, at=None):
         """RULE 6's double signers, per head: {the head (a successor's prev, as a set): the holders (owner classes,
         so under either key) that signed two successors of it, one cutting a holder the other keeps, neither naming
         the other}, over the bundles `bs` (dicts) a reader holds (MUTATION double_signer_voices: none)."""
@@ -745,9 +775,9 @@ class Root:
         for b in bs:
             for c in bs:
                 if not self._cut(b, c): continue
-                oc = {self.owner(k) for k in self.voices(c)}
+                oc = {self.owner(k, at) for k in self.voices(c)}
                 out.setdefault(frozenset(b["prev"]), set()).update(
-                    self.owner(k) for k in self.voices(b) if self.owner(k) in oc)
+                    self.owner(k, at) for k in self.voices(b) if self.owner(k, at) in oc)
         return out
 
     def no_say(self, rd):

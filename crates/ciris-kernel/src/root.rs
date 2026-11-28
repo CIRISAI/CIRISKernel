@@ -202,7 +202,10 @@ pub struct Root<'a, B: RootBundle, G: RootGrant> {
     revs: &'a [Revocation<B::Id, B::Key>],
     grants: BTreeMap<&'a B::Id, &'a G>,
     lane: crate::graph::Graph<'a, G>,
-    own: BTreeMap<B::Key, B::Key>,
+    // the owner maps: from every concluded bundle (read once the counts are done), and per bundle being counted, from
+    // the concluded bundles in its own past (review-53's r116 K2: a row that concludes nothing merges no keys)
+    own_all: RefCell<Option<BTreeMap<B::Key, B::Key>>>,
+    own_at: RefCell<BTreeMap<B::Id, BTreeMap<B::Key, B::Key>>>,
     past_memo: RefCell<BTreeMap<B::Id, BTreeSet<B::Id>>>,
     counted_memo: RefCell<BTreeMap<B::Id, Result<(), Reason>>>,
     void_memo: RefCell<Option<(BTreeSet<B::Id>, BTreeSet<B::Id>)>>,
@@ -221,16 +224,18 @@ where
             revs,
             grants: grants.iter().filter(|g| g.is_grant()).map(|g| (g.id(), g)).collect(),
             lane: crate::graph::Graph::new(grants.iter()),
-            own: Self::owners_of(bundles),
+            own_all: RefCell::new(None),
+            own_at: RefCell::new(BTreeMap::new()),
             past_memo: RefCell::new(BTreeMap::new()),
             counted_memo: RefCell::new(BTreeMap::new()),
             void_memo: RefCell::new(None),
         }
     }
 
-    /// The union of a holder's keys: its key, its recovery key, and the key a recovery seats.
-    fn owners_of(bundles: &'a [B]) -> BTreeMap<B::Key, B::Key> {
-        let by: BTreeMap<&B::Id, &B> = bundles.iter().map(|b| (b.id(), b)).collect();
+    /// The union of a holder's keys from the CONCLUDED recoveries among `ids` (the holder, the key it seats and its
+    /// recovery key) and the CONCLUDED rotations among them that the old key signs; and, for the bundle being counted
+    /// (`own_rotation`), its own rotation where the old key signs it (it cannot wait on its own conclusion).
+    fn owner_map(&self, ids: &BTreeSet<B::Id>, own_rotation: Option<&B::Id>) -> BTreeMap<B::Key, B::Key> {
         let mut own: BTreeMap<B::Key, B::Key> = BTreeMap::new();
         fn find<K: Ord + Clone>(own: &BTreeMap<K, K>, k: &K) -> K {
             let mut k = k.clone();
@@ -249,18 +254,30 @@ where
                 own.insert(hi, lo);
             }
         };
-        for b in bundles {
+        for i in self.order.iter().copied() {
+            if !ids.contains(i) || self.counted(i).is_err() {
+                continue;
+            }
+            let Some(b) = self.b(i) else { continue };
             if let Some((h, new)) = b.recovers() {
-                if let Some(p) = b.prev().first().filter(|_| b.prev().len() == 1).and_then(|x| by.get(x)) {
+                if let Some(p) = b.prev().first().filter(|_| b.prev().len() == 1).and_then(|x| self.b(x)) {
                     let rk = Self::commitment(p, h);
                     for k in [Some(new.clone()), rk].into_iter().flatten() {
                         union(&mut own, h, &k);
                     }
                 }
             }
-            // a routine rotation: the same holder under its new key
             if let Some((old, new)) = b.rotates() {
-                union(&mut own, old, new);
+                if self.voices(b).contains(old) {
+                    union(&mut own, old, new);
+                }
+            }
+        }
+        if let Some(r) = own_rotation.and_then(|i| self.b(i)) {
+            if let Some((old, new)) = r.rotates() {
+                if self.voices(r).contains(old) {
+                    union(&mut own, old, new);
+                }
             }
         }
         own
@@ -454,7 +471,9 @@ where
             let at: Vec<(&B, &B::Key)> = prevs
                 .iter()
                 .filter_map(|p| self.b(p))
-                .flat_map(|p| p.holders().iter().filter(|k| self.owner(k) == self.owner(h)).map(move |k| (p, k)))
+                .flat_map(|p| {
+                    p.holders().iter().filter(|k| self.owner_at(k, b.id()) == self.owner_at(h, b.id())).map(move |k| (p, k))
+                })
                 .collect();
             if at.is_empty() {
                 out.push((h.clone(), BTreeSet::from([h.clone()])));
@@ -525,7 +544,7 @@ where
                 && !self.in_past(b.id(), x.id())
                 && x.recovers().is_none()
                 && self.behind(b, x)
-                && x.statements().iter().any(|(k, _)| self.owner(k) == self.owner(h))
+                && x.statements().iter().any(|(k, _)| self.owner_at(k, b.id()) == self.owner_at(h, b.id()))
         });
         if behind_head {
             return Some(Err("recovery_behind_head"));
@@ -626,13 +645,14 @@ where
             }
             // the double signers at that head, over every successor there that concluded (one base per head: two
             // settlers toward different siblings cannot both conclude, whatever order they are read in)
-            let ds = self.double_signers(&kids);
+            let ds = self.double_signers_at(&kids, Some(b.id()));
             let p: BTreeSet<B::Id> = b.prev().iter().cloned().collect();
             let none = BTreeSet::new();
             let mut d: BTreeSet<B::Key> = ds.get(&p).unwrap_or(&none).clone();
-            d.extend(self.settler_double_signers(b.prev()));
+            d.extend(self.settler_double_signers(b.prev(), Some(b.id())));
             let head = self.b(&b.prev()[0]).map(|h| h.holders().to_vec()).unwrap_or_default();
-            let base: BTreeSet<B::Key> = self.live(head).into_iter().filter(|k| !d.contains(&self.owner(k))).collect();
+            let base: BTreeSet<B::Key> =
+                self.live(head).into_iter().filter(|k| !d.contains(&self.owner_at(k, b.id()))).collect();
             return if !base.is_empty() && self.meets(b, &v, Some(&base)) {
                 Ok(())
             } else {
@@ -658,14 +678,14 @@ where
             .collect()
     }
 
-    fn settler_double_signers(&self, prev: &[B::Id]) -> BTreeSet<B::Key> {
+    fn settler_double_signers(&self, prev: &[B::Id], at: Option<&B::Id>) -> BTreeSet<B::Key> {
         let ss: Vec<&B> = self.by.values().copied().filter(|x| x.prev() == prev && self.bounded_settler(x)).collect();
         let mut out = BTreeSet::new();
         for a in &ss {
             for c in &ss {
                 if a.settles() != c.settles() {
-                    let oc: BTreeSet<B::Key> = self.voices(c).iter().map(|k| self.owner(k)).collect();
-                    out.extend(self.voices(a).iter().map(|k| self.owner(k)).filter(|k| oc.contains(k)));
+                    let oc: BTreeSet<B::Key> = self.voices(c).iter().map(|k| self.owner_opt(k, at)).collect();
+                    out.extend(self.voices(a).iter().map(|k| self.owner_opt(k, at)).filter(|k| oc.contains(k)));
                 }
             }
         }
@@ -702,10 +722,40 @@ where
         b.prev().iter().all(|p| cp.contains(p) && !c.prev().contains(p))
     }
 
-    /// The holder a key speaks for: a holder's key, its recovery key, and the key a recovery seats are one voice.
+    /// The holder a key speaks for: a holder's key, its recovery key, and the key a recovery or a rotation seats are
+    /// one voice, read from every concluded bundle (once the counts are done).
     fn owner(&self, k: &B::Key) -> B::Key {
+        if self.own_all.borrow().is_none() {
+            let ids: BTreeSet<B::Id> = self.concluded().into_iter().map(|b| b.id().clone()).collect();
+            let m = self.owner_map(&ids, None);
+            *self.own_all.borrow_mut() = Some(m);
+        }
+        let g = self.own_all.borrow();
+        Self::find_in(g.as_ref().expect("just built"), k)
+    }
+
+    /// [`Root::owner`] as bundle `at` reads it while it is counted: from the concluded bundles in its own past, and
+    /// its own rotation where the old key signs it.
+    fn owner_at(&self, k: &B::Key, at: &B::Id) -> B::Key {
+        if !self.own_at.borrow().contains_key(at) {
+            let m = self.owner_map(&self.past(at), Some(at));
+            self.own_at.borrow_mut().insert(at.clone(), m);
+        }
+        let g = self.own_at.borrow();
+        Self::find_in(&g[at], k)
+    }
+
+    /// [`Root::owner_at`] where `at` is given, [`Root::owner`] otherwise.
+    fn owner_opt(&self, k: &B::Key, at: Option<&B::Id>) -> B::Key {
+        match at {
+            Some(a) => self.owner_at(k, a),
+            None => self.owner(k),
+        }
+    }
+
+    fn find_in(own: &BTreeMap<B::Key, B::Key>, k: &B::Key) -> B::Key {
         let mut k = k.clone();
-        while let Some(n) = self.own.get(&k) {
+        while let Some(n) = own.get(&k) {
             if *n == k {
                 break;
             }
@@ -1102,14 +1152,19 @@ where
     /// under either key) that signed two successors of it, one cutting a holder the other keeps, neither naming the
     /// other; over the bundles `bs` a reader holds.
     fn double_signers(&self, bs: &[&B]) -> BTreeMap<BTreeSet<B::Id>, BTreeSet<B::Key>> {
+        self.double_signers_at(bs, None)
+    }
+
+    /// [`Root::double_signers`], with the owners read as bundle `at` reads them while it is counted.
+    fn double_signers_at(&self, bs: &[&B], at: Option<&B::Id>) -> BTreeMap<BTreeSet<B::Id>, BTreeSet<B::Key>> {
         let mut out: BTreeMap<BTreeSet<B::Id>, BTreeSet<B::Key>> = BTreeMap::new();
         for b in bs {
             for c in bs {
                 if self.siblings(b, c) && (self.cuts_kept(b, c) || self.cuts_kept(c, b)) {
                     // the holder is the voice, under its key or its recovery key
-                    let oc: BTreeSet<B::Key> = self.voices(c).iter().map(|k| self.owner(k)).collect();
+                    let oc: BTreeSet<B::Key> = self.voices(c).iter().map(|k| self.owner_opt(k, at)).collect();
                     let ks: Vec<B::Key> =
-                        self.voices(b).iter().map(|k| self.owner(k)).filter(|k| oc.contains(k)).collect();
+                        self.voices(b).iter().map(|k| self.owner_opt(k, at)).filter(|k| oc.contains(k)).collect();
                     out.entry(b.prev().iter().cloned().collect()).or_default().extend(ks);
                 }
             }

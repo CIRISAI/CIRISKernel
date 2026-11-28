@@ -31,7 +31,10 @@ C2 = {"name": "c2", "duties": ()}                   # a charter that drops the d
 
 def bare(b):
     """A bundle left as its signers are written: resign() adds no statement to it (a case of a holder that does not
-    sign)."""
+    sign). The bare bundles: the joins without the recovered holder's voice and without h6's; the join where the
+    retired h3 signs with h4 alone; SJ (RS2, RS3: h1 and h2 alone); the single-predecessor cases of an added or
+    re-committed holder not signing; the settler toward s0 without X; and r116's K1, its junk rotation and junk
+    recovery, and the rotated holder's own re-commitment."""
     return dict(b, bare=True)
 
 
@@ -667,6 +670,10 @@ CASES += [
                "so the reduced base only chooses which majority-signed bundle stands; the reader is at s0",
      STL + [SETTLE("st", "s0", ("h3",), STS)], (), (), RD(anchor="b0", acks=("s0", "b2", "b3", "st")),
      {"concluded": {"st": T}, "heads": ("s0",), "holders": {"h1", "h2", "X"}}),
+    ("settle", "(2') and a settler is a later bundle like any other: the holder s0 added (X) signs it too; by h3 alone "
+               "toward s0 it concludes nothing (with X's statement it counts, as in (2)): no exemption for settlers",
+     STL + [bare(SETTLE("st", "s0", ("h3",), STS))], (), (), RD(anchor="b0", acks=("s0", "b2", "b3", "st")),
+     {"concluded": {"st": Fa}}),
     ("settle", "(3) a settler by h3 that also seats a holder (h9) states something: counted over the full base, one "
                "of three, it concludes nothing; the reader stays at b0",
      STL + [dict(SETTLE("st", "b1", ("h3",), STS), holders=H5 + ("h9",), recovery={k: "r:" + k for k in H5 + ("h9",)})],
@@ -905,6 +912,40 @@ RECOVERY_PLANTS = ("recovery_inforce_unread", "recovery_scope_unread", "recovery
                    "recovery_stalled_unread", "recovery_more_unread")
 
 
+# review-53's r116 (atk_r116.py): the owner map is read only from CONCLUDED recoveries and from CONCLUDED rotations the
+# old key signs, over a bundle's own past while it is counted. A row that concludes nothing merges no keys, so a junk
+# rotation or recovery cannot make h1 speak for h2 and capture h2's seat. (K1 and the junk rows are left bare.)
+EVIL = {"h1": "r:h1", "h2": "r:evil", "h3": "r:h3"}
+K1 = bare(nxt("b1", "b0", H3, ("h1", "h3"), recovery=EVIL))
+KJK = bare(nxt("jk", "b0", H3, ("x9",), rotates=("h2", "h1")))
+KRV = nxt("rv", "b1", ("h1", "h2e", "h3"), ("r:evil",), version=2, recovers=("h2", "h2e"),
+          recovery={"h1": "r:h1", "h2e": "r:h2e", "h3": "r:h3"})
+KJR = bare(nxt("jr", "b0", H3, ("x9",), recovers=("h2", "h1"), recovery={"h1": "r:h1", "h2": "r:h2", "h3": "r:h3"}))
+CASES += [
+    ("owner", "K1: h1 and h3 re-commit h2's recovery to r:evil without h2: it concludes nothing (h2 signs a change of its "
+              "own commitment)", [B0, K1], (), (), RD(anchor="b0", acks=("b1",)),
+     {"concluded": {"b1": Fa}, "heads": ("b0",)}),
+    ("owner", "K2: a junk bundle by x9 declaring rotates (h2 to h1) concludes nothing and merges no keys: K1 still "
+              "concludes nothing", [B0, KJK, K1], (), (), RD(anchor="b0", acks=("b1",)),
+     {"concluded": {"jk": Fa, "b1": Fa}, "heads": ("b0",)}),
+    ("owner", "K2': then the attacker's recovery of h2's seat under r:evil, on b1: nothing concludes, h2's seat is not "
+              "captured", [B0, KJK, K1, KRV], (), (), RD(anchor="b0", acks=("b1", "rv")),
+     {"concluded": {"jk": Fa, "b1": Fa, "rv": Fa}, "heads": ("b0",), "holders": set(H3)}),
+    ("owner", "K2'': the control without the junk bundle: the same answers", [B0, K1, KRV], (), (),
+     RD(anchor="b0", acks=("b1", "rv")), {"concluded": {"b1": Fa, "rv": Fa}, "heads": ("b0",), "holders": set(H3)}),
+    ("owner", "K4: a junk recovery row by x9 (recovers h2 to h1) concludes nothing and merges no keys: K1 still "
+              "concludes nothing", [B0, KJR, K1], (), (), RD(anchor="b0", acks=("b1",)),
+     {"concluded": {"jr": Fa, "b1": Fa}, "heads": ("b0",)}),
+    ("owner", "and a concluded rotation the old key signs does make one holder: b1 rotates h2 to h2x (h1, h2 and h3 "
+              "sign), and h2x signs b2 changing its own commitment as h2's successor",
+     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h2", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
+              rotates=("h2", "h2x")),
+      bare(nxt("b2", "b1", ("h1", "h2x", "h3"), ("h1", "h2x"), version=2,
+               recovery={"h1": "r:h1", "h2x": "r:h2y", "h3": "r:h3"}))], (), (), ANC,
+     {"concluded": {"b1": T, "b2": T}}),
+]
+
+
 CASES = [(r, n, resign(bs), rv, gs, rd, w) for r, n, bs, rv, gs, rd, w in CASES]
 RECOVERY = [(n, rows, resign(bs), gs, rd, c, why, f4) for n, rows, bs, gs, rd, c, why, f4 in RECOVERY]
 
@@ -1050,7 +1091,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
           "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names",
           "concurrent_keep_bundle_only",
-          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name", "retired_reseat_allowed", "spent_on_branch_unread", "added_signers_join_only")
+          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name", "retired_reseat_allowed", "spent_on_branch_unread", "added_signers_join_only", "owner_any_row")
 
 
 def answer(bs, rv, gs, rd, want):
