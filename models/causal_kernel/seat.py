@@ -1898,7 +1898,11 @@ class Seats:
             L = L | roster_void(S)
         self.cut = C = CUT.Cut(S, without=L)
         Cs = S.Cs
-        wd = K.sel(Cs, kind="withdraw")
+        # one view of a seat end (r104): a lay-down behind the reader's line ends no seat in its roster, as it is no
+        # vacancy for its elections; the holder keeps the seat for it and lays it down again at its line (MUTATION
+        # laydown_roster_unread: the roster takes it while the election does not)
+        RE0 = reader_ends(S, own) if roster and own is not None and "laydown_roster_unread" not in MUT else frozenset()
+        wd = [w for w in K.sel(Cs, kind="withdraw") if w["id"] not in RE0]
         pos = {r["id"]: i for i, r in enumerate(S.rows)}
         ended = lambda row: any(w["target"] == row["id"] for w in wd)        # the concluded layer checked who signed it
         # a holder's withdrawal ends its own seat; the conferrer's (a signer who is not seated by the row) ends the offer
@@ -2850,7 +2854,11 @@ def reader_ends(S, own):
         if room not in lines: lines[room] = CP.own_line(S, own, room)
         if not lines[room]: continue
         hs = newest(tuple(n for n in w["names"] if n in S.by and change(S.by[n], room, S.by)), past) or (room,)
-        if any(CP.behind(S, dict(w, head=hs), c) for c in lines[room]): out.add(w["id"])
+        # behind the line, and in the past of none of its acts: an act on the line built on it (an opening's seating
+        # the reader acknowledged) brings it onto the line (MUTATION laydown_ack_unread: it stays behind)
+        if any(CP.behind(S, dict(w, head=hs), c) for c in lines[room]) and (
+                "laydown_ack_unread" in MUT or not any(w["id"] in S.anc[c["id"]] for c in lines[room])):
+            out.add(w["id"])
     return frozenset(out)
 
 

@@ -93,6 +93,12 @@ ACKR = R("akR", "ack", "R", ("aG",), room=OBJ, head=("aG",))
 STALE = EL.N1R + [RCG, ST.unseat("xag", "B", "A", "member", OBJ, "group", ("rcg",), head=("rcg",), policy="community_remove",
                                  cosigners=("C",)), OPG, B("yb", "B", "B", "opg"), B("yc", "C", "B", "opg"),
                   SEAT("eb", "B", ("yb", "yc"), op="opg", heads=("rcg",)), ACK("jc", "C", "eb")]
+# r104-49: A lays the seat down with only g in its past (lm0, a stale device); D to G open at aG citing it and seat D
+_LM0 = ST.withdraw("lm0", "A", "g", ("g",), scope="moderate")
+_HB4 = [B("b" + k.lower(), k, "D", "op") for k in "DEFG"]
+H104 = EL.N1R + [_LM0, dict(OPEN("op", "lm0", ("D", "E", "F", "G"), ("aG",)), names=("lm0", "aG"))] + _HB4 + \
+    [SEAT("ed", "D", tuple(b["id"] for b in _HB4), op="op", heads=("aG",))] + [ACK("k" + k.lower(), k, "ed") for k in "BEFG"]
+ACKD = R("akD", "ack", "R", ("ed",), room=OBJ, head=("ed",))
 RECS = [KE.rec("k" + k, k, 0, None, typ="pseudonym") for k in "ABCDEFGX"]
 CASES = [
     ("rule 2: the honest election: the opening (A, B, C of five) at g, C three to two; closed by A, B and D", 
@@ -180,6 +186,14 @@ CASES = [
      "receipt): taken by no roster: B is not moderator and the election is not closed, for a reader with no "
      "acknowledgement", STALE, "eb", {"ask": ("B", "moderate")}, (F, F)),
     ("and for a reader that acknowledged aG", STALE + [ACKR], "eb", {"ask": ("B", "moderate"), "reader": "R"}, (F, F)),
+    ("r104 one view of a seat end: A's stale lay-down lm0 (only g in its past) and the honest election at aG citing "
+     "it: for a reader with no acknowledgement, D moderates and ed is closed", H104, "ed", {"ask": ("D", "moderate")},
+     (T, T)),
+    ("and for a reader that acknowledged aG: lm0 is behind its line, so its roster takes it no more than its election "
+     "does: A keeps the seat for it, and ed is not closed for it", H104 + [ACKR], "ed",
+     {"ask": ("A", "moderate"), "reader": "R"}, (T, F)),
+    ("and once that reader acknowledges D's seating (built on lm0): lm0 is on its line: D moderates, ed is closed",
+     H104 + [ACKR, ACKD], "ed", {"ask": ("D", "moderate"), "reader": "R"}, (T, T)),
     ("G3c plus C (r90-49): A's backdated lay-down forks the end; C's receipt of B's seating closes nothing, and B is "
      "not seated", EL.G3C + [ACK("jc", "C", "eb")], "eb", {"ask": ("B", "moderate")}, (F, F)),
 ]
@@ -210,7 +224,8 @@ def _person_world():
 PLANTS = ("end_fork_unread", "open_old_heads", "open_by_key", "openings_both_stand",
           "close_no_wait", "close_key_view_unread", "close_receipt_unclean",
           "acceptance_key_view_unread", "inputs_key_view_unread", "rival_openings_read", "electorate_at_seating",
-          "departures_raw", "fork_untaken_end", "close_reads_concluded", "open_key_view_unread")
+          "departures_raw", "fork_untaken_end", "close_reads_concluded", "open_key_view_unread",
+          "laydown_roster_unread", "laydown_ack_unread")
 
 
 def run():
