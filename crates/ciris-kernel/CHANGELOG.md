@@ -37,7 +37,10 @@ crate plant. **A bounded settler adds nobody** (the Constitution's ruling): it s
 which contested sibling stands, whose added holders consented by signing it, so the added-holder rule does not read
 it; it needs exactly its own count, a strict majority of the contested head's holders with a say there. A settler
 toward s0 by h3 alone, without X, settles; plant `settler_signs_for_added`, and a crate plant. `counted` requires
-every predecessor counted (so a retired or left key, read over a predecessor's line, comes only from counted rows).
+every predecessor counted (so a retired or left key, read over a predecessor's line, comes only from counted rows). A
+rotation is read one way everywhere (K5): `rotates` counts only where its old key signs the bundle, for the owner map and
+for the keys left alike, so a majority's removal that declares a rotation without the old key's statement leaves no
+key, and the holder stays re-seatable. Case K5; plant `rotation_unsigned_leaves`, and a crate plant.
 
 **Who else signs a join; behind exactly; a thumbprint anchor matching two** (CIRISVerify's per-bundle read, the
 Constitution's readings 1 and 3), both languages. A join is counted only where, besides each predecessor's

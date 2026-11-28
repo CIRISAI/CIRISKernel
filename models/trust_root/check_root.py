@@ -219,16 +219,16 @@ CASES = [
              "am's live holders are h1 h2 h4 (h1 alone of them): it concludes nothing",
      [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h1", "h3", "h3b"), version=2,
                         recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})], (), (), ANC, {"concluded": {"j": Fa}}),
-    ("join", "a key left by routine rotation is LEFT: b1 rotates h2 to h2x (h1 h3), b2 keeps h2; h2 is still a voice on "
+    ("join", "a key left by routine rotation is LEFT: b1 rotates h2 to h2x (h1, h2 and h3; the old key signs), b2 keeps h2; h2 is still a voice on "
              "b2 (h1, h2 and h2x: two of each), and the join does not seat it again",
-     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
+     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h2", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
           rotates=("h2", "h2x")),
       nxt("b2", "b0", H3, ("h1", "h2"), seats=("n1", "n2")),
       nxt("j", ("b1", "b2"), ("h1", "h2x", "h3"), ("h1", "h2", "h2x"), version=2,
           recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"})], (), (), RD(anchor="b0", acks=("j",)),
      {"concluded": {"j": T}, "holders": {"h1", "h2x", "h3"}}),
     ("join", "without h2 it is one of b2's three: it concludes nothing",
-     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
+     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h2", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
           rotates=("h2", "h2x")),
       nxt("b2", "b0", H3, ("h1", "h2"), seats=("n1", "n2")),
       nxt("j", ("b1", "b2"), ("h1", "h2x", "h3"), ("h1", "h2x"), version=2,
@@ -242,7 +242,7 @@ CASES = [
                         recovery={"h1": "r:h1", "h2": "r:h2", "h3": "r:h3x", "h3b": "r:h3b", "h4": "r:h4"})], (), (), ANC,
      {"concluded": {"j": Fa}, "refusal": {"j": ("genesis_bundle_malformed", "holder_key_retired")}}),
     ("join", "a join seating the key a routine rotation left (h2, which b2 still seats): Invalid, holder_key_retired",
-     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
+     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h2", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
               rotates=("h2", "h2x")),
       nxt("b2", "b0", H3, ("h1", "h2"), seats=("n1", "n2")),
       nxt("j", ("b1", "b2"), H3, ("h1", "h2", "h2x", "h3"), version=2)], (), (), ANC,
@@ -252,8 +252,8 @@ CASES = [
      [B0, REC, nxt("b2", "rc", ("h1", "h2", "h3", "h3b"), ("h1", "h2"), version=2,
                    recovery={"h1": "r:h1", "h2": "r:h2", "h3": "r:h3x", "h3b": "r:h3b"})], (), (), ANC,
      {"refusal": {"b2": ("genesis_bundle_malformed", "holder_key_retired")}}),
-    ("count", "a later bundle re-seating a left key: on b1 (h2 rotated to h2x), h1 and h3 seat h2 again: Invalid",
-     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
+    ("count", "a later bundle re-seating a left key: on b1 (h2 rotated to h2x, h2 signing), h1 and h3 seat h2 again: Invalid",
+     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h2", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
               rotates=("h2", "h2x")),
       nxt("b3", "b1", ("h1", "h2", "h2x", "h3"), ("h1", "h3"), version=2,
           recovery={"h1": "r:h1", "h2": "r:h2y", "h2x": "r:h2x", "h3": "r:h3"})], (), (), ANC,
@@ -943,6 +943,11 @@ CASES += [
     ("owner", "K4: a junk recovery row by x9 (recovers h2 to h1) concludes nothing and merges no keys: K1 still "
               "concludes nothing", [B0, KJR, K1], (), (), RD(anchor="b0", acks=("b1",)),
      {"concluded": {"jr": Fa, "b1": Fa}, "heads": ("b0",)}),
+    ("owner", "K5: a majority's concluded removal of h2 declaring rotates (h2 to h1) without h2's statement leaves no "
+              "key: h2 stays re-seatable, and b2 seating it again (h2 signing) counts",
+     [B0, nxt("b1", "b0", ("h1", "h3"), ("h1", "h3"), rotates=("h2", "h1")),
+      nxt("b2", "b1", H3, ("h1", "h2", "h3"), version=2)], (), (), ANC,
+     {"concluded": {"b1": T, "b2": T}, "refusal": {"b2": None}}),
     ("owner", "and a concluded rotation the old key signs does make one holder: b1 rotates h2 to h2x (h1, h2 and h3 "
               "sign), and h2x signs b2 changing its own commitment as h2's successor",
      [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h2", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
@@ -986,7 +991,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
           "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names",
           "concurrent_keep_bundle_only",
-          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name", "retired_reseat_allowed", "spent_on_branch_unread", "added_signers_join_only", "owner_any_row", "settler_signs_for_added")
+          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name", "retired_reseat_allowed", "spent_on_branch_unread", "added_signers_join_only", "owner_any_row", "settler_signs_for_added", "rotation_unsigned_leaves")
 
 
 def answer(bs, rv, gs, rd, want):

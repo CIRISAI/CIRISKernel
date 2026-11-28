@@ -267,18 +267,12 @@ where
                     }
                 }
             }
-            if let Some((old, new)) = b.rotates() {
-                if self.voices(b).contains(old) {
-                    union(&mut own, old, new);
-                }
+            if let Some((old, new)) = self.signed_rotation(b) {
+                union(&mut own, old, new);
             }
         }
-        if let Some(r) = own_rotation.and_then(|i| self.b(i)) {
-            if let Some((old, new)) = r.rotates() {
-                if self.voices(r).contains(old) {
-                    union(&mut own, old, new);
-                }
-            }
+        if let Some((old, new)) = own_rotation.and_then(|i| self.b(i)).and_then(|r| self.signed_rotation(r)) {
+            union(&mut own, old, new);
         }
         own
     }
@@ -420,13 +414,20 @@ where
         out
     }
 
+    /// `b`'s routine rotation where its old key signs `b`: the one reading of [`RootBundle::rotates`], for the owner
+    /// map and for the keys left (review-53's K5: a removal declaring a rotation without the old key's statement
+    /// leaves no key).
+    fn signed_rotation<'b>(&self, b: &'b B) -> Option<(&'b B::Key, &'b B::Key)> {
+        b.rotates().filter(|(old, _)| self.voices(b).contains(*old))
+    }
+
     /// The keys a routine rotation left across the branches of `prevs`: each key a bundle in their lines rotated a
     /// holder away from ([`RootBundle::rotates`]).
     fn left(&self, prevs: &[B::Id]) -> BTreeSet<B::Key> {
         let mut out = BTreeSet::new();
         for p in prevs {
             for x in self.line(p) {
-                if let Some((old, _)) = self.b(&x).and_then(|q| q.rotates()) {
+                if let Some((old, _)) = self.b(&x).and_then(|q| self.signed_rotation(q)) {
                     out.insert(old.clone());
                 }
             }
