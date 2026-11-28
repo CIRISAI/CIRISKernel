@@ -5,6 +5,8 @@ This note is for the persist refactor onto the kernel. It was written from a rea
 `file:line` in that tree under `src/`. Nothing in persist was changed or run. Persist's own design for the seam
 is `FSD/KERNEL_SEAMS.md` (§5); this crate is meant to sit under that interface, not to replace it.
 
+The field-by-field map from a signed `ceg-row/2` statement to each row view is [`WIRE_MAP.md`](WIRE_MAP.md).
+
 ## What persist implements
 
 One trait, [`Row`](src/lib.rs), and for each answer persist asks, the spec trait of that answer.
@@ -202,8 +204,12 @@ migrations, and the local operational store.
 
 ## Points to settle before adoption
 
-- **Persons and voices.** The adapter presents each signing key as its person's voice (`PersonsAt::voice`) and
-  each seat as its person (`seat_person`), as KERNEL.md 7b requires; with that, the per-person count agrees.
+- **Persons and voices.** The crate maps keys to persons itself (CIRISConstitution#224: "one voice however many
+  live keys sign"). Present each row with its signing key as signer (`kid`, [WIRE_MAP.md](WIRE_MAP.md) G1) and the
+  self-roster rows (a person's `identity:occurrence` rows and their evictions; a voice's room keys) among the rows a
+  count reads: `seat::Persons` and `seat::persons_of` give one voice and one member per person, and `seat::person_at`
+  the person a key is at a row. `seat::person_keys` (key-person lane) gives a person's live keys. An agent's key is
+  itself, never its owner's voice. Do not collapse keys in the adapter.
 - **Objects that are rows and objects that are keys.** `seat::Obj::from_reference` types an object from the
   form of its reference in the signed object: a `[-16, digest]` row id is a row, an identity reference
   `urn:ietf:params:oauth:ckt:sha-256:…` is a key. Persist's adapter passes the reference as written. Today's
@@ -230,7 +236,7 @@ Recommended: a git dependency on the kernel repository at a tag, the way persist
 `ciris-verify-core` (`Cargo.toml:581`):
 
 ```toml
-ciris-kernel = { git = "https://github.com/CIRISAI/CIRISKernel", tag = "kernel-v0.4.0", version = "0.4" }
+ciris-kernel = { git = "https://github.com/CIRISAI/CIRISKernel", tag = "kernel-v0.5.0", version = "0.5" }
 ```
 
 `deny.toml` has `[sources] allow-git = []` with `unknown-git = "warn"`, so the repository would be added to
@@ -416,8 +422,9 @@ trusting an adapter.
   member seat; its stay begins at the version that admits it in `agent` and ends at its removal or
   resignation. The audience of a room is `Seats::roster`.
 
-**A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,
-members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
+**A private room.** The signer of every row is the room key that signed; the voice is the person the persons map
+gives for the signing key. `to`, cosigners,
+members and voices are in one key space; the crate maps keys to persons by the self rosters it is given. Before presenting a row as its
 voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row
 names (`models/causal_kernel/roomkey.py`, `rule`).
 - Give the founding row's `membership` as `SeatRow::private_room` (true for `private`; default false, read
@@ -447,9 +454,9 @@ names (`models/causal_kernel/roomkey.py`, `rule`).
   that field, the crate takes a group that is no community by its kind), never a founder's seat.
   Present a lone founder's later admissions as counted rows (a room of one grows by its member's proposal and the
   newcomer's acceptance).
-- The kernel counts voices as presented. Which keys are one person's is the binding, never a row, so collapsing
-  them (two admissions of one person under two room keys both seat) is the caller's until the voice's own key
-  roster is built; the cosigners' checks of the binding are the caller's too.
+- The kernel counts voices by person: a voice's room keys are one person through its key roster (the voice's self
+  roster, `seat::Persons`), so two admissions of one person under two room keys are one member. The binding's
+  checks (that a room key is the voice's, CC 3.1.3.2) stay the door's.
 
 **A delegation chain**, for `Seats::stands`.
 - The counted grant: an Offer, `Conf::Group`, counted over the holders, `sub()` true where it carries
