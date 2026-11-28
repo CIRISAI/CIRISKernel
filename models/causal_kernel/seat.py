@@ -666,17 +666,44 @@ def concurrent_growth(S, q, o, void=frozenset()):
     (MUTATION growth_held_unread: none read)."""
     if "growth_held_unread" in MUT:
         return []
-    return [c for c in growth_of(S, o) if c["id"] != q["id"] and c["id"] not in void and c["id"] not in S.anc[q["id"]]
-            and q["id"] not in S.anc[c["id"]] and not one_batch(S, q, c, o)]
+    # (an acceptance of a void offer is void growth too: it completes nothing)
+    return [c for c in growth_of(S, o) if c["id"] != q["id"] and c["id"] not in void and c.get("of") not in void
+            and c["id"] not in S.anc[q["id"]] and q["id"] not in S.anc[c["id"]] and not one_batch(S, q, c, o)]
 
 
-def with_growth(S, q, o, void=frozenset()):
+def with_growth(S, q, o, void=frozenset(), growth=None):
     """The concluded rows `q`'s authority over `o` is re-counted over: its own past, with the concurrent growth the
-    reader holds and their pasts (the body at the newest counted changes the reader holds)."""
+    reader holds (`growth`, else concurrent_growth) and their pasts (the body at the newest counted changes the reader
+    holds)."""
     ids = set(S.anc[q["id"]])
-    for c in concurrent_growth(S, q, o, void):
+    for c in (concurrent_growth(S, q, o, void) if growth is None else growth):
         ids |= {c["id"]} | set(S.anc[c["id"]])
     return [x for x in S.Cs if x["id"] in ids]
+
+
+def deciding_growth(S, q, o, void=frozenset()):
+    """The growth of the DECIDING body of counted act `q` (the body it is counted over, `counted`) the reader holds
+    concurrent with it: the concurrent growth (concurrent_growth) that seats a key in that body (its scope, by the
+    standing it gives: a duty for any duty; an officer by the officer role; a founder by the founder role), no change
+    of the record (a protocol's or the record's own change has its own fold), and no conferral of the same deciding
+    voices of a duty beside a duty conferral (a holder's, or the same holders', concurrent conferrals of duties are one
+    batch, as the tips fold reads them). MUTATION growth_any_body: any concurrent growth."""
+    g = concurrent_growth(S, q, o, void)
+    if "growth_any_body" in MUT: return g
+    by = S.by
+    body = q.get("counted", "member")
+    cls = lambda sc: "duty" if _duty_scope(S, o, sc) else sc
+    def offer_of(c):
+        return by.get(c.get("of")) if c["kind"] == "accept" else c
+    def seats_body(x):
+        if x is None or x.get("scope") == "record": return False      # (an end is no growth: growth_of)
+        if body == OFFICER: return x.get("role") == OFFICER or x.get("scope") == OFFICER
+        if body == "founder": return x.get("role") == "founder" or x.get("scope") == "founder"
+        return cls(x.get("scope")) == cls(body)
+    own = lambda x: signers(x) - frozenset(x.get("to", ()))           # its deciding voices: not the seated keys' own yes
+    def same_batch(x):
+        return cls(q.get("scope")) == "duty" and cls(x.get("scope")) == "duty" and own(x) == own(q)
+    return [c for c in g if seats_body(offer_of(c)) and not same_batch(offer_of(c))]
 
 
 def recount_on_growth(S, q, o=None, void=frozenset(), other=None):
@@ -694,9 +721,10 @@ def recount_on_growth(S, q, o=None, void=frozenset(), other=None):
     MUTATION recount_unread: no re-count read."""
     if "recount_unread" in MUT: return True
     o = q.get("obj") if o is None else o
-    growth = concurrent_growth(S, q, o, void)
+    counted = q["kind"] == "offer" and q.get("conf") == "group" and q.get("head")
+    growth = deciding_growth(S, q, o, void) if counted else concurrent_growth(S, q, o, void)
     if not growth: return True
-    T = with_growth(S, q, o, void)
+    T = with_growth(S, q, o, void, growth)
     byT = {x["id"]: x for x in T}
     if q["kind"] == "offer" and q.get("conf") in ("self", "seat"):
         return "seat_recount_unread" in MUT or authority_gate(q, T, byT)

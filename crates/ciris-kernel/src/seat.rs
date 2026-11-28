@@ -1948,12 +1948,62 @@ pub(crate) fn concurrent_growth<R: SeatRow>(
     growth_of(c, o)
         .into_iter()
         .filter(|&x| {
+            // (an acceptance of a void offer is void growth too: it completes nothing)
+            let of_void = c.g.row(x).of().and_then(|i| c.g.idx(i)).is_some_and(|i| void.contains(&i));
             x != q
                 && !void.contains(&x)
+                && !of_void
                 && !c.g.ancestors(q).has(x)
                 && !c.g.ancestors(x).has(q)
                 && !one_batch(c, law, q, x, o)
         })
+        .collect()
+}
+
+/// The growth of the DECIDING body of counted act `q` (the body it is counted over, [`SeatRow::counted`]) the reader
+/// holds concurrent with it: the concurrent growth that seats a key in that body (by the standing it gives: a duty for
+/// any duty; an officer by the officer role; a founder by the founder role), no change of the record (a protocol's or
+/// the record's own change has its own fold), and no conferral of a duty by the same deciding voices beside a duty
+/// conferral (a holder's, or the same holders', concurrent conferrals of duties are one batch, as the tips fold reads
+/// them).
+pub(crate) fn deciding_growth<R: SeatRow>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    q: usize,
+    o: &ObjOf<R>,
+    void: &BTreeSet<usize>,
+) -> Vec<usize> {
+    let g = &c.g;
+    let qr = g.row(q);
+    let body = qr.counted().map_or("member", |w| w.as_ref());
+    let cls = |sc: Option<&str>| scope_class(c, law, o, sc);
+    let offer_of = |x: usize| {
+        let xr = g.row(x);
+        if xr.seat_kind() == SeatKind::Accept {
+            xr.of().and_then(|i| g.idx(i)).map(|i| g.row(i))
+        } else {
+            Some(xr)
+        }
+    };
+    let seats_body = |x: &R| {
+        let sc = x.scope().map(|w| w.as_ref());
+        if sc == Some("record") {
+            return false;
+        }
+        let role = x.role().map(|w| w.as_ref());
+        match body {
+            OFFICER => role == Some(OFFICER) || sc == Some(OFFICER),
+            "founder" => role == Some("founder") || sc == Some("founder"),
+            _ => cls(sc) == cls(Some(body)),
+        }
+    };
+    // its deciding voices: not the seated keys' own yes
+    let own = |x: &R| -> BTreeSet<R::Key> { signers(x).into_iter().filter(|k| !x.to().contains(k)).collect() };
+    let duty = |x: &R| cls(x.scope().map(|w| w.as_ref())).as_deref() == Some("duty");
+    let same_batch = |x: &R| duty(qr) && duty(x) && own(x) == own(qr);
+    concurrent_growth(c, law, q, o, void)
+        .into_iter()
+        .filter(|&x| offer_of(x).is_some_and(|xr| seats_body(xr) && !same_batch(xr)))
         .collect()
 }
 
@@ -1981,15 +2031,15 @@ pub(crate) fn recount_on_growth<R: SeatRow, S: CutSpec<R>>(
     void: &BTreeSet<usize>,
     other: Option<&dyn Fn(&[usize]) -> bool>,
 ) -> bool {
-    let growth = concurrent_growth(c, law, q, o, void);
-    if growth.is_empty() {
-        return true;
-    }
     let g = &c.g;
-    let idx: Vec<usize> = with_growth(c, q, &growth).into_iter().filter(|&j| j != q && c.concluded(j)).collect();
     let r = g.row(q);
     let lone = r.seat_kind() == SeatKind::Offer && matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat));
     let counted = r.seat_kind() == SeatKind::Offer && r.conf() == Some(Conf::Group) && !r.head().is_empty();
+    let growth = if counted { deciding_growth(c, law, q, o, void) } else { concurrent_growth(c, law, q, o, void) };
+    if growth.is_empty() {
+        return true;
+    }
+    let idx: Vec<usize> = with_growth(c, q, &growth).into_iter().filter(|&j| j != q && c.concluded(j)).collect();
     if !lone && !counted {
         return other.is_none_or(|f| f(idx.as_slice()));
     }
@@ -2095,7 +2145,7 @@ fn countersigners<R: SeatRow, S: CutSpec<R>>(pu: &Past<'_, '_, R>, law: &SeatLaw
     let seats = deciding_seats(pu, law, spec, &obj, &act_heads(pu, law, &obj));
     // outside the seat by person: another key of the officer's own person is the officer
     let pp = officers(pu, law, spec, &obj);
-    let outside: Vec<&R::Key> = signers(u).into_iter().filter(|k| !officer_key(&pp, &seats, k)).collect();
+    let outside: Vec<R::Key> = signers(u).into_iter().filter(|k| !officer_key(&pp, &seats, k)).collect();
     if outside.is_empty() {
         return BTreeSet::new();
     }
@@ -2107,7 +2157,7 @@ fn countersigners<R: SeatRow, S: CutSpec<R>>(pu: &Past<'_, '_, R>, law: &SeatLaw
         }
         _ => BTreeSet::new(),
     };
-    outside.into_iter().filter(|k| off == Some(*k) || overseers.contains(*k)).cloned().collect()
+    outside.into_iter().filter(|k| off == Some(k) || overseers.contains(k)).collect()
 }
 
 /// The newest counted changes over `obj` among `p`'s rows, or its founding row where there is none.

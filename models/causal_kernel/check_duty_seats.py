@@ -64,6 +64,7 @@ Planted breaks, each of which must change a case's answer:
     lone_founder_unread a record one person signs with no map seats that person in no duty
     lone_regrowth_unread a lone holder's conferral concurrent with the grown body's counted act is not re-counted (r81 B2)
     counted_recount_unread a counted conferral from an old past is not re-counted against the held growth of its body
+    growth_any_body      a counted conferral is re-counted against any growth, not only its deciding body's
     own_duty_ungated    a single key's own offer of a duty concludes outside a duty room though it is no lone holder
     gate_counted_any_duty  a count over one duty's holders passes the gate as the duty holders' count
     head_any_row        a head of another object's line counts (H1: a head is a counted change of the row's own object)
@@ -497,7 +498,19 @@ CASES += [
      [_G3, _DDE, dict(_DF, names=("dde",), head=("dde",))], [("F", "moderate", F)], None),
     ("control: with no concurrent growth A and B (2 of 3) seat F", [_G3, _DF], [("F", "moderate", T)], None),
 ]
-PLANTS += ("lone_regrowth_unread", "counted_recount_unread")
+# the deciding body's growth only (the narrowing, check_acts and check_count_heads): A, the lone holder, confers
+# moderate on B and on C by two concurrent counted rows at g: the same deciding voice's conferrals of a duty are one
+# batch, no growth against each other, and both seat (MUTATION growth_any_body: re-counted against each other, both fail)
+_LG = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"))
+_CB = ST.offer("cb", "A", "B", "moderate", OBJ, "group", ("g",), head=("g",), cosigners=("B",), counted="duty",
+               policy="duty_confer")
+_CC = ST.offer("cc", "A", "C", "moderate", OBJ, "group", ("g",), head=("g",), cosigners=("C",), counted="duty",
+               policy="duty_confer")
+CASES += [
+    ("the lone holder's two concurrent counted conferrals of moderate (B, C) are one batch: both seat",
+     [_LG, _CB, _CC], [("B", "moderate", T), ("C", "moderate", T)], None),
+]
+PLANTS += ("lone_regrowth_unread", "counted_recount_unread", "growth_any_body")
 
 
 @contextlib.contextmanager

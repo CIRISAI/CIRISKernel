@@ -969,6 +969,8 @@ plant "counted_recount_unread: a counted conferral from an old past not re-count
 }' '    true
 }'
 plant "growth_ends_read: an end read as body growth" src/seat.rs '    let grows = |q: &R| q.seat_kind() == SeatKind::Offer && body_change(q, o);' '    let grows = |q: &R| body_change(q, o);'
+plant "growth_any_body: a counted conferral re-counted against any growth" src/seat.rs '.filter(|&x| offer_of(x).is_some_and(|xr| seats_body(xr) && !same_batch(xr)))' '.filter(|&x| offer_of(x).is_some())'
+plant "a record change re-counted on growth" src/seat.rs '!roster_word(s.as_ref()) && s.as_ref() != "record")' '!roster_word(s.as_ref()))'
 plant "an end cuts whatever its key still holds"       src/trust_rows.rs '*ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, k, ob, cls))' '*ob == o && who.contains(k)'
 plant "a second end cancels the first's cut"           src/trust_rows.rs 'let without: Vec<usize> = judged.iter().copied().filter(|&x| !mine.contains(&x) && !after(x)).collect();' 'let without: Vec<usize> = judged.iter().copied().filter(|&x| mine.first() != Some(&x) && !after(x)).collect();'
 # retired at the one-target merge: "a re-seat masks the cut" (the seat model discounts a voice its concurrent end removes itself; check_trust_rows states it)
