@@ -47,7 +47,7 @@ A licence is honoured iff the walk reaches its authority for its class, the auth
     edges_of(S)                   the admitted, live edges, each with its owner as `src`
     reaches(edges, frm, c, b, a)  the breadth-first walk
     standing(S, lic)              None, or why licence `lic` is not its authority's act in force
-    read_licence(S, reader, lic, own, supplied, now)  -> (honoured, reason)
+    read_licence(S, reader, lic, supplied, now)  -> (honoured, reason)
 """
 import collections
 import os
@@ -173,7 +173,9 @@ def speaks_for(T, signers, src):
         # accept / trust_edge / affiliation -> cosigned_act, held in seat.PENDING_ACTS)
         if ST.kind_of(T.by, src) == "affiliation" and "affiliation_edge_duty_count" not in MUT:
             rule = None if "pending_unread" in MUT else ST.policy_for("accept", "trust_edge", "affiliation")
-            return rule is not None and rule[0] == ("cosigned_act",) and declared_count(T, signers, src)
+            # (the row is `affiliation_member_action|cosigned_act`, choice `row`: the officers' count under the
+            # declared protocol, cosigned_act, is the path an edge takes)
+            return rule is not None and "cosigned_act" in rule[0] and declared_count(T, signers, src)
         # the acts row binds the count (MUTATION pending_unread: the table without the pending row)
         rule = None if "pending_unread" in MUT else ST.policy_for("accept", "trust_edge", "community")
         if rule is None or rule[0] != ("duty_confer",):
@@ -213,37 +215,18 @@ def is_amendment(q):
     return q["kind"] == "offer" and q.get("conf") == "group" and q.get("scope") == "record"
 
 
-def seat_scopes_of(S, t, k):
-    """The scopes offer `t` gives key `k`: a founding row's `member` and each duty its map names `k` in; any other
-    offer's own scope."""
-    if t.get("obj") == t["id"] and t.get("duty_holders"):
-        return {t.get("scope", "member")} | {d for d, ks in t.get("duty_holders") if k in ks}
-    return {t.get("scope")}
-
-
 def ends_keys(S, e):
-    """The (key, object, SCOPE) seats end `e` ends: an unseat's keys over its object in its scope; a withdrawal by a
-    seated key of its own seat (the one scope it names, or every scope the row gives it), or by the conferrer of an
-    offer's seats (a counted offer's conferrer is its count, and its signer ends nothing alone); a change of the
-    record ends no seat."""
+    """The (key, object, scope) seats end `e` ends, read as the seat model reads ends (seat.ends_of, the one read: an
+    unseat's keys in its scope, a withdrawal's seat), and only where the end is in force for the reader: a removal the
+    seat model holds out of force or contested (Seats.dropped: a lone removal lifted, rule 5) ends nothing. A change of
+    the record ends no seat."""
     if e["kind"] == "unseat":
-        return {(k, e.get("obj"), e.get("scope")) for k in e.get("to", ())}
-    if e["kind"] != "withdraw":
-        return set()
-    t = S.by.get(e.get("target"))
-    if t is None:
-        return set()
-    if t["kind"] == "accept":
-        o = S.by.get(t.get("of"))
-        return {(e["signer"], object_of(S, t), o.get("scope") if o else None)}
-    if t["kind"] != "offer":
-        return set()
-    if e["signer"] in t.get("to", ()):
-        scs = {e["scope"]} if e.get("scope") is not None else seat_scopes_of(S, t, e["signer"])
-        return {(e["signer"], t.get("obj"), sc) for sc in scs}
-    if e["signer"] in ST.signers(t) and t.get("conf") != "group":
-        return {(k, t.get("obj"), t.get("scope")) for k in t.get("to", ())}
-    return set()
+        dropped = S.__dict__.get("_dropped")
+        if dropped is None:
+            dropped = S.__dict__["_dropped"] = ST.Seats(S).dropped
+        if e["id"] in dropped:
+            return set()
+    return {(k, o, sc) for k, sc, o in ST.ends_of(e, S.by)}
 
 
 def scope_class(S, o, sc):
@@ -270,7 +253,7 @@ def rests_on(S, q, o):
             return {body}
         return set()
     if q["kind"] == "delegates_to":
-        return {body} if o in S.by else {"key"}
+        return {body} if ST.founding_row(S.by, o) else {"key"}
     if q["kind"] == "licensure":
         return {"license", "member", ST.OFFICER}
     return set()
@@ -298,8 +281,6 @@ def loses(S, judged, e, k, o, cls):
         mine = {x for x in judged if S.C.get(x) and is_end(S.by[x]) and any(
             kk == k and ob == o for kk, ob, _ in ends_keys(S, S.by[x]))}
     after = {x for x in judged if any(m in S.anc[x] for m in mine)}
-    if "reseat_masks" in MUT:
-        after = set()
     return holds_over(S, judged - mine - after, k, o, cls) and not holds_over(S, judged - after, k, o, cls)
 
 
@@ -361,14 +342,14 @@ def authority_act_over(S, q):
 
 # ---- body growth over the rows the reader HOLDS (the tips fold's rule, which a lone duty conferral already reads) ---
 def growth_of(S, o):
-    """The rows that grow group `o`'s body, among the concluded rows S holds: its changes (body_change), the
-    acceptances completing them, and the countersigns deciding a one-officer body's (CC 4.4.3.12, item 8)."""
+    """The rows that grow group `o`'s body, among the concluded rows S holds: its changes (body_change) and the
+    acceptances completing them (a one-officer body's countersign is a voice on the act's own row, G15)."""
     out = []
     for q in S.Cs:
         if body_change(q, o):
             out.append(q)
-        elif q["kind"] in ("accept", "countersign") and q.get("of") in S.by and body_change(S.by[q["of"]], o):
-            out.append(q)          # the acceptance completing it, or the countersign deciding a one-officer body's act
+        elif q["kind"] == "accept" and q.get("of") in S.by and body_change(S.by[q["of"]], o):
+            out.append(q)          # the acceptance completing it (a one-officer body's countersign is on the act's row)
     return out
 
 
@@ -410,10 +391,10 @@ def recounted(S, q, o):
     if not concurrent_growth(S, q, o):
         return True
     T = with_growth(S, q, o)
-    if q["kind"] == "offer" and q.get("conf") in ("self", "seat"):
+    if q["kind"] == "offer" and q.get("conf") in ("self", "seat") and "seat_recount_unread" not in MUT:
         return ST.authority_gate(q, T.Cs, T.by)
     if q["kind"] == "delegates_to":
-        return speaks_for(T, ST.signers(q), owner(q))
+        return speaks_for(T, ST.voices(q, T.Cs), owner(q))
     return True
 
 
@@ -423,18 +404,10 @@ def is_counted_row(q):
 
 
 def recount_without(S, q, gone):
-    """Counted row `q` still meets its count over its own past with the voices of `gone` taken out: over the duty holders
-    for a duty count (CC 4.5.4 (iv), a strict majority, never fewer than two, or a lone holder; the holder a withdrawal
-    names apart), and under the declared protocol over the protocol body otherwise."""
-    T = past_state(S, q)
-    o = q.get("obj")
-    voices = ST.signers(q) - frozenset(gone)
-    if scope_class(S, o, q.get("counted", "member")) == "duty":
-        held = ST.Seats(T).holders("duty", o)
-        if q["kind"] == "unseat":
-            held = held - frozenset(q.get("to", ()))
-        return counted(len(voices & held), len(held))
-    return declared_count(T, voices, o)
+    """Counted row `q` still meets its count over its own past with the voices of `gone` taken out: seat.still_met, the
+    seat model's one re-count (its voices path, the persons counted), as contested_out reads a discounted voice."""
+    P = [x for x in S.Cs if x["id"] in S.anc[q["id"]]]
+    return ST.still_met(q, P, lambda a, b: a in S.anc[b], gone)
 
 
 def cut_state(S, rows, own=None):
@@ -458,15 +431,16 @@ def cut_state(S, rows, own=None):
                 o = object_of(S, q)
                 need = rests_on(S, q, o) if "scope_unread" not in MUT else None
                 for k, ob, sc in ks:
-                    if k not in ST.signers(q) or o != ob:
+                    if k not in ST.voices(q, S.Cs) or o != ob:
                         continue
                     if need is None:
-                        lost.setdefault(q["id"], set()).add(k); break
+                        lost.setdefault(q["id"], set()).add(k)
+                        continue
                     # an end is keyed by every standing its key LOSES by it, whatever scope its target names (MUTATION
                     # end_scope_keyed: only the class the end's named scope gives)
                     classes = {scope_class(S, ob, sc)} & need if "end_scope_keyed" in MUT else need
                     if any(loses(S, judged, e, k, ob, cls) for cls in classes):
-                        lost.setdefault(q["id"], set()).add(k); break
+                        lost.setdefault(q["id"], set()).add(k)     # every key it ends loses its voice, not the first
         # a COUNTED row loses only the ended keys' voices: it is re-counted over the voices left, and cut only where the
         # count then fails (as contested_out drops voices); a single key's own row is cut (MUTATION
         # end_cuts_counted_row: every row with an ended signer is cut)
@@ -478,10 +452,9 @@ def cut_state(S, rows, own=None):
         o = authority_act_over(S, q)
         if o is not None and (behind_line(S, own, q, o) or (q["kind"] != "licensure" and not recounted(S, q, o))):
             cut.add(q["id"])
-    # a row built on a cut row (one naming it, down the line) is cut with it: the one place this lane's cuts reach
-    # what rests on them (MUTATION built_on_cut_kept)
-    if "built_on_cut_kept" not in MUT:
-        cut |= {q["id"] for q in rows if S.anc[q["id"]] & cut}
+    # (what rests on a cut row is the seat model's to void: a counted act counts only if every counted act among its
+    # heads counts (checkpoint, built on), and a lone conferral regrown against the body seats nothing (Seats); a cut
+    # row is simply absent from the rows the Seats here are built over)
     kept = [q for q in rows if q["id"] not in cut]
     return CK.State(kept, {q["id"]: S.C.get(q["id"]) for q in kept})
 
@@ -540,7 +513,7 @@ def ended(S, r, own=None):
     if "withdrawn_unread" in MUT:
         return False
     return any(w["kind"] == "withdraw" and w.get("target") == r["id"] and S.C.get(w["id"])
-               and ("withdraw_by_anyone" in MUT or all(speaks_for(T, ST.signers(w), owner(r)) for T in (
+               and ("withdraw_by_anyone" in MUT or all(speaks_for(T, ST.voices(w, T.Cs), owner(r)) for T in (
                    ended_for_reader(S, w, False, own=own), ended_for_reader(S, w, own=own))))
                for w in S.rows)
 
@@ -582,7 +555,7 @@ def edges_of(S, now=None, own=None):
         if not ST.countersigned(S, r):
             continue
         # its owner's authority set over its own past, and with every end the reader holds (ended_for_reader)
-        if not all(speaks_for(T, ST.signers(r), owner(r))
+        if not all(speaks_for(T, ST.voices(r, T.Cs), owner(r))
                    for T in (ended_for_reader(S, r, False, own=own), ended_for_reader(S, r, own=own))):
             continue
         out.append(dict(CH.edge(owner(r), r["dst"], r.get("trust_classes"), depth_of(r)), row=r["id"]))
@@ -624,7 +597,7 @@ def issuance(T, r):
     if is_community(T, a) and "quorum_unread" not in MUT:
         # (2) a locked community issues no licence of its own: its quorum's licence is `licensure_authority_locked`
         # (a license seat conferred before the lock is read below, as any)
-        if declared_count(T, ST.signers(r), a):
+        if declared_count(T, ST.voices(r, T.Cs), a):
             if not locked(T, a):
                 return None
             if not ST.Seats(T).stands(k, "license", a):
@@ -656,6 +629,14 @@ def standing(S, lic, own=None):
         return why
     why = issuance(ended_for_reader(S, r, own=own), r)
     if why is None:
+        # the body's OWN licence (its quorum's, not a seat holder's or the authority's key's) is a counted act of the
+        # body: while it has one officer it needs the countersign, read by seat.countersigned over the reader's rows
+        T = ended_for_reader(S, r, False, own=own)
+        a = r["authority"]
+        own_licence = is_community(T, a) and not is_the_authority(T, r["signer"], a) and \
+            declared_count(T, ST.voices(r, T.Cs), a)
+        if own_licence and "own_licence_uncountersigned" not in MUT and not ST.countersigned(S, r):
+            return "licensure_delegator_not_authority"
         return None
     if why == "licensure_authority_locked":
         return why
@@ -666,7 +647,7 @@ def standing(S, lic, own=None):
     return "licensure_link_withdrawn"
 
 
-def read_licence(S, reader, lic, own=None, supplied=None, now=None):
+def read_licence(S, reader, lic, supplied=None, now=None):
     """(honoured, reason) for licence row `lic` held in S, read by `reader` over the rows S holds:
     `lapsed` (its authority is dissolved: a licence that stood at issuance, its class declared and its standing
     held over its own past, stands and reads lapsed for every later use), `licence_class_not_trusted` (the authority's record does not declare the class), the standing's reason
@@ -675,7 +656,7 @@ def read_licence(S, reader, lic, own=None, supplied=None, now=None):
     if r is None:
         return False, "not_held"
     a, c = r["authority"], r["licence_class"]
-    line = own if own is not None else reader          # the reader's line is the reader's own (the r77 attack)
+    line = reader                                      # the reader's line is the reader's own key's (the r77 attack)
     # a dissolved authority (CC 4.4.3.12, "What stands after dissolution"): an issued licence stands, its authority
     # judged at issuance, and reads `lapsed` for every later use; one with no standing over its own past is testimony
     # (the issuance judgement first, over the licence's own past: its standing, then its class; only a licence that
@@ -685,10 +666,10 @@ def read_licence(S, reader, lic, own=None, supplied=None, now=None):
         if why is not None:
             return False, why
         if "lapsed_class_unread" not in MUT and \
-                c not in CH.charters(past_state(S, r), own, supplied, now).get(a, frozenset()):
+                c not in CH.charters(past_state(S, r), None, supplied, now).get(a, frozenset()):
             return False, "licence_class_not_trusted"
         return False, "lapsed"
-    if c not in CH.charters(S, own, supplied, now).get(a, frozenset()):
+    if c not in CH.charters(S, None, supplied, now).get(a, frozenset()):
         return False, "licence_class_not_trusted"
     why = standing(S, lic, line)
     if why is not None:

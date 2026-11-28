@@ -219,26 +219,17 @@ def acts_table(path=None):
 # officers' act under its protocol (the officers ruling, built on persist-gaps).
 # An affiliation's license seat is its body's act under its declared protocol (the ruling: its officers; until the
 # officer body lands, body_of reads its members).
-PENDING_ACTS = (("accept", "trust_edge", "community", ("duty_confer",), "fixed"),
-                ("seat_confer", "license", "community", ("duty_confer",), "fixed"),
-                ("seat_withdraw", "license", "community", ("duty_withdraw",), "fixed"),
-                ("seat_confer", "license", "affiliation", ("cosigned_act",), "fixed"),
-                ("seat_withdraw", "license", "affiliation", ("cosigned_act",), "fixed"),
-                ("accept", "trust_edge", "affiliation", ("cosigned_act",), "fixed"))
-
-
-def with_pending(table, pending=PENDING_ACTS):
-    """The acts table with each pending row whose (act, scope, kind) it does not yet have."""
-    have = {r[:3] for r in table}
-    return tuple(table) + tuple(r for r in pending if r[:3] not in have)
-
-
-ACTS = with_pending(acts_table())     # read by policy_in_force (the refusal), with the binding on (BOUND)
+ACTS = acts_table()     # read by policy_in_force (the refusal), with the binding on (BOUND); policy pin 8ec76cce
 
 # The kind of an object (the acts table's `community_kind`, the policy table's `corridor` reading), from its founding row's
 # scope: the scopes named here found an accord or a self roster; every other founding row founds a community. A key
 # object is a self roster. An object with no founding row has no kind and no act.
-KINDS = {"member": "community", "duty": "community", "holder": "accord", "self": "self", "key": "self"}
+# a founding row of scope `key` founds a voice's roster of room keys (CC 3.1.3.2): the table's kind `voice`, bound to the
+# self roster's rows; a self roster's founding scope is `self`
+KINDS = {"member": "community", "duty": "community", "holder": "accord", "self": "self", "key": "voice"}
+# a person's own rosters: a self roster and a voice's roster of room keys (the table's kind `voice` is the self roster's
+# door for a voice's keys), read alike by the person a key counts as
+SELF_KINDS = ("self", "voice")
 
 
 def kind_of(by, obj, is_key=False):
@@ -276,9 +267,16 @@ def act_of(r, by, is_key=False):
                    duty holders (`counted` `duty`) is their withdrawal, one counted over the members (`member`, or
                    none) is the recall, and one counting any other body is no act. Any other scope, or none, is no
                    act.
-        accord     any counted row is a standing act.
-        self       an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
+        accord     a counted row over the selection (`selection`) is a steward purge; any other is a standing act.
+        self, voice  an offer or unseat of a key, or of the roster's own seat, admits or removes a key (a voice's room
+                   keys: a founding scope `key`, CC 3.1.3.2).
+    election_open (the members' opening of an election) has a row in the acts table and no arm here: its row's shape is
+    the election-close lane's.
     A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's."""
+    # the halt's confirmation (the ruling of 2026-11-28): a cosigned accord:lifecycle:confirmed row naming a halt of the
+    # accord it is over is halt_confirm, counted by accord_halt (MUTATION confirmation_no_act)
+    if r["kind"] == CONFIRMED and "confirmation_no_act" not in MUT:
+        return ("halt_confirm", "halt", "accord") if confirmed_halt(r, by) is not None and kind_of(by, r.get("obj")) == "accord" else None
     if r["kind"] not in ("offer", "unseat") or r.get("conf") != "group": return None
     obj, sc, offer = r.get("obj"), r.get("scope"), r["kind"] == "offer"
     kind = kind_of(by, obj, is_key)
@@ -335,7 +333,10 @@ def act_of(r, by, is_key=False):
         if sc == "record" and offer and "record_unread" not in MUT and "infra_record_frozen" not in MUT:
             return ("record_change", "record", kind)
         return ("admit" if offer else "remove", sc, kind) if sc in ("founder", NODE) else None
-    if kind == "accord": return ("standing_act", "any", kind)
+    if kind == "accord":
+        # a steward purge (CC 2.4.1.1, CC 3.3.2): a counted row over the selection the trust root's holders count
+        if sc == "selection" and "purge_unread" not in MUT: return ("purge", "selection", kind)
+        return ("standing_act", "any", kind)
     if kind == "affiliation":
         # an affiliation's acts (the table's affiliation rows, CC 4.4.3.12): an appointment of a member (the appointee's
         # acceptance is the second consent), a removal of one (affiliation_removal), a promotion to and a demotion from
@@ -348,7 +349,8 @@ def act_of(r, by, is_key=False):
         if sc == "license" and "license_seat_unread" not in MUT:
             return ("seat_confer" if offer else "seat_withdraw", "license", kind)
         return None
-    if kind == "self":
+    if kind in ("self", "voice"):
+        # a self roster's keys, and a voice's room keys (CC 3.1.3.2: the self roster's door, kind `voice`)
         own = by.get(obj, {}).get("scope")
         return ("admit" if offer else "remove", "key", kind) if sc is not None and sc in ("key", own) else None
     return None
@@ -619,8 +621,7 @@ def officer_key(P, k, seats, obj):
 
 def against_member(u, by):
     """u is one of the four acts against a member of an affiliation (CC 4.4.3.12): a removal, a quarantine, a slashing
-    verdict, a takedown of the member's content (the three held in code until the table has their affiliation rows:
-    PENDING_AFFILIATION_ACTS)."""
+    verdict, a takedown of the member's content (the table's affiliation rows, policy pin 8ec76cce)."""
     return affiliation_removal(u, by) or (family(u) in LONE_ACTS and kind_of(by, u.get("obj")) == "affiliation")
 
 
@@ -1224,7 +1225,7 @@ def body_of(a, by, obj):
     if kind == "infrastructure": return "founder"
     if kind == "accord": return "holder"
     if kind == "family": return "member"
-    if kind == "self": return by[obj]["scope"] if obj in by else "key"
+    if kind in ("self", "voice"): return by[obj]["scope"] if obj in by else "key"
     if act in ("duty_confer", "duty_withdraw", "seat_confer", "seat_withdraw"): return "duty"
     return "member"
 
@@ -2976,11 +2977,35 @@ def family_param(r):
     """A row's family parameter: its kind after the family (`slashing:proven_rogue` -> `proven_rogue`), or None."""
     parts = r["kind"].split(":", 1)
     return parts[1] if len(parts) == 2 and parts[1] else None
-# the affiliation rows the table will carry (quarantine, slash and takedown of scope member over affiliation ->
-# affiliation_member_action), held in code until rc23-next has them
-PENDING_AFFILIATION_ACTS = (("quarantine", "member", "affiliation", ("affiliation_member_action",), "fixed"),
-                            ("slash", "member", "affiliation", ("affiliation_member_action",), "fixed"),
-                            ("takedown", "member", "affiliation", ("affiliation_member_action",), "fixed"))
+# the halt and its confirmation (CC 4.2.1.1, the Constitution's ruling of 2026-11-28): the halt is one holder's
+# `accord:invoke:constitutional:{halt_id}` row, which fires and is no voice; a strict majority of the standing holders
+# confirms it by one cosigned `accord:lifecycle:confirmed` row naming (`cites`) the halt
+HALT, CONFIRMED = "accord:invoke:constitutional", "accord:lifecycle:confirmed"
+
+
+def is_halt(q):
+    return q["kind"].startswith(HALT + ":")
+
+
+def confirmed_halt(r, by):
+    """The halt a confirmation names, over the confirmation's own object, or None."""
+    if r["kind"] != CONFIRMED: return None
+    h = cited(r, by, is_halt)
+    return h if h is not None and h.get("obj") == r.get("obj") else None
+
+
+def confirmation_rule(r, P, past):
+    """An `accord:lifecycle:confirmed` row concludes where it names a halt of the accord it is over, at the newest
+    counted changes in its past, and its signers (signer and cosigners) are a strict majority of the standing holders
+    there (accord_halt's cancel cell; the halting holder may sign it as anyone; MUTATION confirmation_one_voice: one
+    holder confirms)."""
+    by = {q["id"]: q for q in P}
+    obj, heads = r.get("obj"), r.get("head", ())
+    if confirmed_halt(r, by) is None or kind_of(by, obj) != "accord": return False
+    if not heads or newer_head_in_past(heads, None, P, past, obj, signers(r)): return False
+    holders = members_at(P, past, obj, heads, "holder")
+    v = signers(r) & holders
+    return bool(v) if "confirmation_one_voice" in MUT else 2 * len(v) > len(holders)
 
 
 def marker_key(r, by):
@@ -3183,7 +3208,7 @@ def contested_out(S, unseats, acts=()):
         if u["id"] not in threats: return True
         void = frozenset(k for i, ks in threats[u["id"]] if i in live for k in ks)
         key = (u["id"], void)
-        if key not in memo: memo[key] = count_met(dict(u, void_voices=void), past_of(u), past)
+        if key not in memo: memo[key] = still_met(u, pasts[u["id"]], past, void)
         return memo[key]
     d, pos = frozenset(), frozenset(u["id"] for u in grp_u)
     while True:
@@ -3675,7 +3700,7 @@ def rosters_of(P, k, keep=lambda g: True):
     if key_record_ended(P, k): return []
     by = {q["id"]: q for q in P}
     selves = [g for g in P if g["kind"] == "offer" and g.get("obj") == g["id"]
-              and (kind_of(by, g["id"]) == "self" or "person_any_kind" in MUT)]   # MUTATION person_any_kind: any group
+              and (kind_of(by, g["id"]) in SELF_KINDS or "person_any_kind" in MUT)]   # MUTATION person_any_kind: any group
     # one self roster per identity (G1, as ruled): a reader's roster for an identity is the founding its LINE takes up
     # (reader_rivals: the other foundings, and every row over them, conclude nothing for that reader, so they are not
     # in P). Two foundings by one identity still in P are held by a reader whose line takes up neither (a fresh
@@ -3764,7 +3789,7 @@ def rep_of(P, k, member=False):
 
 def is_self_founding(g):
     """g is the founding record of a self roster (its founding scope read through KINDS as `self`)."""
-    return g["kind"] == "offer" and g.get("obj") == g["id"] and KINDS.get(g.get("scope")) == "self" \
+    return g["kind"] == "offer" and g.get("obj") == g["id"] and KINDS.get(g.get("scope")) in SELF_KINDS \
         and (g.get("group_kind") != "family" or "self_founding_family" in MUT)   # MUTATION: a family read as a self roster
 
 
@@ -3811,7 +3836,7 @@ def keys_counted(P, obj):
     self_roster_add, self_roster_evict) or a key object."""
     if obj is None: return False
     by = {q["id"]: q for q in P}
-    return obj not in by or kind_of(by, obj) == "self"
+    return obj not in by or kind_of(by, obj) in SELF_KINDS
 
 
 def as_persons(keys, P, obj=None):
@@ -3850,7 +3875,7 @@ def person_keys(S, person):
     P = list(S.Cs)
     by = {q["id"]: q for q in P}
     selves = [g["id"] for g in P if g["kind"] == "offer" and g.get("obj") == g["id"] and g["signer"] == person
-              and kind_of(by, g["id"]) == "self"]
+              and kind_of(by, g["id"]) in SELF_KINDS]
     cand = {person} | {k for q in P if q["kind"] == "offer" and q.get("obj") in selves for k in q.get("to", ())}
     Q = seats_of(P)
     cand |= {k for g in selves for k in Q.holders(by[g]["scope"], g)}      # a landed lone-path addition seats no offer
@@ -4403,6 +4428,13 @@ def duty_gate(r, by, table=None):
     return r.get("policy") == "duty_confer"
 
 
+def still_met(r, P, past, voices_out):
+    """Counted row r's count is still met over P with the voices `voices_out` taken out: the one re-count for a voice
+    a concurrent end or removal discounts (contested_out here; trust_rows' discounted voice of an ended key). It reads
+    the seat model's voices path (voices, the persons counted, the agents apart)."""
+    return count_met(dict(r, void_voices=frozenset(voices_out)), P, past)
+
+
 def count_met(r, P, past, table=None):
     """A counted row's count (conf=group), met over its concluded ancestors P: the lift, the ranked tally, the duty
     count, or the policy's threshold over the persons at the heads it names."""
@@ -4673,6 +4705,8 @@ def seat_rule(r, P, past, table=None, other=None):
         return lone_act_rule(r, P, past)
     if family(r) == "reconsideration":
         return reconsideration_rule(r, P, past)
+    if k == CONFIRMED:
+        return confirmation_rule(r, P, past)
     return other(r, P, past) if other else True
 
 
