@@ -93,7 +93,8 @@ fn row(j: &J) -> CRow {
         names: j.at("names").strs(),
         head: opt("head"),
         prev: list("prev"),
-        tips: list("trusted_through"),
+        // a key removal's trusted rows are the rows it names
+        tips: if j.at("kind").s() == "keyend" { j.at("names").strs() } else { list("trusted_through") },
         retracts: if opt("compose").as_deref() == Some("retract") { opt("target") } else { None },
         extends: opt("extends"),
         seat: match opt("seat").as_deref() {
@@ -258,6 +259,19 @@ fn the_fold_by_arrival() {
 /// force unless the member's own retraction of it is held or a key removal cuts it: a caller need not call this
 /// module before it holds an end of the member's seat (or a removal of one of its keys). Over every history of
 /// the worlds fixture, with its ends taken out.
+// the member's rows reachable from `from` along predecessors (a key removal's kept rows)
+fn walk(by: &BTreeMap<&str, &CRow>, from: &[String]) -> BTreeSet<String> {
+    let (mut out, mut todo) = (BTreeSet::new(), from.to_vec());
+    while let Some(t) = todo.pop() {
+        let Some(x) = by.get(t.as_str()) else { continue };
+        if x.kind != Kind::Content || !(x.signer == "B" || x.signer == "B2") || !out.insert(t.clone()) {
+            continue;
+        }
+        todo.extend(x.prev.iter().cloned());
+    }
+    out
+}
+
 #[test]
 fn no_end_among_the_rows() {
     let fx = fixture("conferral_content_worlds.json");
@@ -278,6 +292,7 @@ fn no_end_among_the_rows() {
                         && (q.removes.as_deref() == Some(q.signer.as_str()) || q.concludes)
                         && q.removes.as_deref() == Some(r.signer.as_str())
                         && !in_past(&by, None, &r.id, &q.id).expect("held")
+                        && !walk(&by, &q.tips).contains(&r.id)
                         && !list.iter().any(|a| {
                             a.kind == Kind::Ack
                                 && in_past(&by, None, &r.id, &a.id).expect("held")

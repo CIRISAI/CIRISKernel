@@ -139,7 +139,8 @@ pub trait ContentRow {
     fn prev(&self) -> &[Self::Id] {
         &[]
     }
-    /// The tips an end or a tips row holds good (`refs.trusted_through`).
+    /// The tips an end or a tips row holds good (`refs.trusted_through`). On a key removal: the rows it names, the
+    /// key's last trusted rows; they and every row of the member behind them along predecessors stand.
     fn tips(&self) -> &[Self::Id] {
         &[]
     }
@@ -507,9 +508,26 @@ fn cuts<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Key>, pas
         return Ok(out);
     }
     let acks: Vec<&R> = rows.iter().copied().filter(|a| a.kind() == Kind::Ack).collect();
+    // what each removal keeps by what it names ([`ContentRow::tips`] on a key removal: the key's last trusted rows):
+    // each named row and every row of the member behind it along predecessors, the walk an end's tips take
+    let by: BTreeMap<&R::Id, &R> = rows.iter().map(|r| (r.id(), *r)).collect();
+    let keeps: Vec<BTreeSet<&R::Id>> = ends
+        .iter()
+        .map(|q| {
+            let (mut out, mut todo): (BTreeSet<&R::Id>, Vec<&R::Id>) = (BTreeSet::new(), q.tips().iter().collect());
+            while let Some(t) = todo.pop() {
+                let Some((id, x)) = by.get_key_value(t) else { continue };
+                if x.kind() != Kind::Content || !(seat.member)(x.signer()) || !out.insert(*id) {
+                    continue;
+                }
+                todo.extend(x.prev());
+            }
+            out
+        })
+        .collect();
     for r in rows.iter().copied().filter(|r| r.kind() != Kind::KeyEnd && (seat.member)(r.signer())) {
-        for q in ends.iter().filter(|q| q.removes() == Some(r.signer())) {
-            if past.in_past(r.id(), q.id())? {
+        for (q, kept) in ends.iter().zip(&keeps).filter(|(q, _)| q.removes() == Some(r.signer())) {
+            if kept.contains(r.id()) || past.in_past(r.id(), q.id())? {
                 continue;
             }
             // the reader took the row up before it held the removal

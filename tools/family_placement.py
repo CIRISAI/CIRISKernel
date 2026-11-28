@@ -132,7 +132,11 @@ def seat_family(row):
     if not isinstance(v, dict):
         return False
     rel = str(v.get("relation", "")).split("|")
-    return ("seat" in rel or "ending" in rel) and "body" in str(v.get("binds", "")) and v.get("roster") != "self"
+    if not (("seat" in rel or "ending" in rel) and "body" in str(v.get("binds", "")) and v.get("roster") != "self"):
+        return False
+    # a seat of the roster itself admits or removes a key (a joiner, a removed key); a seat of a duty over the room
+    # (a `scope`, as the moderator's acceptance) seats a member, never an outsider
+    return "roster" if v.get("roster") else "duty"
 
 
 def placement_of(row):
@@ -215,6 +219,11 @@ def rust(table):
             "/// row's audience ([`super::seats_of`]). Person-level families (a person's own key roster) never do.",
             "pub const SEAT_FAMILIES: &[&str] = &["]
     out += ["    %s," % json.dumps(f["family"]) for f in table["families"] if f.get("seat")]
+    out.append("];")
+    out += ["", "/// The room seat families that seat a DUTY over the room, not the roster itself: their offers seat a member at",
+            "/// the row's own head, never an outsider, so only such keys are within the row's audience.",
+            "pub const DUTY_SEAT_FAMILIES: &[&str] = &["]
+    out += ["    %s," % json.dumps(f["family"]) for f in table["families"] if f.get("seat") == "duty"]
     out.append("];")
     return "\n".join(out) + "\n"
 

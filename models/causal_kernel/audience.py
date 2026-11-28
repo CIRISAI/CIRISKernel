@@ -70,6 +70,7 @@ for _s in TABLE["scopes"]:
 SCOPE_PLACEMENT["addressed"] = "addressed"
 FAMILIES = {f["family"]: f for f in TABLE["families"]}
 SEAT_FAMILIES = frozenset(f["family"] for f in TABLE["families"] if f.get("seat"))
+DUTY_SEAT_FAMILIES = frozenset(f["family"] for f in TABLE["families"] if f.get("seat") == "duty")
 KEY_GRANT = "key_grant:{axis}"            # the key grant family's pattern, read as the resolved family
 EVERYONE = "everyone"
 TARGETED = ("targeted_family", "targeted_room")
@@ -206,9 +207,13 @@ def place(row, roster, person, joins=NO_JOINS):
     within = members if "named_within_current" in MUT else frozenset(at or ())
     # the keys a seat offer or unseat over the room seats or removes are within its audience, ahead of named_within
     seated = seats_of(row) if "seats_not_within" not in MUT else frozenset()
+    # a seat of a DUTY over the room (the moderator's acceptance) seats a member at the row's own head, never an
+    # outsider: only such keys pass. MUTATION duty_seats_outsider
+    if fam in DUTY_SEAT_FAMILIES and "duty_seats_outsider" not in MUT:
+        seated = seated & within
     if "named_within_unread" not in MUT and not (named - seated) <= within:
         return ("refused", "named_outside_audience")
-    return ("placed", placement, owed | me | named | seats_of(row))
+    return ("placed", placement, owed | me | named | seated)
 
 
 def _union(a, b):

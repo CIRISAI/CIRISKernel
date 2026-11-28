@@ -4,8 +4,8 @@
 
 mod common;
 use ciris_kernel::audience::{
-    audiences, family_in, family_of, history_of, place, Audience, AudienceRow, FamilyMatch, FamilyPlacement, History,
-    Joins, Placed, Placement, SeatAct, FAMILIES, FAMILY_MODEL_SHA256,
+    audiences, family_in, family_of, history_of, place, seats_of, Audience, AudienceRow, FamilyMatch, FamilyPlacement,
+    History, Joins, Placed, Placement, SeatAct, FAMILIES, FAMILY_MODEL_SHA256,
 };
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -259,5 +259,24 @@ fn history_on_join_words() {
         }
     }
     report("history_on_join words (audience.py)", n, bad);
+    assert_eq!(bad, 0);
+}
+
+/// The keys a seat row seats, derived from the row: a room seat family's offer or unseat over its own room only
+/// (`check_audience.py`'s SEATS).
+#[test]
+fn seats_derived() {
+    let fx = fixture("audience.json");
+    let (mut n, mut bad) = (0, 0);
+    for c in fx.at("seats").arr() {
+        let r = arow(c.at("row"));
+        let got: Vec<String> = seats_of(&r).to_vec();
+        n += 1;
+        if got != c.at("seats").strs() {
+            bad += 1;
+            eprintln!("{} {:?}: got {got:?}, want {:?}", r.family, r.seat, c.at("seats").strs());
+        }
+    }
+    report("seats derived from the seat row (audience.py)", n, bad);
     assert_eq!(bad, 0);
 }

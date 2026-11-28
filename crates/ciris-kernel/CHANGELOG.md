@@ -18,6 +18,11 @@
   current roster is read only for who is owed.
 - The keys a seat row seats or removes are derived (`audience::seats_of`: an offer or unseat whose `obj` is its
   room, its `to`). **BREAKING**: `AudienceRow::seats` is gone; `seat_act`, `obj` and `to` replace it.
+- Review r84: a key removal keeps every row in its past and every row of the member reachable along `prev` from
+  a row it names (`ContentRow::tips` on a key removal; the walk an end's tips take), so an honest revocation naming
+  its last trusted row keeps what lies behind it. A row any removal cuts stays cut. A seat of a duty over the room
+  (`audience::DUTY_SEAT_FAMILIES`: the moderator's acceptance) seats only a member at the row's own head, never an
+  outsider.
 - Review r82, r83: only a ROOM seat family's offer or unseat seats keys within its audience
   (`audience::SEAT_FAMILIES`: group:roster, membership, ballot:moderator_acceptance, derived by the generator from the
   confers cells; the person-level families never do); the key grant exclusion reads the resolved family

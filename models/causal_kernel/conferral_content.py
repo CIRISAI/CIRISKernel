@@ -143,7 +143,8 @@ def key_cuts(rows):
     is the key's own revocation (signed by the key it removes), or a CONCLUDED act of the person's own key roster
     under that roster's own rule (`concludes`, the caller's: the self-roster count of the seat model; a lone second
     key does not evict the first unless the roster's policy says one key suffices). It is key-level and reaches
-    every room: it cuts every row that key signs which is not in its past, unless the reader had taken the row up
+    every room: it cuts every row that key signs which is not in its past, nor reachable along `prev` from a row it
+    names (review r84: an honest revocation names its last trusted row, and what lies behind it stands), unless the reader had taken the row up
     already: a row in the past of one of the reader's acknowledgements (`ack`, in any room) that does not have the
     removal in its past stands (the monotone line: what the reader took up stays). Nothing else anchors a row:
     another key's row built on it proves nothing (review r83). The caller duty: an honest revocation names the
@@ -176,12 +177,25 @@ def key_cuts(rows):
     others = [b for b in rows if b["kind"] == "act" and b["signer"] not in KEYS and b["signer"] != COUNT]
     built = lambda r, q: "anchor_reenabled" in MUT and r["kind"] == "act" and any(
         b.get("room") == r.get("room") and r["id"] in anc(b["id"]) and q["id"] not in anc(b["id"]) for b in others)
+    def named(q):
+        """The rows a key removal keeps by what it names: each named row, and every row of the member reachable from
+        it along `prev` (the walk an end's tips take, held_good). MUTATION prev_walk_unread: its causal past only."""
+        out, todo = set(), list(q.get("names", ()))
+        while todo and "prev_walk_unread" not in MUT:
+            t = todo.pop()
+            x = by.get(t)
+            if x is None or x["kind"] != "act" or x["signer"] not in KEYS or t in out:
+                continue
+            out.add(t)
+            todo.extend(x.get("prev") or ())
+        return out
+    keeps = {q["id"]: named(q) for q in ends}
     cut = set()
     for r in rows:
         if r["signer"] not in KEYS or r["kind"] == "keyend":
             continue
-        if any(q["removes"] == r["signer"] and r["id"] not in anc(q["id"]) and not taken(r, q) and not built(r, q)
-               for q in ends):
+        if any(q["removes"] == r["signer"] and r["id"] not in anc(q["id"]) and r["id"] not in keeps[q["id"]]
+               and not taken(r, q) and not built(r, q) for q in ends):
             cut.add(r["id"])
     return cut
 
@@ -886,6 +900,25 @@ CASES = [
      [H0, M1, act("s1", "H0", signer="B2"), act("rt", "H0", "s1", ["m1"], signer="B2", compose="retract", target="m1"),
       keyend("k", "B2", signer="B2", names=("s1",)), act("q", "H0", "rt", ["rt"], signer="M")], {},
      {"m1": (T, T, "no_end"), "s1": (T, T, "no_end"), "rt": (F, F, "K.key_removed")}),
+    # review r84 (revive.py): a key removal keeps what it names AND what lies behind it along `prev`
+    ("revocation_keeps_prev_chain", "row 9: B revokes itself naming its newest trusted row b2, whose `prev` is b1 "
+     "(b1 not in b2's names): both stand",
+     [H0, act("b1", "H0"), act("b2", "H0", "b1"), keyend("k", "B", names=("b2",))], {},
+     {"b1": (T, T, "no_end"), "b2": (T, T, "no_end")}),
+    ("revocation_keeps_named_past", "row 10: the same where b2 also names b1: both stand",
+     [H0, act("b1", "H0"), act("b2", "H0", "b1", ["b1"]), keyend("k", "B", names=("b2",))], {},
+     {"b1": (T, T, "no_end"), "b2": (T, T, "no_end")}),
+    ("second_revocation_names_f1", "row 7: a concluded second removal of B2 by B names f1, after the first named "
+     "s1: s1 stands; f1 stays cut, since a row any removal cuts is cut (a later removal never uncuts, or a thief "
+     "holding the key would revoke it again naming its forgeries)",
+     [H0, act("s1", "H0", signer="B2"), act("f1", "H0", "s1", signer="B2"), keyend("k", "B2", signer="B2", names=("s1",)),
+      keyend("k2", "B2", signer="B", names=("f1",), concludes=True)], {},
+     {"s1": (T, T, "no_end"), "f1": (F, F, "K.key_removed")}),
+    ("count_end_tip_after_revocation", "rows 1 and 2: the count's end names f1 as a tip; the revocation named s1: "
+     "s1 is not cut, f1 is, and the walk from the tip does not pass through the cut f1",
+     [H0, act("s1", "H0", signer="B2"), act("f1", "H0", "s1", signer="B2"), keyend("k", "B2", signer="B2", names=("s1",)),
+      end("E", "H0", ["f1"], names=("k",))], {},
+     {"s1": (T, F, "E2.forward"), "f1": (F, F, "K.key_removed")}),
     ("key_end_not_held", "the reader does not hold the removal of B2 (the caller places a key removal at commons, "
      "or in every room the key sits in): nothing is cut",
      [H0, M1, act("n1", "H0", signer="B2"), act("n2", "H0", "n1", signer="B2")], {},

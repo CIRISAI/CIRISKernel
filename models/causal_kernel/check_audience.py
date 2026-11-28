@@ -54,9 +54,13 @@ def row(i, family, scope, signer="a", room=None, named=(), names=(), concluded=T
     return r
 
 
-def seat_row(i, kind, room, to, **kw):
-    """A seat offer or unseat over `room`, naming the keys it seats or removes."""
-    return row(i, "ballot:moderator_acceptance", "community", room=room, named=list(to), kind=kind, obj=room, to=to, **kw)
+def seat_row(i, kind, room, to, family="membership:invite", **kw):
+    """A seat offer or unseat over `room`, naming the keys it seats or removes: by default of membership, a seat of
+    the roster itself (a joiner, a removed key); ballot:moderator_acceptance seats a duty, a member only."""
+    return row(i, family, "community", room=room, named=list(to), kind=kind, obj=room, to=to, **kw)
+
+
+BALLOT = "ballot:moderator_acceptance"
 
 
 def joins_of(w):
@@ -111,28 +115,21 @@ CASES = [
      {"s": REF("placement_not_allowed"), "t": P("targeted_family", ROOM)}),
     ("named_outside_audience", "a row at the community may name only keys within its audience: z is off the roster",
      [row("m", "chat:general", "community", room="r1", named=["z"])], {"m": REF("named_outside_audience")}),
-    # a seat offer or unseat over the room: the keys it seats or removes are within its audience. group:roster and
-    # membership answer Undecided at this pin, so the rule is shown on ballot:moderator_acceptance, a seat family the
-    # table pins to the room
-    ("admission_names_joiner", "a pending admission of j at the room names j, who is not on the roster yet: j is "
-     "in its audience",
-     [seat_row("v", "offer", "r1", ["j"], concluded=False)],
-     {"v": P("targeted_room", ROOM + ["j"])}),
-    ("removal_names_removed_key", "a removal of c, read where the roster no longer lists c, names c: c is in its "
-     "audience",
-     [seat_row("x", "unseat", "r2", ["c"])],
-     {"x": P("targeted_room", ["a", "c", "e"])}),
-    ("seat_row_names_outsider", "the same admission also names z, a key it does not seat: refused",
-     [dict(seat_row("v", "offer", "r1", ["j"]), named=["j", "z"])],
-     {"v": REF("named_outside_audience")}),
+    # a seat offer or unseat over the room: the keys a seat of the ROSTER seats or removes are within its audience
+    # (ROSTER_SEAT_CASES, which wait until membership is stated); a seat of a DUTY (the moderator's acceptance)
+    # seats a member at the row's own head, never an outsider (review r84)
+    ("removal_names_removed_key", "the moderator's acceptance unseats c, a member at its head no longer on the "
+     "roster: c is in its audience",
+     [seat_row("x", "unseat", "r2", ["c"], family=BALLOT)],
+     {"x": P("targeted_room", ["a", "c", "e"])}, {"at_head": {"x": ["a", "c", "e"]}}),
+    ("duty_seat_outsider_refused", "the moderator's acceptance shaped as an offer to z, an outsider at its head: a "
+     "duty seats a member, never an outsider, so z is held to named_within and the row is refused (review r84)",
+     [seat_row("o", "offer", "r1", ["z"], family=BALLOT)], {"o": REF("named_outside_audience")}),
     ("non_roster_row_names_outsider", "a row that seats no one names z, off the roster: still refused",
      [row("m", "partner_role:member", "community", room="r1", named=["z"])], {"m": REF("named_outside_audience")}),
-    ("roster_family_undecided", "group:roster itself answers Undecided at this pin, its seats apart",
-     [dict(seat_row("g", "offer", "r1", ["j"]), family="group:roster")], {"g": UND("group:roster")}),
-    ("seats_derived_not_stated", "an offer over ANOTHER object names j: its `to` is no seat of this room, and j is "
-     "held to named_within",
-     [row("v", "ballot:moderator_acceptance", "community", room="r1", named=["j"], kind="offer", obj="r9", to=["j"])],
-     {"v": REF("named_outside_audience")}),
+    ("roster_family_undecided", "group:roster and membership answer Undecided at this pin, their seats apart",
+     [seat_row("g", "offer", "r1", ["j"], family="group:roster"), seat_row("m", "offer", "r1", ["j"])],
+     {"g": UND("group:roster"), "m": UND("membership:{stage}")}),
     ("seats_not_person_level", "an identity:occurrence row shaped as an offer over r1 to z: a person-level row "
      "seats no key into a room's audience, so z is held to named_within (review r83, case o)",
      [row("o", "identity:occurrence", "community", room="r1", named=["z"], kind="offer", obj="r1", to=["z"])],
@@ -219,10 +216,11 @@ CASES = [
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", room="r1", names=["s"]),
       row("c", "chat:general", "federation", signer="b", room="r1", names=["m"])],
      {"s": P("self_collective", ["a", "a2", "b", "c"]), "m": P("targeted_room", ROOM), "c": P("commons", AU.EVERYONE)}),
-    ("copy_not_off_roster", "a's offer to z (never accepted) names a's self row: the self row reaches the roster, "
-     "not z (c.2: nothing reaches a key off the roster)",
-     [row("s", "chat:general", "self"), dict(seat_row("o", "offer", "r1", ["z"]), names=["s"])],
-     {"s": P("self_collective", ["a", "a2", "b", "c"]), "o": P("targeted_room", ROOM + ["z"])}),
+    ("copy_not_off_roster", "a's room row in r2 names c (a member at its head, removed since) and a's self row: "
+     "the self row reaches r2's current roster, not c (c.2: nothing reaches a key off the roster)",
+     [row("s", "chat:general", "self"), row("m", "chat:general", "community", room="r2", named=["c"], names=["s"])],
+     {"s": P("self_collective", ["a", "a2", "e"]), "m": P("targeted_room", ["a", "c", "e"])},
+     {"at_head": {"m": ["a", "c", "e"]}}),
     ("key_grant_never_carried", "a key grant of a, at self, named by a's own room row: a key grant is never "
      "carried; it is served per its own placement (here a's keys and the key it names) and opened only by that key",
      [row("k", "key_grant:content", "self", named=["d"]),
@@ -240,19 +238,15 @@ CASES = [
     ("copy_admission_from_join", "j's admission names m1, which names m0: j holds the rows its admission names",
      [row("m0", "chat:general", "community", room="r3"),
       row("m1", "chat:general", "community", signer="b", room="r3", names=["m0"]),
-      dict(seat_row("adm", "offer", "r3", ["j"]), names=["m1"])],
+      dict(row("adm", "chat:general", "community", room="r3", named=["j"]), names=["m1"])],
      {"m0": P("targeted_room", ["a", "b", "j"]), "m1": P("targeted_room", ["a", "b", "j"]), "adm": P("targeted_room", ["a", "b", "j"])},
      {"joined": {"r3": {"j": "adm"}}, "before": [["m0", "adm"], ["m1", "adm"], ["m0", "m1"]]}),
-    ("copy_unaccepted_outsider", "a concluded offer to z, never accepted, names its head h1: z gets the offer alone",
-     [row("h0", "chat:general", "community", signer="c", room="r1"),
-      row("h1", "chat:general", "community", signer="b", room="r1", names=["h0"]),
-      dict(seat_row("o", "offer", "r1", ["z"]), names=["h1"])],
-     {"h0": P("targeted_room", ROOM), "h1": P("targeted_room", ROOM), "o": P("targeted_room", ROOM + ["z"])}),
     ("copy_removed_key", "the removal of c names its head g1: c gets the removal alone",
      [row("g0", "chat:general", "community", signer="e", room="r2"),
       row("g1", "chat:general", "community", room="r2", names=["g0"]),
-      dict(seat_row("x", "unseat", "r2", ["c"]), names=["g1"])],
-     {"g0": P("targeted_room", ["a", "e"]), "g1": P("targeted_room", ["a", "e"]), "x": P("targeted_room", ["a", "c", "e"])}),
+      dict(seat_row("x", "unseat", "r2", ["c"], family=BALLOT), names=["g1"])],
+     {"g0": P("targeted_room", ["a", "e"]), "g1": P("targeted_room", ["a", "e"]), "x": P("targeted_room", ["a", "c", "e"])},
+     {"at_head": {"x": ["a", "c", "e"]}}),
     # review r79 (named.py): named_within is read at the row's own head
     ("named_at_own_head", "a names c while c sat in r2; c is removed later: the row stays placed (placement is "
      "monotone), and is owed the current roster and the key it names",
@@ -262,6 +256,43 @@ CASES = [
      [row("m", "chat:general", "community", room="r3", named=["j"])], {"m": REF("named_outside_audience")},
      {"at_head": {"m": ["a", "b"]}}),
 ]
+
+# the seats of the ROSTER itself (membership, group:roster): placed once the Constitution states their cells; until
+# then they answer Undecided and these cases wait (cases_now)
+ROSTER_SEAT_FAMILY = "membership:{stage}"
+ROSTER_SEAT_CASES = [
+    ("admission_names_joiner", "a pending admission of j at the room names j, who is not on the roster yet: j is "
+     "in its audience",
+     [seat_row("v", "offer", "r1", ["j"], concluded=False)], {"v": P("targeted_room", ROOM + ["j"])}),
+    ("seat_row_names_outsider", "the same admission also names z, a key it does not seat: refused",
+     [dict(seat_row("v", "offer", "r1", ["j"]), named=["j", "z"])], {"v": REF("named_outside_audience")}),
+    ("copy_unaccepted_outsider", "a concluded offer to z, never accepted, names its head h1: z gets the offer alone",
+     [row("h0", "chat:general", "community", signer="c", room="r1"),
+      row("h1", "chat:general", "community", signer="b", room="r1", names=["h0"]),
+      dict(seat_row("o", "offer", "r1", ["z"]), names=["h1"])],
+     {"h0": P("targeted_room", ROOM), "h1": P("targeted_room", ROOM), "o": P("targeted_room", ROOM + ["z"])}),
+]
+
+# seats_of over each kind of row: (row, the keys it seats). It reads no placement, so it runs at every pin
+SEATS = [
+    (seat_row("v", "offer", "r1", ["j"]), ["j"]),
+    (seat_row("x", "unseat", "r1", ["c"], family="group:roster"), ["c"]),
+    (seat_row("b", "offer", "r1", ["j"], family=BALLOT), ["j"]),
+    (row("v", "membership:invite", "community", room="r1", named=["j"], kind="offer", obj="r9", to=["j"]), []),
+    (row("v", "chat:general", "community", room="r1", named=["j"], kind="offer", obj="r1", to=["j"]), []),
+    (row("v", "identity:occurrence", "community", room="r1", named=["j"], kind="offer", obj="r1", to=["j"]), []),
+    (row("v", "membership:invite", "community", room="r1", named=["j"]), []),
+]
+
+
+def check_seats():
+    problems = []
+    for r, want in SEATS:
+        got = sorted(AU.seats_of(r))
+        if got != want:
+            problems.append("seats: %s %s %s gives %s, want %s" % (r["family"], r.get("kind"), r.get("obj"), got, want))
+    return problems
+
 
 # family names that tie: two patterns matching one name with as many literal segments; a synthetic table, since
 # the pinned table has none (tools/family_placement.py refuses one). (families, name, the answer of family_of)
@@ -281,7 +312,7 @@ PLANTS = [(("undecided_defaulted",), "undecided_family"), (("pinned_unread",), "
           (("copy_unconcluded",), "copy_unconcluded"), (("copy_off_roster",), "copy_not_off_roster"),
           (("key_grant_carried",), "key_grant_never_carried"),
           (("match_first",), "table"), (("seats_not_within",), "admission_names_joiner"),
-          (("seats_any_obj",), "seats_derived_not_stated"),
+          (("seats_any_obj",), "seats"), (("duty_seats_outsider",), "duty_seat_outsider_refused"),
           (("seats_any_family",), "seats_only_a_seat_family"),
           (("seats_person_level",), "seats_not_person_level"),
           (("named_within_current",), "named_at_own_head"),
@@ -400,8 +431,10 @@ def check_table():
 
 
 def cases_now():
-    """The case table, with the regard cases once the pinned table holds that family."""
-    return CASES + (REGARD_CASES if REGARD in AU.FAMILIES else [])
+    """The case table, with the regard cases once the pinned table holds that family, and the roster seat cases once
+    its cell is stated."""
+    roster_seats = AU.FAMILIES.get(ROSTER_SEAT_FAMILY, {}).get("undecided") is None and ROSTER_SEAT_FAMILY in AU.FAMILIES
+    return CASES + (REGARD_CASES if REGARD in AU.FAMILIES else []) + (ROSTER_SEAT_CASES if roster_seats else [])
 
 
 def check_cases():
@@ -423,6 +456,7 @@ def fixture():
             "person": {k: list(v) for k, v in PERSON.items()},
             "ties": [{"families": f, "name": n, "answer": a} for f, n, a in TIES],
             "history": [{"row": rw, "record": rec, "answer": a} for rw, rec, a in HISTORY],
+            "seats": [{"row": r, "seats": w} for r, w in SEATS],
             "generated": [{"family": p, "name": n, "scope": s, "room": r, "answer": a} for p, n, s, r, a in generated()],
             "cases": [{"name": n, "about": ab, "rows": rows, "joins": w[0] if w else {},
                        "answers": {i: enc(a) for i, a in
@@ -431,15 +465,21 @@ def fixture():
 
 
 def main():
-    problems = check_table() + check_cases() + check_derivation() + check_ties() + check_history()
+    problems = check_table() + check_cases() + check_derivation() + check_ties() + check_history() + check_seats()
     if REGARD not in AU.FAMILIES:
         print("  %s is not in the pinned table yet: its %d cases wait for the re-pin" % (REGARD, len(REGARD_CASES)))
     caught = 0
+    present = {c[0] for c in cases_now()} | {"table", "ties", "history", "seats"}
+    waiting = 0
     for muts, where in PLANTS:
         mut = "+".join(muts)
+        if where not in present:
+            waiting += 1
+            print("  plant %-20s waits: its case %s runs once its family is stated" % (mut, where))
+            continue
         AU.MUT.clear(); AU.MUT.update(muts)
         try:
-            got = check_table() + check_cases() + check_ties() + check_history()
+            got = check_table() + check_cases() + check_ties() + check_history() + check_seats()
         finally:
             AU.MUT.clear()
         hit = any(g.startswith(where + ":") for g in got)
@@ -451,10 +491,10 @@ def main():
     for p in problems:
         print(p)
     print("RESULT: %s: %d families (%d on the default, %d pinned, %d undecided; %s %s%s), %d generated answers, "
-          "%d cases; %d of %d planted breaks caught"
+          "%d cases; %d of %d planted breaks caught (%d wait)"
           % ("ok" if not problems else "%d problems" % len(problems), s["families"], s["on_the_default"],
              s["pinned_by_the_table"], s["undecided"], s["branch"], s["commit"][:7],
-             ", provisional" if s.get("provisional") else "", len(generated()), len(cases_now()), caught, len(PLANTS)))
+             ", provisional" if s.get("provisional") else "", len(generated()), len(cases_now()), caught, len(PLANTS) - waiting, waiting))
     return 1 if problems else 0
 
 

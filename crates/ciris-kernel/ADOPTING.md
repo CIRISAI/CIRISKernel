@@ -55,7 +55,8 @@ migrations, and the local operational store.
 **Caller duties for content and audience.** A key removal (`content::Kind::KeyEnd`) cuts only where the reader
 holds it, so place it at commons, or in every room the key sits in; give `ContentRow::concludes` from the
 self-roster count of the person's own key roster. A key's own revocation keeps the end rule, with no instant bound: an honest revocation names the
-key's last trusted rows, and what it names stands. The residual, stated: a thief holding a key can revoke it naming
+key's last trusted rows (`ContentRow::tips` on a key removal), and what it names stands, with every row behind it
+along predecessors. The residual, stated: a thief holding a key can revoke it naming
 nothing and take its unnamed rows out for every reader that had not taken them up; rows the reader acknowledged
 stand for it, and nothing else anchors a row: another key's reply or cite cannot be told from one signed after the
 revocation that leaves it unnamed (review r83), so it keeps nothing.

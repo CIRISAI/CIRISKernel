@@ -219,3 +219,9 @@ pub const SEAT_FAMILIES: &[&str] = &[
     "group:roster",
     "membership:{stage}",
 ];
+
+/// The room seat families that seat a DUTY over the room, not the roster itself: their offers seat a member at
+/// the row's own head, never an outsider, so only such keys are within the row's audience.
+pub const DUTY_SEAT_FAMILIES: &[&str] = &[
+    "ballot:moderator_acceptance",
+];

@@ -374,7 +374,7 @@
     "targeted_room"
    ],
    "undecided": null,
-   "seat": true
+   "seat": "duty"
   },
   {
    "family": "ballot:tally:{poll_id}",
@@ -1148,7 +1148,7 @@
    "family": "group:roster",
    "allowed": null,
    "undecided": "code-v61: ['targeted_family', 'targeted_room (cohort_scope family|community + group_kind)']",
-   "seat": true
+   "seat": "roster"
   },
   {
    "family": "hard_case:{kind}",
@@ -1416,7 +1416,7 @@
    "family": "membership:{stage}",
    "allowed": null,
    "undecided": "code-v61: ['targeted_family', 'targeted_room (at the group)']",
-   "seat": true
+   "seat": "roster"
   },
   {
    "family": "mesh_config:{key}",

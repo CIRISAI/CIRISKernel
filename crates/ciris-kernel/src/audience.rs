@@ -42,7 +42,7 @@ use alloc::vec::Vec;
 #[rustfmt::skip]
 #[path = "audience_table.rs"]
 mod table;
-pub use table::{FAMILIES, FAMILY_MODEL_SHA256, SCOPES, SEAT_FAMILIES};
+pub use table::{DUTY_SEAT_FAMILIES, FAMILIES, FAMILY_MODEL_SHA256, SCOPES, SEAT_FAMILIES};
 
 /// The key grant family's pattern: a row that resolves to it is never carried.
 pub const KEY_GRANT: &str = "key_grant:{axis}";
@@ -374,11 +374,14 @@ pub fn place<R: AudienceRow>(
             // WHAT IT MAY NAME: the members at the row's own head, so placement never changes with a later removal
             // or admission; the keys a seat offer or unseat seats or removes are within its audience, ahead of it
             let within = (joins.at_head)(room, r.id());
-            let seats = seats_of(r);
-            if !r.named().iter().all(|k| within.contains(k) || seats.contains(k)) {
+            // a seat of a DUTY over the room (the moderator's acceptance) seats a member at the row's own head, never
+            // an outsider: only such keys pass
+            let duty = DUTY_SEAT_FAMILIES.contains(&fam);
+            let seats: Vec<&R::Key> = seats_of(r).iter().filter(|k| !duty || within.contains(*k)).collect();
+            if !r.named().iter().all(|k| within.contains(k) || seats.contains(&k)) {
                 return Placed::Refused(Refusal::NamedOutsideAudience);
             }
-            keys.extend(seats.iter().cloned());
+            keys.extend(seats.into_iter().cloned());
             // history_on_join changes no audience: a later joiner is served the older room rows, sealed by keys it
             // lacks (served is not readable; the tier gives the current epoch's key only, CC 4.4.3.16)
             keys.extend(members);

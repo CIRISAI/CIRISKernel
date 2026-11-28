@@ -146,6 +146,7 @@ PLANTS = [
     ("unconcluded_key_end_read", "secondary_evicts_primary_alone"),   # an unconcluded eviction is read
     ("key_cut_past_line", "key_cut_after_reader_took_up"),     # a row the reader took up is cut
     ("anchor_reenabled", "anchor_colluding_reply"),            # the anchor review r83 broke, back
+    ("prev_walk_unread", "revocation_keeps_prev_chain"),       # a key removal keeps its causal past only
     ("rooms_mixed", "tip_in_another_room"),                    # the rooms are read as one
 ]
 
@@ -231,6 +232,10 @@ class Run:
                         self.fail("further_end", rows, "%s leaves the content by %s" % (x, a[x]["rule"]))
             # one content row not held: the fold fills in when it arrives, and its arrival changes no count
             for gone in [r for r in added if r["kind"] == "act"]:
+                # a row that names `gone` for the door (a key removal names its trusted rows) waits for it, so no
+                # node holds that row without it: such a history is not read
+                if any(gone["id"] in r["names"] for r in rows if r is not gone):
+                    continue
                 held = [r for r in rows if r is not gone]
                 h = self.ans(held)
                 self.pairs += 1
