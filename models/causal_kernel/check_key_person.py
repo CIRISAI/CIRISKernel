@@ -46,6 +46,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     claimed_cosigner_counted  another signer's claimed cosigners on a note seed the reader's line (r101 R2)
     unconcluded_cosigner_counted  a seat row that concluded nothing seeds the reader's line by its cosigners (S5, S6)
     line_voices_cosigners_only  the line reads a seat row's cosigners, not its voices (a cosign row's voice lost)
+    agent_by_seat_only    an agent recognised by its agent seat only: a registered agent admitted as a member speaks
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -746,6 +747,23 @@ def line_concludes(rows, reader, rid):
     R = ST.reader_state(S, reader) if reader is not None else S
     return bool(R.C.get(rid))
 
+# THE ONE agent recognition (seat.agent_keys / registered_agents): an agent is recognised by its agent seat over any
+# room or by its agent registration, whatever scope it was admitted under. AG registers as an agent and is admitted as
+# a member: it is still no voice (not even as a device of m1's roster) and in no count's base
+AGG = ST.found("g", "m1", ("m1", "m2", "m3", "m4"), {"moderate": ("m1", "m2", "m3", "m4")}, cosigners=("m2", "m3", "m4"))
+AGRAG = ST.offer("rag", "AG", "AG", "registered", "AG", "self", identity=("agent",))
+AGAM = dict(CRK.admit("am", "AG", ("m1", "m2", "m3"), ("g",)), names=("g", "rag"))
+def agadm(signers, extra=()):
+    return ST.offer("ay", signers[0], "y", "member", "g", "group", ("am",) + tuple(extra), head=("am",),
+                    policy="community_invite", cosigners=tuple(signers[1:]) + ("y",))
+AGS1, AGA1 = found("Sm1", "m1"), add("aAG", "Sm1", "AG", ("m1",), ("Sm1",))
+R74_CASES += [
+    ("an agent registered but admitted as member is still no voice: AG (also m1's device), m2 and m3 do not admit y",
+     [AGG, AGRAG, AGS1, AGA1, AGAM, agadm(("AG", "m2", "m3"), ("aAG",))], "ay", False, RULE),
+    ("and it is in no count's base: m1, m2 and m3 are three of the four persons, and admit y",
+     [AGG, AGRAG, AGAM, agadm(("m1", "m2", "m3"))], "ay", True, RULE),
+]
+
 
 PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
           "persons_unread", "base_by_key", "revoked_voice_kept", "agent_speaks", "lift_author_device", "genesis_unread",
@@ -755,7 +773,7 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
           "rebinding_unread", "landed_eviction_unread", "landed_add_unread",
           "self_founding_family", "mutual_evictions_land", "rival_line_unread", "line_order_unread",
           "claimed_cosigner_counted", "unconcluded_cosigner_counted",
-          "line_voices_cosigners_only")
+          "line_voices_cosigners_only", "agent_by_seat_only")
 
 
 def answer(rows, k):

@@ -439,6 +439,10 @@ trusting an adapter.
   member seat; its stay begins at the version that admits it in `agent` and ends at its removal or
   resignation. The audience of a room is `Seats::roster`.
 
+**An agent's key** is recognised by its agent seat over any room or by its agent registration (present a
+`registered` offer of the key with `SeatRow::agent_registration`), whatever scope it was admitted under: it is no
+voice of any person and in no count's base.
+
 **A key's person**, for `seat::person_at`. Present each person's own key roster as a group whose founding row is
 signed by its first key in its own scope (`self` for a person, `key` for a voice), its further keys as counted
 admissions and evictions of that scope over it (`self_roster_add`, `self_roster_evict`), and a key's own
