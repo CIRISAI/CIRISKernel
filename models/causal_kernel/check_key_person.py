@@ -35,6 +35,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     nodes_revocation_unread  the node key's (or the owner's) own revocation not read
     evicted_genesis_speaks  a genesis key its own roster evicted still speaks as its person (r95 P1b)
     evicted_key_votes     the key a self roster evicts is a voice of its own eviction (the one-key residual evicts)
+    rival_roster_kept     a second self roster of one identity is kept (r96 G1: re-founding, a device by founding)
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -125,9 +126,9 @@ CASES = [
     # rosters is one person, whichever roster seats the key
     ("G5: a genesis key with two key records and two rosters: a key of the second roster is the same one person",
      [S, REC, REC2, SX, AX, at(("ax", "rec2"))], "kx", "k1"),
-    ("G5: and a key of the first", [S, A2, REC, REC2, SX, AX, at(("a2", "ax", "rec2"))], "k2", "k1"),
-    ("G5: a key in both of the one genesis key's rosters is one person, not two",
-     [S, A2, REC, REC2, SX, AX2, at(("a2", "ax2", "rec2"))], "k2", "k1"),
+    ("r96 G1 (one self roster per identity): the row holds both of k1's rosters, neither in the other's past: rivals,"
+     " the reader waits, so a key of either is no person", [S, A2, REC, REC2, SX, AX, at(("a2", "ax", "rec2"))], "k2", None),
+    ("r96 G1: and a key in both of them", [S, A2, REC, REC2, SX, AX2, at(("a2", "ax2", "rec2"))], "k2", None),
 ]
 # ---- Part 3: counts over persons (ruled on CIRISConstitution#224: one voice however many live keys sign) ------------
 # four persons, each a self roster named by its genesis key; p1 has a second device key p1b. They found a room whose
@@ -262,8 +263,9 @@ BALLOT_CASES = [
                                  EL.elect("ec", "C", ("ba", "bb", "bc", "be", "bd", "bd2"))], "ec", False),
 ]
 R74_CASES += [
-    ("K7: two rosters founded by one genesis key p2 are one person p2: p2 is a voice, p1b, p2 and p3 admit z",
-     BASE + [S9, admit_z(("p1b", "p2", "p3"), ("S9",))], "az", True, RULE),
+    ("K7, under r96 G1: p2 founds S9 beside S2 (neither in the other's past; S9 lists p1b, unsigned, and seats only p2):"
+     " rival rosters, the reader waits, so p2 is no voice: p1b, p2 and p3 are two of four",
+     BASE + [S9, admit_z(("p1b", "p2", "p3"), ("S9",))], "az", False, RULE),
     ("the floor of two (KP4): p1 and its device p1b, both seated, are one voice and never meet it: p2 is not removed",
      [SP[1], SP[2], P1B, GF, XF(("p1", "p1b"))], "xf", False, RULE),
     ("the electorate by person (KP4): D is seated only by its device d2, and D's own ballot counts for that member",
@@ -359,8 +361,9 @@ PERSON_KEYS_CASES = [
     ("a device that revoked itself is no live key", PKW + [BREC, BRV], "p1", ["p1", "p1c"]),
     ("a person whose genesis key revoked itself has no live key", PKW + [PREC, PRV], "p1", []),
     ("a key of no roster is its own person", PKW, "zz", ["zz"]),
-    ("G5: a genesis key with two key records and two rosters: one person, the keys of both", [S, A2, REC, REC2, SX, AX],
-     "k1", ["k1", "k2", "kx"]),
+    ("G5: a genesis key with two key records and one roster: one person, its keys", [S, A2, REC, REC2], "k1",
+     ["k1", "k2"]),
+    ("r96 G1: with two rival rosters held, the reader waits: no live key", [S, A2, REC, REC2, SX, AX], "k1", []),
 ]
 def bind(i, node, owner):
     """An owner-binding: the node's offer of the owner seat over its key, the owner's cosignature its consent."""
@@ -418,12 +421,62 @@ CASES += [
                            counted="self", cosigners=("k3",)), at(("eg1",))], "k1", None),
 ]
 
+# the review r96 (G1, ruled): ONE SELF ROSTER PER IDENTITY. p1's devices p1b and p1c evict p1 from S1; a second
+# founding by p1 is a rival and concludes nothing, so p1 neither re-founds itself nor adds a device that way; only S1's
+# own counted re-admission restores it. Two foundings neither in the other's past: a reader holding both waits.
+GA1C = add("a1c", "S1", "p1c", ("p1", "p1b"), ("a1b",))
+GW = [SP[1], SP[2], SP[3], SP[4], P1B, dict(GC, names=("a1b", "S2", "S3", "S4")), GA1C]
+GEV = evict("evg", "S1", "p1", ("p1b", "p1c"), ("a1c",))
+S1N = dict(found("S1n", "p1"), names=("evg",))                  # p1 founds again after its eviction
+GAN = add("an", "S1n", "p1n", ("p1",), ("S1n",))                  # and adds a device to it alone
+S1P = dict(found("S1n", "p1"), names=("a1c",))                  # p1 founds a second roster before its eviction
+S1C = found("S1n", "p1")                                          # a second founding concurrent with S1's line
+GRE = add("re", "S1", "p1", ("p1b", "p1c"), ("evg",))            # S1's own count re-admits p1
+GS = found("S", "g1")
+GD1 = add("d1", "S", "k1", ("g1",), ("S",))                       # a two-key roster: g1 and its device k1
+R74_CASES += [
+    ("r96 E2: after its eviction p1 founds a second roster S1n: a rival founding, it concludes nothing",
+     GW + [GEV, S1N], "S1n", False, RULE),
+    ("r96 E2: and p1, p2 and p3 are two voices of four: z is not admitted",
+     GW + [GEV, S1N, admit_z(("p1", "p2", "p3"), ("evg", "S1n"))], "az", False, RULE),
+    ("r96 E3: a device p1 adds to the rival roster is seated nowhere", GW + [GEV, S1N, GAN], "an", False, RULE),
+    ("r96 E3: and p1n, p2 and p3 are two voices of four", GW + [GEV, S1N, GAN, admit_z(("p1n", "p2", "p3"), ("an",))],
+     "az", False, RULE),
+    ("r96: the pre-emptive device add: p1 founds S1n before its eviction (S1 in its past): refused, and its device too",
+     GW + [S1P, GAN, GEV], "an", False, RULE),
+    ("r96: a second founding concurrent with S1: a reader holding both waits, so the device p1n speaks for no one",
+     GW + [S1C, GAN, admit_z(("p1n", "p2", "p3"), ("an", "a1c"))], "az", False, RULE),
+    ("r96: and p1 itself, of two rival rosters, waits too", GW + [S1C, GAN, admit_z(("p1", "p2", "p3"), ("an", "a1c"))],
+     "az", False, RULE),
+    ("r96 E4: the roster's own counted re-admission restores p1: p1, p2 and p3 admit z",
+     GW + [GEV, GRE, admit_z(("p1", "p2", "p3"), ("re",))], "az", True, RULE),
+    # the two-key residual (option a, ruled): a person with two keys cannot put out a stolen one
+    ("r96 V1: a two-key roster: the device k1 alone cannot evict the genesis key g1",
+     [GS, GD1, evict("v", "S", "g1", ("k1",), ("d1",))], "v", False, RULE),
+    ("r96 V2: nor g1 alone a stolen device k1", [GS, GD1, evict("v", "S", "k1", ("g1",), ("d1",))], "v", False, RULE),
+]
+PERSON_KEYS_CASES += [
+    ("r96: after p1's eviction and its rival founding, p1's live keys are its two devices", GW + [GEV, S1N], "p1",
+     ["p1b", "p1c"]),
+]
+# the lone path in a two-key roster does not rescue it either: each key is the whole of "the other members" for the
+# other's proposal, and objects
+def lone_evict(opener, target):
+    return [GS, GD1, WN.opener("op", opener, "self_roster_evict", "S", ("d1",), target=target),
+            WN.answer("ob", target, "op", "object", ("op",)), WN.receipt("r", opener, "op", 0),
+            WN.landing("L", opener, "op", "r", "landed", WN.secs("self_roster_evict"), ("ob",))]
+WINDOW_CASES += [
+    ("r96: a two-key roster's lone path: k1 proposes evicting g1, g1 (the other members) objects: refused",
+     lone_evict("k1", "g1"), "refused"),
+    ("r96: and g1 proposing to evict k1, k1 objects: refused", lone_evict("g1", "k1"), "refused"),
+]
+
 
 PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
           "persons_unread", "base_by_key", "revoked_voice_kept", "agent_speaks", "lift_author_device", "genesis_unread",
           "fold_lift_by_key", "fold_author_by_key", "remover_counted_over", "opener_withdrawal_voter",
           "apart_by_key", "person_keys_by_offer", "nodes_by_offer", "nodes_two_owners_kept", "nodes_revocation_unread",
-          "evicted_genesis_speaks", "evicted_key_votes")
+          "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept")
 
 
 def answer(rows, k):

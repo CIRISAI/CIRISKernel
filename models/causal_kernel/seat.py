@@ -2645,6 +2645,12 @@ def rosters_of(P, k, keep=lambda g: True):
     by = {q["id"]: q for q in P}
     selves = [g for g in P if g["kind"] == "offer" and g.get("obj") == g["id"]
               and (kind_of(by, g["id"]) == "self" or "person_any_kind" in MUT)]   # MUTATION person_any_kind: any group
+    # one self roster per identity (G1): two foundings by one identity, neither in the other's past, are rivals; a
+    # reader holding both waits and never picks, so neither is that identity's roster (MUTATION rival_roster_kept)
+    if "rival_roster_kept" not in MUT:
+        n = {}
+        for g in selves: n[g["signer"]] = n.get(g["signer"], 0) + 1
+        selves = [g for g in selves if n[g["signer"]] == 1]
     if "person_evict_unread" in MUT:                              # MUTATION: an admission in the past is enough
         return sorted({g["id"] for g in selves if any(q["kind"] == "offer" and q.get("obj") == g["id"] and k in q["to"]
                                                       for q in P)})
@@ -2711,6 +2717,12 @@ def rep_of(P, k, member=False):
     if key not in _PERSON_IN:
         _PERSON_IN[key] = (tuple(P), _rep(P, k) if not member else _member_rep(P, k))
     return _PERSON_IN[key][1]
+
+
+def is_self_founding(g):
+    """g is the founding record of a self roster (its founding scope read through KINDS as `self`)."""
+    return g["kind"] == "offer" and g.get("obj") == g["id"] and KINDS.get(g.get("scope")) == "self" \
+        and g.get("group_kind") != "family"
 
 
 def founded_self(P, k):
@@ -3349,7 +3361,13 @@ def seat_rule(r, P, past, table=None, other=None):
         if r["obj"] != r["id"] and not roster_placement(r, by): return False   # RK1, RK2: who places a roster seat
         if k == "offer" and conf == "group" and not duty_gate(r, by): return False   # CC 4.5.4: who places a duty
         if conf == "self":
-            if r["obj"] == r["id"]: return k == "offer"          # a founding row is its own object
+            if r["obj"] == r["id"]:                              # a founding row is its own object
+                # one self roster per identity (G1, ruled): a second founding of a self roster by an identity whose
+                # roster is in the row's past is a rival founding and concludes nothing; no key re-founds itself, or
+                # adds a device, by founding (MUTATION rival_roster_kept)
+                if k == "offer" and is_self_founding(r) and "rival_roster_kept" not in MUT and any(
+                        is_self_founding(q) and q["signer"] == r["signer"] for q in P): return False
+                return k == "offer"
             # over infrastructure a founder seat comes only by a founders' amendment: an own offer of one seats nothing
             if r.get("scope") == "founder" and kind_of(by, r["obj"]) == "infrastructure" and "role_on_own_offer" not in MUT:
                 return False

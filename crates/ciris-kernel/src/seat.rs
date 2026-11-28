@@ -3174,6 +3174,15 @@ fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &s
     })
 }
 
+/// `g` is the founding record of a self roster: its founding scope read through [`SeatLaw::kinds`] as
+/// [`CommunityKind::SelfRoster`].
+fn self_founding<R: SeatRow>(law: &SeatLaw, g: &R) -> bool {
+    let get = |i: &R::Id| if i == g.id() { Some(g) } else { None };
+    g.seat_kind() == SeatKind::Offer
+        && founding(g)
+        && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
+}
+
 /// The self rosters each key is live in over `rows` (a row's concluded past): for every key a live seat of a self
 /// roster's own scope holds there (an object of kind [`CommunityKind::SelfRoster`] through [`SeatLaw::kinds`],
 /// admitted by its count and not evicted), the founding rows of the rosters `keep` keeps; and the keys holding an
@@ -3192,8 +3201,17 @@ fn rosters_by_key<'r, R: SeatRow + 'r, S: CutSpec<R>>(
     let agents: BTreeSet<R::Key> =
         seats.recs().iter().filter(|x| x.scope.as_ref() == AGENT).map(|x| x.k.clone()).collect();
     let mut out: BTreeMap<R::Key, Vec<&'r R>> = BTreeMap::new();
+    // one self roster per identity (G1): two foundings by one identity, neither in the other's past, are rivals; a
+    // reader holding both waits and never picks, so neither is that identity's roster
+    let mut founded: BTreeMap<&R::Key, usize> = BTreeMap::new();
+    for g in rows.iter().copied().filter(|g| self_founding(law, *g)) {
+        *founded.entry(g.signer()).or_default() += 1;
+    }
     for g in rows.iter().copied() {
         if g.seat_kind() != SeatKind::Offer || !founding(g) {
+            continue;
+        }
+        if founded.get(g.signer()).is_some_and(|&n| n > 1) {
             continue;
         }
         let o = Obj::Row(g.id().clone());
@@ -4925,6 +4943,15 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
             match conf {
                 Some(Conf::Own) => {
                     if obj == Obj::Row(r.id().clone()) {
+                        // one self roster per identity (G1, ruled): a second founding of a self roster by an identity
+                        // whose roster is in the row's past is a rival founding and concludes nothing; no key
+                        // re-founds itself, or adds a device, by founding
+                        if is_offer
+                            && self_founding(law, r)
+                            && p.rows().any(|q| q.signer() == r.signer() && self_founding(law, q))
+                        {
+                            return false;
+                        }
                         return is_offer; // a founding row is its own object
                     }
                     // over infrastructure a founder seat comes only by a founders' amendment: an own offer seats none

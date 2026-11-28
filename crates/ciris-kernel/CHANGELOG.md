@@ -47,7 +47,10 @@ opener is read, a key of no person as itself, with no voter needed. New: `seat::
 one live owner-binding names the owner), over the concluded set with no instant. Changed (r95, G33): a genesis key its own self roster evicted is no voice of its person (the person
 is its identity; only a live key of its roster speaks for it), and its own rows read as a bare key's; a live device
 still votes as the person. The key a self roster evicts is no voice of its own eviction (the one-key
-residual cannot evict). Changed: `seat::person_at`
+residual cannot evict). One self roster per identity (r96 G1, ruled): a second founding of a self roster by an
+identity whose roster is in the row's past concludes nothing, and two foundings neither in the other's past are
+rivals no person is read through (a reader waits); K7's answer moves accordingly (p2's rival S9 leaves p2 no voice).
+Changed: `seat::person_at`
 answers the person's identity key (`Obj::Key` of the genesis key), not the roster row, so two rosters of one genesis
 key, or a genesis key with two key records, are one person (the text's ruling G5). Together: the node set = audiences ∘
 person_keys ∘ nodes_of (ADOPTING.md). The reference: `seat.count_persons`, `seat.person_keys`, `seat.nodes_of`;
