@@ -83,6 +83,15 @@ def window_from_table(name, family, counted, evict, declared_enact=None):
          floor:    one_of_n -> the opener's own approval lands it at the close (default landed);
                    a fraction -> approvals meeting the floor (min_count) land it at the close (default refused)"""
     row = TABLE[family]
+    if row["corridor"] == "self":
+        # the self roster's lone path is the row's own table (window.spec_from_policy, the seat the instance counts),
+        # in this file's words: the proposer's withdrawal included (CC 3.3.6.4), which this function left out
+        d = WN.spec_from_policy(row, POL, None, counted)
+        w = {"assent": "approve", "raised": "object"}
+        cl = lambda cs: tuple((w.get(a, a), h, b, o) for a, h, b, o in cs)
+        WN.WINDOWS[name] = dict(d, opener_says=w[d["opener_says"]], at_once=cl(d["at_once"]), at_close=cl(d["at_close"]))
+        WN.WINDOWS[name].pop("secs")
+        return name
     mc = MIN_COUNT["self" if row["corridor"] == "self" else "community"]
     how = lambda r: {"strict": "strict", "one": "one"}.get(count_kind(r)[0], ("atleast",) + count_kind(r)[1:] + (mc,)) \
         if count_kind(r)[0] != "atleast" else ("atleast", r["num"], r["den"], 0)

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**Policy pin 8ec76cce** (CIRISConstitution 67f7ec2; `data/governance_policy.json` sha256 f1b3f4b4..., and
+`data/family_model.json`). **BREAKING**: `window::PolicyRow` carries the new cells (`concluder`, `opener`,
+`opener_says`, `outcome_words`, `answer_words` as `window::Words`, `default_at_close`, `landed_means`,
+`refused_means`, `comparison` as `window::Comparison`, `stated_census`); `spec_from_policy` takes a fourth argument,
+`seat` (the seat of a count set of several, `self+key`), reads every new cell, gives the leaves `landed`/`refused` and
+the answer words `assent`/`raised` (or a ballot's `for`/`against`), and returns its refusals sorted, once each; a new
+`Why::Local`. `window::Families` takes the founding row's scope as a third argument. Four rows give a table:
+`community_invite`, both self roster rows, and `moderation_overturn` (the members less the author, `landed` the lift,
+`refused` the act standing); the default rows are refused on their `unstated` opener. The reference builds the self
+roster's lone paths from the row (`roster.window_from_table`), which adds the proposer's withdrawal it left out.
+
 ### Adopting 0.5.0 from 0.2.2
 
 For persist, which depends on `kernel-v0.2.2`. It covers every break from 0.2.2 to 0.5.0, the 0.3.0 and 0.4.0

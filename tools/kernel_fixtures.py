@@ -871,32 +871,41 @@ def policy_spec_cases():
     pol = WN.policy_table()
     fams = {f["family"]: f for f in pol["families"]}
     cut = lambda t: {"min_count": t["min_count"], "window_classes": t["window_classes"]}
+    within = lambda f: "within_k" if f["base"] == "active" and f["stated_census"] is None else None
 
-    def case(name, row, table, active):
-        e = {"name": name, "row": row, "table": cut(table), "active": enc(active), "spec": None, "refusals": None}
+    def case(name, row, table, active, seat):
+        e = {"name": name, "row": row, "table": cut(table), "active": enc(active), "seat": seat, "spec": None,
+             "refusals": None}
         try:
-            e["spec"] = enc(WN.spec_from_policy(row, table, active))
+            e["spec"] = enc(WN.spec_from_policy(row, table, active, seat))
         except WN.PolicyRefusal as x:
             e["refusals"] = [list(r) for r in x.reasons]
         return e
     out = []
     for f in pol["families"]:
-        out.append(case(f["family"], f, pol, "within_k" if f["base"] == "active" else None))
+        out.append(case(f["family"], f, pol, within(f), PS.seat_of(f)))
+    for fam in ("self_roster_add", "self_roster_evict"):
+        out.append(case("%s, the seat key" % fam, fams[fam], pol, None, "key"))
+        out.append(case("%s, no seat" % fam, fams[fam], pol, None, None))
+        out.append(case("%s, a seat outside the count set" % fam, fams[fam], pol, None, "member"))
     for fam in ("default_content", "default_standing", "default_irreversible"):
+        base = PS.plant_base(fam)
+        out.append(case("%s, its opener as member" % fam, base, pol, "within_k", None))
         for n in (20, 5, 2 ** 32 + 13):
-            out.append(case("%s, census %d" % (fam, n), fams[fam], pol, ("census", n)))
-        out.append(case("%s, no active" % fam, fams[fam], pol, None))
-    out.append(case("community_invite, an active stated", fams["community_invite"], pol, ("census", 20)))
+            out.append(case("%s, its opener as member, census %d" % (fam, n), base, pol, ("census", n), None))
+        out.append(case("%s, its opener as member, no active" % fam, base, pol, None, None))
+    out.append(case("community_invite, an active stated", fams["community_invite"], pol, ("census", 20), None))
+    out.append(case("community_invite, a seat", fams["community_invite"], pol, None, "member"))
     for cell, fam, v, *act in PS.PLANTS:
         a = act[0] if act else None
         name = "plant %s = %s" % (cell, json.dumps(v))
         if fam is None:
             t = PS._set(pol, cell, v)
             for f in pol["families"]:
-                out.append(case("%s: %s" % (name, f["family"]), f, t, "within_k" if f["base"] == "active" else None))
+                out.append(case("%s: %s" % (name, f["family"]), f, t, within(f), PS.seat_of(f)))
         else:
-            row = PS._set(fams[fam], cell, v)
-            out.append(case("%s: %s" % (name, fam), row, pol, a if a is not None else ("within_k" if row["base"] == "active" else None)))
+            row = PS._set(PS.plant_base(fam), cell, v)
+            out.append(case("%s: %s" % (name, fam), row, pol, a if a is not None else within(row), PS.seat_of(row)))
     return {"source": "data/governance_policy.json (CIRISConstitution manifests/governance_policy.json)",
             "policy_sha256": pol["_meta"]["policy_sha256"], "cases": out}
 

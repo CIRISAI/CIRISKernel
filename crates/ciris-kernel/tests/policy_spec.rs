@@ -4,8 +4,8 @@
 
 mod common;
 use ciris_kernel::window::{
-    spec_from_policy, Active, Cell, CountedCells, PolicyRefusal, PolicyRow, PolicyTable, RuleCell, Stated, Why,
-    WindowSpec,
+    spec_from_policy, Active, Cell, Comparison, CountedCells, PolicyRefusal, PolicyRow, PolicyTable, RuleCell, Stated,
+    Why, WindowSpec, Words,
 };
 use common::*;
 use std::collections::BTreeMap;
@@ -38,6 +38,14 @@ fn stated(j: &J) -> Stated {
     }
 }
 
+fn words(j: &J) -> Words {
+    match j {
+        J::Arr(_) => Words::Listed(j.strs()),
+        J::Str(s) => Words::Word(s.clone()),
+        x => panic!("a words cell {x:?}"),
+    }
+}
+
 /// The row, every field of the table's JSON.
 fn row_of(j: &J) -> PolicyRow {
     let c = j.at("counted");
@@ -64,6 +72,20 @@ fn row_of(j: &J) -> PolicyRow {
         },
         cancel_over: j.at("cancel_over").s().into(),
         at_window: j.at("at_window").s().into(),
+        concluder: j.at("concluder").s().into(),
+        opener: j.at("opener").s().into(),
+        opener_says: j.at("opener_says").s().into(),
+        outcome_words: words(j.at("outcome_words")),
+        answer_words: words(j.at("answer_words")),
+        default_at_close: j.at("default_at_close").s().into(),
+        landed_means: j.at("landed_means").s().into(),
+        refused_means: j.at("refused_means").s().into(),
+        comparison: Comparison {
+            enact: j.at("comparison").at("enact").s().into(),
+            cancel: j.at("comparison").at("cancel").s().into(),
+            floor: j.at("comparison").at("floor").s().into(),
+        },
+        stated_census: opt_u(j.get("stated_census")),
         window_secs: j.at("window_secs").i() as u64,
         window_class: j.at("window_class").s().into(),
         irreversible: j.at("irreversible").b(),
@@ -97,6 +119,7 @@ fn refusal_word(r: &PolicyRefusal) -> (String, String, Option<String>) {
         Why::Disagrees(o) => ("disagrees", Some(o)),
         Why::NoWindow => ("no_window", None),
         Why::NotAWindow => ("not_a_window", None),
+        Why::Local => ("local", None),
         Why::NoCell(o) => ("no_cell", Some(o)),
         Why::Caller(o) => ("caller", Some(o)),
     };
@@ -109,8 +132,12 @@ fn policy_rows_give_the_models_tables() {
     let (mut cases, mut bad, mut specs) = (0usize, 0usize, 0usize);
     for c in fx.at("cases").arr() {
         let name = c.at("name").s();
-        let got: Result<WindowSpec<i64>, Vec<PolicyRefusal>> =
-            spec_from_policy(&row_of(c.at("row")), &table_of(c.at("table")), active_of(c.at("active")));
+        let got: Result<WindowSpec<i64>, Vec<PolicyRefusal>> = spec_from_policy(
+            &row_of(c.at("row")),
+            &table_of(c.at("table")),
+            active_of(c.at("active")),
+            c.at("seat").opt_s().as_deref(),
+        );
         cases += 1;
         let ok = match (&got, c.at("spec")) {
             (Ok(s), J::Obj(_)) => {
@@ -130,7 +157,12 @@ fn policy_rows_give_the_models_tables() {
                         (r[0].s().into(), r[1].s().into(), r[2].opt_s())
                     })
                     .collect();
-                rs.iter().map(refusal_word).collect::<Vec<_>>() == want
+                // the table names its cells and does not order them: compared as sets
+                let mut mine: Vec<_> = rs.iter().map(refusal_word).collect();
+                let mut want = want;
+                mine.sort();
+                want.sort();
+                mine == want
             }
             _ => false,
         };
@@ -148,14 +180,14 @@ fn policy_rows_give_the_models_tables() {
 #[test]
 fn a_length_the_instant_cannot_hold_is_refused() {
     let fx = fixture("policy_spec.json");
-    let c = fx.at("cases").arr().iter().find(|c| c.at("name").s() == "default_content").unwrap();
+    let c = fx.at("cases").arr().iter().find(|c| c.at("name").s() == "default_content, its opener as member").unwrap();
     let mut row = row_of(c.at("row"));
     let mut table = table_of(c.at("table"));
     row.window_secs = 1 << 40;
     table.window_classes.insert(row.window_class.clone(), 1 << 40);
-    let got: Result<WindowSpec<u32>, _> = spec_from_policy(&row, &table, Some(Active::WithinK));
+    let got: Result<WindowSpec<u32>, _> = spec_from_policy(&row, &table, Some(Active::WithinK), None);
     assert_eq!(got.unwrap_err(), vec![PolicyRefusal { cell: "window_secs", why: Why::Unknown }]);
-    assert!(spec_from_policy::<u64>(&row, &table, Some(Active::WithinK)).is_ok());
+    assert!(spec_from_policy::<u64>(&row, &table, Some(Active::WithinK), None).is_ok());
 }
 
 // ---- the seat law's table cells (`tables::law_from_tables`, fixture `law_tables.json`) ------------------------------
@@ -270,6 +302,36 @@ fn the_tables_give_the_models_seat_law() {
     assert_eq!(bad, 0, "{bad} of {cases} differ");
 }
 
+/// A row's table in the reference's words: answers assent and raised as approve and object; the overturn's leaves as
+/// its reading words (check_policy_spec.py, WORDS and READING).
+fn in_words(mut d: WindowSpec<i64>, fam: &str) -> WindowSpec<i64> {
+    let v = |w: &str| -> String {
+        match w {
+            "assent" => "approve".into(),
+            "raised" => "object".into(),
+            w => w.into(),
+        }
+    };
+    let o = |w: &str| -> String {
+        match (fam, w) {
+            ("moderation_overturn", "landed") => "lifted".into(),
+            ("moderation_overturn", "refused") => "stands".into(),
+            (_, w) => w.into(),
+        }
+    };
+    for cl in d.at_once.iter_mut().chain(d.at_close.iter_mut()) {
+        cl.value = v(&cl.value);
+        cl.out = o(&cl.out);
+        if let ciris_kernel::window::How::MoreOfVoted(_, _, _, against) = &mut cl.how {
+            *against = v(against);
+        }
+    }
+    d.opener_says = d.opener_says.map(|w| v(&w));
+    d.silent = d.silent.map(|w| o(&w));
+    d.default = o(&d.default);
+    d
+}
+
 // ---- the act binding (`window::rule_bound`, `window::outcome_bound`, fixture `window_bound.json`) -------------------
 #[test]
 fn bound_openers_take_the_models_tables() {
@@ -281,10 +343,13 @@ fn bound_openers_take_the_models_tables() {
     let table = table_of(fx.at("table"));
     let rows: BTreeMap<String, PolicyRow> =
         fx.at("families").arr().iter().map(|f| (f.at("family").s().to_string(), row_of(f))).collect();
-    let families = |fam: &str, _obj: &ciris_kernel::seat::Obj<String, String>| -> Option<WindowSpec<i64>> {
+    // the row's table in the reference's words, as check_policy_spec.families gives it (its WORDS and READING)
+    let families = |fam: &str, _obj: &ciris_kernel::seat::Obj<String, String>, seat: Option<&str>| {
         let row = rows.get(fam)?;
-        let active = (row.base == "active").then_some(Active::WithinK);
-        spec_from_policy(row, &table, active).ok()
+        let active = (row.base == "active" && row.stated_census.is_none()).then_some(Active::WithinK);
+        let several = row.counted.count_set.value.split('-').next().unwrap_or("").contains('+');
+        let d: WindowSpec<i64> = spec_from_policy(row, &table, active, seat.filter(|_| several)).ok()?;
+        Some(in_words(d, fam))
     };
     let none = |_: &String| -> Option<WindowSpec<i64>> { None };
     let spec = DictCut;
