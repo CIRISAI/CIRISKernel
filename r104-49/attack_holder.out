@@ -1,0 +1,8 @@
+the founders' stale election                     reader None concluded {'opg': True, 'eb': True}  moderate {'A': False, 'B': False, 'D': False}  closed {'eb': False}
+the founders' stale election                     reader R    concluded {'opg': True, 'eb': True}  moderate {'A': False, 'B': False, 'D': False}  closed {'eb': False}
++ the honest one, not holding the stale opening  reader None concluded {'opg': True, 'eb': True, 'op': True, 'ed': True}  moderate {'A': False, 'B': False, 'D': False}  closed {'eb': False, 'ed': False}
++ the honest one, not holding the stale opening  reader R    concluded {'opg': True, 'eb': True, 'op': True, 'ed': True}  moderate {'A': False, 'B': False, 'D': False}  closed {'eb': False, 'ed': False}
++ the honest one, its opening holding opg        reader None concluded {'opg': True, 'eb': True, 'op': True, 'ed': True}  moderate {'A': False, 'B': False, 'D': True}  closed {'eb': False, 'ed': True}
++ the honest one, its opening holding opg        reader R    concluded {'opg': True, 'eb': True, 'op': True, 'ed': True}  moderate {'A': False, 'B': False, 'D': False}  closed {'eb': False, 'ed': False}
++ holding opg, B's receipt naming eb             reader None concluded {'opg': True, 'eb': True, 'op': True, 'ed': True}  moderate {'A': False, 'B': False, 'D': True}  closed {'eb': False, 'ed': True}
++ holding opg, B's receipt naming eb             reader R    concluded {'opg': True, 'eb': True, 'op': True, 'ed': True}  moderate {'A': False, 'B': False, 'D': False}  closed {'eb': False, 'ed': False}
