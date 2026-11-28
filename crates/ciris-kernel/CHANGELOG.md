@@ -7,7 +7,11 @@ from the text: 143 on the default, 46 pinned, none undecided; custody, duty, own
 `follows`. "Narrower" is over PERSONS (the Constitution's ruling): a row's audience is within the followed row's
 where every person it holds is one the followed row holds (a duty at self by a member whose own device is off the
 roster is within). `audience::place_in` places over another table, so the Undecided path stays tested over a
-synthetic one.
+synthetic one. A follows row names the row it follows by its family's reference (the ruling G34,
+`audience::FOLLOWS_REF`, `followed_of`): custody by `evidence_refs`, stream:head by its `sub`, ownership and duty by
+`refs.also.cites` (exactly one; several refuse, `follows_ambiguous`). **BREAKING** within the release:
+`AudienceRow::follows` is gone; `evidence`, `stream` and `cites` replace it, and `follow` takes why a row names
+none.
 
 **`follows`, ready for the next family model** (both languages; inert at the pinned d103e60, which has no such
 cell): a placement cell's `follows` marker (custody, duty and stream:head at the Constitution's 42eaa3f) is read by

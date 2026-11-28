@@ -621,9 +621,11 @@ plant "a row that does not conclude carries"          src/audience.rs 'if !d.con
 plant "carried to a key off the roster (c.2)"          src/audience.rs 'let on_roster = |room: &R::Id| aud.meet(&Audience::Keys(roster(room)));' 'let on_roster = |_: &R::Id| aud.clone();'
 plant "a key grant carried"                            src/audience.rs '|| key_grant ||' '||'
 plant "a seat row of any family seats"                src/audience.rs 'if seat_family && r.seat_act()' 'if r.seat_act()'
-plant "a follows row unchecked"                       src/audience.rs '    if !named {
-        return Placed::Refused(Refusal::FollowsNotNamed);' '    if true {
+plant "a follows row unchecked"                       src/audience.rs '    if let Err(why) = named {
+        return Placed::Refused(why);' '    if let Err(why) = named {
+        let _ = why;
         return own;'
+plant "a follows row read by any reference"           src/audience.rs '        Some(FollowsRef::Evidence) => r.evidence().ok_or(Refusal::FollowsNotNamed),' '        Some(FollowsRef::Evidence) => r.evidence().or(r.cites().first()).ok_or(Refusal::FollowsNotNamed),'
 plant "a follows row wider than its own"              src/audience.rs 'Follows::Narrower if within(a, fa, person) => own,' 'Follows::Narrower => own,'
 plant "narrower read by keys, not persons"            src/audience.rs 'a.iter().all(|k| b.contains(k) || person(k).iter().any(|x| b.contains(x)))' '{ let _ = person; a.is_subset(b) }'
 plant "a tie takes the first pattern"                 src/audience.rs 'Some((b, _)) if k == b => tie = true,' 'Some((b, _)) if k == b => {}'

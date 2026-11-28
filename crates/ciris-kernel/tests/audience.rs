@@ -23,7 +23,9 @@ struct ARow {
     obj: Option<String>,
     to: Vec<String>,
     history: Option<History>,
-    follows: Option<String>,
+    evidence: Option<String>,
+    stream: Option<String>,
+    cites: Vec<String>,
 }
 
 impl AudienceRow for ARow {
@@ -65,8 +67,14 @@ impl AudienceRow for ARow {
     fn history_on_join(&self) -> Option<History> {
         self.history
     }
-    fn follows(&self) -> Option<&String> {
-        self.follows.as_ref()
+    fn evidence(&self) -> Option<&String> {
+        self.evidence.as_ref()
+    }
+    fn stream(&self) -> Option<&String> {
+        self.stream.as_ref()
+    }
+    fn cites(&self) -> &[String] {
+        &self.cites
     }
 }
 
@@ -89,7 +97,9 @@ fn arow(j: &J) -> ARow {
         to: j.get("to").map(|v| v.strs()).unwrap_or_default(),
         // a word the door would refuse is absent
         history: j.get("history_on_join").and_then(|v| History::from_word(v.s())),
-        follows: j.get("follows").and_then(|v| v.opt_s()),
+        evidence: j.get("evidence").and_then(|v| v.opt_s()),
+        stream: j.get("stream").and_then(|v| v.opt_s()),
+        cites: j.get("cites").map(|v| v.strs()).unwrap_or_default(),
     }
 }
 
@@ -152,7 +162,9 @@ fn every_family_in_every_scope() {
             obj: None,
             to: vec![],
             history: None,
-            follows: None,
+            evidence: None,
+            stream: None,
+            cites: vec![],
         };
         n += 1;
         // the generated rows: no member changes, so the members at a row's head are the roster
@@ -254,7 +266,9 @@ fn history_on_join_words() {
             obj: None,
             to: vec![],
             history: h.get("row").and_then(|v| v.opt_s()).and_then(|w| History::from_word(&w)),
-            follows: None,
+            evidence: None,
+            stream: None,
+            cites: vec![],
         };
         let hi = |_: &String| rec.as_deref().and_then(History::from_word);
         let got = history_of(&r, &Joins { history: &hi, at_head: &|_, _| BTreeSet::new() });
@@ -322,6 +336,7 @@ fn dec(j: &J) -> Placed<String> {
                 FollowsNotHeld,
                 FollowsUnplaced,
                 FollowsMismatch,
+                FollowsAmbiguous,
                 FollowsWider,
             ];
             Placed::Refused(all.into_iter().find(|r| r.as_str() == a[1].s()).expect("a refusal"))
@@ -341,7 +356,8 @@ fn follows_rule() {
         let rule = if c.at("rule").s() == "same" { Follows::Same } else { Follows::Narrower };
         let (_, person) = world(&fx);
         let pe = |k: &String| person.get(k).cloned().unwrap_or_else(|| [k.clone()].into());
-        let got = enc(&follow(c.at("named").b(), own, followed.as_ref(), rule, &pe));
+        let named = if c.at("named").b() { Ok(()) } else { Err(ciris_kernel::audience::Refusal::FollowsNotNamed) };
+        let got = enc(&follow(named, own, followed.as_ref(), rule, &pe));
         n += 1;
         if &got != c.at("answer") {
             bad += 1;
@@ -394,7 +410,9 @@ fn undecided_path() {
             obj: None,
             to: vec![],
             history: None,
-            follows: None,
+            evidence: None,
+            stream: None,
+            cites: vec![],
         };
         let got = enc(&place_in(table, &r, &ro, &pe, &joins));
         n += 1;

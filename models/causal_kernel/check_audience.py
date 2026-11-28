@@ -315,7 +315,8 @@ PLANTS = [(("undecided_defaulted",), "undecided"), (("pinned_unread",), "pinned_
           (("seats_person_level",), "seats_not_person_level"),
           (("named_within_current",), "named_at_own_head"),
           (("history_unread",), "history"), (("word_read",), "history"),
-          (("tie_first",), "ties"), (("follows_unread",), "follow"), (("narrower_by_keys",), "follow")]
+          (("tie_first",), "ties"), (("follows_unread",), "follow"), (("narrower_by_keys",), "follow"),
+          (("follows_any_ref",), "custody_by_cites_is_not_named")]
 
 
 def generated():
@@ -370,6 +371,8 @@ def check_derivation():
     # the generator refuses a table whose patterns tie on a name, and finds no tie in the pinned one
     if not FP.ties(["x:{a}", "{b}:y"]) or not FP.ties(["x:*", "x:{a}"]) or FP.ties(["x:*", "x:y"]):
         problems.append("derivation: the tie check")
+    if set(AU.FOLLOWS) != set(AU.FOLLOWS_REF):
+        problems.append("derivation: the follows families %s have references %s" % (sorted(AU.FOLLOWS), sorted(AU.FOLLOWS_REF)))
     if AU.KEY_GRANT not in AU.FAMILIES:
         problems.append("derivation: the key grant family %s is not in the table" % AU.KEY_GRANT)
     if AU.SEAT_FAMILIES != {"ballot:moderator_acceptance", "group:roster", "membership:{stage}"}:
@@ -406,7 +409,7 @@ def check_follow():
     for named, own, fol, rule, want in FOLLOW:
         r = row("f", "custody:blob", "community", room="r1")
         if named:
-            r["follows"] = "t"
+            r["evidence"] = "t"
         got = AU.follow(r, own, fol, rule, person)
         if got != want:
             problems.append("follow: %s %s against %s gives %s, want %s" % (rule, own, fol, got, want))
@@ -418,30 +421,48 @@ def check_follow():
 FOLLOWS_CASES = [
     ("custody_follows_its_content", "a custody row of a blob in r1 follows the blob's own scope: placed with it",
      [row("b", "file:blob", "community", room="r1"),
-      dict(row("c", "custody:blob", "community", room="r1", names=["b"]), follows="b")],
+      dict(row("c", "custody:blob", "community", room="r1", names=["b"]), evidence="b")],
      {"b": P("targeted_room", ROOM), "c": P("targeted_room", ROOM)}),
     ("custody_wider_than_its_content", "a custody row at the commons of a blob placed in r1: refused",
      [row("b", "file:blob", "community", room="r1"),
-      dict(row("c", "custody:blob", "federation", names=["b"]), follows="b")],
+      dict(row("c", "custody:blob", "federation", names=["b"]), evidence="b")],
      {"b": P("targeted_room", ROOM), "c": REF("follows_mismatch")}),
     ("duty_within_its_permission", "a duty at the family r1 on a permission placed in room r1: its audience is "
      "within the permission's, placed",
      [row("p", "consent:scope:read", "community", room="r1"),
-      dict(row("d", "duty:keep", "family", room="r1", names=["p"]), follows="p")],
+      dict(row("d", "duty:keep", "family", room="r1", names=["p"]), cites=["p"])],
      {"p": P("targeted_room", ROOM), "d": P("targeted_family", ROOM)}),
     ("duty_at_self_within_its_permission", "a duty at self on a permission in r1, by a, whose device a2 is off r1's "
      "roster: narrower is over persons, and a is on the roster, so it is within (the ruling)",
      [row("p", "consent:scope:read", "community", room="r1"),
-      dict(row("d", "duty:keep", "self", names=["p"]), follows="p")],
+      dict(row("d", "duty:keep", "self", names=["p"]), cites=["p"])],
      {"p": P("targeted_room", ROOM), "d": P("self_collective", ["a", "a2"])}),
     ("duty_at_self_of_an_outsider", "a duty at self by d, a person off r1's roster, on a permission in r1: refused",
      [row("p", "consent:scope:read", "community", room="r1"),
-      dict(row("d", "duty:keep", "self", signer="d", names=["p"]), follows="p")],
+      dict(row("d", "duty:keep", "self", signer="d", names=["p"]), cites=["p"])],
      {"p": P("targeted_room", ROOM), "d": REF("follows_wider")}),
     ("duty_wider_than_its_permission", "a duty at the commons on a permission placed in r1: refused",
      [row("p", "consent:scope:read", "community", room="r1"),
-      dict(row("d", "duty:keep", "federation", names=["p"]), follows="p")],
+      dict(row("d", "duty:keep", "federation", names=["p"]), cites=["p"])],
      {"p": P("targeted_room", ROOM), "d": REF("follows_wider")}),
+    # G34: each family names the row it follows by its own reference
+    ("stream_head_follows_its_stream", "a stream head follows the stream it heads, by its sub",
+     [row("st", "chat:general", "community", room="r1"),
+      dict(row("h", "stream:head", "community", room="r1", names=["st"]), stream="st")],
+     {"st": P("targeted_room", ROOM), "h": P("targeted_room", ROOM)}),
+    ("ownership_follows_its_binding", "an ownership row cites the owner binding it mirrors: placed with it",
+     [row("ob", "consent:scope:own", "community", room="r1"),
+      dict(row("o", "ownership:owner:key:v1", "community", room="r1", names=["ob"]), cites=["ob"])],
+     {"ob": P("targeted_room", ROOM), "o": P("targeted_room", ROOM)}),
+    ("custody_by_cites_is_not_named", "a custody row names its content by evidence_refs; a cite of the blob row is "
+     "not its reference: refused",
+     [row("b", "file:blob", "community", room="r1"),
+      dict(row("c", "custody:blob", "community", room="r1", names=["b"]), cites=["b"])],
+     {"b": P("targeted_room", ROOM), "c": REF("follows_not_named")}),
+    ("duty_citing_two_rows", "a duty that cites two rows names no one permission: refused",
+     [row("p", "consent:scope:read", "community", room="r1"), row("p2", "consent:scope:write", "community", room="r1"),
+      dict(row("d", "duty:keep", "family", room="r1", names=["p", "p2"]), cites=["p", "p2"])],
+     {"p": P("targeted_room", ROOM), "p2": P("targeted_room", ROOM), "d": REF("follows_ambiguous")}),
     ("stream_head_names_no_stream", "a stream head that names no stream it heads: refused",
      [row("h", "stream:head", "community", room="r1")], {"h": REF("follows_not_named")}),
 ]
