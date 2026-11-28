@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+**A bundle's refusal name and its detail, from the token table** (the Constitution's `manifests/refusal_tokens.tsv`
+at rc23-next 0e80f21, CC 2.6.1.11). **BREAKING** within 0.5.0: `Root::counted` gives the refusal NAME;
+`Root::refusal` gives (name, detail), and `root::detail_of` maps a detail to its refusal. A malformed bundle is
+`genesis_bundle_malformed` with the detail `version_prev_mismatch`, `family_key_id_changed` (a family mismatch was
+`version_prev_mismatch`), `recovery_commitments_not_holders` or `recovery_changes_other_seat`; a recovery's
+statement that does not count is `genesis_bundle_count_unmet` with `recovery_commitment_mismatch` or
+`recovery_commitment_spent`. `further_prev_not_newest` stays a refusal of its own: the table lists it as one (step 3
+of the order of verification), not as a detail. `root.json` carries each bundle's refusal; plant `detail_as_name`.
+
 **Who else signs a join; behind exactly; a thumbprint anchor matching two** (CIRISVerify's per-bundle read, the
 Constitution's readings 1 and 3), both languages. A join is counted only where, besides each predecessor's
 majority, a holder no named predecessor seats signs it under its own key, and a holder whose recovery commitment in

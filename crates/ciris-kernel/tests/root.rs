@@ -234,6 +234,22 @@ fn root_replay() {
                 fail(&format!("counted {i}"), format!("{:?}", root.counted(i)));
             }
         }
+        // the refusal name and its detail (the Constitution's token table), every bundle
+        if let Some(rs) = c.get("refusal") {
+            for (i, want) in rs.obj() {
+                let got = root.refusal(i);
+                let w = match want {
+                    J::Null => None,
+                    w => Some((w.arr()[0].s().to_string(), w.arr()[1].opt_s())),
+                };
+                if got.map(|(n, d)| (n.to_string(), d.map(String::from))) != w {
+                    fail(&format!("refusal {i}"), format!("{got:?}"));
+                }
+                if root.counted(i).err().map(String::from) != w.as_ref().map(|x| x.0.clone()) {
+                    fail(&format!("counted name {i}"), format!("{:?}", root.counted(i)));
+                }
+            }
+        }
         if sorted(root.void()) != c.at("void").strs() {
             fail("void", format!("{:?}", root.void()));
         }

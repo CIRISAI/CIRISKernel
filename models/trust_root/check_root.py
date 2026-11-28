@@ -101,8 +101,10 @@ CASES = [
      (), (), ANC, {"concluded": {"b1": Fa}}),
     ("heads", "family is prev's: a bundle on b0 under another family_key_id is Invalid",
      [B0, nxt("b1", "b0", H3, ("h1", "h2"), family="other")], (), (), ANC, {"concluded": {"b1": Fa}}),
-    ("count", "recovery_commitments are keys exactly the holders: a bundle missing h3's is Invalid",
-     [B0, nxt("b1", "b0", H3, ("h1", "h2"), recovery={"h1": "r:h1", "h2": "r:h2"})], (), (), ANC, {"concluded": {"b1": Fa}}),
+    ("count", "recovery_commitments are keys exactly the holders: a bundle missing h3's is Invalid, "
+              "genesis_bundle_malformed, recovery_commitments_not_holders",
+     [B0, nxt("b1", "b0", H3, ("h1", "h2"), recovery={"h1": "r:h1", "h2": "r:h2"})], (), (), ANC,
+     {"concluded": {"b1": Fa}, "refusal": {"b1": ("genesis_bundle_malformed", "recovery_commitments_not_holders")}}),
     # ---- recovery ---------------------------------------------------------------------------------------------------
     ("recovery", "a holder's own key recovery: h3's recovery key alone replaces h3 by h3b", [B0, REC], (), (),
      RD(anchor="b0", acks=("rc",)), {"concluded": {"rc": T}, "holders": {"h1", "h2", "h3b"}}),
@@ -160,8 +162,18 @@ CASES = [
      {"concluded": {"j": Fa}}),
     ("join", "the same rule whatever the charters: h1, h2 and h3 join tips whose charters differ", JOINC, (), (),
      RD(anchor="b0", acks=("j",)), {"concluded": {"j": T}, "holders": {"h1", "h2", "h3", "h4", "h5"}}),
-    ("join", "the wire: prev is the greatest version, least id among equals; naming s2 first is Invalid",
-     FORK + [nxt("j", ("s2", "s1"), H3 + ("h4", "h5"), ("h1", "h2", "h3"), version=2)], (), (), ANC, {"concluded": {"j": Fa}}),
+    ("join", "the wire: prev is the greatest version, least id among equals; naming s2 first is Invalid: "
+             "genesis_bundle_malformed, the detail version_prev_mismatch (the token table)",
+     FORK + [nxt("j", ("s2", "s1"), H3 + ("h4", "h5"), ("h1", "h2", "h3"), version=2)], (), (), ANC,
+     {"concluded": {"j": Fa}, "refusal": {"j": ("genesis_bundle_malformed", "version_prev_mismatch")}}),
+    ("count", "a version not one greater than its predecessor's: genesis_bundle_malformed, version_prev_mismatch",
+     [B0, nxt("b1", "b0", H3, ("h1", "h2"), version=2)], (), (), ANC,
+     {"refusal": {"b1": ("genesis_bundle_malformed", "version_prev_mismatch")}}),
+    ("count", "another family_key_id: genesis_bundle_malformed, family_key_id_changed",
+     [B0, nxt("b1", "b0", H3, ("h1", "h2"), family="other")], (), (), ANC,
+     {"refusal": {"b1": ("genesis_bundle_malformed", "family_key_id_changed")}}),
+    ("count", "a bundle that counts has no refusal", [B0, nxt("b1", "b0", H3, ("h1", "h2"))], (), (), ANC,
+     {"refusal": {"b1": None}}),
     # who else signs a join (CIRISVerify's per-bundle read; the Constitution's reading 1): a holder no named
     # predecessor seats, and a holder whose recovery commitment in the join differs from one a predecessor seating it
     # carries, each sign it, under a key some predecessor seats it at (not a retired one)
@@ -198,8 +210,10 @@ CASES = [
     ("join", "and revives nothing: the retired h3 signing it is no voice (h3 alone with h4 on am)",
      [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h3", "h4"), version=2,
                         recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})], (), (), ANC, {"concluded": {"j": Fa}}),
-    ("join", "the wire: a named predecessor in the past of another concludes nothing (s1 and b0)",
-     FORK + [nxt("j", ("s1", "b0"), H3 + ("h4",), ("h1", "h2", "h3"), version=2)], (), (), ANC, {"concluded": {"j": Fa}}),
+    ("join", "the wire: a named predecessor in the past of another is Invalid (s1 and b0): further_prev_not_newest, a "
+             "refusal of its own in the token table, no detail",
+     FORK + [nxt("j", ("s1", "b0"), H3 + ("h4",), ("h1", "h2", "h3"), version=2)], (), (), ANC,
+     {"concluded": {"j": Fa}, "refusal": {"j": ("further_prev_not_newest", None)}}),
     # the forked join (the Constitution's option (ii)): two joins of the same tips that do not fold with each other
     # (their charters differ), neither in the other's past, are contested: neither stands, and the reader keeps the
     # tips they tried to join; a bundle naming every one settles them, counted by a strict majority of those tips'
@@ -850,13 +864,14 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
           "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names",
           "concurrent_keep_bundle_only",
-          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first")
+          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name")
 
 
 def answer(bs, rv, gs, rd, want):
     R = RT.Root(bs, rv, gs)
     got = {}
     if "concluded" in want: got["concluded"] = {i: R.counted(i)[0] for i in want["concluded"]}
+    if "refusal" in want: got["refusal"] = {i: R.refusal(i) for i in want["refusal"]}
     if "void" in want: got["void"] = set(R.void())
     if "reasons" in want: got["reasons"] = {i: R.void_reason(i) for i in want["reasons"]}
     if "heads" in want: got["heads"] = R.heads(rd)
@@ -963,6 +978,7 @@ def fixture(with_refs):
         cases.append({"name": rule + ": " + name, "bundles": [benc(b) for b in bs],
                       "revokes": [{"key": r["key"], "bound": r["bound"]} for r in rv], "grants": [genc(g) for g in gs],
                       "reader": renc(rd), "concluded": {b["id"]: R.counted(b["id"])[0] for b in bs},
+                      "refusal": {b["id"]: (list(R.refusal(b["id"])) if R.refusal(b["id"]) else None) for b in bs},
                       "void": sorted(R.void()), "heads": list(hs) if hs is not None else None,
                       "void_reasons": {i: R.void_reason(i) for i in sorted(R.void())},
                       "holders": sorted(f[0]) if f else None, "seats": sorted(f[1]) if f else None,

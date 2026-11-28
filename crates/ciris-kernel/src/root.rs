@@ -173,6 +173,19 @@ impl<I: Ord, K: Ord> Reader<I, K> {
 /// Why a bundle or a grant does not stand.
 pub type Reason = &'static str;
 
+/// The refusal a detail is a detail of (the Constitution's token table, `manifests/refusal_tokens.tsv`, and CC
+/// 2.6.1.11's table of a malformed bundle's details); None for a refusal name.
+pub fn detail_of(d: Reason) -> Option<Reason> {
+    match d {
+        "version_prev_mismatch"
+        | "family_key_id_changed"
+        | "recovery_commitments_not_holders"
+        | "recovery_changes_other_seat" => Some("genesis_bundle_malformed"),
+        "recovery_commitment_mismatch" | "recovery_commitment_spent" => Some("genesis_bundle_count_unmet"),
+        _ => None,
+    }
+}
+
 /// One root: its bundles, revocations, and the rows of its lane (grants and acceptance edges).
 pub struct Root<'a, B: RootBundle, G: RootGrant> {
     by: BTreeMap<&'a B::Id, &'a B>,
@@ -298,9 +311,8 @@ where
         out
     }
 
-    /// Why b is Invalid or waits, by the text's names (CC 2.6.1.11, CC 3.2), or None. `version_prev_mismatch` and
-    /// `further_prev_not_newest` are DETAILS of the malformed-bundle refusal (the text's token table, as CIRISVerify
-    /// returns them), returned here as the detail, never as a refusal name of their own.
+    /// Why b is Invalid or waits, by the text's tokens (CC 2.6.1.11, CC 3.2), or None: a refusal name, or a detail
+    /// ([`detail_of`]), which [`Root::counted`] reports under its refusal name and [`Root::refusal`] gives apart.
     fn inconsistency(&self, b: &B) -> Option<Reason> {
         let ps: Vec<&B> = b.prev().iter().filter_map(|p| self.b(p)).collect();
         if ps.len() != b.prev().len() {
@@ -309,7 +321,7 @@ where
         let rk: BTreeSet<&B::Key> = b.recovery().iter().map(|(h, _)| h).collect();
         let hk: BTreeSet<&B::Key> = b.holders().iter().collect();
         if rk != hk {
-            return Some("genesis_bundle_malformed"); // recovery_commitments are keys exactly the holders
+            return Some("recovery_commitments_not_holders"); // a detail of genesis_bundle_malformed
         }
         if ps.is_empty() {
             return None;
@@ -319,7 +331,7 @@ where
             return Some("version_prev_mismatch");
         }
         if !ps.iter().all(|p| p.family() == b.family()) {
-            return Some("version_prev_mismatch");
+            return Some("family_key_id_changed");
         }
         if ps.len() >= 2 {
             // the join's wire: refs.prev is the greatest version, least id among equals; refs.further_prev the
@@ -480,8 +492,25 @@ where
         Some(Ok(()))
     }
 
-    /// The bundle's own count, its predecessors concluded.
+    /// The bundle's own count, its predecessors concluded; refused, the refusal NAME (the detail, where the token
+    /// table gives the refusal one, is [`Root::refusal`]'s).
     pub fn counted(&self, i: &B::Id) -> Result<(), Reason> {
+        self.counted_raw(i).map_err(|why| detail_of(why).unwrap_or(why))
+    }
+
+    /// None where bundle `i` counts; else its refusal name and its detail, the detail None where the refusal carries
+    /// none: a malformed bundle's (`genesis_bundle_malformed`, `version_prev_mismatch`), a recovery's statement that
+    /// does not count (`genesis_bundle_count_unmet`, `recovery_commitment_mismatch`), as the Constitution's token
+    /// table names them. `further_prev_not_newest` is a refusal of its own there.
+    pub fn refusal(&self, i: &B::Id) -> Option<(Reason, Option<Reason>)> {
+        let why = self.counted_raw(i).err()?;
+        Some(match detail_of(why) {
+            Some(name) => (name, Some(why)),
+            None => (why, None),
+        })
+    }
+
+    fn counted_raw(&self, i: &B::Id) -> Result<(), Reason> {
         if let Some(c) = self.counted_memo.borrow().get(i) {
             return *c;
         }

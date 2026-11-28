@@ -20,9 +20,9 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
                  recovery in the bundle's past used) concludes nothing. A recovery takes S'' like any bundle, the
                  holder (either key) its voice; recoveries of one seat are settled by T between them.
     the heads    `version` is prev's plus one (a join: the greater plus one) and `family` is prev's: a consistency
-                 check, never ranked; a mismatch is Invalid, the malformed-bundle refusal with detail `version_prev_mismatch`; a
-                 join naming a predecessor in another's lineage past is Invalid, the same refusal with detail
-                 `further_prev_not_newest` (a detail, never a refusal name of its own); a recovery whose prev is in the
+                 check, never ranked; a mismatch is Invalid, `genesis_bundle_malformed` with the detail `version_prev_mismatch`
+                 (`family_key_id_changed` for the family); a join naming a predecessor in another's lineage past is
+                 Invalid, `further_prev_not_newest`, a refusal of its own (the token table); a recovery whose prev is in the
                  lineage past of a bundle its holder signed concludes nothing (`recovery_behind_head`). A later bundle is a counted change of the holders'
                  roster: it names the newest bundle in its signers' own past, and S'' and T at the fork point
                  apply to it as to a roster change (MINE, the Constitution's derived reading).
@@ -74,6 +74,19 @@ MUT holds planted breaks, switched on by check_root.py.
 """
 
 MUT = set()
+
+# The details and the refusal each is a detail of (the Constitution's token table, manifests/refusal_tokens.tsv at
+# rc23-next 0e80f21, and CC 2.6.1.11's table of a malformed bundle's details). further_prev_not_newest is a refusal
+# of its own there (CC 2.6.1.11, the order of verification, step 3), not a detail. MUTATION detail_as_name: counted()
+# and refusal() give the detail as the refusal name, with none.
+DETAIL_OF = {
+    "version_prev_mismatch": "genesis_bundle_malformed",
+    "family_key_id_changed": "genesis_bundle_malformed",
+    "recovery_commitments_not_holders": "genesis_bundle_malformed",
+    "recovery_changes_other_seat": "genesis_bundle_malformed",
+    "recovery_commitment_mismatch": "genesis_bundle_count_unmet",
+    "recovery_commitment_spent": "genesis_bundle_count_unmet",
+}
 
 # PROTOTYPE (r78 q4, pending the Constitution): UNION VOIDING. A bundle behind ANY of the reader's settled
 # acknowledgements is void, whatever their concurrency (the monotone line over the union of the person's
@@ -234,15 +247,14 @@ class Root:
         return self.inconsistency(b) is None
 
     def inconsistency(self, b):
-        """Why b is Invalid or waits, by the text's names (CC 2.6.1.11, CC 3.2), or None. `version_prev_mismatch` and
-        `further_prev_not_newest` are DETAILS of the malformed-bundle refusal (the text's token table, as CIRISVerify
-        returns them), returned here as the detail."""
+        """Why b is Invalid or waits, by the text's tokens (CC 2.6.1.11, CC 3.2), or None: a refusal name, or a detail
+        (DETAIL_OF), which counted() reports under its refusal name and refusal() gives apart."""
         ps = [self.by[p] for p in b["prev"] if p in self.by]
         if len(ps) != len(b["prev"]): return "genesis_bundle_prev_not_valid"      # one not held: waits
-        if set(b["recovery"]) != set(b["holders"]) and "commitments_unread" not in MUT: return "genesis_bundle_malformed"
+        if set(b["recovery"]) != set(b["holders"]) and "commitments_unread" not in MUT: return "recovery_commitments_not_holders"
         if not ps: return None
         if "version_unread" not in MUT and b["version"] != max(p["version"] for p in ps) + 1: return "version_prev_mismatch"
-        if "family_unread" not in MUT and any(p["family"] != b["family"] for p in ps): return "version_prev_mismatch"
+        if "family_unread" not in MUT and any(p["family"] != b["family"] for p in ps): return "family_key_id_changed"
         if len(ps) >= 2:
             # the join's wire: refs.prev is the greatest version, least id among equals; refs.further_prev the rest;
             # a named predecessor in the lineage past of another is Invalid
@@ -356,7 +368,20 @@ class Root:
         return (True, None)
 
     def counted(self, i):
-        """The bundle's own count, its predecessors concluded: (True|False, reason)."""
+        """The bundle's own count, its predecessors concluded: (True|False, the refusal name). The detail, where the
+        token table gives the refusal one, is refusal(i)'s."""
+        ok, why = self._counted_raw(i)
+        return (ok, DETAIL_OF.get(why, why) if "detail_as_name" not in MUT else why)
+
+    def refusal(self, i):
+        """None where bundle i counts; else (name, detail), the detail None where the refusal carries none: the
+        malformed bundle's (genesis_bundle_malformed, version_prev_mismatch), a recovery's statement that does not
+        count (genesis_bundle_count_unmet, recovery_commitment_mismatch), as manifests/refusal_tokens.tsv names them."""
+        ok, why = self._counted_raw(i)
+        if ok: return None
+        return (DETAIL_OF[why], why) if why in DETAIL_OF and "detail_as_name" not in MUT else (why, None)
+
+    def _counted_raw(self, i):
         if i in self._concl: return self._concl[i]
         b = self.by[i]
         self._concl[i] = (False, "cycle")
