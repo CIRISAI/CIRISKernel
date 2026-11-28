@@ -35,6 +35,9 @@ Sources (all under models/):
     consent   causal_kernel/check_consent.py: the consent peer set (CC 3.3.7): each case's rows and every ask (a
               grant in force, a principal's peer set, whether a node may send a peer a row of a class) with the
               model's answer. tests/consent.rs replays it through consent::in_force, peer_set and may_send.
+    policy_spec causal_kernel/window.py spec_from_policy: every row of the governance policy table, read under each
+              `active`, and every plant of check_policy_spec.py (one cell changed), with the window table each gives
+              or the cells it refuses on. tests/policy_spec.rs replays it through window::spec_from_policy.
     root      trust_root/check_root.py: the trust root's lineage (the count, S'' and T, the fold, the bundles in
               force per reader, grants) and stalled recoveries judged against it. tests/root.rs replays both.
 """
@@ -861,6 +864,125 @@ def acts_cases():
             "dissolved": dissolved_cases(AC)}
 
 
+# ---- policy_spec: a window's table from its policy row ------------------------------------------------------------
+def policy_spec_cases():
+    import window as WN
+    import check_policy_spec as PS
+    pol = WN.policy_table()
+    fams = {f["family"]: f for f in pol["families"]}
+    cut = lambda t: {"min_count": t["min_count"], "window_classes": t["window_classes"]}
+
+    def case(name, row, table, active):
+        e = {"name": name, "row": row, "table": cut(table), "active": enc(active), "spec": None, "refusals": None}
+        try:
+            e["spec"] = enc(WN.spec_from_policy(row, table, active))
+        except WN.PolicyRefusal as x:
+            e["refusals"] = [list(r) for r in x.reasons]
+        return e
+    out = []
+    for f in pol["families"]:
+        out.append(case(f["family"], f, pol, "within_k" if f["base"] == "active" else None))
+    for fam in ("default_content", "default_standing", "default_irreversible"):
+        for n in (20, 5, 2 ** 32 + 13):
+            out.append(case("%s, census %d" % (fam, n), fams[fam], pol, ("census", n)))
+        out.append(case("%s, no active" % fam, fams[fam], pol, None))
+    out.append(case("community_invite, an active stated", fams["community_invite"], pol, ("census", 20)))
+    for cell, fam, v, *act in PS.PLANTS:
+        a = act[0] if act else None
+        name = "plant %s = %s" % (cell, json.dumps(v))
+        if fam is None:
+            t = PS._set(pol, cell, v)
+            for f in pol["families"]:
+                out.append(case("%s: %s" % (name, f["family"]), f, t, "within_k" if f["base"] == "active" else None))
+        else:
+            row = PS._set(fams[fam], cell, v)
+            out.append(case("%s: %s" % (name, fam), row, pol, a if a is not None else ("within_k" if row["base"] == "active" else None)))
+    return {"source": "data/governance_policy.json (CIRISConstitution manifests/governance_policy.json)",
+            "policy_sha256": pol["_meta"]["policy_sha256"], "cases": out}
+
+
+# ---- law_tables: the seat law's table cells from the acts and policy tables -----------------------------------------
+LAW_PLANTS = (
+    # (table, row match, cell, new value): what the tables give must change
+    ("acts", 0, "act", "admitt"),
+    ("acts", 0, "scope", "membership"),
+    ("acts", 0, "community_kind", "room"),
+    ("acts", 0, "choice", "chosen"),
+    ("acts", 0, "policy", "cosigned_act|community_invitation"),
+    ("acts", 0, "policy", "community_invite"),
+    ("acts", "dup", None, None),
+    ("policy", "self_roster_add", "enact_rule", {"kind": "fraction", "num": 2, "den": 3}),
+    ("policy", "community_invite", "enact_rule", {"kind": "fraction", "num": 1, "den": 2}),
+    ("policy", "accord_majority", "enact_rule", {"kind": "one_of_n"}),
+    ("policy", "accord_halt", "enact_rule", {"kind": "protocol"}),
+    ("policy", "cosigned_act", "enact_rule", {"kind": "ranked_irv", "choices": 3}),
+    ("policy", "moderator_election", "enact_rule", {"kind": "strict_majority"}),
+    ("policy", "moderator_recall", "floor_rule", {"kind": "voices", "count": 3}),
+    ("policy", "moderator_recall", "floor_rule", {"kind": "none"}),
+    ("policy", "moderator_recall", "enact_rule", {"kind": "fraction", "num": 3, "den": 4}),
+    ("policy", "community_remove", "floor_rule", {"kind": "voices", "count": 3}),
+    ("policy", "community_remove", "floor_rule", {"kind": "none"}),
+    ("policy", "duty_confer", "family", "duty_conferral"),
+    ("protocols", "majority", "rule", "more_than_half"),
+    ("protocols", "unanimous", "rule", "strict_majority"),
+    ("protocols", "quorum:{m}/{n}", "kind", "threshold:{m}/{n}"),
+)
+
+
+def law_tables_cases():
+    import copy
+    import seat as ST
+    pol = json.load(open(os.path.join(ROOT, "data", "governance_policy.json"), encoding="utf-8"))
+    acts = ST.acts_rows(os.path.join(ROOT, "data", "governance_policy_acts.tsv"))
+    protos = lambda p: [{"kind": k["kind"], "rule": k["rule"]} for k in p["protocols"]["kinds"]]
+
+    def case(name, acts, pol):
+        e = {"name": name, "acts": acts, "families": pol["families"], "protocols": protos(pol), "law": None, "refusals": None}
+        try:
+            L = ST.law_from_tables(acts, pol)
+            e["law"] = {"policy": {k: list(v) for k, v in L["policy"].items()},
+                        "acts": [[a, sc, kd, list(ps), ch] for a, sc, kd, ps, ch in L["acts"]],
+                        "removal_floor": L["removal_floor"]}
+        except ST.LawRefusal as x:
+            e["refusals"] = [list(r) for r in x.reasons]
+        return e
+    out = [case("data/ (the vendored tables)", acts, pol)]
+    for table, at, cell, v in LAW_PLANTS:
+        a, p = copy.deepcopy(acts), copy.deepcopy(pol)
+        if table == "acts" and at == "dup":
+            a.append(dict(a[0]))
+        elif table == "acts":
+            a[at][cell] = v
+        elif table == "policy":
+            next(f for f in p["families"] if f["family"] == at)[cell] = v
+        else:
+            next(k for k in p["protocols"]["kinds"] if k["kind"] == at)[cell] = v
+        e = case("plant %s %s %s = %s" % (table, at, cell, json.dumps(v)), a, p)
+        if (e["law"], e["refusals"]) == (out[0]["law"], out[0]["refusals"]):
+            raise SystemExit("law plant not caught: %s" % e["name"])
+        out.append(e)
+    return {"source": "data/governance_policy_acts.tsv and data/governance_policy.json", "cases": out}
+
+
+# ---- window_bound: an opener's table through the act binding ------------------------------------------------------
+def window_bound_cases():
+    import seat as ST
+    import check_policy_spec as PS
+    with ST.binding(True):
+        law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+               "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+               "removal_floor": ST.REMOVAL_FLOOR, "policy": {k: list(v) for k, v in ST.POLICY.items()},
+               "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+        cases = []
+        for name, rows, _, _ in PS.bound_cases():
+            c, o = PS.run_bound(rows)
+            refs = {}
+            cases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "c": [c[r["id"]] for r in rows if r["id"] in c],
+                          "kept": [i for i in c], "outcome": o})
+    return {"law": law, "families": PS.POL["families"],
+            "table": {"min_count": PS.POL["min_count"], "window_classes": PS.POL["window_classes"]}, "cases": cases}
+
+
 def main():
     out = {}
     dump("lib.json", lib_cases(), out)
@@ -882,6 +1004,11 @@ def main():
     dump("key_person.json", key_person_cases(), out)
     dump("key_end_counts.json", key_view_cases(), out)
     dump("acts.json", acts_cases(), out)
+    dump("policy_spec.json", policy_spec_cases(), out)
+    dump("law_tables.json", law_tables_cases(), out)
+    dump("window_bound.json", window_bound_cases(), out)
+    import check_policy_spec as PS
+    dump("../vectors/policy_dump.json", PS.dump(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution
@@ -914,6 +1041,7 @@ def main():
         print("kernel_fixtures: %d fixtures, %d out of date" % (len(out), bad))
         return 1 if bad else 0
     os.makedirs(OUT, exist_ok=True)
+    os.makedirs(os.path.join(OUT, "..", "vectors"), exist_ok=True)
     for name, text in out.items():
         with open(os.path.join(OUT, name), "w", encoding="utf-8", newline="\n") as f:
             f.write(text)

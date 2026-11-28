@@ -244,6 +244,59 @@ any other arrival.
 
 `root.json`'s `waits` replays the model's cases (`check_root.py`, WAITS) in several arrival orders each: a row
 that waits on X, X arrives and it concludes; and rows that conclude nothing with every row held.
+## A window's table from its policy row
+
+`window::spec_from_policy(row, table, active)` builds a `WindowSpec` from one row of the Constitution's
+`manifests/governance_policy.json` (`families`), so a store never writes a window's table itself. The caller
+decodes the row into `window::PolicyRow` unchanged (the crate reads no JSON; `tests/policy_spec.rs` shows the
+decoding), and the table's `min_count` and `window_classes` into `PolicyTable`. `active` is the base `active`:
+`Active::WithinK` (at most `base_law.k` members) or `Active::Census(n)`; `None` on a `standing` row. Where a cell
+stops the row, the answer is every `PolicyRefusal { cell, why }`; nothing is defaulted but what the text states.
+Only a `two_path` row gives a table. `window.py`'s `spec_from_policy` is the same reading;
+`models/causal_kernel/check_policy_spec.py` compares it with the reference's own tables.
+
+| Cell | What it gives |
+|---|---|
+| `kind` | `two_path`: a table. `mirror`: refused, `NoCell` (no cell states its answer or outcome words). `cosigned`, `ranked`, `tally`: refused, `NotAWindow` |
+| `counted.count_set` | `counted` and `concluder` (CC 4.5.13: every window of the table closes by one voice of its count); the proposer's scope (CC 3.1.9.2). One token only. An exclusion (`-target`) must match a `less` in `standing_set`, and the reverse |
+| `standing_set` | read only for that `less` |
+| `enact_rule` | a fraction: `approve`, `MoreAtLeast(num, den, min_count)` over the base, `landed` (the decider: strictly more, never fewer than `min_count`); in `at_once`, or `at_close` where `irreversible` |
+| `cancel_rule`, `cancel_over` | a fraction over `base`: `object`, `AtLeast(num, den, min_count)`, at the close. `strict_majority_of_others` over `others`: `object`, `Strict` over `Base::Others`, at once (CC 3.3.6.4). Any other pairing is refused |
+| `floor_rule`, `reverse_path` | with `reverse_path`: a fraction gives `approve`, `AtLeast(num, den, min_count)`; `one_of_n` gives `approve`, `One`; both at the close, `landed` |
+| `enact`, `cancel`, `floor` | checked against their `_rule`: `null` only with `none`, a fraction only with the same fraction |
+| `at_window` | `cancelled` or `refused`: the cancel's outcome, the default, a silent target's and a withdrawal's |
+| `irreversible` | no enact at once |
+| `counted.target_silent` | `yes` (with `changes_set` `removes`): `silent` is `at_window` |
+| `counted.target_voice` | `yes` (with `changes_set` `adds`): `target_votes` |
+| `counted.voice` | `person`, or `key` on a `self` corridor |
+| `counted.counted_at` | `named` or `act`: the head the opener names |
+| `counted.voices` | `objection`: the answers say `approve` and `object` (`objection:assent`, `objection:raised`) |
+| any `counted` cell `unstated` | refused, `Unstated` |
+| `base` | `standing`: `Base::All`. `active`: `Base::All` under `WithinK`, `Base::Stated(n)` under `Census(n)` |
+| `corridor` | the `min_count` key; `self` adds `withdraw`, `One` over `Base::Opener`, `at_window`, at once (CC 3.3.6.4) |
+| `window_secs`, `window_class` | `secs`; the class must give the same length; `0` is refused, `NoWindow` |
+| `family`, `cc_ref`, `model`, `status`, `note` | carried; no window cell |
+| (no cell) | `opener` `None`; `opener_says` `approve` (CC 3.1.9.2); `landed` (CC 3.1.3, `window:{state}`) |
+
+Six rows give a table today: `default_content`, `default_standing`, `default_irreversible`, `community_invite`,
+`self_roster_add`, `self_roster_evict`. The three mirror windows the reference runs (`moderation_action`,
+`moderation_overturn`, `accord_halt`) are refused, so a store keeps writing those until the table states them.
+
+The crate embeds no table and parses none; the caller decodes. `tables::law_from_tables(acts, families, protocols)`
+gives the `SeatLaw` cells the tables state, from the acts table's rows (`ActsRow`, its six columns), the policy rows
+and the policy table's `protocols.kinds` (`ProtocolRow`): `policy` (each family's count from its `enact_rule`, the
+text's count for `duty_confer`, `duty_withdraw`, `moderation_overturn` and `moderator_recall`, and `P:{kind}` per
+protocol), `acts` (every word read by its `from_word`; an unknown word, a second row for one act, scope and kind, or
+a policy with no row is refused) and `removal_floor` (`community_remove`'s floor voices). The rest of `SeatLaw`
+(duties, holds, confers, ends, final scopes, roster seats, depth, kinds) is the text's and stays the caller's. The
+acts table names the window acts (`moderation_fallback`, `halt_confirm`, `poll`), but in this tag nothing reads that
+binding for a window unless the caller asks: `window::rule` and `window::outcome` take the opener's `window()` name
+through the caller's lookup, as before. `window::rule_bound` and `window::outcome_bound` take the table through the
+binding where the law carries one (`law.acts`): the act the opener proposes (`WindowRow::proposes`, an act and its
+scope class) over its object's kind gives the policy row (`window::bound_family`; a `fixed` row its one family, and
+an opener stating another concludes nothing; a `row` row the policy the opener states), and the caller's
+`Families` closure gives that family's table (built with `spec_from_policy`, `active` per room). An opener bound to
+no family, or to one that gives no table, concludes nothing. The window name is then not read.
 
 ## Points to settle before adoption
 

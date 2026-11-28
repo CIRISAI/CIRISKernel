@@ -233,6 +233,23 @@ to it). The crate resolves no such reference itself; the caller calls it (ADOPTI
 `check_acts.py` GROUP_OF (two founding records under one id; a trust edge by that id concludes nothing; a row at
 the head of one concludes on that chain), plant `group_first_founding`, replayed by `tests/acts.rs`
 (`group_of_replay`).
+**A window's table from its policy row.** `window::spec_from_policy(row, table, active)` builds a `WindowSpec` from
+one row of the governance policy table, decoded by the caller unchanged into `window::PolicyRow` (with `RuleCell`,
+`Cell`, `CountedCells`, `Stated`, and `PolicyTable` for `min_count` and `window_classes`; `Active` for the base
+`active`). Every cell is read; where one stops the row the answer is each `PolicyRefusal { cell, why }`. Six
+`two_path` rows give a table; the mirror, cosigned, ranked and tally rows are refused. `Clause` and `WindowSpec` now
+derive `PartialEq` and `Eq`. ADOPTING.md lists each cell; `tests/policy_spec.rs` replays `window.py`'s
+`spec_from_policy` (fixture `policy_spec.json`), and `check_policy_spec.py` compares it with the reference's tables. **The act binding for windows:** `window::rule_bound` and `window::outcome_bound` take an opener's table through
+the acts table where the law binds acts (`WindowRow::proposes`, `window::bound_family`, a `Families` closure);
+`window::rule` and `window::outcome` read the window name as before (fixture `window_bound.json`). **default_content
+above k** (the Constitution's ruling of 2026-11-27): the reference's enact is strictly more than 2/3 of the base, as
+the table's decider; it read at least 2/3 (six need five, three need three). **The seat law's table cells:** new module
+`tables`, `law_from_tables(acts, families, protocols)` gives `SeatLaw`'s `policy`, `acts` and `removal_floor` from the
+acts table's rows (`ActsRow`) and the policy table (`PolicyRow`, `ProtocolRow`), or every `LawRefusal`; `seat.py`'s
+`law_from_tables` is the same reading (fixture `law_tables.json`). For the integrator: rc23-next's acts table has
+rows the crate's words do not read yet (scope `license`, `trust_edge`; act `accept`; `quarantine`, `slash`, `takedown`
+on `affiliation`), added by the charter and persist-gaps lanes; once those merge, re-vendor the acts table and re-run
+`tools/kernel_fixtures.py` and `tests/policy_spec.rs`, so `law_from_tables` is checked against it.
 
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.

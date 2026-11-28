@@ -140,21 +140,29 @@ WINDOWS = {
                             "silent": None, "at_close": (), "default": "stands"},
 }
 # default_content above k (CIRISConstitution#221; the ruling: the base `active` is the caller's stated count). The
-# self roster's lone path, read off the policy row: enact 2/3 at once, cancel 1/3 at the close, floor 1/3 at the close,
-# never fewer than two voices (min_count, community); default cancelled. Counted over ("stated", n): n = 20 here, the
-# census's figure for a room of thirteen members
+# self roster's lone path, read off the policy row: enact strictly more than 2/3 at once (the table's decider,
+# enact_votes = 2*base//3 + 1; the Constitution's ruling of 2026-11-27: six need five, three need three; this read
+# "at least 2/3" before), cancel 1/3 at the close, floor 1/3 at the close, never fewer than two voices (min_count,
+# community); default cancelled. Counted over ("stated", n): n = 20 here, the census's figure for a room of thirteen
+# members
 ACTIVE = 20
 WINDOWS["default_content@active"] = {
     "policy": "default_content", "counted": "member", "concluder": "member", "opener_says": "approve",
-    "at_once": (("approve", ("atleast", 2, 3, 2), ("stated", ACTIVE), "landed"),),
+    "at_once": (("approve", ("more", 2, 3, 2), ("stated", ACTIVE), "landed"),),
     "silent": None,
     "at_close": (("object", ("atleast", 1, 3, 2), ("stated", ACTIVE), "cancelled"),
                  ("approve", ("atleast", 1, 3, 2), ("stated", ACTIVE), "landed")),
     "default": "cancelled"}
 # the same with a stated count of five, fewer than the members a case seats: the size counted over is never smaller
 WINDOWS["default_content@active@5"] = dict(
-    WINDOWS["default_content@active"], at_once=(("approve", ("atleast", 2, 3, 2), ("stated", 5), "landed"),),
+    WINDOWS["default_content@active"], at_once=(("approve", ("more", 2, 3, 2), ("stated", 5), "landed"),),
     at_close=tuple((v, h, ("stated", 5), o) for v, h, _, o in WINDOWS["default_content@active"]["at_close"]))
+# stated counts of six and three, as many as the members: strictly more than 2/3, so six need five and three need three
+for _n in (6, 3):
+    WINDOWS["default_content@active@%d" % _n] = dict(
+        WINDOWS["default_content@active"],
+        at_once=tuple((v, h, ("stated", _n), o) for v, h, _, o in WINDOWS["default_content@active"]["at_once"]),
+        at_close=tuple((v, h, ("stated", _n), o) for v, h, _, o in WINDOWS["default_content@active"]["at_close"]))
 # stated counts past 32 bits: every target reads the same count (no cast truncates it)
 for _n in (2 ** 32, 2 ** 32 + 13):
     WINDOWS["default_content@active@%d" % _n] = dict(
@@ -173,6 +181,172 @@ WINDOWS["proposal@others"] = {"policy": "moderation_action", "counted": "member"
 SECS = None
 MUT = set()            # planted breaks, switched on by a check
 BASES = ("all", "others", "opener")
+
+
+def policy_table():
+    """The governance policy table (data/governance_policy.json, the Constitution's manifests/governance_policy.json)."""
+    import json
+    return json.load(open(os.path.join(ROOT, "data", "governance_policy.json"), encoding="utf-8"))
+
+
+# ---- a window's table from its policy row --------------------------------------------------------------
+class PolicyRefusal(Exception):
+    """The row does not give a window's table. `reasons`: (cell, why, other) for every cell that stops it, where why is
+        unstated      the cell reads `unstated`
+        unknown       a value this function does not read as a window
+        disagrees     two cells of the row disagree (other: the second cell)
+        no_window     the row carries no window (window_secs 0)
+        not_a_window  the row's kind is a counted row, a ranked count or a tally, which no window table closes
+        no_cell       the spec needs what no column of the table states (other: what)
+        caller        the cell needs a figure the caller states and did not (other: what)"""
+    def __init__(self, reasons):
+        self.reasons = list(reasons)
+        super().__init__("; ".join("%s %s%s" % (c, w, " (%s)" % o if o else "") for c, w, o in self.reasons))
+
+
+COUNTED_CELLS = ("count_set", "voice", "counted_at", "voices", "target_silent", "changes_set", "target_voice")
+NOT_A_WINDOW = ("cosigned", "ranked", "tally")
+
+
+def spec_from_policy(row, table=None, active=None):
+    """The window table (WINDOWS' shape) one row of the policy table gives, every cell read and none defaulted
+    but where the Constitution's text states it (cited below). `table`: the policy table the row is of (its
+    min_count and window_classes); `active`: the base `active`, which the table does not state as a count: None,
+    "within_k" (the room has at most base_law.k members, so the base is N, CC 4.5.13) or ("census", n), the census's
+    figure (CC 6.1.9). Raises PolicyRefusal naming every cell that stops it.
+
+    The cells of a two_path row, the only kind it gives a table for:
+        counted.count_set  the scope counted, and the concluder's (CC 4.5.13: "Every window of this table closes by
+                           two rows of one voice of its count") and the proposer's (CC 3.1.9.2)
+        enact_rule         approvals strictly more than the fraction of the base and at least min_count voices (the
+                           table's decider); at once, but where the row is irreversible only at the close
+        cancel_rule        objections over cancel_over: a fraction at least it, never fewer than min_count, at the
+                           close (decider); the strict majority of the others at once (CC 3.3.6.4, "A count that is
+                           met")
+        floor_rule         with reverse_path, approvals at the close: a fraction as cancel, one_of_n one voice
+        at_window          the word of the cancel, the default, a silent target and the proposer's withdrawal
+        target_silent      yes: a row of the target inside the window gives at_window (door_text: silent at_window)
+        target_voice       yes: the target's own yes is a voice of the floor
+        base               standing: the members at the head; active: `active`
+        window_secs        the length, which window_class must give too
+        corridor           min_count's key; `self` adds the proposer's withdrawal (CC 3.3.6.4, "The proposer's own
+                           withdrawal": `refused` at once)
+    `landed` is the word of an enact or a floor met (CC 3.1.3, window:{state}; CC 3.3.6.4). The proposal is the
+    proposer's approval (CC 3.1.9.2; door_text opener_counts yes)."""
+    t = table if table is not None else policy_table()
+    why = []
+    no = lambda cell, w, other=None: why.append((cell, w, other))
+    c = row["counted"]
+    val = lambda k: c[k]["value"]
+    for k in COUNTED_CELLS:
+        if val(k) == "unstated": no("counted." + k, "unstated")
+    classes = t["window_classes"]
+    if row["window_class"] not in classes: no("window_class", "unknown")
+    elif classes[row["window_class"]] != row["window_secs"]: no("window_secs", "disagrees", "window_class")
+    if row["window_secs"] == 0: no("window_secs", "no_window")
+    for cell in ("enact", "cancel", "floor"):
+        prose, rule = row[cell], row[cell + "_rule"]
+        if (prose is None) != (rule["kind"] == "none"): no(cell, "disagrees", cell + "_rule")
+        elif isinstance(prose, dict) and (rule["kind"] != "fraction" or (prose["num"], prose["den"]) != (rule["num"], rule["den"])):
+            no(cell, "disagrees", cell + "_rule")
+    toks = val("count_set").split("-")
+    incl, excl = toks[0].split("+"), toks[1:]
+    if ("less" in row["standing_set"].replace(",", " ").split()) != bool(excl): no("counted.count_set", "disagrees", "standing_set")
+    kind = row["kind"]
+    if kind in NOT_A_WINDOW: no("kind", "not_a_window")
+    elif kind == "mirror": no("kind", "no_cell", "a mirror window's answer words and outcome words")
+    elif kind != "two_path": no("kind", "unknown")
+    if kind != "two_path":
+        raise PolicyRefusal(why)
+    # ---- a two_path row
+    mc = t["min_count"].get(row["corridor"])
+    if mc is None: no("corridor", "unknown")
+    if excl or len(incl) != 1: no("counted.count_set", "unknown")
+    scope = incl[0]
+    if val("voice") == "key" and row["corridor"] != "self": no("counted.voice", "disagrees", "corridor")
+    elif val("voice") not in ("person", "key", "unstated"): no("counted.voice", "unknown")
+    if val("counted_at") not in ("named", "act", "unstated"): no("counted.counted_at", "unknown")
+    if val("voices") not in ("objection", "unstated"): no("counted.voices", "unknown")
+    if row["base"] == "standing":
+        over = "all"
+        if active is not None: no("base", "disagrees", "active")
+    elif row["base"] == "active":
+        over = "all"
+        if active is None: no("base", "caller", "the census figure (CC 6.1.9), or within_k")
+        elif active != "within_k": over = ("stated", active[1])
+    else:
+        over = None; no("base", "unknown")
+    no_word = row["at_window"] if row["at_window"] in ("cancelled", "refused") else None
+    if no_word is None: no("at_window", "unknown")
+    cr, co = row["cancel_rule"], row["cancel_over"]
+    cancel = None
+    if cr["kind"] == "fraction":
+        if co != "base": no("cancel_over", "disagrees", "cancel_rule")
+        cancel = ("object", ("atleast", cr["num"], cr["den"], mc), over, no_word)
+    elif cr["kind"] == "strict_majority_of_others":
+        if co != "others": no("cancel_over", "disagrees", "cancel_rule")
+        elif over != "all": no("cancel_over", "disagrees", "base")
+        cancel = ("object", "strict", "others", no_word)
+    elif cr["kind"] == "none":
+        if co != "—": no("cancel_over", "disagrees", "cancel_rule")
+    else:
+        no("cancel_rule", "unknown")
+    er = row["enact_rule"]
+    if er["kind"] != "fraction": no("enact_rule", "unknown")
+    enact = ("approve", ("more", er.get("num"), er.get("den"), mc), over, "landed")
+    fr = row["floor_rule"]
+    floor = None
+    if fr["kind"] == "fraction": floor = ("approve", ("atleast", fr["num"], fr["den"], mc), over, "landed")
+    elif fr["kind"] == "one_of_n": floor = ("approve", "one", over, "landed")
+    elif fr["kind"] != "none": no("floor_rule", "unknown")
+    silent = None
+    if val("target_silent") == "yes":
+        if val("changes_set") != "removes": no("counted.target_silent", "disagrees", "counted.changes_set")
+        silent = no_word
+    tv = val("target_voice") == "yes"
+    if tv and val("changes_set") != "adds": no("counted.target_voice", "disagrees", "counted.changes_set")
+    if why:
+        raise PolicyRefusal(why)
+    lone = row["corridor"] == "self"
+    at_once = [] if row["irreversible"] else [enact]
+    if lone: at_once.append(("withdraw", "one", "opener", no_word))
+    at_close = []
+    if cancel: (at_once if lone else at_close).append(cancel)
+    if row["irreversible"]: at_close.append(enact)
+    if row["reverse_path"] and floor: at_close.append(floor)
+    return {"policy": row["family"], "counted": scope, "concluder": scope, "opener_says": "approve",
+            "at_once": tuple(at_once), "silent": silent, "at_close": tuple(at_close), "default": no_word,
+            "target_votes": tv, "secs": row["window_secs"]}
+
+
+# ---- the act binding: an opener's table through the acts table ------------------------------------------------------
+FAMILIES = None    # set by a caller: (family, obj) -> the family's table (spec_from_policy); read with the binding on
+
+
+def bound_family(p, by):
+    """The family the acts table binds opener p to: the act it proposes (`proposes`: act, scope class) over its
+    object's kind (seat.policy_for). A `fixed` row names one family, and an opener stating another policy is bound to
+    none; a `row` row takes the policy the opener states, if the act may take it. A family of `&` is no window."""
+    kind = ST.kind_of(by, p.get("obj"))
+    pr = p.get("proposes")
+    if kind is None or pr is None: return None
+    got = ST.policy_for(pr[0], pr[1], kind)
+    if got is None: return None
+    pols, choice = got
+    stated = p.get("policy")
+    if choice == "fixed" and len(pols) == 1 and stated in (None, pols[0]): name = pols[0]
+    elif choice == "row" and stated in pols: name = stated
+    else: return None
+    return None if "&" in name else name
+
+
+def spec_of(p, P):
+    """An opener's table: with FAMILIES set and the binding on (seat.BOUND), the family the acts table binds it to;
+    otherwise the table its window name names."""
+    if FAMILIES is not None and ST.BOUND:
+        fam = bound_family(p, {q["id"]: q for q in P})
+        return FAMILIES(fam, p["obj"]) if fam is not None else None
+    return WINDOWS.get(p.get("window"))
 
 
 def is_opener(r):
@@ -278,8 +452,8 @@ def table_outcome(spec, p, answers, inside, base, elapsed):
     return spec["default"]
 
 
-def _base(rows, past, p):
-    spec = WINDOWS[p["window"]]
+def _base(rows, past, p, spec=None):
+    spec = spec if spec is not None else WINDOWS[p["window"]]
     cache = {}
     def base(name):
         if name not in cache:
@@ -305,10 +479,12 @@ def _base(rows, past, p):
     return base
 
 
-def elapsed(landing_, rec, p):
-    """The concluder's own two instants span the window. With either instant missing it has not elapsed."""
+def elapsed(landing_, rec, p, spec=None):
+    """The concluder's own two instants span the window. With either instant missing it has not elapsed. A table built
+    from its row carries its own length (`secs`)."""
     a, b = landing_.get("at"), rec.get("at")
-    return a is not None and b is not None and a - b >= secs(p["window"])
+    n = spec["secs"] if spec is not None and "secs" in spec else secs(p["window"])
+    return a is not None and b is not None and a - b >= n
 
 
 def ballot_words(spec):
@@ -371,7 +547,8 @@ def rule(r, P, past):
         return ST.seat_rule(r, P, past)
     by = {q["id"]: q for q in P}
     if is_opener(r):
-        w = WINDOWS[r["window"]]                               # the opener's signer holds the opener's scope, by default the counted one
+        w = spec_of(r, P)                                      # the opener's signer holds the opener's scope, by default the counted one
+        if w is None: return False
         if k != "open" and not ST.seat_rule(r, P, past): return False     # an act that opens its own window: validly made, by the seat
         # an opening names the newest counted changes over its object in its own past, and is counted there (H1;
         # MUTATION window_opener_old_head: an opening at an older head is read there)
@@ -381,7 +558,9 @@ def rule(r, P, past):
     p = by.get(r["of"])
     if p is None or not is_opener(p): return False
     if k == "answer": return True                              # whether its voice counts is read against the roster at p's head
-    spec, base = WINDOWS[p["window"]], _base(P, past, p)
+    spec = spec_of(p, P)
+    if spec is None: return False
+    base = _base(P, past, p, spec)
     if r["signer"] not in ST.members_at(P, past, p["obj"], p["head"], spec["concluder"]): return False
     if r["signer"] == p["signer"] and author_apart(spec): return False     # out of every count, so no concluder of it
     if k == "receipt":
@@ -392,7 +571,7 @@ def rule(r, P, past):
     if rec is None or rec["kind"] != "receipt" or rec["signer"] != r["signer"] or rec["of"] != p["id"]: return False
     answers = voices_of(unwithdrawn(spec, K.sel(P, kind="answer", of=p["id"]), P), p, past)
     inside = [q for q in P if q["id"] != rec["id"] and not past(q["id"], rec["id"])]
-    return r["says"] == table_outcome(spec, p, answers, inside, base, elapsed(r, rec, p))
+    return r["says"] == table_outcome(spec, p, answers, inside, base, elapsed(r, rec, p, spec))
 
 
 # ---- derived: the outcome of a window under each rule ----------------------------------------------------
@@ -400,7 +579,8 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
     """how: void | contest | recount. Returns the outcome, "open" (no landing counts yet) or "contested"."""
     p = S.by.get(pid)
     if p is None or not S.C.get(pid): return "none"
-    spec = WINDOWS[p["window"]]
+    spec = spec_of(p, S.Cs)
+    if spec is None: return "none"
     Ls = K.sel(S.Cs, kind="landing", of=pid)
     if not Ls and "landing_only" in MUT: return "open"
     if Ls and how == "void":
@@ -410,7 +590,7 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
         if "contested" in st.values() or not said: return "contested"
         return K.group(said, None, "one", "v") or "contested"
     past = lambda a, b: a in S.anc[b]
-    base = _base(S.Cs, past, p)
+    base = _base(S.Cs, past, p, spec)
     pos = {r["id"]: i for i, r in enumerate(S.rows)}
     late = lambda r: False
     if how == "recount" or not Ls:
@@ -459,7 +639,7 @@ def outcome(S, pid, how, by_arrival=False, checkpoint=False):
             # (MUTATION withdrawal_not_recounted: only the landing's own past is read for withdrawals)
             wrows = mine + ([] if "withdrawal_not_recounted" in MUT else conc)
             heard = unwithdrawn(spec, K.sel(mine, kind="answer", of=pid) + ans, wrows)
-            again = table_outcome(spec, p, voices_of(heard, p, past), inside, base, elapsed(L, rec, p))
+            again = table_outcome(spec, p, voices_of(heard, p, past), inside, base, elapsed(L, rec, p, spec))
             said.append({"v": L["says"] if again == L["says"] else "contested"})
     if how == "recount" and any(x["v"] != "contested" for x in said):
         said = [x for x in said if x["v"] != "contested"]       # a landing that does not stand is no voice against one that does
@@ -871,6 +1051,16 @@ def active_world():
     ] + [("a stated count of %d, nine of thirteen members approve: no landing" % n,
           [g, opener("p", ms[0], name + "@%d" % n, "g", ("g",))] + ok(9),
           A + ", read whole on every target (no 32-bit cast)", "open") for n in (2 ** 32, 2 ** 32 + 13)]
+    # strictly more than 2/3 of the stated count (the ruling of 2026-11-27): six need five, three need three
+    S = "the ruling of 2026-11-27: strictly more than 2/3 of the base"
+    for n, need in ((6, 5), (3, 3)):
+        mn = ms[:n]
+        gn = ST.offer("g", mn[0], mn, "member", "@", "self", cosigners=mn[1:])
+        pn = opener("p", mn[0], name + "@%d" % n, "g", ("g",))
+        cases += [("%d members over a stated %d: %d approve, no landing" % (n, n, need - 1), [gn, pn] + ok(need - 1),
+                   S + ": %d of %d is not enough" % (need - 1, n), "open"),
+                  ("%d members over a stated %d: %d approve, no landing" % (n, n, need), [gn, pn] + ok(need),
+                   S + ": %d need %d" % (n, need), "landed")]
     return "default content above k (the base active: a stated count of twenty)", cases
 
 

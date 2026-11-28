@@ -783,14 +783,14 @@ RECOVERY_PLANTS = ("recovery_inforce_unread", "recovery_scope_unread", "recovery
 
 def recovery_answer(rows, bs, gs, rd):
     view = (RT.Root(bs, (), gs), rd) if bs is not None else None
-    ST.ROOT.append(view)
+    ST.TRUST_ROOT.append(view)
     try:
         S = CK.concluded(CK.kept(list(rows)), lambda r, P, past: ST.seat_rule(r, P, past))
         P = [q for q in S.Cs if q["id"] in S.anc["rv"]] if "rv" in S.anc else []
         why = ST.recovery_verdict(S.by["rv"], P, lambda a, b: a in S.anc.get(b, ()))[1]
         return (bool(S.C.get("rv")), why, "f4" in ST.Seats(S).holders("founder", "g"))
     finally:
-        ST.ROOT.pop()
+        ST.TRUST_ROOT.pop()
 
 
 def run_recovery():
@@ -846,13 +846,13 @@ def waits_answer(items, root, rd, rid):
     A = CK.arrive(rows, lambda r, P, past: True)
     if rid in A.waiting: return ("lacks", tuple(A.waiting[rid]))
     view = (RT.Root([x for k, x in items if k == "bundle"], (), [x for k, x in items if k == "grant"]), rd) if root else None
-    ST.ROOT.append(view)
+    ST.TRUST_ROOT.append(view)
     try:
         S = CK.concluded(CK.kept([r for r in rows if r["id"] in A.by]), lambda r, P, past: ST.seat_rule(r, P, past))
         P = [q for q in S.Cs if q["id"] in S.anc[rid]]
         return ST.seat_rule_why(S.by[rid], P, lambda a, b: a in S.anc[b])
     finally:
-        ST.ROOT.pop()
+        ST.TRUST_ROOT.pop()
 
 
 def waits_traces(case):

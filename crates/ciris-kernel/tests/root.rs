@@ -404,20 +404,26 @@ fn waits_replay() {
                     J::Null
                 } else if held.waits(&rid.to_string()) {
                     let mut m = BTreeMap::new();
-                    m.insert("lacks".to_string(), J::Arr(held.lacks(&rid.to_string()).into_iter().map(J::Str).collect()));
+                    m.insert(
+                        "lacks".to_string(),
+                        J::Arr(held.lacks(&rid.to_string()).into_iter().map(J::Str).collect()),
+                    );
                     J::Obj(m)
                 } else {
                     let bs: Vec<TB> = bundles(&J::Arr(now.iter().filter_map(|it| it.get("bundle")).cloned().collect()));
                     let gs: Vec<TG> = grants(&J::Arr(now.iter().filter_map(|it| it.get("grant")).cloned().collect()));
                     let revs: Vec<Revocation<String, String>> = Vec::new();
                     let identity = |k: &String| {
-                        let ids: Vec<String> = gs.iter().find(|g| &g.to == k).map(|g| g.identity.clone()).unwrap_or_default();
+                        let ids: Vec<String> =
+                            gs.iter().find(|g| &g.to == k).map(|g| g.identity.clone()).unwrap_or_default();
                         Identity { user: ids.iter().any(|i| i == "user"), node: ids.iter().any(|i| i == "node") }
                     };
                     let root = Root::new(&bs, &revs, &gs);
                     let view = rd.clone().map(|reader| RootReading { root: &root, reader, identity: &identity });
                     let on = c.at("root").b();
-                    let spec = RootCut(view.as_ref().filter(|_| on).map(|v| v as &dyn RootView<String, String, Obj<String, String>>));
+                    let spec = RootCut(
+                        view.as_ref().filter(|_| on).map(|v| v as &dyn RootView<String, String, Obj<String, String>>),
+                    );
                     let ks: Vec<&TRow> = held.concluded().g.rows().to_vec();
                     let cc = conclude(ks, |p| seat_rule(p, &law, &spec, &|_| true), None);
                     let i = cc.g.rows().iter().position(|r| r.id == rid).expect("the row asked is kept");

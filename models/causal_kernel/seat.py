@@ -390,7 +390,7 @@ def stalled_recovery(r, P, past):
     """The one row an infrastructure room admits without its founders' count while stalled (CC 3.2): a widening whose
     only change is one added founder seat, for a key named by a row (`bundle`) counted at a strict majority over the
     holders of the bundle in force of the root the room stands under, whose `scope` names this room, signed by the
-    named key. With no trust root read (ROOT), the kernel holds no bundle holders, so such a row is UNDECIDED: the
+    named key. With no trust root read (TRUST_ROOT), the kernel holds no bundle holders, so such a row is UNDECIDED: the
     reason `stalled_recovery_needs_bundle`
     (the seat rule concludes nothing for it), or None for a row of another shape. The checks for when the trust root's
     fold is in the kernel: the counted row names the bundle in force; its `scope` names this room; the key's identity
@@ -417,7 +417,7 @@ def recovery_waits(r, P, past):
     """The row a refused recovery widening waits on: with no trust root read, the grant a stalled widening names; with
     one, the row the root lacks (Root.grant_waits) where the refusal is the grant's own. None: the refusal is about rows
     held."""
-    view = ROOT[-1]
+    view = TRUST_ROOT[-1]
     if view is None: return stalled_recovery_waits(r, P, past)
     ok, why = recovery_verdict(r, P, past)
     if ok or why in ("not_a_recovery", "recovery_changes_more", "not_stalled", "not_signed_by_named_key",
@@ -486,14 +486,14 @@ def infra_live(S, obj, at):
 
 # the trust root this node reads (models/trust_root/root.py): (Root, reader), or None. With none, a stalled recovery is
 # undecided; with one, it is judged (recovery_verdict)
-ROOT = [None]
+TRUST_ROOT = [None]   # not ROOT: that name is the repository's path, which the table readers above take by default
 
 
 class root_view:
     """`with root_view(R, rd):` the seat rule judges a stalled recovery against root R as reader rd reads it."""
     def __init__(self, R, rd): self.v = (R, rd)
-    def __enter__(self): ROOT.append(self.v)
-    def __exit__(self, *a): ROOT.pop()
+    def __enter__(self): TRUST_ROOT.append(self.v)
+    def __exit__(self, *a): TRUST_ROOT.pop()
 
 
 def recovery_verdict(r, P, past):
@@ -508,7 +508,7 @@ def recovery_verdict(r, P, past):
         4  the widening is signed by the key the grant names (MUTATION recovery_signer_unread);
         5  only while stalled: fewer than M + 1 founders at its heads (MUTATION recovery_stalled_unread);
         6  one founder seat, and nothing else changed (MUTATION recovery_more_unread)."""
-    view = ROOT[-1]
+    view = TRUST_ROOT[-1]
     if view is None: return (False, "stalled_recovery_needs_bundle")
     Rt, rd = view
     by = {q["id"]: q for q in P}
@@ -3748,7 +3748,7 @@ def seat_rule(r, P, past, table=None, other=None):
             # an infrastructure room's recovery widening while stalled: judged against the trust root this node reads
             # (recovery_verdict); with none read, undecided (stalled_recovery), and it concludes nothing
             if r.get("bundle") is not None:
-                v = ROOT[-1] is not None and recovery_verdict(r, P, past)[0]
+                v = TRUST_ROOT[-1] is not None and recovery_verdict(r, P, past)[0]
                 if not v and _WAITS and _WAITS[-1][0] == r["id"]: _WAITS[-1][1] = recovery_waits(r, P, past)
                 return v
             # one target per counted end (the Constitution's ruling on review-54's multi-target hole): a removal, a
@@ -3795,3 +3795,97 @@ def seat_rule(r, P, past, table=None, other=None):
     if k == "cosign":
         return True
     return other(r, P, past) if other else True
+
+
+# ---- the seat law's table cells, from the Constitution's tables -----------------------------------------------------
+class LawRefusal(Exception):
+    """The tables do not give the law: `reasons`, (table, row, cell, why) for every cell that stops it, why one of
+    unknown (a word the law does not read), duplicate (a second row for one act, scope and kind), no_row (a policy the
+    acts table names that the policy table has not), disagrees (two cells of a row disagree)."""
+    def __init__(self, reasons):
+        self.reasons = list(reasons)
+        super().__init__("; ".join(map(str, self.reasons)))
+
+
+ACT_WORDS = ("admit", "remove", "duty_confer", "duty_withdraw", "seat_confer", "seat_withdraw", "recall", "lift",
+             "moderation_fallback", "election_seating", "poll", "record_change", "halt_confirm", "resume",
+             "standing_act", "finding", "replace", "change", "dissolve")
+SCOPE_WORDS = ("member", "agent", "founder", "node", "duty", "detect", "moderate", "key", "act", "content", "record",
+               "halt", "irreversible", "custodian", "any")
+KIND_WORDS = ("community", "infrastructure", "family", "self", "accord", "affiliation", "body", "custody")
+CHOICE_WORDS = ("fixed", "row")
+# the counts CC states for a family whose enact cell is not its seat count
+#   duty_confer, duty_withdraw   CC 4.5.4 (iv): over the duty holders (the other duty holders), read by duty_count
+#   moderation_overturn          CC 4.5.13, the members' check as a counted row: read by lift_count
+#   moderator_recall             CC 4.5.13: "more than two thirds of the standing roster ... The floor is two voices":
+#                                enact_rule's fraction, strictly more, with floor_rule's voices
+STATED_COUNTS = {"duty_confer": ("duty", 0, 0), "duty_withdraw": ("duty", 0, 0), "moderation_overturn": ("lift", 1, 2)}
+
+
+def acts_rows(path):
+    """The acts table (governance_policy_acts.tsv) as rows of its own columns, unchanged."""
+    out, head = [], None
+    for line in open(path, encoding="utf-8"):
+        if line.startswith("#") or not line.strip(): continue
+        cells = line.rstrip("\n").split("\t")
+        if head is None:
+            head = cells
+            continue
+        out.append(dict(zip(head, cells)))
+    return out
+
+
+def law_from_tables(acts, policy):
+    """The table cells of the seat law: `policy` (the count each policy row and each protocol names), `acts` (the
+    act-to-policy binding) and `removal_floor`, from the acts table's rows (acts_rows) and the governance policy table
+    (its families and protocols), unchanged. The rest of the law (duties, holds, confers, ends, final scopes, roster
+    seats, depth, kinds) is the text's and no table's. Raises LawRefusal naming every cell that stops it.
+
+    A family's count is its enact_rule, as policy_table reads it: a fraction of 1/2 a strict majority (CC 3.3.6.4),
+    another at least the fraction; strict_majority; one_of_n one; protocol the room's declared protocol; ranked_irv
+    the ranked tally; any other not a count. STATED_COUNTS and moderator_recall are the text's (cited there). A
+    protocol `P:{kind}` is its rule: strict_majority, all (unanimous), voices:{m} (the record's m), weight:{rubric},
+    role_at:founder:1 (one)."""
+    why = []
+    no = lambda *r: why.append(r)
+    pol = {}
+    fams = {f["family"]: f for f in policy["families"]}
+    for fam, f in fams.items():
+        e = f["enact_rule"]
+        k = e["kind"]
+        if fam in STATED_COUNTS:
+            pol[fam] = STATED_COUNTS[fam]
+        elif fam == "moderator_recall":
+            fl = f["floor_rule"]
+            if k != "fraction" or fl["kind"] != "voices": no("policy", fam, "floor_rule", "disagrees")
+            else: pol[fam] = ("recall", e["num"], e["den"], fl["count"])
+        elif k == "fraction":
+            pol[fam] = ("strict", 1, 2) if (e["num"], e["den"]) == (1, 2) else ("atleast", e["num"], e["den"])
+        elif k == "strict_majority": pol[fam] = ("strict", 1, 2)
+        elif k == "one_of_n": pol[fam] = ("one", 1, 1)
+        elif k == "protocol": pol[fam] = ("protocol", 0, 0)
+        elif k == "ranked_irv": pol[fam] = ("ranked", 0, 0)
+        else: pol[fam] = ("not_a_count", 0, 0)
+    for p in policy["protocols"]["kinds"]:
+        name, rule = "P:" + p["kind"].split(":")[0], p["rule"]
+        got = {"strict_majority": ("strict", 1, 2), "all": ("unanimous", 0, 0), "role_at:founder:1": ("one", 1, 1)}.get(rule)
+        if got is None and rule.startswith("voices:"): got = ("declared", 0, 0)
+        if got is None and rule.startswith("weight:"): got = ("weighted", 0, 0)
+        if got is None: no("protocols", p["kind"], "rule", "unknown")
+        else: pol[name] = got
+    out, seen = [], set()
+    for a in acts:
+        key = (a["act"], a["scope"], a["community_kind"])
+        for cell, words in (("act", ACT_WORDS), ("scope", SCOPE_WORDS), ("community_kind", KIND_WORDS), ("choice", CHOICE_WORDS)):
+            if a[cell] not in words: no("acts", "|".join(key), cell, "unknown")
+        if key in seen: no("acts", "|".join(key), "act", "duplicate")
+        seen.add(key)
+        pols = tuple(a["policy"].split("|"))
+        for p in pols:
+            for q in p.split("&"):
+                if q not in fams: no("acts", "|".join(key), "policy", "no_row")
+        out.append((a["act"], a["scope"], a["community_kind"], pols, a["choice"]))
+    rf = fams.get("community_remove", {}).get("floor_rule", {})
+    if rf.get("kind") != "voices": no("policy", "community_remove", "floor_rule", "unknown")
+    if why: raise LawRefusal(why)
+    return {"policy": pol, "acts": tuple(out), "removal_floor": rf["count"]}
