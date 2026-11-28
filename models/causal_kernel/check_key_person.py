@@ -43,6 +43,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True
 sys.path.insert(0, HERE)
 import seat as ST  # noqa: E402
+import election_worlds as EW  # noqa: E402
 import roomkey as RK  # noqa: E402
 import window as WN  # noqa: E402
 import check_election as EL  # noqa: E402
@@ -153,7 +154,7 @@ COUNT_CASES = [
 
 
 def concludes(rows, rid):
-    return bool(CK.concluded(CK.kept(list(rows)), RULE).C.get(rid))
+    return bool(CK.concluded(CK.kept(list(EW.opened(rows))), RULE).C.get(rid))
 
 
 # ---- the review r74's rows (CIRISConstitution#224, counts over persons) --------------------------------------------
@@ -223,7 +224,7 @@ WINDOW_CASES += [
 
 
 def window_outcome(rows):
-    return WN.outcome(CK.concluded(CK.kept(list(rows)), RULE_W), "op", "recount")
+    return WN.outcome(CK.concluded(CK.kept(list(EW.opened(rows))), RULE_W), "op", "recount")
 
 
 # an election's ballots by person (check_election.py's five members A to E, A laying moderate down): D has a second
@@ -294,7 +295,7 @@ R78K_CASES = [
 
 
 def ag_held(rows):
-    return "AG" in ST.Seats(CK.concluded(CK.kept(list(rows)), RULE_W)).holders("agent", "g")
+    return "AG" in ST.Seats(CK.concluded(CK.kept(list(EW.opened(rows))), RULE_W)).holders("agent", "g")
 
 
 # the opener's own withdrawal (r78k, latent: no window of the table reads it over persons): a table that reads the
@@ -330,7 +331,7 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
 
 
 def answer(rows, k):
-    return ST.person_of(CK.concluded(CK.kept(list(rows)), RULE), "at", k)
+    return ST.person_of(CK.concluded(CK.kept(list(EW.opened(rows))), RULE), "at", k)
 
 
 def orders(rows):
@@ -346,7 +347,7 @@ def orders(rows):
 
 
 def answer_in(order, k):
-    return ST.person_of(CK.arrive(order, RULE), "at", k)
+    return ST.person_of(CK.arrive(EW.opened(order), RULE), "at", k)
 
 
 def main():
@@ -366,11 +367,11 @@ def main():
             problems.append("%s: got %r, expected %r" % (name, got, want))
         for o in orders(rows)[:41]:
             n += 1
-            if bool(CK.arrive(o, RULE).C.get(rid)) != got:
+            if bool(CK.arrive(EW.opened(o), RULE).C.get(rid)) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
                 break
     for name, rows, rid, want, rule in R74_CASES:
-        got = bool(CK.concluded(CK.kept(list(rows)), rule).C.get(rid))
+        got = bool(CK.concluded(CK.kept(list(EW.opened(rows))), rule).C.get(rid))
         if got != want:
             problems.append("%s: got %r, expected %r" % (name, got, want))
     for name, rows, want in WINDOW_CASES:
@@ -387,7 +388,7 @@ def main():
             problems.append("%s: got %r, expected %r" % (name, got, want))
         for o in orders(rows)[:21]:
             n += 1
-            if ("AG" in ST.Seats(CK.arrive(o, RULE_W)).holders("agent", "g")) != got:
+            if ("AG" in ST.Seats(CK.arrive(EW.opened(o), RULE_W)).holders("agent", "g")) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
                 break
     for name, rows, want in LATENT_CASES:
@@ -402,7 +403,7 @@ def main():
                   [c[0] for c in COUNT_CASES if concludes(c[1], c[2]) != c[3]] + \
                   [c[0] for c in WINDOW_CASES if window_outcome(c[1]) != c[2]] + \
                   [c[0] for c in BALLOT_CASES if concludes(c[1], c[2]) != c[3]] + \
-                  [c[0] for c in R74_CASES if bool(CK.concluded(CK.kept(list(c[1])), c[4]).C.get(c[2])) != c[3]] + \
+                  [c[0] for c in R74_CASES if bool(CK.concluded(CK.kept(list(EW.opened(c[1]))), c[4]).C.get(c[2])) != c[3]] + \
                   [c[0] for c in R78K_CASES if ag_held(c[1]) != c[2]] + \
                   [c[0] for c in LATENT_CASES if latent_outcome(c[1]) != c[2]]
         finally:

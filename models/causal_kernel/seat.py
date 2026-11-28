@@ -1299,7 +1299,7 @@ def openings_for(op, rows, past):
         if o["kind"] != "election_open" or o.get("obj") != op.get("obj"): continue
         f = by.get(o.get("cites", (None,))[0])
         if f is not None and _seat(seat_end_slots(f, P, past, o["obj"])) & mine: out.append(o)
-    return out
+    return out if op in out else out + [op]
 
 
 def opening_in_force(op, rows, past):
@@ -1575,6 +1575,23 @@ def closure(Ek, rows, past, obj):
     return None
 
 
+def election_closed(S, sid, reader=None):
+    """Seating sid's election is closed for `reader` (rule 8, the close is reader-relative): the close (closure) read
+    over the rows the reader's roster takes (the counted acts void for it and the seat ends behind its line out), for
+    a reader with no row over its held rows. The seating's own group must be the one closed."""
+    if not S.C.get(sid): return False
+    past = lambda a, b: a in S.anc[b]
+    V, RE = (reader_void(S, reader), reader_ends(S, reader)) if reader is not None else (frozenset(), frozenset())
+    _RVOID.append(frozenset(V)); _RENDS.append(frozenset(RE))
+    try:
+        rows = [q for q in S.Cs if q["id"] not in V]
+        q = S.by[sid]
+        v = seating_view(q, [x for x in rows if past(x["id"], sid)], past)
+        return closure(v[0], rows, past, q["obj"]) == v[2]
+    finally:
+        _RVOID.pop(); _RENDS.pop()
+
+
 def forkers(Ek, rows, past, obj, by, ends0=frozenset()):
     """(2): the keys that said two things in election Ek among rows: two rows of the election's own, signed by the key,
     neither in the other's past. The election's own rows: a ballot or decline naming it, a withdrawal of such a
@@ -1684,6 +1701,17 @@ def election_beaten(rows, past, void=frozenset()):
     seating among them does not stand for that reader and takes no part in C4 (MUTATION void_seating_read)."""
     if "void_seating_read" in MUT: void = frozenset()
     out = {q["id"] for q in rows if is_election(q) and q["id"] in void}
+    # rules 1 and 4 over the rows held: a seating whose opening is not in force there (a rival opening for its seat,
+    # neither in the other's past) or cites an end the rows held fork does not stand (MUTATION rival_openings_read)
+    by_h = {q["id"]: q for q in rows}
+    if "rival_openings_read" not in MUT:
+        for q in rows:
+            o = by_h.get(q.get("of")) if is_election(q) else None
+            if o is None or o["kind"] != "election_open": continue
+            e = by_h.get(o.get("cites", (None,))[0])
+            taken = [x for x in rows if x["id"] not in _RENDS[-1]]          # rows the reader's roster takes
+            if not opening_in_force(o, taken, past) or (e is not None and end_fork(e, taken, past, o.get("obj"))):
+                out.add(q["id"])
     groups = {}
     for q in rows:
         if is_election(q) and q["id"] not in void: groups.setdefault((q.get("obj"), _view(rows, past, q)[0]), []).append(q)

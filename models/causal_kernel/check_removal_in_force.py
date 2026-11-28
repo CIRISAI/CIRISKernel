@@ -72,6 +72,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True
 sys.path.insert(0, HERE)
 import seat as ST  # noqa: E402
+import election_worlds as EW  # noqa: E402
 import window as WN  # noqa: E402
 
 CK, R = ST.CK, ST.R
@@ -562,7 +563,7 @@ CASES = [_now_nothing(c) for c in CASES]
 
 
 def answers(case):
-    return read(CK.concluded(CK.kept(list(case[1])), RULE), case)
+    return read(CK.concluded(CK.kept(list(EW.opened(case[1]))), RULE), case)
 
 
 def orders(rows):
@@ -586,7 +587,7 @@ def main():
             problems.append("%s: got %s, expected %s" % (case[0], got, want(case)))
         for p in orders(case[1]):
             n_orders += 1
-            if read(CK.arrive([case[1][0]] + p, RULE), case) != got:
+            if read(CK.arrive(EW.opened([case[1][0]] + p), RULE), case) != got:
                 problems.append("%s: order %s differs" % (case[0], [r["id"] for r in p]))
                 break
     caught = 0

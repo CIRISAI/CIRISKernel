@@ -82,6 +82,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True
 sys.path.insert(0, HERE)
 import seat as ST  # noqa: E402
+import election_worlds as EW  # noqa: E402
 import conferral_end as CE  # noqa: E402
 
 CK = ST.CK
@@ -486,7 +487,7 @@ def planted(plant):
 
 def answers(rows, asks, tab=None, plant=None, arrive=False):
     with table(tab), planted(plant):
-        S = CK.arrive(list(rows), RULE) if arrive else CK.concluded(CK.kept(list(rows)), RULE)
+        S = CK.arrive(EW.opened(list(rows)), RULE) if arrive else CK.concluded(CK.kept(list(EW.opened(rows))), RULE)
         Q = ST.Seats(S)
         return [Q.stands(k, s, OBJ) for k, s, _ in asks]
 

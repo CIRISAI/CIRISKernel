@@ -66,6 +66,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True
 sys.path.insert(0, HERE)
 import seat as ST  # noqa: E402
+import election_worlds as EW  # noqa: E402
 import checkpoint as CP  # noqa: E402
 
 CK = ST.CK
@@ -946,7 +947,7 @@ def want(concl, holds, stale):
 
 def read_case(rule, rows, own, concl, holds, arrive=None):
     with setting(rule):
-        S = CK.arrive([rows[0]] + arrive, RULE) if arrive is not None else CK.concluded(CK.kept(list(rows)), RULE)
+        S = CK.arrive(EW.opened([rows[0]] + arrive), RULE) if arrive is not None else CK.concluded(CK.kept(list(EW.opened(rows))), RULE)
         return answer(S, own, concl, holds)
 
 
@@ -960,7 +961,7 @@ def window_answer(heads):
     import window as WN
     p = WN.opener("p", "A", "ballot@once", OBJ, heads, names=("aG",))
     rows = ROOM + [p] + [WN.answer("v" + k, k, "p", "for") for k in "AB"] + [WN.answer("v" + k, k, "p", "against") for k in "DEFG"]
-    return WN.outcome(CK.concluded(CK.kept(rows), WN.rule), "p", "recount")
+    return WN.outcome(CK.concluded(CK.kept(EW.opened(rows)), WN.rule), "p", "recount")
 
 
 def run_all():

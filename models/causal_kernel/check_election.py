@@ -30,8 +30,10 @@ the base; the election is open again for everyone alike; the way back is to remo
 ended, a seating that stood and never closed names the next election, C3 deciding between rival ids by past; the cost:
 two lines in two next elections until one id's standing is settled in the other's past. CLOSE_CASES read the close
 directly. F1 to F4 (the third read): every input to a count from the set; the vacancy part of the set; a next election
-stands only while its id row stands, for the rows held. PENDING: a case the merged tree must pass once the head
-rules land; at the batch merge b5 held and is a case, and the rest are reported as not holding on the merged tree.
+stands only while its id row stands, for the rows held. b5, H2b, G3c and G3b, once written as waiting for the head
+rules, are cases (b5) and line cases (H2b, G3c, G3b). The ruled election close (one election per seat end, the
+opening row, the electorate at its heads, the wait) is check_election_close.py; this file's worlds, written before the
+opening row, are read with their openings (election_worlds.opened), and the cases the ruling restates say so.
 
 Every case is a hand-written answer, read in every arrival order of its rows above the founding one (a fixed sample of
 200 where there are more than six). Each names the rule it rests on.
@@ -808,8 +810,7 @@ CONCL_CASES = [
                          cosigners=("B", "D"))], "rc2", F),
     ("(2), the control: the counted recall with no end of the seat in its past concludes", [G5, RC2], "rc", T),
 ]
-# b5: the old-head removal reaching the election is the head rules' (H1 to H7); this tree does not read it. Kept as a
-# case the merged tree must pass once `heads` lands: PENDING until then
+# b5: the old-head removal reaching the election (the head rules, H1 to H7), a case; H2b, G3c and G3b, line cases
 GB5 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("C",)}, cosigners=("B", "C"))
 B5 = [GB5]
 _prev, _mem = "g", ["A", "B", "C"]
@@ -834,7 +835,7 @@ LINE_CASES = [
      [G5, LM] + H5 + [elect("ec", "C", IDS5, head=("g",)), R("ak", "ack", "R", ("ec",), room=OBJ, head=("ec",))] + FORK
      + [elect("ed", "D", IDS5 + ("wa", "ba2", "wb", "bb2", "wd", "bd2"), head=("g",))], None, MOD("D") + NOMOD("C")),
 ]
-PENDING = [
+_LATER = [
     ("H2b, for a reader that acknowledged aI: lm1, a lay-down, is a roster change held to the "
      "newest heads (H4) and is behind that reader's line, so it is no vacancy end for it: D",
      H2HON + H2ATK + [R("akR", "ack", "R", ("aI",), room=OBJ, head=("aI",))], MOD("D") + NOMOD("B"), "H2b", "R"),
@@ -886,17 +887,11 @@ CLOSE_CASES = [(n, at_newest(rows), q, w) for n, rows, q, w in CLOSE_CASES]
 CONCL_CASES = [(n, at_newest(rows), q, w) for n, rows, q, w in CONCL_CASES]
 LINE_CASES = [(n, at_newest(rows), o, a) for n, rows, o, a in LINE_CASES]
 # b5 writes A's and B's removal of C at the founding head on purpose: that is the attack
-PENDING = [(c[0], at_newest(c[1], keep=("xc",) if c[3] == "b5" else ()), *c[2:]) for c in PENDING]
-# flipped at the batch merge (heads b2d5aa4, room-keys-fix 1a059be, election2 8910e02): b5 holds on the merged tree
-# and is a case now. H2b, G3c and G3b do not hold (a lay-down is no counted act, so no reader's line leaves it
-# behind), and stay reported. The line case of a seating forked at the old head, behind a reader that acknowledged
-# C's seating, does not hold either: the line is sibling-safe (the ruling of 2026-11-27), and D's seating names the
-# head C's names, so it is not behind; reported here until it is ruled
-CASES += [(c[0], c[1], c[2], c[3]) for c in PENDING if c[3] == "b5"]
-# and, as ruled after it (2026-11-27), H2b, G3c and G3b: a lay-down is a roster change under H4, on the reader's line,
-# and one behind it is no vacancy end for that reader (seat.reader_ends); they are line cases now, each with its reader
-LINE_CASES += [(c[0], c[1], c[4], c[2]) for c in PENDING if c[3] in ("H2b", "G3c", "G3b")]
-PENDING = []
+_LATER = [(c[0], at_newest(c[1], keep=("xc",) if c[3] == "b5" else ()), *c[2:]) for c in _LATER]
+# b5 is a case; H2b, G3c and G3b are line cases (a lay-down is a roster change under H4, on the reader's line, and one
+# behind it is no vacancy end for that reader: seat.reader_ends), each with its reader
+CASES += [(c[0], c[1], c[2], c[3]) for c in _LATER if c[3] == "b5"]
+LINE_CASES += [(c[0], c[1], c[4], c[2]) for c in _LATER if c[3] in ("H2b", "G3c", "G3b")]
 # The line case of a seating forked at the old head, restated (the ruling of 2026-11-27): C's and D's seatings both name
 # g, so under the sibling-safe line they are siblings and neither is behind the other for a reader that acknowledged
 # C's; C4 decides (D's set contains C's), and D stands for that reader too. Its old expectation (D void for the
@@ -939,74 +934,22 @@ def planted(plant):
         ST.MUT.clear(); ST.MUT |= saved
 
 
-PLANTS = ("vacancy_founding", "vacancy_first_end", "electorate_folded", "electorate_at_seating", "leaver_voice",
-          "electorate_reads_past", "laydown_off_line", "c2_holder_unread",
+# (retired with the readings the ruling of 2026-11-28 withdrew: vacancy_founding, vacancy_first_end, electorate_folded,
+# electorate_reads_past, vacancy_unnamed, base_per_seating_electorate, close_base_union; leaver_voice and
+# counted_end_forks_signer have no case left under the opening; electorate_at_seating moved to check_election_close.py)
+PLANTS = ("laydown_off_line", "c2_holder_unread",
           "c2_later_unread", "contains_unread", "twin_withdrawal_unread", "close_unread", "receipt_standing_unread",
           "say_any_receipt", "close_leavers_kept", "closed_rivals_count", "election_id_any", "set_any_signer",
           "ballot_nonmember_ranked", "ballot_ranks_unbounded", "seating_any_signer", "twin_ids_apart",
           "fold_ranked_counted", "fork_reopens_close", "fork_base_kept", "fork_across_objects", "superseded_unread", "wait_close", "id_cascade_unread",
-          "vacancy_unnamed", "set_inputs_unread", "void_seating_read", "seating_not_a_say", "fork_per_voice",
+          "set_inputs_unread", "void_seating_read", "seating_not_a_say", "fork_per_voice",
           "fork_cosigned", "fork_by_stated_device", "two_closes_both_stand",
-          "counted_end_forks_signer", "base_per_group",
-          "leaving_after_receipt_voids", "base_per_seating_electorate",
-          "close_base_union", "end_of_ended_seat",
+          "base_per_group",
+          "leaving_after_receipt_voids", "end_of_ended_seat",
           "leaving_before_vacancy_read")
 
 
-def opened(rows):
-    """The election's opening (the ruling of 2026-11-28: the id is an `election_open` row) for a world written before
-    it: for each election a ballot, decline or seating names by a legacy id (the founding row, or a seating whose
-    seat ended), the opening of the seat end that id's vacancy is (the earliest end of its seat in the rows), signed by
-    every member at its heads, its heads the newest counted changes in that end's past (the end itself where it is
-    counted); and every row naming the legacy id names the opening instead. A world that states its openings is read
-    as written."""
-    if any(r["kind"] == "election_open" for r in rows): return list(rows)
-    done = set()
-    for _ in range(6):                     # a chain of elections: each opening once the seat before it has ended
-        rows, more = _open_once(rows, done)
-        if not more: break
-    return rows
-
-
-def _open_once(rows, done):
-    by = {r["id"]: r for r in rows}
-    refs = sorted({r["of"] for r in rows if r.get("of") in by and (r["kind"] in ("ballot", "decline") or ST.is_election(r))
-                   and r["of"] not in done})
-    if not refs: return list(rows), False
-    S = CK.concluded(CK.kept(list(rows)), RULE)
-    past = lambda a, b: a in S.anc[b]
-    ops, rename = [], {}
-    for X in refs:
-        e = by[X]
-        if e["kind"] == "election_open": continue
-        if e["id"] == OBJ:
-            ends = [w for w in S.Cs if w["kind"] in ("withdraw", "unseat") and w.get("obj", OBJ) in (OBJ, None)
-                    and ST.seat_end_slots(w, S.Cs, past, OBJ)]
-        else:
-            ends = [w for w in S.Cs if (w["kind"] == "withdraw" and w.get("target") == X) or
-                    (w["kind"] == "unseat" and w.get("obj") == OBJ and e.get("to") and e["to"][0] in w.get("to", ())
-                     and w.get("scope") == "moderate")]
-        ends = [w for w in ends if not any(past(v["id"], w["id"]) for v in ends if v is not w)] or ends
-        if not ends: continue
-        w = sorted(ends, key=lambda q: q["id"])[0]
-        P = [q for q in S.Cs if past(q["id"], w["id"])] + [w]
-        byP = {q["id"]: q for q in P}
-        acts = [q for q in P if q["id"] == OBJ or ST.change(q, OBJ, byP)]
-        heads = tuple(sorted(q["id"] for q in acts if not any(past(q["id"], x["id"]) for x in acts)))
-        mem = sorted(ST.members_at(P, past, OBJ, heads, "member") - ST.members_at(P, past, OBJ, heads, ST.AGENT))
-        if not mem: continue
-        oid = "op" if X == OBJ else "op_" + X
-        ops.append((w["id"], ST.election_open(oid, mem[0], OBJ, w["id"], heads, cosigners=tuple(mem[1:]))))
-        rename[X] = oid
-        done.add(X)
-    out = []
-    for r in rows:
-        if r.get("of") in rename and (r["kind"] in ("ballot", "decline") or ST.is_election(r)):
-            oid = rename[r["of"]]
-            r = dict(r, of=oid, names=tuple(r["names"]) + ((oid,) if oid not in r["names"] else ()))
-        out.append(r)
-        out += [o for end, o in ops if end == r["id"]]
-    return out, bool(ops)
+from election_worlds import opened  # noqa: E402,F401  (the legacy worlds' openings)
 
 
 def answers(rows, asks, plant=None, arrive=False, own=None):
@@ -1044,6 +987,38 @@ def orders(rows, n=200):
     for _ in range(n - 2):
         p = list(tail); rnd.shuffle(p); out.append(p)
     return out
+
+
+# ---- restated by the ruling of 2026-11-28 (the election close: one election per seat end, an opening row, the
+# electorate at the opening's heads, departures as the reader's roster takes them) --------------------------------------
+# These cases were written for the withdrawn readings: the vacancy read from the ends a seating names (F2), the base
+# as the intersection of the members at every end (C1, G3), a second lay-down read as a vacancy (N1, J1), a leaving
+# struck only where the set names it (F1). Their worlds are kept; their answers are the ruled ones:
+#   two concurrent lay-downs of one seat are a FORK and open nothing (rule 1), so no seating stands where both are
+#   taken (F2 (3), N1, H2b for a reader with no acknowledgement: the stated residual, it waits);
+#   a lay-down with an end of the seat in its past is no end, so the election is at the first (J1, b6: F, admitted
+#   after it, neither votes nor stands);
+#   the electorate is the roster at the opening's heads, so a key admitted before a counted end the opening cites
+#   votes (C1, X);
+#   a seating names its opening and cites its ballots: no end is named, and a leaving the reader's roster takes
+#   strikes the leaver whatever the set names (F2, F1).
+RESTATED = {
+    "C1, concurrent ends: X, admitted in the recall's past": [F],
+    "F2, (3) (b2 re-checked)": [F, F], "F2, (3): a seating naming both ends": [F, F],
+    "F2, (3): honest concurrent ends": [F, F], "F2: a seating that names no end": [T],
+    "N1, (3): A backdates a second end": [F, F], "N1, (1): B forks a ballot naming lm1": [F, F],
+    "H2 (H2b), the stated residual": [F, F], "J1 (J1b): A's second lay-down": [F, F],
+    "F1: a leaving the seating does not name": [F, F],
+}
+RESTATED_CLOSE = {"b6 (regression)": F, "b6: the same asked of the other twin": F}
+for i, (name, rows, asks, item) in enumerate(CASES):
+    for pre, want in RESTATED.items():
+        if name.startswith(pre):
+            CASES[i] = ("(restated, 2026-11-28) " + name, rows, [(k, sc, w) for (k, sc, _), w in zip(asks, want)], item)
+for i, (name, rows, seating, want) in enumerate(CLOSE_CASES):
+    for pre, w in RESTATED_CLOSE.items():
+        if name.startswith(pre):
+            CLOSE_CASES[i] = ("(restated, 2026-11-28: the election is at lm1, the first end) " + name, rows, seating, w)
 
 
 def main():
@@ -1101,9 +1076,6 @@ def main():
             if closed([rows[0]] + list(p), seating, arrive=True) != got:
                 problems.append("%s: order %s differs" % (name, [r["id"] for r in p]))
                 break
-    for name, rows, asks, _item, *own in PENDING:
-        got = answers(rows, asks, own=own[0] if own else None)
-        print("  PENDING %s: %s (%s; expected: %s)" % (name, got, "holds" if got == [w for _, _, w in asks] else "does not hold on the merged tree", [w for _, _, w in asks]))
     caught = 0
     for plant in PLANTS:
         hit = [name for name, rows, asks, _ in CASES if answers(rows, asks, plant) != [w for _, _, w in asks]]
@@ -1122,9 +1094,8 @@ def main():
             problems.append("plant %s not caught" % plant)
     for p in problems:
         print(p)
-    print("RESULT: %s: %d cases, %d of the close, %d of the line, %d pending the head rules, %d orders, %d of %d planted "
-          "breaks caught (%.0fs)"
-          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), len(CLOSE_CASES), len(LINE_CASES), len(PENDING),
+    print("RESULT: %s: %d cases, %d of the close, %d of the line, %d orders, %d of %d planted breaks caught (%.0fs)"
+          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), len(CLOSE_CASES), len(LINE_CASES),
              n_orders, caught, len(PLANTS), time.time() - t0))
     return 1 if problems else 0
 
