@@ -49,9 +49,9 @@ WRULE = lambda r, P, past: WN.rule(r, P, past)
 def halt_rows():
     """A halt (h1) confirmed by h2's answer: the landing `x` of 'confirmed' by h3 counts h1 and h2, two of three."""
     g = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))
-    p = WN.opener("p", "h1", "halt_fuse", "g", ("g",))
+    p = WN.opener("p", "h1", "holders@count", "g", ("g",))
     return [g, p, WN.answer("c2", "h2", "p", "confirm"), WN.receipt("r", "h3", "p", 0),
-            WN.landing("x", "h3", "p", "r", "confirmed", WN.secs("halt_fuse"), ("c2",))]
+            WN.landing("x", "h3", "p", "r", "confirmed", WN.secs("holders@count"), ("c2",))]
 
 
 HKEYS = [KE.rec("k" + k, k, 0, None, typ="pseudonym") for k in ("h1", "h2", "h3")]

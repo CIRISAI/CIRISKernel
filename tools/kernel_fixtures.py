@@ -943,32 +943,44 @@ def policy_spec_cases():
     pol = WN.policy_table()
     fams = {f["family"]: f for f in pol["families"]}
     cut = lambda t: {"min_count": t["min_count"], "window_classes": t["window_classes"]}
+    within = lambda f: "within_k" if f["base"] == "active" and f["stated_census"] is None else None
 
-    def case(name, row, table, active):
-        e = {"name": name, "row": row, "table": cut(table), "active": enc(active), "spec": None, "refusals": None}
+    def case(name, row, table, active, seat):
+        e = {"name": name, "row": row, "table": cut(table), "active": enc(active), "seat": seat, "spec": None,
+             "refusals": None}
         try:
-            e["spec"] = enc(WN.spec_from_policy(row, table, active))
+            e["spec"] = enc(WN.spec_from_policy(row, table, active, seat))
         except WN.PolicyRefusal as x:
             e["refusals"] = [list(r) for r in x.reasons]
         return e
     out = []
     for f in pol["families"]:
-        out.append(case(f["family"], f, pol, "within_k" if f["base"] == "active" else None))
+        out.append(case(f["family"], f, pol, within(f), PS.seat_of(f)))
+    for fam in ("self_roster_add", "self_roster_evict"):
+        out.append(case("%s, the seat key" % fam, fams[fam], pol, None, "key"))
+        out.append(case("%s, no seat" % fam, fams[fam], pol, None, None))
+        out.append(case("%s, a seat outside the count set" % fam, fams[fam], pol, None, "member"))
     for fam in ("default_content", "default_standing", "default_irreversible"):
+        base = PS.plant_base(fam)
+        out.append(case("%s, its opener as member" % fam, base, pol, "within_k", None))
         for n in (20, 5, 2 ** 32 + 13):
-            out.append(case("%s, census %d" % (fam, n), fams[fam], pol, ("census", n)))
-        out.append(case("%s, no active" % fam, fams[fam], pol, None))
-    out.append(case("community_invite, an active stated", fams["community_invite"], pol, ("census", 20)))
+            out.append(case("%s, its opener as member, census %d" % (fam, n), base, pol, ("census", n), None))
+        out.append(case("%s, its opener as member, no active" % fam, base, pol, None, None))
+    out.append(case("community_invite, an active stated", fams["community_invite"], pol, ("census", 20), None))
+    out.append(case("community_invite, a seat", fams["community_invite"], pol, None, "member"))
+    for name, fam, cells, _ in PS.PARITY:
+        row = PS.parity_row(fam, cells)
+        out.append(case(name, row, pol, within(row), PS.seat_of(row)))
     for cell, fam, v, *act in PS.PLANTS:
         a = act[0] if act else None
         name = "plant %s = %s" % (cell, json.dumps(v))
         if fam is None:
             t = PS._set(pol, cell, v)
             for f in pol["families"]:
-                out.append(case("%s: %s" % (name, f["family"]), f, t, "within_k" if f["base"] == "active" else None))
+                out.append(case("%s: %s" % (name, f["family"]), f, t, within(f), PS.seat_of(f)))
         else:
-            row = PS._set(fams[fam], cell, v)
-            out.append(case("%s: %s" % (name, fam), row, pol, a if a is not None else ("within_k" if row["base"] == "active" else None)))
+            row = PS._set(PS.plant_base(fam), cell, v)
+            out.append(case("%s: %s" % (name, fam), row, pol, a if a is not None else within(row), PS.seat_of(row)))
     return {"source": "data/governance_policy.json (CIRISConstitution manifests/governance_policy.json)",
             "policy_sha256": pol["_meta"]["policy_sha256"], "cases": out}
 
@@ -986,7 +998,7 @@ LAW_PLANTS = (
     ("policy", "self_roster_add", "enact_rule", {"kind": "fraction", "num": 2, "den": 3}),
     ("policy", "community_invite", "enact_rule", {"kind": "fraction", "num": 1, "den": 2}),
     ("policy", "accord_majority", "enact_rule", {"kind": "one_of_n"}),
-    ("policy", "accord_halt", "enact_rule", {"kind": "protocol"}),
+    ("policy", "accord_halt", "cancel_rule", {"kind": "none"}),
     ("policy", "cosigned_act", "enact_rule", {"kind": "ranked_irv", "choices": 3}),
     ("policy", "moderator_election", "enact_rule", {"kind": "strict_majority"}),
     ("policy", "moderator_recall", "floor_rule", {"kind": "voices", "count": 3}),
@@ -1051,8 +1063,20 @@ def window_bound_cases():
             refs = {}
             cases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "c": [c[r["id"]] for r in rows if r["id"] in c],
                           "kept": [i for i in c], "outcome": o})
+        # a wait on the bound path: a stalled infrastructure room's recovery widening (an offer) that opens a window,
+        # under a law that binds no act (its table by name): the seat rule waits on the grant it names (B1), with no
+        # trust root read, and the window rule passes the wait on (check_acts: undecided, stalled_recovery_needs_bundle)
+        import check_acts as AC
+        wrows = [AC.GI, AC.W3, dict(AC.RECOVER(heads=("g",), cites=("w3",)), window="stall")]
+        S = CK.concluded(CK.kept(list(wrows)), ST.seat_rule)
+        refs = {}
+        wait = {"rows": with_refs(wrows, refs), "refs": refs, "row": "rv", "wait_on": "B1", "concluded": bool(S.C["rv"]),
+                "window": "stall", "spec": {"counted": "founder", "concluder": "founder", "opener_says": None, "at_once": [],
+                                            "silent": None, "at_close": [], "default": "refused", "target_votes": False,
+                                            "secs": 1}}
     return {"law": law, "families": PS.POL["families"],
-            "table": {"min_count": PS.POL["min_count"], "window_classes": PS.POL["window_classes"]}, "cases": cases}
+            "table": {"min_count": PS.POL["min_count"], "window_classes": PS.POL["window_classes"]}, "cases": cases,
+            "wait": wait}
 
 
 def main():

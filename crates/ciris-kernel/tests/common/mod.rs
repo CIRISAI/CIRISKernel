@@ -761,6 +761,8 @@ impl WindowRow for TRow {
             {
                 Some(WinKind::Open)
             }
+            // an offer that names a window opens it too (a stalled room's recovery widening, in the bound path's wait)
+            "offer" if self.window.is_some() => Some(WinKind::Open),
             "answer" => Some(WinKind::Answer),
             "receipt" => Some(WinKind::Receipt),
             "landing" => Some(WinKind::Landing),

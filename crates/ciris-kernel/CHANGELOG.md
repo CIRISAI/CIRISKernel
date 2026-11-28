@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+**Parity of `spec_from_policy` (review-53).** `window::Why` is ordered by its word and the cell it names
+(`Why::word`, `Why::other`), so the crate's refusals are in `window.py`'s order, and `tests/policy_spec.rs` compares
+them as returned. Both languages refuse a fraction with a number missing or a zero denominator, and a floor of
+voices with no count, as `Unknown` on the rule; a ballot's words are exactly two, `for` and `against`. New
+`window::rule_bound_why`, as `window::rule_why` for the bound path.
+
+**The rulings of 2026-11-28.** The accord's halt: a table whose concluder is `local` concludes no receipt and no
+landing (each node's own fuse); the halt fires and is no confirming voice. A counted row at the window stays open
+(`at_window` is read for nothing). `moderation_action`'s `role_at` enact: a moderator's ballot `for` lands and
+`against` refuses at once; **an answer changes:** two clauses one holder's act resolves over one named scope, met at
+once with different outcomes, resolve nothing (a contested pair of moderator ballots), and the window runs on to the
+members' count. The default rows' opener is `member` (policy pin 85750784, CIRISConstitution 0e80f21: `data/` re-copied,
+`governance_policy.json` sha256 8014d6cb, `family_model.json` 9d49c2a7). **An answer changes:**
+`accord_halt`'s seat count is a strict majority (`Policy::Strict(1, 2)`, its cancel cell: the act bound to it is the
+halt's confirmation), not one voice (`law_from_tables`, and the model's `seat.POLICY`); the checks that read it as a
+stand-in of one voice read `one_voice` (`seat.POLICY`, a stand-in no act takes).
+
+**Policy pin 8ec76cce** (CIRISConstitution 67f7ec2; `data/governance_policy.json` sha256 f1b3f4b4..., and
+`data/family_model.json`). **BREAKING**: `window::PolicyRow` carries the new cells (`concluder`, `opener`,
+`opener_says`, `outcome_words`, `answer_words` as `window::Words`, `default_at_close`, `landed_means`,
+`refused_means`, `comparison` as `window::Comparison`, `stated_census`); `spec_from_policy` takes a fourth argument,
+`seat` (the seat of a count set of several, `self+key`), reads every new cell, gives the leaves `landed`/`refused` and
+the answer words `assent`/`raised` (or a ballot's `for`/`against`), and returns its refusals sorted, once each; a new
+`Why::Local`. `window::Families` takes the founding row's scope as a third argument. Four rows give a table:
+`community_invite`, both self roster rows, and `moderation_overturn` (the members less the author, `landed` the lift,
+`refused` the act standing); the default rows are refused on their `unstated` opener. The reference builds the self
+roster's lone paths from the row (`roster.window_from_table`), which adds the proposer's withdrawal it left out.
+
 ### Adopting 0.5.0 from 0.2.2
 
 For persist, which depends on `kernel-v0.2.2`. It covers every break from 0.2.2 to 0.5.0, the 0.3.0 and 0.4.0

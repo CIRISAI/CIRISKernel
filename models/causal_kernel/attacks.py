@@ -188,8 +188,8 @@ def t01(t):
     o2, bad = win(fb[:-1] + [Ain, dict(um, names=("md", "A"), target="md"), fb[-1]]); t.order(bad)
     t.fact("contrast: an answer the withdrawal has in its past is still counted: recount=%s" % o2["recount"], o2["recount"] == "contested")
     g = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))
-    W = WN.secs("halt_fuse")
-    p = WN.opener("p", "h1", "halt_fuse", "g", ("g",))
+    W = WN.secs("holders@count")
+    p = WN.opener("p", "h1", "holders@count", "g", ("g",))
     rows = [g, p, WN.receipt("r", "h3", "p", 0), WN.landing("L", "h3", "p", "r", "lapsed", W),
             ST.cosign("xc", "h3", "xh", ("g", "L")),
             ST.unseat("xh", "h1", "h2", "holder", "g", "group", ("L", "xc"), head=("g",), policy="accord_majority", content="xh", counted="holder")]
@@ -480,7 +480,7 @@ def t08(t):
 # B. Windows and clocks
 # =========================================================================================================
 def window_bases():
-    Ws, Wm, Wh = WN.secs("self_roster_evict"), WN.secs("moderation_fallback"), WN.secs("halt_fuse")
+    Ws, Wm, Wh = WN.secs("self_roster_evict"), WN.secs("moderation_fallback"), WN.secs("holders@count")
     Wo = WN.secs("moderation_overturn")
     gs = ST.offer("g", "d1", ("d1", "d2", "d3"), "self", "@", "self", cosigners=("d2", "d3"))
     # three duty holders (CC 4.5.4); MOD is admitted to the roster and then seated to moderate (a duty seat stands only on a
@@ -503,10 +503,10 @@ def window_bases():
              WN.landing("L", "m2", "p", "r", "fallback", Wm, ("x1", "x2", "x3"))],
             {"the moderator answers": WN.answer("n", "MOD", "p", "answered")}, "answered", "m1"),
         "halt: lapsed at the fuse": (
-            [gh, WN.opener("p", "h1", "halt_fuse", "g", ("g",)), WN.receipt("r", "h3", "p", 0), WN.landing("L", "h3", "p", "r", "lapsed", Wh)],
+            [gh, WN.opener("p", "h1", "holders@count", "g", ("g",)), WN.receipt("r", "h3", "p", 0), WN.landing("L", "h3", "p", "r", "lapsed", Wh)],
             {"a second holder confirms": WN.answer("n", "h2", "p", "confirm"), "the halting holder confirms again": WN.answer("n", "h1", "p", "confirm")}, "confirmed", "h2"),
         "halt: confirmed by a majority": (
-            [gh, WN.opener("p", "h1", "halt_fuse", "g", ("g",)), WN.answer("c2", "h2", "p", "confirm"), WN.receipt("r", "h2", "p", 0),
+            [gh, WN.opener("p", "h1", "holders@count", "g", ("g",)), WN.answer("c2", "h2", "p", "confirm"), WN.receipt("r", "h2", "p", 0),
              WN.landing("L", "h2", "p", "r", "confirmed", 0, ("c2",))],
             {"h3 signs anything": R("n", "note", "h3", ("g",))}, None, "h2"),
         "overturn: the act stands at the close": (
@@ -587,7 +587,7 @@ def t10(t):
 @test(11, "The concluder's clock", "did:plc trusted clock; KERNEL 5",
       "A window that the text gives a length cannot be closed early by the key that concludes it.")
 def t11(t):
-    Ws, Wh, Wm = WN.secs("self_roster_evict"), WN.secs("halt_fuse"), WN.secs("moderation_fallback")
+    Ws, Wh, Wm = WN.secs("self_roster_evict"), WN.secs("holders@count"), WN.secs("moderation_fallback")
     gs = ST.offer("g", "d1", ("d1", "d2", "d3"), "self", "@", "self", cosigners=("d2", "d3"))
     p = WN.opener("p", "d3", "self_roster_evict", "g", ("g",), target="d1")
     rows = [gs, p, WN.receipt("r", "d3", "p", 0), WN.landing("L", "d3", "p", "r", "landed", Ws)]          # all three signed in the same second
@@ -598,7 +598,7 @@ def t11(t):
     o2, bad = win(rows[:3] + [WN.landing("L", "d3", "p", "r", "landed", Ws - 1)]); t.order(bad)
     t.fact("the only check is on the two instants the concluder itself states (one second short: %s)" % o2["recount"], o2["recount"] == "open")
     gh = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))
-    rows = [gh, WN.opener("p", "h1", "halt_fuse", "g", ("g",)), WN.receipt("r", "h3", "p", -Wh), WN.landing("L", "h3", "p", "r", "lapsed", 0)]
+    rows = [gh, WN.opener("p", "h1", "holders@count", "g", ("g",)), WN.receipt("r", "h3", "p", -Wh), WN.landing("L", "h3", "p", "r", "lapsed", 0)]
     o, bad = win(rows); t.order(bad)
     t.fact("one hostile holder lapses another holder's halt at once by stating a receipt 24 h in its own past: recount=%s" % o["recount"], o["recount"] == "lapsed")
     o, bad = win(rows + [WN.answer("c1", "h1", "p", "confirm")]); t.order(bad)
@@ -666,9 +666,9 @@ def t12(t):
 @test(13, "Slot veto by an entitled key", "blocklace; Keyline; p2panda-auth",
       "One hostile key that is entitled on a slot cannot keep a decision the count has made from standing.")
 def t13(t):
-    Wd = WN.secs("halt_fuse")
+    Wd = WN.secs("holders@count")
     g = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))
-    p = WN.opener("p", "h1", "halt_fuse", "g", ("g",))
+    p = WN.opener("p", "h1", "holders@count", "g", ("g",))
     c2 = WN.answer("c2", "h2", "p", "confirm")
     rows = [g, p, c2, WN.receipt("r", "h2", "p", 0), WN.landing("L", "h2", "p", "r", "confirmed", 0, ("c2",))]
     o, bad = win(rows); t.order(bad)

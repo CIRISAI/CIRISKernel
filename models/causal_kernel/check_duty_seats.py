@@ -415,8 +415,8 @@ CASES = [
                 counted="duty", over="h")], [("A", "moderate", T)]),
     ("one duty's holders are not all of them: A, the only holder of moderate of three duty holders, confers alone "
      "counted over `moderate`", [GA, MDA, gate_offer("A", ("D",), counted="moderate")], [("D", "moderate", F)]),
-    ("a policy that is not the duty count confers nothing: B alone, counted over the duty holders, under accord_halt "
-     "(one of n)", [GA, MDA, gate_offer("B", ("D",), policy="accord_halt")], [("D", "moderate", F)]),
+    ("a policy that is not the duty count confers nothing: B alone, counted over the duty holders, under one_voice "
+     "(a stand-in of one voice)", [GA, MDA, gate_offer("B", ("D",), policy="one_voice")], [("D", "moderate", F)]),
     ("a record's declared duties are never a roster scope: several signers declaring `member` a duty have no duty "
      "holders, and the members' count confers no moderate",
      [dict(GM, duties=("member",)), admit("md", "D", ("A", "B", "C"), ("g",)), MCD("mc", "D", ("md",))],

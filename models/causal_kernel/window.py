@@ -79,9 +79,13 @@ The fallback's is signed by any member at the opener's head. The overturn's is s
 act's author (W2): a key no clause counts is no concluder of the window, so where every counted clause is over
 `others` (author_apart) the opener's signer signs no receipt and no landing of it.
 
-`halt_fuse` is the holders' confirmation of a halt, a count (CC 4.2.1.1); the halted node's own fuse, on its own
-clock with no landing, is the node's and is not read here (reactions.json `fuse local, late closed`). The name is a
-misnomer kept for now: the adversary table and the fixtures carry it.
+`halt_fuse` is the accord's halt as the Constitution rules it (2026-11-28, policy pin 85750784): its concluder is
+`local`, each node's own fuse (halt_fuse_secs after its receipt) with no landing, so no receipt and no landing of it
+concludes here; its opener `fires`, the act in force and no confirming voice. The confirmation is a strict majority of
+the standing holders (the halting holder may confirm as anyone), read here as answers that say `confirm`: met at
+once, with no landing. The lapse is the node's own clock, which is not read here. Before the ruling this table landed
+by a holder and counted the halt as its holder's confirmation; that table is `holders@count`, built for a path: the
+attack tests read the recount through a holder's landing on it.
 
 A duty holder's single-signature answer (a value an at-once clause reads as "one" over a named scope, said by a
 holder of that scope) is what that key said: a vote the same key also cast is moot, and does not make its answer
@@ -127,9 +131,17 @@ WINDOWS = {
                             "silent": None, "at_close": (("for", ("voted", 1, 2, 2, "against"), "all", "fallback"),), "default": "lapsed"},
     # CC 4.2.1.1: one holder fires at once; the holders' confirmation of the halt, a count (a strict majority). The
     # halted node's own fuse, on its own clock with no landing, is the node's and is not read here (the name misleads)
-    "halt_fuse": {"policy": "accord_halt", "counted": "holder", "concluder": "holder", "opener_says": "confirm",
+    # the ruling of 2026-11-28: concluder `local` (no landing concludes), opener_says `fires` (no voice)
+    "halt_fuse": {"policy": "accord_halt", "counted": "holder", "concluder": "local", "opener_says": None,
                   "at_once": (("confirm", "strict", "all", "confirmed"),),
                   "silent": None, "at_close": (), "default": "lapsed"},
+    # TEST AND REFERENCE ONLY, built for a path: a holders' count closed by a holder's landing, the halt as it was read
+    # before the ruling (the halting holder's open counted as its confirmation). No policy row, no act and no binding
+    # gives it (spec_of reads it by name only, and only where a check names it); no verdict path reads it. The attack
+    # tests, check_key_view and check_rosters read the recount through it
+    "holders@count": {"policy": "accord_halt", "counted": "holder", "concluder": "holder", "opener_says": "confirm",
+                      "at_once": (("confirm", "strict", "all", "confirmed"),),
+                      "silent": None, "at_close": (), "default": "lapsed"},
     # CC 4.5.13, the members' check: a duty holder's act takes effect at once and is itself the opener. "The act is
     # lifted when a strict majority of the members seated at the head the act names, the act's author apart, has
     # objected within the 48-hour window. ... The floor is two voices. The author's own objection is no voice, and the
@@ -143,16 +155,18 @@ WINDOWS = {
 # self roster's lone path, read off the policy row: enact strictly more than 2/3 at once (the table's decider,
 # enact_votes = 2*base//3 + 1; the Constitution's ruling of 2026-11-27: six need five, three need three; this read
 # "at least 2/3" before), cancel 1/3 at the close, floor 1/3 at the close, never fewer than two voices (min_count,
-# community); default cancelled. Counted over ("stated", n): n = 20 here, the census's figure for a room of thirteen
+# community); default refused (the leaf; cancelled is its meaning). Counted over ("stated", n): n = 20 here, the census's figure for a room of thirteen
 # members
 ACTIVE = 20
 WINDOWS["default_content@active"] = {
     "policy": "default_content", "counted": "member", "concluder": "member", "opener_says": "approve",
     "at_once": (("approve", ("more", 2, 3, 2), ("stated", ACTIVE), "landed"),),
     "silent": None,
-    "at_close": (("object", ("atleast", 1, 3, 2), ("stated", ACTIVE), "cancelled"),
+    "at_close": (("object", ("atleast", 1, 3, 2), ("stated", ACTIVE), "refused"),
                  ("approve", ("atleast", 1, 3, 2), ("stated", ACTIVE), "landed")),
-    "default": "cancelled"}
+    # the leaf: a landing states landed or refused (window:{state}); `cancelled` is what refused means for the row
+    # (refused_means; the ruling of 2026-11-27 on the outcome words; this read `cancelled` before)
+    "default": "refused"}
 # the same with a stated count of five, fewer than the members a case seats: the size counted over is never smaller
 WINDOWS["default_content@active@5"] = dict(
     WINDOWS["default_content@active"], at_once=(("approve", ("more", 2, 3, 2), ("stated", 5), "landed"),),
@@ -184,55 +198,73 @@ BASES = ("all", "others", "opener")
 
 
 def policy_table():
-    """The governance policy table (data/governance_policy.json, the Constitution's manifests/governance_policy.json)."""
+    """The governance policy table (data/governance_policy.json, the Constitution's manifests/governance_policy.json;
+    policy pin 85750784)."""
     import json
     return json.load(open(os.path.join(ROOT, "data", "governance_policy.json"), encoding="utf-8"))
 
-
 # ---- a window's table from its policy row --------------------------------------------------------------
 class PolicyRefusal(Exception):
-    """The row does not give a window's table. `reasons`: (cell, why, other) for every cell that stops it, where why is
+    """The row does not give a window's table. `reasons`: (cell, why, other) for every cell that stops it, sorted (the
+    table names its cells, it does not order them), where why is
         unstated      the cell reads `unstated`
         unknown       a value this function does not read as a window
         disagrees     two cells of the row disagree (other: the second cell)
         no_window     the row carries no window (window_secs 0)
         not_a_window  the row's kind is a counted row, a ranked count or a tally, which no window table closes
+        local         the row's close is each node's own and signs nothing (concluder `local`): no landing to judge
         no_cell       the spec needs what no column of the table states (other: what)
-        caller        the cell needs a figure the caller states and did not (other: what)"""
+        caller        the cell needs what the caller states and did not (other: what)"""
     def __init__(self, reasons):
-        self.reasons = list(reasons)
+        self.reasons = sorted(set(reasons), key=lambda r: (r[0], r[1], r[2] or ""))
         super().__init__("; ".join("%s %s%s" % (c, w, " (%s)" % o if o else "") for c, w, o in self.reasons))
 
 
 COUNTED_CELLS = ("count_set", "voice", "counted_at", "voices", "target_silent", "changes_set", "target_voice")
+EXPLICIT_CELLS = ("concluder", "opener", "opener_says", "answer_words")
 NOT_A_WINDOW = ("cosigned", "ranked", "tally")
+LEAVES = ("held", "landed", "refused")       # window:{state} (CC 3.1.3): the only states a landing states
+NONE = "—"
 
 
-def spec_from_policy(row, table=None, active=None):
+def whole(rule):
+    """A fraction cell with both its numbers, the denominator not zero (one missing is no fraction the spec reads)."""
+    n, d = rule.get("num"), rule.get("den")
+    return isinstance(n, int) and isinstance(d, int) and not isinstance(n, bool) and d > 0
+
+
+def spec_from_policy(row, table=None, active=None, seat=None):
     """The window table (WINDOWS' shape) one row of the policy table gives, every cell read and none defaulted
-    but where the Constitution's text states it (cited below). `table`: the policy table the row is of (its
-    min_count and window_classes); `active`: the base `active`, which the table does not state as a count: None,
-    "within_k" (the room has at most base_law.k members, so the base is N, CC 4.5.13) or ("census", n), the census's
-    figure (CC 6.1.9). Raises PolicyRefusal naming every cell that stops it.
+    but where the Constitution's text states it (cited below); or PolicyRefusal naming every cell that stops it.
+    `table`: the policy table the row is of (min_count, window_classes); `active`: the base `active` where the row
+    states no census figure: None, "within_k" (at most base_law.k members: the base is N, CC 4.5.13) or ("census", n)
+    (CC 6.1.9); `seat`: where the count set names several seats (`self+key`), the one the object seats.
 
-    The cells of a two_path row, the only kind it gives a table for:
-        counted.count_set  the scope counted, and the concluder's (CC 4.5.13: "Every window of this table closes by
-                           two rows of one voice of its count") and the proposer's (CC 3.1.9.2)
-        enact_rule         approvals strictly more than the fraction of the base and at least min_count voices (the
-                           table's decider); at once, but where the row is irreversible only at the close
-        cancel_rule        objections over cancel_over: a fraction at least it, never fewer than min_count, at the
-                           close (decider); the strict majority of the others at once (CC 3.3.6.4, "A count that is
-                           met")
-        floor_rule         with reverse_path, approvals at the close: a fraction as cancel, one_of_n one voice
-        at_window          the word of the cancel, the default, a silent target and the proposer's withdrawal
-        target_silent      yes: a row of the target inside the window gives at_window (door_text: silent at_window)
-        target_voice       yes: the target's own yes is a voice of the floor
-        base               standing: the members at the head; active: `active`
+    A two_path or mirror row gives a table; the cells:
+        counted.count_set  the scope counted (the seat, of several); `-proposer` counts the others (Base others)
+        concluder          a scope word of the count set: the counted scope; `-proposer`: any but the opener's
+                           signer (author_apart, so the count set must exclude the proposer too); `local`: refused
+        opener             the scope whose act opens it: the counted one (None), or another (a duty holder's act)
+        opener_says        approve: the proposal is its signer's yes (CC 3.1.9.2); nothing: no voice
+        answer_words       what an answer says: objection's assent and raised, a ballot's for and against
+        outcome_words      the leaves a landing states (window:{state}: landed, refused)
+        default_at_close   the leaf at the close with no count met
+        comparison         enact, cancel, floor: more_than or at_least the fraction
+        enact_rule         the yes word, over the base, `landed`; two_path: at once (at the close where irreversible),
+                           at least min_count voices; mirror: at once, at least the floor's voices
+        cancel_rule        the no word over cancel_over, `refused`: at once on the self corridor (CC 3.3.6.4, "A count
+                           that is met"), at the close otherwise
+        floor_rule         two_path with reverse_path: the yes word at the close, `landed` (left out where the default is
+                           `landed` too); mirror voted_majority: a ballot's for over those who voted, at the close
+        target_silent      yes: a row of the target inside the window gives `refused`; target_voice: target_votes
+        base, stated_census  standing: the members; active: `active`; a stated census: Base stated
+        corridor           min_count's key; `self` adds the proposer's withdrawal, `refused` at once (CC 3.3.6.4)
         window_secs        the length, which window_class must give too
-        corridor           min_count's key; `self` adds the proposer's withdrawal (CC 3.3.6.4, "The proposer's own
-                           withdrawal": `refused` at once)
-    `landed` is the word of an enact or a floor met (CC 3.1.3, window:{state}; CC 3.3.6.4). The proposal is the
-    proposer's approval (CC 3.1.9.2; door_text opener_counts yes)."""
+    Carried and read for no spec cell: at_window (the text's description), landed_means and refused_means (what a
+    leaf means for the row), cc_ref, model, status, note.
+    Ruled 2026-11-28: accord_halt's concluder `local` (each node's own fuse, no landing: refused here, and the
+    reference's halt_fuse concludes no landing either) and opener_says `fires` (no confirming voice); a counted row
+    at the window stays open (at_window `dropped` is a storage note, read for nothing; a cosigned row is refused)."""
     t = table if table is not None else policy_table()
     why = []
     no = lambda cell, w, other=None: why.append((cell, w, other))
@@ -240,6 +272,8 @@ def spec_from_policy(row, table=None, active=None):
     val = lambda k: c[k]["value"]
     for k in COUNTED_CELLS:
         if val(k) == "unstated": no("counted." + k, "unstated")
+    for k in EXPLICIT_CELLS:
+        if row[k] == "unstated": no(k, "unstated")
     classes = t["window_classes"]
     if row["window_class"] not in classes: no("window_class", "unknown")
     elif classes[row["window_class"]] != row["window_secs"]: no("window_secs", "disagrees", "window_class")
@@ -247,27 +281,61 @@ def spec_from_policy(row, table=None, active=None):
     for cell in ("enact", "cancel", "floor"):
         prose, rule = row[cell], row[cell + "_rule"]
         if (prose is None) != (rule["kind"] == "none"): no(cell, "disagrees", cell + "_rule")
-        elif isinstance(prose, dict) and (rule["kind"] != "fraction" or (prose["num"], prose["den"]) != (rule["num"], rule["den"])):
+        elif isinstance(prose, dict) and (rule["kind"] != "fraction" or (prose.get("num"), prose.get("den")) != (rule.get("num"), rule.get("den"))):
             no(cell, "disagrees", cell + "_rule")
+    cmp = row["comparison"]
+    for k in ("enact", "cancel", "floor"):
+        if cmp.get(k) not in ("more_than", "at_least"): no("comparison." + k, "unknown")
     toks = val("count_set").split("-")
     incl, excl = toks[0].split("+"), toks[1:]
     if ("less" in row["standing_set"].replace(",", " ").split()) != bool(excl): no("counted.count_set", "disagrees", "standing_set")
     kind = row["kind"]
     if kind in NOT_A_WINDOW: no("kind", "not_a_window")
-    elif kind == "mirror": no("kind", "no_cell", "a mirror window's answer words and outcome words")
-    elif kind != "two_path": no("kind", "unknown")
-    if kind != "two_path":
+    elif kind not in ("two_path", "mirror"): no("kind", "unknown")
+    if row["concluder"] == "local": no("concluder", "local")
+    if kind not in ("two_path", "mirror") or row["concluder"] == "local":
         raise PolicyRefusal(why)
-    # ---- a two_path row
-    mc = t["min_count"].get(row["corridor"])
-    if mc is None: no("corridor", "unknown")
-    if excl or len(incl) != 1: no("counted.count_set", "unknown")
-    scope = incl[0]
+    # ---- a window: two_path or mirror
+    words = row["outcome_words"]
+    if not isinstance(words, list) or not words or any(w not in LEAVES for w in words): no("outcome_words", "unknown")
+    words = words if isinstance(words, list) else []
+    leaf = lambda w: w if w in words else no("outcome_words", "disagrees", "a clause's leaf %s" % w)
+    default = row["default_at_close"]
+    if default not in words: no("default_at_close", "disagrees", "outcome_words")
+    # the seat: one of the count set's
+    if len(incl) > 1:
+        if seat is None: no("counted.count_set", "caller", "the seat the object counts, of the count set")
+        elif seat not in incl: no("counted.count_set", "disagrees", "seat")
+    elif seat is not None and seat != incl[0]: no("counted.count_set", "disagrees", "seat")
+    scope = seat if seat in incl else incl[0]
+    if any(e != "proposer" for e in excl): no("counted.count_set", "unknown")
+    others = "proposer" in excl
+    named = lambda w: w.split("-")[0] in incl           # a scope word of the count set
+    conc = row["concluder"]
+    if not named(conc): no("concluder", "unknown")
+    if conc.endswith("-proposer") != others: no("concluder", "disagrees", "counted.count_set")
+    op = row["opener"]
+    opener = None if named(op) else op
+    if op in ("none", NONE): no("opener", "unknown")
     if val("voice") == "key" and row["corridor"] != "self": no("counted.voice", "disagrees", "corridor")
     elif val("voice") not in ("person", "key", "unstated"): no("counted.voice", "unknown")
     if val("counted_at") not in ("named", "act", "unstated"): no("counted.counted_at", "unknown")
-    if val("voices") not in ("objection", "unstated"): no("counted.voices", "unknown")
-    if row["base"] == "standing":
+    aw = row["answer_words"]
+    aw = aw if isinstance(aw, list) else []
+    voices = val("voices")
+    if voices == "objection" and aw and set(aw) <= {"assent", "raised"}: yes_w, no_w = "assent", "raised"
+    elif voices == "ballot" and len(aw) == 2 and set(aw) == {"for", "against"}: yes_w, no_w = "for", "against"   # two, distinct
+    else:
+        yes_w = no_w = None
+        if voices != "unstated": no("counted.voices", "disagrees", "answer_words")
+    says = {"approve": yes_w, "nothing": None}.get(row["opener_says"], "?")
+    if says == "?": no("opener_says", "unknown"); says = None
+    # the base
+    census = row["stated_census"]
+    if census is not None:
+        over = ("stated", census)
+        if active is not None: no("base", "disagrees", "active")
+    elif row["base"] == "standing":
         over = "all"
         if active is not None: no("base", "disagrees", "active")
     elif row["base"] == "active":
@@ -275,52 +343,99 @@ def spec_from_policy(row, table=None, active=None):
         if active is None: no("base", "caller", "the census figure (CC 6.1.9), or within_k")
         elif active != "within_k": over = ("stated", active[1])
     else:
-        over = None; no("base", "unknown")
-    no_word = row["at_window"] if row["at_window"] in ("cancelled", "refused") else None
-    if no_word is None: no("at_window", "unknown")
-    cr, co = row["cancel_rule"], row["cancel_over"]
-    cancel = None
-    if cr["kind"] == "fraction":
-        if co != "base": no("cancel_over", "disagrees", "cancel_rule")
-        cancel = ("object", ("atleast", cr["num"], cr["den"], mc), over, no_word)
-    elif cr["kind"] == "strict_majority_of_others":
-        if co != "others": no("cancel_over", "disagrees", "cancel_rule")
-        elif over != "all": no("cancel_over", "disagrees", "base")
-        cancel = ("object", "strict", "others", no_word)
-    elif cr["kind"] == "none":
-        if co != "—": no("cancel_over", "disagrees", "cancel_rule")
+        over = "all"; no("base", "unknown")
+    if others:
+        if over != "all": no("counted.count_set", "disagrees", "base")
+        over = "others"
+    mc_ = t["min_count"].get(row["corridor"])
+
+    def mc():
+        if mc_ is None: no("corridor", "unknown")
+        return mc_ or 0
+
+    def frac(rule, comparison):
+        n, d = rule.get("num"), rule.get("den")
+        if comparison == "more_than":
+            least = mc()
+            return "strict" if (n, d) == (1, 2) and least <= 1 else ("more", n, d, least)
+        return ("atleast", n, d, mc())
+    at_once, at_close = [], []
+    lone = row["corridor"] == "self"
+    er, cr, fr = row["enact_rule"], row["cancel_rule"], row["floor_rule"]
+    if kind == "two_path":
+        if er["kind"] != "fraction" or not whole(er): no("enact_rule", "unknown")
+        enact = (yes_w, frac(er, cmp["enact"]), over, leaf("landed"))
+        if not row["irreversible"]: at_once.append(enact)
+        if lone: at_once.append(("withdraw", "one", "opener", leaf("refused")))
+        co = row["cancel_over"]
+        if cr["kind"] == "fraction" and not whole(cr):
+            no("cancel_rule", "unknown")
+        elif cr["kind"] == "fraction":
+            if co != "base": no("cancel_over", "disagrees", "cancel_rule")
+            (at_once if lone else at_close).append((no_w, frac(cr, cmp["cancel"]), over, leaf("refused")))
+        elif cr["kind"] == "strict_majority_of_others":
+            if co != "others": no("cancel_over", "disagrees", "cancel_rule")
+            elif over != "all": no("cancel_over", "disagrees", "base")
+            (at_once if lone else at_close).append((no_w, "strict", "others", leaf("refused")))
+        elif cr["kind"] != "none" or co != NONE: no("cancel_rule", "unknown")
+        if row["irreversible"]: at_close.append(enact)
+        if row["reverse_path"]:
+            if fr["kind"] == "fraction" and whole(fr): floor = (yes_w, frac(fr, cmp["floor"]), over, leaf("landed"))
+            elif fr["kind"] == "one_of_n": floor = (yes_w, "one", over, leaf("landed"))
+            else:
+                floor = None
+                if fr["kind"] != "none": no("floor_rule", "unknown")
+            if floor and default != "landed": at_close.append(floor)   # a floor that gives the default is no clause
     else:
-        no("cancel_rule", "unknown")
-    er = row["enact_rule"]
-    if er["kind"] != "fraction": no("enact_rule", "unknown")
-    enact = ("approve", ("more", er.get("num"), er.get("den"), mc), over, "landed")
-    fr = row["floor_rule"]
-    floor = None
-    if fr["kind"] == "fraction": floor = ("approve", ("atleast", fr["num"], fr["den"], mc), over, "landed")
-    elif fr["kind"] == "one_of_n": floor = ("approve", "one", over, "landed")
-    elif fr["kind"] != "none": no("floor_rule", "unknown")
+        # a mirror: the act is in force and its window counts against it; the floor is the enact's least voices
+        if cr["kind"] != "none": no("cancel_rule", "unknown")
+        if er["kind"] == "strict_majority" and fr["kind"] == "voices" and isinstance(fr.get("count"), int):
+            if len(aw) != 1: no("answer_words", "disagrees", "enact_rule")
+            else: at_once.append((aw[0], ("more", 1, 2, fr["count"]) if cmp["enact"] == "more_than" else ("atleast", 1, 2, fr["count"]),
+                                  over, leaf("landed")))
+        elif er["kind"] == "role_at":
+            # the ruling of 2026-11-28 (moderation_action): a holder of the role resolves the window by its own ballot,
+            # `for` landed and `against` refused, at once (One over the role's holders at the opener's head); two
+            # holders' ballots that disagree resolve nothing (table_outcome) and the window runs on to the members'
+            # count, of which a member's ballot is a voice
+            roles = er.get("roles") or []
+            if len(roles) != 1 or er.get("count") != 1 or voices != "ballot": no("enact_rule", "unknown")
+            else:
+                at_once.append((yes_w, "one", roles[0], leaf("landed")))
+                at_once.append((no_w, "one", roles[0], leaf("refused")))
+            if fr["kind"] == "voted_majority" and voices == "ballot" and isinstance(fr.get("count"), int):
+                at_close.append((yes_w, ("voted", 1, 2, fr["count"], no_w), over, leaf("landed")))
+            else: no("floor_rule", "unknown")
+        else:
+            no("enact_rule", "unknown")
     silent = None
     if val("target_silent") == "yes":
         if val("changes_set") != "removes": no("counted.target_silent", "disagrees", "counted.changes_set")
-        silent = no_word
+        silent = leaf("refused")
     tv = val("target_voice") == "yes"
     if tv and val("changes_set") != "adds": no("counted.target_voice", "disagrees", "counted.changes_set")
     if why:
         raise PolicyRefusal(why)
-    lone = row["corridor"] == "self"
-    at_once = [] if row["irreversible"] else [enact]
-    if lone: at_once.append(("withdraw", "one", "opener", no_word))
-    at_close = []
-    if cancel: (at_once if lone else at_close).append(cancel)
-    if row["irreversible"]: at_close.append(enact)
-    if row["reverse_path"] and floor: at_close.append(floor)
-    return {"policy": row["family"], "counted": scope, "concluder": scope, "opener_says": "approve",
-            "at_once": tuple(at_once), "silent": silent, "at_close": tuple(at_close), "default": no_word,
-            "target_votes": tv, "secs": row["window_secs"]}
+    out = {"policy": row["family"], "counted": scope, "concluder": scope, "opener_says": says,
+           "at_once": tuple(at_once), "silent": silent, "at_close": tuple(at_close), "default": default,
+           "target_votes": tv, "secs": row["window_secs"]}
+    if opener is not None: out["opener"] = opener
+    return out
+
+
+# the members' moderation window is the row's own table (moderation_action, as the Constitution ruled it on
+# 2026-11-28): a moderator's ballot resolves it at once, two that disagree resolve nothing, and the members' count runs
+# at the close. The reference writes it no more; moderation_fallback, above, is the table before the ruling
+def _row_table(fam, active=None):
+    f = next(x for x in policy_table()["families"] if x["family"] == fam)
+    return spec_from_policy(f, policy_table(), active)
+
+
+WINDOWS["moderation_action"] = _row_table("moderation_action", "within_k")
 
 
 # ---- the act binding: an opener's table through the acts table ------------------------------------------------------
-FAMILIES = None    # set by a caller: (family, obj) -> the family's table (spec_from_policy); read with the binding on
+FAMILIES = None    # set by a caller: (family, obj, seat) -> the family's table (spec_from_policy); read with the binding on
 
 
 def bound_family(p, by):
@@ -344,8 +459,10 @@ def spec_of(p, P):
     """An opener's table: with FAMILIES set and the binding on (seat.BOUND), the family the acts table binds it to;
     otherwise the table its window name names."""
     if FAMILIES is not None and ST.BOUND:
-        fam = bound_family(p, {q["id"]: q for q in P})
-        return FAMILIES(fam, p["obj"]) if fam is not None else None
+        by = {q["id"]: q for q in P}
+        fam = bound_family(p, by)
+        # the seat the object's founding row seats, for a row whose count set names several
+        return FAMILIES(fam, p["obj"], by.get(p["obj"], {}).get("scope")) if fam is not None else None
     return WINDOWS.get(p.get("window"))
 
 
@@ -443,8 +560,14 @@ def table_outcome(spec, p, answers, inside, base, elapsed):
             if kind == "atleast": return size > 0 and yes >= max(least, -(-num * size // den))   # nothing is met by nobody
             return yes * den > num * size and yes >= least
         return yes >= 1 if how == "one" else 2 * yes > size
-    for value, how, over, out in spec["at_once"]:
-        if count_met(value, how, over): return out
+    # two holders' acts that disagree resolve nothing (the ruling of 2026-11-28: concurrent moderator ballots for and
+    # against are contested, and the window runs on): a clause one holder's act resolves over a named scope is read only
+    # where no other such clause over that scope, with another outcome, is met too (MUTATION holders_disagree_unread)
+    met_once = [(value, how, over, out) for value, how, over, out in spec["at_once"] if count_met(value, how, over)]
+    ones = lambda o: {out for _, how, over, out in met_once if how == "one" and over == o and over not in BASES}
+    for value, how, over, out in met_once:
+        if how == "one" and over not in BASES and len(ones(over)) > 1 and "holders_disagree_unread" not in MUT: continue
+        return out
     if not elapsed: return "open"
     if spec["silent"] and K.sel(inside, signer=p.get("target")): return spec["silent"]
     for value, how, over, out in spec["at_close"]:
@@ -563,6 +686,11 @@ def rule(r, P, past):
     if k == "answer": return True                              # whether its voice counts is read against the roster at p's head
     spec = spec_of(p, P)
     if spec is None: return False
+    # a `local` concluder (the accord's halt, ruled 2026-11-28): each node reads its own close and signs nothing, so no
+    # receipt and no landing concludes (MUTATION local_lands: a holder lands it)
+    if spec["concluder"] == "local":
+        if "local_lands" not in MUT: return False
+        spec = dict(spec, concluder=spec["counted"])        # the planted break: a holder of the count lands it
     base = _base(P, past, p, spec)
     if r["signer"] not in ST.members_at(P, past, p["obj"], p["head"], spec["concluder"]): return False
     if r["signer"] == p["signer"] and author_apart(spec): return False     # out of every count, so no concluder of it
@@ -891,10 +1019,10 @@ def moderation_world():
     return "moderation fallback (48 h, absent moderator, a majority of the members who voted)", cases
 
 
-def halt_world():
+def holders_world():
     g = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))
-    W = secs("halt_fuse")
-    p = opener("p", "h1", "halt_fuse", "g", ("g",))
+    W = secs("holders@count")
+    p = opener("p", "h1", "holders@count", "g", ("g",))
     c2 = answer("c2", "h2", "p", "confirm")
     cases = [
         ("false landing: the halting holder lands 'confirmed' with no other voice",
@@ -917,7 +1045,67 @@ def halt_world():
         ("confirm signed just after, unnamed: a second holder confirms after the lapse and leaves the landing unnamed",
          [g, p, receipt("r", "h3", "p", 0), landing("L", "h3", "p", "r", "lapsed", W), c2], "(a late majority against the lapse)", None),
     ]
-    return "halt fuse (24 h, lapses unless a strict majority confirms)", cases
+    return "a holders' count closed by a holder's landing (built for a path: the halt as read before the ruling of 2026-11-28)", cases
+
+
+def halt_world():
+    """The accord's halt as ruled (2026-11-28): no landing concludes (concluder local: each node's own fuse); the halt
+    fires and is no confirming voice; a strict majority of the standing holders confirms, the halting holder as anyone."""
+    g = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))
+    W = secs("halt_fuse")
+    p = opener("p", "h1", "halt_fuse", "g", ("g",))
+    c = lambda i, who, names=(): answer(i, who, "p", "confirm", names)
+    R = "the ruling of 2026-11-28 on accord_halt"
+    cases = [
+        ("the halt alone: the halting holder's act is no confirming voice", [g, p], R + ": opener_says fires", "open"),
+        ("the halting holder and one other confirm: two of three", [g, p, c("c1", "h1"), c("c2", "h2")],
+         R + ": the halting holder may confirm as anyone", "confirmed"),
+        ("one holder other than the halting one confirms", [g, p, c("c2", "h2")], R + ": opener_says fires, so one of three",
+         "open"),
+        ("the two other holders confirm", [g, p, c("c2", "h2"), c("c3", "h3")], R + ": a strict majority of the standing holders",
+         "confirmed"),
+        ("a holder lands the lapse at the fuse: no landing of a local close concludes",
+         [g, p, receipt("r", "h2", "p", 0), landing("L", "h2", "p", "r", "lapsed", W)], R + ": concluder local", "open"),
+        ("the halting holder lands 'confirmed' alone: it concludes nothing and confirms nothing",
+         [g, p, receipt("r", "h1", "p", 0), landing("L", "h1", "p", "r", "confirmed", W)], R + ": concluder local", "open"),
+        ("two confirm and a holder lands 'confirmed' naming them: the count is met with no landing",
+         [g, p, c("c2", "h2"), c("c3", "h3"), receipt("r", "h2", "p", 0), landing("L", "h2", "p", "r", "confirmed", 0, ("c2", "c3"))],
+         R + ": a met count needs no landing", "confirmed"),
+    ]
+    return "the accord's halt (a local fuse; a strict majority confirms)", cases
+
+
+def moderation_action_world():
+    """The members' moderation window as ruled (2026-11-28), the row's own table: m1 and m2 hold `moderate`, m3 and m4
+    are members."""
+    g = ST.found("g", "m1", ("m1", "m2", "m3", "m4"), {"moderate": ("m1", "m2")}, cosigners=("m2", "m3", "m4"))
+    W = secs("moderation_action")
+    p = opener("p", "m3", "moderation_action", "g", ("g",))
+    b = lambda i, who, says, names=(): answer(i, who, "p", says, names)
+    R = "the ruling of 2026-11-28 on moderation_action"
+    land = lambda says, names, who="m4": [receipt("r", who, "p", 0), landing("L", who, "p", "r", says, W, names)]
+    cases = [
+        ("a moderator's ballot for resolves the window at once", [g, p, b("x1", "m1", "for")], R + ": for gives landed", "landed"),
+        ("a moderator's ballot against resolves it at once", [g, p, b("n1", "m1", "against")], R + ": against gives refused",
+         "refused"),
+        ("two moderators' ballots disagree: neither resolves, and the window runs on",
+         [g, p, b("x1", "m1", "for"), b("n2", "m2", "against")], R + ": a contested pair resolves nothing", "open"),
+        ("the same, and the members' count at the close: three for of four who voted",
+         [g, p, b("x1", "m1", "for"), b("n2", "m2", "against"), b("x3", "m3", "for"), b("x4", "m4", "for")]
+         + land("landed", ("x1", "n2", "x3", "x4")), R + ": the window runs on to the members' count", "landed"),
+        ("a member's ballot for, alone, resolves nothing", [g, p, b("x3", "m3", "for")], R + ": a member's ballot is only a "
+         "voice of the count", "open"),
+        ("two members' ballots for, landed at the close", [g, p, b("x3", "m3", "for"), b("x4", "m4", "for")]
+         + land("landed", ("x3", "x4")), R + ": a strict majority of those who voted, floor two", "landed"),
+        ("one member's ballot for, landed at the close: short of the floor", [g, p, b("x3", "m3", "for")]
+         + land("landed", ("x3",)), R + ": the floor is two voices", "not landed"),
+        ("nobody votes and a member lands the default at the close", [g, p] + land("refused", ()),
+         R + ": the default at the close is refused", "refused"),
+        ("a moderator's ballot against with the members' landing in its past changes nothing",
+         [g, p, b("x3", "m3", "for"), b("x4", "m4", "for")] + land("landed", ("x3", "x4")) + [b("n1", "m1", "against", ("L",))],
+         R + ": a moderator ballot with the landing in its past changes nothing", "landed"),
+    ]
+    return "the members' moderation window (ruled: a moderator's ballot resolves; the members count at the close)", cases
 
 
 def overturn_world():
@@ -1048,7 +1236,7 @@ def active_world():
          [g, p] + ok(6) + [receipt("r", ms[1], "p", 0), landing("L", ms[1], "p", "r", "landed", W, ids(6))], A, "not landed"),
         ("seven object, the opener's approval apart, and a member lands the cancel at the close",
          [g, p] + [answer("o%d" % i, ms[i], "p", "object") for i in range(1, 8)] + [receipt("r", ms[1], "p", 0),
-          landing("L", ms[1], "p", "r", "cancelled", W, tuple("o%d" % i for i in range(1, 8)))], A, "cancelled"),
+          landing("L", ms[1], "p", "r", "refused", W, tuple("o%d" % i for i in range(1, 8)))], A, "refused"),
         ("a stated count of five, fewer than the thirteen members seated: five approve, no landing",
          [g, p5] + ok(5), A + ", never smaller than the members the rows seat", "not landed"),
     ] + [("a stated count of %d, nine of thirteen members approve: no landing" % n,
@@ -1067,7 +1255,8 @@ def active_world():
     return "default content above k (the base active: a stated count of twenty)", cases
 
 
-WORLDS = (self_world, add_world, moderation_world, halt_world, overturn_world, active_world)
+WORLDS = (self_world, add_world, moderation_world, moderation_action_world, holders_world, halt_world, overturn_world,
+          active_world)
 
 
 def holds(need, got):

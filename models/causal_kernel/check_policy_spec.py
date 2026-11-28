@@ -33,60 +33,44 @@ POL = WN.policy_table()
 TABLE = {f["family"]: f for f in POL["families"]}
 
 # The reference's tables that no policy row is meant to give: tables built to reach a path (window.py says so)
-BUILT = {"ballot@once", "proposal@others"}
+BUILT = {"ballot@once", "proposal@others", "holders@count"}
 
 # Each reference table that differs from its row's (in a clause, or in an outcome over a scenario), with what differs
-# and the side the table supports
-SELF = ("the enact is strictly more than 1/2 with min_count (self, one) voices, as the reference's strict majority; "
-        "the lone path is the floor's one voice at the close (floor_rule one_of_n) and the default `refused` "
-        "(at_window), where the reference's default is `landed`. They part where the proposer's own answer is not an "
-        "approval: the proposer objects to its own proposal and lands it. The decider supports the row: voices 0 is "
-        "below floor_votes 1, so `cancelled` (the self roster's word `refused`). RULED 2026-11-27: the reference is "
-        "right (the cancel over the other members, the proposer's own objection not counted, the default `landed`: a "
-        "proposer that changes its mind withdraws); the row is being corrected, and spec_from_policy reads the new cells "
-        "at the next pin")
+# and the side the table supports. The rows of policy pin 85750784 (CIRISConstitution 0e80f21), after the rulings of
+# 2026-11-27 and 2026-11-28 (policy pin 85750784, CIRISConstitution 0e80f21, carries them).
 DIFFERS = {
-    "moderation_fallback": "refused: moderation_action's voices cell is `unstated`, and a mirror row has no cell for its "
-                           "answer words (`answered`, `for`, `against`) or outcome words (`answered`, `fallback`, `lapsed`; "
-                           "at_window reads `tallied`). The reference's words are its own; the table states none",
-    "moderation_overturn": "refused: count_set `member` has no `-proposer`, while standing_set reads `less the act's author` "
-                           "(the reference counts over `others`, as CC 4.5.13's text and standing_set do); and the outcome "
-                           "words `lifted` and `stands` have no cell (at_window reads `lapsed`). RULED 2026-11-27 (CC 4.5.13): the "
-                           "base is the members at the act's head less the author (count_set will say so); `landed` "
-                           "means lifted, `refused` the act stands; the default at the close `refused`; the concluder "
-                           "a member other than the author. The reference's words become the leaves at the next pin",
-    "halt_fuse": "refused: accord_halt's counted_at is `unstated`, its voices are `scrubs` (cosignatures of one row, not "
-                 "answers), and a mirror row has no cell for `confirm`, `confirmed` or `lapsed` (at_window `lapsed`)",
-    "L:community_add:majority": "the row's enact is strictly more than 2/3 of the base with min_count voices (the decider: "
-                                "enact_votes = num*base//den + 1, voices >= min_count); the reference enacts by the room's "
-                                "declared protocol (CC 3.1.3.2, majority: a strict majority, no floor). The cancel and "
-                                "the default are `cancelled` (at_window) where the reference says `refused`. RULED 2026-11-27: "
-                                "two paths. The reference is the cosigned_act path (the declared protocol and the joiner's "
-                                "acceptance), 0.5.0's; the community_invite row is the window path (one proposer, the "
-                                "full roster, strictly more than 2/3 with its floor), post-tag, its default `refused` "
-                                "(`cancelled` is no state: the leaves are held, landed, refused)",
-    "L:community_add:two_thirds": "as L:community_add:majority: the reference enacts at least 2/3 with no floor (the declared "
-                                  "protocol), the row strictly more than 2/3 with two voices; `cancelled` for `refused`",
+    "moderation_fallback": "the table before the ruling of 2026-11-28 (a moderator's `answered`, the members' `fallback`, "
+                           "the default `lapsed`); the row's table is moderation_action, a moderator's ballot `for` "
+                           "landed and `against` refused at once, two that disagree resolving nothing, the members' "
+                           "count at the close, the default `refused`. The window adversary table runs both",
+    "halt_fuse": "refused: the row's concluder is `local` (each node's own fuse, no landing), RULED 2026-11-28; the "
+                 "reference now has the same (no landing of it concludes; the halt fires and is no confirming voice); "
+                 "its confirmation, a strict majority of the standing holders, is a separate cosigned row, which the "
+                 "reference reads as `confirm` answers met at once",
+    "L:community_add:majority": "the enact: the row's is strictly more than 2/3 of the base with min_count voices; the "
+                                "reference enacts by the room's declared protocol (CC 3.1.3.2). RULED 2026-11-27: two "
+                                "paths. The reference is the cosigned_act path (the declared protocol and the joiner's "
+                                "acceptance), 0.5.0's; the community_invite row is the window path (one proposer, the full "
+                                "roster, strictly more than 2/3 with its floor), post-tag. The cancel, the default and the "
+                                "floor are the row's now (`refused`)",
+    "L:community_add:two_thirds": "as L:community_add:majority: the reference enacts at least 2/3 with no floor",
     "L:community_add:quorum:2": "as L:community_add:majority; and the reference's enact, the declared quorum read as "
                                 "(`atleast`, 0, 0), is no count a window can read (it divides by zero; no scenario reads "
-                                "the table). The row's is strictly more than 2/3 with two voices",
-    "self_roster_add": SELF,
-    "self_roster_evict": SELF,
-    "L:self_add": SELF,
-    "L:self_evict": SELF,
-    "L:voice_add": "the scope: no row is a voice's room keys (CC 3.1.3.2 reads them `as a key of a self roster is`); the row "
-                   "self_roster_add counts `self` and the reference `key`. Run under the scope `key`, as self_roster_add: " + SELF,
-    "L:voice_evict": "as L:voice_add, for self_roster_evict",
+                                "the table)",
 }
-# where a difference above is the scope alone, the row's table is run under the caller's scope name
-RENAME = {"L:voice_add": "key", "L:voice_evict": "key"}
+# The words: the row's answers say assent and raised (objection:{state}) and its landings state the leaves; the
+# reference writes approve and object, and its own reading words for some leaves (landed_means, refused_means). The
+# row's table is run in the reference's words, so a scenario reads it as it reads the reference's.
+WORDS = {"assent": "approve", "raised": "object"}
+READING = {"moderation_overturn": {"landed": "lifted", "refused": "stands"}}
 
 
 def family_of(name, spec):
-    """The policy row and the `active` argument the reference's table `name` reads."""
+    """The policy row, the `active` argument and the seat the reference's table `name` reads."""
     fam = spec["policy"]
+    row = TABLE.get(fam, {})
     active = None
-    if TABLE.get(fam, {}).get("base") == "active":
+    if row.get("base") == "active" and row.get("stated_census") is None:
         rest = name.split("@")
         if len(rest) == 2 and rest[1] == "active":
             active = ("census", WN.ACTIVE)
@@ -94,22 +78,32 @@ def family_of(name, spec):
             active = ("census", int(rest[2]))
         else:
             active = "within_k"
-    return fam, active
+    seat = spec["counted"] if "+" in row.get("counted", {}).get("count_set", {}).get("value", "") else None
+    return fam, active, seat
+
+
+def in_words(d, fam):
+    """The row's table d in the reference's words: answers by WORDS, leaves by READING."""
+    out_w = READING.get(fam, {})
+    v = lambda w: WORDS.get(w, w)
+    o = lambda w: out_w.get(w, w)
+    how = lambda h: tuple(v(x) if isinstance(x, str) else x for x in h) if isinstance(h, tuple) else h
+    cl = lambda cs: tuple((v(a), how(h), b, o(x)) for a, h, b, x in cs)
+    return dict(d, opener_says=v(d["opener_says"]) if d["opener_says"] else None, at_once=cl(d["at_once"]),
+                at_close=cl(d["at_close"]), silent=o(d["silent"]) if d["silent"] else None, default=o(d["default"]))
 
 
 def derived(name):
     spec = WN.WINDOWS[name]
-    fam, active = family_of(name, spec)
+    fam, active, seat = family_of(name, spec)
     if fam not in TABLE:
         return None, "no policy row %s" % fam
     try:
-        d = WN.spec_from_policy(TABLE[fam], POL, active)
+        d = WN.spec_from_policy(TABLE[fam], POL, active, seat)
     except WN.PolicyRefusal as e:
         return None, e.reasons
     d.pop("secs")
-    if name in RENAME:
-        d = dict(d, counted=RENAME[name], concluder=RENAME[name])
-    return d, None
+    return in_words(d, fam), None
 
 
 # ---- the scenarios -------------------------------------------------------------------------------------
@@ -190,25 +184,11 @@ def separating():
     rows, what the reference gives, what the row gives). Each runs under window.rule, outcome under recount."""
     ST = WN.ST
     out = []
-    # the self roster: the proposer objects to its own proposal, and lands it at the close
-    g = ST.offer("g", "d1", ("d1", "d2", "d3"), "self", "@", "self", cosigners=("d2", "d3"))
-    for name in ("self_roster_evict", "self_roster_add", "L:self_evict", "L:self_add"):
-        W = WN.secs(name)
-        out.append((name, "the proposer objects to its own proposal and lands it at the close",
-                    [g, WN.opener("p", "d1", name, "g", ("g",), target="d4" if "add" in name else "d2"),
-                     WN.answer("o1", "d1", "p", "object"), WN.receipt("r", "d1", "p", 0),
-                     WN.landing("L", "d1", "p", "r", "landed", W, ("o1",))], "landed", "open"))
-    # a room of three: two approve at once; two object and a member lands `refused` at the close
+    # a room of three: two approve at once (the declared protocol's strict majority; the row's strictly more than 2/3)
     m = ST.offer("g", "m1", ("m1", "m2", "m3"), "member", "@", "self", cosigners=("m2", "m3"))
     for name in ("L:community_add:majority",):
         out.append((name, "a room of three: the proposer and one member approve, no landing",
                     [m, WN.opener("p", "m1", name, "g", ("g",)), WN.answer("a2", "m2", "p", "approve")], "landed", "open"))
-    for name in ("L:community_add:majority", "L:community_add:two_thirds"):
-        W = WN.secs(name)
-        out.append((name, "a room of three: two members object and one lands `refused` at the close",
-                    [m, WN.opener("p", "m1", name, "g", ("g",)), WN.answer("o2", "m2", "p", "object"),
-                     WN.answer("o3", "m3", "p", "object"), WN.receipt("r", "m2", "p", 0),
-                     WN.landing("L", "m2", "p", "r", "refused", W, ("o2", "o3"))], "refused", "open"))
     return out
 
 
@@ -229,16 +209,17 @@ ROSTER_SOURCE = {        # roster.window_from_table: where each field of a lone 
 }
 HAND = "hand-written in window.py WINDOWS; no cell read"
 ROW_SOURCE = {           # window.spec_from_policy: where each field comes from
-    "counted": "counted.count_set (one token)",
-    "concluder": "counted.count_set (CC 4.5.13: one voice of its count closes every window of the table)",
-    "opener": "none: counted.count_set proposes (CC 3.1.9.2)",
-    "opener_says": "`approve` (CC 3.1.9.2: the proposal is the proposer's approval)",
-    "at_once": "enact_rule (strictly more, min_count[corridor]) over base unless irreversible, `landed` (CC 3.1.3); "
-               "corridor self: withdraw (CC 3.3.6.4) and cancel_rule over cancel_over, word at_window",
-    "silent": "counted.target_silent (changes_set removes), word at_window",
-    "at_close": "cancel_rule over cancel_over (not corridor self), word at_window; enact_rule if irreversible; "
-                "floor_rule with reverse_path, `landed`",
-    "default": "at_window",
+    "counted": "counted.count_set (the seat, where it names several: self+key)",
+    "concluder": "concluder (a scope word of the count set; -proposer: the opener's signer apart, by author_apart)",
+    "opener": "opener (none where it is the counted scope)",
+    "opener_says": "opener_says (approve: the yes of answer_words; nothing: none)",
+    "at_once": "enact_rule with comparison.enact over base (others for -proposer), `landed`; corridor self: the "
+               "withdrawal (CC 3.3.6.4) and cancel_rule over cancel_over, `refused`; the words of answer_words",
+    "silent": "counted.target_silent (changes_set removes): `refused`",
+    "at_close": "two_path: cancel_rule with comparison.cancel over cancel_over (not corridor self), `refused`; enact_rule "
+                "if irreversible; floor_rule with comparison.floor and reverse_path, `landed`, unless default_at_close is "
+                "`landed`; mirror voted_majority: a ballot's for over those who voted",
+    "default": "default_at_close",
     "target_votes": "counted.target_voice (changes_set adds)",
     "secs": "window_secs (window_class must agree)",
 }
@@ -308,7 +289,8 @@ def dump():
             w = WN.WINDOWS[name]
             if w["policy"] != fam:
                 continue
-            src = ROSTER_SOURCE if name.startswith("L:") else {k: HAND for k in DUMP_FIELDS}
+            src = (ROW_SOURCE if TABLE[fam]["corridor"] == "self" else ROSTER_SOURCE) if name.startswith("L:") \
+                else {k: HAND for k in DUMP_FIELDS}
             if name in MIRROR_SOURCE:
                 src = {k: HAND + "; " + MIRROR_SOURCE[name][k] for k in MIRROR_SOURCE[name]}
             if not name.startswith("L:"):
@@ -333,14 +315,18 @@ def dump():
 
 
 # ---- the act binding: an opener's table through the acts table ------------------------------------------------------
-def families(fam, obj):
-    """A family's table from its row (window.FAMILIES): the base `active` read within k."""
+def families(fam, obj, seat):
+    """A family's table from its row (window.FAMILIES), in the reference's words: the base `active` read within k;
+    the seat the object's founding row seats, where the count set names several."""
     row = TABLE.get(fam)
     if row is None: return None
+    several = "+" in row["counted"]["count_set"]["value"].split("-")[0]
     try:
-        return WN.spec_from_policy(row, POL, "within_k" if row["base"] == "active" else None)
+        d = WN.spec_from_policy(row, POL, "within_k" if row["base"] == "active" and row["stated_census"] is None else None,
+                                seat if several else None)
     except WN.PolicyRefusal:
         return None
+    return in_words(d, fam)
 
 
 def bind(p, act, scope, **kw):
@@ -364,6 +350,7 @@ def bound_cases():
     a = lambda i, who: WN.answer(i, who, "p", "approve")
     W = TABLE["default_content"]["window_secs"]
     out += [
+        # default_content's opener: a member (ruled 2026-11-28; pin 85750784)
         ("a room's content change, two of three approve: strictly more than 2/3 needs three",
          [m, bind(op, "change", "content"), a("a2", "m2")], None, "open"),
         ("a room's content change, three of three approve", [m, bind(op, "change", "content"), a("a2", "m2"), a("a3", "m3")],
@@ -417,7 +404,23 @@ def _set(row, path, v):
 
 
 PLANTS = (
-    # (cell, family, new value): what the row gives must change
+    # (cell, family, new value): what the row gives must change. default_* rows are read with their opener (`unstated`
+    # in the table) filled as `member`, so that a cell changed in them changes a table
+    ("concluder", "self_roster_add", "member"),
+    ("concluder", "moderation_overturn", "member"),
+    ("concluder", "community_invite", "local"),
+    ("opener", "moderation_overturn", "member"),
+    ("opener", "community_invite", "unstated"),
+    ("opener_says", "community_invite", "nothing"),
+    ("outcome_words", "community_invite", ["landed"]),
+    ("answer_words", "moderation_overturn", ["assent", "raised"]),
+    ("answer_words", "community_invite", ["for", "against"]),
+    ("default_at_close", "community_invite", "landed"),
+    ("comparison.enact", "community_invite", "at_least"),
+    ("comparison.cancel", "community_invite", "more_than"),
+    ("comparison.floor", "community_invite", "more_than"),
+    ("stated_census", "community_invite", 9),
+    ("counted.count_set.value", "self_roster_add", "member+key"),
     ("kind", "self_roster_add", "cosigned"),
     ("standing_set", "self_roster_add", "the live roster keys of one fedID, less the proposer"),
     ("base", "default_content", "standing", ("census", 20)),
@@ -435,7 +438,6 @@ PLANTS = (
     ("counted.changes_set.value", "self_roster_evict", "adds"),
     ("counted.target_voice.value", "community_invite", "no"),
     ("cancel_over", "self_roster_add", "base"),
-    ("at_window", "community_invite", "refused"),
     ("window_secs", "default_content", 172800),
     ("window_class", "default_content", "ruled_48h"),
     ("irreversible", "default_content", True),
@@ -447,13 +449,53 @@ PLANTS = (
 )
 
 
+def seat_of(row):
+    """The seat a row of several (`self+key`) is read for here: the self roster's."""
+    return "self" if "+" in row["counted"]["count_set"]["value"].split("-")[0] else None
+
+
 def give(row, table=POL, active=None):
-    if active is None and row.get("base") == "active":
+    if active is None and row.get("base") == "active" and row.get("stated_census") is None:
         active = "within_k"
     try:
-        return ("spec", WN.spec_from_policy(row, table, active))
+        return ("spec", WN.spec_from_policy(row, table, active, seat_of(row)))
     except WN.PolicyRefusal as e:
         return ("refused", e.reasons)
+
+
+# Parity with the crate (review-53): each (name, family, cells changed, the refusals in the order both languages give)
+PARITY = (
+    ("P1 two reasons of one cell, ordered by their words: disagrees before unknown", "community_invite",
+     {"counted.count_set.value": "member-target"},
+     [("counted.count_set", "disagrees", "standing_set"), ("counted.count_set", "unknown", None)]),
+    ("P2 a ballot's words twice the same", "moderation_action", {"answer_words": ["for", "for"]},
+     [("counted.voices", "disagrees", "answer_words")]),
+    ("P2 a ballot's words three", "moderation_action", {"answer_words": ["for", "against", "for"]},
+     [("counted.voices", "disagrees", "answer_words")]),
+    ("P3 an enact fraction with no denominator", "default_content", {"enact_rule": {"kind": "fraction", "num": 2}},
+     [("enact", "disagrees", "enact_rule"), ("enact_rule", "unknown", None)]),
+    ("P3 a cancel fraction with no numerator", "default_content", {"cancel_rule": {"kind": "fraction", "den": 3}},
+     [("cancel", "disagrees", "cancel_rule"), ("cancel_rule", "unknown", None)]),
+    ("P3 a floor fraction with a zero denominator", "default_content", {"floor_rule": {"kind": "fraction", "num": 1, "den": 0},
+                                                                         "floor": {"num": 1, "den": 0}},
+     [("floor_rule", "unknown", None)]),
+    ("P3 a mirror's strict majority with no floor count", "moderation_overturn", {"floor_rule": {"kind": "voices"}},
+     [("enact_rule", "unknown", None)]),
+    ("P3 a members' count with no floor count", "moderation_action", {"floor_rule": {"kind": "voted_majority"}},
+     [("floor_rule", "unknown", None)]),
+)
+
+
+def parity_row(fam, cells):
+    row = TABLE[fam]
+    for path, v in cells.items():
+        row = _set(row, path, v)
+    return row
+
+
+def plant_base(fam):
+    row = TABLE[fam]
+    return dict(row, opener="member") if row["opener"] == "unstated" else row
 
 
 def run_plants():
@@ -464,7 +506,8 @@ def run_plants():
             t = _set(POL, cell, v)
             hit = [f["family"] for f in POL["families"] if give(f, t) != give(f)]
         else:
-            hit = [fam] if give(_set(TABLE[fam], cell, v), POL, a) != give(TABLE[fam], POL, a) else []
+            base = plant_base(fam)
+            hit = [fam] if give(_set(base, cell, v), POL, a) != give(base, POL, a) else []
         caught += bool(hit)
         out.append((cell, fam, v, hit))
     return caught, out
@@ -555,6 +598,42 @@ def main():
             problems.append("bound: %s: %s, want %s" % (name, got[1], exp))
             print("  %s: %s, WANT %s" % (name, got[1], exp))
     print("  %d bound cases" % nb)
+    print("\nPart 5. at_window is the text's description: no value of it changes what any row gives (ruled 2026-11-28)")
+    words = sorted({f["at_window"] for f in POL["families"]} | {"dropped", "open", "cancelled"})
+    moved = [(f["family"], w) for f in POL["families"] for w in words if give(dict(f, at_window=w)) != give(f)]
+    print("  %d rows x %d words: %s" % (len(POL["families"]), len(words), "none moves" if not moved else moved[:3]))
+    if moved:
+        problems.append("at_window read: %s" % moved[:3])
+    counted = [f["family"] for f in POL["families"] if f["kind"] == "cosigned" and give(f)[0] == "spec"]
+    if counted:
+        problems.append("a counted row gives a window: %s" % counted)
+    print("  every counted row (kind cosigned) is refused, not_a_window: no window, it stays open")
+    # the plant: a holder lands a local close (MUTATION local_lands) must break a row of the ruled halt
+    WN.MUT.add("local_lands")
+    try:
+        hit = [t["case"] for t in WN.adversary_table() if t["window"].startswith("the accord") and t["needs"] is not None
+               and not t["holds"]["recount"]]
+    finally:
+        WN.MUT.discard("local_lands")
+    print("  plant local_lands: %s" % ("caught by %d rows" % len(hit) if hit else "NOT CAUGHT"))
+    # the ruling on moderation_action: two moderators' ballots that disagree resolve nothing
+    WN.MUT.add("holders_disagree_unread")
+    try:
+        hit = [t["case"] for t in WN.adversary_table() if t["needs"] is not None and not t["holds"]["recount"]]
+    finally:
+        WN.MUT.discard("holders_disagree_unread")
+    print("  plant holders_disagree_unread: %s" % ("caught by %d rows" % len(hit) if hit else "NOT CAUGHT"))
+    if not hit:
+        problems.append("plant holders_disagree_unread not caught")
+    if not hit:
+        problems.append("plant local_lands not caught")
+    print("\nPart 6. parity with the crate (review-53)")
+    for name, fam, cells, want in PARITY:
+        got = give(parity_row(fam, cells))
+        ok = got == ("refused", want)
+        print("  %-70s %s" % (name, "ok" if ok else "GOT %s" % (got,)))
+        if not ok:
+            problems.append("parity: %s" % name)
     print("\nPart 3. plants")
     caught, out = run_plants()
     for cell, fam, v, hit in out:
