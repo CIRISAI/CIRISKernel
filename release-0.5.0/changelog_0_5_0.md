@@ -31,6 +31,15 @@ No stated instant decides a verdict, and the host clock decides none.
 - Struct changes: `SeatLaw` gains `acts`, `kinds` and `removal_floor`. `window::PolicyRow` gains the table's new
   cells. `head::Entry` gains `at`.
 - Removed: `trust::honours`, `charter::read_licence`, `SeatRow::consent_one`, `SeatRow::merge_duties`.
+- Keys: `seat::registered_ends` takes `rotated`, so a retired key's registered self-unseat is no end (review-48's
+  r110, r114). `seat::Persons::over` takes the key view, so no person map silently misses a key-lane revocation
+  (r108); `key_end::none()` names the view for an adopter with no key lane. `consent::Reading` is required.
+- Owners come from concluded rows only (review-53's r116 K2 class): a holder's keys merge only through a concluded
+  recovery or a concluded rotation its old key signs. A row that concludes nothing (a junk `rotates` or
+  `recovers`) merges no keys, so it cannot capture another holder's seat.
+- The device-stolen remedy: another live device of the granting person withdraws its grant
+  (`consent::may_withdraw`), and the end of a device key as the person's (an eviction, or a `registered`
+  revocation concurrent with the withdrawal) cuts a withdrawal standing on it.
 - Presentation rules that change answers with no error: the heads H1 to H8, the reader's line (`for_reader`), the act
   binding, the closed protocol set, persons over keys, the key view, and real rows only.
 - A row cites by `cites()` exactly one row (a reconsideration its notice, a lift its act). A quarantine release names
@@ -49,6 +58,11 @@ No stated instant decides a verdict, and the host clock decides none.
   outside voice (an outside countersign included) the person's own.
 - **A fresh reader holding rivals waits.** One self roster per identity is read by the reader's line. A reader whose
   line takes up neither rival founding, or both, reads no person through them and waits.
+- **The election close.** A holder that lays a seat down twice, once stale and once current, with the election
+  citing the stale one: a reader that acknowledged a head between them sees an empty seat until it acknowledges
+  the election's seating, and then it converges.
+- **One batch at one head.** A reader at g, whose line holds only g or a change at g, reads the same voices' duty
+  conferrals at g as one batch until it acknowledges anything newer than g or holds any later row by the signers.
 - **The FD1 split** (r103). The signer's own concurrent regrants, each naming one fork, settle nothing (the fold
   fails closed). The next regrant naming both does.
 
