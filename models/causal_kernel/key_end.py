@@ -248,9 +248,10 @@ def own_row(S, a, own, roster=frozenset(), voices=None):
         (ii)  it is a CONCLUDED seat row (an offer or an unseat) of which own is a voice by seat.voices (a cosigner,
               or the signer of a cosign row it names), read with no key view (the key view is (iv)'s);
         (iii) and never because a row claims own as a cosigner on any other row (a note included: r101 R2);
-        (iv)  each only where own's key stands at it: no `registered` unseat of own by own in its past, and the row
-              in the past of each of own's own ends (ends_of, the plain end rule): a row signed with the reader's key
-              after that key's end is no row of its line (r97 K1).
+        (iv)  each only where own's key stands at it, by the key-end cut over both revocation forms (ruled): the row
+              is in the PAST of each `registered` unseat of own by own and of each of own's key-lane ends (ends_of:
+              revocations, rotations, roster voids; the plain end rule). A row concurrent with the key's end, or after
+              it, is no row of its line (r97 K1); an honest revocation names its last honest rows, so they stay in.
     Limb (b) reads these rows per row against each end, with no ordering; any order rule is the person lane's, on
     top. `voices`: seat.voices by default. MUTATIONS reader_line_unchecked ((iv) unread), own_unconcluded_unread
     ((i) concluded rows only), own_voice_unread ((ii) unread), own_claimed_cosigner ((iii): any row listing own)."""
@@ -271,8 +272,11 @@ def own_row(S, a, own, roster=frozenset(), voices=None):
         mine = False
     if not mine or "reader_line_unchecked" in MUT:
         return mine
-    if any(S.by[x]["kind"] == "unseat" and S.by[x].get("scope") == "registered" and S.by[x]["signer"] == own
-           and own in S.by[x].get("to", ()) for x in S.anc[a["id"]] if x in S.by):
+    # the key-end cut over both revocation forms: the row in the past of each `registered` unseat of own by own
+    # (the seat lane's revocation) and of each of own's key-lane ends
+    if any(x["kind"] == "unseat" and x.get("scope") == "registered" and x["signer"] == own and own in x.get("to", ())
+           and (a["id"] not in S.anc[x["id"]] if "registered_by_past" not in MUT else x["id"] in S.anc[a["id"]])
+           for x in S.rows):
         return False
     return all(_before(S, a["id"], e) for e in ends_of(S, own, roster))
 
