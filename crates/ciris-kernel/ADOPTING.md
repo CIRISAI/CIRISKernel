@@ -403,6 +403,29 @@ trusting an adapter.
   member seat; its stay begins at the version that admits it in `agent` and ends at its removal or
   resignation. The audience of a room is `Seats::roster`.
 
+**A key's person**, for `seat::person_at`. Present each person's own key roster as a group whose founding row is
+signed by its first key in its own scope (`self` for a person, `key` for a voice), its further keys as counted
+admissions and evictions of that scope over it (`self_roster_add`, `self_roster_evict`), and a key's own
+revocation as an unseat of its `registered` seat by the key. `SeatLaw::kinds` must map those founding scopes to
+`self`, or no person is found. Counts read persons: seat a room's member as its person's genesis key (the key that
+signed its self roster's founding record), and a device key of that person signs for it. A person is its
+identity key: `person_at` answers `Obj::Key` of the genesis key, never one roster row or one key record, so a
+genesis key with several key records, or several rosters, is one person. Only key-life rules read a key itself
+(its own revocation, its records); who-signed rules read its person. A genesis key its roster evicted is no voice of the person
+the room seats under that identity: only the roster's live keys speak for it. An adopter must never treat kid == the identity's
+thumbprint as proof that the key speaks for the person; only a live key of the person's self roster does. The key a
+self roster evicts is no voice of its eviction, so a roster whose only live key is its genesis key cannot evict it. Ask at a row of the concluded set: the answer reads that row's own past, an eviction
+concurrent with the row by rule 4, and no instant.
+
+**The keys a row reaches** (persist). Over the concluded set, with no instant: `seat::person_keys(c, law, spec,
+person)` gives a person's live keys (named by its genesis key; the inverse of `persons_of`: a key of two persons,
+an agent's key and a key that revoked itself are none of its keys, and a person whose genesis key revoked itself
+has none), and `seat::nodes_of(c, law, spec, owner)` gives the node keys whose one live owner-binding names
+`owner` (the `owner` seat over the node's key, held by the owner's own signature or acceptance; a withdrawn or
+revoked binding, two live owners, or the node's own revocation, and it is none). Which keys are nodes is the key
+records': filter by `identity_type` `node`. The node set = audiences ∘ person_keys ∘ nodes_of: for each key of a
+row's audience (`audience::audiences`), its person's live keys, and for each of those the nodes it owns.
+
 **A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,
 members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
 voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row
@@ -490,8 +513,11 @@ chain of `Seats::stands` above.
 - Each bundle version: `Kind::Bundle`. The causal past must have an earlier version in a later one's past.
 - Each owner binding: `Kind::Binding`, `owner()` the owner. A re-binding has `on()` the binding it ends. Two
   re-bindings of one binding are refused (`Refused::SeveralEnds`).
-- Each owner's acceptance of the grant: `Kind::Acceptance`, signed by that owner, `on()` its binding. One
-  signed by another key is nobody's acceptance.
+- Each owner's acceptance of the grant: `Kind::Acceptance`, signed by that owner, naming the owner's binding
+  among the rows it names (its past); it names no binding as such and its `on()` is not read (N7). It stands
+  while its author owns the node at it: the binding is derived (`standing::owner_of`), the signer's owner
+  binding in its past with no re-binding of it there. One by a key that owns nothing there (a former owner, or
+  any other key) is nobody's acceptance.
 - Each act: `Kind::Act`, `head()` the bundle version it names, `on()` the acceptance it stands on. An act
   with `on()` a binding, or none, counts for nobody.
 - The grant's end: `Kind::GrantEnd`, `head()` its bundle version. A receipt: `Kind::Receipt`, `on()` the act.
