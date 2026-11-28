@@ -45,7 +45,8 @@ fn trust_rows_replay() {
             let cc = conclude(kept(&rs, |_| true), |p| seat_rule(p, &law, &spec, &|_| true), None);
             let (rc, _) = for_reader(&cc, &law, &spec, None);
             let q = Seats::new(&rc, &law, &spec, None);
-            let got = read_licence(&q, &reader, &lic, &supplied, None).err().map(|u| u.word().to_string());
+            let now: Option<i64> = c.get("now").filter(|x| !x.is_null()).map(|x| x.i());
+            let got = read_licence(&q, &reader, &lic, &supplied, now.as_ref()).err().map(|u| u.word().to_string());
             cases += 2;
             if !cc.concluded_id(&lic) {
                 bad += 1;

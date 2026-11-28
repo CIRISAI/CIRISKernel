@@ -581,7 +581,11 @@ impl SeatRow for TRow {
         self.identity.iter().any(|i| i == "agent")
     }
     fn edge_body(&self) -> Option<Obj<String, String>> {
-        self.on_behalf.clone().filter(|_| self.kind == "delegates_to")
+        match self.kind.as_str() {
+            "delegates_to" => self.on_behalf.clone(),
+            "licensure" => self.authority.clone(),
+            _ => None,
+        }
     }
     fn target_key(&self) -> Option<&String> {
         self.target.as_ref()

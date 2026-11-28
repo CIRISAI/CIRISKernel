@@ -173,7 +173,7 @@ Present:
   the same way: a lone act, an appointment carrying the officer role, any unseat, a change of the record, a
   dissolution, a license seat. The countersign's `of()` names that act; a change of the official is countersigned by
   the official it replaces or an overseer. An onward trust edge on behalf of the affiliation is such an act: present
-  `SeatRow::edge_body()` (the group a `delegates_to` row speaks for) so a countersign can name it; `trust_rows`
+  `SeatRow::edge_body()` (the group a `delegates_to` row speaks for, or a licence's authority) so a countersign can name it; `trust_rows`
   walks it only where `seat::countersigned` holds.
 
 **A duty holder's lone acts** (CC 4.5.5, CC 3.1.9.2; CHANGELOG). Present each by its family, its parameter as
@@ -573,10 +573,22 @@ only: the crate reads the edges, the charter and the issuer's standing from them
   that states no term (`valid_until`), or a term longer than 365 days from its `asserted_at` (or than the charter's
   `role_term` where it states a shorter one). The crate reads a seat with no term as unbounded, and the cap needs
   instant arithmetic the crate's `Dated::Instant` does not have.
-- An acceptance edge's term is its own `asserted_at` and `valid_until`, read at the caller's `now` or the licence's
-  instant; a licence under a term-bearing seat must state its `asserted_at`, or it meets no term. **Residual:** within
-  a term the instant a licence states is its holder's word; the crate bounds it only by the licence's own past (no
-  instant earlier than a row it cites) and by the seat's ends, read by ancestry.
+- An acceptance edge's term is its own `asserted_at` and `valid_until`, read at the caller's `now` only. **Caller
+  duty: pass `now`** to `read_licence`; with none, no edge is walked. Every edge carries a term (CC 4.4.3.12): the
+  door should refuse an edge stating none, and the crate does not walk one. A licence under a term-bearing seat must
+  state its `asserted_at`, or it meets no term.
+- Body growth: an authority act concurrent with a change of its body the reader holds is counted over the grown
+  body, and one behind the reader's own acknowledged line concludes nothing for it. Present every row the reader
+  holds: a reader holding none of the body's newer changes is the residual (it cannot know).
+- **Named residual (the term).** Within its term a licence's instant is its holder's word, bounded below by the latest
+  instant in its own past (`licensure_instant_before_its_past`). So a holder whose term has run can sign a licence
+  dated inside the term, as long as nothing later-dated is in its past; the crate cannot tell it from one signed in
+  time.
+- **Caller duty (the term).** A node honours a licence under a term that has ended by its own clock only where the
+  licence is in the past of a row the node already held when the term ended, or of a row by a key in its trust set
+  that it held then. A licence first seen after the term's end with no such anchor is not honoured. The node's own
+  receipt record decides this; the crate holds no clock and no receipts, so the caller checks it before presenting the
+  licence as honoured.
 - Every reason `read_licence` gives is a reading: the licence row stays admitted, and its reason
   (`licence_class_not_trusted`, `licensure_delegator_not_authority`, `licensure_authority_locked`,
   `licensure_link_withdrawn`, `licensure_instant_before_its_past`, `lapsed`, `authority_not_reached`) is no refusal at

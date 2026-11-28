@@ -544,6 +544,27 @@ def against_member(u, by):
     return affiliation_removal(u, by) or (family(u) in LONE_ACTS and kind_of(by, u.get("obj")) == "affiliation")
 
 
+def regrown_fails(S, q, void=frozenset()):
+    """The r81 B2 rule, read over the rows the reader holds: q, a lone holder's own conferral of a duty over a room
+    (own_conferral), concurrent with growth of the room's body (a counted act of conf `group` over it, the acceptance
+    completing one, or the countersign deciding one, neither in the other's past, none void), fails where re-counted
+    over its own past with that growth and their pasts (the body at the newest counted changes the reader holds): its
+    signer is no more the lone holder there (authority_gate). A holder's own concurrent lone conferrals are one batch,
+    no growth against each other (own conferrals are no counted act of conf group)."""
+    obj = q.get("obj")
+    if not own_conferral(q, obj, S.by): return False
+    counted = lambda x: x is not None and x.get("conf") == "group" and x.get("obj") == obj and CP.is_counted_act(x, obj)
+    growth = [x for x in S.Cs if x["id"] not in void and x["id"] != q["id"] and x["id"] not in S.anc[q["id"]]
+              and q["id"] not in S.anc[x["id"]]
+              and (counted(x) or (x["kind"] in ("accept", "countersign") and counted(S.by.get(x.get("of")))))]
+    if not growth: return False
+    ids = set(S.anc[q["id"]])
+    for x in growth:
+        ids |= {x["id"]} | set(S.anc[x["id"]])
+    T = [x for x in S.Cs if x["id"] in ids]
+    return not authority_gate(q, T, {x["id"]: x for x in T})
+
+
 def affiliation_act(u, by):
     """u is a counted act of an affiliation that needs the countersign while the body has ONE officer (the
     Constitution's ruling on item 8): every counted act but the admission of a member, so the four acts against a
@@ -551,8 +572,8 @@ def affiliation_act(u, by):
     licence classes; a dissolution), a license seat's conferral or withdrawal. An officer's own lay-down is no counted
     act and needs none (MUTATION countersign_against_member_only: only the four acts against a member, the reading
     before the ruling)."""
-    if u["kind"] == "delegates_to":                              # an onward trust edge it signs (on_behalf)
-        return kind_of(by, u.get("on_behalf")) == "affiliation" and "edge_countersign_unread" not in MUT
+    if u["kind"] in ("delegates_to", "licensure"):              # an onward trust edge it signs, or its own licence
+        return kind_of(by, act_obj(u)) == "affiliation" and "edge_countersign_unread" not in MUT
     if kind_of(by, u.get("obj")) != "affiliation": return False
     if "countersign_against_member_only" in MUT: return against_member(u, by)
     if family(u) in LONE_ACTS: return True
@@ -561,8 +582,11 @@ def affiliation_act(u, by):
 
 
 def act_obj(u):
-    """The affiliation a counted act is of: its `obj`, or for an onward trust edge (`delegates_to`) its `on_behalf`."""
-    return u.get("on_behalf") if u["kind"] == "delegates_to" else u.get("obj")
+    """The affiliation a counted act is of: its `obj`; for an onward trust edge (`delegates_to`) its `on_behalf`; for
+    a licence (`licensure`) its `authority`."""
+    if u["kind"] == "delegates_to": return u.get("on_behalf")
+    if u["kind"] == "licensure": return u.get("authority")
+    return u.get("obj")
 
 
 def act_heads(u, P, past):
@@ -1976,6 +2000,12 @@ class Seats:
         undecided = frozenset(q["id"] for q in Cs if q["kind"] == "offer" and C.counts(q) and q["id"] not in V
                               and not decided(q))
         self.stale = V = V | undecided
+        # r81 B2: a lone holder's own duty conferral concurrent with a counted act of the grown body is re-counted
+        # against it (regrown_fails); one that fails seats nothing, and every row built on it is void with it
+        regrown = frozenset(q["id"] for q in Cs if C.counts(q) and q["id"] not in V and regrown_fails(S, q, V)) \
+            if "lone_regrowth_unread" not in MUT else frozenset()
+        if regrown:
+            self.stale = V = V | regrown | frozenset(q["id"] for q in Cs if S.anc[q["id"]] & regrown)
         # a moderator's lone removal is an act under its `moderate` standing, in force only while the end rule says so
         # (out_of_force). `drop`: the lone removals already judged out of force over the whole set, for a reading of
         # one line of it (the tips, the fold) or of the set with every removal taken as made (`frozenset()`)

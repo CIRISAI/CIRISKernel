@@ -39,12 +39,13 @@ use crate::cut::CutSpec;
 use crate::graph::Graph;
 use crate::layers::{Concluded, Past};
 use crate::seat::{
-    countersigned, declared_count, for_reader, kind_of, policy_for, Act, CommunityKind, Conf, Obj, ScopeClass,
-    SeatKind, SeatRow, Seats,
+    authority_gate_at, countersigned, declared_count, for_reader, kind_of, policy_for, Act, CommunityKind, Conf, Obj,
+    ScopeClass, SeatKind, SeatLaw, SeatRow, Seats, AGENT, OFFICER,
 };
 use crate::trust::{reaches, Accepts, Charters, HOP_CAP};
 use crate::{Dated, Row};
 use alloc::collections::BTreeSet;
+use alloc::string::String;
 use alloc::vec::Vec;
 
 type ObjOf<R> = Obj<<R as Row>::Id, <R as Row>::Key>;
@@ -121,7 +122,7 @@ fn counted(yes: usize, n: usize) -> bool {
 }
 
 /// CC 4.5.4 (v): community `c` has no live duty holder over the rows `seats` was built on, and is LOCKED: it signs no
-/// NEW onward acceptance edge, confers no license seat (the duty holders' count takes none) and issues no licence of
+/// NEW onward acceptance edge, confers no new license seat (the duty holders' count takes none) and issues no licence of
 /// its own, until an election seats a holder. A license seat's holder is no duty holder and keeps no room from
 /// locking. A license seat, or an edge, from before the lock stands until its term ends or it is withdrawn, by
 /// ancestry ([`ended_for_reader`]). An affiliation is never locked: with no officer (its authority body,
@@ -203,25 +204,51 @@ fn is_end<R: SeatRow>(q: &R) -> bool {
     }
 }
 
-/// The (key, object) seats end `e` ends: an unseat's keys over its object; a withdrawal by a seated key of its own
-/// seat, or by the conferrer of an offer's seats (a counted offer's conferrer is its count, and its signer ends
-/// nothing alone); a change of the record ends no seat.
-fn ends_keys<R: TrustRow>(c: &Concluded<'_, R>, e: &R) -> Vec<(R::Key, ObjOf<R>)> {
+/// The scopes offer `t` gives key `k`: a founding row's own scope (`member`) and each duty its map names `k` in; any
+/// other offer's own scope.
+fn seat_scopes_of<R: SeatRow>(t: &R, k: &R::Key) -> Vec<Option<R::Word>> {
+    if founding_row(t) && !t.duty_holders().is_empty() {
+        let mut out = alloc::vec![t.scope().cloned()];
+        out.extend(t.duty_holders().iter().filter(|(_, ks)| ks.contains(k)).map(|(d, _)| Some(d.clone())));
+        return out;
+    }
+    alloc::vec![t.scope().cloned()]
+}
+
+fn founding_row<R: SeatRow>(t: &R) -> bool {
+    t.seat_kind() == SeatKind::Offer && t.obj().is_some_and(|o| o == Obj::Row(t.id().clone()))
+}
+
+/// One seat an end ends: its key, its object, its scope.
+type Ended<R> = (<R as Row>::Key, ObjOf<R>, Option<<R as SeatRow>::Word>);
+
+/// The (key, object, SCOPE) seats end `e` ends: an unseat's keys over its object in its scope; a withdrawal by a seated
+/// key of its own seat (the one scope it names, or every scope the row gives it), or by the conferrer of an offer's
+/// seats (a counted offer's conferrer is its count, and its signer ends nothing alone); a change of the record ends no
+/// seat.
+fn ends_keys<R: TrustRow>(c: &Concluded<'_, R>, e: &R) -> Vec<Ended<R>> {
     match e.seat_kind() {
         SeatKind::Unseat => {
             let Some(o) = e.obj() else { return Vec::new() };
-            e.to().iter().map(|k| (k.clone(), o.clone())).collect()
+            e.to().iter().map(|k| (k.clone(), o.clone(), e.scope().cloned())).collect()
         }
         SeatKind::Withdraw => {
             let Some(t) = e.target().and_then(|i| c.g.idx(i)).map(|i| c.g.row(i)) else { return Vec::new() };
             match t.seat_kind() {
-                SeatKind::Accept => object_of(c, t).map(|o| alloc::vec![(e.signer().clone(), o)]).unwrap_or_default(),
+                SeatKind::Accept => {
+                    let sc = t.of().and_then(|i| c.g.idx(i)).and_then(|i| c.g.row(i).scope().cloned());
+                    object_of(c, t).map(|o| alloc::vec![(e.signer().clone(), o, sc)]).unwrap_or_default()
+                }
                 SeatKind::Offer => {
                     let Some(o) = t.obj() else { return Vec::new() };
                     if t.to().contains(e.signer()) {
-                        alloc::vec![(e.signer().clone(), o)]
+                        let scs = match e.scope() {
+                            Some(s) => alloc::vec![Some(s.clone())],
+                            None => seat_scopes_of(t, e.signer()),
+                        };
+                        scs.into_iter().map(|sc| (e.signer().clone(), o.clone(), sc)).collect()
                     } else if signers(t).contains(e.signer()) && t.conf() != Some(Conf::Group) {
-                        t.to().iter().map(|k| (k.clone(), o.clone())).collect()
+                        t.to().iter().map(|k| (k.clone(), o.clone(), t.scope().cloned())).collect()
                     } else {
                         Vec::new()
                     }
@@ -233,29 +260,340 @@ fn ends_keys<R: TrustRow>(c: &Concluded<'_, R>, e: &R) -> Vec<(R::Key, ObjOf<R>)
     }
 }
 
+/// The standing a seat of scope `sc` over `o` gives: `duty` for any duty (a holder of any one duty is a duty holder:
+/// `duty`, a duty the law names, `moderate`, or one the record declares), or the scope itself.
+fn scope_class<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, o: &ObjOf<R>, sc: Option<&str>) -> Option<String> {
+    let sc = sc?;
+    let head = sc.split(':').next().unwrap_or(sc);
+    let declared = match o {
+        Obj::Row(i) => c.g.idx(i).is_some_and(|x| {
+            c.g.row(x).duties().iter().any(|d| d.as_ref() == head && d.as_ref() != "member" && d.as_ref() != AGENT)
+        }),
+        Obj::Key(_) => false,
+    };
+    let community = matches!(o, Obj::Row(i) if c.g.idx(i).is_some_and(|x| founding_row(c.g.row(x))));
+    if sc == "duty" || law.duties.iter().any(|d| d == head) || (community && head == "moderate") || declared {
+        return Some(String::from("duty"));
+    }
+    Some(String::from(sc))
+}
+
+/// The standings act `q` over `o` rests on (the classes [`scope_class`] gives): a counted row's body (`counted`); a
+/// row conferred under a seat, that seat's; a single key's own offer over a group, its authority body's; an edge
+/// speaking for a group, its authority body's, and for a person, the roster's `key`; a licence, its seat's or its
+/// quorum's.
+fn rests_on<R: TrustRow>(c: &Concluded<'_, R>, law: &SeatLaw, q: &R, o: &ObjOf<R>) -> Vec<String> {
+    let get = |i: &R::Id| c.g.idx(i).map(|x| c.g.row(x));
+    let body = if kind_of(law, &get, o) == Some(CommunityKind::Affiliation) { OFFICER } else { "duty" };
+    let group = matches!(o, Obj::Row(i) if c.g.idx(i).is_some_and(|x| founding_row(c.g.row(x))));
+    match q.seat_kind() {
+        SeatKind::Offer | SeatKind::Unseat => match q.conf() {
+            Some(Conf::Group) => {
+                scope_class(c, law, o, Some(q.counted().map_or("member", |w| w.as_ref()))).into_iter().collect()
+            }
+            Some(Conf::Seat) => {
+                let up = q.under().and_then(|u| c.g.idx(u)).map(|x| c.g.row(x));
+                up.and_then(|u| scope_class(c, law, o, u.scope().map(|w| w.as_ref()))).into_iter().collect()
+            }
+            Some(Conf::Own) if !founding_row(q) && group => alloc::vec![String::from(body)],
+            _ => Vec::new(),
+        },
+        _ if q.is_delegates_to() => alloc::vec![String::from(if group { body } else { "key" })],
+        _ if q.licence_authority().is_some() => {
+            alloc::vec![String::from("license"), String::from("member"), String::from(OFFICER)]
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Key `k` holds standing `cls` over `o` over the rows `idx` (their conclusions as `seats`' set has them).
+fn holds_over<R: TrustRow, S: CutSpec<R>>(
+    seats: &Seats<'_, '_, R, S>,
+    idx: &[usize],
+    k: &R::Key,
+    o: &ObjOf<R>,
+    cls: &str,
+) -> bool {
+    let sub = sub_of(seats.c(), idx);
+    let (rc, _) = for_reader(&sub, seats.law(), seats.spec(), None);
+    Seats::new(&rc, seats.law(), seats.spec(), None).holders(cls, o, None).contains(k)
+}
+
+/// Key `k` LOSES standing `cls` over `o` by its ends: it holds it over the JUDGED rows (the judged row's past, the
+/// ends the reader holds and their pasts) with EVERY end of `k`'s seats over `o` taken out, and every row that has one
+/// of those ends in its past (so a second end of the same seat cannot cancel the first's cut, and a later re-seat does
+/// not mask it), and no more with the ends read in (and still without the rows after them). A partial end (one duty
+/// laid down, another held, a seat gained beside it) loses nothing; a full end (a resignation, the withdrawal of an
+/// appointment) loses every standing the seat it ends gave, whatever scope the end's target names.
+fn loses<R: TrustRow, S: CutSpec<R>>(
+    seats: &Seats<'_, '_, R, S>,
+    judged: &[usize],
+    k: &R::Key,
+    o: &ObjOf<R>,
+    cls: &str,
+) -> bool {
+    let c = seats.c();
+    let mine: Vec<usize> = judged
+        .iter()
+        .copied()
+        .filter(|&x| {
+            c.concluded(x)
+                && is_end(c.g.row(x))
+                && ends_keys(c, c.g.row(x)).iter().any(|(kk, ob, _)| kk == k && ob == o)
+        })
+        .collect();
+    let after = |x: usize| mine.iter().any(|&m| c.g.ancestors(x).has(m));
+    let without: Vec<usize> = judged.iter().copied().filter(|&x| !mine.contains(&x) && !after(x)).collect();
+    let with: Vec<usize> = judged.iter().copied().filter(|&x| !after(x)).collect();
+    holds_over(seats, &without, k, o, cls) && !holds_over(seats, &with, k, o, cls)
+}
+
+// ---- the reader's line over a group's body (the r77 attack: body growth is a counted change, not an end) ----------
+
+/// A change of group `o`'s body: a counted act over it (`Conf::Group`, naming its head), or a single key's own or
+/// conferred offer of a seat over it other than a roster seat (a lone conferral of a duty, an officer or license seat).
+fn body_change<R: SeatRow>(q: &R, o: &ObjOf<R>) -> bool {
+    if !matches!(q.seat_kind(), SeatKind::Offer | SeatKind::Unseat) || q.obj().as_ref() != Some(o) || founding_row(q) {
+        return false;
+    }
+    match q.conf() {
+        Some(Conf::Group) => !q.head().is_empty(),
+        Some(Conf::Own) | Some(Conf::Seat) => q.scope().is_none_or(|s| s.as_ref() != "member" && s.as_ref() != AGENT),
+        _ => false,
+    }
+}
+
+/// The object a row is over, as the reader's line reads it (`checkpoint.object_of`): its `obj`, its `room`, or the
+/// object of the row its `of` or `target` names.
+fn line_object<R: SeatRow>(c: &Concluded<'_, R>, r: &R, n: usize) -> Option<ObjOf<R>> {
+    if n > 8 {
+        return None;
+    }
+    if let Some(o) = r.obj() {
+        return Some(o);
+    }
+    if let Some(o) = r.room() {
+        return Some(o);
+    }
+    let t = r.of().or(r.target()).and_then(|i| c.g.idx(i)).map(|i| c.g.row(i))?;
+    line_object(c, t, n + 1)
+}
+
+/// The changes of `o`'s body reader `own` has taken up: each concluded change in the past of (or equal to) a row `own`
+/// signed or cosigned over `o` (CC 2.7.8), or named as a head by its acknowledgement (an `Ack`).
+fn line_of<R: SeatRow>(c: &Concluded<'_, R>, own: Option<&R::Key>, o: &ObjOf<R>) -> Vec<usize> {
+    let Some(own) = own else { return Vec::new() };
+    let acks: Vec<usize> = c
+        .cs()
+        .iter()
+        .copied()
+        .filter(|&a| {
+            let r = c.g.row(a);
+            (r.signer() == own || r.cosigners().contains(own)) && line_object(c, r, 0).as_ref() == Some(o)
+        })
+        .collect();
+    c.cs()
+        .iter()
+        .copied()
+        .filter(|&x| {
+            body_change(c.g.row(x), o)
+                && acks.iter().any(|&a| {
+                    let ar = c.g.row(a);
+                    let named: &[R::Id] = if ar.seat_kind() == SeatKind::Ack { ar.head() } else { &[] };
+                    x == a
+                        || c.g.ancestors(a).has(x)
+                        || named.iter().filter_map(|h| c.g.idx(h)).any(|h| h == x || c.g.ancestors(h).has(x))
+                })
+        })
+        .collect()
+}
+
+/// Authority act `q` (index) over `o` is BEHIND reader `own`'s line: the heads it names (its named changes of `o`'s
+/// body and `o` itself, or every row it names where it names none) are all strictly in the past of a change the
+/// reader has taken up, which `q` does not have in its own past. It concludes nothing for that reader (the
+/// checkpoint's monotone line, as rosters read it). A reader with no row of its own is the newcomer residual.
+fn behind_line<R: SeatRow>(c: &Concluded<'_, R>, own: Option<&R::Key>, q: usize, o: &ObjOf<R>) -> bool {
+    let line = line_of(c, own, o);
+    if line.is_empty() {
+        return false;
+    }
+    let r = c.g.row(q);
+    let named: Vec<usize> = r.names().iter().filter_map(|n| c.g.idx(n)).collect();
+    let mut heads: Vec<usize> = named
+        .iter()
+        .copied()
+        .filter(|&n| Obj::Row(c.g.row(n).id().clone()) == *o || body_change(c.g.row(n), o))
+        .collect();
+    if heads.is_empty() {
+        heads = named;
+    }
+    !heads.is_empty()
+        && line.iter().any(|&x| {
+            x != q
+                && !c.g.ancestors(x).has(q)
+                && !c.g.ancestors(q).has(x)
+                && heads.iter().all(|&h| c.g.ancestors(x).has(h))
+        })
+}
+
+/// The group an authority act `q` acts for, or `None`: a change of a group's body ([`body_change`]), an edge speaking
+/// for a group, or a licence of a group.
+fn authority_act_over<R: TrustRow>(c: &Concluded<'_, R>, q: &R) -> Option<ObjOf<R>> {
+    let held = |o: &ObjOf<R>| matches!(o, Obj::Row(i) if c.g.idx(i).is_some());
+    if let Some(o) = q.obj().filter(|o| held(o) && body_change(q, o)) {
+        return Some(o);
+    }
+    if q.is_delegates_to() {
+        return q.on_behalf().filter(held);
+    }
+    q.licence_authority().filter(held)
+}
+
 /// The concluded set of the rows `idx` of `c` (index order kept), their conclusions copied.
 fn sub_of<'a, R: Row>(c: &Concluded<'a, R>, idx: &[usize]) -> Concluded<'a, R> {
     let g = Graph::new(idx.iter().map(|&j| c.g.row(j)));
     Concluded::with(g, Some(idx.iter().map(|&j| c.concluded(j)).collect()))
 }
 
+// ---- body growth over the rows the reader HOLDS (the tips fold's rule, which a lone duty conferral already reads) ---
+
+/// The rows that grow group `o`'s body among the concluded rows: its changes ([`body_change`]), the acceptances
+/// completing them, and the countersigns deciding a one-officer body's (CC 4.4.3.12, item 8).
+fn growth_of<R: SeatRow>(c: &Concluded<'_, R>, o: &ObjOf<R>) -> Vec<usize> {
+    c.cs()
+        .iter()
+        .copied()
+        .filter(|&x| {
+            let q = c.g.row(x);
+            body_change(q, o)
+                || (matches!(q.seat_kind(), SeatKind::Accept | SeatKind::Countersign)
+                    && q.of().and_then(|i| c.g.idx(i)).is_some_and(|i| body_change(c.g.row(i), o)))
+        })
+        .collect()
+}
+
+/// The growth of `o`'s body the reader holds concurrent with row `q` (neither in the other's past).
+fn concurrent_growth<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, q: usize, o: &ObjOf<R>) -> Vec<usize> {
+    growth_of(c, o)
+        .into_iter()
+        .filter(|&x| x != q && !c.g.ancestors(q).has(x) && !c.g.ancestors(x).has(q) && !one_batch(c, law, q, x, o))
+        .collect()
+}
+
+/// A holder's own concurrent lone duty conferrals are one batch, as the tips fold reads them: growth row `x` (or the
+/// offer it accepts) and act `q`, both a single key's own or conferred offer of a duty over `o` by the same key, are
+/// not growth against each other.
+fn one_batch<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, q: usize, x: usize, o: &ObjOf<R>) -> bool {
+    let xr = c.g.row(x);
+    let off = if xr.seat_kind() == SeatKind::Accept {
+        match xr.of().and_then(|i| c.g.idx(i)) {
+            Some(i) => c.g.row(i),
+            None => return false,
+        }
+    } else {
+        xr
+    };
+    let lone = |r: &R| {
+        r.seat_kind() == SeatKind::Offer
+            && matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat))
+            && scope_class(c, law, o, r.scope().map(|w| w.as_ref())).as_deref() == Some("duty")
+    };
+    let qr = c.g.row(q);
+    lone(qr) && lone(off) && off.signer() == qr.signer()
+}
+
+/// The rows `q`'s authority over `o` is re-counted over: its own past, with the concurrent growth the reader holds
+/// and their pasts: the body at the newest counted changes the reader holds.
+fn with_growth<R: SeatRow>(c: &Concluded<'_, R>, q: usize, growth: &[usize]) -> Vec<usize> {
+    let qa = c.g.ancestors(q);
+    (0..c.g.len()).filter(|&j| qa.has(j) || growth.iter().any(|&x| x == j || c.g.ancestors(x).has(j))).collect()
+}
+
+/// Authority act `q` over `o`, CONCURRENT with growth of the body the reader holds, still holds counted over the grown
+/// body (as the tips fold re-counts a lone duty conferral): a single key's own or conferred seat by the one gate
+/// ([`crate::seat::authority_gate_at`]), an edge by its owner's authority set. An act the growth has in its past
+/// stands as made; a counted act (`Conf::Group`) is the tips fold's.
+fn recounted<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, q: usize, o: &ObjOf<R>) -> bool {
+    let c = seats.c();
+    let growth = concurrent_growth(c, seats.law(), q, o);
+    if growth.is_empty() {
+        return true;
+    }
+    let idx = with_growth(c, q, &growth);
+    let r = c.g.row(q);
+    if r.seat_kind() == SeatKind::Offer && matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat)) {
+        let (_, with) = judged(c, q, &idx);
+        let last = with.g.len() - 1;
+        let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
+        return authority_gate_at(seats.law(), seats.spec(), &Past::new(&with.g, last, &p));
+    }
+    if r.is_delegates_to() {
+        return speaks_over(seats, q, &idx, &signers(r), &owner(r));
+    }
+    true
+}
+
 /// THE END RULE (the r73 attack), the one read of ends for every path (the emitter, the quorum, the seat, the edge):
-/// an END cuts every row of what it ends that is not in the end's past. The rows (indices of `c`) row `i`'s authority
-/// is judged over: its own past, with every end in it cutting the rows concurrent with it (`read` false: its
+/// an END cuts every row of what it ends that is not in the end's past. The rows (indices of `seats`' set) row `i`'s
+/// authority is judged over: its own past, with every end in it cutting the rows concurrent with it (`read` false: its
 /// existence at issuance); with `read`, every end the READER holds concurrent with `i` too (a key's eviction, an
 /// unseat, a lay-down and so the lock, an edge's withdrawal, an amendment of the record), each cutting what it ends
-/// there. Dissolution is read the same way ([`read_licence`]).
-fn ended_for_reader<R: TrustRow>(c: &Concluded<'_, R>, i: usize, read: bool) -> Vec<usize> {
+/// there: a row signed by a key whose seat over the row's object, of a scope whose standing the row rests on, the end
+/// ends (and the key holds that standing no more), concurrent with it. Authority acts behind reader `own`'s line are cut
+/// too ([`behind_line`]). Dissolution is read the same way ([`read_licence`]).
+fn ended_for_reader<R: TrustRow, S: CutSpec<R>>(
+    seats: &Seats<'_, '_, R, S>,
+    i: usize,
+    read: bool,
+    own: Option<&R::Key>,
+) -> Vec<usize> {
+    ended_for_reader_with(seats, i, read, true, own)
+}
+
+/// A change of a group's record: it cuts nothing, and changes the rule a row is judged under.
+fn is_amendment<R: SeatRow>(q: &R) -> bool {
+    q.seat_kind() == SeatKind::Offer
+        && q.conf() == Some(Conf::Group)
+        && q.scope().is_some_and(|s| s.as_ref() == "record")
+}
+
+/// [`ended_for_reader`], with the reader's concurrent amendments of the record read in (`amend`) or left out.
+fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
+    seats: &Seats<'_, '_, R, S>,
+    i: usize,
+    read: bool,
+    amend: bool,
+    own: Option<&R::Key>,
+) -> Vec<usize> {
+    let c = seats.c();
     let anc = c.g.ancestors(i);
     let mut rows: Vec<usize> = (0..c.g.len()).filter(|&j| anc.has(j)).collect();
     if read {
-        rows.extend(
-            c.cs().iter().copied().filter(|&j| j != i && !anc.has(j) && is_end(c.g.row(j)) && !c.g.ancestors(j).has(i)),
-        );
-        rows.sort_unstable();
+        rows.extend(c.cs().iter().copied().filter(|&j| {
+            j != i
+                && !anc.has(j)
+                && is_end(c.g.row(j))
+                && !c.g.ancestors(j).has(i)
+                && (amend || !is_amendment(c.g.row(j)))
+        }));
     }
+    // the growth of the authority's body the reader holds, concurrent with i: i is counted over the grown body
+    // (`amend` false leaves it out, as an amendment: it changes the rule, it cuts nothing)
+    if read && amend {
+        if let Some(o) = authority_act_over(c, c.g.row(i)) {
+            for x in concurrent_growth(c, seats.law(), i, &o) {
+                rows.extend((0..c.g.len()).filter(|&j| j != i && (j == x || c.g.ancestors(x).has(j))));
+            }
+        }
+    }
+    rows.sort_unstable();
+    rows.dedup();
     let mut cut: BTreeSet<usize> = BTreeSet::new();
-    for &e in rows.iter().filter(|&&e| c.concluded(e) && is_end(c.g.row(e))) {
+    let ends: Vec<usize> = rows.iter().copied().filter(|&e| c.concluded(e) && is_end(c.g.row(e))).collect();
+    let judged: Vec<usize> = (0..c.g.len())
+        .filter(|&j| rows.binary_search(&j).is_ok() || ends.iter().any(|&e| c.g.ancestors(e).has(j)))
+        .collect();
+    for &e in &ends {
         let ks = ends_keys(c, c.g.row(e));
         if ks.is_empty() {
             continue;
@@ -268,11 +606,28 @@ fn ended_for_reader<R: TrustRow>(c: &Concluded<'_, R>, i: usize, read: bool) -> 
             let qr = c.g.row(q);
             let Some(o) = object_of(c, qr) else { continue };
             let who = signers(qr);
-            if ks.iter().any(|(k, ob)| *ob == o && who.contains(k)) {
+            let need = rests_on(c, seats.law(), qr, &o);
+            // an end is keyed by every standing its key LOSES by it, whatever scope its target names
+            let hit = ks.iter().any(|(k, ob, _)| {
+                *ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, k, ob, cls))
+            });
+            if hit {
                 cut.insert(q);
             }
         }
     }
+    for &q in &rows {
+        let qr = c.g.row(q);
+        if let Some(o) = authority_act_over(c, qr) {
+            if behind_line(c, own, q, &o) || (qr.licence_authority().is_none() && !recounted(seats, q, &o)) {
+                cut.insert(q);
+            }
+        }
+    }
+    // a row built on a cut row (one naming it, down the line) is cut with it: the one place this lane's cuts reach
+    // what rests on them
+    let built: Vec<usize> = rows.iter().copied().filter(|&q| cut.iter().any(|&x| c.g.ancestors(q).has(x))).collect();
+    cut.extend(built);
     rows.retain(|j| !cut.contains(j));
     rows
 }
@@ -309,9 +664,9 @@ fn speaks_at<R: TrustRow, S: CutSpec<R>>(
     i: usize,
     who: &BTreeSet<&R::Key>,
     src: &ObjOf<R>,
+    own: Option<&R::Key>,
 ) -> bool {
-    let c = seats.c();
-    [false, true].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(c, i, read), who, src))
+    [false, true].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(seats, i, read, own), who, src))
 }
 
 fn owner<R: TrustRow>(r: &R) -> ObjOf<R> {
@@ -339,21 +694,24 @@ pub fn refusal<R: TrustRow>(r: &R) -> Option<&'static str> {
     edge_of(r).and_then(|e| e.err())
 }
 
-/// An edge's own term (`asserted_at <= t < valid_until`, as a license seat's) covers instant `t`: the caller's
-/// instant, or the licence's own; with no instant, only an edge that states no term.
-fn edge_term<R: Dated>(r: &R, t: Option<&R::Instant>) -> bool {
-    match t {
-        None => r.valid_until().is_none(),
-        Some(t) => crate::covers_at(r.asserted_at(), r.valid_until(), t),
+/// An edge's own term (`asserted_at <= now < valid_until`) covers the CALLER's instant `now`: every edge carries a
+/// term (CC 4.4.3.12), so an edge stating none is not walked, and with no `now` no term is read and no edge is walked
+/// (never at the licence's own stated instant: that would let the issuer's word reach the reader's own edge). The
+/// caller passes `now`.
+fn edge_term<R: Dated>(r: &R, now: Option<&R::Instant>) -> bool {
+    match (r.valid_until(), now) {
+        (None, _) | (Some(_), None) => false,
+        (Some(_), Some(t)) => crate::covers_at(r.asserted_at(), r.valid_until(), t),
     }
 }
 
-/// The acceptance edges the concluded rows give at instant `t`: each admitted edge its owner's authority set signed
-/// (over its own past and with every end the reader holds), within its term, no withdrawal by that set ended; its
-/// `src` is its owner.
+/// The acceptance edges the concluded rows give at the caller's instant `now`, for reader `own`: each admitted edge
+/// its owner's authority set signed (over its own past and with every end the reader holds), not behind the reader's
+/// line over its owner's body, within its term, no withdrawal by that set ended; its `src` is its owner.
 pub fn edges_of<R: TrustRow + Dated, S: CutSpec<R>>(
     seats: &Seats<'_, '_, R, S>,
-    t: Option<&R::Instant>,
+    now: Option<&R::Instant>,
+    own: Option<&R::Key>,
 ) -> Vec<Accepts<ObjOf<R>, R::Word>> {
     let c = seats.c();
     let mut out = Vec::new();
@@ -364,10 +722,14 @@ pub fn edges_of<R: TrustRow + Dated, S: CutSpec<R>>(
         if matches!(e.src, Obj::Row(_)) && seats.dissolved(&e.src) {
             continue;
         }
-        if !edge_term(r, t) {
+        if !edge_term(r, now) {
             continue;
         }
-        if !speaks_at(seats, i, &signers(r), &e.src) {
+        // an edge speaking for a group, behind the reader's line over its body, concludes nothing for that reader
+        if matches!(e.src, Obj::Row(_)) && behind_line(c, own, i, &e.src) {
+            continue;
+        }
+        if !speaks_at(seats, i, &signers(r), &e.src, own) {
             continue;
         }
         // a one-officer affiliation's edge is a proposal: it stands only where countersigned (the item-8 ruling)
@@ -378,7 +740,7 @@ pub fn edges_of<R: TrustRow + Dated, S: CutSpec<R>>(
             let w = c.g.row(j);
             w.seat_kind() == SeatKind::Withdraw
                 && w.target() == Some(r.id())
-                && speaks_at(seats, j, &signers(w), &e.src)
+                && speaks_at(seats, j, &signers(w), &e.src, own)
         });
         if !ended {
             out.push(e);
@@ -401,11 +763,6 @@ fn issuance<R: TrustRow + Dated, S: CutSpec<R>>(
     let r = c.g.row(i);
     let Some(a) = r.licence_authority() else { return Some(NOT_AUTHORITY) };
     let t = r.asserted_at();
-    if let Some(t) = t {
-        if idx.iter().any(|&j| c.g.row(j).asserted_at().is_some_and(|u| u > t)) {
-            return Some(INSTANT_BEFORE_PAST);
-        }
-    }
     let (law, spec) = (seats.law(), seats.spec());
     let (sub, with) = judged(c, i, idx);
     let (rc, _) = for_reader(&sub, law, spec, None);
@@ -441,15 +798,39 @@ fn issuance<R: TrustRow + Dated, S: CutSpec<R>>(
 /// and the reason reads other rows, CC 2.7.3). Its existence is judged over its own past ([`ended_for_reader`],
 /// `read` false): [`NOT_AUTHORITY`] (testimony), [`AUTHORITY_LOCKED`] (a locked community's quorum) or
 /// [`INSTANT_BEFORE_PAST`]. Then every end the reader holds is read over the reader's rows: a licence that stood and is
-/// cut so is [`LINK_WITHDRAWN`], or [`AUTHORITY_LOCKED`] where the end locks its community.
-pub fn standing<R: TrustRow + Dated, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, i: usize) -> Option<&'static str> {
+/// cut so is [`LINK_WITHDRAWN`], or [`AUTHORITY_LOCKED`] where the end locks its community; one that fails only under
+/// an amendment of the record the reader holds is judged under it: [`NOT_AUTHORITY`].
+pub fn standing<R: TrustRow + Dated, S: CutSpec<R>>(
+    seats: &Seats<'_, '_, R, S>,
+    i: usize,
+    own: Option<&R::Key>,
+) -> Option<&'static str> {
     let c = seats.c();
-    if let Some(why) = issuance(seats, i, &ended_for_reader(c, i, false)) {
+    let r = c.g.row(i);
+    // the instant's lower bound is the licence's OWN past alone: the reader's ends cut, they never set it
+    if let Some(t) = r.asserted_at() {
+        let anc = c.g.ancestors(i);
+        if (0..c.g.len()).any(|j| anc.has(j) && c.g.row(j).asserted_at().is_some_and(|u| u > t)) {
+            return Some(INSTANT_BEFORE_PAST);
+        }
+    }
+    // an authority act behind the reader's line over the authority's body concludes nothing for that reader
+    if let Some(a) = r.licence_authority().filter(|a| matches!(a, Obj::Row(_))) {
+        if behind_line(c, own, i, &a) {
+            return Some(NOT_AUTHORITY);
+        }
+    }
+    if let Some(why) = issuance(seats, i, &ended_for_reader(seats, i, false, own)) {
         return Some(why);
     }
-    match issuance(seats, i, &ended_for_reader(c, i, true)) {
+    match issuance(seats, i, &ended_for_reader(seats, i, true, own)) {
         None => None,
         Some(AUTHORITY_LOCKED) => Some(AUTHORITY_LOCKED),
+        // an amendment cuts nothing: it changes the rule the licence is judged under, so a licence that fails under
+        // the amended record (and stands with every other end the reader holds) is judged so: testimony
+        Some(_) if issuance(seats, i, &ended_for_reader_with(seats, i, true, false, own)).is_none() => {
+            Some(NOT_AUTHORITY)
+        }
         Some(_) => Some(LINK_WITHDRAWN),
     }
 }
@@ -501,12 +882,17 @@ pub fn read_licence<R: TrustRow + Dated, S: CutSpec<R>>(
     let (Some(auth), Some(cls)) = (r.licence_authority(), r.licence_class()) else {
         return Err(Unhonoured::ClassNotTrusted);
     };
+    // the reader's line is the reader's own (the r77 attack)
+    let own = match reader {
+        Obj::Key(k) => Some(k),
+        Obj::Row(_) => None,
+    };
     // a dissolved authority (CC 4.4.3.12, "What stands after dissolution"): an issued licence stands, its authority
     // judged at issuance, and reads `lapsed` for every later use; one with no standing over its own past is testimony
     // (the issuance judgement first, over the licence's own past: its standing, then its class; only a licence that
     // stood then reads `lapsed`)
     if is_community(seats, &auth) && seats.dissolved(&auth) {
-        if let Some(why) = standing(seats, i) {
+        if let Some(why) = standing(seats, i, own) {
             return Err(Unhonoured::Standing(why));
         }
         let anc = c.g.ancestors(i);
@@ -522,11 +908,10 @@ pub fn read_licence<R: TrustRow + Dated, S: CutSpec<R>>(
     if !charters(seats, supplied, now).declares(&auth, cls) {
         return Err(Unhonoured::ClassNotTrusted);
     }
-    if let Some(why) = standing(seats, i) {
+    if let Some(why) = standing(seats, i, own) {
         return Err(Unhonoured::Standing(why));
     }
-    let t = now.copied().or(r.asserted_at());
-    if !reaches(&edges_of(seats, t.as_ref()), reader, cls, HOP_CAP, &auth) {
+    if !reaches(&edges_of(seats, now, own), reader, cls, HOP_CAP, &auth) {
         return Err(Unhonoured::NotReached);
     }
     Ok(())

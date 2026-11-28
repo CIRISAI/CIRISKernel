@@ -256,9 +256,9 @@ pub trait SeatRow: Row {
     fn agent_registration(&self) -> bool {
         false
     }
-    /// An onward trust edge (a `delegates_to` row) that speaks for a group: that group (its `on_behalf`), so a
-    /// one-officer affiliation's edge is read as its counted act, a proposal until countersigned ([`countersigned`]).
-    /// Default `None`.
+    /// An onward trust edge (a `delegates_to` row) that speaks for a group, or a licence (`licensure`) issued under
+    /// one: that group (the edge's `on_behalf`, the licence's authority), so a one-officer affiliation's edge or own
+    /// licence is read as its counted act, a proposal until countersigned ([`countersigned`]). Default `None`.
     fn edge_body(&self) -> Option<Obj<Self::Id, Self::Key>> {
         None
     }
@@ -1728,6 +1728,65 @@ fn affiliation_act<'r, R: SeatRow + 'r>(law: &SeatLaw, get: &dyn Fn(&R::Id) -> O
     !admission
 }
 
+/// The r81 B2 rule, read over the concluded rows of `c` (the reader's): row `q`, a lone holder's own conferral of a
+/// duty over a room, concurrent with growth of the room's body (a counted act of `Conf::Group` over it, the acceptance
+/// completing one, or the countersign deciding one, neither in the other's past, none in `void`), fails where
+/// re-counted over its own past with that growth and their pasts (the body at the newest counted changes the reader
+/// holds): its signer is no more the lone holder there ([`authority_gate_at`]). A holder's own concurrent lone
+/// conferrals are one batch: an own conferral is no counted act of `Conf::Group`.
+fn regrown_fails<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    by: &BTreeMap<&R::Id, &R>,
+    q: usize,
+    void: &BTreeSet<usize>,
+) -> bool {
+    let g = &c.g;
+    let r = g.row(q);
+    let Some(obj) = r.obj() else { return false };
+    if !community(by, &obj) {
+        return false;
+    }
+    let room = declared(by, &obj);
+    if !own_conferral(law, r, &obj, &room) {
+        return false;
+    }
+    let counted = |x: &R| {
+        x.conf() == Some(Conf::Group) && x.obj().as_ref() == Some(&obj) && change(law, x, &obj, Some(&room[..]))
+    };
+    let qa = g.ancestors(q);
+    let growth: Vec<usize> = c
+        .cs()
+        .iter()
+        .copied()
+        .filter(|&x| {
+            if x == q || void.contains(&x) || qa.has(x) || g.ancestors(x).has(q) {
+                return false;
+            }
+            let xr = g.row(x);
+            counted(xr)
+                || (matches!(xr.seat_kind(), SeatKind::Accept | SeatKind::Countersign)
+                    && xr.of().and_then(|i| g.idx(i)).is_some_and(|i| counted(g.row(i))))
+        })
+        .collect();
+    if growth.is_empty() {
+        return false;
+    }
+    let mut idx: Vec<usize> = c
+        .cs()
+        .iter()
+        .copied()
+        .filter(|&j| j != q && (qa.has(j) || growth.iter().any(|&x| x == j || g.ancestors(x).has(j))))
+        .collect();
+    idx.push(q);
+    let sub = Graph::new(idx.iter().map(|&j| g.row(j)));
+    let with = Concluded::with(sub, Some(idx.iter().map(|&j| c.concluded(j)).collect()));
+    let last = with.g.len() - 1;
+    let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
+    !authority_gate_at(law, spec, &Past::new(&with.g, last, &p))
+}
+
 /// The affiliation a counted act is of: its `obj`, or for an onward trust edge its [`SeatRow::edge_body`].
 fn act_obj<R: SeatRow>(r: &R) -> Option<ObjOf<R>> {
     r.edge_body().or_else(|| r.obj())
@@ -2674,6 +2733,19 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             .filter(|&i| g.row(i).seat_kind() == SeatKind::Offer && cut.counts(i) && !stale.contains(&i) && !decided(i))
             .collect();
         stale.extend(undecided);
+        // r81 B2: a lone holder's own duty conferral concurrent with a counted act of the grown body is re-counted
+        // against it ([`regrown_fails`]); one that fails seats nothing, and every row built on it is void with it
+        let regrown: Vec<usize> = cs
+            .iter()
+            .copied()
+            .filter(|&i| cut.counts(i) && !stale.contains(&i) && regrown_fails(c, law, spec, &by, i, &stale))
+            .collect();
+        if !regrown.is_empty() {
+            let built: Vec<usize> =
+                cs.iter().copied().filter(|&j| regrown.iter().any(|&x| g.ancestors(j).has(x))).collect();
+            stale.extend(regrown);
+            stale.extend(built);
+        }
         // a moderator's lone removal is an act under its `moderate` standing, live only while the end rule
         // says it is in force
         let local = MembersAt::<R>::default();
@@ -6024,6 +6096,22 @@ fn room_key_ended<R: SeatRow, S: CutSpec<R>>(
                 && w.signer() == k
                 && stay_end(law, by, w, &|a| p.get(a.id()).is_some() && p.past(a.id(), w.id())).as_ref() == Some(obj)
         })
+}
+
+/// [`authority_gate`] for the row a past is of: the one gate read again over another past than the one the row
+/// concluded over (a lone conferral re-counted over the grown body the reader holds, [`crate::trust_rows`]). True for
+/// a row the gate does not read (a founding row, a counted row).
+pub fn authority_gate_at<R: SeatRow, S: CutSpec<R>>(law: &SeatLaw, spec: &S, p: &Past<'_, '_, R>) -> bool {
+    let r = p.row();
+    if r.seat_kind() != SeatKind::Offer || !matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat) | Some(Conf::Root)) {
+        return true;
+    }
+    let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
+    let own_duty = r.obj().is_some_and(|o| {
+        !founding(r) && community(&by, &o) && r.scope().is_some_and(|s| law.is_duty(s.as_ref(), &declared(&by, &o)))
+    });
+    let duty = duty_seat(law, &by, r) || own_duty;
+    authority_gate(law, spec, r, p, &by, None, duty)
 }
 
 /// THE ONE GATE (the r73 attack) on a single key's offer (`Conf::Own` or `Conf::Seat`, not a founding row) of a

@@ -605,6 +605,7 @@ plant "an undecided record change is in force in a later row's past" src/seat.rs
 plant "countersign_at_heads_unread: an officer decided at the heads is not read there" src/seat.rs '|| countersigned(q)' ''
 plant "edge_countersign_unread: a one-officer affiliation's edge needs no countersign" src/trust_rows.rs '        if !countersigned(seats, i) {' '        if false {'
 plant "an edge's countersign is no countersign" src/seat.rs '        return kind_of(law, get, &b) == Some(CommunityKind::Affiliation);' '        return false;'
+plant "lone_regrowth_unread: a lone conferral concurrent with the grown body's act stands (r81 B2)" src/seat.rs '        if !regrown.is_empty() {' '        if false {'
 plant "root_seat_stored: a lapsed root seat held from its conclusion" src/seat.rs '            if o.conf() == Some(Conf::Root) && !o.obj().is_some_and(|ob| root_seat(spec, o, &ob)) {' '            if false && o.conf() == Some(Conf::Root) {'
 plant "founder_raw_head: is_founder read at the heads the row states" src/seat.rs '    let heads: Vec<R::Id> = {
         let room = room_in(&p, obj);' '    let heads: Vec<R::Id> = if !p.row().head().is_empty() {
@@ -664,7 +665,6 @@ plant "an edge's depth above five is capped"           src/trust_rows.rs 'd @ 0.
         d if d > 5 => Some(Ok(Accepts { depth: 5, ..e })),'
 plant "an absent depth is refused"                     src/trust_rows.rs 'match r.trust_depth().unwrap_or(0) {' 'match r.trust_depth().unwrap_or(-1) {'
 plant "a withdrawn edge is walked"                     src/trust_rows.rs 'if !ended {' 'if true {'
-plant "any signer of an edge withdraws it"             src/trust_rows.rs '&& speaks_at(seats, j, &signers(w), &e.src)' ''
 plant "any key's licence is the authority's act"       src/trust_rows.rs 'if is_the_authority(&at, r.signer(), &a) {' 'if true {'
 plant "a license seat is not read"                     src/trust_rows.rs 'if !at.stands(r.signer(), "license", &a, None) {' 'if true {'
 plant "a locked community issues its own licence"     src/trust_rows.rs 'if !locked(&at, &a) {' 'if true {'
@@ -725,10 +725,25 @@ plant "the ends the reader holds are not read"         src/trust_rows.rs '    if
         rows.extend(' '    if false {
         rows.extend('
 plant "an end cuts nothing concurrent with it"         src/trust_rows.rs 'rows.retain(|j| !cut.contains(j));' 'let _ = &cut;'
-plant "an edge is judged at issuance only"             src/trust_rows.rs '[false, true].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(c, i, read), who, src))' '[false].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(c, i, read), who, src))'
 plant "a licence stating no instant meets a term"      src/seat.rs '.any(|r| r.k == *k && g.idx(&r.offer).is_some_and(|i| g.row(i).valid_until().is_none()));' '.any(|r| r.k == *k);'
-plant "a licence may predate what it cites"            src/trust_rows.rs 'if idx.iter().any(|&j| c.g.row(j).asserted_at().is_some_and(|u| u > t)) {' 'if false {'
-plant "an edge's term is not read"                     src/trust_rows.rs 'None => r.valid_until().is_none(),' 'None => true,'
+plant "any signer of an edge withdraws it"            src/trust_rows.rs '&& speaks_at(seats, j, &signers(w), &e.src, own)' ''
+plant "an edge is judged at issuance only"             src/trust_rows.rs '[false, true].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(seats, i, read, own), who, src))' '[false].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(seats, i, read, own), who, src))'
+plant "a licence may predate what it cites"            src/trust_rows.rs 'if (0..c.g.len()).any(|j| anc.has(j) && c.g.row(j).asserted_at().is_some_and(|u| u > t)) {' 'if false {'
+plant "a licence's instant is bounded by the reader's rows" src/trust_rows.rs 'if (0..c.g.len()).any(|j| anc.has(j) && c.g.row(j).asserted_at().is_some_and(|u| u > t)) {' 'if (0..c.g.len()).any(|j| j != i && c.g.row(j).asserted_at().is_some_and(|u| u > t)) {'
+plant "an edge's term is not read"                     src/trust_rows.rs '(None, _) | (Some(_), None) => false,' '(None, _) | (Some(_), None) => true,'
+plant "a concurrent amendment reads as a cut"          src/trust_rows.rs 'Some(_) if issuance(seats, i, &ended_for_reader_with(seats, i, true, false, own)).is_none() => {' 'Some(_) if false => {'
+plant "growth the reader holds is not read for the act" src/trust_rows.rs '    if read && amend {
+        if let Some(o) = authority_act_over(c, c.g.row(i)) {' '    if false {
+        if let Some(o) = authority_act_over(c, c.g.row(i)) {'
+plant "a concurrent lone seat is not re-counted"       src/trust_rows.rs '|| (qr.licence_authority().is_none() && !recounted(seats, q, &o))' '|| false'
+plant "a holder's own lone conferrals regrow each other" src/trust_rows.rs '&& !one_batch(c, law, q, x, o))' ')'
+plant "an end cuts whatever its key still holds"       src/trust_rows.rs '*ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, k, ob, cls))' '*ob == o && who.contains(k)'
+plant "a full end cuts only its named scope"           src/trust_rows.rs '            let hit = ks.iter().any(|(k, ob, _)| {
+                *ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, k, ob, cls))' '            let hit = ks.iter().any(|(k, ob, sc)| {
+                *ob == o && who.contains(k) && need.iter().any(|cls| scope_class(c, seats.law(), ob, sc.as_ref().map(|w| w.as_ref())).as_deref() == Some(cls.as_str()) && loses(seats, &judged, k, ob, cls))'
+plant "a second end cancels the first's cut"           src/trust_rows.rs 'let without: Vec<usize> = judged.iter().copied().filter(|&x| !mine.contains(&x) && !after(x)).collect();' 'let without: Vec<usize> = judged.iter().copied().filter(|&x| mine.first() != Some(&x) && !after(x)).collect();'
+plant "a re-seat masks the cut"                        src/trust_rows.rs 'let after = |x: usize| mine.iter().any(|&m| c.g.ancestors(x).has(m));' 'let after = |_x: usize| false;'
+plant "a row built on a cut row is kept"               src/trust_rows.rs '    cut.extend(built);' '    let _ = built;'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

@@ -19,6 +19,13 @@
 - The lift at both heads (ported from the lift lane, 2f9b46f): counted over the members at both the act's head and
   the lift's, so members admitted after the act cannot carry it.
 
+**r81 B2 at the roster (the r87 attack): a lone conferral concurrent with the grown body's counted act is re-counted
+in Seats.** A lone holder's own conferral of a duty, concurrent with a counted act of conf `group` over the room by the
+grown body (or the acceptance completing one, or the countersign deciding one), is re-counted over its own past with
+that growth and their pasts; where its signer is no more the lone holder there, it seats nothing, and every row built
+on it is void with it (so a withdrawal resting on it removes nobody). A holder's own concurrent lone conferrals stay
+one batch. The trust path may read this answer instead of its own re-count.
+
 **Item 8, ruled by the Constitution: a one-officer affiliation's every counted act but an admission needs the
 countersign.** While an affiliation has one officer, admitting a member is its only act that needs none. The four
 acts against a member, an officer's appointment or removal, a change of the record (the official, `overseen_by`, the
@@ -35,7 +42,7 @@ for the officers). Residual: two officer keys one person keeps unlinked, in no s
 the members see two officers when they join. Officers are counted by key until key-person's persons function is
 merged (then by person, so two keys in one roster are one officer). An onward trust edge (`delegates_to`) on behalf of
 a one-officer affiliation is its counted act too: a countersign may name it (`SeatRow::edge_body`, new, default
-`None`: the group a `delegates_to` row speaks for), and `edges_of` walks it only where `seat::countersigned` (new, the
+`None`: the group a `delegates_to` row speaks for, or a `licensure` row's authority, so the body's own licence is such an act too), and `edges_of` walks it only where `seat::countersigned` (new, the
 one reading trust_rows takes) holds: countersigned, with no concurrent withdrawal of it by its signer (rule 4) and no
 overseer cut. An act naming no heads (an edge) has its officers read at the newest counted changes in its past.
 
@@ -129,6 +136,37 @@ role ends with any leaving. `false` for any other object and at the founding row
 `check_acts.py` (FOUNDERS), recorded in the `seat` fixture (`founder`); plants `founder_at_tips` and
 `founder_leavings_unread`, and a crate plant.
 
+**The r81 attack on the trust walk, closed** (both languages; every attack a case, each fix a plant):
+- A key's loss of a standing is read over the judged rows with EVERY end of its seats over the object taken out, and
+  every row that has one of them in its past: a second end of the same seat cannot cancel the first's cut, and a
+  later re-seat does not mask the cut of a vote concurrent with the end (a vote after the re-seat stands).
+- A lone conferral is batched only with the same signer's other lone conferrals, and re-counted against every other
+  growth or counted act of the body the reader holds and it does not have in its past.
+- A row built on a row this lane cuts (naming it, down the line) is cut with it: the one place the cuts reach what
+  rests on them.
+
+**The r80 attack on the trust walk, closed** (both languages; every attack a case, each fix a plant):
+- A holder's own concurrent lone duty conferrals are one batch, as the tips fold reads them: they are not growth
+  against each other, so neither voids the other, nor what is built on both (F4e, F4g).
+- An end is keyed by every STANDING its key loses by it, whatever scope its target names: a resignation ends the
+  duties a lone conferral gave, a withdrawn appointment the officer role it carried (F1, F2).
+- Whether the key still holds a standing is read over the JUDGED rows (the judged row's past, the ends the reader holds
+  and their pasts), not the end's own past: a seat gained beside a partial lay-down keeps the holder (F3).
+
+**The r77 attack on the trust walk, closed** (both languages; every attack a case, each fix a plant):
+- A licence's instant is bounded below by its OWN past alone: the reader's ends cut, and never set the lower bound
+  (an unrelated late-dated row no longer voids it).
+- Body growth is a counted change, not an end, and is read over the rows the reader HOLDS, as the tips fold re-counts
+  a lone duty conferral: an authority act (an edge, a license or officer seat, an own licence) concurrent with a
+  change of its body the reader holds is counted over the body at the newest changes the reader holds; an act the
+  growth has in its past stands. The reader's acknowledged line is kept beside it (an act behind it concludes nothing
+  for that reader). The residual narrows to a reader that holds none of the body's newer changes: it cannot know.
+- Ends are keyed by (key, object, SCOPE): an end cuts only rows whose standing rests on the scope it ends, and only
+  where the key holds that standing no more (a lay-down of `review` leaves the holder's `moderate` acts).
+- Every edge carries a term (CC 4.4.3.12): an edge stating none is not walked. Edge terms are read only at the
+  caller's `now`; with no `now` no edge is walked (never at the licence's own instant). `edges_of` and `standing`
+  take the reader's key. **Caller duty:** pass `now`.
+
 **The r73 attack on the trust walk, closed** (both languages; every attack a case in `check_trust_rows.py`, each fix a
 plant):
 - One gate (`seat.authority_gate`, the seat rule's `authority_gate`): a single key's offer (own or under a seat) of an
@@ -140,15 +178,21 @@ plant):
   past, every end there cutting the rows concurrent with it; then every end the reader holds (a key's eviction, an
   unseat, a lay-down and so the lock, an edge's withdrawal, an amendment of the record) is read over the reader's rows.
   A licence that stood and is cut so is `licensure_link_withdrawn` (`licensure_authority_locked` where the end locks
-  its community).
+  its community). An amendment of the record cuts nothing: a licence that fails only under a concurrent amendment is
+  judged under it, `licensure_delegator_not_authority`.
 - Terms: a licence under a term-bearing seat that states no instant meets no term (`Seats::stands_within`, new); a
   licence stating an instant earlier than a row it cites is `licensure_instant_before_its_past`; an acceptance edge's
   own term (`asserted_at`, `valid_until`) is read at the caller's instant or the licence's (`trust_rows::edges_of`
   takes it). An edge or a license seat from before a lock stands until its term ends or it is withdrawn: a locked
-  group signs no NEW edge.
-- The residual: within a term the instant a licence states is its holder's word. Its bound is its own past (it cannot
-  predate what it cites) and the seat's ends, read by ancestry; the door's checks on a single row's fields stay the
-  door's (ADOPTING).
+  group signs no NEW edge, confers no new seat and issues no licence of its own.
+- The gate reaches founding too: a founding record's first officers and holders are the founding signers' joint act
+  only, and give no key a lone path later.
+- **Named residual (the term):** within its term a licence's instant is its holder's word, bounded below by the
+  latest instant in its own past. So a holder whose term has run can sign a licence dated inside the term, as long as
+  nothing later-dated is in its past. **Caller duty beside it:** a node honours a licence under a term that has ended
+  by its own clock only where the licence is in the past of a row the node already held when the term ended, or of a
+  row by a key in its trust set that it held then. A licence first seen after the term's end with no such anchor is
+  not honoured (ADOPTING).
 
 **The reader's trust walk from rows, and the issuer's standing** (CC 4.4.3.34, CC 4.5.4, with the Constitution's
 rulings (a) to (d) of 2026-11-27; `trust_rows.py`, `check_trust_rows.py`; fixture `trust_rows.json`). Whether a reader
