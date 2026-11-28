@@ -116,7 +116,7 @@ def takes_up(S, own, fs, mut=None, voices=None):
         if "claimed_cosigner_counted" in mut: return own in a.get("cosigners", ())
         if a["kind"] not in ("offer", "unseat"): return False
         if not S.C.get(a["id"]) and "unconcluded_cosigner_counted" not in mut: return False
-        if voices is None: return own in a.get("cosigners", ())
+        if voices is None or "line_voices_cosigners_only" in mut: return own in a.get("cosigners", ())   # MUTATION
         P = [q for q in S.Cs if q["id"] in S.anc.get(a["id"], ())]
         return own in voices(a, P)
     mine = [a for a in S.rows if own_row(a) and stands(a)]

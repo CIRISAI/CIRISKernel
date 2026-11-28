@@ -2930,11 +2930,12 @@ def landed_windows(S, Cs, window, V=frozenset()):
 
 
 def landed_adds(S, Cs, V=frozenset()):
-    """The keys a landed self_roster_add seats: the opener's `to` (or its target), each that consented by its own
+    """The keys a landed self_roster_add seats: the opener's `to` (one shape: a `target` alone seats nothing), each that
+    consented by its own
     signature on the opener (a seat is two consents)."""
     out = []
     for L, p, sc, obj in landed_windows(S, Cs, "self_roster_add", V):
-        for k in tuple(p.get("to") or ()) or ((p["target"],) if p.get("target") else ()):
+        for k in tuple(p.get("to") or ()):                         # the opener's `to` alone (no `target` fallback)
             if k in signers(p): out.append((L, k, sc, obj))            # its own signature on the opener
     return out
 

@@ -316,9 +316,9 @@ plant "a family's founding read as a self roster's (r99 drift)" src/seat.rs '   
 }'
 plant "a landed self-roster window is no head of a later count" src/seat.rs '        (change(law, q, obj, room.as_deref()) || landed_change(p, q, obj))' '        change(law, q, obj, room.as_deref())'
 plant "the reader's line read out of order: a later row over the rival takes it up too (r100r)" src/seat.rs '.filter(|&a| !taking.iter().any(|&b| b != a && g.in_past(b, a)))' '.filter(|_| true)'
-plant "another signer's claimed cosigners seed the reader's line (r101 R2)" src/seat.rs '                || (matches!(ar.seat_kind(), SeatKind::Offer | SeatKind::Unseat)' '                || ar.cosigners().contains(own) || (matches!(ar.seat_kind(), SeatKind::Offer | SeatKind::Unseat)'
-plant "a seat row that concluded nothing seeds the reader's line by its cosigners (r101 S5, S6)" src/seat.rs '                    && c.concluded(a)
-                    && ar.cosigners().contains(own));' '                    && ar.cosigners().contains(own));'
+plant "another signer's claimed cosigners seed the reader's line (r101 R2)" src/seat.rs '            let own_row = ar.signer() == own' '            let own_row = ar.signer() == own || ar.cosigners().contains(own)'
+plant "a seat row that concluded nothing seeds the reader's line by its cosigners (r101 S5, S6)" src/seat.rs '(matches!(ar.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {' '(matches!(ar.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && {'
+plant "the line reads a seat row's voices without its cosign rows (cosigners only)" src/seat.rs '                    voices(ar, &Past::new(g, a, &anc)).contains(own)' '                    ar.cosigners().contains(own) && !anc.is_empty()'
 plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '            [g] if !self.revoked.contains(g) => Some(g.clone()),' '            [g] => Some(g.clone()),'
 plant "an agent's key of a person's roster speaks for that person" src/seat.rs '        if self.agents.contains(k) {
             return Some(k.clone());

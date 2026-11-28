@@ -3327,9 +3327,11 @@ pub fn takes_up<R: SeatRow>(c: &Concluded<'_, R>, own: &R::Key, fs: &[usize]) ->
             // among them, and a seat row (an offer or an unseat) that CONCLUDED where it is a cosigner. A claimed
             // cosigner on any other row, or on a seat row that concluded nothing, is never read (r101 R2)
             let own_row = ar.signer() == own
-                || (matches!(ar.seat_kind(), SeatKind::Offer | SeatKind::Unseat)
-                    && c.concluded(a)
-                    && ar.cosigners().contains(own));
+                || (matches!(ar.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
+                    // its voices as the counted layer reads them: signer, cosigners and cosign rows ([`voices`])
+                    let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();
+                    voices(ar, &Past::new(g, a, &anc)).contains(own)
+                });
             own_row && stands(a) && !reach(a).is_empty()
         })
         .collect();
