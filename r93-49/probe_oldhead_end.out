@@ -1,0 +1,6 @@
+no recall (control)                          reader None concluded={}  A moderate, member = [True, True]
+no recall (control)                          reader R    concluded={}  A moderate, member = [True, True]
+B, C recall A at g (old head)                reader None concluded={'rcg': True}  A moderate, member = [True, True]
+B, C recall A at g (old head)                reader R    concluded={'rcg': True}  A moderate, member = [True, True]
+B, C recall A at aG (newest head, 2 of 7)    reader None concluded={'rcn': False}  A moderate, member = [True, True]
+B, C recall A at aG (newest head, 2 of 7)    reader R    concluded={'rcn': False}  A moderate, member = [True, True]
