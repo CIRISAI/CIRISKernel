@@ -521,39 +521,41 @@ Wire-side mismatches the map met, for the same list:
 
 ## Guessed mappings
 
-Each is a mapping the text does not state. A minter and a store must agree on it before vectors are minted.
+Each is a mapping the text does not state. Those marked **kernel's choice** are how the crate presents a wire
+row, not a reading of the text: they are settled here, and a store and a minter follow them. Those marked
+**open** wait on the Constitution's ruling.
 
-| # | Field | The reading taken |
-|---|---|---|
-| G1 | `Row::signer` | `iss` (the stable identity; the voice in a private room), not `kid`. The key-person lane reads persons from self rosters over device keys; with `iss` the wire has already named the person. `SeatRow::signing_key` carries `kid`. |
-| G2 | `Row::signer` of a counted row | the `iss` of the verified statement with the least statement id; the other voices are `cosigners()`. Rules that set one signer apart (a window table over `others`, `author_apart`) read whichever voice is chosen. |
-| G3 | `AudienceRow::scope` `addressed` | a row with no `cohort_scope` that names keys for delivery |
-| G4 | a group id | resolved to the row id of the group's first `group:roster` version; `Obj::from_reference` does not type a `group-…` reference |
-| G5 | the self roster | its object is the genesis key's `key:record` row; an `identity:occurrence` is an offer of scope `key` to the `occurrence_key_id`; its revocation an unseat |
-| G6 | `Record::at_old` | the rotation's own `asserted_at`, since the old key's statement is over the same payload |
-| G7 | an acceptance of a proposal | a standing acceptance (`of()` `None`, `scope` the `role` or `member`, `obj` the group), which the widening names under `refs.also.cites`; the crate's `consented` reads it that way |
-| G8 | `membership:decline` | a `Withdraw` of the row it answers (the crate's "declining an invitation" is a withdrawal of an offer never consented to) |
-| G9 | `membership:resignation` | a `Withdraw` whose `target()` the store derives: the offer that seats the member (its widening, or the founding version), or its own acceptance. No `refs.target` is stated for the leaf. |
-| G10 | a counted `withdraws` | an `Unseat` of the target's seat (the model's holders' withdrawal is `unseat ... duty_withdraw`) |
-| G11 | the reader's acknowledgement | every row the reader signs naming a roster head is an `Ack` with `room()` that head's group |
-| G12 | an election's id row (`of()` of a ballot, a decline, a seating) | the wire's election id is a digest of the community id and the last seating row (or the roster's genesis); the store recomputes it and maps it to that row |
-| G13 | the set an election seating names | the wire binds a digest of the counted ballots and withdrawals; the crate reads the seating's `names()`; the store presents the set the digest commits to as names |
-| G14 | `window:refused:v1` | a landing stating refused |
-| G15 | `SeatKind::Countersign` | a countersign key's further statement over the act's payload, presented as its own row (`Row::id` its statement id, `of()` the act's row id). The text says "countersigned by a key outside the officers" and names no row form. |
-| G16 | `standing::Kind::Removal` | a `membership:removal` whose `sub` is the key |
-| G17 | scope `agent` | read from the seated key's `key:record` `identity_type` (contains `agent`); the widening itself carries no scope |
-| G18 | a `scope[]` with several tokens | one crate row per token, all under the one row id |
-| G19 | `official`, `overseen_by` | members of the affiliation's record named in prose (CC 4.4.3.12); `official`'s member name is not stated |
-| G20 | `weights`, `need` of a weighted record | members of the record's `policy` map; the member names are not stated |
-| G21 | a quarantine release's `of()` | the withhold it lifts, under `refs.target` |
-| G22 | a takedown's `of()` | the content row whose bytes hash to `content_sha256`; the notice names no row |
-| G23 | a reconsideration's `of()` | the notice, under `refs.answers` |
-| G24 | a lift's `content()` | the removal, under `refs.also.cites` |
-| G25 | the key end views' signer | the `kid` of the statement, as an identity reference |
-| G26 | `KeyEndRow::statement().1` | the key record of the `kid` whose window covers the statement's `asserted_at`, found by the store |
-| G27 | `AudienceRow::family` | the `dimension` less its version, else the family id respelled as its pattern |
-| G28 | a re-binding's `on()` | the binding it ends, under `refs.target` |
-| G29 | `RootBundle::sub_delegation` | every duty of the charter where `charter.scope` holds `sub_delegation` |
-| G30 | `RootBundle::recovery` | the second element is the commitment digest, compared by equality, not the recovery key |
-| G31 | `RootBundle::recovers` | the new key is the key of the holder's new signing-key record cited under `refs.also.cites` |
-| G32 | `RootGrant::scope` | the grant's placement `community_id`; `trust:confers` carries scope tokens and no room member |
+| # | Field | The reading taken | Status |
+|---|---|---|---|
+| G1 | `Row::signer` | `iss` (the stable identity; the voice in a private room), not `kid`. The key-person lane reads persons from self rosters over device keys; with `iss` the wire has already named the person. `SeatRow::signing_key` carries `kid`. | kernel's choice: how the crate counts a voice: by its stable identity, as CC 2.6.1.9 counts statements by person; `kid` stays available as `signing_key`. |
+| G2 | `Row::signer` of a counted row | the `iss` of the verified statement with the least statement id; the other voices are `cosigners()`. Rules that set one signer apart (a window table over `others`, `author_apart`) read whichever voice is chosen. | kernel's choice: the crate reads a counted row's voices as one set (signer with cosigners); one must be named signer, and the least statement id is fixed by the bytes, not by arrival. |
+| G3 | `AudienceRow::scope` `addressed` | a row with no `cohort_scope` that names keys for delivery | open: a question for the text |
+| G4 | a group id | resolved to the row id of the group's first `group:roster` version; `Obj::from_reference` does not type a `group-…` reference | kernel's choice: the crate's object for a group is its founding row (`seat::Obj`); the group id is derived from that version, so the resolution is one-to-one. |
+| G5 | the self roster | its object is the genesis key's `key:record` row; an `identity:occurrence` is an offer of scope `key` to the `occurrence_key_id`; its revocation an unseat | kernel's choice: `SeatLaw::kinds` types a self roster by its founding row; the genesis key's record is the row the first bind names in `refs.head`. |
+| G6 | `Record::at_old` | the rotation's own `asserted_at`, since the old key's statement is over the same payload | kernel's choice: the rotation and the old key's statement are over one payload, so they state one `asserted_at`; this is the crate's `at_old`. |
+| G7 | an acceptance of a proposal | a standing acceptance (`of()` `None`, `scope` the `role` or `member`, `obj` the group), which the widening names under `refs.also.cites`; the crate's `consented` reads it that way | kernel's choice: the crate's `consented` already reads a standing acceptance the offer names; the widening names the acceptance under `also.cites`. |
+| G8 | `membership:decline` | a `Withdraw` of the row it answers (the crate's "declining an invitation" is a withdrawal of an offer never consented to) | kernel's choice: the crate models declining an invitation as a withdrawal of an offer never consented to, which ends no stay. |
+| G9 | `membership:resignation` | a `Withdraw` whose `target()` the store derives: the offer that seats the member (its widening, or the founding version), or its own acceptance. No `refs.target` is stated for the leaf. | open: a question for the text |
+| G10 | a counted `withdraws` | an `Unseat` of the target's seat (the model's holders' withdrawal is `unseat ... duty_withdraw`) | kernel's choice: the crate's cut on a seat slot is `Unseat`; the model presents the holders' withdrawal so (`check_acts.py`, `duty_withdraw`). |
+| G11 | the reader's acknowledgement | every row the reader signs naming a roster head is an `Ack` with `room()` that head's group | kernel's choice: CC 2.7.9 makes every row a reader signs an acknowledgement of its past; the crate reads it as `Ack` with `room()`. |
+| G12 | an election's id row (`of()` of a ballot, a decline, a seating) | the wire's election id is a digest of the community id and the last seating row (or the roster's genesis); the store recomputes it and maps it to that row | kernel's choice: the text defines the election id from the last seating row (or the genesis); the crate names that row, so the store maps the digest back to it. |
+| G13 | the set an election seating names | the wire binds a digest of the counted ballots and withdrawals; the crate reads the seating's `names()`; the store presents the set the digest commits to as names | kernel's choice: the crate reads a seating's set through `names()`; the store presents the rows the digest commits to. |
+| G14 | `window:refused:v1` | a landing stating refused | open: a question for the text |
+| G15 | `SeatKind::Countersign` | a countersign key's further statement over the act's payload, presented as its own row (`Row::id` its statement id, `of()` the act's row id). The text says "countersigned by a key outside the officers" and names no row form. | kernel's choice: the crate reads a countersign as a row with `of()` the act; a further statement presented as its own row (id its statement id) fits whatever row form the text gives. |
+| G16 | `standing::Kind::Removal` | a `membership:removal` whose `sub` is the key | kernel's choice: the crate's `Removal` is a removal of a key; `membership:removal` is that row. |
+| G17 | scope `agent` | read from the seated key's `key:record` `identity_type` (contains `agent`); the widening itself carries no scope | kernel's choice: the crate reads an agent's seat by scope `agent`; the key record's `identity_type` is the one place the wire says a key is an agent's. |
+| G18 | a `scope[]` with several tokens | one crate row per token, all under the one row id | kernel's choice: the crate reads one scope per seat row; a set of tokens is presented as one crate row per token under the one row id. |
+| G19 | `official`, `overseen_by` | members of the affiliation's record named in prose (CC 4.4.3.12); `official`'s member name is not stated | open: a question for the text |
+| G20 | `weights`, `need` of a weighted record | members of the record's `policy` map; the member names are not stated | open: a question for the text |
+| G21 | a quarantine release's `of()` | the withhold it lifts, under `refs.target` | open: a question for the text |
+| G22 | a takedown's `of()` | the content row whose bytes hash to `content_sha256`; the notice names no row | open: a question for the text |
+| G23 | a reconsideration's `of()` | the notice, under `refs.answers` | open: a question for the text |
+| G24 | a lift's `content()` | the removal, under `refs.also.cites` | open: a question for the text |
+| G25 | the key end views' signer | the `kid` of the statement, as an identity reference | kernel's choice: a key ends, not an identity: the key end views read the key that signed. |
+| G26 | `KeyEndRow::statement().1` | the key record of the `kid` whose window covers the statement's `asserted_at`, found by the store | kernel's choice: no row names its cover; the store finds the record of the signing key whose window covers the instant, as `key_end` reads it. |
+| G27 | `AudienceRow::family` | the `dimension` less its version, else the family id respelled as its pattern | kernel's choice: the audience table is matched by family name; the dimension less its version is that name. |
+| G28 | a re-binding's `on()` | the binding it ends, under `refs.target` | open: a question for the text |
+| G29 | `RootBundle::sub_delegation` | every duty of the charter where `charter.scope` holds `sub_delegation` | open: a question for the text |
+| G30 | `RootBundle::recovery` | the second element is the commitment digest, compared by equality, not the recovery key | kernel's choice: the crate compares the recovery entry by equality only; the commitment is what the wire carries and compares the same way. |
+| G31 | `RootBundle::recovers` | the new key is the key of the holder's new signing-key record cited under `refs.also.cites` | open: a question for the text |
+| G32 | `RootGrant::scope` | the grant's placement `community_id`; `trust:confers` carries scope tokens and no room member | open: a question for the text |
