@@ -333,7 +333,7 @@ and the shape of `refs`. One wire row can be read by several views; each view's 
 | `private_room` | founding `group:roster` `membership` is `private` | |
 | `merge` (roster-merge) | a later `group:roster` version naming two or more tips (`refs.head` and `refs.further_heads`) | |
 | `merge_members` (roster-merge) | that version's `members[].key` | |
-| `merge_duties` (roster-merge) | none: a merge carries no duty seats; they are the fold of the conferral, withdrawal, resignation and election rows over the folded roster (RULED [N5]). The accessor is to be removed | |
+| `merge_duties` (roster-merge) | none: a merge carries no duty seats; they are the fold of the conferral, withdrawal, resignation and election rows over the folded roster (RULED [N5]). The accessor is removed (merge-duties-n5) | |
 
 ### 7.3 `window::WindowRow`
 
@@ -560,7 +560,7 @@ rulings.
 | N2 | `SeatRow::scope` on a `Withdraw` | a lay-down is a `withdraws` targeting the seating conferral, carrying the duty it ends as its scope | RULED (the payload member's name, and rule 0's admission of a signer's own withdrawal on a counted record, follow in the text); checked twice |
 | N3 | `SeatRow::bundle` | the recovery widening carries `refs.also.stands_on` naming the counted grant; the bundle is the grant's `refs.head`, so the field is **D** | RULED; checked twice |
 | N4 | `SeatRow::options` | an election's options are the roster it names; a poll's opening row and options have no family yet | RULED (election); open for polls; checked twice |
-| N5 | `SeatRow::merge_duties` | a merge carries no duty seats: they fold; the accessor is removed | RULED; the text's support: the shapes table (a version naming several heads is open on the wire) |
+| N5 | `SeatRow::merge_duties` | a merge carries no duty seats: they fold, and a merge states only its member roster (founders included); the accessor is removed (merge-duties-n5) | RULED; the text's support: the shapes table (a version naming several heads is open on the wire) |
 | N6 | `WindowRow::says` on a landing | derived from the leaf: `landed` lands the change, `refused` is every other outcome; a tally's direction is recomputed from the cited rows | RULED; checked twice |
 | N7 | `StandingRow::on` on an acceptance | the owner binding the acceptance carries in `refs.also.cites` (exactly one live owner binding of the grantee's key, at federation); not held: wait; withdrawn: it ends. One that cites no owner-binding of the grantee's key, or two, or one ended or another owner's, is refused `acceptance_other_binding` | TEXT (corrected: an earlier reading had the acceptance name no binding) |
 | N8 | `RootBundle::names` | a settler names its other contested siblings under `refs.also.cites` | PROVISIONAL; checked twice |
