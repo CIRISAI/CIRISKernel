@@ -862,6 +862,7 @@ plant "the root: a commitment spent on a branch" src/root.rs 'if b.recovery().it
 plant "the root: behind read as any past" src/root.rs '&& self.behind(b, x)' '&& self.in_past(&b.prev()[0], x.id())'
 plant "the root: owners from every held row (r116 K2)" src/root.rs 'if !ids.contains(i) || self.counted(i).is_err() {' 'if false {'
 plant "the root: a settler read as adding its sibling's holders" src/root.rs '}) && (self.bounded_settler(b)' '}) && (false'
+plant "the root: an unsigned rotation leaves a key (K5)" src/root.rs 'b.rotates().filter(|(old, _)| self.voices(b).contains(*old))' 'b.rotates()'
 plant "the root: a detail given as the name" src/root.rs 'self.counted_raw(i).map_err(|why| detail_of(why).unwrap_or(why))' 'self.counted_raw(i)'
 plant "the root: in force global" src/root.rs 'held.iter().filter(|i| accepted.contains(*i)).cloned().collect();' 'held.iter().cloned().collect();'
 plant "the root: a grant's charter unread" src/root.rs 'self.b(n).is_none_or(|b| !b.duties().contains(g.duty()))' 'false'

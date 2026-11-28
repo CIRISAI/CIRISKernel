@@ -219,12 +219,12 @@ class Root:
                 rk = self.by[b["prev"][0]]["recovery"].get(h)
                 for k in (new, rk):
                     if k is not None: union(h, k)
-            if b.get("rotates") and ("owner_any_row" in MUT or b["rotates"][0] in self.voices(b)):
+            if self.signed_rotation(b) and ("rotation_unsigned_leaves" not in MUT or b["rotates"][0] in self.voices(b)):
                 union(*b["rotates"])
         # the bundle being counted reads its own rotation, where the old key signs it: the holder's consent under the
         # key its predecessor seats (it cannot wait on its own conclusion)
         r = self.by[own_rotation] if own_rotation is not None else None
-        if r is not None and r.get("rotates") and r["rotates"][0] in self.voices(r):
+        if r is not None and self.signed_rotation(r) and r["rotates"][0] in self.voices(r):
             union(*r["rotates"])
         return own
 
@@ -331,7 +331,15 @@ class Root:
         """The keys a routine rotation left across the branches of `prevs`: each key a bundle in their lines rotated
         a holder away from (`rotates`). Like a retired key, it stays so (MUTATION retired_unread)."""
         if "retired_unread" in MUT: return frozenset()
-        return frozenset(self.by[x]["rotates"][0] for p in prevs for x in self.line(p) if self.by[x].get("rotates"))
+        return frozenset(self.by[x]["rotates"][0] for p in prevs for x in self.line(p) if self.signed_rotation(self.by[x]))
+
+    def signed_rotation(self, b):
+        """b's routine rotation where its old key signs b: the one reading of `rotates`, for the owner map and for the
+        keys left (review-53's K5: a removal declaring `rotates` without the old key's statement leaves no key; MUTATION
+        rotation_unsigned_leaves: every declared rotation)."""
+        r = b.get("rotates")
+        if not r: return None
+        return r if ("owner_any_row" in MUT or "rotation_unsigned_leaves" in MUT or r[0] in self.voices(b)) else None
 
     def meets(self, b, voices, within=None, prevs=None):
         """b's count on `voices`: one predecessor, a strict majority of its live holders; a JOIN, a strict majority
