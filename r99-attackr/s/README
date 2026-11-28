@@ -1,0 +1,3 @@
+r99-attackr: the narrowed batch on recount-on-growth 3a2f3f4.
+Extract: git archive 3a2f3f4 | tar -x -C r99-attackr/tree ; run: python3 -I r99-attackr/s/<x>.py
+k1 (B5 variants on the trust walk), k2/k3 (their READER_CASES rows on the trust walk; the KeyError), k4 (which later rows make syb behind).

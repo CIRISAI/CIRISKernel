@@ -1,0 +1,22 @@
+exec(open(__file__.replace("k1.py","lib.py")).read())
+glic = C.glic
+NA=(False,"licensure_delegator_not_authority"); OK=(True,None)
+duty = lambda S: sorted(ST.Seats(S).holders("duty","g"))
+G = ST.found("g","A",tuple("ABCDEFGHIJ"),{"moderate":("A","B","C")},cosigners=tuple("BCDEFGHIJ"),licence_classes=((M,False),))
+DDE = ST.offer("dde","A",("D","E"),"moderate","g","group",("g",),head=("g",),cosigners=("B","D","E"),counted="duty",policy="duty_confer")
+SYB = ST.offer("syb","A",("F","G","H","I"),"moderate","g","group",("g",),head=("g",),cosigners=("B","F","G","H","I"),counted="duty",policy="duty_confer")
+GL = ST.offer("glo","A",("X",),"license","g","group",("dde","syb"),head=("dde","syb"),cosigners=("B","F","G","H","I"),counted="duty"); GLA = ST.accept("gla","X","glo")
+LX = glic("l","g","X")|{"names":("gla",)}
+GY = ST.offer("gy","A",("Y",),"license","g","group",("dde",),head=("dde",),cosigners=("B","D"),counted="duty"); GYA = ST.accept("gya","Y","gy")
+run("B5 (pure) no later row by A,B before syb", [G,DDE,SYB,GL,GLA,A("e","RD","g"),LX], "RD","l", extra=duty)
+run("B8 A,B (with D) later counted row gy at dde, then syb at g", [G,DDE,GY,GYA,SYB,GL,GLA,A("e","RD","g"),LX], "RD","l", want=NA, extra=duty)
+AK = CK.row("ak","ack","A",("dde",),room="g",head=("dde",))
+run("B10 A's later ack naming dde, then syb at g", [G,DDE,AK,SYB,GL,GLA,A("e","RD","g"),LX], "RD","l", want=NA, extra=duty)
+PO = CK.row("po","post","B",("dde",),room="g")
+run("B11 B's later post naming dde, then syb at g", [G,DDE,PO,SYB,GL,GLA,A("e","RD","g"),LX], "RD","l", extra=duty)
+RK = CK.row("rk","ack","RD",("dde",),room="g",head=("dde",))
+run("B9 the reader RD acknowledged dde (a line past g)", [G,DDE,RK,SYB,GL,GLA,A("e","RD","g"),LX], "RD","l", want=NA, extra=duty)
+# the later row by the signers exists but is held only by another reader? (the reader here holds it)
+# a later row by A,B that names only syb's sibling? A,B write the later row AFTER syb naming syb too
+GY2 = dict(GY, names=("dde","syb"), head=("dde","syb"))
+run("B12 A,B's later row names both dde and syb (written after syb)", [G,DDE,SYB,GY2,GYA,GL,GLA,A("e","RD","g"),LX], "RD","l", extra=duty)
