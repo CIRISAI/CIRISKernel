@@ -296,9 +296,10 @@ DIRECT = [
     ("a voice whose own end is in the final count's past never stands, x given as final",
      CH.ROOM + recs() + [VC2, x_row("ABCDEF", at=3, cites=("vC",))], "x", "C", {"x"}, False),
     ("and one whose end is not in its past stands when x is final", CH.ROOM + recs() + [VC2, X5], "x", "C", {"x"}, True),
-    # the K2 class (room-keys' sweep): key_end's own conclusion (KE.state) concludes a seat row only by the seat rule,
-    # so a registered self-unseat that concluded nothing under it ends nothing there either (U2 through a key-only state)
-    ("K2: under key_end's own conclusion, N's registered self-unseat that concluded nothing (a group count) ends nothing: "
+    # the K2 class (room-keys' sweep): key_end's own conclusion (KE.state) holds every seat row, so the seat lane's
+    # revocation is read by its own shape: the key's lone act; a group-counted unseat of the key's registered seat is
+    # no revocation of the key, concluded or not (U2 through a key-only state)
+    ("K2: under key_end's own conclusion, N's registered self-unseat counted by a group ends nothing: "
      "N's concurrent row counts", [KE.rec("kN", "N", 0, None, typ="pseudonym"), KE.att("a1", "N", 1, "kN"),
                                    ST.unseat("ux", "N", "N", "registered", "N", "group", ("a1",), policy="accord_majority"),
                                    KE.att("gt", "N", 2, "kN", names=("a1",))], "gt", "N", set(), True),
@@ -517,7 +518,7 @@ PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("win
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
           ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT),
           ("taken_up_unread", KE.MUT), ("reader_line_unchecked", KE.MUT), ("own_unconcluded_unread", KE.MUT),
-          ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("registered_unconcluded_counted", KE.MUT), ("retired_registered_ends", KE.MUT), ("revoked_key_rotates", KE.MUT), ("void_reopens", KE.MUT), ("key_rule_concludes_seat_rows", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
+          ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("retired_registered_ends", KE.MUT), ("revoked_key_rotates", KE.MUT), ("void_reopens", KE.MUT), ("registered_count_ends", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
           ("receipt_unclean_counts", ST.MUT), ("rotation_void_unread", KE.MUT), ("voided_successor_kept", KE.MUT),
           ("disputed_key_voices", ST.MUT), ("clean_signers_only", ST.MUT), ("roster_end_any_object", ST.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries

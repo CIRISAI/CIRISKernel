@@ -144,15 +144,10 @@ def RULE(r, P, past):
         if "conclude_reads_now" in MUT and CLOCK[0] >= _end(c):   # PLANT: conclusion reads now
             return False
         return covers(c, r["at"])
-    if r["kind"] == "revoke":
-        return True                                           # a revocation: the key's own, never withdrawn
-    # any other row is the seat lane's: concluded by the seat rule, never by this lane (the K2 class, room-keys'
-    # sweep: a key-only conclusion concluded every seat row, so an unconcluded registered self-unseat ended its key;
-    # MUTATION key_rule_concludes_seat_rows)
-    if "key_rule_concludes_seat_rows" in MUT:
-        return True
-    import seat as _ST
-    return _ST.seat_rule(r, P, past)
+    # a revocation: the key's own, never withdrawn; any other row is HELD here (the key view judges a signature on it
+    # against the key's ends, counts_by, whatever the seat lane concludes; the seat lane's revocation is read by its
+    # own shape, a lone act, registered_ends)
+    return True
 
 
 def state(rows):

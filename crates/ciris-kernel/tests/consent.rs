@@ -243,7 +243,7 @@ fn end_to_end() {
         let tc = conclude(
             kept(&trows, |_| true),
             |p| match p.row().kind.as_str() {
-                "rec" | "att" | "edge" | "revoke" => key_end::conclude_rule_with_seat(p, &law, &DictCut),
+                "rec" | "att" | "edge" | "revoke" => key_end::conclude_rule_with_seat(p),
                 "grant" | "withdraws" | "recants" => c.concluded_id(&p.row().id),
                 _ => seat_rule(p, &law, &DictCut, &|_| true),
             },
