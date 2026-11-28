@@ -953,8 +953,65 @@ PLANTS = ("vacancy_founding", "vacancy_first_end", "electorate_folded", "elector
           "leaving_before_vacancy_read")
 
 
+def opened(rows):
+    """The election's opening (the ruling of 2026-11-28: the id is an `election_open` row) for a world written before
+    it: for each election a ballot, decline or seating names by a legacy id (the founding row, or a seating whose
+    seat ended), the opening of the seat end that id's vacancy is (the earliest end of its seat in the rows), signed by
+    every member at its heads, its heads the newest counted changes in that end's past (the end itself where it is
+    counted); and every row naming the legacy id names the opening instead. A world that states its openings is read
+    as written."""
+    if any(r["kind"] == "election_open" for r in rows): return list(rows)
+    done = set()
+    for _ in range(6):                     # a chain of elections: each opening once the seat before it has ended
+        rows, more = _open_once(rows, done)
+        if not more: break
+    return rows
+
+
+def _open_once(rows, done):
+    by = {r["id"]: r for r in rows}
+    refs = sorted({r["of"] for r in rows if r.get("of") in by and (r["kind"] in ("ballot", "decline") or ST.is_election(r))
+                   and r["of"] not in done})
+    if not refs: return list(rows), False
+    S = CK.concluded(CK.kept(list(rows)), RULE)
+    past = lambda a, b: a in S.anc[b]
+    ops, rename = [], {}
+    for X in refs:
+        e = by[X]
+        if e["kind"] == "election_open": continue
+        if e["id"] == OBJ:
+            ends = [w for w in S.Cs if w["kind"] in ("withdraw", "unseat") and w.get("obj", OBJ) in (OBJ, None)
+                    and ST.seat_end_slots(w, S.Cs, past, OBJ)]
+        else:
+            ends = [w for w in S.Cs if (w["kind"] == "withdraw" and w.get("target") == X) or
+                    (w["kind"] == "unseat" and w.get("obj") == OBJ and e.get("to") and e["to"][0] in w.get("to", ())
+                     and w.get("scope") == "moderate")]
+        ends = [w for w in ends if not any(past(v["id"], w["id"]) for v in ends if v is not w)] or ends
+        if not ends: continue
+        w = sorted(ends, key=lambda q: q["id"])[0]
+        P = [q for q in S.Cs if past(q["id"], w["id"])] + [w]
+        byP = {q["id"]: q for q in P}
+        acts = [q for q in P if q["id"] == OBJ or ST.change(q, OBJ, byP)]
+        heads = tuple(sorted(q["id"] for q in acts if not any(past(q["id"], x["id"]) for x in acts)))
+        mem = sorted(ST.members_at(P, past, OBJ, heads, "member") - ST.members_at(P, past, OBJ, heads, ST.AGENT))
+        if not mem: continue
+        oid = "op" if X == OBJ else "op_" + X
+        ops.append((w["id"], ST.election_open(oid, mem[0], OBJ, w["id"], heads, cosigners=tuple(mem[1:]))))
+        rename[X] = oid
+        done.add(X)
+    out = []
+    for r in rows:
+        if r.get("of") in rename and (r["kind"] in ("ballot", "decline") or ST.is_election(r)):
+            oid = rename[r["of"]]
+            r = dict(r, of=oid, names=tuple(r["names"]) + ((oid,) if oid not in r["names"] else ()))
+        out.append(r)
+        out += [o for end, o in ops if end == r["id"]]
+    return out, bool(ops)
+
+
 def answers(rows, asks, plant=None, arrive=False, own=None):
     with planted(plant):
+        rows = opened(rows)
         S = CK.arrive(list(rows), RULE) if arrive else CK.concluded(CK.kept(list(rows)), RULE)
         Q = ST.Seats(S, own=own)
         return [Q.stands(k, s, OBJ) for k, s, _ in asks]
@@ -962,12 +1019,14 @@ def answers(rows, asks, plant=None, arrive=False, own=None):
 
 def concludes(rows, rid, plant=None, arrive=False):
     with planted(plant):
+        rows = opened(rows)
         S = CK.arrive(list(rows), RULE) if arrive else CK.concluded(CK.kept(list(rows)), RULE)
         return bool(S.C.get(rid))
 
 
 def closed(rows, seating, plant=None, arrive=False):
     with planted(plant):
+        rows = opened(rows)
         S = CK.arrive(list(rows), RULE) if arrive else CK.concluded(CK.kept(list(rows)), RULE)
         past = lambda a, b: a in S.anc[b]
         q = S.by[seating]
