@@ -375,7 +375,7 @@ pub trait SeatRow: Row {
     }
     /// The rows a row cites (the wire's `refs.also.cites`; the Constitution's G23, G24): a reconsideration its
     /// takedown notice, a lift the act it lifts, an election's opening ([`SeatKind::ElectionOpen`]) the seat end it
-    /// opens for, one row. Default none. (A quarantine release is no citation: it names its
+    /// opens for. Each cites one row. Default none. (A quarantine release is no citation: it names its
     /// withhold by [`SeatRow::target`], G21.)
     fn cites(&self) -> &[Self::Id] {
         &[]
