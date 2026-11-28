@@ -88,8 +88,8 @@ pub trait StandingRow {
     fn cites(&self) -> Option<&[Self::Id]> {
         None
     }
-    /// On a binding: the key it binds (the node), where the caller presents it. A cited binding of a key that is not
-    /// the grant's grantee stands for nothing. Default `None`: the binding binds the node the caller presents.
+    /// On a binding: the key it binds (the node), its CWT `sub`. A cited binding that names none, or a key that is not
+    /// the grant's grantee, stands for nothing (r99 A4). Default `None`.
     fn node(&self) -> Option<&Self::Key> {
         None
     }
@@ -264,7 +264,8 @@ pub fn owner_of<'a, R: StandingRow, P: Past<R::Id>>(
     if b.owner() != Some(a.signer()) {
         return Ok(Err(Nobody::AcceptanceOtherBinding));
     }
-    if b.node().is_some_and(|n| (grant.role)(n) != Role::Grantee) {
+    // the binding names the key it binds (its CWT sub), and it is the grantee: one naming none is refused (r99 A4)
+    if !b.node().is_some_and(|n| (grant.role)(n) == Role::Grantee) {
         return Ok(Err(Nobody::AcceptanceOtherBinding));
     }
     for e in rows.iter().filter(|e| e.kind() == Kind::Binding && e.on() == Some(b.id())) {

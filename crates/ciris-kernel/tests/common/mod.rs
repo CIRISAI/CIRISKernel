@@ -588,6 +588,9 @@ impl SeatRow for TRow {
             None
         }
     }
+    fn adds(&self) -> Option<&[String]> {
+        (self.kind == "open" && self.window.as_deref() == Some("self_roster_add")).then_some(self.to.as_slice())
+    }
 }
 
 impl WindowRow for TRow {

@@ -272,8 +272,9 @@ def chain_answers(rows, reader_acks=(), role=None):
         if a["signer"] != by[b]["owner"]:
             return "acceptance_other_binding", None
         if "acceptance_check_unread" not in PLANT:
-            # an owner binding of the grantee's key: a binding that names the key it binds (`node`) names the grantee
-            if by[b].get("node") is not None and role.get(by[b]["node"]) != CE.GRANTEE:
+            # an owner binding of the grantee's key: the binding names the key it binds (`node`, its CWT sub), and it is
+            # the grantee; a binding naming none is refused, not passed (r99 A4)
+            if by[b].get("node") is None or role.get(by[b]["node"]) != CE.GRANTEE:
                 return "acceptance_other_binding", None
             # live at the acceptance: no re-binding of it in the acceptance's past
             if any(e["kind"] == "binding" and e.get("on") == b and e["id"] in anc(a["id"]) for e in rows):
@@ -452,11 +453,11 @@ CASES = [
 # a second binding of the node, concurrent with B0 (neither names the other), C1 a re-binding of C0, x1 the act.
 def _two(c0_owner="O2", c1=False, x_names=("G0", "A0"), b_names_c=False):
     rows = [{"id": "G0", "kind": "bundle", "signer": "count", "names": []},
-            {"id": "C0", "kind": "binding", "signer": "N", "names": [], "owner": c0_owner, "on": None},
-            {"id": "B0", "kind": "binding", "signer": "N", "names": ["C0"] if b_names_c else [], "owner": "O1", "on": None},
+            {"id": "C0", "kind": "binding", "signer": "N", "node": "N", "names": [], "owner": c0_owner, "on": None},
+            {"id": "B0", "kind": "binding", "signer": "N", "node": "N", "names": ["C0"] if b_names_c else [], "owner": "O1", "on": None},
             {"id": "A0", "kind": "acceptance", "signer": "O1", "names": ["B0"], "on": "B0"}]
     if c1:
-        rows.append({"id": "C1", "kind": "binding", "signer": "N", "names": ["C0"], "owner": "O1", "on": "C0"})
+        rows.append({"id": "C1", "kind": "binding", "signer": "N", "node": "N", "names": ["C0"], "owner": "O1", "on": "C0"})
     rows.append({"id": "x1", "kind": "act", "signer": "N", "names": list(x_names), "head": "G0", "on": "A0"})
     return rows
 
@@ -482,13 +483,13 @@ TWO_CASES = [
 # N7 (ruled; the text found, Part 3 "The owner's acceptance"): an owner's acceptance CITES the owner binding it is
 # made under (refs.also.cites): exactly one row, an owner binding of the grantee's key whose owner signed it, live
 # at it; not held, wait. B0 binds N to O1; B1 re-binds it to O2.
-def _n7(acc_signer, cites, rebind=False, held=True, other=False):
+def _n7(acc_signer, cites, rebind=False, held=True, other=False, no_node=False):
     rows = [{"id": "G0", "kind": "bundle", "signer": "count", "names": []}]
     if held:
         rows.append({"id": "B0", "kind": "binding", "signer": "N", "names": [], "owner": "O1", "on": None,
-                     "node": "M" if other else "N"})
+                     **({} if no_node else {"node": "M" if other else "N"})})
     if rebind:
-        rows.append({"id": "B1", "kind": "binding", "signer": "N", "names": ["B0"], "owner": "O2", "on": "B0"})
+        rows.append({"id": "B1", "kind": "binding", "signer": "N", "node": "N", "names": ["B0"], "owner": "O2", "on": "B0"})
     names = list(cites) + (["B1"] if rebind and "B1" not in cites else [])
     rows.append({"id": "A", "kind": "acceptance", "signer": acc_signer, "names": names, "on": cites[0] if cites else None,
                  "cites": list(cites)})
@@ -510,6 +511,8 @@ N7_CASES = [
      "never a pass)", _n7("O1", ["B0"], held=False), {"x1": NOBODY}, {"x1": "undecided"}),
     ("n7_two_cites", "N7: the acceptance cites two rows: refused", _n7("O1", ["B0", "G0"]), {"x1": NOBODY},
      {"x1": "acceptance_other_binding"}),
+    ("n7_binding_names_no_node", "N7 (r99 A4): the cited binding names no key it binds (no CWT sub): refused, not a "
+     "pass", _n7("O1", ["B0"], no_node=True), {"x1": NOBODY}, {"x1": "acceptance_other_binding"}),
     ("n7_binding_of_another_key", "N7: the cited binding binds another key (M, not the grantee N): refused",
      _n7("O1", ["B0"], other=True), {"x1": NOBODY}, {"x1": "acceptance_other_binding"}),
 ]
@@ -522,13 +525,13 @@ N7_PLANTS = ("acceptance_check_unread",)
 def _dep(sub=False, two=False, eg=False, b1=False, c_names_b1=False, qc=False, qs=False, c0=False):
     rows = [{"id": "G0", "kind": "bundle", "signer": "count", "names": []}]
     if c0:
-        rows.append({"id": "C0", "kind": "binding", "signer": "N", "names": [], "owner": "O2", "on": None})
-    rows += [{"id": "B0", "kind": "binding", "signer": "N", "names": [], "owner": "O1", "on": None},
+        rows.append({"id": "C0", "kind": "binding", "signer": "N", "node": "N", "names": [], "owner": "O2", "on": None})
+    rows += [{"id": "B0", "kind": "binding", "signer": "N", "node": "N", "names": [], "owner": "O1", "on": None},
              {"id": "A0", "kind": "acceptance", "signer": "O1", "names": ["B0"], "on": "B0"},
              dict({"id": "s1", "kind": "act", "signer": "N", "names": ["G0", "A0"], "head": "G0", "on": "A0"},
                   **({"sub_delegation": True} if sub else {}))]
     if b1:
-        rows.append({"id": "B1", "kind": "binding", "signer": "N", "names": ["B0"], "owner": "O2", "on": "B0"})
+        rows.append({"id": "B1", "kind": "binding", "signer": "N", "node": "N", "names": ["B0"], "owner": "O2", "on": "B0"})
     rows.append({"id": "c1", "kind": "act", "signer": "C", "names": ["G0", "s1"] + (["B1"] if c_names_b1 else []),
                  "head": "G0", "on": None, "via": "s1"})
     if two:
@@ -599,7 +602,7 @@ DEPUTY_CASES += [
     (DREV + "two owners read on the root edge", "a rival binding C0 to O2, re-bound by EC in C's act's past but not "
      "in the edge's: the edge has two owners, so the edge and the act under it count for nobody",
      [r if r["id"] != "c1" else dict(r, names=r["names"] + ["EC"]) for r in _dep(c0=True)] +
-     [{"id": "EC", "kind": "binding", "signer": "N", "names": ["C0"], "owner": "O1", "on": "C0"}],
+     [{"id": "EC", "kind": "binding", "signer": "N", "node": "N", "names": ["C0"], "owner": "O1", "on": "C0"}],
      {"s1": NOBODY, "c1": NOBODY}, {"s1": "two_owners", "c1": "two_owners"}),
     (DREV + "an edge that is no act", "C's act names the acceptance as its edge: a held row that is no act is no edge",
      _dep()[:-1] + [dict(_dep()[-1], via="A0", names=["G0", "A0"])], {"s1": O1_TT, "c1": NOBODY},
@@ -636,6 +639,7 @@ def build_rows(names, on, opt=None):
             row = {"id": i, "kind": kind, "signer": signer or OWNER[int(i[1])], "names": ns}
             if kind == "binding":
                 row["owner"] = OWNER[int(i[1])]
+                row["node"] = "N"                            # the binding's CWT sub: the key owned
                 row["on"] = ns[0] if ns else None
             elif kind == "acceptance":
                 row["on"] = ns[0] if ns else None

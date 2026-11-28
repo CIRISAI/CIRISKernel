@@ -391,12 +391,16 @@ the room seats under that identity: only the roster's live keys speak for it. An
 thumbprint as proof that the key speaks for the person; only a live key of the person's self roster does. The key a
 self roster evicts is no voice of its eviction, so a roster whose only live key is its genesis key cannot evict it. One
 self roster per identity: a second founding of a self roster by an identity whose roster the row's past holds is a
-rival and concludes nothing, and two foundings neither in the other's past are rivals the reader waits on (neither
-is the identity's roster); so no key re-founds itself, or adds a device, by founding. The only way onto a self
+rival and concludes nothing. Two foundings neither in the other's past are judged in the judged row's own past: the
+one a row there takes up (names, or is counted over) is the identity's roster, so a bare rival founding silences no
+one; where the row's past takes up both, or neither of several, the reader waits (neither is the identity's roster); so no key re-founds itself, or adds a device, by founding. The only way onto a self
 roster is that roster's own add (its count, or its lone path); an evicted genesis key is restored only by the
-roster's counted re-admission. A lone-path eviction that lands (its `landed` landing concluded) ends the target's
-seat as a counted eviction does: present a landing's opener and outcome as `SeatRow::landing` and an eviction
-opener's target as `SeatRow::evicts`. In a two-key roster the count cannot evict (the key evicted is no voice of
+roster's counted re-admission. A self roster's lone-path window that lands (its `landed` landing concluded) is the
+counted change it proposes, read through the same ends reading: a landed eviction ends the target's seat, a landed
+addition seats each proposed key that signed its opener, and the landing is a head a later count over the roster
+names. Present a landing's opener and outcome as `SeatRow::landing`, an eviction opener's target as
+`SeatRow::evicts`, an addition opener's keys as `SeatRow::adds`. (The community lone paths change seats by their
+own rows: a lone removal is the act, and the overturn's re-seating is a counted offer.) In a two-key roster the count cannot evict (the key evicted is no voice of
 it), but the lone path can (CC 4.5.13, the `self_roster_evict` window): one key proposes the other's eviction, and after the
 window it lands unless the other key, the whole of the other members and a voice there, objects within it; so a
 lost or dead device is put out. The residual: an active stolen key that objects blocks its own eviction, and two
@@ -505,7 +509,7 @@ chain of `Seats::stands` above.
 - Each owner's acceptance of the grant: `Kind::Acceptance`, signed by that owner, `on()` the owner binding it is
   made under, from its `refs.also.cites` (N7, CC Part 3 "The owner's acceptance"); present every cited row as
   `cites()` where there may be several, and a binding's node as `node()`, filled from the owner binding's CWT
-  `sub` (the key owned). `owner_of`
+  `sub` (the key owned); a cited binding with no `node()` is refused. `owner_of`
   checks it: exactly one cited row (two is refused), an owner binding its signer owns, of the grantee's key, live at
   the acceptance (no re-binding of it in its past). A cited binding not held waits, naming it. A re-binding of the
   cited binding later ends the acceptance's standing: it does not follow the owner's newer binding; the owner
