@@ -438,6 +438,8 @@ and the `ReceipterEnd` kind, not a row accessor.
 | `head` | an act's `refs.head` (the bundle in force, an object id); a grant end's `refs.head` | object id |
 | `on` | an act: `refs.also.stands_on`. A receipt: its act under `refs.also.ack`. An acceptance: the owner binding it CARRIES in `refs.also.cites`: exactly one live owner binding of the grantee's key, at federation scope. Not held: the acceptance waits; withdrawn: it ends (TEXT [N7]). A re-binding: the binding it ends, `refs.target` (TEXT [G28]) | |
 | `owner` | an owner-binding's `author` | identity reference |
+| `node` (key-person) | on an owner binding (`ownership:{relation}:{target_kind}:{version}`): the CWT `sub`, the key owned, an identity reference; that key's own statement over the same payload is the first-binding cosign (TEXT: `owner-binding` in `family_payloads_v2.cddl`, "The CWT sub is the key owned") | identity reference |
+| `cites` (key-person) | on an acceptance (`membership:acceptance:v1` replying to a grant): every row id under its `refs.also.cites`, as the payload names them; exactly one may stand, two is refused (`Nobody::SeveralCites`; the text's `acceptance_other_binding`) (TEXT [N7]) | row ids |
 | `target` | the removal's `sub` | |
 | `lifts` | payload `lifts` | |
 | `via` | `refs.also.under` | |
