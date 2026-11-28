@@ -945,8 +945,9 @@ PLANTS = ("laydown_off_line", "c2_holder_unread",
           "set_inputs_unread", "void_seating_read", "seating_not_a_say", "fork_per_voice",
           "fork_cosigned", "fork_by_stated_device", "two_closes_both_stand",
           "base_per_group",
-          "leaving_after_receipt_voids", "end_of_ended_seat",
-          "leaving_before_vacancy_read")
+          "leaving_after_receipt_voids", "end_of_ended_seat")
+# (leaving_before_vacancy_read retired too: a leaving before the opening is in its electorate already, rule 3, and the
+# departures are the roster's own reading, rule 5)
 
 
 from election_worlds import opened  # noqa: E402,F401  (the legacy worlds' openings)

@@ -75,6 +75,11 @@ def closed(S, sid, reader):
     return ST.election_closed(S, sid, reader)
 
 
+RULE5 = HONEST + [ST.unseat("u1", "A", "D", "member", OBJ, "group", ("g",), head=("g",), policy="community_remove",
+                           cosigners=("B", "C")),
+                  ST.unseat("u2", "C", "A", "member", OBJ, "group", ("g",), head=("g",), policy="community_remove",
+                           cosigners=("D", "E")),
+                  ACK("k1", "A", "ec", ("u1", "u2")), ACK("k2", "B", "ec"), ACK("k4", "D", "ec", ("u1", "u2"))]
 RECS = [KE.rec("k" + k, k, 0, None, typ="pseudonym") for k in "ABCDEFGX"]
 CASES = [
     ("rule 2: the honest election: the opening (A, B, C of five) at g, C three to two; closed by A, B and D", 
@@ -142,6 +147,9 @@ CASES = [
                ACK("k1", "A", "ec"), ACK("k2", "B", "ec"), ACK("k4", "D", "ec")], "ec", {}, (T, T)),
     ("rule 2 by persons: the room seats A and both of person P's keys (P1 and its device C); an opening signed by P1 "
      "and C is one person of two: concludes nothing, and nothing is seated", None, "open_persons", {}, (F, F)),
+    ("rule 5: a contested pair of counted removals (A, B, C remove D; C, D, E remove A, concurrently) is taken by no "
+     "roster: no departure and no fork of A's lay-down; A, B and D receipt C's seating: closed", RULE5,
+     "ec", {}, (T, T)),
     ("G3c plus C (r90-49): A's backdated lay-down forks the end; C's receipt of B's seating closes nothing, and B is "
      "not seated", EL.G3C + [ACK("jc", "C", "eb")], "eb", {"ask": ("B", "moderate")}, (F, F)),
 ]
@@ -171,7 +179,8 @@ def _person_world():
 
 PLANTS = ("end_fork_unread", "open_old_heads", "open_by_key", "openings_both_stand",
           "close_no_wait", "close_key_view_unread", "close_receipt_unclean",
-          "acceptance_key_view_unread", "inputs_key_view_unread", "rival_openings_read", "electorate_at_seating")
+          "acceptance_key_view_unread", "inputs_key_view_unread", "rival_openings_read", "electorate_at_seating",
+          "departures_raw", "fork_untaken_end")
 
 
 def run():

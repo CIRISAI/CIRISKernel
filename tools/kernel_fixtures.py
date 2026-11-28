@@ -717,11 +717,22 @@ def key_view_cases():
         refs = {}
         roster_direct.append({"name": name, "seat": [r["id"] for r in sr], "rows": with_refs(list(sr) + list(kr), refs),
                               "refs": refs, "row": rid, "key": k, "reader": reader, "want": want})
+    own_direct = []
+    for name, rows, rid, k, reader, want in KV.OWN_DIRECT:
+        refs = {}
+        own_direct.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "key": k,
+                           "reader": reader, "want": want})
+    successor = []
+    for name, sr, kr, k, want in KV.SUCCESSOR:
+        refs = {}
+        successor.append({"name": name, "seat": [r["id"] for r in sr], "rows": with_refs(list(sr) + list(kr), refs),
+                          "refs": refs, "key": k, "want": want})
     WN = KV.WN
     windows = {k: dict(enc(v), secs=WN.secs(k)) for k, v in WN.WINDOWS.items()}
     return {"about": "the key view (CutSpec::key_view): key_end::counts_by per (row, key), and the voices and conclusion of "
                      "x with the key view (view true) or without it (false), under the seat or the window rule",
-            "law": law, "windows": windows, "cases": cases, "direct": direct, "roster_direct": roster_direct}
+            "law": law, "windows": windows, "cases": cases, "direct": direct, "roster_direct": roster_direct,
+            "successor": successor, "own_direct": own_direct}
 
 
 # ---- the ruled election close (check_election_close.py) -----------------------------------------------------------

@@ -537,7 +537,7 @@ def want(case):
 
 # every counted row of these cases names the newest counted changes over the room in its own past (H1, H4, the heads
 # ruling of 2026-11-26): what a signer that holds its own past writes. Rows written at an older head conclude nothing.
-CASES = [(c[0], ST.honest(c[1])) + tuple(c[2:]) for c in CASES]
+CASES = [(c[0], ST.honest(EW.opened(c[1]))) + tuple(c[2:]) for c in CASES]
 
 # Rows that now conclude nothing, the roster unchanged. Each names the newest counted change in its own past (H1, H4),
 # and at that head its signer holds no `moderate`: its own laying down is in the removal's own past (the two E4

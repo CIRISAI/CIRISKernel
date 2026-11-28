@@ -64,6 +64,7 @@ def run(spec, worlds, pred, orders=True, windows=lambda rows: ()):
     n = n_orders = 0
     fails, order_bad = [], []
     for name, rows in worlds:
+        rows = EW.opened(rows)                         # a world holding an election, read with its opening
         n += 1
         S = RS.state(rows)
         w = pred(S, rows, name)

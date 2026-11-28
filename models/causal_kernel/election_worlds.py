@@ -59,6 +59,7 @@ def _open_once(rows, done):
         if e["id"] == OBJ:
             ends = [w for w in S.Cs if w["kind"] in ("withdraw", "unseat") and w.get("obj", OBJ) in (OBJ, None)
                     and ST.seat_end_slots(w, S.Cs, past, OBJ)]
+            if not ends and not ST.id_seats(e): ends = [e]          # no duty seat: the founding row is the vacancy
         else:
             ends = [w for w in S.Cs if (w["kind"] == "withdraw" and w.get("target") == X) or
                     (w["kind"] == "unseat" and w.get("obj") == OBJ and e.get("to") and e["to"][0] in w.get("to", ())

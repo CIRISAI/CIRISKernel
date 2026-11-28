@@ -1251,6 +1251,12 @@ def _seat(slots):
     return set(slots)
 
 
+def ended_dropped(P):
+    """The counted ends over P the roster does not take: its lone removals out of force and its contested removals
+    (Seats.dropped), read over P less the election's own seatings."""
+    return seats_of([q for q in P if not is_election(q)]).dropped
+
+
 def end_fork(e, P, past, obj):
     """Rule 1 (b): end e of a seat is no vacancy where another end of the same seat in P is concurrent with it (a FORK
     of the end), unless e is a counted end and the other the holder's own lay-down (the counted end is the end). A
@@ -1258,8 +1264,12 @@ def end_fork(e, P, past, obj):
     end_fork_unread)."""
     if "end_fork_unread" in MUT: return False
     mine = _seat(seat_end_slots(e, P, past, obj))
+    # only an end the roster TAKES forks (a counted removal it holds contested or out of force is none: rule 5's
+    # reading, Seats.dropped over the rows held; MUTATION fork_untaken_end)
+    dropped = frozenset() if "fork_untaken_end" in MUT else ended_dropped(P)
     for f in P:
         if f["id"] == e["id"] or past(f["id"], e["id"]) or past(e["id"], f["id"]): continue
+        if f["id"] in dropped: continue
         if not (_seat(seat_end_slots(f, P, past, obj)) & mine): continue
         if e["kind"] == "unseat" and f["kind"] == "withdraw": continue      # the counted end is the end
         return True
@@ -1275,7 +1285,10 @@ def open_concludes(r, P, past):
     obj, cites = r.get("obj"), r.get("cites", ())
     if obj not in by or len(cites) != 1 or cites[0] not in by: return False
     e = by[cites[0]]
-    if "open_end_unread" not in MUT and (not seat_end_slots(e, P, past, obj) or end_fork(e, P, past, obj)): return False
+    # the first election of a room whose founding row gives no duty seat: its vacancy is the founding row itself (C1)
+    founding_vacancy = e["id"] == obj and not id_seats(e)
+    if "open_end_unread" not in MUT and not founding_vacancy and (
+            not seat_end_slots(e, P, past, obj) or end_fork(e, P, past, obj)): return False
     heads = tuple(r.get("head", ()))
     if "open_old_heads" not in MUT and newer_head_in_past(heads, None, P, past, obj): return False
     mem = members_at(P, past, obj, heads, "member") - members_at(P, past, obj, heads, AGENT)
@@ -1298,7 +1311,7 @@ def openings_for(op, rows, past):
     for o in rows:
         if o["kind"] != "election_open" or o.get("obj") != op.get("obj"): continue
         f = by.get(o.get("cites", (None,))[0])
-        if f is not None and _seat(seat_end_slots(f, P, past, o["obj"])) & mine: out.append(o)
+        if f is not None and (f["id"] == e["id"] or _seat(seat_end_slots(f, P, past, o["obj"])) & mine): out.append(o)
     return out if op in out else out + [op]
 
 
@@ -1632,8 +1645,15 @@ def forkers(Ek, rows, past, obj, by, ends0=frozenset()):
 
 
 def departures(P, past, obj):
-    """[(key, row)]: each leaving of the room (the key's own end of its stay) or counted removal from its roster in P,
-    the key not seated again after it there."""
+    """[(key, row)]: each departure from the room AS THE ROSTER TAKES IT (Seats.ended over P: a counted removal from a
+    roster seat that counts and is in force, not contested, or a holder's own end of its stay), the key not seated
+    again after it there. Read over P less the election's own seatings (a person's departure is the roster's, never a
+    seat's). MUTATION departures_raw: every concluded removal and leaving, as raw rows."""
+    again = lambda k, d: any(m["kind"] == "offer" and m.get("obj") == obj and k in m["to"] and roster_seat(m)
+                             and past(d["id"], m["id"]) for m in P)
+    if "departures_raw" not in MUT:
+        Q = seats_of([q for q in P if not is_election(q)])
+        return [(k, w) for k, w, g in Q.ended if g == obj and not again(k, w)]
     by = {q["id"]: q for q in P}
     out = []
     again = lambda k, d: any(m["kind"] == "offer" and m.get("obj") == obj and k in m["to"] and roster_seat(m)
@@ -1770,9 +1790,8 @@ def election_count(r, P, past, by):
     if not el: return False
     # F1: the leavings and the withdrawals read are the set's
     named = [q for q in P if q["id"] in mine] if "set_inputs_unread" not in MUT else P
-    left = {k for w in named if w["kind"] == "withdraw" for _, k, g in stay_ends([w], by, lambda a, w: a["id"] in by and past(a["id"], w["id"])) if g == obj} | \
-        {k for u in named if u["kind"] == "unseat" and u.get("conf") == "group" and u.get("obj") == obj
-         and u.get("scope") in ROSTER_SEATS for k in u["to"]}
+    # departures as the roster takes them (rule 5; one reading with the roster's, departures), among the set's rows
+    left = {k for k, w in departures(P, past, obj) if w["id"] in {q["id"] for q in named}}
     P_np = [q for q in P if not is_election(q)]
     pk = lambda k: rep_of(P_np, k, member=True) or k                 # a key read as its person (rule 7)
     voters = el - (frozenset() if "leaver_voice" in MUT else {pk(k) for k in left})
@@ -1885,6 +1904,11 @@ class Seats:
 
         left = stay_ends(wd, S.by, lambda a, w: bool(S.C.get(a["id"])) and a["id"] in S.anc[w["id"]], holds)   # the holders' own ends of a stay as a member
         gone = {(k, g) for _, k, g in left}
+        # the ends this roster TAKES, (key, row, object): its counted removals from a roster seat that count, are not
+        # void for the reader, not out of force and not contested, and the holders' own ends of a stay. The one reading
+        # of a departure: the election's close reads it (departures), so the election and the roster cannot disagree
+        self.ended = [(k, u, u["obj"]) for u in unseats if u.get("scope") in ROSTER_SEATS for k in u["to"]] + \
+            [(k, w, g) for w, k, g in left]
 
         def same_class(w, o, sc):
             """End w (a key's own end of its stay) ends o's seat sc: the two seats are the same presence (seat_class)."""
@@ -2898,13 +2922,16 @@ _SEATS_OF = {}
 
 
 def key_record_ended(P, k):
-    """The key's own end in a row's past, for its person (ruled on CIRISConstitution#224): the key's own revocation
-    (CC 2.4.1.1: "only the key's own revocation ends its liveness"), an unseat of its `registered` seat by the key
-    itself, is in P (the row's concluded past). The key record's stated end is read against the key's own instant on
+    """The key's own end in a row's past, for its person (ruled on CIRISConstitution#224): the key's own
+    revocation in either lane (key_end.revocations, read from key_end.key_ends, the one set of a key's ends; CC
+    2.4.1.1: "only the key's own revocation ends its liveness") is in P (the row's concluded past). Rotations and
+    the roster's voids are the roster's to settle. The key record's stated end is read against the key's own instant on
     the key's own rows (key_end.covers, the half-open end), never here: no foreign clock is read."""
     if "person_end_unread" in MUT: return False                    # MUTATION: the key's own end is not read
-    return any(q["kind"] == "unseat" and q.get("scope") == "registered" and q.get("obj") == k and k in q["to"]
-               and q["signer"] == k for q in P)
+    # the key's own revocations among its ONE set of ends (key_end.revocations over key_ends: either lane), over P
+    import key_end as _KE
+    P = list(P)
+    return bool(_KE.revocations(CK.State(P, {q["id"]: True for q in P}), k))
 
 
 def evicted_from(S, rid, g, k):
@@ -2983,7 +3010,8 @@ def rep_of(P, k, member=False):
     of two persons; a key that revoked itself (KP6); a key whose person's genesis key revoked itself (its devices
     then speak for no one); an agent's key (KP5: never for its owner). `member`: the member k counts as in a base,
     where none of those ends a seat: a key of one self roster is its person, any other key itself. Kept per (P, k)."""
-    key = (frozenset(id(q) for q in P), k, member, frozenset(MUT))
+    import key_end as _KE                                         # its revocations read key_end's planted breaks too
+    key = (frozenset(id(q) for q in P), k, member, frozenset(MUT), frozenset(_KE.MUT))
     if key not in _PERSON_IN:
         _PERSON_IN[key] = (tuple(P), _rep(P, k) if not member else _member_rep(P, k))
     return _PERSON_IN[key][1]
