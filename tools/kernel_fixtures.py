@@ -329,6 +329,7 @@ def seat_cases():
     import cut as CUT
     import checkpoint as CP
     import route as RT
+    import election_worlds as EW      # the worlds written before the opening row, read with their openings (2026-11-28)
     rules = {id(A.SEAT): "seat", id(A.WIN): "window", id(A.ROUTE): "route"}
     seen, scen, skipped = {}, [], {"rules": 0}
 
@@ -374,7 +375,7 @@ def seat_cases():
     # it asks for; the cases of persist's table carry that table
     import check_duty_seats as DS
     for _name, rows, asks, tab in DS.CASES:
-        record(rows, A.SEAT, [(k, sc, DS.OBJ) for k, sc, _ in asks], tab)
+        record(EW.opened(rows), A.SEAT, [(k, sc, DS.OBJ) for k, sc, _ in asks], tab)
     # a member who left and was re-admitted counts: check_readmit.py's cases, under the seat rule
     import check_readmit as RA
     for _name, rows, asks, _item in RA.CASES:
@@ -403,13 +404,13 @@ def seat_cases():
     # case's alternative on
     import check_election as EL
     for _name, rows, asks, _item in EL.CASES:
-        record(rows, A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks])
+        record(EW.opened(rows), A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks])
     for _name, rows, seating, _want in EL.CLOSE_CASES:
-        record(rows, A.SEAT, closed=seating)
+        record(EW.opened(rows), A.SEAT, closed=seating)
     for _name, rows, own, asks in EL.LINE_CASES:
-        record(rows, A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks], readers=(own,) if own else ())
+        record(EW.opened(rows), A.SEAT, [(k, sc, EL.OBJ) for k, sc, _ in asks], readers=(own,) if own else ())
     for _name, rows, _rid, _want in EL.CONCL_CASES:
-        record(rows, A.SEAT)
+        record(EW.opened(rows), A.SEAT)
     # a moderator's lone removal of an agent's key and the members' lift (CC 4.5.13): check_agent_removal.py's cases,
     # under the window rule (the removal is the opener of its own window; every other row goes to the seat rule)
     import check_agent_removal as AR
@@ -424,12 +425,12 @@ def seat_cases():
     # check_count_heads.py's cases, under the seat rule (each reader an ack's signer)
     import check_count_heads as CH
     for _rule, _name, rows, own, *_ in CH.CASES:
-        record(rows, A.SEAT, readers=(own,) if own else ())
+        record(EW.opened(rows), A.SEAT, readers=(own,) if own else ())
     # a moderator's lone removal is in force only while the end rule says so: check_removal_in_force.py's cases
     import check_removal_in_force as RF
     for case in RF.CASES:
         _name, rows, _concl, _roster, asks = case[:5]           # (a sixth element, the reader, is read by the check)
-        record(rows, A.WIN, [(k, sc, RF.OBJ) for k, sc, _ in asks])
+        record(EW.opened(rows), A.WIN, [(k, sc, RF.OBJ) for k, sc, _ in asks])
     # the membership plane of a private room (CIRISConstitution#224): check_room_keys.py's cases and its OPEN rows,
     # each with the answer as built
     import check_room_keys as RKC
@@ -439,16 +440,16 @@ def seat_cases():
     # a window and casting a ballot for its person (the window's outcome and the seating's conclusion are replayed)
     import check_key_person as KPC
     for _name, rows, _want in KPC.WINDOW_CASES:
-        record(rows, A.WIN)
+        record(EW.opened(rows), A.WIN)
     for _name, rows, _rid, _want in KPC.BALLOT_CASES:
-        record(rows, A.SEAT)
+        record(EW.opened(rows), A.SEAT)
     # the review r74's rows: a person seated by two keys, a revoked key and its devices, an agent's key of a person's
     # roster, the lift's author's device, a window over a self roster
     for _name, rows, _rid, _want, rule in KPC.R74_CASES:
-        record(rows, A.WIN if rule is not KPC.RULE else A.SEAT)
+        record(EW.opened(rows), A.WIN if rule is not KPC.RULE else A.SEAT)
     # the review r78k's rows: the fold's lift and the count's receipt by person (seat.count_persons), the roster pinned
     for _name, rows, _want in KPC.R78K_CASES:
-        record(rows, A.WIN)
+        record(EW.opened(rows), A.WIN)
     # the reader's line (one self roster per identity, ruled): each case's rows read for its reader (a fresh reader: none)
     for _name, rows, rd, _rid, _want in KPC.LINE_CASES:
         record(rows, A.SEAT, readers=(rd,) if rd is not None else ())
@@ -781,6 +782,35 @@ def consent_cases():
                  "removal_floor": ST.REMOVAL_FLOOR, "policy": {k: list(v) for k, v in ST.POLICY.items()},
                  "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
     return fx
+
+
+# ---- the ruled election close (check_election_close.py) -----------------------------------------------------------
+def election_close_cases():
+    """check_election_close.py's CASES: each world's seat rows and (where the case has `keys`) its key rows, the
+    seating asked, the standing asked, the reader, and the answer (the ask's standing, the seating's election closed for
+    the reader), read with the key view over the seat and key rows where the case has keys."""
+    import seat as ST
+    import check_election_close as CC
+    cases = []
+    for name, rows, sid, kw, want in CC.CASES:
+        ask = kw.get("ask", ("C", "moderate"))
+        if rows is None:
+            ask = ("A", "moderate") if sid == "open_persons" else ("B", "moderate")
+            rows = CC.person_world(sid == "open_persons"); sid = "eb"
+        keys = kw.get("keys")
+        assert CC.answer(rows, sid, ask, kw.get("reader"), keys) == want, name
+        refs = {}
+        cases.append({"name": name, "rows": with_refs(list(rows) + list(keys or ()), refs), "refs": refs,
+                      "seat": [r["id"] for r in rows], "keys": keys is not None, "seating": sid,
+                      "ask": [ask[0], ask[1], CC.OBJ], "reader": kw.get("reader"), "want": list(want)})
+    law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+           "removal_floor": ST.REMOVAL_FLOOR,
+           "policy": {k: list(v) for k, v in ST.POLICY.items()},
+           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+    return {"about": "the ruled election close (check_election_close.py): per case the ask's standing and the "
+                     "seating's election closed for the reader, the key view read over the seat and key rows where "
+                     "the case has keys", "law": law, "cases": cases}
 
 
 # ---- key_end: every generated world at every instant ----------------------------------------------------------------
@@ -1136,6 +1166,7 @@ def main():
     dump("key_end.json", key_end_cases(), out)
     dump("key_person.json", key_person_cases(), out)
     dump("key_end_counts.json", key_view_cases(), out)
+    dump("election_close.json", election_close_cases(), out)
     dump("acts.json", acts_cases(), out)
     dump("policy_spec.json", policy_spec_cases(), out)
     dump("law_tables.json", law_tables_cases(), out)

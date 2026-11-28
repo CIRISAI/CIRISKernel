@@ -72,6 +72,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True
 sys.path.insert(0, HERE)
 import seat as ST  # noqa: E402
+import election_worlds as EW  # noqa: E402
 import window as WN  # noqa: E402
 
 CK, R = ST.CK, ST.R
@@ -545,7 +546,7 @@ def want(case):
 
 # every counted row of these cases names the newest counted changes over the room in its own past (H1, H4, the heads
 # ruling of 2026-11-26): what a signer that holds its own past writes. Rows written at an older head conclude nothing.
-CASES = [(c[0], ST.honest(c[1])) + tuple(c[2:]) for c in CASES]
+CASES = [(c[0], ST.honest(EW.opened(c[1]))) + tuple(c[2:]) for c in CASES]
 
 # Rows that now conclude nothing, the roster unchanged. Each names the newest counted change in its own past (H1, H4),
 # and at that head its signer holds no `moderate`: its own laying down is in the removal's own past (the two E4
@@ -571,7 +572,7 @@ CASES = [_now_nothing(c) for c in CASES]
 
 
 def answers(case):
-    return read(CK.concluded(CK.kept(list(case[1])), RULE), case)
+    return read(CK.concluded(CK.kept(list(EW.opened(case[1]))), RULE), case)
 
 
 def orders(rows):
@@ -595,7 +596,7 @@ def main():
             problems.append("%s: got %s, expected %s" % (case[0], got, want(case)))
         for p in orders(case[1]):
             n_orders += 1
-            if read(CK.arrive([case[1][0]] + p, RULE), case) != got:
+            if read(CK.arrive(EW.opened([case[1][0]] + p), RULE), case) != got:
                 problems.append("%s: order %s differs" % (case[0], [r["id"] for r in p]))
                 break
     caught = 0

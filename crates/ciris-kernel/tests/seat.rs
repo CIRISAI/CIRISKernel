@@ -176,7 +176,7 @@ fn seat_scenarios() {
         // an election's close, asked by name (check_election.py's CLOSE_CASES)
         if let Some(cl) = sc.get("closed") {
             let (s, want) = (cl.arr()[0].s().to_string(), cl.arr()[1].b());
-            cmp(election_closed(&c, &w.law, &spec, &s) == want, format!("election closed by {s}"));
+            cmp(election_closed(&c, &w.law, &spec, &s, None) == want, format!("election closed by {s}"));
         }
         // whether an act is in force, asked by name (check_lone_acts.py's CASES)
         if let Some(fs) = sc.get("in_force") {

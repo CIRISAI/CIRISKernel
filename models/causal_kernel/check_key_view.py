@@ -18,6 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True
 sys.path.insert(0, HERE)
 import seat as ST  # noqa: E402
+import election_worlds as EW  # noqa: E402
 import key_end as KE  # noqa: E402
 import check_count_heads as CH  # noqa: E402
 import check_election as EL  # noqa: E402
@@ -377,9 +378,9 @@ def plain(seat_rows, key_rows, rule):
     """The first pass, with no key view: the roster acts concluded under the roster's own count rule, and the counts
     final by acknowledgement over clean receipts (the key lane read for them by the plain end rule)."""
     for m in ("_READER_MEMO", "_VOID_MEMO", "_EMEMO", "_SEATS_OF"): getattr(ST, m).clear()
-    S1 = CK.concluded(CK.kept(list(seat_rows)), rule)
+    S1 = CK.concluded(CK.kept(list(EW.opened(seat_rows))), rule)
     roster = ST.self_roster_ends(S1)
-    KS = KE.state(list(seat_rows) + list(key_rows))
+    KS = KE.state(list(EW.opened(seat_rows)) + list(key_rows))
     final = frozenset(i for i in S1.by if ST.final_by_ack(S1, i, KS, roster))
     return KS, roster, final
 
@@ -390,7 +391,7 @@ def cut_answer(rule, seat_rows, key_rows, reader, probe, seat):
     ST.KEY_VIEW.append(lambda rid, k: KE.counts_by(KS, rid, k, reader, final, roster))
     try:
         for m in ("_READER_MEMO", "_VOID_MEMO", "_EMEMO", "_SEATS_OF"): getattr(ST, m).clear()
-        S = CK.concluded(CK.kept(list(seat_rows)), R0)
+        S = CK.concluded(CK.kept(list(EW.opened(seat_rows))), R0)
         if seat: return ST.Seats(S).stands(*seat), sorted(final)
         return bool(S.C.get(probe)), sorted(final)
     finally:
@@ -403,24 +404,24 @@ def finals(seat_rows, rule, key_rows=()):
 
 
 def lone_answer(seat_rows, key_rows, view, probe):
-    KS = KE.state(list(seat_rows) + list(key_rows))
+    KS = KE.state(list(EW.opened(seat_rows)) + list(key_rows))
     fin = finals(seat_rows, WRULE, key_rows)
     ST.KEY_VIEW.append((lambda rid, k: KE.counts_by(KS, rid, k, None, fin)) if view else None)
     try:
         for m in ("_READER_MEMO", "_VOID_MEMO", "_EMEMO", "_SEATS_OF"): getattr(ST, m).clear()
-        S = CK.concluded(CK.kept(list(seat_rows)), WRULE)
+        S = CK.concluded(CK.kept(list(EW.opened(seat_rows))), WRULE)
         return (bool(S.C.get(probe)) if probe else None), ST.Seats(S).stands("AG", "agent", "g")
     finally:
         ST.KEY_VIEW.pop()
 
 
 def answer(rule, seat_rows, key_rows, view):
-    KS = KE.state(list(seat_rows) + list(key_rows))
+    KS = KE.state(list(EW.opened(seat_rows)) + list(key_rows))
     fin = finals(seat_rows, WRULE if rule == "window" else RULE, key_rows)
     ST.KEY_VIEW.append((lambda rid, k: KE.counts_by(KS, rid, k, None, fin)) if view else None)
     try:
         ST._READER_MEMO.clear(); ST._VOID_MEMO.clear()
-        S = CK.concluded(CK.kept(list(seat_rows)), WRULE if rule == "window" else RULE)
+        S = CK.concluded(CK.kept(list(EW.opened(seat_rows))), WRULE if rule == "window" else RULE)
         P = [q for q in S.Cs if q["id"] in S.anc["x"]]
         return set(ST.voices(S.by["x"], P)), bool(S.C.get("x"))
     finally:
@@ -565,6 +566,7 @@ def fixture():
         KS = KE.state(list(sr) + list(kr))
         keys = sorted({q["signer"] for q in sr} | {k for q in sr for k in q.get("cosigners", ())})
         per = [[rid, k, KE.counts_by(KS, rid, k)] for rid in SIGNED if rid in KS.by for k in keys]
+        sr = EW.opened(sr)                     # the world written as read: with its opening
         out.append({"name": name, "rule": rule, "seat": [r["id"] for r in sr], "rows": list(sr) + list(kr), "view": view,
                     "counts": per, "voices": sorted(v) if v is not None else None, "concluded": c, "final": fin})
     for name, sr, kr, view, probe, (c, st) in LONE:

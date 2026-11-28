@@ -26,6 +26,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import election_worlds as EW  # noqa: E402
 sys.dont_write_bytecode = True
 import roster as RS   # noqa: E402
 
@@ -63,6 +64,7 @@ def run(spec, worlds, pred, orders=True, windows=lambda rows: ()):
     n = n_orders = 0
     fails, order_bad = [], []
     for name, rows in worlds:
+        rows = EW.opened(rows)                         # a world holding an election, read with its opening
         n += 1
         S = RS.state(rows)
         w = pred(S, rows, name)
@@ -691,8 +693,8 @@ def check_accord(spec, inst):
     title, cases = WN.halt_world()
     bad, broken = [], 0
     for name, rows, prop, need in cases:
-        S1 = CK.concluded(CK.kept(rows), RS.rule)
-        S2 = CK.concluded(CK.kept(rows), WN.rule)
+        S1 = CK.concluded(CK.kept(EW.opened(rows)), RS.rule)
+        S2 = CK.concluded(CK.kept(EW.opened(rows)), WN.rule)
         o1, o2 = WN.outcomes(S1, "p"), WN.outcomes(S2, "p")
         if o1 != o2 or (need and not WN.holds(need, o1["recount"])): bad.append(name)
     for name, rows, prop, need in WN.holders_world()[1]:

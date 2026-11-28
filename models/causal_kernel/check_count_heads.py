@@ -66,6 +66,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True
 sys.path.insert(0, HERE)
 import seat as ST  # noqa: E402
+import election_worlds as EW  # noqa: E402
 import checkpoint as CP  # noqa: E402
 
 CK = ST.CK
@@ -498,10 +499,12 @@ CASES = [
     # for it the seating concludes nothing at all (no longer a concluded act its line voids: stale is empty)
     (EL, "the seating at the head before an admission built on a later one the reader acknowledged: its vacancy end, "
          "the lay-down at the same head, is behind that reader's line (a lay-down is a roster change, H4), so for that "
-         "reader the seating reads no vacancy and seats nobody",
+         "reader the seating seats nobody (its opening's end is not taken by that reader's roster: the seating stands "
+         "for no election there), and A keeps the seat for it (one view of the end, r104: the lay-down ends no seat "
+         "in its roster either)",
      ROOM + [admit("aH", "H", tuple(sorted(SEVEN)), ("aG",)), admit("aI", "I", tuple(sorted(SEVEN | {"H"})), ("aH",)),
              ack("ak", "R", "aI"), ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)), "R",
-     {"se": T}, {"moderate": set()}, set()),
+     {"se": T}, {"moderate": {"A"}}, set()),
     (EL, "a later admission at the newest admission, leaving the seating unnamed in its past (it names the ballots)",
      ROOM + [ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)) +
      [admit("ax", "X", FIVE, ("aG",), ("se",))], None, {"se": T, "ax": F}, {"moderate": {"D"}, "member": SEVEN}, set()),
@@ -946,7 +949,7 @@ def want(concl, holds, stale):
 
 def read_case(rule, rows, own, concl, holds, arrive=None):
     with setting(rule):
-        S = CK.arrive([rows[0]] + arrive, RULE) if arrive is not None else CK.concluded(CK.kept(list(rows)), RULE)
+        S = CK.arrive(EW.opened([rows[0]] + arrive), RULE) if arrive is not None else CK.concluded(CK.kept(list(EW.opened(rows))), RULE)
         return answer(S, own, concl, holds)
 
 
@@ -960,7 +963,7 @@ def window_answer(heads):
     import window as WN
     p = WN.opener("p", "A", "ballot@once", OBJ, heads, names=("aG",))
     rows = ROOM + [p] + [WN.answer("v" + k, k, "p", "for") for k in "AB"] + [WN.answer("v" + k, k, "p", "against") for k in "DEFG"]
-    return WN.outcome(CK.concluded(CK.kept(rows), WN.rule), "p", "recount")
+    return WN.outcome(CK.concluded(CK.kept(EW.opened(rows)), WN.rule), "p", "recount")
 
 
 def run_all():

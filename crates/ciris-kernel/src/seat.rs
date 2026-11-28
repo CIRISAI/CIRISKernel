@@ -159,6 +159,11 @@ pub enum SeatKind {
     /// The halt's confirmation (`accord:lifecycle:confirmed`): one cosigned row naming ([`SeatRow::cites`]) the halt,
     /// a strict majority of the standing holders; the halting holder signs it as anyone ([`Act::HaltConfirm`]).
     HaltConfirmed,
+    /// The opening of an election (act `election_open`, the Constitution's ruling of 2026-11-28): it cites the seat
+    /// end it opens for ([`SeatRow::cites`], in its past) and names the newest counted changes over the room as its
+    /// heads; counted by a strict majority of the members as persons at those heads, floor min(2, members). The
+    /// election's id is its row id: ballots, receipts, declines and the seating name it by [`SeatRow::of`].
+    ElectionOpen,
     /// Anything else.
     Other,
 }
@@ -413,6 +418,10 @@ pub trait SeatRow: Row {
     }
     /// A ballot's ranking.
     fn ranking(&self) -> &[Self::Key] {
+        &[]
+    }
+    /// An election's opening ([`SeatKind::ElectionOpen`]): the seat end it opens for, one row.
+    fn cites(&self) -> &[Self::Id] {
         &[]
     }
     /// The key whose signature verified this row, as checked by the door (the room key a voice signed through in a
@@ -3020,6 +3029,10 @@ pub struct Seats<'c, 'a, R: SeatRow, S: CutSpec<R>> {
     /// The moderators' lone removals the end rule holds out of force over this set ([`removal_in_force`]):
     /// they end nothing here, and a reading of one line of the set (a tip, the fold) leaves them out too.
     dropped: BTreeSet<R::Id>,
+    /// The ends this roster TAKES, (key, row, object): its counted removals from a roster seat that count, are not
+    /// void for the reader, not out of force and not contested, and the holders' own ends of a stay. The one reading
+    /// of a departure: the election's close reads it, so the election and the roster cannot disagree.
+    ended: Vec<(R::Key, usize, ObjOf<R>)>,
     recs: Vec<Live<R::Id, R::Key, R::Word>>,
     /// Per live seat, whether it is a duty seat proper ([`duty_held`]): such a seat follows the folded roster.
     duty: Vec<bool>,
@@ -3100,9 +3113,16 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let mut acc: BTreeMap<&R::Key, Vec<usize>> = BTreeMap::new();
         // the holders' own ends of a stay as a member: (withdrawal, key, community)
         let mut left: Vec<(usize, &R::Key, ObjOf<R>)> = Vec::new();
+        // one view of a seat end (r104): a lay-down behind the reader's line ends no seat in its roster, as it is no
+        // vacancy for its elections ([`reader_ends`], the one function both read); the holder keeps the seat for it
+        let re0: BTreeSet<R::Id> = match own {
+            Some(k) if roster => reader_ends(c, law, spec, k, reader),
+            _ => BTreeSet::new(),
+        };
         for &i in cs {
             let r = g.row(i);
             match r.seat_kind() {
+                SeatKind::Withdraw if re0.contains(r.id()) => {}
                 SeatKind::Withdraw => {
                     if let Some(t) = r.target() {
                         wd.entry(t).or_default().push(r);
@@ -3125,7 +3145,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let elections = cs.iter().any(|&i| election::is_election(law, g.row(i)));
         // for a reader, the seat ends behind its line are no vacancy ends ([`reader_ends`])
         if let (true, Some(k)) = (elections, own) {
-            *local_e.rends.borrow_mut() = reader_ends(c, law, spec, k, reader);
+            *local_e.rends.borrow_mut() = if roster { re0.clone() } else { reader_ends(c, law, spec, k, reader) };
         }
         let memo_e = if own.is_some() { &local_e } else { cache.unwrap_or(&local_e) };
         let ecx = election::Ctx { c, law, spec, memo: memo_e };
@@ -3283,6 +3303,15 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             unseats.into_iter().filter(|(u, _)| !contested.contains(g.row(*u).id())).collect()
         };
         dropped.extend(contested);
+        let roster_scope = |q: &R| q.scope().is_some_and(|s| law.roster_seats.iter().any(|x| x == s.as_ref()));
+        let taken_ends: Vec<(R::Key, usize, ObjOf<R>)> = unseats
+            .iter()
+            .filter(|(u, _)| roster_scope(g.row(*u)))
+            .flat_map(|(u, o)| {
+                o.iter().flat_map(move |o| g.row(*u).to().iter().map(move |k| (k.clone(), *u, o.clone())))
+            })
+            .chain(left.iter().map(|(w, k, room)| ((*k).clone(), *w, room.clone())))
+            .collect();
         // a removal from the roster: of a member's seat, or of any seat the law names the roster's own
         let member = |s: Option<&R::Word>| {
             s.is_some_and(|x| x.as_ref() == "member" || law.roster_seats.iter().any(|r| r == x.as_ref()))
@@ -3709,6 +3738,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             stale,
             beaten,
             dropped,
+            ended: taken_ends,
             recs,
             duty,
             tips_memo: RefCell::default(),
@@ -5789,7 +5819,10 @@ pub(crate) fn reader_ends<R: SeatRow, S: CutSpec<R>>(
                 && w != a
                 && hs.iter().all(|&h| g.row(a).head().iter().any(|ah| g.idx(ah).is_some_and(|ai| g.in_past(h, ai))))
         });
-        if behind {
+        // behind the line, and in the past of none of its acts: an act on the line built on it (an opening's seating
+        // the reader acknowledged) brings it onto the line (r104)
+        let on_line = line.iter().any(|&a| g.in_past(w, a));
+        if behind && !on_line {
             out.insert(wr.id().clone());
         }
     }
@@ -6738,7 +6771,9 @@ struct MembersAt<R: SeatRow> {
     void: RefCell<Vec<BTreeSet<<R as Row>::Id>>>,
     rvoid: RefCell<BTreeSet<<R as Row>::Id>>,
     // per election seating: its election's key, its electorate and its set, read over its own past
-    views: RefCell<BTreeMap<<R as Row>::Id, election::View<R>>>,
+    // keyed by the seating, the rows of its past, and the taken view it was read under (election::ViewKey): never
+    // by the seating alone, since one memo serves several readings (a reader's line, the roster's void, a sub-set)
+    views: RefCell<BTreeMap<election::ViewKey<R>, election::View<R>>>,
     // the concurrent founders' amendments the reader holds ([`held_pairs`]): each line's later founders' count reads
     // the founders common to the two (C2)
     rpairs: RefCell<Vec<HeldPair<R>>>,
@@ -6753,6 +6788,9 @@ struct MembersAt<R: SeatRow> {
     // the rival self-roster foundings for the reader ([`reader_rivals`]): they, and every row over them, conclude
     // nothing for it
     rrivals: RefCell<BTreeSet<<R as Row>::Id>>,
+    // the rows the roster does not take for the reading in hand (the roster's own S'' void, for every reader, and the
+    // reader's line): with `rvoid` and `rends`, what the election's close leaves out ([`election`]'s `taken`)
+    untaken: RefCell<BTreeSet<<R as Row>::Id>>,
 }
 
 /// Two concurrent founders' amendments a reader holds: their ids, the keys the two seat, and the room.
@@ -6785,6 +6823,7 @@ impl<R: SeatRow> Default for MembersAt<R> {
             merge_tip: RefCell::default(),
             recount_heads: RefCell::default(),
             rrivals: RefCell::default(),
+            untaken: RefCell::default(),
         }
     }
 }
@@ -7426,6 +7465,10 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
     waits: Option<&RefCell<Option<R::Id>>>,
 ) -> bool {
     let r = p.row();
+    // an election's opening is counted by its own rule (rules 1 and 2 of the election close)
+    if r.seat_kind() == SeatKind::ElectionOpen {
+        return election::open_concludes(p, law, spec, cache);
+    }
     let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
     // a rival founding concludes nothing for the reader whose line took up another of the identity's, and neither
     // does everything built on it ([`reader_rivals`])

@@ -1314,7 +1314,7 @@ def t35(t):
     opens = []
     for rule, name, rows, own, concl, holds, stale in CH.CASES:
         with CH.setting(rule):
-            ref, bad = free(rows, SEAT, lambda S: CH.answer(S, own, concl, holds)); t.order(bad)
+            ref, bad = free(CH.EW.opened(rows), SEAT, lambda S: CH.answer(S, own, concl, holds)); t.order(bad)
         ok = ref == CH.want(concl, holds, stale)
         if rule == CH.EDGE:
             opens.append(name)
