@@ -305,7 +305,8 @@ def revocations(S, k, roster=frozenset()):
     registered self-unseat. What the person map reads as 'the key's own end' (CC 2.4.1.1: "only the key's own
     revocation ends its liveness"): rotations and the roster's voids are the roster's to settle, and the person map
     is itself an input to the roster's count."""
-    return [e for e in key_ends(S, k, roster) if e["kind"] in ("revoke", "unseat")]
+    kinds = ("unseat",) if "person_key_lane_unread" in MUT else ("revoke", "unseat")   # MUTATION: key lane unread
+    return [e for e in key_ends(S, k, roster) if e["kind"] in kinds]
 
 
 def _own_rows(S, reader, roster=frozenset()):
