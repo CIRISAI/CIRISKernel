@@ -317,9 +317,9 @@ and the shape of `refs`. One wire row can be read by several views; each view's 
 | `counted` | **T** | |
 | `over` | **T** | |
 | `need` | **T** for a count; on a record declaring `weighted:{rubric}`, the record's payload member `need` beside `consensus_protocol` (RULED [G20]) | a whole number |
-| `of` | `Accept` replying to a grant: `refs.answers`. `Ack`: one element of `refs.also.ack`. `Ballot`: its election's row, by `row-ref` (RULED [G12]). `Decline`: the offer it answers, `refs.answers` (TEXT [N1]). `Quarantine` release: the same holder's `supersedes` of its own withhold, the withhold under `refs.target`; only that holder releases (TEXT [G21], Part 8's quarantine fold). `TakedownNotice`: the establishing attestation whose content `content_sha256` binds, the copy at the scope the notice's duty is over (TEXT [G22]). `Reconsideration`: the notice it contests, `refs.also.cites`, its ruling in `outcome` (RULED [G23]). `Countersign`: the act's row id (the bridge, [G15]) | row ids |
+| `of` | `Accept` replying to a grant: `refs.answers`. `Ack`: one element of `refs.also.ack`. `Ballot`: its election's row, by `row-ref` (RULED [G12]). `Decline`: the offer it answers, `refs.answers` (TEXT [N1]). `Quarantine` release: the same holder's `supersedes` of its own withhold, the withhold under `refs.target`; only that holder releases (TEXT [G21], Part 8's quarantine fold). `TakedownNotice`: the establishing attestation whose content `content_sha256` binds, the copy at the scope the notice's duty is over (TEXT [G22]). `Reconsideration`: the notice it contests, `refs.also.cites`, EXACTLY ONE cite, its ruling in `outcome` (RULED [G23]). `Countersign`: the act's row id (the bridge, [G15]) | row ids |
 | `target` | `withdraws` `refs.target` | row id |
-| `content` | a lift's citation of the act it lifts (the removal): `refs.also.cites` (TEXT [G24]) | row id |
+| `content` | a lift's citation of the act it lifts (the removal): `refs.also.cites`, EXACTLY ONE cite (TEXT [G24]) | row id |
 | `duties` | `group:roster` `policy.duties` | |
 | `duty_holders` | `group:roster` `duty_holders` (first version only) | map duty to a set of identity references |
 | `weights` | a `weighted:{rubric}` record's payload member `weights` (key to a whole number) beside `consensus_protocol` (RULED [G20]) | |
@@ -604,8 +604,8 @@ presents a wire row and the text leaves it to the reader.
 | G20 | `weights`, `need` of a weighted record | `weights` and `need` are payload members of the record | RULED: `weights` and `need`, whole numbers, payload members of the record beside `consensus_protocol`; checked twice |
 | G21 | a quarantine release's `of()` | the same holder's `supersedes` of its own withhold, the withhold under `refs.target`; only that holder releases | TEXT (Part 8's quarantine fold); the earlier `also.cites` ruling is REVERSED, and this map's original reading restored |
 | G22 | a takedown's `of()` | the content row whose bytes hash to `content_sha256`; the notice names no row | TEXT: the notice reaches the establishing attestation the hash binds, at the scope its duty is over; a steward purge names a selection |
-| G23 | a reconsideration's `of()` | the notice, under `refs.also.cites`; the ruling in `outcome` | RULED: the reconsideration names the notice under `refs.also.cites` and carries its ruling in `outcome`; checked twice |
-| G24 | a lift's `content()` | the removal, under `refs.also.cites` | TEXT: the lift cites the act it lifts under `refs.also.cites` |
+| G23 | a reconsideration's `of()` | the notice, under `refs.also.cites`; the ruling in `outcome` | RULED: the reconsideration names the notice under `refs.also.cites`, exactly one cite, and carries its ruling in `outcome`; checked twice |
+| G24 | a lift's `content()` | the removal, under `refs.also.cites` | TEXT: the lift cites the act it lifts under `refs.also.cites`, exactly one cite |
 | G25 | the key end views' signer | the `kid` of the statement, as an identity reference: the same as every view under G1 | TEXT (derivable): liveness, cover and lapse are of the key that signed; checked twice |
 | G26 | `KeyEndRow::statement().1` | the key record of the `kid` whose window covers the statement's `asserted_at`, found by the store | TEXT (derivable): any held record of the key covering the instant covers it; checked twice |
 | G27 | `AudienceRow::family` | label -70002 respelled as its registry pattern, on every row; the `dimension` less its version is a leaf, not a pattern to match | TEXT; checked twice |
