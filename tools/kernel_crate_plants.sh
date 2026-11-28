@@ -959,7 +959,7 @@ plant "a founding signer's own officer or license seat revives a group" src/seat
 plant "the ends the reader holds are not read"         src/trust_rows.rs '    if read {
         rows.extend(' '    if false {
         rows.extend('
-plant "an end cuts nothing concurrent with it"         src/trust_rows.rs 'rows.retain(|j| !cut.contains(j));' 'let _ = &cut;'
+plant "an end cuts nothing concurrent with it"         src/trust_rows.rs 'rows.retain(|j| !cut.contains(j) && !void.contains(j));' 'rows.retain(|j| !void.contains(j));'
 plant "a licence stating no instant meets a term"      src/seat.rs '.any(|r| r.k == *k && g.idx(&r.offer).is_some_and(|i| g.row(i).valid_until().is_none()));' '.any(|r| r.k == *k);'
 plant "any signer of an edge withdraws it"            src/trust_rows.rs '&& speaks_at(seats, j, &e.src, own)' ''
 plant "an edge is judged at issuance only"             src/trust_rows.rs '[false, true].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(seats, i, read, own), src))' '[false].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(seats, i, read, own), src))'
