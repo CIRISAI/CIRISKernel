@@ -7,7 +7,7 @@ mod common;
 use ciris_kernel::cut::CutSpec;
 use ciris_kernel::key_end::{conclude_rule, counts_by, counts_for, KeyEndRow, KeyReading, KeyView};
 use ciris_kernel::layers::{conclude, kept, Concluded, Past};
-use ciris_kernel::seat::{final_by_ack, seat_rule, voices_with, Obj, SeatLaw, Seats};
+use ciris_kernel::seat::{final_by_ack, seat_rule, self_roster_ends, voices_with, Obj, SeatLaw, Seats};
 use ciris_kernel::window::{self, WindowSpec};
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -101,8 +101,7 @@ fn key_view_cases() {
         let plain = KeyCut { kv: None };
         let c0 = conclude_with(&plain);
         // the self roster's acts concluded under the roster's own count, and the counts final over clean receipts
-        let roster: BTreeSet<String> =
-            c0.cs().iter().map(|&i| c0.g.row(i)).filter(|r| r.roster_end().is_some()).map(|r| r.id.clone()).collect();
+        let roster: BTreeSet<String> = self_roster_ends(&c0, &law, &plain);
         let final_: BTreeSet<String> = (0..c0.g.len())
             .filter(|&i| final_by_ack(&c0, &law, &plain, i, Some((&kc, &roster))))
             .map(|i| c0.g.row(i).id.clone())
@@ -144,6 +143,30 @@ fn key_view_cases() {
         let final_: BTreeSet<String> = d.at("final").strs().into_iter().collect();
         let (row, key) = (d.at("row").s().to_string(), d.at("key").s().to_string());
         let got = kc.g.idx(&row).is_some_and(|i| counts_for(&kc, i, &key, None, &final_, &BTreeSet::new()));
+        cases += 1;
+        if got != d.at("want").b() {
+            bad += 1;
+            eprintln!("{}: counts_for = {got}", d.at("name").s());
+        }
+    }
+    // reader-level answers after the two passes (ROSTER_DIRECT)
+    for d in fx.at("roster_direct").arr() {
+        let refs: BTreeMap<String, String> =
+            d.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let all = rows_with_refs(d.at("rows").arr(), &refs);
+        let seat_ids: BTreeSet<String> = d.at("seat").strs().into_iter().collect();
+        let seat_rows: Vec<TRow> = all.iter().filter(|r| seat_ids.contains(&r.id)).cloned().collect();
+        let kc = conclude(kept(&all, |_| true), conclude_rule, None);
+        let plain = KeyCut { kv: None };
+        let c0 = conclude_rows(&seat_rows, false, &windows, &law, &plain);
+        let roster = self_roster_ends(&c0, &law, &plain);
+        let final_: BTreeSet<String> = (0..c0.g.len())
+            .filter(|&i| final_by_ack(&c0, &law, &plain, i, Some((&kc, &roster))))
+            .map(|i| c0.g.row(i).id.clone())
+            .collect();
+        let reader = d.get("reader").and_then(|r| r.opt_s());
+        let (row, key) = (d.at("row").s().to_string(), d.at("key").s().to_string());
+        let got = kc.g.idx(&row).is_some_and(|i| counts_for(&kc, i, &key, reader.as_ref(), &final_, &roster));
         cases += 1;
         if got != d.at("want").b() {
             bad += 1;

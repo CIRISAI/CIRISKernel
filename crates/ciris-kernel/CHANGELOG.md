@@ -7,8 +7,11 @@ a row of `k` stands against each of `k`'s ends where it is in the end's past, or
 the reader held the end (taken up), or part of a count final by acknowledgement (`seat::final_by_ack`: n - t + 1
 clean receipts; a final act is not reopened by a later cut). `KeyReading` carries the reader and the final counts;
 `counts_by` is the reading with no reader. A revocation by a key of which any concluded rotation is held is no end;
-two rotations are a fork of the key (both ends, no successor); an end by the person's self roster
-(`KeyEndRow::roster_end`) is one only where that roster's own count concluded it (`KeyReading::roster`). Finality
+two rotations are a fork of the key (both ends, no successor). An eviction from the person's self roster ends the key
+as the person's, never its liveness (G33; read by the person map). The roster's counted removal of a rotated-to key
+citing the rotation voids it (r92 T3: no end, no successor, the rotated-to key's rows cut; the old key no voice of
+that count; `seat::self_roster_ends`, `SeatRow::rotates`, `KeyEndRow::roster_end` now the key a removal removes).
+Finality's clean test reads every voice of the count, cosign rows' signers too (r92 T2), and a withdrawal of the act. Finality
 counts only clean receipts (no end of a voice's key, no cut of the act in its past, its signer's key standing), and a
 final count protects only voices valid when cast (r89). A `declared` need is never final; a recall's t is read at
 its own base. Caller duty: an honest rotation

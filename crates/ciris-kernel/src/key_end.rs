@@ -53,10 +53,10 @@ pub trait KeyEndRow: Row {
     fn instant(&self) -> Option<Self::T> {
         self.statement().map(|s| s.0)
     }
-    /// For an end of a key by the person's self roster (its owner learns it was stolen): the key ended and the instant
-    /// from which its rows are ended. It is an end only where the roster's own count concluded it (a
-    /// [`KeyReading::roster`] id). Default: none.
-    fn roster_end(&self) -> Option<(&Self::Key, Self::T)> {
+    /// For a counted removal of one key (the act a person's self roster evicts a key by, or voids a rotation by):
+    /// the key it removes. Only an id of [`KeyReading::roster`] (the roster's own concluded acts,
+    /// [`crate::seat::self_roster_ends`]) is read. Default: none.
+    fn roster_end(&self) -> Option<&Self::Key> {
         None
     }
     /// The keys whose signatures a row carries beside its signer's (a seat row's cosigners): with the signer, the
@@ -195,21 +195,43 @@ pub fn counts_by<R: KeyEndRow>(c: &Concluded<'_, R>, i: usize, k: &R::Key) -> bo
     counts_for(c, i, k, None, &BTreeSet::new(), &BTreeSet::new())
 }
 
-/// Key `k`'s ends, as rows of `c`, each with the instant it ends rows from (if it states one):
+/// Whether rotation `rot` (a concluded record rotating a key) is VOIDED by the person's self roster (T3): an id of
+/// `roster` (the roster's own concluded acts) that removes the rotated-to key and cites the rotation (names it,
+/// refs.also.cites). Voided, the rotation is no end of the old key and its successor does not stand; the old key is
+/// restored exactly as it was (voiding is not removal). In a fork the roster's act names the one it voids. A one-key
+/// roster cannot void (the residual).
+pub fn voided<R: KeyEndRow>(c: &Concluded<'_, R>, rot: usize, roster: &BTreeSet<R::Id>) -> bool {
+    let r = c.g.row(rot);
+    let Some(x) = r.record() else { return false };
+    roster.iter().filter_map(|e| c.g.idx(e)).any(|e| {
+        let q = c.g.row(e);
+        q.roster_end() == Some(x.key) && q.names().contains(r.id())
+    })
+}
+
+/// Key `k`'s ends, as rows of `c`, each with the instant it ends rows from (if it states one): its LIVENESS (G33:
+/// only the key's own acts end it):
 /// - its self-revocations, but NONE where a concluded rotation of `k` is held at all: a retired key's revocation is
 ///   no end, whoever signed it and whatever its past holds;
-/// - every concluded rotation naming `k`'s record (a rotated holder speaks under its new key). Two rotations of one
-///   key are a FORK of the key: both are ends of the old key, and neither successor stands ([`successor`]) until the
-///   self roster's count settles which;
-/// - an end by the person's self roster ([`KeyEndRow::roster_end`]): one of `roster`, the ids of the roster's acts
-///   CONCLUDED under that roster's own count rule (the seat's reading over the roster, given by the caller). A thief
-///   holding one key cannot make one where the roster needs more.
+/// - every concluded rotation naming `k`'s record not [`voided`] by the person's self roster. Two rotations of one
+///   key are a FORK of the key: both are ends of the old key, and neither successor stands until the self roster's
+///   count settles which (voids one);
+/// - for a rotated-to key, the roster's act voiding the rotation to it: its rows fall by the cut rule like any
+///   ended key's.
+///
+/// An eviction from the person's self roster is NOT an end here: it ends the key AS A KEY OF THAT PERSON (G33), read
+/// by the person map at each count's voices ([`crate::seat::Persons`], [`crate::seat::person_at`]), and a row the
+/// key signs as itself is read as any unowned key's. The caller presents the person's self-roster rows.
 ///
 /// The residual, stated: a person with ONE key (a self roster of one), whose key is stolen, cannot be told from the
-/// thief: the thief can rotate or revoke it as the owner could.
+/// thief: the thief can rotate or revoke it as the owner could, and no roster can void a rotation.
 pub fn ends<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, roster: &BTreeSet<R::Id>) -> Vec<(usize, Option<R::T>)> {
-    let rots: Vec<usize> =
-        c.cs().iter().copied().filter(|&e| c.g.row(e).record().is_some_and(|x| x.succ_of == Some(k))).collect();
+    let rots: Vec<usize> = c
+        .cs()
+        .iter()
+        .copied()
+        .filter(|&e| c.g.row(e).record().is_some_and(|x| x.succ_of == Some(k)) && !voided(c, e, roster))
+        .collect();
     let mut out: Vec<(usize, Option<R::T>)> = rots.iter().map(|&e| (e, None)).collect();
     for &e in c.cs() {
         let q = c.g.row(e);
@@ -218,10 +240,17 @@ pub fn ends<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, roster: &BTreeSet<R:
                 out.push((e, Some(ra)));
             }
         }
-        if let Some((rk, ra)) = q.roster_end() {
-            if rk == k && roster.contains(q.id()) {
-                out.push((e, Some(ra)));
-            }
+    }
+    // the roster's void of a rotation to k ends k
+    for e in roster.iter().filter_map(|e| c.g.idx(e)) {
+        let q = c.g.row(e);
+        if q.roster_end() == Some(k)
+            && q.names()
+                .iter()
+                .filter_map(|n| c.g.idx(n))
+                .any(|n| c.g.row(n).record().is_some_and(|x| x.succ_of.is_some() && x.key == k))
+        {
+            out.push((e, None));
         }
     }
     out

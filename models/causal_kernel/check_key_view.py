@@ -24,6 +24,7 @@ import check_election as EL  # noqa: E402
 import window as WN  # noqa: E402
 import check_agent_removal as AR  # noqa: E402
 import check_removal_in_force as RF  # noqa: E402
+import check_key_person as KP  # noqa: E402
 
 CK = ST.CK
 RULE = CH.RULE
@@ -139,15 +140,40 @@ KT = KE.rec("kT", "T", 0, None, typ="pseudonym")
 QT0 = KE.rec("qT", "T", 1, None, names=("kC",), succ_of="C", at_old=1, typ="pseudonym")
 QDX = KE.rec("qD", "D2", 1, None, names=("kD", "x"), succ_of="D", at_old=1, typ="pseudonym")
 Q2H = KE.rec("q2", "C2", 4, None, names=("kC", "x"), succ_of="C", at_old=4, typ="pseudonym")
-# the person's self roster: P's devices P1, P2 and C (modelled as a group of the person's keys); an end of C is the
-# roster's own counted removal of C, carrying `rend_of` and its `ra`
-PROSTER = [ST.found("P", "P1", ("P1", "P2", "C"), {"moderate": ("P1",)}, cosigners=("P2", "C"))]
+# the person's self roster SP (the key-person lane's reading): P1 its genesis key, P2 and C added by its own count
+SP = [KP.found("SP", "P1"), KP.add("aP2", "SP", "P2", ("P1",), ("SP",)), KP.add("aC", "SP", "C", ("P1", "P2"), ("aP2",))]
 
 
-def REND(i, signers, ra=2, names=()):
-    return ST.unseat(i, signers[0], "C", "member", "P", "group", ("P",) + tuple(names), head=("P",),
-                     policy="community_remove", cosigners=tuple(signers[1:]), rend_of="C", ra=ra)
+def VOID(i, signers, rot, key="T", heads=("aC",)):
+    """The self roster's void of a rotation (T3, the carrier confirmed): its counted eviction of the rotated-to key,
+    citing the rotation (refs.also.cites)."""
+    e = KP.evict(i, "SP", key, tuple(signers), heads)
+    return dict(e, names=tuple(e["names"]) + (rot,))
 
+
+Q2X = KE.rec("q2", "C2", 2, None, names=("kC", "x"), succ_of="C", at_old=2, typ="pseudonym")   # the owner's, holding x
+# r92 worlds
+TKEYS = [KE.rec("k" + k, k, 0, None, typ="pseudonym") for k in ("T1", "T2", "T3")]
+NQ_ROOM = ST.found("Q", "T1", ("T1", "T2", "T3"), {"moderate": ("T1",)}, cosigners=("T2", "T3"))
+NQ = ST.unseat("nq", "T1", "T3", "member", "Q", "group", ("Q",), head=("Q",), policy="community_remove",
+               cosigners=("T2",), rend_of="C", ra=0)
+NG = ST.unseat("ng", "A", "F", "member", "g", "group", ("aG",), head=("aG",), policy="community_remove",
+               cosigners=("B", "D", "E", "G"), rend_of="C", ra=0)
+NV = dict(ST.unseat("nv", "T1", "C2", "member", "Q", "group", ("Q",), head=("Q",), policy="community_remove",
+                    cosigners=("T2",)), names=("Q", "qC"))
+HROOM = [ST.found("h", "A", ("A", "B", "D", "P1"), {"moderate": ("A",)}, cosigners=("B", "D", "P1"))]
+EVC = KP.evict("eC", "SP", "C", ("P1", "P2"), ("aC",))
+
+
+def XP(extra):
+    """An admission of Z to h by A, B and P1's device C, its past holding P's self-roster rows."""
+    return ST.offer("xp", "A", "Z", "member", "h", "group", ("h",) + tuple(extra), head=("h",), policy="community_invite",
+                    cosigners=("B", "C", "Z"), at=3)
+
+
+CC = CK.row("cC", "cosign", "C", ("aG",), of="x", at=3)
+XCC = x_row("ABDE", at=3, cites=("cC",))
+RXV = [rack("rF", "F", ("x", "vC")), rack("rG", "G", ("x", "vC")), rack("rA", "A", ("x", "vC"))]
 
 CUT = [
     # (name, rule, seat rows, key rows, reader, probe row, seat asked or None, expected)
@@ -177,11 +203,6 @@ CUT = [
     ("a revocation by a rotated-away key is no end: C rotated to C2 holding x, then C's key (stolen) revokes itself "
      "after 0, the rotation in its past: x concludes", "seat", CH.ROOM + [X5],
      recs() + [QCX, KE.revoke("vC", "C", 0, names=("x",))], None, "x", None, True),
-    ("the person's self roster ends a retired key: P's roster (P1, P2 and C, the person's devices) removes C from 2 on "
-     "by its own count (P1 and P2), holding C's rotation to C2 and x: x, signed at 3, is cut: concludes nothing", "seat",
-     CH.ROOM + [X5] + PROSTER + [REND("eC", ("P1", "P2"), names=("x",))], recs() + [QCX], None, "x", None, False),
-    ("and a roster end the roster's count does not carry (C2, the successor, alone) is no end: x concludes", "seat",
-     CH.ROOM + [X5] + PROSTER + [REND("eC", ("C2",), names=("x",))], recs() + [QCX], None, "x", None, True),
     # r89 (review-51b), S1: finality reads clean receipts and protects only voices valid when cast
     ("M1b: C revoked after 2 (holding C's record), then x signed with the stolen C at 3 holding the revocation, with "
      "receipts by F, G and the stolen C: C's own receipt is not clean, x is not final, and the late vote is cut: x "
@@ -211,22 +232,47 @@ CUT = [
     ("and M2c for F, which took x up: x concludes (limb b protects it across the fork)", "seat",
      CH.ROOM + [X0, rack("rF", "F")], recs() + [KT, QT0, KE.rec("q2", "C2", 2, None, names=("kC", "x", "qT"), succ_of="C",
                                                                 at_old=2, typ="pseudonym")], "F", "x", None, True),
-    ("M3a: the owner rotates C to C2 at 4 holding the thief's x (at 3); P's roster ends C from 2 on by its count: x is "
-     "cut", "seat", CH.ROOM + [XS] + PROSTER + [REND("eC", ("P1", "P2"), names=("x",))], recs() + [Q2H], None, "x", None,
-     False),
-    ("M3b: the thief also rotates old C to T (a fork): the roster end does not hang on a successor and still ends C: "
-     "x is cut", "seat", CH.ROOM + [XS] + PROSTER + [REND("eC", ("P1", "P2"), names=("x",))],
-     recs() + [KT, Q2H, KE.rec("qT", "T", 4, None, names=("kC",), succ_of="C", at_old=4, typ="pseudonym")], None, "x", None,
-     False),
-    ("M3c: the thief's rotation to T holds x: still a fork, and the roster end still ends C from 2 on: x is cut", "seat",
-     CH.ROOM + [XS] + PROSTER + [REND("eC", ("P1", "P2"), names=("x",))],
-     recs() + [KT, Q2H, KE.rec("qT", "T", 4, None, names=("kC", "x"), succ_of="C", at_old=4, typ="pseudonym")], None, "x",
-     None, False),
-    ("M3d: T (the thief, no device of P's roster) alone signs a roster end of C from 0: the roster's count is not met, "
-     "no end; the owner's x at 0, held by T's rotation, concludes", "seat",
-     CH.ROOM + [X0] + PROSTER + [REND("eT", ("T",), ra=0, names=("x",))],
-     recs() + [KT, KE.rec("qT", "T", 1, None, names=("kC", "x"), succ_of="C", at_old=1, typ="pseudonym")], None, "x", None,
-     True),
+    # r92 T3: the self roster's count settles a rotation (voids it); a rotation it does not void stands
+    ("N2a: a person's device C (P's self roster: P1, P2, C), rotated by the thief to T naming only C's record: an end "
+     "of C: x (C's vote at 0) is cut for a reader with no line", "seat", CH.ROOM + [X0] + SP + recs() + [KT, QT0], [],
+     None, "x", None, False),
+    ("N2b: P's roster (P1 and P2) evicts T citing the thief's rotation: the rotation is VOIDED, no end, and x is restored "
+     "for a reader with no line", "seat", CH.ROOM + [X0] + SP + recs() + [KT, QT0, VOID("vT", ("P1", "P2"), "qT")], [],
+     None, "x", None, True),
+    ("an honest rotation the roster does not void stands: C to C2 naming only C's record, an end: x is cut", "seat",
+     CH.ROOM + [X0] + SP + recs() + [QC0], [], None, "x", None, False),
+    ("a fork (the thief's qT and the owner's q2 holding x): the roster voids qT, and q2 stands: x, in q2's past, "
+     "concludes", "seat", CH.ROOM + [X0] + SP + recs() + [KT, QT0, Q2X, VOID("vT", ("P1", "P2"), "qT")], [], None, "x",
+     None, True),
+    ("edge (2): the old key it claims to succeed is no voice of the void: P1 and the stolen C sign it; C is the "
+     "subject, so P1 alone does not carry the roster's count: not voided, x stays cut", "seat",
+     CH.ROOM + [X0] + SP + recs() + [KT, QT0, VOID("vT", ("P1", "C"), "qT")], [], None, "x", None, False),
+    ("the residual: a one-key roster (C alone) cannot void: the stolen C's own void is no voice of it: x stays cut",
+     "seat", CH.ROOM + [X0, KP.found("S1", "C")] + recs() + [KT, QT0, dict(KP.evict("vT", "S1", "T", ("C",), ("S1",)),
+                                                                          names=("S1", "qT"))], [], None, "x", None, False),
+    # r92 T1 (with G33): an eviction ends a key as the person's, never its liveness, and only k's own self roster's
+    ("N1b: a counted removal in a room the attacker owns (Q: T1, T2, T3), marked as an end of C: no end of C's "
+     "liveness: x concludes", "seat", CH.ROOM + [X0, NQ_ROOM, NQ], recs() + TKEYS, None, "x", None, True),
+    ("N1c: the same through an unrelated removal in the room itself (F removed by five), marked as an end of C: x "
+     "concludes", "seat", CH.ROOM + [X0, NG], recs(), None, "x", None, True),
+    ("N1d: a void from a room that is not the person's self roster (Q evicts C2 citing the owner's rotation) voids "
+     "nothing: the owner's rotation C to C2 (naming only C's record) still cuts the thief's x at 3", "seat",
+     CH.ROOM + [XS, NQ_ROOM] + recs() + TKEYS + [QC0, NV], [], None, "x", None, False),
+    ("G33: an evicted device's later vote is no voice for its person: the room h seats A, B, D and the person P1; x2 by "
+     "A, B and P1's device C concludes (three of four); with P's roster's eviction of C in its past, C speaks for no "
+     "member: x2 concludes nothing", "seat", SP + HROOM + [XP(("aC",))], recs(), None, "xp", None, True),
+    ("and with the eviction in its past", "seat", SP + [EVC] + HROOM + [XP(("eC",))], recs(), None, "xp", None, False),
+    # r92 T2: clean reads every voice of the count: the signers of named cosign rows too
+    ("N3a: C's late cosign row of x (at 3, outside C's revocation's past), no receipts: C's voice cut, x (A B D E and "
+     "C) concludes nothing", "seat", CH.ROOM + recs() + [VC2, CC, XCC], [], None, "x", None, False),
+    ("N3b: with receipts by F, G and A each holding the revocation: C is a voice of x through its cosign row, so none is "
+     "clean: not final, x concludes nothing", "seat", CH.ROOM + recs() + [VC2, CC, XCC] + RXV, [], None, "x", None, False),
+    ("N3c (control): C a signer of x, the same receipts: not final, x concludes nothing", "seat",
+     CH.ROOM + recs() + [VC2, X5] + RXV, [], None, "x", None, False),
+    ("the pin: a receipt holding a withdrawal of the act is not clean: F, G and A receipt x, A's holding B's withdrawal "
+     "of x: two clean of three, x is not final (the final set the fixture carries)", "seat",
+     CH.ROOM + [X5, rack("rF", "F"), rack("rG", "G"), ST.withdraw("wX", "B", "x", ("x",)), rack("rA", "A", ("x", "wX"))],
+     recs(), None, "x", None, True),
     ("k3.py's K3c as written (p2's revocation holds nothing): for a reader with no line, xm (p2's withdrawal of p1's "
      "moderate) and r2 are both cut, and x stays in force: AG removed", "window", RF.W + [RF.X, R2, RF.UND],
      LREC + [KE.revoke("v2", "p2", 0)], None, None, ("AG", "agent", "g"), False),
@@ -243,12 +289,26 @@ DIRECT = [
 ]
 
 
+# reader-level answers of counts_by after the two passes (roster acts, finality): (name, seat rows, key rows, row, key,
+# reader, expected)
+TAT = KE.att("aT", "T", 3, "kT", about="X")                    # the rotated-to key T's own row
+ROSTER_DIRECT = [
+    ("edge (3): a voided rotation's rows by the rotated-to key fall by the cut rule: T's row aT, not in the void's past, "
+     "counts nothing", CH.ROOM + SP + recs() + [KT, QT0, TAT, VOID("vT", ("P1", "P2"), "qT")], [], "aT", "T", None, False),
+    ("and stands for F, which took it up before the void", CH.ROOM + SP + recs() + [KT, QT0, TAT, rack("rF", "F", ("aT",)),
+                                                                                  VOID("vT", ("P1", "P2"), "qT")],
+     [], "aT", "T", "F", True),
+    ("G33: the evicted device C's own row as a bare key (an attestation after the eviction) counts: an eviction ends no "
+     "liveness", SP + [EVC] + recs() + [KE.att("aB", "C", 4, "kC", about="X", names=("eC",))], [], "aB", "C", None, True),
+]
+
+
 def plain(seat_rows, key_rows, rule):
     """The first pass, with no key view: the roster acts concluded under the roster's own count rule, and the counts
     final by acknowledgement over clean receipts (the key lane read for them by the plain end rule)."""
     for m in ("_READER_MEMO", "_VOID_MEMO", "_EMEMO", "_SEATS_OF"): getattr(ST, m).clear()
     S1 = CK.concluded(CK.kept(list(seat_rows)), rule)
-    roster = frozenset(r["id"] for r in S1.Cs if r.get("rend_of") is not None)
+    roster = ST.self_roster_ends(S1)
     KS = KE.state(list(seat_rows) + list(key_rows))
     final = frozenset(i for i in S1.by if ST.final_by_ack(S1, i, KS, roster))
     return KS, roster, final
@@ -299,9 +359,10 @@ def answer(rule, seat_rows, key_rows, view):
 
 PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("window_key_view_unread", ST.MUT),
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
-          ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT), ("roster_end_unread", KE.MUT),
+          ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT),
           ("taken_up_unread", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
-          ("receipt_unclean_counts", ST.MUT))
+          ("receipt_unclean_counts", ST.MUT), ("rotation_void_unread", KE.MUT), ("voided_successor_kept", KE.MUT),
+          ("disputed_key_voices", ST.MUT), ("clean_signers_only", ST.MUT), ("roster_end_any_object", ST.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries
 
 
@@ -315,6 +376,10 @@ def run():
         if got != want: bad.append("%s: got %s" % (name, got))
     for name, rule, sr, kr, reader, probe, seat, want in CUT:
         got = cut_answer(rule, sr, kr, reader, probe, seat)[0]
+        if got != want: bad.append("%s: got %s" % (name, got))
+    for name, sr, kr, rid, k, reader, want in ROSTER_DIRECT:
+        KS, roster, final = plain(sr, kr, RULE)
+        got = KE.counts_by(KS, rid, k, reader, final, roster)
         if got != want: bad.append("%s: got %s" % (name, got))
     for name, rows, rid, k, fin, want in DIRECT:
         got = KE.counts_by(KE.state(rows), rid, k, None, frozenset(fin))
@@ -365,7 +430,7 @@ def main():
         if not hit: missed.append(p)
     ok = not bad and not missed
     print("RESULT: %s: %d cases, %d of %d planted breaks caught" % ("ok" if ok else "%d problems" % (len(bad) + len(missed)),
-                                                                   len(CASES) + len(LONE) + len(CUT) + len(DIRECT), len(PLANTS) - len(missed), len(PLANTS)))
+                                                                   len(CASES) + len(LONE) + len(CUT) + len(DIRECT) + len(ROSTER_DIRECT), len(PLANTS) - len(missed), len(PLANTS)))
     return 0 if ok else 1
 
 

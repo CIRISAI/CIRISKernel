@@ -180,10 +180,11 @@ def ended(S, k, now):
     return all(_end(r) <= now for r in rs)
 
 
-def successor(S, k, ret=None):
+def successor(S, k, ret=None, roster=frozenset()):
     """The one key the frontier of k's concluded rotations names; two keys spoken leave it empty. Given the
     retained set, it reads only rotations that have not lapsed, as every derived answer does."""
-    rots = [r for r in K.sel(S.Cs, kind="rec") if r["succ_of"] == k and (ret is None or r["id"] in ret)]
+    rots = [r for r in K.sel(S.Cs, kind="rec") if r["succ_of"] == k and (ret is None or r["id"] in ret)
+            and not voided(S, r, roster)]
     if not rots:
         return None
     keys = sorted({r["key"] for r in CK.frontier(S, rots)})
@@ -192,27 +193,45 @@ def successor(S, k, ret=None):
     return keys[0] if len(keys) == 1 else None
 
 
+def voided(S, rot, roster=frozenset()):
+    """A rotation of a key is VOIDED by the person's self roster (the Constitution's ruling, T3): a concluded eviction
+    from the person's self roster (an id of `roster`: seat.self_roster_ends, the roster's own count, read by the
+    key-person lane) that removes the rotated-to key and cites the rotation (`names`, refs.also.cites). Voided, the
+    rotation is no end of the old key and its successor does not stand; the old key is restored exactly as it was
+    (where it is the stolen one, the roster removes it too: voiding is not removal). In a fork the roster's act names
+    the one it voids, and the other stands. A one-key roster cannot void (the residual). MUTATION rotation_void_unread."""
+    if "rotation_void_unread" in MUT: return False
+    return any(e in S.by and tuple(S.by[e].get("to", ())) == (rot["key"],) and rot["id"] in S.by[e]["names"]
+               for e in roster)
+
+
 def ends_of(S, k, roster=frozenset()):
-    """Key k's ends, as rows:
+    """Key k's ends, as rows (its LIVENESS: G33, only the key's own acts end it):
         its self-revocations, but NONE where a concluded rotation of k is held at all (a retired key's revocation is
             no end, whoever signed it and whatever its past holds; MUTATION retired_key_revokes: only one with a
             rotation in its own past is none);
-        every concluded rotation of k (a rotated holder speaks under its new key). Two rotations of one key are a
-            FORK of the key: both are ends of the old key, and neither successor stands (successor) until the self
-            roster's count settles which;
-        an end by the person's self roster: a row of `roster` (the ids of the roster's acts CONCLUDED under that
-            roster's own count rule, read by the seat over the roster) whose `rend_of` is k, from its `ra` on
-            (MUTATION roster_end_unread). A thief holding one key cannot make one where the roster needs more.
+        every concluded rotation of k not voided by the person's self roster (voided; a rotated holder speaks under
+            its new key). Two rotations of one key are a FORK of the key: both are ends of the old key, and neither
+            successor stands until the self roster's count settles which (voids one).
+    An eviction from the person's self roster (a roster end) is NOT an end here: it ends the key AS A KEY OF THAT
+    PERSON (G33), read by the person map at each count's voices (seat.person_of, the key-person lane: from the cut,
+    by the roster's cut rule, the key is no voice of the person and holds none of its standing), and a row the key
+    signs as itself is read as any unowned key's. The caller presents the person's self-roster rows.
     The residual, stated: a person with ONE key (a self roster of one), whose key is stolen, cannot be told from the
-    thief: the thief can rotate or revoke it as the owner could."""
-    rots = [r for r in S.Cs if r["kind"] == "rec" and r["succ_of"] == k]
+    thief: the thief can rotate or revoke it as the owner could, and no roster can void a rotation."""
+    rots = [r for r in S.Cs if r["kind"] == "rec" and r["succ_of"] == k and not voided(S, r, roster)]
     if "retired_key_revokes" in MUT:
         revs = [r for r in S.Cs if r["kind"] == "revoke" and r["key"] == k and r["signer"] == k
                 and not any(x["id"] in S.anc[r["id"]] for x in rots)]
     else:
         revs = [] if rots else [r for r in S.Cs if r["kind"] == "revoke" and r["key"] == k and r["signer"] == k]
-    rends = [] if "roster_end_unread" in MUT else [r for r in S.Cs if r.get("rend_of") == k and r["id"] in roster]
-    return revs + rots + rends
+    # a voided rotation's rotated-to key: the roster's voiding act ends it, by the cut rule like any ended key's (what
+    # a reader took up and what is final stand; MUTATION voided_successor_kept)
+    voids = [] if "voided_successor_kept" in MUT else [
+        S.by[e] for e in roster if e in S.by and tuple(S.by[e].get("to", ())) == (k,)
+        and any(n in S.by and S.by[n]["kind"] == "rec" and S.by[n].get("succ_of") is not None and S.by[n]["key"] == k
+                for n in S.by[e]["names"])]
+    return revs + rots + voids
 
 
 def _own_rows(S, reader):

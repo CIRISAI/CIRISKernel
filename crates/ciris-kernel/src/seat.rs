@@ -280,6 +280,12 @@ pub trait SeatRow: Row {
     fn target(&self) -> Option<&Self::Id> {
         None
     }
+    /// For a key's rotation record presented among the rows (the key lane in one causal order with the seat's): the
+    /// old key it rotates and the key it rotates to. A counted row citing one has the old key as no voice (the
+    /// subject of the dispute, T3). Default: none.
+    fn rotates(&self) -> Option<(&Self::Key, &Self::Key)> {
+        None
+    }
     /// The content a cosignature names (default the row's own id).
     fn content(&self) -> Option<&Self::Id> {
         None
@@ -4016,6 +4022,18 @@ pub fn stay_ended_in_past<R: SeatRow>(p: &Past<'_, '_, R>, law: &SeatLaw, obj: &
 /// The keys that signed a counted row: its signer, its cosigners, and the signers of the cosignatures it
 /// names that themselves name every head it is counted over.
 pub fn voices<R: SeatRow>(r: &R, p: &Past<'_, '_, R>) -> BTreeSet<R::Key> {
+    let mut v = voices_raw(r, p);
+    // a counted row citing a rotation of a key (the self roster's void of it, T3): the old key the rotation claims to
+    // succeed is the subject of the dispute and no voice of it
+    for n in r.names() {
+        if let Some((old, _)) = p.get(n).and_then(|q| q.rotates()) {
+            v.remove(old);
+        }
+    }
+    v
+}
+
+fn voices_raw<R: SeatRow>(r: &R, p: &Past<'_, '_, R>) -> BTreeSet<R::Key> {
     let heads: BTreeSet<&R::Id> = r.head().iter().collect();
     let content = r.content().unwrap_or(r.id());
     let mut v = signers(r);
@@ -4049,6 +4067,9 @@ pub fn voices_with<R: SeatRow, S: CutSpec<R>>(r: &R, p: &Past<'_, '_, R>, spec: 
             v.insert(c.signer().clone());
         }
     }
+    // the old key a cited rotation claims to succeed is no voice (as in [`voices`])
+    let all = voices(r, p);
+    v.retain(|k| all.contains(k));
     v
 }
 
@@ -4203,7 +4224,8 @@ pub fn final_by_ack<R: SeatRow + crate::key_end::KeyEndRow, S: CutSpec<R>>(
     if n == 0 {
         return false;
     }
-    let voices = signers(r);
+    // every voice of the count: its signers, its cosigners and the signers of the cosign rows it names
+    let voices = voices(r, &p);
     let on = spec.on_slots(r);
     let clean = |q: usize| -> bool {
         let Some((kc, roster)) = keys else { return true };
@@ -4215,7 +4237,10 @@ pub fn final_by_ack<R: SeatRow + crate::key_end::KeyEndRow, S: CutSpec<R>>(
         if voices.iter().any(|k| crate::key_end::ends(kc, k, roster).iter().any(|&(e, _)| kc.g.in_past(e, ki))) {
             return false;
         }
-        !c.cs().iter().any(|&x| x != i && g.in_past(x, q) && !spec.cuts_of(g.row(x)).is_disjoint(&on))
+        // no cut of the act in its past: a row cutting its slots, or a withdrawal of it
+        !c.cs().iter().any(|&x| {
+            x != i && g.in_past(x, q) && (!spec.cuts_of(g.row(x)).is_disjoint(&on) || g.row(x).target() == Some(r.id()))
+        })
     };
     let rec: BTreeSet<&R::Key> = c
         .cs()
@@ -4228,6 +4253,40 @@ pub fn final_by_ack<R: SeatRow + crate::key_end::KeyEndRow, S: CutSpec<R>>(
         .map(|q| g.row(q).signer())
         .collect();
     rec.len() >= core::cmp::max(1, n - t + 1)
+}
+
+/// The evictions from a person's self roster that concluded in `c`: a counted unseat over a self roster (an object of
+/// kind [`CommunityKind::SelfRoster`]) of exactly one key, which held a live seat of that roster in the row's past
+/// (it removes the key itself, from its own self roster), or the rotated-to key of a rotation it cites whose old key
+/// holds a seat there (the roster's void of the rotation, T3). Read `c` as the rows concluded with no key view; the
+/// ids go in [`crate::key_end::KeyReading::roster`]. The caller presents the person's self-roster rows.
+pub fn self_roster_ends<R: SeatRow, S: CutSpec<R>>(c: &Concluded<'_, R>, law: &SeatLaw, spec: &S) -> BTreeSet<R::Id> {
+    let g = &c.g;
+    let mut out = BTreeSet::new();
+    for &e in c.cs() {
+        let er = g.row(e);
+        if er.seat_kind() != SeatKind::Unseat || er.conf() != Some(Conf::Group) || er.to().len() != 1 {
+            continue;
+        }
+        let Some(obj) = er.obj() else { continue };
+        let rows: Vec<&R> = c.cs().iter().copied().filter(|&q| g.in_past(q, e)).map(|q| g.row(q)).collect();
+        let by: BTreeMap<&R::Id, &R> = rows.iter().map(|q| (q.id(), *q)).collect();
+        if kind_of(law, &|i| by.get(i).copied(), &obj) != Some(CommunityKind::SelfRoster) {
+            continue;
+        }
+        let (rosters, _) = rosters_by_key(&rows, law, spec, &|_, _, _| true);
+        let in_roster = |k: &R::Key| rosters.get(k).is_some_and(|v| v.iter().any(|q| Obj::Row(q.id().clone()) == obj));
+        let k = &er.to()[0];
+        let cites = er
+            .names()
+            .iter()
+            .filter_map(|n| by.get(n))
+            .any(|q| q.rotates().is_some_and(|(old, new)| new == k && in_roster(old)));
+        if in_roster(k) || cites {
+            out.insert(er.id().clone());
+        }
+    }
+    out
 }
 
 /// Whether a count is met: `yes` voices of `n`, under `policy`.

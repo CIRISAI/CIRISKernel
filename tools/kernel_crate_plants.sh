@@ -687,11 +687,16 @@ plant "seat: a lift objection not read by the key view (lift_key_view_unread)" s
 plant "seat: a lone removal's single-key receipt not read by the key view (receipt_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer()) && false) {'
 plant "seat: a lone act not read by the key view (lone_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer()) && false) {'
 plant "key_end: a retired key's revocation an end (retired_key_revokes)" src/key_end.rs 'if rk == k && q.signer() == k && rots.is_empty() {' 'if rk == k && q.signer() == k {'
-plant "key_end: the person's roster end unread (roster_end_unread)" src/key_end.rs 'if rk == k && roster.contains(q.id()) {' 'if false && rk == k && roster.contains(q.id()) {'
 plant "key_end: the reader's taken-up line unread (taken_up_unread)" src/key_end.rs '|| own.iter().any(|&a| (a == i || c.g.in_past(i, a)) && !c.g.in_past(e, a))' '|| own.is_empty() && false'
 plant "key_end: a count final by acknowledgement reopened (final_count_unread)" src/key_end.rs '|| finals.iter().any(|&fi| !c.g.in_past(e, fi))' '|| (finals.is_empty() && false)'
 plant "key_end: a final count protects a voice cast after its end (final_protects_late)" src/key_end.rs '|| finals.iter().any(|&fi| !c.g.in_past(e, fi))' '|| finals.iter().any(|&fi| fi == fi)'
 plant "seat: an unclean receipt counted toward finality (receipt_unclean_counts)" src/seat.rs 'let Some((kc, roster)) = keys else { return true };' 'let Some((kc, roster)) = keys else { return true }; if roster.len() < usize::MAX { return true; }'
+plant "key_end: a rotation the self roster voids still an end (rotation_void_unread)" src/key_end.rs 'q.roster_end() == Some(x.key) && q.names().contains(r.id())' 'false && q.roster_end() == Some(x.key) && q.names().contains(r.id())'
+plant "key_end: a voided rotation's rotated-to key kept (voided_successor_kept)" src/key_end.rs 'if q.roster_end() == Some(k)' 'if false && q.roster_end() == Some(k)'
+plant "seat: the old key a cited rotation claims to succeed a voice (disputed_key_voices)" src/seat.rs '            v.remove(old);' '            let _ = old;'
+plant "seat: finality's clean test reads the row's own signers only (clean_signers_only)" src/seat.rs '    let voices = voices(r, &p);' '    let voices = signers(r);'
+plant "seat: a roster act over any object read as the self roster's (roster_end_any_object)" src/seat.rs 'if kind_of(law, &|i| by.get(i).copied(), &obj) != Some(CommunityKind::SelfRoster) {' 'if false && kind_of(law, &|i| by.get(i).copied(), &obj) != Some(CommunityKind::SelfRoster) {'
+plant "seat: a withdrawal of the act in a receipt's past left clean" src/seat.rs '|| g.row(x).target() == Some(r.id()))' '|| (g.row(x).target() == Some(r.id()) && false))'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

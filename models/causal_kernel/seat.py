@@ -2965,6 +2965,11 @@ def voices(r, P, past=None):
     a cosign whose past holds a newer counted head than r names leaves r itself with that head in its past, and r then
     concludes nothing by newer_head_in_past. No separate reading of the cosign's past is needed.)"""
     heads = set(r.get("head", ()))
+    # a counted row citing a rotation of a key (the self roster's void of it, T3): the old key the rotation claims to
+    # succeed is the subject of the dispute and no voice of it (MUTATION disputed_key_voices)
+    by_p = {q["id"]: q for q in P}
+    disputed = set() if "disputed_key_voices" in MUT else {
+        by_p[n]["succ_of"] for n in r.get("names", ()) if n in by_p and by_p[n]["kind"] == "rec" and by_p[n].get("succ_of")}
     kv = KEY_VIEW[-1] if "key_view_unread" not in MUT else None
     # the key view (key_end.counts_by over one causal order of the seat and key lanes): each voice by the end rule,
     # its signature on the row it signed (MUTATION cosigner_key_unchecked: only the counted row's own signer is read)
@@ -2974,7 +2979,7 @@ def voices(r, P, past=None):
         c["signer"] for c in K.sel(P, kind="cosign", of=r.get("content", r["id"]))
         if c["id"] in r["names"] and heads <= set(c["names"])
         and (ok(c["id"], c["signer"]) or "cosigner_key_unchecked" in MUT))
-    return v
+    return v - disputed
 
 
 def final_by_ack(S, fid, KS=None, roster=frozenset()):
@@ -2998,17 +3003,46 @@ def final_by_ack(S, fid, KS=None, roster=frozenset()):
     n = len(base)
     t = next((y for y in range(n + 1) if met(f.get("policy"), y, n)), None)
     if t is None or not n: return False
-    voices = signers(f)
+    # every voice of the count: its signers, its cosigners and the signers of the cosign rows it names (the set
+    # voices_with reads; MUTATION clean_signers_only: the row's own signers alone)
+    KEY_VIEW.append(None)
+    try:
+        voices_ = signers(f) if "clean_signers_only" in MUT else voices(f, P)
+    finally:
+        KEY_VIEW.pop()
     def clean(a):
         if KS is None or "receipt_unclean_counts" in MUT: return True
         if a["id"] not in KS.by or not KE_COUNTS[0](KS, a["id"], a["signer"], None, frozenset(), roster): return False
         past_a = KS.anc[a["id"]]
-        if any(e["id"] in past_a for k in voices for e in KE_ENDS[0](KS, k, roster)): return False
+        if any(e["id"] in past_a for k in voices_ for e in KE_ENDS[0](KS, k, roster)): return False
         on = set(f.get("on", ()))
         return not any(q["id"] != fid and (q.get("target") == fid or on & set(q.get("cuts", ())))
                        for q in KS.Cs if q["id"] in past_a)
     rec = {a["signer"] for a in S.Cs if a["kind"] == "ack" and a.get("of") == fid and a["signer"] in M and clean(a)}
     return len(rec) >= max(1, n - t + 1)
+
+
+def self_roster_ends(S):
+    """The evictions from a person's self roster that concluded in S: a counted unseat over a self roster (an object of
+    kind `self`, the key-person lane's reading) of exactly one key, which held a live seat of that roster in the row's
+    past (it removes k itself, from k's own self roster), or a rotated-to key a cited rotation of a key of that roster
+    names. The roster acts key_end reads (a rotation's void, T3). Read
+    as the rows concluded with no key view; the caller presents the person's self-roster rows."""
+    out = set()
+    for e in S.Cs:
+        if e["kind"] != "unseat" or e.get("conf") != "group" or len(e.get("to", ())) != 1: continue
+        P = [q for q in S.Cs if q["id"] in S.anc[e["id"]]]
+        by = {q["id"]: q for q in P}
+        g = by.get(e.get("obj"))
+        if g is None or (kind_of(by, g["id"]) != "self" and "roster_end_any_object" not in MUT): continue
+        k = e["to"][0]
+        # it removes k itself from k's own self roster; or k is the rotated-to key of a rotation it cites (refs.also.
+        # cites) whose old key holds a seat of that roster (the roster's void of the rotation, T3)
+        cited = [by[n] for n in e["names"] if n in by and by[n]["kind"] == "rec" and by[n].get("succ_of") and by[n]["key"] == k]
+        if g["id"] in rosters_of(P, k) or any(g["id"] in rosters_of(P, q["succ_of"]) for q in cited) \
+                or "roster_end_any_object" in MUT:
+            out.add(e["id"])
+    return frozenset(out)
 
 
 # key_end's end rule, for final_by_ack's clean receipts (set by key_end on import: seat does not import key_end)
