@@ -20,7 +20,9 @@
   room, its `to`). **BREAKING**: `AudienceRow::seats` is gone; `seat_act`, `obj` and `to` replace it.
 - Review r84: a key removal keeps every row in its past and every row of the member reachable along `prev` from
   a row it names (`ContentRow::tips` on a key removal; the walk an end's tips take), so an honest revocation naming
-  its last trusted row keeps what lies behind it. A row any removal cuts stays cut. A seat of a duty over the room
+  its last trusted row keeps what lies behind it. A row any removal cuts stays cut, whatever a later removal names:
+  otherwise a thief still holding the key could revoke it again naming its forgeries and keep them (the monotone
+  choice). A seat of a duty over the room
   (`audience::DUTY_SEAT_FAMILIES`: the moderator's acceptance) seats only a member at the row's own head, never an
   outsider.
 - Review r82, r83: only a ROOM seat family's offer or unseat seats keys within its audience

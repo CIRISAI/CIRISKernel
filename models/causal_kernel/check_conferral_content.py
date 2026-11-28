@@ -33,6 +33,9 @@ check_conferral_content.py: room content after a member's seat ends, where the e
         set_function    the answer does not depend on the order the rows are listed in
         receipt_inert   a receipt of a content row changes no answer (the `keys` histories)
 
+    A history is read with each one of its content rows not held only where no held row names that row for the door
+    (a key removal names its trusted rows): such a row waits for it, so no node holds the one without the other.
+
     The `keys` histories (the plain heads, one row shallower) may also hold a removal of the member's key B2,
     counted or the member's own, the reader's acknowledgement of a head or an end, and a receipt; there a row
     the member's own key removal cuts may leave the content (word_stands admits K.key_removed).
