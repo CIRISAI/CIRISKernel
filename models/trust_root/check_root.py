@@ -33,7 +33,7 @@ def bare(b):
     """A bundle left as its signers are written: resign() adds no statement to it (a case of a holder that does not
     sign). The bare bundles: the joins without the recovered holder's voice and without h6's; the join where the
     retired h3 signs with h4 alone; SJ (RS2, RS3: h1 and h2 alone); the single-predecessor cases of an added or
-    re-committed holder not signing; the settler toward s0 without X; and r116's K1, its junk rotation and junk
+    re-committed holder not signing; the sibling of (2'') signed as written; and r116's K1, its junk rotation and junk
     recovery, and the rotated holder's own re-commitment."""
     return dict(b, bare=True)
 
@@ -42,12 +42,14 @@ def resign(bs):
     """The bundles with each holder a later bundle adds, and each holder whose recovery commitment it changes, signing
     it (CC 2.6.1.11, "How a bundle is counted"), under the least key the rule allows it: the cases were written before
     the rule read every later bundle, and are re-signed here mechanically. A recovery, a first bundle, a bundle whose
-    predecessors are not all among `bs`, and a `bare` one are left as written."""
+    predecessors are not all among `bs`, a bounded settler (it adds nobody: the Constitution's ruling), and a `bare`
+    one are left as written."""
     if bs is None: return None
     R = RT.Root(bs)
     out = []
     for b in bs:
-        if b.get("bare") or not b["prev"] or b.get("recovers") is not None or any(p not in R.by for p in b["prev"]):
+        if b.get("bare") or not b["prev"] or b.get("recovers") is not None or any(p not in R.by for p in b["prev"]) \
+                or R.bounded_settler(b):
             out.append(b); continue
         have = {k for k, _ in b["stmts"]}
         add = [min(ks) for _, ks in R.join_signers(b) if ks and not (ks & have)]
@@ -670,10 +672,15 @@ CASES += [
                "so the reduced base only chooses which majority-signed bundle stands; the reader is at s0",
      STL + [SETTLE("st", "s0", ("h3",), STS)], (), (), RD(anchor="b0", acks=("s0", "b2", "b3", "st")),
      {"concluded": {"st": T}, "heads": ("s0",), "holders": {"h1", "h2", "X"}}),
-    ("settle", "(2') and a settler is a later bundle like any other: the holder s0 added (X) signs it too; by h3 alone "
-               "toward s0 it concludes nothing (with X's statement it counts, as in (2)): no exemption for settlers",
-     STL + [bare(SETTLE("st", "s0", ("h3",), STS))], (), (), RD(anchor="b0", acks=("s0", "b2", "b3", "st")),
-     {"concluded": {"st": Fa}}),
+    ("settle", "(2') a settler adds nobody (the Constitution's ruling): it states nothing of its own and names which "
+               "contested sibling stands, whose added holder X consented by signing s0; by h3 alone (the head's one "
+               "holder with a say) toward s0 it settles, without X's statement",
+     STL + [SETTLE("st", "s0", ("h3",), STS)], (), (), RD(anchor="b0", acks=("s0", "b2", "b3", "st")),
+     {"concluded": {"st": T}, "heads": ("s0",)}),
+    ("settle", "(2'') the Constitution's case: b1 adds h4 and h5, signed by them; a settler toward b1 signed by h3, the "
+               "head's holder with a say, and not by h4 or h5, settles: b1",
+     [B0, bare(nxt("b1", "b0", H5, ("h1", "h2", "h4", "h5"))), SB2, SB3, SS0, SETTLE("st", "b1", ("h3",), STS)], (), (),
+     RD(anchor="b0", acks=("s0", "b2", "b3", "st")), {"concluded": {"b1": T, "st": T}, "heads": ("b1",)}),
     ("settle", "(3) a settler by h3 that also seats a holder (h9) states something: counted over the full base, one "
                "of three, it concludes nothing; the reader stays at b0",
      STL + [dict(SETTLE("st", "b1", ("h3",), STS), holders=H5 + ("h9",), recovery={k: "r:" + k for k in H5 + ("h9",)})],
@@ -1091,7 +1098,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
           "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names",
           "concurrent_keep_bundle_only",
-          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name", "retired_reseat_allowed", "spent_on_branch_unread", "added_signers_join_only", "owner_any_row")
+          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name", "retired_reseat_allowed", "spent_on_branch_unread", "added_signers_join_only", "owner_any_row", "settler_signs_for_added")
 
 
 def answer(bs, rv, gs, rd, want):
