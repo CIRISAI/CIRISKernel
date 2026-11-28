@@ -1,0 +1,3 @@
+r95-attackr: final re-attack of origin/charter 9fbcdc3 (on wip 91bbc73).
+Extract: git archive 9fbcdc3 | tar -x -C r95-attackr/tree ; run: python3 -I r95-attackr/s/<x>.py
+lib.py: every edge termed, now=1000. a*/n*/m*/b*/c* re-run r73-r87; f1 (affiliation acts table), f2/f5 (counted act from an old past vs held growth), f3 (D1 multi-voice ends), f4 (partial contests, built-on), probe3 (r73 P1/P2 with policy).
