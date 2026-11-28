@@ -677,8 +677,8 @@ _DDE2 = ST.offer("dde", "A", ("D", "E"), "moderate", "g", "group", ("g",), head=
                  counted="duty", policy="duty_confer")            # A and B seat D and E (2 of 3): five holders
 _SYB = ST.offer("syb", "A", ("F", "G", "H", "I"), "moderate", "g", "group", ("g",), head=("g",),
                 cosigners=("B", "F", "G", "H", "I"), counted="duty", policy="duty_confer")   # A and B again, from g
-_RV10 = ST.offer("rv", "A", "A", "review", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty",
-                 policy="duty_confer")                            # A and B: a counted change after g, a later head
+_RV10 = ST.offer("rv", "A", (), "record", "g", "group", ("g",), head=("g",), cosigners=tuple("BCDEFGHIJ"),
+                 consensus_protocol="majority")                   # the members restate the record: a later head than g
 _DFF10 = ST.offer("dff", "A", "F", "moderate", "g", "group", ("g",), head=("g",), cosigners=("B", "F"), counted="duty",
                   policy="duty_confer")                           # A and B seat F, at g
 _GL_SYB = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dde", "syb"), head=("dde", "syb"),
@@ -705,6 +705,12 @@ CASES += [
      "license seat: 6 of 9",
      [_G10, _DDE2, _SYB, _GL_SYB, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
 ]
+
+# NOTE (attack-r r98 M3, review-scratch 4de5b1c, r98-attackr/s/h2.py; not exploitable, stated): A and B seat D and E
+# at g, and A, B and D seat F at g. Different voices, so each is re-counted against the other. F's seating stands on a
+# re-count that reads D's voice (A, B, D of A to E), while dde, the row seating D, fails its own re-count against F's.
+# The two re-counts at one head do not read each other's results. A and B are the majority at g either way, so no
+# outcome turns on it.
 
 # the same worlds read at the seat (Seats.holders): whether X holds the license seat the counted conferral gives,
 # (name, rows, [(key, scope, object, holds)])
@@ -740,9 +746,10 @@ SEATED = SEATED_R99 + [
     ("r97 seat B4 A and B seat D and E, and at g again F to I beside it: one batch at one head (as ruled), all seated",
      [_G10, _DDE2, _SYB], [("E", "duty", "g", True), ("F", "duty", "g", True), ("I", "duty", "g", True)]),
     ("r97 seat B6 the same voices at a LATER head are no batch: A and B seat D and E at rv (after g), and F to I at g "
-     "beside it, held: each is re-counted against the other's growth (2 of 7, 2 of 5), neither seats",
+     "beside it, held: the seating at g is behind dde (its heads older, in dde's past), so it is no growth against dde "
+     "and is itself re-counted (behind_act): dde seats D and E, F to I are unseated",
      [_G10, _RV10, dict(_DDE2, names=("rv",), head=("rv",)), _SYB],
-     [("E", "duty", "g", False), ("F", "duty", "g", False), ("I", "duty", "g", False)]),
+     [("E", "duty", "g", True), ("F", "duty", "g", False), ("I", "duty", "g", False)]),
     ("r97 seat B7 and different voices at the same head are no batch: A, B and C seat D and E at g, A and B seat F at g "
      "beside it, held: A, B and C are 3 of 4 against F, A and B 2 of 5 against D and E, so F is unseated",
      [_G10, dict(_DDE2, cosigners=("B", "C", "D", "E")), _DFF10],

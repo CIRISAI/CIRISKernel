@@ -19,9 +19,11 @@ nothing, and every row built on it is void with it. A change of the record, an e
 read by their own counts. **The batch, as the Constitution ruled (r98):** a row from behind the act (its heads in
 the act's own past, older than the act's: an acceptance of an offer in its past, or the same voices' new row at an
 old head after their own later row) is no growth against it and is itself the one re-counted; a reader whose line
-has passed the head reads such a row as behind its line. **Stated residual:** a reader with no line, holding no
+has passed the head reads such a row as behind its line. **Stated residuals:** a reader with no line, holding no
 later row by the signers, reads the same voices' duty conferrals at one head as one batch (the head rule's stated
-cost). Plants: `counted_recount_unread`, `growth_ends_read`, `growth_any_body`,
+cost); and a reader whose line holds only a sibling at that head reads the batch as one, until it acknowledges
+anything newer than the head or holds a later counted row by the signers (the sibling-safe line; with the
+Constitution). Plants: `counted_recount_unread`, `growth_ends_read`, `growth_any_body`,
 `behind_grows`, `growth_ends_unread`, `batch_any_heads`, `lone_regrowth_unread`.
 
 **Parity of `spec_from_policy` (review-53).** `window::Why` is ordered by its word and the cell it names
