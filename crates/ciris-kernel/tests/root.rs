@@ -25,6 +25,7 @@ struct TB {
     iat: u64,
     recovery: Vec<(String, String)>,
     recovers: Option<(String, String)>,
+    rotates: Option<(String, String)>,
     stmts: Vec<(String, u64)>,
     settles: Option<String>,
 }
@@ -71,6 +72,9 @@ impl RootBundle for TB {
     }
     fn recovers(&self) -> Option<(&String, &String)> {
         self.recovers.as_ref().map(|(a, b)| (a, b))
+    }
+    fn rotates(&self) -> Option<(&String, &String)> {
+        self.rotates.as_ref().map(|(a, b)| (a, b))
     }
     fn iat(&self) -> u64 {
         self.iat
@@ -163,6 +167,7 @@ fn bundles(j: &J) -> Vec<TB> {
             iat: b.at("iat").i() as u64,
             recovery: b.at("recovery").arr().iter().map(pair).collect(),
             recovers: b.get("recovers").filter(|x| !x.is_null()).map(pair),
+            rotates: b.get("rotates").filter(|x| !x.is_null()).map(pair),
             stmts: b.at("stmts").arr().iter().map(|s| (s.arr()[0].s().to_string(), s.arr()[1].i() as u64)).collect(),
             settles: b.get("settles").and_then(|x| x.opt_s()),
         })

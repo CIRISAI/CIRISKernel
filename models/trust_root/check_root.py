@@ -192,16 +192,47 @@ CASES = [
                         recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})], (), (), ANC, {"concluded": {"j": Fa}}),
     ("join", "a key left by routine rotation is LEFT: b1 rotates h2 to h2x (h1 h3), b2 keeps h2; h2 is still a voice on "
              "b2 (h1, h2 and h2x: two of each), and the join does not seat it again",
-     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"}),
+     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
+          rotates=("h2", "h2x")),
       nxt("b2", "b0", H3, ("h1", "h2"), seats=("n1", "n2")),
       nxt("j", ("b1", "b2"), ("h1", "h2x", "h3"), ("h1", "h2", "h2x"), version=2,
           recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"})], (), (), RD(anchor="b0", acks=("j",)),
      {"concluded": {"j": T}, "holders": {"h1", "h2x", "h3"}}),
     ("join", "without h2 it is one of b2's three: it concludes nothing",
-     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"}),
+     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
+          rotates=("h2", "h2x")),
       nxt("b2", "b0", H3, ("h1", "h2"), seats=("n1", "n2")),
       nxt("j", ("b1", "b2"), ("h1", "h2x", "h3"), ("h1", "h2x"), version=2,
           recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"})], (), (), ANC, {"concluded": {"j": Fa}}),
+    # a join inherits the union of its branches, and so does any later bundle: a key retired (a counted recovery
+    # replaced it) or left (a routine rotation) on any branch stays so; seating a holder at it is Invalid,
+    # genesis_bundle_malformed with the detail holder_key_retired; the holder comes back only under a new key
+    ("join", "a join seating the key a recovery retired (review-53's A2: h3 re-seated beside h3b, signed by h1, h2 and "
+             "h3b) is Invalid: genesis_bundle_malformed, holder_key_retired",
+     [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3", "h3b", "h4"), ("h1", "h2", "h3b"), version=2,
+                        recovery={"h1": "r:h1", "h2": "r:h2", "h3": "r:h3x", "h3b": "r:h3b", "h4": "r:h4"})], (), (), ANC,
+     {"concluded": {"j": Fa}, "refusal": {"j": ("genesis_bundle_malformed", "holder_key_retired")}}),
+    ("join", "a join seating the key a routine rotation left (h2, which b2 still seats): Invalid, holder_key_retired",
+     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
+              rotates=("h2", "h2x")),
+      nxt("b2", "b0", H3, ("h1", "h2"), seats=("n1", "n2")),
+      nxt("j", ("b1", "b2"), H3, ("h1", "h2", "h2x", "h3"), version=2)], (), (), ANC,
+     {"concluded": {"j": Fa}, "refusal": {"j": ("genesis_bundle_malformed", "holder_key_retired")}}),
+    ("count", "a later bundle re-seating a retired key: on rc, h1 and h2 add h3 back beside h3b: Invalid, "
+              "holder_key_retired; no counted change re-adds it",
+     [B0, REC, nxt("b2", "rc", ("h1", "h2", "h3", "h3b"), ("h1", "h2"), version=2,
+                   recovery={"h1": "r:h1", "h2": "r:h2", "h3": "r:h3x", "h3b": "r:h3b"})], (), (), ANC,
+     {"refusal": {"b2": ("genesis_bundle_malformed", "holder_key_retired")}}),
+    ("count", "a later bundle re-seating a left key: on b1 (h2 rotated to h2x), h1 and h3 seat h2 again: Invalid",
+     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"},
+              rotates=("h2", "h2x")),
+      nxt("b3", "b1", ("h1", "h2", "h2x", "h3"), ("h1", "h3"), version=2,
+          recovery={"h1": "r:h1", "h2": "r:h2y", "h2x": "r:h2x", "h3": "r:h3"})], (), (), ANC,
+     {"refusal": {"b3": ("genesis_bundle_malformed", "holder_key_retired")}}),
+    ("count", "the holder comes back only under a new key: on rc, h1 and h2 seat h3n, and it counts",
+     [B0, REC, nxt("b2", "rc", ("h1", "h2", "h3b", "h3n"), ("h1", "h2"), version=2,
+                   recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h3n": "r:h3n"})], (), (), ANC,
+     {"concluded": {"b2": T}, "refusal": {"b2": None}}),
     ("join", "with h3b's voice it counts: rc rotates h3 to h3b, and am (h1 h2 add h4) still lists h3; "
              "joining them, h3 is no live holder of am for the count, so h1 and h2 are two of am's three and of rc's three",
      [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h1", "h2", "h3b"), version=2,
@@ -210,10 +241,10 @@ CASES = [
     ("join", "and revives nothing: the retired h3 signing it is no voice (h3 alone with h4 on am)",
      [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h3", "h4"), version=2,
                         recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})], (), (), ANC, {"concluded": {"j": Fa}}),
-    ("join", "the wire: a named predecessor in the past of another is Invalid (s1 and b0): further_prev_not_newest, a "
-             "refusal of its own in the token table, no detail",
+    ("join", "the wire: a named predecessor in the past of another is Invalid (s1 and b0): genesis_bundle_malformed, "
+             "the detail further_prev_not_newest (as CIRISVerify returns it; the Constitution's commit after 0e80f21)",
      FORK + [nxt("j", ("s1", "b0"), H3 + ("h4",), ("h1", "h2", "h3"), version=2)], (), (), ANC,
-     {"concluded": {"j": Fa}, "refusal": {"j": ("further_prev_not_newest", None)}}),
+     {"concluded": {"j": Fa}, "refusal": {"j": ("genesis_bundle_malformed", "further_prev_not_newest")}}),
     # the forked join (the Constitution's option (ii)): two joins of the same tips that do not fold with each other
     # (their charters differ), neither in the other's past, are contested: neither stands, and the reader keeps the
     # tips they tried to join; a bundle naming every one settles them, counted by a strict majority of those tips'
@@ -864,7 +895,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
           "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names",
           "concurrent_keep_bundle_only",
-          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name")
+          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name", "retired_reseat_allowed")
 
 
 def answer(bs, rv, gs, rd, want):
@@ -953,6 +984,7 @@ def benc(b):
             "iat": b["iat"], "recovery": [[k, v] for k, v in sorted(b["recovery"].items())],
             "names": list(b.get("names", ())), "settles": b.get("settles"),
             "recovers": list(b["recovers"]) if b.get("recovers") else None,
+            "rotates": list(b["rotates"]) if b.get("rotates") else None,
             "stmts": [[k, i] for k, i in b["stmts"]]}
 def genc(g):
     if g["kind"] == "ack": return {"id": g["id"], "kind": "ack", "head": g["head"], "names": list(g["names"])}
