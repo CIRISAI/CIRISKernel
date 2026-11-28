@@ -2655,9 +2655,13 @@ def rosters_of(P, k, keep=lambda g: True):
 def person_in(P, k, keep=lambda g: True):
     """The person key k is over P (a row's concluded past) alone: person_of with no rule 4 (a conclusion reads its
     row's past only; a concurrent eviction is no part of it). `keep(g)`: a self roster g still in play (person_of's
-    rule 4). None for no person or two."""
+    rule 4). The person is named by its identity key (person_key: the genesis key that signed its rosters' founding
+    records). None for no person or two."""
     hit = rosters_of(P, k, keep)
-    if len(hit) == 1 or ("person_first" in MUT and hit): return hit[0]   # MUTATION person_first: two persons, the first
+    # a person is its IDENTITY key (the self roster's object is the identity key, never one roster row or one key
+    # record): two rosters founded by one genesis key are one person (MUTATION genesis_unread: each roster a person)
+    names = sorted(set(hit)) if "genesis_unread" in MUT else sorted({person_key(P, g) for g in hit})
+    if len(names) == 1 or ("person_first" in MUT and names): return names[0]   # MUTATION person_first: the first
     return None
 
 
@@ -2667,8 +2671,11 @@ def person_of(S, rid, k):
     in the row's own past, k is the genesis key (it signed the founding record) or was seated by a counted addition
     (an `identity:occurrence` that landed, self_roster_add), no eviction of it has landed (self_roster_evict), and
     an eviction concurrent with the row follows rule 4 (evicted_from); and the key's own revocation is not in the
-    row's past (key_record_ended). None where no self roster has k live there, or where several do (two persons is
-    none, as two owners are). A count is then over persons: one voice, however many live keys sign (persons_of)."""
+    row's past (key_record_ended). The answer is the person's IDENTITY key (the self roster's object is the identity
+    key, the genesis key that signed the founding record, never one roster row or one key record), so two rosters
+    founded by one genesis key are one person. None where no self roster has k live there, or where rosters of
+    several identity keys do (two persons is none, as two owners are). A count is then over persons: one voice,
+    however many live keys sign (persons_of)."""
     if not S.C.get(rid): return None
     anc = S.anc[rid]
     P = [q for q in S.Cs if q["id"] in anc]
@@ -2706,6 +2713,13 @@ def rep_of(P, k, member=False):
     return _PERSON_IN[key][1]
 
 
+def founded_self(P, k):
+    """k signed the founding record of a self roster over P: it is a person's genesis key (its identity)."""
+    by = {q["id"]: q for q in P}
+    return any(g["kind"] == "offer" and g.get("obj") == g["id"] and g["signer"] == k and kind_of(by, g["id"]) == "self"
+               for g in P)
+
+
 def persons_named(P, k):
     """The persons key k is a live key of over P: the genesis keys (person_key) of the self rosters it holds a live
     seat of, one each. A person is NAMED by its genesis key, so two rosters founded by the same key are one person."""
@@ -2727,7 +2741,10 @@ def _rep(P, k):
     # clause one holder's act resolves still reads an agent holder's act). MUTATION agent_speaks
     if k in agent_keys(P) and "agent_speaks" not in MUT: return k
     names = persons_named(P, k)
-    if not names: return k
+    # a genesis key its own roster evicted is no voice of its person (G33: an eviction ends a key AS THE PERSON'S;
+    # the person is its identity, and only a live key of its roster speaks for it). Its own rows read as a bare key's,
+    # and the identity the room seats is no voice of it (MUTATION evicted_genesis_speaks)
+    if not names: return None if founded_self(P, k) and "evicted_genesis_speaks" not in MUT else k
     if len(names) > 1 and "person_first" not in MUT: return None   # a key of two persons (two genesis keys)
     g = names[0] if "genesis_unread" not in MUT else person_key(P, names[0])
     if key_record_ended(P, g) and "revoked_voice_kept" not in MUT: return None
@@ -3233,6 +3250,11 @@ def _count_under(r, P, past, by, table=None):
         mem = vot = frozenset(k for d, ks in (g.get("duty_holders") or ()) if d == "founder" for k in ks) & signers(g)
     # a family under founder_only: a removal takes an active founder other than the one it names
     if r.get("exclude_target"): vot = vot - frozenset(r.get("to", ()))
+    # an eviction from a self roster: the key evicted is no voice of it (no key keeps itself in by its own signature;
+    # a roster whose only live key is the one evicted cannot evict it: the one-key residual) (MUTATION
+    # evicted_key_votes)
+    if k == "unseat" and r.get("policy") == "self_roster_evict" and "evicted_key_votes" not in MUT:
+        vot = vot - frozenset(r.get("to", ()))
     if r.get("base_excludes_target"):
         mem, vot = mem - frozenset(r.get("to", ())), vot - frozenset(r.get("to", ()))
     # one member per person, as one voice (ruled on CIRISConstitution#224): the base counted by person (as_persons)

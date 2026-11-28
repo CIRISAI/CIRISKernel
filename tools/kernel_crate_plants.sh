@@ -286,9 +286,7 @@ plant "a second seat row of a seated key is refused" src/seat.rs '    removed
         || p.rows().any(|m| m.seat_kind() == SeatKind::Offer && m.obj().as_ref() == Some(obj) && m.to().contains(k) && !founding(m))
         || p.rows().any(|w| {'
 plant "one barred key does not bar a batch admission" src/seat.rs 'keys.into_iter().any(|k| {' 'keys.into_iter().all(|k| {'
-plant "a key's person: two persons read as the first" src/seat.rs '    if hit.len() == 1 {
-        hit.pop()' '    if !hit.is_empty() {
-        hit.pop()'
+plant "a key's person: two persons read as the first" src/seat.rs '    if names.len() == 1 {' '    if !names.is_empty() {'
 plant "a key's person: any group is a person" src/seat.rs 'if kind_of(law, &get, &o) != Some(CommunityKind::SelfRoster) {' 'if kind_of(law, &get, &o).is_none() {'
 plant "a key's person: the key's own end is not read" src/seat.rs 'if keep(&o, s.as_ref(), &k) && !revoked_itself(rows.iter().copied(), &k) {' 'if keep(&o, s.as_ref(), &k) {'
 plant "a key's person: an admission in the past is enough (evictions unread)" src/seat.rs '        for k in seats.holders(s.as_ref(), &o, None) {' '        let seated: BTreeSet<R::Key> = rows.iter().filter(|q| q.seat_kind() == SeatKind::Offer && q.obj().as_ref() == Some(&o)).flat_map(|q| q.to().iter().cloned()).collect();
@@ -304,6 +302,9 @@ plant "a person's keys read without its persons (a key of two persons, a revoked
 plant "an owner's nodes read from the offers, not the owner seat" src/seat.rs '            let held = seats.holders("owner", &Obj::Key(n.clone()), None);' '            let held: BTreeSet<R::Key> = rows.iter().filter(|q| q.seat_kind() == SeatKind::Offer && q.obj() == Some(Obj::Key(n.clone()))).flat_map(|q| q.to().iter().cloned()).collect();'
 plant "a node bound to two live owners read as each one's" src/seat.rs '            held.len() == 1 && held.contains(owner) && !revoked_itself(rows.iter().copied(), n)' '            held.contains(owner) && !revoked_itself(rows.iter().copied(), n)'
 plant "a node key that revoked itself stays its owner's node" src/seat.rs '            held.len() == 1 && held.contains(owner) && !revoked_itself(rows.iter().copied(), n)' '            held.len() == 1 && held.contains(owner)'
+plant "a key's person read per roster, not per identity key (two rosters of one genesis key two persons)" src/seat.rs '    if names.len() == 1 {' '    if hit.len() == 1 {'
+plant "an evicted genesis key still speaks as its person (r95 P1b)" src/seat.rs '            [] if self.founders.contains(k) => None,' ''
+plant "the key a self roster evicts is a voice of its own eviction" src/seat.rs '    let drop_to = f.exclude_target || f.base_excludes_target || evicts;' '    let drop_to = f.exclude_target || f.base_excludes_target || (evicts && false);'
 plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '            [g] if !self.revoked.contains(g) => Some(g.clone()),' '            [g] => Some(g.clone()),'
 plant "an agent's key of a person's roster speaks for that person" src/seat.rs '        if self.agents.contains(k) {
             return Some(k.clone());
@@ -558,7 +559,7 @@ plant 'a dissolution leaves the seats'                   src/seat.rs '          
 plant 'a row over a dissolved group concludes'           src/seat.rs '            if !founding(r) && r.obj().is_some_and(|o| dissolved_in(p, &o)) {' '            if false {'
 # retired at the heads merge: 'a dissolution at any heads' (H1 / the heads' reading of a leaving pre-empt it)
 # retired: 'a self-removal read as the leaving' (the member a removal names is no voice of it: F3 follows)
-plant "a family's founder_only removal by its target"    src/seat.rs '    let drop_to = f.exclude_target || f.base_excludes_target;' '    let drop_to = f.base_excludes_target;'
+plant "a family's founder_only removal by its target"    src/seat.rs '    let drop_to = f.exclude_target || f.base_excludes_target || evicts;' '    let drop_to = f.base_excludes_target || evicts;'
 plant 'a removal counts the member it removes'          src/seat.rs 'base_excludes_target: r.seat_kind() == SeatKind::Unseat && proto != RoomProtocol::Unanimous,' 'base_excludes_target: false,'
 plant 'a family with a duty map'                         src/seat.rs '        if p.get(i).ok_or(())?.duty_holders().iter().any(|(d, _)| d.as_ref() != "founder") {' '        if false {'
 plant 'a family read as a community'                     src/seat.rs '    if g.group_kind().is_some_and(|k| k.as_ref() == "family") {' '    if false {'
@@ -588,7 +589,10 @@ plant "sub-delegation asked of the act's own edge"     src/conferral.rs 'if let 
 plant "in force under the grant alone"                 src/standing.rs 'in_force: g.in_force && u.in_force,' 'in_force: g.in_force,'
 plant "counted under the binding alone"                src/standing.rs 'counted: g.counted && u.counted,' 'counted: u.counted,'
 plant "an act naming the binding stands under it"      src/standing.rs 'Kind::Binding => return Ok(Err(Nobody::NamesBinding)),' 'Kind::Binding => return Ok(Ok(a)),'
-plant "any key's acceptance is the owner's"            src/standing.rs 'if b.owner() != Some(a.signer()) {' 'if false {'
+plant "any key's acceptance is the owner's"            src/standing.rs 'b.kind() == Kind::Binding && b.owner() == Some(a.signer())' 'b.kind() == Kind::Binding'
+plant "a former owner's acceptance stands (N7: the re-binding at the acceptance not read)" src/standing.rs '        if !ended {
+            live.push(b);' '        if !ended || true {
+            live.push(b);'
 plant "a re-binding does not end the binding before it" src/standing.rs 'Kind::Binding if row.on() == Some(bid) => (conferral::Kind::End, Some(bid)),' 'Kind::Binding if row.on() == Some(bid) => (conferral::Kind::Other, None),'
 plant "the member's own end adds tips beside a counted end" src/content.rs 'if ends.iter().any(|e| counts(e) && is_count(e)) {' 'if false {'
 plant "the member's own ends are joined, not met"       src/content.rs 'Some(o) => o.intersection(&g).copied().collect(),' 'Some(o) => o.union(&g).copied().collect(),'

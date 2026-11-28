@@ -3,11 +3,12 @@
 //!
 //! A node that is its owner's by an owner binding and holds a duty by a root grant signs an act. The act names
 //! the bundle version in force (its head) and the owner's acceptance of the grant it stands on. The acceptance
-//! names the owner binding it is made under. A re-binding names the binding before it and ends it, and the new
-//! owner's acts need a new acceptance.
+//! names no binding (N7): it stands while its author owns the grant's subject, so the binding it stands on is
+//! derived, its signer's owner binding live in its past ([`owner_of`]). A re-binding names the binding before it
+//! and ends it, and the new owner's acts need a new acceptance.
 //!
 //! [`answers`] follows those names and judges each act twice with [`conferral::answers`]: once under the grant
-//! (the bundle versions as heads, the grant's end as the end) and once under the binding its acceptance names
+//! (the bundle versions as heads, the grant's end as the end) and once under the binding its acceptance stands on
 //! (the binding as the only head, a re-binding of it as the end). It joins the two bit by bit: the act
 //! **counts** for the binding's owner when it counts under both, and is **in force** when it is in force under
 //! both. An act that names a binding row itself, or the bundle alone, stands on no acceptance and counts for
@@ -79,8 +80,11 @@ pub trait StandingRow {
     /// The bundle version an act or the grant's end names. `None` on any other row.
     fn head(&self) -> Option<&Self::Id>;
     /// The one row this row is made on: for an act, the row it stands on (an acceptance, if it is to count);
-    /// for an acceptance, its binding; for a binding, the binding it re-binds; for a receipt, the act.
-    fn on(&self) -> Option<&Self::Id>;
+    /// for a binding, the binding it re-binds; for a receipt, the act. An acceptance names no binding (N7): the
+    /// binding it stands on is derived ([`owner_of`]), and its `on` is not read. Default `None`.
+    fn on(&self) -> Option<&Self::Id> {
+        None
+    }
     /// On a binding: the owner it binds the node to.
     fn owner(&self) -> Option<&Self::Key> {
         None
@@ -114,9 +118,11 @@ pub enum Nobody {
     NamesBinding,
     /// The row it names is neither an acceptance nor a binding.
     NotAnAcceptance,
-    /// The acceptance it names names no binding.
+    /// The acceptance it names names no binding. No longer given (N7: the binding is derived); kept for the
+    /// fixture's names.
     AcceptanceNamesNoBinding,
-    /// The acceptance it names is not signed by its binding's owner.
+    /// The acceptance it names is by no owner of the node at it: its signer owns no binding live in its past (a
+    /// former owner, whose binding a re-binding ended, or never an owner).
     NotTheOwnersAcceptance,
     /// An act standing directly on an acceptance (a root edge) signed by a key that is not the grant's grantee
     /// ([`Role::Grantee`] under the grant's `role`): a deputy that names the acceptance itself.
@@ -223,11 +229,52 @@ impl<R: StandingRow> ConferralRow for As<'_, R> {
     }
 }
 
+/// The owner binding acceptance `a` stands on, derived (N7: an owner's acceptance of the grant names no binding; it
+/// stands while its author owns the grant's subject): a binding owned by `a`'s signer in `a`'s past, with no
+/// re-binding of it in `a`'s past; of several, the newest (none of the others has it in its past), the least id
+/// on a tie. `None`: its signer owns nothing there (a former owner, its binding ended; or never an owner). `Err`:
+/// the row `past` needs to tell. The reference is `owner_of` in `models/causal_kernel/check_conferral_two.py`.
+pub fn owner_of<'a, R: StandingRow, P: Past<R::Id>>(a: &R, rows: &[&'a R], past: &P) -> Result<Option<&'a R>, R::Id> {
+    let mut live: Vec<&'a R> = Vec::new();
+    for &b in rows.iter().filter(|b| b.kind() == Kind::Binding && b.owner() == Some(a.signer())) {
+        if !past.in_past(b.id(), a.id())? {
+            continue;
+        }
+        let mut ended = false;
+        for e in rows.iter().filter(|e| e.kind() == Kind::Binding && e.on() == Some(b.id())) {
+            if past.in_past(e.id(), a.id())? {
+                ended = true;
+                break;
+            }
+        }
+        if !ended {
+            live.push(b);
+        }
+    }
+    let mut top: Vec<&'a R> = Vec::new();
+    for &b in &live {
+        let mut older = false;
+        for &c in live.iter().filter(|c| c.id() != b.id()) {
+            if past.in_past(b.id(), c.id())? {
+                older = true;
+                break;
+            }
+        }
+        if !older {
+            top.push(b);
+        }
+    }
+    Ok(top.into_iter().min_by(|x, y| x.id().cmp(y.id())))
+}
+
 // where an act stands: its root edge (itself, for the node's own act) and the binding that edge's acceptance
-// names, why it stands on none, or the row to fetch. `index`: the rows by id; `cap`: the deputy depth
-fn stands_on<'a, R: StandingRow>(
+// stands on (derived, [`owner_of`]), why it stands on none, or the row to fetch. `index`: the rows by id; `cap`:
+// the deputy depth
+fn stands_on<'a, R: StandingRow, P: Past<R::Id>>(
     x: &'a R,
     index: &BTreeMap<&R::Id, &'a R>,
+    rows: &[&'a R],
+    past: &P,
     cap: usize,
     grant: &conferral::Standing<'_, R::Id, R::Key>,
 ) -> Result<Result<(&'a R, &'a R), Nobody>, R::Id> {
@@ -243,14 +290,8 @@ fn stands_on<'a, R: StandingRow>(
         Kind::Binding => return Ok(Err(Nobody::NamesBinding)),
         _ => return Ok(Err(Nobody::NotAnAcceptance)),
     }
-    let Some(b) = a.on() else { return Ok(Err(Nobody::AcceptanceNamesNoBinding)) };
-    let b = held(b)?;
-    if b.kind() != Kind::Binding {
-        return Ok(Err(Nobody::AcceptanceNamesNoBinding));
-    }
-    if b.owner() != Some(a.signer()) {
-        return Ok(Err(Nobody::NotTheOwnersAcceptance));
-    }
+    // N7: the binding it stands on is its signer's owner binding live at it, not a row it names
+    let Some(b) = owner_of(a, rows, past)? else { return Ok(Err(Nobody::NotTheOwnersAcceptance)) };
     // a root edge (an act standing directly on an acceptance) is the grantee's own act: any other key's
     // root-shaped act stands on nothing
     if (grant.role)(x.signer()) != Role::Grantee {
@@ -350,7 +391,7 @@ pub fn answers<R: StandingRow, P: Past<R::Id>>(
         index.entry(r.id()).or_insert(r);
     }
     for &x in &acts {
-        match stands_on(x, &index, grant.deputy_depth, grant) {
+        match stands_on(x, &index, rows, past, grant.deputy_depth, grant) {
             // two owners is none for the edge, and so for every act under it
             Ok(Ok((e, b))) => match two_owners(e, b, rows, past) {
                 Ok(false) => at.push((x, b)),

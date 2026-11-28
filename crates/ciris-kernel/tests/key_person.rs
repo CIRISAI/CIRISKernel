@@ -19,7 +19,7 @@ fn a_key_to_its_person_at_a_row() {
             case.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
         let rows = rows_with_refs(case.at("rows").arr(), &refs);
         let key = case.at("key").s().to_string();
-        let want = case.at("person").opt_s().map(Obj::Row);
+        let want = case.at("person").opt_s().map(Obj::Key);
         for reversed in [false, true] {
             let mut rs = rows.clone();
             if reversed {

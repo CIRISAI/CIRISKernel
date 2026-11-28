@@ -238,15 +238,24 @@ def chain_answers(rows, reader_acks=(), role=None):
             return "names_binding", None
         if a["kind"] != "acceptance":
             return "not_an_acceptance", None
-        b = a.get("on")
-        if b is None:
-            return "acceptance_names_no_binding", None
-        if b not in by:
-            return "undecided", b
-        if by[b]["kind"] != "binding":
-            return "acceptance_names_no_binding", None
-        if a["signer"] != by[b]["owner"]:
-            return "not_the_owners_acceptance", None
+        # N7: an acceptance names no binding; it stands while its author owns the grant's subject: the binding it
+        # stands on is DERIVED, the owner binding of its signer live at the acceptance (owner_of): one in its past,
+        # with no re-binding of it there. None: its signer owns nothing there (a former owner, its binding ended),
+        # and the acceptance is no owner's (MUTATION acceptance_on_read: the binding the row names is read)
+        if "acceptance_on_read" in PLANT:
+            b = a.get("on")
+            if b is None:
+                return "acceptance_names_no_binding", None
+            if b not in by:
+                return "undecided", b
+            if by[b]["kind"] != "binding":
+                return "acceptance_names_no_binding", None
+            if a["signer"] != by[b]["owner"]:
+                return "not_the_owners_acceptance", None
+        else:
+            b = owner_of(a)
+            if b is None:
+                return "not_the_owners_acceptance", None
         # a root edge (an act standing directly on an acceptance) is the grantee's own act: any other key's
         # root-shaped act stands on nothing (MUTATION grantee_unread)
         if role.get(x["signer"]) != CE.GRANTEE and "grantee_unread" not in PLANT:
@@ -255,6 +264,15 @@ def chain_answers(rows, reader_acks=(), role=None):
         if two_owners(orig if "two_owners_on_act" in PLANT else x, by[b]):
             return "two_owners", None
         return "stands", b
+
+    def owner_of(a):
+        """The owner binding acceptance a stands on, derived (N7): a binding owned by a's signer in a's past, not
+        re-bound in a's past; of several, the newest (none of the others has it in its past), the least id on a tie."""
+        past = anc(a["id"])
+        live = [b for b in rows if b["kind"] == "binding" and b.get("owner") == a["signer"] and b["id"] in past
+                and not any(e["kind"] == "binding" and e.get("on") == b["id"] and e["id"] in past for e in rows)]
+        top = [b for b in live if not any(b["id"] in anc(c["id"]) for c in live if c is not b)]
+        return min(top, key=lambda b: b["id"])["id"] if top else None
 
     def rebinds(c, b):
         """c is b, or re-binds b through a chain of re-bindings (`on`)."""
@@ -455,6 +473,33 @@ TWO_CASES = [
      "past: O2's binding is not ended in the act's past, so at the act two owners were live; nobody",
      _two(c1=True), {"x1": NOBODY}, {"x1": "two_owners"}),
 ]
+# N7 (ruled): an owner's acceptance of the grant names NO binding; it stands while its author owns the grant's
+# subject. The binding it stands on is derived (owner_of the node at the acceptance): an owner binding of its signer
+# in its past, not re-bound there. B0 binds N to O1; B1 re-binds it to O2.
+def _n7(acc_signer, acc_names, rebind=False):
+    rows = [{"id": "G0", "kind": "bundle", "signer": "count", "names": []},
+            {"id": "B0", "kind": "binding", "signer": "N", "names": [], "owner": "O1", "on": None}]
+    if rebind:
+        rows.append({"id": "B1", "kind": "binding", "signer": "N", "names": ["B0"], "owner": "O2", "on": "B0"})
+    rows.append({"id": "A", "kind": "acceptance", "signer": acc_signer, "names": list(acc_names), "on": None})
+    rows.append({"id": "x1", "kind": "act", "signer": "N", "names": ["G0", "A"], "head": "G0", "on": "A"})
+    return rows
+
+
+N7_CASES = [
+    ("n7_current_owners_acceptance", "N7: the owner's acceptance names no binding, only the binding in its past: it "
+     "stands, on the owner's binding live at it (B0), and the act counts for O1", _n7("O1", ["B0"]),
+     {"x1": {"O1": (T, T), "O2": (F, F)}}, {"x1": "stands"}),
+    ("n7_former_owners_acceptance", "N7: O1 accepts after B1 re-bound the node to O2 (B1 in the acceptance's past): "
+     "O1 owns nothing there, so its acceptance stands on no binding, and the act counts for nobody",
+     _n7("O1", ["B1"], rebind=True), {"x1": NOBODY}, {"x1": "not_the_owners_acceptance"}),
+    ("n7_new_owners_acceptance", "N7: O2 accepts with B1 in its past: it stands on B1, and the act counts for O2",
+     _n7("O2", ["B1"], rebind=True), {"x1": {"O1": (F, F), "O2": (T, T)}}, {"x1": "stands"}),
+    ("n7_never_an_owner", "N7: a key that owns no binding of the node accepts: no owner's acceptance",
+     _n7("O2", ["B0"]), {"x1": NOBODY}, {"x1": "not_the_owners_acceptance"}),
+]
+TWO_CASES += N7_CASES
+N7_PLANTS = ("acceptance_on_read",)
 # A deputy under two standings (CIRISConstitution#218, in no issue): the node's edge s1 is its own act, at G0, on
 # O1's acceptance A0; the deputy C's act c1 stands on it (`via`) and names no acceptance. Optional: s1 carries
 # sub_delegation and C's onward edge s2 carries C2's act c2; the grant's end EG; a re-binding B1 of B0 to O2;
@@ -644,6 +689,17 @@ def check_cases():
         rev = chain_answers(list(reversed(rows)))
         if rev != ans:
             problems.append("case %s: the rows in reverse give %s" % (name, rev))
+    for plant in N7_PLANTS:
+        PLANT.add(plant)
+        try:
+            hit = [n for n, _, rows, want, why in N7_CASES
+                   if per_owner(chain_answers(rows)) != {x: {o: {"counted": c, "in_force": f} for o, (c, f) in w.items()}
+                                                         for x, w in want.items()}
+                   or {x: a["reason"] for x, a in chain_answers(rows).items()} != why]
+        finally:
+            PLANT.discard(plant)
+        if not hit:
+            problems.append("plant %s not caught by an N7 case" % plant)
     for plant in DEPUTY_PLANTS:
         PLANT.add(plant)
         try:
@@ -698,7 +754,7 @@ def fixture():
                     "first owner's receipt of x1; an act names its bundle version, the row it stands on if any, "
                     "and its signer's previous act. Beside `names`, a row states what a rule reads of it: an "
                     "act and the end their `head` (the bundle version), an act the row it stands `on`, an "
-                    "acceptance the binding it is made `on`, a binding its `owner` and the binding it re-binds "
+                    "acceptance nothing it is made on (N7: the binding it stands on is derived, its signer's owner binding live in its past), a binding its `owner` and the binding it re-binds "
                     "(`on`), a receipt the act it is `on`",
             "why": "per act: `reason` is `stands` (the act names an acceptance its binding's owner signed; "
                    "`binding` is that binding, `grant` and `under` the conferral-end rules that decide it "

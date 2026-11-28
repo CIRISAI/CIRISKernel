@@ -33,6 +33,8 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     nodes_by_offer        an owner's nodes read from the offers, not the owner seat: an unsigned or ended binding binds
     nodes_two_owners_kept a node bound to two live owners read as each one's
     nodes_revocation_unread  the node key's (or the owner's) own revocation not read
+    evicted_genesis_speaks  a genesis key its own roster evicted still speaks as its person (r95 P1b)
+    evicted_key_votes     the key a self roster evicts is a voice of its own eviction (the one-key residual evicts)
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -92,29 +94,40 @@ G = ST.offer("g", "m1", ("m1", "m2"), "member", "@", "self", cosigners=("m2",)) 
 E2 = evict("e2", "S", "k2", ("k1", "k3"), ("a3",))                             # k2 evicted at the head a3
 
 # (name, rows, key, person)
+REC2 = ST.offer("rec2", "k1", "k1", "registered", "k1", "self", ("rec",))        # k1's second key record
+SX = found("SX", "k1")                                                            # a second roster k1 founds
+AX = add("ax", "SX", "kx", ("k1",), ("SX",))
+AX2 = add("ax2", "SX", "k2", ("k1",), ("SX",))                                   # k2 seated in k1's second roster too
 CASES = [
-    ("the first key of a self roster, at a row naming the roster", [S, at(("S",))], "k1", "S"),
-    ("a key added by the roster's count, at a row naming the addition", [S, A2, at(("a2",))], "k2", "S"),
+    ("the first key of a self roster, at a row naming the roster", [S, at(("S",))], "k1", "k1"),
+    ("a key added by the roster's count, at a row naming the addition", [S, A2, at(("a2",))], "k2", "k1"),
     ("the same key at a row that does not have the addition in its past: no person yet", [S, A2, at(("S",))], "k2", None),
-    ("a third key added by two, at a row naming its addition", [S, A2, A3, at(("a3",))], "k3", "S"),
+    ("a third key added by two, at a row naming its addition", [S, A2, A3, at(("a3",))], "k3", "k1"),
     ("the third key evicted by the roster's count, at a row naming the eviction: no person", [S, A2, A3, E3, at(("e3",))],
      "k3", None),
-    ("the other keys keep their person after the eviction", [S, A2, A3, E3, at(("e3",))], "k2", "S"),
+    ("the other keys keep their person after the eviction", [S, A2, A3, E3, at(("e3",))], "k2", "k1"),
     ("the evicted key at the eviction's own head, the eviction concurrent with the row: out (rule 4)",
      [S, A2, A3, E3, at(("a3",))], "k3", None),
-    ("the evicted key at that head with no eviction held: its person then", [S, A2, A3, at(("a3",))], "k3", "S"),
+    ("the evicted key at that head with no eviction held: its person then", [S, A2, A3, at(("a3",))], "k3", "k1"),
     ("a key seated in two self rosters: two persons is none", [S, A2, T, T2, at(("a2", "b2"))], "k2", None),
-    ("the same key with only one of the two in the row's past", [S, A2, T, T2, at(("a2",))], "k2", "S"),
+    ("the same key with only one of the two in the row's past", [S, A2, T, T2, at(("a2",))], "k2", "k1"),
     ("the key's own revocation in the row's past ends its person (the liveness half)", [S, REC, RV, at(("rv",))], "k1", None),
-    ("the key's revocation not in the row's past", [S, REC, RV, at(("S",))], "k1", "S"),
-    ("a room key of a voice: the voice is its person", VA + [at((HA,))], "rk:a1", "vA"),
+    ("the key's revocation not in the row's past", [S, REC, RV, at(("S",))], "k1", "k1"),
+    ("a room key of a voice: the voice is its person", VA + [at((HA,))], "rk:a1", "rk:a0"),
     ("a member seat of a community is no person", [G, at(("g",))], "m1", None),
     ("a key no roster seats", [S, at(("S",))], "zz", None),
     # rule 4: an eviction concurrent with the row counts at its own head and is out of force from that head on
     ("an eviction concurrent with the row, the row at the eviction's head: the key is out from that head on",
      [S, A2, A3, E2, at(("a3",))], "k2", None),
-    ("the same eviction, the row at an earlier head: the key's person then", [S, A2, A3, E2, at(("a2",))], "k2", "S"),
-    ("the other keys at the eviction's head keep their person", [S, A2, A3, E2, at(("a3",))], "k3", "S"),
+    ("the same eviction, the row at an earlier head: the key's person then", [S, A2, A3, E2, at(("a2",))], "k2", "k1"),
+    ("the other keys at the eviction's head keep their person", [S, A2, A3, E2, at(("a3",))], "k3", "k1"),
+    # G5: a self roster's object is the identity key, not one key record: a genesis key with two key records and two
+    # rosters is one person, whichever roster seats the key
+    ("G5: a genesis key with two key records and two rosters: a key of the second roster is the same one person",
+     [S, REC, REC2, SX, AX, at(("ax", "rec2"))], "kx", "k1"),
+    ("G5: and a key of the first", [S, A2, REC, REC2, SX, AX, at(("a2", "ax", "rec2"))], "k2", "k1"),
+    ("G5: a key in both of the one genesis key's rosters is one person, not two",
+     [S, A2, REC, REC2, SX, AX2, at(("a2", "ax2", "rec2"))], "k2", "k1"),
 ]
 # ---- Part 3: counts over persons (ruled on CIRISConstitution#224: one voice however many live keys sign) ------------
 # four persons, each a self roster named by its genesis key; p1 has a second device key p1b. They found a room whose
@@ -346,6 +359,8 @@ PERSON_KEYS_CASES = [
     ("a device that revoked itself is no live key", PKW + [BREC, BRV], "p1", ["p1", "p1c"]),
     ("a person whose genesis key revoked itself has no live key", PKW + [PREC, PRV], "p1", []),
     ("a key of no roster is its own person", PKW, "zz", ["zz"]),
+    ("G5: a genesis key with two key records and two rosters: one person, the keys of both", [S, A2, REC, REC2, SX, AX],
+     "k1", ["k1", "k2", "kx"]),
 ]
 def bind(i, node, owner):
     """An owner-binding: the node's offer of the owner seat over its key, the owner's cosignature its consent."""
@@ -375,11 +390,40 @@ NODES_CASES = [
 def concluded_set(rows):
     return CK.concluded(CK.kept(list(rows)), RULE)
 
+# the review r95 (G33: an eviction ends a key AS THE PERSON'S): p1's devices p1b and p1c evict its genesis key p1
+# from S1. The person is its identity p1, which the room still seats; only a live key of S1 speaks for it, so the
+# evicted p1 is no voice of it (and its own rows are a bare key's), while a live device still is
+EVG = evict("evg", "S1", "p1", ("p1b", "p1c"), ("a1c",))
+GREC = ST.offer("grec", "p1", "p1", "registered", "p1", "self", ("evg",))     # the evicted p1's own key record
+R74_CASES += [
+    ("r95 P1b: p1's genesis key evicted from its own roster by its devices: the evicted p1, p2 and p3 are two voices "
+     "of four, z is not admitted", BASE + [P1C, EVG, admit_z(("p1", "p2", "p3"), ("evg",))], "az", False, RULE),
+    ("r95 P1c (control): an evicted device p1b, p2 and p3 are two voices of four",
+     BASE + [P1C, EV1B, admit_z(("p1b", "p2", "p3"), ("e1b",))], "az", False, RULE),
+    ("r95: after the genesis key's eviction a live device p1b still votes as the person p1: three of four",
+     BASE + [P1C, EVG, admit_z(("p1b", "p2", "p3"), ("evg",))], "az", True, RULE),
+    ("r95: the evicted genesis key's own self-signed key record concludes, as a bare key's",
+     BASE + [P1C, EVG, GREC], "grec", True, RULE),
+    # confirmed by the Constitution: no exemption for the first key; the identity outlives its genesis key
+    ("the genesis key is no voice of the count that evicts it: p1 and p1b are one voice of three keys",
+     [SP[1], P1B, P1C, evict("evg", "S1", "p1", ("p1", "p1b"), ("a1c",))], "evg", False, RULE),
+    ("and p1b and p1c, two of three, evict it", [SP[1], P1B, P1C, evict("evg", "S1", "p1", ("p1b", "p1c"), ("a1c",))],
+     "evg", True, RULE),
+    ("the one-key residual: a roster whose only live key is the genesis key cannot evict it",
+     [SP[1], evict("evg", "S1", "p1", ("p1",), ("S1",))], "evg", False, RULE),
+]
+CASES += [
+    ("r95: the genesis key its devices evicted, at a row naming the eviction: no person (a bare key)",
+     [S, A2, A3, ST.unseat("eg1", "k2", "k1", "self", "S", "group", ("a3",), head=("a3",), policy="self_roster_evict",
+                           counted="self", cosigners=("k3",)), at(("eg1",))], "k1", None),
+]
+
 
 PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
           "persons_unread", "base_by_key", "revoked_voice_kept", "agent_speaks", "lift_author_device", "genesis_unread",
           "fold_lift_by_key", "fold_author_by_key", "remover_counted_over", "opener_withdrawal_voter",
-          "apart_by_key", "person_keys_by_offer", "nodes_by_offer", "nodes_two_owners_kept", "nodes_revocation_unread")
+          "apart_by_key", "person_keys_by_offer", "nodes_by_offer", "nodes_two_owners_kept", "nodes_revocation_unread",
+          "evicted_genesis_speaks", "evicted_key_votes")
 
 
 def answer(rows, k):

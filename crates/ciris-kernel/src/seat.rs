@@ -3219,8 +3219,10 @@ fn rosters_by_key<'r, R: SeatRow + 'r, S: CutSpec<R>>(
 /// key (it signed the founding record) or was seated by a counted addition that landed (`self_roster_add`), no
 /// eviction of it has landed (`self_roster_evict`), and an eviction concurrent with the row follows rule 4 (it
 /// counts at its own head and is out of force from that head on); and the key's own revocation is not in the row's
-/// past ([`key_record_ended`]). `None` where `at` did not conclude, where no self roster has `k` live there, or
-/// where several do (two persons is none, as two owners are). The kind is read through [`SeatLaw::kinds`]: a law
+/// past ([`key_record_ended`]). The answer is the person's identity key, `Obj::Key` of the genesis key that signed
+/// the founding record (the self roster's object is the identity key, never one roster row or one key record), so
+/// two rosters founded by one genesis key are one person. `None` where `at` did not conclude, where no self roster
+/// has `k` live there, or where rosters of several identity keys do (two persons is none, as two owners are). The kind is read through [`SeatLaw::kinds`]: a law
 /// with no kinds names no person. A count is then over persons ([`persons_of`]).
 pub fn person_at<R: SeatRow, S: CutSpec<R>>(
     c: &Concluded<'_, R>,
@@ -3234,9 +3236,12 @@ pub fn person_at<R: SeatRow, S: CutSpec<R>>(
     }
     let rows: Vec<&R> = c.cs().iter().copied().filter(|&q| c.g.in_past(q, at)).map(|q| c.g.row(q)).collect();
     let keep = |g: &ObjOf<R>, s: &str, key: &R::Key| key != k || !evicted_from(c, at, g, s, k);
-    let mut hit = rosters_by_key(&rows, law, spec, &keep).0.remove(k).unwrap_or_default();
-    if hit.len() == 1 {
-        hit.pop().map(|g| Obj::Row(g.id().clone()))
+    let hit = rosters_by_key(&rows, law, spec, &keep).0.remove(k).unwrap_or_default();
+    // the person is its IDENTITY key, the genesis key that signed its rosters' founding records (the self roster's
+    // object is the identity key, never one roster row or one key record): two rosters of one genesis key are one
+    let names: BTreeSet<&R::Key> = hit.iter().map(|g| g.signer()).collect();
+    if names.len() == 1 {
+        names.into_iter().next().map(|g| Obj::Key(g.clone()))
     } else {
         None
     }
@@ -3304,6 +3309,8 @@ pub struct Persons<'r, R: SeatRow> {
     rosters: BTreeMap<R::Key, Vec<&'r R>>,
     revoked: BTreeSet<R::Key>,
     agents: BTreeSet<R::Key>,
+    // the genesis keys: the signers of the self rosters' founding records
+    founders: BTreeSet<R::Key>,
     keys: bool,
 }
 
@@ -3316,7 +3323,13 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
             Obj::Key(_) => true,
             Obj::Row(_) => kind_of(law, &get, o) == Some(CommunityKind::SelfRoster),
         });
-        let none = Persons { rosters: BTreeMap::new(), revoked: BTreeSet::new(), agents: BTreeSet::new(), keys };
+        let none = Persons {
+            rosters: BTreeMap::new(),
+            revoked: BTreeSet::new(),
+            agents: BTreeSet::new(),
+            founders: BTreeSet::new(),
+            keys,
+        };
         let any_self = rows.iter().any(|g| {
             g.seat_kind() == SeatKind::Offer
                 && founding(g)
@@ -3336,7 +3349,16 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
             return Persons { revoked, ..none };
         }
         let (rosters, agents) = rosters_by_key(rows, law, spec, &|_, _, _| true);
-        Persons { rosters, revoked, agents, keys }
+        let founders: BTreeSet<R::Key> = rows
+            .iter()
+            .filter(|g| {
+                g.seat_kind() == SeatKind::Offer
+                    && founding(g)
+                    && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
+            })
+            .map(|g| g.signer().clone())
+            .collect();
+        Persons { rosters, revoked, agents, founders, keys }
     }
 
     /// Whether this count reads keys, not persons (a self roster's own count).
@@ -3362,6 +3384,9 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         }
         let names = self.named(k);
         match names.as_slice() {
+            // a genesis key its own roster evicted is no voice of its person (G33: an eviction ends a key AS THE
+            // PERSON'S); its own rows read as a bare key's, and the identity the room seats is no voice of it
+            [] if self.founders.contains(k) => None,
             [] => Some(k.clone()),
             [g] if !self.revoked.contains(g) => Some(g.clone()),
             _ => None,
@@ -4791,7 +4816,10 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     // a family under founder_only: a removal takes an active founder other than the one it names
     // voices voided by a concurrent counted removal ([`contested_out`]) are none; under the room's protocol the key a
     // removal removes is neither counted over nor a voice
-    let drop_to = f.exclude_target || f.base_excludes_target;
+    // an eviction from a self roster: the key evicted is no voice of it (a roster whose only live key is the one
+    // evicted cannot evict it: the one-key residual)
+    let evicts = r.seat_kind() == SeatKind::Unseat && r.policy().is_some_and(|w| w.as_ref() == "self_roster_evict");
+    let drop_to = f.exclude_target || f.base_excludes_target || evicts;
     let mem: BTreeSet<R::Key> =
         if f.base_excludes_target { mem.into_iter().filter(|k| !r.to().contains(k)).collect() } else { mem };
     // a count over persons, one voice and one member per person (ruled on CIRISConstitution#224): the voices are
