@@ -800,7 +800,16 @@ def key_person_cases():
     for name, rows, k, ns in KP.NODES_CASES:
         refs = {}
         nodes.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "owner": k, "nodes": ns})
+    # K1 on the person line: each case's rows, its reader, and the key view as a table of the (row, key) signatures it
+    # does not count (null: no key view passed)
+    kv_line = []
+    for name, rows, rd, rid, want, kv in KP.KV_LINE_CASES:
+        refs = {}
+        kv_line.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "reader": rd, "row": rid,
+                        "concludes": want,
+                        "uncounted": None if kv is None else [list(x) for x in KP._KV_UNCOUNTED]})
     return {"law": law, "cases": out, "counts": counts, "windows": windows, "window_cases": wcases,
+            "line_key_view": kv_line,
             "person_keys": pkeys, "nodes_of": nodes}
 
 
