@@ -50,6 +50,7 @@ Planted breaks, each of which must change a case's answer:
     end_scope_keyed          (d) an end cuts by the scope its target names, not by every standing its key loses
     one_end_at_a_time        (d) a key's loss is read with only the one end removed: a second end cancels the cut
     reseat_masks             (d) a re-seat after the end masks the cut of a vote concurrent with the end
+    first_lost_only          (d) one end removing several voices of a counted row discounts only the first
     ends_in_force_unread     (d) an end the seat model holds out of force (rule 5's contest) still ends a seat
     own_licence_uncountersigned  (b) a one-officer body's own licence stands without the countersign
     end_cuts_counted_row     (d) an end cuts a whole counted row its key signed, not only its voice
@@ -75,6 +76,8 @@ import trust_rows as TR  # noqa: E402
 CH, ST, CK = TR.CH, TR.ST, TR.CK
 ORDER_CAP = 24
 M, L = "medical", "legal"
+PENDING_EDGE = ("pending the Constitution: pin 8ec76cce has no accept / trust_edge / affiliation row, so an "
+                "affiliation's onward edge concludes nothing")
 TERM = {"asserted_at": 0, "expires_at": 10 ** 6}     # every edge carries a term (CC 4.4.3.12); the cases read at NOW_AT
 
 
@@ -107,12 +110,14 @@ G1LO = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",)
 G1LD = ST.withdraw("ld", "A", "g", ("glo", "gla"), scope="moderate")
 G1LT = dict(G1LO, asserted_at=10, expires_at=100)                # the same seat, with its term
 # an affiliation's license seat: its body's count under its declared protocol (majority: two of three)
-ALO = ST.offer("alo", "A", ("X",), "license", "af", "group", ("af",), head=("af",), cosigners=("B",), counted=ST.OFFICER)
-ALO1 = ST.offer("alo", "A", ("X",), "license", "af", "group", ("af",), head=("af",), counted=ST.OFFICER)
+ALO = ST.offer("alo", "A", ("X",), "license", "af", "group", ("af",), head=("af",), cosigners=("B",), counted=ST.OFFICER,
+               policy="cosigned_act")      # the acts row's choice (`row`): the offer states which of its policies it takes
+ALO1 = ST.offer("alo", "A", ("X",), "license", "af", "group", ("af",), head=("af",), counted=ST.OFFICER,
+                policy="cosigned_act")
 ALA = ST.accept("ala", "X", "alo")
 # the affiliation's dissolution, by two of its three officers under its protocol, naming `names`
 ADIS = lambda i, names: ST.offer(i, "A", (), "record", "af", "group", tuple(names) + ("af",), head=("af",),
-                                 cosigners=("B",), counted=ST.OFFICER, dissolved_at=100)
+                                 cosigners=("B",), counted=ST.OFFICER, dissolved_at=100, policy="cosigned_act")
 # the person K's roster seats its key d
 KRO, KRA = ST.offer("kro", "K", ("d",), "key", "K", "self"), ST.accept("kra", "d", "kro")
 GD = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B")}, cosigners=("B", "C"),
@@ -191,18 +196,18 @@ CASES = [
     ("item 8: a one-officer affiliation's edge by its officer alone is a proposal: not walked",
      [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH,
      NR),
-    ("and countersigned by its designated official O: walked",
+    ("and countersigned by its designated official O: walked once the row exists; " + PENDING_EDGE,
      [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), ECS, klic("l")], "RD", "l",
-     KCH, OK),
+     KCH, NR),
     ("and the officer withdraws the edge concurrently with the countersign (rule 4): not walked",
      [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), ECS, EWD, klic("l")], "RD",
      "l", KCH, NR),
     ("a countersign by the one officer itself decides nothing: not walked",
      [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)),
       ST.R("ecs", "countersign", "A", ("f",), of="f"), klic("l")], "RD", "l", KCH, NR),
-    ("(a) an affiliation's edge is its officers' act under its declared protocol: two of three officers",
+    ("(a) an affiliation's edge, two of three officers: walked once the row exists; " + PENDING_EDGE,
      [AFD, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B",)), klic("l")],
-     "RD", "l", KCH, OK),
+     "RD", "l", KCH, NR),
     ("(a) under a declared unanimous protocol two of three officers sign no edge",
      [AFU, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B",)), klic("l")],
      "RD", "l", KCH, NR),
@@ -293,7 +298,7 @@ R_LD = ST.withdraw("ld", "A", "g", (), scope="moderate")                  # G1's
 R_LDA = ST.withdraw("lda", "A", "g", (), scope="moderate")
 R_LDB = ST.withdraw("ldb", "B", "g", (), scope="moderate")
 R_AMD = ST.offer("amd", "A", (), "record", "af", "group", ("af",), head=("af",), cosigners=("B", "C"),
-                 counted=ST.OFFICER, consensus_protocol="unanimous", declared_cohort="affiliations",
+                 counted=ST.OFFICER, consensus_protocol="unanimous", declared_cohort="affiliations", policy="cosigned_act",
                  licence_classes=((M, True), (L, False)))              # af amends its protocol to unanimous
 R_SO = lambda sc, obj, signer="B": ST.offer("so", signer, signer, sc, obj, "self", (obj,))
 CASES += [
@@ -452,6 +457,7 @@ _GLO_C = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dca",), head=("
 _AOB = ST.offer("aob", "A", ("B",), "member", "af", "group", ("af",), head=("af",), cosigners=("B",),
                 counted=ST.OFFICER, role=ST.OFFICER)
 _LSO = ST.offer("lso", "A", ("X",), "license", "af", "group", ("aob", "acs"), head=("aob",), cosigners=("B",),
+                policy="cosigned_act",
                 counted=ST.OFFICER)                    # names the appointment's countersign: B an officer at its head
 _RV = ST.offer("rv", "A", "A", "review", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty",
                policy="duty_confer")
@@ -562,7 +568,8 @@ _U_C = ST.unseat("u1", "A", "C", "moderate", "g", "group", ("g",), head=("g",), 
                  policy="duty_withdraw")                          # A and B remove C's duty
 _U_A = ST.unseat("u2", "C", "A", "moderate", "g", "group", ("g",), head=("g",), cosigners=("D",), counted="duty",
                  policy="duty_withdraw")                          # C and D remove A's, concurrently: rule 5 contests both
-_GLO_CD = ST.offer("glo", "C", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("D",), counted="duty")
+_GLO_CD = ST.offer("glo", "C", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("D", "B"),
+                   counted="duty")                                # C, D and B: three of four duty holders
 _CB = CK.row("cb", "cosign", "B", ("g",), of="cx")                 # B's cosign row for the conferral's content
 _GLO_CS = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g", "cb"), head=("g",), counted="duty", content="cx")
 CASES += [
@@ -573,6 +580,15 @@ CASES += [
      [_G3, _CB, _GLO_CS, GLA, _RC_B, A("e", "RD", "g"), _X], "RD", "l", None, LW),
     ("DRY and with no resignation the cosign row's voice makes A and B two of three",
      [_G3, _CB, _GLO_CS, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+]
+
+_GLO_4 = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B", "C", "D"),
+                  counted="duty")                                 # all four duty holders
+_U_AB = ST.unseat("u12", "C", ("A", "B"), "moderate", "g", "group", ("g",), head=("g",), cosigners=("D",),
+                  counted="duty", policy="duty_withdraw")         # C and D remove A's and B's duty in one row
+CASES += [
+    ("review-53 D1 one unseat removing two voices of a counted row discounts both: C and D are two of four, cut",
+     [_G4, _GLO_4, GLA, _U_AB, A("e", "RD", "g"), _X], "RD", "l", None, LW),
 ]
 
 NOW = {"an edge whose term has ended at the caller's instant (150)": 150,
@@ -605,7 +621,7 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
           "one_end_at_a_time", "reseat_masks",
           "end_cuts_counted_row", "own_licence_uncountersigned",
-          "ends_in_force_unread")
+          "ends_in_force_unread", "first_lost_only")
 
 
 @contextlib.contextmanager
