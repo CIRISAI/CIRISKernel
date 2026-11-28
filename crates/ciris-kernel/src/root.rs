@@ -364,7 +364,31 @@ where
                 .filter(|k| !gone.contains(k) && within.is_none_or(|w| w.contains(k)))
                 .collect();
             2 * voices.intersection(&base).count() > base.len()
-        })
+        }) && (prevs.len() < 2 || self.join_signers(b).iter().all(|(_, ks)| ks.iter().any(|k| voices.contains(k))))
+    }
+
+    /// The holders of join `b` that must sign it, each with the keys its statement may be under (CIRISVerify's
+    /// per-bundle read, the Constitution's reading 1): a holder no named predecessor seats, under its own key; a
+    /// holder whose recovery commitment in `b` differs from the one any named predecessor seating it carries, under
+    /// a key some predecessor seats it at and no recovery in the join's branches retired. So after a recovery on one
+    /// branch, the join carries the recovered holder's voice. In `b`'s holder order.
+    pub fn join_signers(&self, b: &B) -> Vec<(B::Key, BTreeSet<B::Key>)> {
+        let prevs = b.prev();
+        let gone = self.retired(prevs);
+        let mut out = Vec::new();
+        for h in b.holders() {
+            let at: Vec<(&B, &B::Key)> = prevs
+                .iter()
+                .filter_map(|p| self.b(p))
+                .flat_map(|p| p.holders().iter().filter(|k| self.owner(k) == self.owner(h)).map(move |k| (p, k)))
+                .collect();
+            if at.is_empty() {
+                out.push((h.clone(), BTreeSet::from([h.clone()])));
+            } else if at.iter().any(|(p, k)| Self::commitment(p, k) != Self::commitment(b, h)) {
+                out.push((h.clone(), at.iter().map(|(_, k)| (*k).clone()).filter(|k| !gone.contains(k)).collect()));
+            }
+        }
+        out
     }
 
     /// A join contested by a rival: a concluded join of the same predecessors under another charter, neither in
@@ -419,13 +443,14 @@ where
         if !b.statements().iter().any(|(k, iat)| *k == rk && *iat == b.iat()) {
             return Some(Err("recovery_commitment_mismatch"));
         }
-        // a recovery whose prev is in the lineage past of a bundle its holder signed (as a holder, under either key)
-        // concludes nothing
+        // a recovery behind a bundle its holder signed (as a holder, under either key; `behind`: its prev strictly in
+        // the past of what that bundle extends, so a sibling on the same predecessor is a fork, both valid) concludes
+        // nothing
         let behind_head = self.by.values().any(|x| {
             x.id() != b.id()
                 && !self.in_past(b.id(), x.id())
                 && x.recovers().is_none()
-                && self.in_past(&b.prev()[0], x.id())
+                && self.behind(b, x)
                 && x.statements().iter().any(|(k, _)| self.owner(k) == self.owner(h))
         });
         if behind_head {

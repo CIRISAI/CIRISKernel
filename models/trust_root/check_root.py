@@ -106,6 +106,9 @@ CASES = [
     # ---- recovery ---------------------------------------------------------------------------------------------------
     ("recovery", "a holder's own key recovery: h3's recovery key alone replaces h3 by h3b", [B0, REC], (), (),
      RD(anchor="b0", acks=("rc",)), {"concluded": {"rc": T}, "holders": {"h1", "h2", "h3b"}}),
+    ("recovery", "behind is the model's `behind` exactly (the Constitution's reading 3): h3 signed s1 on b0, and its "
+                 "recovery on b0 is s1's sibling, a fork, both valid: rc concludes",
+     [B0, nxt("s1", "b0", H3, ("h1", "h2", "h3"), seats=("n1", "n2")), REC], (), (), ANC, {"concluded": {"s1": T, "rc": T}}),
     ("recovery", "a recovery that changes another seat concludes nothing (recovery_changes_other_seat)",
      [B0, nxt("rc", "b0", ("h1", "h3b"), ("r:h3",), recovers=("h3", "h3b"), recovery={"h1": "r:h1", "h3b": "r:h3b"})],
      (), (), ANC, {"concluded": {"rc": Fa}}),
@@ -126,10 +129,11 @@ CASES = [
      [B0, REC, nxt("rc2", "b0", ("h1", "h2", "h3c"), ("r:h3",), recovers=("h3", "h3c"),
                    recovery={"h1": "r:h1", "h2": "r:h2", "h3c": "r:h3c"})], (), (), RD(anchor="b0", acks=("rc", "rc2")),
      {"void": {"rc", "rc2"}, "heads": ("b0",), "holders": set(H3)}),
-    ("recovery", "until a bundle names both: h1 and h2 join them (over the holders common to them, h1 and h2), seating h3b",
+    ("recovery", "until a bundle names both: h1, h2 and h3b join them (over the holders common to them, h1 and h2; h3b "
+                 "signs as the holder whose commitment the join changes from rc2's), seating h3b",
      [B0, REC, nxt("rc2", "b0", ("h1", "h2", "h3c"), ("r:h3",), recovers=("h3", "h3c"),
                    recovery={"h1": "r:h1", "h2": "r:h2", "h3c": "r:h3c"}),
-      nxt("j", ("rc", "rc2"), ("h1", "h2", "h3b"), ("h1", "h2"), version=2, recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b"})],
+      nxt("j", ("rc", "rc2"), ("h1", "h2", "h3b"), ("h1", "h2", "h3b"), version=2, recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b"})],
      (), (), RD(anchor="b0", acks=("j",)), {"concluded": {"j": True}, "void": set(), "holders": {"h1", "h2", "h3b"}}),
     # ---- the fold ---------------------------------------------------------------------------------------------------
     ("fold", "two successors with the same charter fold: h4 (s1, by h1 h2) and h5 (s2, by h2 h3) are both in",
@@ -158,9 +162,37 @@ CASES = [
      RD(anchor="b0", acks=("j",)), {"concluded": {"j": T}, "holders": {"h1", "h2", "h3", "h4", "h5"}}),
     ("join", "the wire: prev is the greatest version, least id among equals; naming s2 first is Invalid",
      FORK + [nxt("j", ("s2", "s1"), H3 + ("h4", "h5"), ("h1", "h2", "h3"), version=2)], (), (), ANC, {"concluded": {"j": Fa}}),
-    ("join", "a join inherits the union of retired keys: rc rotates h3 to h3b, and am (h1 h2 add h4) still lists h3; "
-             "joining them, h3 is no live holder of am for the count, so h1 and h2 are two of am's three and of rc's three",
+    # who else signs a join (CIRISVerify's per-bundle read; the Constitution's reading 1): a holder no named
+    # predecessor seats, and a holder whose recovery commitment in the join differs from one a predecessor seating it
+    # carries, each sign it, under a key some predecessor seats it at (not a retired one)
+    ("join", "a recovery on one branch, then a join WITHOUT the recovered holder's voice: am still carries h3's "
+             "commitment r:h3, the join carries h3b's r:h3b, so h3b signs it; by h1 and h2 alone it concludes nothing",
      [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h1", "h2"), version=2,
+                        recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})], (), (), ANC, {"concluded": {"j": Fa}}),
+    ("join", "a holder no named predecessor seats signs the join: h1, h2 and h3 join s1 and s2 adding h6, without h6's "
+             "voice it concludes nothing", FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5", "h6"), ("h1", "h2", "h3"),
+                                                       version=2)], (), (), ANC, {"concluded": {"j": Fa}}),
+    ("join", "and with it, it counts", FORK + [nxt("j", ("s1", "s2"), H3 + ("h4", "h5", "h6"), ("h1", "h2", "h3", "h6"),
+                                                version=2)], (), (), ANC, {"concluded": {"j": T}}),
+    ("join", "a key a recovery replaced is RETIRED: h3 signing with h1 and h3b is no voice anywhere in the join, and "
+             "am's live holders are h1 h2 h4 (h1 alone of them): it concludes nothing",
+     [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h1", "h3", "h3b"), version=2,
+                        recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})], (), (), ANC, {"concluded": {"j": Fa}}),
+    ("join", "a key left by routine rotation is LEFT: b1 rotates h2 to h2x (h1 h3), b2 keeps h2; h2 is still a voice on "
+             "b2 (h1, h2 and h2x: two of each), and the join does not seat it again",
+     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"}),
+      nxt("b2", "b0", H3, ("h1", "h2"), seats=("n1", "n2")),
+      nxt("j", ("b1", "b2"), ("h1", "h2x", "h3"), ("h1", "h2", "h2x"), version=2,
+          recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"})], (), (), RD(anchor="b0", acks=("j",)),
+     {"concluded": {"j": T}, "holders": {"h1", "h2x", "h3"}}),
+    ("join", "without h2 it is one of b2's three: it concludes nothing",
+     [B0, nxt("b1", "b0", ("h1", "h2x", "h3"), ("h1", "h3"), recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"}),
+      nxt("b2", "b0", H3, ("h1", "h2"), seats=("n1", "n2")),
+      nxt("j", ("b1", "b2"), ("h1", "h2x", "h3"), ("h1", "h2x"), version=2,
+          recovery={"h1": "r:h1", "h2x": "r:h2x", "h3": "r:h3"})], (), (), ANC, {"concluded": {"j": Fa}}),
+    ("join", "with h3b's voice it counts: rc rotates h3 to h3b, and am (h1 h2 add h4) still lists h3; "
+             "joining them, h3 is no live holder of am for the count, so h1 and h2 are two of am's three and of rc's three",
+     [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h1", "h2", "h3b"), version=2,
                         recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h4": "r:h4"})], (), (), RD(anchor="b0", acks=("j",)),
      {"concluded": {"j": T}, "holders": {"h1", "h2", "h3b", "h4"}}),
     ("join", "and revives nothing: the retired h3 signing it is no voice (h3 alone with h4 on am)",
@@ -810,7 +842,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
           "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names",
           "concurrent_keep_bundle_only",
-          "settler_closed_by_line", "settler_overturns_settled")
+          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling")
 
 
 def answer(bs, rv, gs, rd, want):

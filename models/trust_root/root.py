@@ -277,7 +277,30 @@ class Root:
             gone = self.retired(prevs) if len(prevs) >= 2 else frozenset()
             bases = [self.live(self.by[p]["holders"]) - gone for p in prevs]
         if within is not None: bases = [x & within for x in bases]
-        return all(2 * len(frozenset(voices) & x) > len(x) for x in bases)
+        if not all(2 * len(frozenset(voices) & x) > len(x) for x in bases): return False
+        # who else signs a join (CIRISVerify's per-bundle read, the Constitution's reading 1; MUTATION
+        # join_signers_unread: nobody else)
+        if len(prevs) >= 2 and "count_over_own" not in MUT and "join_common_base" not in MUT and "join_union" not in MUT \
+                and "join_signers_unread" not in MUT:
+            return all(frozenset(voices) & ks for _, ks in self.join_signers(b, prevs))
+        return True
+
+    def join_signers(self, b, prevs=None):
+        """The holders of join b that must sign it, each with the keys its statement may be under (reading 1): (a) a
+        holder no named predecessor seats, under its own key; (b) a holder whose recovery commitment in b differs from
+        the one any named predecessor seating it carries, under a key some predecessor seats it at and no recovery in
+        the join's branches retired. So after a recovery on one branch, the join carries the recovered holder's voice.
+        [(holder, keys)], in b's holder order."""
+        prevs = tuple(prevs if prevs is not None else b["prev"])
+        gone = self.retired(prevs)
+        out = []
+        for h in b["holders"]:
+            at = [(p, k) for p in prevs for k in self.by[p]["holders"] if self.owner(k) == self.owner(h)]
+            if not at:
+                out.append((h, frozenset([h])))
+            elif any(self.by[p]["recovery"].get(k) != b["recovery"].get(h) for p, k in at):
+                out.append((h, frozenset(k for _, k in at if k not in gone)))
+        return out
 
     def contested_join(self, i):
         """A join (two predecessors or more) contested by a rival: a concluded join of the same predecessors under
@@ -310,8 +333,10 @@ class Root:
         if rk is None or not any(k == rk and iat == b["iat"] for k, iat in b["stmts"]): return (False, "recovery_commitment_mismatch")
         # a recovery whose prev is in the lineage past of a bundle its holder signed concludes nothing (the holder is
         # the voice under its key or its recovery key; MUTATION recovery_head_unread)
+        # behind: the model's `behind` exactly (a sibling on the same predecessor is a fork, both valid; MUTATION
+        # recovery_behind_sibling: any bundle with the recovery's prev in its past)
         if "recovery_head_unread" not in MUT and any(
-                b["prev"][0] in self.past(x["id"]) and any(self.owner(k) == self.owner(h) for k, _ in x["stmts"])
+                (b["prev"][0] in self.past(x["id"]) if "recovery_behind_sibling" in MUT else self.behind(b, x)) and any(self.owner(k) == self.owner(h) for k, _ in x["stmts"])
                 for x in self.by.values() if x["id"] != b["id"] and b["id"] not in self.past(x["id"])
                 and x.get("recovers") is None):   # a bundle it signed as a holder, not another recovery
             return (False, "recovery_behind_head")
