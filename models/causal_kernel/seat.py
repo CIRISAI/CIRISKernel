@@ -968,6 +968,13 @@ POLICY.update(PROTOCOLS)
 # a count a row may state under a law that binds no act (roster.py's instances, the head rules' binding-off cases):
 # a strict majority. With the binding on no act takes it
 POLICY["majority"] = ("strict", 1, 2)
+# CC 4.2.1.1, the ruling of 2026-11-28: the accord's halt fires on one holder's act and is no voice; the act the acts
+# table binds to accord_halt is halt_confirm, its confirmation, counted by a strict majority of the standing holders:
+# the row's cancel cell (`more than 1/2 confirms`), not its enact (`1/N fires`). This read the enact (one voice) before
+POLICY["accord_halt"] = ("strict", 1, 2)
+# a stand-in a check states for a count of one voice: no act takes it (with the binding on, a row stating it concludes
+# nothing). The checks read accord_halt so before the ruling above
+POLICY["one_voice"] = ("one", 1, 1)
 # the cases' communities declare a strict majority on their founding records (the builders' default below)
 DEFAULT_PROTOCOL = "majority"
 
@@ -3809,10 +3816,12 @@ class LawRefusal(Exception):
 
 ACT_WORDS = ("admit", "remove", "duty_confer", "duty_withdraw", "seat_confer", "seat_withdraw", "recall", "lift",
              "moderation_fallback", "election_seating", "poll", "record_change", "halt_confirm", "resume",
-             "standing_act", "finding", "replace", "change", "dissolve")
+             "standing_act", "finding", "replace", "change", "dissolve",
+             # policy pin 8ec76cce (the crate's words on the policy-acts branch)
+             "accept", "purge", "election_open", "quarantine", "slash", "takedown")
 SCOPE_WORDS = ("member", "agent", "founder", "node", "duty", "detect", "moderate", "key", "act", "content", "record",
-               "halt", "irreversible", "custodian", "any")
-KIND_WORDS = ("community", "infrastructure", "family", "self", "accord", "affiliation", "body", "custody")
+               "halt", "irreversible", "custodian", "any", "trust_edge", "license", "selection")
+KIND_WORDS = ("community", "infrastructure", "family", "self", "accord", "affiliation", "body", "custody", "voice")
 CHOICE_WORDS = ("fixed", "row")
 # the counts CC states for a family whose enact cell is not its seat count
 #   duty_confer, duty_withdraw   CC 4.5.4 (iv): over the duty holders (the other duty holders), read by duty_count
@@ -3820,6 +3829,8 @@ CHOICE_WORDS = ("fixed", "row")
 #   moderator_recall             CC 4.5.13: "more than two thirds of the standing roster ... The floor is two voices":
 #                                enact_rule's fraction, strictly more, with floor_rule's voices
 STATED_COUNTS = {"duty_confer": ("duty", 0, 0), "duty_withdraw": ("duty", 0, 0), "moderation_overturn": ("lift", 1, 2)}
+# accord_halt (the ruling of 2026-11-28): the act bound to it is halt_confirm, counted by its cancel cell (`more than 1/2
+# confirms`, strict_majority), not its enact (`1/N fires`)
 
 
 def acts_rows(path):
@@ -3855,6 +3866,9 @@ def law_from_tables(acts, policy):
         k = e["kind"]
         if fam in STATED_COUNTS:
             pol[fam] = STATED_COUNTS[fam]
+        elif fam == "accord_halt":
+            if f["cancel_rule"]["kind"] != "strict_majority": no("policy", fam, "cancel_rule", "disagrees")
+            else: pol[fam] = ("strict", 1, 2)
         elif fam == "moderator_recall":
             fl = f["floor_rule"]
             if k != "fraction" or fl["kind"] != "voices": no("policy", fam, "floor_rule", "disagrees")

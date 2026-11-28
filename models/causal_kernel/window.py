@@ -135,8 +135,10 @@ WINDOWS = {
     "halt_fuse": {"policy": "accord_halt", "counted": "holder", "concluder": "local", "opener_says": None,
                   "at_once": (("confirm", "strict", "all", "confirmed"),),
                   "silent": None, "at_close": (), "default": "lapsed"},
-    # built for a path: a holders' count closed by a holder's landing, the halt as it was read before the ruling (the
-    # halting holder's open counted as its confirmation). The attack tests read the recount through it
+    # TEST AND REFERENCE ONLY, built for a path: a holders' count closed by a holder's landing, the halt as it was read
+    # before the ruling (the halting holder's open counted as its confirmation). No policy row, no act and no binding
+    # gives it (spec_of reads it by name only, and only where a check names it); no verdict path reads it. The attack
+    # tests, check_key_view and check_rosters read the recount through it
     "holders@count": {"policy": "accord_halt", "counted": "holder", "concluder": "holder", "opener_says": "confirm",
                       "at_once": (("confirm", "strict", "all", "confirmed"),),
                       "silent": None, "at_close": (), "default": "lapsed"},

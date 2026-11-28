@@ -172,6 +172,9 @@ plant "seat law tables: an unknown acts word dropped silently" src/tables.rs 'no
 plant "seat law tables: a duplicate acts row unrefused" src/tables.rs 'if seen.contains(&k) {' 'if false {'
 plant "seat law tables: an acts policy with no row unrefused" src/tables.rs 'if !families.iter().any(|f| f.family == q) {' 'if false {'
 plant "seat law tables: the removal floor unread" src/tables.rs 'law.removal_floor = r.count.unwrap_or(0) as usize,' 'law.removal_floor = 2,'
+plant "seat law tables: the halt counted by its enact" src/tables.rs '            Policy::Strict(1, 2)
+        } else if f.family == "moderator_recall" {' '            Policy::One
+        } else if f.family == "moderator_recall" {'
 plant "a receipt with the target's row in its past is still a receipt" src/window.rs 'return Some(Ok(!rows.iter().any(|q| q.signer() == t && q.id() != o.id() && !p.past(q.id(), o.id()))));' 'return Some(Ok(true));'
 plant "a window's opener held to the counted scope"     src/window.rs 'let scope = w.opener.as_ref().unwrap_or(&w.counted);' 'let scope = &w.counted;'
 plant "a floored majority read without its floor"       src/window.rs '&How::MoreAtLeast(num, den, least) => more(num, den, n) && y >= least as u128,' '&How::MoreAtLeast(num, den, _) => more(num, den, n),'

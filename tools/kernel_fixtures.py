@@ -924,7 +924,7 @@ LAW_PLANTS = (
     ("policy", "self_roster_add", "enact_rule", {"kind": "fraction", "num": 2, "den": 3}),
     ("policy", "community_invite", "enact_rule", {"kind": "fraction", "num": 1, "den": 2}),
     ("policy", "accord_majority", "enact_rule", {"kind": "one_of_n"}),
-    ("policy", "accord_halt", "enact_rule", {"kind": "protocol"}),
+    ("policy", "accord_halt", "cancel_rule", {"kind": "none"}),
     ("policy", "cosigned_act", "enact_rule", {"kind": "ranked_irv", "choices": 3}),
     ("policy", "moderator_election", "enact_rule", {"kind": "strict_majority"}),
     ("policy", "moderator_recall", "floor_rule", {"kind": "voices", "count": 3}),

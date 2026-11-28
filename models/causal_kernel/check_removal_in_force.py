@@ -414,18 +414,18 @@ CASES += [(RV + "the reviewer's rows: " + n, rows, {}, roster, asks) for n, rows
 # fewer than two), whatever policy or need the row states
 RV54 = "CIRISConstitution#218, pin list: a count's own receipt (review of #54): "
 UNDL = dict(UND, lifts=True)
-CR1 = dict(counted_receipt("qc", ("p2",), "x", ("x",)), policy="accord_halt")
+CR1 = dict(counted_receipt("qc", ("p2",), "x", ("x",)), policy="one_voice")
 CR2 = dict(counted_receipt("qc", ("p1",), "x", ("x",)), policy="cosigned_act", need=0)
 CR2b = dict(counted_receipt("qc", ("AG",), "x", ("x",)), policy="cosigned_act", need=0)
 CASES += [
-    (RV54 + "R1, one person's counted ack under `accord_halt` (one of n) is no count's receipt: the lifting end puts "
+    (RV54 + "R1, one person's counted ack under `one_voice` (a stand-in of one voice) is no count's receipt: the lifting end puts "
      "the removal out of force", W + [X, CR1, dict(UNDL, names=("x", "qc"))], {"x": T, "qc": T}, P3 | {"AG"}, [("AG", "agent", T)]),
     (RV54 + "R2, the remover's own counted ack with a declared need of none is no count's receipt",
      W + [X, CR2, dict(UNDL, names=("x", "qc"))], {"x": T, "qc": T}, P3 | {"AG"}, [("AG", "agent", T)]),
     (RV54 + "R2b, the agent's own counted ack with a declared need of none is no receipt: the laying down puts the "
      "removal out of force", W + [X, CR2b, dict(LAY, names=("x", "qc"))], {"x": T}, P3 | {"AG"}, [("AG", "agent", T)]),
-    (RV54 + "two persons of the other two, under `accord_halt`: the count's receipt keeps the removal through the "
-     "lifting end", W + [X, dict(counted_receipt("qc", ("p2", "p3"), "x", ("x",)), policy="accord_halt"),
+    (RV54 + "two persons of the other two, under `one_voice`: the count's receipt keeps the removal through the "
+     "lifting end", W + [X, dict(counted_receipt("qc", ("p2", "p3"), "x", ("x",)), policy="one_voice"),
                          dict(UNDL, names=("x", "qc"))], {"x": T}, P3, [("AG", "agent", F)]),
     (RV54 + "two of the other three under `unanimous`: the row's own policy is not read, the count's receipt keeps",
      R5 + [dict(counted_receipt("qc", ("p2", "p3"), "x", ("x",)), policy="unanimous"),

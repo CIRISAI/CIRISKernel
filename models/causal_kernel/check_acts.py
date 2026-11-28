@@ -260,6 +260,7 @@ QUERIES = [
 ]
 
 # The refusal (step 3): (name, rows, the row asked, concludes with the acts table, concludes with none)
+GA3 = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))  # the accord's holders
 GM4 = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"))      # majority (default)
 GMJ = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), consensus_protocol="majority")
 FH4 = ST.found("g", "A", ("A", "B", "C", "D"), {"moderate": ("A",)}, cosigners=("B", "C", "D"))     # A holds moderate
@@ -327,8 +328,16 @@ AMU = REC("am", "quorum:2/4", cosigners=("B", "C", "D"))                        
 RM_A = lambda heads: grp("x", "unseat", "D", "member", "community_remove", heads=heads, cosigners=("B",))   # A and B
 CONTESTED = (True, True)          # the contested pair: neither removal in force, both stay (CC 2.7.7 rule 5)
 CONCLUDE = [
-    ("an admission stating accord_halt (one voice) is no admission's policy: with the table it concludes nothing",
-     [GM4, grp("r", "offer", "E", "member", "accord_halt", cosigners=("E",))], "r", False, True),
+    ("an admission stating one_voice (a stand-in of one voice) is no admission's policy: with the table it concludes "
+     "nothing", [GM4, grp("r", "offer", "E", "member", "one_voice", cosigners=("E",))], "r", False, True),
+    # the ruling of 2026-11-28: accord_halt counts the halt's confirmation, a strict majority of the standing holders.
+    # No act_of arm gives halt_confirm until its row's shape is stated, so the count is read without the table, on a
+    # counted row of the accord stating accord_halt (h4's seating: h4's own signature is no voice of it)
+    ("a counted row of the accord under accord_halt: one holder of three (h1) is no strict majority (CC 4.2.1.1)",
+     [GA3, grp("r", "offer", "h4", "holder", "accord_halt", signer="h1", cosigners=("h4",), counted="holder")], "r",
+     False, False),
+    ("and two of three (h1 and h2) are", [GA3, grp("r", "offer", "h4", "holder", "accord_halt", signer="h1",
+                                                    cosigners=("h2", "h4"), counted="holder")], "r", False, True),
     ("a removal stating cosigned_act: the removal's policy is fixed (community_remove), so nothing with the table; "
      "without it the room's protocol counts it (three of four)",
      [GM4, grp("r", "unseat", "D", "member", "cosigned_act", cosigners=("B", "C"))], "r", False, True),
@@ -366,9 +375,9 @@ CONCLUDE = [
     ("an admission under community_invite (the two-path) is its own count: two thirds, three of four",
      [GMJ, grp("r", "offer", "E", "member", "community_invite", cosigners=("B", "C", "E"))], "r", True, True),
     ("a counted row of a scope that is no act over a community concludes nothing with the table",
-     [FH, grp("r", "offer", "N", "verify2", "accord_halt")], "r", False, True),
-    ("a detector seat's conferral stating accord_halt is refused (its policy is fixed: duty_confer)",
-     [FH, grp("r", "offer", "N", "detect:list1", "accord_halt", counted="duty")], "r", False, True),
+     [FH, grp("r", "offer", "N", "verify2", "one_voice")], "r", False, True),
+    ("a detector seat's conferral stating one_voice is refused (its policy is fixed: duty_confer)",
+     [FH, grp("r", "offer", "N", "detect:list1", "one_voice", counted="duty")], "r", False, True),
     ("a duty conferral stating no policy is counted under duty_confer, its act's fixed row (step 4: the duty gate "
      "reads the policy in force); with no table the gate wants duty_confer stated",
      [FH, grp("r", "offer", "B", "review", None, counted="duty", cosigners=("B",))], "r", True, False),

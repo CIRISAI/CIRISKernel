@@ -84,7 +84,8 @@ fn stated_count(family: &str) -> Option<Policy> {
 ///   `protocol` the room's declared protocol; `ranked_irv` the ranked tally; any other not a count. `duty_confer`,
 ///   `duty_withdraw` and `moderation_overturn` take the count the text states ([`Policy::DutyConfer`],
 ///   [`Policy::DutyWithdraw`], [`Policy::Lift`]); `moderator_recall` is [`Policy::Recall`] of its enact fraction and
-///   its floor's voices (CC 4.5.13: "more than two thirds of the standing roster ... The floor is two voices").
+///   its floor's voices (CC 4.5.13: "more than two thirds of the standing roster ... The floor is two voices");
+///   `accord_halt` is [`Policy::Strict`]`(1, 2)` of its cancel cell (its act is the confirmation, ruled 2026-11-28).
 /// - `policy`, per protocol, `P:{kind}` (the kind's word before `:`): `strict_majority`, `all` (unanimous),
 ///   `voices:{m}` (declared: the record's m), `weight:{rubric}` (weighted), `role_at:founder:1` (one).
 /// - `acts`: one [`ActRule`] per acts row, each word read by its `from_word`; a policy name must be a family.
@@ -103,6 +104,14 @@ pub fn law_from_tables(
         let e = &f.enact_rule;
         let p = if let Some(p) = stated_count(&f.family) {
             p
+        } else if f.family == "accord_halt" {
+            // the ruling of 2026-11-28: the act bound to accord_halt is halt_confirm, counted by its cancel cell (`more
+            // than 1/2 confirms`), not its enact (`1/N fires`)
+            if f.cancel_rule.kind != "strict_majority" {
+                no("policy", &f.family, "cancel_rule", LawWhy::Disagrees);
+                continue;
+            }
+            Policy::Strict(1, 2)
         } else if f.family == "moderator_recall" {
             let fl = &f.floor_rule;
             match (e.kind.as_str(), e.num, e.den, fl.kind.as_str(), fl.count) {
