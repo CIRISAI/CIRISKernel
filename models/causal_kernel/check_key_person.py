@@ -44,6 +44,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     rival_line_unread     no reader's line is read: a reader on the first roster waits with a fresh one (the rival stalls)
     line_order_unread     the line read out of order: a later row over the rival takes it up too, and the reader waits (P1)
     line_key_end_unread   the line reads no key end: a thief's row with the reader's revoked key seeds it (K1)
+    person_key_lane_unread  the person map reads no key-lane revocation (key_end.MUT; r106 PG1)
     claimed_cosigner_counted  another signer's claimed cosigners on a note seed the reader's line (r101 R2)
     seat_voice_counted    a concluded seat row listing the reader as a cosigner seeds its line (review-48 R2s)
     agent_by_seat_only    an agent recognised by its agent seat only: a registered agent admitted as a member speaks
@@ -61,6 +62,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True
 sys.path.insert(0, HERE)
 import seat as ST  # noqa: E402
+import key_end as KE  # noqa: E402
 import roomkey as RK  # noqa: E402
 import window as WN  # noqa: E402
 import check_election as EL  # noqa: E402
@@ -598,6 +600,10 @@ def landed_state(rows):
     return CK.concluded(CK.kept(list(rows)), RULE_W)
 # (name, rows, what is read, want)
 LANDED_CASES = [
+    # r106 PG1: the person map reads a key's own revocation in EITHER lane (key_end.revocations over key_end.key_ends)
+    ("r106 PG1: the genesis key revoked in the key lane: its device speaks for no one",
+     [S, A2, CK.row("rvk", "revoke", "k1", ("S",), key="k1", ra=5)], lambda S_: ST.rep_of(list(S_.Cs), "k2"), None),
+    ("and with no revocation the device speaks for its person", [S, A2], lambda S_: ST.rep_of(list(S_.Cs), "k2"), "k1"),
     ("the landed eviction ends g1's seat: the roster's live keys", LANDED,
      lambda S: sorted(ST.Seats(S).holders("self", "S")), ["k1"]),
     ("the evicted g1 is no voice of the person", LANDED, lambda S: ST.rep_of(list(S.Cs), "g1"), None),
@@ -799,7 +805,8 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
           "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept",
           "rebinding_unread", "landed_eviction_unread", "landed_add_unread",
           "self_founding_family", "mutual_evictions_land", "rival_line_unread", "line_order_unread",
-          "claimed_cosigner_counted", "seat_voice_counted", "line_key_end_unread", "agent_by_seat_only")
+          "claimed_cosigner_counted", "seat_voice_counted", "line_key_end_unread", "agent_by_seat_only", "person_key_lane_unread")
+KE_PLANTS = ("person_key_lane_unread",)   # planted in key_end: a key's one set of ends
 
 
 def answer(rows, k):
@@ -904,7 +911,7 @@ def main():
             problems.append("%s: got %r, expected %r" % (name, got, want))
     caught = 0
     for plant in PLANTS:
-        ST.MUT.add(plant)
+        (KE.MUT if plant in KE_PLANTS else ST.MUT).add(plant)
         try:
             hit = [c[0] for c in CASES if answer(c[1], c[2]) != c[3]] + \
                   [c[0] for c in COUNT_CASES if concludes(c[1], c[2]) != c[3]] + \
@@ -920,6 +927,7 @@ def main():
                   [c[0] for c in KV_LINE_CASES if line_concludes(c[1], c[2], c[3], c[5]) != c[4]]
         finally:
             ST.MUT.discard(plant)
+            KE.MUT.discard(plant)
         caught += bool(hit)
         print("  plant %-20s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0]) if hit else "NOT CAUGHT"))
         if not hit:
