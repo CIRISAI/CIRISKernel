@@ -394,3 +394,51 @@ fn bound_openers_take_the_models_tables() {
     assert!(why_ok.get() > 40, "rule_bound_why answered {} window rows", why_ok.get());
     assert_eq!(bad, 0, "{bad} of {cases} differ");
 }
+
+/// A bound-path wait: a stalled infrastructure room's recovery widening (an offer) that opens a window, under a law
+/// that binds no act (its table by name). The seat rule waits on the grant it names, with no trust root read, and
+/// `rule_bound_why` passes the wait on as `Err(Wait(grant))`; `rule_bound` reads it as concluding nothing, as the
+/// model does (`check_acts`: undecided).
+#[test]
+fn a_bound_opener_that_waits_says_on_what() {
+    use ciris_kernel::layers::{conclude, kept};
+    use ciris_kernel::seat::seat_rule;
+    use ciris_kernel::window::{rule_bound, rule_bound_why};
+    use ciris_kernel::Wait;
+    let fx = fixture("window_bound.json");
+    let w = fx.at("wait");
+    let mut law = law_of(fx.at("law"));
+    law.acts = None;
+    let refs: BTreeMap<String, String> =
+        w.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+    let rs = rows_with_refs(w.at("rows").arr(), &refs);
+    let mut m = BTreeMap::new();
+    m.insert(w.at("window").s().to_string(), w.at("spec").clone());
+    let specs = windows_of(&J::Obj(m));
+    let windows = |n: &String| specs.get(n).cloned();
+    let families =
+        |_: &str, _: &ciris_kernel::seat::Obj<String, String>, _: Option<&str>| -> Option<WindowSpec<i64>> { None };
+    let spec = DictCut;
+    let row = w.at("row").s().to_string();
+    let seen = std::cell::RefCell::new(None);
+    let c = conclude(
+        kept(&rs, |_| true),
+        |p| {
+            let why = rule_bound_why(p, &families, &windows, &law, &spec);
+            let plain = rule_bound(p, &families, &windows, &law, &spec);
+            if p.row().id == row {
+                *seen.borrow_mut() = Some((why.clone(), plain));
+            }
+            match plain {
+                Some(v) => v,
+                None => seat_rule(p, &law, &spec, &|_| true),
+            }
+        },
+        None,
+    );
+    let (why, plain) = seen.into_inner().expect("the widening was read");
+    assert_eq!(why, Some(Err(Wait(w.at("wait_on").s().to_string()))), "rule_bound_why names the grant it waits on");
+    assert_eq!(plain, Some(false), "rule_bound reads a wait as concluding nothing");
+    let i = c.g.idx(&row).unwrap();
+    assert_eq!(c.concluded(i), w.at("concluded").b(), "the model's conclusion");
+}

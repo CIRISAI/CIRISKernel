@@ -991,8 +991,20 @@ def window_bound_cases():
             refs = {}
             cases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "c": [c[r["id"]] for r in rows if r["id"] in c],
                           "kept": [i for i in c], "outcome": o})
+        # a wait on the bound path: a stalled infrastructure room's recovery widening (an offer) that opens a window,
+        # under a law that binds no act (its table by name): the seat rule waits on the grant it names (B1), with no
+        # trust root read, and the window rule passes the wait on (check_acts: undecided, stalled_recovery_needs_bundle)
+        import check_acts as AC
+        wrows = [AC.GI, AC.W3, dict(AC.RECOVER(heads=("g",), cites=("w3",)), window="stall")]
+        S = CK.concluded(CK.kept(list(wrows)), ST.seat_rule)
+        refs = {}
+        wait = {"rows": with_refs(wrows, refs), "refs": refs, "row": "rv", "wait_on": "B1", "concluded": bool(S.C["rv"]),
+                "window": "stall", "spec": {"counted": "founder", "concluder": "founder", "opener_says": None, "at_once": [],
+                                            "silent": None, "at_close": [], "default": "refused", "target_votes": False,
+                                            "secs": 1}}
     return {"law": law, "families": PS.POL["families"],
-            "table": {"min_count": PS.POL["min_count"], "window_classes": PS.POL["window_classes"]}, "cases": cases}
+            "table": {"min_count": PS.POL["min_count"], "window_classes": PS.POL["window_classes"]}, "cases": cases,
+            "wait": wait}
 
 
 def main():
