@@ -2515,17 +2515,17 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 let pol = f.pol;
                 // a re-seating's voices (its act the lift) are the objections it names, counted over the members
                 // the fold seats
-                let v = if is_lift(self.law, &|i| p.get(i), r, pol) {
+                let (apart, v) = if is_lift(self.law, &|i| p.get(i), r, pol) {
                     let Some((author, v)) = lift_voices_with(&p, self.law, self.spec, Some(&members)) else {
                         return false;
                     };
-                    // the base: the persons at both the removal's head and the lift's own heads ([`lift_base`])
+                    // the base: the persons at both the removal's head and the lift's own heads ([`lift_base`]);
+                    // the removal's author apart by person (the key removed is an agent's: in no count)
                     let base = lift_base(&p, self.law, self.spec, &over, Some(&members));
                     mem.retain(|m| base.contains(m));
-                    mem.remove(&author); // the removal's author apart (the key removed is an agent's: in no count)
-                    v
+                    (vec![author], v)
                 } else {
-                    voices(r, &p)
+                    (Vec::new(), voices(r, &p))
                 };
                 if pol == Some(Policy::DutyConfer) && mem.len() < 2 && lone_offer_stands(self.law, &p, r, &mem) {
                     return false;
@@ -2535,6 +2535,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     _ => {
                         // the threshold and the weights in force (the record's under the room's protocol)
                         let wr: &R = f.weights.unwrap_or(r);
+                        let rows: Vec<&R> = p.rows().collect();
+                        let pp = Persons::over(&rows, self.law, self.spec, r.obj().as_ref());
+                        let (mem, v) = pp.count(&mem, &v, None, &apart);
                         count_of(pol, true, r.to(), &mem, &v, f.need, |x| {
                             wr.weights().iter().find(|(w, _)| w == x).map_or(0, |(_, n)| *n)
                         })
@@ -2680,11 +2683,11 @@ fn count_receipt<R: SeatRow, S: CutSpec<R>>(
     for k in left_in_past(&p, &obj, "member") {
         mem.remove(&k);
     }
-    // the room less the remover, in the base as in the voices (R5: one rule for a count that judges one member's
-    // act, as the overturn and the lift)
-    mem.remove(xr.signer());
-    let mut v = voices(qr, &p);
-    v.remove(xr.signer());
+    // the room less the remover by person, in the base as in the voices (R5: one rule for a count that judges one
+    // member's act, as the overturn and the lift)
+    let rows: Vec<&R> = p.rows().collect();
+    let pp = Persons::over(&rows, law, spec, Some(&obj));
+    let (mem, v) = pp.count(&mem, &voices(qr, &p), None, &[xr.signer().clone()]);
     let yes = v.iter().filter(|k| mem.contains(*k)).count();
     // the members' check of one member's act, whatever policy or need the row states
     room_count(yes, mem.len())
@@ -3131,6 +3134,254 @@ pub(crate) fn object_of<'r, R: SeatRow + 'r>(r: &'r R, get: &dyn Fn(&R::Id) -> O
 
 fn concluded_over<'a, R: Row>(rows: impl IntoIterator<Item = &'a R>) -> Concluded<'a, R> {
     Concluded::with(Graph::new(rows), None)
+}
+
+/// The key's own end in a row's past, for its person (ruled on CIRISConstitution#224): the key's own revocation
+/// (CC 2.4.1.1: "only the key's own revocation ends its liveness"), an unseat of its `registered` seat by the key
+/// itself, is among `p` (the row's concluded past). The key record's stated end is read against the key's own
+/// instant on the key's own rows ([`crate::key_end`], the half-open end), never here: no foreign clock is read.
+pub fn key_record_ended<R: SeatRow>(p: &Past<'_, '_, R>, k: &R::Key) -> bool {
+    revoked_itself(p.rows(), k)
+}
+
+fn revoked_itself<'r, R: SeatRow + 'r>(rows: impl IntoIterator<Item = &'r R>, k: &R::Key) -> bool {
+    rows.into_iter().any(|q| {
+        q.seat_kind() == SeatKind::Unseat
+            && q.scope().is_some_and(|s| s.as_ref() == "registered")
+            && q.obj() == Some(Obj::Key(k.clone()))
+            && q.to().contains(k)
+            && q.signer() == k
+    })
+}
+
+/// Rule 4 for an eviction concurrent with row `at`: an eviction of `k` from self roster `g` (an unseat of its own
+/// scope `s` over `g`) that concluded, neither in the row's past nor having the row in its own, counts at its own
+/// head and is out of force from that head on: the key is out for a row that has every head the eviction names in
+/// its past.
+fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &str, k: &R::Key) -> bool {
+    c.cs().iter().copied().any(|e| {
+        let er = c.g.row(e);
+        er.seat_kind() == SeatKind::Unseat
+            && er.obj().as_ref() == Some(g)
+            && er.scope().is_some_and(|x| x.as_ref() == s)
+            && er.to().contains(k)
+            && c.g.concurrent(e, at)
+            && !er.head().is_empty()
+            && er.head().iter().all(|h| c.g.idx(h).is_some_and(|h| h == at || c.g.in_past(h, at)))
+    })
+}
+
+/// The self rosters each key is live in over `rows` (a row's concluded past): for every key a live seat of a self
+/// roster's own scope holds there (an object of kind [`CommunityKind::SelfRoster`] through [`SeatLaw::kinds`],
+/// admitted by its count and not evicted), the founding rows of the rosters `keep` keeps; and the keys holding an
+/// AI agent's seat there. A key that revoked itself among `rows` is in none.
+#[allow(clippy::type_complexity)]
+fn rosters_by_key<'r, R: SeatRow + 'r, S: CutSpec<R>>(
+    rows: &[&'r R],
+    law: &SeatLaw,
+    spec: &S,
+    keep: &dyn Fn(&ObjOf<R>, &str, &R::Key) -> bool,
+) -> (BTreeMap<R::Key, Vec<&'r R>>, BTreeSet<R::Key>) {
+    let by: BTreeMap<&R::Id, &R> = rows.iter().map(|q| (q.id(), *q)).collect();
+    let get = |i: &R::Id| by.get(i).copied();
+    let sc = concluded_over(rows.iter().copied());
+    let seats = Seats::build(&sc, law, spec, None, None, None);
+    let agents: BTreeSet<R::Key> =
+        seats.recs().iter().filter(|x| x.scope.as_ref() == AGENT).map(|x| x.k.clone()).collect();
+    let mut out: BTreeMap<R::Key, Vec<&'r R>> = BTreeMap::new();
+    for g in rows.iter().copied() {
+        if g.seat_kind() != SeatKind::Offer || !founding(g) {
+            continue;
+        }
+        let o = Obj::Row(g.id().clone());
+        if kind_of(law, &get, &o) != Some(CommunityKind::SelfRoster) {
+            continue;
+        }
+        let Some(s) = g.scope() else { continue };
+        for k in seats.holders(s.as_ref(), &o, None) {
+            if keep(&o, s.as_ref(), &k) && !revoked_itself(rows.iter().copied(), &k) {
+                let v = out.entry(k).or_default();
+                if !v.iter().any(|x| x.id() == g.id()) {
+                    v.push(g);
+                }
+            }
+        }
+    }
+    (out, agents)
+}
+
+/// The person key `k` is at row `at` of `c`, as a function of rows (ruled on CIRISConstitution#224), with no
+/// instant: the self roster (an object of kind [`CommunityKind::SelfRoster`]: a person's own key roster, CC
+/// 3.3.6.4, or a voice's room keys in a private room, CC 3.1.3.2) where, in the row's own past, `k` is the genesis
+/// key (it signed the founding record) or was seated by a counted addition that landed (`self_roster_add`), no
+/// eviction of it has landed (`self_roster_evict`), and an eviction concurrent with the row follows rule 4 (it
+/// counts at its own head and is out of force from that head on); and the key's own revocation is not in the row's
+/// past ([`key_record_ended`]). `None` where `at` did not conclude, where no self roster has `k` live there, or
+/// where several do (two persons is none, as two owners are). The kind is read through [`SeatLaw::kinds`]: a law
+/// with no kinds names no person. A count is then over persons ([`persons_of`]).
+pub fn person_at<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    at: usize,
+    law: &SeatLaw,
+    spec: &S,
+    k: &R::Key,
+) -> Option<ObjOf<R>> {
+    if !c.concluded(at) {
+        return None;
+    }
+    let rows: Vec<&R> = c.cs().iter().copied().filter(|&q| c.g.in_past(q, at)).map(|q| c.g.row(q)).collect();
+    let keep = |g: &ObjOf<R>, s: &str, key: &R::Key| key != k || !evicted_from(c, at, g, s, k);
+    let mut hit = rosters_by_key(&rows, law, spec, &keep).0.remove(k).unwrap_or_default();
+    if hit.len() == 1 {
+        hit.pop().map(|g| Obj::Row(g.id().clone()))
+    } else {
+        None
+    }
+}
+
+/// The persons a count reads over `rows` (a counted row's concluded past), ruled on CIRISConstitution#224: one voice
+/// and one member per person, however many of its keys sign or are seated. A person is named by its self roster's
+/// genesis key, the founding record's signer ("a voice is named by the identity reference of its first room key",
+/// CC 3.1.3.2). Built once per count, and only where `rows` hold a self roster or a key's own revocation; otherwise
+/// every key is its own person. A count over a self roster (or a key object) reads keys ([`Persons::keys`]).
+pub struct Persons<'r, R: SeatRow> {
+    rosters: BTreeMap<R::Key, Vec<&'r R>>,
+    revoked: BTreeSet<R::Key>,
+    agents: BTreeSet<R::Key>,
+    keys: bool,
+}
+
+impl<'r, R: SeatRow + 'r> Persons<'r, R> {
+    /// The persons over `rows` for a count over `obj` (`None`: no object read).
+    pub fn over<S: CutSpec<R>>(rows: &[&'r R], law: &SeatLaw, spec: &S, obj: Option<&ObjOf<R>>) -> Self {
+        let by: BTreeMap<&R::Id, &R> = rows.iter().map(|q| (q.id(), *q)).collect();
+        let get = |i: &R::Id| by.get(i).copied();
+        let keys = obj.is_some_and(|o| match o {
+            Obj::Key(_) => true,
+            Obj::Row(_) => kind_of(law, &get, o) == Some(CommunityKind::SelfRoster),
+        });
+        let none = Persons { rosters: BTreeMap::new(), revoked: BTreeSet::new(), agents: BTreeSet::new(), keys };
+        let any_self = rows.iter().any(|g| {
+            g.seat_kind() == SeatKind::Offer
+                && founding(g)
+                && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
+        });
+        let revoked: BTreeSet<R::Key> = rows
+            .iter()
+            .filter(|q| {
+                q.seat_kind() == SeatKind::Unseat
+                    && q.scope().is_some_and(|s| s.as_ref() == "registered")
+                    && q.to().contains(q.signer())
+                    && q.obj() == Some(Obj::Key(q.signer().clone()))
+            })
+            .map(|q| q.signer().clone())
+            .collect();
+        if keys || (!any_self && revoked.is_empty()) {
+            return Persons { revoked, ..none };
+        }
+        let (rosters, agents) = rosters_by_key(rows, law, spec, &|_, _, _| true);
+        Persons { rosters, revoked, agents, keys }
+    }
+
+    /// Whether this count reads keys, not persons (a self roster's own count).
+    pub fn keys(&self) -> bool {
+        self.keys
+    }
+
+    /// The voice key `k` counts as, or `None` (no voice): a key of exactly one self roster counts as its person
+    /// (the genesis key), a key of none as itself; none for a key of two persons (two genesis keys), a key that
+    /// revoked itself, and a key whose person's genesis key revoked itself (its devices then speak for no one). An
+    /// agent's key is itself, never its owner (CC 4.5.13).
+    pub fn voice(&self, k: &R::Key) -> Option<R::Key> {
+        if self.keys {
+            return Some(k.clone());
+        }
+        if self.revoked.contains(k) {
+            return None;
+        }
+        // an agent's key is out before the map: never its owner's voice, whatever roster lists it; it stays its own
+        // key, which no count's base holds (CC 4.5.13: "an agent has no vote")
+        if self.agents.contains(k) {
+            return Some(k.clone());
+        }
+        let names = self.named(k);
+        match names.as_slice() {
+            [] => Some(k.clone()),
+            [g] if !self.revoked.contains(g) => Some(g.clone()),
+            _ => None,
+        }
+    }
+
+    /// The persons key `k` is a live key of: the genesis keys of its self rosters, one each. A person is NAMED by its
+    /// genesis key, so two rosters founded by the same key are one person.
+    fn named(&self, k: &R::Key) -> Vec<R::Key> {
+        let names: BTreeSet<R::Key> =
+            self.rosters.get(k).map(|v| v.iter().map(|g| g.signer().clone()).collect()).unwrap_or_default();
+        names.into_iter().collect()
+    }
+
+    /// The member key `k` counts as in a base: a key of exactly one self roster is its person, any other key
+    /// itself (a revoked key, a key of two rosters, are still members; they are no voice).
+    pub fn member(&self, k: &R::Key) -> R::Key {
+        if self.keys || self.revoked.contains(k) {
+            return k.clone();
+        }
+        match self.named(k).as_slice() {
+            [g] => g.clone(),
+            _ => k.clone(),
+        }
+    }
+
+    /// The persons a base counts as, one member each.
+    pub fn base(&self, keys: &BTreeSet<R::Key>) -> BTreeSet<R::Key> {
+        keys.iter().map(|k| self.member(k)).collect()
+    }
+
+    /// The one reading of a count by person (ruled on CIRISConstitution#224): `(the base, the voices)`, the base
+    /// counted by member ([`Persons::base`]), the voices mapped to persons and held to the voting base (`voters`,
+    /// else the base), and the named keys `apart` (a lift's author, a receipt's remover, a recall's holder) set
+    /// apart BY PERSON from both, so their own devices are them. Every count reads it: the seat rule's count and
+    /// lift, the fold and its lift, the count's receipt.
+    pub fn count(
+        &self,
+        base: &BTreeSet<R::Key>,
+        voices: &BTreeSet<R::Key>,
+        voters: Option<&BTreeSet<R::Key>>,
+        apart: &[R::Key],
+    ) -> (BTreeSet<R::Key>, BTreeSet<R::Key>) {
+        let mut b = self.base(base);
+        let mut v = self.voices(voices, voters.unwrap_or(base));
+        for k in apart {
+            let mut ks = vec![k.clone()];
+            if !self.keys {
+                ks.push(self.member(k));
+                ks.extend(self.voice(k));
+            }
+            for x in &ks {
+                b.remove(x);
+                v.remove(x);
+            }
+        }
+        (b, v)
+    }
+
+    /// The persons of `base` the keys `voices` speak for, one voice each.
+    pub fn voices(&self, voices: &BTreeSet<R::Key>, base: &BTreeSet<R::Key>) -> BTreeSet<R::Key> {
+        let b = self.base(base);
+        voices.iter().filter_map(|v| self.voice(v)).filter(|p| b.contains(p)).collect()
+    }
+}
+
+/// A count over persons ([`Persons`]): the persons of `base` that the keys `voices` speak for, one voice each,
+/// read over `rows` for a count over `obj`.
+pub fn persons_of<'r, R: SeatRow + 'r, S: CutSpec<R>>(
+    rows: &[&'r R],
+    law: &SeatLaw,
+    spec: &S,
+    voices: &BTreeSet<R::Key>,
+    base: &BTreeSet<R::Key>,
+) -> BTreeSet<R::Key> {
+    Persons::over(rows, law, spec, None).voices(voices, base)
 }
 
 /// The live `scope` seats over `obj`, read from the rows in the past of the heads only (`p`: a row's
@@ -4417,8 +4668,12 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         let Some((author, v)) = lift_voices_with(p, law, spec, cache) else { return false };
         // the members are persons: the key removed is an agent's, no voice and not counted over; the base is the
         // persons at both heads ([`lift_base`])
-        let mut mem = lift_base(p, law, spec, &obj, cache);
-        mem.remove(&author); // the author is not among the members the majority is taken of
+        let mem = lift_base(p, law, spec, &obj, cache);
+        // the author is not among the members the majority is taken of, and its own keys are the author: the
+        // objections and the members by person, the author apart by person
+        let rows: Vec<&R> = p.rows().collect();
+        let pp = Persons::over(&rows, law, spec, Some(&obj));
+        let (mem, v) = pp.count(&mem, &v, None, &[author]);
         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
     }
     if pol == Some(Policy::Ranked) {
@@ -4479,7 +4734,11 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
             if !new_r.iter().all(|k| v.contains(*k)) {
                 return false;
             }
-            return v.iter().filter(|k| common.contains(*k) && !void.contains(*k)).count() >= m;
+            // one voice per person, as every count ([`Persons::count`])
+            let rows: Vec<&R> = p.rows().collect();
+            let pp = Persons::over(&rows, law, spec, Some(&obj));
+            let vot: BTreeSet<R::Key> = common.iter().filter(|k| !void.contains(*k)).cloned().collect();
+            return pp.count(&common, &v, Some(&vot), &[]).1.len() >= m;
         }
         // C2 (the ruling on reader_state): for a reader holding two concurrent founders' amendments, a founders' count
         // whose own past holds only one of them reads the founders common to the two
@@ -4542,10 +4801,17 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     // voices voided by a concurrent counted removal ([`contested_out`]) are none; under the room's protocol the key a
     // removal removes is neither counted over nor a voice
     let drop_to = f.exclude_target || f.base_excludes_target;
-    let v: BTreeSet<R::Key> =
-        voices(r, p).into_iter().filter(|k| !void.contains(k) && !(drop_to && r.to().contains(k))).collect();
     let mem: BTreeSet<R::Key> =
         if f.base_excludes_target { mem.into_iter().filter(|k| !r.to().contains(k)).collect() } else { mem };
+    // a count over persons, one voice and one member per person (ruled on CIRISConstitution#224): the voices are
+    // mapped to persons first and then held to the voting base (the members less the voided and the excluded
+    // target), so a device of the target or of a voided member is no voice; the base is counted by person
+    let rows: Vec<&R> = p.rows().collect();
+    let pp = Persons::over(&rows, law, spec, Some(&obj));
+    let vot: BTreeSet<R::Key> =
+        mem.iter().filter(|k| !void.contains(*k) && !(drop_to && r.to().contains(*k))).cloned().collect();
+    let key_mem = mem;
+    let (mem, v) = pp.count(&key_mem, &voices(r, p), Some(&vot), &[]);
     // a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
     if f.no_self_removal && v.iter().all(|k| r.to().contains(k)) {
         return false;
@@ -4561,6 +4827,12 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         (Some((Act::Recall, _, _)), Some(Policy::StrictFloor(n, d, l))) => Some(Policy::Recall(n, d, l)),
         (Some((a, _, _)), Some(Policy::Recall(n, d, l))) if a != Act::Recall => Some(Policy::StrictFloor(n, d, l)),
         (_, pol) => pol,
+    };
+    // the recall judges one holder: the holder apart by person, from the base and the voices
+    let (mem, v) = if !is_offer && matches!(pol, Some(Policy::Recall(..))) {
+        pp.count(&key_mem, &voices(r, p), Some(&vot), r.to())
+    } else {
+        (mem, v)
     };
     if pol == Some(Policy::DutyConfer) && mem.len() < 2 && lone_offer_stands(law, p, r, &mem) {
         return false; // a lone holder with a duty offer of its own standing confers no other alone
@@ -4881,8 +5153,10 @@ fn end_of_ended<R: SeatRow, S: CutSpec<R>>(
 ///   the keys whose own leaving is in the counted row's past** ([`left_in_past`]). It is
 ///   a function of the head *and the row*: cache [`members_at`] per head if you will, and subtract
 ///   `left_in_past` on every count (and, for a count over the duty holders, [`stay_ended_in_past`]).
-/// - `voices` is [`voices`]: the row's signer, its cosigners, and the signers of the cosignatures it names
-///   that name every head it is counted over.
+/// - `voices` is [`voices`] read as **persons** ([`persons_of`] over the row's past and `members`): the row's
+///   signer, its cosigners, and the signers of the cosignatures it names that name every head it is counted
+///   over, each key a member or speaking for the member its person is named by, one voice per person however many
+///   live keys of it sign; a key with no person, or two, is no voice.
 /// - Under [`Policy::Lift`] the two are read otherwise: `voices` is [`lift_voices`] (the objections the row
 ///   names, the removal's author left out) and `members` is [`members_at`] at both the removal's head and the
 ///   lift's own heads (the keys seated at both), less the agents (the key removed among them) and less that

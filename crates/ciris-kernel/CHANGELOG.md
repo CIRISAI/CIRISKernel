@@ -128,6 +128,46 @@ with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
   deciding one of an exact majority, and the statement over s2 and the grant on s1 are held evidence the other holders
   can cite when they name both tips.
 
+**Counts are over persons: one voice and one member per person** (ruled on CIRISConstitution#224: "one voice
+however many live keys sign"). New: `seat::Persons`, the persons a count reads over a counted row's past, and
+`seat::persons_of`. A person is named by its self roster's genesis key (the founding record's signer). A key of
+exactly one self roster counts as its person, a key of none as itself. In a base, a key counts as that member,
+so a person seated by two keys is one member. As a voice it counts for nobody where:
+- it is a key of two persons, two rosters with different genesis keys (two rosters founded by one genesis key name
+  one person);
+- it revoked itself (its member seat stands);
+- its person's genesis key revoked itself (its devices then speak for no one).
+An AI agent's key is out before the map (CC 4.5.13: "an agent has no vote"): never its owner's voice whatever roster
+lists it, and no voice of its own, since no count's base holds an agent (a clause one holder's act resolves still reads
+an agent holder's act). The edge: a person who seats one of their own device keys as an agent loses that key as a
+voting key. Agent registration is not modelled apart from the agent seat. The base and the voices map to persons
+everywhere: the denominator, the numerator, the electorate and the floor of two (two keys of one person never meet
+it).
+Every count reads its base and its voices through it: the seat rule's count (the policy count, quorum, floor, the duty
+count, the recall), the fold at tips, the lift (the remover's devices are the remover), the count's receipt of a lone
+removal, the election's ballots and set (one ballot a person; two rankings say nothing; a member's device signs for
+it), and a window's answers and bases (each answer read as its signer's person before the opener's withdrawal, a duty
+holder's act and the moot are read). Voices are mapped first and then held to the voting base, so a device of an
+excluded target or a voided member is no voice. A count over a self roster's own keys (or a key object) reads keys.
+`GroupCount`'s contract states that its `voices` are persons. No existing answer changes. The reference:
+`seat.rep_of`, `seat.as_persons`, `seat.persons_of`, `seat.person_for`; `check_key_person.py`, 42 cases (the review
+r74's rows among them: a person seated by two keys, a revoked key and its devices, an agent's key, the lift's
+author's device, a window over a self roster) and ten planted breaks; the window, ballot and r74 rows are in the seat
+fixture; seven crate plants for it, four retargeted.
+
+**A key's person at a row, with no instant** (0.5.0; the rule ruled on CIRISConstitution#224). New:
+`seat::person_at(c, at, law, spec, k)`, the person key `k` is at row `at` of a concluded set: the self roster (an
+object of kind `self`: a person's own key roster, or a voice's room keys in a private room) where, in the row's own
+past, `k` is the genesis key or was seated by a counted addition that landed (`self_roster_add`), no eviction of it
+has landed (`self_roster_evict`), an eviction concurrent with the row following rule 4 (it counts at its own head and
+is out of force from that head on); and the key's own revocation (an unseat of its `registered` seat by the key) is
+not in the row's past (`seat::key_record_ended`). `None` for none, or for several (two persons is none). The key
+record's stated end is the key's own instant on the key's own rows (`key_end`, the half-open end), not read here: no
+foreign clock. No existing answer changes. The reference: `seat.person_of`, `seat.evicted_from`,
+`seat.key_record_ended`; `check_key_person.py`, 18 cases in arrival orders, five planted breaks; fixture
+`key_person.json`, replayed as listed and reversed (`tests/key_person.rs`); five crate plants. `key_end::live(c, k,
+now)` is unchanged and still reads `now`; counts over persons do not read `person_at` yet.
+
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone
   removal out of force) ended nothing, and does not block a later end (the settling count, S4).

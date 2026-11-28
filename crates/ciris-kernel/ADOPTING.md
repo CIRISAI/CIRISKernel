@@ -413,6 +413,14 @@ trusting an adapter.
   member seat; its stay begins at the version that admits it in `agent` and ends at its removal or
   resignation. The audience of a room is `Seats::roster`.
 
+**A key's person**, for `seat::person_at`. Present each person's own key roster as a group whose founding row is
+signed by its first key in its own scope (`self` for a person, `key` for a voice), its further keys as counted
+admissions and evictions of that scope over it (`self_roster_add`, `self_roster_evict`), and a key's own
+revocation as an unseat of its `registered` seat by the key. `SeatLaw::kinds` must map those founding scopes to
+`self`, or no person is found. Counts read persons: seat a room's member as its person's genesis key (the key that
+signed its self roster's founding record), and a device key of that person signs for it. Ask at a row of the concluded set: the answer reads that row's own past, an eviction
+concurrent with the row by rule 4, and no instant.
+
 **A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,
 members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
 voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row
