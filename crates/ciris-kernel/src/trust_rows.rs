@@ -701,7 +701,7 @@ fn own_licence<R: TrustRow + Dated, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, 
 
 /// Whether licence row `i` is its authority's act in force for the reader holding the rows `seats` was built on:
 /// `None`, or the reason it CONCLUDES NOTHING in the authority's fold (never a refusal: the licence row is admitted,
-/// and the reason reads other rows, CC 2.7.3). Its existence is judged over its own past ([`ended_for_reader`],
+/// and the reason reads other rows, CC 2.7.3). Its existence is judged over its own past (`ended_for_reader`,
 /// `read` false): [`NOT_AUTHORITY`] (testimony), [`AUTHORITY_LOCKED`] (a locked community's quorum) or
 /// [`INSTANT_BEFORE_PAST`]. Then every end the reader holds is read over the reader's rows: a licence that stood and is
 /// cut so is [`LINK_WITHDRAWN`], or [`AUTHORITY_LOCKED`] where the end locks its community; one that fails only under

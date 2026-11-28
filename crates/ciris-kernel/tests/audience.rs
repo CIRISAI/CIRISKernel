@@ -1,10 +1,11 @@
 //! Differential: where a row is placed and who it is for, family by family, against
 //! `models/causal_kernel/audience.py` (fixture `audience.json`, written by `check_audience.py`): every family
 //! pattern of the table in every cohort scope, and the hand-written cases, the copy rule among them.
+#![allow(clippy::type_complexity)]
 
 mod common;
 use ciris_kernel::audience::{
-    audiences, family_in, family_of, follow, history_of, place, seats_of, Audience, AudienceRow, FamilyMatch,
+    audiences, family_in, family_of, follow, history_of, place, place_in, seats_of, Audience, AudienceRow, FamilyMatch,
     FamilyPlacement, Follows, History, Joins, PersonsOf, Placed, Placement, SeatAct, FAMILIES, FAMILY_MODEL_SHA256,
 };
 use common::*;

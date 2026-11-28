@@ -363,8 +363,8 @@ fn bound_openers_take_the_models_tables() {
                 let why = rule_bound_why(p, &families, &none, &law, &spec);
                 let plain = rule_bound(p, &families, &none, &law, &spec);
                 assert_eq!(why.is_some(), p.row().win_kind().is_some(), "rule_bound_why answers a window row only");
+                why_ok.set(why_ok.get() + why.as_ref().is_some_and(|r| r.is_ok()) as usize);
                 assert_eq!(why.map(|r| r.unwrap_or(false)), plain, "rule_bound_why and rule_bound differ");
-                why_ok.set(why_ok.get() + why.is_some_and(|r| r.is_ok()) as usize);
                 match plain {
                     Some(v) => v,
                     None => seat_rule(p, &law, &spec, &|_| true),

@@ -309,8 +309,8 @@ fn no_end_among_the_rows() {
             let me = list.iter().find(|r| r.id == x).expect("row");
             let out = list.iter().any(|h| Some(&h.id) == me.head.as_ref() && h.seat == SeatAt::Out);
             let retracted =
-                list.iter().any(|r| member(r.signer.as_str()) && !cut(*r) && r.retracts.as_ref() == Some(&x));
-            let want = match (out, cut(*me), retracted) {
+                list.iter().any(|r| member(r.signer.as_str()) && !cut(r) && r.retracts.as_ref() == Some(&x));
+            let want = match (out, cut(me), retracted) {
                 (true, _, _) => (false, false, "no_seat"),
                 (_, true, _) => (false, false, "K.key_removed"),
                 (_, _, true) => (true, false, "W.retracted"),

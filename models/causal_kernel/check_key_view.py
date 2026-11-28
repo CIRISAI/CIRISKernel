@@ -333,6 +333,12 @@ FK_CASES = [
      FK + [VOID("vT", ("P1", "P2"), "qT")], [], "xr", "C", None, False),
     ("r114: a revocation with the rotation in its past is no end (the key was retired first): xr counts",
      FK_AFTER, [], "xr", "C", None, True),
+    # TR1v2 (ruled on r118): after the void, the thief rotates again (qT2, C to T2, naming its own row g2 but not the
+    # void): the void and the revocation are C's end, so qT2 retires nothing and g2 counts nothing
+    ("r118 TR1v2: after the roster's void, a second rotation without the void in its past retires nothing: g2 counts "
+     "nothing", FK + [VOID("vT", ("P1", "P2"), "qT"), KE.att("g2", "C", 0, "kC"),
+                      KE.rec("qT2", "T2", 1, None, names=("kC", "g2"), succ_of="C", at_old=1, typ="pseudonym")],
+     [], "g2", "C", None, False),
 ]
 ROSTER_DIRECT = FK_CASES + [
     ("r106 K1r: a key's row concurrent with its registered self-unseat (the seat lane's revocation) counts nothing",
@@ -438,6 +444,11 @@ TR_CASES = [c for form, rv in TRV.items() for c in (
      % form, TRB + [rv, TRROT(("r0", "gt", "rv"))], "gt", "N", None, False),
     ("r114 TR2 (%s): and the rotated-to key's own row, covered by that rotation, concludes nothing" % form,
      TRB + [rv, TRROT(("r0", "gt", "rv")), KE.att("n3", "N3", 1, "rot")], "n3", "N3", None, False),
+    ("r118 TR1h (%s): the one-key owner's last resort: its own rotation (N to N5, naming a1), concurrent with the "
+     "thief's, forks the key: the thief's row counts nothing (a person of one key denies a second holder of that key "
+     "only by ending the identity: no successor stands)" % form,
+     TRB + [rv, TRROT(("r0", "gt")), KE.rec("rot5", "N5", 0, 100, names=("r0", "a1"), succ_of="N", at_old=3)],
+     "gt", "N", None, False),
     ("r114 (c) TR1 (%s), ruled (1): a rotation concurrent with the owner's revocation, in a person with no self roster "
      "to void it, stands and the revocation is no end: gt counts (the stated residual)" % form,
      TRB + [rv, TRROT(("r0", "gt"))], "gt", "N", None, True))]
@@ -465,8 +476,17 @@ SUCCESSOR = [
     ("a rotation the self roster voided names no successor", CH.ROOM + SP + recs() + [KT, QT0, VOID("vT", ("P1", "P2"), "qT")],
      [], "C", None),
     ("the same rotation, not voided, names its key", CH.ROOM + SP + recs() + [KT, QT0], [], "C", "T"),
+    # r116: the void is read from the self roster's own concluded counted acts (seat.self_roster_ends over the rows),
+    # never from a row's shape: X, no key of SP, writes an unseat of T citing qT, shaped like the roster's eviction
+    ("r116: a row shaped like the roster's eviction (X's unseat of T citing qT, X no key of the roster) voids nothing",
+     CH.ROOM + SP + recs() + [KT, QT0, dict(ST.unseat("vX", "X", "T", "self", "SP", "group", ("SP",), head=("SP",),
+                                                      policy="self_roster_evict", counted="self"),
+                                            names=("SP", "qT"))], [], "C", "T"),
     ("r114 (a): a rotation with a concurrent revocation stands: its key succeeds", FK, [], "C", "T"),
     ("r114 (b): the roster voids the rotation: no successor", FK + [VOID("vT", ("P1", "P2"), "qT")], [], "C", None),
+    ("r118 TR1v2: and a second rotation without the void in its past names no successor either",
+     FK + [VOID("vT", ("P1", "P2"), "qT"), KE.att("g2", "C", 0, "kC"),
+           KE.rec("qT2", "T2", 1, None, names=("kC", "g2"), succ_of="C", at_old=1, typ="pseudonym")], [], "C", None),
     ("r110 RK2: a registered self-unseat with the rotation in its past is no end: the rotation's key "
      "succeeds", [ST.unseat("ur", "K", "K", "registered", "K", "self", ("r0", "rot"))],
      [KE.rec("r0", "K", 0, None, typ="pseudonym"), KE.att("a1", "K", 3, "r0"),
@@ -476,7 +496,7 @@ PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("win
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
           ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT),
           ("taken_up_unread", KE.MUT), ("reader_line_unchecked", KE.MUT), ("own_unconcluded_unread", KE.MUT),
-          ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("registered_unconcluded_counted", KE.MUT), ("retired_registered_ends", KE.MUT), ("revoked_key_rotates", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
+          ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("registered_unconcluded_counted", KE.MUT), ("retired_registered_ends", KE.MUT), ("revoked_key_rotates", KE.MUT), ("void_reopens", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
           ("receipt_unclean_counts", ST.MUT), ("rotation_void_unread", KE.MUT), ("voided_successor_kept", KE.MUT),
           ("disputed_key_voices", ST.MUT), ("clean_signers_only", ST.MUT), ("roster_end_any_object", ST.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries
