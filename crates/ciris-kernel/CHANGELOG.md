@@ -6,8 +6,12 @@
 a row of `k` stands against each of `k`'s ends where it is in the end's past, or on the reader's own line from before
 the reader held the end (taken up), or part of a count final by acknowledgement (`seat::final_by_ack`: n - t + 1
 clean receipts; a final act is not reopened by a later cut). `KeyReading` carries the reader and the final counts;
-`counts_by` is the reading with no reader. A revocation by a key its own rotation already ended is no end; an end by
-the person's key roster (`KeyEndRow::roster_end`, signed by the successor) is one. Caller duty: an honest rotation
+`counts_by` is the reading with no reader. A revocation by a key of which any concluded rotation is held is no end;
+two rotations are a fork of the key (both ends, no successor); an end by the person's self roster
+(`KeyEndRow::roster_end`) is one only where that roster's own count concluded it (`KeyReading::roster`). Finality
+counts only clean receipts (no end of a voice's key, no cut of the act in its past, its signer's key standing), and a
+final count protects only voices valid when cast (r89). A `declared` need is never final; a recall's t is read at
+its own base. Caller duty: an honest rotation
 or revocation names the key's last rows. The cost: a thief's vote a reader took up before holding the end stands for
 that reader, one in a final count for everyone; the remedy is a later count; readers may differ on a count not yet
 final. Cases in `check_key_view.py` (35); plants `retired_key_revokes`, `roster_end_unread`, `taken_up_unread`,

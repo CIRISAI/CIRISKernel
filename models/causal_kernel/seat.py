@@ -2683,23 +2683,42 @@ def voices(r, P, past=None):
     return v
 
 
-def final_by_ack(S, fid):
-    """Counted act fid is FINAL BY ACKNOWLEDGEMENT in S: it concluded, and clean receipts (`ack` rows of it, `of`)
-    from n - t + 1 of the n members at its heads are held, t the least yes its policy meets at n (purge.py's settled,
-    `ack_blocking_quorum`). Read over the rows as they concluded with no key view: a final act is not reopened by a
-    later cut."""
+def final_by_ack(S, fid, KS=None, roster=frozenset()):
+    """Counted act fid is FINAL BY ACKNOWLEDGEMENT in S: it concluded as a count (its own count met: not a lone act,
+    whose receipts are E8's), and CLEAN receipts (`ack` rows of it, `of`) from n - t + 1 of the n members at its
+    heads are held, t the least yes its policy meets at n (purge.py's settled, `ack_blocking_quorum`). S is the rows
+    as they concluded with NO key view (the finality spec carries none: a final act is not reopened by a later cut).
+    A receipt is clean only where (KS, the key lane with the seat rows in one causal order) its signer's key stands
+    at it by the plain end rule, and no end of a key the count's voices are and no cut of the act are in its past
+    (MUTATION receipt_unclean_counts). A `declared` need is never final by acknowledgement (no t is read from the
+    row's own word); a recall's t is read at its own base, less the holder it recalls."""
     f = S.by.get(fid)
     if f is None or not S.C.get(fid) or f["kind"] not in ("offer", "unseat") or f.get("conf") != "group": return False
     P = [q for q in S.Cs if q["id"] in S.anc[fid]]
     past = lambda a, b: a in S.anc[b]
-    # a count (its own count met: not a lone act, whose receipts are E8's), over the members at its heads
     if not count_met(f, P, past): return False
+    kind = K.rule(POLICY, f.get("policy"), ("unknown", 0, 0))[0]
+    if kind == "declared": return False
     M = members_at(P, past, f["obj"], f.get("head", ()), "member")
-    n = len(M)
+    base = M - set(f["to"]) if kind == "recall" else M
+    n = len(base)
     t = next((y for y in range(n + 1) if met(f.get("policy"), y, n)), None)
     if t is None or not n: return False
-    rec = {a["signer"] for a in S.Cs if a["kind"] == "ack" and a.get("of") == fid and a["signer"] in M}
+    voices = signers(f)
+    def clean(a):
+        if KS is None or "receipt_unclean_counts" in MUT: return True
+        if a["id"] not in KS.by or not KE_COUNTS[0](KS, a["id"], a["signer"], None, frozenset(), roster): return False
+        past_a = KS.anc[a["id"]]
+        if any(e["id"] in past_a for k in voices for e in KE_ENDS[0](KS, k, roster)): return False
+        on = set(f.get("on", ()))
+        return not any(q["id"] != fid and (q.get("target") == fid or on & set(q.get("cuts", ())))
+                       for q in KS.Cs if q["id"] in past_a)
+    rec = {a["signer"] for a in S.Cs if a["kind"] == "ack" and a.get("of") == fid and a["signer"] in M and clean(a)}
     return len(rec) >= max(1, n - t + 1)
+
+
+# key_end's end rule, for final_by_ack's clean receipts (set by key_end on import: seat does not import key_end)
+KE_COUNTS, KE_ENDS = [None], [None]
 
 
 # The key view (CutSpec::key_view): a callable (row id, key) -> whether key's signature on that row counts by the end

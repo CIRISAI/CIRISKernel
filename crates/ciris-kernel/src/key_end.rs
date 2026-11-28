@@ -53,9 +53,9 @@ pub trait KeyEndRow: Row {
     fn instant(&self) -> Option<Self::T> {
         self.statement().map(|s| s.0)
     }
-    /// For an end of a retired key by the person's key roster (its owner learns it was stolen): the key ended and the
-    /// instant from which its rows are ended. It is an end where its signer is the key's successor (the roster's
-    /// rule as the kernel reads it: the one key its rotations name). Default: none.
+    /// For an end of a key by the person's self roster (its owner learns it was stolen): the key ended and the instant
+    /// from which its rows are ended. It is an end only where the roster's own count concluded it (a
+    /// [`KeyReading::roster`] id). Default: none.
     fn roster_end(&self) -> Option<(&Self::Key, Self::T)> {
         None
     }
@@ -186,34 +186,40 @@ pub fn counts<R: KeyEndRow>(c: &Concluded<'_, R>, i: usize) -> bool {
     if r.statement().is_none() {
         return true;
     }
-    counts_for(c, i, r.signer(), None, &BTreeSet::new())
+    counts_for(c, i, r.signer(), None, &BTreeSet::new(), &BTreeSet::new())
 }
 
 /// THE END RULE for key `k`'s signature on concluded row `i` (a statement, or a seat row `k` signed or cosigned, held
 /// in one causal order with `k`'s key lane), read with no reader's line: [`counts_for`] with none.
 pub fn counts_by<R: KeyEndRow>(c: &Concluded<'_, R>, i: usize, k: &R::Key) -> bool {
-    counts_for(c, i, k, None, &BTreeSet::new())
+    counts_for(c, i, k, None, &BTreeSet::new(), &BTreeSet::new())
 }
 
 /// Key `k`'s ends, as rows of `c`, each with the instant it ends rows from (if it states one):
-/// - its self-revocations, but not one signed when its own rotation had already ended it (a rotation of `k` in the
-///   revocation's past): a retired key's revocation is no end;
-/// - each rotation naming `k`'s record (a rotated holder speaks under its new key);
-/// - an end by the person's key roster ([`KeyEndRow::roster_end`]) signed by `k`'s successor.
-fn ends<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key) -> Vec<(usize, Option<R::T>)> {
+/// - its self-revocations, but NONE where a concluded rotation of `k` is held at all: a retired key's revocation is
+///   no end, whoever signed it and whatever its past holds;
+/// - every concluded rotation naming `k`'s record (a rotated holder speaks under its new key). Two rotations of one
+///   key are a FORK of the key: both are ends of the old key, and neither successor stands ([`successor`]) until the
+///   self roster's count settles which;
+/// - an end by the person's self roster ([`KeyEndRow::roster_end`]): one of `roster`, the ids of the roster's acts
+///   CONCLUDED under that roster's own count rule (the seat's reading over the roster, given by the caller). A thief
+///   holding one key cannot make one where the roster needs more.
+///
+/// The residual, stated: a person with ONE key (a self roster of one), whose key is stolen, cannot be told from the
+/// thief: the thief can rotate or revoke it as the owner could.
+pub fn ends<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, roster: &BTreeSet<R::Id>) -> Vec<(usize, Option<R::T>)> {
     let rots: Vec<usize> =
         c.cs().iter().copied().filter(|&e| c.g.row(e).record().is_some_and(|x| x.succ_of == Some(k))).collect();
-    let succ = successor(c, k, None);
     let mut out: Vec<(usize, Option<R::T>)> = rots.iter().map(|&e| (e, None)).collect();
     for &e in c.cs() {
         let q = c.g.row(e);
         if let Some((rk, ra)) = q.revocation() {
-            if rk == k && q.signer() == k && !rots.iter().any(|&x| c.g.in_past(x, e)) {
+            if rk == k && q.signer() == k && rots.is_empty() {
                 out.push((e, Some(ra)));
             }
         }
         if let Some((rk, ra)) = q.roster_end() {
-            if rk == k && succ.as_ref() == Some(q.signer()) {
+            if rk == k && roster.contains(q.id()) {
                 out.push((e, Some(ra)));
             }
         }
@@ -226,8 +232,9 @@ fn ends<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key) -> Vec<(usize, Option<R:
 /// and `i` states one, `i`'s is before it); or (b) `i` is on `reader`'s own line from before the reader held `e`: a
 /// row the reader signed or cosigned is `i` or has `i` in its past, without `e` there (taken up); or (c) `i` is part
 /// of a count FINAL BY ACKNOWLEDGEMENT (`final_`, the ids of the counts with n - t + 1 clean receipts,
-/// [`crate::seat::final_by_ack`]): that count, or a row it names. A final act is not reopened by a later cut. No
-/// cite is read.
+/// [`crate::seat::final_by_ack`]): that count, or a row it names, and only a voice valid when cast: never one whose
+/// end `e` is in the final count's own past. A final act is not reopened by a later cut. `roster`: the self roster's
+/// concluded acts ([`ends`]). No cite is read.
 ///
 /// The cost, stated: nobody can tell the thief from the owner, so a thief's vote a reader took up before holding the
 /// end stands for that reader, and one in a final count stands for everyone; the remedy is the members' later count
@@ -240,6 +247,7 @@ pub fn counts_for<R: KeyEndRow>(
     k: &R::Key,
     reader: Option<&R::Key>,
     final_: &BTreeSet<R::Id>,
+    roster: &BTreeSet<R::Id>,
 ) -> bool {
     if !c.all().get(i).copied().unwrap_or(false) {
         return false;
@@ -255,12 +263,16 @@ pub fn counts_for<R: KeyEndRow>(
             .collect(),
         None => Vec::new(),
     };
-    let in_final =
-        final_.iter().any(|f| f == r.id() || c.g.idx(f).is_some_and(|fi| c.g.row(fi).names().contains(r.id())));
-    ends(c, k).into_iter().all(|(e, ra)| {
+    // the final counts this row is part of: the count itself, or a row it names
+    let finals: Vec<usize> = final_
+        .iter()
+        .filter_map(|f| c.g.idx(f))
+        .filter(|&fi| fi == i || c.g.row(fi).names().contains(r.id()))
+        .collect();
+    ends(c, k, roster).into_iter().all(|(e, ra)| {
         (c.g.in_past(i, e) && !matches!((at, ra), (Some(t), Some(a)) if t >= a))
             || own.iter().any(|&a| (a == i || c.g.in_past(i, a)) && !c.g.in_past(e, a))
-            || in_final
+            || finals.iter().any(|&fi| !c.g.in_past(e, fi))
     })
 }
 
@@ -283,11 +295,14 @@ pub struct KeyReading<'c, 'a, R: KeyEndRow> {
     /// The counts final by acknowledgement ([`crate::seat::final_by_ack`], read over the rows as they concluded with
     /// no key view: a final act is not reopened by a later cut).
     pub final_: BTreeSet<R::Id>,
+    /// The self roster's acts concluded under that roster's own count rule (the seat's reading, with no key view):
+    /// the roster ends [`ends`] reads.
+    pub roster: BTreeSet<R::Id>,
 }
 
 impl<R: KeyEndRow> KeyView<R::Id, R::Key> for KeyReading<'_, '_, R> {
     fn counts(&self, row: &R::Id, key: &R::Key) -> bool {
-        self.c.g.idx(row).is_some_and(|i| counts_for(self.c, i, key, self.reader.as_ref(), &self.final_))
+        self.c.g.idx(row).is_some_and(|i| counts_for(self.c, i, key, self.reader.as_ref(), &self.final_, &self.roster))
     }
 }
 

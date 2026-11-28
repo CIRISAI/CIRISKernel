@@ -5,7 +5,7 @@
 
 mod common;
 use ciris_kernel::cut::CutSpec;
-use ciris_kernel::key_end::{conclude_rule, counts_by, KeyReading, KeyView};
+use ciris_kernel::key_end::{conclude_rule, counts_by, counts_for, KeyEndRow, KeyReading, KeyView};
 use ciris_kernel::layers::{conclude, kept, Concluded, Past};
 use ciris_kernel::seat::{final_by_ack, seat_rule, voices_with, Obj, SeatLaw, Seats};
 use ciris_kernel::window::{self, WindowSpec};
@@ -100,14 +100,19 @@ fn key_view_cases() {
         // the counts final by acknowledgement, over the rows as they conclude with no key view
         let plain = KeyCut { kv: None };
         let c0 = conclude_with(&plain);
-        let final_: BTreeSet<String> =
-            (0..c0.g.len()).filter(|&i| final_by_ack(&c0, &law, &plain, i)).map(|i| c0.g.row(i).id.clone()).collect();
+        // the self roster's acts concluded under the roster's own count, and the counts final over clean receipts
+        let roster: BTreeSet<String> =
+            c0.cs().iter().map(|&i| c0.g.row(i)).filter(|r| r.roster_end().is_some()).map(|r| r.id.clone()).collect();
+        let final_: BTreeSet<String> = (0..c0.g.len())
+            .filter(|&i| final_by_ack(&c0, &law, &plain, i, Some((&kc, &roster))))
+            .map(|i| c0.g.row(i).id.clone())
+            .collect();
         if let Some(f) = c.get("final") {
             let want: BTreeSet<String> = f.strs().into_iter().collect();
             cmp(final_ == want, format!("final by acknowledgement: {final_:?}"));
         }
         let reader = c.get("reader").and_then(|r| r.opt_s());
-        let reading = KeyReading { c: &kc, reader, final_ };
+        let reading = KeyReading { c: &kc, reader, final_, roster };
         let spec = KeyCut { kv: if c.at("view").b() { Some(&reading) } else { None } };
         let sc = conclude_with(&spec);
         // the row whose conclusion is read (x, or the case's probe), and a seat asked
@@ -128,6 +133,21 @@ fn key_view_cases() {
             let p = Past::new(&sc.g, x, &anc);
             let v: Vec<String> = voices_with(sc.g.row(x), &p, &spec).into_iter().collect();
             cmp(v == want.strs(), format!("voices of x: {v:?}"));
+        }
+    }
+    // a voice valid when cast, whatever final set a caller gives (DIRECT)
+    for d in fx.at("direct").arr() {
+        let refs: BTreeMap<String, String> =
+            d.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rows = rows_with_refs(d.at("rows").arr(), &refs);
+        let kc = conclude(kept(&rows, |_| true), conclude_rule, None);
+        let final_: BTreeSet<String> = d.at("final").strs().into_iter().collect();
+        let (row, key) = (d.at("row").s().to_string(), d.at("key").s().to_string());
+        let got = kc.g.idx(&row).is_some_and(|i| counts_for(&kc, i, &key, None, &final_, &BTreeSet::new()));
+        cases += 1;
+        if got != d.at("want").b() {
+            bad += 1;
+            eprintln!("{}: counts_for = {got}", d.at("name").s());
         }
     }
     report("the key view (check_key_view.py)", cases, bad);

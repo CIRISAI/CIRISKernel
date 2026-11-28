@@ -690,11 +690,16 @@ def key_view_cases():
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "removal_floor": ST.REMOVAL_FLOOR,
            "policy": {k: list(v) for k, v in ST.POLICY.items()},
            "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+    direct = []
+    for name, rows, rid, k, fin, want in KV.DIRECT:
+        refs = {}
+        direct.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "key": k,
+                       "final": sorted(fin), "want": want})
     WN = KV.WN
     windows = {k: dict(enc(v), secs=WN.secs(k)) for k, v in WN.WINDOWS.items()}
     return {"about": "the key view (CutSpec::key_view): key_end::counts_by per (row, key), and the voices and conclusion of "
                      "x with the key view (view true) or without it (false), under the seat or the window rule",
-            "law": law, "windows": windows, "cases": cases}
+            "law": law, "windows": windows, "cases": cases, "direct": direct}
 
 
 # ---- key_end: every generated world at every instant ----------------------------------------------------------------

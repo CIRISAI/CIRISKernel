@@ -3814,10 +3814,20 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
 }
 
 /// Counted act `i` of `c` is FINAL BY ACKNOWLEDGEMENT: it concluded as a count (its own count met: not a lone act,
-/// whose receipts are E8's), and clean receipts (an [`SeatKind::Ack`] whose `of` is it) from n - t + 1 of the n
-/// members at its heads are held, t the least yes its policy meets at n. Read `c` as the rows concluded with no key
-/// view (a final act is not reopened by a later cut); the ids it holds for go in [`crate::key_end::KeyReading`].
-pub fn final_by_ack<R: SeatRow, S: CutSpec<R>>(c: &Concluded<'_, R>, law: &SeatLaw, spec: &S, i: usize) -> bool {
+/// whose receipts are E8's), and CLEAN receipts (an [`SeatKind::Ack`] whose `of` is it) from n - t + 1 of the n
+/// members at its heads are held, t the least yes its policy meets at n. Read `c` as the rows concluded with NO key
+/// view: the finality spec carries none, and a final act is not reopened by a later cut. A receipt is clean only
+/// where (`keys`: the key lane with these rows in one causal order, and the self roster's concluded acts) its
+/// signer's key stands at it by the plain end rule, and neither an end of a key that is a voice of the count nor a
+/// cut of the act is in its past. A `declared` need is never final by acknowledgement; a recall's t is read at its
+/// own base, less the holder it recalls. The ids it holds for go in [`crate::key_end::KeyReading::final_`].
+pub fn final_by_ack<R: SeatRow + crate::key_end::KeyEndRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    i: usize,
+    keys: Option<(&Concluded<'_, R>, &BTreeSet<R::Id>)>,
+) -> bool {
     if !c.concluded(i) {
         return false;
     }
@@ -3832,19 +3842,43 @@ pub fn final_by_ack<R: SeatRow, S: CutSpec<R>>(c: &Concluded<'_, R>, law: &SeatL
     if !count_met(&p, law, spec, None) {
         return false;
     }
-    let m = members_at(&p, law, spec, &obj, r.head(), "member");
-    let n = m.len();
     let policy = law.policy_of(r.policy().map(|w| w.as_ref()));
+    if matches!(policy, Some(Policy::Declared)) {
+        return false;
+    }
+    let m = members_at(&p, law, spec, &obj, r.head(), "member");
+    let base: BTreeSet<&R::Key> = match policy {
+        Some(Policy::Recall(..)) => m.iter().filter(|k| !r.to().contains(*k)).collect(),
+        _ => m.iter().collect(),
+    };
+    let n = base.len();
     let Some(t) = (0..=n).find(|&y| met(policy, y, n, None)) else { return false };
     if n == 0 {
         return false;
     }
+    let voices = signers(r);
+    let on = spec.on_slots(r);
+    let clean = |q: usize| -> bool {
+        let Some((kc, roster)) = keys else { return true };
+        let qr = g.row(q);
+        let Some(ki) = kc.g.idx(qr.id()) else { return false };
+        if !crate::key_end::counts_for(kc, ki, qr.signer(), None, &BTreeSet::new(), roster) {
+            return false;
+        }
+        if voices.iter().any(|k| crate::key_end::ends(kc, k, roster).iter().any(|&(e, _)| kc.g.in_past(e, ki))) {
+            return false;
+        }
+        !c.cs().iter().any(|&x| x != i && g.in_past(x, q) && !spec.cuts_of(g.row(x)).is_disjoint(&on))
+    };
     let rec: BTreeSet<&R::Key> = c
         .cs()
         .iter()
-        .map(|&q| g.row(q))
-        .filter(|q| q.seat_kind() == SeatKind::Ack && q.of() == Some(r.id()) && m.contains(q.signer()))
-        .map(|q| q.signer())
+        .copied()
+        .filter(|&q| {
+            let qr = g.row(q);
+            qr.seat_kind() == SeatKind::Ack && qr.of() == Some(r.id()) && m.contains(qr.signer()) && clean(q)
+        })
+        .map(|q| g.row(q).signer())
         .collect();
     rec.len() >= core::cmp::max(1, n - t + 1)
 }

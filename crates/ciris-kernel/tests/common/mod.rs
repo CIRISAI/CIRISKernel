@@ -639,10 +639,9 @@ impl KeyEndRow for TRow {
         self.fi("at")
     }
     fn roster_end(&self) -> Option<(&String, i64)> {
-        if self.kind == "rend" {
-            Some((self.m_key(), self.fi("ra").unwrap()))
-        } else {
-            None
+        match self.m.get("rend_of") {
+            Some(J::Str(k)) => Some((k, self.fi("ra").unwrap())),
+            _ => None,
         }
     }
     fn cosigned_by(&self) -> &[String] {

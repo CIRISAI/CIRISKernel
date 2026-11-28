@@ -579,10 +579,12 @@ plant "election: the key view not read for ballots (ballot_key_view_unread)" src
 plant "seat: a lift objection not read by the key view (lift_key_view_unread)" src/seat.rs '&& spec.key_view().is_none_or(|kv| kv.counts(c.id(), c.signer()))' '&& spec.key_view().is_none_or(|kv| kv.counts(c.id(), c.signer()) || true)'
 plant "seat: a lone removal's single-key receipt not read by the key view (receipt_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer()) && false) {'
 plant "seat: a lone act not read by the key view (lone_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer()) && false) {'
-plant "key_end: a retired key's revocation an end (retired_key_revokes)" src/key_end.rs 'if rk == k && q.signer() == k && !rots.iter().any(|&x| c.g.in_past(x, e)) {' 'if rk == k && q.signer() == k {'
-plant "key_end: the person's roster end unread (roster_end_unread)" src/key_end.rs 'if rk == k && succ.as_ref() == Some(q.signer()) {' 'if false && rk == k && succ.as_ref() == Some(q.signer()) {'
+plant "key_end: a retired key's revocation an end (retired_key_revokes)" src/key_end.rs 'if rk == k && q.signer() == k && rots.is_empty() {' 'if rk == k && q.signer() == k {'
+plant "key_end: the person's roster end unread (roster_end_unread)" src/key_end.rs 'if rk == k && roster.contains(q.id()) {' 'if false && rk == k && roster.contains(q.id()) {'
 plant "key_end: the reader's taken-up line unread (taken_up_unread)" src/key_end.rs '|| own.iter().any(|&a| (a == i || c.g.in_past(i, a)) && !c.g.in_past(e, a))' '|| own.is_empty() && false'
-plant "key_end: a count final by acknowledgement reopened (final_count_unread)" src/key_end.rs '            || in_final' '            || (in_final && false)'
+plant "key_end: a count final by acknowledgement reopened (final_count_unread)" src/key_end.rs '|| finals.iter().any(|&fi| !c.g.in_past(e, fi))' '|| (finals.is_empty() && false)'
+plant "key_end: a final count protects a voice cast after its end (final_protects_late)" src/key_end.rs '|| finals.iter().any(|&fi| !c.g.in_past(e, fi))' '|| finals.iter().any(|&fi| fi == fi)'
+plant "seat: an unclean receipt counted toward finality (receipt_unclean_counts)" src/seat.rs 'let Some((kc, roster)) = keys else { return true };' 'let Some((kc, roster)) = keys else { return true }; if roster.len() < usize::MAX { return true; }'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"
