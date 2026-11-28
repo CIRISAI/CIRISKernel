@@ -37,9 +37,12 @@ No stated instant decides a verdict, and the host clock decides none.
 - Owners come from concluded rows only (review-53's r116 K2 class): a holder's keys merge only through a concluded
   recovery or a concluded rotation its old key signs. A row that concludes nothing (a junk `rotates` or
   `recovers`) merges no keys, so it cannot capture another holder's seat.
-- The device-stolen remedy: another live device of the granting person withdraws its grant
-  (`consent::may_withdraw`), and the end of a device key as the person's (an eviction, or a `registered`
-  revocation concurrent with the withdrawal) cuts a withdrawal standing on it.
+- The device-stolen remedy is the self roster's two one-target acts: its eviction of the stolen key, and its void
+  of the thief's rotation (removing the rotated-to key, citing the rotation). They may be signed together or in
+  either order.
+- Consent's withdrawer: any live device of the granting person may withdraw its grants (`consent::may_withdraw`),
+  and the end of a device key as the person's (an eviction, or a `registered` revocation concurrent with the
+  withdrawal) cuts a withdrawal standing on it.
 - Presentation rules that change answers with no error: the heads H1 to H8, the reader's line (`for_reader`), the act
   binding, the closed protocol set, persons over keys, the key view, and real rows only.
 - A row cites by `cites()` exactly one row (a reconsideration its notice, a lift its act). A quarantine release names
