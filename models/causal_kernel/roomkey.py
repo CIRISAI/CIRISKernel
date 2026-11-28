@@ -1068,6 +1068,7 @@ def detection_in_room():
 # on). Two live owner-bindings of the node key in its past: nothing. A node is never a voice, never a member, and in
 # no count. The planted breaks are seat.MUT names (node_*).
 NODE_MUT = ST.MUT
+MUT_OWN = lambda m: bool(m & {"node_owner_reading_own", "node_two_owners_kept"})
 
 
 def _end_reaches(S, e, rid):
@@ -1124,8 +1125,16 @@ def node_row_facts(S, r, records, room=ROOM):
             and "node_owner_revocation_unread" not in NODE_MUT
         return wd or un
     live = [q for q in P if owner_off(q) and not ended(q) and set(q["to"]) <= holders and own_signed(q)]
+    # THE ONE OWNER READING (Seats.owner, consent-set's): the one holder of the owner seat over the node key, a
+    # re-binding ending the binding before it; the named binding is the owner's current one (no re-binding of it in
+    # the row's past) (MUTATION node_owner_reading_own: the arm's own count of live bindings)
+    Qs = ST.seats_of(P)
+    one_owner = Qs.owner(kid) if "node_owner_reading_own" not in NODE_MUT else None
+    rebound = lambda b: any(q["id"] != b["id"] and owner_off(q) and b["id"] in S.anc.get(q["id"], ()) for q in P)
     f = {"under": list(under), "voice_heads": list(vhead), "binding_held": False, "binding_ended": False,
-         "live_bindings": len({k for q in live for k in q["to"]}), "owner": None, "owner_record": None,
+         "live_bindings": len({k for q in live for k in q["to"]}) if MUT_OWN(NODE_MUT)
+         else (1 if one_owner is not None else len({k for q in live for k in q["to"]}) or 0), "owner": None,
+         "owner_record": None,
          "owner_voice": None, "owner_live": False, "voice_seated": False,
          "node_revoked": revoked(kid) and "node_key_end_unread" not in NODE_MUT, "owner_revoked": False}
     if len(under) != 1 or len(vhead) != 1: return f
@@ -1133,6 +1142,10 @@ def node_row_facts(S, r, records, room=ROOM):
     # the binding is held where it is an owner seat over this node key that every key it names holds by its own
     # signature (RV1, RV4: an owner that did not sign, or one of several that did not, and it is none)
     if b is None or b["id"] not in anc or not owner_off(b) or not set(b["to"]) <= holders or not own_signed(b): return f
+    if "node_owner_reading_own" not in NODE_MUT and (rebound(b) or ([one_owner] != list(b["to"])
+                                                                    and "node_two_owners_kept" not in NODE_MUT)):
+        f["binding_held"], f["binding_ended"] = True, True                 # not the owner's current binding
+        return f
     f["binding_held"], f["binding_ended"] = True, ended(b)
     if len(b["to"]) != 1: return f
     owner = b["to"][0]

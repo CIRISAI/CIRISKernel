@@ -1924,6 +1924,19 @@ class Seats:
         """The single holder, where the seat is single-valued (an owner): two live holders is none."""
         return K.group([r for r in K.sel(self.recs, obj=o) if self._has(r, s)], None, "one", "k")
 
+    def owner(self, node):
+        """THE ONE OWNER READING (CC 3.2), for every caller (consent, the node arm, audience; nodes_of is its inverse):
+        the one holder of the `owner` seat over key `node` (one(): two live owners is none), after the re-binding rule
+        of standing.answers: a concluded owner offer over the node that has an earlier binding's offer in its past
+        re-binds it and ends it (a stint, not a rival), whether or not the new owner has accepted yet. Read over the
+        rows the caller gives (a reading row's past). MUTATION rebinding_unread: one() alone."""
+        recs = [r for r in K.sel(self.recs, obj=node) if self._has(r, "owner")]
+        if "rebinding_unread" not in MUT:
+            S = self.S
+            rebinds = [q["id"] for q in S.Cs if q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == node]
+            recs = [r for r in recs if not any(q != r["offer"] and r["offer"] in S.anc[q] for q in rebinds)]
+        return K.group(recs, None, "one", "k")
+
     def snapshot(self):
         return frozenset((r["k"], r["scope"], r["obj"], r["depth"], r["root"]) for r in self.recs)
 
