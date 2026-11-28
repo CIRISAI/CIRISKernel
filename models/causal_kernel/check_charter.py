@@ -75,14 +75,16 @@ def aff(i="af", to=("A", "B", "C"), cls=(MW, LW), cohort="affiliations", officer
     return ST.found(i, to[0], to, roles, cosigners=tuple(to[1:]), **kw)
 
 
-def rec(i, cls, heads=("af",), signer="A", cosigners=("B",), obj="af", counted=ST.OFFICER, **kw):
-    """A version of the record, counted at `heads` (cls None: it states no classes), by an affiliation's officers."""
+def rec(i, cls, heads=("af",), signer="A", cosigners=("B",), obj="af", counted=ST.OFFICER, officers=3, **kw):
+    """A version of the record, counted at `heads` (cls None: it states no classes), by an affiliation's officers.
+    `officers`: how many officers the body has at `heads` (aff's default: every one of its three members)."""
     if cls is not None:
         kw["licence_classes"] = tuple(cls)
     if counted == ST.OFFICER:
         # an affiliation's record change and dissolution take `affiliation_member_action|cosigned_act`, choice `row`
-        # (pin 85750784): the row states the path it takes, its officers' count under the declared protocol
-        kw.setdefault("policy", "cosigned_act")
+        # (pin 85750784): the row states the path it takes by its body's officer count, a one-officer body's
+        # affiliation_member_action and a body of two or more officers' cosigned_act (d9d8007's affiliation_count)
+        kw.setdefault("policy", "affiliation_member_action" if officers == 1 else "cosigned_act")
     return ST.offer(i, signer, (), "record", obj, "group", tuple(heads), head=tuple(heads), cosigners=tuple(cosigners),
                     counted=counted, **kw)
 
@@ -107,11 +109,11 @@ VE = rec("ve", (MW, LW), dissolves_at=50)                  # a version with its 
 DIS = rec("dis", None, dissolved_at=100)                   # a counted dissolution (A and B)
 A1 = aff("a1", to=("A",), cls=(MW,))                       # a one-seat affiliation (no official, no overseer)
 A1OF = aff("a1", to=("A",), cls=(MW,), official="O")        # the same, its designated official O
-A1V = rec("a1v", (MW, LW), heads=("a1",), cosigners=(), obj="a1")
+A1V = rec("a1v", (MW, LW), heads=("a1",), cosigners=(), obj="a1", officers=1)
 A1W = ST.withdraw("a1w", "A", "a1")                         # its one member lays down its seat: no seat is left
 A1B = ST.offer("a1b", "A", ("B",), "member", "a1", "group", ("a1",), head=("a1",), cosigners=("B",), counted=ST.OFFICER)  # appoints B
-A1VB = rec("a1v", (MW, LW), heads=("a1b",), cosigners=(), obj="a1")          # A alone, of two members
-A1VAB = rec("a1v", (MW, LW), heads=("a1b",), cosigners=("B",), obj="a1")     # A and B
+A1VB = rec("a1v", (MW, LW), heads=("a1b",), cosigners=(), obj="a1", officers=1)          # A alone, of two members
+A1VAB = rec("a1v", (MW, LW), heads=("a1b",), cosigners=("B",), obj="a1", officers=1)     # A and B
 CM = aff("cm", cohort=None)                                # a community: no declared cohort
 FM = aff("fm", cohort=None, group_kind="family", consensus_protocol="majority")   # a family
 
@@ -228,10 +230,10 @@ AOC = ST.offer("aoc", "A", ("C",), "member", "a1", "group", ("a1b",), head=("a1b
                role=ST.OFFICER)
 RM0 = ST.unseat("rm0", "A", "B", "member", "a1", "group", ("a1b",), head=("a1b",), policy="affiliation_member_action",
                counted=ST.OFFICER)
-DIS1 = rec("dis1", None, heads=("a1b",), cosigners=(), obj="a1", dissolved_at=100)   # A alone dissolves a1
+DIS1 = rec("dis1", None, heads=("a1b",), cosigners=(), obj="a1", officers=1, dissolved_at=100)   # A alone dissolves a1
 # the countersign is the outside key's voice on the act's own row (the Constitution's G15): a cosigner of the act
 AOCO = dict(AOC, cosigners=("C", "O"))                               # the appointment, with the official's voice
-VO2 = dict(rec("v", (MW,), heads=("a1",), cosigners=(), obj="a1", official="O2", **{ST.OVERSEEN_BY: "ob"}),
+VO2 = dict(rec("v", (MW,), heads=("a1",), cosigners=(), obj="a1", officers=1, official="O2", **{ST.OVERSEEN_BY: "ob"}),
            names=("a1", "ob"))
 A1OBV = dict(A1OB, names=("v",), head=("v",))
 RMBV = lambda cos=(): dict(RMB(("v",), cos=cos), names=("v", "ob"))
