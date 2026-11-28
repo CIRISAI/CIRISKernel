@@ -676,10 +676,10 @@ RADM = ST.offer("az", "g", "z", "member", "rm", "group", ("rm", "Sg2"), head=("r
 LWORLD["restore"] = [RSg, RRM, RSg2, RADM]
 # the line in its ORDER (r100r): the earliest taking-up rows fix the roster; a later row over the rival takes up
 # nothing. p4's first taking-up row is the room's founding gc (S1 in its past)
-LN4 = R("n4", "note", "p4", ("S1r", "gc"))                 # a tip-following note, after gc
+LN4 = R("n4", "note", "p4", ("S1r", "gc", "p4n"))          # a tip-following note, naming p4's own previous row
 LV4 = R("v4", "note", "p4", ("S1r",))                      # a row naming only the rival, concurrent with gc
 LZ4 = admit_z(("p1b", "p2", "p4"), ("a1c", "S1r"))          # p4 cosigns the admission itself (P3)
-LM4N = R("m4n", "note", "m4", ("tx2", "gr"))
+LM4N = R("m4n", "note", "m4", ("tx2", "gr", "m4r"))
 LQ1, LQ2 = R("q1", "note", "q", ("a1c",)), R("q2", "note", "q", ("S1r",))   # q's two concurrent first rows
 LWORLD.update({
     "P1": GW + [LRX, LN4, admit_z(LH, ("a1c", "S1r", "n4"))], "P1'": GW + [LRX, LN4, admit_z(LH, ("a1c", "S1r"))],
@@ -697,8 +697,25 @@ LWANT += [("P1", "p4", True), ("P1'", "p4", True), ("P2", "p4", False), ("P3", "
           # never another signer's claimed cosigners on any other row: the thief's note claiming p4 seeds nothing
           ("R2", "p4", True)]
 LWANT += [("restore", "m4", True), ("restore", None, False)]
-LINE_CASES = [("r100 %s, %s" % (k, "a fresh reader" if rd is None else "reader " + rd), LWORLD[k], rd, "az", w)
-              for k, rd, w in LWANT]
+# a reader that signs the count itself names its own previous row in it (an honest client, ADOPTING): x and x9
+LWORLD["X5 (x names its own row)"] = GW + [LRX, R("xn", "note", "x", ("S1r",)),
+                                         admit_z(("x", "p2", "p3"), ("S1r", "a1c", "xn"))]
+LWORLD["T3 (x9 signs, naming its own row)"] = TB + [R("x9n", "note", "x9", ("tx2",)), tadm(("x9", "m2", "m3"), ("tx2", "x9n"))]
+LWORLD["restore (m4's row)"] = [RSg, RRM, RSg2, R("m4r", "note", "m4", ("rm",)), RADM]
+LWANT = [(k, rd, w) for k, rd, w in LWANT if (k, rd) not in (("X5", "x"), ("T3 (x9 signs)", "x9"), ("restore", "m4"))]
+LWANT += [("X5 (x names its own row)", "x", True), ("T3 (x9 signs, naming its own row)", "x9", True),
+          ("restore (m4's row)", "m4", True),
+          # a reader whose own count omits its previous row has two first rows: a wait (the P2 rule)
+          ("X5", "x", False)]
+# each reader's own first row (a reader's line is only the rows it signed itself, r101 R2): p4 and m4 acknowledge
+# their rooms, x and x9 the rivals they hold; q's own rows are in its world
+READER_ROW = {"p4": R("p4n", "note", "p4", ("gc",)), "m4": R("m4r", "note", "m4", ("gr",)),
+              "x": R("xn", "note", "x", ("S1r",)), "x9": R("x9n", "note", "x9", ("tx2",))}
+def with_reader(rows, rd):
+    extra = READER_ROW.get(rd)
+    return list(rows) + ([extra] if extra is not None and all(r["id"] != extra["id"] for r in rows) else [])
+LINE_CASES = [("r100 %s, %s" % (k, "a fresh reader" if rd is None else "reader " + rd), with_reader(LWORLD[k], rd), rd,
+               "az", w) for k, rd, w in LWANT]
 
 
 def line_concludes(rows, reader, rid):
