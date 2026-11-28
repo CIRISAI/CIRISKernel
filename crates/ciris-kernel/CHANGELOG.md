@@ -8,7 +8,10 @@ one row of the governance policy table, decoded by the caller unchanged into `wi
 `active`). Every cell is read; where one stops the row the answer is each `PolicyRefusal { cell, why }`. Six
 `two_path` rows give a table; the mirror, cosigned, ranked and tally rows are refused. `Clause` and `WindowSpec` now
 derive `PartialEq` and `Eq`. ADOPTING.md lists each cell; `tests/policy_spec.rs` replays `window.py`'s
-`spec_from_policy` (fixture `policy_spec.json`), and `check_policy_spec.py` compares it with the reference's tables.
+`spec_from_policy` (fixture `policy_spec.json`), and `check_policy_spec.py` compares it with the reference's tables. **The seat law's table cells:** new module
+`tables`, `law_from_tables(acts, families, protocols)` gives `SeatLaw`'s `policy`, `acts` and `removal_floor` from the
+acts table's rows (`ActsRow`) and the policy table (`PolicyRow`, `ProtocolRow`), or every `LawRefusal`; `seat.py`'s
+`law_from_tables` is the same reading (fixture `law_tables.json`).
 
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.

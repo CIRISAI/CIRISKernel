@@ -790,6 +790,69 @@ def policy_spec_cases():
             "policy_sha256": pol["_meta"]["policy_sha256"], "cases": out}
 
 
+# ---- law_tables: the seat law's table cells from the acts and policy tables -----------------------------------------
+LAW_PLANTS = (
+    # (table, row match, cell, new value): what the tables give must change
+    ("acts", 0, "act", "admitt"),
+    ("acts", 0, "scope", "membership"),
+    ("acts", 0, "community_kind", "room"),
+    ("acts", 0, "choice", "chosen"),
+    ("acts", 0, "policy", "cosigned_act|community_invitation"),
+    ("acts", 0, "policy", "community_invite"),
+    ("acts", "dup", None, None),
+    ("policy", "self_roster_add", "enact_rule", {"kind": "fraction", "num": 2, "den": 3}),
+    ("policy", "community_invite", "enact_rule", {"kind": "fraction", "num": 1, "den": 2}),
+    ("policy", "accord_majority", "enact_rule", {"kind": "one_of_n"}),
+    ("policy", "accord_halt", "enact_rule", {"kind": "protocol"}),
+    ("policy", "cosigned_act", "enact_rule", {"kind": "ranked_irv", "choices": 3}),
+    ("policy", "moderator_election", "enact_rule", {"kind": "strict_majority"}),
+    ("policy", "moderator_recall", "floor_rule", {"kind": "voices", "count": 3}),
+    ("policy", "moderator_recall", "floor_rule", {"kind": "none"}),
+    ("policy", "moderator_recall", "enact_rule", {"kind": "fraction", "num": 3, "den": 4}),
+    ("policy", "community_remove", "floor_rule", {"kind": "voices", "count": 3}),
+    ("policy", "community_remove", "floor_rule", {"kind": "none"}),
+    ("policy", "duty_confer", "family", "duty_conferral"),
+    ("protocols", "majority", "rule", "more_than_half"),
+    ("protocols", "unanimous", "rule", "strict_majority"),
+    ("protocols", "quorum:{m}/{n}", "kind", "threshold:{m}/{n}"),
+)
+
+
+def law_tables_cases():
+    import copy
+    import seat as ST
+    pol = json.load(open(os.path.join(ROOT, "data", "governance_policy.json"), encoding="utf-8"))
+    acts = ST.acts_rows(os.path.join(ROOT, "data", "governance_policy_acts.tsv"))
+    protos = lambda p: [{"kind": k["kind"], "rule": k["rule"]} for k in p["protocols"]["kinds"]]
+
+    def case(name, acts, pol):
+        e = {"name": name, "acts": acts, "families": pol["families"], "protocols": protos(pol), "law": None, "refusals": None}
+        try:
+            L = ST.law_from_tables(acts, pol)
+            e["law"] = {"policy": {k: list(v) for k, v in L["policy"].items()},
+                        "acts": [[a, sc, kd, list(ps), ch] for a, sc, kd, ps, ch in L["acts"]],
+                        "removal_floor": L["removal_floor"]}
+        except ST.LawRefusal as x:
+            e["refusals"] = [list(r) for r in x.reasons]
+        return e
+    out = [case("data/ (the vendored tables)", acts, pol)]
+    for table, at, cell, v in LAW_PLANTS:
+        a, p = copy.deepcopy(acts), copy.deepcopy(pol)
+        if table == "acts" and at == "dup":
+            a.append(dict(a[0]))
+        elif table == "acts":
+            a[at][cell] = v
+        elif table == "policy":
+            next(f for f in p["families"] if f["family"] == at)[cell] = v
+        else:
+            next(k for k in p["protocols"]["kinds"] if k["kind"] == at)[cell] = v
+        e = case("plant %s %s %s = %s" % (table, at, cell, json.dumps(v)), a, p)
+        if (e["law"], e["refusals"]) == (out[0]["law"], out[0]["refusals"]):
+            raise SystemExit("law plant not caught: %s" % e["name"])
+        out.append(e)
+    return {"source": "data/governance_policy_acts.tsv and data/governance_policy.json", "cases": out}
+
+
 def main():
     out = {}
     dump("lib.json", lib_cases(), out)
@@ -810,6 +873,7 @@ def main():
     dump("key_end.json", key_end_cases(), out)
     dump("acts.json", acts_cases(), out)
     dump("policy_spec.json", policy_spec_cases(), out)
+    dump("law_tables.json", law_tables_cases(), out)
     import check_policy_spec as PS
     dump("../vectors/policy_dump.json", PS.dump(), out)
     import conferral_end as CE

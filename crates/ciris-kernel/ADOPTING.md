@@ -238,6 +238,16 @@ Six rows give a table today: `default_content`, `default_standing`, `default_irr
 `self_roster_add`, `self_roster_evict`. The three mirror windows the reference runs (`moderation_action`,
 `moderation_overturn`, `accord_halt`) are refused, so a store keeps writing those until the table states them.
 
+The crate embeds no table and parses none; the caller decodes. `tables::law_from_tables(acts, families, protocols)`
+gives the `SeatLaw` cells the tables state, from the acts table's rows (`ActsRow`, its six columns), the policy rows
+and the policy table's `protocols.kinds` (`ProtocolRow`): `policy` (each family's count from its `enact_rule`, the
+text's count for `duty_confer`, `duty_withdraw`, `moderation_overturn` and `moderator_recall`, and `P:{kind}` per
+protocol), `acts` (every word read by its `from_word`; an unknown word, a second row for one act, scope and kind, or
+a policy with no row is refused) and `removal_floor` (`community_remove`'s floor voices). The rest of `SeatLaw`
+(duties, holds, confers, ends, final scopes, roster seats, depth, kinds) is the text's and stays the caller's. The
+acts table names the window acts (`moderation_fallback`, `halt_confirm`, `poll`), but in this tag nothing reads that
+binding for a window: `window::rule` takes the opener's `window()` name through the caller's lookup.
+
 ## Points to settle before adoption
 
 - **Persons and voices.** The adapter presents each signing key as its person's voice (`PersonsAt::voice`) and

@@ -157,3 +157,115 @@ fn a_length_the_instant_cannot_hold_is_refused() {
     assert_eq!(got.unwrap_err(), vec![PolicyRefusal { cell: "window_secs", why: Why::Unknown }]);
     assert!(spec_from_policy::<u64>(&row, &table, Some(Active::WithinK)).is_ok());
 }
+
+// ---- the seat law's table cells (`tables::law_from_tables`, fixture `law_tables.json`) ------------------------------
+use ciris_kernel::seat::{Act, ActRule, Choice, CommunityKind, Policy, ScopeClass};
+use ciris_kernel::tables::{law_from_tables, ActsRow, LawRefusal, LawWhy, ProtocolRow};
+
+fn policy_word(name: &str, a: &[J]) -> Policy {
+    let n = |i: usize| a[i].i() as u64;
+    match a[0].s() {
+        "atleast" => Policy::AtLeast(n(1), n(2)),
+        "strict" => Policy::Strict(n(1), n(2)),
+        "recall" => Policy::Recall(n(1), n(2), n(3)),
+        "one" => Policy::One,
+        "declared" => Policy::Declared,
+        "protocol" => Policy::Protocol,
+        "ranked" => Policy::Ranked,
+        "duty" if name == "duty_confer" => Policy::DutyConfer,
+        "duty" if name == "duty_withdraw" => Policy::DutyWithdraw,
+        "lift" => Policy::Lift,
+        "unanimous" => Policy::Unanimous,
+        "weighted" => Policy::Weighted,
+        "not_a_count" => Policy::NotACount,
+        x => panic!("a policy {x}"),
+    }
+}
+
+fn law_why(w: LawWhy) -> &'static str {
+    match w {
+        LawWhy::Unknown => "unknown",
+        LawWhy::Duplicate => "duplicate",
+        LawWhy::NoRow => "no_row",
+        LawWhy::Disagrees => "disagrees",
+    }
+}
+
+#[test]
+fn the_tables_give_the_models_seat_law() {
+    let fx = fixture("law_tables.json");
+    let (mut cases, mut bad) = (0usize, 0usize);
+    for c in fx.at("cases").arr() {
+        let acts: Vec<ActsRow> = c
+            .at("acts")
+            .arr()
+            .iter()
+            .map(|a| ActsRow {
+                act: a.at("act").s().into(),
+                scope: a.at("scope").s().into(),
+                community_kind: a.at("community_kind").s().into(),
+                policy: a.at("policy").s().into(),
+                choice: a.at("choice").s().into(),
+                cc_ref: a.at("cc_ref").s().into(),
+            })
+            .collect();
+        let fams: Vec<PolicyRow> = c.at("families").arr().iter().map(row_of).collect();
+        let protos: Vec<ProtocolRow> = c
+            .at("protocols")
+            .arr()
+            .iter()
+            .map(|p| ProtocolRow { kind: p.at("kind").s().into(), rule: p.at("rule").s().into() })
+            .collect();
+        let got = law_from_tables(&acts, &fams, &protos);
+        cases += 1;
+        let ok = match (&got, c.at("law")) {
+            (Ok(l), J::Obj(_)) => {
+                let w = c.at("law");
+                let pol: BTreeMap<String, Policy> =
+                    w.at("policy").obj().iter().map(|(k, v)| (k.clone(), policy_word(k, v.arr()))).collect();
+                let rules: Vec<ActRule> = w
+                    .at("acts")
+                    .arr()
+                    .iter()
+                    .map(|r| {
+                        let r = r.arr();
+                        ActRule {
+                            act: Act::from_word(r[0].s()).unwrap(),
+                            scope: ScopeClass::from_word(r[1].s()).unwrap(),
+                            kind: CommunityKind::from_word(r[2].s()).unwrap(),
+                            policies: r[3].strs(),
+                            choice: Choice::from_word(r[4].s()).unwrap(),
+                        }
+                    })
+                    .collect();
+                l.policy == pol
+                    && l.acts.as_ref() == Some(&rules)
+                    && l.removal_floor == w.at("removal_floor").i() as usize
+            }
+            (Err(rs), J::Null) => {
+                let want: Vec<(String, String, String, String)> = c
+                    .at("refusals")
+                    .arr()
+                    .iter()
+                    .map(|r| {
+                        let r = r.arr();
+                        (r[0].s().into(), r[1].s().into(), r[2].s().into(), r[3].s().into())
+                    })
+                    .collect();
+                let mine: Vec<(String, String, String, String)> = rs
+                    .iter()
+                    .map(|r: &LawRefusal| (r.table.into(), r.row.clone(), r.cell.into(), law_why(r.why).into()))
+                    .collect();
+                mine == want
+            }
+            _ => false,
+        };
+        if !ok {
+            bad += 1;
+            eprintln!("{}: crate {:?}", c.at("name").s(), got.as_ref().map(|l| (&l.policy, l.removal_floor)));
+        }
+    }
+    report("law_tables", cases, bad);
+    assert!(cases > 20, "{cases} cases");
+    assert_eq!(bad, 0, "{bad} of {cases} differ");
+}

@@ -21,7 +21,8 @@
 //! | [`standing`] | CC 3.1.2.1 | one row under a root grant and an owner binding: the chain of names, per owner |
 //! | [`mod@line`] | 7, 8a | built on, and the reader's own acknowledged line |
 //! | [`seat`] | 5 (stands), 7 | the seat: two consents, the bounded walk, members at a head, tips wait |
-//! | [`window`] | 5 (window) | a window as rows: receipt, landing and recount |
+//! | [`window`] | 5 (window) | a window as rows: receipt, landing and recount; a window's table from its policy row |
+//! | [`tables`] | CC 4.5.13 | the seat law's table cells from the acts and policy tables |
 //! | [`head`] | 3, 3a | answers by head: receipts, one say, settled, missing; checkpoint and purge |
 //! | [`held`] | 3 | the two layers held across admissions: one row admitted at a time, only what it releases recomputed |
 //! | [`held_view`] | 3, 3a | the head layer held: `head::View` across admissions, only its dirty set recomputed; its checkpoint |
@@ -51,6 +52,7 @@ pub mod ranked;
 pub mod root;
 pub mod seat;
 pub mod standing;
+pub mod tables;
 pub mod trust;
 pub mod window;
 
