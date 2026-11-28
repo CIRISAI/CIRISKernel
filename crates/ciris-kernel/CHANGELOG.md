@@ -29,7 +29,10 @@ rows, 19 planted breaks), the fixture `tests/fixtures/consent.json` and the test
 replays the case table end to end over `KeyReading`, `Persons` and `Seats::owner`. Who withdraws is ONE rule,
 `consent::may_withdraw`: the grant's signer as a person (another live device of the granting person), a named
 party (the peer, or a node the grant is for), or the owner of the grant's signer; an ownership's end cuts a
-withdrawal standing on it (F1, F3). Announcements are read through the key view (AN4). `derived::fold_default`: a
+withdrawal standing on it (F1, F3), and so does the end of a device key as the person's: an eviction or a
+`registered` revocation concurrent with it, and the key's own ends through the key view (r103 PE1, PR1;
+`Reading::person` gains `inclusive`). Stated residual (r103 FD1): the signer's own concurrent regrants that name
+neither settle nothing; the next regrant naming both does. Announcements are read through the key view (AN4). `derived::fold_default`: a
 row beats every row something in its own past beat (CF1: a fork revives no beaten branch); a group where every row
 is so beaten has no winner. `key_end::counts_for` (merged from key-end-retained): a reader's own row counts toward
 its line only where the reader's key stands at it by the plain end rule (K1: a thief holding the reader's key cannot

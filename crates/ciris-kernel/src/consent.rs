@@ -34,8 +34,9 @@
 //! - *Who withdraws* ([`may_withdraw`]), ONE RULE (the Constitution, A3), over the withdrawal's past: its signer is
 //!   the grant's signer as a person (the same key, or a live key of the same person); or a named party (CC 2.4.1.1
 //!   rule 2: the peer, or a node the grant is for, one whose owner is the grant's signer's person); or its signer's
-//!   person owns the grant's signer. The two arms that stand on an ownership are cut by its end, by the end rule: a
-//!   held row that ends that ownership concurrent with the withdrawal voids it (r97 F1, F3).
+//!   person owns the grant's signer. The arms that stand on an ownership, or on a key being the person's, are cut
+//!   by that standing's end, by the end rule: a held row that ends it concurrent with the withdrawal voids it (r97
+//!   F1, F3; r103 PE1, PR1: an evicted or revoked device, the key's own ends read through the key view).
 //! - *Withdrawn*: the end is a cut (CC 2.4.1.1, ruled 2026-11-21). A withdrawal that counts ends the grant at every
 //!   row that is not in the withdrawal's past, so one in `at`'s past and one concurrent with `at` both end it there.
 //! - *Term*: `valid_until`, read at the caller's instant `now`, half-open ([`crate::covers_at`]). A grant with a
@@ -50,8 +51,10 @@
 //! Edge's replication set is the operator-addressed peers that are in the [`peer_set`] of a principal of the
 //! node ([`replication_set`]), and [`may_send`] gates each row.
 //!
-//! The residual, stated: a person with one key, whose key is stolen and then revoked, has no other device to
-//! withdraw a grant the thief made that a reader took up; the peer, and a node the grant is for, still may.
+//! The residuals, stated: the signer's own concurrent regrants that name neither settle nothing, and the next
+//! regrant naming both does (r103 FD1: the fold fails closed on the signer's own split); a person with one key,
+//! whose key is stolen and then revoked, has no other device to withdraw a grant the thief made that a reader took
+//! up; the peer, and a node the grant is for, still may.
 //!
 //! The reference is `models/causal_kernel/consent.py`; `tests/consent.rs` replays the case table of
 //! `check_consent.py` (`tests/fixtures/consent.json`) twice: with the model's readings, and end to end over the
@@ -116,9 +119,9 @@ pub trait Reading<I, K> {
     /// The key view ([`crate::key_end::KeyView`], [`crate::key_end::KeyReading`] for the reading node): `key`'s
     /// signature on `row` counts by the end rule. A row the reading does not hold counts nothing.
     fn counts(&self, row: &I, key: &K) -> bool;
-    /// The person `key` speaks for over the concluded rows in `row`'s past ([`crate::seat::Persons::voice`] over
-    /// them): `None` for none (a key of two persons, a revoked key).
-    fn person(&self, key: &K, row: &I) -> Option<K>;
+    /// The person `key` speaks for over the concluded rows in `row`'s past, with `row` itself where `inclusive`
+    /// ([`crate::seat::Persons::voice`] over them): `None` for none (a key of two persons, a revoked key).
+    fn person(&self, key: &K, row: &I, inclusive: bool) -> Option<K>;
     /// `node`'s one owner ([`crate::seat::Seats::owner`]) over the concluded rows in `row`'s past, with `row` itself
     /// where `inclusive`; over every held row where `row` is `None`. `None` with none or two.
     fn owner(&self, node: &K, row: Option<&I>, inclusive: bool) -> Option<K>;
@@ -211,10 +214,35 @@ pub fn ownership_ends<R: ConsentRow>(c: &Concluded<'_, R>, node: &R::Key, owner:
         .collect()
 }
 
-// the end rule on an ownership: withdrawal `w`, standing on `owner` owning `node`, is cut by an end of that ownership
-// concurrent with it
+/// The held rows that end `key` as `person`'s: one where `key` is that person's over its past and not over its past
+/// with it (an eviction from the person's self roster that landed, a `registered` revocation of the key).
+pub fn person_ends<R: ConsentRow>(c: &Concluded<'_, R>, key: &R::Key, person: &R::Key, rd: Rd<'_, R>) -> Vec<usize> {
+    c.cs()
+        .iter()
+        .copied()
+        .filter(|&e| {
+            let id = c.g.row(e).id();
+            !matches!(c.g.row(e).kind(), Kind::Grant | Kind::Withdrawal)
+                && rd.person(key, id, false).as_ref() == Some(person)
+                && rd.person(key, id, true).as_ref() != Some(person)
+        })
+        .collect()
+}
+
+// the end rule on a standing: withdrawal `w`, standing on it, is cut by any of its ends concurrent with it
+fn uncut_by<R: ConsentRow>(c: &Concluded<'_, R>, w: usize, ends: Vec<usize>) -> bool {
+    ends.into_iter().all(|e| c.g.in_past(e, w) || c.g.in_past(w, e))
+}
+
+// the end rule on an ownership: withdrawal `w`, standing on `owner` owning `node`, cut by its ends
 fn uncut<R: ConsentRow>(c: &Concluded<'_, R>, w: usize, node: &R::Key, owner: &R::Key, rd: Rd<'_, R>) -> bool {
-    ownership_ends(c, node, owner, rd).into_iter().all(|e| c.g.in_past(e, w) || c.g.in_past(w, e))
+    uncut_by(c, w, ownership_ends(c, node, owner, rd))
+}
+
+// the end rule on a key as a person's (r103 PE1, PR1): withdrawal `w` by key `k`, standing on `k` being `person`'s, cut
+// by an end of `k` as that person's concurrent with it, and read through the key view for the key's own ends
+fn person_stands<R: ConsentRow>(c: &Concluded<'_, R>, w: usize, k: &R::Key, person: &R::Key, rd: Rd<'_, R>) -> bool {
+    rd.counts(c.g.row(w).id(), k) && uncut_by(c, w, person_ends(c, k, person, rd))
 }
 
 /// Who may withdraw grant `g` by withdrawal `w`, ONE RULE (the Constitution, A3), over `w`'s past: the grant's
@@ -226,22 +254,24 @@ pub fn may_withdraw<R: ConsentRow>(c: &Concluded<'_, R>, w: usize, g: usize, rd:
     if k == gr.signer() {
         return true;
     }
-    let (pw, pg) = (rd.person(k, wr.id()), rd.person(gr.signer(), wr.id()));
-    if pw.is_some() && pw == pg {
-        return true;
+    let (pw, pg) = (rd.person(k, wr.id(), false), rd.person(gr.signer(), wr.id(), false));
+    if let Some(p) = pw.as_ref().filter(|p| Some(*p) == pg.as_ref()) {
+        if person_stands(c, w, k, p, rd) {
+            return true;
+        }
     }
     if gr.peer() == Some(k) {
         return true;
     }
     // a node the grant is for: `w`'s signer, owned by the grant's signer's person
     if let Some(o) = rd.owner(k, Some(wr.id()), false) {
-        if pg.is_some() && rd.person(&o, wr.id()) == pg && uncut(c, w, k, &o, rd) {
+        if pg.is_some() && rd.person(&o, wr.id(), false) == pg && uncut(c, w, k, &o, rd) {
             return true;
         }
     }
     // the owner over the grant's signer
     if let Some(o) = rd.owner(gr.signer(), Some(wr.id()), false) {
-        if pw.is_some() && rd.person(&o, wr.id()) == pw && uncut(c, w, gr.signer(), &o, rd) {
+        if pw.is_some() && rd.person(&o, wr.id(), false) == pw && uncut(c, w, gr.signer(), &o, rd) {
             return true;
         }
     }

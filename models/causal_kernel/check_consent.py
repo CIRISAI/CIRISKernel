@@ -61,6 +61,12 @@ def add_self(i, roster, k, signer, heads):
                     counted="self", cosigners=(k,))
 
 
+def evict_self(i, roster, k, signers, heads):
+    """A key evicted from a self roster by its count (self_roster_evict)."""
+    return ST.unseat(i, signers[0], k, "self", roster, "group", tuple(heads), head=tuple(heads), policy="self_roster_evict",
+                     counted="self", cosigners=tuple(signers[1:]))
+
+
 def rev_by(id, signer, key, ra):
     """A revocation of `key` signed by another key: not the key's own."""
     return C.CK.row(id, "revoke", signer, (), key=key, ra=ra)
@@ -73,6 +79,10 @@ S_, P_, F_, BI = "send", "peers", "force", "bilateral"
 _A3 = lambda: [G("g0", "O", "Q", ("x:",), 1, ("ab",)), rev("rv", "O", 3, ("g0",)), G("gt", "O", "A", ("trace:",), 1, ("g0",)),
                N_("n", "N", ("ab", "gt"))]
 
+PE = [found_self("SO", "O"), add_self("aO2", "SO", "O2", "O", ("SO",)),
+      ST.offer("aO3", "O", "O3", "self", "SO", "group", ("aO2",), head=("aO2",), policy="self_roster_add", counted="self",
+               cosigners=("O2", "O3")), G("g", "O", "P", ("trace:",), 1, ("aO3",))]
+PE_EV = evict_self("ev", "SO", "O2", ("O", "O3"), ("aO3",))
 A3_ONE = C.binding("b", "N", "O") + _A3()
 A3 = C.binding("b", "N", "O") + [found_self("SO", "O"), add_self("aO2", "SO", "O2", "O", ("SO",))] + _A3()
 
@@ -352,6 +362,28 @@ CASES = [
      A3 + [W("wx", "X", "gt", ("aO2", "n")), N_("n2", "N", ("n", "wx"))],
      [(S_, "N", "A", TRC, "n2", None, "gt")]),
 
+    # ---- r103: the person arm is cut by the end of the key as the person's (PE1, PR1) ----
+    ("r103 PE1: an evicted device withdraws the person's grant from a past without its eviction: cut, it stands",
+     PE + [PE_EV, W("w2", "O2", "g"), N_("n", "O", ("ev", "w2"))],
+     [(S_, "O", "P", TRC, "n", None, "g")]),
+    ("PE2: the same withdrawal naming its eviction: O2 is no device of O there, it stands",
+     PE + [PE_EV, W("w2", "O2", "g", ("ev",)), N_("n", "O", ("ev", "w2"))],
+     [(S_, "O", "P", TRC, "n", None, "g")]),
+    ("an honest device's withdrawal made before its eviction (the eviction names it) ends the grant",
+     PE + [W("w2", "O2", "g", ("g",)), evict_self("ev", "SO", "O2", ("O", "O3"), ("aO3", "w2")), N_("n", "O", ("ev",))],
+     [(S_, "O", "P", TRC, "n", None, None)]),
+    ("r103 PR1: a device's key revoked; its withdrawal concurrent with the revocation is cut by the key view",
+     PE + [rev("rv2", "O2", 5, ("aO3",)), W("w2", "O2", "g"), N_("n", "O", ("rv2", "w2"))],
+     [(S_, "O", "P", TRC, "n", None, "g")]),
+    ("r103 FD1, the residual: the signer's own concurrent regrants, each naming one fork, settle nothing (fail closed)",
+     [G("g1", "N", "P", ("capacity:",), 10), G("h1", "N", "P", ("capacity:",), 10), G("g2", "N", "P", ("capacity:",), 1, ("g1",)),
+      G("h2", "N", "P", ("capacity:",), 1, ("h1",)), N_("n", "N", ("g2", "h2"))],
+     [(S_, "N", "P", CAP, "n", None, None)]),
+    ("and the next regrant naming both settles it",
+     [G("g1", "N", "P", ("capacity:",), 10), G("h1", "N", "P", ("capacity:",), 10), G("g2", "N", "P", ("capacity:",), 1, ("g1",)),
+      G("h2", "N", "P", ("capacity:",), 1, ("h1",)), G("k", "N", "P", ("trace:",), 1, ("g2", "h2")), N_("n", "N", ("k",))],
+     [(S_, "N", "P", TRC, "n", None, "k")]),
+
     # ---- drift: no instant, a reading row not held ----
     ("a grant stating no asserted_at ranks below one that states one, among concurrent grants",
      [G("ga", "N", "P", ("trace:",)), G("gb", "N", "P", ("capacity:",), 1), N_("n", "N", ("ga", "gb"))],
@@ -405,7 +437,7 @@ PLANTS = ("classes_unread", "prefix_no_colon", "fold_earliest", "fold_highest_id
           "fold_live_only", "withdraw_any_signer", "withdraw_signer_only", "withdraw_owner_now", "withdraw_by_past", "term_unread", "term_closed", "owner_any", "owner_two_one",
           "revoked_unread", "voice_wrong_key", "withdrawn_none_unread", "future_grant", "federation_unannounced",
           "rebinding_unread", "fold_inherit_unread", "withdraw_person_unread", "withdraw_node_unread",
-          "ownership_end_unread", "announcement_unviewed")
+          "ownership_end_unread", "announcement_unviewed", "person_end_unread")
 SEAT_PLANTS = ("rebinding_unread",)       # planted in seat.py: the one owner reading
 
 
@@ -468,7 +500,8 @@ def run_case(name, rows, asks, plant=None, arrive_all=True):
 def readings(S, rows, reader):
     """The readings the crate takes from the caller (consent::Reading), as the model reads them, for every row and
     key of a case: `voiced` [row, signer] where the key view counts the signer's signature on a concluded grant or
-    announcement; `persons` "key|row" the person map over the row's past (seat.rep_of; none left out); `owners`
+    announcement; `persons` "key|row|0" the person map over the row's past, "key|row|1" with the row (seat.rep_of;
+    none left out); `owners`
     "key|row|0" over the row's past, "key|row|1" with the row, "key||1" over every held row (seat.Seats.owner; none
     left out)."""
     kv = C.key_view(S, reader)
@@ -479,10 +512,10 @@ def readings(S, rows, reader):
     for r in S.rows:
         before, incl = C._rows_before(S, r["id"]), C._rows_before(S, r["id"], True)
         for k in keys:
-            p = C.person_over(before, k)
-            if p is not None:
-                persons["%s|%s" % (k, r["id"])] = p
             for f, rs in (("0", before), ("1", incl)):
+                p = C.person_over(rs, k)
+                if p is not None:
+                    persons["%s|%s|%s" % (k, r["id"], f)] = p
                 o = C.owner_over(rs, k)
                 if o is not None:
                     owners["%s|%s|%s" % (k, r["id"], f)] = o

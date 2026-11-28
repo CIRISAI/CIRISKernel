@@ -539,9 +539,11 @@ class. A grant permits and never obliges: a node may always send less, with no r
   `seat::Seats::owner` over the concluded rows in the row's past (with the row where asked; every held row for
   none). `tests/consent.rs` (`end_to_end`) is a worked reading.
 - Who withdraws is one rule: the grant's signer as a person (another live device of the granting person), a named
-  party (the peer, or a node the grant is for), or the owner of the grant's signer; an ownership's end cuts a
-  withdrawal that stands on it. A thief's grant concurrent with the key's revocation or rotation moves nothing
-  whatever instant it states; one a reader took up stands for it until a withdrawer ends it.
+  party (the peer, or a node the grant is for), or the owner of the grant's signer; an ownership's end, and the end
+  of a device key as the person's (an eviction, a revocation; its key ends through the key view), cuts a withdrawal
+  that stands on it. `person` is asked over a row's past with and without the row (`inclusive`). A thief's grant concurrent with the key's revocation or rotation moves nothing
+  whatever instant it states; one a reader took up stands for it until a withdrawer ends it. The signer's own
+  concurrent regrants that name neither settle nothing (no grant in force); the next regrant naming both does.
 - A grant held between the two (`federation()` false) reads no announcement: holding it between the two nodes and
   serving it to no other is Edge's duty. One at federation scope needs both parties announced in its past, each
   announcement counting by the key view.

@@ -126,8 +126,8 @@ impl Reading<String, String> for Tables {
     fn counts(&self, row: &String, key: &String) -> bool {
         self.voiced.contains(&(row.clone(), key.clone()))
     }
-    fn person(&self, key: &String, row: &String) -> Option<String> {
-        self.persons.get(&format!("{key}|{row}")).cloned()
+    fn person(&self, key: &String, row: &String, inclusive: bool) -> Option<String> {
+        self.persons.get(&format!("{key}|{row}|{}", if inclusive { 1 } else { 0 })).cloned()
     }
     fn owner(&self, node: &String, row: Option<&String>, inclusive: bool) -> Option<String> {
         let at = row.map_or(String::new(), |r| r.clone());
@@ -165,8 +165,8 @@ impl Reading<String, String> for Crate<'_, '_> {
     fn counts(&self, row: &String, key: &String) -> bool {
         self.key.counts(row, key)
     }
-    fn person(&self, key: &String, row: &String) -> Option<String> {
-        let rows = self.past(Some(row), false);
+    fn person(&self, key: &String, row: &String, inclusive: bool) -> Option<String> {
+        let rows = self.past(Some(row), inclusive);
         Persons::over(&rows, self.law, &DictCut, None).voice(key)
     }
     fn owner(&self, node: &String, row: Option<&String>, inclusive: bool) -> Option<String> {

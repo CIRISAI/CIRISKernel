@@ -48,9 +48,10 @@ Derived, read AT A ROW (`at_row`; None reads every held row, the reader's whole 
                  - w's signer is A NAMED PARTY (CC 2.4.1.1 rule 2): the peer ("stop sending to me"), or a node the
                    grant is FOR (a node whose one owner is g's signer's person), where it is not the signer;
                  - w's signer's person OWNS g's signer (seat.Seats.owner, the one owner reading).
-                 The two arms that stand on an ownership are cut by its END (the end rule): a held row that ends
-                 that ownership and is concurrent with w voids w (r97 F1, F3: a former owner cannot withdraw by
-                 leaving its own end out of the withdrawal's past).
+                 The arms that stand on an ownership, or on a key being the person's, are cut by that standing's END
+                 (the end rule): a held row that ends it and is concurrent with w voids w (r97 F1, F3: a former owner
+                 cannot withdraw by leaving its own end out of the withdrawal's past; r103 PE1, PR1: nor an evicted or
+                 revoked device of the person, whose key's own ends are read through the key view).
     term         `until` read at the caller's instant `now`, half-open (lib covers_at): in force while now < until.
                  A grant with a term and no instant given is not in force.
     in force     the fold's winner, in the past, with a voice, placed, not withdrawn, inside its term.
@@ -70,7 +71,8 @@ Derived, read AT A ROW (`at_row`; None reads every held row, the reader's whole 
     covers(classes, c)    an entry ending in ':' is a CC 3.1 namespace prefix and covers every class it starts
                           (trailing colon significant); any other entry is a corpus class name and covers itself only.
 
-The residual, stated: a person with one key, whose key is stolen and then revoked, has no other device to withdraw a
+The residual, stated: the signer's own concurrent regrants that name neither settle nothing; the next regrant naming
+both does (r103 FD1: the fold fails closed on the signer's own split). And a person with one key, whose key is stolen and then revoked, has no other device to withdraw a
 grant the thief made that a reader took up; the peer, and a node the grant is for, still may (A3).
 
 Planted breaks (MUT), each must change a case of check_consent.py:
@@ -87,6 +89,7 @@ Planted breaks (MUT), each must change a case of check_consent.py:
     withdraw_node_unread    a node the grant is for is no named party
     withdraw_owner_now      the owner who may withdraw read over every held row, not the withdrawal's past
     ownership_end_unread    an ownership's end does not cut a concurrent withdrawal by that owner
+    person_end_unread       the end of a key as the person's (an eviction, a revocation) does not cut its withdrawal
     withdraw_by_past        a withdrawal ends the grant only at rows that have it in their past (concurrent unread)
     term_unread             the term is not read
     term_closed             the term read as closed: in force at until itself
@@ -197,16 +200,39 @@ def ownership_ends(S, node, owner):
             and owner_over(_rows_before(S, e["id"], True), node) != owner]
 
 
+def person_ends(S, key, person):
+    """The held rows that end `key` as `person`'s: one with `key` that person's over its past and not over its past
+    with it (an eviction from the person's self roster that landed, a `registered` revocation of the key)."""
+    return [e for e in S.Cs if e["kind"] not in ("grant",) + ENDS
+            and person_over(_rows_before(S, e["id"]), key) == person
+            and person_over(_rows_before(S, e["id"], True), key) != person]
+
+
+def _uncut_by(S, w, ends):
+    """THE END RULE on a standing: withdrawal w, standing on it, is cut by any of its ends concurrent with it (an end
+    in w's past already ended it there; one after w leaves w standing)."""
+    return all(e["id"] in S.anc[w["id"]] or w["id"] in S.anc[e["id"]] for e in ends)
+
+
 def _uncut(S, w, node, owner):
-    """THE END RULE on an ownership: withdrawal w, standing on `owner` owning `node`, is cut by any end of that
-    ownership concurrent with it (an end in w's past already ended it there; one after w leaves w standing)."""
+    """The end rule on an ownership: withdrawal w, standing on `owner` owning `node`, cut by its ends."""
     if "ownership_end_unread" in MUT:
         return True
-    return all(e["id"] in S.anc[w["id"]] or w["id"] in S.anc[e["id"]] for e in ownership_ends(S, node, owner))
+    return _uncut_by(S, w, ownership_ends(S, node, owner))
 
 
-def may_withdraw(S, w, g):
-    """ONE RULE (the Constitution, A3): the signer as a person, any named party, or the owner over the signer."""
+def _person_stands(S, w, k, person, kv):
+    """The end rule on a key as a person's: withdrawal w by key k, standing on k being `person`'s, is cut by an end of
+    k as that person's concurrent with it (an eviction, a registered revocation), and read through the key view for
+    the key's own ends (a revocation, a rotation): r103 PE1, PR1."""
+    if "person_end_unread" in MUT:
+        return True
+    return kv(w["id"], k) and _uncut_by(S, w, person_ends(S, k, person))
+
+
+def may_withdraw(S, w, g, kv=None):
+    """ONE RULE (the Constitution, A3): the signer as a person, any named party, or the owner over the signer. The
+    arms that stand on a key as a person's or on an ownership are cut by that standing's end (the end rule)."""
     if "withdraw_any_signer" in MUT:
         return True
     k = w["signer"]
@@ -216,7 +242,8 @@ def may_withdraw(S, w, g):
         return False
     rows = S.Cs if "withdraw_owner_now" in MUT else _rows_before(S, w["id"])
     pw, pg = person_over(rows, k), person_over(rows, g["signer"])
-    if pw is not None and pw == pg and "withdraw_person_unread" not in MUT:
+    if pw is not None and pw == pg and "withdraw_person_unread" not in MUT \
+            and _person_stands(S, w, k, pw, kv or key_view(S)):
         return True
     if k == g["peer"]:
         return True
@@ -281,9 +308,9 @@ def placed(S, g, kv):
     return announced(g["signer"]) and announced(g["peer"])
 
 
-def withdrawn(S, g, at_row):
+def withdrawn(S, g, at_row, kv=None):
     for w in S.Cs:
-        if w["kind"] in ENDS and w["of"] == g["id"] and may_withdraw(S, w, g):
+        if w["kind"] in ENDS and w["of"] == g["id"] and may_withdraw(S, w, g, kv):
             if at_row is None:
                 if "withdrawn_none_unread" in MUT:
                     continue
@@ -347,7 +374,7 @@ def winners(S, at_row=None, now=None, kv=None):
     kv = kv or key_view(S)
     groups = {}
     for g in _grants(S, at_row, kv):
-        if "fold_live_only" in MUT and (withdrawn(S, g, at_row) or not in_term(g, now)):
+        if "fold_live_only" in MUT and (withdrawn(S, g, at_row, kv) or not in_term(g, now)):
             continue
         groups.setdefault((g["signer"], g["peer"]), []).append(g)
     out = {k: fold_default(S, gs) for k, gs in groups.items()}
@@ -360,12 +387,12 @@ def in_force(S, g_id, at_row=None, now=None, kv=None):
     if g is None or g["kind"] != "grant" or not S.C.get(g_id):
         return False
     w = winners(S, at_row, now, kv).get((g["signer"], g["peer"]))
-    return w is not None and w["id"] == g_id and not withdrawn(S, g, at_row) and in_term(g, now)
+    return w is not None and w["id"] == g_id and not withdrawn(S, g, at_row, kv) and in_term(g, now)
 
 
 def grants_in_force(S, principal, at_row=None, now=None, kv=None):
     return [g for (s, _), g in sorted(winners(S, at_row, now, kv).items())
-            if s == principal and not withdrawn(S, g, at_row) and in_term(g, now)]
+            if s == principal and not withdrawn(S, g, at_row, kv) and in_term(g, now)]
 
 
 def peer_set(S, principal, at_row=None, now=None, kv=None):
