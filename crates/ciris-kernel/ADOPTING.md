@@ -160,7 +160,9 @@ Present:
   designated official's key, and `SeatRow::overseen_by`, the record member `overseen_by` (optional, one group id: the
   body that conferred or oversees it), whose `review` holders may countersign. Each version is a whole record: one
   stating no official names none;
-- a countersign as `SeatKind::Countersign`, signed by the countersigning key, `of()` the removal it countersigns,
+- a countersign as `SeatKind::Countersign`, signed by the countersigning key, `of()` the act it countersigns (on the
+  wire a countersign is the outside key's voice on the act's own row, the Constitution's G15: present each eligible
+  outside voice on the act's row as one such row view, `of()` the act's id, its signer the outside key),
   naming the removal and, for an overseer, the overseeing body's rows its `review` seat stands on (its basis);
 - a removal of a member of an affiliation as a counted Unseat of scope `member` under `affiliation_member_action` or
   `cosigned_act`, `counted` `officer`. The deciding seats are the officers: a member whose seat carries `role:
@@ -178,13 +180,13 @@ Present:
 
 **A duty holder's lone acts** (CC 4.5.5, CC 3.1.9.2; CHANGELOG). Present each by its family, its parameter as
 `family_param()`: a quarantine marker (`quarantine:{state}`) as `SeatKind::Quarantine` (`target_key()` the key, the
-state `withhold` or `release`, a release's `of()` the withhold it lifts), a slashing verdict (`slashing:{outcome}`) as
+state `withhold` or `release`, a release's `cites()` the withhold it lifts), a slashing verdict (`slashing:{outcome}`) as
 `SeatKind::Slashing` (`target_key()`, the outcome `proven_rogue` or `not_proven`), a takedown notice
 (`takedown_notice:{basis}`, the basis opaque) as `SeatKind::TakedownNotice` (`of()` the content row), each with `obj()` the room, `head()` the newest
 counted changes in its past, and the members' `moderation_overturn` window named (its `window()`, and its
-`WinKind::Open`); a reconsideration (`reconsideration:{grounds}`) as `SeatKind::Reconsideration` (`of()` the takedown, `outcome()`
-`reversed`, `partial` or `upheld`; `of()` is provisional); the members'
-lift of any of them as an Offer of scope `act`, `content()` the act, under `moderation_overturn`, naming the
+`WinKind::Open`); a reconsideration (`reconsideration:{grounds}`) as `SeatKind::Reconsideration` (`cites()` the takedown, `outcome()`
+`reversed`, `partial` or `upheld`); the members'
+lift of any of them as an Offer of scope `act`, `cites()` the act, under `moderation_overturn`, naming the
 objections. Ask `seat::act_in_force` whether one is in force for a reader.
 
 **A seat from a root grant.** Present it as an Offer of `Conf::Root`, `bundle()` the grant's id, `scope()` the

@@ -105,7 +105,7 @@ def obj(i, by, removal="x"):
 def reseat(i, by, who, removal, head, objections, accepted=True, cite=True):
     names, heads = at(head)
     return ST.offer(i, by, who, "agent", OBJ, "group", tuple(dict.fromkeys((removal,) + tuple(objections) + names)), head=heads, policy=OV,
-                    cosigners=(who,) if accepted else (), **({"content": removal} if cite else {}))
+                    cosigners=(who,) if accepted else (), **({"cites": (removal,)} if cite else {}))
 
 
 # ---- world A: members m1 and m2, the agent's key AG, and MOD. The founding record names m1 the one moderator; m1, the

@@ -293,7 +293,7 @@ def act_of(r, by, is_key=False):
         if sc in ("member", "founder"): return ("admit" if offer else "remove", "member", kind)
         return None
     if kind == "community":
-        c = by.get(r.get("content"))
+        c = lifted(r, by)
         if offer and sc == "act" and c is not None and family(c) in LONE_ACTS and c.get("obj") == obj:
             return ("lift", "act", kind)                     # the lift of a duty holder's lone act
         if offer and c is not None and c["kind"] == "unseat" and c.get("obj") == obj and c.get("scope") == sc \
@@ -1455,7 +1455,7 @@ def lone_removal(r, P, past):
 def lift_voices(r, P, past, by):
     """The voices of a re-seating row, or None where it is none: the signers of the objections it names to the lone
     removal it cites, less that removal's author."""
-    rem = by.get(r.get("content"))
+    rem = lifted(r, by)
     if r["kind"] == "offer" and rem is not None and family(rem) in LONE_ACTS and r.get("scope") == "act" \
             and rem.get("obj") == r.get("obj") and "lone_act_lift_unread" not in MUT:
         # the lift of a duty holder's lone act (quarantine, slash, takedown): the objections it names to that act
@@ -1488,7 +1488,7 @@ def lift_base(r, P, past, by):
     majority's objections, admit nothing past the room's own protocol. The members are persons: the key removed is an
     agent's, no voice and not counted over. MUTATIONS lift_base_lift_head (the base read at the lift's heads alone)
     and lift_base_removal_head (at the removal's head alone)."""
-    rem_heads = by[r["content"]].get("head", ())
+    rem_heads = lifted(r, by).get("head", ())
     if "lift_base_removal_head" in MUT: return counted_keys(P, past, r["obj"], rem_heads)
     mem, vot = counted_keys(P, past, r["obj"], r.get("head", ()))
     if "lift_base_lift_head" in MUT: return mem, vot
@@ -1504,7 +1504,7 @@ def lift_count(r, P, past, by):
     if v is None: return False
     mem, vot = lift_base(r, P, past, by)
     yes = v & vot
-    if "lift_over_all" not in MUT: mem = mem - {by[r["content"]]["signer"]}    # MUTATION lift_over_all: the author counted over
+    if "lift_over_all" not in MUT: mem = mem - {lifted(r, by)["signer"]}    # MUTATION lift_over_all: the author counted over
     return room_count(yes, mem)
 
 
@@ -2349,7 +2349,7 @@ class Seats:
                     v = lift_voices(r, P, past, {q["id"]: q for q in P}) or frozenset()
                     if v:                                   # the base: the persons at both heads (lift_base), the author apart
                         mem = mem & lift_base(r, P, past, {q["id"]: q for q in P})[0]
-                        mem = mem - {S.by[r["content"]]["signer"]}   # (the key removed is an agent's: in no count)
+                        mem = mem - {lifted(r, S.by)["signer"]}   # (the key removed is an agent's: in no count)
                     yes = v & mem
                     if not room_count(yes, mem): return False
                 elif not count_of(r.get("policy"), True, r.get("to", ()), mem, yes, r.get("need"), r.get("weights"),
@@ -2602,7 +2602,25 @@ RECONSIDERATION_GROUNDS = ("new_evidence", "procedural_error", "quorum_compromis
 RECONSIDERATION_OUTCOMES = ("reversed", "partial", "upheld")    # only `reversed` fells a notice on one content row
 # PROVISIONAL: the member a release, a takedown notice and a reconsideration name their target row by (the table's
 # name follows with the placement cells); read here and nowhere else
-ACT_OF = "of"
+ACT_OF = "of"          # a takedown notice's content row
+CITES = "cites"        # the wire's refs.also.cites (G21, G23, G24)
+
+
+def cites(r):
+    """The rows a row cites (the wire's `refs.also.cites`; the Constitution's G21, G23, G24): a release names its
+    withhold, a reconsideration its takedown notice, and a lift the act it lifts, by citing it."""
+    c = r.get(CITES, ())
+    return (c,) if isinstance(c, str) else tuple(c)
+
+
+def cited(r, by, pick=lambda q: True):
+    """The row among `by` that r cites and `pick` takes (the first in its order), or None."""
+    return next((by[i] for i in cites(r) if i in by and pick(by[i])), None)
+
+
+def lifted(r, by):
+    """The act a lift cites: a duty holder's lone act, or a lone removal (an unseat)."""
+    return cited(r, by, lambda q: family(q) in LONE_ACTS or q["kind"] == "unseat")
 
 
 def family(r):
@@ -2638,14 +2656,14 @@ def lone_act_rule(r, P, past):
                          past (H4, as every act read on a seat); never counted (MUTATION lone_act_counted: a count asked);
         in an affiliation  the body's act, counted over its officers (affiliation_count): one officer makes it a proposal,
                          in force only with a countersign (act_in_force).
-    Shapes: a marker's state is withhold or release, and a release names (`of`) the withhold it lifts, of the same key,
+    Shapes: a marker's state is withhold or release, and a release cites (`cites`, G21) the withhold it lifts, of the same key,
     in its past; a verdict's outcome is proven_rogue or not_proven; a takedown names (`of`) a content row in its past."""
     by = {q["id"]: q for q in P}
     obj, k, param = r.get("obj"), family(r), family_param(r)
     if k == "quarantine":
         if param not in QUARANTINE_STATES or r.get("target") is None: return False
         if param == "release":
-            w = by.get(r.get(ACT_OF))
+            w = cited(r, by, lambda q: q["kind"] == "quarantine:withhold")
             if w is None or w["kind"] != "quarantine:withhold" or w.get("target") != r["target"] or w.get("obj") != obj:
                 return False
             # no act lifts itself by its own target: the key withheld never releases its own withhold (MUTATION
@@ -2678,10 +2696,10 @@ def reconsidered(r):
 
 def reconsideration_rule(r, P, past):
     """A `reconsideration:{grounds}` row (the review duty's act, CC 4.5.5): one review holder's signature, at the newest
-    counted changes in its past, naming (`of`) a takedown notice in its past, with outcome `reversed` or not. A
+    counted changes in its past, citing (`cites`, G23) a takedown notice in its past, with outcome `reversed` or not. A
     concluded reversal takes the takedown down (act_in_force)."""
     by = {q["id"]: q for q in P}
-    t = by.get(r.get(ACT_OF))
+    t = cited(r, by, lambda q: family(q) == "takedown_notice")
     if t is None or family(t) != "takedown_notice" or not reconsidered(r): return False
     # no act is reversed by its own target: the author of the content taken down never reconsiders it (self_release)
     if r["signer"] in act_targets(t, by) and "self_release" not in MUT: return False
@@ -2720,14 +2738,14 @@ def act_in_force(S, act, own=None):
         if "lone_act_end_unread" not in MUT and not removal_in_force(S, r, unseats, Seats(S, own=own, roster=False),
                                                                   scope=LONE_ACTS[family(r)]):
             return False
-        lifted = held("offer", lambda q: q.get("scope") == "act" and q.get("content") == act and q.get("conf") == "group")
+        lifted = held("offer", lambda q: q.get("scope") == "act" and act in cites(q) and q.get("conf") == "group")
         if lifted and "lone_act_lift_unread" not in MUT: return False
         if family(r) == "takedown_notice" and "reconsideration_unread" not in MUT and [
-                q for q in S.Cs if family(q) == "reconsideration" and q.get(ACT_OF) == act and q.get("outcome") == "reversed"
+                q for q in S.Cs if family(q) == "reconsideration" and act in cites(q) and q.get("outcome") == "reversed"
                 and Q.cut.counts(q) and q["id"] not in Q.stale]:
             return False
     if r["kind"] == "quarantine:withhold" and "release_unread" not in MUT:
-        if any(act_in_force(S, q["id"], own) for q in S.Cs if q["kind"] == "quarantine:release" and q.get(ACT_OF) == act):
+        if any(act_in_force(S, q["id"], own) for q in S.Cs if q["kind"] == "quarantine:release" and act in cites(q)):
             return False
     if family(r) == "slashing" and family_param(r) != "proven_rogue" and "unproven_fires" not in MUT: return False
     return True
