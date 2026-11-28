@@ -259,7 +259,9 @@ pub fn ends<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, roster: &BTreeSet<R:
 /// THE END RULE read for a reader (A KEY END IS A CUT, the Constitution's ruling): key `k`'s signature on concluded
 /// row `i` counts where, against each of `k`'s ends `e`, (a) `i` is in `e`'s past (and, where `e` states an instant
 /// and `i` states one, `i`'s is before it); or (b) `i` is on `reader`'s own line from before the reader held `e`: a
-/// row the reader signed or cosigned is `i` or has `i` in its past, without `e` there (taken up); or (c) `i` is part
+/// row the reader signed or cosigned, at which the reader's own key stands by (a) against its own ends, is `i` or
+/// has `i` in its past, without `e` there (taken up; a row signed with the reader's key after its end is none, r97
+/// K1); or (c) `i` is part
 /// of a count FINAL BY ACKNOWLEDGEMENT (`final_`, the ids of the counts with n - t + 1 clean receipts,
 /// [`crate::seat::final_by_ack`]): that count, or a row it names, and only a voice valid when cast: never one whose
 /// end `e` is in the final count's own past. A final act is not reopened by a later cut. `roster`: the self roster's
@@ -282,14 +284,22 @@ pub fn counts_for<R: KeyEndRow>(
         return false;
     }
     let r = c.g.row(i);
-    let at = r.instant();
+    // the plain end rule, limb (a): row `x` is in end `e`'s past (and, where both state an instant, before it)
+    let before = |x: usize, e: usize, ra: Option<R::T>| {
+        c.g.in_past(x, e) && !matches!((c.g.row(x).instant(), ra), (Some(t), Some(a)) if t >= a)
+    };
+    // the reader's own rows, each only where the reader's own key stands at it by the plain end rule (no limb (b)
+    // recursion): a row signed with the reader's key after that key's end is no row of its line (r97 K1)
     let own: Vec<usize> = match reader {
-        Some(o) => c
-            .cs()
-            .iter()
-            .copied()
-            .filter(|&a| c.g.row(a).signer() == o || c.g.row(a).cosigned_by().contains(o))
-            .collect(),
+        Some(o) => {
+            let mine = ends(c, o, roster);
+            c.cs()
+                .iter()
+                .copied()
+                .filter(|&a| c.g.row(a).signer() == o || c.g.row(a).cosigned_by().contains(o))
+                .filter(|&a| mine.iter().all(|&(e, ra)| before(a, e, ra)))
+                .collect()
+        }
         None => Vec::new(),
     };
     // the final counts this row is part of: the count itself, or a row it names
@@ -299,7 +309,7 @@ pub fn counts_for<R: KeyEndRow>(
         .filter(|&fi| fi == i || c.g.row(fi).names().contains(r.id()))
         .collect();
     ends(c, k, roster).into_iter().all(|(e, ra)| {
-        (c.g.in_past(i, e) && !matches!((at, ra), (Some(t), Some(a)) if t >= a))
+        before(i, e, ra)
             || own.iter().any(|&a| (a == i || c.g.in_past(i, a)) && !c.g.in_past(e, a))
             || finals.iter().any(|&fi| !c.g.in_past(e, fi))
     })

@@ -292,7 +292,16 @@ DIRECT = [
 # reader-level answers of counts_by after the two passes (roster acts, finality): (name, seat rows, key rows, row, key,
 # reader, expected)
 TAT = KE.att("aT", "T", 3, "kT", about="X")                    # the rotated-to key T's own row
+KREV = lambda i, k, ra, names: CK.row(i, "revoke", k, tuple(names), key=k, ra=ra)   # a key's own revocation, naming rows
+KK = [KE.rec("kN", "N", 0, None, typ="pseudonym"), KE.att("aN", "N", 2, "kN"), KREV("rvN", "N", 3, ("kN",)),
+      KE.att("nt", "N", 2, "kN", names=("aN",))]                                  # K1: a thief's row and its note as N
+KH = [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.rec("kF", "F", 0, None, typ="pseudonym"),
+      KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)), KE.att("rF", "F", 2, "kF", names=("aT",)),
+      KREV("rvF", "F", 5, ("rF",))]                                              # an honest note, its key ended later
 ROSTER_DIRECT = [
+    ("r97 K1: a thief holding the reader's key signs a note as the reader naming its own row, after the key's end: the "
+     "note is no row of the reader's line, and the row counts nothing", [], KK, "aN", "N", "N", False),
+    ("an honest note the reader signed before its own key's end still takes the row up", [], KH, "aT", "T", "F", True),
     ("edge (3): a voided rotation's rows by the rotated-to key fall by the cut rule: T's row aT, not in the void's past, "
      "counts nothing", CH.ROOM + SP + recs() + [KT, QT0, TAT, VOID("vT", ("P1", "P2"), "qT")], [], "aT", "T", None, False),
     ("and stands for F, which took it up before the void", CH.ROOM + SP + recs() + [KT, QT0, TAT, rack("rF", "F", ("aT",)),
@@ -360,7 +369,7 @@ def answer(rule, seat_rows, key_rows, view):
 PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("window_key_view_unread", ST.MUT),
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
           ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT),
-          ("taken_up_unread", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
+          ("taken_up_unread", KE.MUT), ("reader_line_unchecked", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
           ("receipt_unclean_counts", ST.MUT), ("rotation_void_unread", KE.MUT), ("voided_successor_kept", KE.MUT),
           ("disputed_key_voices", ST.MUT), ("clean_signers_only", ST.MUT), ("roster_end_any_object", ST.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries

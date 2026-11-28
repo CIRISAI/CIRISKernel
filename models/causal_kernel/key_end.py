@@ -234,23 +234,37 @@ def ends_of(S, k, roster=frozenset()):
     return revs + rots + voids
 
 
-def _own_rows(S, reader):
-    """A reader's own rows: those it signed or cosigned."""
-    return [r for r in S.Cs if r["signer"] == reader or reader in r.get("cosigners", ())]
+def _before(S, rid, e):
+    """THE PLAIN END RULE, limb (a): row rid is in end e's past (and, for an end stating an instant, its own instant
+    before it)."""
+    r = S.by[rid]
+    return rid in S.anc[e["id"]] and not (e.get("ra") is not None and instant(r) is not None and not instant(r) < e["ra"])
 
 
-def stands(S, rid, e, reader=None, final=frozenset()):
+def _own_rows(S, reader, roster=frozenset()):
+    """A reader's own rows: those it signed or cosigned, and only where the reader's own key stands at the row by the
+    plain end rule (limb (a) against each of the reader's ends, no limb (b) recursion): a row signed with the
+    reader's key after that key's end is no row of the reader's line, so a thief holding the reader's key cannot
+    vouch for its own row by signing a note as the reader (r97 K1; MUTATION reader_line_unchecked)."""
+    own = [r for r in S.Cs if r["signer"] == reader or reader in r.get("cosigners", ())]
+    if "reader_line_unchecked" in MUT:
+        return own
+    ends = ends_of(S, reader, roster)
+    return [a for a in own if all(_before(S, a["id"], e) for e in ends)]
+
+
+def stands(S, rid, e, reader=None, final=frozenset(), roster=frozenset()):
     """Row `rid` stands against end `e` (A KEY END IS A CUT, the Constitution's ruling): (a) it is in e's past (and,
     for an end stating an instant, its own instant before it); or (b) it is on the reader's own line from before the
     reader held e: a row the reader signed or cosigned is it, or has it in its past, without e there (taken up;
     MUTATION taken_up_unread); or (c) it is part of a count FINAL BY ACKNOWLEDGEMENT (final: the counts with n - t + 1
     clean receipts, seat.final_by_ack): that count, or a row it names (MUTATION final_count_unread). A final act is
     not reopened by a later cut."""
-    r = S.by[rid]
-    if rid in S.anc[e["id"]] and not (e.get("ra") is not None and instant(r) is not None and not instant(r) < e["ra"]):
+    if _before(S, rid, e):
         return True
     if reader is not None and "taken_up_unread" not in MUT and any(
-            (a["id"] == rid or rid in S.anc[a["id"]]) and e["id"] not in S.anc[a["id"]] for a in _own_rows(S, reader)):
+            (a["id"] == rid or rid in S.anc[a["id"]]) and e["id"] not in S.anc[a["id"]]
+            for a in _own_rows(S, reader, roster)):
         return True
     # (c) protects only a voice valid when cast: never one whose end is in the final count's own past (MUTATION
     # final_protects_late)
@@ -289,7 +303,7 @@ def counts_by(S, rid, k, reader=None, final=frozenset(), roster=frozenset()):
     revocation names the key's last rows."""
     r = S.by.get(rid)
     if r is None or not S.C.get(rid): return False
-    return all(stands(S, rid, e, reader, final) for e in ends_of(S, k, roster))
+    return all(stands(S, rid, e, reader, final, roster) for e in ends_of(S, k, roster))
 
 
 def _wire_seat():
