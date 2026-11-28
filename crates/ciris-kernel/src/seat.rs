@@ -1017,7 +1017,9 @@ impl<'a, R: SeatRow> InForce<'a, R> {
 fn policy_in_force<'a, R: SeatRow>(law: &SeatLaw, p: &Past<'_, 'a, R>, r: &R) -> Result<Vec<InForce<'a, R>>, ()> {
     let get = |i: &R::Id| p.get(i);
     let get: &dyn Fn(&R::Id) -> Option<&'a R> = &get;
-    let stated = r.policy().map(|x| x.as_ref());
+    // a roster merge states no policy: each tip counts it as an admission is counted there, under
+    // `community_invite` (the reference's merge_concludes reads it so)
+    let stated = r.policy().map(|x| x.as_ref()).or_else(|| r.merge().then_some("community_invite"));
     let mut word = stated;
     if law.acts.is_some() {
         match (act_of(law, get, r), r.obj()) {
