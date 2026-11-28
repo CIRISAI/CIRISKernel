@@ -394,15 +394,10 @@ plant 'act_of: the lift read as an admission'          src/seat.rs '            
 plant 'act_of: a roster seat read as a duty'            src/seat.rs '            if law.roster_seats.iter().any(|x| x == sc) {' '            if false {'
 plant "act_of: the election's seating read as a conferral" src/seat.rs '                if sc == "moderate" && law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {' '                if false {'
 plant "act_of: a ranked offer of any duty the election"  src/seat.rs 'if sc == "moderate" && law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {' 'if law.policy_of(r.policy().map(|x| x.as_ref())) == Some(Policy::Ranked) {'
-plant "C1: the electorate read at the id row, not its vacancy" src/seat/election.rs '        if seats.is_empty() {
-            return Some(alloc::vec![ei]);' '        if true {
-            return Some(alloc::vec![ei]);'
-plant "C1: one end of the seat read, the others not" src/seat/election.rs '(ended.len() == seats.len()).then_some(ends)' '(ended.len() == seats.len()).then_some(ends.iter().copied().max_by_key(|&w| self.row(w).id().clone()).into_iter().collect())'
-plant "C1: the electorate read over the whole past" src/seat/election.rs 'let heads: Vec<R::Id> = v.iter().map(|&h| self.row(h).id().clone()).collect();' 'let heads: Vec<R::Id> = self.c.g.frontier(p).iter().map(|&h| self.row(h).id().clone()).collect();'
-plant "C1: the ends of the vacancy read as one fold" src/seat/election.rs 'for h in heads.chunks(1) {' 'for h in core::iter::once(&heads[..]) {'
-# restored after the batch merge: the electorate is read per end over its own past (C1, F1, F2), so a leaver the
-# seating's set names is struck by the count alone, as check_election.py's leaver_voice cases show
-plant "C1: a leaver a voice" src/seat/election.rs 'let voters: BTreeSet<R::Key> = el.iter().filter(|k| !left.contains(k)).cloned().collect();' 'let voters: BTreeSet<R::Key> = el.iter().cloned().collect();'
+# retired with the readings the ruling of 2026-11-28 withdrew (check_election.py's vacancy_founding, vacancy_first_end,
+# electorate_folded, electorate_reads_past, vacancy_unnamed, base_per_seating_electorate, close_base_union, leaver_voice,
+# counted_end_forks_signer; electorate_at_seating moved to the opening's electorate) and with the legacy election ids
+# (E3's closed-or-stood seating as an id)
 plant "C2: a seating beside a live duty holder" src/seat/election.rs 'if seats.holders("duty", &obj, None).iter().any(|k| !agents.contains(k)) {' 'if false {'
 plant "C2: a later election's row in the past unread" src/seat/election.rs '|| is_election(law, q)) && of_later(q))' '|| is_election(law, q)) && of_later(q) && false)'
 plant "C4: every seating stands" src/seat/election.rs '        let sets: Vec<BTreeSet<R::Id>> = seatings.iter().map(|&q| self.view(q).2).collect();' '        return seatings.iter().copied().collect();'
@@ -415,7 +410,7 @@ plant "C5: a receipt counts though its seating did not stand in its past" src/se
 plant "C5: concurrent receipts of different sets a say" src/seat/election.rs 'if sets.len() != 1 {' 'if sets.is_empty() {'
 plant "C5: a leaver kept in the closing base" src/seat/election.rs '            base.retain(|k| !gone.contains(k));' ''
 plant "C5: a rival of a closed election stands" src/seat/election.rs 'Some(grp) => el.iter().copied().filter(|&q| self.view(q).2 == grp).collect(),' 'Some(_) => self.standing(el),'
-plant "C3, C5: any row named as an election is one" src/seat/election.rs 'if Obj::Row(e.id().clone()) == obj {' 'if true {'
+plant "C3, C5: any row named as an election is one" src/seat/election.rs 'e.seat_kind() == SeatKind::ElectionOpen && e.obj().as_ref() == Some(&obj) && self.opening_in_force(ei, p)' 'true'
 plant "an election's set holds rows signed outside its electorate" src/seat/election.rs '        if !el.contains(q.signer()) {' '        if false {'
 plant "a ballot ranking outside the electorate counts" src/seat/election.rs '                && b.ranking().iter().all(|k| voters.contains(k))
 ' ''
@@ -423,7 +418,6 @@ plant "a ballot ranking more than three counts" src/seat/election.rs '          
 ' ''
 plant "a seating signed by another than the winner concludes" src/seat/election.rs 'won.as_ref() == Some(winner) && r.signer() == winner' 'won.as_ref() == Some(winner)'
 plant "the fold counts an election's seating as a plain count" src/seat.rs 'Some(Policy::Ranked) => true, // an election' 'Some(Policy::Ranked) => false, // an election'
-plant "E3: an unclosed seating that stood and ended names no next election" src/seat/election.rs 'self.standing(&here).contains(&ei) && self.vacancy(ei, p, None).is_some()' 'false'
 plant "E3, C3: an election superseded by its ended seating still takes rows" src/seat/election.rs 'if !cx.valid_id(ei, ri, &past) || cx.superseded(ei, &past) {' 'if !cx.valid_id(ei, ri, &past) {'
 plant "(2): a fork keeps the forker in the closing base" src/seat/election.rs '            base.retain(|k| !fork.contains(k));' ''
 plant "(2): a fork reopens the close for all (the old E2)" src/seat/election.rs 'let fork = self.forkers(ek, rows, rows, obj, &BTreeSet::new());' 'let fork = self.forkers(ek, rows, rows, obj, &BTreeSet::new());
@@ -433,7 +427,6 @@ plant "(2): a fork reopens the close for all (the old E2)" src/seat/election.rs 
 plant "(1): rows of two elections read as a fork" src/seat/election.rs 'SeatKind::Ballot | SeatKind::Decline => named(r),' 'SeatKind::Ballot | SeatKind::Decline => true,'
 plant "(3): an end named by no ballot of the set read as its vacancy" src/seat/election.rs 'if !ballots.iter().any(|b| b.names().contains(&e) && at.contains(b.signer())) {' 'if false {'
 plant "F3: a next election stands though its id row is beaten" src/seat/election.rs '            if add.is_empty() {' '            if true {'
-plant "F2: an end the seating does not name read as its vacancy" src/seat/election.rs ' || named.is_some_and(|n| !n.contains(wr.id()))' ''
 plant "F1: the count reads leavings and withdrawals off the seating's past, not its set" src/seat/election.rs 'let rows: Vec<&R> = all.iter().copied().filter(|q| mine.contains(q.id())).collect();' 'let rows: Vec<&R> = all.clone();'
 plant "a seating behind the reader's line read in C4" src/seat.rs 'let beaten = if elections { ecx.beaten(&stale) } else { BTreeSet::new() };' 'let beaten = if elections { ecx.beaten(&BTreeSet::new()) } else { BTreeSet::new() };'
 plant "N2: a leaving before the vacancy strikes a re-admitted member" src/seat/election.rs 'let window = !ends.iter().any(|&e| self.c.g.in_past(qi, e));' 'let window = true || ends.is_empty();'
@@ -449,7 +442,6 @@ plant "(1): a row the key only cosigns read as part of a fork" src/seat/election
             }'
 plant "(4): a device label the row body states read as the signing key" tests/common/mod.rs '        match self.m.get("dev") {' '        match self.m.get("device_label").or(self.m.get("dev")) {'
 plant "(ii): of two closes over the rows held, the first stands" src/seat/election.rs '            _ => return None,' '            _ => return Some(met[0].clone()),'
-plant "G1: a counted unseat read as its signer's election row" src/seat/election.rs '        ends.retain(|e| self.idx(e).is_some_and(|i| self.row(i).seat_kind() == SeatKind::Withdraw));' ''
 plant "G2: the closing base read per group, over its receipts' pasts" src/seat/election.rs '            base.retain(|k| !gone.contains(k));' '            for &a in rs {
                 let p = self.past(a);
                 for (k, _) in self.departures(&p, obj) {
@@ -457,8 +449,6 @@ plant "G2: the closing base read per group, over its receipts' pasts" src/seat/e
                 }
             }'
 plant "H1: a leaving that holds its receipt voids it" src/seat/election.rs 'let held = |k: &R::Key, d: usize| by_p.get(k).is_some_and(|rs| rs.iter().any(|&a| g.in_past(a, d)));' 'let held = |_k: &R::Key, _d: usize| false;'
-plant "the closing base read from each seating's own electorate" src/seat/election.rs '            let el = common.clone();' '            let el = self.view(s).1;'
-plant "the close's base the union of the election's electorates" src/seat/election.rs 'let common: BTreeSet<R::Key> = els.fold(first, |acc, e| acc.intersection(&e).cloned().collect());' 'let common: BTreeSet<R::Key> = els.fold(first, |acc, e| acc.union(&e).cloned().collect());'
 plant "(2): an end of an ended seat concludes" src/seat.rs '    let seats = ends_of(by, r);
     if seats.is_empty() {' '    let seats = ends_of(by, r);
     if true {'
@@ -475,7 +465,6 @@ plant "one target: a demotion may name several" src/seat.rs '                   
 plant "FA6: a dissolution read apart from rule 5" src/seat.rs 'is_dissolve(q) && cut.counts(i) && !stale.contains(&i) && !dropped.contains(q.id())' 'false && is_dissolve(q)'
 plant "C2: the amendment wait read over a row's own past only" src/seat.rs 'mem.retain(|k| !held.contains(k));' 'let _ = &held;'
 plant "H4: a lay-down behind the reader's line read as a vacancy end" src/seat/election.rs 'if self.memo.rends.borrow().contains(wr.id()) {' 'if false {'
-plant "F1: the electorate read with every withdrawal of the seating's past" src/seat/election.rs 'let pe: Vec<usize> = p.iter().copied().filter(|&q| q == e || self.c.g.in_past(q, e)).collect();' 'let pe: Vec<usize> = p.to_vec();'
 plant "(2): a re-seating after the first end not read" src/seat.rs '                && !obj.as_ref().is_some_and(|o| {
                     seated_after(p, o, k, q.id(), |m| {' '                && !obj.as_ref().is_some_and(|o| false && {
                     seated_after(p, o, k, q.id(), |m| {'
@@ -683,6 +672,25 @@ plant "seat: the key view not read at the voices step (key_view_unread)" src/sea
 plant "seat: only the counted row's signer read by the key view (cosigner_key_unchecked)" src/seat.rs '.filter(|k| kv.counts(r.id(), k))' '.filter(|k| k != r.signer() || kv.counts(r.id(), k))'
 plant "window: the key view not read for answers (window_key_view_unread)" src/window.rs 'kept = answers.iter().copied().filter(|a| kv.counts(a.id(), a.signer())).collect();' 'kept = answers.iter().copied().filter(|a| kv.counts(a.id(), a.signer()) || true).collect();'
 plant "election: the key view not read for ballots (ballot_key_view_unread)" src/seat/election.rs '&& spec.key_view().is_none_or(|kv| kv.counts(b.id(), b.signer()))' '&& spec.key_view().is_none_or(|kv| kv.counts(b.id(), b.signer()) || true)'
+# the ruled election close (check_election_close.py, the Constitution's ruling of 2026-11-28)
+plant "close: a fork of the seat end read as a vacancy (end_fork_unread)" src/seat/election.rs '        !mine.is_empty()
+            && p.iter().copied().any(|f| {' '        false
+            && p.iter().copied().any(|f| {'
+plant "close: an opening at old heads concludes (open_old_heads)" src/seat/election.rs 'let stale_heads = newer_head_in_past_v(p, law, &obj, r.head(), &signers(r), &void);' 'let stale_heads = false && newer_head_in_past_v(p, law, &obj, r.head(), &signers(r), &void);'
+plant "close: an opening counted by key (open_by_key)" src/seat/election.rs 'let (base, yes) = Persons::over(&rows, law, spec, Some(&obj)).count(&mem, &voices_with(r, p, spec), None, &[]);' 'let _ = &rows;
+    let (base, yes) = (mem.clone(), voices_with(r, p, spec).intersection(&mem).cloned().collect::<BTreeSet<R::Key>>());'
+plant "close: two openings for one seat both in force (openings_both_stand)" src/seat/election.rs 'newest.as_slice() == [oi]' 'newest.contains(&oi)'
+plant "close: no wait over a rival opening or a fork (close_no_wait)" src/seat/election.rs 'let wait = op;' 'let wait: Option<usize> = None;'
+plant "close: the key view not read for receipts (close_key_view_unread)" src/seat/election.rs 'let kv_close = self.spec.key_view();' 'let kv_close = self.spec.key_view().filter(|_| false);'
+plant "close: an unclean receipt counts (close_receipt_unclean)" src/seat/election.rs 'seat_of(a).is_some_and(|s| clean(a, s))' 'seat_of(a).is_some_and(|s| clean(a, s) || true)'
+plant "close: the winner's acceptance not read through the key view (acceptance_key_view_unread)" src/seat/election.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer())) {' 'if false {'
+plant "close: ballot withdrawals and declines not read through the key view (inputs_key_view_unread)" src/seat/election.rs 'let kvi = spec.key_view();' 'let kvi = spec.key_view().filter(|_| false);'
+plant "close: a seating under a rival opening stands (rival_openings_read)" src/seat/election.rs 'let rival = !self.opening_in_force(o, &taken) || forked;' 'let rival = false && forked;'
+plant "close: the opening's electorate read over the whole past (electorate_at_seating)" src/seat/election.rs 'let mem = persons_at_with(&past, self.law, self.spec, &obj, e.head(), "member", Some(self.memo));' 'let mem = {
+                let sub = concluded_over(p.iter().map(|&q| self.row(q)));
+                let s = Seats::build(&sub, self.law, self.spec, None, None, Some(self.memo));
+                super::persons(s.holders("member", &obj, None), &s.holders(AGENT, &obj, None))
+            };'
 plant "seat: a lift objection not read by the key view (lift_key_view_unread)" src/seat.rs '&& spec.key_view().is_none_or(|kv| kv.counts(c.id(), c.signer()))' '&& spec.key_view().is_none_or(|kv| kv.counts(c.id(), c.signer()) || true)'
 plant "seat: a lone removal's single-key receipt not read by the key view (receipt_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer()) && false) {'
 plant "seat: a lone act not read by the key view (lone_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer()) && false) {'

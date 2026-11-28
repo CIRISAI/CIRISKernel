@@ -138,6 +138,11 @@ pub enum SeatKind {
     /// standing ends: a duty holder's, or with [`Conf::Group`] the room's count's, met over the persons at the
     /// heads it names.
     Ack,
+    /// The opening of an election (act `election_open`, the Constitution's ruling of 2026-11-28): it cites the seat
+    /// end it opens for ([`SeatRow::cites`], in its past) and names the newest counted changes over the room as its
+    /// heads; counted by a strict majority of the members as persons at those heads, floor min(2, members). The
+    /// election's id is its row id: ballots, receipts, declines and the seating name it by [`SeatRow::of`].
+    ElectionOpen,
     /// Anything else.
     Other,
 }
@@ -317,6 +322,10 @@ pub trait SeatRow: Row {
     }
     /// A ballot's ranking.
     fn ranking(&self) -> &[Self::Key] {
+        &[]
+    }
+    /// An election's opening ([`SeatKind::ElectionOpen`]): the seat end it opens for, one row.
+    fn cites(&self) -> &[Self::Id] {
         &[]
     }
     /// The key whose signature verified this row, as checked by the door (the room key a voice signed through in a
@@ -5048,6 +5057,10 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
     cache: Option<&MembersAt<R>>,
 ) -> bool {
     let r = p.row();
+    // an election's opening is counted by its own rule (rules 1 and 2 of the election close)
+    if r.seat_kind() == SeatKind::ElectionOpen {
+        return election::open_concludes(p, law, spec, cache);
+    }
     let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
     if end_of_ended(p, law, spec, &by, r) {
         return false; // (2): no second end of a seat

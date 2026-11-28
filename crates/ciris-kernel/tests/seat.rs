@@ -170,7 +170,7 @@ fn seat_scenarios() {
         // an election's close, asked by name (check_election.py's CLOSE_CASES)
         if let Some(cl) = sc.get("closed") {
             let (s, want) = (cl.arr()[0].s().to_string(), cl.arr()[1].b());
-            cmp(election_closed(&c, &w.law, &spec, &s) == want, format!("election closed by {s}"));
+            cmp(election_closed(&c, &w.law, &spec, &s, None) == want, format!("election closed by {s}"));
         }
         for (pid, want) in a.at("windows").obj() {
             let i = c.g.idx(pid).unwrap();

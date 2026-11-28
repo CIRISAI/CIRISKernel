@@ -284,6 +284,8 @@ pub struct TRow {
     pub head: Vec<String>,
     pub options: Vec<String>,
     pub ranking: Vec<String>,
+    /// An election's opening: the seat end it cites.
+    pub cites: Vec<String>,
     pub duties: Vec<String>,
     /// A founding record's `duty_holders`: (duty, keys) pairs.
     pub duty_holders: Vec<(String, Vec<String>)>,
@@ -371,6 +373,7 @@ impl TRow {
             head: strs(&m, "head"),
             options: strs(&m, "options"),
             ranking: strs(&m, "ranking"),
+            cites: strs(&m, "cites"),
             duties: strs(&m, "duties"),
             duty_holders: m
                 .get("duty_holders")
@@ -457,6 +460,7 @@ impl SeatRow for TRow {
             "ballot" => SeatKind::Ballot,
             "decline" => SeatKind::Decline,
             "ack" => SeatKind::Ack,
+            "election_open" => SeatKind::ElectionOpen,
             // an objection in a window is presented as a voice for the row it answers (seat::lift_voices)
             "answer" if self.says.as_deref() == Some("object") => SeatKind::Cosign,
             _ => SeatKind::Other,
@@ -573,6 +577,9 @@ impl SeatRow for TRow {
     }
     fn ranking(&self) -> &[String] {
         &self.ranking
+    }
+    fn cites(&self) -> &[String] {
+        &self.cites
     }
     fn room(&self) -> Option<Obj<String, String>> {
         self.room.clone()
