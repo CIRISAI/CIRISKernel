@@ -402,10 +402,11 @@ does, until that roster evicts it: no special rule for the first key either way.
 restores its genesis key onto a fresh install and founds before fetching its roster): the re-founding concludes
 nothing for readers on the first roster; the genesis key's voice there is unchanged; a fresh reader holding both
 waits. ADOPTER DUTY: a client holding a genesis key and no roster rows FETCHES the identity's roster before it signs
-anything, and never founds where one may exist. CALLER DUTY (for `takes_up` and for every count): `SeatRow::cosigners`
-lists only keys whose OWN statement over the row's payload the store has verified (each voice is a further signed
-statement, the wire map's rule). A row naming a key among its cosigners that never signed it is the caller's fault:
-it seeds that key's line (and would count as its voice). Read for a reader through `seat::for_reader`. No key re-founds itself, or adds a device, by founding. The only way onto a self
+anything, and never founds where one may exist. A reader's line reads the rows the reader signed itself (its cosign rows among
+them) and the seat rows whose voice it is, never another signer's claimed cosigners on any other row. A reader's
+client names its own previous row in every row it signs, or two concurrent rows of its own can make it wait (P2).
+CALLER DUTY (for every count): `SeatRow::cosigners` lists only verified voices, keys whose own statement over the
+row's payload the store has verified (each voice is a further signed statement, the wire map's rule). Read for a reader through `seat::for_reader`. No key re-founds itself, or adds a device, by founding. The only way onto a self
 roster is that roster's own add (its count, or its lone path); an evicted genesis key is restored only by the
 roster's counted re-admission. A lone addition is weaker than a lone eviction, as the text has it (CC 3.3.6.4: "One
 objection of two others does not stop a lone addition... only a strict majority of the others refuses it"): a live

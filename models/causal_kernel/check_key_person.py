@@ -43,6 +43,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     mutual_evictions_land two concurrent lone evictions of each other both land (r99 M1: the roster emptied)
     rival_line_unread     no reader's line is read: a reader on the first roster waits with a fresh one (the rival stalls)
     line_order_unread     the line read out of order: a later row over the rival takes it up too, and the reader waits (P1)
+    claimed_cosigner_counted  another signer's claimed cosigners on a note seed the reader's line (r101 R2)
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -692,10 +693,9 @@ LSD = R("sd", "note", "p1", ("S1r",), cosigners=("p4",))     # the thief's row C
 LWORLD["R2"] = GW + [LRX, LSD, admit_z(LH, ("a1c", "S1r"))]
 LWANT += [("P1", "p4", True), ("P1'", "p4", True), ("P2", "p4", False), ("P3", "p4", True), ("P3", None, False),
           ("T6", "m4", True), ("Q", "q", False), ("Q", "p4", True),
-          # R2, the caller's fault: a row listing p4 among its cosigners without p4's own verified statement over its
-          # payload seeds p4's line, and p4 waits. CALLER DUTY (ADOPTING): cosigners() lists only keys whose own
-          # statement over the row's payload the store verified, for takes_up and for every count
-          ("R2", "p4", False)]
+          # R2 (r101, the safer form): the line reads the reader's own signed rows and the seat rows whose voice it is,
+          # never another signer's claimed cosigners on any other row: the thief's note claiming p4 seeds nothing
+          ("R2", "p4", True)]
 LWANT += [("restore", "m4", True), ("restore", None, False)]
 LINE_CASES = [("r100 %s, %s" % (k, "a fresh reader" if rd is None else "reader " + rd), LWORLD[k], rd, "az", w)
               for k, rd, w in LWANT]
@@ -713,7 +713,8 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
           "apart_by_key", "person_keys_by_offer", "nodes_by_offer", "nodes_two_owners_kept", "nodes_revocation_unread",
           "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept",
           "rebinding_unread", "landed_eviction_unread", "landed_add_unread",
-          "self_founding_family", "mutual_evictions_land", "rival_line_unread", "line_order_unread")
+          "self_founding_family", "mutual_evictions_land", "rival_line_unread", "line_order_unread",
+          "claimed_cosigner_counted")
 
 
 def answer(rows, k):

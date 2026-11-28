@@ -316,6 +316,7 @@ plant "a family's founding read as a self roster's (r99 drift)" src/seat.rs '   
 }'
 plant "a landed self-roster window is no head of a later count" src/seat.rs '        (change(law, q, obj, room.as_deref()) || landed_change(p, q, obj))' '        change(law, q, obj, room.as_deref())'
 plant "the reader's line read out of order: a later row over the rival takes it up too (r100r)" src/seat.rs '.filter(|&a| !taking.iter().any(|&b| b != a && g.in_past(b, a)))' '.filter(|_| true)'
+plant "another signer's claimed cosigners on a note seed the reader's line (r101 R2)" src/seat.rs '                || (ar.cosigners().contains(own) && matches!(ar.seat_kind(), SeatKind::Offer | SeatKind::Unseat));' '                || ar.cosigners().contains(own);'
 plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '            [g] if !self.revoked.contains(g) => Some(g.clone()),' '            [g] => Some(g.clone()),'
 plant "an agent's key of a person's roster speaks for that person" src/seat.rs '        if self.agents.contains(k) {
             return Some(k.clone());

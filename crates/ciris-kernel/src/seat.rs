@@ -3323,7 +3323,12 @@ pub fn takes_up<R: SeatRow>(c: &Concluded<'_, R>, own: &R::Key, fs: &[usize]) ->
     let taking: Vec<usize> = (0..n)
         .filter(|&a| {
             let ar = g.row(a);
-            (ar.signer() == own || ar.cosigners().contains(own)) && stands(a) && !reach(a).is_empty()
+            // its own rows: those it signed itself (a cosign row among them), and the seat rows (offers and unseats)
+            // whose voices the counted layer reads, where it is one; never another signer's claimed cosigners on any
+            // other row (r101 R2)
+            let own_row = ar.signer() == own
+                || (ar.cosigners().contains(own) && matches!(ar.seat_kind(), SeatKind::Offer | SeatKind::Unseat));
+            own_row && stands(a) && !reach(a).is_empty()
         })
         .collect();
     taking.iter().copied().filter(|&a| !taking.iter().any(|&b| b != a && g.in_past(b, a))).flat_map(reach).collect()

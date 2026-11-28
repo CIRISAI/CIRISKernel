@@ -92,7 +92,7 @@ def acknowledgements(S, own, obj, rows=None):
 def takes_up(S, own, fs, mut=None):
     """THE READER'S LINE taking up an identity's foundings `fs` (the ruling on one self roster per identity: a reader's
     roster for an identity is the founding its line takes up), MONOTONE, in the line's order: the reader's own rows
-    (every row it signed or cosigned, concluded for everyone or not, each counting only where its key stands: its
+    (every row it signed itself, a cosign row among them, and a seat row whose voice it is, concluded for everyone or not, each counting only where its key stands: its
     own revocation, a `registered` unseat by it, not in that row's past, the K1 rule) that reach a founding of fs (are
     it, or have it in their past); of those, the EARLIEST (none of the others in its past) fix what the line took
     up: the foundings they reach. A later row reaching another founding takes up nothing, the other being already void
@@ -104,7 +104,14 @@ def takes_up(S, own, fs, mut=None):
     def stands(a):
         return not any(S.by[x]["kind"] == "unseat" and S.by[x].get("scope") == "registered" and S.by[x]["signer"] == own
                        and own in S.by[x].get("to", ()) for x in S.anc.get(a["id"], ()) if x in S.by)
-    mine = [a for a in S.rows if (a["signer"] == own or own in a.get("cosigners", ())) and stands(a)]
+    # the reader's own rows: those it SIGNED ITSELF (a cosign row it signed among them), and the seat rows (offers and
+    # unseats) whose voices the counted layer reads, where it is one; never another signer's claimed cosigners on any
+    # other row (r101 R2; MUTATION claimed_cosigner_counted: every row listing it counts)
+    def own_row(a):
+        if a["signer"] == own: return True
+        if own not in a.get("cosigners", ()): return False
+        return "claimed_cosigner_counted" in mut or a["kind"] in ("offer", "unseat")
+    mine = [a for a in S.rows if own_row(a) and stands(a)]
     reach = {a["id"]: {f for f in fs if a["id"] == f or f in S.anc.get(a["id"], ())} for a in mine}
     taking = [a for a in mine if reach[a["id"]]]
     if "line_order_unread" in mut:
