@@ -910,7 +910,8 @@ plant "close: a fork of the seat end read as a vacancy (end_fork_unread)" src/se
             && self.taken(p).into_iter().any(|f| {' '        false
             && self.taken(p).into_iter().any(|f| {'
 plant "close: an opening at old heads concludes (open_old_heads)" src/seat/election.rs 'let stale_heads = newer_head_in_past_v(p, law, &obj, r.head(), &signers(r), &void);' 'let stale_heads = false && newer_head_in_past_v(p, law, &obj, r.head(), &signers(r), &void);'
-plant "close: an opening counted by key (open_by_key)" src/seat/election.rs 'let (base, yes) = Persons::over(&rows, law, spec, Some(&obj)).count(&mem, &vs, None, &[]);' 'let _ = &rows;
+plant "close: an opening counted by key (open_by_key)" src/seat/election.rs '    let (base, yes) =
+        Persons::over(&rows, law, spec, Some(&obj), super::kv_of::<R, _>(spec)).count(&mem, &vs, None, &[]);' '    let _ = &rows;
     let (base, yes) = (mem.clone(), vs.intersection(&mem).cloned().collect::<BTreeSet<R::Key>>());'
 plant "close: two openings for one seat both in force (openings_both_stand)" src/seat/election.rs 'newest.as_slice() == [oi]' 'newest.contains(&oi)'
 plant "close: no wait over a rival opening or a fork (close_no_wait)" src/seat/election.rs 'let wait = op;' 'let wait: Option<usize> = None;'
