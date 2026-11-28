@@ -33,8 +33,11 @@ officer appoints a sock officer and the two remove a member) is refused, the app
 `protocol_record`, `protocol_of` and `declared_count` take the law and the cut spec (a change's in-force reading asks
 for the officers). Residual: two officer keys one person keeps unlinked, in no shared roster, are seen by no rule, and
 the members see two officers when they join. Officers are counted by key until key-person's persons function is
-merged (then by person, so two keys in one roster are one officer). An onward trust edge's countersign is the
-charter lane's (trust_rows reads this body).
+merged (then by person, so two keys in one roster are one officer). An onward trust edge (`delegates_to`) on behalf of
+a one-officer affiliation is its counted act too: a countersign may name it (`SeatRow::edge_body`, new, default
+`None`: the group a `delegates_to` row speaks for), and `edges_of` walks it only where `seat::countersigned` (new, the
+one reading trust_rows takes) holds: countersigned, with no concurrent withdrawal of it by its signer (rule 4) and no
+overseer cut. An act naming no heads (an edge) has its officers read at the newest counted changes in its past.
 
 **A delegation chain from a root grant** (the cross-object rest 5; the lead's shape). The seat a root grant gives is
 an offer of `Conf::Root`, naming the grant (`SeatRow::bundle`), of the grant's duty, over the room the grant names,

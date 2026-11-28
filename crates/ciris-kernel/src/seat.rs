@@ -256,6 +256,12 @@ pub trait SeatRow: Row {
     fn agent_registration(&self) -> bool {
         false
     }
+    /// An onward trust edge (a `delegates_to` row) that speaks for a group: that group (its `on_behalf`), so a
+    /// one-officer affiliation's edge is read as its counted act, a proposal until countersigned ([`countersigned`]).
+    /// Default `None`.
+    fn edge_body(&self) -> Option<Obj<Self::Id, Self::Key>> {
+        None
+    }
     /// The key a quarantine marker or a slashing verdict is about. Default `None`.
     fn target_key(&self) -> Option<&Self::Key> {
         None
@@ -1651,7 +1657,7 @@ fn in_force_change<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw
     if !needs_countersign(&pq, law, spec) {
         return true;
     }
-    let Some(obj) = q.obj() else { return false };
+    let Some(obj) = act_obj(q) else { return false };
     let body = record_value(&pq, law, spec, &obj, |v: &R| v.overseen_by()).map(|b| Obj::Row(b.clone()));
     let idx = |x: &R| g.idx(x.id());
     let wd: Vec<usize> = p
@@ -1702,6 +1708,10 @@ fn affiliation_count<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatL
 /// classes; a dissolution), a license seat's conferral or withdrawal. An officer's own lay-down is no counted act and
 /// needs none.
 fn affiliation_act<'r, R: SeatRow + 'r>(law: &SeatLaw, get: &dyn Fn(&R::Id) -> Option<&'r R>, r: &R) -> bool {
+    // an onward trust edge it signs
+    if let Some(b) = r.edge_body() {
+        return kind_of(law, get, &b) == Some(CommunityKind::Affiliation);
+    }
     if !r.obj().is_some_and(|obj| kind_of(law, get, &obj) == Some(CommunityKind::Affiliation)) {
         return false;
     }
@@ -1718,12 +1728,75 @@ fn affiliation_act<'r, R: SeatRow + 'r>(law: &SeatLaw, get: &dyn Fn(&R::Id) -> O
     !admission
 }
 
+/// The affiliation a counted act is of: its `obj`, or for an onward trust edge its [`SeatRow::edge_body`].
+fn act_obj<R: SeatRow>(r: &R) -> Option<ObjOf<R>> {
+    r.edge_body().or_else(|| r.obj())
+}
+
+/// The heads an act's deciding seats are read at (its own past `p`): those it states, or (an edge, which states
+/// none) the newest counted changes over `obj` in `p`, or its founding row where there is none.
+fn act_heads<R: SeatRow>(p: &Past<'_, '_, R>, law: &SeatLaw, obj: &ObjOf<R>) -> Vec<R::Id> {
+    let u = p.row();
+    if !u.head().is_empty() {
+        return u.head().to_vec();
+    }
+    let room = room_in(p, obj);
+    let chs: Vec<&R> = p.rows().filter(|q| change(law, *q, obj, room.as_deref())).collect();
+    let mut heads: Vec<R::Id> = chs
+        .iter()
+        .filter(|q| !chs.iter().any(|q2| q.id() != q2.id() && p.past(q.id(), q2.id())))
+        .map(|q| q.id().clone())
+        .collect();
+    if heads.is_empty() {
+        if let Obj::Row(b) = obj {
+            heads.push(b.clone());
+        }
+    }
+    heads
+}
+
 /// `u` (a concluded counted act of an affiliation, [`affiliation_act`], read over its own past `p`) has one deciding
 /// seat: a proposal until countersigned.
 fn needs_countersign<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> bool {
     let u = p.row();
     affiliation_act(law, &|i: &R::Id| p.get(i), u)
-        && u.obj().is_some_and(|obj| deciding_seats(p, law, spec, &obj, u.head()).len() == 1)
+        && act_obj(u).is_some_and(|obj| deciding_seats(p, law, spec, &obj, &act_heads(p, law, &obj)).len() == 1)
+}
+
+/// The one reading of the countersign a caller takes (trust_rows' onward edges): row `i` of the set `seats` is built
+/// on stands for its reader where it needs no countersign (no one-officer affiliation's act at its own past), or is
+/// decided over the set: a countersign naming it counts there, no withdrawal of it by its signer there lacks that
+/// countersign in its past (rule 4), and no end of the countersigner's overseer seat there lacks it ([`overseer_cut`]).
+pub fn countersigned<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, i: usize) -> bool {
+    let c = seats.c();
+    let g = &c.g;
+    let (law, spec) = (seats.law(), seats.spec());
+    let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, i)).collect();
+    let pu = Past::new(g, i, &anc);
+    if !needs_countersign(&pu, law, spec) {
+        return true;
+    }
+    let u = g.row(i);
+    let body = act_obj(u)
+        .and_then(|ob| record_value(&pu, law, spec, &ob, |v: &R| v.overseen_by()).map(|b| Obj::Row(b.clone())));
+    let counts = |j: usize| seats.cut().counts(j) && !seats.stale().contains(&j);
+    let wd: Vec<usize> = c
+        .cs()
+        .iter()
+        .copied()
+        .filter(|&w| {
+            let wr = g.row(w);
+            wr.seat_kind() == SeatKind::Withdraw && wr.target() == Some(u.id()) && wr.signer() == u.signer()
+        })
+        .collect();
+    c.cs().iter().copied().any(|ci| {
+        let cr = g.row(ci);
+        cr.seat_kind() == SeatKind::Countersign
+            && cr.of() == Some(u.id())
+            && counts(ci)
+            && wd.iter().all(|&w| g.in_past(ci, w))
+            && !body.as_ref().is_some_and(|b| overseer_cut(g, c.cs().iter().copied(), Some(ci), b, cr.signer()))
+    })
 }
 
 /// Whether a countersign row (`p.row()`, [`SeatKind::Countersign`]) concludes: the act its `of` names is a one-officer
@@ -1741,8 +1814,8 @@ fn countersign_ok<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw,
     let Some(ti) = g.idx(t.id()) else { return false };
     let anc: Vec<usize> = p.ancestors().iter().copied().filter(|&q| g.in_past(q, ti)).collect();
     let pt = Past::new(g, ti, &anc);
-    let Some(obj) = t.obj() else { return false };
-    let seats = deciding_seats(&pt, law, spec, &obj, t.head());
+    let Some(obj) = act_obj(t) else { return false };
+    let seats = deciding_seats(&pt, law, spec, &obj, &act_heads(&pt, law, &obj));
     if seats.len() != 1 {
         return false;
     }

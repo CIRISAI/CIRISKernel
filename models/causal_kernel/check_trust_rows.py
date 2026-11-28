@@ -18,6 +18,7 @@ Planted breaks, each of which must change a case's answer:
     term_unread              (b) a license seat's term is not read: its holder issues after the term ends
     affiliation_edge_duty_count  (a) an affiliation's edge is counted as a duty conferral, not under its declared protocol
     dissolved_edges_kept     (d) a dissolved authority's own edges are walked
+    edge_countersign_unread  (seat.py) a one-officer affiliation's onward edge needs no countersign (item 8)
     lapsed_unread            (d) a dissolved authority's licences are read as live, not lapsed
     lapsed_class_unread      (d) a dissolved authority's licence reads lapsed whatever class it states
     pending_unread           (a) the acts row accept / trust_edge / community is not read
@@ -60,8 +61,11 @@ AF = ST.found("af", "A", ("A", "B", "C"), cosigners=("B", "C"), declared_cohort=
               licence_classes=((M, True), (L, False)))           # no officer: an affiliation DISSOLVED (CC 4.4.3.12)
 AFD = ST.found("af", "A", ("A", "B", "C"), {ST.OFFICER: ("A", "B", "C")}, cosigners=("B", "C"),
                declared_cohort="affiliations", licence_classes=((M, True), (L, False)))   # three officers: majority declared
+ECS = ST.R("ecs", "countersign", "O", ("f",), of="f")          # the official's countersign of edge f
+EWD = ST.withdraw("ewd", "A", "f", ("f",))                     # the officer's withdrawal of f, concurrent with ECS
 AFD1 = ST.found("af", "A", ("A", "B", "C"), {ST.OFFICER: ("A",)}, cosigners=("B", "C"), declared_cohort="affiliations",
                 licence_classes=((M, True), (L, False)))         # one officer: its authority (the body is its officers)
+AFD1O = dict(AFD1, official="O")                               # the same, its designated official O
 AFU = dict(AFD, consensus_protocol="unanimous")                  # unanimous declared
 GN = ST.found("g", "A", ("A", "B", "C"), cosigners=("B", "C"), licence_classes=((M, False),))   # no duty holder
 # the community confers a license seat on X by its duty holders' count (A and B of two), X accepts
@@ -156,9 +160,18 @@ CASES = [
     ("(a) an affiliation with no officer: DISSOLVED (CC 4.4.3.12), no edge, whatever the members sign",
      [AF, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B", "C")),
       klic("l")], "RD", "l", KCH, NR),
-    ("(a) an affiliation with one officer: its officer alone signs the edge (its authority is its officers)",
-     [AFD1, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH,
-     OK),
+    ("item 8: a one-officer affiliation's edge by its officer alone is a proposal: not walked",
+     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH,
+     NR),
+    ("and countersigned by its designated official O: walked",
+     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), ECS, klic("l")], "RD", "l",
+     KCH, OK),
+    ("and the officer withdraws the edge concurrently with the countersign (rule 4): not walked",
+     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), ECS, EWD, klic("l")], "RD",
+     "l", KCH, NR),
+    ("a countersign by the one officer itself decides nothing: not walked",
+     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)),
+      ST.R("ecs", "countersign", "A", ("f",), of="f"), klic("l")], "RD", "l", KCH, NR),
     ("(a) an affiliation's edge is its officers' act under its declared protocol: two of three officers",
      [AFD, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B",)), klic("l")],
      "RD", "l", KCH, OK),
@@ -342,7 +355,7 @@ REF_FIELDS = ("dst", "on_behalf", "authority")      # the objects an edge row an
 PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quorum_fixed_majority",
           "roster_issuer_unread", "license_seat_unread", "term_unread",
           "affiliation_edge_duty_count", "dissolved_edges_kept", "lapsed_unread", "lapsed_class_unread",
-          "pending_unread",
+          "pending_unread", "edge_countersign_unread",
           "judged_at_read", "bears_unread", "refusal_unread", "depth_unread", "depth_absent_refused",
           "withdrawn_unread", "withdraw_by_anyone", "issuer_unread", "chain_unread", "quorum_unread",
           "ends_unread", "cut_unread", "self_seat_ungated", "untimed_term_met", "instant_unread",

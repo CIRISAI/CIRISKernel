@@ -551,6 +551,8 @@ def affiliation_act(u, by):
     licence classes; a dissolution), a license seat's conferral or withdrawal. An officer's own lay-down is no counted
     act and needs none (MUTATION countersign_against_member_only: only the four acts against a member, the reading
     before the ruling)."""
+    if u["kind"] == "delegates_to":                              # an onward trust edge it signs (on_behalf)
+        return kind_of(by, u.get("on_behalf")) == "affiliation" and "edge_countersign_unread" not in MUT
     if kind_of(by, u.get("obj")) != "affiliation": return False
     if "countersign_against_member_only" in MUT: return against_member(u, by)
     if family(u) in LONE_ACTS: return True
@@ -558,10 +560,31 @@ def affiliation_act(u, by):
     return not (u["kind"] == "offer" and u.get("scope") == "member" and u.get("role") != OFFICER)   # an admission
 
 
+def act_obj(u):
+    """The affiliation a counted act is of: its `obj`, or for an onward trust edge (`delegates_to`) its `on_behalf`."""
+    return u.get("on_behalf") if u["kind"] == "delegates_to" else u.get("obj")
+
+
+def act_heads(u, P, past):
+    """The heads an act's deciding seats are read at: those it states, or (an edge, which states none) the newest
+    counted changes over its affiliation in its own past P."""
+    return tuple(u.get("head", ())) or newest_changes(P, past, act_obj(u), {q["id"]: q for q in P})
+
+
 def needs_countersign(u, P, past):
     """u, a concluded counted act of a one-officer affiliation (affiliation_act), is a proposal until countersigned."""
     by = {q["id"]: q for q in P}
-    return affiliation_act(u, by) and len(deciding_seats(P, past, u["obj"], u.get("head", ()))) == 1
+    return affiliation_act(u, by) and len(deciding_seats(P, past, act_obj(u), act_heads(u, P, past))) == 1
+
+
+def countersigned(S, r):
+    """The one reading trust_rows takes of the countersign (an onward edge, or any counted act of an affiliation): row
+    r of state S stands for S's reader where it needs no countersign (no one-officer affiliation's act at its own past)
+    or is decided over S's concluded rows (decided_in: a countersign naming it, rule 4, overseer_cut)."""
+    by = {q["id"]: q for q in S.rows if S.C.get(q["id"])}
+    past = lambda a, b: a in K.ancestors(S.by, b)
+    Pr = [q for q in by.values() if past(q["id"], r["id"])]
+    return not needs_countersign(r, Pr, past) or decided_in(r, by, past)
 
 
 def decided_in(u, by, past):
@@ -569,7 +592,7 @@ def decided_in(u, by, past):
     there, with no withdrawal of u by its acting seat there that does not have the countersign in its past (rule 4), and
     no end of the countersigner's overseer seat there that does not have it in its past (overseer_cut)."""
     Pu = [q for q in by.values() if past(q["id"], u["id"])]
-    body = record_value({q["id"]: q for q in Pu}, u.get("obj"), OVERSEEN_BY)
+    body = record_value({q["id"]: q for q in Pu}, act_obj(u), OVERSEEN_BY)
     wd = [w for w in by.values() if w["kind"] == "withdraw" and w.get("target") == u["id"] and w["signer"] == u["signer"]
           and "withdrawal_clears_unread" not in MUT]
     return any(c["kind"] == "countersign" and c.get("of") == u["id"] and all(past(c["id"], w["id"]) for w in wd)
@@ -613,7 +636,7 @@ def countersign_ok(r, P, past):
     t = by.get(r.get("of"))
     if t is None or not affiliation_act(t, by): return False
     Pt = [q for q in P if past(q["id"], t["id"])]
-    seats = deciding_seats(Pt, past, t["obj"], t.get("head", ()))
+    seats = deciding_seats(Pt, past, act_obj(t), act_heads(t, Pt, past))
     if len(seats) != 1: return False
     if any(w["kind"] == "withdraw" and w.get("target") == t["id"] and w["signer"] == t["signer"] for w in P) \
             and "withdrawal_clears_unread" not in MUT:
@@ -621,8 +644,8 @@ def countersign_ok(r, P, past):
     k = r["signer"]
     if k in seats and "countersign_inside_seat" not in MUT: return False
     byt = {q["id"]: q for q in Pt}
-    if k == record_value(byt, t["obj"], "official"): return True
-    body = record_value(byt, t["obj"], OVERSEEN_BY)
+    if k == record_value(byt, act_obj(t), "official"): return True
+    body = record_value(byt, act_obj(t), OVERSEEN_BY)
     return body is not None and "overseers_unread" not in MUT and k in overseers(Pt, past, body) \
         and not overseer_cut(r, by, past, body)
 

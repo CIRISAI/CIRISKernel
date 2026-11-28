@@ -172,7 +172,9 @@ Present:
 - with one officer, every other counted act of the affiliation but an admission of a member (no role) is a proposal
   the same way: a lone act, an appointment carrying the officer role, any unseat, a change of the record, a
   dissolution, a license seat. The countersign's `of()` names that act; a change of the official is countersigned by
-  the official it replaces or an overseer.
+  the official it replaces or an overseer. An onward trust edge on behalf of the affiliation is such an act: present
+  `SeatRow::edge_body()` (the group a `delegates_to` row speaks for) so a countersign can name it; `trust_rows`
+  walks it only where `seat::countersigned` holds.
 
 **A duty holder's lone acts** (CC 4.5.5, CC 3.1.9.2; CHANGELOG). Present each by its family, its parameter as
 `family_param()`: a quarantine marker (`quarantine:{state}`) as `SeatKind::Quarantine` (`target_key()` the key, the

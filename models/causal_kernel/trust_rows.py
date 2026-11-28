@@ -324,6 +324,9 @@ def edges_of(S, t=None):
             continue
         if refusal(r) is not None or ended(S, r) or not edge_term(r, t):
             continue
+        # a one-officer affiliation's edge is a proposal: it stands only where countersigned (the item-8 ruling)
+        if not ST.countersigned(S, r):
+            continue
         # its owner's authority set over its own past, and with every end the reader holds (ended_for_reader)
         if not all(speaks_for(T, ST.signers(r), owner(r))
                    for T in (ended_for_reader(S, r, False), ended_for_reader(S, r))):
