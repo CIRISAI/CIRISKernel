@@ -666,9 +666,13 @@ def concurrent_growth(S, q, o, void=frozenset()):
     (MUTATION growth_held_unread: none read)."""
     if "growth_held_unread" in MUT:
         return []
-    # (an acceptance of a void offer is void growth too: it completes nothing)
+    # (an acceptance of a void offer is void growth too: it completes nothing; and an acceptance of an offer in q's own
+    # past is no growth against q: q's signers saw that offer decided, so its accepter alone voids nothing by timing,
+    # r97 A1, MUTATION accept_of_past_grows)
+    past_offer = lambda c: c["kind"] == "accept" and c.get("of") in S.anc[q["id"]] and "accept_of_past_grows" not in MUT
     return [c for c in growth_of(S, o) if c["id"] != q["id"] and c["id"] not in void and c.get("of") not in void
-            and c["id"] not in S.anc[q["id"]] and q["id"] not in S.anc[c["id"]] and not one_batch(S, q, c, o)]
+            and c["id"] not in S.anc[q["id"]] and q["id"] not in S.anc[c["id"]] and not one_batch(S, q, c, o)
+            and not past_offer(c)]
 
 
 def with_growth(S, q, o, void=frozenset(), growth=None):
@@ -678,6 +682,15 @@ def with_growth(S, q, o, void=frozenset(), growth=None):
     ids = set(S.anc[q["id"]])
     for c in (concurrent_growth(S, q, o, void) if growth is None else growth):
         ids |= {c["id"]} | set(S.anc[c["id"]])
+    # the grown body drops the ends the reader holds (r97 V1, V2): every end of a seat over `o` that does not have q
+    # in its past (an end after q cuts nothing of it), read by the count's own end reading over these rows (members_at
+    # reads each withdrawal in the past with the heads; a counted removal is a change, read at the newest heads)
+    # (MUTATION growth_ends_unread: the grown body keeps them)
+    if "growth_ends_unread" not in MUT:
+        for e in S.Cs:
+            if e["id"] in void or q["id"] in S.anc[e["id"]] or e["id"] in ids: continue
+            if any(ob == o for _, _, ob in ends_of(e, S.by)):
+                ids |= {e["id"]} | set(S.anc[e["id"]])
     return [x for x in S.Cs if x["id"] in ids]
 
 
@@ -701,8 +714,12 @@ def deciding_growth(S, q, o, void=frozenset()):
         if body == "founder": return x.get("role") == "founder" or x.get("scope") == "founder"
         return cls(x.get("scope")) == cls(body)
     own = lambda x: signers(x) - frozenset(x.get("to", ()))           # its deciding voices: not the seated keys' own yes
+    # one batch: the same deciding voices' duty conferrals at the SAME heads (causally one row at that head, which those
+    # voices could write anyway; the lead's ruling on r97 B4/B5); at other heads, or by other voices, it is growth (B6;
+    # MUTATION batch_any_heads: at any heads)
+    same_heads = lambda x: "batch_any_heads" in MUT or set(x.get("head", ())) == set(q.get("head", ()))
     def same_batch(x):
-        return cls(q.get("scope")) == "duty" and cls(x.get("scope")) == "duty" and own(x) == own(q)
+        return cls(q.get("scope")) == "duty" and cls(x.get("scope")) == "duty" and own(x) == own(q) and same_heads(x)
     return [c for c in g if seats_body(offer_of(c)) and not same_batch(offer_of(c))]
 
 
@@ -729,6 +746,7 @@ def recount_on_growth(S, q, o=None, void=frozenset(), other=None):
     if q["kind"] == "offer" and q.get("conf") in ("self", "seat"):
         return "seat_recount_unread" in MUT or authority_gate(q, T, byT)
     if q["kind"] == "offer" and q.get("conf") == "group" and q.get("head") and "counted_recount_unread" not in MUT:
+        # an election's seating (C1 to C5) and a lift (the members at both heads) are read by their own counts
         if is_election(q) or (act_of(q, byT) or (None,))[0] == "lift": return True
         past = lambda a, b: a in S.anc[b]
         heads = newest_changes(T, past, o, byT)

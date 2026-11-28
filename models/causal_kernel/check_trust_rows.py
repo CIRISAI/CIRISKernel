@@ -66,6 +66,9 @@ Planted breaks, each of which must change a case's answer:
     a counted act counts only if the counted acts among its heads count, and a regrown lone conferral seats nothing;
     the lane's own built-on cut, wider than that, is gone)
     growth_ends_read         (a), (d) an end read as growth: the re-count, not the end rule, decides a cut (r81 E3)
+    accept_of_past_grows     (seat.py) an acceptance of an offer in the act's own past is growth against it (r97 A1)
+    growth_ends_unread       (seat.py) the grown body keeps the ends the reader holds (r97 V1, V2)
+    batch_any_heads          (seat.py) the same voices' duty conferrals are one batch at any heads (r97 B6)
     counted_recount_unread   (a) a counted seat conferral from an old past not re-counted against held growth (r95)
     still_holds_end_past     (d) whether the key still holds a standing is read over the end's past, not the judged rows
     growth_held_unread       (a), (b) an authority act concurrent with growth of its body the reader holds is not
@@ -655,9 +658,67 @@ CASES += [
      [_AF3, _AOD, A("e", "RD", "af"), glic("l", "af", "A", cosigners=("B",))], "RD", "l", None, NA),
 ]
 
+# ---- the r97 attack (review-scratch e78aaa5, r97-attackr/g1, g2): the edges of the re-count on growth ---------------
+_G6 = ST.found("g", "A", ("A", "B", "C", "D", "E", "F"), {"moderate": ("A", "B", "C")}, cosigners=("B", "C", "D", "E", "F"),
+               licence_classes=((M, False),))
+_DCD = ST.offer("dcc", "A", "D", "moderate", "g", "group", ("g",), head=("g",), cosigners=("B", "C"), counted="duty",
+                policy="duty_confer")                             # A, B and C offer D moderate (D's acceptance to come)
+_DCDA = ST.accept("dca", "D", "dcc")
+_GLO_DC = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dcc",), head=("dcc",), cosigners=("B",),
+                   counted="duty")                                # A and B at dcc: 2 of the 3 seated there
+_GLO_G6 = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty")
+_WDA = ST.withdraw("wd", "D", "dca", ("dca", "dcc"))             # D withdraws its acceptance (naming the newest head, H4)
+_L1C = ST.withdraw("l1", "C", "g", (), scope="moderate")          # C lays down moderate
+_G10 = ST.found("g", "A", tuple("ABCDEFGHIJ"), {"moderate": ("A", "B", "C")}, cosigners=tuple("BCDEFGHIJ"),
+                licence_classes=((M, False),))
+_DDE2 = ST.offer("dde", "A", ("D", "E"), "moderate", "g", "group", ("g",), head=("g",), cosigners=("B", "D", "E"),
+                 counted="duty", policy="duty_confer")            # A and B seat D and E (2 of 3): five holders
+_SYB = ST.offer("syb", "A", ("F", "G", "H", "I"), "moderate", "g", "group", ("g",), head=("g",),
+                cosigners=("B", "F", "G", "H", "I"), counted="duty", policy="duty_confer")   # A and B again, from g
+_RV10 = ST.offer("rv", "A", "A", "review", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty",
+                 policy="duty_confer")                            # A and B: a counted change after g, a later head
+_DFF10 = ST.offer("dff", "A", "F", "moderate", "g", "group", ("g",), head=("g",), cosigners=("B", "F"), counted="duty",
+                  policy="duty_confer")                           # A and B seat F, at g
+_GL_SYB = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dde", "syb"), head=("dde", "syb"),
+                   cosigners=("B", "F", "G", "H", "I"), counted="duty")
+CASES += [
+    ("r97 A0 D offered, never accepting: A and B (2 of the 3 seated at dcc) confer X's license seat",
+     [_G6, _DCD, _GLO_DC, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r97 A1 and D's acceptance naming only dcc, concurrent with glo: an acceptance of an offer in the conferral's own "
+     "past is no growth against it (D alone voids nothing)",
+     [_G6, _DCD, _GLO_DC, GLA, _DCDA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r97 A1b and D's acceptance after glo (naming it)",
+     [_G6, _DCD, _GLO_DC, GLA, dict(_DCDA, names=("dcc", "glo")), A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r97 V0 A and B confer X's license seat from g, nothing beside it", [_G6, _GLO_G6, GLA, A("e", "RD", "g"), _X],
+     "RD", "l", None, OK),
+    ("r97 V1 D seated beside it and then withdrawing its acceptance, held: the growth no longer seats, 2 of 3 stands",
+     [_G6, _DCD, _DCDA, _WDA, _GLO_G6, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r97 V2 A and C seat D beside it while C lays down moderate, held: holders A, B, D, and A and B are 2 of 3",
+     [_G6, dict(_DCD, cosigners=("C", "D")), _L1C, _GLO_G6, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    # B4/B5, as ruled: rows by the same voices at the SAME heads are one batch, not re-counted against each other. A and
+    # B, a majority at g, could seat D to I in one row at g, and a concurrent row at that head is causally the same:
+    # "packing" here is a majority's power at that head. A batch at different heads, or by different voices, is
+    # re-counted (B6)
+    ("r97 B5 A and B seat D and E, and at g again F to I (one batch at g, as ruled), then A, B and F to I confer X's "
+     "license seat: 6 of 9",
+     [_G10, _DDE2, _SYB, _GL_SYB, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+]
+
 # the same worlds read at the seat (Seats.holders): whether X holds the license seat the counted conferral gives,
 # (name, rows, [(key, scope, object, holds)])
 SEATED = [
+    ("r97 seat B4 A and B seat D and E, and at g again F to I beside it: one batch at one head (as ruled), all seated",
+     [_G10, _DDE2, _SYB], [("E", "duty", "g", True), ("F", "duty", "g", True), ("I", "duty", "g", True)]),
+    ("r97 seat B6 the same voices at a LATER head are no batch: A and B seat D and E at rv (after g), and F to I at g "
+     "beside it, held: each is re-counted against the other's growth (2 of 7, 2 of 5), neither seats",
+     [_G10, _RV10, dict(_DDE2, names=("rv",), head=("rv",)), _SYB],
+     [("E", "duty", "g", False), ("F", "duty", "g", False), ("I", "duty", "g", False)]),
+    ("r97 seat B7 and different voices at the same head are no batch: A, B and C seat D and E at g, A and B seat F at g "
+     "beside it, held: A, B and C are 3 of 4 against F, A and B 2 of 5 against D and E, so F is unseated",
+     [_G10, dict(_DDE2, cosigners=("B", "C", "D", "E")), _DFF10],
+     [("E", "duty", "g", True), ("F", "duty", "g", False)]),
+    ("r97 seat V2 A and C seat D beside C's lay-down: holders A, B, D", [_G6, dict(_DCD, cosigners=("C", "D")), _L1C],
+     [("D", "duty", "g", True), ("C", "duty", "g", False)]),
     ("r95 seat Q5c A alone seats X's license from g", [G1, _G1L, GLA], [("X", "license", "g", True)]),
     ("r95 seat Q5 and the counted growth beside it, held: X holds no seat", [G1, _DCC, _G1L, GLA],
      [("C", "duty", "g", True), ("X", "license", "g", False)]),
@@ -705,7 +766,7 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "edge_term_unread", "amendment_as_cut",
           "instant_over_reader", "scope_unread", "termless_edge_walked",
           "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
-          "one_end_at_a_time", "growth_ends_read", "counted_recount_unread",
+          "one_end_at_a_time", "growth_ends_read", "counted_recount_unread", "accept_of_past_grows", "growth_ends_unread", "batch_any_heads",
           "end_cuts_counted_row", "own_licence_uncountersigned")
 
 

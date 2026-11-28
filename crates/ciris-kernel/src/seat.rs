@@ -1940,10 +1940,16 @@ pub(crate) fn concurrent_growth<R: SeatRow>(
         .into_iter()
         .filter(|&x| {
             // (an acceptance of a void offer is void growth too: it completes nothing)
-            let of_void = c.g.row(x).of().and_then(|i| c.g.idx(i)).is_some_and(|i| void.contains(&i));
+            let xr = c.g.row(x);
+            let of_void = xr.of().and_then(|i| c.g.idx(i)).is_some_and(|i| void.contains(&i));
+            // an acceptance of an offer in q's own past is no growth against q: q's signers saw that offer decided
+            // (r97 A1)
+            let of_past = xr.seat_kind() == SeatKind::Accept
+                && xr.of().and_then(|i| c.g.idx(i)).is_some_and(|i| c.g.ancestors(q).has(i));
             x != q
                 && !void.contains(&x)
                 && !of_void
+                && !of_past
                 && !c.g.ancestors(q).has(x)
                 && !c.g.ancestors(x).has(q)
                 && !one_batch(c, law, q, x, o)
@@ -1991,7 +1997,13 @@ pub(crate) fn deciding_growth<R: SeatRow>(
     // its deciding voices: not the seated keys' own yes
     let own = |x: &R| -> BTreeSet<R::Key> { signers(x).into_iter().filter(|k| !x.to().contains(k)).collect() };
     let duty = |x: &R| cls(x.scope().map(|w| w.as_ref())).as_deref() == Some("duty");
-    let same_batch = |x: &R| duty(qr) && duty(x) && own(x) == own(qr);
+    // one batch: the same deciding voices' duty conferrals at the SAME heads (the lead's ruling on r97 B4/B5)
+    let same_heads = |x: &R| {
+        let a: BTreeSet<&R::Id> = x.head().iter().collect();
+        let b: BTreeSet<&R::Id> = qr.head().iter().collect();
+        a == b
+    };
+    let same_batch = |x: &R| duty(qr) && duty(x) && own(x) == own(qr) && same_heads(x);
     concurrent_growth(c, law, q, o, void)
         .into_iter()
         .filter(|&x| offer_of(x).is_some_and(|xr| seats_body(xr) && !same_batch(xr)))
@@ -2003,6 +2015,30 @@ pub(crate) fn deciding_growth<R: SeatRow>(
 pub(crate) fn with_growth<R: SeatRow>(c: &Concluded<'_, R>, q: usize, growth: &[usize]) -> Vec<usize> {
     let qa = c.g.ancestors(q);
     (0..c.g.len()).filter(|&j| qa.has(j) || growth.iter().any(|&x| x == j || c.g.ancestors(x).has(j))).collect()
+}
+
+/// The grown rows with the ends the reader holds (r97 V1, V2): every concluded end of a seat over `o` ([`ends_of`])
+/// not in `void` that does not have `q` in its past (an end after `q` cuts nothing of it), with its past, read by the
+/// count's own end reading over these rows.
+fn with_growth_ends<R: SeatRow>(
+    c: &Concluded<'_, R>,
+    q: usize,
+    o: &ObjOf<R>,
+    void: &BTreeSet<usize>,
+    mut rows: Vec<usize>,
+) -> Vec<usize> {
+    let by: BTreeMap<&R::Id, &R> = c.g.rows().iter().map(|x| (x.id(), *x)).collect();
+    for &e in c.cs() {
+        if void.contains(&e) || c.g.ancestors(e).has(q) || rows.contains(&e) {
+            continue;
+        }
+        if ends_of(&by, c.g.row(e)).iter().any(|(_, _, ob)| ob.as_ref() == Some(o)) {
+            rows.extend((0..c.g.len()).filter(|&j| j == e || c.g.ancestors(e).has(j)));
+        }
+    }
+    rows.sort_unstable();
+    rows.dedup();
+    rows
 }
 
 /// THE re-count on growth (one reading for the seat walk and the trust walk): act `q` over group `o`, CONCURRENT with
@@ -2030,7 +2066,10 @@ pub(crate) fn recount_on_growth<R: SeatRow, S: CutSpec<R>>(
     if growth.is_empty() {
         return true;
     }
-    let idx: Vec<usize> = with_growth(c, q, &growth).into_iter().filter(|&j| j != q && c.concluded(j)).collect();
+    let idx: Vec<usize> = with_growth_ends(c, q, o, void, with_growth(c, q, &growth))
+        .into_iter()
+        .filter(|&j| j != q && c.concluded(j))
+        .collect();
     if !lone && !counted {
         return other.is_none_or(|f| f(idx.as_slice()));
     }
@@ -6756,6 +6795,7 @@ pub fn count_left<R: SeatRow>(p: &Past<'_, '_, R>, law: &SeatLaw, obj: &ObjOf<R>
     };
     // and a family's founder role ends with any leaving of the key (its member seat, or the founding row) in the
     // row's past, whatever head that row names
+    // (an affiliation's officer role stands on the member seat too: it ends with any leaving of it)
     let role = match obj {
         Obj::Row(i) => p.get(i).is_some_and(|g| {
             (scope == "founder" && g.group_kind().is_some_and(|k| k.as_ref() == "family"))

@@ -41,7 +41,7 @@ use crate::layers::{Concluded, Past};
 use crate::seat::{
     body_change, concurrent_growth, countersigned, declared_count, ended_seats, for_reader, kind_of, policy_for,
     recount_on_growth, scope_class, still_met, voices, Act, CommunityKind, Conf, Obj, ScopeClass, SeatKind, SeatLaw,
-    SeatRow, Seats, AGENT, OFFICER,
+    SeatRow, Seats, OFFICER,
 };
 use crate::trust::{reaches, Accepts, Charters, HOP_CAP};
 use crate::{Dated, Row};
