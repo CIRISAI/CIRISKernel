@@ -47,12 +47,13 @@ A key is named once per case and used by name everywhere else.
 | Member | What it is |
 |---|---|
 | `name` | the local name |
-| `seed` | an integer `n` from 1 to 155. Verify's convention: key `n` is the seed pair `[n; 32]` and `[n + 100; 32]`, assigned to the composite key's two halves as Verify's minter assigns them. Two keys of one case never share a seed **(prose)**. |
+| `seed` | an integer `n` from 1 to 155. The convention (Verify's): key `n` has the ML-DSA-65 seed `[n; 32]` (the byte `n`, 32 times) and the Ed25519 seed `[n + 100; 32]`; its composite public key is the ML-DSA-65 public key (1952 bytes) then the Ed25519 public key (32 bytes). Two keys of one case never share a seed **(prose)**. |
 | `identity` | the name of the key whose identity reference is this key's `iss`: the identity's genesis key; for a room key, the voice's first room key. A genesis key names itself. |
 | `identity_type` | a set from `user`, `node`, `agent`, `accord_holder`. `user` or `accord_holder` never with `node` or `agent` (the text refuses the mix; a case testing that refusal is a door case, not a kernel case) |
 | `kind` | how the key signs: `genesis` (as itself), `rotated` (a later key of the same identity, by a rotation record), `occurrence` (a device key bound by an `identity:occurrence`), `room` (a room key of a private room) |
 | `room` | for `kind: room`, the group (a `placement` name) the key is made for |
-| `records` | the labels of the `key:record` rows (in `rows`) that make the key live, or `"minter_supplies"`: the minter mints one self-signed `key:record` for it with `asserted_at` 0 and, where the end rule requires `valid_until` (`node`, `agent`, not a room key), the greatest the bound allows. A case whose answer reads a key's records lists them. |
+| `records` | the labels of the `key:record` rows (in `rows`) that make the key live, or `"minter_supplies"`: the minter mints one self-signed `key:record` with `asserted_at` `{"$ms": 0}` and, where the end rule requires `valid_until` (`node`, `agent`, not a room key), `valid_until` `{"$ms": 7776000000}` (90 days), or the key's `supplied_until` where it states one. Every row instant of a case falls inside the record of the key that signs it **(prose)**. A case whose answer reads a key's records lists them. For an `accord_holder` key the supplied record carries MOCK custody (`attestation_evidence` under Verify's mock attestation root), and the reader's trust store is a case input (`reader.trust_store`). For a serve node a bundle seats, `minter_supplies` also covers its `identity:occurrence` binding (`identity_key_id` and `occurrence_key_id` the node, `device_class` `server`), and the minter fills the bundle's `refs.also.cites` with each supplied record and binding. A `rotated` key's `records` lists its rotation record. |
+| `supplied_until` | optional, `{"$ms": n}`: the `valid_until` of a minter-supplied record, in place of the 90-day constant |
 
 ## Placement
 
@@ -137,6 +138,8 @@ sequence. Every payload value is one of:
 | `{"$group": "g"}` | the group id of placement group `g` |
 | `{"$digest": {"label": "x", "id": "row"}}` | a `hash-digest` naming row or object `x` (`attached_head_digest`) |
 | `{"$commitment": ["A.rec"]}` | a recovery commitment over the named keys |
+| `{"$xwing_pubkey": {"seed": n}}` | an X-Wing public key (1216 bytes) derived from seed `n` by Verify's convention (a room key's `kem_xwing_pubkey`, an occurrence's `room_binding_xwing_pubkey`) |
+| `{"$seat_commitment": {"room": "g", "room_key": "rk.a0", "person": "A", "nonce": {"$fill": {"byte": 9, "len": 32}}}}` | the seat commitment over `["CEG-seat/2", room, room_key, person, nonce]`: the group, the room key's thumbprint, the person's identity reference, the nonce |
 
 ### refs
 
@@ -183,11 +186,13 @@ never written.
 |---|---|
 | `typ` | `ceg-genesis-bundle/2` or `ceg-revocation-snapshot/2` |
 | `author` | `null`, or the key name whose identity is the payload's `author` (a snapshot) |
-| `iat` | the seconds every statement's CWT `iat` carries; for a bundle, `floor(asserted_at / 1000)` **(prose)** |
+| `iat` | the seconds every statement's CWT `iat` carries; for a bundle, `floor(asserted_at / 1000)` unless an `iat_mismatch` fault says otherwise **(prose)** |
 | `payload` | the members of the `typ`'s rule, `refs` apart |
 | `refs` | as for a row (`prev` naming an object; `further_prev` on a join) |
 
-An object's signers are its statements in `statements`, one per holder.
+An object's signers are its statements in `statements`, one per holder. An object's CWT claims are `iss`, `iat`
+and the edition only (`object-claims`, CC 2.6.1.11): it carries no `sub`. A `ceg-revocation-snapshot/2` is
+mintable, but Verify has no verdict reader for it: its vectors check bytes and signatures only.
 
 ## Statements
 
@@ -212,6 +217,10 @@ The ordered list of statements, in mint order:
 | `first_held_at` | optional, an integer ms: the instant the reader first held this statement. Absent: held from the start of the case. |
 | `fault` | optional, one deliberate fault from the closed list below |
 
+**A rotation.** A rotation record (a `key:record` of the new key naming the old record under `refs.target`) has
+two statements: the new key's (`as` its own kind, `rotated`) and the old key's (`as` the old key's own kind). The
+new key's `records` lists the rotation record.
+
 **Counted rows.** Each voice of a counted row (or object) is its own entry, all with the same `of`; they share
 the payload and so the row id. The voices of a row are exactly its entries.
 
@@ -226,11 +235,12 @@ Only these, each on one statement:
 
 | `kind` | Members | What the minter does |
 |---|---|---|
-| `wrong_signer` | `key`: another key name | signs with that key's private key while `kid` and `iss` stay the statement's own key's |
-| `bad_signature_half` | `half`: `ml_dsa_65` or `ed25519` | signs correctly, then corrupts that half of the composite signature |
+| `wrong_signer` | `key`: another key name | signs with that key's private key while `kid` and `iss` stay the statement's own key's; the row id and statement id are unchanged |
+| `bad_signature_half` | `half`: `ml_dsa_65` or `ed25519` | signs correctly, then corrupts that half of the composite signature; the ids are unchanged |
 | `missing_member` | `path`: a member path (`payload.dimension`, `payload.refs.head`) | mints the statement's payload without that member (the row id is then that of the reduced payload) |
 | `unsorted_set` | `path`: a set's path (`payload.refs.also.cites`, `payload.trust_classes`) | writes that set in descending order instead of sorted |
-| `second_encoding` | `path`, and `how`: `non_shortest_int`, `indefinite_length` or `unsorted_map_keys` | encodes that member a second way, so the bytes are not the deterministic encoding |
+| `second_encoding` | `path`, and `how`: `non_shortest_int`, `indefinite_length` or `unsorted_map_keys` | encodes that member a second way, so the bytes are not the deterministic encoding; the payload bytes change, so the row id is that of the altered bytes (as for `missing_member`) |
+| `iat_mismatch` | `iat`: an integer | writes that CWT `iat` in place of `floor(asserted_at / 1000)` (on a row or an object statement) |
 
 A faulted statement is one the door refuses or does not verify: the store presents no crate row (or no voice)
 for it. The expected answer is the crate's over what remains.
@@ -248,6 +258,7 @@ for it. The expected answer is the crate's over what remains.
 | `identity` | the key name of the identity that asks (its own rows are its line), or `null` for a reader with no row of its own |
 | `key` | optional: the key it asks under, where that matters |
 | `anchor` | optional: a trust root anchor, by a bundle's object id (`bundle`) or by holder thumbprints (`holders`, key names) |
+| `trust_store` | optional: the attestation roots the reader trusts for a holder's custody (`{"attestation_roots": ["mock"]}` for Verify's mock root) |
 
 A question may carry its own `reader`, which replaces the case's for that question.
 

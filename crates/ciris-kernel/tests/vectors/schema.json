@@ -194,6 +194,9 @@
               "description": "Labels of key:record rows."
             }
           ]
+        },
+        "supplied_until": {
+          "$ref": "#/$defs/ms"
         }
       },
       "if": {
@@ -469,6 +472,62 @@
         },
         {
           "$ref": "#/$defs/keyname1"
+        },
+        {
+          "type": "object",
+          "required": [
+            "$xwing_pubkey"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "$xwing_pubkey": {
+              "type": "object",
+              "required": [
+                "seed"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "seed": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 255
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "$seat_commitment"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "$seat_commitment": {
+              "type": "object",
+              "required": [
+                "room",
+                "room_key",
+                "person",
+                "nonce"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "room": {
+                  "$ref": "#/$defs/name"
+                },
+                "room_key": {
+                  "$ref": "#/$defs/name"
+                },
+                "person": {
+                  "$ref": "#/$defs/name"
+                },
+                "nonce": {
+                  "$ref": "#/$defs/bytes"
+                }
+              }
+            }
+          }
         },
         {
           "type": "object",
@@ -859,6 +918,23 @@
               ]
             }
           }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "iat"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "iat_mismatch"
+            },
+            "iat": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         }
       ]
     },
@@ -951,6 +1027,23 @@
               }
             }
           ]
+        },
+        "trust_store": {
+          "type": "object",
+          "required": [
+            "attestation_roots"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "attestation_roots": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     },
