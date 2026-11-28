@@ -716,6 +716,7 @@ plant "seat: the old key a cited rotation claims to succeed a voice (disputed_ke
 plant "seat: finality's clean test reads the row's own signers only (clean_signers_only)" src/seat.rs '    let voices = voices(r, &p);' '    let voices = signers(r);'
 plant "seat: a roster act over any object read as the self roster's (roster_end_any_object)" src/seat.rs 'if kind_of(law, &|i| by.get(i).copied(), &obj) != Some(CommunityKind::SelfRoster) {' 'if false && kind_of(law, &|i| by.get(i).copied(), &obj) != Some(CommunityKind::SelfRoster) {'
 plant "seat: a withdrawal of the act in a receipt's past left clean" src/seat.rs '|| g.row(x).target() == Some(r.id()))' '|| (g.row(x).target() == Some(r.id()) && false))'
+plant "seat: the one owner reading ignores a re-binding" src/seat.rs '&& self.has(r, "owner") && !rebound(&r.offer)).map(|r| &r.k),' '&& self.has(r, "owner")).map(|r| &r.k),'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

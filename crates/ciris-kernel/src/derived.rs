@@ -196,14 +196,10 @@ pub fn fold_default<R: Row, N: Ord + Clone, T: Ord>(
     for (key, g) in groups {
         let top = g.iter().map(|&i| rank(c.g.row(i))).max();
         let g: Vec<usize> = g.into_iter().filter(|&i| Some(rank(c.g.row(i))) == top).collect();
-        let w = g
-            .iter()
-            .copied()
-            .filter(|&i| !g.iter().any(|&j| j != i && c.g.in_past(i, j)))
-            .max_by(|&a, &b| {
-                let (x, y) = (c.g.row(a), c.g.row(b));
-                (at(x), core::cmp::Reverse(x.id())).cmp(&(at(y), core::cmp::Reverse(y.id())))
-            });
+        let w = g.iter().copied().filter(|&i| !g.iter().any(|&j| j != i && c.g.in_past(i, j))).max_by(|&a, &b| {
+            let (x, y) = (c.g.row(a), c.g.row(b));
+            (at(x), core::cmp::Reverse(x.id())).cmp(&(at(y), core::cmp::Reverse(y.id())))
+        });
         if let Some(w) = w {
             out.insert(key, w);
         }

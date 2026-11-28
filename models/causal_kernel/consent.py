@@ -59,7 +59,8 @@ Derived, read AT A ROW (`at_row`; None reads every held row, the reader's whole 
     peer_set(principal)   the peers named by the principal's grants in force at at_row.
     bilateral(a, b)       a's grant to b and b's grant to a both in force.
     principals(node)      the node itself (CC 3.3.7: G is the granting node) and its ONE owner by the owner binding
-                          read over at_row's past (seat.Seats.one: two live owners is none, CC 3.2): the owner's
+                          read over at_row's past (seat.Seats.owner, the one owner reading: two live owners is none, CC 3.2; a
+                          re-binding ends the binding it has in its past): the owner's
                           grant for one of its own nodes is the second form.
     may_send(node, peer, class)  the grant in force, from a principal of the node to that peer, whose classes
                           cover the class; else None.
@@ -133,8 +134,8 @@ def well_formed(r):
 
 
 def _owner_over(rows, key):
-    """key's one owner over a set of concluded rows (seat.Seats.one: none, or two, is None)."""
-    return ST.Seats(CK.State(rows, {r["id"]: True for r in rows})).one("owner", key)
+    """key's one owner over a set of concluded rows: THE owner reading, seat.Seats.owner."""
+    return ST.Seats(CK.State(rows, {r["id"]: True for r in rows})).owner(key)
 
 
 def may_withdraw(g, k, P):
@@ -320,8 +321,9 @@ def _sub(S, at_row):
 
 
 def owner(S, node, at_row=None):
-    """The node's one owner by the owner binding over at_row's past (None with none, or with two)."""
-    return ST.Seats(_sub(S, at_row)).one("owner", node)
+    """The node's one owner over at_row's past: THE owner reading, seat.Seats.owner (one holder after the re-binding
+    rule; None with none, or with two)."""
+    return ST.Seats(_sub(S, at_row)).owner(node)
 
 
 def principals(S, node, at_row=None):

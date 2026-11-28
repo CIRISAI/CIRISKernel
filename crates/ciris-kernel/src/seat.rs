@@ -2310,6 +2310,33 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         crate::ops::one(self.recs.iter().filter(|r| r.obj == *o && self.has(r, s)).map(|r| &r.k)).cloned()
     }
 
+    /// **The one owner reading** (CC 3.2), for every caller (`consent`, the node arm, audience; `nodes_of` is its
+    /// inverse): the one holder of the `owner` seat over key `node` ([`Seats::one`]: two live owners is none), after
+    /// the re-binding rule of [`crate::standing::answers`]: a concluded `owner` offer over the node that has an
+    /// earlier binding's offer in its past re-binds it and ends it (a stint, not a rival), whether or not the new
+    /// owner has accepted yet. Read over the rows the caller concluded (a reading row's past). `seat.Seats.owner`.
+    pub fn owner(&self, node: &R::Key) -> Option<R::Key> {
+        let o: ObjOf<R> = Obj::Key(node.clone());
+        let c = self.c;
+        let rebinds: Vec<usize> = c
+            .cs()
+            .iter()
+            .copied()
+            .filter(|&q| {
+                let r = c.g.row(q);
+                r.seat_kind() == SeatKind::Offer
+                    && r.scope().is_some_and(|w| w.as_ref() == "owner")
+                    && r.obj().as_ref() == Some(&o)
+            })
+            .collect();
+        let rebound =
+            |offer: &R::Id| c.g.idx(offer).is_some_and(|oi| rebinds.iter().any(|&q| q != oi && c.g.in_past(oi, q)));
+        crate::ops::one(
+            self.recs.iter().filter(|r| r.obj == o && self.has(r, "owner") && !rebound(&r.offer)).map(|r| &r.k),
+        )
+        .cloned()
+    }
+
     /// The frontier of the counted acts on `o` that count, with its founding row.
     pub fn tips(&self, o: &ObjOf<R>) -> Vec<usize> {
         if let Some(t) = self.tips_memo.borrow().get(o) {
@@ -5593,6 +5620,7 @@ mod tests {
         cosigners: Vec<u32>,
         scope: Option<String>,
         target: Option<u32>,
+        obj: Option<Obj<u32, u32>>,
     }
 
     impl Row for T {
@@ -5627,7 +5655,7 @@ mod tests {
             self.scope.as_ref()
         }
         fn obj(&self) -> Option<Obj<u32, u32>> {
-            (self.kind == SeatKind::Offer).then_some(Obj::Row(0))
+            (self.kind == SeatKind::Offer).then(|| self.obj.clone().unwrap_or(Obj::Row(0)))
         }
         fn conf(&self) -> Option<Conf> {
             (self.kind == SeatKind::Offer).then_some(Conf::Own)
@@ -5654,7 +5682,33 @@ mod tests {
     }
 
     fn row(id: u32, names: Vec<u32>, signer: u32, kind: SeatKind) -> T {
-        T { id, names, signer, kind, to: vec![], cosigners: vec![], scope: None, target: None }
+        T { id, names, signer, kind, to: vec![], cosigners: vec![], scope: None, target: None, obj: None }
+    }
+
+    // node 7's owner binding to `owner`, accepted by its cosignature, naming `names`
+    fn binding(id: u32, owner: u32, names: Vec<u32>) -> T {
+        let mut b = row(id, names, 7, SeatKind::Offer);
+        b.to = vec![owner];
+        b.cosigners = vec![owner];
+        b.scope = Some("owner".into());
+        b.obj = Some(Obj::Key(7));
+        b
+    }
+
+    /// The one owner reading: one binding gives its owner; a re-binding (a binding with the earlier one in its
+    /// past) moves the owner; two concurrent bindings are two owners, none (the consent cases in check_consent.py
+    /// read the same rule through `seat.Seats.owner`).
+    #[test]
+    fn a_rebinding_moves_the_owner() {
+        let law = SeatLaw::default();
+        let owner = |rows: &[T]| {
+            let c = Concluded::with(Graph::new(rows.iter()), None);
+            Seats::new(&c, &law, &NoCut, None).owner(&7)
+        };
+        assert_eq!(owner(&[binding(1, 8, vec![])]), Some(8), "one binding");
+        assert_eq!(owner(&[binding(1, 8, vec![]), binding(2, 9, vec![1])]), Some(9), "a re-binding moves it");
+        assert_eq!(owner(&[binding(1, 8, vec![]), binding(2, 9, vec![])]), None, "two owners is none");
+        assert_eq!(owner(&[binding(1, 8, vec![]), binding(2, 8, vec![1])]), Some(8), "a re-binding to the same owner");
     }
 
     /// Two versions that seat different keys (the second ends some seats the first holds, and seats others),

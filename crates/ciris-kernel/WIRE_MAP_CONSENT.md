@@ -38,6 +38,6 @@ reads them, over the key lane and the consent rows in one causal order.
 
 Not read: `score` (magnitude is not load-bearing), `topical_relation: bilateral_pair` (pairing is the
 consumer's), `grants: "replication"` (a constant), and the `cohorts` allow list of an owner's grant for its own node
-(CC 6.1.5.3). The owner the answers take is `seat::Seats::one("owner", node)` over the reading row's past, from the
+(CC 6.1.5.3). The owner the answers take is `seat::Seats::owner(node)` over the reading row's past, from the
 owner binding's own rows (`WIRE_MAP.md` section 7.2); the owner `conclude_rule` asks for at a withdrawal is the same
 reading over the withdrawal's own past.

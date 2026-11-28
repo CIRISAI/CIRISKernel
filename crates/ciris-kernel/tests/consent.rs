@@ -130,14 +130,9 @@ fn ask(c: &Concluded<'_, CRow>, a: &J, kv: &Voiced) -> J {
             let ps = consent::peer_set(c, &a.at("principal").s().to_string(), at.as_ref(), now, kv);
             J::Arr(ps.into_iter().map(J::Str).collect())
         }
-        "bilateral" => J::Bool(consent::bilateral(
-            c,
-            &a.at("a").s().to_string(),
-            &a.at("b").s().to_string(),
-            at.as_ref(),
-            now,
-            kv,
-        )),
+        "bilateral" => {
+            J::Bool(consent::bilateral(c, &a.at("a").s().to_string(), &a.at("b").s().to_string(), at.as_ref(), now, kv))
+        }
         "force" => J::Bool(consent::in_force(c, &a.at("grant").s().to_string(), at.as_ref(), now, kv)),
         k => panic!("ask {k}"),
     }

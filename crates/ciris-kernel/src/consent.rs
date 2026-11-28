@@ -24,9 +24,9 @@
 //!   with no key lane.
 //! - *The fold* ([`winners`]): causal first, for each (signer, peer) the grants with a voice that no other of them
 //!   has in its past, then the latest `asserted_at`, then the lowest id: a grant with an earlier one in its past is
-//!   later whatever either states. An earlier grant is replaced (a narrowing is a `supersedes`). A withdrawal or the term of the
-//!   latest grant revives no earlier one (CC 3.3.7: on revoke the node "MUST cease replicating the named prefixes
-//!   to P").
+//!   later whatever either states. An earlier grant is replaced (a narrowing is a `supersedes`). A withdrawal or the
+//!   term of the latest grant revives no earlier one (CC 3.3.7: on revoke the node "MUST cease replicating the named
+//!   prefixes to P").
 //! - *Withdrawn*: the end is a cut (CC 2.4.1.1, ruled 2026-11-21). A held withdrawal ends the grant at every row
 //!   that is not in the withdrawal's past, so one in `at`'s past and one concurrent with `at` both end it there.
 //! - *Term*: `valid_until`, read at the caller's instant `now`, half-open ([`crate::covers_at`]). A grant with a
@@ -35,10 +35,11 @@
 //! - *Not held*: an `at` that is not held reads nothing (no grant in force, an empty set, `None`).
 //!
 //! **The node's principals.** The node itself (G is the granting node, CC 3.3.7) and its one owner by the owner
-//! binding. The owner is the caller's, and **the caller's duty** is to read it as [`crate::seat::Seats::one`] of
-//! scope `owner` over the node's key, over `at`'s past (two live owners is none, CC 3.2): read so, a grant an owner
-//! made before it owned the node moves the node's rows once the binding is in `at`'s past (A7, as ruled: the owner
-//! is read at the reading row). A grant by any other key moves none of the node's rows.
+//! binding. The owner is the caller's, and **the caller's duty** is to read it as [`crate::seat::Seats::owner`]
+//! (the one owner reading: [`crate::seat::Seats::one`] of scope `owner` with the re-binding rule) over the node's
+//! key, over `at`'s past (two live owners is none, CC 3.2). Read so, a grant an owner made before it owned the node
+//! moves the node's rows once the binding is in `at`'s past (A7, as ruled: the owner is read at the reading row). A
+//! grant by any other key moves none of the node's rows.
 //!
 //! Edge's replication set is the operator-addressed peers that are in the [`peer_set`] of a principal of the
 //! node ([`replication_set`]), and [`may_send`] gates each row.
@@ -113,7 +114,7 @@ pub fn well_formed<R: ConsentRow>(r: &R) -> bool {
 /// unannounced node signs or is named in is never placed at federation"). A withdrawal concludes when it names a
 /// concluded grant and its signer is one of three keys: the grant's signer; the peer it names (CC 2.4.1.1 rule 2,
 /// "stop sending to me"); or the signer's one owner read over the withdrawal's own past, which `owner_of(signer,
-/// past)` gives (the caller's `Seats::one("owner", signer)` over that past; `None` with none or two). Every other
+/// past)` gives (the caller's `Seats::owner(signer)` over that past; `None` with none or two). Every other
 /// row concludes here; the caller's own rule decides it.
 pub fn conclude_rule<R: ConsentRow>(
     p: &Past<'_, '_, R>,
@@ -125,7 +126,8 @@ pub fn conclude_rule<R: ConsentRow>(
             well_formed(r)
                 && (!r.federation()
                     || r.peer().is_some_and(|peer| {
-                        let announced = |k: &R::Key| p.rows().any(|q| q.kind() == Kind::Announcement && q.signer() == k);
+                        let announced =
+                            |k: &R::Key| p.rows().any(|q| q.kind() == Kind::Announcement && q.signer() == k);
                         announced(r.signer()) && announced(peer)
                     }))
         }
@@ -217,13 +219,10 @@ pub fn winners<R: ConsentRow>(
         groups.entry((r.signer().clone(), peer.clone())).or_default().push(i);
     }
     let pick = |g: &[usize]| {
-        g.iter()
-            .copied()
-            .filter(|&i| !g.iter().any(|&j| j != i && c.g.in_past(i, j)))
-            .max_by(|&a, &b| {
-                let (x, y) = (c.g.row(a), c.g.row(b));
-                (x.at(), core::cmp::Reverse(x.id())).cmp(&(y.at(), core::cmp::Reverse(y.id())))
-            })
+        g.iter().copied().filter(|&i| !g.iter().any(|&j| j != i && c.g.in_past(i, j))).max_by(|&a, &b| {
+            let (x, y) = (c.g.row(a), c.g.row(b));
+            (x.at(), core::cmp::Reverse(x.id())).cmp(&(y.at(), core::cmp::Reverse(y.id())))
+        })
     };
     Some(groups.into_iter().filter_map(|(k, g)| pick(&g).map(|i| (k, i))).collect())
 }
@@ -282,7 +281,7 @@ pub fn bilateral<R: ConsentRow>(
 }
 
 /// The node's principals: the node itself and `owner`, its one owner at `at` by the owner binding (the caller's
-/// `Seats::one("owner", node)` over `at`'s past; `None` with none or two).
+/// `Seats::owner(node)` over `at`'s past; `None` with none or two).
 pub fn principals<K: Ord + Clone>(node: &K, owner: Option<&K>) -> BTreeSet<K> {
     core::iter::once(node).chain(owner).cloned().collect()
 }

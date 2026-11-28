@@ -30,7 +30,7 @@ come from `governance_policy.json` and the family tables that persist already ve
 | Persist today | Kernel | What changes |
 |---|---|---|
 | the door: `plan_put_attestation` (`federation/attestation_admit.rs:654`) and its gates | `layers::kept`, then `layers::conclude` with the family's rule | a row that names an unheld row waits; a check that reads another row becomes a conclusion, never a drop (KERNEL_SEAMS §0) |
-| `owner_of` (`federation/admission.rs:12694`, fails closed on two owners) | `seat::Seats::one("owner", key)`; `reexpress.owner_of` is the same rule over `ops` | the same answer, read from the held set: two live owners give none |
+| `owner_of` (`federation/admission.rs:12694`, fails closed on two owners) | `seat::Seats::owner(key)`, the one owner reading (`Seats::one` of scope `owner` with the re-binding rule); `reexpress.owner_of` is the same rule over `ops` | the same answer, read from the held set: two live owners give none |
 | `consensus::evaluate`, `eligible`, `counted` (`federation/consensus.rs:213`, `:161`, `:180`) | `seat::members_at` (the members at the head the row names), `seat::voices`, `seat::met`, `ranked::ranked` | the count is over the head the row names, never the roster at receipt |
 | `trust_root_valid` (`federation/trust_root.rs:1407`) and `check_federation` (`federation/replication/admission.rs:133`) | `trust::honours`, `trust::reaches`; `derived::reach` and `means` for a reader | the reader's view filters held rows; nothing is dropped at replication for trust |
 | `check_delegation_cycle_admission` (`federation/admission.rs:18517`) | `trust::reaches` (a cycle is visited once) and the seat walk's depth | no edge is refused for closing a cycle |
@@ -532,13 +532,14 @@ class. Present each grant as `Kind::Grant` (`attesting_key_id` the signer, `peer
 `withdraws` or `recants` of one as `Kind::Withdrawal` naming it, and
 each node's announcement as `Kind::Announcement`, and every other row (the node's own rows the reading is at
 among them) as `Kind::Other`; conclude them with `consent::conclude_rule` beside the families' own rules, giving it
-the owner of a key over a withdrawal's past (`Seats::one("owner", key)` over that past). A withdrawal by the grant's
+the owner of a key over a withdrawal's past (`Seats::owner(key)`, the one owner reading, over that past). A withdrawal by the grant's
 signer, its peer, or the signer's owner there ends the grant; any other key's concludes nothing. Pass the key view
 (`Some(&key_end::KeyReading { .. })` over the key lane and these rows in one causal order, for the reading node, its
 final counts and its self roster): a grant counts only where its signer's signature does by the end rule, so a
 thief's grant concurrent with the key's revocation or rotation moves nothing whatever instant it states. `None`
 counts every voice, only for a caller with no key lane. `now` is the caller's instant for the term only: nodes agree
-on a term's answer only at the same `now`. Pass the owner from `seat::Seats::one("owner", node)` read
+on a term's answer only at the same `now`. Pass the owner from `seat::Seats::owner(node)` (the one owner reading: `Seats::one` of scope `owner` with
+the re-binding rule of `standing::answers`) read
 over the past of the row the answer is at (`None` with none or two). Read at the row being sent, or the node's own
 latest row, never at a clock; `now` is the caller's instant for the term only. Not read here: the `cohorts` allow list
 of an owner's grant for its own node (CC 6.1.5.3), and whether the class itself is a grammar the namespace admits

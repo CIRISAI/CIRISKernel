@@ -17,7 +17,10 @@ every count reads, from key-end-retained): its signer's signature counts only wh
 of the key's ends, taken up on the reader's line, or under a final count, so no stated instant helps a grant
 concurrent with a revocation or rotation (review-48's A1 to A3); every reading takes `kv` (`None`: no key lane). An
 `at` that is not held reads nothing in both languages; a grant with no `asserted_at` ranks below one with one. The node's principals are the node
-and its one owner, which the caller reads with `Seats::one("owner", node)`; two owners is none. The reference is
+and its one owner, which the caller reads with **the one owner reading**, new `seat::Seats::owner(node)` (both
+languages): `Seats::one` of scope `owner` with the re-binding rule of `standing::answers` (a binding that has an
+earlier one in its past ends it); two owners is none. Consent reads the owner only through it (review-54's DRY
+audit); `nodes_of` (key-person) is its inverse. The reference is
 `models/causal_kernel/consent.py`, its cases `check_consent.py` (57 cases, 130 answers, every order of up to six
 rows, 19 planted breaks), the fixture `tests/fixtures/consent.json` and the test `tests/consent.rs`.
 

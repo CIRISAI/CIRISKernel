@@ -201,6 +201,27 @@ CASES = [
      ob() + [G("go", "O", "P", ("capacity:",), 1), G("gn", "N", "P", ("trace:",), 1), N_("n", "N", ("ab", "go", "gn"))],
      [(S_, "N", "P", CAP, "n", None, "go"), (S_, "N", "P", TRC, "n", None, "gn"), (S_, "N", "P", "x:y", "n", None, None)]),
 
+    # ---- a re-binding moves the owner (the one owner reading, seat.Seats.owner) ----
+    ("a re-binding moves the owner: O2's grant moves N's rows and O1's no longer does",
+     ob("O1", "b1") + [ST.offer("b2", "N", "O2", "owner", "N", "self", ("ab1",)), ST.accept("ab2", "O2", "b2"),
+                       G("g1", "O1", "P", ("capacity:",), 1), G("g2", "O2", "Q", ("capacity:",), 1),
+                       N_("n", "N", ("ab2", "g1", "g2"))],
+     [(S_, "N", "P", CAP, "n", None, None), (S_, "N", "Q", CAP, "n", None, "g2")]),
+    ("before the re-binding is in the reading row's past, the first owner's grant moves N's rows",
+     ob("O1", "b1") + [G("g1", "O1", "P", ("capacity:",), 1), N_("n0", "N", ("ab1", "g1")),
+                       ST.offer("b2", "N", "O2", "owner", "N", "self", ("n0",)), ST.accept("ab2", "O2", "b2"),
+                       N_("n1", "N", ("ab2",))],
+     [(S_, "N", "P", CAP, "n0", None, "g1"), (S_, "N", "P", CAP, "n1", None, None)]),
+    ("a re-binding not yet accepted ends the first binding: no owner until the new owner accepts",
+     ob("O1", "b1") + [ST.offer("b2", "N", "O2", "owner", "N", "self", ("ab1",)), G("g1", "O1", "P", ("capacity:",), 1),
+                       G("g2", "O2", "P", ("trace:",), 1), N_("n", "N", ("b2", "g1", "g2"))],
+     [(S_, "N", "P", CAP, "n", None, None), (S_, "N", "P", TRC, "n", None, None)]),
+    ("the re-bound owner withdraws the node's grant; the former owner's withdrawal concludes nothing",
+     ob("O1", "b1") + [ST.offer("b2", "N", "O2", "owner", "N", "self", ("ab1",)), ST.accept("ab2", "O2", "b2"),
+                       G("gn", "N", "P", ("capacity:",), 1), G("gm", "N", "Q", ("capacity:",), 1),
+                       W("w2", "O2", "gn", ("ab2",)), W("w1", "O1", "gm", ("ab2",)), N_("n", "N", ("w1", "w2"))],
+     [(S_, "N", "P", CAP, "n", None, None), (S_, "N", "Q", CAP, "n", None, "gm")]),
+
     # ---- a node owned by two principals: two owners is none ----
     ("two live owner bindings: neither owner's grant moves the node's rows; the node's own grant does",
      ob("O1", "b1") + ob("O2", "b2") + [G("g1", "O1", "P", ("capacity:",), 1), G("g2", "O2", "Q", ("capacity:",), 1),
@@ -292,7 +313,9 @@ READERS = {
 
 PLANTS = ("classes_unread", "prefix_no_colon", "fold_earliest", "fold_highest_id", "fold_instant_first",
           "fold_live_only", "withdraw_any_signer", "withdraw_signer_only", "withdraw_owner_now", "withdraw_by_past", "term_unread", "term_closed", "owner_any", "owner_two_one",
-          "revoked_unread", "voice_wrong_key", "withdrawn_none_unread", "future_grant", "federation_unannounced")
+          "revoked_unread", "voice_wrong_key", "withdrawn_none_unread", "future_grant", "federation_unannounced",
+          "rebinding_unread")
+SEAT_PLANTS = ("rebinding_unread",)       # planted in seat.py: the one owner reading
 
 
 def ask(S, a, kv):
@@ -332,8 +355,10 @@ def orders(rows, seed):
 
 
 def run_case(name, rows, asks, plant=None, arrive_all=True):
-    saved = set(C.MUT)
-    if plant:
+    saved, saved_st = set(C.MUT), set(ST.MUT)
+    if plant in SEAT_PLANTS:
+        ST.MUT.add(plant)
+    elif plant:
         C.MUT.add(plant)
     try:
         got = answers(C.state(rows), asks, READERS.get(name))
@@ -346,12 +371,13 @@ def run_case(name, rows, asks, plant=None, arrive_all=True):
         return got, bad, i + 1
     finally:
         C.MUT.clear(); C.MUT |= saved
+        ST.MUT.clear(); ST.MUT |= saved_st
 
 
 def fixture():
     """The case table for the crate (tools/kernel_fixtures.py writes it to tests/fixtures/consent.json): each case's
     rows, and each ask with the model's answer. A send ask carries the node's one owner at its reading row as
-    seat.Seats reads it (the crate takes the owner from the caller: Seats::one("owner", node) over that row's past).
+    seat.Seats reads it (the crate takes the owner from the caller: Seats::owner(node) over that row's past).
     `voiced` is the key view's verdict, [grant, its signer] for each concluded grant whose signer's signature counts
     by key_end.counts_by for the case's reader (the crate takes the key view from the caller: key_end::KeyReading);
     the key lane's rows are given as `other`."""
@@ -389,7 +415,7 @@ def _row_json(r, S):
                  federation=r.get("fed", True))
     elif k in C.ENDS:
         # the owner of the withdrawn grant's signer over the withdrawal's concluded past (the crate takes it from
-        # the caller: Seats::one("owner", signer) over that past)
+        # the caller: Seats::owner(signer) over that past)
         g = S.by.get(r["of"])
         P = [q for q in S.rows if q["id"] in S.anc.get(r["id"], ()) and S.C.get(q["id"])]
         j.update(kind="withdrawal", of=r["of"], owner_of_signer=C._owner_over(P, g["signer"]) if g else None)
