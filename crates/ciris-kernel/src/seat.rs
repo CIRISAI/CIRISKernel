@@ -6000,15 +6000,7 @@ pub fn self_roster_ends<R: SeatRow, S: CutSpec<R>>(c: &Concluded<'_, R>, law: &S
             .iter()
             .filter_map(|n| by.get(n))
             .any(|q| q.rotates().is_some_and(|(old, new)| new == k && in_roster(old)));
-        // or it names k's own revocation in the seat lane (the fork of a rotation and a revocation, r114: the roster's
-        // act naming the revocation it voids), k holding a seat of that roster with that revocation set aside
-        let names_rev =
-            er.names().iter().filter_map(|n| by.get(n)).filter(|q| registered_self_unseat(**q, k)).any(|v| {
-                let without: Vec<&R> = rows.iter().copied().filter(|q| q.id() != v.id()).collect();
-                let (rs, _) = rosters_by_key(&without, law, spec, &|_, _, _| true);
-                rs.get(k).is_some_and(|w| w.iter().any(|q| Obj::Row(q.id().clone()) == obj))
-            });
-        if in_roster(k) || cites || names_rev {
+        if in_roster(k) || cites {
             out.insert(er.id().clone());
         }
     }

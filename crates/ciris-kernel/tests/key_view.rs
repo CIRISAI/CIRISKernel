@@ -6,7 +6,7 @@
 mod common;
 use ciris_kernel::cut::CutSpec;
 use ciris_kernel::key_end::{
-    conclude_rule, conclude_rule_with_seat, counts_by, counts_for, successor_with_seat, KeyEndRow, KeyReading, KeyView,
+    conclude_rule, conclude_rule_with_seat, counts_by, counts_for, successor, KeyEndRow, KeyReading, KeyView,
 };
 use ciris_kernel::layers::{conclude, kept, Concluded, Past};
 use ciris_kernel::seat::{final_by_ack, seat_rule, self_roster_ends, voices_with, Obj, SeatLaw, Seats};
@@ -187,7 +187,7 @@ fn key_view_cases() {
         let plain = KeyCut { kv: None };
         let c0 = conclude_rows(&seat_rows, false, &windows, &law, &plain);
         let roster = self_roster_ends(&c0, &law, &plain);
-        let got = successor_with_seat(&kc, &d.at("key").s().to_string(), None, &roster);
+        let got = successor(&kc, &d.at("key").s().to_string(), None, &roster);
         cases += 1;
         if got != d.at("want").opt_s() {
             bad += 1;

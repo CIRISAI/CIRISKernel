@@ -919,15 +919,9 @@ plant "key_end: a revoked key's rotation concludes (revoked_key_rotates, r114 TR
                     && prev' '                true
                     && prev'
 plant "key_end: a rotation over its key's registered self-unseat concludes (r114 TR2, the seat lane's form)" src/key_end.rs 'if p.ancestors().iter().any(|&i| crate::seat::registered_self_unseat(g.row(i), old)) {' 'if false && p.ancestors().iter().any(|&i| crate::seat::registered_self_unseat(g.row(i), old)) {'
-plant "key_end: a revocation with the rotation in its past an end (retired_key_revokes, r114)" src/key_end.rs '    if rots.iter().any(|&x| c.g.in_past(x, e)) {
-        return false;
-    }' '    if false {
-        return false;
-    }'
-plant "key_end: the roster's choice of the rotation in a fork unread (revocation_void_unread, r114)" src/key_end.rs '    !(fork
-        && roster' '    !(false
-        && roster'
-plant "key_end: a fork names a successor (fork_successor, r114)" src/key_end.rs '    if !rots.is_empty() && ends(c, k, roster).iter().any(|&(e, _)| c.g.row(e).revocation().is_some()) {' '    if false && !rots.is_empty() {'
+plant "key_end: a revocation an end while a rotation stands (retired_key_revokes, r114 ruled (1))" src/key_end.rs 'pub fn revocation_stands(rots: &[usize]) -> bool {
+    rots.is_empty()' 'pub fn revocation_stands(rots: &[usize]) -> bool {
+    rots.is_empty() || true'
 plant "seat: registered_ends reads no order against the rotations (retired_registered_ends, r110 RK2)" src/seat.rs '    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k) && keep(e)).collect()' '    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k)).collect()'
 plant "seat: the seat-lane revocation no end of the key (registered_end_unread)" src/seat.rs '    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k) && keep(e)).collect()' '    c.cs().iter().copied().filter(|&e| false && keep(e)).collect()'
 plant "seat: an unconcluded registered self-unseat an end (registered_unconcluded_counted)" src/seat.rs '    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k) && keep(e)).collect()' '    (0..c.g.len()).filter(|&e| registered_self_unseat(c.g.row(e), k) && keep(e)).collect()'
