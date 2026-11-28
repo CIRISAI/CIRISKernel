@@ -1103,18 +1103,20 @@ def node_row_facts(S, r, records, room=ROOM):
     def own_signed(b):
         if NODE_MUT & {"node_binding_signature_unread", "node_owner_seat_unread"}: return True
         return all(k in ST.signers(b) or acc_of(b, k) for k in b["to"])
-    # an end of the binding (RV2, r78k RV-A 2): EVERY end of the owner seat over the node key that its owner holds,
-    # read by past with rule 4: a withdrawal of any owner offer over the key that seats that owner, or of that owner's
-    # acceptance of one, and the owner seat's unseat. An end in the binding's own past is before it (a later seating
-    # is a fresh one) and ends nothing of it (MUTATION node_named_ends_only: only the named row's own ends read)
+    # an end of the binding (RV2, r78k RV-A 2, r88 T1), read as Seats reads the owner seat, by past with rule 4: a
+    # WITHDRAWAL of this binding, or of its owner's acceptance of it, ends this binding only (another binding of the
+    # same owner stands, as the owner still holds the seat through it); a STAY-level end, the owner seat's unseat
+    # over the node key, ends every binding of that owner not having it in its own past (an end in the binding's own
+    # past is before it: the owner bound the node again). (MUTATION node_arm_disagrees_with_seats: a withdrawal of
+    # any owner offer seating the owner, or of an acceptance of one, ends every binding of it)
     def ended(b):
         if "node_binding_end_unread" in NODE_MUT: return False
         before = S.anc.get(b["id"], frozenset())
-        if "node_named_ends_only" in NODE_MUT:
-            seats = {b["id"]}
+        if "node_arm_disagrees_with_seats" in NODE_MUT:
+            offs = [q for q in P if owner_off(q) and set(q["to"]) & set(b["to"])]
         else:
-            seats = {q["id"] for q in P if owner_off(q) and set(q["to"]) & set(b["to"])}
-            seats |= {a["id"] for q in P if owner_off(q) and set(q["to"]) & set(b["to"]) for k in b["to"] for a in acc_of(q, k)}
+            offs = [b]
+        seats = {q["id"] for q in offs} | {a["id"] for q in offs for k in b["to"] for a in acc_of(q, k)}
         wd = any(w["kind"] == "withdraw" and w["target"] in seats and w["id"] not in before and _end_reaches(S, w, r["id"])
                  for w in S.Cs)
         un = any(u["kind"] == "unseat" and u.get("scope") == "owner" and u.get("obj") == kid and set(u["to"]) & set(b["to"])

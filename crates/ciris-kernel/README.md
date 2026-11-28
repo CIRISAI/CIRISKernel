@@ -173,8 +173,8 @@ whose `refused` is null.
 
 ### A private room's row door, for a verifier
 
-`tests/fixtures/room_keys.json` is written from `models/causal_kernel/room_key_vectors.py` (51 cases: 16 of a
-voice's row, 35 of a node's,
+`tests/fixtures/room_keys.json` is written from `models/causal_kernel/room_key_vectors.py` (59 cases: 16 of a
+voice's row, 43 of a node's,
 CIRISConstitution#224, CC 3.1.3.2) for a verifier's pure check of one row of a room: the signer is a room key at
 all (its key record names a room), its record names this room, the row names exactly one head of the voice's key
 roster under `refs.also.voice`, and the key is a live key of the voice at that head. The roster fold stays the
@@ -201,10 +201,11 @@ kernel's: each case carries the view it gives.
   concludes nothing). The binding is held only as a live owner seat read by the seat walk, and the named binding
   must itself seat its owner by the owner's own signature: the owner cosigned it, or accepted it by its own
   acceptance in the row's past. Another row that seats the same owner lends it nothing, so a duplicate the owner
-  never signed is none, and one naming two owners is none. Its ends are EVERY end of the owner's seat over the node
-  key, by past with rule 4: a withdrawal of any owner offer over the key that seats that owner, or of the owner's
-  acceptance of one, and the owner's revocation of the owner seat (an unseat of it). An end in the binding's own
-  past is before it and ends nothing of it (the owner may bind the node again). It concludes (`admitted`) only
+  never signed is none, and one naming two owners is none. Its ends are read as the seat walk reads the owner seat,
+  by past with rule 4: a withdrawal of this binding, or of the owner's acceptance of it, ends this binding only
+  (another binding of the same owner stands); a stay-level end, the owner's revocation of the owner seat (an unseat
+  of it over the node key), ends every binding of that owner not having it in its own past. An end in the binding's
+  own past is before it and ends nothing of it (the owner may bind the node again). It concludes (`admitted`) only
   where the binding is held and not ended, it is the one live binding, neither key revoked itself, the owner is a
   room key of this room whose record is not a node's, the owner is live and its voice seated; otherwise it
   concludes nothing.

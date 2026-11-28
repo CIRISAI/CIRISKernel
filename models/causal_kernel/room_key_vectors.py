@@ -96,6 +96,19 @@ WACC = ST.withdraw("wacc", "rk:b0", "acc", ("acc", "m2"))                    # r
 WOB_P = ST.withdraw("wobp", "rk:a0", "ob", ("ob",))                          # the binding withdrawn, in the past
 OBF = ST.offer("obf", NODE, "rk:a0", "owner", NODE, "self", ("wobp",), cosigners=("rk:a0",))  # a fresh binding after it
 OBP = ST.offer("obp", "rk:a1", "rk:b0", "owner", "rk:a1", "self", ("g",), cosigners=("rk:b0",))  # a person's key "owned"
+# the review r88's rows (T1): re-binding and tidying up
+OBE = ST.offer("obe", NODE, "rk:a0", "owner", NODE, "self", ("g",), cosigners=("rk:a0",))     # an old signed duplicate
+WOB_E = ST.withdraw("w", "rk:a0", "ob", ("ob", "obe"))                                       # a0 withdraws ob
+OB2R = ST.offer("ob2r", NODE, "rk:a0", "owner", NODE, "self", ("w",), cosigners=("rk:a0",))  # a0 binds again after
+WOBE = ST.withdraw("w2", "rk:a0", "obe", ("obe", "ob2r"))                                     # then tidies obe away
+OBA0 = ST.offer("oba0", NODE, "rk:a0", "owner", NODE, "self", ("g",))
+ACC0 = ST.accept("acc0", "rk:a0", "oba0")
+OB2X = ST.offer("ob2x", NODE, "rk:a0", "owner", NODE, "self", ("acc0",), cosigners=("rk:a0",))
+WACC0 = ST.withdraw("wacc0", "rk:a0", "acc0", ("acc0", "ob2x"))
+OB6 = ST.offer("ob6", NODE, "rk:a0", "owner", NODE, "self", ("ob",), cosigners=("rk:a0",))   # concurrent with wobp
+UO2 = ST.unseat("uo2", "rk:a0", "rk:a0", "owner", NODE, "seat", ("ob2r",), under="ob2r")     # the owner seat's unseat
+M3 = R("m3", "note", "vB", ("ob2r",))
+UO2C = ST.unseat("uo2", "rk:a0", "rk:a0", "owner", NODE, "seat", ("ob2r", "m3"), under="ob2r")   # at the head m3
 NODE_BASE = VA + VB + VC + [GR]
 
 
@@ -173,9 +186,9 @@ NODE_CASES = [
     ("RV-A B1'': the unsigned duplicate beside the signed one, both in the row's past, no end: the duplicate seats no "
      "owner", [OB, OBD],
      node_row("n28", ["obd"], [HA], ("ob",)), "concludes_nothing", None),
-    ("RV-A: a signed duplicate, the first binding withdrawn concurrently, the row at its head under the duplicate: the "
-     "owner's seat over the node key has ended", [OB, OBS, M1, WOB_C], node_row("n29", ["obs"], [HA], ("m1",)),
-     "concludes_nothing", None),
+    ("T1: a signed duplicate, the first binding withdrawn concurrently, the row at its head under the duplicate: the "
+     "withdrawal ends the first binding only, and the owner holds its seat through the duplicate (as Seats reads it)",
+     [OB, OBS, M1, WOB_C], node_row("n29", ["obs"], [HA], ("m1",)), "admitted", None),
     ("RV-A: the owner seat held by the owner's own acceptance of the node's offer", [OBA, ACC],
      node_row("n30", ["oba"], [HB], ("acc",)), "admitted", None),
     ("RV-A B4: the owner's acceptance withdrawn concurrently, the row at the withdrawal's head: out of force", [OBA, ACC, M2, WACC],
@@ -186,13 +199,29 @@ NODE_CASES = [
      node_row("n33", ["oba"], [HB], ("acc",)), "admitted", None),
     ("an end before the binding ends nothing of it: the owner withdrew, then bound the node again", [OB, WOB_P, OBF],
      node_row("n34", ["obf"], [HA], ("obf",)), "admitted", None),
+    # the review r88 (T1): the node arm reads the owner seat as Seats does
+    ("T1 R2: the owner re-binds (ob2) after withdrawing ob, then withdraws an old signed duplicate obe: ob2 stands",
+     [OB, OBE, WOB_E, OB2R, WOBE], node_row("n36", ["ob2r"], [HA], ("w2",)), "admitted", None),
+    ("T1 R2': the same without the tidy-up", [OB, OBE, WOB_E, OB2R], node_row("n37", ["ob2r"], [HA]), "admitted", None),
+    ("T1 R2'': the withdrawn old binding itself is ended", [OB, OBE, WOB_E, OB2R, WOBE],
+     node_row("n38", ["obe"], [HA], ("w2",)), "concludes_nothing", None),
+    ("T1 R3: bound by acceptance, re-bound by a signed ob2x, then the old acceptance withdrawn: ob2x stands",
+     [OBA0, ACC0, OB2X, WACC0], node_row("n39", ["ob2x"], [HA], ("wacc0",)), "admitted", None),
+    ("T1 R6: a re-binding concurrent with the old binding's withdrawal, the row naming both: the withdrawal ends ob only",
+     [OB, WOB_P, OB6], node_row("n40", ["ob6"], [HA], ("wobp",)), "admitted", None),
+    ("T1: a stay-level end, the owner's unseat of the owner seat after the re-binding, ends ob2 too",
+     [OB, OBE, WOB_E, OB2R, UO2], node_row("n41", ["ob2r"], [HA], ("uo2",)), "concludes_nothing", None),
+    ("T1: the stay-level end concurrent with the row, the row at its head: out of force from that head on",
+     [OB, OBE, WOB_E, OB2R, M3, UO2C], node_row("n42", ["ob2r"], [HA], ("m3",)), "concludes_nothing", None),
+    ("T1: the same, the row before its head: it counts at its own head",
+     [OB, OBE, WOB_E, OB2R, M3, UO2C], node_row("n43", ["ob2r"], [HA], ("ob2r",)), "admitted", None),
     ("RV-B B2: a voice's room key (its record says person) binds an owner as a node would: no node's row", [OBP],
      node_row("n35", ["obp"], [HB], kid="rk:a1"), "concludes_nothing", None),
 ]
 NODE_PLANTS = ("node_rule4_unread", "node_binding_end_unread", "node_two_owners_kept", "node_owner_kind_unread",
                "node_owner_eviction_unread", "node_voice_removal_unread", "node_owner_seat_unread",
                "node_owner_revocation_unread", "node_key_end_unread", "node_record_unread",
-               "node_binding_signature_unread", "node_named_ends_only", "node_signer_kind_unread")
+               "node_binding_signature_unread", "node_arm_disagrees_with_seats", "node_signer_kind_unread")
 
 
 def row(i, voice, kid, voice_refs, room=ROOM):
