@@ -4501,7 +4501,9 @@ struct MembersAt<R: SeatRow> {
     void: RefCell<Vec<BTreeSet<<R as Row>::Id>>>,
     rvoid: RefCell<BTreeSet<<R as Row>::Id>>,
     // per election seating: its election's key, its electorate and its set, read over its own past
-    views: RefCell<BTreeMap<<R as Row>::Id, election::View<R>>>,
+    // keyed by the seating, the rows of its past, and the taken view it was read under (election::ViewKey): never
+    // by the seating alone, since one memo serves several readings (a reader's line, the roster's void, a sub-set)
+    views: RefCell<BTreeMap<election::ViewKey<R>, election::View<R>>>,
     // the concurrent founders' amendments the reader holds ([`held_pairs`]): each line's later founders' count reads
     // the founders common to the two (C2)
     rpairs: RefCell<Vec<HeldPair<R>>>,

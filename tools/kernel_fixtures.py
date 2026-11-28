@@ -700,12 +700,9 @@ def key_view_cases():
     import check_key_view as KV
     ST = KV.ST
     cases = []
-    import election_worlds as EW      # check_key_view reads its election worlds with their openings; so does the crate
     for c in KV.fixture():
         refs = {}
-        sr = EW.opened([r for r in c["rows"] if r["id"] in c["seat"]])
-        rows = sr + [r for r in c["rows"] if r["id"] not in c["seat"]]
-        cases.append(dict(c, rows=with_refs(rows, refs), refs=refs, seat=[r["id"] for r in sr]))
+        cases.append(dict(c, rows=with_refs(c["rows"], refs), refs=refs))
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "removal_floor": ST.REMOVAL_FLOOR,
            "policy": {k: list(v) for k, v in ST.POLICY.items()},

@@ -67,6 +67,9 @@ pub(super) type View<R> = (
     BTreeSet<<R as Row>::Id>,
 );
 
+/// A seating's view as kept: (the seating, the rows of its past, the rows left out of the reading: the roster's own
+/// void, the reader's line void, the seat ends behind it, and the changes void for the row being read).
+pub(super) type ViewKey<R> = (<R as Row>::Id, Vec<<R as Row>::Id>, Vec<<R as Row>::Id>);
 type SeatId<R> = (<R as Row>::Id, <R as Row>::Key, String);
 /// A duty seat as one seat: (key, scope); twin seatings over one set are one seat (C4), whichever offer gave it.
 type Slot<R> = (<R as Row>::Key, String);
@@ -280,8 +283,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         if self.row(ei).seat_kind() == SeatKind::ElectionOpen {
             // the vacancy is the seat end the opening cites (rule 1), as the rows held take it
             let e = self.row(ei).cites().first()?;
-            let i = self.idx(e).filter(|i| p.binary_search(i).is_ok())?;
-            return (!self.memo.rends.borrow().contains(e)).then(|| alloc::vec![i]);
+            let i = self.idx(e)?;
+            return self.taken(p).contains(&i).then(|| alloc::vec![i]);
         }
         let seats = self.id_seats(self.row(ei));
         if seats.is_empty() {
@@ -417,13 +420,19 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         }
     }
 
-    /// Seating `si`'s view over its own past, kept per seating for the pass.
+    /// Seating `si`'s view over its own past, kept per seating, past and taken view ([`ViewKey`]).
     pub(super) fn view(&self, si: usize) -> View<R> {
         let s = self.row(si);
-        if let Some(v) = self.memo.views.borrow().get(s.id()) {
+        let p = self.past(si);
+        let key: ViewKey<R> = {
+            let mut out: BTreeSet<R::Id> = self.memo.current_void();
+            out.extend(self.memo.untaken.borrow().iter().cloned());
+            out.extend(self.memo.rends.borrow().iter().cloned());
+            (s.id().clone(), p.iter().map(|&q| self.row(q).id().clone()).collect(), out.into_iter().collect())
+        };
+        if let Some(v) = self.memo.views.borrow().get(&key) {
             return v.clone();
         }
-        let p = self.past(si);
         let ei = s.of().and_then(|e| self.idx(e)).filter(|e| p.binary_search(e).is_ok());
         let v: View<R> = match ei {
             None => (None, BTreeSet::new(), BTreeSet::new(), BTreeSet::new()),
@@ -483,7 +492,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                 (Some(ek), el, set, ends)
             }
         };
-        self.memo.views.borrow_mut().insert(s.id().clone(), v.clone());
+        self.memo.views.borrow_mut().insert(key, v.clone());
         v
     }
 
@@ -925,7 +934,7 @@ pub(super) fn count<R: SeatRow, S: CutSpec<R>>(
         return false;
     }
     // C2: no person holds a duty over the room in the seats over the whole past
-    let over = concluded_over(past.iter().map(|&q| sub.g.row(q)));
+    let over = concluded_over(cx.taken(&past).into_iter().map(|q| sub.g.row(q)));
     let seats = Seats::build(&over, law, spec, None, None, Some(cx.memo));
     let agents = seats.holders(AGENT, &obj, None);
     if seats.holders("duty", &obj, None).iter().any(|k| !agents.contains(k)) {
@@ -1109,7 +1118,9 @@ fn open_count<R: SeatRow, S: CutSpec<R>>(
     let Some(obj) = r.obj() else { return false };
     let mem = open_members(p, law, spec, &obj, r.head(), cache);
     let rows: Vec<&R> = p.rows().collect();
-    let (base, yes) = Persons::over(&rows, law, spec, Some(&obj)).count(&mem, &voices_with(r, p, spec), None, &[]);
+    // its voices through persons and the key view (rule 7: every close input)
+    let vs = voices_with(r, p, spec);
+    let (base, yes) = Persons::over(&rows, law, spec, Some(&obj)).count(&mem, &vs, None, &[]);
     let yes: BTreeSet<R::Key> = yes.into_iter().filter(|k| !no_say.contains(k)).collect();
     let n = base.len();
     n > 0 && 2 * yes.len() > n && yes.len() >= n.min(2)

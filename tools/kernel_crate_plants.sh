@@ -676,8 +676,8 @@ plant "close: a fork of the seat end read as a vacancy (end_fork_unread)" src/se
             && self.taken(p).into_iter().any(|f| {' '        false
             && self.taken(p).into_iter().any(|f| {'
 plant "close: an opening at old heads concludes (open_old_heads)" src/seat/election.rs 'let stale_heads = newer_head_in_past_v(p, law, &obj, r.head(), &signers(r), &void);' 'let stale_heads = false && newer_head_in_past_v(p, law, &obj, r.head(), &signers(r), &void);'
-plant "close: an opening counted by key (open_by_key)" src/seat/election.rs 'let (base, yes) = Persons::over(&rows, law, spec, Some(&obj)).count(&mem, &voices_with(r, p, spec), None, &[]);' 'let _ = &rows;
-    let (base, yes) = (mem.clone(), voices_with(r, p, spec).intersection(&mem).cloned().collect::<BTreeSet<R::Key>>());'
+plant "close: an opening counted by key (open_by_key)" src/seat/election.rs 'let (base, yes) = Persons::over(&rows, law, spec, Some(&obj)).count(&mem, &vs, None, &[]);' 'let _ = &rows;
+    let (base, yes) = (mem.clone(), vs.intersection(&mem).cloned().collect::<BTreeSet<R::Key>>());'
 plant "close: two openings for one seat both in force (openings_both_stand)" src/seat/election.rs 'newest.as_slice() == [oi]' 'newest.contains(&oi)'
 plant "close: no wait over a rival opening or a fork (close_no_wait)" src/seat/election.rs 'let wait = op;' 'let wait: Option<usize> = None;'
 plant "close: the key view not read for receipts (close_key_view_unread)" src/seat/election.rs 'let kv_close = self.spec.key_view();' 'let kv_close = self.spec.key_view().filter(|_| false);'
@@ -697,6 +697,7 @@ plant "close: departures read raw, not as the roster takes them (departures_raw)
             .flat_map(|u| self.row(u).to().iter().map(move |k| (k.clone(), u, self.row(u).obj().unwrap_or_else(|| obj.clone()))))
             .collect();'
 plant "close: the close reads the rows as concluded, not as the roster takes them (close_reads_concluded)" src/seat/election.rs '                !u.contains(id) && !v.contains(id) && !e.contains(id)' '                true || (u.contains(id) && v.contains(id) && e.contains(id))'
+plant "close: the opening's voices read with no key view (open_key_view_unread)" src/seat/election.rs '    let vs = voices_with(r, p, spec);' '    let vs = super::voices(r, p);'
 plant "close: an end the roster does not take forks (fork_untaken_end)" src/seat/election.rs '        let dropped = self.roster_ends(p).1;' '        let dropped: BTreeSet<usize> = BTreeSet::new();'
 plant "close: the opening's electorate read over the whole past (electorate_at_seating)" src/seat/election.rs 'let mem = open_members(&past, self.law, self.spec, &obj, e.head(), Some(self.memo));' 'let mem = {
                 let sub = concluded_over(p.iter().map(|&q| self.row(q)));
