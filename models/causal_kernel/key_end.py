@@ -241,16 +241,45 @@ def _before(S, rid, e):
     return rid in S.anc[e["id"]] and not (e.get("ra") is not None and instant(r) is not None and not instant(r) < e["ra"])
 
 
+def own_row(S, a, own, roster=frozenset(), voices=None):
+    """THE READER'S OWN ROW, one definition for every reader's line (limb (b) of the end rule, and the line
+    seat/checkpoint.takes_up reads): row `a` (a dict of S) is reader `own`'s where
+        (i)   own signed it itself, concluded or not; or
+        (ii)  it is a CONCLUDED seat row (an offer or an unseat) of which own is a voice by seat.voices (a cosigner,
+              or the signer of a cosign row it names), read with no key view (the key view is (iv)'s);
+        (iii) and never because a row claims own as a cosigner on any other row (a note included: r101 R2);
+        (iv)  each only where own's key stands at it: no `registered` unseat of own by own in its past, and the row
+              in the past of each of own's own ends (ends_of, the plain end rule): a row signed with the reader's key
+              after that key's end is no row of its line (r97 K1).
+    Limb (b) reads these rows per row against each end, with no ordering; any order rule is the person lane's, on
+    top. `voices`: seat.voices by default. MUTATIONS reader_line_unchecked ((iv) unread), own_unconcluded_unread
+    ((i) concluded rows only), own_voice_unread ((ii) unread), own_claimed_cosigner ((iii): any row listing own)."""
+    if a["signer"] == own:
+        mine = bool(S.C.get(a["id"])) or "own_unconcluded_unread" not in MUT
+    elif "own_claimed_cosigner" in MUT:
+        mine = own in a.get("cosigners", ())
+    elif a["kind"] in ("offer", "unseat") and S.C.get(a["id"]) and "own_voice_unread" not in MUT:
+        import seat as _ST
+        vs = voices or _ST.voices
+        P = [q for q in S.Cs if q["id"] in S.anc[a["id"]]]
+        _ST.KEY_VIEW.append(None)
+        try:
+            mine = own in vs(a, P)
+        finally:
+            _ST.KEY_VIEW.pop()
+    else:
+        mine = False
+    if not mine or "reader_line_unchecked" in MUT:
+        return mine
+    if any(S.by[x]["kind"] == "unseat" and S.by[x].get("scope") == "registered" and S.by[x]["signer"] == own
+           and own in S.by[x].get("to", ()) for x in S.anc[a["id"]] if x in S.by):
+        return False
+    return all(_before(S, a["id"], e) for e in ends_of(S, own, roster))
+
+
 def _own_rows(S, reader, roster=frozenset()):
-    """A reader's own rows: those it signed or cosigned, and only where the reader's own key stands at the row by the
-    plain end rule (limb (a) against each of the reader's ends, no limb (b) recursion): a row signed with the
-    reader's key after that key's end is no row of the reader's line, so a thief holding the reader's key cannot
-    vouch for its own row by signing a note as the reader (r97 K1; MUTATION reader_line_unchecked)."""
-    own = [r for r in S.Cs if r["signer"] == reader or reader in r.get("cosigners", ())]
-    if "reader_line_unchecked" in MUT:
-        return own
-    ends = ends_of(S, reader, roster)
-    return [a for a in own if all(_before(S, a["id"], e) for e in ends)]
+    """A reader's own rows (own_row)."""
+    return [a for a in S.rows if own_row(S, a, reader, roster)]
 
 
 def stands(S, rid, e, reader=None, final=frozenset(), roster=frozenset()):
