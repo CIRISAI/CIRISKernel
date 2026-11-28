@@ -6,8 +6,9 @@
 //! 2026-11-28): a row citing the end of a duty seat ([`SeatRow::cites`]), counted by a strict majority of the members
 //! as persons at the newest counted changes it names (floor min(2, members)); one election per seat end, two
 //! concurrent ends of one seat a fork that opens nothing, two openings for one seat neither in force until one with
-//! both in its past is counted. The electorate is the roster at the opening's heads, as persons. A ballot ([`SeatKind::Ballot`], [`SeatRow::ranking`] best first) and a decline ([`SeatKind::Decline`])
-//! are a member's own rows, each naming its election by [`SeatRow::of`]. The seating is a counted offer of
+//! both in its past is counted. The electorate is the roster at the opening's heads, as persons. A ballot
+//! ([`SeatKind::Ballot`], [`SeatRow::ranking`] best first) and a decline ([`SeatKind::Decline`]) are a member's own
+//! rows, each naming its election by [`SeatRow::of`]. The seating is a counted offer of
 //! `moderate` over the room under the ranked count ([`Policy::Ranked`]): signed by the winner (its acceptance),
 //! `to` the winner, `of` its election, naming the rows it is counted over (its set: ballots, the voters' own
 //! withdrawals of them, declines, the leavings it reads, and the end or ends of the seat it reads the electorate
@@ -596,7 +597,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         let first = els.next().unwrap_or_default();
         let common: BTreeSet<R::Key> = els.fold(first, |acc, e| acc.intersection(&e).cloned().collect());
         // keys read as their persons over the rows held (a winner, a departed key, a forker): one person, one say
-        let rows_np: Vec<&R> = rows.iter().map(|&q| self.row(q)).filter(|q| !is_election(self.law, q)).collect();
+        let rows_np: Vec<&R> = rows.iter().map(|&q| self.row(q)).filter(|q| !is_election(self.law, *q)).collect();
         let pp = Persons::over(&rows_np, self.law, self.spec, None);
         let pk = |k: &R::Key| -> R::Key {
             match op {
@@ -950,7 +951,7 @@ pub(super) fn count<R: SeatRow, S: CutSpec<R>>(
         )
         .collect();
     // a key read as its person (rule 7), over the past less the election's seatings
-    let all_np: Vec<&R> = all.iter().copied().filter(|q| !is_election(law, q)).collect();
+    let all_np: Vec<&R> = all.iter().copied().filter(|q| !is_election(law, *q)).collect();
     let pp = Persons::over(&all_np, law, spec, None);
     let left: BTreeSet<R::Key> = left.iter().map(|k| pp.member(k)).collect();
     let voters: BTreeSet<R::Key> = el.iter().filter(|k| !left.contains(k)).cloned().collect();
@@ -1005,7 +1006,7 @@ pub(super) fn count<R: SeatRow, S: CutSpec<R>>(
     if ballots.is_empty() {
         return false;
     }
-    let cands: Vec<R::Key> = voters.iter().filter(|k| !declined.contains(k)).cloned().collect();
+    let cands: Vec<R::Key> = voters.iter().filter(|k| !declined.contains(*k)).cloned().collect();
     let won = ranked(&ballots, &cands, 2, false).0;
     won.as_ref() == Some(winner) && r.signer() == winner
 }
