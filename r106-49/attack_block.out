@@ -1,0 +1,8 @@
+honest                                   reader None concluded {'op': True, 'ed': True}  D mod=True  election_closed(ed)=True  orders: 0 of 8 differ
+honest                                   reader R    concluded {'op': True, 'ed': True}  D mod=True  election_closed(ed)=True  orders: 0 of 8 differ
++ B, C recall A at g                     reader None concluded {'op': True, 'ed': True, 'rcg': True}  D mod=True  election_closed(ed)=True  orders: 0 of 8 differ
++ B, C recall A at g                     reader R    concluded {'op': True, 'ed': True, 'rcg': True}  D mod=True  election_closed(ed)=True  orders: 0 of 8 differ
++ and open citing it at g                reader None concluded {'op': True, 'ed': True, 'rcg': True, 'opg': True}  D mod=True  election_closed(ed)=True  orders: 0 of 8 differ
++ and open citing it at g                reader R    concluded {'op': True, 'ed': True, 'rcg': True, 'opg': True}  D mod=True  election_closed(ed)=True  orders: 0 of 8 differ
++ B, C open citing lm at g (no recall)   reader None concluded {'op': True, 'ed': True, 'opg': False}  D mod=True  election_closed(ed)=True  orders: 0 of 8 differ
++ B, C open citing lm at g (no recall)   reader R    concluded {'op': True, 'ed': True, 'opg': False}  D mod=True  election_closed(ed)=True  orders: 0 of 8 differ

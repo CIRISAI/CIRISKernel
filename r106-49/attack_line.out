@@ -1,0 +1,17 @@
+lm0 world                                            none    moderate {'A': False, 'B': False, 'D': True} closed {'ed': True}  orders: 0 of 8 differ
+lm0 world                                            R@aG    moderate {'A': True, 'B': False, 'D': False} closed {'ed': False}  orders: 0 of 8 differ
+lm0 world                                            R@ed    moderate {'A': False, 'B': False, 'D': True} closed {'ed': True}  orders: 0 of 8 differ
+(a) A lays down again at aG (lm); honest cites lm    none    moderate {'A': False, 'B': False, 'D': False} closed {'ed': False}  orders: 0 of 8 differ
+(a) A lays down again at aG (lm); honest cites lm    R@aG    moderate {'A': False, 'B': False, 'D': True} closed {'ed': True}  orders: 0 of 8 differ
+(a) A lays down again at aG (lm); honest cites lm    R@ed    moderate {'A': False, 'B': False, 'D': True} closed {'ed': True}  orders: 0 of 8 differ
+(a') the same, honest cites lm0                      none    moderate {'A': False, 'B': False, 'D': False} closed {'ed': False}  orders: 0 of 8 differ
+(a') the same, honest cites lm0                      R@aG    moderate {'A': False, 'B': False, 'D': False} closed {'ed': False}  orders: 0 of 8 differ
+(a') the same, honest cites lm0                      R@ed    moderate {'A': False, 'B': False, 'D': False} closed {'ed': False}  orders: 0 of 8 differ
+(b) the founders' stale election only                none    moderate {'A': False, 'B': False, 'D': False} closed {'eb': False}  orders: 0 of 8 differ
+(b) the founders' stale election only                R@aG    moderate {'A': True, 'B': False, 'D': False} closed {'eb': False}  orders: 0 of 8 differ
+(b) the founders' stale election only                R@eb    moderate {'A': True, 'B': False, 'D': False} closed {'eb': False}  orders: 0 of 8 differ
+(b) the founders' stale election only                R@eb    moderate {'A': True, 'B': False, 'D': False} closed {'eb': False}  orders: 0 of 8 differ
+(b') stale election and the honest one citing lm0    none    moderate {'A': False, 'B': False, 'D': False} closed {'eb': False, 'ed': False}  orders: 0 of 8 differ
+(b') stale election and the honest one citing lm0    R@aG    moderate {'A': True, 'B': False, 'D': False} closed {'eb': False, 'ed': False}  orders: 0 of 8 differ
+(b') stale election and the honest one citing lm0    R@ed    moderate {'A': False, 'B': False, 'D': False} closed {'eb': False, 'ed': False}  orders: 0 of 8 differ
+(b') stale election and the honest one citing lm0    R@eb    moderate {'A': True, 'B': False, 'D': False} closed {'eb': False, 'ed': False}  orders: 0 of 8 differ

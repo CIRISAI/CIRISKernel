@@ -1,0 +1,3 @@
+reader_void ['eb'] reader_ends []
+taken has opg: True
+op in force: False openings_for: ['opg', 'op']

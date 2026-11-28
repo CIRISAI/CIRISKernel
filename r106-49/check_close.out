@@ -1,0 +1,18 @@
+  plant end_fork_unread              caught by: rule 1: two concurrent lay-downs of A's seat (lm and A's backdated lm0) are a fo
+  plant open_old_heads               caught by: rule 2: an opening at an old head (it holds aX, X's admission after g, and names
+  plant open_by_key                  caught by: rule 2 by persons: the room seats A and both of person P's keys (P1 and its devi
+  plant openings_both_stand          caught by: rule 4: two openings for one end, neither in the other's past (A B C and C D E):
+  plant close_no_wait                caught by: and for a reader that acknowledged aG: got (False, True)
+  plant close_key_view_unread        caught by: rule 7: an ended key's receipt is no say: D revoked itself after 0, holding its 
+  plant close_receipt_unclean        caught by: rule 7: an ended key's receipt is no say: D revoked itself after 0, holding its 
+  plant acceptance_key_view_unread   caught by: rule 7: the winner's acceptance through the key view: C revoked itself after 0, 
+  plant inputs_key_view_unread       caught by: rule 7: a ballot's withdrawal by an ended key is no withdrawal: D, revoked holdi
+  plant rival_openings_read          caught by: rule 4: two openings for one end, neither in the other's past (A B C and C D E):
+  plant electorate_at_seating        caught by: rule 3: the electorate is the roster at the opening's heads: X, admitted after t
+  plant departures_raw               caught by: rule 5: a contested pair of counted removals (A, B, C remove D; C, D, E remove A
+  plant fork_untaken_end             caught by: rule 5: a contested pair of counted removals (A, B, C remove D; C, D, E remove A
+  plant close_reads_concluded        caught by: r103 attack_block: two founders' stale recall of A at g (concluded, taken by no 
+  plant open_key_view_unread         caught by: rule 7: an opening's voices through the key view: D, revoked holding its foundin
+  plant laydown_roster_unread        caught by: and for a reader that acknowledged aG: lm0 is behind its line, so its roster tak
+  plant laydown_ack_unread           caught by: and once that reader acknowledges D's seating (built on lm0): lm0 is on its line
+RESULT: ok: 30 cases, 372 arrival orders, 17 of 17 planted breaks caught
