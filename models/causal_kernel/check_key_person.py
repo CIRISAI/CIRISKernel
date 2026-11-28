@@ -457,7 +457,8 @@ R74_CASES += [
      "az", False, RULE),
     ("r96 E4: the roster's own counted re-admission restores p1: p1, p2 and p3 admit z",
      GW + [GEV, GRE, admit_z(("p1", "p2", "p3"), ("re",))], "az", True, RULE),
-    # the two-key residual (option a, ruled): a person with two keys cannot put out a stolen one
+    # a two-key roster by the COUNT: the key evicted is no voice, so neither key evicts the other this way (the lone
+    # path, below, does where the other key is silent)
     ("r96 V1: a two-key roster: the device k1 alone cannot evict the genesis key g1",
      [GS, GD1, evict("v", "S", "g1", ("k1",), ("d1",))], "v", False, RULE),
     ("r96 V2: nor g1 alone a stolen device k1", [GS, GD1, evict("v", "S", "k1", ("g1",), ("d1",))], "v", False, RULE),

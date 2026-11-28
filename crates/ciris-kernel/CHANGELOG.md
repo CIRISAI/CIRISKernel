@@ -33,7 +33,8 @@ fixture; seven crate plants for it, four retargeted.
 owner's acceptance"). `standing::StandingRow::on` on an acceptance is the binding it cites (`refs.also.cites`); new
 `StandingRow::cites` (every cited row) and `StandingRow::node` (a binding's key), both defaulted. New
 `standing::owner_of`, the check: exactly one cited row, an owner binding its signer owns, of the grantee's key, live
-at the acceptance; not held, it waits naming it. New reasons `acceptance_cites_several` and `binding_not_live`. No
+at the acceptance; not held, it waits naming it. One refusal, the text's `acceptance_other_binding`, replaces `acceptance_names_no_binding` and
+`not_the_owners_acceptance`. No
 existing answer changes. The reference: `owner_of` in `check_conferral_two.py`, seven cases and a planted break;
 `conferral_two.json` gains them; four crate plants (one retargeted).
 

@@ -256,26 +256,28 @@ def chain_answers(rows, reader_acks=(), role=None):
         return "stands", b
 
     def owner_of(x, a):
-        """The check of acceptance a's cited binding (N7): its id, or (reason, row) why it stands on none."""
+        """The validator of acceptance a's cited binding (N7): its id, or (reason, row) why it stands on none. The text's
+        one refusal, acceptance_other_binding: it cites no owner-binding of the grantee's key, or cites two, or the
+        one it cites is ended or is another owner's. Not held: a wait naming the row, not this refusal."""
         cites = a.get("cites") if a.get("cites") is not None else ([a["on"]] if a.get("on") is not None else [])
         if len(cites) > 1 and "acceptance_check_unread" not in PLANT:
-            return "acceptance_cites_several", None
+            return "acceptance_other_binding", None
         if not cites:
-            return "acceptance_names_no_binding", None
+            return "acceptance_other_binding", None
         b = cites[0]
         if b not in by:
             return "undecided", b
         if by[b]["kind"] != "binding":
-            return "acceptance_names_no_binding", None
+            return "acceptance_other_binding", None
         if a["signer"] != by[b]["owner"]:
-            return "not_the_owners_acceptance", None
+            return "acceptance_other_binding", None
         if "acceptance_check_unread" not in PLANT:
             # an owner binding of the grantee's key: a binding that names the key it binds (`node`) names the grantee
             if by[b].get("node") is not None and role.get(by[b]["node"]) != CE.GRANTEE:
-                return "not_the_owners_acceptance", None
+                return "acceptance_other_binding", None
             # live at the acceptance: no re-binding of it in the acceptance's past
             if any(e["kind"] == "binding" and e.get("on") == b and e["id"] in anc(a["id"]) for e in rows):
-                return "binding_not_live", None
+                return "acceptance_other_binding", None
         return b
 
     def rebinds(c, b):
@@ -499,17 +501,17 @@ N7_CASES = [
      "counts for O1", _n7("O1", ["B0"]), {"x1": {"O1": (T, T), "O2": (F, F)}}, {"x1": "stands"}),
     ("n7_former_owners_acceptance", "N7: O1's acceptance cites B0 with its re-binding B1 in its past: the cited "
      "binding is not live there, and the act counts for nobody (it does not follow to a newer binding)",
-     _n7("O1", ["B0"], rebind=True), {"x1": NOBODY}, {"x1": "binding_not_live"}),
+     _n7("O1", ["B0"], rebind=True), {"x1": NOBODY}, {"x1": "acceptance_other_binding"}),
     ("n7_new_owners_acceptance", "N7: O2's acceptance cites B1, live: it stands, and the act counts for O2",
      _n7("O2", ["B1"], rebind=True), {"x1": {"O1": (F, F), "O2": (T, T)}}, {"x1": "stands"}),
     ("n7_never_an_owner", "N7: O2's acceptance cites O1's binding B0: no owner's acceptance",
-     _n7("O2", ["B0"]), {"x1": NOBODY}, {"x1": "not_the_owners_acceptance"}),
+     _n7("O2", ["B0"]), {"x1": NOBODY}, {"x1": "acceptance_other_binding"}),
     ("n7_cited_binding_not_held", "N7: the cited binding is not held: the act waits, naming it (never no grant, "
      "never a pass)", _n7("O1", ["B0"], held=False), {"x1": NOBODY}, {"x1": "undecided"}),
     ("n7_two_cites", "N7: the acceptance cites two rows: refused", _n7("O1", ["B0", "G0"]), {"x1": NOBODY},
-     {"x1": "acceptance_cites_several"}),
+     {"x1": "acceptance_other_binding"}),
     ("n7_binding_of_another_key", "N7: the cited binding binds another key (M, not the grantee N): refused",
-     _n7("O1", ["B0"], other=True), {"x1": NOBODY}, {"x1": "not_the_owners_acceptance"}),
+     _n7("O1", ["B0"], other=True), {"x1": NOBODY}, {"x1": "acceptance_other_binding"}),
 ]
 TWO_CASES += N7_CASES
 N7_PLANTS = ("acceptance_check_unread",)
@@ -772,8 +774,8 @@ def fixture():
             "why": "per act: `reason` is `stands` (the act names an acceptance its binding's owner signed; "
                    "`binding` is that binding, `grant` and `under` the conferral-end rules that decide it "
                    "under the grant and under the binding) or why it counts for nobody: `no_acceptance`, "
-                   "`names_binding`, `not_an_acceptance`, `acceptance_names_no_binding`, "
-                   "`not_the_owners_acceptance`, `acceptance_cites_several`, `binding_not_live`, `two_owners` (a second live binding of the node to another owner, "
+                   "`names_binding`, `not_an_acceptance`, "
+                   "`acceptance_other_binding` (N7: the acceptance cites no owner-binding of the grantee's key, or cites two, or the one it cites is ended or is another owner's), `two_owners` (a second live binding of the node to another owner, "
                    "concurrent with the one the acceptance names and not re-bound in the act's past)",
             "cases": cases}
 

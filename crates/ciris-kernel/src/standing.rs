@@ -84,7 +84,7 @@ pub trait StandingRow {
     /// checked by [`owner_of`]); for a binding, the binding it re-binds; for a receipt, the act.
     fn on(&self) -> Option<&Self::Id>;
     /// On an acceptance: every row its `refs.also.cites` names, where the caller presents them; exactly one may stand
-    /// (two is refused, [`Nobody::SeveralCites`]). Default `None`: the acceptance cites [`StandingRow::on`] alone.
+    /// (two is refused, [`Nobody::AcceptanceOtherBinding`]). Default `None`: the acceptance cites [`StandingRow::on`] alone.
     fn cites(&self) -> Option<&[Self::Id]> {
         None
     }
@@ -126,16 +126,11 @@ pub enum Nobody {
     NamesBinding,
     /// The row it names is neither an acceptance nor a binding.
     NotAnAcceptance,
-    /// The acceptance it names cites no binding (or the row it cites is no binding).
-    AcceptanceNamesNoBinding,
-    /// The acceptance it names is not signed by its cited binding's owner, or the binding binds another key than
-    /// the grant's grantee.
-    NotTheOwnersAcceptance,
-    /// The acceptance it names cites more than one row (N7: exactly one).
-    SeveralCites,
-    /// The binding the acceptance cites is not live at it: a re-binding of it is in the acceptance's past. The
-    /// acceptance does not follow the owner's newer binding: the owner accepts again citing a live one.
-    BindingNotLive,
+    /// `acceptance_other_binding` (N7, the text's refusal): the acceptance it names cites no owner-binding of the
+    /// grantee's key, or cites two, or the one it cites is ended (a re-binding of it in the acceptance's past: it does
+    /// not follow the owner's newer binding) or is another owner's. A cited binding not held is no refusal: the act
+    /// waits naming it ([`Answer::Undecided`]).
+    AcceptanceOtherBinding,
     /// An act standing directly on an acceptance (a root edge) signed by a key that is not the grant's grantee
     /// ([`Role::Grantee`] under the grant's `role`): a deputy that names the acceptance itself.
     NotTheGrantee,
@@ -156,10 +151,7 @@ impl Nobody {
             Nobody::NoAcceptance => "no_acceptance",
             Nobody::NamesBinding => "names_binding",
             Nobody::NotAnAcceptance => "not_an_acceptance",
-            Nobody::AcceptanceNamesNoBinding => "acceptance_names_no_binding",
-            Nobody::NotTheOwnersAcceptance => "not_the_owners_acceptance",
-            Nobody::SeveralCites => "acceptance_cites_several",
-            Nobody::BindingNotLive => "binding_not_live",
+            Nobody::AcceptanceOtherBinding => "acceptance_other_binding",
             Nobody::NotTheGrantee => "not_the_grantee",
             Nobody::EdgeNotAnAct => "edge_not_an_act",
             Nobody::TooDeep => "too_deep",
@@ -243,7 +235,7 @@ impl<R: StandingRow> ConferralRow for As<'_, R> {
     }
 }
 
-/// The check of the owner binding acceptance `a` cites (N7, CC Part 3 "The owner's acceptance": an owner's
+/// The validator of the owner binding acceptance `a` cites (N7, CC Part 3 "The owner's acceptance": an owner's
 /// acceptance names the binding it is made under in `refs.also.cites`): exactly one cited row ([`StandingRow::cites`],
 /// else [`StandingRow::on`]), an owner binding whose owner signed `a`, of the grant's grantee's key where the binding
 /// names its key ([`StandingRow::node`]), and live at `a` (no re-binding of it in `a`'s past). `Ok(Ok(b))`: the
@@ -261,23 +253,23 @@ pub fn owner_of<'a, R: StandingRow, P: Past<R::Id>>(
     let one = a.on().map(core::slice::from_ref);
     let cites: &[R::Id] = a.cites().or(one).unwrap_or(&[]);
     let b = match cites {
-        [] => return Ok(Err(Nobody::AcceptanceNamesNoBinding)),
+        [] => return Ok(Err(Nobody::AcceptanceOtherBinding)),
         [b] => b,
-        _ => return Ok(Err(Nobody::SeveralCites)),
+        _ => return Ok(Err(Nobody::AcceptanceOtherBinding)),
     };
     let b = index.get(b).copied().ok_or_else(|| b.clone())?;
     if b.kind() != Kind::Binding {
-        return Ok(Err(Nobody::AcceptanceNamesNoBinding));
+        return Ok(Err(Nobody::AcceptanceOtherBinding));
     }
     if b.owner() != Some(a.signer()) {
-        return Ok(Err(Nobody::NotTheOwnersAcceptance));
+        return Ok(Err(Nobody::AcceptanceOtherBinding));
     }
     if b.node().is_some_and(|n| (grant.role)(n) != Role::Grantee) {
-        return Ok(Err(Nobody::NotTheOwnersAcceptance));
+        return Ok(Err(Nobody::AcceptanceOtherBinding));
     }
     for e in rows.iter().filter(|e| e.kind() == Kind::Binding && e.on() == Some(b.id())) {
         if past.in_past(e.id(), a.id())? {
-            return Ok(Err(Nobody::BindingNotLive));
+            return Ok(Err(Nobody::AcceptanceOtherBinding));
         }
     }
     Ok(Ok(b))
