@@ -91,30 +91,26 @@ def acknowledgements(S, own, obj, rows=None):
 
 def own_row(S, a, own, ends_ok=None, voices=None, mut=None):
     """THE READER'S OWN ROW, the one definition for every reader's line (key_end's limb (b) and takes_up; the crate's
-    seat::own_row): row `a` is reader `own`'s where
-        (i)   own signed it itself, concluded or not; or
-        (ii)  it is a CONCLUDED seat row (an offer or an unseat) of which own is a voice by `voices` (seat.voices: a
-              cosigner, or the signer of a cosign row it names);
-        (iii) and never because a row claims own as a cosigner on any other row (a note included: r101 R2);
-        (iv)  each only where own's key stands at it: the row in the PAST of each `registered` unseat of own by own, and
+    seat::own_row), STRICT (review-48's R2s): row `a` is reader `own`'s where
+        (i)   own signed it itself, concluded or not (its cosign rows among them: a cosign row is its own signature);
+        (ii)  and never because another signer's row lists own as a cosigner, a seat row included: an offer over the
+              signer's own object concludes on the signer's word alone, so a forged cosigner there breaks no count (r101
+              R2, review-48 R2s);
+        (iii) each only where own's key stands at it: the row in the PAST of each `registered` unseat of own by own, and
               `ends_ok(a)`, the caller's reading of the key's own ends (key_end's, from its key lane; none: true).
-    `mut`: the caller's planted breaks. MUTATIONS (takes_up's) claimed_cosigner_counted, unconcluded_cosigner_counted,
-    line_voices_cosigners_only; (key_end's) own_unconcluded_unread, own_voice_unread, own_claimed_cosigner,
-    reader_line_unchecked."""
+    `voices` is unread here (kept for the callers). `mut`: the caller's planted breaks. MUTATIONS (takes_up's)
+    claimed_cosigner_counted (any row listing own), seat_voice_counted (a concluded seat row own is a voice of);
+    (key_end's) own_unconcluded_unread, own_claimed_cosigner, reader_line_unchecked."""
     mut = MUT if mut is None else mut
     if a["signer"] == own:
         mine = bool(S.C.get(a["id"])) or "own_unconcluded_unread" not in mut
     elif "own_claimed_cosigner" in mut or "claimed_cosigner_counted" in mut:
         mine = own in a.get("cosigners", ())
-    elif a["kind"] not in ("offer", "unseat") or "own_voice_unread" in mut:
-        mine = False
-    elif not S.C.get(a["id"]) and "unconcluded_cosigner_counted" not in mut:
-        mine = False
-    elif voices is None or "line_voices_cosigners_only" in mut:
-        mine = own in a.get("cosigners", ())
-    else:
+    elif "seat_voice_counted" in mut and a["kind"] in ("offer", "unseat") and S.C.get(a["id"]):
         P = [q for q in S.Cs if q["id"] in S.anc.get(a["id"], ())]
-        mine = own in voices(a, P)
+        mine = own in (voices(a, P) if voices is not None else a.get("cosigners", ()))
+    else:
+        mine = False
     if not mine or "reader_line_unchecked" in mut: return mine
     # the key-end cut over both revocation forms (ruled): the row in the PAST of each `registered` unseat of own by own
     # (a row concurrent with it, or after it, is none; MUTATION registered_by_past: only one with it in its past is out)
