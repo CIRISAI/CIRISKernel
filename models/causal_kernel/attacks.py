@@ -502,10 +502,10 @@ def window_bases():
             [gm, am, md, pm, WN.receipt("r", "m2", "p", 0), WN.answer("x1", "m1", "p", "for"), WN.answer("x2", "m2", "p", "for"), WN.answer("x3", "m3", "p", "for"),
              WN.landing("L", "m2", "p", "r", "fallback", Wm, ("x1", "x2", "x3"))],
             {"the moderator answers": WN.answer("n", "MOD", "p", "answered")}, "answered", "m1"),
-        "halt: lapsed at the fuse": (
+        "holders' count (holders@count, the halt before the ruling): lapsed by a holder's landing": (
             [gh, WN.opener("p", "h1", "holders@count", "g", ("g",)), WN.receipt("r", "h3", "p", 0), WN.landing("L", "h3", "p", "r", "lapsed", Wh)],
             {"a second holder confirms": WN.answer("n", "h2", "p", "confirm"), "the halting holder confirms again": WN.answer("n", "h1", "p", "confirm")}, "confirmed", "h2"),
-        "halt: confirmed by a majority": (
+        "holders' count (holders@count, the halt before the ruling): confirmed by a majority": (
             [gh, WN.opener("p", "h1", "holders@count", "g", ("g",)), WN.answer("c2", "h2", "p", "confirm"), WN.receipt("r", "h2", "p", 0),
              WN.landing("L", "h2", "p", "r", "confirmed", 0, ("c2",))],
             {"h3 signs anything": R("n", "note", "h3", ("g",))}, None, "h2"),
@@ -537,9 +537,9 @@ def t09(t):
                 flips.append((name, who, o2["recount"]))
             t.note(line)
     t.fact("every lone landing of the four windows is flipped by one late row under recount: %d flips" % len(flips), len(flips) == 4)
-    t.fact("no landing with a count behind it is flipped (quorum_closed_final)", not any("count" in n or "majority" in n for n, _, _ in flips))
+    t.fact("no landing with a count behind it is flipped (quorum_closed_final)", not any("(count)" in n or "by a majority" in n for n, _, _ in flips))
     t.fact("each flip ends, once a landing names both, at the opposite outcome: %s" % ", ".join(o for _, _, o in flips), [o for _, _, o in flips] == ["refused", "answered", "confirmed", "lifted"])
-    lapse, lates, _, _ = window_bases()["halt: lapsed at the fuse"]
+    lapse, lates, _, _ = window_bases()["holders' count (holders@count, the halt before the ruling): lapsed by a holder's landing"]
     c2 = lates["a second holder confirms"]
     k1 = ST.cosign("k1", "h3", "v1", ("g", "L"))
     v1 = ST.offer("v1", "h1", "h4", "holder", "g", "group", ("g", "L", "k1"), head=("g",), policy="accord_majority", content="v1", counted="holder", cosigners=("h4",))
@@ -551,7 +551,7 @@ def t09(t):
            "With the checkpoint applied to window answers it would not (%s); that is off, because the same rule lets a majority void a minority's timely answer (see the price of the checkpoint)"
            % (o2["recount"], o3["recount"]), (o2["recount"], o3["recount"]) == ("contested", "lapsed"))
     return dict(cls="CONCEDED", who="one key that was counted at the opener's head and still holds its seat: the evicted device itself, the moderator, one further accord holder",
-                witness="halt: g(h1,h2,h3) p(h1 halts) L(h3 lands 'lapsed' at the fuse); a year later n(h2 'confirm', naming only p): the lapse is contested, and a landing naming both must say 'confirmed'. "
+                witness="holders@count (the halt as read before the ruling of 2026-11-28; the ruled halt lands no landing, so it has no lone landing to flip): g(h1,h2,h3) p(h1 opens) L(h3 lands 'lapsed'); a year later n(h2 'confirm', naming only p): the lapse is contested, and a landing naming both must say 'confirmed'. "
                         "The same for an eviction (the evicted key signs anything: refused), the members' fallback (the moderator answers: answered) and the members' check (a second member objects: lifted).",
                 protects="KERNEL 5: 'What recount costs: a lone landing is never final against a key that can still sign'; causal_order README: 'A key whose answer would move it can unseat the landing at any later time by leaving it unnamed'. "
                          "One signature, no deadline, by a key that was counted at the opener's head and has not been removed since; it lasts until a concluder signs a landing naming both, and that landing must state the flipped outcome. "
@@ -570,15 +570,18 @@ def t10(t):
     b, bad = win(full); t.order(bad)
     t.fact("a reader kept from the objections: recount=%s; a reader with them: recount=%s (void=%s, contest=%s)" % (a["recount"], b["recount"], b["void"], b["contest"]),
            a["recount"] == "landed" and b["recount"] == "contested")
+    # the accord's halt as ruled (2026-11-28): no landing concludes (each node's own fuse), and the confirmation is a
+    # strict majority of the standing holders, met at once with no landing. The eclipse is of a confirming voice
     title, cases = WN.halt_world()
-    full = cases[4][1]                                    # honest holder lands the lapse; a relay kept the confirming voice from it
+    full = cases[1][1]                                    # the halting holder and h2 confirm: two of three
     a, bad = win([r for r in full if r["id"] != "c2"]); t.order(bad)
     b, bad = win(full); t.order(bad)
-    c, bad = win(cases[5][1]); t.order(bad)
-    t.fact("halt, honest concluder eclipsed: its own view %s, the full view %s, after a landing naming both %s" % (a["recount"], b["recount"], c["recount"]),
-           (a["recount"], b["recount"], c["recount"]) == ("lapsed", "contested", "confirmed"))
+    t.fact("halt, a reader a relay keeps from one confirming voice: its view %s, the full view %s" % (a["recount"], b["recount"]),
+           (a["recount"], b["recount"]) == ("open", "confirmed"))
     return dict(cls="CONCEDED", who="a relay between the objector and the concluder (and its readers) for the length of the window; no key",
-                witness="p(h1 halts) c2(h2 confirms, withheld) L(h3, honest, lands 'lapsed'). h3 and every reader without c2: lapsed, and agents resume. Readers with c2: contested.",
+                witness="Self roster: p(d3 evicts d1) L(d3 lands) o1,o2 (the owner's objections, withheld): a reader without them, landed; with them, contested. "
+                        "Halt (ruled 2026-11-28): p(h1 halts) c1(h1 confirms) c2(h2 confirms, withheld): a reader without c2, open (its own fuse runs, "
+                        "and the halt lapses at it); a reader with c2, confirmed.",
                 protects="KERNEL 8: 'Nodes may differ while a window is open'; causal_order README: 'A window's length is not in the rows.' Under recount the landing does not stand once the objection is held "
                          "(rule (i) would let it stand for ever). In practice it lasts as long as the eclipse; whatever was done on the outcome meanwhile is done. Recovery: any concluder signs a landing naming both.",
                 fix="")
@@ -600,9 +603,15 @@ def t11(t):
     gh = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))
     rows = [gh, WN.opener("p", "h1", "holders@count", "g", ("g",)), WN.receipt("r", "h3", "p", -Wh), WN.landing("L", "h3", "p", "r", "lapsed", 0)]
     o, bad = win(rows); t.order(bad)
-    t.fact("one hostile holder lapses another holder's halt at once by stating a receipt 24 h in its own past: recount=%s" % o["recount"], o["recount"] == "lapsed")
+    t.fact("on holders@count (the halt before the ruling), one hostile holder lapses another holder's open window at once by stating a receipt 24 h in its own past: recount=%s" % o["recount"], o["recount"] == "lapsed")
     o, bad = win(rows + [WN.answer("c1", "h1", "p", "confirm")]); t.order(bad)
     t.fact("the halting holder alone cannot undo that (its confirm is already counted): recount=%s; it takes a second honest holder" % o["recount"], o["recount"] == "lapsed")
+    # the accord's halt as ruled (2026-11-28): its close is each node's own fuse, so no holder's landing lapses it
+    ruled = [gh, WN.opener("p", "h1", "halt_fuse", "g", ("g",)), WN.receipt("r", "h3", "p", -WN.secs("halt_fuse")),
+             WN.landing("L", "h3", "p", "r", "lapsed", 0)]
+    o, bad = win(ruled); t.order(bad)
+    t.fact("the ruled halt: the same receipt and landing lapse nothing (no landing of a local close concludes): recount=%s" % o["recount"],
+           o["recount"] == "open")
     gm, am = WN.admitted("MOD")                                               # three duty holders (CC 4.5.4), and MOD a member
     md = ST.offer("md", "m1", "MOD", "moderate", "g", "group", ("am",), head=("am",), policy="duty_confer", counted="duty",
                   cosigners=("m3", "MOD"))                                     # two of the three confer, MOD accepting

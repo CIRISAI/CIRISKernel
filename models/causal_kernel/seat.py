@@ -586,11 +586,33 @@ def deciding_seats(P, past, obj, heads):
     return members_at(P, past, obj, heads, OFFICER)
 
 
+AFFILIATION_PATHS = ("affiliation_member_action", "cosigned_act")
+
+
+def affiliation_path(r, P, past):
+    """The one reading of an affiliation's two paths (the Constitution's ruling), wherever the acts row's choice
+    `affiliation_member_action|cosigned_act, row` is read (a removal and the lone acts, through affiliation_count; a
+    change of the record, a dissolution, a license seat, through in_force; an accepted trust edge, in trust_rows):
+    affiliation_member_action is the one-officer countersigned path, its voices exactly one officer and the eligible
+    outside voice on the act's row (G15), so a body of two officers or more does not meet it; cosigned_act is the
+    officers under the declared protocol, the path of two officers or more. The officers are counted BY PERSON, at the
+    act's own heads over its own object (an edge's: its body). True where the row states neither path (MUTATION
+    affiliation_path_unread: either path for any body)."""
+    word = r.get("policy")
+    if word not in AFFILIATION_PATHS or "affiliation_path_unread" in MUT: return True
+    obj = act_obj(r)
+    if kind_of({q["id"]: q for q in P}, obj) != "affiliation": return True
+    n = len(as_persons(deciding_seats(P, past, obj, act_heads(r, P, past)), P, obj))
+    return n == 1 if word == "affiliation_member_action" else n >= 2
+
+
 def affiliation_count(r, P, past):
-    """Affiliation.lean `admitted` for a removal: the body's own signature (every voice a deciding seat, at least
+    """The path the row states first (affiliation_path), then Affiliation.lean `admitted` for a removal: the body's own signature (every voice a deciding seat, at least
     one), and where the body has one deciding seat, the act stands as a PROPOSAL (CC 4.5.5's reconsideration path):
     it concludes, and is in force only where a countersign names it (Seats); a body of two or more seats decides on
     two voices at least, the member removed not counted (CC 4.5.13; MUTATION two_voices_unread: on one)."""
+    # the path the row states, before the officers are read (affiliation_path)
+    if not affiliation_path(r, P, past): return False
     obj = r["obj"]
     seats = deciding_seats(P, past, obj, r.get("head", ()))
     vs = voices(r, P)
@@ -1137,6 +1159,9 @@ def in_force(r, by):
         else:
             if stated not in pols and "stated_policy_free" not in MUT: return REFUSED
             word = stated
+            # an affiliation's choice between its two paths (affiliation_path), read over the row's own past
+            if a[2] == "affiliation" and not affiliation_path(r, list(by.values()), lambda x, y: x in K.ancestors(by, y)):
+                return REFUSED
         # a stated regime is a consistency check: it must be the room's protocol in force in the row's past
         if r.get("regime") is not None and r.get("regime") != protocol_of(by, r.get("obj")) and "regime_unread" not in MUT:
             return REFUSED

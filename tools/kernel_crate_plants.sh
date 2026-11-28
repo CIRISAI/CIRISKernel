@@ -51,6 +51,7 @@ plant_run() {  # plant_run <name> <file> <old> <new>: the conformance step must 
 plant "a removal voids rows in its own past"          src/derived.rs '|| c.g.in_past(i, x))' ')'
 plant "two cuts saying the same thing contest"         src/cut.rs 'if as_cut && self.spec.says(xr) == self.spec.says(rr) {' 'if false {'
 plant "a counted offer's proposer ends it alone"      src/seat.rs '&& o.conf() != Some(Conf::Group) && !eq(o)' '&& !eq(o)'
+plant "acts: an affiliation's stated path unread" src/seat.rs '    if !matches!(word, Some("affiliation_member_action" | "cosigned_act")) {' '    if true {'
 plant "acts: a purge read as a standing act" src/seat.rs 'CommunityKind::Accord if sc == Some("selection") =>' 'CommunityKind::Accord if false =>'
 plant "acts: a voice's room keys no act" src/seat.rs '        CommunityKind::SelfRoster | CommunityKind::Voice => {' '        CommunityKind::SelfRoster => {'
 plant "acts: a confirmation by one voice" src/seat.rs '    2 * v > holders.len()' '    v > 0'

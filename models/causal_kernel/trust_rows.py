@@ -554,6 +554,9 @@ def edges_of(S, now=None, own=None):
         # a one-officer affiliation's edge is a proposal: it stands only where countersigned (the item-8 ruling)
         if not ST.countersigned(S, r):
             continue
+        # the path an edge states, where it states one (seat.affiliation_path: by person, over the edge's own past)
+        if not ST.affiliation_path(r, [q for q in S.Cs if q["id"] in S.anc[r["id"]]], lambda a, b: a in S.anc[b]):
+            continue
         # its owner's authority set over its own past, and with every end the reader holds (ended_for_reader)
         if not all(speaks_for(T, ST.voices(r, T.Cs), owner(r))
                    for T in (ended_for_reader(S, r, False, own=own), ended_for_reader(S, r, own=own))):

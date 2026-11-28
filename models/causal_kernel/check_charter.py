@@ -75,14 +75,21 @@ def aff(i="af", to=("A", "B", "C"), cls=(MW, LW), cohort="affiliations", officer
     return ST.found(i, to[0], to, roles, cosigners=tuple(to[1:]), **kw)
 
 
-def rec(i, cls, heads=("af",), signer="A", cosigners=("B",), obj="af", counted=ST.OFFICER, **kw):
+# the officers each affiliation of these cases is founded with: a1 one (A), af three (A, B, C); a record version's path
+# follows the count (rec)
+OFFICERS_OF = {"a1": 1, "af": 3}
+
+
+def rec(i, cls, heads=("af",), signer="A", cosigners=("B",), obj="af", counted=ST.OFFICER, officers=None, **kw):
     """A version of the record, counted at `heads` (cls None: it states no classes), by an affiliation's officers."""
     if cls is not None:
         kw["licence_classes"] = tuple(cls)
     if counted == ST.OFFICER:
         # an affiliation's record change and dissolution take `affiliation_member_action|cosigned_act`, choice `row`
-        # (pin 85750784): the row states the path it takes, its officers' count under the declared protocol
-        kw.setdefault("policy", "cosigned_act")
+        # (pin 85750784): the row states the path it takes, which follows the officer count (the ruling: one officer,
+        # affiliation_member_action, the countersigned path; two or more, cosigned_act, the declared protocol)
+        n = officers if officers is not None else OFFICERS_OF.get(obj, 2)
+        kw.setdefault("policy", "affiliation_member_action" if n == 1 else "cosigned_act")
     return ST.offer(i, signer, (), "record", obj, "group", tuple(heads), head=tuple(heads), cosigners=tuple(cosigners),
                     counted=counted, **kw)
 
@@ -299,6 +306,28 @@ COUNTERSIGN = [
     ("a body of three deciding seats decides under its own protocol: A and B remove C, two voices, no countersign",
      [AF, REM], {"rm": True}, [("C", "af", False)]),
     ("and one voice of such a body removes nobody", [AF, dict(REM, cosigners=())], {"rm": False}, [("C", "af", True)]),
+    # the paths (the Constitution's ruling; seat.affiliation_path): affiliation_member_action is exactly one officer
+    # and the eligible outside voice on the act's row (G15); cosigned_act is two officers or more. Read wherever the
+    # acts row's choice is: a removal, a change of the record, a dissolution
+    ("one officer and the official's voice on the row under affiliation_member_action: met, B is out",
+     ONE + [RMB(cos=("O",))], {"rm": True}, [("B", "a1", False)]),
+    ("two officers removing a member under affiliation_member_action do not meet it",
+     [AF, dict(REM, policy="affiliation_member_action")], {"rm": False}, [("C", "af", True)]),
+    ("one officer and an ineligible key's voice under affiliation_member_action: not met",
+     ONE + [RMB(cos=("X",))], {"rm": False}, [("B", "a1", True)]),
+    ("one officer's removal under cosigned_act, the official's voice on it: not met (cosigned_act is two officers or "
+     "more)", ONE + [dict(RMB(cos=("O",)), policy="cosigned_act")], {"rm": False}, [("B", "a1", True)]),
+    ("two officers' change of the record under affiliation_member_action: not met",
+     [AF, rec("vp", (MW,), policy="affiliation_member_action")], {"vp": False}, []),
+    ("and under cosigned_act (rec's default for af): met, two of three", [AF, rec("vp", (MW,))], {"vp": True}, []),
+    ("two officers' dissolution under affiliation_member_action: not met",
+     [AF, rec("dp", None, policy="affiliation_member_action", dissolved_at=100)], {"dp": False}, []),
+    ("one officer's change of the record under cosigned_act: not met",
+     [OB, A1O, A1OB, rec("vq", (MW,), heads=("a1b",), cosigners=(), obj="a1", policy="cosigned_act")], {"vq": False}, []),
+    ("one officer's dissolution under cosigned_act: not met",
+     [OB, A1O, A1OB, dict(DIS1, policy="cosigned_act")], {"dis1": False}, []),
+    ("and under affiliation_member_action (rec's default for a1), with the official's voice: met",
+     [OB, A1O, A1OB, dict(DIS1, cosigners=("O",))], {"dis1": True}, []),
     ("r75: an overseer seated AFTER the removal is no overseer of it: R2's voice on a removal that does not have R2's "
      "review seat in its past is refused", ONE + [RV2, RMB(cos=("R2",))], {"rm": False}, [("B", "a1", True)]),
     ("and with R2's review seat in the removal's past, R2's voice decides",
@@ -314,8 +343,10 @@ COUNTERSIGN = [
     ("item 8: A, the one officer, appoints C as an officer with O's voice on the appointment: two officers, so A alone "
      "no longer removes B (two voices needed), and O's voice is no officer's",
      ONE + [AOCO, RMB(("aoc",), cos=("O",))], {"aoc": True, "rm": False}, [("C", "a1", True), ("B", "a1", True)]),
-    ("and A and C, the two officers, remove B: a decision, no countersign asked",
-     ONE + [AOCO, RMB(("aoc",), cos=("C",))], {"rm": True}, [("B", "a1", False)]),
+    ("and A and C, the two officers, remove B under cosigned_act: a decision, no countersign asked",
+     ONE + [AOCO, dict(RMB(("aoc",), cos=("C",)), policy="cosigned_act")], {"rm": True}, [("B", "a1", False)]),
+    ("and stating affiliation_member_action they do not (two officers do not meet the one-officer path)",
+     ONE + [AOCO, RMB(("aoc",), cos=("C",))], {"rm": False}, [("B", "a1", True)]),
     ("edge (a): a one-officer affiliation with no official and no overseen_by admits B (an admission is the one act "
      "needing no countersign), and its removal of B is a proposal nothing can decide",
      [A1, A1B, RM0], {"a1b": True, "rm0": True}, [("B", "a1", True)]),
@@ -392,7 +423,7 @@ PLANTS = ("charter_unread", "at_issuance", "below_protocol_read", "fork_union", 
           "dissolved_declares", "dissolves_at_unread", "empty_edge_admits_all", "absent_means_none",
           "edge_classes_unread", "last_hop_only", "affiliation_unread", "affiliation_admit_unread",
           "countersign_unread", "countersign_inside_seat", "official_at_founding", "overseers_unread",
-          "two_voices_unread", "officer_from_founders", "affiliation_body_members",
+          "two_voices_unread", "affiliation_path_unread", "officer_from_founders", "affiliation_body_members",
           "no_officer_locks", "overseer_end_unread", "countersign_against_member_only",
           "outside_voice_taken", "officers_by_key")
 
