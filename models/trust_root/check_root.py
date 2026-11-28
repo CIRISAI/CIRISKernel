@@ -229,6 +229,11 @@ CASES = [
       nxt("b3", "b1", ("h1", "h2", "h2x", "h3"), ("h1", "h3"), version=2,
           recovery={"h1": "r:h1", "h2": "r:h2y", "h2x": "r:h2x", "h3": "r:h3"})], (), (), ANC,
      {"refusal": {"b3": ("genesis_bundle_malformed", "holder_key_retired")}}),
+    ("join", "a recovery commitment spent on any branch stays so: the join keeps for h3b the commitment r:h3 that am "
+             "still carries for h3 and rc spent: genesis_bundle_count_unmet, recovery_commitment_spent",
+     [B0, REC, AMD, nxt("j", ("am", "rc"), ("h1", "h2", "h3b", "h4"), ("h1", "h2", "h3b"), version=2,
+                        recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3", "h4": "r:h4"})], (), (), ANC,
+     {"concluded": {"j": Fa}, "refusal": {"j": ("genesis_bundle_count_unmet", "recovery_commitment_spent")}}),
     ("count", "the holder comes back only under a new key: on rc, h1 and h2 seat h3n, and it counts",
      [B0, REC, nxt("b2", "rc", ("h1", "h2", "h3b", "h3n"), ("h1", "h2"), version=2,
                    recovery={"h1": "r:h1", "h2": "r:h2", "h3b": "r:h3b", "h3n": "r:h3n"})], (), (), ANC,
@@ -895,7 +900,7 @@ PLANTS = ("first_majority", "count_over_own", "iat_unread", "revoked_counts", "b
           "concurrent_acks_chained", "settler_states_counted_reduced", "settler_double_signers_in_base",
           "settler_double_sign_counted", "settler_target_unchecked", "settler_base_from_names",
           "concurrent_keep_bundle_only",
-          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name", "retired_reseat_allowed")
+          "settler_closed_by_line", "settler_overturns_settled", "join_signers_unread", "recovery_behind_sibling", "thumbs_pick_first", "detail_as_name", "retired_reseat_allowed", "spent_on_branch_unread")
 
 
 def answer(bs, rv, gs, rd, want):

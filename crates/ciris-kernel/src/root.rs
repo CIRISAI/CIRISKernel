@@ -384,6 +384,25 @@ where
         out
     }
 
+    /// The recovery commitments spent across the branches of `prevs`: for each recovery in their lines, the
+    /// commitment its predecessor carried for the holder it recovers.
+    fn spent(&self, prevs: &[B::Id]) -> BTreeSet<B::Key> {
+        let mut out = BTreeSet::new();
+        for p in prevs {
+            for x in self.line(p) {
+                let Some(q) = self.b(&x) else { continue };
+                let Some((h, _)) = q.recovers() else { continue };
+                if q.prev().len() != 1 {
+                    continue;
+                }
+                if let Some(c) = self.b(&q.prev()[0]).and_then(|pq| Self::commitment(pq, h)) {
+                    out.insert(c);
+                }
+            }
+        }
+        out
+    }
+
     /// The keys a routine rotation left across the branches of `prevs`: each key a bundle in their lines rotated a
     /// holder away from ([`RootBundle::rotates`]).
     fn left(&self, prevs: &[B::Id]) -> BTreeSet<B::Key> {
@@ -574,6 +593,12 @@ where
         }
         if let Some(r) = self.recovery_ok(b) {
             return r;
+        }
+        // a recovery commitment spent on any branch stays so: a later bundle (a join included) carrying it for a holder
+        // concludes nothing, genesis_bundle_count_unmet with the detail recovery_commitment_spent
+        let spent = self.spent(b.prev());
+        if b.recovery().iter().any(|(_, c)| spent.contains(c)) {
+            return Err("recovery_commitment_spent");
         }
         if self.bounded_settler(b) {
             // the bounded settler (the ruling on the genesis stall): counted over the head's holders who have a say

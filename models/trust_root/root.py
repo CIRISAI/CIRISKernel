@@ -286,6 +286,18 @@ class Root:
                 if q.get("recovers") is not None: out.add(q["recovers"][0])
         return frozenset(out)
 
+    def spent(self, prevs):
+        """The recovery commitments spent across the branches of `prevs`: for each counted-or-not recovery in their
+        lines, the commitment its predecessor carried for the holder it recovers."""
+        out = set()
+        for p in prevs:
+            for x in self.line(p):
+                q = self.by[x]
+                if q.get("recovers") is not None and len(q["prev"]) == 1 and q["prev"][0] in self.by:
+                    c = self.by[q["prev"][0]]["recovery"].get(q["recovers"][0])
+                    if c is not None: out.add(c)
+        return frozenset(out)
+
     def left(self, prevs):
         """The keys a routine rotation left across the branches of `prevs`: each key a bundle in their lines rotated
         a holder away from (`rotates`). Like a retired key, it stays so (MUTATION retired_unread)."""
@@ -418,6 +430,11 @@ class Root:
             return (True, None) if bool(hs) and hs <= v else (False, "genesis_bundle_count_unmet")
         rec = self.recovery_ok(b)
         if rec is not None: return rec
+        # a recovery commitment spent on any branch stays so: a later bundle (a join included) carrying it for a holder
+        # concludes nothing, genesis_bundle_count_unmet with the detail recovery_commitment_spent (MUTATION
+        # spent_on_branch_unread)
+        if "spent_on_branch_unread" not in MUT and set(b["recovery"].values()) & self.spent(b["prev"]):
+            return (False, "recovery_commitment_spent")
         if self.bounded_settler(b):
             # THE BOUNDED SETTLER (the ruling on the genesis stall, ST1): counted over the head's holders who have a
             # say there, rule 6's double signers at that head (over the siblings it names) out of the base for this
