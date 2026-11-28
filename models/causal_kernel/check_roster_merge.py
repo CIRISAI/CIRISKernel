@@ -29,8 +29,8 @@ Y2 = admit("y2", "L", ("C", "D", "E", "F", "G", "J"), ("x2",))
 PART = ROOM + [X1, X2, Y1, Y2, ack("k1", "R1", "y1"), ack("k2", "R2", "y2")]
 ALL = tuple("ABCDEFGHJKL")
 MOD = {"moderate": ("A",)}
-M = lambda i="m", tips=("y1", "y2"), members=ALL, duty=MOD, signers=ALL: ST.merge(
-    i, signers[0], OBJ, tips, members, duty, cosigners=tuple(signers[1:]))
+M = lambda i="m", tips=("y1", "y2"), members=ALL, signers=ALL: ST.merge(
+    i, signers[0], OBJ, tips, members, cosigners=tuple(signers[1:]))
 # a cheap tip that removed members: C..G remove A and B at aG; the honest tip x1 admits H
 CR = remove("cr", "A", ("C", "D", "E", "F", "G"), ("aG",))
 CR2 = remove("cr2", "B", ("C", "D", "E", "F", "G"), ("cr",))
@@ -53,8 +53,10 @@ GI5 = ST.offer("g", "f1", F5, "founder", "@", "self", cosigners=F5[1:], cohort_s
 NA = ST.offer("na", "f1", "N1", "node", OBJ, "group", ("g",), head=("g",), counted="founder", cosigners=("f2", "f3"))
 NB = ST.offer("nb", "f3", "N2", "node", OBJ, "group", ("g",), head=("g",), counted="founder", cosigners=("f4", "f5"))
 INFRA = [GI5, NA, NB]
-IM = lambda i="mi", tips=("na", "nb"), founders=F5, nodes=("N1", "N2"), signers=F5, word=None: ST.merge(
-    i, signers[0], OBJ, tips, (), {"founder": founders, "node": nodes}, cosigners=tuple(signers[1:]), consensus_protocol=word)
+# an infrastructure merge states its members (the founders, holding member by their founder seats); its founder and
+# node seats fold (N5)
+IM = lambda i="mi", tips=("na", "nb"), founders=F5, signers=F5, word=None: ST.merge(
+    i, signers[0], OBJ, tips, founders, cosigners=tuple(signers[1:]), consensus_protocol=word)
 # a stalled tip: on side B, f4 and f5 leave (their own ends) after nb: three founders, at most M
 WB4 = ST.withdraw("w4", "f4", "g", ("nb",)); WB5 = ST.withdraw("w5", "f5", "g", ("nb",))
 # a new word: side A seats f6 by a founders' amendment, restating quorum:4/6
@@ -93,13 +95,11 @@ CASES = [
     ("the content is fixed: a merge dropping L (never removed) concludes nothing", PART + [M(members=tuple("ABCDEFGHJK"))],
      None, {"m": F}, set(ALL), None, None),
     ("nor one adding Z", PART + [M(members=ALL + ("Z",))], None, {"m": F}, set(ALL), None, None),
-    ("nor one stating another duty seat (B as moderator too)", PART + [M(duty={"moderate": ("A", "B")})], None, {"m": F},
-     set(ALL), None, None),
     ("a cheap tip that removed A and B (C..G at aG) is not mergeable without the honest tip's count: C..G alone are "
-     "five of x1's eight", CHEAP + [M("mc", ("cr2", "x1"), tuple("CDEFGH"), MOD, tuple("CDEFG"))], None, {"mc": F},
+     "five of x1's eight", CHEAP + [M("mc", ("cr2", "x1"), tuple("CDEFGH"), tuple("CDEFG"))], None, {"mc": F},
      set("CDEFG"), None, None),
     ("with x1's count too (A B C D E F G H sign; A and B, removed on cr2, are voices on x1 only): it concludes, and "
-     "the removed stay removed", CHEAP + [M("mc", ("cr2", "x1"), tuple("CDEFGH"), {}, tuple("ABCDEFGH"))], None,
+     "the removed stay removed", CHEAP + [M("mc", ("cr2", "x1"), tuple("CDEFGH"), tuple("ABCDEFGH"))], None,
      {"mc": T}, set("CDEFGH"), None, None),
     ("a member's own end on one tip: D left on side 2 (its end in y2's line); the merge's fixed roster drops D (the "
      "room key's end is final)", PARTD + [M(members=tuple("ABCEFGHJKL"), signers=tuple("ABCEFGHJKL"))], "R1", {"m": T},
@@ -112,9 +112,9 @@ CASES = [
     ("a member need not sign the merge: L's seat is its own consent on y2 (all but L sign)",
      PART + [M(signers=tuple("ABCDEFGHJK"))], "R1", {"m": T}, set(ALL), MOD, None),
     ("three tips: a merge of x1, x2 and x3, counted on each, states the union", THREE + [
-        M("m3", ("x1", "x2", "x3"), tuple("ABCDEFGHJN"), MOD, tuple("ABCDEFGHJN"))], None, {"m3": T}, set("ABCDEFGHJN"), MOD, None),
+        M("m3", ("x1", "x2", "x3"), tuple("ABCDEFGHJN"), tuple("ABCDEFGHJN"))], None, {"m3": T}, set("ABCDEFGHJN"), MOD, None),
     ("three tips: short on one (x3's members A..G N: four of eight sign) concludes nothing", THREE + [
-        M("m3", ("x1", "x2", "x3"), tuple("ABCDEFGHJN"), MOD, tuple("ABCDHJN"))], None, {"m3": F}, None, None, None),
+        M("m3", ("x1", "x2", "x3"), tuple("ABCDEFGHJN"), tuple("ABCDHJN"))], None, {"m3": F}, None, None, None),
     ("an infrastructure room: a merge is a founders' amendment on each tip, M (3) of that tip's active founders "
      "(five), stating the founders and the nodes: it concludes, and both nodes are seated",
      INFRA + [IM()], None, {"mi": T}, None, {"founder": F5, "node": ("N1", "N2")}, None),
@@ -124,8 +124,8 @@ CASES = [
      None, {"mi": F}, None, None, None),
     ("a merge from a stalled tip concludes nothing: on side B f4 and f5 left, three founders, at most M (the edge: a "
      "partition leaving one side at M or fewer founders does not heal by merge)",
-     INFRA + [WB4, WB5, ST.merge("mi", "f1", OBJ, ("na", "nb"), (), {"founder": ("f1", "f2", "f3"), "node": ("N1", "N2")},
-                                  cosigners=("f2", "f3"), names=("w4", "w5"))], None, {"mi": F}, None, None, None),
+     INFRA + [WB4, WB5, ST.merge("mi", "f1", OBJ, ("na", "nb"), ("f1", "f2", "f3"), cosigners=("f2", "f3"),
+                                  names=("w4", "w5"))], None, {"mi": F}, None, None, None),
     ("a chained own end: f5's withdrawal naming only f4's (w4) concludes nothing. A member's own end is no counted "
      "change, so it is no head (H3, H8) and does not move it: the head over the room is still nb, and a withdrawal over "
      "a community names the newest counted changes in its own past (H4); w5 named g and w4, so nb is newer (H1): f5 "
@@ -142,8 +142,8 @@ CASES = [
      None, {"mi": F}, None, None, None),
     ("fewer than M + 1 stated founders is valid (f5 removed on A, f4 left on B: f1 f2 f3), and the merged room is "
      "stalled after: a node seating at the merge by f1 f2 f3 concludes nothing",
-     INFRA + [XA5, WB4b, ST.merge("mi", "f1", OBJ, ("x5", "nb"), (), {"founder": ("f1", "f2", "f3"), "node": ("N1", "N2")},
-                                       cosigners=("f2", "f3"), names=("w4",)),
+     INFRA + [XA5, WB4b, ST.merge("mi", "f1", OBJ, ("x5", "nb"), ("f1", "f2", "f3"), cosigners=("f2", "f3"),
+                                       names=("w4",)),
               ST.offer("nz", "f1", "NZ", "node", OBJ, "group", ("mi",), head=("mi",), counted="founder", cosigners=("f2", "f3"))],
      None, {"mi": T, "nz": F}, None, {"founder": ("f1", "f2", "f3")}, None),
     ("drift, one reading: a founder's own stay-end on the side. On side A f6, seated by the founders' amendment a6 "
@@ -157,11 +157,22 @@ CASES = [
      "both are void for the reader (S'' over what it holds): E stays, Z is not seated", VOIDT, None,
      {"x1": T, "f1": T, "f2": T}, set(EIGHT), None, None),
     ("MG5: a merge naming the void tip f2 concludes nothing (f2 is S''-void over the merge row's own past, which holds "
-     "both tips), even stating E", VOIDT + [ST.merge("m", "A", OBJ, ("x1", "f2"), EIGHT + ("Z",), MOD,
+     "both tips), even stating E", VOIDT + [ST.merge("m", "A", OBJ, ("x1", "f2"), EIGHT + ("Z",),
                                                       cosigners=tuple("BCDEFGHZ"))], None, {"m": F}, set(EIGHT), None, None),
     ("MG6: and one dropping E (the void removal enacted) concludes nothing: E stays, Z is not seated",
-     VOIDT + [ST.merge("m", "A", OBJ, ("x1", "f2"), tuple("ABCDFGHZ"), MOD, cosigners=tuple("BCDFGHZ"))], None,
+     VOIDT + [ST.merge("m", "A", OBJ, ("x1", "f2"), tuple("ABCDFGHZ"), cosigners=tuple("BCDFGHZ"))], None,
      {"m": F}, set(EIGHT), None, None),
+    # ---- N5 (the Constitution's ruling, WIRE_MAP): a merge carries no duty seats; they fold -----------------------
+    ("N5: a duty conferred on one tip stands after the merge: A confers moderate on B at y1 (d1), and the merge of d1 "
+     "and y2 states only members", PART + [CH.DC("d1", "B", ("y1",)), M("m", ("d1", "y2"))], None, {"d1": T, "m": T},
+     set(ALL), {"moderate": ("A", "B")}, None),
+    ("N5: a duty laid down on one tip is out after the merge: A lays moderate down on side 2, after y2",
+     PART + [ST.withdraw("ld", "A", "g", ("y2",), scope="moderate"), dict(M(), names=("y1", "y2", "ld"))], None,
+     {"ld": T, "m": T}, set(ALL), {"moderate": ()}, None),
+    ("N5: a duty on a member the merge drops falls with its member seat: A confers moderate on E at x1's side (d1), "
+     "side 2 removes E; the merge states E out, and E holds nothing",
+     ROOM + [X1, X2R, CH.DC("d1", "E", ("x1",)), Y2R, M("m", ("d1", "y2"), NE[:-2] + ("L",), NE[:-2] + ("L",))], None,
+     {"m": T}, set(NE[:-2] + ("L",)), {"moderate": ("A",)}, None),
     ("tips in each other's past are no merge: x1 and y1", PART + [M("mx", ("x1", "y1"), tuple("ABCDEFGHK"))], None,
      {"mx": F}, None, None, None),
     ("a merge that leaves out a newest tip concludes nothing: x1 and y2 (y1 newer than x1)", PART + [M("mx", ("x1", "y2"))],
@@ -171,7 +182,7 @@ CASES = [
 PLANTS = (("merge_over_fold", ST.MUT), ("merge_free_roster", ST.MUT), ("merge_blocked_by_void", "both"),
           ("merge_revives", ST.MUT), ("merge_tip_reader", ST.MUT), ("merge_states_nothing", ST.MUT),
           ("merge_consent_asked", ST.MUT), ("merge_stalled_signs", ST.MUT), ("merge_word_unread", ST.MUT),
-          ("merge_void_tip", ST.MUT), ("role_left_unread", ST.MUT))
+          ("merge_void_tip", ST.MUT), ("role_left_unread", ST.MUT), ("merge_ends_duties", ST.MUT))
 # (merge_infra_counted is no plant: counted as an admission there, the founders' binding refuses a member-scope count
 # over an infrastructure room anyway, so the explicit refusal is the stated rule and no case can tell them apart)
 

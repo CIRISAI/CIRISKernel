@@ -384,15 +384,12 @@ pub trait SeatRow: Row {
         &[]
     }
     /// A roster merge (the text's `group:roster` version, CC 4.4.3.17): a counted offer of scope `member` naming two
-    /// or more tips of its room as its heads, stating its roster outright, its members in [`SeatRow::to`] and its
-    /// duty seats in [`SeatRow::merge_duties`] ([`merge_concludes`]).
+    /// or more tips of its room as its heads, stating its member roster outright in [`SeatRow::merge_members`] (an
+    /// infrastructure room's founders among them) ([`merge_concludes`]). It carries no duty seats (the
+    /// Constitution's N5): the duty seats, the founder and node seats among them, are the fold of the conferral,
+    /// withdrawal, resignation and election rows in its past over the roster it states.
     fn merge(&self) -> bool {
         false
-    }
-    /// A roster merge's duty seats: each duty with the keys it seats (an infrastructure room's founders and nodes too,
-    /// under `founder` and `node`).
-    fn merge_duties(&self) -> &[(Self::Word, Vec<Self::Key>)] {
-        &[]
     }
     /// A roster merge's member seats ([`SeatRow::to`] is every key it seats in any scope).
     fn merge_members(&self) -> &[Self::Key] {
@@ -2400,7 +2397,6 @@ fn seat_scopes<'a, R: SeatRow>(o: &'a R, k: &R::Key, signed: bool) -> Vec<Sc<'a,
         if o.merge_members().contains(k) {
             out.push(Sc::Row(own));
         }
-        out.extend(o.merge_duties().iter().filter(|(_, ks)| ks.contains(k)).map(|(d, _)| Sc::Row(d)));
         return out;
     }
     if !founding(o) {
@@ -3047,12 +3043,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let merged_out = |oi: usize, k: &R::Key, sc: Sc<'a, R::Word>| {
             merges.iter().any(|&mi| {
                 mi != oi && g.in_past(oi, mi) && {
+                    // a merge states its member roster and nothing of any other scope: a duty seat folds (N5)
                     let m = g.row(mi);
-                    if sc.s() == "member" {
-                        !m.merge_members().contains(k)
-                    } else {
-                        m.merge_duties().iter().any(|(d, ks)| d.as_ref() == sc.s() && !ks.contains(k))
-                    }
+                    sc.s() == "member" && !m.merge_members().contains(k)
                 }
             })
         };
@@ -6091,12 +6084,9 @@ pub fn merge_concludes<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &Sea
         }
     }
     let (members, duties) = merge_content(p, law, spec, &obj, &tips);
-    let stated_d: BTreeMap<String, BTreeSet<R::Key>> =
-        r.merge_duties().iter().map(|(d, ks)| (String::from(d.as_ref()), ks.iter().cloned().collect())).collect();
-    // a founder holds the member seat by its founder seat, so the member roster is the stated members and founders
-    let mut stated: BTreeSet<R::Key> = r.merge_members().iter().cloned().collect();
-    stated.extend(stated_d.get("founder").cloned().unwrap_or_default());
-    if stated != members || stated_d != duties {
+    // a merge states its member roster and carries no duty seats (N5): they fold, and merge_content derives them
+    let stated: BTreeSet<R::Key> = r.merge_members().iter().cloned().collect();
+    if stated != members {
         {
             DBG_MERGE.store(9, core::sync::atomic::Ordering::Relaxed);
             return false;
@@ -6107,7 +6097,7 @@ pub fn merge_concludes<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &Sea
     }
     // the word: kept while the stated founders are at most N; above N a new word, N the founders, M their strict
     // majority and never below the M in force. Stating fewer than M + 1 founders is valid: the merged room is stalled
-    let nf = stated_d.get("founder").map_or(0, |f| f.len());
+    let nf = duties.get("founder").map_or(0, |f| f.len());
     let own = r.consensus_protocol().and_then(|w| RoomProtocol::parse_in(w.as_ref(), true));
     tips.iter().all(|&t| {
         let Some((m, n)) = word_at(t) else { { DBG_MERGE.store(10, core::sync::atomic::Ordering::Relaxed); return false } };
