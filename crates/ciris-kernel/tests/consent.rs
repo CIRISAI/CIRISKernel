@@ -9,6 +9,7 @@
 
 mod common;
 use ciris_kernel::consent::{self, ConsentRow, Kind, Reading};
+use ciris_kernel::cut::CutSpec;
 use ciris_kernel::graph::Graph;
 use ciris_kernel::key_end::{self, KeyReading, KeyView};
 use ciris_kernel::layers::{arrive, conclude, kept, Concluded};
@@ -143,6 +144,40 @@ struct Crate<'c, 'a> {
     law: &'c SeatLaw,
 }
 
+// DictCut with the key view: the person map reads a key's key-lane revocation through it (KeyView::revoked)
+struct KeyCut<'k> {
+    kv: &'k dyn KeyView<String, String>,
+}
+
+impl CutSpec<TRow> for KeyCut<'_> {
+    type Slot = J;
+    type Say = J;
+    fn key_slot(&self, k: &String) -> J {
+        DictCut.key_slot(k)
+    }
+    fn on_slots(&self, r: &TRow) -> BTreeSet<J> {
+        DictCut.on_slots(r)
+    }
+    fn cuts_of(&self, r: &TRow) -> BTreeSet<J> {
+        DictCut.cuts_of(r)
+    }
+    fn says(&self, r: &TRow) -> J {
+        DictCut.says(r)
+    }
+    fn need(&self, r: &TRow) -> usize {
+        DictCut.need(r)
+    }
+    fn rejects(&self, r: &TRow) -> Vec<String> {
+        DictCut.rejects(r)
+    }
+    fn is_voice_for(&self, cosign: &TRow, cut: &TRow) -> bool {
+        DictCut.is_voice_for(cosign, cut)
+    }
+    fn key_view(&self) -> Option<&dyn KeyView<String, String>> {
+        Some(self.kv)
+    }
+}
+
 impl<'a> Crate<'_, 'a> {
     // the concluded seat rows in `row`'s past (with `row` where `inclusive`); every concluded row with no row
     fn past(&self, row: Option<&String>, inclusive: bool) -> Vec<&'a TRow> {
@@ -167,7 +202,7 @@ impl Reading<String, String> for Crate<'_, '_> {
     }
     fn person(&self, key: &String, row: &String, inclusive: bool) -> Option<String> {
         let rows = self.past(Some(row), inclusive);
-        Persons::over(&rows, self.law, &DictCut, None).voice(key)
+        Persons::over(&rows, self.law, &KeyCut { kv: &self.key }, None).voice(key)
     }
     fn owner(&self, node: &String, row: Option<&String>, inclusive: bool) -> Option<String> {
         let rows = self.past(row, inclusive);
@@ -236,15 +271,32 @@ fn end_to_end() {
         let model = case.at("model_rows").arr();
         let trows = rows_with_refs(model, &refs);
         let rows: Vec<CRow> = model.iter().map(row).collect();
-        let kc = conclude(kept(&trows, |_| true), key_end::conclude_rule, None);
-        let sc = conclude(kept(&trows, |_| true), |p| seat_rule(p, &law, &DictCut, &|_| true), None);
+        let c = conclude(kept(&rows, |_| true), rule, None);
+        // ONE conclusion of every lane, as the model's one state concludes them: the key lane by key_end's rule, the
+        // consent rows by consent's (the view above: a row's conclusion reads only its past), every other row by the
+        // seat rule
+        let tc = conclude(
+            kept(&trows, |_| true),
+            |p| match p.row().kind.as_str() {
+                "rec" | "att" | "edge" | "revoke" => key_end::conclude_rule(p),
+                "grant" | "withdraws" | "recants" => c.concluded_id(&p.row().id),
+                _ => seat_rule(p, &law, &DictCut, &|_| true),
+            },
+            None,
+        );
+        for (i, r) in rows.iter().enumerate() {
+            let same = tc.g.idx(&r.id).map(|t| tc.concluded(t)) == c.g.idx(&r.id).map(|q| c.concluded(q));
+            if r.kind != Kind::Other && !same {
+                bad += 1;
+                eprintln!("{}: row {i} {} concludes differently in the two views", case.at("name").s(), r.id);
+            }
+        }
         let reader = case.get("reader").and_then(|r| r.opt_s());
         let rd = Crate {
-            key: KeyReading { c: &kc, reader, final_: BTreeSet::new(), roster: BTreeSet::new() },
-            seats: &sc,
+            key: KeyReading { c: &tc, reader, final_: BTreeSet::new(), roster: BTreeSet::new() },
+            seats: &tc,
             law: &law,
         };
-        let c = conclude(kept(&rows, |_| true), rule, None);
         run(case, &c, &rd, &mut n, &mut bad, "end to end");
     }
     report("the consent peer set end to end (KeyReading, Persons, Seats::owner)", n, bad);

@@ -537,7 +537,10 @@ class. A grant permits and never obliges: a node may always send less, with no r
   rows in one causal order, for the reading node: `counts` is `key_end::KeyReading` (its reader, final counts and
   self roster), `person` is `seat::Persons::voice` over the concluded rows in the row's past, and `owner` is
   `seat::Seats::owner` over the concluded rows in the row's past (with the row where asked; every held row for
-  none). `tests/consent.rs` (`end_to_end`) is a worked reading.
+  none). Conclude every lane ONCE, in one causal order: the key lane by `key_end::conclude_rule`, the consent rows by
+  `consent::conclude_rule`, the rest by the seat rule; build the `KeyReading`, the `Persons` and the `Seats` over
+  that one conclusion, and give `Persons` a cut that carries the key view (a key's key-lane revocation is read
+  through `KeyView::revoked`). `tests/consent.rs` (`end_to_end`) is a worked reading.
 - Who withdraws is one rule: the grant's signer as a person (another live device of the granting person), a named
   party (the peer, or a node the grant is for), or the owner of the grant's signer; an ownership's end, and the end
   of a device key as the person's (an eviction, a revocation; its key ends through the key view), cuts a withdrawal

@@ -32,7 +32,10 @@ party (the peer, or a node the grant is for), or the owner of the grant's signer
 withdrawal standing on it (F1, F3), and so does the end of a device key as the person's: an eviction or a
 `registered` revocation concurrent with it, and the key's own ends through the key view (r103 PE1, PR1;
 `Reading::person` gains `inclusive`). Stated residual (r103 FD1): the signer's own concurrent regrants that name
-neither settle nothing; the next regrant naming both does. Announcements are read through the key view (AN4). `derived::fold_default`: a
+neither settle nothing; the next regrant naming both does. r106 (K1r, PG1, U2): every key's ends are read through
+`key_end::key_ends`, one set for both revocation lanes (the key lane's ends and a concluded registered self-unseat),
+by the key view (every grant, announcement and withdrawal signature), own_row and the person map (`KeyView::revoked`);
+`tests/consent.rs` concludes every lane once, as the model's one state does. Announcements are read through the key view (AN4). `derived::fold_default`: a
 row beats every row something in its own past beat (CF1: a fork revives no beaten branch); a group where every row
 is so beaten has no winner. `key_end::counts_for` (merged from key-end-retained): a reader's own row counts toward
 its line only where the reader's key stands at it by the plain end rule (K1: a thief holding the reader's key cannot

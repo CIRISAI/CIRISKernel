@@ -375,6 +375,13 @@ CASES = [
     ("r103 PR1: a device's key revoked; its withdrawal concurrent with the revocation is cut by the key view",
      PE + [rev("rv2", "O2", 5, ("aO3",)), W("w2", "O2", "g"), N_("n", "O", ("rv2", "w2"))],
      [(S_, "O", "P", TRC, "n", None, "g")]),
+    ("r106 K1r: a thief's grant concurrent with the key's registered self-unseat (the seat lane's revocation) moves nothing",
+     [G("g1", "N", "P", ("capacity:",), 1), ST.unseat("ur", "N", "N", "registered", "N", "self", ("g1",)),
+      G("gt", "N", "A", ("trace:",), 2, ("g1",)), N_("n", "P", ("ur", "gt"))],
+     [(S_, "N", "A", TRC, "n", None, None), (S_, "N", "P", CAP, "n", None, "g1")]),
+    ("r106 PG1: the person's genesis key revoked in the key lane; a device's withdrawal concurrent with it is cut",
+     PE + [rev("rvo", "O", 5, ("g",)), W("w2", "O2", "g"), N_("n", "O", ("rvo", "w2"))],
+     [(S_, "O", "P", TRC, "n", None, "g")]),
     ("r103 FD1, the residual: the signer's own concurrent regrants, each naming one fork, settle nothing (fail closed)",
      [G("g1", "N", "P", ("capacity:",), 10), G("h1", "N", "P", ("capacity:",), 10), G("g2", "N", "P", ("capacity:",), 1, ("g1",)),
       G("h2", "N", "P", ("capacity:",), 1, ("h1",)), N_("n", "N", ("g2", "h2"))],
@@ -439,6 +446,8 @@ PLANTS = ("classes_unread", "prefix_no_colon", "fold_earliest", "fold_highest_id
           "rebinding_unread", "fold_inherit_unread", "withdraw_person_unread", "withdraw_node_unread",
           "ownership_end_unread", "announcement_unviewed", "person_end_unread")
 SEAT_PLANTS = ("rebinding_unread",)       # planted in seat.py: the one owner reading
+KE_PLANTS = ("registered_end_unread", "person_key_lane_unread")   # planted in key_end.py: the one set of a key's ends
+PLANTS = PLANTS + KE_PLANTS
 
 
 def ask(S, a, kv):
@@ -478,8 +487,10 @@ def orders(rows, seed):
 
 
 def run_case(name, rows, asks, plant=None, arrive_all=True):
-    saved, saved_st = set(C.MUT), set(ST.MUT)
-    if plant in SEAT_PLANTS:
+    saved, saved_st, saved_ke = set(C.MUT), set(ST.MUT), set(KE.MUT)
+    if plant in KE_PLANTS:
+        KE.MUT.add(plant)
+    elif plant in SEAT_PLANTS:
         ST.MUT.add(plant)
     elif plant:
         C.MUT.add(plant)
@@ -495,6 +506,7 @@ def run_case(name, rows, asks, plant=None, arrive_all=True):
     finally:
         C.MUT.clear(); C.MUT |= saved
         ST.MUT.clear(); ST.MUT |= saved_st
+        KE.MUT.clear(); KE.MUT |= saved_ke
 
 
 def readings(S, rows, reader):
