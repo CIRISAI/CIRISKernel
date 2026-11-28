@@ -48,8 +48,7 @@
 
 **Audience and placement, family by family** (new module `audience`, both languages). The family model's placement
 cells (the Constitution's `manifests/family_model.json`, derived and pinned by `tools/family_placement.py` into
-`data/family_placement.json` and `audience::FAMILIES`; a provisional pin at `rc23-next` `d103e60`, sha256 `f5a38b47`, until it
-reaches `rc23`): 189 families, 143 on the default, 34 pinned by the CC table, 12 whose cell is not table data (the
+`data/family_placement.json` and `audience::FAMILIES`; pinned at `rc23` `d103e60`, sha256 `f5a38b47`, final): 189 families, 143 on the default, 34 pinned by the CC table, 12 whose cell is not table data (the
 re-pin from `f73162c` added `regard:{subject_kind}` and stated ten families from the text: `act:ack`,
 `admission:unit`, `contribution`, `identity:occurrence`, `identity:occurrence_revocation`, `key:record`,
 `key:revocation`, `key_grant`, `location_proof`, `window`). `audience::place` gives a row's placement
