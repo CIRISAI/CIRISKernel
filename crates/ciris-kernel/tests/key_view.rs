@@ -6,8 +6,8 @@
 mod common;
 use ciris_kernel::cut::CutSpec;
 use ciris_kernel::key_end::{conclude_rule, counts_by, KeyReading, KeyView};
-use ciris_kernel::layers::{conclude, kept, Past};
-use ciris_kernel::seat::{seat_rule, voices_with, Obj, SeatLaw, Seats};
+use ciris_kernel::layers::{conclude, kept, Concluded, Past};
+use ciris_kernel::seat::{final_by_ack, seat_rule, voices_with, Obj, SeatLaw, Seats};
 use ciris_kernel::window::{self, WindowSpec};
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -46,6 +46,28 @@ impl CutSpec<TRow> for KeyCut<'_> {
     }
 }
 
+/// The seat rows concluded under the seat rule (or, for a window case, the window rule first) with `spec`.
+fn conclude_rows<'r>(
+    rows: &'r [TRow],
+    win: bool,
+    windows: &BTreeMap<String, WindowSpec<i64>>,
+    law: &SeatLaw,
+    spec: &KeyCut<'_>,
+) -> Concluded<'r, TRow> {
+    conclude(
+        kept(rows, |_| true),
+        |p| {
+            if win {
+                if let Some(v) = window::rule(p, &|w| windows.get(w).cloned(), law, spec) {
+                    return v;
+                }
+            }
+            seat_rule(p, law, spec, &|_| true)
+        },
+        None,
+    )
+}
+
 #[test]
 fn key_view_cases() {
     let fx = fixture("key_end_counts.json");
@@ -73,21 +95,21 @@ fn key_view_cases() {
             let got = kc.g.idx(&row).is_some_and(|i| counts_by(&kc, i, &key));
             cmp(got == want, format!("counts_by({row}, {key})"));
         }
-        let reading = KeyReading { c: &kc };
-        let spec = KeyCut { kv: if c.at("view").b() { Some(&reading) } else { None } };
         let win = c.at("rule").s() == "window";
-        let sc = conclude(
-            kept(&seat_rows, |_| true),
-            |p| {
-                if win {
-                    if let Some(v) = window::rule(p, &|w| windows.get(w).cloned(), &law, &spec) {
-                        return v;
-                    }
-                }
-                seat_rule(p, &law, &spec, &|_| true)
-            },
-            None,
-        );
+        let conclude_with = |spec: &KeyCut<'_>| conclude_rows(&seat_rows, win, &windows, &law, spec);
+        // the counts final by acknowledgement, over the rows as they conclude with no key view
+        let plain = KeyCut { kv: None };
+        let c0 = conclude_with(&plain);
+        let final_: BTreeSet<String> =
+            (0..c0.g.len()).filter(|&i| final_by_ack(&c0, &law, &plain, i)).map(|i| c0.g.row(i).id.clone()).collect();
+        if let Some(f) = c.get("final") {
+            let want: BTreeSet<String> = f.strs().into_iter().collect();
+            cmp(final_ == want, format!("final by acknowledgement: {final_:?}"));
+        }
+        let reader = c.get("reader").and_then(|r| r.opt_s());
+        let reading = KeyReading { c: &kc, reader, final_ };
+        let spec = KeyCut { kv: if c.at("view").b() { Some(&reading) } else { None } };
+        let sc = conclude_with(&spec);
         // the row whose conclusion is read (x, or the case's probe), and a seat asked
         let probe = c.get("probe").map(|p| p.opt_s()).unwrap_or(Some("x".into()));
         if let Some(pr) = &probe {

@@ -3813,6 +3813,42 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
     Some((rem.signer().clone(), v))
 }
 
+/// Counted act `i` of `c` is FINAL BY ACKNOWLEDGEMENT: it concluded as a count (its own count met: not a lone act,
+/// whose receipts are E8's), and clean receipts (an [`SeatKind::Ack`] whose `of` is it) from n - t + 1 of the n
+/// members at its heads are held, t the least yes its policy meets at n. Read `c` as the rows concluded with no key
+/// view (a final act is not reopened by a later cut); the ids it holds for go in [`crate::key_end::KeyReading`].
+pub fn final_by_ack<R: SeatRow, S: CutSpec<R>>(c: &Concluded<'_, R>, law: &SeatLaw, spec: &S, i: usize) -> bool {
+    if !c.concluded(i) {
+        return false;
+    }
+    let g = &c.g;
+    let r = g.row(i);
+    if !matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) || r.conf() != Some(Conf::Group) {
+        return false;
+    }
+    let Some(obj) = r.obj() else { return false };
+    let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, i)).collect();
+    let p = Past::new(g, i, &anc);
+    if !count_met(&p, law, spec, None) {
+        return false;
+    }
+    let m = members_at(&p, law, spec, &obj, r.head(), "member");
+    let n = m.len();
+    let policy = law.policy_of(r.policy().map(|w| w.as_ref()));
+    let Some(t) = (0..=n).find(|&y| met(policy, y, n, None)) else { return false };
+    if n == 0 {
+        return false;
+    }
+    let rec: BTreeSet<&R::Key> = c
+        .cs()
+        .iter()
+        .map(|&q| g.row(q))
+        .filter(|q| q.seat_kind() == SeatKind::Ack && q.of() == Some(r.id()) && m.contains(q.signer()))
+        .map(|q| q.signer())
+        .collect();
+    rec.len() >= core::cmp::max(1, n - t + 1)
+}
+
 /// Whether a count is met: `yes` voices of `n`, under `policy`.
 pub fn met(policy: Option<Policy>, yes: usize, n: usize, declared: Option<usize>) -> bool {
     met_wide(policy, yes as u128, n as u128, declared.map(|d| d as u128))

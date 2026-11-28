@@ -119,9 +119,86 @@ LONE = [
 ]
 
 
+# R1 and R2 (the Constitution's ruling: a key end is a cut). Two passes: the counts final by acknowledgement are read
+# over the rows as they conclude with no key view (a final act is not reopened by a later cut); then the reader's
+# conclusion through the key view with the reader's line and those counts.
+def rack(i, k, names=("x",)):
+    """A member's clean receipt of x (an `ack` naming x, `of` x): its own row, and so on its line."""
+    return CK.row(i, "ack", k, tuple(names), of="x")
+
+
+X5 = x_row("ABCDE")                                   # needs five of seven (community_invite)
+REC3 = [rack("rF", "F"), rack("rG", "G"), rack("rA", "A")]   # n - t + 1 = 7 - 5 + 1 = 3 receipts: final
+QC0 = KE.rec("qC", "C2", 1, None, names=("kC",), succ_of="C", at_old=1, typ="pseudonym")   # holds no old rows
+QCX = KE.rec("qC", "C2", 4, None, names=("kC", "x"), succ_of="C", at_old=4, typ="pseudonym")  # holds x
+CUT = [
+    # (name, rule, seat rows, key rows, reader, probe row, seat asked or None, expected)
+    ("the thief's wipe naming nothing (C's stolen key revokes itself, holding no row): for a reader with no line, "
+     "x concludes nothing", "seat", CH.ROOM + [X5, rack("rF", "F")], recs() + [KE.revoke("vC", "C", 0)], None, "x", None, False),
+    ("and for F, whose receipt took x up before it held the wipe: x concludes (settled on F's line)", "seat",
+     CH.ROOM + [X5, rack("rF", "F")], recs() + [KE.revoke("vC", "C", 0)], "F", "x", None, True),
+    ("and for G, which never took x up: x concludes nothing", "seat", CH.ROOM + [X5, rack("rF", "F")],
+     recs() + [KE.revoke("vC", "C", 0)], "G", "x", None, False),
+    ("and with x final by acknowledgement (three of seven receipts): x stands for everyone, a reader with no line too",
+     "seat", CH.ROOM + [X5] + REC3, recs() + [KE.revoke("vC", "C", 0)], None, "x", None, True),
+    ("an honest rotation from a device without the old rows (C to C2, naming only C's record): for a reader with no "
+     "line, the in-time vote is cut (the caller duty: name the key's last rows)", "seat", CH.ROOM + [X5, rack("rF", "F")],
+     recs() + [QC0], None, "x", None, False),
+    ("and it holds for F, which took x up: x concludes", "seat", CH.ROOM + [X5, rack("rF", "F")], recs() + [QC0], "F",
+     "x", None, True),
+    ("and with x final, it holds for everyone", "seat", CH.ROOM + [X5] + REC3, recs() + [QC0], None, "x", None, True),
+    ("the owner ends a stolen key after the thief voted on x (C's revocation holds C's record, not x): at F, which "
+     "took x up first, the vote stands: x concludes", "seat", CH.ROOM + [X5, rack("rF", "F")],
+     recs() + [KE.revoke("vC", "C", 2, names=("kC",))], "F", "x", None, True),
+    ("and at G, which held the end first (its receipt names the revocation and x), the vote is cut: x concludes "
+     "nothing", "seat", CH.ROOM + recs() + [X5, rack("rF", "F"), KE.revoke("vC", "C", 2, names=("kC",)),
+                                            rack("rG", "G", ("x", "vC"))], [], "G", "x", None, False),
+    ("and with x final (F, G and A receipted it), it stands for both", "seat",
+     CH.ROOM + recs() + [X5, rack("rF", "F"), rack("rA", "A"), KE.revoke("vC", "C", 2, names=("kC",)),
+                         rack("rG", "G", ("x", "vC"))], [], "G", "x", None, True),
+    ("a revocation by a rotated-away key is no end: C rotated to C2 holding x, then C's key (stolen) revokes itself "
+     "after 0, the rotation in its past: x concludes", "seat", CH.ROOM + [X5],
+     recs() + [QCX, KE.revoke("vC", "C", 0, names=("qC",))], None, "x", None, True),
+    ("the person's roster ends a retired key: C2, C's successor, ends C from 2 on (its owner learned it was stolen), "
+     "holding the rotation and x: x, signed at 3, is cut: concludes nothing", "seat", CH.ROOM + [X5],
+     recs() + [QCX, KE.rend("eC", "C2", "C", 2, names=("qC",))], None, "x", None, False),
+    ("and an end of C signed by a key that is not its successor (F) is no end: x concludes", "seat", CH.ROOM + [X5],
+     recs() + [QCX, KE.rend("eC", "F", "C", 2, names=("qC",))], None, "x", None, True),
+    ("k3.py's K3c as written (p2's revocation holds nothing): for a reader with no line, xm (p2's withdrawal of p1's "
+     "moderate) and r2 are both cut, and x stays in force: AG removed", "window", RF.W + [RF.X, R2, RF.UND],
+     LREC + [KE.revoke("v2", "p2", 0)], None, None, ("AG", "agent", "g"), False),
+    ("and for p3, which cosigned xm (taken up): xm stands and r2 (not on p3's line) is cut: x falls out of force, AG "
+     "is back", "window", RF.W + [RF.X, R2, RF.UND], LREC + [KE.revoke("v2", "p2", 0)], "p3", None, ("AG", "agent", "g"), True),
+]
+
+
+def cut_answer(rule, seat_rows, key_rows, reader, probe, seat):
+    for m in ("_READER_MEMO", "_VOID_MEMO", "_EMEMO", "_SEATS_OF"): getattr(ST, m).clear()
+    R0 = WRULE if rule == "window" else RULE
+    S1 = CK.concluded(CK.kept(list(seat_rows)), R0)
+    final = frozenset(i for i in S1.by if ST.final_by_ack(S1, i))
+    KS = KE.state(list(seat_rows) + list(key_rows))
+    ST.KEY_VIEW.append(lambda rid, k: KE.counts_by(KS, rid, k, reader, final))
+    try:
+        for m in ("_READER_MEMO", "_VOID_MEMO", "_EMEMO", "_SEATS_OF"): getattr(ST, m).clear()
+        S = CK.concluded(CK.kept(list(seat_rows)), R0)
+        if seat: return ST.Seats(S).stands(*seat), sorted(final)
+        return bool(S.C.get(probe)), sorted(final)
+    finally:
+        ST.KEY_VIEW.pop()
+
+
+def finals(seat_rows, rule):
+    """The counts final by acknowledgement, over the rows as they conclude with no key view."""
+    for m in ("_READER_MEMO", "_VOID_MEMO", "_EMEMO", "_SEATS_OF"): getattr(ST, m).clear()
+    S1 = CK.concluded(CK.kept(list(seat_rows)), rule)
+    return frozenset(i for i in S1.by if ST.final_by_ack(S1, i))
+
+
 def lone_answer(seat_rows, key_rows, view, probe):
     KS = KE.state(list(seat_rows) + list(key_rows))
-    ST.KEY_VIEW.append((lambda rid, k: KE.counts_by(KS, rid, k)) if view else None)
+    fin = finals(seat_rows, WRULE)
+    ST.KEY_VIEW.append((lambda rid, k: KE.counts_by(KS, rid, k, None, fin)) if view else None)
     try:
         for m in ("_READER_MEMO", "_VOID_MEMO", "_EMEMO", "_SEATS_OF"): getattr(ST, m).clear()
         S = CK.concluded(CK.kept(list(seat_rows)), WRULE)
@@ -132,7 +209,8 @@ def lone_answer(seat_rows, key_rows, view, probe):
 
 def answer(rule, seat_rows, key_rows, view):
     KS = KE.state(list(seat_rows) + list(key_rows))
-    ST.KEY_VIEW.append((lambda rid, k: KE.counts_by(KS, rid, k)) if view else None)
+    fin = finals(seat_rows, WRULE if rule == "window" else RULE)
+    ST.KEY_VIEW.append((lambda rid, k: KE.counts_by(KS, rid, k, None, fin)) if view else None)
     try:
         ST._READER_MEMO.clear(); ST._VOID_MEMO.clear()
         S = CK.concluded(CK.kept(list(seat_rows)), WRULE if rule == "window" else RULE)
@@ -144,7 +222,8 @@ def answer(rule, seat_rows, key_rows, view):
 
 PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("window_key_view_unread", ST.MUT),
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
-          ("lone_key_view_unread", ST.MUT))
+          ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT), ("roster_end_unread", KE.MUT),
+          ("taken_up_unread", KE.MUT), ("final_count_unread", KE.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries
 
 
@@ -156,6 +235,9 @@ def run():
     for name, sr, kr, view, probe, want in LONE:
         got = lone_answer(sr, kr, view, probe)
         if got != want: bad.append("%s: got %s" % (name, got))
+    for name, rule, sr, kr, reader, probe, seat, want in CUT:
+        got = cut_answer(rule, sr, kr, reader, probe, seat)[0]
+        if got != want: bad.append("%s: got %s" % (name, got))
     return bad
 
 
@@ -164,18 +246,27 @@ def fixture():
     key_end.counts_by, and the voices and conclusion of x with and without the key view."""
     out = []
     for name, rule, sr, kr, view, v, c in CASES:
+        fin = sorted(finals(sr, WRULE if rule == "window" else RULE))
         KS = KE.state(list(sr) + list(kr))
         keys = sorted({q["signer"] for q in sr} | {k for q in sr for k in q.get("cosigners", ())})
         per = [[rid, k, KE.counts_by(KS, rid, k)] for rid in SIGNED if rid in KS.by for k in keys]
         out.append({"name": name, "rule": rule, "seat": [r["id"] for r in sr], "rows": list(sr) + list(kr), "view": view,
-                    "counts": per, "voices": sorted(v) if v is not None else None, "concluded": c})
+                    "counts": per, "voices": sorted(v) if v is not None else None, "concluded": c, "final": fin})
     for name, sr, kr, view, probe, (c, st) in LONE:
+        fin = sorted(finals(sr, WRULE))
         KS = KE.state(list(sr) + list(kr))
         keys = sorted({q["signer"] for q in sr} | {k for q in sr for k in q.get("cosigners", ())})
         per = [[rid, k, KE.counts_by(KS, rid, k)] for rid in SIGNED if rid in KS.by for k in keys]
         out.append({"name": name, "rule": "window", "seat": [r["id"] for r in sr], "rows": list(sr) + list(kr),
-                    "view": view, "counts": per, "voices": None, "probe": probe, "concluded": c,
+                    "view": view, "counts": per, "voices": None, "probe": probe, "concluded": c, "final": fin,
                     "stands": ["AG", "agent", "g", st]})
+    for name, rule, sr, kr, reader, probe, seat, want in CUT:
+        got, final = cut_answer(rule, sr, kr, reader, probe, seat)
+        e = {"name": name, "rule": rule, "seat": [r["id"] for r in sr], "rows": list(sr) + list(kr), "view": True,
+             "counts": [], "voices": None, "reader": reader, "final": final, "probe": probe}
+        if seat: e["stands"] = list(seat) + [want]
+        else: e["concluded"] = want
+        out.append(e)
     return out
 
 
@@ -193,7 +284,7 @@ def main():
         if not hit: missed.append(p)
     ok = not bad and not missed
     print("RESULT: %s: %d cases, %d of %d planted breaks caught" % ("ok" if ok else "%d problems" % (len(bad) + len(missed)),
-                                                                   len(CASES) + len(LONE), len(PLANTS) - len(missed), len(PLANTS)))
+                                                                   len(CASES) + len(LONE) + len(CUT), len(PLANTS) - len(missed), len(PLANTS)))
     return 0 if ok else 1
 
 

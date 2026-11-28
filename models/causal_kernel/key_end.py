@@ -60,6 +60,13 @@ def edge(id, signer, to, at, cover, names=()):
     return CK.row(id, "edge", signer, (cover,) + tuple(names), at=at, cover=cover, to=to)
 
 
+def rend(id, signer, key, ra, names=()):
+    """An end of a retired key by the person's key roster (its owner learns it was stolen): signed by the key's
+    successor (the roster's rule here: the one key its rotations name), ending `key`'s rows from its own instant `ra`
+    on; `names`: the rows it has in its past."""
+    return CK.row(id, "rend", signer, tuple(names), key=key, ra=ra)
+
+
 def revoke(id, key, ra, names=()):
     """A revocation of `key` by itself after its own instant `ra`; `names`: the key's rows it has in its past."""
     return CK.row(id, "revoke", key, tuple(names), key=key, ra=ra)
@@ -193,10 +200,43 @@ def successor(S, k, ret=None):
 
 
 def ends_of(S, k):
-    """Key k's own ends, as rows: its self-revocations, and the rotations naming its record (a rotated holder speaks
-    under its new key; the root ruling: a retired key is no voice)."""
-    return [r for r in S.Cs if (r["kind"] == "revoke" and r["key"] == k and r["signer"] == k)
-            or (r["kind"] == "rec" and r["succ_of"] == k)]
+    """Key k's ends, as rows:
+        its self-revocations, but NOT one signed when its own rotation had already ended it (a rotation of k in the
+            revocation's past: a retired key's revocation is no end; MUTATION retired_key_revokes);
+        the rotations naming its record (a rotated holder speaks under its new key; the root ruling: a retired key is
+            no voice);
+        an end by the person's key roster (`rend`): what ends a retired key further, its owner learning it was
+            stolen, signed under that roster's rule, here by the key's successor (MUTATION roster_end_unread)."""
+    rots = [r for r in S.Cs if r["kind"] == "rec" and r["succ_of"] == k]
+    revs = [r for r in S.Cs if r["kind"] == "revoke" and r["key"] == k and r["signer"] == k
+            and ("retired_key_revokes" in MUT or not any(x["id"] in S.anc[r["id"]] for x in rots))]
+    rends = [r for r in S.Cs if r["kind"] == "rend" and r["key"] == k and "roster_end_unread" not in MUT
+             and r["signer"] == successor(S, k)]
+    return revs + rots + rends
+
+
+def _own_rows(S, reader):
+    """A reader's own rows: those it signed or cosigned."""
+    return [r for r in S.Cs if r["signer"] == reader or reader in r.get("cosigners", ())]
+
+
+def stands(S, rid, e, reader=None, final=frozenset()):
+    """Row `rid` stands against end `e` (A KEY END IS A CUT, the Constitution's ruling): (a) it is in e's past (and,
+    for an end stating an instant, its own instant before it); or (b) it is on the reader's own line from before the
+    reader held e: a row the reader signed or cosigned is it, or has it in its past, without e there (taken up;
+    MUTATION taken_up_unread); or (c) it is part of a count FINAL BY ACKNOWLEDGEMENT (final: the counts with n - t + 1
+    clean receipts, seat.final_by_ack): that count, or a row it names (MUTATION final_count_unread). A final act is
+    not reopened by a later cut."""
+    r = S.by[rid]
+    if rid in S.anc[e["id"]] and not (e["kind"] in ("revoke", "rend") and instant(r) is not None
+                                      and not instant(r) < e["ra"]):
+        return True
+    if reader is not None and "taken_up_unread" not in MUT and any(
+            (a["id"] == rid or rid in S.anc[a["id"]]) and e["id"] not in S.anc[a["id"]] for a in _own_rows(S, reader)):
+        return True
+    if "final_count_unread" not in MUT and any(f in S.by and (rid == f or rid in S.by[f]["names"]) for f in final):
+        return True
+    return False
 
 
 def instant(r):
@@ -213,22 +253,21 @@ def counts(S, r):
     below by its own past: the licence term's residual and caller duty). Whether a live row cites it is never read:
     a count reads no anchor (the Constitution's ruling; only content may be anchored by others' rows)."""
     if not S.C.get(r["id"]) or r["kind"] not in ("att", "edge"): return bool(S.C.get(r["id"]))
-    for e in ends_of(S, r["signer"]):
-        if r["id"] not in S.anc[e["id"]]: return False
-        if e["kind"] == "revoke" and instant(r) is not None and not instant(r) < e["ra"]: return False
-    return True
+    return all(stands(S, r["id"], e) for e in ends_of(S, r["signer"]))
 
 
-def counts_by(S, rid, k):
+def counts_by(S, rid, k, reader=None, final=frozenset()):
     """THE END RULE for key k's signature on row `rid` (a statement, or a seat row k signed or cosigned, held in one
-    causal order with k's key lane): the row concluded, in the causal past of each of k's own ends, and, for a
-    self-revocation, its own instant (where it states one) before the revoked_after k stated. No cite is read."""
+    causal order with k's key lane), for `reader` (None: no reader's line), the counts `final` final by
+    acknowledgement: the row concluded, and standing against each of k's ends (stands). No cite is read.
+    The cost, stated: nobody can tell the thief from the owner, so a thief's vote a reader took up before holding the
+    end stands for that reader, and one in a final count stands for everyone; the remedy is the members' later count
+    reversing the act. Readers can differ on a count not yet final until receipts or a later count settle it. A
+    newcomer (a reader with no row) reads the plain cut and the final counts. Caller duty: an honest rotation or
+    revocation names the key's last rows."""
     r = S.by.get(rid)
     if r is None or not S.C.get(rid): return False
-    for e in ends_of(S, k):
-        if rid not in S.anc[e["id"]]: return False
-        if e["kind"] == "revoke" and instant(r) is not None and not instant(r) < e["ra"]: return False
-    return True
+    return all(stands(S, rid, e, reader, final) for e in ends_of(S, k))
 
 
 def seeds(S, now, stubs=True):

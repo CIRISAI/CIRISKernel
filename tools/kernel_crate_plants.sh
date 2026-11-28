@@ -570,7 +570,7 @@ plant "a row between seats counts"                      src/content.rs 'if at.se
 plant "a row naming the removal as its head waits on it" src/content.rs 'if ends.iter().any(|e| e.id() == h) {' 'if false {'
 plant "a retraction is read in its own seat only"       src/content.rs 'out.extend(seat_answers(&sub, seat, past, &retracted));' 'let sr: BTreeSet<&R::Id> = retracted.iter().copied().filter(|t| sub.iter().any(|w| w.retracts() == Some(*t))).collect(); out.extend(seat_answers(&sub, seat, past, &sr));'
 plant "an end with an end in its past still ends"       src/content.rs 'Ok(seated.then_some(Void::SeatEnded))' 'Ok(seated.then_some(Void::SeatEnded).filter(|_| false))'
-plant "key_end: an ended key's vote counted because a live row cites it (ended_vote_retained_by_cite)" src/key_end.rs 'return c.g.in_past(i, e) && at < ra;' 'return (c.g.in_past(i, e) || c.cs().iter().any(|&x| c.g.in_past(i, x) && c.g.row(x).signer() != k)) && at < ra;'
+plant "key_end: an ended key's vote counted because a live row cites it (ended_vote_retained_by_cite)" src/key_end.rs '(c.g.in_past(i, e) && !matches!' '((c.g.in_past(i, e) || c.cs().iter().any(|&x| c.g.in_past(i, x) && c.g.row(x).signer() != k)) && !matches!'
 plant "key_end: the bytes of a counted row of an ended key kept (no stub reading)" src/key_end.rs '|| (stubs && r.statement().is_some() && counts(c, i))' '|| (r.statement().is_some() && counts(c, i))'
 plant "seat: the key view not read at the voices step (key_view_unread)" src/seat.rs 'let Some(kv) = spec.key_view() else { return voices(r, p) };' 'let Some(kv) = spec.key_view().filter(|_| false) else { return voices(r, p) };'
 plant "seat: only the counted row's signer read by the key view (cosigner_key_unchecked)" src/seat.rs '.filter(|k| kv.counts(r.id(), k))' '.filter(|k| k != r.signer() || kv.counts(r.id(), k))'
@@ -579,6 +579,10 @@ plant "election: the key view not read for ballots (ballot_key_view_unread)" src
 plant "seat: a lift objection not read by the key view (lift_key_view_unread)" src/seat.rs '&& spec.key_view().is_none_or(|kv| kv.counts(c.id(), c.signer()))' '&& spec.key_view().is_none_or(|kv| kv.counts(c.id(), c.signer()) || true)'
 plant "seat: a lone removal's single-key receipt not read by the key view (receipt_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer()) && false) {'
 plant "seat: a lone act not read by the key view (lone_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer()) && false) {'
+plant "key_end: a retired key's revocation an end (retired_key_revokes)" src/key_end.rs 'if rk == k && q.signer() == k && !rots.iter().any(|&x| c.g.in_past(x, e)) {' 'if rk == k && q.signer() == k {'
+plant "key_end: the person's roster end unread (roster_end_unread)" src/key_end.rs 'if rk == k && succ.as_ref() == Some(q.signer()) {' 'if false && rk == k && succ.as_ref() == Some(q.signer()) {'
+plant "key_end: the reader's taken-up line unread (taken_up_unread)" src/key_end.rs '|| own.iter().any(|&a| (a == i || c.g.in_past(i, a)) && !c.g.in_past(e, a))' '|| own.is_empty() && false'
+plant "key_end: a count final by acknowledgement reopened (final_count_unread)" src/key_end.rs '            || in_final' '            || (in_final && false)'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

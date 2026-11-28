@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**A key end is a cut** (the Constitution's ruling on r86 R1 and R2). `key_end::counts_for(c, i, k, reader, final_)`:
+a row of `k` stands against each of `k`'s ends where it is in the end's past, or on the reader's own line from before
+the reader held the end (taken up), or part of a count final by acknowledgement (`seat::final_by_ack`: n - t + 1
+clean receipts; a final act is not reopened by a later cut). `KeyReading` carries the reader and the final counts;
+`counts_by` is the reading with no reader. A revocation by a key its own rotation already ended is no end; an end by
+the person's key roster (`KeyEndRow::roster_end`, signed by the successor) is one. Caller duty: an honest rotation
+or revocation names the key's last rows. The cost: a thief's vote a reader took up before holding the end stands for
+that reader, one in a final count for everyone; the remedy is a later count; readers may differ on a count not yet
+final. Cases in `check_key_view.py` (35); plants `retired_key_revokes`, `roster_end_unread`, `taken_up_unread`,
+`final_count_unread`, crate twins.
+
 **The key view: every seat count reads a key's end at its voices step.** `CutSpec::key_view` (defaulted None),
 `key_end::KeyView`, `key_end::KeyReading` and `key_end::counts_by` (new): `seat::voices_with`, the one place every
 seat count reads its voices, keeps the signer's and each cosigner's signature on the counted row, and each named

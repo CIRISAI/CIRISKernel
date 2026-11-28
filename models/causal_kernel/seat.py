@@ -2683,6 +2683,25 @@ def voices(r, P, past=None):
     return v
 
 
+def final_by_ack(S, fid):
+    """Counted act fid is FINAL BY ACKNOWLEDGEMENT in S: it concluded, and clean receipts (`ack` rows of it, `of`)
+    from n - t + 1 of the n members at its heads are held, t the least yes its policy meets at n (purge.py's settled,
+    `ack_blocking_quorum`). Read over the rows as they concluded with no key view: a final act is not reopened by a
+    later cut."""
+    f = S.by.get(fid)
+    if f is None or not S.C.get(fid) or f["kind"] not in ("offer", "unseat") or f.get("conf") != "group": return False
+    P = [q for q in S.Cs if q["id"] in S.anc[fid]]
+    past = lambda a, b: a in S.anc[b]
+    # a count (its own count met: not a lone act, whose receipts are E8's), over the members at its heads
+    if not count_met(f, P, past): return False
+    M = members_at(P, past, f["obj"], f.get("head", ()), "member")
+    n = len(M)
+    t = next((y for y in range(n + 1) if met(f.get("policy"), y, n)), None)
+    if t is None or not n: return False
+    rec = {a["signer"] for a in S.Cs if a["kind"] == "ack" and a.get("of") == fid and a["signer"] in M}
+    return len(rec) >= max(1, n - t + 1)
+
+
 # The key view (CutSpec::key_view): a callable (row id, key) -> whether key's signature on that row counts by the end
 # rule (key_end.counts_by), or None: no key lane read, every voice counts (only for a caller with no key lane).
 KEY_VIEW = [None]

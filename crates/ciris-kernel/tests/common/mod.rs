@@ -638,6 +638,16 @@ impl KeyEndRow for TRow {
     fn instant(&self) -> Option<i64> {
         self.fi("at")
     }
+    fn roster_end(&self) -> Option<(&String, i64)> {
+        if self.kind == "rend" {
+            Some((self.m_key(), self.fi("ra").unwrap()))
+        } else {
+            None
+        }
+    }
+    fn cosigned_by(&self) -> &[String] {
+        &self.cosigners
+    }
     fn revocation(&self) -> Option<(&String, i64)> {
         if self.kind == "revoke" {
             Some((self.m_key(), self.fi("ra").unwrap()))
