@@ -109,6 +109,7 @@ OB6 = ST.offer("ob6", NODE, "rk:a0", "owner", NODE, "self", ("ob",), cosigners=(
 UO2 = ST.unseat("uo2", "rk:a0", "rk:a0", "owner", NODE, "seat", ("ob2r",), under="ob2r")     # the owner seat's unseat
 M3 = R("m3", "note", "vB", ("ob2r",))
 UO2C = ST.unseat("uo2", "rk:a0", "rk:a0", "owner", NODE, "seat", ("ob2r", "m3"), under="ob2r")   # at the head m3
+OB2B = ST.offer("ob2b", NODE, "rk:b0", "owner", NODE, "self", ("ob",), cosigners=("rk:b0",))   # a re-binding to rk:b0
 NODE_BASE = VA + VB + VC + [GR]
 
 
@@ -215,13 +216,18 @@ NODE_CASES = [
      [OB, OBE, WOB_E, OB2R, M3, UO2C], node_row("n42", ["ob2r"], [HA], ("m3",)), "concludes_nothing", None),
     ("T1: the same, the row before its head: it counts at its own head",
      [OB, OBE, WOB_E, OB2R, M3, UO2C], node_row("n43", ["ob2r"], [HA], ("ob2r",)), "admitted", None),
+    # the one owner reading (Seats.owner): a re-binding of the node to another owner ends the binding before it
+    ("Seats.owner: the node re-bound from rk:a0 to rk:b0 (ob2b has ob in its past): a row under ob2b, vB's head, "
+     "admits", [OB, OB2B], node_row("n44", ["ob2b"], [HB]), "admitted", None),
+    ("Seats.owner: and a row under the re-bound ob concludes nothing", [OB, OB2B], node_row("n45", ["ob"], [HA], ("ob2b",)),
+     "concludes_nothing", None),
     ("RV-B B2: a voice's room key (its record says person) binds an owner as a node would: no node's row", [OBP],
      node_row("n35", ["obp"], [HB], kid="rk:a1"), "concludes_nothing", None),
 ]
 NODE_PLANTS = ("node_rule4_unread", "node_binding_end_unread", "node_two_owners_kept", "node_owner_kind_unread",
                "node_owner_eviction_unread", "node_voice_removal_unread", "node_owner_seat_unread",
                "node_owner_revocation_unread", "node_key_end_unread", "node_record_unread",
-               "node_binding_signature_unread", "node_arm_disagrees_with_seats", "node_signer_kind_unread")
+               "node_binding_signature_unread", "node_arm_disagrees_with_seats", "node_owner_reading_own", "node_signer_kind_unread")
 
 
 def row(i, voice, kid, voice_refs, room=ROOM):

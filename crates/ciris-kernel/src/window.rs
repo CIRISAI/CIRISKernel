@@ -38,8 +38,8 @@ use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
 use crate::ops;
 use crate::seat::{
-    self, members_in, members_in_scopes, persons, seat_rule, Act, Choice, Obj, Policy, ScopeClass, SeatKind, SeatLaw,
-    SeatRow, AGENT,
+    self, members_in, members_in_scopes, persons, Act, Choice, Obj, Policy, ScopeClass, SeatKind, SeatLaw, SeatRow,
+    AGENT,
 };
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
