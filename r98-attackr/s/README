@@ -1,0 +1,4 @@
+r98-attackr: re-check of r97 on recount-on-growth 6853569.
+Extract: git archive 6853569 | tar -x -C r98-attackr/tree ; run: python3 -I r98-attackr/s/<x>.py
+g1/g2/f1/f2/f5 re-run r95-r97; h1 (held ends in the grown body, head-bounded batch); probe (withdrawal forms).
+Note g1 V1 uses a withdrawal of an acceptance that concludes nothing; h1 V1prime is the valid form.
