@@ -273,6 +273,14 @@ COUNTERSIGN = [
     ("a body of three deciding seats decides under its own protocol: A and B remove C, two voices, no countersign",
      [AF, REM], {"rm": True}, [("C", "af", False)]),
     ("and one voice of such a body removes nobody", [AF, dict(REM, cosigners=())], {"rm": False}, [("C", "af", True)]),
+    # the paths (the Constitution's ruling): affiliation_member_action is one officer and one eligible outside key;
+    # two officers do not meet it. cosigned_act is the path of two officers or more
+    ("two officers removing a member under affiliation_member_action do not meet it (its voices are one officer and "
+     "one outside key)", [AF, dict(REM, policy="affiliation_member_action")], {"rm": False}, [("C", "af", True)]),
+    ("one officer's removal under cosigned_act does not meet it (the protocol path is of two officers or more)",
+     ONE + [dict(RMB(), policy="cosigned_act")], {"rm": False}, [("B", "a1", True)]),
+    ("and countersigned by the official it is still none: the countersign decides only the one-officer path",
+     ONE + [dict(RMB(), policy="cosigned_act"), CS("O")], {"rm": False}, [("B", "a1", True)]),
     ("a key that is no deciding seat signs no removal: B, appointed, with A", ONE + [RMB(cos=("B",))], {"rm": False},
      [("B", "a1", True)]),
     ("r75: an overseer seated AFTER the removal is no overseer of it: R1 confers review over ob on R2, R2 countersigns",
@@ -371,7 +379,7 @@ PLANTS = ("charter_unread", "at_issuance", "below_protocol_read", "fork_union", 
           "dissolved_declares", "dissolves_at_unread", "empty_edge_admits_all", "absent_means_none",
           "edge_classes_unread", "last_hop_only", "affiliation_unread", "affiliation_admit_unread",
           "countersign_unread", "countersign_inside_seat", "official_at_founding", "overseers_unread",
-          "withdrawal_clears_unread", "two_voices_unread", "officer_from_founders", "affiliation_body_members",
+          "withdrawal_clears_unread", "two_voices_unread", "affiliation_path_unread", "officer_from_founders", "affiliation_body_members",
           "no_officer_locks", "overseer_end_unread", "countersign_against_member_only",
           "countersign_at_heads_unread")
 

@@ -54,6 +54,7 @@ plant "a counted offer's proposer ends it alone"      src/seat.rs '&& o.conf() !
 plant "acts: a purge read as a standing act" src/seat.rs 'CommunityKind::Accord if sc == Some("selection") =>' 'CommunityKind::Accord if false =>'
 plant "acts: a voice's room keys no act" src/seat.rs '        CommunityKind::SelfRoster | CommunityKind::Voice => {' '        CommunityKind::SelfRoster => {'
 plant "acts: a confirmation by one voice" src/seat.rs '    2 * v > holders.len()' '    v > 0'
+plant "acts: the affiliation's stated path unread" src/seat.rs '        Some("affiliation_member_action") if seats.len() != 1 => return false,' '        Some("affiliation_member_action") if false => return false,'
 plant "acts: a confirmation naming no halt" src/seat.rs '    cited(r, get, &|q: &R| q.seat_kind() == SeatKind::Halt).filter(|h| h.obj().is_some() && h.obj() == r.obj())' '    cited(r, get, &|_: &R| true)'
 plant "one say switched off"                           src/head.rs '.filter(|k| !(self.say && rcpts' '.filter(|k| !(false && rcpts'
 plant "a cut at an older head is not read"              src/head.rs 'self.counts_own(a) && !self.cuts(a).iter().any(|c| self.voids_from(c, a))' 'self.counts_own(a)'

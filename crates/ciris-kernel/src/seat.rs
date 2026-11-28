@@ -1780,6 +1780,14 @@ fn affiliation_count<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatL
     let r = p.row();
     let Some(obj) = r.obj() else { return false };
     let seats = deciding_seats(p, law, spec, &obj, r.head());
+    // the path the row states (the Constitution's ruling): affiliation_member_action is the one-officer countersigned
+    // path (one officer and one eligible outside key), so a body of two officers or more does not meet it;
+    // cosigned_act is the deciding seats under the declared protocol, the path of two officers or more
+    match r.policy().map(|w| w.as_ref()) {
+        Some("affiliation_member_action") if seats.len() != 1 => return false,
+        Some("cosigned_act") if seats.len() < 2 => return false,
+        _ => {}
+    }
     let vs = voices(r, p);
     if vs.is_empty() || !vs.iter().all(|k| seats.contains(k)) {
         return false;

@@ -525,11 +525,20 @@ def deciding_seats(P, past, obj, heads):
 
 
 def affiliation_count(r, P, past):
-    """Affiliation.lean `admitted` for a removal: the body's own signature (every voice a deciding seat, at least
+    """The path a row states first: affiliation_member_action only with one deciding seat, cosigned_act only with two
+    or more. Affiliation.lean `admitted` for a removal: the body's own signature (every voice a deciding seat, at least
     one), and where the body has one deciding seat, the act stands as a PROPOSAL (CC 4.5.5's reconsideration path):
     it concludes, and is in force only where a countersign names it (Seats); a body of two or more seats decides on
     two voices at least, the member removed not counted (CC 4.5.13; MUTATION two_voices_unread: on one)."""
     seats = deciding_seats(P, past, r["obj"], r.get("head", ()))
+    # the path the row states (the Constitution's ruling): affiliation_member_action is the one-officer countersigned
+    # path, its voices one officer and one eligible outside key, so a body of two officers or more does not meet it;
+    # cosigned_act is the body's deciding seats under its declared protocol, the path of two officers or more
+    # (MUTATION affiliation_path_unread: either path read for any body)
+    pol = r.get("policy")
+    if "affiliation_path_unread" not in MUT:
+        if pol == "affiliation_member_action" and len(seats) != 1: return False
+        if pol == "cosigned_act" and len(seats) < 2: return False
     vs = voices(r, P)
     if not vs or not vs <= seats: return False
     if len(seats) == 1: return True
