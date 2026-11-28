@@ -6,7 +6,7 @@
 mod common;
 use ciris_kernel::cut::CutSpec;
 use ciris_kernel::key_end::{
-    conclude_rule, conclude_rule_with_seat, counts_by, counts_for, successor, KeyEndRow, KeyReading, KeyView,
+    conclude_rule, conclude_rule_with_seat, counts_by, counts_for, successor, KeyReading, KeyView,
 };
 use ciris_kernel::layers::{conclude, kept, Concluded, Past};
 use ciris_kernel::seat::{final_by_ack, seat_rule, self_roster_ends, voices_with, Obj, SeatLaw, Seats};

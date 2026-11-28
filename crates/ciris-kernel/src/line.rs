@@ -330,7 +330,7 @@ mod tests {
     #[test]
     fn the_line_voids_a_descendant_that_names_an_older_head() {
         let row = |id, names: Vec<u32>, signer, head: Vec<u32>, ack| Rw { id, names, signer, head, ack };
-        let rows = vec![
+        let rows = [
             row(0, vec![], 1, vec![], false),
             row(1, vec![0], 1, vec![0], false),    // a1, at the founding row
             row(2, vec![1], 1, vec![1], false),    // a1b, at a1

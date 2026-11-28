@@ -1237,7 +1237,7 @@ pub fn spec_from_policy<T: TryFrom<u64>>(
     let incl: Vec<&str> = toks.next().unwrap_or("").split('+').collect();
     let excl: Vec<&str> = toks.collect();
     let less = row.standing_set.replace(',', " ").split_whitespace().any(|w| w == "less");
-    if less != !excl.is_empty() {
+    if less == excl.is_empty() {
         no("counted.count_set", Why::Disagrees("standing_set"));
     }
     let kind = row.kind.as_str();

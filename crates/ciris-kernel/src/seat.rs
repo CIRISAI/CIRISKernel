@@ -1086,7 +1086,7 @@ pub fn protocol_record<'a, R: SeatRow, S: CutSpec<R>>(
         (q.consensus_protocol().map(|x| x.as_ref()), q.need(), w)
     };
     let one = stated(first);
-    newest.iter().all(|q| stated(*q) == one).then_some(first)
+    newest.iter().all(|q| stated(q) == one).then_some(first)
 }
 
 /// The room's declared protocol in force in a row's past `p`: [`protocol_record`]'s `consensus_protocol` (`None`
@@ -1619,7 +1619,7 @@ fn reconsideration_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &Se
 
 /// Whether act `act` (a quarantine marker, a slashing verdict or a takedown notice; any other row: whether it
 /// concluded) is in force for reader `own` over `c`. A lone act of a community: concluded and not behind the
-/// reader's line; in force by the end rule ([`removal_in_force`] read for its duty: its signer's standing live, or
+/// reader's line; in force by the end rule (`removal_in_force` read for its duty: its signer's standing live, or
 /// another duty holder's receipt keeping it); not lifted by the members (a lift counted for the reader, an offer of
 /// scope `act` naming it under `moderation_overturn`); a takedown not reversed by a concluded `reconsideration`
 /// naming it; a quarantine withhold not lifted by a release in force that names it (a withhold outranks a release
@@ -1835,7 +1835,7 @@ fn affiliation_act<'r, R: SeatRow + 'r>(law: &SeatLaw, get: &dyn Fn(&R::Id) -> O
     if let Some(b) = r.edge_body() {
         return kind_of(law, get, &b) == Some(CommunityKind::Affiliation);
     }
-    if !r.obj().is_some_and(|obj| kind_of(law, get, &obj) == Some(CommunityKind::Affiliation)) {
+    if r.obj().is_none_or(|obj| kind_of(law, get, &obj) != Some(CommunityKind::Affiliation)) {
         return false;
     }
     if lone_act_duty(r.seat_kind()).is_some() {
@@ -2149,7 +2149,7 @@ fn officer_key<R: SeatRow>(pp: &Persons<'_, R>, seats: &BTreeSet<R::Key>, k: &R:
 /// The one reading of the countersign a caller takes (trust_rows' onward edges): row `i` of the set `seats` is built
 /// on stands for its reader where it needs no countersign (no one-officer affiliation's act at its own past), or is
 /// decided over the set: a countersign naming it counts there, no withdrawal of it by its signer there lacks that
-/// countersign in its past (rule 4), and no end of the countersigner's overseer seat there lacks it ([`overseer_cut`]).
+/// countersign in its past (rule 4), and no end of the countersigner's overseer seat there lacks it (`overseer_cut`).
 pub fn countersigned<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, i: usize) -> bool {
     let c = seats.c();
     let g = &c.g;
@@ -2304,7 +2304,7 @@ fn recovery_judged<R: SeatRow, S: CutSpec<R>>(
         return Err(("recovery_changes_more", None));
     }
     let founders = founders_at(p, law, spec).len() as u64;
-    if founders >= m + 1 {
+    if founders > m {
         return Err(("not_stalled", None));
     }
     let Some(gid) = r.bundle() else { return Err(("not_a_recovery", None)) };
@@ -2535,7 +2535,7 @@ impl<R: SeatRow> LineSpec<R> for SeatLine {
         }
     }
     /// H6: every row `own` signed or cosigned (its seating or acceptance, a counted row, a cosignature, its
-    /// withdrawal, a window's row, an acknowledgement, content) is over the object [`object_of`] reads.
+    /// withdrawal, a window's row, an acknowledgement, content) is over the object `object_of` reads.
     fn acknowledges<'r>(&self, r: &'r R, own: &R::Key, get: &dyn Fn(&R::Id) -> Option<&'r R>) -> Option<Self::Obj> {
         if r.signer() == own || r.cosigners().contains(own) {
             object_of(r, get)
@@ -2615,7 +2615,7 @@ impl<W: AsRef<str>> Sc<'_, W> {
 fn lone_founding<R: SeatRow>(o: &R) -> bool {
     // a family holds no duty seat (F4)
     founding(o)
-        && !o.group_kind().is_some_and(|k| k.as_ref() == "family")
+        && o.group_kind().is_none_or(|k| k.as_ref() != "family")
         && o.duty_holders().is_empty()
         && o.scope().map(|s| s.as_ref()) == Some("member")
         && o.to().len() == 1
@@ -2794,8 +2794,9 @@ pub(crate) fn stay_end<R: SeatRow>(
     // and one naming a roster scope ends the stay only where its target gives the signer that seat
     if let Some(ws) = w.scope() {
         let offer = t.seat_kind() == SeatKind::Offer;
-        if !(offer && roster_seat(law, t, ws.as_ref()))
-            || !seat_scopes(t, k, signed_by(t, k)).iter().any(|s| s.s() == ws.as_ref())
+        if !(offer
+            && roster_seat(law, t, ws.as_ref())
+            && seat_scopes(t, k, signed_by(t, k)).iter().any(|s| s.s() == ws.as_ref()))
         {
             return None;
         }
@@ -5503,7 +5504,7 @@ fn ack_void<R: SeatRow, S: CutSpec<R>>(
 /// for the reader; build its roster with [`Seats::for_reader`].
 ///
 /// With `own` `None`, the rows as they conclude for a reader with no row of its own: only the concurrent founders'
-/// amendments it holds are read in ([`held_pairs`], C2). Every reader holds the rows it is given, so a roster is
+/// amendments it holds are read in (`held_pairs`, C2). Every reader holds the rows it is given, so a roster is
 /// built over what this returns (with [`Seats::new`] where `own` is `None`).
 pub fn for_reader<'a, R: SeatRow, S: CutSpec<R>>(
     c: &Concluded<'a, R>,
@@ -6564,7 +6565,7 @@ pub fn infra_live<R: SeatRow, S: CutSpec<R>>(
         active.remove(&k);
     }
     let active = active.len();
-    Some(if active as u64 >= m + 1 { Liveness::Live } else { Liveness::Stalled { active, m } })
+    Some(if active as u64 > m { Liveness::Live } else { Liveness::Stalled { active, m } })
 }
 
 /// Conclude every kept row by [`seat_rule`] (`other` for a row the seat does not read; `root` as in
@@ -7014,7 +7015,7 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
 }
 
 /// Counted row `p.row()`'s count is still met over `p` with the voices `void` taken out: the one re-count for a voice
-/// a concurrent end or removal discounts ([`contested_out`] here; [`crate::trust_rows`]' discounted voice of an ended
+/// a concurrent end or removal discounts (`contested_out` here; [`crate::trust_rows`]' discounted voice of an ended
 /// key). It reads the seat model's voices path ([`voices`], the persons counted, the agents apart).
 pub fn still_met<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
@@ -7107,7 +7108,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
             }
         }
         if !pair_keys.is_empty() {
-            if !r.scope().is_some_and(|s| s.as_ref() == "record") {
+            if r.scope().is_none_or(|s| s.as_ref() != "record") {
                 return false;
             }
             let v = voices_with(r, p, spec);
@@ -7150,7 +7151,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
             }
         }
         // stalled (fewer than M + 1 active founders): the founders' count admits and removes nothing
-        if !r.scope().is_some_and(|s| s.as_ref() == "record") && mem.len() < m + 1 {
+        if r.scope().is_none_or(|s| s.as_ref() != "record") && mem.len() < m + 1 {
             return false;
         }
         // N in the word is documentary once a removal leaves it stale; M binds
@@ -7207,7 +7208,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     let rows: Vec<&R> = p.rows().collect();
     let pp = Persons::over(&rows, law, spec, Some(&obj), kv_of::<R, _>(spec));
     let vot: BTreeSet<R::Key> =
-        mem.iter().filter(|k| !void.contains(*k) && !(drop_to && to.contains(*k))).cloned().collect();
+        mem.iter().filter(|k| !(void.contains(*k) || drop_to && to.contains(*k))).cloned().collect();
     let key_mem = mem;
     let (mem, v) = pp.count(&key_mem, &voices_with(r, p, spec), Some(&vot), &[]);
     // a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
@@ -7236,7 +7237,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         return false; // a lone holder with a duty offer of its own standing confers no other alone
     }
     // the threshold and the weights in force: the record's under the room's protocol, the row's otherwise
-    let count = GroupCount { policy: pol, offer: is_offer, to: to, members: &mem, voices: &v, need: f.need };
+    let count = GroupCount { policy: pol, offer: is_offer, to, members: &mem, voices: &v, need: f.need };
     let wr: &R = f.weights.unwrap_or(r);
     // a ranked count was answered above, so the count answers
     group_count(&count, |k| wr.weights().iter().find(|(w, _)| w == k).map_or(0, |(_, x)| *x)).unwrap_or(false)
@@ -7525,7 +7526,7 @@ fn ends_of<'a, R: SeatRow>(by: &BTreeMap<&R::Id, &'a R>, r: &'a R) -> Vec<EndedS
     }
 }
 
-/// The seats (key, scope, object) row `r` ends, as the seat model reads ends ([`ends_of`]), owned: the one read of
+/// The seats (key, scope, object) row `r` ends, as the seat model reads ends (`ends_of`), owned: the one read of
 /// ends for [`crate::trust_rows`]. `by` looks a row up among those held.
 pub fn ended_seats<'a, R: SeatRow>(
     by: &BTreeMap<&R::Id, &'a R>,
@@ -7739,7 +7740,7 @@ fn revoked_before<R: SeatRow, S: CutSpec<R>>(
                 return false; // a founding row has no past
             }
             // a scope that holds a roster seat is read as one (`founder` included)
-            if !r.scope().is_some_and(|s| seat_class(law, r, s.as_ref()).is_some()) {
+            if r.scope().is_none_or(|s| seat_class(law, r, s.as_ref()).is_none()) {
                 return p.rows().any(|q| {
                     q.seat_kind() == SeatKind::Unseat
                         && q.scope().is_some_and(|s| fin(s.as_ref()))
@@ -7804,7 +7805,7 @@ fn room_key_ended<R: SeatRow, S: CutSpec<R>>(
         })
 }
 
-/// [`authority_gate`] for the row a past is of: the one gate read again over another past than the one the row
+/// `authority_gate` for the row a past is of: the one gate read again over another past than the one the row
 /// concluded over (a lone conferral re-counted over the grown body the reader holds, [`crate::trust_rows`]). True for
 /// a row the gate does not read (a founding row, a counted row).
 pub fn authority_gate_at<R: SeatRow, S: CutSpec<R>>(law: &SeatLaw, spec: &S, p: &Past<'_, '_, R>) -> bool {

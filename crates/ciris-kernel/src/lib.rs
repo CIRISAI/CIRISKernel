@@ -37,6 +37,8 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+// the row views are generic, so a tuple of their associated types reads as complex; each is named where it is built
+#![allow(clippy::type_complexity)]
 
 extern crate alloc;
 

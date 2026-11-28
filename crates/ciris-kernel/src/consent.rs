@@ -396,9 +396,7 @@ pub fn may_send<'a, R: ConsentRow>(
     now: Option<R::T>,
     rd: Rd<'_, R>,
 ) -> Option<&'a R::Id> {
-    if reading(c, at).is_none() {
-        return None;
-    }
+    reading(c, at)?;
     principals::<R>(node, at, rd).iter().find_map(|p| {
         grants_in_force(c, p, at, now, rd)
             .get(peer)

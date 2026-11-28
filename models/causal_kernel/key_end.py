@@ -194,6 +194,9 @@ def successor(S, k, ret=None, roster=frozenset()):
     retained set, it reads only rotations that have not lapsed, as every derived answer does."""
     rots = [r for r in K.sel(S.Cs, kind="rec") if r["succ_of"] == k and (ret is None or r["id"] in ret)
             and not voided(S, r, roster)]
+    closing = closing_voids(S, k, roster)            # TR1v2: a rotation without the closing void names no successor
+    if closing and "void_reopens" not in MUT:
+        rots = [r for r in rots if all(v in S.anc[r["id"]] for v in closing)]
     if not rots:
         return None
     keys = sorted({r["key"] for r in CK.frontier(S, rots)})
@@ -233,6 +236,12 @@ def ends_of(S, k, roster=frozenset()):
     The residual, stated: a person with ONE key (a self roster of one), whose key is stolen, cannot be told from the
     thief: the thief can rotate or revoke it as the owner could, and no roster can void a rotation."""
     rots = [r for r in S.Cs if r["kind"] == "rec" and r["succ_of"] == k and not voided(S, r, roster)]
+    # TR1v2 (ruled on r118): once the roster has voided a rotation of k and a revocation of k stands beside it, the
+    # void and the revocation are k's end: a rotation of k without that void in its past retires nothing and names no
+    # successor (MUTATION void_reopens: every later rotation stands again)
+    closing = closing_voids(S, k, roster)
+    if closing and "void_reopens" not in MUT:
+        rots = [r for r in rots if all(v in S.anc[r["id"]] for v in closing)]
     revs = [r for r in S.Cs if r["kind"] == "revoke" and r["key"] == k and r["signer"] == k
             and revocation_stands(S, r, k, rots, roster)]
     # a voided rotation's rotated-to key: the roster's voiding act ends it, by the cut rule like any ended key's (what
@@ -242,6 +251,19 @@ def ends_of(S, k, roster=frozenset()):
         and any(n in S.by and S.by[n]["kind"] == "rec" and S.by[n].get("succ_of") is not None and S.by[n]["key"] == k
                 for n in S.by[e]["names"])]
     return revs + rots + voids
+
+
+def closing_voids(S, k, roster=frozenset()):
+    """The roster's voids of a rotation of k (ids of `roster`, read as `voided` reads them) where a revocation of k
+    (either form) is held: together they are k's end against every later rotation of k that does not have the void in
+    its past (TR1v2, ruled on r118)."""
+    import checkpoint as _CP
+    if not any((q["kind"] == "revoke" and q.get("key") == k and q["signer"] == k) or _CP.registered_self_unseat(q, k)
+               for q in S.Cs):
+        return []
+    rots = [r for r in S.Cs if r["kind"] == "rec" and r["succ_of"] == k]
+    return [e for e in roster if e in S.by and any(tuple(S.by[e].get("to", ())) == (r["key"],) and r["id"] in S.by[e]["names"]
+                                                   for r in rots)]
 
 
 def revocation_stands(S, rv, k, rots, roster=frozenset()):
