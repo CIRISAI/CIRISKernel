@@ -7,7 +7,7 @@ pub mod eager;
 use ciris_kernel::cut::CutSpec;
 use ciris_kernel::head::{Duty, Entry, Kind};
 use ciris_kernel::key_end::{EndRule, KeyEndRow, Record};
-use ciris_kernel::seat::{Conf, Obj, Reference, SeatKind, SeatRow};
+use ciris_kernel::seat::{is_identity_reference, Conf, Obj, Reference, SeatKind, SeatRow};
 use ciris_kernel::window::{WinKind, WindowRow};
 use ciris_kernel::Row;
 use std::collections::{BTreeMap, BTreeSet};
@@ -280,6 +280,7 @@ pub struct TRow {
     pub kind: String,
     pub to: Vec<String>,
     pub cosigners: Vec<String>,
+    pub identity: Vec<String>,
     pub subjects: Vec<String>,
     pub head: Vec<String>,
     pub options: Vec<String>,
@@ -293,6 +294,8 @@ pub struct TRow {
     pub merge_members: Vec<String>,
     /// A record's `weights` (a weighted protocol's): (key, whole-number weight) pairs.
     pub weights: Vec<(String, u64)>,
+    /// A community's record: its `licence_classes`, (class, legal_weight) pairs, where the row states them.
+    pub licence_classes: Option<Vec<(String, bool)>>,
     pub sigs: Vec<String>,
     pub obj: Option<Obj<String, String>>,
     pub over: Option<Obj<String, String>>,
@@ -303,6 +306,19 @@ pub struct TRow {
     pub regime: Option<String>,
     pub cohort_subkind: Option<String>,
     pub group_kind: Option<String>,
+    pub official: Option<String>,
+    pub family_param: Option<String>,
+    pub outcome: Option<String>,
+    pub overseen_by: Option<String>,
+    pub declared_cohort: Option<String>,
+    /// An acceptance edge row's `bears`, `dst`, `on_behalf` and `trust_classes`; a licence's `authority` and
+    /// `licence_class`. An object field written as a plain name (not a reference) is read as absent.
+    pub bears: Option<String>,
+    pub dst: Option<Obj<String, String>>,
+    pub on_behalf: Option<Obj<String, String>>,
+    pub trust_classes: Option<Vec<String>>,
+    pub authority: Option<Obj<String, String>>,
+    pub licence_class: Option<String>,
     pub bundle: Option<String>,
     pub group_id: Option<String>,
     pub role: Option<String>,
@@ -311,6 +327,7 @@ pub struct TRow {
     pub of: Option<String>,
     pub target: Option<String>,
     pub content: Option<String>,
+    pub cites: Vec<String>,
     pub under: Option<String>,
     pub window: Option<String>,
     pub says: Option<String>,
@@ -365,6 +382,14 @@ impl TRow {
                 x => panic!("{k}: {x:?}"),
             }
         };
+        // an object field a fixture may write as a plain name: read only where it is a reference
+        let ol = |k: &str| -> Option<Obj<String, String>> {
+            match m.get(k) {
+                Some(J::Arr(_)) => o(k),
+                Some(J::Str(t)) if is_identity_reference(t) => o(k),
+                _ => None,
+            }
+        };
         TRow {
             id: m["id"].s().to_string(),
             names: strs(&m, "names"),
@@ -372,6 +397,7 @@ impl TRow {
             kind: opt(&m, "kind").unwrap_or_default(),
             to: strs(&m, "to"),
             cosigners: strs(&m, "cosigners"),
+            identity: strs(&m, "identity"),
             subjects: strs(&m, "subjects"),
             head: strs(&m, "head"),
             options: strs(&m, "options"),
@@ -392,6 +418,10 @@ impl TRow {
                 .filter(|x| matches!(x, J::Arr(_)))
                 .map(|x| x.arr().iter().map(|e| (e.arr()[0].s().to_string(), e.arr()[1].i() as u64)).collect())
                 .unwrap_or_default(),
+            licence_classes: m
+                .get("licence_classes")
+                .filter(|x| matches!(x, J::Arr(_)))
+                .map(|x| x.arr().iter().map(|e| (e.arr()[0].s().to_string(), e.arr()[1].b())).collect()),
             sigs: strs(&m, "sigs"),
             obj: o("obj"),
             over: o("over"),
@@ -402,6 +432,21 @@ impl TRow {
             regime: opt(&m, "regime"),
             cohort_subkind: opt(&m, "cohort_subkind"),
             group_kind: opt(&m, "group_kind"),
+            official: opt(&m, "official"),
+            family_param: m
+                .get("kind")
+                .and_then(|k| k.opt_s())
+                .and_then(|k| k.split_once(':').map(|(_, p)| p.to_string()))
+                .filter(|p| !p.is_empty()),
+            outcome: opt(&m, "outcome"),
+            overseen_by: opt(&m, "overseen_by"),
+            declared_cohort: opt(&m, "declared_cohort"),
+            bears: opt(&m, "bears"),
+            dst: ol("dst"),
+            on_behalf: ol("on_behalf"),
+            trust_classes: m.get("trust_classes").filter(|x| matches!(x, J::Arr(_))).map(|x| x.strs()),
+            authority: ol("authority"),
+            licence_class: opt(&m, "licence_class"),
             bundle: opt(&m, "bundle"),
             group_id: opt(&m, "group_id"),
             role: opt(&m, "role"),
@@ -410,6 +455,7 @@ impl TRow {
             of: opt(&m, "of"),
             target: if m.get("target").is_some_and(|t| matches!(t, J::Str(_))) { opt(&m, "target") } else { None },
             content: opt(&m, "content"),
+            cites: strs(&m, "cites"),
             under: opt(&m, "under"),
             window: opt(&m, "window"),
             says: if m.get("says").is_some_and(|t| matches!(t, J::Str(_))) { opt(&m, "says") } else { None },
@@ -468,6 +514,11 @@ impl SeatRow for TRow {
             "cosign" => SeatKind::Cosign,
             "ballot" => SeatKind::Ballot,
             "decline" => SeatKind::Decline,
+            // the registered families: the kind before its parameter
+            k if k.split(':').next() == Some("quarantine") => SeatKind::Quarantine,
+            k if k.split(':').next() == Some("slashing") => SeatKind::Slashing,
+            k if k.split(':').next() == Some("takedown_notice") => SeatKind::TakedownNotice,
+            k if k.split(':').next() == Some("reconsideration") => SeatKind::Reconsideration,
             "ack" => SeatKind::Ack,
             // an objection in a window is presented as a voice for the row it answers (seat::lift_voices)
             "answer" if self.says.as_deref() == Some("object") => SeatKind::Cosign,
@@ -495,6 +546,7 @@ impl SeatRow for TRow {
         match self.fs("conf") {
             Some("self") => Some(Conf::Own),
             Some("seat") => Some(Conf::Seat),
+            Some("root") => Some(Conf::Root),
             Some("group") => Some(Conf::Group),
             _ => None,
         }
@@ -535,6 +587,31 @@ impl SeatRow for TRow {
     fn group_kind(&self) -> Option<&String> {
         self.group_kind.as_ref()
     }
+    fn official(&self) -> Option<&String> {
+        self.official.as_ref()
+    }
+    fn family_param(&self) -> Option<&String> {
+        self.family_param.as_ref()
+    }
+    fn outcome(&self) -> Option<&String> {
+        self.outcome.as_ref()
+    }
+    fn agent_registration(&self) -> bool {
+        self.identity.iter().any(|i| i == "agent")
+    }
+    fn edge_body(&self) -> Option<Obj<String, String>> {
+        match self.kind.as_str() {
+            "delegates_to" => self.on_behalf.clone(),
+            "licensure" => self.authority.clone(),
+            _ => None,
+        }
+    }
+    fn target_key(&self) -> Option<&String> {
+        self.target.as_ref()
+    }
+    fn overseen_by(&self) -> Option<&String> {
+        self.overseen_by.as_ref()
+    }
     fn bundle(&self) -> Option<&String> {
         self.bundle.as_ref()
     }
@@ -567,6 +644,9 @@ impl SeatRow for TRow {
     }
     fn of(&self) -> Option<&String> {
         self.of.as_ref()
+    }
+    fn cites(&self) -> &[String] {
+        &self.cites
     }
     fn target(&self) -> Option<&String> {
         self.target.as_ref()
@@ -604,6 +684,68 @@ impl SeatRow for TRow {
     fn private_room(&self) -> bool {
         self.fs("membership") == Some("private")
     }
+    fn licence_classes(&self) -> Option<&[(String, bool)]> {
+        self.licence_classes.as_deref()
+    }
+    fn declared_cohort(&self) -> Option<&String> {
+        self.declared_cohort.as_ref()
+    }
+    fn landing(&self) -> Option<(&String, &String)> {
+        if self.kind == "landing" {
+            self.of.as_ref().zip(self.says.as_ref())
+        } else {
+            None
+        }
+    }
+    fn evicts(&self) -> Option<&String> {
+        if self.kind == "open" && self.window.as_deref() == Some("self_roster_evict") {
+            self.target.as_ref()
+        } else {
+            None
+        }
+    }
+    fn adds(&self) -> Option<&[String]> {
+        (self.kind == "open" && self.window.as_deref() == Some("self_roster_add")).then_some(self.to.as_slice())
+    }
+}
+
+impl ciris_kernel::trust_rows::TrustRow for TRow {
+    fn is_delegates_to(&self) -> bool {
+        self.kind == "delegates_to"
+    }
+    fn bears(&self) -> Option<&String> {
+        self.bears.as_ref()
+    }
+    fn accepts_dst(&self) -> Option<Obj<String, String>> {
+        self.dst.clone()
+    }
+    fn on_behalf(&self) -> Option<Obj<String, String>> {
+        self.on_behalf.clone()
+    }
+    fn trust_classes(&self) -> Option<&[String]> {
+        self.trust_classes.as_deref()
+    }
+    fn trust_depth(&self) -> Option<i64> {
+        self.fi("trust_depth")
+    }
+    fn licence_authority(&self) -> Option<Obj<String, String>> {
+        self.authority.clone()
+    }
+    fn licence_class(&self) -> Option<&String> {
+        self.licence_class.as_ref()
+    }
+}
+
+/// A row's own stated instants: `asserted_at`, and its end (a record's `dissolves_at`, read by `charter` against the
+/// caller's instant; an offer's `expires_at`, a license seat's term, read by `trust_rows`).
+impl ciris_kernel::Dated for TRow {
+    type Instant = i64;
+    fn asserted_at(&self) -> Option<i64> {
+        self.fi("asserted_at")
+    }
+    fn valid_until(&self) -> Option<i64> {
+        self.fi("dissolves_at").or_else(|| self.fi("expires_at"))
+    }
 }
 
 impl WindowRow for TRow {
@@ -613,6 +755,12 @@ impl WindowRow for TRow {
             "open" => Some(WinKind::Open),
             // an act that names a window opens it (a moderator's lone removal of an agent's key)
             "unseat" if self.window.is_some() => Some(WinKind::Open),
+            // a duty holder's lone act opens the members' overturn window
+            k if self.window.is_some()
+                && matches!(k.split(':').next(), Some("quarantine" | "slashing" | "takedown_notice")) =>
+            {
+                Some(WinKind::Open)
+            }
             "answer" => Some(WinKind::Answer),
             "receipt" => Some(WinKind::Receipt),
             "landing" => Some(WinKind::Landing),

@@ -62,6 +62,7 @@ Planted breaks, each of which must change a case's answer:
     duty_gate_off       a members' admission count confers a duty (CIRISConstitution#241)
     duty_gate_wrong_row the gate reads `counted` off the room's founding row, not the offer
     lone_founder_unread a record one person signs with no map seats that person in no duty
+    lone_regrowth_unread a lone holder's conferral concurrent with the grown body's counted act is not re-counted (r81 B2)
     own_duty_ungated    a single key's own offer of a duty concludes outside a duty room though it is no lone holder
     gate_counted_any_duty  a count over one duty's holders passes the gate as the duty holders' count
     head_any_row        a head of another object's line counts (H1: a head is a counted change of the row's own object)
@@ -459,6 +460,27 @@ _HO = [ST.offer("o1", "A", "K", "moderate", OBJ, "seat", ("mk",), under="g"), ST
 CASES += [("the lone holder confers again on a key that accepted and left: the first offer was consumed, no standing "
            "offer blocks the second, and K holds moderate again", [_HG, _HK] + _HO, [("K", "moderate", T), ("K", "member", T)],
            None)]
+
+# r81 B2 (the r87 attack at the roster): A, the lone moderate holder, confers moderate on C (dc1), and A and C, the
+# grown body, confer a license on Y at dc1 (gy); A alone, from the old past, confers moderate on B (dc2), concurrent
+# with gy. Re-counted against gy, dc2 is no lone holder's act (the body is {A, C} there), so B holds nothing, and A
+# and B's withdrawal of C's duty resting on dc2 decides nothing (MUTATION lone_regrowth_unread)
+_BG = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"))
+_BDC1, _BDA1 = ST.offer("dc1", "A", "C", "moderate", OBJ, "self", ("g",)), ST.accept("da1", "C", "dc1")
+_BGY = ST.offer("gy", "A", ("Y",), "license", OBJ, "group", ("da1",), head=("dc1",), cosigners=("C",), counted="duty")
+_BDC2, _BDA2 = ST.offer("dc2", "A", "B", "moderate", OBJ, "self", ("g",)), ST.accept("da2", "B", "dc2")
+_BWCU = ST.unseat("wcu", "A", "C", "moderate", OBJ, "group", ("da1", "da2", "gy"), head=("gy", "dc2"), cosigners=("B",),
+                  counted="duty", policy="duty_withdraw")
+CASES += [
+    ("r81 B2: A's later lone conferral dc2, concurrent with the grown body's counted act gy, is re-counted against it "
+     "and fails: B holds no moderate, and A and B's withdrawal of C's resting on it removes nobody",
+     [_BG, _BDC1, _BDA1, _BGY, _BDC2, _BDA2, _BWCU], [("A", "moderate", T), ("C", "moderate", T), ("B", "moderate", F)],
+     None),
+    ("r81 B2c with no gy: A's two lone conferrals are one batch, and A and B's withdrawal of C's duty stands",
+     [_BG, _BDC1, _BDA1, _BDC2, _BDA2, dict(_BWCU, names=("da1", "da2"), head=("dc1", "dc2"))],
+     [("A", "moderate", T), ("C", "moderate", F), ("B", "moderate", T)], None),
+]
+PLANTS += ("lone_regrowth_unread",)
 
 
 @contextlib.contextmanager

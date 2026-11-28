@@ -5,7 +5,7 @@
 //!   path persist's adapter first took: a founding row, one offer per seat, the version, the counted row);
 //! * `graph::Graph::frontier` against the pairwise frontier, before and after pasts are known, and a graph
 //!   given duplicate ids against the eager closure;
-//! * `trust::reaches`, `trust::EdgeIndex::reaches` and `honours`, and `derived::reach`, against the walks they
+//! * `trust::reaches` and `trust::EdgeIndex::reaches`, and `derived::reach`, against the walks they
 //!   replaced;
 //! * `key_end::retained` against the per-row reading of `key_end::ended`.
 
@@ -551,7 +551,7 @@ fn reaches_before(edges: &[Accepts<u32, u8>], from: &u32, c: &u8, budget: u32, a
         if b == 0 {
             continue;
         }
-        for e in edges.iter().filter(|e| e.src == k && e.admits(c)) {
+        for e in edges.iter().filter(|e| e.src == k && e.refusal().is_none() && e.admits(c)) {
             if e.dst == *a {
                 return true;
             }
@@ -590,7 +590,11 @@ fn the_walks_equal_the_walks_they_replaced() {
             .map(|_| Accepts {
                 src: pick(&mut g, keys as u64) as u32,
                 dst: pick(&mut g, keys as u64) as u32,
-                classes: (0..pick(&mut g, 3)).map(|_| pick(&mut g, 3) as u8).collect(),
+                // absent, or a list of up to two classes: empty, unsorted or twice is refused at admission
+                classes: match pick(&mut g, 4) {
+                    0 => None,
+                    n => Some((1..n).map(|_| pick(&mut g, 3) as u8).collect()),
+                },
                 depth: pick(&mut g, 4) as u32,
             })
             .collect();
@@ -609,10 +613,6 @@ fn the_walks_equal_the_walks_they_replaced() {
                         bad += (trust::reaches(&edges, &from, &c, budget, &a) != want) as usize;
                         bad += (index.reaches(&from, &c, budget, &a) != want) as usize;
                     }
-                    let charter = |k: &u32, c: &u8| !(*k + *c as u32).is_multiple_of(3);
-                    cases += 1;
-                    bad += (index.honours(&from, charter, &a, &c) != trust::honours(&edges, &from, charter, &a, &c))
-                        as usize;
                 }
             }
         }

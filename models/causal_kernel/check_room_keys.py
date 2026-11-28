@@ -116,7 +116,7 @@ def lone(i, by, who, heads):
 def lift(i, by, who, removal, heads, objections):
     """The members' re-seating of the key a lone removal removed: it cites the removal and names the objections."""
     return ST.offer(i, by, who, "agent", OBJ, "group", (removal,) + tuple(objections), head=tuple(heads), policy=OV,
-                    cosigners=(who,), content=removal)
+                    cosigners=(who,), cites=(removal,))
 
 
 def world(private):

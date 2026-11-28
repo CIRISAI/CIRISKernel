@@ -37,6 +37,11 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     stay_scope_ungated   a withdrawal naming a roster scope ends the stay whatever seat its target gives
     scope_keeps_agents   a window's counted clause over a named scope (moderate) keeps its agents (window.py)
     one_leaves_agents    a window's clause one holder's act resolves leaves out an agent's act (window.py)
+    agent_duty_owner_unread  an agent's key holds a duty with no owner's signature
+    agent_owner_end_unread   an end of the owner-binding does not stop the agent's duty seat
+    owner_acceptance_unread  the owner's cosignature on the agent's acceptance is not read as its signature
+    binding_on_carrier   the binding read in the carrier's past, not the conferral's (a new binding revives an old one)
+    agent_by_seat_only   an agent recognised only by an agent seat in the room, not by its registration
 
     python3 -I check_agent_seat.py      exit 1 on any difference
 """
@@ -68,10 +73,31 @@ def remove(i, who, signers, heads, scope="member"):
                      cosigners=tuple(signers[1:]))
 
 
-def confer(i, k, scope, signers, heads):
-    """A duty seat conferred by the duty holders' count (CC 4.5.4 (iv)), the holder cosigning."""
-    return ST.offer(i, signers[0], k, scope, OBJ, "group", tuple(heads), head=tuple(heads), policy="duty_confer",
-                    counted="duty", cosigners=tuple(signers[1:]) + ((k,) if k not in signers else ()))
+def confer(i, k, scope, signers, heads, owner=None, cites=()):
+    """A duty seat conferred by the duty holders' count (CC 4.5.4 (iv)), the holder cosigning; for an agent's key, its
+    owner cosigning too (`owner`), the conferral naming the owner-binding (`cites`)."""
+    return ST.offer(i, signers[0], k, scope, OBJ, "group", tuple(heads) + tuple(cites), head=tuple(heads),
+                    policy="duty_confer", counted="duty",
+                    cosigners=tuple(signers[1:]) + ((k,) if k not in signers else ()) + ((owner,) if owner else ()))
+
+
+# the agent's key AG is owned by OW: its own registration and the owner-binding (CC 3.2), over AG's own roster
+RAG = ST.offer("rag", "AG", "AG", "registered", "AG", "self", identity=("agent",))   # an agent's registration
+OAG = ST.offer("oag", "AG", "OW", "owner", "AG", "self", ("rag",), cosigners=("OW",))
+ORV = ST.unseat("orv", "OW", "OW", "owner", "AG", "seat", ("oag",), under="oag")       # OW revokes its binding
+OAG2 = ST.offer("oag2", "AG", "OV", "owner", "AG", "self", ("rag",), cosigners=("OV",))   # a second owner beside OW
+
+
+# a conferral of review on AG with neither the agent's nor its owner's signature: AG accepts by its own row
+CRA = ST.offer("cr", "p1", "AG", "review", OBJ, "group", ("ag", "oag"), head=("ag",), policy="duty_confer", counted="duty",
+               cosigners=("p2",))
+# r75: after OW's revocation AG binds a sock SK and re-accepts the old conferral, SK cosigning; and AG admitted as a member
+OSK = ST.offer("osk", "AG", "SK", "owner", "AG", "self", ("rag", "orv"), cosigners=("SK",))
+
+
+def aconfer(i, scope, signers, heads, owner="OW", cites=("oag",)):
+    """A duty conferred on the agent's key AG, its owner cosigning and the conferral naming the binding."""
+    return confer(i, "AG", scope, signers, heads, owner=owner, cites=cites)
 
 
 def chain(n):
@@ -93,15 +119,16 @@ def lone(i, by, who, heads, scope="agent"):
 
 # one person (p1, the founder and moderator) and an agent
 G1 = ST.found("g", "p1", ("p1",), {"moderate": ("p1",)})
-W1 = [G1, admit("ag", "AG", ("p1",), ("g",), "agent")]
+W1 = [G1, admit("ag", "AG", ("p1",), ("g",), "agent"), RAG, OAG]
 # two persons (p1 moderates) and an agent
 G2 = ST.found("g", "p1", ("p1", "p2"), {"moderate": ("p1",)}, cosigners=("p2",))
 W2 = [G2, admit("ag", "AG", ("p1", "p2"), ("g",), "agent")]
 # three persons (p1 and p2 moderate) and an agent
 G3 = ST.found("g", "p1", ("p1", "p2", "p3"), {"moderate": ("p1", "p2")}, cosigners=("p2", "p3"))
-W3 = [G3, admit("ag", "AG", ("p1", "p2", "p3"), ("g",), "agent")]
+W3 = [G3, admit("ag", "AG", ("p1", "p2", "p3"), ("g",), "agent"), RAG, OAG]
 # W3 with the agent holding `review`, conferred by the two duty holders
-W3R = W3 + [confer("cr", "AG", "review", ("p1", "p2"), ("ag",))]
+W3R = W3 + [aconfer("cr", "review", ("p1", "p2"), ("ag",))]
+WM = [G3, admit("ag", "AG", ("p1", "p2", "p3"), ("g",)), RAG, OAG]
 P1, P2, P3 = {"p1"}, {"p1", "p2"}, {"p1", "p2", "p3"}
 
 # (name, rows, {row: concludes}, members, roster, [(key, scope, stands)], {window: outcome})
@@ -125,10 +152,10 @@ CASES = [
     ("its signature on a duty conferral is no voice: p1 and the agent of the holders p1 and p2 confer nothing",
      W3R + [confer("cd", "p3", "takedown", ("p1", "AG"), ("cr",))], {"cd": F}, P3, P3 | {"AG"}, [("p3", "takedown", F)], {}),
     ("and it is not counted over: with one person duty holder, that holder's count confers (one of one, not one of two)",
-     W1 + [confer("cr", "AG", "review", ("p1",), ("ag",)), admit("j", "N", ("p1",), ("cr",)), confer("cd", "N", "takedown", ("p1",), ("j",))],
+     W1 + [aconfer("cr", "review", ("p1",), ("ag",)), admit("j", "N", ("p1",), ("cr",)), confer("cd", "N", "takedown", ("p1",), ("j",))],
      {"cr": T, "j": T, "cd": T}, {"p1", "N"}, {"p1", "N", "AG"}, [("N", "takedown", T), ("AG", "review", T)], {}),
     ("a lone duty holder confers alone, an agent holding a duty beside it",
-     W1 + [confer("cr", "AG", "review", ("p1",), ("ag",)), admit("j", "N", ("p1",), ("cr",)),
+     W1 + [aconfer("cr", "review", ("p1",), ("ag",)), admit("j", "N", ("p1",), ("cr",)),
            ST.offer("cd", "p1", "N", "takedown", OBJ, "self", ("j",), cosigners=("N",))],
      {"cd": T}, {"p1", "N"}, {"p1", "N", "AG"}, [("N", "takedown", T)], {}),
     ("its signature on a window answer is no voice: p2 and a second agent object to p1's removal of the agent, and nothing lifts",
@@ -136,7 +163,7 @@ CASES = [
            WN.answer("o2", "p2", "x", "object"), WN.answer("oa", "AG2", "x", "object")],
      {"x": T}, P3, P3 | {"AG2"}, [], {"x": "open"}),
     ("an agent holding `moderate` removes another agent's key alone",
-     W3 + [admit("ag2", "AG2", ("p1", "p2", "p3"), ("ag",), "agent"), confer("cm", "AG", "moderate", ("p1", "p2"), ("ag2",)),
+     W3 + [admit("ag2", "AG2", ("p1", "p2", "p3"), ("ag",), "agent"), aconfer("cm", "moderate", ("p1", "p2"), ("ag2",)),
            lone("x", "AG", "AG2", ("cm",))],
      {"cm": T, "x": T}, P3, P3 | {"AG"}, [("AG", "moderate", T)], {"x": "open"}),
     ("a moderator removes an agent's key alone", W3 + [lone("x", "p1", "AG", ("ag",))], {"x": T}, P3, P3, [], {"x": "open"}),
@@ -158,10 +185,10 @@ CASES = [
     ("a person's withdrawal of the founding row naming scope agent, a seat the row does not give it, ends nothing",
      W3 + [ST.withdraw("w", "p2", "g", ("ag",), scope="agent")], {"w": T}, P3, P3 | {"AG"}, [("p2", "moderate", T)], {}),
     ("an agent holding moderate acts under it: its answer to a fallback, a clause one holder's act resolves, closes it",
-     W3 + [confer("cm", "AG", "moderate", ("p1", "p2"), ("ag",)), WN.opener("op", "p3", "moderation_fallback", OBJ, ("cm",)),
+     W3 + [aconfer("cm", "moderate", ("p1", "p2"), ("ag",)), WN.opener("op", "p3", "moderation_fallback", OBJ, ("cm",)),
            WN.answer("an", "AG", "op", "answered")], {"cm": T}, P3, P3 | {"AG"}, [("AG", "moderate", T)], {"op": "answered"}),
     ("one person moderator and one agent moderator: the person is the lone holder, and withdraws the agent's duty alone",
-     W1 + [confer("cm", "AG", "moderate", ("p1",), ("ag",)),
+     W1 + [aconfer("cm", "moderate", ("p1",), ("ag",)),
            ST.unseat("xm", "p1", "AG", "moderate", OBJ, "group", ("cm",), head=("cm",), policy="duty_withdraw", counted="duty")],
      {"cm": T, "xm": T}, P1, P1 | {"AG"}, [("AG", "moderate", F), ("p1", "moderate", T)], {}),
     ("an agent removed from the room by its count holds no duty from that end",
@@ -171,17 +198,48 @@ CASES = [
     ("a chain of twelve lone removals of the agent, each naming the one before, is read in polynomial time",
      [G3] + chain(12), {"x0": T, "x11": T}, P3, P3, [("p1", "moderate", T), ("A11", "agent", F)], {}),
     ("an agent's duty seat stands only on its agent seat: conferred before the agent is admitted, it waits",
-     [G3, confer("cr", "AG", "review", ("p1", "p2"), ("g",))], {"cr": T}, P3, P3, [("AG", "review", F)], {}),
+     [G3, RAG, OAG, aconfer("cr", "review", ("p1", "p2"), ("g",))], {"cr": T}, P3, P3, [("AG", "review", F)], {}),
+    # ---- an agent's duty by its own statement and its owner's signature (CC 4.5.4, an agent's key; the cross-object
+    # rest (2): the seat rests on the owner-binding over the agent's own roster) --------------------------------------
+    ("a duty conferred on the agent's key without its owner's signature: it holds no duty",
+     W3 + [confer("cr", "AG", "review", ("p1", "p2"), ("ag",))], {"cr": T}, P3, P3 | {"AG"}, [("AG", "review", F)], {}),
+    ("its owner cosigns, but the conferral does not have the owner-binding in its past: no duty",
+     W3 + [aconfer("cr", "review", ("p1", "p2"), ("ag",), cites=())], {"cr": T}, P3, P3 | {"AG"}, [("AG", "review", F)], {}),
+    ("a key that is not its owner cosigns: no duty", W3 + [aconfer("cr", "review", ("p1", "p2"), ("ag",), owner="OV")],
+     {"cr": T}, P3, P3 | {"AG"}, [("AG", "review", F)], {}),
+    ("the owner revokes its binding after the conferral: the duty seat, which has the binding in its past, stops",
+     W3R + [ORV], {"orv": T}, P3, P3 | {"AG"}, [("AG", "review", F), ("AG", "agent", T)], {}),
+    ("a second owner-binding beside the first: two owners are none (CC 3.2), and the duty seat stands on no owner",
+     W3R + [OAG2], {"oag2": T}, P3, P3 | {"AG"}, [("AG", "review", F)], {}),
+    ("the owner's signature carried on the agent's own acceptance (the agent accepts by its own row, the owner "
+     "cosigning it and the acceptance naming the binding): the duty seat stands",
+     W3 + [CRA, ST.accept("acr", "AG", "cr", ("cr", "oag")) | {"cosigners": ("OW",)}], {"cr": T}, P3, P3 | {"AG"},
+     [("AG", "review", T)], {}),
+    ("r75: after the owner's revocation, a new binding to a sock SK revives no old conferral: AG re-accepts cr with SK "
+     "cosigning, and the duty stands on nothing (the conferral's own past holds only the ended binding)",
+     W3R + [ORV, OSK, ST.accept("acc", "AG", "cr", ("cr", "osk")) | {"cosigners": ("SK",)}], {"orv": T}, P3,
+     P3 | {"AG"}, [("AG", "review", F)], {}),
+    ("r75: an agent is an agent by its registration, whatever seat it was admitted in: AG admitted as a member holds a "
+     "conferred duty only with its owner's signature",
+     WM + [ST.offer("cr", "p1", "AG", "review", OBJ, "group", ("ag",), head=("ag",), policy="duty_confer",
+                    counted="duty", cosigners=("p2", "AG"))], {"cr": T}, P3 | {"AG"}, P3 | {"AG"}, [("AG", "review", F)], {}),
+    ("and with it (OW cosigning, the conferral naming the binding): the duty stands",
+     WM + [ST.offer("cr", "p1", "AG", "review", OBJ, "group", ("ag", "oag"), head=("ag",), policy="duty_confer",
+                    counted="duty", cosigners=("p2", "AG", "OW"))], {"cr": T}, P3 | {"AG"}, P3 | {"AG"},
+     [("AG", "review", T)], {}),
+    ("the same acceptance with no owner's cosignature (it only names the binding): no signature, no duty",
+     W3 + [CRA, ST.accept("acr", "AG", "cr", ("cr", "oag"))], {"cr": T}, P3, P3 | {"AG"}, [("AG", "review", F)], {}),
 ]
 PLANTS = ("agent_voice", "agent_counted_over", "agent_unread", "lone_any_key", "roster_cut_any_scope", "stay_scope_ungated",
-          "one_leaves_agents")      # scope_keeps_agents is caught by COUNTED_CASE, read in main()
+          "one_leaves_agents", "agent_duty_owner_unread", "agent_owner_end_unread",
+          "owner_acceptance_unread", "binding_on_carrier", "agent_by_seat_only")      # scope_keeps_agents is caught by COUNTED_CASE, read in main()
 # A counted clause over moderate (no table of the policy has one, so this window is the check's own and is not in
 # the fixture): a strict majority of the moderators approves. p1 and the agent moderator approve; the moderators
 # counted are the persons p1 and p2, so one of two, and nothing lands.
 COUNTED = {"policy": "moderation_action", "counted": "member", "concluder": "member", "opener_says": None,
            "at_once": (("approve", "strict", "moderate", "landed"),), "silent": None, "at_close": (), "default": "lapsed"}
 COUNTED_CASE = ("an agent holding moderate is out of a counted clause over moderate: p1 and the agent approve, one of two",
-                W3 + [confer("cm", "AG", "moderate", ("p1", "p2"), ("ag",)),
+                W3 + [aconfer("cm", "moderate", ("p1", "p2"), ("ag",)),
                       WN.opener("op", "p3", "test_counted_moderate", OBJ, ("cm",)),
                       WN.answer("a1", "p1", "op", "approve"), WN.answer("a2", "AG", "op", "approve")],
                 {"cm": T}, P3, P3 | {"AG"}, [], {"op": "open"})

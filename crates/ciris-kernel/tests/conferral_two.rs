@@ -21,6 +21,10 @@ struct SRow {
     owner: Option<String>,
     via: Option<String>,
     sub_delegation: bool,
+    // an acceptance's refs.also.cites, where the row states them (N7)
+    cites: Option<Vec<String>>,
+    // a binding's node, where the row states it
+    node: Option<String>,
 }
 
 impl StandingRow for SRow {
@@ -50,6 +54,12 @@ impl StandingRow for SRow {
     fn sub_delegation(&self) -> bool {
         self.sub_delegation
     }
+    fn cites(&self) -> Option<&[String]> {
+        self.cites.as_deref()
+    }
+    fn node(&self) -> Option<&String> {
+        self.node.as_ref()
+    }
 }
 
 fn row(j: &J) -> SRow {
@@ -72,6 +82,8 @@ fn row(j: &J) -> SRow {
         owner: opt("owner"),
         via: opt("via"),
         sub_delegation: j.get("sub_delegation").is_some_and(|x| x.b()),
+        cites: j.get("cites").map(|x| x.strs()),
+        node: opt("node"),
     }
 }
 

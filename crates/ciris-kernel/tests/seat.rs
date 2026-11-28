@@ -178,6 +178,24 @@ fn seat_scenarios() {
             let (s, want) = (cl.arr()[0].s().to_string(), cl.arr()[1].b());
             cmp(election_closed(&c, &w.law, &spec, &s) == want, format!("election closed by {s}"));
         }
+        // whether an act is in force, asked by name (check_lone_acts.py's CASES)
+        if let Some(fs) = sc.get("in_force") {
+            for f in fs.arr() {
+                let f = f.arr();
+                let (a, want) = (f[0].s(), f[1].b());
+                let got = seat::act_in_force(&c, &w.law, &spec, &a.to_string(), None);
+                cmp(got == want, format!("{a} in force"));
+            }
+        }
+        // who is a founder at a row, asked by name (check_acts.py's FOUNDERS)
+        if let Some(fs) = sc.get("founder") {
+            for f in fs.arr() {
+                let f = f.arr();
+                let (k, o, at, want) = (f[0].s(), f[1].s(), f[2].s(), f[3].b());
+                let got = seat::is_founder(&c, &w.law, &spec, &k.to_string(), &obj_named(&rows, o), &at.to_string());
+                cmp(got == want, format!("{k} a founder of {o} at {at}"));
+            }
+        }
         for (pid, want) in a.at("windows").obj() {
             let i = c.g.idx(pid).unwrap();
             let got = window::outcome(&c, i, &|x| w.windows.get(x).cloned(), &w.law, &spec, &|j| cut.counts(j));

@@ -1,0 +1,645 @@
+#!/usr/bin/env python3
+"""
+check_trust_rows.py: the reader's trust walk from rows, and the issuer's standing (trust_rows.py; CC 4.4.3.34, CC
+4.5.4), under the Constitution's rulings (a) to (d) of 2026-11-27.
+
+CASES: whether a reader honours a licence, and why not, with the acceptance edges read from rows (`delegates_to`
+bearing trust:accepts:v1). REFUSALS: the admission of an edge row. Every case is read in every arrival order of its
+rows up to a cap, and gives one answer.
+
+Planted breaks, each of which must change a case's answer:
+    edge_any_signer          an edge is its owner's whoever signs it
+    roster_unread            (a) a person's roster keys do not speak for it
+    duty_unread              (a) a community's edge is counted over its members, not its duty holders
+    lock_unread              (a), (b) a community with no duty holder is not locked: its members' count stands in
+    quorum_fixed_majority    (b) a community's own licence is counted as a strict majority, not its declared protocol
+    roster_issuer_unread     (b) a live key of a person's roster is not the person
+    license_seat_unread      (seat.py) a license seat over a community is no act: its duty holders confer none
+    term_unread              (b) a license seat's term is not read: its holder issues after the term ends
+    affiliation_edge_duty_count  (a) an affiliation's edge is counted as a duty conferral, not under its declared protocol
+    dissolved_edges_kept     (d) a dissolved authority's own edges are walked
+    edge_countersign_unread  (seat.py) a one-officer affiliation's onward edge needs no countersign (item 8)
+    lapsed_unread            (d) a dissolved authority's licences are read as live, not lapsed
+    lapsed_class_unread      (d) a dissolved authority's licence reads lapsed whatever class it states
+    pending_unread           (a) the acts row accept / trust_edge / community is not read
+    judged_at_read           (a), (b) authority is judged over the reader's rows, not the row's own past
+    bears_unread             a delegates_to row not bearing trust:accepts:v1 is read as an edge
+    refusal_unread           an edge's malformed trust_classes are not refused
+    depth_unread             (c) an edge's depth above 5 is capped, not refused
+    depth_absent_refused     (c) an absent trust_depth is refused, not read as 0
+    withdrawn_unread         (d) a withdrawn edge is walked
+    withdraw_by_anyone       (d) a withdrawal of an edge by any signer of it ends it
+    issuer_unread            (b) any key's licence is the authority's act
+    chain_unread             (b) a license seat is not read: only the authority's own key issues
+    quorum_unread            (b) a community's licence cosigned by its quorum is not its act
+    ends_unread              (d) the ends the reader holds are not read over its rows: only the licence's own past
+    cut_unread               (d) an end cuts nothing concurrent with it (the lay-downs leave a concurrent conferral)
+    self_seat_ungated        (seat.py) a single key's offer of an officer or license seat over a group is not gated by
+                             its authority body: a founding signer's own offer revives a locked or dissolved group
+    untimed_term_met         (b) a licence stating no instant meets a term-bearing seat's term
+    instant_unread           (b) a licence may state an instant earlier than a row it cites
+    edge_term_unread         (d) an edge's own term is not read
+    amendment_as_cut         (d) a licence failing only under a concurrent amendment reads as cut (link_withdrawn)
+    instant_over_reader      (b) a licence's instant is bounded below by every row the reader holds, not its own past
+    scope_unread             (d) an end cuts every act of its key over the object, whatever scope it ends
+    (retired: line_unread, the reader's acknowledged line unread: the line is kept, for a reader that took up a change
+    whose bytes it no longer holds, but every row the model holds that a line covers it also holds as growth, so the
+    held-growth rule (growth_held_unread) decides every case the model can build)
+    termless_edge_walked     (d) an edge stating no term is walked
+    lone_batch_unread        (a), (b) a holder's own concurrent lone duty conferrals are re-counted against each other
+    end_scope_keyed          (d) an end cuts by the scope its target names, not by every standing its key loses
+    one_end_at_a_time        (d) a key's loss is read with only the one end removed: a second end cancels the cut
+    reseat_masks             (d) a re-seat after the end masks the cut of a vote concurrent with the end
+    end_cuts_counted_row     (d) an end cuts a whole counted row its key signed, not only its voice
+    built_on_cut_kept        (d) a row built on a row this lane cuts is kept
+    still_holds_end_past     (d) whether the key still holds a standing is read over the end's past, not the judged rows
+    growth_held_unread       (a), (b) an authority act concurrent with growth of its body the reader holds is not
+                             re-counted over the grown body
+
+    python3 -I check_trust_rows.py      exit 1 on any difference
+"""
+import contextlib
+import itertools
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.dont_write_bytecode = True
+sys.path.insert(0, HERE)
+import trust_rows as TR  # noqa: E402
+
+CH, ST, CK = TR.CH, TR.ST, TR.CK
+ORDER_CAP = 24
+M, L = "medical", "legal"
+TERM = {"asserted_at": 0, "expires_at": 10 ** 6}     # every edge carries a term (CC 4.4.3.12); the cases read at NOW_AT
+
+
+def A(*a, **k):
+    """An acceptance edge row with a term (an edge stating none is not walked)."""
+    return dict(TR.accepts(*a, **k), **TERM)
+
+
+NOW_AT = 50                                           # the caller's instant every case reads at, unless NOW says
+
+AF = ST.found("af", "A", ("A", "B", "C"), cosigners=("B", "C"), declared_cohort="affiliations",
+              licence_classes=((M, True), (L, False)))           # no officer: an affiliation DISSOLVED (CC 4.4.3.12)
+AFD = ST.found("af", "A", ("A", "B", "C"), {ST.OFFICER: ("A", "B", "C")}, cosigners=("B", "C"),
+               declared_cohort="affiliations", licence_classes=((M, True), (L, False)))   # three officers: majority declared
+EWD = ST.withdraw("ewd", "A", "f", ("f",))                     # the officer's withdrawal of edge f
+AFD1 = ST.found("af", "A", ("A", "B", "C"), {ST.OFFICER: ("A",)}, cosigners=("B", "C"), declared_cohort="affiliations",
+                licence_classes=((M, True), (L, False)))         # one officer: its authority (the body is its officers)
+AFD1O = dict(AFD1, official="O")                               # the same, its designated official O
+AFU = dict(AFD, consensus_protocol="unanimous")                  # unanimous declared
+GN = ST.found("g", "A", ("A", "B", "C"), cosigners=("B", "C"), licence_classes=((M, False),))   # no duty holder
+# the community confers a license seat on X by its duty holders' count (A and B of two), X accepts
+GLO = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty")
+GLO1 = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), counted="duty")      # A alone
+GLA = ST.accept("gla", "X", "glo")
+GLU = ST.unseat("glu", "A", "X", "license", "g", "group", ("glo", "gla"), head=("glo",), cosigners=("B",),
+                counted="duty", policy="duty_withdraw")          # the duty holders withdraw it
+# a lone duty holder A confers a license seat on X, then lays down its duty: no duty holder is left
+G1LO = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), counted="duty")
+G1LD = ST.withdraw("ld", "A", "g", ("glo", "gla"), scope="moderate")
+G1LT = dict(G1LO, asserted_at=10, expires_at=100)                # the same seat, with its term
+# an affiliation's license seat: its body's count under its declared protocol (majority: two of three)
+ALO = ST.offer("alo", "A", ("X",), "license", "af", "group", ("af",), head=("af",), cosigners=("B",), counted=ST.OFFICER)
+ALO1 = ST.offer("alo", "A", ("X",), "license", "af", "group", ("af",), head=("af",), counted=ST.OFFICER)
+ALA = ST.accept("ala", "X", "alo")
+# the affiliation's dissolution, by two of its three officers under its protocol, naming `names`
+ADIS = lambda i, names: ST.offer(i, "A", (), "record", "af", "group", tuple(names) + ("af",), head=("af",),
+                                 cosigners=("B",), counted=ST.OFFICER, dissolved_at=100)
+# the person K's roster seats its key d
+KRO, KRA = ST.offer("kro", "K", ("d",), "key", "K", "self"), ST.accept("kra", "d", "kro")
+GD = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B")}, cosigners=("B", "C"),
+              licence_classes=((M, False),))                     # duty holders A and B
+G1 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"),
+              licence_classes=((M, False),))                     # a lone duty holder
+KCH = {"K": (M, L)}                                              # a key authority's charter, supplied (the root's, say)
+# the reader's roster: RD seats its key d
+RO, RA = ST.offer("ro", "RD", ("d",), "key", "RD", "self"), ST.accept("ra", "d", "ro")
+RU = ST.unseat("ru", "RD", "d", "key", "RD", "self", ("e",))     # RD removes d, after d's edge
+# a license seat over K: K confers it on X (sub-delegation), X on Y
+LO, LA = ST.offer("lo", "K", ("X",), "license", "K", "self", sub=True), ST.accept("la", "X", "lo")
+LO2, LA2 = ST.offer("lo2", "X", ("Y",), "license", "K", "seat", ("lo", "la"), under="lo"), ST.accept("la2", "Y", "lo2")
+
+
+def klic(i, cls=M, signer="K", names=()):
+    return CH.licensure(i, signer, "K", cls, names=names)
+
+
+def glic(i, auth="af", signer="A", cosigners=(), cls=M):
+    r = CH.licensure(i, signer, auth, cls, names=(auth,))
+    return dict(r, cosigners=tuple(cosigners)) if cosigners else r
+
+
+OK, NR = (True, None), (False, "authority_not_reached")
+NA, LW = (False, "licensure_delegator_not_authority"), (False, "licensure_link_withdrawn")
+E0 = A("e", "RD", "K")
+# (name, rows, reader, licence, supplied, (honoured, reason))
+CASES = [
+    ("the reader's own edge to a key authority, its licence signed by it", [E0, klic("l")], "RD", "l", KCH, OK),
+    ("an edge another key signs for the reader is not the reader's", [A("e", "X", "K", on_behalf="RD"), klic("l")],
+     "RD", "l", KCH, NR),
+    ("another key's own edge is not the reader's", [A("e", "X", "K"), klic("l")], "RD", "l", KCH, NR),
+    ("(a) a live key of the reader's roster signs the reader's edge",
+     [RO, RA, A("e", "d", "K", on_behalf="RD", names=("ra",)), klic("l")], "RD", "l", KCH, OK),
+    ("(a) the roster key's seat not in the edge's past: not the reader's",
+     [RO, RA, A("e", "d", "K", on_behalf="RD"), klic("l")], "RD", "l", KCH, NR),
+    ("(d) the key removed after the edge: the edge stands (judged over its own past)",
+     [RO, RA, A("e", "d", "K", on_behalf="RD", names=("ra",)), RU, klic("l")], "RD", "l", KCH, OK),
+    ("a delegates_to bearing something else is no edge", [A("e", "RD", "K", bears="other"), klic("l")], "RD", "l",
+     KCH, NR),
+    ("trust_classes an empty list: refused, no edge", [A("e", "RD", "K", ()), klic("l")], "RD", "l", KCH, NR),
+    ("trust_classes not sorted: refused", [A("e", "RD", "K", (M, L)), klic("l")], "RD", "l", KCH, NR),
+    ("trust_classes listing the class", [A("e", "RD", "K", (L, M)), klic("l")], "RD", "l", KCH, OK),
+    ("trust_classes not listing it", [A("e", "RD", "K", (L,)), klic("l")], "RD", "l", KCH, NR),
+    ("(c) a depth below 0 is refused", [A("e", "RD", "K", depth=-1), klic("l")], "RD", "l", KCH, NR),
+    ("(c) a depth above 5 is refused", [A("e", "RD", "X", depth=6), A("f", "X", "K"), klic("l")], "RD", "l", KCH, NR),
+    ("(c) an onward hop at depth 1", [A("e", "RD", "X", depth=1), A("f", "X", "K"), klic("l")], "RD", "l", KCH, OK),
+    ("(c) depth absent reads as 0: no hop past the first authority", [A("e", "RD", "X"), A("f", "X", "K"), klic("l")],
+     "RD", "l", KCH, NR),
+    ("the classes intersect hop by hop", [A("e", "RD", "X", (L,), 1), A("f", "X", "K"), klic("l")], "RD", "l", KCH,
+     NR),
+    ("a cycle is visited once and the walk goes on",
+     [A("e", "RD", "X", depth=3), A("f", "X", "RD", depth=3), A("g", "X", "K"), klic("l")], "RD", "l", KCH, OK),
+    ("a cycle that reaches nothing ends", [A("e", "RD", "X", depth=5), A("f", "X", "RD", depth=5), klic("l")], "RD",
+     "l", KCH, NR),
+    ("(d) the reader's own removal of its edge revokes at once", [E0, ST.withdraw("w", "RD", "e"), klic("l")], "RD",
+     "l", KCH, NR),
+    ("(d) a withdrawal by another key ends nothing", [E0, ST.withdraw("w", "X", "e"), klic("l")], "RD", "l", KCH, OK),
+    ("(a) a community's onward edge, two of its two duty holders",
+     [GD, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",), cosigners=("B",)), klic("l")],
+     "RD", "l", KCH, OK),
+    ("(a) one of two duty holders is not its authority set",
+     [GD, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD", "l", KCH, NR),
+    ("(a) a member who holds no duty is not either",
+     [GD, A("e", "RD", "g", depth=1), A("f", "C", "K", on_behalf="g", names=("g",), cosigners=("A",)), klic("l")],
+     "RD", "l", KCH, NR),
+    ("(a) a lone duty holder alone",
+     [G1, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD", "l", KCH, OK),
+    ("(a) a community with no duty holder: LOCKED, no edge, whatever the members sign",
+     [GN, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",), cosigners=("B", "C")),
+      klic("l")], "RD", "l", KCH, NR),
+    ("(a) an affiliation with no officer: DISSOLVED (CC 4.4.3.12), no edge, whatever the members sign",
+     [AF, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B", "C")),
+      klic("l")], "RD", "l", KCH, NR),
+    ("item 8: a one-officer affiliation's edge by its officer alone is a proposal: not walked",
+     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH,
+     NR),
+    ("and with its designated official O's voice on the edge's own row (G15): walked",
+     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("O",)), klic("l")],
+     "RD", "l", KCH, OK),
+    ("and the officer withdraws the countersigned edge: ended, not walked",
+     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("O",)), EWD,
+      klic("l")], "RD", "l", KCH, NR),
+    ("an outside voice that is no countersigner (X) decides nothing: not walked",
+     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("X",)), klic("l")],
+     "RD", "l", KCH, NR),
+    ("(a) an affiliation's edge is its officers' act under its declared protocol: two of three officers",
+     [AFD, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B",)), klic("l")],
+     "RD", "l", KCH, OK),
+    ("(a) under a declared unanimous protocol two of three officers sign no edge",
+     [AFU, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B",)), klic("l")],
+     "RD", "l", KCH, NR),
+    ("(a) its lone duty holder signs the edge, before it lays its duty down",
+     [G1, G1LO, GLA, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("gla",)), klic("l")],
+     "RD", "l", KCH, OK),
+    ("(a) after: locked, and the license seat's holder keeps it from locking: no edge",
+     [G1, G1LO, GLA, G1LD, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("ld",)), klic("l")],
+     "RD", "l", KCH, NR),
+    ("(b) and its members' quorum issues no licence of its own",
+     [G1, G1LO, GLA, G1LD, A("e", "RD", "g"), glic("l", "g", cosigners=("B",)) | {"names": ("ld",)}], "RD", "l",
+     None, (False, "licensure_authority_locked")),
+    ("(d) a community's edge withdrawn by one duty holder alone stands",
+     [GD, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",), cosigners=("B",)),
+      ST.withdraw("w", "A", "f"), klic("l")], "RD", "l", KCH, OK),
+    ("(d) and by its authority set it ends",
+     [GD, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",), cosigners=("B",)),
+      dict(ST.withdraw("w", "A", "f"), cosigners=("B",)), klic("l")], "RD", "l", KCH, NR),
+    ("(b) a licence another key signs is testimony", [E0, klic("l", signer="Z")], "RD", "l", KCH, NA),
+    ("(b) a license seat holder's licence, naming its seat", [E0, LO, LA, klic("l", signer="X", names=("la",))], "RD",
+     "l", KCH, OK),
+    ("(b) the seat not in the licence's past: testimony", [E0, LO, LA, klic("l", signer="X")], "RD", "l", KCH, NA),
+    ("(b) a delegation chain that resolves to the authority",
+     [E0, LO, LA, LO2, LA2, klic("l", signer="Y", names=("la2",))], "RD", "l", KCH, OK),
+    ("(d) the link withdrawn in the licence's own past: testimony",
+     [E0, LO, LA, ST.withdraw("w", "K", "lo", ("la",)), klic("l", signer="X", names=("w",))], "RD", "l", KCH, NA),
+    ("(d) a withdrawal concurrent with the issuance holds it out of force",
+     [E0, LO, LA, ST.withdraw("w", "K", "lo", ("la",)), klic("l", signer="X", names=("la",))], "RD", "l", KCH, LW),
+    ("(d) a withdrawal after the issuance reaches nothing back",
+     [E0, LO, LA, klic("l", signer="X", names=("la",)), ST.withdraw("w", "K", "lo", ("l",))], "RD", "l", KCH, OK),
+    ("(b) a community's licence cosigned by its quorum under its declared majority",
+     [AFD, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD", "l", None, OK),
+    ("(b) one member's is testimony", [AFD, A("e", "RD", "af"), glic("l")], "RD", "l", None, NA),
+    ("(b) under a declared unanimous protocol two of three are not its quorum",
+     [AFU, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD", "l", None, NA),
+    ("(b) and three of three are", [AFU, A("e", "RD", "af"), glic("l", cosigners=("B", "C"))], "RD", "l", None, OK),
+    ("(b) an affiliation with no officer is dissolved: its members' licence has no standing over its own past",
+     [AF, A("e", "RD", "af"), glic("l", cosigners=("B", "C"))], "RD", "l", None, NA),
+    ("(d) a licence issued before the affiliation's dissolution stands and reads lapsed",
+     [AFD, A("e", "RD", "af"), glic("l", cosigners=("B",)), ADIS("dis", ("l",))], "RD", "l", None, (False, "lapsed")),
+    ("(d) a dissolved authority's licence of a class its record did not declare at issuance never stood",
+     [AFD, A("e", "RD", "af"), glic("l", cosigners=("B",), cls="dental"), ADIS("dis", ("l",))], "RD", "l", None,
+     (False, "licence_class_not_trusted")),
+    ("(d) one issued after it is testimony", [AFD, A("e", "RD", "af"), ADIS("dis", ("af",)),
+                                             glic("l", cosigners=("B",)) | {"names": ("dis",)}], "RD", "l", None, NA),
+    ("(d) a dissolved authority's own edges end with its record: no hop through it",
+     [AFD, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B",)),
+      ADIS("dis", ("f",)), klic("l")], "RD", "l", KCH, NR),
+    ("(b) a locked community's quorum: its licence concludes nothing", [GN, A("e", "RD", "g"),
+                                                                       glic("l", "g", cosigners=("B", "C"))],
+     "RD", "l", None, (False, "licensure_authority_locked")),
+    ("(b) an affiliation is never locked: its officers' quorum issues with no duty holder",
+     [AFD, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD", "l", None, OK),
+    ("(b) a license seat conferred before the lock: its holder keeps issuing within the seat's term",
+     [G1, G1LT, GLA, G1LD, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("ld",), "asserted_at": 50}], "RD", "l",
+     None, OK),
+    ("(b) and not after the term ends", [G1, G1LT, GLA, G1LD, A("e", "RD", "g"),
+                                        glic("l", "g", "X") | {"names": ("ld",), "asserted_at": 150}], "RD", "l",
+     None, NA),
+    ("(b) an affiliation's officers confer a license seat under its protocol (two of three officers)",
+     [AFD, A("e", "RD", "af"), ALO, ALA, glic("l", "af", "X") | {"names": ("ala",)}], "RD", "l", None, OK),
+    ("(b) and one officer alone does not", [AFD, A("e", "RD", "af"), ALO1, ALA,
+                                           glic("l", "af", "X") | {"names": ("ala",)}], "RD", "l", None, NA),
+    ("(b) a member who is no officer confers nothing with one officer",
+     [AFD1, A("e", "RD", "af"), dict(ALO1, signer="B", cosigners=()), ALA, glic("l", "af", "X") | {"names": ("ala",)}],
+     "RD", "l", None, NA),
+    ("(b) a live key of the person's roster is the person", [E0, KRO, KRA, klic("l", signer="d", names=("kra",))],
+     "RD", "l", KCH, OK),
+    ("(b) a key not seated in the licence's past is not", [E0, KRO, KRA, klic("l", signer="d")], "RD", "l", KCH, NA),
+    ("(b) a license seat its duty holders conferred: the holder's licence is the community's act",
+     [GD, A("e", "RD", "g"), GLO, GLA, glic("l", "g", "X", cls=M) | {"names": ("gla",)}], "RD", "l", None, OK),
+    ("(b) one of two duty holders confers no license seat",
+     [GD, A("e", "RD", "g"), GLO1, GLA, glic("l", "g", "X", cls=M) | {"names": ("gla",)}], "RD", "l", None, NA),
+    ("(b) a locked community confers no license seat",
+     [GN, A("e", "RD", "g"), GLO, GLA, glic("l", "g", "X", cls=M) | {"names": ("gla",)}], "RD", "l", None, NA),
+    ("(d) the duty holders withdraw the seat: a licence after it is testimony",
+     [GD, A("e", "RD", "g"), GLO, GLA, GLU, glic("l", "g", "X", cls=M) | {"names": ("glu",)}], "RD", "l", None, NA),
+    ("a class the charter does not declare", [E0, klic("l", "dental")], "RD", "l", KCH,
+     (False, "licence_class_not_trusted")),
+]
+
+# ---- the r73 attack (review-scratch 3bc1e46, r73/a1 to a3), each a case ----------------------------------------
+LW = (False, "licensure_link_withdrawn")
+LK = (False, "licensure_authority_locked")
+R_KU = ST.unseat("ku", "K", "d", "key", "K", "self", ("kra",))           # K evicts its key d
+R_RU = ST.unseat("ru", "RD", "d", "key", "RD", "self", ("ra",))          # RD evicts its key d
+R_LD = ST.withdraw("ld", "A", "g", (), scope="moderate")                  # G1's lone holder lays its duty down: locked
+R_LDA = ST.withdraw("lda", "A", "g", (), scope="moderate")
+R_LDB = ST.withdraw("ldb", "B", "g", (), scope="moderate")
+R_AMD = ST.offer("amd", "A", (), "record", "af", "group", ("af",), head=("af",), cosigners=("B", "C"),
+                 counted=ST.OFFICER, consensus_protocol="unanimous", declared_cohort="affiliations",
+                 licence_classes=((M, True), (L, False)))              # af amends its protocol to unanimous
+R_SO = lambda sc, obj, signer="B": ST.offer("so", signer, signer, sc, obj, "self", (obj,))
+CASES += [
+    ("r73 E1 K evicts d; d's licence naming the eviction", [E0, KRO, KRA, R_KU, klic("l", signer="d", names=("ku",))],
+     "RD", "l", KCH, NA),
+    ("r73 E2 K evicts d; d's licence naming only kra (concurrent with the eviction): cut",
+     [E0, KRO, KRA, R_KU, klic("l", signer="d", names=("kra",))], "RD", "l", KCH, LW),
+    ("r73 E3 RD evicts d; d writes RD's edge naming only ra: cut, no edge",
+     [RO, RA, R_RU, A("e", "d", "Z", on_behalf="RD", names=("ra",)), CH.licensure("l", "Z", "Z", M)], "RD", "l",
+     {"Z": (M,)}, NR),
+    ("r73 E4 RD evicts d; d's withdrawal of RD's edge, concurrent with the eviction, ends nothing",
+     [RO, RA, E0, R_RU, ST.withdraw("w", "d", "e", ("ra",)), klic("l")], "RD", "l", KCH, OK),
+    ("r73 K0 locked: the quorum's licence naming the lay-down",
+     [G1, R_LD, A("e", "RD", "g"), glic("l", "g", cosigners=("B",)) | {"names": ("ld",)}], "RD", "l", None, LK),
+    ("r73 K2 locked: the quorum's licence naming only g (concurrent with the lay-down)",
+     [G1, R_LD, A("e", "RD", "g"), glic("l", "g", cosigners=("B",))], "RD", "l", None, LK),
+    ("r73 K3 an edge from before the lock stands (a locked group signs no NEW edge)",
+     [G1, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), dict(R_LD, names=("f",)),
+      klic("l")], "RD", "l", KCH, OK),
+    ("r73 K4 after the lock the ex-holder's edge naming only g: cut, no edge",
+     [G1, R_LD, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD", "l", KCH,
+     NR),
+    ("r73 K5 and naming the lay-down: no edge", [G1, R_LD, A("e", "RD", "g", depth=1),
+                                                A("f", "A", "K", on_behalf="g", names=("ld",)), klic("l")],
+     "RD", "l", KCH, NR),
+    ("r73 K6 B lays down, A the lone holder signs alone",
+     [GD, R_LDB, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("ldb",)), klic("l")], "RD", "l",
+     KCH, OK),
+    ("r73 S1 the holders withdraw X's seat; X's licence naming it",
+     [GD, A("e", "RD", "g"), GLO, GLA, GLU, glic("l", "g", "X") | {"names": ("glu",)}], "RD", "l", None, NA),
+    ("r73 S2 and X's licence naming only gla (concurrent with the unseat): cut",
+     [GD, A("e", "RD", "g"), GLO, GLA, GLU, glic("l", "g", "X") | {"names": ("gla",)}], "RD", "l", None, LW),
+    ("r73 S3 a term-bearing seat; a licence stating no instant meets no term",
+     [G1, G1LT, GLA, G1LD, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("ld",)}], "RD", "l", None, NA),
+    ("r73 S4 and one stating 50, within the term", [G1, G1LT, GLA, G1LD, A("e", "RD", "g"),
+                                                    glic("l", "g", "X") | {"names": ("ld",), "asserted_at": 50}],
+     "RD", "l", None, OK),
+    ("r73 S5 an instant earlier than a row the licence cites (the seat's offer at 10)",
+     [G1, G1LT, GLA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("gla",), "asserted_at": 5}], "RD", "l", None,
+     (False, "licensure_instant_before_its_past")),
+    ("r73 P1 af amends to unanimous; two officers' licence naming the amendment",
+     [AFD, R_AMD, A("e", "RD", "af"), glic("l", cosigners=("B",)) | {"names": ("amd",)}], "RD", "l", None, NA),
+    ("r73 P2 and naming only af (concurrent with the amendment): judged under it, its count not met",
+     [AFD, R_AMD, A("e", "RD", "af"), glic("l", cosigners=("B",))], "RD", "l", None, NA),
+    ("r73 B1 A and B lay down; their concurrent conferral is cut; X's licence naming both lay-downs",
+     [GD, R_LDA, R_LDB, A("e", "RD", "g"), GLO, GLA, glic("l", "g", "X") | {"names": ("gla", "lda", "ldb")}], "RD", "l",
+     None, NA),
+    ("r73 B1c and a conferral naming the lay-downs", [GD, R_LDA, R_LDB, A("e", "RD", "g"),
+                                                      dict(GLO, names=("g", "lda", "ldb")), GLA,
+                                                      glic("l", "g", "X") | {"names": ("gla",)}], "RD", "l", None, NA),
+    ("r73 O1 dissolved AF: a founder's own officer seat revives nothing",
+     [AF, R_SO(ST.OFFICER, "af"), A("e", "RD", "af"), glic("l", "af", "B") | {"names": ("so",)}], "RD", "l", None, NA),
+    ("r73 O2 one-officer AFD1: a member's own officer seat",
+     [AFD1, R_SO(ST.OFFICER, "af"), A("e", "RD", "af"), glic("l", "af", "B") | {"names": ("so",)}], "RD", "l", None,
+     NA),
+    ("r73 O3 AFD1: a member's own license seat", [AFD1, R_SO("license", "af"), A("e", "RD", "af"),
+                                                  glic("l", "af", "B") | {"names": ("so",)}], "RD", "l", None, NA),
+    ("r73 O4 locked GN: a founder's own license seat", [GN, R_SO("license", "g"), A("e", "RD", "g"),
+                                                        glic("l", "g", "B") | {"names": ("so",)}], "RD", "l", None, NA),
+    ("r73 O5 locked GN: a founder's own duty seat, then its lone conferral",
+     [GN, R_SO("duty", "g"), A("e", "RD", "g"), dict(GLO1, signer="B", names=("so",)), GLA,
+      glic("l", "g", "X") | {"names": ("gla",)}], "RD", "l", None, NA),
+    ("founding gives no lone path: a founding signer who holds no duty, its own license seat over GD",
+     [GD, R_SO("license", "g", "C"), A("e", "RD", "g"), glic("l", "g", "C") | {"names": ("so",)}], "RD", "l", None, NA),
+    ("and a founding duty holder of two, its own license seat alone",
+     [GD, R_SO("license", "g", "A"), A("e", "RD", "g"), glic("l", "g", "A") | {"names": ("so",)}], "RD", "l", None, NA),
+    ("an edge within its term at the caller's instant (50)",
+     [A("e", "RD", "K") | {"asserted_at": 10, "expires_at": 100}, klic("l") | {"asserted_at": 50}], "RD", "l", KCH, OK),
+    ("an edge whose term has ended at the caller's instant (150)",
+     [A("e", "RD", "K") | {"asserted_at": 10, "expires_at": 100}, klic("l") | {"asserted_at": 50}], "RD", "l", KCH,
+     NR),
+    ("r77 N8 a term-bearing edge read with no caller's instant: not walked (never at the licence's own instant)",
+     [A("e", "RD", "K") | {"asserted_at": 0, "expires_at": 100}, klic("l") | {"asserted_at": 50}], "RD", "l", KCH, NR),
+    ("r77 K3 an edge stating no term is not walked (every edge carries one)",
+     [dict(TR.accepts("e", "RD", "K")), klic("l")], "RD", "l", KCH, NR),
+]
+# ---- the r77 attack (review-scratch ebd8200, r77/n1 to n5), each a case ------------------------------------------
+ACK = lambda i, obj, head: CK.row(i, "ack", "RD", (head,), room=obj, head=(head,))   # the reader takes up a change
+R_DC, R_DCA = ST.offer("dc", "A", "C", "moderate", "g", "self", ("g",)), ST.accept("dca", "C", "dc")  # A confers on C
+R_LS, R_LSA = ST.offer("ls", "A", "X", "license", "g", "self", ("g",)), ST.accept("lsa", "X", "ls")   # A alone, at g
+R_AOB = ST.offer("aob", "A", ("B",), "member", "af", "group", ("af",), head=("af",), cosigners=("B",),
+                 counted=ST.OFFICER, role=ST.OFFICER)                                              # A appoints B
+R_AOBO = dict(R_AOB, cosigners=("B", "O"))       # with its official's voice on the row: the countersign (item 8, G15)
+AFD1O = dict(AFD1, official="O")                               # AFD1 with its designated official O (item 8)
+R_G2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B"), "review": ("A",)}, cosigners=("B", "C"),
+                licence_classes=((M, False),))
+R_LDR = ST.withdraw("ldr", "A", "g", (), scope="review")         # A lays down review only; it still holds moderate
+R_ZO = ST.offer("zo", "Z", "Z", "x", "Z", "self")
+R_ZW = dict(ST.withdraw("zw", "Z", "zo", ("zo",)), asserted_at=10 ** 9)   # an unrelated key's late-dated row
+GROWN = [dict(GD, consensus_protocol="majority")]
+for _k, _m, _pv in zip("DEFG", ("ABC", "ABCD", "ABCDE", "ABCDEF"), ("g", "aD", "aE", "aF")):
+    GROWN.append(ST.offer("a" + _k, _m[0], (_k,), "member", "g", "group", (_pv,), head=(_pv,),
+                          cosigners=tuple(_m[1:]) + (_k,), policy="community_invite"))
+CASES += [
+    ("r77 N1 A and C hold; A alone signs g's edge naming dca: not the body",
+     [G1, R_DC, R_DCA, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("dca",)), klic("l")], "RD",
+     "l", KCH, NR),
+    ("r77 N1b and naming only g, behind the reader's line (it took up dca): concludes nothing",
+     [G1, R_DC, R_DCA, ACK("ak", "g", "dca"), A("e", "RD", "g", depth=1),
+      A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD", "l", KCH, NR),
+    ("r77 N1b an OUTSIDER holding dca, acknowledging nothing: the edge is counted over the grown body",
+     [G1, R_DC, R_DCA, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD",
+     "l", KCH, NR),
+    ("r77 N1b the outsider holding none of the growth: the residual (it cannot know)",
+     [G1, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)), klic("l")], "RD", "l", KCH, OK),
+    ("r77 an honest pre-growth edge the growth has in its past stands",
+     [G1, A("e", "RD", "g", depth=1), A("f", "A", "K", on_behalf="g", names=("g",)),
+      ST.offer("dc", "A", "C", "moderate", "g", "self", ("f",)), R_DCA, klic("l")], "RD", "l", KCH, OK),
+    ("r77 N2 the outsider holding dca: the concurrent lone license seat is re-counted, X's licence testimony",
+     [G1, R_DC, R_DCA, R_LS, R_LSA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("lsa",)}], "RD", "l", None, NA),
+    ("r77 N2 holding none of the growth: the residual",
+     [G1, R_LS, R_LSA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("lsa",)}], "RD", "l", None, OK),
+    ("r77 N4c the outsider holding aob and its countersign: A's own licence counted over officers A and B",
+     [AFD1O, R_AOBO, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
+    ("r77 N4c' holding aob uncountersigned (item 8): B is no officer, A's licence stands",
+     [AFD1O, R_AOB, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, OK),
+    ("r77 N4c holding none: the residual", [AFD1, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, OK),
+    ("r77 N4e the outsider holding aob: A's edge for af", [AFD1O, R_AOBO, A("e", "RD", "af", depth=1),
+                                                          A("f", "A", "K", on_behalf="af", names=("af",)),
+                                                          klic("l")], "RD", "l", KCH, NR),
+    ("r77 N4e holding none: under item 8 the lone officer's edge is a proposal, and with no official and no overseer "
+     "nothing decides it: not walked", [AFD1, A("e", "RD", "af", depth=1),
+                                        A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l",
+     KCH, NR),
+    ("r77 N5b the outsider holding the admissions to aG: A and B's quorum licence",
+     GROWN + [A("e", "RD", "g"), glic("l", "g", cosigners=("B",))], "RD", "l", None, NA),
+    ("r77 N5b holding none: two of three, the residual",
+     [GROWN[0], A("e", "RD", "g"), glic("l", "g", cosigners=("B",))], "RD", "l", None, OK),
+    ("r77 N2 A alone confers a license seat naming only g, behind the line: X's licence is testimony",
+     [G1, R_DC, R_DCA, R_LS, R_LSA, ACK("ak", "g", "dca"), A("e", "RD", "g"),
+      glic("l", "g", "X") | {"names": ("lsa", "dca")}], "RD", "l", None, NA),
+    ("r77 N4c A alone, lone officer before B's appointment, licenses naming only af, behind the line",
+     [AFD1O, R_AOBO, ACK("ak", "af", "aob"), A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
+    ("r77 N4e and an edge for af naming only af, behind the line",
+     [AFD1O, R_AOBO, ACK("ak", "af", "aob"), A("e", "RD", "af", depth=1),
+      A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH, NR),
+    ("r77 N5b a grown community: A and B's quorum licence naming only g, behind the line (it took up aG)",
+     GROWN + [ACK("ak", "g", "aG"), A("e", "RD", "g"), glic("l", "g", cosigners=("B",))], "RD", "l", None, NA),
+    ("r77 N5 and naming aG: two of seven, not its quorum", GROWN + [A("e", "RD", "g"),
+                                                                  glic("l", "g", cosigners=("B",)) | {"names": ("aG",)}],
+     "RD", "l", None, NA),
+    ("r77 N6 A lays down review, still holding moderate: the concurrent license seat is not cut",
+     [R_G2, R_LDR, A("e", "RD", "g"), GLO, GLA, glic("l", "g", "X") | {"names": ("gla",)}], "RD", "l", None, OK),
+    ("r77 D1 an unrelated key's late-dated row sets no lower bound on a licence",
+     [E0, klic("l") | {"asserted_at": 50}, R_ZO, R_ZW], "RD", "l", KCH, OK),
+    ("r77 D2b nor on one under a termed seat", [G1, G1LT, GLA, A("e", "RD", "g"),
+                                               glic("l", "g", "X") | {"names": ("gla",), "asserted_at": 50}, R_ZO,
+                                               R_ZW], "RD", "l", None, OK),
+]
+
+# ---- the r80 attack (review-scratch fac316d, r80/m1 to m4), each a case ------------------------------------------
+_DC1, _DA1 = ST.offer("dc1", "A", "C", "moderate", "g", "self", ("g",)), ST.accept("da1", "C", "dc1")
+_DC2, _DA2 = ST.offer("dc2", "A", "B", "moderate", "g", "self", ("g",)), ST.accept("da2", "B", "dc2")
+_GLO_C = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dca",), head=("dc",), cosigners=("C",), counted="duty")
+_AOB = ST.offer("aob", "A", ("B",), "member", "af", "group", ("af",), head=("af",), cosigners=("B",),
+                counted=ST.OFFICER, role=ST.OFFICER)
+_LSO = ST.offer("lso", "A", ("X",), "license", "af", "group", ("aob",), head=("aob",), cosigners=("B",),
+                counted=ST.OFFICER)                    # names the appointment's countersign: B an officer at its head
+_RV = ST.offer("rv", "A", "A", "review", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty",
+               policy="duty_confer")
+_GLO_RV = ST.offer("glo", "A", ("X",), "license", "g", "group", ("rv",), head=("rv",), cosigners=("B",), counted="duty",
+                   policy="duty_confer")
+_X = glic("l", "g", "X") | {"names": ("gla",)}
+CASES += [
+    ("r80 F1 C (a duty holder by A's lone conferral) resigns from g, concurrent with A and C's license conferral: cut",
+     [G1, R_DC, R_DCA, ST.withdraw("wc", "C", "g"), _GLO_C, GLA, A("e", "RD", "g"), _X], "RD", "l", None, LW),
+    ("r80 F1' a resignation naming dca concludes nothing (it names no newest head, H4): no end, nothing cut",
+     [G1, R_DC, R_DCA, ST.withdraw("wc", "C", "g", ("dca",)), _GLO_C, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r80 F1c with no resignation", [G1, R_DC, R_DCA, _GLO_C, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r80 F2 an appointed officer withdraws its appointment, concurrent with the officers' license conferral: cut",
+     [AFD1O, dict(_AOB, cosigners=("B", "O")), ST.withdraw("wb", "B", "aob", ("aob",)), _LSO, ST.accept("lsa", "X", "lso"), A("e", "RD", "af"),
+      glic("l", "af", "X") | {"names": ("lsa",)}], "RD", "l", None, LW),
+    ("r80 F2c with no withdrawal", [AFD1O, dict(_AOB, cosigners=("B", "O")), _LSO, ST.accept("lsa", "X", "lso"), A("e", "RD", "af"),
+                                    glic("l", "af", "X") | {"names": ("lsa",)}], "RD", "l", None, OK),
+    ("r80 F3 A lays down moderate concurrent with its counted review seat and the conferral: A still a holder",
+     [GD, _RV, ST.withdraw("ldm", "A", "g", (), scope="moderate"), _GLO_RV, GLA, A("e", "RD", "g"), _X], "RD", "l",
+     None, OK),
+    ("r80 F4 two concurrent lone conferrals; an edge by A and C naming da1",
+     [G1, _DC1, _DA1, _DC2, _DA2, A("e", "RD", "g", depth=1),
+      A("f", "A", "K", on_behalf="g", names=("da1",), cosigners=("C",)), klic("l")], "RD", "l", KCH, OK),
+    ("r80 F4b and naming both", [G1, _DC1, _DA1, _DC2, _DA2, A("e", "RD", "g", depth=1),
+                                 A("f", "A", "K", on_behalf="g", names=("da1", "da2"), cosigners=("C",)), klic("l")],
+     "RD", "l", KCH, OK),
+    ("r80 F4e a holder's own concurrent lone conferrals are one batch: A, B and C's conferral naming both stands",
+     [G1, _DC1, _DA1, _DC2, _DA2, ST.offer("glo", "A", ("X",), "license", "g", "group", ("da1", "da2"),
+                                          head=("dc1", "dc2"), cosigners=("B", "C"), counted="duty"), GLA,
+      A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r80 F4g and A and C's conferral at dc1, the reader holding dc2 too",
+     [G1, _DC1, _DA1, ST.offer("glo", "A", ("X",), "license", "g", "group", ("da1",), head=("dc1",), cosigners=("C",),
+                               counted="duty"), GLA, _DC2, _DA2, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+]
+
+# ---- the r81 attack (review-scratch 2797fb0, r81/charter b1, b2), each a case -----------------------------------
+_GY = ST.offer("gy", "A", ("Y",), "license", "g", "group", ("da1",), head=("dc1",), cosigners=("C",), counted="duty")
+_GYA = ST.accept("gya", "Y", "gy")
+_B = [G1, _DC1, _DA1, _GY, _GYA, _DC2, _DA2]
+_L1 = ST.withdraw("l1", "A", "g", (), scope="moderate")
+_G3 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B", "C")}, cosigners=("B", "C"),
+               licence_classes=((M, False),))
+_GLO_G = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty")
+_U1 = ST.unseat("u1", "B", "A", "moderate", "g", "group", ("g",), head=("g",), cosigners=("C",), counted="duty",
+                policy="duty_withdraw")
+_RC = ST.offer("rc", "B", ("A",), "moderate", "g", "group", ("u1",), head=("u1",), cosigners=("C", "A"),
+               counted="duty", policy="duty_confer")             # B and C seat A again, naming its removal
+CASES += [
+    ("r81 B3 A's later lone conferral (dc2) re-counted against the grown body's counted act gy: X's licence via it falls",
+     _B + [ST.offer("gx", "A", ("X",), "license", "g", "group", ("da2", "gya"), head=("gy", "dc2"), cosigners=("B",),
+                    counted="duty"), ST.accept("gxa", "X", "gx"), A("e", "RD", "g"),
+           glic("l", "g", "X") | {"names": ("gxa",)}], "RD", "l", None, NA),
+    ("r81 B4 and A and B's edge for g on it", _B + [A("e", "RD", "g", depth=1),
+                                                     A("f", "A", "K", on_behalf="g", names=("da2", "gya"),
+                                                       cosigners=("B",)), klic("l")], "RD", "l", KCH, NR),
+    ("r81 E1 two identical lay-downs concurrent with A and B's conferral: still cut",
+     [GD, _L1, ST.withdraw("l2", "A", "g", (), scope="moderate"), A("e", "RD", "g"), GLO, GLA, _X], "RD", "l", None, LW),
+    ("r81 E2 a lay-down and a full resignation, both concurrent: still cut",
+     [GD, _L1, ST.withdraw("l3", "A", "g", ()), A("e", "RD", "g"), GLO, GLA, _X], "RD", "l", None, LW),
+    ("r81 E3 the same removal written twice", [_G3, _U1, dict(_U1, id="u2"), _GLO_G, GLA, A("e", "RD", "g"), _X], "RD",
+     "l", None, LW),
+    ("r81 E3b the removal and A's own resignation", [_G3, _U1, ST.withdraw("rs", "A", "g"), _GLO_G, GLA,
+                                                    A("e", "RD", "g"), _X], "RD", "l", None, LW),
+    ("r81 the re-seat does not mask the cut: A removed by u1, seated again naming it, voting concurrent with u1",
+     [_G3, _U1, _RC, _GLO_G, GLA, A("e", "RD", "g"), _X], "RD", "l", None, LW),
+    ("r81 and a vote after the genuine re-seat stands",
+     [_G3, _U1, _RC, dict(_GLO_G, names=("rc",), head=("rc",)), GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+]
+
+# ---- the r87 attack (review-scratch b525c50, r87-attackr/c1), each a case ---------------------------------------
+_GLO3 = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B", "C"), counted="duty")
+_RC_C = ST.withdraw("rc", "C", "g")
+_RC_B = ST.withdraw("rc", "B", "g")
+CASES += [
+    ("r87 C1c A, B and C confer a license seat on X", [_G3, _GLO3, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r87 C1 C resigns concurrently: its voice is discounted, A and B are still two of three",
+     [_G3, _GLO3, GLA, _RC_C, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("r87 C1b and Y's seat built on that conferral stands",
+     [_G3, _GLO3, GLA, ST.offer("gy", "A", ("Y",), "license", "g", "group", ("gla",), head=("glo",), cosigners=("B",),
+                                counted="duty"), ST.accept("gya", "Y", "gy"), _RC_C, A("e", "RD", "g"),
+      glic("ly", "g", "Y") | {"names": ("gya",)}], "RD", "ly", None, OK),
+    ("r87 C1d A and B confer, C (no voice of it) resigns concurrently", [_G3, _GLO_G, GLA, _RC_C, A("e", "RD", "g"), _X],
+     "RD", "l", None, OK),
+    ("r87 and where the resigner was needed (A and B of three, B resigns): the count fails, cut",
+     [_G3, _GLO_G, GLA, _RC_B, A("e", "RD", "g"), _X], "RD", "l", None, LW),
+]
+
+NOW = {"an edge whose term has ended at the caller's instant (150)": 150,
+       "r77 N8 a term-bearing edge read with no caller's instant: not walked (never at the licence's own instant)": None}
+
+# (name, the edge row, the refusal or None)
+REFUSALS = [
+    ("absent classes, absent depth", A("e", "RD", "K"), None),
+    ("a sorted list", A("e", "RD", "K", (L, M)), None),
+    ("an empty list", A("e", "RD", "K", ()), "trust_accepts_classes_malformed"),
+    ("an unsorted list", A("e", "RD", "K", (M, L)), "trust_accepts_classes_malformed"),
+    ("a class twice", A("e", "RD", "K", (M, M)), "trust_accepts_classes_malformed"),
+    ("depth 0", A("e", "RD", "K", depth=0), None),
+    ("depth 5", A("e", "RD", "K", depth=5), None),
+    ("depth 6", A("e", "RD", "K", depth=6), "trust_accepts_depth_out_of_range"),
+    ("a negative depth", A("e", "RD", "K", depth=-1), "trust_accepts_depth_out_of_range"),
+]
+
+REF_FIELDS = ("dst", "on_behalf", "authority")      # the objects an edge row and a licence name, for the fixture
+
+PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quorum_fixed_majority",
+          "roster_issuer_unread", "license_seat_unread", "term_unread",
+          "affiliation_edge_duty_count", "dissolved_edges_kept", "lapsed_unread", "lapsed_class_unread",
+          "pending_unread", "edge_countersign_unread",
+          "judged_at_read", "bears_unread", "refusal_unread", "depth_unread", "depth_absent_refused",
+          "withdrawn_unread", "withdraw_by_anyone", "issuer_unread", "chain_unread", "quorum_unread",
+          "ends_unread", "cut_unread", "self_seat_ungated", "untimed_term_met", "instant_unread",
+          "edge_term_unread", "amendment_as_cut",
+          "instant_over_reader", "scope_unread", "termless_edge_walked",
+          "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
+          "one_end_at_a_time", "reseat_masks", "built_on_cut_kept",
+          "end_cuts_counted_row")
+
+
+@contextlib.contextmanager
+def planted(plant):
+    saved = (set(TR.MUT), set(ST.MUT))
+    if plant:
+        TR.MUT.add(plant)
+        ST.MUT.add(plant)
+    try:
+        yield
+    finally:
+        TR.MUT.clear(); TR.MUT |= saved[0]
+        ST.MUT.clear(); ST.MUT |= saved[1]
+
+
+def arrive(order):
+    return CK.arrive(list(order), lambda r, P, past: ST.seat_rule(r, P, past))
+
+
+def answers(case, every_order=False):
+    _name, rows, reader, lid, supplied, _want = case
+    out, kept = set(), True
+    for o in (itertools.islice(itertools.permutations(rows), ORDER_CAP) if every_order else [rows]):
+        S = arrive(o)
+        kept &= bool(S.C.get(lid))
+        out.add(TR.read_licence(S, reader, lid, supplied=supplied, now=NOW.get(case[0], NOW_AT)))
+    return out, kept
+
+
+def misses(plant=None, every_order=False):
+    hit = []
+    with planted(plant):
+        for c in CASES:
+            got, kept = answers(c, every_order)
+            if got != {c[5]}:
+                hit.append("%s: got %s, expected %s" % (c[0], sorted(got, key=str), c[5]))
+            if not kept:
+                hit.append("%s: the licence row is not admitted" % c[0])
+        for name, r, want in REFUSALS:
+            if TR.refusal(r) != want:
+                hit.append("refusal %s: got %s, expected %s" % (name, TR.refusal(r), want))
+    return hit
+
+
+def main():
+    problems = misses(every_order=True)
+    caught = 0
+    for plant in PLANTS:
+        hit = misses(plant)
+        caught += bool(hit)
+        print("  plant %-24s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0]) if hit else "NOT CAUGHT"))
+        if not hit:
+            problems.append("plant %s not caught" % plant)
+    for p in problems:
+        print(p)
+    print("RESULT: %s: %d cases (each in up to %d arrival orders), %d refusal cases, %d of %d planted breaks caught"
+          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), ORDER_CAP, len(REFUSALS), caught,
+             len(PLANTS)))
+    return 1 if problems else 0
+
+
+def fixture(with_refs):
+    """The cases with the model's answers, for the crate (tests/trust_rows.rs, through tools/kernel_fixtures.py)."""
+    out = {"cases": [], "refusals": []}
+    for name, rows, reader, lid, supplied, _want in CASES:
+        refs = {}
+        S = arrive(rows)
+        now = NOW.get(name, NOW_AT)
+        ok, why = TR.read_licence(S, reader, lid, supplied=supplied, now=now)
+        out["cases"].append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "reader": reader,
+                             "licence": lid, "now": now, "supplied": {k: sorted(v) for k, v in sorted((supplied or {}).items())},
+                             "honoured": ok, "reason": why})
+    for name, r, _want in REFUSALS:
+        refs = {}
+        out["refusals"].append({"name": name, "rows": with_refs([r], refs), "refs": refs, "refusal": TR.refusal(r)})
+    return out
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -34,7 +34,7 @@ come from `governance_policy.json` and the family tables that persist already ve
 | the door: `plan_put_attestation` (`federation/attestation_admit.rs:654`) and its gates | `layers::kept`, then `layers::conclude` with the family's rule | a row that names an unheld row waits; a check that reads another row becomes a conclusion, never a drop (KERNEL_SEAMS §0) |
 | `owner_of` (`federation/admission.rs:12694`, fails closed on two owners) | `seat::Seats::owner(key)`, the one owner reading (`Seats::one` of scope `owner` with the re-binding rule); `reexpress.owner_of` is the same rule over `ops` | the same answer, read from the held set: two live owners give none |
 | `consensus::evaluate`, `eligible`, `counted` (`federation/consensus.rs:213`, `:161`, `:180`) | `seat::members_at` (the members at the head the row names), `seat::voices`, `seat::met`, `ranked::ranked` | the count is over the head the row names, never the roster at receipt |
-| `trust_root_valid` (`federation/trust_root.rs:1407`) and `check_federation` (`federation/replication/admission.rs:133`) | `trust::honours`, `trust::reaches`; `derived::reach` and `means` for a reader | the reader's view filters held rows; nothing is dropped at replication for trust |
+| `trust_root_valid` (`federation/trust_root.rs:1407`) and `check_federation` (`federation/replication/admission.rs:133`) | `trust_rows::read_licence` (edges, charter and issuer standing from rows; persist supplies no edges), `charter::declared`; `derived::reach` and `means` for a reader | the reader's view filters held rows; nothing is dropped at replication for trust |
 | `check_delegation_cycle_admission` (`federation/admission.rs:18517`) | `trust::reaches` (a cycle is visited once) and the seat walk's depth | no edge is refused for closing a cycle |
 | `is_roster_key_at` and `check_roster_act_fresh` (`federation/self_roster.rs:321`, `:553`) | `seat::members_at` at the head the act names; `window::rule` and `window::outcome` | standing is read at the named head, not at receipt; the lone eviction lands only under recount |
 | `self_roster::execute_due` and `cosign::execute_due` (`federation/self_roster.rs:1408`, `federation/cosign.rs:1199`); `cosign::hold` (`federation/cosign.rs:853`) | `window::outcome` on this node's clock; `seat::voices` for the cosignatures | a lapse is an answer read at `now`, not a sweep that deletes pending rows |
@@ -179,6 +179,51 @@ migrations, and the local operational store.
   reads them in this tag.
 - The election's seating is the one act read from the policy the row states (`Policy::Ranked`), and of
   `moderate` only.
+
+**The countersign of a one-seat affiliation** (CC 4.4.3.12; the Constitution's formal/affiliation/Affiliation.lean).
+Present:
+- the affiliation's record (its founding row, and each counted change of scope `record`) with `SeatRow::official`, the
+  designated official's key, and `SeatRow::overseen_by`, the record member `overseen_by` (optional, one group id: the
+  body that conferred or oversees it), whose `review` holders may countersign. Each version is a whole record: one
+  stating no official names none;
+- a countersign as the outside key's own voice on the act's row (the Constitution's G15): a cosigner of the act
+  (`SeatRow::cosigners`), not a separate row. The act names, for an overseer's voice, the overseeing body's rows its
+  `review` seat stands on (its basis);
+- a removal of a member of an affiliation as a counted Unseat of scope `member` under `affiliation_member_action` or
+  `cosigned_act`, `counted` `officer`. The deciding seats are the officers: a member whose seat carries `role:
+  officer` (`seat::OFFICER`; the founding record lists the first officers in a `duty_holders` entry `officer`, and an
+  appointment carrying the role, with the appointee's acceptance, seats one later). Every counted act of an
+  affiliation is counted over its officers (`counted` `officer`); with no officer it is dissolved. With one officer
+  the removal on the officer's voice alone concludes as a proposal (held) and is in force only with an eligible
+  outside voice on its own row (the designated official, or a review holder of `overseen_by`, read in the act's own
+  past); an ineligible outside voice refuses it; with two or more officers it decides on two voices at least, the
+  member removed apart.
+- with one officer, every other counted act of the affiliation but an admission of a member (no role) is a proposal
+  the same way: a lone act, an appointment carrying the officer role, any unseat, a change of the record, a
+  dissolution, a license seat. Its countersign is a voice on that act's own row; a change of the official is
+  countersigned by the official it replaces or an overseer. An onward trust edge on behalf of the affiliation, and its
+  own licence, are such acts: present `SeatRow::edge_body()` (the group a `delegates_to` row speaks for, or a
+  licence's authority); `trust_rows` walks or honours it only where `seat::countersigned` holds.
+- officers are counted by person (`seat::Persons`): another live key of an officer's person on its act is the officer
+  itself, never its countersign. The person relation is read in the act's OWN past, as every count reads it: a
+  verdict for a presented row is fixed by its past, so a binding of the official as the officer's own device written
+  concurrently with the act, or after it, leaves the countersign standing (the unlinked-keys residual).
+
+**A duty holder's lone acts** (CC 4.5.5, CC 3.1.9.2; CHANGELOG). Present each by its family, its parameter as
+`family_param()`: a quarantine marker (`quarantine:{state}`) as `SeatKind::Quarantine` (`target_key()` the key, the
+state `withhold` or `release`, a release's `target()` the withhold it supersedes, signed by the holder that withheld it), a slashing verdict (`slashing:{outcome}`) as
+`SeatKind::Slashing` (`target_key()`, the outcome `proven_rogue` or `not_proven`), a takedown notice
+(`takedown_notice:{basis}`, the basis opaque) as `SeatKind::TakedownNotice` (`of()` the content row), each with `obj()` the room, `head()` the newest
+counted changes in its past, and the members' `moderation_overturn` window named (its `window()`, and its
+`WinKind::Open`); a reconsideration (`reconsideration:{grounds}`) as `SeatKind::Reconsideration` (`cites()` the takedown, `outcome()`
+`reversed`, `partial` or `upheld`); the members'
+lift of any of them as an Offer of scope `act`, `cites()` the act, under `moderation_overturn`, naming the
+objections. Ask `seat::act_in_force` whether one is in force for a reader.
+
+**A seat from a root grant.** Present it as an Offer of `Conf::Root`, `bundle()` the grant's id, `scope()` the
+grant's duty, `obj()` the room the grant names, `to()` and `signer()` the key the grant names; and give the seat rule
+the trust root this node reads (`CutSpec::trust_root`, a `root::RootReading`). Onward hops under it are ordinary
+`Conf::Seat` offers; whether they pass is the charter's (`RootView::sub_delegation`), never the row's `sub` mark.
 
 **The moderator election** (C1 to C5, E1 to E3, F1 to F4; CHANGELOG). Present:
 - each ballot as `SeatKind::Ballot`, its `ranking()` best first (up to three), `of()` its election's id row: the
@@ -490,7 +535,11 @@ trusting an adapter.
   `founding_duty_holder_agent_owner_unsigned`): the seat rows carry no owner of an agent's key. Until it does, a
   caller must not present an agent's duty seat without the owner's statement having been checked at the door.
 - A duty conferred on an agent is a duty seat of its own (a counted `duty_confer` row), live while its `agent`
-  seat is. It acts alone within that duty. It is still no voice in any count, the duty holders' own included.
+  seat is, and only by its own statement and its owner's signature: the agent's key cosigns the conferral (or
+  accepts it by its own row), and the one live owner of the agent's key cosigns the conferral or that acceptance,
+  the row it signs naming that owner-binding (the owner's `owner` seat over
+  the agent's own roster: an Offer of scope `owner` over the key, the key's and the owner's signatures). The seat
+  stops when that binding ends (the owner's revocation), and with two owners there is none. It acts alone within that duty. It is still no voice in any count, the duty holders' own included.
 - A moderator's lone removal of an agent's key is an Unseat of its `agent` seat, `Conf::Group`, signed by the
   moderator alone, at the head it names. There is no mark to set: the seat's scope says whose key it is. An
   Unseat of a `member` seat so signed is counted as any removal is, and fails where it failed. The re-seating
@@ -523,12 +572,64 @@ signed by its first key in its own scope (`self` for a person, `key` for a voice
 admissions and evictions of that scope over it (`self_roster_add`, `self_roster_evict`), and a key's own
 revocation as an unseat of its `registered` seat by the key. `SeatLaw::kinds` must map those founding scopes to
 `self`, or no person is found. Counts read persons: seat a room's member as its person's genesis key (the key that
-signed its self roster's founding record), and a device key of that person signs for it. Ask at a row of the concluded set: the answer reads that row's own past, an eviction
+signed its self roster's founding record), and a device key of that person signs for it. A person is its
+identity key: `person_at` answers `Obj::Key` of the genesis key, never one roster row or one key record, so a
+genesis key with several key records, or several rosters, is one person. Only key-life rules read a key itself
+(its own revocation, its records); who-signed rules read its person. A genesis key its roster evicted is no voice of the person
+the room seats under that identity: only the roster's live keys speak for it. An adopter must never treat kid == the identity's
+thumbprint as proof that the key speaks for the person; only a live key of the person's self roster does. The key a
+self roster evicts is no voice of its eviction, so a roster whose only live key is its genesis key cannot evict it. One
+self roster per identity (ruled): a second founding of a self roster by an identity whose roster the row's past holds
+concludes nothing. Of an identity's foundings a reader holds, the reader's roster is the founding its LINE takes up, in
+the line's order (`seat::takes_up`): of every row the reader signed or cosigned (concluded for everyone or not, each
+counting only where the reader's key stands) that is a founding of the identity or has one in its past, the earliest
+(none of the others in its past) fix the roster, and a later row over a rival takes up nothing (acknowledging never
+un-voids); first rows reaching two foundings are a wait; a rival founding concludes nothing for that reader, and neither does everything built
+on it; neither or both taken up is a wait (a fresh reader holding two waits). A thief cannot put its rival on an
+honest reader's line. The genesis key keeps its voice on the roster the reader takes up, as any key of that roster
+does, until that roster evicts it: no special rule for the first key either way. The restore case (a one-key identity
+restores its genesis key onto a fresh install and founds before fetching its roster): the re-founding concludes
+nothing for readers on the first roster; the genesis key's voice there is unchanged; a fresh reader holding both
+waits. ADOPTER DUTY: a client holding a genesis key and no roster rows FETCHES the identity's roster before it signs
+anything, and never founds where one may exist. A reader's line reads the reader's voices exactly as the counts do: the rows it
+signed itself (its cosign rows among them) and the seat rows it is a cosigner of that concluded; a claimed cosigner
+on a note or any other row the counts do not read, or on a seat row that concluded nothing, is never read. A reader's
+client names its own previous row in every row it signs, or two concurrent rows of its own can make it wait (P2).
+CALLER DUTY (for every count): `SeatRow::cosigners` lists only verified voices, keys whose own statement over the
+row's payload the store has verified (each voice is a further signed statement, the wire map's rule). Read for a reader through `seat::for_reader`. No key re-founds itself, or adds a device, by founding. The only way onto a self
+roster is that roster's own add (its count, or its lone path); an evicted genesis key is restored only by the
+roster's counted re-admission. A lone addition is weaker than a lone eviction, as the text has it (CC 3.3.6.4: "One
+objection of two others does not stop a lone addition... only a strict majority of the others refuses it"): a live
+genesis key in a three-key roster adds a key over one objection, a stated cost. The residual, in the
+Constitution's words (0.5.0; to the steward after the tag): "a holder of one key of three that adds a key while one other is silent holds half the roster, and no count or lone path removes it". A self roster's lone-path window that lands (its `landed` landing concluded) is the
+counted change it proposes, read through the same ends reading: a landed eviction ends the target's seat, a landed
+addition seats each proposed key that signed its opener, and the landing is a head a later count over the roster
+names. Present a landing's opener and outcome as `SeatRow::landing`, an eviction opener's target as
+`SeatRow::evicts`, an addition opener's keys as `SeatRow::adds` (its `to`, one shape: a `target` alone seats nothing). (The community lone paths change seats by their
+own rows: a lone removal is the act, and the overturn's re-seating is a counted offer.) In a two-key roster the count cannot evict (the key evicted is no voice of
+it), but the lone path can (CC 4.5.13, the `self_roster_evict` window): one key proposes the other's eviction, and after the
+window it lands unless the other key, the whole of the other members and a voice there, objects within it; so a
+lost or dead device is put out. The residual: an active stolen key that objects blocks its own eviction, and two
+live keys can stalemate each other; with three or more keys the majority path breaks it. Where the owner still holds
+a copy of the stolen key, that key can also end by its own revocation (an unseat of its `registered` seat signed by
+it), at the key-end rule's cost. Ask at a row of the concluded set: the answer reads that row's own past, an eviction
 concurrent with the row by rule 4, and no instant.
 
 **A private room.** The signer of every row is the room key that signed; the voice is the person the persons map
 gives for the signing key. `to`, cosigners,
 members and voices are in one key space; the crate maps keys to persons by the self rosters it is given. Before presenting a row as its
+**The keys a row reaches** (persist). Over the concluded set, with no instant: `seat::person_keys(c, law, spec,
+person)` gives a person's live keys (named by its genesis key; the inverse of `persons_of`: a key of two persons,
+an agent's key and a key that revoked itself are none of its keys, and a person whose genesis key revoked itself
+has none), and `seat::nodes_of(c, law, spec, owner)` gives the node keys whose owner is `owner`, the inverse of
+the one owner reading `Seats::owner` (the `owner` seat over the node's key, held by the owner's own signature or
+acceptance; a withdrawn or revoked binding, two live owners, or the node's own revocation, and it is none; a
+re-binding ends the binding before it). Which keys are nodes is the key
+records': filter by `identity_type` `node`. The node set = audiences ∘ person_keys ∘ nodes_of: for each key of a
+row's audience (`audience::audiences`), its person's live keys, and for each of those the nodes it owns.
+
+**A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,
+members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
 voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row
 names (`models/causal_kernel/roomkey.py`, `rule`).
 - Give the founding row's `membership` as `SeatRow::private_room` (true for `private`; default false, read
@@ -614,8 +715,16 @@ chain of `Seats::stands` above.
 - Each bundle version: `Kind::Bundle`. The causal past must have an earlier version in a later one's past.
 - Each owner binding: `Kind::Binding`, `owner()` the owner. A re-binding has `on()` the binding it ends. Two
   re-bindings of one binding are refused (`Refused::SeveralEnds`).
-- Each owner's acceptance of the grant: `Kind::Acceptance`, signed by that owner, `on()` its binding. One
-  signed by another key is nobody's acceptance.
+- Each owner's acceptance of the grant: `Kind::Acceptance`, signed by that owner, `on()` the owner binding it is
+  made under, from its `refs.also.cites` (N7, CC Part 3 "The owner's acceptance"); present every cited row as
+  `cites()` where there may be several, and a binding's node as `node()`, filled from the owner binding's CWT
+  `sub` (the key owned). A cited binding MUST carry `node()`: one without it is refused (`acceptance_other_binding`),
+  never passed. `owner_of`
+  checks it: exactly one cited row (two is refused), an owner binding its signer owns, of the grantee's key, live at
+  the acceptance (no re-binding of it in its past). A cited binding not held waits, naming it. A re-binding of the
+  cited binding later ends the acceptance's standing: it does not follow the owner's newer binding; the owner
+  accepts again citing a live one. `owner_of` reads the bindings among the rows it is given: pass the rows of the
+  grant's own subject node only (or present each binding's `node()`).
 - Each act: `Kind::Act`, `head()` the bundle version it names, `on()` the acceptance it stands on. An act
   with `on()` a binding, or none, counts for nobody.
 - The grant's end: `Kind::GrantEnd`, `head()` its bundle version. A receipt: `Kind::Receipt`, `on()` the act.
@@ -667,3 +776,48 @@ an arm for it. `window::author_apart` takes the opener's signer out of the concl
 clause of which is over `others`: such a table is a judgment of its opener's signer (the members' check, where the
 act opens its own window). Present an opener whose signer is a proposer, and not the subject, under a table that
 counts some clause over another base.
+
+**Charters, acceptance edges and licences**, for `charter::declared` and `trust_rows::read_licence`. Present rows
+only: the crate reads the edges, the charter and the issuer's standing from them, and takes no edge list.
+- A community's charter is its record's `licence_classes` (`SeatRow::licence_classes`: (class, legal_weight)
+  pairs), on the founding record and on each change of the record (scope `record`). A version is the whole
+  record: a change that states none declares none. An affiliation is a community record whose `declared_cohort`
+  is `affiliations` (`SeatRow::declared_cohort`).
+- An acceptance edge: a `delegates_to` row (`TrustRow::is_delegates_to`) bearing `trust:accepts:v1`, its
+  authority `accepts_dst`, `trust_classes` (`None` where absent; a present list is passed as stated, the crate
+  refuses an empty, unsorted or repeating one), `trust_depth` (`None` where absent; the crate refuses one outside
+  0 to 5), and `on_behalf` where it speaks for a community. A community's edge carries its duty holders'
+  signatures as cosigners and names the community's newest counted changes.
+- A licence: `licence_authority` and `licence_class`, naming the rows its standing rests on (the license seat's
+  offer and acceptance, or the community's record). Its `asserted_at` (`Dated`) is the instant its seat's term is
+  read at.
+- A license seat: an Offer of scope `license` over the authority; over a key, by that key (`Conf::Own`), and onward
+  under it (`Conf::Seat`, `sub` for a chain); over a community, `Conf::Group` counted by its duty holders
+  (`counted` `duty`); over an affiliation, by its body under its protocol. Its term is its own `asserted_at` and
+  `valid_until` (`Dated`, persist: `expires_at`).
+- **The door's checks, a single row's own fields, which the crate does not make:** refuse a license-seat offer
+  that states no term (`valid_until`), or a term longer than 365 days from its `asserted_at` (or than the charter's
+  `role_term` where it states a shorter one). The crate reads a seat with no term as unbounded, and the cap needs
+  instant arithmetic the crate's `Dated::Instant` does not have.
+- An acceptance edge's term is its own `asserted_at` and `valid_until`, read at the caller's `now` only. **Caller
+  duty: pass `now`** to `read_licence`; with none, no edge is walked. Every edge carries a term (CC 4.4.3.12): the
+  door should refuse an edge stating none, and the crate does not walk one. A licence under a term-bearing seat must
+  state its `asserted_at`, or it meets no term.
+- Body growth: an authority act concurrent with a change of its body the reader holds is counted over the grown
+  body, and one behind the reader's own acknowledged line concludes nothing for it. Present every row the reader
+  holds: a reader holding none of the body's newer changes is the residual (it cannot know).
+- **Named residual (the term).** Within its term a licence's instant is its holder's word, bounded below by the latest
+  instant in its own past (`licensure_instant_before_its_past`). So a holder whose term has run can sign a licence
+  dated inside the term, as long as nothing later-dated is in its past; the crate cannot tell it from one signed in
+  time.
+- **Caller duty (the term).** A node honours a licence under a term that has ended by its own clock only where the
+  licence is in the past of a row the node already held when the term ended, or of a row by a key in its trust set
+  that it held then. A licence first seen after the term's end with no such anchor is not honoured. The node's own
+  receipt record decides this; the crate holds no clock and no receipts, so the caller checks it before presenting the
+  licence as honoured.
+- Every reason `read_licence` gives is a reading: the licence row stays admitted, and its reason
+  (`licence_class_not_trusted`, `licensure_delegator_not_authority`, `licensure_authority_locked`,
+  `licensure_link_withdrawn`, `licensure_instant_before_its_past`, `lapsed`, `authority_not_reached`) is no refusal at
+  the door.
+- Cases: `models/causal_kernel/check_charter.py` and `check_trust_rows.py`, in the `charter` and `trust_rows`
+  fixtures.

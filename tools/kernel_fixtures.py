@@ -38,6 +38,12 @@ Sources (all under models/):
     policy_spec causal_kernel/window.py spec_from_policy: every row of the governance policy table, read under each
               `active`, and every plant of check_policy_spec.py (one cell changed), with the window table each gives
               or the cells it refuses on. tests/policy_spec.rs replays it through window::spec_from_policy.
+    charter   causal_kernel/check_charter.py: an affiliation's charter (the licence classes its record in force
+              declares) and whether a reader honours a licence. tests/charter.rs replays it through
+              charter::declared and charter::read_licence.
+    trust_rows causal_kernel/check_trust_rows.py: the reader's walk from acceptance edge rows and the issuer's
+              standing, under the pending rulings and a stand-in. tests/trust_rows.rs replays it through
+              trust_rows::read_licence and trust_rows::refusal.
     root      trust_root/check_root.py: the trust root's lineage (the count, S'' and T, the fold, the bundles in
               force per reader, grants) and stalled recoveries judged against it. tests/root.rs replays both.
 """
@@ -237,7 +243,8 @@ def check_rows(rows, problems, where):
         for f in KEYFIELDS:
             v = r.get(f)
             vs = [v] if isinstance(v, str) else list(v) if isinstance(v, (tuple, list)) else []
-            if r["kind"] == "withdraw" and f == "target":
+            # a withdrawal's target is a row, and so is a quarantine release's (its withhold, G21 as re-ruled)
+            if r["kind"] in ("withdraw", "quarantine:release") and f == "target":
                 continue
             for x in vs:
                 if x in ids:
@@ -290,14 +297,15 @@ def key_ref(k):
     return "urn:ietf:params:oauth:ckt:sha-256:" + d
 
 
-def with_refs(rows, table):
+def with_refs(rows, table, fields=REF_FIELDS):
     """The rows with every object written as a reference, row or key by its form; `table` collects the names
-    the references stand for, so the Rust side can turn a reference back into the model's own name."""
+    the references stand for, so the Rust side can turn a reference back into the model's own name. `fields`: the
+    fields that hold an object (REF_FIELDS, and a fixture's own)."""
     ids = {r["id"] for r in rows}
     out = []
     for r in rows:
         e = row_enc(r)
-        for f in REF_FIELDS:
+        for f in fields:
             v = r.get(f)
             if isinstance(v, str):
                 ref = row_ref(v) if v in ids else key_ref(v)
@@ -324,7 +332,7 @@ def seat_cases():
     rules = {id(A.SEAT): "seat", id(A.WIN): "window", id(A.ROUTE): "route"}
     seen, scen, skipped = {}, [], {"rules": 0}
 
-    def record(rows, rule, asks=None, table=None, readers=(), closed=None):
+    def record(rows, rule, asks=None, table=None, readers=(), closed=None, founders=(), in_force=()):
         """`asks`: (key, scope, object) the scenario also states `stands` for. `table`: read under another HOLDS
         (check_duty_seats.py's `persist`); the scenario then carries its own `holds`. `readers`: the readers it is
         also read for. `closed`: a seating whose
@@ -333,13 +341,14 @@ def seat_cases():
         if name is None:
             skipped["rules"] += 1
             return
-        key = (name, table, closed, json.dumps([row_enc(r) for r in rows], sort_keys=True))
+        key = (name, table, closed, tuple(founders), tuple(in_force), json.dumps([row_enc(r) for r in rows], sort_keys=True))
         if key not in seen:
             seen[key] = len(scen)
-            scen.append((name, list(rows), list(asks or ()), table, tuple(readers), closed))
+            scen.append((name, list(rows), list(asks or ()), table, tuple(readers), closed, tuple(founders),
+                         tuple(in_force)))
         elif readers:                                # the same rows named again with a reader: read it too
-            n, r0, a0, t0, rd, cl = scen[seen[key]]
-            scen[seen[key]] = (n, r0, a0, t0, tuple(sorted(set(rd) | set(readers))), cl)
+            n, r0, a0, t0, rd, cl, fo, inf = scen[seen[key]]
+            scen[seen[key]] = (n, r0, a0, t0, tuple(sorted(set(rd) | set(readers))), cl, fo, inf)
 
     orig_conc = A.conc
 
@@ -374,6 +383,16 @@ def seat_cases():
     import check_acts as ACT
     for _name, rows, _rid, _wb, _wu in ACT.CONCLUDE:
         record(rows, A.SEAT)
+    # the countersign of a one-seat affiliation's removal: check_charter.py's cases, under the seat rule
+    import check_charter as CHC
+    for _name, rows, _concl, asks in CHC.COUNTERSIGN:
+        record(rows, A.SEAT, [(k, "member", o) for k, o, _ in asks])
+    # a duty holder's lone acts and their ways back: check_lone_acts.py's cases, under the window rule
+    import check_lone_acts as LA
+    for _name, rows, _concl, force in LA.CASES:
+        record(rows, A.WIN, in_force=sorted(force))
+    for _name, rows, asks in ACT.FOUNDERS:
+        record(rows, A.SEAT, founders=[(k, ACT.OBJ, at) for k, at, _ in asks])
     for _name, rows, asks, *own in ACT.TIPS:
         record(rows, A.SEAT, [(k, sc, ACT.OBJ) for k, sc, _ in asks], readers=tuple(o for o in own if o))
     # the members' recall of a duty holder: check_recall.py's cases, under the seat rule
@@ -430,6 +449,9 @@ def seat_cases():
     # the review r78k's rows: the fold's lift and the count's receipt by person (seat.count_persons), the roster pinned
     for _name, rows, _want in KPC.R78K_CASES:
         record(rows, A.WIN)
+    # the reader's line (one self roster per identity, ruled): each case's rows read for its reader (a fresh reader: none)
+    for _name, rows, rd, _rid, _want in KPC.LINE_CASES:
+        record(rows, A.SEAT, readers=(rd,) if rd is not None else ())
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
@@ -450,7 +472,7 @@ def seat_cases():
         record(rows, A.SEAT)
     rulefn = {"seat": A.SEAT, "window": A.WIN, "route": A.ROUTE}
     problems, out = [], []
-    for i, (name, rows, asks, tab, rdrs, closed) in enumerate(scen):
+    for i, (name, rows, asks, tab, rdrs, closed, founders, in_force) in enumerate(scen):
         check_rows(rows, problems, "scenario %d" % i)
         with DS.table(tab):
             S = CK.concluded(CK.kept(list(rows)), rulefn[name])
@@ -463,6 +485,10 @@ def seat_cases():
                 e["holds"] = enc(ST.HOLDS)
             if closed:
                 e["closed"] = [closed, EL.closed(rows, closed)]
+            if founders:
+                e["founder"] = [[k, o, at, ST.is_founder(S, k, o, at)] for k, o, at in founders]
+            if in_force:
+                e["in_force"] = [[a, ST.act_in_force(S, a)] for a in in_force]
         out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "removal_floor": ST.REMOVAL_FLOOR,
@@ -759,7 +785,17 @@ def key_person_cases():
         refs = {}
         assert KP.latent_outcome(rows) == outcome
         wcases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "opener": "op", "outcome": outcome})
-    return {"law": law, "cases": out, "counts": counts, "windows": windows, "window_cases": wcases}
+    # the keys a row reaches (persist): a person's live keys and an owner's nodes, over the concluded set
+    pkeys = []
+    for name, rows, k, keys in KP.PERSON_KEYS_CASES:
+        refs = {}
+        pkeys.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "person": k, "keys": keys})
+    nodes = []
+    for name, rows, k, ns in KP.NODES_CASES:
+        refs = {}
+        nodes.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "owner": k, "nodes": ns})
+    return {"law": law, "cases": out, "counts": counts, "windows": windows, "window_cases": wcases,
+            "person_keys": pkeys, "nodes_of": nodes}
 
 
 def key_end_cases():
@@ -1020,6 +1056,10 @@ def main():
     dump("conferral_two.json", C2.fixture(), out)
     import check_consent as CS
     dump("consent.json", CS.fixture(), out)
+    import check_charter as CHC
+    dump("charter.json", CHC.fixture(with_refs), out)
+    import check_trust_rows as CTR
+    dump("trust_rows.json", CTR.fixture(lambda rows, refs: with_refs(rows, refs, REF_FIELDS + CTR.REF_FIELDS)), out)
     sys.path.insert(0, os.path.join(ROOT, "models", "trust_root"))
     import check_root as CR
     dump("root.json", CR.fixture(with_refs), out)
@@ -1030,6 +1070,30 @@ def main():
     # row, the key records, the voice's roster view the kernel folds and the verdict
     import room_key_vectors as RKV
     dump("room_keys.json", enc(RKV.fixture()), out)
+    # a delegation chain from a root grant (check_delegation.py's ROOT_CASES): the seats under a root view
+    import check_delegation as CD
+    chains = []
+    for case in CD.ROOT_CASES:
+        name, bs, rd, rows, asks = case[:5]
+        grants = case[5] if len(case) > 5 else (CD.GA,)
+        refs = {}
+        got = CD.root_answers(case)
+        chains.append({"name": name, "rows": with_refs(rows, refs), "refs": refs,
+                       "bundles": [CR.benc(b) for b in bs] if bs is not None else None,
+                       "grants": [CR.genc(g) for g in grants],
+                       "reader": CR.renc(rd), "stands": [[k, sc, w] for (k, sc, _), w in zip(asks, got)]})
+    reread = []
+    for case in CD.REREAD:
+        name, at, now, asks = case
+        refs = {}
+        got = CD.reread_answers(case)
+        reread.append({"name": name, "rows": with_refs([CD.ROOM, CD.RS, CD.RD1], refs), "refs": refs,
+                       "at": {"bundles": [CR.benc(b) for b in at[0]], "reader": CR.renc(at[1])},
+                       "now": {"bundles": [CR.benc(b) for b in now[0]], "reader": CR.renc(now[1])},
+                       "grants": [CR.genc(CD.GA)], "stands": [[k, sc, w] for (k, sc, _), w in zip(asks, got)]})
+    dump("root_chains.json", {"about": "check_delegation.py's root chains: the seat a root grant gives, and the "
+                                       "onward gate read from the charter in force", "cases": chains,
+                              "reread": reread}, out)
     if "--check" in sys.argv:
         bad = 0
         for name, text in out.items():

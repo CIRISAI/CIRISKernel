@@ -28,7 +28,9 @@
 //! | [`held`] | 3 | the two layers held across admissions: one row admitted at a time, only what it releases recomputed |
 //! | [`held_view`] | 3, 3a | the head layer held: `head::View` across admissions, only its dirty set recomputed; its checkpoint |
 //! | [`key_end`] | 5 (two notions of time) | a key's own end and the rows that lapse |
-//! | [`trust`] | 5 (stands), CC 4.4.3.34 | the reader's trust walk over acceptance edges |
+//! | [`trust`] | 5 (stands), CC 4.4.3.34 | the reader's trust walk over acceptance edges, and the charters it reads |
+//! | [`charter`] | CC 3.4.7, CC 4.4.3.12 | a community's charter: the licence classes its record in force declares |
+//! | [`trust_rows`] | CC 4.4.3.34 | the reader's walk from acceptance edge rows, and the issuer's standing |
 //! | [`ranked`] | 5 (the door's parameters) | the ranked count, with and without a declared order |
 //! | [`root`] | CC 3.2 (T6), CC 2.7.8 | the trust root's lineage: its count, the fold at tips, bundles in force, grants |
 #![no_std]
@@ -37,6 +39,7 @@
 
 extern crate alloc;
 
+pub mod charter;
 pub mod conferral;
 pub mod consent;
 pub mod content;
@@ -56,6 +59,7 @@ pub mod seat;
 pub mod standing;
 pub mod tables;
 pub mod trust;
+pub mod trust_rows;
 pub mod window;
 
 /// A signed row, as the kernel reads it: its digest, the digests it names, and the key that signed it.

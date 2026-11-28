@@ -13,7 +13,10 @@ voices and the member removed is no voice in it, and a founder seat over infrast
 change (8c75ae7); open admission removed (`open:self_admit` and the sheet's `joiner` and `unstated` words gone), and
 `community_invite`'s base `standing` (76965eb). `consensus_protocols.tsv` at 2b509c8 gives
 `founder_only` a removal rule (`founder-target`, `role_at:founder:1`). The parent generates most
-of them from its rule tables; the generators are not carried, so treat these as fixed inputs.
+of them from its rule tables; the generators are not carried, so treat these as fixed inputs. **Except, for now:**
+`governance_policy_acts.tsv` is copied unchanged from the Constitution's holding branch `rc23-next` at commit
+`68eb8d1f7b14ef8e5c46a90dce9a9ca3dc3376f7` (the affiliation's `admit`, `record_change` and `dissolve` rows; an
+affiliation is a community record whose `declared_cohort` is `affiliations`), to be re-pinned when `rc23` moves.
 
 | File | What it is | Read by | From (parent) |
 |---|---|---|---|

@@ -351,7 +351,7 @@ def spec_of(p, P):
 
 def is_opener(r):
     """A row that opens a window: an `open` row, or a counted act that names a window."""
-    return r["kind"] == "open" or (r["kind"] == "unseat" and r.get("window") in WINDOWS)
+    return r["kind"] == "open" or ((r["kind"] == "unseat" or ST.family(r) in ST.LONE_ACTS) and r.get("window") in WINDOWS)
 
 
 def secs(name):
@@ -550,6 +550,9 @@ def rule(r, P, past):
         w = spec_of(r, P)                                      # the opener's signer holds the opener's scope, by default the counted one
         if w is None: return False
         if k != "open" and not ST.seat_rule(r, P, past): return False     # an act that opens its own window: validly made, by the seat
+        # a duty holder's lone act (quarantine, slash, takedown) opens the members' overturn window on its own duty:
+        # the seat rule has read that duty (seat.lone_act_rule)
+        if ST.family(r) in ST.LONE_ACTS: return True
         # an opening names the newest counted changes over its object in its own past, and is counted there (H1;
         # MUTATION window_opener_old_head: an opening at an older head is read there)
         if k == "open" and "window_opener_old_head" not in ST.MUT \
