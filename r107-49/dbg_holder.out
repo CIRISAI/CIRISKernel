@@ -1,0 +1,3 @@
+honest only (no stale rows), lm0 still A's only lay-down None ask ({'op': True, 'ed': True}, {'A': False, 'B': False, 'D': True}, {'ed': True})
+honest only (no stale rows), lm0 still A's only lay-down R ask ({'op': True, 'ed': True}, {'A': True, 'B': False, 'D': False}, {'ed': False})
+   reader_ends ['lm0'] reader_void []
