@@ -4,7 +4,7 @@
 
 mod common;
 use ciris_kernel::audience::{
-    audiences, family_in, family_of, follow, history_of, place, seats_of, Audience, AudienceRow, FamilyMatch,
+    audiences, family_in, family_of, follow, history_of, place, place_in, seats_of, Audience, AudienceRow, FamilyMatch,
     FamilyPlacement, Follows, History, Joins, PersonsOf, Placed, Placement, SeatAct, FAMILIES, FAMILY_MODEL_SHA256,
 };
 use common::*;

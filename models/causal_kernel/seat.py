@@ -519,7 +519,7 @@ def infra_live(S, obj, at):
     if at not in S.by or not S.C.get(at): return None
     P = [q for q in S.Cs if q["id"] in S.anc[at] or q["id"] == at]
     by = {q["id"]: q for q in P}
-    past = lambda a, b: a in S.anc[b]
+    past = lambda a, b: a in S.anc.get(b, ())
     if kind_of(by, obj) != "infrastructure": return None
     rec = protocol_record(by, obj)
     pr = infrastructure_rule(rec.get("consensus_protocol")) if rec is not None else None
@@ -728,12 +728,11 @@ def deciding_growth(S, q, o, void=frozenset()):
         if body == "founder": return x.get("role") == "founder" or x.get("scope") == "founder"
         return cls(x.get("scope")) == cls(body)
     own = lambda x: signers(x) - frozenset(x.get("to", ()))           # its deciding voices: not the seated keys' own yes
-    # one batch: the same deciding voices' duty conferrals at the SAME heads (causally one row at that head, which those
-    # voices could write anyway; the lead's ruling on r97 B4/B5); at other heads, or by other voices, it is growth (B6;
-    # MUTATION batch_any_heads: at any heads)
-    same_heads = lambda x: "batch_any_heads" in MUT or set(x.get("head", ())) == set(q.get("head", ()))
+    # one batch: the same deciding voices' duty conferrals (causally one row at that head, which those voices could
+    # write anyway; the lead's ruling on r97 B4/B5); one at a later head is no batch with one behind it: the row from
+    # behind is re-counted against its signers' own later change (recount_on_growth, the Constitution's ruling, B6)
     def same_batch(x):
-        return cls(q.get("scope")) == "duty" and cls(x.get("scope")) == "duty" and own(x) == own(q) and same_heads(x)
+        return cls(q.get("scope")) == "duty" and cls(x.get("scope")) == "duty" and own(x) == own(q)
     return [c for c in g if seats_body(offer_of(c)) and not same_batch(offer_of(c))]
 
 
@@ -754,6 +753,19 @@ def recount_on_growth(S, q, o=None, void=frozenset(), other=None):
     o = q.get("obj") if o is None else o
     counted = q["kind"] == "offer" and q.get("conf") == "group" and q.get("head")
     growth = deciding_growth(S, q, o, void) if counted else concurrent_growth(S, q, o, void)
+    # and an act from BEHIND its signers' own later counted change the reader holds (q's heads strictly in that
+    # change's past, q not in it, one of q's deciding voices among its signers, no change of the record): q is
+    # re-counted at the newest counted changes, whatever that change confers (the Constitution's batch ruling: the
+    # signers' own later row, a license conferral as much as a duty one, makes their row at the old head their
+    # self-fork; r99 k4; MUTATION ahead_unread: only the deciding body's growth)
+    if "ahead_unread" not in MUT:
+        mine = signers(q) - frozenset(q.get("to", ()))
+        # (a change built on a row from behind q is no change ahead of q: it merges the stale line, r99 k3)
+        stale_line = lambda c: "stale_line_ahead" not in MUT and any(behind_act(S, S.by[x], q) for x in S.anc[c["id"]]
+                                   if x in S.by and x not in S.anc[q["id"]] and x != q["id"] and x in S.C and S.C[x])
+        growth = growth + [c for c in S.Cs if c["id"] not in void and c["id"] != q["id"] and c not in growth
+                           and change(c, o, S.by) and c.get("scope") != "record" and q["id"] not in S.anc[c["id"]]
+                           and signers(c) & mine and behind_act(S, q, c) and not stale_line(c)]
     if not growth: return True
     T = with_growth(S, q, o, void, growth)
     byT = {x["id"]: x for x in T}
@@ -762,7 +774,7 @@ def recount_on_growth(S, q, o=None, void=frozenset(), other=None):
     if q["kind"] == "offer" and q.get("conf") == "group" and q.get("head") and "counted_recount_unread" not in MUT:
         # an election's seating (C1 to C5) and a lift (the members at both heads) are read by their own counts
         if is_election(q) or (act_of(q, byT) or (None,))[0] == "lift": return True
-        past = lambda a, b: a in S.anc[b]
+        past = lambda a, b: a in S.anc.get(b, ())
         heads = newest_changes(T, past, o, byT)
         return count_met(dict(q, head=heads), T, past)
     return other(T) if other is not None else True
@@ -2350,7 +2362,7 @@ class Seats:
         # a withdrawal that names a scope ends that one seat of the row it withdraws (a founding holder lays down a duty)
         # the election (C4): seatings over equal sets of one election are one seat, so the holder's withdrawal of any
         # of them ends it (MUTATION twin_withdrawal_unread)
-        past_ = lambda a, b: a in S.anc[b]
+        past_ = lambda a, b: a in S.anc.get(b, ())
         twins = {}
         if any(is_election(o) for o in Cs) and "twin_withdrawal_unread" not in MUT:
             el = [o for o in Cs if is_election(o)]
@@ -2397,10 +2409,13 @@ class Seats:
                 and body_change(q, q.get("obj")) and q.get("scope") not in ("member", AGENT, "record")] \
             if "lone_regrowth_unread" not in MUT else []
         built = lambda f: frozenset(x["id"] for x in Cs if S.anc[x["id"]] & f)
+        # (inflationary: a conferral that failed stays failed, and the others are read again over that result, so
+        # the passes cannot oscillate; each pass only adds)
         regrown = frozenset()
         for _ in range(len(cand) + 1):
             Vn = V | regrown | built(regrown)
-            nxt = frozenset(q["id"] for q in cand if not recount_on_growth(S, q, None, Vn - {q["id"]}))
+            nxt = regrown | frozenset(q["id"] for q in cand if q["id"] not in Vn
+                                      and not recount_on_growth(S, q, None, Vn - {q["id"]}))
             if nxt == regrown or "recount_one_pass" in MUT:
                 regrown = nxt
                 break
@@ -2772,7 +2787,7 @@ class Seats:
                     if r["signer"] not in seated and r["signer"] in union: return False
                     continue
                 P = [q for q in S.Cs if q["id"] in S.anc[off]]
-                past = lambda a, b: a in S.anc[b]
+                past = lambda a, b: a in S.anc.get(b, ())
                 f = in_force(r, {q["id"]: q for q in P})
                 if f is REFUSED: return False
                 if "all" in f:                                       # joined policies: a record change, no seat
@@ -2875,7 +2890,7 @@ def lone_act(u, S):
     carries is the count's act, not the moderator's)."""
     if not agent_removal(u) or u.get("conf") != "group": return False
     P = [q for q in S.Cs if q["id"] in S.anc[u["id"]]]
-    past = lambda a, b: a in S.anc[b]
+    past = lambda a, b: a in S.anc.get(b, ())
     return lone_removal(u, P, past) and ("count_unread_lone" in MUT or not count_met(u, P, past))   # MUTATION: the count unread
 
 
@@ -2938,7 +2953,7 @@ def count_receipt(S, q, x):
         if q.get("obj") != obj or q.get("over", obj) != obj: return False
         if not q.get("head") or not all(any(h == e or e in S.anc.get(h, ()) for e in hx) for h in q["head"]): return False
     P = [r for r in S.Cs if r["id"] in S.anc[q["id"]]]
-    past = lambda a, b: a in S.anc[b]
+    past = lambda a, b: a in S.anc.get(b, ())
     over = q.get("obj") if "count_receipt_unchecked" in MUT else obj
     scope = q.get("counted", "member") if "count_receipt_unchecked" in MUT else "member"
     mem, vot = counted_keys(P, past, over, tuple(q.get("head", ())), scope)
@@ -3262,7 +3277,7 @@ def act_in_force(S, act, own=None):
     if act in Q.stale: return False
     obj = r.get("obj")
     P = [q for q in S.Cs if q["id"] in S.anc[act]]
-    past = lambda a, b: a in S.anc[b]
+    past = lambda a, b: a in S.anc.get(b, ())
     held = lambda kind, pred: [q for q in S.Cs if q["kind"] == kind and pred(q) and Q.cut.counts(q) and q["id"] not in Q.stale]
     if kind_of(S.by, obj) == "affiliation":
         if needs_countersign(r, P, past) and "countersign_unread" not in MUT \
@@ -3341,7 +3356,7 @@ def contested_out(S, unseats, acts=()):
     # only mutual dependence is contested, and a one-sided cut stands, rule 4 from the head it names)
     if "contested_one_sided" in MUT:
         return frozenset(threats) | frozenset(i for t in threats.values() for i, _ in t)
-    past = lambda a, b: a in S.anc[b]
+    past = lambda a, b: a in S.anc.get(b, ())
     memo = {}
 
     def holds(u, live):
@@ -3641,7 +3656,7 @@ def reader_ends(S, own):
     in the past of the own heads of a counted act on the reader's line, it not in that act's past (checkpoint.behind,
     sibling-safe). Such an end is no vacancy end for that reader (MUTATION laydown_off_line: none is)."""
     if own is None or "laydown_off_line" in MUT: return frozenset()
-    past = lambda a, b: a in S.anc[b]
+    past = lambda a, b: a in S.anc.get(b, ())
     out, lines = set(), {}
     for w in S.Cs:
         if w["kind"] != "withdraw": continue
@@ -3663,7 +3678,7 @@ def held_pairs(S):
           and q.get("obj") is not None]
     seating = [q for q in vs if q.get("role") == "founder" and q.get("to")]
     if len(seating) < 2: return frozenset()
-    past = lambda a, b: a in S.anc[b]
+    past = lambda a, b: a in S.anc.get(b, ())
     return frozenset((a["id"], b["id"], frozenset(a["to"]) | frozenset(b["to"]), a["obj"])
                      for i, a in enumerate(seating) for b in seating[i + 1:]
                      if a["obj"] == b["obj"] and not past(a["id"], b["id"]) and not past(b["id"], a["id"])
@@ -4235,7 +4250,7 @@ def is_founder(S, key, obj, at_row):
     if "founder_at_tips" in MUT:
         return kind_of(S.by, obj) in ("family", "infrastructure") and key in Seats(S).holders("founder", obj)
     P = [q for q in S.Cs if q["id"] in S.anc[r["id"]]]
-    past = lambda a, b: a in S.anc[b]
+    past = lambda a, b: a in S.anc.get(b, ())
     by = {q["id"]: q for q in P}
     if kind_of(by, obj) not in ("family", "infrastructure"): return False
     # read at the newest counted changes in the row's own past, never at the heads it states: a stale head is read
@@ -4285,7 +4300,7 @@ def final_by_ack(S, fid, KS=None, roster=frozenset()):
     f = S.by.get(fid)
     if f is None or not S.C.get(fid) or f["kind"] not in ("offer", "unseat") or f.get("conf") != "group": return False
     P = [q for q in S.Cs if q["id"] in S.anc[fid]]
-    past = lambda a, b: a in S.anc[b]
+    past = lambda a, b: a in S.anc.get(b, ())
     if not count_met(f, P, past): return False
     kind = K.rule(POLICY, f.get("policy"), ("unknown", 0, 0))[0]
     if kind == "declared": return False

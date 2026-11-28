@@ -69,7 +69,8 @@ Planted breaks, each of which must change a case's answer:
     behind_grows             (seat.py) a row from behind the act (its heads in the act's past, older than the act's) is
                              growth against it: an acceptance of an offer in its past (r97 A1), an old-head batch (r98)
     growth_ends_unread       (seat.py) the grown body keeps the ends the reader holds (r97 V1, V2)
-    batch_any_heads          (seat.py) the same voices' duty conferrals are one batch at any heads (r97 B6)
+    ahead_unread             (seat.py) a row behind its signers' own later change is not re-counted against it (r97 B6, r99)
+    stale_line_ahead         (seat.py) a change built on a row from behind the act counts as ahead of it (r99 k3)
     counted_recount_unread   (a) a counted seat conferral from an old past not re-counted against held growth (r95)
     still_holds_end_past     (d) whether the key still holds a standing is read over the end's past, not the judged rows
     growth_held_unread       (a), (b) an authority act concurrent with growth of its body the reader holds is not
@@ -707,7 +708,35 @@ CASES += [
 
 # the same worlds read at the seat (Seats.holders): whether X holds the license seat the counted conferral gives,
 # (name, rows, [(key, scope, object, holds)])
-SEATED = [
+# r99 (attack-r, k3): a licence built on a batch row from behind its signers' own later change (syb at g, behind
+# A, B and C's c2 at dde): syb is cut for every reader holding c2, and the conferral naming it as a head (glo, heads
+# dde and syb) is read over rows that no longer hold syb: it names a head it cannot count at, and X's licence is no
+# one's (before the fix the walk raised on the missing row)
+_R10L = ST.found("g", "A", tuple("ABCDEFGHIR"), {"moderate": ("A", "B", "C")}, cosigners=tuple("BCDEFGHIR"),
+                 licence_classes=((M, False),))
+_RDDE = ST.offer("dde", "A", ("D", "E"), "moderate", "g", "group", ("g",), head=("g",), cosigners=("B", "D", "E"),
+                 counted="duty", policy="duty_confer")
+_RC2 = ST.offer("c2", "A", "A", "slash", "g", "group", ("dde",), head=("dde",), cosigners=("B", "C"), counted="duty",
+                policy="duty_confer")
+_RSYB = ST.offer("syb", "A", ("F", "G", "H", "I"), "moderate", "g", "group", ("g",), head=("g",),
+                 cosigners=("B", "F", "G", "H", "I"), counted="duty", policy="duty_confer")
+_GL0 = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dde", "syb"), head=("dde", "syb"),
+                cosigners=("B", "F", "G", "H", "I"), counted="duty")
+_RC4 = ST.offer("c4", "A", ("Y",), "license", "g", "group", ("dde",), head=("dde",), cosigners=("B", "C"),
+                counted="duty")
+CASES += [
+    ("r99 k3 a licence built on a batch row from behind its signers' later change: glo names syb, cut for every "
+     "reader holding c2; the walk reads it at a head it cannot count at, and X's licence is no one's (no crash)",
+     [_R10L, _RDDE, _RC2, _RSYB, _GL0, GLA, A("e", "RD", "g"), _X], "RD", "l", None, NA),
+]
+SEATED_R99 = [
+    ("r99 k4 the signers' later row is a LICENSE conferral (c4, A, B and C at dde): their row at g is behind it all the "
+     "same, and F to I are not seated", [_R10L, _RDDE, _RC4, _RSYB],
+     [("D", "duty", "g", True), ("F", "duty", "g", False), ("I", "duty", "g", False)]),
+    ("r99 k3 at the seat: c2 stands (glo, built on syb from behind c2, is no change ahead of c2), syb and glo do not",
+     [_R10L, _RDDE, _RC2, _RSYB, _GL0, GLA], [("A", "slash", "g", True), ("F", "duty", "g", False), ("X", "license", "g", False)]),
+]
+SEATED = SEATED_R99 + [
     ("r97 seat B4 A and B seat D and E, and at g again F to I beside it: one batch at one head (as ruled), all seated",
      [_G10, _DDE2, _SYB], [("E", "duty", "g", True), ("F", "duty", "g", True), ("I", "duty", "g", True)]),
     ("r97 seat B6 the same voices at a LATER head are no batch: A and B seat D and E at rv (after g), and F to I at g "
@@ -767,7 +796,7 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "edge_term_unread", "amendment_as_cut",
           "instant_over_reader", "scope_unread", "termless_edge_walked",
           "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
-          "one_end_at_a_time", "growth_ends_read", "counted_recount_unread", "behind_grows", "growth_ends_unread", "batch_any_heads",
+          "one_end_at_a_time", "growth_ends_read", "counted_recount_unread", "behind_grows", "growth_ends_unread", "ahead_unread", "stale_line_ahead",
           "end_cuts_counted_row", "own_licence_uncountersigned")
 
 

@@ -2015,13 +2015,9 @@ pub(crate) fn deciding_growth<R: SeatRow>(
     // its deciding voices: not the seated keys' own yes
     let own = |x: &R| -> BTreeSet<R::Key> { signers(x).into_iter().filter(|k| !x.to().contains(k)).collect() };
     let duty = |x: &R| cls(x.scope().map(|w| w.as_ref())).as_deref() == Some("duty");
-    // one batch: the same deciding voices' duty conferrals at the SAME heads (the lead's ruling on r97 B4/B5)
-    let same_heads = |x: &R| {
-        let a: BTreeSet<&R::Id> = x.head().iter().collect();
-        let b: BTreeSet<&R::Id> = qr.head().iter().collect();
-        a == b
-    };
-    let same_batch = |x: &R| duty(qr) && duty(x) && own(x) == own(qr) && same_heads(x);
+    // one batch: the same deciding voices' duty conferrals (the lead's ruling on r97 B4/B5); one at a later head is
+    // no batch with one behind it: the row from behind is re-counted against its signers' own later change
+    let same_batch = |x: &R| duty(qr) && duty(x) && own(x) == own(qr);
     concurrent_growth(c, law, q, o, void)
         .into_iter()
         .filter(|&x| offer_of(x).is_some_and(|xr| seats_body(xr) && !same_batch(xr)))
@@ -2080,7 +2076,35 @@ pub(crate) fn recount_on_growth<R: SeatRow, S: CutSpec<R>>(
     let r = g.row(q);
     let lone = r.seat_kind() == SeatKind::Offer && matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat));
     let counted = r.seat_kind() == SeatKind::Offer && r.conf() == Some(Conf::Group) && !r.head().is_empty();
-    let growth = if counted { deciding_growth(c, law, q, o, void) } else { concurrent_growth(c, law, q, o, void) };
+    let mut growth = if counted { deciding_growth(c, law, q, o, void) } else { concurrent_growth(c, law, q, o, void) };
+    // and an act from BEHIND its signers' own later counted change the reader holds (its heads strictly in that
+    // change's past, it not in it, one of its deciding voices among the change's signers, no change of the record):
+    // re-counted at the newest counted changes, whatever that change confers (the Constitution's batch ruling; r99)
+    {
+        let mine: BTreeSet<R::Key> = signers(r).into_iter().filter(|k| !r.to().contains(k)).collect();
+        let room = match o {
+            Obj::Row(i) => g.idx(i).map(|x| g.row(x).duties().iter().map(|d| d.as_ref()).collect::<Vec<&str>>()),
+            Obj::Key(_) => None,
+        };
+        for &x in c.cs() {
+            let xr = g.row(x);
+            if x == q || void.contains(&x) || growth.contains(&x) || g.ancestors(x).has(q) {
+                continue;
+            }
+            if xr.scope().is_some_and(|s| s.as_ref() == "record") || !change(law, xr, o, room.as_deref()) {
+                continue;
+            }
+            // (a change built on a row from behind q is no change ahead of q: it merges the stale line, r99 k3)
+            let stale_line = c
+                .cs()
+                .iter()
+                .copied()
+                .any(|y| y != q && g.ancestors(x).has(y) && !g.ancestors(q).has(y) && behind_act(c, y, q));
+            if signers(xr).iter().any(|k| mine.contains(k)) && behind_act(c, q, x) && !stale_line {
+                growth.push(x);
+            }
+        }
+    }
     if growth.is_empty() {
         return true;
     }
@@ -3106,15 +3130,18 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             let mut vn: BTreeSet<usize> = stale.clone();
             vn.extend(regrown.iter().copied());
             vn.extend(built(&regrown));
-            let next: BTreeSet<usize> = cand
-                .iter()
-                .filter(|(i, o)| {
-                    let mut v = vn.clone();
-                    v.remove(i);
-                    !recount_on_growth(c, law, spec, *i, o, &v, None)
-                })
-                .map(|(i, _)| *i)
-                .collect();
+            // inflationary: a conferral that failed stays failed, and the others are read again over that result,
+            // so the passes cannot oscillate; each pass only adds
+            let mut next: BTreeSet<usize> = regrown.clone();
+            next.extend(
+                cand.iter()
+                    .filter(|(i, o)| {
+                        let mut v = vn.clone();
+                        v.remove(i);
+                        !vn.contains(i) && !recount_on_growth(c, law, spec, *i, o, &v, None)
+                    })
+                    .map(|(i, _)| *i),
+            );
             let done = next == regrown;
             regrown = next;
             if done {
