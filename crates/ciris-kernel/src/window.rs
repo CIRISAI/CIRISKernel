@@ -296,12 +296,35 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
     elapsed: bool,
 ) -> String {
     let w = x.w;
-    let tv: BTreeSet<R::Key> = if w.target_votes { target.cloned().into_iter().collect() } else { BTreeSet::new() };
-    let mut voters = x.base(&Base::All);
-    voters.extend(x.held(&Base::Scope("moderate".into())));
+    // the key view: an answer counts only where its signer's signature on it counts by the end rule
+    // (`CutSpec::key_view`; none: every answer counts)
+    let kept: Vec<&R>;
+    let answers: &[&R] = match x.spec.key_view() {
+        Some(kv) => {
+            kept = answers.iter().copied().filter(|a| kv.counts(a.id(), a.signer())).collect();
+            &kept
+        }
+        None => answers,
+    };
+    // one member and one voice per person (ruled on CIRISConstitution#224): every base counted by person, each answer
+    // read as its signer's person BEFORE the opener's withdrawal, a duty holder's act and the moot are read; a key
+    // that counts as no person answers for nobody. A window over a self roster reads keys ([`seat::Persons`]).
+    let pp = seat::Persons::over(x.rows, x.law, x.spec, Some(&x.obj));
+    let base = |b: &Base| pp.base(&x.base(b));
+    let held = |b: &Base| pp.base(&x.held(b));
+    let tv: BTreeSet<R::Key> =
+        if w.target_votes { target.map(|t| pp.member(t)).into_iter().collect() } else { BTreeSet::new() };
+    let mut voters = base(&Base::All);
+    voters.extend(held(&Base::Scope("moderate".into())));
     voters.extend(tv.iter().cloned());
-    // the proposer's withdrawal is its own voice on the opener's clause, and never replaces what it said by opening
-    let is_wd = |a: &&R| *a.signer() == x.opener_signer && a.says().is_some_and(|w| w.as_ref() == "withdraw");
+    let opener = pp.voice(&x.opener_signer).unwrap_or_else(|| x.opener_signer.clone());
+    let person = |a: &R| -> Option<R::Key> { pp.voice(a.signer()).filter(|p| voters.contains(p)) };
+    // the proposer's withdrawal is its own voice on the opener's clause, and never replaces what it said by opening.
+    // It is the opener's own: its signer read as the opener is (its person, or, a key of no person, the key itself
+    // as no person), whether or not that person is a voter
+    let own = |k: &R::Key| -> Result<R::Key, R::Key> { pp.voice(k).ok_or_else(|| k.clone()) };
+    let opener_own = own(&x.opener_signer);
+    let is_wd = |a: &&R| own(a.signer()) == opener_own && a.says().is_some_and(|w| w.as_ref() == "withdraw");
     let withdrawn = answers.iter().any(is_wd);
     // a duty holder's single-signature answer (a value an at-once clause reads as one voice over a named scope,
     // said by a holder of that scope) is what that key said: a vote the same key also cast is moot
@@ -312,17 +335,19 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         }
     }
     let duty_word = |a: &R| a.says().and_then(|s| duty.get(s.as_ref()).copied());
-    let acted: BTreeSet<&R::Key> = answers
+    let acted: BTreeSet<R::Key> = answers
         .iter()
         .copied()
-        .filter(|a| voters.contains(a.signer()) && !is_wd(a))
-        .filter(|a| duty_word(a).is_some_and(|b| x.held(b).contains(a.signer())))
-        .map(|a| a.signer())
+        .filter(|a| !is_wd(a))
+        .filter_map(|a| {
+            let p = person(a)?;
+            duty_word(a).is_some_and(|b| held(b).contains(&p)).then_some(p)
+        })
         .collect();
-    let moot = |a: &R| acted.contains(a.signer()) && duty_word(a).is_none();
+    let moot = |a: &R| person(a).is_some_and(|p| acted.contains(&p)) && duty_word(a).is_none();
     // a voice that says two things says nothing
-    let by = ops::group_by(answers.iter().copied().filter(|a| voters.contains(a.signer()) && !is_wd(a)), |a| {
-        a.signer().clone()
+    let by = ops::group_by(answers.iter().copied().filter(|a| person(a).is_some() && !is_wd(a)), |a| {
+        person(a).expect("a voter")
     });
     let mut said: BTreeMap<R::Key, String> = BTreeMap::new();
     for (s, rs) in by {
@@ -332,14 +357,14 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
         }
     }
     if let Some(o) = &w.opener_says {
-        said.entry(x.opener_signer.clone()).or_insert_with(|| o.clone());
+        said.entry(opener.clone()).or_insert_with(|| o.clone());
     }
     let met = |cl: &Clause, floor: bool| {
         if cl.over == Base::Opener {
-            return if cl.value == "withdraw" { withdrawn } else { said.get(&x.opener_signer) == Some(&cl.value) };
+            return if cl.value == "withdraw" { withdrawn } else { said.get(&opener) == Some(&cl.value) };
         }
         // a count (a fraction, a floor) leaves the agents out; a clause one holder's act resolves reads them
-        let keys = if cl.how == How::One { x.held(&cl.over) } else { x.base(&cl.over) };
+        let keys = if cl.how == How::One { held(&cl.over) } else { base(&cl.over) };
         let yes = said
             .iter()
             .filter(|(s, v)| {

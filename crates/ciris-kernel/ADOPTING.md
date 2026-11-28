@@ -39,7 +39,8 @@ come from `governance_policy.json` and the family tables that persist already ve
 | `held_head_verdict` (`federation/group_supersede_admit.rs:77`), which refuses a fork | `seat::Seats::tips`, `tips_common`; `line::settle`, `line::void` for a reader's own line | two versions of one head are both held and wait as tips |
 | `stamp_entitles` and the `withdraws_admission_rule` stamp (`federation/precedence.rs:269`; `federation/types.rs:1702`) | `seat::seat_rule` on a withdrawal, read at every evaluation | the stamp goes |
 | `purge_finalize` (`engine.rs:9415`, `federation/steward_purge.rs:2423`) | `head::purge` says which rows may become stubs; `head::View` answers over the stubs | persist keeps the bytes, the deletion and the duties' enforcement; the kernel says what a stub must keep |
-| key liveness against `valid_until` (`KeyRecord`, `federation/types.rs:1365`) | `key_end::well_formed`, `conclude_rule`, `live`, `ended`, `retained` | a row of an ended key lapses only when no live row has it in its past |
+| key liveness against `valid_until` (`KeyRecord`, `federation/types.rs:1365`) | `key_end::well_formed`, `conclude_rule`, `live`, `ended`, `counts`, `retained` | every count reads an ended key's row by the end rule, `key_end::counts` (in the past of each of the key's own ends: a self-revocation, before its `revoked_after`, and a rotation; a cited row counts nothing more). `retained` is for storage only and names the rows whose STUB persist keeps for good (every row a count reads); `bytes_retained` the rows whose bytes it keeps (what a live row names, rows of keys not ended, revocations and rotations); the bytes of a counted, settled row of an ended key may drop to its stub, as the purge's. Nothing counts by either |
+| every seat count's voices (the key lane against the seat lane) | `cut::CutSpec::key_view`, returning a `key_end::KeyReading` over one `Concluded` of persist's key records, rotations and revocations and the seat rows, in the store's one causal order (`key_end::conclude_rule`; each seat row's `KeyEndRow::instant` its signed instant); `seat::voices_with` reads each voice by `key_end::counts_by`, as do a window's answers (`window`, the table's voices) and an election's ballots (`seat::election`): every lane that counts a voter reads it through the one key view, a lift's objections, a lone removal's single-key receipts and a lone act (a moderator's lone removal) included. Override `KeyEndRow::instant` to give each seat row its signed instant: the default reads a statement's only, and a row stating no instant is judged by its past alone (a revocation's `revoked_after` reaches only rows that state one). When the key-person map (`persons_of`) is merged at the voices step too, the ORDER is the key view first (drop dead keys), then persons (map the living keys to their persons) | **a store with key records MUST supply the key view**, one per reader (`KeyReading { reader, final_ }`: the reader's own line, and the counts final by acknowledgement, `seat::final_by_ack` over the rows as they conclude with no key view), passed in the spec given to `seat::for_reader` and `Seats::for_reader`. A key end is a cut: a row of the key stands for a reader if it is in the end's past, or on the reader's own line from before it held the end, or part of a count final by acknowledgement. A revocation by a key of which any concluded rotation is held is no end; two rotations of one key are a fork (both ends, no successor); an eviction from the person's self roster ends the key AS A KEY OF THAT PERSON, never its liveness (G33): the person map reads it at each count's voices, and a row the key signs as itself is read as any unowned key's. The self roster's count settles a rotation: its counted removal of the rotated-to key citing the rotation VOIDS it (no end; its successor does not stand; the rotated-to key's rows fall by the cut rule), and the old key is no voice of that count; `seat::self_roster_ends` gives the roster's concluded acts for `KeyReading::roster`. Caller duty: present the person's self-roster rows, and each key's rotation record among them (`SeatRow::rotates`). Finality (`seat::final_by_ack(c, law, spec, i, Some((key lane, roster)))`) counts only clean receipts, and a final count protects only voices valid when cast; a `declared` need is never final by acknowledgement. Residual: a person with one key, whose key is stolen, cannot be told from the thief. Caller duty: an honest rotation or revocation names the key's last rows. The cost: a thief's vote a reader took up before holding the end stands for that reader, and one in a final count stands for everyone; the remedy is the members' later count. A newcomer reads the plain cut and the final counts: with none (the default) every voice counts, which is only for a caller with no key lane. `key_end_counts.json` carries the per-(row, key) answers to replay either way |
 
 ## What persist would delete, and what it keeps
 
@@ -413,6 +414,14 @@ trusting an adapter.
   member seat; its stay begins at the version that admits it in `agent` and ends at its removal or
   resignation. The audience of a room is `Seats::roster`.
 
+**A key's person**, for `seat::person_at`. Present each person's own key roster as a group whose founding row is
+signed by its first key in its own scope (`self` for a person, `key` for a voice), its further keys as counted
+admissions and evictions of that scope over it (`self_roster_add`, `self_roster_evict`), and a key's own
+revocation as an unseat of its `registered` seat by the key. `SeatLaw::kinds` must map those founding scopes to
+`self`, or no person is found. Counts read persons: seat a room's member as its person's genesis key (the key that
+signed its self roster's founding record), and a device key of that person signs for it. Ask at a row of the concluded set: the answer reads that row's own past, an eviction
+concurrent with the row by rule 4, and no instant.
+
 **A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,
 members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
 voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row
@@ -520,11 +529,16 @@ principal of the local node (`consent::replication_set`), and `consent::may_send
 a `consent:replication:v1` grant in force from the node or its one owner to that peer whose classes cover the row's
 class. Present each grant as `Kind::Grant` (`attesting_key_id` the signer, `peer()` the one `subject_key_ids` entry,
 `classes()` the `attestation_prefixes` as signed, `at()` its `asserted_at`, `until()` its `valid_until`), each
-`withdraws` or `recants` of one as `Kind::Withdrawal` naming it, each key's own revocation as `Kind::Revocation`, and
+`withdraws` or `recants` of one as `Kind::Withdrawal` naming it, and
 each node's announcement as `Kind::Announcement`, and every other row (the node's own rows the reading is at
 among them) as `Kind::Other`; conclude them with `consent::conclude_rule` beside the families' own rules, giving it
 the owner of a key over a withdrawal's past (`Seats::one("owner", key)` over that past). A withdrawal by the grant's
-signer, its peer, or the signer's owner there ends the grant; any other key's concludes nothing. Pass the owner from `seat::Seats::one("owner", node)` read
+signer, its peer, or the signer's owner there ends the grant; any other key's concludes nothing. Pass the key view
+(`Some(&key_end::KeyReading { .. })` over the key lane and these rows in one causal order, for the reading node, its
+final counts and its self roster): a grant counts only where its signer's signature does by the end rule, so a
+thief's grant concurrent with the key's revocation or rotation moves nothing whatever instant it states. `None`
+counts every voice, only for a caller with no key lane. `now` is the caller's instant for the term only: nodes agree
+on a term's answer only at the same `now`. Pass the owner from `seat::Seats::one("owner", node)` read
 over the past of the row the answer is at (`None` with none or two). Read at the row being sent, or the node's own
 latest row, never at a clock; `now` is the caller's instant for the term only. Not read here: the `cohorts` allow list
 of an owner's grant for its own node (CC 6.1.5.3), and whether the class itself is a grammar the namespace admits

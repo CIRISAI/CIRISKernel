@@ -490,6 +490,12 @@ impl SeatRow for TRow {
     fn under(&self) -> Option<&String> {
         self.under.as_ref()
     }
+    fn rotates(&self) -> Option<(&String, &String)> {
+        match (self.kind.as_str(), self.m.get("succ_of"), self.m.get("key")) {
+            ("rec", Some(J::Str(old)), Some(J::Str(new))) => Some((old, new)),
+            _ => None,
+        }
+    }
     fn cosigners(&self) -> &[String] {
         &self.cosigners
     }
@@ -634,6 +640,15 @@ impl KeyEndRow for TRow {
             "att" | "edge" => Some((self.fi("at").unwrap(), self.cover())),
             _ => None,
         }
+    }
+    fn instant(&self) -> Option<i64> {
+        self.fi("at")
+    }
+    fn roster_end(&self) -> Option<&String> {
+        (self.kind == "unseat" && self.to.len() == 1).then(|| &self.to[0])
+    }
+    fn cosigned_by(&self) -> &[String] {
+        &self.cosigners
     }
     fn revocation(&self) -> Option<(&String, i64)> {
         if self.kind == "revoke" {

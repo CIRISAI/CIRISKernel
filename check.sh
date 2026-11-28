@@ -42,6 +42,7 @@ step "proofs/build.sh"                    lean      bash proofs/build.sh
 step "check_purge (checkpoint, purge)"    purge     python3 -I models/causal_kernel/check_purge.py
 step "check_time (two notions of time)"   time      python3 -I models/causal_kernel/check_time.py
 step "check_key_end (a key's own end)"    key_end   python3 -I models/causal_kernel/check_key_end.py
+step "check_key_view (the end rule at the voices step)"  keyview  python3 -I models/causal_kernel/check_key_view.py
 step "check_conferral_end (an end)"      conferral python3 -I models/causal_kernel/check_conferral_end.py
 step "check_conferral_content (tips)"    content   python3 -I models/causal_kernel/check_conferral_content.py
 step "check_conferral_two (two records)" two       python3 -I models/causal_kernel/check_conferral_two.py
@@ -58,6 +59,7 @@ step "check_window_rows (#221 ballots)"  winrows   python3 -I models/causal_kern
 step "check_agent_seat (no count)"         agentseat python3 -I models/causal_kernel/check_agent_seat.py
 step "check_removal_in_force (an end)"     inforce   python3 -I models/causal_kernel/check_removal_in_force.py
 step "check_room_keys (a room key's end)"  roomkeys  python3 -I models/causal_kernel/check_room_keys.py
+step "check_key_person (a key's person)"   keyperson python3 -I models/causal_kernel/check_key_person.py
 step "check_count_heads (newest heads)"    cheads    python3 -I models/causal_kernel/check_count_heads.py
 step "check_rosters (one roster)"         rosters   python3 -I models/causal_kernel/check_rosters.py
 step "check_consent (consent peer set)"   consent   python3 -I models/causal_kernel/check_consent.py

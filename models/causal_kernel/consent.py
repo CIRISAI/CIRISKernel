@@ -13,7 +13,8 @@ Rows (dicts of causal_kernel.row):
                (valid_until, optional: the term), `fed` (cohort_scope is federation; default True).
     withdraws  kind "withdraws" (or "recants"): signer, `of` the grant it retracts, whole (CC 3.3.7 Revocation).
     announce   kind "announce": a node's announcement of itself (CC 5.4.6), signer the node.
-    revoke     key_end.revoke: a key's own revocation, `ra` its revoked_after.
+    key lane   key_end rows (records, rotations, a key's own revocation), concluded by key_end.RULE in the same
+               causal order: the key view reads them.
     seat rows  the owner binding (seat.py: an offer of scope `owner` over the node, and the owner's acceptance).
     any other  a node's own row, read only as a place in the causal order (`at_row`).
 
@@ -31,10 +32,11 @@ Concluded (RULE, the row and its past):
 
 Derived, read AT A ROW (`at_row`; None reads every held row, the reader's whole holding):
     the past     at_row and the rows in its causal past.
-    voice        the grant's signature counts against each of its signer's own revocations (r86: a key end is a
-                 cut) where the grant is in the revocation's past, or the grant's instant is before the
-                 revocation's revoked_after and the grant does not have the revocation in its past (a row that names
-                 the end is after it, whatever instant it states). Any other grant of the key is no grant.
+    voice        THE KEY VIEW (key_end.counts_by, the end rule every count reads: a key end is a cut): the grant's
+                 signer's signature counts only where the grant is in the past of each of the key's ends
+                 (revocation, rotation), or taken up on the reader's own line before it held the end, or part of a
+                 count final by acknowledgement. A stated instant never helps a grant concurrent with an end. The
+                 reader, its final counts and the self roster are the caller's (`kv`; default: no reader).
     the fold     the default fold, CAUSAL FIRST (the Constitution on CC 3.5.1): of one signer's grants to one peer in
                  the past that carry a voice, those no other of them has in its past; of those (concurrent), the
                  latest asserted_at, then the lowest id. A grant with an earlier one in its past is later whatever
@@ -47,6 +49,12 @@ Derived, read AT A ROW (`at_row`; None reads every held row, the reader's whole 
     term         `until` read at the caller's instant `now`, half-open (lib covers_at): in force while now < until.
                  A grant with a term and no instant given is not in force.
     in force     the fold's winner, in the past, with a voice, not withdrawn, inside its term.
+    caller duty  `now` is the caller's instant for the term only (as charter's edge terms read it): nodes agree on an
+                 answer with a term only where they read it at the same now. An at_row that is not held reads
+                 nothing (no grant in force, an empty set, None).
+    the owner    read at the reading row: a grant an owner made before it owned the node moves the node's rows once
+                 the binding is in the reading row's past (the owner's grant stands on the owner's word, not on the
+                 binding at its signing).
 
     peer_set(principal)   the peers named by the principal's grants in force at at_row.
     bilateral(a, b)       a's grant to b and b's grant to a both in force.
@@ -73,8 +81,9 @@ Planted breaks (MUT), each must change a case of check_consent.py:
     term_closed             the term read as closed: in force at until itself
     owner_any               any key's grant moves the node's rows
     owner_two_one           with two live owners, either owner's grant moves the node's rows
-    revoked_unread          a revoked key's grant keeps its voice
-    revoked_backdated       a grant that has its signer's revocation in its past keeps its voice by a back-dated instant
+    revoked_unread          a revoked key's grant keeps its voice (the key view unread)
+    voice_wrong_key         the key view asked about the peer's key, not the grant's signer's
+    withdrawn_none_unread   read over every held row (at_row None), a withdrawal ends nothing
     future_grant            a grant not in at_row's past is read
     federation_unannounced  a grant at federation scope concludes with an unannounced party
 """
@@ -85,6 +94,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True
 sys.path.insert(0, HERE)
 import seat as ST  # noqa: E402
+import key_end as KE  # noqa: E402
 
 CK = ST.CK
 K = CK.K
@@ -93,7 +103,7 @@ ENDS = ("withdraws", "recants")
 
 
 # ---- rows ------------------------------------------------------------------------------------------------
-def grant(id, signer, peer, classes, at, names=(), until=None, fed=True):
+def grant(id, signer, peer, classes, at=None, names=(), until=None, fed=True):
     return CK.row(id, "grant", signer, names, peer=peer, classes=tuple(classes), at=at, until=until, fed=fed)
 
 
@@ -118,7 +128,7 @@ def binding(id, node, owner, names=()):
 # ---- concluded -------------------------------------------------------------------------------------------
 def well_formed(r):
     cs = r["classes"]
-    return (isinstance(r.get("peer"), str) and bool(r["peer"]) and all(isinstance(c, str) and c for c in cs)
+    return (r.get("peer") is not None and all(isinstance(c, str) and c for c in cs)
             and list(cs) == sorted(set(cs)) and bool(cs))
 
 
@@ -155,7 +165,13 @@ def consent_rule(r, P, past):
     return True
 
 
-RULE = lambda r, P, past: ST.seat_rule(r, P, past, other=consent_rule)
+KEY_LANE = ("rec", "att", "edge", "revoke")
+
+
+def RULE(r, P, past):
+    if r["kind"] in KEY_LANE:
+        return KE.RULE(r, P, past)
+    return ST.seat_rule(r, P, past, other=consent_rule)
 
 
 def state(rows):
@@ -180,10 +196,16 @@ def arrived(order):
 
 # ---- derived ---------------------------------------------------------------------------------------------
 def _past(S, at_row):
-    """The ids at at_row and in its past; every held id where at_row is None."""
+    """The ids at at_row and in its past; every held id where at_row is None; none where at_row is not held."""
     if at_row is None:
         return frozenset(S.by)
+    if at_row not in S.by:
+        return frozenset()
     return frozenset(S.anc[at_row]) | {at_row}
+
+
+def _held(S, at_row):
+    return at_row is None or at_row in S.by
 
 
 def _in(S, a, b):
@@ -199,25 +221,25 @@ def covers(classes, c):
     return any(c.startswith(e) if e.endswith(":") else c == e for e in classes)
 
 
-def voice(S, g):
-    """The grant's signature counts against each of its signer's own revocations (r86: a key end is a cut)."""
+def key_view(S, reader=None, final=frozenset(), roster=frozenset()):
+    """The kernel's key view over S: key_end.counts_by, for `reader` (None: no reader's line)."""
+    return lambda rid, k: KE.counts_by(S, rid, k, reader, final, roster)
+
+
+def voice(S, g, kv=None):
+    """The grant's signer's signature counts by the end rule (the key view)."""
     if "revoked_unread" in MUT:
         return True
-    for v in K.sel(S.Cs, kind="revoke"):
-        if v["signer"] != g["signer"] or v["key"] != g["signer"]:
-            continue
-        if _in(S, g["id"], v["id"]):
-            continue
-        after = v["id"] in S.anc[g["id"]] and "revoked_backdated" not in MUT   # it names the end: after it
-        if after or g.get("at") is None or not g["at"] < v["ra"]:
-            return False
-    return True
+    kv = kv or key_view(S)
+    return kv(g["id"], g["peer"] if "voice_wrong_key" in MUT else g["signer"])
 
 
 def withdrawn(S, g, at_row):
     for w in S.Cs:
         if w["kind"] in ENDS and w["of"] == g["id"]:
             if at_row is None:
+                if "withdrawn_none_unread" in MUT:
+                    continue
                 return True
             if "withdraw_by_past" in MUT:
                 if _in(S, w["id"], at_row):
@@ -236,14 +258,15 @@ def in_term(g, now):
     return now <= u if "term_closed" in MUT else now < u
 
 
-def _grants(S, at_row):
-    past = frozenset(S.by) if "future_grant" in MUT else _past(S, at_row)
-    return [g for g in K.sel(S.Cs, kind="grant") if g["id"] in past and voice(S, g)]
+def _grants(S, at_row, kv=None):
+    past = frozenset(S.by) if "future_grant" in MUT and _held(S, at_row) else _past(S, at_row)
+    return [g for g in K.sel(S.Cs, kind="grant") if g["id"] in past and voice(S, g, kv)]
 
 
 def _instant_key(g):
     """The order among concurrent grants: the latest instant, then the lowest id (larger key wins)."""
-    at = -g["at"] if "fold_earliest" in MUT else g["at"]
+    t = g.get("at")
+    at = (t is not None, (-t if "fold_earliest" in MUT else t) if t is not None else 0)   # no instant: below any
     return (at, g["id"]) if "fold_highest_id" in MUT else (at, tuple(-ord(ch) for ch in g["id"]) + (1,))
 
 
@@ -256,38 +279,38 @@ def fold(S, group):
     return max(group, key=_instant_key)
 
 
-def winners(S, at_row=None, now=None):
+def winners(S, at_row=None, now=None, kv=None):
     """The default fold for each (signer, peer)."""
     groups = {}
-    for g in _grants(S, at_row):
+    for g in _grants(S, at_row, kv):
         if "fold_live_only" in MUT and (withdrawn(S, g, at_row) or not in_term(g, now)):
             continue
         groups.setdefault((g["signer"], g["peer"]), []).append(g)
     return {k: fold(S, gs) for k, gs in groups.items()}
 
 
-def in_force(S, g_id, at_row=None, now=None):
+def in_force(S, g_id, at_row=None, now=None, kv=None):
     """Whether grant g_id is in force at at_row (None: over every held row), at the caller's instant now."""
     g = S.by.get(g_id)
     if g is None or g["kind"] != "grant" or not S.C.get(g_id):
         return False
-    w = winners(S, at_row, now).get((g["signer"], g["peer"]))
+    w = winners(S, at_row, now, kv).get((g["signer"], g["peer"]))
     return w is not None and w["id"] == g_id and not withdrawn(S, g, at_row) and in_term(g, now)
 
 
-def grants_in_force(S, principal, at_row=None, now=None):
-    return [g for (s, _), g in sorted(winners(S, at_row, now).items())
+def grants_in_force(S, principal, at_row=None, now=None, kv=None):
+    return [g for (s, _), g in sorted(winners(S, at_row, now, kv).items())
             if s == principal and not withdrawn(S, g, at_row) and in_term(g, now)]
 
 
-def peer_set(S, principal, at_row=None, now=None):
+def peer_set(S, principal, at_row=None, now=None, kv=None):
     """The peers named by the principal's grants in force at at_row."""
-    return frozenset(g["peer"] for g in grants_in_force(S, principal, at_row, now))
+    return frozenset(g["peer"] for g in grants_in_force(S, principal, at_row, now, kv))
 
 
-def bilateral(S, a, b, at_row=None, now=None):
+def bilateral(S, a, b, at_row=None, now=None, kv=None):
     """A bilateral peering: a's grant to b and b's grant to a, both in force."""
-    return b in peer_set(S, a, at_row, now) and a in peer_set(S, b, at_row, now)
+    return b in peer_set(S, a, at_row, now, kv) and a in peer_set(S, b, at_row, now, kv)
 
 
 def _sub(S, at_row):
@@ -311,16 +334,16 @@ def principals(S, node, at_row=None):
     return frozenset({node} | ({o} if o is not None else set()))
 
 
-def may_send(S, node, peer, row_class, at_row=None, now=None):
+def may_send(S, node, peer, row_class, at_row=None, now=None, kv=None):
     """The grant under which node may send peer a row of row_class at at_row, or None."""
     for p in sorted(principals(S, node, at_row)):
-        for g in grants_in_force(S, p, at_row, now):
+        for g in grants_in_force(S, p, at_row, now, kv):
             if g["peer"] == peer and covers(g["classes"], row_class):
                 return g["id"]
     return None
 
 
-def replication_set(S, node, addressed, at_row=None, now=None):
+def replication_set(S, node, addressed, at_row=None, now=None, kv=None):
     """Edge's fan-out: the operator-addressed peers that are in the consent peer set of a principal of the node."""
-    ps = frozenset().union(*(peer_set(S, p, at_row, now) for p in principals(S, node, at_row)))
+    ps = frozenset().union(*(peer_set(S, p, at_row, now, kv) for p in principals(S, node, at_row)))
     return frozenset(addressed) & ps

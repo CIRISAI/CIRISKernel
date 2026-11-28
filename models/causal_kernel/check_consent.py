@@ -12,8 +12,9 @@ to six rows, a fixed sample of 240 above that). Each ask is one of
 The groups: a grant moves its classes and not others; a later grant from the same signer to the same peer replaces
 the earlier (the default fold); a withdrawal ends it, as a cut (a concurrent withdrawal ends it too); its term ends
 it, at the caller's instant; a grant from a key that does not own the node moves nothing; a node with two owners;
-a grant by a revoked key (the end rule r86, a key end is a cut, read over the key's own revocation row: the key
-view of origin/key-end-retained is not on this branch).
+a grant by a revoked, stolen or rotated key, read through the key view (key_end.counts_by, the end rule every count
+reads: a key end is a cut), for no reader or for the reader a case names (READERS). The instant a grant states
+never helps it against an end.
 
     python3 -I check_consent.py     exit 1 on any difference
 """
@@ -42,6 +43,11 @@ TRC = "trace:complete:v1"
 
 def ob(owner="O", i="b", node="N"):
     return B(i, node, owner)
+
+
+def rev(id, key, ra, names=()):
+    """A key's own revocation naming the key's last rows (the caller duty of an honest revocation)."""
+    return C.CK.row(id, "revoke", key, tuple(names), key=key, ra=ra)
 
 
 def rev_by(id, signer, key, ra):
@@ -140,6 +146,14 @@ CASES = [
      [G("g1", "N", "P", ("capacity:", "trace:"), 1), G("g2", "N", "P", ("capacity:",), 2, ("g1",)),
       W("w", "N", "g2"), N_("n", "N", ("w",))],
      [(S_, "N", "P", TRC, "n", None, None), (S_, "N", "P", CAP, "n", None, None), (P_, "N", "n", None, set())]),
+    ("A5: an honest regrant after a withdrawal takes effect though it states an earlier instant than the withdrawn grant",
+     [G("g1", "N", "P", ("capacity:",), 5), W("w", "N", "g1"), G("g2", "N", "P", ("trace:",), 3, ("w",)),
+      N_("n", "N", ("g2",))],
+     [(S_, "N", "P", TRC, "n", None, "g2"), (S_, "N", "P", CAP, "n", None, None)]),
+    ("A6: a regrant after the peer's withdrawal takes effect whatever its instant",
+     [G("g1", "N", "P", ("capacity:",), 5), W("wp", "P", "g1"), G("g2", "N", "P", ("capacity:",), 1, ("wp",)),
+      N_("n", "N", ("g2",))],
+     [(S_, "N", "P", CAP, "n", None, "g2")]),
     ("a new grant after a withdrawal is in force",
      [G("g1", "N", "P", ("capacity:",), 1), W("w", "N", "g1"), G("g2", "N", "P", ("trace:",), 3, ("w",)),
       N_("n", "N", ("g2",))],
@@ -175,7 +189,8 @@ CASES = [
     ("an owner binding not accepted by the owner gives no owner",
      [ST.offer("b", "N", "O", "owner", "N", "self"), G("go", "O", "P", ("capacity:",), 1), N_("n", "N", ("b", "go"))],
      [(S_, "N", "P", CAP, "n", None, None)]),
-    ("the owner's grant moves nothing at a row that does not have the binding in its past",
+    ("A7: the owner is read at the reading row: a grant O made before it owned N moves nothing at a row without the "
+     "binding, and moves N's rows once the binding is in the reading row's past",
      ob() + [G("go", "O", "P", ("capacity:",), 1), N_("n0", "N", ("go",)), N_("n1", "N", ("n0", "ab"))],
      [(S_, "N", "P", CAP, "n0", None, None), (S_, "N", "P", CAP, "n1", None, "go")]),
     ("after the owner's acceptance is withdrawn, the former owner's grant moves nothing; the node's own still does",
@@ -196,18 +211,53 @@ CASES = [
                                          N_("n", "N", ("ab1", "w2", "g1"))],
      [(S_, "N", "P", CAP, "n", None, "g1")]),
 
-    # ---- a grant by a revoked key (r86: a key end is a cut) ----
-    ("the owner's grant before its key's revocation keeps its voice; one after it is no grant",
-     ob() + [G("g1", "O", "P", ("capacity:",), 1), KE.revoke("rv", "O", 3), G("g2", "O", "Q", ("capacity:",), 5),
-             N_("n", "N", ("ab", "g1", "g2", "rv"))],
+    # ---- a grant by a revoked, stolen or rotated key: the key view (a key end is a cut) ----
+    ("an honest revocation names the key's last rows: the owner's grant in its past keeps its voice; one after it is "
+     "no grant",
+     ob() + [G("g1", "O", "P", ("capacity:",), 1), rev("rv", "O", 3, ("g1",)), G("g2", "O", "Q", ("capacity:",), 5, ("rv",)),
+             N_("n", "N", ("ab", "g1", "g2"))],
      [(S_, "N", "P", CAP, "n", None, "g1"), (S_, "N", "Q", CAP, "n", None, None)]),
-    ("a revoked key's grant that names its revocation is no grant, and does not displace the earlier one",
-     [G("g1", "N", "P", ("capacity:",), 1), KE.revoke("rv", "N", 3), G("g2", "N", "P", ("trace:",), 2, ("rv",)),
-      N_("n", "N", ("g1", "g2"))],
-     [(S_, "N", "P", CAP, "n", None, "g1"), (S_, "N", "P", TRC, "n", None, None)]),
+    ("A1: a thief's grant concurrent with the revocation, back-dated before revoked_after, is no grant",
+     [G("g1", "N", "P", ("capacity:",), 1), rev("rv", "N", 3, ("g1",)),
+      G("gt", "N", "A", ("capacity:", "trace:"), 2), N_("n", "P", ("rv", "gt"))],
+     [(S_, "N", "A", TRC, "n", None, None), (S_, "N", "P", CAP, "n", None, "g1"), (P_, "N", "n", None, {"P"})]),
+    ("A2: a thief's back-dated grant to the same peer neither broadens nor displaces the honest one",
+     [G("g1", "N", "P", ("capacity:",), 1), rev("rv", "N", 3, ("g1",)),
+      G("gt", "N", "P", ("capacity:", "trace:"), 2), N_("n", "P", ("rv", "gt"))],
+     [(S_, "N", "P", TRC, "n", None, None), (S_, "N", "P", CAP, "n", None, "g1")]),
+    ("A3: the owner's key revoked: its thief's grant concurrent with the revocation moves none of the node's rows",
+     ob() + [KE.revoke("rv", "O", 3), G("gt", "O", "A", ("trace:",), 1), N_("n", "N", ("ab", "gt", "rv"))],
+     [(S_, "N", "A", TRC, "n", None, None)]),
+    ("a grant the reader took up before it held the revocation stands for that reader (taken up on its line)",
+     [G("gt", "N", "P", ("capacity:",), 2), N_("n0", "P", ("gt",)), KE.revoke("rv", "N", 3), N_("n", "P", ("n0", "rv"))],
+     [(S_, "N", "P", CAP, "n", None, "gt")]),
+    ("the same grant for a reader that never took it up: no grant",
+     [G("gt", "N", "P", ("capacity:",), 2), N_("n0", "P", ("gt",)), KE.revoke("rv", "N", 3), N_("n", "P", ("n0", "rv"))],
+     [(S_, "N", "P", CAP, "n", None, None)]),
+    ("a rotation ends the old key: its grant in the rotation's past stands, one concurrent with it is no grant",
+     [KE.rec("r1", "N", 0, None, typ="pseudonym"), G("g1", "N", "P", ("capacity:",), 1, ("r1",)),
+      KE.rec("r2", "N2", 2, None, names=("r1", "g1"), succ_of="N", at_old=2, typ="pseudonym"),
+      G("gt", "N", "Q", ("capacity:",), 3, ("r1",)), N_("n", "P", ("r2", "gt"))],
+     [(S_, "N", "P", CAP, "n", None, "g1"), (S_, "N", "Q", CAP, "n", None, None)]),
+    ("the owner withdraws a revoked node's grant, and it ends",
+     ob() + [G("gn", "N", "P", ("capacity:",), 1), rev("rv", "N", 3, ("gn",)),
+             W("wo", "O", "gn", ("ab", "rv")), N_("n", "O", ("wo",))],
+     [(S_, "N", "P", CAP, "n", None, None), (F_, "gn", "n", None, False)]),
     ("a revocation by another key than the signer's does not end its voice",
      [G("g1", "N", "P", ("capacity:",), 5), rev_by("rv", "X", "N", 3), N_("n", "N", ("g1",))],
      [(S_, "N", "P", CAP, "n", None, "g1")]),
+
+    # ---- drift: no instant, a reading row not held ----
+    ("a grant stating no asserted_at ranks below one that states one, among concurrent grants",
+     [G("ga", "N", "P", ("trace:",)), G("gb", "N", "P", ("capacity:",), 1), N_("n", "N", ("ga", "gb"))],
+     [(S_, "N", "P", CAP, "n", None, "gb"), (S_, "N", "P", TRC, "n", None, None)]),
+    ("a grant stating no asserted_at, alone, is in force",
+     [G("ga", "N", "P", ("trace:",)), N_("n", "N", ("ga",))],
+     [(S_, "N", "P", TRC, "n", None, "ga"), (F_, "ga", None, None, True)]),
+    ("a reading row that is not held reads nothing",
+     [G("g", "N", "P", ("capacity:",), 1)],
+     [(S_, "N", "P", CAP, "zz", None, None), (P_, "N", "zz", None, set()), (F_, "g", "zz", None, False),
+      (BI, "N", "P", "zz", None, False)]),
 
     # ---- G -> P and P -> G are independent; bilateral is both in force ----
     ("two directions, two grants: withdrawing N -> P leaves P -> N, and the peering is no longer bilateral",
@@ -236,32 +286,37 @@ CASES = [
      [(S_, "N", "P", CAP, "n", None, None)]),
 ]
 
+READERS = {
+    "a grant the reader took up before it held the revocation stands for that reader (taken up on its line)": "P",
+}
+
 PLANTS = ("classes_unread", "prefix_no_colon", "fold_earliest", "fold_highest_id", "fold_instant_first",
           "fold_live_only", "withdraw_any_signer", "withdraw_signer_only", "withdraw_owner_now", "withdraw_by_past", "term_unread", "term_closed", "owner_any", "owner_two_one",
-          "revoked_unread", "revoked_backdated", "future_grant", "federation_unannounced")
+          "revoked_unread", "voice_wrong_key", "withdrawn_none_unread", "future_grant", "federation_unannounced")
 
 
-def ask(S, a):
+def ask(S, a, kv):
     k = a[0]
     if k == S_:
         _, node, peer, cls, at, now, _w = a
-        return C.may_send(S, node, peer, cls, at, now)
+        return C.may_send(S, node, peer, cls, at, now, kv)
     if k == P_:
         _, p, at, now, _w = a
-        return set(C.peer_set(S, p, at, now))
+        return set(C.peer_set(S, p, at, now, kv))
     if k == BI:
         _, x, y, at, now, _w = a
-        return C.bilateral(S, x, y, at, now)
+        return C.bilateral(S, x, y, at, now, kv)
     _, g, at, now, _w = a
-    return C.in_force(S, g, at, now)
+    return C.in_force(S, g, at, now, kv)
 
 
 def want(a):
     return a[-1]
 
 
-def answers(S, asks):
-    return [ask(S, a) for a in asks]
+def answers(S, asks, reader=None):
+    kv = C.key_view(S, reader)
+    return [ask(S, a, kv) for a in asks]
 
 
 def orders(rows, seed):
@@ -281,11 +336,11 @@ def run_case(name, rows, asks, plant=None, arrive_all=True):
     if plant:
         C.MUT.add(plant)
     try:
-        got = answers(C.state(rows), asks)
+        got = answers(C.state(rows), asks, READERS.get(name))
         bad, i = [], -1
         if arrive_all:
             for i, p in enumerate(orders(rows, len(name))):
-                if answers(C.arrived(p), asks) != got:
+                if answers(C.arrived(p), asks, READERS.get(name)) != got:
                     bad.append([r["id"] for r in p])
                     break
         return got, bad, i + 1
@@ -296,12 +351,18 @@ def run_case(name, rows, asks, plant=None, arrive_all=True):
 def fixture():
     """The case table for the crate (tools/kernel_fixtures.py writes it to tests/fixtures/consent.json): each case's
     rows, and each ask with the model's answer. A send ask carries the node's one owner at its reading row as
-    seat.Seats reads it (the crate takes the owner from the caller: Seats::one("owner", node) over that row's past)."""
+    seat.Seats reads it (the crate takes the owner from the caller: Seats::one("owner", node) over that row's past).
+    `voiced` is the key view's verdict, [grant, its signer] for each concluded grant whose signer's signature counts
+    by key_end.counts_by for the case's reader (the crate takes the key view from the caller: key_end::KeyReading);
+    the key lane's rows are given as `other`."""
     out = []
     for name, rows, asks in CASES:
         S = C.state(rows)
+        reader = READERS.get(name)
+        kv = C.key_view(S, reader)
+        voiced = sorted([g["id"], g["signer"]] for g in S.Cs if g["kind"] == "grant" and kv(g["id"], g["signer"]))
         js = []
-        for a, got in zip(asks, answers(S, asks)):
+        for a, got in zip(asks, answers(S, asks, reader)):
             if a[0] == S_:
                 _, node, peer, cls, at, now, _w = a
                 js.append({"ask": "send", "node": node, "peer": peer, "class": cls, "at": at, "now": now,
@@ -315,7 +376,8 @@ def fixture():
             else:
                 _, g, at, now, _w = a
                 js.append({"ask": "force", "grant": g, "at": at, "now": now, "want": got})
-        out.append({"name": name, "rows": [_row_json(r, S) for r in rows], "asks": js})
+        out.append({"name": name, "rows": [_row_json(r, S) for r in rows], "reader": reader, "voiced": voiced,
+                    "asks": js})
     return {"source": "models/causal_kernel/check_consent.py", "cases": out}
 
 
@@ -331,8 +393,6 @@ def _row_json(r, S):
         g = S.by.get(r["of"])
         P = [q for q in S.rows if q["id"] in S.anc.get(r["id"], ()) and S.C.get(q["id"])]
         j.update(kind="withdrawal", of=r["of"], owner_of_signer=C._owner_over(P, g["signer"]) if g else None)
-    elif k == "revoke":
-        j.update(kind="revocation", key=r["key"], ra=r["ra"])
     elif k == "announce":
         j.update(kind="announcement")
     else:

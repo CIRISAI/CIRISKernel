@@ -15,9 +15,13 @@
 //!
 //! **Read at a row** (`at`; `None` reads every held row).
 //! - *The past*: `at` and the rows in its causal past. A grant that is not there is not read.
-//! - *Voice*: a grant's signature counts against each of its signer's own revocations (r86, a key end is a cut)
-//!   where the grant is in the revocation's past, or states an instant before the revocation's `revoked_after`
-//!   and does not have the revocation in its past. Any other grant of a revoked key is no grant.
+//! - *Voice*: **the key view** ([`crate::key_end::KeyView`], the end rule every count reads: a key end is a cut).
+//!   The grant's signer's signature counts only where `kv.counts(grant, signer)`: the grant is in the past of each
+//!   of the key's ends (its revocation, a rotation), or taken up on the reader's own line before the reader held
+//!   the end, or part of a count final by acknowledgement ([`crate::key_end::counts_for`]). A stated instant never
+//!   helps a grant concurrent with an end. The caller gives a [`crate::key_end::KeyReading`] over the key lane and
+//!   these rows in one causal order, for the reading node; `None` counts every voice, which is only for a caller
+//!   with no key lane.
 //! - *The fold* ([`winners`]): causal first, for each (signer, peer) the grants with a voice that no other of them
 //!   has in its past, then the latest `asserted_at`, then the lowest id: a grant with an earlier one in its past is
 //!   later whatever either states. An earlier grant is replaced (a narrowing is a `supersedes`). A withdrawal or the term of the
@@ -26,11 +30,15 @@
 //! - *Withdrawn*: the end is a cut (CC 2.4.1.1, ruled 2026-11-21). A held withdrawal ends the grant at every row
 //!   that is not in the withdrawal's past, so one in `at`'s past and one concurrent with `at` both end it there.
 //! - *Term*: `valid_until`, read at the caller's instant `now`, half-open ([`crate::covers_at`]). A grant with a
-//!   term and no instant given is not in force.
+//!   term and no instant given is not in force. **Caller duty**: `now` is the caller's, as charter's edge terms
+//!   read it; nodes agree on an answer with a term only where they read it at the same `now`.
+//! - *Not held*: an `at` that is not held reads nothing (no grant in force, an empty set, `None`).
 //!
 //! **The node's principals.** The node itself (G is the granting node, CC 3.3.7) and its one owner by the owner
-//! binding. The owner is the caller's: [`crate::seat::Seats::one`] of scope `owner` over the node's key, read over
-//! `at`'s past (two live owners is none, CC 3.2). A grant by any other key moves none of the node's rows.
+//! binding. The owner is the caller's, and **the caller's duty** is to read it as [`crate::seat::Seats::one`] of
+//! scope `owner` over the node's key, over `at`'s past (two live owners is none, CC 3.2): read so, a grant an owner
+//! made before it owned the node moves the node's rows once the binding is in `at`'s past (A7, as ruled: the owner
+//! is read at the reading row). A grant by any other key moves none of the node's rows.
 //!
 //! Edge's replication set is the operator-addressed peers that are in the [`peer_set`] of a principal of the
 //! node ([`replication_set`]), and [`may_send`] gates each row.
@@ -38,6 +46,7 @@
 //! The reference is `models/causal_kernel/consent.py`; `tests/consent.rs` replays the case table of
 //! `check_consent.py` (`tests/fixtures/consent.json`). Cases only: no proof covers it.
 
+use crate::key_end::KeyView;
 use crate::layers::{Concluded, Past};
 use crate::Row;
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -49,8 +58,6 @@ pub enum Kind {
     Grant,
     /// A `withdraws` or `recants` of the grant [`ConsentRow::withdraws`] names.
     Withdrawal,
-    /// A key's own revocation ([`ConsentRow::revocation`]).
-    Revocation,
     /// A node's announcement of itself (CC 5.4.6), signed by the node.
     Announcement,
     /// Any other row: read only as a place in the causal order.
@@ -88,10 +95,6 @@ pub trait ConsentRow: Row {
     }
     /// On a withdrawal: the grant it retracts.
     fn withdraws(&self) -> Option<&Self::Id> {
-        None
-    }
-    /// On a revocation: the key it revokes and its `revoked_after`. Only the key's own is read.
-    fn revocation(&self) -> Option<(&Self::Key, Self::T)> {
         None
     }
 }
@@ -132,7 +135,7 @@ pub fn conclude_rule<R: ConsentRow>(
                     || g.peer() == Some(r.signer())
                     || owner_of(g.signer(), p).as_ref() == Some(r.signer()))
         }),
-        Kind::Revocation | Kind::Announcement | Kind::Other => true,
+        Kind::Announcement | Kind::Other => true,
     }
 }
 
@@ -162,17 +165,13 @@ fn reading<R: Row>(c: &Concluded<'_, R>, at: Option<&R::Id>) -> Option<Option<us
     }
 }
 
-/// The grant's signature counts against each of its signer's own revocations.
-pub fn voice<R: ConsentRow>(c: &Concluded<'_, R>, g: usize) -> bool {
-    let gr = c.g.row(g);
-    c.cs().iter().all(|&v| {
-        let vr = c.g.row(v);
-        let Some((k, ra)) = vr.revocation() else { return true };
-        if k != gr.signer() || vr.signer() != gr.signer() || upto(c, g, v) {
-            return true;
-        }
-        !c.g.in_past(v, g) && gr.at().is_some_and(|t| t < ra)
-    })
+/// The key view a reading takes: `None` counts every voice (only for a caller with no key lane).
+pub type Kv<'k, R> = Option<&'k dyn KeyView<<R as Row>::Id, <R as Row>::Key>>;
+
+/// Whether grant `g`'s signer's signature counts by the key view.
+pub fn voice<R: ConsentRow>(c: &Concluded<'_, R>, g: usize, kv: Kv<'_, R>) -> bool {
+    let r = c.g.row(g);
+    kv.is_none_or(|kv| kv.counts(r.id(), r.signer()))
 }
 
 /// Whether a held withdrawal ends grant `g` at `at` (`None`: at every held row): one that `at` is not in the
@@ -202,13 +201,17 @@ pub fn in_term<R: ConsentRow>(c: &Concluded<'_, R>, g: usize, now: Option<R::T>)
 /// The default fold read at `at`, causal first ([`crate::derived::fold_default`]'s order): for each (signer,
 /// peer), of the concluded grants in the past with a voice, those no other of them has in its past; of those, the
 /// latest `asserted_at`, then the lowest id. `None` where `at` is not held.
-pub fn winners<R: ConsentRow>(c: &Concluded<'_, R>, at: Option<&R::Id>) -> Option<BTreeMap<(R::Key, R::Key), usize>> {
+pub fn winners<R: ConsentRow>(
+    c: &Concluded<'_, R>,
+    at: Option<&R::Id>,
+    kv: Kv<'_, R>,
+) -> Option<BTreeMap<(R::Key, R::Key), usize>> {
     let at = reading(c, at)?;
     let mut groups: BTreeMap<(R::Key, R::Key), alloc::vec::Vec<usize>> = BTreeMap::new();
     for &i in c.cs() {
         let r = c.g.row(i);
         let Some(peer) = r.peer().filter(|_| r.kind() == Kind::Grant) else { continue };
-        if at.is_some_and(|a| !upto(c, i, a)) || !voice(c, i) {
+        if at.is_some_and(|a| !upto(c, i, a)) || !voice(c, i, kv) {
             continue;
         }
         groups.entry((r.signer().clone(), peer.clone())).or_default().push(i);
@@ -226,8 +229,14 @@ pub fn winners<R: ConsentRow>(c: &Concluded<'_, R>, at: Option<&R::Id>) -> Optio
 }
 
 /// Whether grant `g` (an id) is in force at `at` (`None`: over every held row), at the caller's instant `now`.
-pub fn in_force<R: ConsentRow>(c: &Concluded<'_, R>, g: &R::Id, at: Option<&R::Id>, now: Option<R::T>) -> bool {
-    let (Some(gi), Some(ai), Some(w)) = (c.g.idx(g), reading(c, at), winners(c, at)) else { return false };
+pub fn in_force<R: ConsentRow>(
+    c: &Concluded<'_, R>,
+    g: &R::Id,
+    at: Option<&R::Id>,
+    now: Option<R::T>,
+    kv: Kv<'_, R>,
+) -> bool {
+    let (Some(gi), Some(ai), Some(w)) = (c.g.idx(g), reading(c, at), winners(c, at, kv)) else { return false };
     let r = c.g.row(gi);
     let (Some(peer), true) = (r.peer(), c.concluded(gi) && r.kind() == Kind::Grant) else { return false };
     w.get(&(r.signer().clone(), peer.clone())) == Some(&gi) && !withdrawn(c, gi, ai) && in_term(c, gi, now)
@@ -239,8 +248,9 @@ pub fn grants_in_force<R: ConsentRow>(
     principal: &R::Key,
     at: Option<&R::Id>,
     now: Option<R::T>,
+    kv: Kv<'_, R>,
 ) -> BTreeMap<R::Key, usize> {
-    let (Some(ai), Some(w)) = (reading(c, at), winners(c, at)) else { return BTreeMap::new() };
+    let (Some(ai), Some(w)) = (reading(c, at), winners(c, at, kv)) else { return BTreeMap::new() };
     w.into_iter()
         .filter(|((s, _), g)| s == principal && !withdrawn(c, *g, ai) && in_term(c, *g, now))
         .map(|((_, p), g)| (p, g))
@@ -253,14 +263,22 @@ pub fn peer_set<R: ConsentRow>(
     principal: &R::Key,
     at: Option<&R::Id>,
     now: Option<R::T>,
+    kv: Kv<'_, R>,
 ) -> BTreeSet<R::Key> {
-    grants_in_force(c, principal, at, now).into_keys().collect()
+    grants_in_force(c, principal, at, now, kv).into_keys().collect()
 }
 
 /// A bilateral peering at `at`: `a`'s grant to `b` and `b`'s grant to `a`, both in force (CC 3.3.7: each
 /// direction is its own grant).
-pub fn bilateral<R: ConsentRow>(c: &Concluded<'_, R>, a: &R::Key, b: &R::Key, at: Option<&R::Id>, now: Option<R::T>) -> bool {
-    peer_set(c, a, at, now).contains(b) && peer_set(c, b, at, now).contains(a)
+pub fn bilateral<R: ConsentRow>(
+    c: &Concluded<'_, R>,
+    a: &R::Key,
+    b: &R::Key,
+    at: Option<&R::Id>,
+    now: Option<R::T>,
+    kv: Kv<'_, R>,
+) -> bool {
+    peer_set(c, a, at, now, kv).contains(b) && peer_set(c, b, at, now, kv).contains(a)
 }
 
 /// The node's principals: the node itself and `owner`, its one owner at `at` by the owner binding (the caller's
@@ -279,9 +297,10 @@ pub fn may_send<'a, R: ConsentRow>(
     class: &str,
     at: Option<&R::Id>,
     now: Option<R::T>,
+    kv: Kv<'_, R>,
 ) -> Option<&'a R::Id> {
     principals(node, owner).iter().find_map(|p| {
-        grants_in_force(c, p, at, now)
+        grants_in_force(c, p, at, now, kv)
             .get(peer)
             .map(|&g| c.g.row(g))
             .filter(|g| covers(g.classes(), class))
@@ -297,7 +316,8 @@ pub fn replication_set<R: ConsentRow>(
     addressed: &BTreeSet<R::Key>,
     at: Option<&R::Id>,
     now: Option<R::T>,
+    kv: Kv<'_, R>,
 ) -> BTreeSet<R::Key> {
-    let ps: BTreeSet<R::Key> = principals(node, owner).iter().flat_map(|p| peer_set(c, p, at, now)).collect();
+    let ps: BTreeSet<R::Key> = principals(node, owner).iter().flat_map(|p| peer_set(c, p, at, now, kv)).collect();
     addressed.intersection(&ps).cloned().collect()
 }

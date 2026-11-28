@@ -25,14 +25,16 @@ the payload (the schema rule comes later):
 |---|---|---|
 | `id`, `signer` | row id; `attesting_key_id` (G, the granting node or its owner) | `witness_relation` must be `self`; a grant otherwise is not conformant and is not presented |
 | `names` | the digests the row names (`references_attestation_id` on a `withdraws`/`recants`/`supersedes`) | |
-| `kind` | `Grant`: dimension `consent:replication:v1`. `Withdrawal`: a `withdraws` or `recants` whose `references_attestation_id` is a grant, signed by the grant's signer, its peer or the signer's owner. `Revocation`: the key's own revocation (`key_end::KeyEndRow::revocation`). `Announcement`: a node's own announcement (CC 5.4.6). `Other`: any other row | **D** |
+| `kind` | `Grant`: dimension `consent:replication:v1`. `Withdrawal`: a `withdraws` or `recants` whose `references_attestation_id` is a grant, signed by the grant's signer, its peer or the signer's owner. `Announcement`: a node's own announcement (CC 5.4.6). `Other`: any other row | **D** |
 | `federation` | `cohort_scope == "federation"` | a grant at federation scope concludes only where its signer and its peer have announced in its past |
 | `peer` | the one entry of `subject_key_ids` | a grant naming none or several is not conformant (CC 3.3.7, "the **single** recipient peer"): present `peer()` as `None` and it concludes nothing |
 | `classes` | payload `attestation_prefixes`, as signed | `conclude_rule` refuses a list that is not sorted ascending and deduplicated; an entry ending in `:` is a namespace prefix, any other a corpus `subject_kind` class name |
 | `at` | `asserted_at` | the fold's instant, compared only among one signer's grants to one peer |
 | `until` | `valid_until` (envelope, optional) | the term, read at the caller's `now` |
 | `withdraws` | the withdrawal's `references_attestation_id` | the grant it retracts, whole |
-| `revocation` | the key record lane's revocation: the key and its `revoked_after` | only the key's own is read |
+
+A key's revocation and rotation are not consent rows: the key view (`key_end::KeyReading`, `WIRE_MAP.md` section 7.5)
+reads them, over the key lane and the consent rows in one causal order.
 
 Not read: `score` (magnitude is not load-bearing), `topical_relation: bilateral_pair` (pairing is the
 consumer's), `grants: "replication"` (a constant), and the `cohorts` allow list of an owner's grant for its own node

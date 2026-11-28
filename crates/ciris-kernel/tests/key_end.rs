@@ -3,7 +3,9 @@
 
 mod common;
 use ciris_kernel::derived;
-use ciris_kernel::key_end::{conclude_rule, ended, live, retained, successor, well_formed, EndRule};
+use ciris_kernel::key_end::{
+    bytes_retained, conclude_rule, counts, ended, live, retained, successor, well_formed, EndRule,
+};
 use ciris_kernel::layers::{conclude, kept};
 use common::*;
 
@@ -77,7 +79,7 @@ fn key_end_worlds() {
                     .cs()
                     .iter()
                     .copied()
-                    .filter(|i| ret.contains(i))
+                    .filter(|&i| counts(&c, i)) // a count reads the end rule, never what is retained
                     .map(|i| c.g.row(i))
                     .filter(|r| r.kind == "att" && r.fs("about") == Some(s.as_str()))
                     .map(|r| r.signer.clone())
@@ -86,6 +88,24 @@ fn key_end_worlds() {
             }
             let ret_ids = sorted_ids(ret.iter().map(|&i| &c.g.row(i).id));
             cmp(ret_ids == a.at("ret").strs(), format!("retained at {now}"));
+            let byt = bytes_retained(&c, now);
+            let byt_ids = sorted_ids(byt.iter().map(|&i| &c.g.row(i).id));
+            cmp(byt_ids == a.at("bytes").strs(), format!("bytes retained at {now}"));
+        }
+    }
+    // the stub pin (K14): stubs keeping only id, signer, names and at give every counts_by answer of the full rows
+    let pin = fx.at("pin");
+    for which in ["rows", "stubs"] {
+        let rows = rows_of(pin.at(which).arr());
+        let c = conclude(kept(&rows, |_| true), conclude_rule, None);
+        for a in pin.at("answers").arr() {
+            let (row, key, want) = (a.arr()[0].s().to_string(), a.arr()[1].s().to_string(), a.arr()[2].b());
+            let got = c.g.idx(&row).is_some_and(|i| ciris_kernel::key_end::counts_by(&c, i, &key));
+            cases += 1;
+            if got != want {
+                bad += 1;
+                eprintln!("stub pin ({which}): counts_by({row}, {key}) = {got}");
+            }
         }
     }
     report("a key's own end (check_key_end.py worlds)", cases, bad);
