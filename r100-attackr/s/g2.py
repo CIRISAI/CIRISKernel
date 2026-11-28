@@ -1,0 +1,10 @@
+exec(open(__file__.replace("g2.py","lib.py")).read())
+glic = C.glic
+NA=(False,"licensure_delegator_not_authority"); OK=(True,None)
+duty = lambda S: sorted(ST.Seats(S).holders("duty","g"))
+G3 = ST.found("g","A",("A","B","C","D","E","F","G","H","I","J"),{"moderate":("A","B","C")},cosigners=tuple("BCDEFGHIJ"),licence_classes=((M,False),))
+DDE = ST.offer("dde","A",("D","E"),"moderate","g","group",("g",),head=("g",),cosigners=("B","D","E"),counted="duty",policy="duty_confer")
+SYB = ST.offer("syb","A",("F","G","H","I"),"moderate","g","group",("g",),head=("g",),cosigners=("B","F","G","H","I"),counted="duty",policy="duty_confer")
+run("B4 A,B seat D,E; later A,B seat F..I from g (batch)", [G3,DDE,SYB,A("e","RD","g"),glic("l","g","Q")], "RD","l", extra=duty)
+GL = ST.offer("glo","A",("X",),"license","g","group",("dde","syb"),head=("dde","syb"),cosigners=("B","F","G","H","I"),counted="duty"); GLA = ST.accept("gla","X","glo")
+run("B5 A,B,F,G,H,I (6 of 9) confer license; C,D,E outvoted", [G3,DDE,SYB,GL,GLA,A("e","RD","g"),glic("l","g","X")|{"names":("gla",)}], "RD","l", want=NA, extra=duty)
