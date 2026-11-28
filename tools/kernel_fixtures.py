@@ -678,6 +678,22 @@ def purge_cases():
     return out
 
 
+# ---- the key view: the end rule at the voices step (check_key_view.py) -------------------------------------------------
+def key_view_cases():
+    import check_key_view as KV
+    ST = KV.ST
+    cases = []
+    for c in KV.fixture():
+        refs = {}
+        cases.append(dict(c, rows=with_refs(c["rows"], refs), refs=refs))
+    law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "removal_floor": ST.REMOVAL_FLOOR,
+           "policy": {k: list(v) for k, v in ST.POLICY.items()},
+           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+    return {"about": "the key view (CutSpec::key_view): key_end::counts_by per (row, key), and the voices and conclusion of "
+                     "x with the key view (view true) or without it (false)", "law": law, "cases": cases}
+
+
 # ---- key_end: every generated world at every instant ----------------------------------------------------------------
 def key_end_cases():
     import check_key_end as CKE
@@ -766,6 +782,7 @@ def main():
         dump("tables.json", table_cases(), out)
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
+    dump("key_end_counts.json", key_view_cases(), out)
     dump("acts.json", acts_cases(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)

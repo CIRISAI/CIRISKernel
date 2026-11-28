@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**The key view: every seat count reads a key's end at its voices step.** `CutSpec::key_view` (defaulted None),
+`key_end::KeyView`, `key_end::KeyReading` and `key_end::counts_by` (new): `seat::voices_with`, the one place every
+seat count reads its voices, keeps the signer's and each cosigner's signature on the counted row, and each named
+cosign row's signer's, only where `counts_by` holds over one causal order of the key and seat lanes that the caller
+builds (`KeyEndRow::instant`, defaulted, a seat row's signed instant). A store with key records must supply it; with
+none every voice counts (a caller with no key lane). Cases in `check_key_view.py`, fixture `key_end_counts.json`
+(replayed by `tests/key_view.rs`); plants `key_view_unread`, `cosigner_key_unchecked`, crate twins.
+
 **An ended key's row counts by the end rule, never by a cite** (the Constitution's ruling: for counts, a removed or
 ended key's late vote cited by a friendly member stays cut; only content may be anchored by others' rows).
 `key_end::counts` (new): a statement of key `k` counts only where it is in the causal past of each of `k`'s own

@@ -42,6 +42,7 @@ step "proofs/build.sh"                    lean      bash proofs/build.sh
 step "check_purge (checkpoint, purge)"    purge     python3 -I models/causal_kernel/check_purge.py
 step "check_time (two notions of time)"   time      python3 -I models/causal_kernel/check_time.py
 step "check_key_end (a key's own end)"    key_end   python3 -I models/causal_kernel/check_key_end.py
+step "check_key_view (the end rule at the voices step)"  keyview  python3 -I models/causal_kernel/check_key_view.py
 step "check_conferral_end (an end)"      conferral python3 -I models/causal_kernel/check_conferral_end.py
 step "check_conferral_content (tips)"    content   python3 -I models/causal_kernel/check_conferral_content.py
 step "check_conferral_two (two records)" two       python3 -I models/causal_kernel/check_conferral_two.py

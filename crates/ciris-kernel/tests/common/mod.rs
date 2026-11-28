@@ -635,6 +635,9 @@ impl KeyEndRow for TRow {
             _ => None,
         }
     }
+    fn instant(&self) -> Option<i64> {
+        self.fi("at")
+    }
     fn revocation(&self) -> Option<(&String, i64)> {
         if self.kind == "revoke" {
             Some((self.m_key(), self.fi("ra").unwrap()))

@@ -44,6 +44,11 @@ pub trait KeyEndRow: Row {
     fn revocation(&self) -> Option<(&Self::Key, Self::T)> {
         None
     }
+    /// The row's own signed instant, where it states one: a statement's, or a seat row's (read by [`counts_by`]
+    /// against a self-revocation's `revoked_after`). Default: a statement's instant.
+    fn instant(&self) -> Option<Self::T> {
+        self.statement().map(|s| s.0)
+    }
 }
 
 /// A key record, as [`KeyEndRow::record`] gives it.
@@ -177,6 +182,50 @@ pub fn counts<R: KeyEndRow>(c: &Concluded<'_, R>, i: usize) -> bool {
         }
         true
     })
+}
+
+/// THE END RULE for key `k`'s signature on concluded row `i` (a statement, or a seat row `k` signed or cosigned, held
+/// in one causal order with `k`'s key lane): `i` in the causal past of each of `k`'s own ends (its self-revocations,
+/// where `i` states an instant also before the `revoked_after`; each rotation naming `k`'s record). No cite is read.
+/// What the seat counts read at their voices step through [`KeyView`].
+pub fn counts_by<R: KeyEndRow>(c: &Concluded<'_, R>, i: usize, k: &R::Key) -> bool {
+    if !c.all().get(i).copied().unwrap_or(false) {
+        return false;
+    }
+    let at = c.g.row(i).instant();
+    c.cs().iter().all(|&e| {
+        let q = c.g.row(e);
+        if let Some((rk, ra)) = q.revocation() {
+            if rk == k && q.signer() == k {
+                return c.g.in_past(i, e) && at.is_none_or(|t| t < ra);
+            }
+        }
+        if q.record().is_some_and(|x| x.succ_of == Some(k)) {
+            return c.g.in_past(i, e);
+        }
+        true
+    })
+}
+
+/// What a count asks of the key lane at its voices step ([`crate::cut::CutSpec::key_view`]): whether key `key`'s
+/// signature on row `row` counts by the end rule. A store with key records MUST supply one; with none (the
+/// default), every voice counts, which is only for a caller with no key lane.
+pub trait KeyView<I, K> {
+    /// Whether `key`'s signature on `row` counts ([`counts_by`]). A row the view does not hold counts nothing.
+    fn counts(&self, row: &I, key: &K) -> bool;
+}
+
+/// The kernel's [`KeyView`]: [`counts_by`] over one [`Concluded`] of the seat and key lanes in one causal order,
+/// concluded by [`conclude_rule`], which the caller builds from its store.
+pub struct KeyReading<'c, 'a, R: KeyEndRow> {
+    /// The key lane and the seat rows, in one causal order.
+    pub c: &'c Concluded<'a, R>,
+}
+
+impl<R: KeyEndRow> KeyView<R::Id, R::Key> for KeyReading<'_, '_, R> {
+    fn counts(&self, row: &R::Id, key: &R::Key) -> bool {
+        self.c.g.idx(row).is_some_and(|i| counts_by(self.c, i, key))
+    }
 }
 
 /// The rows whose STUB is kept for good at `now` (digest, names, the fields a count reads, the conclusion): every

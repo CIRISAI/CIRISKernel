@@ -2458,7 +2458,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     mem.remove(&author); // the removal's author apart (the key removed is an agent's: in no count)
                     v
                 } else {
-                    voices(r, &p)
+                    voices_with(r, &p, self.spec)
                 };
                 if pol == Some(Policy::DutyConfer) && mem.len() < 2 && lone_offer_stands(self.law, &p, r, &mem) {
                     return false;
@@ -2616,7 +2616,7 @@ fn count_receipt<R: SeatRow, S: CutSpec<R>>(
     // the room less the remover, in the base as in the voices (R5: one rule for a count that judges one member's
     // act, as the overturn and the lift)
     mem.remove(xr.signer());
-    let mut v = voices(qr, &p);
+    let mut v = voices_with(qr, &p, spec);
     v.remove(xr.signer());
     let yes = v.iter().filter(|k| mem.contains(*k)).count();
     // the members' check of one member's act, whatever policy or need the row states
@@ -3242,7 +3242,7 @@ fn void_changes_in<R: SeatRow, S: CutSpec<R>>(
         let pq = Past::new(g, q, &qa);
         let qr = g.row(q);
         let mem = members_at_with(&pq, law, spec, obj, qr.head(), "member", cache);
-        let v: BTreeSet<R::Key> = voices(qr, &pq).into_iter().filter(|k| mem.contains(k)).collect();
+        let v: BTreeSet<R::Key> = voices_with(qr, &pq, spec).into_iter().filter(|k| mem.contains(k)).collect();
         info.insert(q, (v, mem));
     }
     // heads strictly in the past of a held row's (a head not held is in no row's past here)
@@ -3700,6 +3700,28 @@ pub fn voices<R: SeatRow>(r: &R, p: &Past<'_, '_, R>) -> BTreeSet<R::Key> {
     v
 }
 
+/// [`voices`] as a count reads them: each voice by the end rule through the cut's key view
+/// ([`CutSpec::key_view`]): the signer's and each cosigner's signature on the counted row, and each named cosign
+/// row's signer's on that row, counts only where [`crate::key_end::counts_by`] holds. With no key view, every voice
+/// counts. The one place every seat count reads a key's end.
+pub fn voices_with<R: SeatRow, S: CutSpec<R>>(r: &R, p: &Past<'_, '_, R>, spec: &S) -> BTreeSet<R::Key> {
+    let Some(kv) = spec.key_view() else { return voices(r, p) };
+    let heads: BTreeSet<&R::Id> = r.head().iter().collect();
+    let content = r.content().unwrap_or(r.id());
+    let mut v: BTreeSet<R::Key> = signers(r).into_iter().filter(|k| kv.counts(r.id(), k)).collect();
+    for n in r.names() {
+        let Some(c) = p.get(n) else { continue };
+        if c.seat_kind() == SeatKind::Cosign
+            && c.of() == Some(content)
+            && heads.iter().all(|h| c.names().contains(*h))
+            && kv.counts(c.id(), c.signer())
+        {
+            v.insert(c.signer().clone());
+        }
+    }
+    v
+}
+
 /// CC 4.5.13: a moderator of the room removes an AI agent's key alone. `r` (the row of `p`, or a row in its
 /// past) is a counted unseat of one key's [`AGENT`] seat (the seat's scope says whose key it is), and its
 /// signer holds `moderate` over the object at the head it names.
@@ -3854,7 +3876,7 @@ fn contested_out<'a, R: SeatRow, S: CutSpec<R>>(
     for &u in &grp {
         let ur = g.row(u);
         let anc = past_of(u);
-        let vs = voices(ur, &Past::new(g, u, &anc));
+        let vs = voices_with(ur, &Past::new(g, u, &anc), spec);
         let t: Vec<(usize, BTreeSet<R::Key>)> = grp
             .iter()
             .copied()
@@ -4328,7 +4350,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
             if !r.scope().is_some_and(|s| s.as_ref() == "record") {
                 return false;
             }
-            let v = voices(r, p);
+            let v = voices_with(r, p, spec);
             if !pair_keys.iter().all(|k| v.contains(k)) {
                 return false;
             }
@@ -4373,7 +4395,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
             // count, so a stalled room makes none
             let new: Vec<&R::Key> =
                 if is_offer { r.to().iter().filter(|k| !mem.contains(*k)).collect() } else { Vec::new() };
-            let v = voices(r, p);
+            let v = voices_with(r, p, spec);
             if !new.iter().all(|k| v.contains(*k)) {
                 return false;
             }
@@ -4411,7 +4433,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     // removal removes is neither counted over nor a voice
     let drop_to = f.exclude_target || f.base_excludes_target;
     let v: BTreeSet<R::Key> =
-        voices(r, p).into_iter().filter(|k| !void.contains(k) && !(drop_to && r.to().contains(k))).collect();
+        voices_with(r, p, spec).into_iter().filter(|k| !void.contains(k) && !(drop_to && r.to().contains(k))).collect();
     let mem: BTreeSet<R::Key> =
         if f.base_excludes_target { mem.into_iter().filter(|k| !r.to().contains(k)).collect() } else { mem };
     // a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)

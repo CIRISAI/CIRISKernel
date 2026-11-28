@@ -212,6 +212,18 @@ def counts(S, r):
     return True
 
 
+def counts_by(S, rid, k):
+    """THE END RULE for key k's signature on row `rid` (a statement, or a seat row k signed or cosigned, held in one
+    causal order with k's key lane): the row concluded, in the causal past of each of k's own ends, and, for a
+    self-revocation, its own instant (where it states one) before the revoked_after k stated. No cite is read."""
+    r = S.by.get(rid)
+    if r is None or not S.C.get(rid): return False
+    for e in ends_of(S, k):
+        if rid not in S.anc[e["id"]]: return False
+        if e["kind"] == "revoke" and r.get("at") is not None and not r["at"] < e["ra"]: return False
+    return True
+
+
 def seeds(S, now, stubs=True):
     """Concluded rows whose key has not ended at now, every revocation and rotation (never withdrawn, never
     dropped), and (stubs) every row a count reads (counts: a compaction drops no stub a count reads)."""

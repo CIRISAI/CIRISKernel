@@ -1145,7 +1145,7 @@ def is_election(o, table=None):
 
 def _memo(tag, row, f, rows=()):
     # keyed by the row and the rows it is read over (one row object may stand in two sets of rows)
-    key = (tag, id(row), frozenset(MUT), frozenset(id(x) for x in rows), _RENDS[-1])
+    key = (tag, id(row), frozenset(MUT), id(KEY_VIEW[-1]), frozenset(id(x) for x in rows), _RENDS[-1])
     got = _EMEMO.get(key)
     if got is None or got[0] is not row:
         got = _EMEMO[key] = (row, f())
@@ -2258,7 +2258,7 @@ def void_changes(r, P):
                      self-forked too
         built on     a counted change naming a void head is void, but a merge of both lines."""
     if not P or "self_fork_unread" in MUT: return frozenset()
-    key = (r["id"], r.get("obj"), frozenset(id(q) for q in P), frozenset(MUT), _RVOID[-1])
+    key = (r["id"], r.get("obj"), frozenset(id(q) for q in P), frozenset(MUT), id(KEY_VIEW[-1]), _RVOID[-1])
     got = _VOID_MEMO.get(key)
     if got is None:
         got = _VOID_MEMO[key] = (tuple(P), _void_changes(r, P))
@@ -2462,7 +2462,7 @@ def reader_state(S, own, rule=None):
     for a reader with no row is in its roster, and one refused for it is not (CC 2.7.9: "A reader's own acknowledged
     head closes older heads for that reader only"). MUTATION reader_exclusion_unread: the rows as for every reader."""
     if "reader_exclusion_unread" in MUT: return S
-    key = (frozenset(id(q) for q in S.rows), frozenset(S.C.items()), own, frozenset(MUT))
+    key = (frozenset(id(q) for q in S.rows), frozenset(S.C.items()), own, frozenset(MUT), id(KEY_VIEW[-1]))
     got = _READER_MEMO.get(key)
     if got is not None: return got[1]
     RV = reader_void(S, own) if own is not None else frozenset()
@@ -2563,7 +2563,7 @@ def seats_of(rows):
     row that names it, and a chain of lone removals reads every earlier one's (the run is polynomial in the chain,
     not exponential). The key is the rows themselves (by identity, held in the value so none is reused), the planted
     breaks switched on, and the tables a check may change (what a seat holds, the policies, the enders)."""
-    key = (frozenset(id(q) for q in rows), frozenset(MUT), repr(sorted(HOLDS.items())), repr(sorted(POLICY.items())),
+    key = (frozenset(id(q) for q in rows), frozenset(MUT), id(KEY_VIEW[-1]), repr(sorted(HOLDS.items())), repr(sorted(POLICY.items())),
            repr(sorted(ENDS.items())))
     got = _SEATS_OF.get(key)
     if got is None:
@@ -2658,9 +2658,21 @@ def voices(r, P, past=None):
     a cosign whose past holds a newer counted head than r names leaves r itself with that head in its past, and r then
     concludes nothing by newer_head_in_past. No separate reading of the cosign's past is needed.)"""
     heads = set(r.get("head", ()))
-    v = signers(r) | frozenset(c["signer"] for c in K.sel(P, kind="cosign", of=r.get("content", r["id"]))
-                               if c["id"] in r["names"] and heads <= set(c["names"]))
+    kv = KEY_VIEW[-1] if "key_view_unread" not in MUT else None
+    # the key view (key_end.counts_by over one causal order of the seat and key lanes): each voice by the end rule,
+    # its signature on the row it signed (MUTATION cosigner_key_unchecked: only the counted row's own signer is read)
+    ok = (lambda row, k: True) if kv is None else kv
+    own = lambda k: ok(r["id"], k) or ("cosigner_key_unchecked" in MUT and k != r["signer"])
+    v = frozenset(k for k in signers(r) if own(k)) | frozenset(
+        c["signer"] for c in K.sel(P, kind="cosign", of=r.get("content", r["id"]))
+        if c["id"] in r["names"] and heads <= set(c["names"])
+        and (ok(c["id"], c["signer"]) or "cosigner_key_unchecked" in MUT))
     return v
+
+
+# The key view (CutSpec::key_view): a callable (row id, key) -> whether key's signature on that row counts by the end
+# rule (key_end.counts_by), or None: no key lane read, every voice counts (only for a caller with no key lane).
+KEY_VIEW = [None]
 
 
 def newest(heads, past):
