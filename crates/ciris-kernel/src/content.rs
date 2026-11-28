@@ -509,18 +509,26 @@ fn cuts<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Key>, pas
     }
     let acks: Vec<&R> = rows.iter().copied().filter(|a| a.kind() == Kind::Ack).collect();
     // what each removal keeps by what it names ([`ContentRow::tips`] on a key removal: the key's last trusted rows):
-    // each named row and every row of the member behind it along predecessors, the walk an end's tips take
+    // each named row and every row of the member behind it along predecessors in its room, the walk an end's tips
+    // take
     let by: BTreeMap<&R::Id, &R> = rows.iter().map(|r| (r.id(), *r)).collect();
     let keeps: Vec<BTreeSet<&R::Id>> = ends
         .iter()
         .map(|q| {
-            let (mut out, mut todo): (BTreeSet<&R::Id>, Vec<&R::Id>) = (BTreeSet::new(), q.tips().iter().collect());
-            while let Some(t) = todo.pop() {
+            // each entry: a row to take up, and the room of the row it is a predecessor of (none for a named row);
+            // a predecessor of another room is not read (rule 10)
+            type Step<'x, I> = (&'x I, Option<Option<&'x I>>);
+            let mut out: BTreeSet<&R::Id> = BTreeSet::new();
+            let mut todo: Vec<Step<'_, R::Id>> = q.tips().iter().map(|t| (t, None)).collect();
+            while let Some((t, from)) = todo.pop() {
                 let Some((id, x)) = by.get_key_value(t) else { continue };
-                if x.kind() != Kind::Content || !(seat.member)(x.signer()) || !out.insert(*id) {
+                if x.kind() != Kind::Content || !(seat.member)(x.signer()) {
                     continue;
                 }
-                todo.extend(x.prev());
+                if from.is_some_and(|room| room != x.room()) || !out.insert(*id) {
+                    continue;
+                }
+                todo.extend(x.prev().iter().map(|p| (p, Some(x.room()))));
             }
             out
         })

@@ -179,15 +179,18 @@ def key_cuts(rows):
         b.get("room") == r.get("room") and r["id"] in anc(b["id"]) and q["id"] not in anc(b["id"]) for b in others)
     def named(q):
         """The rows a key removal keeps by what it names: each named row, and every row of the member reachable from
-        it along `prev` (the walk an end's tips take, held_good). MUTATION prev_walk_unread: its causal past only."""
-        out, todo = set(), list(q.get("names", ()))
+        it along `prev` (the walk an end's tips take, held_good), within that row's room: a predecessor of another
+        room is not read (rule 10). MUTATIONS prev_walk_unread: its causal past only; walk_crosses_rooms."""
+        out, todo = set(), [(n, None) for n in q.get("names", ())]
         while todo and "prev_walk_unread" not in MUT:
-            t = todo.pop()
+            t, room = todo.pop()
             x = by.get(t)
             if x is None or x["kind"] != "act" or x["signer"] not in KEYS or t in out:
                 continue
+            if room is not None and x.get("room") != room[0] and "walk_crosses_rooms" not in MUT:
+                continue
             out.add(t)
-            todo.extend(x.get("prev") or ())
+            todo.extend((p, (x.get("room"),)) for p in x.get("prev") or ())
         return out
     keeps = {q["id"]: named(q) for q in ends}
     cut = set()
@@ -919,6 +922,27 @@ CASES = [
      [H0, act("s1", "H0", signer="B2"), act("f1", "H0", "s1", signer="B2"), keyend("k", "B2", signer="B2", names=("s1",)),
       end("E", "H0", ["f1"], names=("k",))], {},
      {"s1": (T, F, "E2.forward"), "f1": (F, F, "K.key_removed")}),
+    # review r85 (prevwalk.py): the walk stays in its room; and two residuals of the caller duty, stated as EDGE cases
+    ("revocation_walk_stays_in_room", "row 5: s1's predecessor g0 is B2's row of room r2: the walk from s1 does not "
+     "cross rooms, so g0, not in the removal's past, is cut",
+     [H0, G0, dict(act("g0", "G0", signer="B2"), room="r2"), act("s1", "H0", "g0", signer="B2"),
+      keyend("k", "B2", signer="B2", names=("s1",))], {},
+     {"g0": (F, F, "K.key_removed"), "s1": (T, T, "no_end")}),
+    ("EDGE_forgery_chained_by_the_device", "row 2, residual A: the honest device chained s1 onto the thief's f0 "
+     "(s1's prev is f0); naming s1 keeps f0. The duty: name last trusted rows whose prev chains hold no foreign row",
+     [H0, act("f0", "H0", signer="B2"), act("s1", "H0", "f0", signer="B2"), keyend("k", "B2", signer="B2", names=("s1",))],
+     {}, {"f0": (T, T, "no_end"), "s1": (T, T, "no_end")}),
+    ("EDGE_forgery_chained_through_the_other_key", "row 3, residual A: the chain from s1 runs through B's b1 to the "
+     "thief's f0, and naming s1 keeps f0",
+     [H0, act("f0", "H0", signer="B2"), act("b1", "H0", "f0", signer="B"), act("s1", "H0", "b1", signer="B2"),
+      keyend("k", "B2", signer="B2", names=("s1",))], {},
+     {"f0": (T, T, "no_end"), "b1": (T, T, "no_end"), "s1": (T, T, "no_end")}),
+    ("EDGE_owner_names_the_thiefs_revocation", "row 7, residual B: the owner's revocation names the thief's, which "
+     "names the forgery f1: a removal with another in its past inherits what that one names, so f1 stands. The duty: "
+     "never name, or build on, the thief's revocation",
+     [H0, act("s1", "H0", signer="B2"), act("f1", "H0", "s1", signer="B2"), keyend("kt", "B2", signer="B2", names=("f1",)),
+      keyend("k", "B2", signer="B2", names=("s1", "kt"))], {},
+     {"s1": (T, T, "no_end"), "f1": (T, T, "no_end")}),
     ("key_end_not_held", "the reader does not hold the removal of B2 (the caller places a key removal at commons, "
      "or in every room the key sits in): nothing is cut",
      [H0, M1, act("n1", "H0", signer="B2"), act("n2", "H0", "n1", signer="B2")], {},

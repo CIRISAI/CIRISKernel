@@ -259,15 +259,19 @@ fn the_fold_by_arrival() {
 /// force unless the member's own retraction of it is held or a key removal cuts it: a caller need not call this
 /// module before it holds an end of the member's seat (or a removal of one of its keys). Over every history of
 /// the worlds fixture, with its ends taken out.
-// the member's rows reachable from `from` along predecessors (a key removal's kept rows)
+// the member's rows reachable from `from` along predecessors within each row's room (a key removal's kept rows)
 fn walk(by: &BTreeMap<&str, &CRow>, from: &[String]) -> BTreeSet<String> {
-    let (mut out, mut todo) = (BTreeSet::new(), from.to_vec());
-    while let Some(t) = todo.pop() {
+    let mut out = BTreeSet::new();
+    let mut todo: Vec<(String, Option<Option<String>>)> = from.iter().map(|t| (t.clone(), None)).collect();
+    while let Some((t, room)) = todo.pop() {
         let Some(x) = by.get(t.as_str()) else { continue };
-        if x.kind != Kind::Content || !(x.signer == "B" || x.signer == "B2") || !out.insert(t.clone()) {
+        if x.kind != Kind::Content || !(x.signer == "B" || x.signer == "B2") {
             continue;
         }
-        todo.extend(x.prev.iter().cloned());
+        if room.is_some_and(|r| r != x.room) || !out.insert(t.clone()) {
+            continue;
+        }
+        todo.extend(x.prev.iter().map(|p| (p.clone(), Some(x.room.clone()))));
     }
     out
 }

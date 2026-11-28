@@ -22,7 +22,10 @@
   a row it names (`ContentRow::tips` on a key removal; the walk an end's tips take), so an honest revocation naming
   its last trusted row keeps what lies behind it. A row any removal cuts stays cut, whatever a later removal names:
   otherwise a thief still holding the key could revoke it again naming its forgeries and keep them (the monotone
-  choice). A seat of a duty over the room
+  choice). The walk stays in its room (a predecessor of another room is not read). Two residuals are stated, with
+  EDGE cases: a forgery the honest device had chained onto stands (name last trusted rows whose prev chains hold no
+  foreign row), and a removal that has another in its past inherits what that one names (never name, or build on,
+  the thief's revocation). A seat of a duty over the room
   (`audience::DUTY_SEAT_FAMILIES`: the moderator's acceptance) seats only a member at the row's own head, never an
   outsider.
 - Review r82, r83: only a ROOM seat family's offer or unseat seats keys within its audience

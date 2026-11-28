@@ -607,6 +607,7 @@ plant "a person-level seat row seats a room"           src/audience.rs 'pub fn s
         .is_some_and(|f| SEAT_FAMILIES.contains(&f.0) || f.0 == "identity:occurrence" || f.0 == "self:delegates_to");'
 plant "a retraction a key removal cuts is read"         src/content.rs '.filter(|w| !cuts.any.contains(w.id()))' ''
 plant "the rooms read as one"                           src/content.rs 'by_room.entry(r.room()).or_default().push(r);' 'by_room.entry(None).or_default().push(r);'
+plant "a key removal's walk crosses rooms"            src/content.rs 'if from.is_some_and(|room| room != x.room()) || !out.insert(*id) {' 'if !out.insert(*id) {'
 plant "a key removal keeps its causal past only"      src/content.rs 'if kept.contains(r.id()) || past.in_past(r.id(), q.id())? {' 'if past.in_past(r.id(), q.id())? {'
 plant "an undecided family takes the default"           src/audience.rs 'FamilyPlacement::Undecided => return Placed::Undecided(fam),' 'FamilyPlacement::Undecided => &[Placement::SelfCollective, Placement::TargetedFamily, Placement::TargetedRoom, Placement::Commons][..],'
 plant "a pinned family takes any placement"             src/audience.rs 'if !allowed.contains(&placement) {' 'if false && !allowed.contains(&placement) {'

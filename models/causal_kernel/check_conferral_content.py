@@ -150,6 +150,7 @@ PLANTS = [
     ("key_cut_past_line", "key_cut_after_reader_took_up"),     # a row the reader took up is cut
     ("anchor_reenabled", "anchor_colluding_reply"),            # the anchor review r83 broke, back
     ("prev_walk_unread", "revocation_keeps_prev_chain"),       # a key removal keeps its causal past only
+    ("walk_crosses_rooms", "revocation_walk_stays_in_room"),   # the removal's prev walk crosses rooms
     ("rooms_mixed", "tip_in_another_room"),                    # the rooms are read as one
 ]
 

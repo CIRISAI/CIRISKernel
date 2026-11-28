@@ -56,7 +56,9 @@ migrations, and the local operational store.
 holds it, so place it at commons, or in every room the key sits in; give `ContentRow::concludes` from the
 self-roster count of the person's own key roster. A key's own revocation keeps the end rule, with no instant bound: an honest revocation names the
 key's last trusted rows (`ContentRow::tips` on a key removal), and what it names stands, with every row behind it
-along predecessors. The residual, stated: a thief holding a key can revoke it naming
+along predecessors in its room. Two residuals follow, and the duty covers both. Name the last trusted rows whose
+prev chains hold no foreign row: a forgery the honest device had already chained onto stands. Never name, or build
+on, the thief's revocation: a removal that has another removal in its past inherits what that one names. The residual, stated: a thief holding a key can revoke it naming
 nothing and take its unnamed rows out for every reader that had not taken them up; rows the reader acknowledged
 stand for it, and nothing else anchors a row: another key's reply or cite cannot be told from one signed after the
 revocation that leaves it unnamed (review r83), so it keeps nothing.
