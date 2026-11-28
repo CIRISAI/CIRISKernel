@@ -372,6 +372,8 @@ person [G25].
 | `statement()` | `(asserted_at, the record that covers it)`; the cover is **D**: the key record of the statement's `kid` whose `asserted_at`..`valid_until` covers its `asserted_at`. No row names its cover [G26] | |
 | `revocation()` | `key:revocation:v1`: (`sub`, `revoked_after`) | |
 | `instant()` | payload `asserted_at` of any row, seat rows included | |
+| `roster_end()` (key-end-retained) | an end of a retired key by the person's key roster: a `key:revocation:v1` whose signer is the key's successor (the one key its rotations name): (`sub`, `revoked_after`) [G33] | |
+| `cosigned_by()` (key-end-retained) | the `kid` of every further verified statement over the row's payload (as `SeatRow::cosigners`) | |
 | `KeyView::counts` | **D** | |
 
 ### 7.6 `content::ContentRow` (audience adds `parents`, `room`, `removes`, `concludes`)
@@ -403,6 +405,7 @@ person [G25].
 | `seat_act`, `obj`, `to` | as `SeatRow` (section 7.2) on a widening (`Offer`) or removal (`Unseat`) | |
 | `concluded` | **D** | |
 | `history_on_join` | payload `history_on_join` (`full`, `from_join`) | |
+| `follows` (audience) | on a row of a family with a `follows` rule: the row it follows, under the `refs` role that rule names [G34] | row id |
 
 ### 7.8 `conferral::ConferralRow`
 
@@ -561,3 +564,5 @@ row, not a reading of the text: they are settled here, and a store and a minter 
 | G30 | `RootBundle::recovery` | the second element is the commitment digest, compared by equality, not the recovery key | kernel's choice: the crate compares the recovery entry by equality only; the commitment is what the wire carries and compares the same way. |
 | G31 | `RootBundle::recovers` | the new key is the key of the holder's new signing-key record cited under `refs.also.cites` | open: a question for the text |
 | G32 | `RootGrant::scope` | the grant's placement `community_id`; `trust:confers` carries scope tokens and no room member | open: a question for the text |
+| G33 | `KeyEndRow::roster_end` | a `key:revocation:v1` signed by the revoked key's successor is the roster's end; the text names the roster's revocation ("the roster that seats it revokes it by its count") and no successor-signed form | open: a question for the text |
+| G34 | `AudienceRow::follows` | the `refs` role a family's `follows` rule names (inert at the pinned family model) | open: a question for the text |
