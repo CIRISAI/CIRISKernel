@@ -127,7 +127,16 @@ def RULE(r, P, past):
         if not prev:
             return False
         p = prev[0]
-        return p["key"] == r["succ_of"] and covers(p, r["at_old"])   # the old key, inside its own record
+        # the plain end rule (r114 TR2): a rotation is a row by the old key, so one with that key's own revocation (either
+        # form: a key-lane revoke, a registered self-unseat) in its past is not the key's and concludes nothing (MUTATION
+        # revoked_key_rotates). A revocation NOT in its past is the retired-key rule's (ends_of)
+        import checkpoint as _CP
+        k = r["succ_of"]
+        if "revoked_key_rotates" not in MUT and any(
+                (q["kind"] == "revoke" and q.get("key") == k and q["signer"] == k) or _CP.registered_self_unseat(q, k)
+                for q in P):
+            return False
+        return p["key"] == k and covers(p, r["at_old"])   # the old key, inside its own record
     if r["kind"] in ("att", "edge"):
         c = by.get(r["cover"])
         if c is None or c["kind"] != "rec" or c["key"] != r["signer"]:

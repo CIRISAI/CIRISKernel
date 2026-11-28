@@ -2000,7 +2000,7 @@ fn countersigners<R: SeatRow, S: CutSpec<R>>(pu: &Past<'_, '_, R>, law: &SeatLaw
     let seats = deciding_seats(pu, law, spec, &obj, &act_heads(pu, law, &obj));
     // outside the seat by person: another key of the officer's own person is the officer
     let pp = officers(pu, law, spec, &obj);
-    let outside: Vec<&R::Key> = signers(u).into_iter().filter(|k| !officer_key(&pp, &seats, k)).collect();
+    let outside: Vec<R::Key> = signers(u).into_iter().filter(|k| !officer_key(&pp, &seats, k)).collect();
     if outside.is_empty() {
         return BTreeSet::new();
     }
@@ -2012,7 +2012,7 @@ fn countersigners<R: SeatRow, S: CutSpec<R>>(pu: &Past<'_, '_, R>, law: &SeatLaw
         }
         _ => BTreeSet::new(),
     };
-    outside.into_iter().filter(|k| off == Some(*k) || overseers.contains(*k)).cloned().collect()
+    outside.into_iter().filter(|k| off == Some(k) || overseers.contains(k)).collect()
 }
 
 /// The newest counted changes over `obj` among `p`'s rows, or its founding row where there is none.
@@ -3773,7 +3773,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     // the removal's author apart by person (the key removed is an agent's: in no count)
                     let base = lift_base(&p, self.law, self.spec, &over, Some(&members));
                     mem.retain(|m| base.contains(m));
-                    (vec![author], v)
+                    (alloc::vec![author], v)
                 } else {
                     (Vec::new(), voices_with(r, &p, self.spec))
                 };
@@ -4801,7 +4801,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         };
         let any_self = rows.iter().any(|g| {
             g.seat_kind() == SeatKind::Offer
-                && founding(g)
+                && founding(*g)
                 && is_self_kind(kind_of(law, &get, &Obj::Row(g.id().clone())))
         });
         let mut revoked: BTreeSet<R::Key> = rows
@@ -4830,7 +4830,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
             .iter()
             .filter(|g| {
                 g.seat_kind() == SeatKind::Offer
-                    && founding(g)
+                    && founding(*g)
                     && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
             })
             .map(|g| g.signer().clone())
@@ -4910,7 +4910,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         let mut b = self.base(base);
         let mut v = self.voices(voices, voters.unwrap_or(base));
         for k in apart {
-            let mut ks = vec![k.clone()];
+            let mut ks = alloc::vec![k.clone()];
             if !self.keys {
                 ks.push(self.member(k));
                 ks.extend(self.voice(k));

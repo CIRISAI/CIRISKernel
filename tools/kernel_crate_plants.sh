@@ -916,6 +916,10 @@ plant "key_end: own_row reads only concluded rows the reader signed (own_unconcl
 # folded into the one own_row (seat::own_row): key_end: own_row reads no voice of a concluded seat row (own_voice_unread), as the r101 plants on it
 # folded into the one own_row (seat::own_row): key_end: own_row reads any row claiming the reader as a cosigner (own_claimed_cosigner), as the r101 plants on it
 plant "seat: with no key view, a registered self-unseat read by past only (registered_by_past)" src/seat.rs '    move |a| rs.iter().all(|&x| c.g.in_past(a, x))' '    move |a| rs.iter().all(|&x| !c.g.in_past(x, a))'
+plant "key_end: a revoked key's rotation concludes (revoked_key_rotates, r114 TR2)" src/key_end.rs '                !revoked
+                    && prev' '                true
+                    && prev'
+plant "key_end: a rotation over its key's registered self-unseat concludes (r114 TR2, the seat lane's form)" src/key_end.rs 'if p.ancestors().iter().any(|&i| crate::seat::registered_self_unseat(g.row(i), old)) {' 'if false && p.ancestors().iter().any(|&i| crate::seat::registered_self_unseat(g.row(i), old)) {'
 plant "seat: a retired key's registered self-unseat an end (retired_registered_ends, r110 RK2)" src/seat.rs '    if rotated {
         return Vec::new();
     }' '    if rotated && false {

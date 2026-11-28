@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**A retired key's revocation and a revoked key's rotation** (review-48's r110 and r114). `seat::registered_ends` takes
+`rotated` (**BREAKING**): a registered self-unseat of a key of which a concluded rotation is held is no end (RK2), as a
+key-lane revocation was not; `key_end::key_ends` reads it so. The one `seat::own_row` keeps no registered scan of its
+own: its key-end cut is the caller's `ends_ok` (`key_end` passes `key_ends`; a reader with no key view,
+`seat::seat_lane_ends_ok`). A rotation with its key's own revocation in its past concludes nothing (TR2):
+`key_end::conclude_rule` reads the key-lane form, and the new `key_end::conclude_rule_with_seat` the seat lane's too.
+
 **The person map's key view is required** (review-48's r108). **BREAKING**: `seat::Persons::over` takes the key
 view as a fifth argument, so a caller can no longer build a person map that silently misses a key-lane revocation
 (r106 PG1). `key_end::none()` (`key_end::NoKeyLane`) is the named view for an adopter with no key lane, and gives up

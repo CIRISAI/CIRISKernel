@@ -402,7 +402,23 @@ def combined(rows):
 
 KUC = lambda cos: [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)),
                    ST.offer("x", "Z", "F", "member", "Q", "self", ("aT",), cosigners=cos)]   # Z's offer over Q's key: no
-OWN_DIRECT = [
+# r114 TR (review-48): N's honest row a1, its revocation rv (either form) naming a1, and the thief's row gt with N's
+# key, concurrent with rv. A rotation by the thief WITH rv in its past is no row of N's (the plain end rule) and
+# concludes nothing, so rv stays an end and gt counts nothing (TR2). One concurrent with rv is the retired-key rule's
+# (TR1, the stated residual: the thief can rotate the key as the owner could)
+TRB = [KE.rec("r0", "N", 0, 100), KE.att("a1", "N", 2, "r0"), KE.att("gt", "N", 3, "r0", names=("a1",))]
+TRV = {"key lane": KE.revoke("rv", "N", 5, ("a1",)),
+       "seat lane": ST.unseat("rv", "N", "N", "registered", "N", "self", ("r0", "a1"))}
+TRROT = lambda names: KE.rec("rot", "N3", 0, 100, names=names, succ_of="N", at_old=4)
+TR_CASES = [c for form, rv in TRV.items() for c in (
+    ("r114 TR0 (%s): the thief's row concurrent with the honest revocation counts nothing" % form,
+     TRB + [rv], "gt", "N", None, False),
+    ("r114 TR0 (%s): and the honest row the revocation names counts" % form, TRB + [rv], "a1", "N", None, True),
+    ("r114 TR2 (%s): the thief's rotation with the revocation in its past concludes nothing: gt still counts nothing"
+     % form, TRB + [rv, TRROT(("r0", "gt", "rv"))], "gt", "N", None, False),
+    ("r114 TR1 (%s), the stated residual: a rotation concurrent with the revocation retires the key, and gt counts"
+     % form, TRB + [rv, TRROT(("r0", "gt"))], "gt", "N", None, True))]
+OWN_DIRECT = TR_CASES + [
     ("r110 RK0: K rotated to K2, the rotation naming a1: a1 counts", RKR, "a1", "K", None, True),
     ("r110 RK1: and the retired key's key-lane self-revocation, not naming a1, is no end: a1 still counts",
      RKR + [KE.revoke("rv", "K", 1, ("r0",))], "a1", "K", None, True),
@@ -426,7 +442,7 @@ PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("win
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
           ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT),
           ("taken_up_unread", KE.MUT), ("reader_line_unchecked", KE.MUT), ("own_unconcluded_unread", KE.MUT),
-          ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("registered_unconcluded_counted", KE.MUT), ("retired_registered_ends", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
+          ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("registered_unconcluded_counted", KE.MUT), ("retired_registered_ends", KE.MUT), ("revoked_key_rotates", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
           ("receipt_unclean_counts", ST.MUT), ("rotation_void_unread", KE.MUT), ("voided_successor_kept", KE.MUT),
           ("disputed_key_voices", ST.MUT), ("clean_signers_only", ST.MUT), ("roster_end_any_object", ST.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries

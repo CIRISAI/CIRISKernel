@@ -121,10 +121,21 @@ pub fn conclude_rule<R: KeyEndRow>(p: &Past<'_, '_, R>) -> bool {
                 }
                 prev.first().is_some_and(|q| q.record().unwrap().key == x.key)
             }
-            Some(old) => prev.first().is_some_and(|q| {
-                let o = q.record().unwrap();
-                o.key == old && x.at_old.is_some_and(|a| crate::covers_at(Some(o.from), o.until, &a))
-            }),
+            // the plain end rule (r114 TR2): a rotation is a row by the old key, so one with that key's own revocation
+            // in its past is not the key's and concludes nothing (the seat lane's form: [`conclude_rule_with_seat`]).
+            // A revocation NOT in its past is the retired-key rule's ([`ends`])
+            Some(old) => {
+                let g = p.graph();
+                let revoked = p.ancestors().iter().any(|&i| {
+                    let q = g.row(i);
+                    q.signer() == old && q.revocation().is_some_and(|(rk, _)| rk == old)
+                });
+                !revoked
+                    && prev.first().is_some_and(|q| {
+                        let o = q.record().unwrap();
+                        o.key == old && x.at_old.is_some_and(|a| crate::covers_at(Some(o.from), o.until, &a))
+                    })
+            }
         }
     } else if let Some((at, cover)) = r.statement() {
         match p.get(cover).and_then(|c| c.record()) {
@@ -134,6 +145,19 @@ pub fn conclude_rule<R: KeyEndRow>(p: &Past<'_, '_, R>) -> bool {
     } else {
         true
     }
+}
+
+/// [`conclude_rule`] for a store that holds the seat lane too: a rotation of `k` with `k`'s registered self-unseat
+/// ([`crate::seat::registered_self_unseat`], the seat lane's revocation) in its past concludes nothing either (r114
+/// TR2). A caller concluding both lanes in one state uses this for the key lane's rows. `key_end.RULE`.
+pub fn conclude_rule_with_seat<R: KeyEndRow + SeatRow>(p: &Past<'_, '_, R>) -> bool {
+    if let Some(old) = p.row().record().and_then(|x| x.succ_of) {
+        let g = p.graph();
+        if p.ancestors().iter().any(|&i| crate::seat::registered_self_unseat(g.row(i), old)) {
+            return false;
+        }
+    }
+    conclude_rule(p)
 }
 
 fn records<'c, R: KeyEndRow>(c: &'c Concluded<'_, R>, k: &R::Key) -> impl Iterator<Item = Record<'c, R::Key, R::T>> + 'c
