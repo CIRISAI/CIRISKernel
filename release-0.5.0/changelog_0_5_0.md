@@ -62,10 +62,13 @@ No stated instant decides a verdict, and the host clock decides none.
   - `custodian_replace`, `affiliation_member_action` and `cosigned_act` have an unstated counted voice; the first
     two also have an unstated `counted_at`.
   - `poll` has an unstated opener, `opener_says` and answer words.
-  - The seat law (`tables::law_from_tables`) reads only a family's enact cell, so the three counted families take
+  - The seat law (`tables::law_from_tables`) reads only a family's enact cell. So the three counted families take
     their counts from the table: `custodian_replace` and `affiliation_member_action` at least 2 of 2, and
-    `cosigned_act` under the room's declared protocol. The unstated voice cell is not read there, and no fallback
-    is stated.
-  - `window::spec_from_policy` refuses any row with an unstated cell (`Why::Unstated`). So none of the four gives a
-    window table. A poll is not in this tag, and the adopter holds it shut. [policy-spec asked to confirm]
+    `cosigned_act` under the room's declared protocol. `poll` has no count (`NotACount`). The unstated voice cell is
+    not read there, and no fallback is stated. A count reads voices by person through `seat::Persons`, not from
+    this cell. [lead: the unstated voice cells are with the Constitution]
+  - `window::spec_from_policy` gives none of the four a window table. Each is refused by its kind (`not_a_window`:
+    cosigned and tally rows give no window table even with every cell stated), and also on its unstated cells. So
+    the unstated cells block nothing in the window path today. A poll is not in this tag, and the adopter holds it
+    shut.
 - Where the crate answers `Undecided`, re-ask once the row it names is held.
