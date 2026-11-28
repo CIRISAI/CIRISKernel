@@ -2711,13 +2711,16 @@ _SEATS_OF = {}
 
 
 def key_record_ended(P, k):
-    """The key's own end in a row's past, for its person (ruled on CIRISConstitution#224): the key's own revocation
-    (CC 2.4.1.1: "only the key's own revocation ends its liveness"), an unseat of its `registered` seat by the key
-    itself, is in P (the row's concluded past). The key record's stated end is read against the key's own instant on
+    """The key's own end in a row's past, for its person (ruled on CIRISConstitution#224): the key's own
+    revocation in either lane (key_end.revocations, read from key_end.key_ends, the one set of a key's ends; CC
+    2.4.1.1: "only the key's own revocation ends its liveness") is in P (the row's concluded past). Rotations and
+    the roster's voids are the roster's to settle. The key record's stated end is read against the key's own instant on
     the key's own rows (key_end.covers, the half-open end), never here: no foreign clock is read."""
     if "person_end_unread" in MUT: return False                    # MUTATION: the key's own end is not read
-    return any(q["kind"] == "unseat" and q.get("scope") == "registered" and q.get("obj") == k and k in q["to"]
-               and q["signer"] == k for q in P)
+    # the key's own revocations among its ONE set of ends (key_end.revocations over key_ends: either lane), over P
+    import key_end as _KE
+    P = list(P)
+    return bool(_KE.revocations(CK.State(P, {q["id"]: True for q in P}), k))
 
 
 def evicted_from(S, rid, g, k):
@@ -2796,7 +2799,8 @@ def rep_of(P, k, member=False):
     of two persons; a key that revoked itself (KP6); a key whose person's genesis key revoked itself (its devices
     then speak for no one); an agent's key (KP5: never for its owner). `member`: the member k counts as in a base,
     where none of those ends a seat: a key of one self roster is its person, any other key itself. Kept per (P, k)."""
-    key = (frozenset(id(q) for q in P), k, member, frozenset(MUT))
+    import key_end as _KE                                         # its revocations read key_end's planted breaks too
+    key = (frozenset(id(q) for q in P), k, member, frozenset(MUT), frozenset(_KE.MUT))
     if key not in _PERSON_IN:
         _PERSON_IN[key] = (tuple(P), _rep(P, k) if not member else _member_rep(P, k))
     return _PERSON_IN[key][1]

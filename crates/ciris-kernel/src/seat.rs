@@ -3303,7 +3303,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
                 && founding(g)
                 && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
         });
-        let revoked: BTreeSet<R::Key> = rows
+        let mut revoked: BTreeSet<R::Key> = rows
             .iter()
             .filter(|q| {
                 q.seat_kind() == SeatKind::Unseat
@@ -3313,6 +3313,14 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
             })
             .map(|q| q.signer().clone())
             .collect();
+        // a key's own revocation in the key lane too (the one set of a key's ends, through the key view:
+        // key_end::revoked_in, r106 PG1)
+        if let Some(kv) = spec.key_view() {
+            let ids: Vec<R::Id> = rows.iter().map(|q| q.id().clone()).collect();
+            let ks: BTreeSet<R::Key> =
+                rows.iter().flat_map(|q| core::iter::once(q.signer().clone()).chain(q.to().iter().cloned())).collect();
+            revoked.extend(ks.into_iter().filter(|k| kv.revoked(k, &ids)));
+        }
         if keys || (!any_self && revoked.is_empty()) {
             return Persons { revoked, ..none };
         }
@@ -4261,7 +4269,7 @@ pub fn final_by_ack<R: SeatRow + crate::key_end::KeyEndRow, S: CutSpec<R>>(
         if !crate::key_end::counts_for(kc, ki, qr.signer(), None, &BTreeSet::new(), roster) {
             return false;
         }
-        if voices.iter().any(|k| crate::key_end::ends(kc, k, roster).iter().any(|&(e, _)| kc.g.in_past(e, ki))) {
+        if voices.iter().any(|k| crate::key_end::key_ends(kc, k, roster).iter().any(|&(e, _)| kc.g.in_past(e, ki))) {
             return false;
         }
         // no cut of the act in its past: a row cutting its slots, or a withdrawal of it
