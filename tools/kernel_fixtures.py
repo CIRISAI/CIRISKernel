@@ -726,6 +726,23 @@ def key_view_cases():
             "law": law, "windows": windows, "cases": cases, "direct": direct, "roster_direct": roster_direct}
 
 
+def consent_cases():
+    """check_consent.py's cases, each with its model rows written with references (with_refs) for the end-to-end
+    test, and the seat law they are read under."""
+    import check_consent as CS
+    ST = CS.ST
+    fx = CS.fixture()
+    for c in fx["cases"]:
+        refs = {}
+        c["model_rows"] = with_refs(c["model_rows"], refs)
+        c["refs"] = refs
+    fx["law"] = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+                 "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+                 "removal_floor": ST.REMOVAL_FLOOR, "policy": {k: list(v) for k, v in ST.POLICY.items()},
+                 "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+    return fx
+
+
 # ---- key_end: every generated world at every instant ----------------------------------------------------------------
 def key_person_cases():
     """check_key_person.py's cases: a key's person at a row (seat.person_of), each with the seat law it is read under."""
@@ -869,8 +886,7 @@ def main():
     dump("conferral_content_worlds.json", CK.worlds_fixture(), out)
     import check_conferral_two as C2
     dump("conferral_two.json", C2.fixture(), out)
-    import check_consent as CS
-    dump("consent.json", CS.fixture(), out)
+    dump("consent.json", consent_cases(), out)
     sys.path.insert(0, os.path.join(ROOT, "models", "trust_root"))
     import check_root as CR
     dump("root.json", CR.fixture(with_refs), out)

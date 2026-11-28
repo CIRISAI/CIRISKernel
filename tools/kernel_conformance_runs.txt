@@ -49,3 +49,4 @@ the protocol set against check_acts.py
 a group's dissolution against check_acts.py
 an infrastructure room's recovery widening against check_acts.py
 the consent peer set (check_consent.py case table)
+the consent peer set end to end (KeyReading, Persons, Seats::owner)

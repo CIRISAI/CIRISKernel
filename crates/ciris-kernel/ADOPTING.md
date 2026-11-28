@@ -527,23 +527,28 @@ content row that names it as its head is read as naming a head at which the memb
 replication; CC 3.3.7). Edge's replication set is the operator-addressed peers that are in `consent::peer_set` of a
 principal of the local node (`consent::replication_set`), and `consent::may_send` gates each row: it moves only under
 a `consent:replication:v1` grant in force from the node or its one owner to that peer whose classes cover the row's
-class. Present each grant as `Kind::Grant` (`attesting_key_id` the signer, `peer()` the one `subject_key_ids` entry,
-`classes()` the `attestation_prefixes` as signed, `at()` its `asserted_at`, `until()` its `valid_until`), each
-`withdraws` or `recants` of one as `Kind::Withdrawal` naming it, and
-each node's announcement as `Kind::Announcement`, and every other row (the node's own rows the reading is at
-among them) as `Kind::Other`; conclude them with `consent::conclude_rule` beside the families' own rules, giving it
-the owner of a key over a withdrawal's past (`Seats::owner(key)`, the one owner reading, over that past). A withdrawal by the grant's
-signer, its peer, or the signer's owner there ends the grant; any other key's concludes nothing. Pass the key view
-(`Some(&key_end::KeyReading { .. })` over the key lane and these rows in one causal order, for the reading node, its
-final counts and its self roster): a grant counts only where its signer's signature does by the end rule, so a
-thief's grant concurrent with the key's revocation or rotation moves nothing whatever instant it states. `None`
-counts every voice, only for a caller with no key lane. `now` is the caller's instant for the term only: nodes agree
-on a term's answer only at the same `now`. Pass the owner from `seat::Seats::owner(node)` (the one owner reading: `Seats::one` of scope `owner` with
-the re-binding rule of `standing::answers`) read
-over the past of the row the answer is at (`None` with none or two). Read at the row being sent, or the node's own
-latest row, never at a clock; `now` is the caller's instant for the term only. Not read here: the `cohorts` allow list
-of an owner's grant for its own node (CC 6.1.5.3), and whether the class itself is a grammar the namespace admits
-(persist's `consent_grammar::covers` also asks the matcher).
+class. A grant permits and never obliges: a node may always send less, with no row.
+- Present each grant as `Kind::Grant` (`attesting_key_id` the signer, `peer()` the one `subject_key_ids` entry,
+  `classes()` the `attestation_prefixes` as signed, `at()` its `asserted_at`, `until()` its `valid_until`,
+  `federation()` its `cohort_scope`), each `withdraws` or `recants` of one as `Kind::Withdrawal` naming it, each
+  node's announcement as `Kind::Announcement`, and every other row (the node's own rows a reading is at among them)
+  as `Kind::Other`; conclude them with `consent::conclude_rule` beside the families' own rules.
+- Pass a `consent::Reading` (REQUIRED; no default counts every voice), over the key lane, the seat rows and these
+  rows in one causal order, for the reading node: `counts` is `key_end::KeyReading` (its reader, final counts and
+  self roster), `person` is `seat::Persons::voice` over the concluded rows in the row's past, and `owner` is
+  `seat::Seats::owner` over the concluded rows in the row's past (with the row where asked; every held row for
+  none). `tests/consent.rs` (`end_to_end`) is a worked reading.
+- Who withdraws is one rule: the grant's signer as a person (another live device of the granting person), a named
+  party (the peer, or a node the grant is for), or the owner of the grant's signer; an ownership's end cuts a
+  withdrawal that stands on it. A thief's grant concurrent with the key's revocation or rotation moves nothing
+  whatever instant it states; one a reader took up stands for it until a withdrawer ends it.
+- A grant held between the two (`federation()` false) reads no announcement: holding it between the two nodes and
+  serving it to no other is Edge's duty. One at federation scope needs both parties announced in its past, each
+  announcement counting by the key view.
+- Read at the row being sent, or the node's own latest row, never at a clock; `now` is the caller's instant for the
+  term only, so nodes agree on a term's answer only at the same `now`.
+- Not read here: the `cohorts` allow list of an owner's grant for its own node (CC 6.1.5.3), and whether the class
+  itself is a grammar the namespace admits (persist's `consent_grammar::covers` also asks the matcher).
 
 **Windows.** A `WindowSpec` literal states `opener` (`None` unless the opener's signer holds another scope than
 the counted one). `window::outcome` answers a met at-once count with no landing row. A ballot (an answer a

@@ -24,6 +24,17 @@ audit); `nodes_of` (key-person) is its inverse. The reference is
 `models/causal_kernel/consent.py`, its cases `check_consent.py` (57 cases, 130 answers, every order of up to six
 rows, 19 planted breaks), the fixture `tests/fixtures/consent.json` and the test `tests/consent.rs`.
 
+**r97 and the withdrawers' rule** (review-48's r97; the Constitution on A3). `consent::Reading` is now REQUIRED
+(the key view, the person map, the one owner reading; no default counts every voice), and `tests/consent.rs`
+replays the case table end to end over `KeyReading`, `Persons` and `Seats::owner`. Who withdraws is ONE rule,
+`consent::may_withdraw`: the grant's signer as a person (another live device of the granting person), a named
+party (the peer, or a node the grant is for), or the owner of the grant's signer; an ownership's end cuts a
+withdrawal standing on it (F1, F3). Announcements are read through the key view (AN4). `derived::fold_default`: a
+row beats every row something in its own past beat (CF1: a fork revives no beaten branch); a group where every row
+is so beaten has no winner. `key_end::counts_for` (merged from key-end-retained): a reader's own row counts toward
+its line only where the reader's key stands at it by the plain end rule (K1: a thief holding the reader's key cannot
+vouch for its own grant). A grant permits and never obliges.
+
 **The default fold is causal first** (the Constitution, reading CC 3.3.7 with CC 3.5.1). `derived::fold_default`:
 of one signer's rows of the top kind on one target, a row that has another in its causal past is later, whatever
 instant either states; the signed instant, then the lowest id, orders only rows concurrent with each other. **An

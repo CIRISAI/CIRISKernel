@@ -173,11 +173,14 @@ pub fn tally<R: Row, C: Ord>(
 
 /// The fold default of CC 3.5.1 (KERNEL.md section 4: one voice may order its own rows), **causal first** (the
 /// Constitution on CC 3.5.1, with CC 3.3.7: a row with an earlier row in its past is later, whatever either
-/// states). Among the rows of `rows` that name a target, grouped by signer and target, the winner is of the highest
-/// kind (`recants` over `withdraws` over `supersedes`, as `rank` gives it); of the rows of that kind, those no other
-/// of them has in its causal past; of those (concurrent), the latest of that signer's own signed instants, then
-/// the lowest row id. Each signer's chain is read on its own: rows of different signers are never ranked against
-/// each other. Returns the winner for each (signer, target).
+/// states). Among the rows of `rows` that name a target, grouped by signer and target, of the rows of the highest
+/// kind (`recants` over `withdraws` over `supersedes`, as `rank` gives it): a row beats every row in its own causal
+/// past, and **every row something in its own past beat** (r97 CF1: a fork cannot revive a branch a row in its
+/// past beat); among rows concurrent with each other, the later signed instant beats, then the lower row id. The
+/// winner is a row no row beats through its past, of those the latest instant, then the lowest id; a group where
+/// every row is so beaten has none. Each signer's chain is read on its own: rows of different signers are never
+/// ranked against each other. Returns the winner for each (signer, target). The reference is
+/// `consent.fold_default` in `models/causal_kernel/consent.py`.
 pub fn fold_default<R: Row, N: Ord + Clone, T: Ord>(
     c: &Concluded<'_, R>,
     rows: &[usize],
@@ -192,15 +195,27 @@ pub fn fold_default<R: Row, N: Ord + Clone, T: Ord>(
         let key = (r.signer().clone(), t);
         groups.entry(key).or_default().push(i);
     }
+    let ikey = |i: usize| {
+        let r = c.g.row(i);
+        (at(r), core::cmp::Reverse(r.id()))
+    };
     let mut out: BTreeMap<(R::Key, N), usize> = BTreeMap::new();
     for (key, g) in groups {
         let top = g.iter().map(|&i| rank(c.g.row(i))).max();
-        let g: Vec<usize> = g.into_iter().filter(|&i| Some(rank(c.g.row(i))) == top).collect();
-        let w = g.iter().copied().filter(|&i| !g.iter().any(|&j| j != i && c.g.in_past(i, j))).max_by(|&a, &b| {
-            let (x, y) = (c.g.row(a), c.g.row(b));
-            (at(x), core::cmp::Reverse(x.id())).cmp(&(at(y), core::cmp::Reverse(y.id())))
-        });
-        if let Some(w) = w {
+        let mut g: Vec<usize> = g.into_iter().filter(|&i| Some(rank(c.g.row(i))) == top).collect();
+        // a row's past first: what a row inherits is settled before the row is read
+        g.sort_by_key(|&i| c.g.depth(i));
+        let mut beat: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
+        let mut strong: BTreeSet<usize> = BTreeSet::new();
+        for &y in &g {
+            let mut st: BTreeSet<usize> = g.iter().copied().filter(|&x| c.g.in_past(x, y)).collect();
+            let inherited: Vec<usize> = st.iter().flat_map(|z| beat.get(z).into_iter().flatten().copied()).collect();
+            st.extend(inherited);
+            strong.extend(st.iter().copied());
+            st.extend(g.iter().copied().filter(|&x| x != y && c.g.concurrent(x, y) && ikey(y) > ikey(x)));
+            beat.insert(y, st);
+        }
+        if let Some(w) = g.iter().copied().filter(|x| !strong.contains(x)).max_by(|&a, &b| ikey(a).cmp(&ikey(b))) {
             out.insert(key, w);
         }
     }

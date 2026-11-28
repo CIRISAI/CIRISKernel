@@ -91,6 +91,15 @@ fn cc_3_5_1_rules() {
         &[("A", "E", "s3")],
         "causal first, then the instant among the concurrent",
     );
+    // r97 CF1: a row beats every row something in its own past beat. g2 beat g3 by instant (concurrent), g4 names
+    // g2: g4 beats g3 too, though g3 states the later instant; without the inheritance g3 would revive
+    let mut g4 = c("g4", "A", "supersedes", "E", 3);
+    g4.names = vec!["g2".into()];
+    t(
+        winners(&[c("g3", "A", "supersedes", "E", 4), c("g2", "A", "supersedes", "E", 5), g4]),
+        &[("A", "E", "g4")],
+        "a fork revives no beaten branch",
+    );
     // every order of a mixed set gives one answer
     let rows = vec![
         c("1", "A", "supersedes", "E", 4),
