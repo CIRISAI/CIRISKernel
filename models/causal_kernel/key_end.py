@@ -107,6 +107,7 @@ CLOCK = [0]
 
 
 def RULE(r, P, past):
+    if r.get("stub"): return r["concl"]                          # a stub keeps its conclusion; its bytes are gone
     by = {q["id"]: q for q in P}
     if r["kind"] == "rec":
         prev = [by[n] for n in r["names"] if n in by and by[n]["kind"] == "rec"]
@@ -211,10 +212,10 @@ def counts(S, r):
     return True
 
 
-def seeds(S, now):
+def seeds(S, now, stubs=True):
     """Concluded rows whose key has not ended at now, every revocation and rotation (never withdrawn, never
-    dropped), and every row a count reads (counts: a compaction drops nothing a count reads)."""
-    out = {r["id"] for r in S.Cs if r["kind"] in ("att", "edge") and counts(S, r)}
+    dropped), and (stubs) every row a count reads (counts: a compaction drops no stub a count reads)."""
+    out = {r["id"] for r in S.Cs if r["kind"] in ("att", "edge") and counts(S, r)} if stubs else set()
     # and every end a count reads (a rotation, like a revocation, is never dropped: dropping it would revive the old
     # key's cut rows)
     out |= {r["id"] for r in S.Cs if r["kind"] == "rec" and r["succ_of"] is not None}
@@ -230,8 +231,18 @@ def seeds(S, now):
     return out
 
 
+def bytes_retained(S, now):
+    """The rows whose BYTES are kept at now: rows of keys not ended, every revocation and rotation, and everything in
+    their past (what a live row names). A row a count reads that is not among them (an expired key's in-time vote, its
+    count settled) keeps its STUB for good (retained) and its bytes may drop."""
+    s = seeds(S, now, stubs=False)
+    return frozenset(s) | frozenset(a for i in s for a in S.anc[i] if a in S.by)
+
+
 def retained(S, now):
-    """The rows that have not lapsed: rows of keys not ended, and everything in their past."""
+    """The rows whose STUB is kept for good at now (digest, names, the fields a count reads, the conclusion): every
+    row a count reads (counts), every row whose bytes are kept (bytes_retained), and everything in their past.
+    Storage only: nothing counts by it."""
     if "drop_dead_signers" in MUT:        # PLANT: drop every row of an ended key, named or not
         return frozenset(seeds(S, now))
     s = seeds(S, now)
@@ -262,9 +273,23 @@ def answers(S, now, keys, parties, subjects):
         "reach": tuple((p, reach(S, p, now, keys, ret)) for p in parties),
         "score": tuple((s, score(S, s, now, ret)) for s in subjects),
         "rows": frozenset((i, bool(S.C.get(i)), i in ret) for i in ret),
+        "bytes": bytes_retained(S, now),
     }
 
 
+def stub(r, concl):
+    """A row's stub: its id, kind, signer, names, the fields a count reads, and its conclusion; its bytes dropped."""
+    return dict(r, stub=True, concl=concl)
+
+
 def compact(rows, S, now):
-    keep = retained(S, now)
-    return [r for r in rows if r["id"] in keep]
+    """Drop the lapsed rows, and the bytes of a row whose stub alone is kept (MUTATION stub_drops_counted: a counted
+    row whose bytes may drop is dropped whole)."""
+    keep, byt = retained(S, now), bytes_retained(S, now)
+    out = []
+    for r in rows:
+        if r["id"] not in keep: continue
+        if r["id"] in byt: out.append(r); continue
+        if "stub_drops_counted" in MUT: continue
+        out.append(stub(r, bool(S.C.get(r["id"]))))
+    return out

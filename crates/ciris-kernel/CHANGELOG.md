@@ -11,8 +11,10 @@ inside its record is the holder's word, bounded below by its own past (the licen
 duty). `retained` is for storage only and keeps every row a count reads, every rotation and revocation, and what a
 live row names; nothing counts by it. Before this, `retained` was the only reading the crate offered for an ended
 key's rows, and ADOPTING told persist to keep and so count a cited late row. The model's attestation score reads
-`counts` (K12: eight facts; plant `ended_vote_retained_by_cite`, crate twin). Consequence: an expired key's
-in-time rows no longer lapse (they count), so compaction keeps them.
+`counts` (K12: eight facts; plant `ended_vote_retained_by_cite`, crate twin). An expired key's in-time rows
+count, so their STUBS are kept for good (`retained`); their BYTES drop once settled (`bytes_retained`, new: what a
+live row names, rows of keys not ended, revocations and rotations), as the purge keeps a settled act's stub (K13;
+plant `stub_drops_counted`).
 
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.

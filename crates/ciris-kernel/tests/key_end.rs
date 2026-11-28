@@ -3,7 +3,9 @@
 
 mod common;
 use ciris_kernel::derived;
-use ciris_kernel::key_end::{conclude_rule, counts, ended, live, retained, successor, well_formed, EndRule};
+use ciris_kernel::key_end::{
+    bytes_retained, conclude_rule, counts, ended, live, retained, successor, well_formed, EndRule,
+};
 use ciris_kernel::layers::{conclude, kept};
 use common::*;
 
@@ -86,6 +88,9 @@ fn key_end_worlds() {
             }
             let ret_ids = sorted_ids(ret.iter().map(|&i| &c.g.row(i).id));
             cmp(ret_ids == a.at("ret").strs(), format!("retained at {now}"));
+            let byt = bytes_retained(&c, now);
+            let byt_ids = sorted_ids(byt.iter().map(|&i| &c.g.row(i).id));
+            cmp(byt_ids == a.at("bytes").strs(), format!("bytes retained at {now}"));
         }
     }
     report("a key's own end (check_key_end.py worlds)", cases, bad);

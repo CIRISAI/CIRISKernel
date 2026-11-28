@@ -198,7 +198,7 @@ PROPS = [
     ("P2 a key whose holder signs nothing more ends at most the ceiling after the last record it signed", "the door, read from the record alone", "no_ceiling", p_ceiling),
     ("P3a compacting the lapsed rows changes no answer at that instant or later (a record not yet begun is kept)", "retained = rows of keys not ended and their past", "seed_live_only", p_compact),
     ("P3b compacting keeps a dead key's row that a live row names", "the closure over what rows name", "drop_dead_signers", p_compact),
-    ("P3c compacting drops no row a count reads: the score reads the end rule, and what it reads is retained", "score by the end rule (counts)", "score_reads_lapsed", p_compact),
+    ("P3c compacting to stubs moves no answer: a row a count reads keeps its stub for good (names, read fields, conclusion), and only its bytes may drop", "score by the end rule (counts); retained = stubs, bytes_retained = bytes", "score_reads_lapsed", p_compact),
     ("P4 a row's conclusion never reads now: signed while live, concluded for good", "the concluded layer", "conclude_reads_now", p_history),
     ("P5a two concurrent rotations of one key name no successor (both or neither)", "the frontier of rotations", "rank_successor", p_rotation_fork),
     ("P5b a rotation without the old key's signature is not kept", "the door", "rotation_one_sig", p_rotation_sigs),
@@ -433,8 +433,8 @@ def k6():
     f = lambda S: (KE.ended(S, "H", 1), frozenset(KE.retained(S, 1)))
     (e, ret), agree = every_order(rows, f)
     return ("HOLDS", "nobody",
-            "the end is read from the record against now, so every node holding the rows reads the harness ended at one instant (within the 5-minute skew of CC 2.6.7); a row it signed inside its record is the holder's word and counts by the end rule (key_end.counts), so it is kept, named or not",
-            [("the harness key ends at its stated end", e), ("its unnamed row, signed inside its record, is kept (a count reads it)", "h2" in ret),
+            "the end is read from the record against now, so every node holding the rows reads the harness ended at one instant (within the 5-minute skew of CC 2.6.7); a row it signed inside its record is the holder's word and counts by the end rule (key_end.counts), so its stub is kept for good, named or not, and its bytes drop unless a live row names it",
+            [("the harness key ends at its stated end", e), ("its unnamed row, signed inside its record, keeps its stub (a count reads it)", "h2" in ret),
              ("its row a live row names is kept, with its record", {"h1", "pH"} <= ret), ("every arrival order agrees", agree)])
 
 
@@ -533,6 +533,32 @@ def k12():
              ("one in the rotation's past counts", sc(w["rot_past"], 7) == {"K"})])
 
 
+@attack("K13 an expired key's in-time vote, counted and settled, compacted to a stub")
+def k13():
+    rows = [pX, rec("pK", "K", 0, 4), att("aK", "K", 3, "pK", about="X"), rec("pF", "F", 0, 9)]
+    S = KE.state(rows)
+    C = KE.compact(rows, S, 6)
+    Cs = KE.state(C)
+    stubbed = {r["id"] for r in C if r.get("stub")}
+    return ("HOLDS", "nobody",
+            "a row a count reads is a settled act once its key has ended: its stub (names, the fields the count reads, "
+            "its conclusion) is kept for good and its bytes drop, as the purge keeps a settled act's stub "
+            "(pruned_view_answers)",
+            [("the vote counts", KE.score(S, "X", 6) == {"K"}),
+             ("compacted at 6, the vote and its record keep only their stubs", stubbed == {"aK", "pK"}),
+             ("the stubbed store gives the same answers at 6 and later", all(C_ans == S_ans for C_ans, S_ans in
+                                                                            ((ans(Cs, n), ans(S, n)) for n in NOWS if n >= 6))),
+             ("the stubbed vote still counts", KE.score(Cs, "X", 9) == {"K"})])
+
+
+def stub_plant():
+    KE.MUT.add("stub_drops_counted")
+    try:
+        return any(not v for _, v in k13()[3])
+    finally:
+        KE.MUT.discard("stub_drops_counted")
+
+
 def cite_plant():
     """The planted break ended_vote_retained_by_cite (a cited row counts) must change K12."""
     KE.MUT.add("ended_vote_retained_by_cite")
@@ -564,7 +590,7 @@ def numbers():
             out.append((label, "%d rows, growing %d a day for ever" % (round(m * r * 365 * yrs), round(m * r))))
         else:
             out.append((label, "steady state m*e*r = %.0f rows (%.1f keys)" % (m * e * r, m * e)))
-    out.append(("per dead key after compaction", "the rows a count reads (signed inside its record and in the past of its ends) with the record they name, and the rows a live row names; nothing else; no refusal digest is kept"))
+    out.append(("per dead key after compaction", "the STUBS of the rows a count reads (signed inside its record and in the past of its ends) and of the record they name; the BYTES only of the rows a live row names; nothing else; no refusal digest is kept"))
     out.append(("rows a key (shape only)", "r = 2 + 1650/230 = %.1f" % r))
     return out
 
@@ -615,6 +641,10 @@ def main():
     caught = boundary_plant()
     say("  plant end_closed %s" % ("caught" if caught else "NOT CAUGHT"))
     lines.append("plant\tend_closed\t%s" % ("caught" if caught else "not caught"))
+    ok = ok and caught
+    caught = stub_plant()
+    say("  plant stub_drops_counted %s" % ("caught" if caught else "NOT CAUGHT"))
+    lines.append("plant\tstub_drops_counted\t%s" % ("caught" if caught else "not caught"))
     ok = ok and caught
     caught = cite_plant()
     say("  plant ended_vote_retained_by_cite %s" % ("caught" if caught else "NOT CAUGHT"))

@@ -699,7 +699,7 @@ def key_end_cases():
                         "succ": [[k, s] for k, s in a["succ"] if s is not None],
                         "reach": [[p, "".join(sorted(r))] for p, r in a["reach"]],
                         "score": [[x, "".join(sorted(v))] for x, v in a["score"]],
-                        "ret": sorted(i for i, _, _ in a["rows"])})
+                        "ret": sorted(i for i, _, _ in a["rows"]), "bytes": sorted(a["bytes"])})
         worlds.append({"rows": [ref(r) for r in rows], "kept": [r["id"] for r in S.rows],
                        "c": [S.C[r["id"]] for r in S.rows], "a": ans})
     return {"ceil": KE.CEIL, "keys": list(CKE.KEYS), "parties": list(CKE.PARTIES), "subjects": list(CKE.SUBJECTS),

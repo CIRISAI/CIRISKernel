@@ -3,7 +3,7 @@ property	P1 every answer is the same in every arrival order	holds	caught
 property	P2 a key whose holder signs nothing more ends at most the ceiling after the last record it signed	holds	caught
 property	P3a compacting the lapsed rows changes no answer at that instant or later (a record not yet begun is kept)	holds	caught
 property	P3b compacting keeps a dead key's row that a live row names	holds	caught
-property	P3c compacting drops no row a count reads: the score reads the end rule, and what it reads is retained	holds	caught
+property	P3c compacting to stubs moves no answer: a row a count reads keeps its stub for good (names, read fields, conclusion), and only its bytes may drop	holds	caught
 property	P4 a row's conclusion never reads now: signed while live, concluded for good	holds	caught
 property	P5a two concurrent rotations of one key name no successor (both or neither)	holds	caught
 property	P5b a rotation without the old key's signature is not kept	holds	caught
@@ -35,7 +35,9 @@ attack	K9 a stranger rotates a key it does not hold	HOLDS	facts hold
 attack	K10 a row signed after its key's held end	HOLDS	facts hold
 attack	K11 a row, a rotation or a record placed exactly at an end	HOLDS	facts hold
 attack	K12 an ended key's late vote, cited by a friendly member's live row (the count reads the end rule, never the cite)	HOLDS	facts hold
+attack	K13 an expired key's in-time vote, counted and settled, compacted to a stub	HOLDS	facts hold
 plant	end_closed	caught
+plant	stub_drops_counted	caught
 plant	ended_vote_retained_by_cite	caught
 numbers	no end (today), after one year	770150 rows, growing 2110 a day for ever
 numbers	no end (today), after five years	3850750 rows, growing 2110 a day for ever
@@ -43,5 +45,5 @@ numbers	default end, 365 days	steady state m*e*r = 770150 rows (83950.0 keys)
 numbers	an end of 30 days	steady state m*e*r = 63300 rows (6900.0 keys)
 numbers	a harness end of 1 day	steady state m*e*r = 2110 rows (230.0 keys)
 numbers	a harness end of 1 minute	steady state m*e*r = 1 rows (0.2 keys)
-numbers	per dead key after compaction	the rows a count reads (signed inside its record and in the past of its ends) with the record they name, and the rows a live row names; nothing else; no refusal digest is kept
+numbers	per dead key after compaction	the STUBS of the rows a count reads (signed inside its record and in the past of its ends) and of the record they name; the BYTES only of the rows a live row names; nothing else; no refusal digest is kept
 numbers	rows a key (shape only)	r = 2 + 1650/230 = 9.2

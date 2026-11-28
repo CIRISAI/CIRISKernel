@@ -179,11 +179,22 @@ pub fn counts<R: KeyEndRow>(c: &Concluded<'_, R>, i: usize) -> bool {
     })
 }
 
-/// The rows that have not lapsed at `now`: every concluded row of a key that has not ended, every revocation and
-/// rotation, every row a count reads ([`counts`]: a compaction drops nothing a count reads), and everything in
-/// their past. It is for storage only: a count reads [`counts`], never this (a row kept because a live row names it
-/// counts nothing it would not count by the end rule).
+/// The rows whose STUB is kept for good at `now` (digest, names, the fields a count reads, the conclusion): every
+/// row a count reads ([`counts`]), every row whose bytes are kept ([`bytes_retained`]), and everything in their
+/// past. Storage only: a count reads [`counts`], never this.
 pub fn retained<R: KeyEndRow>(c: &Concluded<'_, R>, now: R::T) -> BTreeSet<usize> {
+    keep(c, now, true)
+}
+
+/// The rows whose BYTES are kept at `now`: every concluded row of a key that has not ended, every revocation and
+/// rotation, and everything in their past (what a live row names). A row a count reads that is not among them (an
+/// expired key's in-time vote, its count settled) keeps only its stub ([`retained`]), as the purge keeps a settled
+/// act's stub.
+pub fn bytes_retained<R: KeyEndRow>(c: &Concluded<'_, R>, now: R::T) -> BTreeSet<usize> {
+    keep(c, now, false)
+}
+
+fn keep<R: KeyEndRow>(c: &Concluded<'_, R>, now: R::T, stubs: bool) -> BTreeSet<usize> {
     // `ended` for every key at once: its earliest self-revocation, and whether every record of it ends by now
     let mut rev: BTreeMap<&R::Key, R::T> = BTreeMap::new();
     let mut open: BTreeSet<&R::Key> = BTreeSet::new();
@@ -208,7 +219,7 @@ pub fn retained<R: KeyEndRow>(c: &Concluded<'_, R>, now: R::T) -> BTreeSet<usize
         let r = c.g.row(i);
         let seed = r.revocation().is_some()
             || r.record().is_some_and(|x| x.succ_of.is_some())
-            || (r.statement().is_some() && counts(c, i))
+            || (stubs && r.statement().is_some() && counts(c, i))
             || !ended(r.record().map(|x| x.key).unwrap_or(r.signer()));
         if seed && !b.has(i) {
             b.set(i);
