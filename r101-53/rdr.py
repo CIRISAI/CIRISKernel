@@ -1,7 +1,9 @@
 """A reader's own first row (f0f3ff9: the line is only rows the reader signed itself), and its later rows chained to it
 (an honest client names its own previous row). Rows in the anchor's own past are left as they are."""
+import os
+
 def with_reader(ST, rows, rd):
-    if rd is None: return list(rows)
+    if rd is None or os.environ.get("RDR") == "0": return list(rows)   # RDR=0: the original set-up (p4 by its cosignature on gc)
     by = {r["id"]: r for r in rows}
     pref = {"p4": ("gc",), "m4": ("gr", "rm"), "x": ("S1r",), "x9": ("Sr", "S1r")}.get(rd, ())
     anchor = next((a for a in pref if a in by), None)
