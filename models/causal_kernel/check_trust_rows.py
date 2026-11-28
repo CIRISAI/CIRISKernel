@@ -61,6 +61,9 @@ Planted breaks, each of which must change a case's answer:
     seat model's holders, which already drop a contested end, and a lone removal is of an agent's seat, which the seat
     model's ends name as no seat; the lane's own skip is kept as a shortcut)
     own_licence_uncountersigned  (b) a one-officer body's own licence stands without the countersign
+    (retired) cut_keeps_voided: the lane's cut keeping a row the seat model voids over the judged rows. Since the
+    reader's Seats voids are read too (reader_void_unread, B12), both read Seats.stale and each alone refuses E6:
+    with either planted E6 is still refused, with both it is honoured. No case decides the judged rows' void alone.
     end_cuts_counted_row     (d) an end cuts a whole counted row its key signed, not only its voice
     (retired: built_on_cut_kept, a row built on a cut row kept. The seat model voids what rests on a cut row itself:
     a counted act counts only if the counted acts among its heads count, and a regrown lone conferral seats nothing;
@@ -808,6 +811,23 @@ CASES += [
      [_AF3, _LSO(("A", "B"), "cosigned_act"), _LSA, A("e", "RD", "af"), _LX], "RD", "l", None, OK),
     ("r95 P6 three officers, A, B and O under affiliation_member_action: no seat",
      [_AF3, _LSO(("A", "B", "O"), "affiliation_member_action"), _LSA, A("e", "RD", "af"), _LX], "RD", "l", None, NA),
+]
+
+
+# E6 (charter, the ruling's reading 1): an election seating beside a conferral, in check_election_close's honest world
+import check_election_close as EC  # noqa: E402
+_G5L = dict(EC.G5, licence_classes=((M, False),))
+_ELECT = [_G5L, EC.LM, EC.OP5] + EC.H5 + [EC.SEAT("ec", "C", EC.IDS)]   # A lays moderate down; C is elected
+_DB, _DBA = ST.offer("db", "A", "B", "moderate", "g", "self", ("g",)), ST.accept("dba", "B", "db")   # A seats B, beside lm
+_GLO_E6 = ST.offer("glo", "B", ("X",), "license", "g", "group", ("dba", "ec"), head=("db", "ec"), cosigners=("C",),
+                   counted="duty")
+CASES += [
+    ("E6 an election seating beside a conferral: A's lone conferral of B, beside A's lay-down, is void by the election's "
+     "growth; B and C's conferral built on it is void with it (Seats over the reader's rows), not counted as C's alone",
+     _ELECT + [_DB, _DBA, _GLO_E6, GLA, A("e", "RD", "g"), _X], "RD", "l", None, NA),
+    ("E2 the elected C's own conferral after its seating stands",
+     _ELECT + [ST.offer("glo", "C", ("X",), "license", "g", "group", ("ec",), head=("ec",), counted="duty"), GLA,
+               A("e", "RD", "g"), _X], "RD", "l", None, OK),
 ]
 
 NOW = {"an edge whose term has ended at the caller's instant (150)": 150,

@@ -1081,6 +1081,7 @@ plant "the first matching family pattern decides"       src/audience.rs 'Some((b
 plant "a duty seat seats an outsider"                 src/audience.rs 'let duty = DUTY_SEAT_FAMILIES.contains(&fam);' 'let duty = false && DUTY_SEAT_FAMILIES.contains(&fam);'
 plant "a one-officer body's own licence needs no countersign" src/trust_rows.rs 'None if own_licence(seats, i, &ended_for_reader(seats, i, false, own)) && !countersigned(seats, i) => {' 'None if false => {'
 # retired at the one-target merge: "an out-of-force removal still ends" (the loss is read through Seats' holders, which drop a contested end; the skip is kept as a shortcut; check_trust_rows states it)
+# retired: "the lane's cut keeps a row the seat model voids" (masked by the reader's Seats voids, B12: check_trust_rows states it)
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"
