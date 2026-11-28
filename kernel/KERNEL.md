@@ -250,7 +250,7 @@ delegate only with the delegate's own signature (CC 4.4.3.19), and a custodian h
 need none and say why: a node in an infrastructure community, a key of a person's own roster, and a device
 under its owner. **open**: how the second signature travels and from when a delegation without it stops
 seating are not settled. **measured** (`manifests/family_model.json` (parent repository), `formal/derivation/confers_text.tsv` (parent repository)): what a family confers is
-stated for 163 of 189 families (the family model at the Constitution's `rc23-next` `d5d42bf`, sha256 `94a6ac96`,
+stated for 163 of 189 families (the family model at the Constitution's `rc23` `bd4337d`, sha256 `9d49c2a7`,
 the pin of `data/family_placement.json`; the same counts as at `d103e60`). 139 claim and content families take one default, that a claim seats no one
 (CC 3.4.5.1). Twenty consents take their seat from `family_shapes.tsv`, and four families have a sentence of
 their own. **open**: 26 families confer nothing that a sentence states: 23 doors, two consents the shape
@@ -281,7 +281,7 @@ signed both (CC 5.2). No member carries another member's signed row out. **prove
 `nothing_leaves`, `others_elsewhere_change_nothing`, `author_carries`, `same_room_unchanged`. The cost: a cut
 that names a row of another room waits until that row's signer carries it. What must not travel is proof of
 who said it or of who is in the room, which is section 7b. **measured** (`formal/derivation/placement_text.tsv` (parent repository)): no placement cell
-is empty. Of 189 families (the family model at the Constitution's `rc23-next` `d5d42bf`, sha256 `94a6ac96`, a provisional pin until it reaches `rc23`), 143
+is empty. Of 189 families (the family model at the Constitution's `rc23` `bd4337d`, sha256 `9d49c2a7`, the final pin), 143
 take the one default, the scope each row carries with the audience CC 5.2 gives it, and 46 are pinned by the CC
 table, four of them (custody, duty, ownership, stream:head) placed at the scope of the row they follow. None is
 left undecided. **run**

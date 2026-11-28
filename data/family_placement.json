@@ -2,14 +2,14 @@
  "_source": {
   "repository": "CIRISConstitution",
   "path": "manifests/family_model.json",
-  "branch": "rc23-next",
-  "commit": "d5d42bfb789f8ca62ba1e82a79cbac6f0bd01fc2",
-  "sha256": "94a6ac96a22338752716bce35caa44e50e471479fc01bae5f1a553076a31499f",
+  "branch": "rc23",
+  "commit": "bd4337de000ea736b06b84b31b9538dd3218047a",
+  "sha256": "9d49c2a7d197cb95310165ca8052732c6c274b27e09e61da3d43dae6dce66bcc",
   "families": 189,
   "on_the_default": 143,
   "pinned_by_the_table": 46,
   "undecided": 0,
-  "provisional": true
+  "provisional": false
  },
  "placements": [
   "self_collective",

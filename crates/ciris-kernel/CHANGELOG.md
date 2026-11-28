@@ -821,6 +821,9 @@ which stays family-blind (a store's adapter presents the binding as an offer of 
 answer moves; a key of two persons counts as no person (cases `self_row_of_a_key_of_no_person`,
 `key_of_no_person_carries_nothing`).
 
+**The family model pinned final at `rc23` `bd4337d`** (sha256 `9d49c2a7`): the Constitution's final commit. Every family
+row is as at `d5d42bf`; only the manifest's `_meta` differs, so only the pin moves.
+
 **The family model at `rc23-next` `d5d42bf`** (sha256 `94a6ac96`, provisional until `rc23`): all 189 placements are
 from the text: 143 on the default, 46 pinned, none undecided; custody, duty, ownership and stream:head carry
 `follows`. "Narrower" is over PERSONS (the Constitution's ruling): a row's audience is within the followed row's
