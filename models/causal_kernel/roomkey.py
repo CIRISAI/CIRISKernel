@@ -1014,7 +1014,9 @@ def detection_in_room():
     ob = ST.offer("ob", NODE, A, "owner", NODE, "self", ("g",), cosigners=(A,), room=ROOM)
     en = ST.offer("en", A, NODE, LIST, "g", "group", ("md", "ob"), head=("g",), policy="duty_confer", counted="duty",
                   cosigners=(B, NODE), room=ROOM)
-    det = R("det", "detection", NODE, ("en",), room=ROOM, offered_by=B, list="list1")
+    # a node's row names its in-room owner-binding (refs.also.under) and the owning voice's key-roster head
+    # (refs.also.voice; here the voices are their room keys, so the owner's head is the founding row): section 12
+    det = R("det", "detection", NODE, ("en", "ob"), room=ROOM, offered_by=B, list="list1", under=("ob",), vhead=("g",))
     note = R("note", "notice", A, ("det", "ob"), room=ROOM, target="det")
     rows = [g, md, ob, en, det, note]
     seats = lambda rs: ST.Seats(state_of(rs))
@@ -1052,3 +1054,127 @@ def detection_in_room():
     facts.append(("a detection is a claim and no verdict: with the detection and the notice held, no seat in the room has changed",
                   before.snapshot() == after.snapshot()))
     return facts
+
+
+# =========================================================================================================
+# 12. a node's row in a private room (ruled on CIRISConstitution#224)
+# =========================================================================================================
+# A node's row is one signed by a room key whose own key record says `node`: iss = kid = the node's room key. It names
+# exactly one in-room owner-binding that owns it (refs.also.under) and exactly one head of the OWNING voice's key
+# roster (refs.also.voice). It concludes only where, in its own past: the binding stands and names this node key as
+# owned; the owner is a room key of a voice of this room (never a node's: no chains); the owning key is live in its
+# voice at the named head; and the owning voice holds its room seat. Ends are read by past with rule 4 (an end in
+# the row's past: nothing; an end concurrent with the row counts at its own head and is out of force from that head
+# on). Two live owner-bindings of the node key in its past: nothing. A node is never a voice, never a member, and in
+# no count. The planted breaks are seat.MUT names (node_*).
+NODE_MUT = ST.MUT
+
+
+def _end_reaches(S, e, rid):
+    """Rule 4: end row e reaches row rid when it is in rid's past, or concurrent with it and every head it names (its
+    `head`, or else the rows it names) is rid or in rid's past (rid is at the end's head or later)."""
+    anc = S.anc[rid]
+    if e["id"] in anc: return True
+    if rid in S.anc[e["id"]] or "node_rule4_unread" in NODE_MUT: return False
+    heads = tuple(e.get("head") or e.get("names") or ())
+    return bool(heads) and all(h == rid or h in anc for h in heads)
+
+
+def node_row_facts(S, r, records, room=ROOM):
+    """What a node's row r needs from the rows, folded by the kernel over the concluded set S: its binding (held in
+    r's past, owning r's key, not ended by rule 4), the live owner-bindings of the key in r's past, the owner, the
+    owner's record, the owning voice (the roster whose head r names), the owner's liveness there (seat.members_at at
+    the head, and no eviction of it reaching r), and the owning voice's room seat (and no removal reaching r)."""
+    kid, also = r["kid"], r["refs"]["also"]
+    under, vhead = also.get("under", []), also.get("voice", [])
+    anc = S.anc.get(r["id"], frozenset())
+    P = [q for q in S.Cs if q["id"] in anc]
+    past = lambda a, b: a in S.anc[b]
+    # the owner seat over the node key, read through the seat walk over the row's past (RV1): a key holds it only by
+    # its own signature or acceptance (two consents); the node's own offer of it seats nobody else
+    holders = ST.seats_of(P).holders("owner", kid) if "node_owner_seat_unread" not in NODE_MUT else \
+        frozenset(k for q in P if q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == kid for k in q["to"])
+    owner_off = lambda q: q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == kid and S.C.get(q["id"])
+    revoked = lambda k: any(q["kind"] == "unseat" and q.get("scope") == "registered" and q.get("obj") == k and k in q["to"]
+                            and q["signer"] == k and S.C.get(q["id"]) and _end_reaches(S, q, r["id"]) for q in S.Cs)
+    # the binding seats its owner by the owner's own signature (r78k RV-A 1): the owner cosigned the offer, or accepted
+    # it by its own acceptance in r's past; another row that seats the same owner lends this one nothing
+    acc_of = lambda b, k: [q for q in P if q["kind"] == "accept" and q.get("of") == b["id"] and q["signer"] == k]
+    def own_signed(b):
+        if NODE_MUT & {"node_binding_signature_unread", "node_owner_seat_unread"}: return True
+        return all(k in ST.signers(b) or acc_of(b, k) for k in b["to"])
+    # an end of the binding (RV2, r78k RV-A 2, r88 T1), read as Seats reads the owner seat, by past with rule 4: a
+    # WITHDRAWAL of this binding, or of its owner's acceptance of it, ends this binding only (another binding of the
+    # same owner stands, as the owner still holds the seat through it); a STAY-level end, the owner seat's unseat
+    # over the node key, ends every binding of that owner not having it in its own past (an end in the binding's own
+    # past is before it: the owner bound the node again). (MUTATION node_arm_disagrees_with_seats: a withdrawal of
+    # any owner offer seating the owner, or of an acceptance of one, ends every binding of it)
+    def ended(b):
+        if "node_binding_end_unread" in NODE_MUT: return False
+        before = S.anc.get(b["id"], frozenset())
+        if "node_arm_disagrees_with_seats" in NODE_MUT:
+            offs = [q for q in P if owner_off(q) and set(q["to"]) & set(b["to"])]
+        else:
+            offs = [b]
+        seats = {q["id"] for q in offs} | {a["id"] for q in offs for k in b["to"] for a in acc_of(q, k)}
+        wd = any(w["kind"] == "withdraw" and w["target"] in seats and w["id"] not in before and _end_reaches(S, w, r["id"])
+                 for w in S.Cs)
+        un = any(u["kind"] == "unseat" and u.get("scope") == "owner" and u.get("obj") == kid and set(u["to"]) & set(b["to"])
+                 and S.C.get(u["id"]) and u["id"] not in before and _end_reaches(S, u, r["id"]) for u in S.Cs) \
+            and "node_owner_revocation_unread" not in NODE_MUT
+        return wd or un
+    live = [q for q in P if owner_off(q) and not ended(q) and set(q["to"]) <= holders and own_signed(q)]
+    f = {"under": list(under), "voice_heads": list(vhead), "binding_held": False, "binding_ended": False,
+         "live_bindings": len({k for q in live for k in q["to"]}), "owner": None, "owner_record": None,
+         "owner_voice": None, "owner_live": False, "voice_seated": False,
+         "node_revoked": revoked(kid) and "node_key_end_unread" not in NODE_MUT, "owner_revoked": False}
+    if len(under) != 1 or len(vhead) != 1: return f
+    b = S.by.get(under[0])
+    # the binding is held where it is an owner seat over this node key that every key it names holds by its own
+    # signature (RV1, RV4: an owner that did not sign, or one of several that did not, and it is none)
+    if b is None or b["id"] not in anc or not owner_off(b) or not set(b["to"]) <= holders or not own_signed(b): return f
+    f["binding_held"], f["binding_ended"] = True, ended(b)
+    if len(b["to"]) != 1: return f
+    owner = b["to"][0]
+    f["owner_revoked"] = revoked(owner) and "node_key_end_unread" not in NODE_MUT
+    f["owner"], f["owner_record"] = owner, records.get(owner)
+    h = S.by.get(vhead[0])
+    if h is None or h["id"] not in anc or not S.C.get(h["id"]): return f
+    voice = h["id"] if h.get("obj") == h["id"] else h.get("obj")
+    f["owner_voice"] = voice
+    keys = ST.members_at(S.Cs, past, voice, (h["id"],), "key")
+    evicted = any(q["kind"] == "unseat" and q.get("obj") == voice and owner in q.get("to", ()) and S.C.get(q["id"])
+                  and _end_reaches(S, q, r["id"]) for q in S.Cs) and "node_owner_eviction_unread" not in NODE_MUT
+    f["owner_live"] = owner in keys and not evicted
+    seated = voice in ST.seats_of(P).holders("member", room)
+    removed = any(q["kind"] == "unseat" and q.get("obj") == room and voice in q.get("to", ()) and S.C.get(q["id"])
+                  and _end_reaches(S, q, r["id"]) for q in S.Cs) and "node_voice_removal_unread" not in NODE_MUT
+    f["voice_seated"] = (seated or "node_voice_seat_unread" in NODE_MUT) and not removed
+    return f
+
+
+def node_row_check(r, records, f, room=ROOM):
+    """The verdict on a node's row from the row, the records and the facts alone: (verdict, refusal). The signer's
+    own record first, as for a voice's row (RV3): a missing record is refused room_row_signer_not_room_key, a record
+    of another room room_key_other_room; iss must be kid (a row naming a voice as iss is a voice's row, and a node
+    key is no key of a voice: it concludes nothing)."""
+    also = r["refs"]["also"]
+    rec = records.get(r["kid"])
+    if "node_record_unread" not in NODE_MUT:
+        if rec is None or rec.get("room") is None: return "refused", "room_row_signer_not_room_key"
+        if rec["room"] != room: return "refused", "room_key_other_room"
+        if r["iss"] != r["kid"]: return "concludes_nothing", None
+        # the signer's record says `node` (r78k RV-B): a voice's room key never acts as a node, whatever it binds
+        # (MUTATION node_signer_kind_unread)
+        if rec.get("identity_type") != "node" and "node_signer_kind_unread" not in NODE_MUT:
+            return "concludes_nothing", None
+    if len(also.get("under", [])) != 1: return "refused", "room_row_owner_binding_malformed"
+    if len(also.get("voice", [])) != 1: return "refused", "room_row_voice_head_malformed"
+    if not f["binding_held"] or f["binding_ended"]: return "concludes_nothing", None
+    if f.get("node_revoked") or f.get("owner_revoked"): return "concludes_nothing", None    # RV3: both keys' own ends
+    if f["live_bindings"] != 1 and "node_two_owners_kept" not in NODE_MUT: return "concludes_nothing", None
+    o = f["owner_record"]
+    if o is None or o.get("room") != room: return "concludes_nothing", None
+    if "node" in str(o.get("identity_type")) and "node_owner_kind_unread" not in NODE_MUT: return "concludes_nothing", None
+    if not f["owner_live"] or not f["voice_seated"]: return "concludes_nothing", None
+    return "admitted", None

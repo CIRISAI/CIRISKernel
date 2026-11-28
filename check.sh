@@ -58,6 +58,7 @@ step "check_window_rows (#221 ballots)"  winrows   python3 -I models/causal_kern
 step "check_agent_seat (no count)"         agentseat python3 -I models/causal_kernel/check_agent_seat.py
 step "check_removal_in_force (an end)"     inforce   python3 -I models/causal_kernel/check_removal_in_force.py
 step "check_room_keys (a room key's end)"  roomkeys  python3 -I models/causal_kernel/check_room_keys.py
+step "room_key_vectors (a room row's door)" rkvec  python3 -I models/causal_kernel/room_key_vectors.py
 step "check_count_heads (newest heads)"    cheads    python3 -I models/causal_kernel/check_count_heads.py
 step "check_roster_merge (one roster)"   rmerge    python3 -I models/causal_kernel/check_roster_merge.py
 step "check_rosters (one roster)"         rosters   python3 -I models/causal_kernel/check_rosters.py
