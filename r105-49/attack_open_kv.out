@@ -1,0 +1,3 @@
+D's revocation holds the opening and its ballot      C moderate, closed: (True, False)
+D's revocation names its ballot (which names the opening) C moderate, closed: (True, False)
+D's revocation holds only g                          C moderate, closed: (False, False)

@@ -1,0 +1,6 @@
+recall, open, ballots, seating, C's receipt      reader None concluded {'rcg': True, 'opg': True, 'xag': False, 'eb': True}  B mod=False A mod=True  election_closed(eb)=False  orders: 0 of 12 differ
+recall, open, ballots, seating, C's receipt      reader R    concluded {'rcg': True, 'opg': True, 'xag': False, 'eb': True}  B mod=False A mod=True  election_closed(eb)=False  orders: 0 of 12 differ
+the same and B, C remove A after the recall (at rcg) reader None concluded {'rcg': True, 'opg': True, 'xag': True, 'eb': True}  B mod=False A mod=True  election_closed(eb)=False  orders: 0 of 12 differ
+the same and B, C remove A after the recall (at rcg) reader R    concluded {'rcg': True, 'opg': True, 'xag': True, 'eb': True}  B mod=False A mod=True  election_closed(eb)=False  orders: 0 of 12 differ
+the same and B, C remove A at g (concurrent: a fork) reader None concluded {'rcg': True, 'opg': True, 'xag': True, 'eb': True}  B mod=False A mod=True  election_closed(eb)=False  orders: 0 of 12 differ
+the same and B, C remove A at g (concurrent: a fork) reader R    concluded {'rcg': True, 'opg': True, 'xag': True, 'eb': True}  B mod=False A mod=True  election_closed(eb)=False  orders: 0 of 12 differ
