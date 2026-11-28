@@ -592,6 +592,19 @@ READER_CASES = [
      "(the stated head-rule cost)", [_R10, _RDDE, _RSYB], None,
      [("D", "moderate", T), ("F", "moderate", T), ("I", "moderate", T)]),
 ]
+# attack-r's M3: A and B seat D and E at g (dde); A, B and D seat F at g (dff). D's conferral fails its re-count
+# against F's growth (2 of 4), so D holds nothing, and F's seat is read over that result: its re-count with D's seat
+# void reads A and B, 2 of the 3 at g, and F holds (the re-counts read to a fixed point agree: no seat on a voice the
+# reading does not seat)
+_M3G = ST.found("g", "A", tuple("ABCDEF"), {"moderate": ("A", "B", "C")}, cosigners=tuple("BCDEF"))
+_M3DDE = ST.offer("dde", "A", ("D", "E"), "moderate", OBJ, "group", ("g",), head=("g",), cosigners=("B", "D", "E"),
+                  counted="duty", policy="duty_confer")
+_M3DFF = ST.offer("dff", "A", "F", "moderate", OBJ, "group", ("g",), head=("g",), cosigners=("B", "D", "F"),
+                  counted="duty", policy="duty_confer")
+READER_CASES += [
+    ("M3: the re-counts agree: D's seat fails against F's growth, and F's is read over that result and holds on A and B",
+     [_M3G, _M3DDE, _M3DFF], None, [("D", "moderate", F), ("E", "moderate", F), ("F", "moderate", T)]),
+]
 PLANTS += ("behind_grows",)
 
 

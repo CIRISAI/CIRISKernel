@@ -2390,10 +2390,21 @@ class Seats:
         # seat, and no change of the record: that is the record's own reading) concurrent with growth of its body the
         # reader holds is re-counted over the grown body; one that fails seats nothing, and every row built on it is void
         # with it
-        regrown = frozenset(q["id"] for q in Cs if C.counts(q) and q["id"] not in V and q["kind"] == "offer"
-                            and body_change(q, q.get("obj")) and q.get("scope") not in ("member", AGENT, "record")
-                            and not recount_on_growth(S, q, None, V)) \
-            if "lone_regrowth_unread" not in MUT else frozenset()
+        # The re-counts agree (attack-r's M3): read to a fixed point, each pass over the previous pass's result (a
+        # conferral that failed is no growth, and what rests on it is void, for the next), until no seat changes
+        # (MUTATION recount_one_pass: one pass, each read over the rows as concluded)
+        cand = [q for q in Cs if C.counts(q) and q["id"] not in V and q["kind"] == "offer"
+                and body_change(q, q.get("obj")) and q.get("scope") not in ("member", AGENT, "record")] \
+            if "lone_regrowth_unread" not in MUT else []
+        built = lambda f: frozenset(x["id"] for x in Cs if S.anc[x["id"]] & f)
+        regrown = frozenset()
+        for _ in range(len(cand) + 1):
+            Vn = V | regrown | built(regrown)
+            nxt = frozenset(q["id"] for q in cand if not recount_on_growth(S, q, None, Vn - {q["id"]}))
+            if nxt == regrown or "recount_one_pass" in MUT:
+                regrown = nxt
+                break
+            regrown = nxt
         if regrown:
             self.stale = V = V | regrown | frozenset(q["id"] for q in Cs if S.anc[q["id"]] & regrown)
         # a moderator's lone removal is an act under its `moderate` standing, in force only while the end rule says so

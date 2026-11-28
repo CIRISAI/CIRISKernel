@@ -3084,24 +3084,47 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         // the re-count on growth ([`recount_on_growth`]; r81 B2 generalised): a conferral of an authority seat (no
         // roster seat, and no change of the record) concurrent with growth of its body the reader holds is re-counted
         // over the grown body; one that fails seats nothing, and every row built on it is void with it
-        let regrown: Vec<usize> = cs
+        // the re-counts agree (attack-r's M3): read to a fixed point, each pass over the previous pass's result (a
+        // conferral that failed is no growth, and what rests on it is void, for the next), until no seat changes
+        let cand: Vec<(usize, ObjOf<R>)> = cs
             .iter()
             .copied()
-            .filter(|&i| {
+            .filter_map(|i| {
                 let q = g.row(i);
-                cut.counts(i)
+                let ok = cut.counts(i)
                     && !stale.contains(&i)
                     && q.seat_kind() == SeatKind::Offer
-                    && q.scope().is_none_or(|s| !roster_word(s.as_ref()) && s.as_ref() != "record")
-                    && q.obj()
-                        .is_some_and(|o| body_change(q, &o) && !recount_on_growth(c, law, spec, i, &o, &stale, None))
+                    && q.scope().is_none_or(|s| !roster_word(s.as_ref()) && s.as_ref() != "record");
+                q.obj().filter(|o| ok && body_change(q, o)).map(|o| (i, o))
             })
             .collect();
+        let built = |f: &BTreeSet<usize>| -> BTreeSet<usize> {
+            cs.iter().copied().filter(|&j| f.iter().any(|&x| g.ancestors(j).has(x))).collect()
+        };
+        let mut regrown: BTreeSet<usize> = BTreeSet::new();
+        for _ in 0..=cand.len() {
+            let mut vn: BTreeSet<usize> = stale.clone();
+            vn.extend(regrown.iter().copied());
+            vn.extend(built(&regrown));
+            let next: BTreeSet<usize> = cand
+                .iter()
+                .filter(|(i, o)| {
+                    let mut v = vn.clone();
+                    v.remove(i);
+                    !recount_on_growth(c, law, spec, *i, o, &v, None)
+                })
+                .map(|(i, _)| *i)
+                .collect();
+            let done = next == regrown;
+            regrown = next;
+            if done {
+                break;
+            }
+        }
         if !regrown.is_empty() {
-            let built: Vec<usize> =
-                cs.iter().copied().filter(|&j| regrown.iter().any(|&x| g.ancestors(j).has(x))).collect();
+            let b = built(&regrown);
             stale.extend(regrown);
-            stale.extend(built);
+            stale.extend(b);
         }
         // a moderator's lone removal is an act under its `moderate` standing, live only while the end rule
         // says it is in force
