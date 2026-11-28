@@ -415,7 +415,8 @@ trusting an adapter.
   member seat; its stay begins at the version that admits it in `agent` and ends at its removal or
   resignation. The audience of a room is `Seats::roster`.
 
-**A private room.** The signer of every row is the voice, not the room key that signed. `to`, cosigners,
+**A private room.** The signer of every row is the room key that signed; the voice is the person the persons map
+gives for the signing key. `to`, cosigners,
 members and voices are in one key space, and the crate does not collapse keys. Before presenting a row as its
 voice's, check that the room key is a live `key` seat of the voice at the head of the voice's roster the row
 names (`models/causal_kernel/roomkey.py`, `rule`).

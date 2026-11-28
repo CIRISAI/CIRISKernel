@@ -41,8 +41,8 @@ A row is one `COSE_Sign1` statement, or several over one payload (CC 2.6.1.1, 2.
 |---|---|---|
 | `alg` | protected label 1 | Nothing. The constant `-70100`, the composite ML-DSA-65 with Ed25519. This is the only signature suite of a row; there is no other suite member on a row. (`suite` in an `mls:leaf_vouch` payload is the MLS ciphersuite, the constant 77, and no crate view reads it.) |
 | `cty` | protected label 3 | Nothing. The constant `application/vnd.ciris.row+cbor`. |
-| `kid` | protected label 4 | The signing key: a 32-byte RFC 9679 thumbprint. Presented as the key's identity reference (`urn:ietf:params:oauth:ckt:sha-256:` + base64url of the 32 bytes). This is `Row::signer` on every view except the root lane [G1]. |
-| `iss` | CWT label 1 | The signer's stable identity: its genesis key's identity reference; under a room key, the voice (the identity reference of the voice's first room key). Not `Row::signer` [G1]: it MUST name the person the persons map gives for `kid` (`seat::Persons`, from the self roster), and a statement whose `iss` disagrees is refused at the door. The root lane's views (`RootBundle::statements`, `RootGrant::signers`) read `iss`, because a bundle names its holders by identity. |
+| `kid` | protected label 4 | The signing key: a 32-byte RFC 9679 thumbprint. Presented as the key's identity reference (`urn:ietf:params:oauth:ckt:sha-256:` + base64url of the 32 bytes). This is `Row::signer` on every view, the root lane's included [G1]. |
+| `iss` | CWT label 1 | The signer's stable identity: its genesis key's identity reference; under a room key, the voice (the identity reference of the voice's first room key). Not `Row::signer` [G1]: it MUST name the person the persons map gives for `kid` (`seat::Persons`, from the self roster), and a statement whose `iss` disagrees is refused at the door. The root lane reads `kid` too (`RootBundle::statements`, `RootGrant::signer`, `RootGrant::signers`): its fold judges the key, and the holder a key speaks for is resolved from the bundle's `holders` and its cited key records [G1]. |
 | `sub` | CWT label 2 | What the row is about: an identity reference (a key subject), a group id `group-…`, a lineage name, or other text. Read per family below. |
 | `iat` | CWT label 6 | `floor(asserted_at / 1000)`, seconds. A verifier refuses disagreement, so the crate reads the payload's `asserted_at` (ms), never `iat`, except `RootBundle::iat` and `RootBundle::statements`. |
 | `nbf`, `exp` | CWT labels 5, 4 | Derived from `valid_from`, `valid_until`. Not read. |
@@ -450,15 +450,15 @@ and the `ReceipterEnd` kind, not a row accessor.
 | `names` | the bundles a settler names beside those it extends: **NO WIRE FAMILY** [N8] | |
 | `recovery` | `charter.recovery_commitments`: holder to the commitment `[-16, SHA-256(["CEG-recovery/2", [key]])]`, not the key [G30] | |
 | `settles` | **NO WIRE FAMILY** [N9] | |
-| `recovers` | a recovery bundle (one statement, `iss` the holder, `kid` the recovery key): (`iss`, the key of the holder's new signing-key record under `refs.also.cites`) [G31] | |
+| `recovers` | a recovery bundle (one statement, `iss` the holder, `kid` the recovery key): (the holder, by its identity reference `iss`; the key of the holder's new signing-key record under `refs.also.cites`) [G31] | |
 | `iat` | `floor(asserted_at / 1000)` | seconds |
-| `statements` | each verified statement: (`iss`, its CWT `iat`) | |
+| `statements` | each verified statement: (`kid` as an identity reference, its CWT `iat`). The holder it speaks for is resolved from `holders` and the key records under `refs.also.cites`: a holder's current key in the bundle in force, its first key being its identity's genesis key, a later one named by a recovery (`recovers`). A voice under a key a recovery retired is no voice; a holder is one voice across its keys [G1] | |
 
 ### 7.11 `root::RootGrant`
 
 | Accessor | Wire source | Notes |
 |---|---|---|
-| `id`, `names`, `signer` | row id (statement id for a `cosigns` row), `refs` plus `attached_head_digest`, `iss` (the root lane counts holders by identity) | |
+| `id`, `names`, `signer` | row id (statement id for a `cosigns` row), `refs` plus `attached_head_digest`, `kid` [G1] | |
 | `is_grant` | family `trust:.job:.version`, dimension `trust:confers:v1`, row type `delegates_to` | |
 | `attached_head` | `trust:accepts` `attached_head_digest` | object id |
 | `cosigns` | the grant's row id, on a later statement over its payload | |
@@ -466,7 +466,7 @@ and the `ReceipterEnd` kind, not a row accessor.
 | `bundles` | `refs.head` and `refs.further_heads` | object ids |
 | `to` | `sub` | identity reference |
 | `scope` | the room the grant seats in: payload `community_id` [G32] | founding row id |
-| `signers` | the `iss` of every verified statement | |
+| `signers` | the `kid` of every verified statement, each resolved to its holder as for `RootBundle::statements` [G1] | |
 | `duty` | a token of payload `scope[]`; several tokens are one crate grant per token [G18] | |
 
 ### 7.12 `head::Entry`
@@ -529,7 +529,7 @@ row, not a reading of the text: they are settled here, and a store and a minter 
 
 | # | Field | The reading taken | Status |
 |---|---|---|---|
-| G1 | `Row::signer` | `kid`, the key that signed, as an identity reference; `cosigners()` likewise. The person is derived by the persons map (`seat::Persons`, from the self roster: a device key to its genesis key, a room key to its voice). `iss` MUST name the person the persons map gives; a mismatch is a door refusal. Required by the key view (`seat::voices_with` calls `key_end::counts_by(row, signer)`, keyed by `kid`) and by key-person's persons map, which reads the signer as the device key. The root lane is the exception: `RootGrant::signers` and `RootBundle::statements` read `iss`, since a bundle names its holders by identity. ADOPTING.md's private-room sentence ("the signer of every row is the voice, not the room key that signed") is then read through the persons map, which gives the voice. | provisionally confirmed by the Constitution: the signer the rules read is `kid`, and `iss` gives the identity; final with its other rulings |
+| G1 | `Row::signer` | `kid`, the key that signed, as an identity reference; `cosigners()` likewise. The person is derived by the persons map (`seat::Persons`, from the self roster: a device key to its genesis key, a room key to its voice). `iss` MUST name the person the persons map gives; a mismatch is a door refusal. Required by the key view (`seat::voices_with` calls `key_end::counts_by(row, signer)`, keyed by `kid`) and by key-person's persons map, which reads the signer as the device key. The root lane reads `kid` too (`RootGrant::signer`, `RootGrant::signers`, `RootBundle::statements`): the root fold judges the key (a voice under a key a recovery retired is no voice, a holder is one voice across its keys, retired and spent keys are tracked by key), and the holder is resolved from the bundle's `holders` and cited key records, a holder's current key in the bundle in force. One signer everywhere. ADOPTING.md's private-room sentence reads: the voice is the person the persons map gives for the signing key. | provisionally confirmed by the Constitution: the signer the rules read is `kid`, and `iss` gives the identity; final with its other rulings |
 | G2 | `Row::signer` of a counted row | the `kid` of the verified statement with the least statement id; the other voices' `kid`s are `cosigners()`. Rules that set one signer apart (a window table over `others`, `author_apart`) read whichever voice is chosen. | kernel's choice: the crate reads a counted row's voices as one set (signer with cosigners); one must be named signer, and the least statement id is fixed by the bytes, not by arrival. Consistent with G1: each voice is its signing key. |
 | G3 | `AudienceRow::scope` `addressed` | a row with no `cohort_scope` that names keys for delivery | open: a question for the text |
 | G4 | a group id | resolved to the row id of the group's first `group:roster` version; `Obj::from_reference` does not type a `group-…` reference | kernel's choice: the crate's object for a group is its founding row (`seat::Obj`); the group id is derived from that version, so the resolution is one-to-one. |
