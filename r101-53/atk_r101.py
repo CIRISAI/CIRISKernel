@@ -2,11 +2,13 @@
 import sys, random
 sys.path.insert(0, sys.argv[1]); sys.dont_write_bytecode = True
 import check_key_person as KP
+sys.path.insert(0, '/tmp/claude-1000/-home-emoore-CIRISKernel/9f476e19-79a3-4f60-8019-6f13a6523575/scratchpad/r101-53'); import rdr as RD
 ST, CK, WN = KP.ST, KP.CK, KP.WN
 RULE, RULE_W = KP.RULE, KP.RULE_W
 found, add, evict, admit_z = KP.found, KP.add, KP.evict, KP.admit_z
 
 def per(rows, f, rd, rule=RULE, n=20):
+    rows = RD.with_reader(ST, rows, rd)
     g = lambda S: f(ST.reader_state(S, rd, rule if rule is not RULE else None))
     got = g(CK.concluded(CK.kept(list(rows)), rule))
     rnd, bad = random.Random(31), 0

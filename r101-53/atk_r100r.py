@@ -2,13 +2,16 @@
 import sys, random
 sys.path.insert(0, sys.argv[1]); sys.dont_write_bytecode = True
 import check_key_person as KP
+sys.path.insert(0, '/tmp/claude-1000/-home-emoore-CIRISKernel/9f476e19-79a3-4f60-8019-6f13a6523575/scratchpad/r101-53'); import rdr as RD
 ST, CK, WN = KP.ST, KP.CK, KP.WN
 RULE = KP.RULE
 found, add, evict, admit_z = KP.found, KP.add, KP.evict, KP.admit_z
 READERS = ("p4", None, "x")
 def show(name, rows, f, readers=READERS):
     out = []
+    base = rows
     for rd in readers:
+        rows = RD.with_reader(ST, base, rd)
         g = lambda S: f(ST.reader_state(S, rd))
         got = g(CK.concluded(CK.kept(list(rows)), RULE))
         rnd, bad = random.Random(29), 0
