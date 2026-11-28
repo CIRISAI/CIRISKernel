@@ -622,7 +622,8 @@ LANDED_CASES = [
      lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
     # R3, the text (CC 3.3.6.4, a stated cost: "One objection of two others does not stop a lone addition... only a
     # strict majority of the others refuses it. That is weaker than the eviction"): a live thief genesis key lone-adds
-    # its own key k9 to the honest roster S1
+    # its own key k9 to the honest roster S1. The residual, stated (the Constitution, for 0.5.0; to the steward after
+    # the tag): "a holder of one key of three that adds a key while one other is silent holds half the roster, and no count or lone path removes it"
     ("R3 (CC 3.3.6.4, a stated cost): the live thief p1 lone-adds k9 to S1, no objection: k9 is a key of p1",
      GW + R3ADD(()), lambda S: sorted(ST.person_keys(S, "p1")), ["k9", "p1", "p1b", "p1c"]),
     ("R3: one objection of the two others does not stop it", GW + R3ADD(("p1b",)),
