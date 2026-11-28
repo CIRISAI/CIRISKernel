@@ -385,6 +385,22 @@ pub trait KeyView<I, K> {
     }
 }
 
+/// The key view of an adopter with NO key lane ([`none`]): every voice counts and no key is revoked. Passing it gives
+/// up key-lane revocations, so a key's own revocation in its key lane ends nothing it reads (ADOPTING); a store with
+/// key records passes its [`KeyReading`].
+pub struct NoKeyLane;
+
+impl<I, K> KeyView<I, K> for NoKeyLane {
+    fn counts(&self, _row: &I, _key: &K) -> bool {
+        true
+    }
+}
+
+/// The named key view for a caller with no key lane, `KeyView::none()` in the ADOPTING sense: [`NoKeyLane`].
+pub fn none<'a, I, K>() -> &'a dyn KeyView<I, K> {
+    &NoKeyLane
+}
+
 /// The kernel's [`KeyView`]: [`counts_by`] over one [`Concluded`] of the seat and key lanes in one causal order,
 /// concluded by [`conclude_rule`], which the caller builds from its store.
 pub struct KeyReading<'c, 'a, R: KeyEndRow> {

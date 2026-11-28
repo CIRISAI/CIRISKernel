@@ -426,6 +426,13 @@ allow-list, and `cargo deny check` passes under it.
 
 ## Presenting rows: what the functions assume
 
+**The person map takes the key view, REQUIRED** (r108). `seat::Persons::over(rows, law, spec, obj, kv)` reads a key's
+own revocation in either lane: the seat lane's registered self-unseat from the rows, and the key lane's through `kv`
+(`KeyView::revoked`, `key_end::revoked_in` for a `key_end::KeyReading`). Pass the store's `KeyReading`. An adopter
+with no key lane passes `key_end::none()` (`key_end::NoKeyLane`), and so GIVES UP key-lane revocations: a key's own
+revocation in a key lane ends nothing the person map reads. The seat counts pass their cut's key view
+(`CutSpec::key_view`), `key_end::none()` where the cut carries none.
+
 The crate takes rows through traits and judges what it is given. It cannot tell a mis-presented row from a
 real one, so an adapter that presents rows the wrong way gets a wrong answer and no error. Each rule below was
 found by running a caller's first encoding against the crate on 2026-11-23. Reproduce the cases named before

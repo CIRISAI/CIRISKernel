@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**The person map's key view is required** (review-48's r108). **BREAKING**: `seat::Persons::over` takes the key
+view as a fifth argument, so a caller can no longer build a person map that silently misses a key-lane revocation
+(r106 PG1). `key_end::none()` (`key_end::NoKeyLane`) is the named view for an adopter with no key lane, and gives up
+key-lane revocations; the seat counts pass their cut's key view, `none()` where the cut carries none.
+
 **Parity of `spec_from_policy` (review-53).** `window::Why` is ordered by its word and the cell it names
 (`Why::word`, `Why::other`), so the crate's refusals are in `window.py`'s order, and `tests/policy_spec.rs` compares
 them as returned. Both languages refuse a fraction with a number missing or a zero denominator, and a floor of

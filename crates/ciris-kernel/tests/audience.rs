@@ -469,7 +469,7 @@ fn persons_from_the_seat_model() {
     let rows = rows_with_refs(w.at("rows").arr(), &refs);
     let c = conclude(kept(&rows, |_| true), |p| seat_rule(p, &law, &DictCut, &|_| true), None);
     let held: Vec<&TRow> = c.cs().iter().map(|&i| c.g.row(i)).collect();
-    let pp = Persons::over(&held, &law, &DictCut, None);
+    let pp = Persons::over(&held, &law, &DictCut, None, ciris_kernel::key_end::none());
     let vo = |k: &String| pp.voice(k);
     let pk = |p: &String| person_keys(&c, &law, &DictCut, p);
     let (mut n, mut bad) = (0, 0);
