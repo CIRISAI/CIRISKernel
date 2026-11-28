@@ -1,0 +1,14 @@
+grace-sched: 193920-ae452c queued: CIRISKernel:review, peak 0.5 GB (learned (109 runs, below the declared 1)), cap 2.5 GB, low, small (half the floor)
+grace-sched: 193920-ae452c waits: memory: needs 2.5 GB for its cap and 0.5 GB plus the 6 GB floor for its expected peak, 1.5 GB projected free once running jobs reach their peaks
+grace-sched: 193920-ae452c running (cap 2.5 GB): python3 -I probe_rule1.py ../r90-49/src
+honest: lm2 only; D's seating receipted by E, F, G
+   election at vacancy ['lm2']      seating ed (winner D): electorate ABCDEFG, base ABCEFG, receipts EFG: open
+honest + B's receipt (4 of 6 needed)
+   election at vacancy ['lm2']      seating ed (winner D): electorate ABCDEFG, base ABCEFG, receipts BEFG: CLOSED
+A backdates lm1; B and C re-ballot; B's seating states lm1: no receipt yet
+   election at vacancy ['lm1']      seating eb (winner B): electorate ABC, base AC, receipts : open
+   election at vacancy ['lm2']      seating ed (winner D): electorate ABCDEFG, base ABCEFG, receipts EFG: open
+the same, A and C receipt B's seating
+   election at vacancy ['lm1']      seating eb (winner B): electorate ABC, base AC, receipts AC: CLOSED
+   election at vacancy ['lm2']      seating ed (winner D): electorate ABCDEFG, base ABCEFG, receipts EFG: open
+grace-sched: 193920-ae452c done: rc 0, 0 s, need 0.02 GB (memory.peak 0.02, estimate 0.5)

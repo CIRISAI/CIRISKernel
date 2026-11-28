@@ -1,0 +1,8 @@
+concluded: {'rcg': True, 'xag': True, 'ey': True, 'ed': True}
+today's rules, reader no acknowledgement: {'B': False, 'D': True}
+today's rules, reader acknowledged aG: {'B': False, 'D': True}
+the proposed close over the same rows
+   election at vacancy ['lm2']      seating ed (winner D): electorate ABCDEFG, base BCEFG, receipts EFG: CLOSED
+   election at vacancy ['rcg', 'xag'] seating ey (winner B): electorate BC, base C, receipts C: CLOSED
+A's seats today, reader no acknowledgement: [True, False]
+A's seats today, reader acknowledged aG: [True, False]

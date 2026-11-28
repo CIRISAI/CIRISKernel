@@ -1,0 +1,6 @@
+honest, E F G receipt D's                  reader None member A=True E=True; D moderate=True; closed(ed)=False
+honest, E F G receipt D's                  reader R    member A=True E=True; D moderate=True; closed(ed)=False
++ B and C remove A at g                    reader None member A=True E=True; D moderate=True; closed(ed)=True
++ B and C remove A at g                    reader R    member A=True E=True; D moderate=True; closed(ed)=True
++ B and C remove E at aE (2 of 5 there)    reader None member A=True E=True; D moderate=True; closed(ed)=False
++ B and C remove E at aE (2 of 5 there)    reader R    member A=True E=True; D moderate=True; closed(ed)=False
