@@ -965,7 +965,7 @@ plant "a concurrent lone seat is not re-counted"       src/trust_rows.rs '|| (qr
 plant "a holder's own lone conferrals regrow each other" src/trust_rows.rs '&& !one_batch(c, law, q, x, o))' ')'
 plant "an end cuts whatever its key still holds"       src/trust_rows.rs '*ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, k, ob, cls))' '*ob == o && who.contains(k)'
 plant "a second end cancels the first's cut"           src/trust_rows.rs 'let without: Vec<usize> = judged.iter().copied().filter(|&x| !mine.contains(&x) && !after(x)).collect();' 'let without: Vec<usize> = judged.iter().copied().filter(|&x| mine.first() != Some(&x) && !after(x)).collect();'
-plant "a re-seat masks the cut"                        src/trust_rows.rs 'let after = |x: usize| mine.iter().any(|&m| c.g.ancestors(x).has(m));' 'let after = |_x: usize| false;'
+# retired at the one-target merge: "a re-seat masks the cut" (the seat model discounts a voice its concurrent end removes itself; check_trust_rows states it)
 plant "an end cuts a whole counted row"                src/trust_rows.rs 'if !is_counted_row(c.g.row(*q)) || !recount_without(seats, *q, gone) {' 'if true {'
 plant "a full end cuts only its named scope"           src/trust_rows.rs '            for (k, ob, _) in &ks {
                 if *ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, k, ob, cls)) {' '            for (k, ob, sc) in &ks {
@@ -1032,7 +1032,7 @@ plant "a tie takes the first pattern"                 src/audience.rs 'Some((b, 
 plant "the first matching family pattern decides"       src/audience.rs 'Some((b, _)) if k < b => {}' 'Some(_) => {}'
 plant "a duty seat seats an outsider"                 src/audience.rs 'let duty = DUTY_SEAT_FAMILIES.contains(&fam);' 'let duty = false && DUTY_SEAT_FAMILIES.contains(&fam);'
 plant "a one-officer body's own licence needs no countersign" src/trust_rows.rs 'None if own_licence(seats, i, &ended_for_reader(seats, i, false, own)) && !countersigned(seats, i) => {' 'None if false => {'
-plant "an out-of-force removal still ends"            src/trust_rows.rs 'if e.seat_kind() == SeatKind::Unseat && seats.dropped().contains(e.id()) {' 'if false {'
+# retired at the one-target merge: "an out-of-force removal still ends" (the loss is read through Seats' holders, which drop a contested end; the skip is kept as a shortcut; check_trust_rows states it)
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"

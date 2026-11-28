@@ -49,9 +49,17 @@ Planted breaks, each of which must change a case's answer:
     lone_batch_unread        (a), (b) a holder's own concurrent lone duty conferrals are re-counted against each other
     end_scope_keyed          (d) an end cuts by the scope its target names, not by every standing its key loses
     one_end_at_a_time        (d) a key's loss is read with only the one end removed: a second end cancels the cut
-    reseat_masks             (d) a re-seat after the end masks the cut of a vote concurrent with the end
-    first_lost_only          (d) one end removing several voices of a counted row discounts only the first
-    ends_in_force_unread     (d) an end the seat model holds out of force (rule 5's contest) still ends a seat
+    (retired at the one-target merge, each with no case the model can build that tells it apart:
+    reseat_masks, a re-seat after the end masking the cut of a vote concurrent with the end: the seat model reads the
+    concurrent end of a voice itself, so the vote is discounted there whatever the lane's cut reads (traced on the r81
+    re-seat cases, with the re-seat brought into the judged rows: the lane's loss reads False and the licence is still
+    cut);
+    first_lost_only, one end removing several voices discounting only the first: no end ends two voices (a counted end
+    has one target, as ruled; a withdrawal or lay-down ends its signer's own seat; a conferrer's withdrawal of an
+    accepted conferral ends no seat), so every lost voice is still discounted, by its own end;
+    ends_in_force_unread, an end the seat model holds out of force still ending a seat: the loss is read through the
+    seat model's holders, which already drop a contested end, and a lone removal is of an agent's seat, which the seat
+    model's ends name as no seat; the lane's own skip is kept as a shortcut)
     own_licence_uncountersigned  (b) a one-officer body's own licence stands without the countersign
     end_cuts_counted_row     (d) an end cuts a whole counted row its key signed, not only its voice
     (retired: built_on_cut_kept, a row built on a cut row kept. The seat model voids what rests on a cut row itself:
@@ -625,9 +633,8 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "edge_term_unread", "amendment_as_cut",
           "instant_over_reader", "scope_unread", "termless_edge_walked",
           "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
-          "one_end_at_a_time", "reseat_masks",
-          "end_cuts_counted_row", "own_licence_uncountersigned",
-          "ends_in_force_unread", "first_lost_only")
+          "one_end_at_a_time",
+          "end_cuts_counted_row", "own_licence_uncountersigned")
 
 
 @contextlib.contextmanager
