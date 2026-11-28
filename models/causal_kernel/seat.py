@@ -270,6 +270,10 @@ def act_of(r, by, is_key=False):
     election_open (the members' opening of an election) has a row in the acts table and no arm here: its row's shape is
     the election-close lane's.
     A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's."""
+    # the halt's confirmation (the ruling of 2026-11-28): a cosigned accord:lifecycle:confirmed row naming a halt of the
+    # accord it is over is halt_confirm, counted by accord_halt (MUTATION confirmation_no_act)
+    if r["kind"] == CONFIRMED and "confirmation_no_act" not in MUT:
+        return ("halt_confirm", "halt", "accord") if confirmed_halt(r, by) is not None and kind_of(by, r.get("obj")) == "accord" else None
     if r["kind"] not in ("offer", "unseat") or r.get("conf") != "group": return None
     obj, sc, offer = r.get("obj"), r.get("scope"), r["kind"] == "offer"
     kind = kind_of(by, obj, is_key)
@@ -534,8 +538,7 @@ def affiliation_count(r, P, past):
 
 def against_member(u, by):
     """u is one of the four acts against a member of an affiliation (CC 4.4.3.12): a removal, a quarantine, a slashing
-    verdict, a takedown of the member's content (the three held in code until the table has their affiliation rows:
-    PENDING_AFFILIATION_ACTS)."""
+    verdict, a takedown of the member's content (the table's affiliation rows, policy pin 8ec76cce)."""
     return affiliation_removal(u, by) or (family(u) in LONE_ACTS and kind_of(by, u.get("obj")) == "affiliation")
 
 
@@ -2627,11 +2630,35 @@ def family_param(r):
     """A row's family parameter: its kind after the family (`slashing:proven_rogue` -> `proven_rogue`), or None."""
     parts = r["kind"].split(":", 1)
     return parts[1] if len(parts) == 2 and parts[1] else None
-# the affiliation rows the table will carry (quarantine, slash and takedown of scope member over affiliation ->
-# affiliation_member_action), held in code until rc23-next has them
-PENDING_AFFILIATION_ACTS = (("quarantine", "member", "affiliation", ("affiliation_member_action",), "fixed"),
-                            ("slash", "member", "affiliation", ("affiliation_member_action",), "fixed"),
-                            ("takedown", "member", "affiliation", ("affiliation_member_action",), "fixed"))
+# the halt and its confirmation (CC 4.2.1.1, the Constitution's ruling of 2026-11-28): the halt is one holder's
+# `accord:invoke:constitutional:{halt_id}` row, which fires and is no voice; a strict majority of the standing holders
+# confirms it by one cosigned `accord:lifecycle:confirmed` row naming (`cites`) the halt
+HALT, CONFIRMED = "accord:invoke:constitutional", "accord:lifecycle:confirmed"
+
+
+def is_halt(q):
+    return q["kind"].startswith(HALT + ":")
+
+
+def confirmed_halt(r, by):
+    """The halt a confirmation names, over the confirmation's own object, or None."""
+    if r["kind"] != CONFIRMED: return None
+    h = cited(r, by, is_halt)
+    return h if h is not None and h.get("obj") == r.get("obj") else None
+
+
+def confirmation_rule(r, P, past):
+    """An `accord:lifecycle:confirmed` row concludes where it names a halt of the accord it is over, at the newest
+    counted changes in its past, and its signers (signer and cosigners) are a strict majority of the standing holders
+    there (accord_halt's cancel cell; the halting holder may sign it as anyone; MUTATION confirmation_one_voice: one
+    holder confirms)."""
+    by = {q["id"]: q for q in P}
+    obj, heads = r.get("obj"), r.get("head", ())
+    if confirmed_halt(r, by) is None or kind_of(by, obj) != "accord": return False
+    if not heads or newer_head_in_past(heads, None, P, past, obj, signers(r)): return False
+    holders = members_at(P, past, obj, heads, "holder")
+    v = signers(r) & holders
+    return bool(v) if "confirmation_one_voice" in MUT else 2 * len(v) > len(holders)
 
 
 def act_targets(r, by):
@@ -3818,4 +3845,6 @@ def seat_rule(r, P, past, table=None, other=None):
         return lone_act_rule(r, P, past)
     if family(r) == "reconsideration":
         return reconsideration_rule(r, P, past)
+    if k == CONFIRMED:
+        return confirmation_rule(r, P, past)
     return other(r, P, past) if other else True

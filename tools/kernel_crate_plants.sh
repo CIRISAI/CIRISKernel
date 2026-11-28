@@ -53,6 +53,8 @@ plant "two cuts saying the same thing contest"         src/cut.rs 'if as_cut && 
 plant "a counted offer's proposer ends it alone"      src/seat.rs '&& o.conf() != Some(Conf::Group) && !eq(o)' '&& !eq(o)'
 plant "acts: a purge read as a standing act" src/seat.rs 'CommunityKind::Accord if sc == Some("selection") =>' 'CommunityKind::Accord if false =>'
 plant "acts: a voice's room keys no act" src/seat.rs '        CommunityKind::SelfRoster | CommunityKind::Voice => {' '        CommunityKind::SelfRoster => {'
+plant "acts: a confirmation by one voice" src/seat.rs '    2 * v > holders.len()' '    v > 0'
+plant "acts: a confirmation naming no halt" src/seat.rs '    cited(r, get, &|q: &R| q.seat_kind() == SeatKind::Halt).filter(|h| h.obj().is_some() && h.obj() == r.obj())' '    cited(r, get, &|_: &R| true)'
 plant "one say switched off"                           src/head.rs '.filter(|k| !(self.say && rcpts' '.filter(|k| !(false && rcpts'
 plant "a cut at an older head is not read"              src/head.rs 'self.counts_own(a) && !self.cuts(a).iter().any(|c| self.voids_from(c, a))' 'self.counts_own(a)'
 plant "one say unread on a cut at an older head"       src/head.rs 'let rc = if self.say { self.say_receipts(a) } else { BTreeMap::new() };' 'let rc: BTreeMap<K, Vec<I>> = BTreeMap::new();'

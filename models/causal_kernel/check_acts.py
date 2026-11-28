@@ -117,6 +117,10 @@ GM = ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", 
 FH = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",)}, cosigners=("B", "C"), duties=("verify",))
 GV = ST.offer("g", "k1", ("k1", "k2"), "key", "@", "self", cosigners=("k2",))          # a voice's room keys (kind voice)
 GA_ = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))   # the accord
+# the halt and its confirmation (the ruling of 2026-11-28): h1's halt, and a cosigned accord:lifecycle:confirmed row
+HALT_ = ST.R("h", ST.HALT + ":x1", "h1", ("g",), obj="g", head=("g",))
+CONF_ = lambda cos=(), cites=("h",), signer="h1": ST.R("c", ST.CONFIRMED, signer, ("g", "h"), obj="g", head=("g",),
+                                                      cosigners=tuple(cos), cites=tuple(cites))
 GA = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))       # an accord
 GS = ST.offer("g", "d1", ("d1", "d2", "d3"), "self", "@", "self", cosigners=("d2", "d3"))         # a self roster
 GC = ST.offer("g", "A", ("A", "B", "C"), "club", "@", "self", cosigners=("B", "C"))         # a room founded in `club`
@@ -235,6 +239,9 @@ CASES = [
     ("a dissolution of an affiliation is the act dissolve", [GAF, grp("d", "offer", (), "record", None, cosigners=("B",),
                                                                     dissolved_at=100)], "d",
      ("dissolve", "record", "affiliation")),
+    ("a cosigned accord:lifecycle:confirmed row naming the halt is halt_confirm (the ruling of 2026-11-28)",
+     [GA_, HALT_, CONF_(("h2",))], "c", ("halt_confirm", "halt", "accord")),
+    ("a confirmation naming no halt is no act", [GA_, HALT_, CONF_(("h2",), cites=())], "c", None),
     # policy pin 8ec76cce: a voice's room keys (a founding scope `key`, kind voice), and the accord's steward purge
     ("a voice's room key admitted is admit / key / voice (CC 3.1.3.2: the self roster's door)",
      [GV, grp("r", "offer", "k3", "key", None, cosigners=("k2", "k3"))], "r", ("admit", "key", "voice")),
@@ -379,6 +386,14 @@ CONTESTED = (True, True)          # the contested pair: neither removal in force
 CONCLUDE = [
     ("an admission stating accord_halt (one voice) is no admission's policy: with the table it concludes nothing",
      [GM4, grp("r", "offer", "E", "member", "accord_halt", cosigners=("E",))], "r", False, True),
+    # the halt's confirmation (the ruling of 2026-11-28): a strict majority of the standing holders, by one cosigned
+    # accord:lifecycle:confirmed row naming the halt; the halting holder signs it as anyone
+    ("a confirmation signed by the halting holder alone: one of three does not confirm",
+     [GA_, HALT_, CONF_()], "c", False, False),
+    ("a confirmation by the halting holder and another: two of three confirm", [GA_, HALT_, CONF_(("h2",))], "c", True, True),
+    ("a confirmation by two holders other than the halting one confirms", [GA_, HALT_, CONF_(("h3",), signer="h2")], "c",
+     True, True),
+    ("a confirmation naming no halt concludes nothing", [GA_, HALT_, CONF_(("h2",), cites=())], "c", False, False),
     ("a removal stating cosigned_act: the removal's policy is fixed (community_remove), so nothing with the table; "
      "without it the room's protocol counts it (three of four)",
      [GM4, grp("r", "unseat", "D", "member", "cosigned_act", cosigners=("B", "C"))], "r", False, True),
@@ -993,7 +1008,7 @@ def founder_answers(plant=None):
             out.append([ST.is_founder(S, k, OBJ, at) for k, at, _ in asks])
         return out
 
-PLANTS = ("lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread",
+PLANTS = ("confirmation_one_voice", "confirmation_no_act", "purge_unread", "lift_unread", "election_unread", "recall_by_policy", "kind_unread", "key_kind_unread", "detect_unread",
           "binding_off", "stated_policy_free", "protocol_unread", "gate_reads_stated",
           "subkind_unread", "amendment_unread", "record_unread", "regime_unread",
           "regime_stated", "protocol_set_open", "row_need", "protocol_body_free", "disagreeing_first", "any_amendment",

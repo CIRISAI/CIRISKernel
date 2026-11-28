@@ -156,6 +156,12 @@ pub enum SeatKind {
     /// A `reconsideration:{grounds}` row naming ([`SeatRow::of`]) a takedown notice, with its
     /// [`SeatRow::outcome`] (`reversed` takes the takedown down). A lone act of a `review` holder (CC 4.5.5).
     Reconsideration,
+    /// The accord's halt (`accord:invoke:constitutional:{halt_id}`, CC 4.2.1.1): one holder's act, which fires and is
+    /// no voice (the ruling of 2026-11-28).
+    Halt,
+    /// The halt's confirmation (`accord:lifecycle:confirmed`): one cosigned row naming ([`SeatRow::cites`]) the halt,
+    /// a strict majority of the standing holders; the halting holder signs it as anyone ([`Act::HaltConfirm`]).
+    HaltConfirmed,
     /// Anything else.
     Other,
 }
@@ -859,6 +865,17 @@ pub fn act_of<'r, R: SeatRow + 'r>(
     get: &dyn Fn(&R::Id) -> Option<&'r R>,
     r: &R,
 ) -> Option<(Act, ScopeClass, CommunityKind)> {
+    // the halt's confirmation (the ruling of 2026-11-28): a cosigned accord:lifecycle:confirmed row naming a halt of
+    // the accord it is over is halt_confirm
+    if r.seat_kind() == SeatKind::HaltConfirmed {
+        let obj = r.obj()?;
+        let kind = kind_of(law, get, &obj)?;
+        return (kind == CommunityKind::Accord && confirmed_halt(r, get).is_some()).then_some((
+            Act::HaltConfirm,
+            ScopeClass::Halt,
+            kind,
+        ));
+    }
     let offer = match r.seat_kind() {
         SeatKind::Offer => true,
         SeatKind::Unseat => false,
@@ -1516,6 +1533,33 @@ fn lone_act_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, 
     community(&by, &obj)
         && signers(r).len() == 1
         && members_at_with(p, law, spec, &obj, heads, duty, None).contains(r.signer())
+}
+
+/// The halt a confirmation names (its [`SeatRow::cites`]), over the confirmation's own object.
+fn confirmed_halt<'r, R: SeatRow + 'r>(r: &R, get: &dyn Fn(&R::Id) -> Option<&'r R>) -> Option<&'r R> {
+    if r.seat_kind() != SeatKind::HaltConfirmed {
+        return None;
+    }
+    cited(r, get, &|q: &R| q.seat_kind() == SeatKind::Halt).filter(|h| h.obj().is_some() && h.obj() == r.obj())
+}
+
+/// Whether an `accord:lifecycle:confirmed` row (`p.row()`) concludes: it names a halt of the accord it is over, at the
+/// newest counted changes in its past, and its signers are a strict majority of the standing holders there (the
+/// ruling of 2026-11-28; accord_halt's cancel cell).
+fn confirmation_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> bool {
+    let r = p.row();
+    let get = |i: &R::Id| p.get(i);
+    let Some(obj) = r.obj() else { return false };
+    if confirmed_halt(r, &get).is_none() || kind_of(law, &get, &obj) != Some(CommunityKind::Accord) {
+        return false;
+    }
+    let heads = r.head();
+    if heads.is_empty() || newer_head_in_past(p, law, &obj, heads, &signers(r)) {
+        return false;
+    }
+    let holders = members_at_with(p, law, spec, &obj, heads, "holder", None);
+    let v = signers(r).into_iter().filter(|k| holders.contains(k)).count();
+    2 * v > holders.len()
 }
 
 /// Whether a `reconsideration` row (`p.row()`) concludes: one `review` holder's signature at the newest counted
@@ -5841,6 +5885,7 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
         SeatKind::Countersign => countersign_ok(p, law, spec),
         SeatKind::Quarantine | SeatKind::Slashing | SeatKind::TakedownNotice => lone_act_rule(p, law, spec),
         SeatKind::Reconsideration => reconsideration_rule(p, law, spec),
+        SeatKind::HaltConfirmed => confirmation_rule(p, law, spec),
         _ => other(p),
     }
 }

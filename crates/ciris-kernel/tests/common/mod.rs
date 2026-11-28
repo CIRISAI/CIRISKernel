@@ -508,6 +508,8 @@ impl SeatRow for TRow {
             k if k.split(':').next() == Some("slashing") => SeatKind::Slashing,
             k if k.split(':').next() == Some("takedown_notice") => SeatKind::TakedownNotice,
             k if k.split(':').next() == Some("reconsideration") => SeatKind::Reconsideration,
+            k if k.starts_with("accord:invoke:constitutional:") => SeatKind::Halt,
+            "accord:lifecycle:confirmed" => SeatKind::HaltConfirmed,
             "ack" => SeatKind::Ack,
             // an objection in a window is presented as a voice for the row it answers (seat::lift_voices)
             "answer" if self.says.as_deref() == Some("object") => SeatKind::Cosign,
