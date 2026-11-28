@@ -226,7 +226,7 @@ and the shape of `refs`. One wire row can be read by several views; each view's 
 | any row the reader signs over a room, naming `refs.head` | `Ack` with `room()` (the reader's acknowledgement) **D** [G11] | | `Ack` | `ReaderAck` |
 | `ballot:moderator:v1` | `Ballot` | `Answer` where a ranked window reads it | `Other` | `Answer` |
 | `ballot:moderator_acceptance:v1` (the winner's seating) | `Offer`, scope `moderate`, `Conf::Group`, policy `moderator_election` **D** | | `Head` | `Act` |
-| an election decline (the winner's own signed row) | `Decline`, `of()` the offer it answers under `refs.answers` (PROVISIONAL [N1]; its family is not yet registered) | | | |
+| an election decline: `membership:decline:v1` answering an election seating | `Decline`, `of()` the seating it answers under `refs.answers`; no head, no target (TEXT [N1]) | | | |
 | `ballot:moderation_action` | `Other` | `Answer` (`says` `for` or `against`) | | `Answer` |
 | `objection:{state}` (`assent`, `raised`) | `Other` | `Answer`, `says` the state leaf | | `Answer` |
 | `window:held:v1` | `Other` | `Receipt` | | `Other` |
@@ -316,7 +316,7 @@ and the shape of `refs`. One wire row can be read by several views; each view's 
 | `counted` | **T** | |
 | `over` | **T** | |
 | `need` | **T** for a count; on a record declaring `weighted:{rubric}`, the record's payload member `need` beside `consensus_protocol` (RULED [G20]) | a whole number |
-| `of` | `Accept` replying to a grant: `refs.answers`. `Ack`: one element of `refs.also.ack`. `Ballot`: its election's row, by `row-ref` (RULED [G12]). `Decline`: the offer it answers, `refs.answers` (PROVISIONAL [N1]). `Quarantine` release: the withhold it lifts, `refs.also.cites` (RULED [G21]). `TakedownNotice`: the establishing attestation whose content `content_sha256` binds, the copy at the scope the notice's duty is over (TEXT [G22]). `Reconsideration`: the notice it contests, `refs.also.cites`, its ruling in `outcome` (RULED [G23]). `Countersign`: the act's row id (the bridge, [G15]) | row ids |
+| `of` | `Accept` replying to a grant: `refs.answers`. `Ack`: one element of `refs.also.ack`. `Ballot`: its election's row, by `row-ref` (RULED [G12]). `Decline`: the offer it answers, `refs.answers` (TEXT [N1]). `Quarantine` release: the withhold it lifts, `refs.also.cites` (RULED [G21]). `TakedownNotice`: the establishing attestation whose content `content_sha256` binds, the copy at the scope the notice's duty is over (TEXT [G22]). `Reconsideration`: the notice it contests, `refs.also.cites`, its ruling in `outcome` (RULED [G23]). `Countersign`: the act's row id (the bridge, [G15]) | row ids |
 | `target` | `withdraws` `refs.target` | row id |
 | `content` | a lift's citation of the act it lifts (the removal): `refs.also.cites` (TEXT [G24]) | row id |
 | `duties` | `group:roster` `policy.duties` | |
@@ -435,7 +435,7 @@ and the `ReceipterEnd` kind, not a row accessor.
 | `id`, `signer` | row id (object id for a bundle), `kid` [G1] | |
 | `kind` | section 6.2 | **D** |
 | `head` | an act's `refs.head` (the bundle in force, an object id); a grant end's `refs.head` | object id |
-| `on` | an act: `refs.also.stands_on`. A receipt: its act under `refs.also.ack`. An acceptance: none on the wire: it stands while its author is `owner_of` the key the grant names (RULED [N7]); **D**: the owner-binding of that owner the store holds (where an owner re-signed at several scopes, any of them: they are one binding to `owner_of`). A re-binding: the binding it ends, `refs.target` (TEXT [G28]) | |
+| `on` | an act: `refs.also.stands_on`. A receipt: its act under `refs.also.ack`. An acceptance: the owner binding it CARRIES in `refs.also.cites`: exactly one live owner binding of the grantee's key, at federation scope. Not held: the acceptance waits; withdrawn: it ends (TEXT [N7]). A re-binding: the binding it ends, `refs.target` (TEXT [G28]) | |
 | `owner` | an owner-binding's `author` | identity reference |
 | `target` | the removal's `sub` | |
 | `lifts` | payload `lifts` | |
@@ -552,13 +552,13 @@ rulings.
 
 | # | Crate field | Ruling | Status |
 |---|---|---|---|
-| N1 | `SeatKind::Decline` | a decline is the winner's own signed row and answers the offer, `refs.answers`; its family is not yet registered | PROVISIONAL |
+| N1 | `SeatKind::Decline` | a decline is `membership:decline:v1` (the `membership-reply` dimension), answering the offer under `refs.answers`, with no head and no target, for an invitation and an election seating alike. The store reads it as `Decline` where it answers an election seating, and as G8's withdrawal where it answers a proposal or a grant | TEXT |
 | N2 | `SeatRow::scope` on a `Withdraw` | a lay-down is a `withdraws` targeting the seating conferral, carrying the duty it ends as its scope | RULED (the payload member's name, and rule 0's admission of a signer's own withdrawal on a counted record, follow in the text) |
 | N3 | `SeatRow::bundle` | the recovery widening carries `refs.also.stands_on` naming the counted grant; the bundle is the grant's `refs.head`, so the field is **D** | RULED |
 | N4 | `SeatRow::options` | an election's options are the roster it names; a poll's opening row and options have no family yet | RULED (election); open for polls |
 | N5 | `SeatRow::merge_duties` | a merge carries no duty seats: they fold; the accessor is removed | RULED |
 | N6 | `WindowRow::says` on a landing | derived from the leaf: `landed` lands the change, `refused` is every other outcome; a tally's direction is recomputed from the cited rows | RULED |
-| N7 | `StandingRow::on` on an acceptance | none: the acceptance stands while its author is `owner_of` the key the grant names; the store derives the binding | RULED |
+| N7 | `StandingRow::on` on an acceptance | the owner binding the acceptance carries in `refs.also.cites` (exactly one live owner binding of the grantee's key, at federation); not held: wait; withdrawn: it ends | TEXT (corrected: an earlier reading had the acceptance name no binding) |
 | N8 | `RootBundle::names` | a settler names its other contested siblings under `refs.also.cites` | PROVISIONAL |
 | N9 | `RootBundle::settles` | a settler names the sibling that stands under `refs.target` | PROVISIONAL |
 | N10 | `SeatRow::head` on a room count's receipt | the count is read at each named act's own head; the receipt names no head | TEXT (CC 2.7.5) |
