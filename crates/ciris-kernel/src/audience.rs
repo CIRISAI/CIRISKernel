@@ -652,7 +652,9 @@ pub fn audiences<R: AudienceRow>(
         for (r, rule) in ready {
             let own = out.get(r.id()).cloned().expect("placed");
             let target = followed_of(r, &by);
-            let followed = target.ok().and_then(|f| out.get(f)).cloned();
+            // the followed row must conclude, as a carrier must: a held row that concludes nothing is no row to follow
+            let followed =
+                target.ok().filter(|f| by.get(*f).is_some_and(|x| x.concluded())).and_then(|f| out.get(f)).cloned();
             out.insert(r.id().clone(), follow(target.map(|_| ()), own, followed.as_ref(), rule, person));
         }
         waiting = rest;

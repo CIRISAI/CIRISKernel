@@ -355,7 +355,7 @@ def _persons_within(a, b, person):
 def follow(r, own, followed, rule, person=None, by=None):
     """A row of a `follows` family (FOLLOWS: custody, duty, ownership, stream:head) placed at the scope of the row it
     follows (followed_of: by its family's reference, the ruling G34): its own answer where that holds, else the
-    refusal. rule "same": the
+    refusal. The followed row must be held and concluded (follows_not_held otherwise). rule "same": the
     placement and the audience of the followed row; "narrower": every person of its audience is a person of the
     followed row's (the Constitution's ruling: over persons, not keys and not the placement word; `person` is the
     person contract, the person's current key roster). MUTATION follows_unread."""
@@ -365,6 +365,10 @@ def follow(r, own, followed, rule, person=None, by=None):
     if fid is None:
         return ("refused", why)
     if followed is None:
+        return ("refused", "follows_not_held")
+    # the followed row must CONCLUDE, as a carrier must (carried): a held row that concludes nothing is no row to
+    # follow. MUTATION follows_unconcluded
+    if by is not None and fid in by and not by[fid].get("concluded") and "follows_unconcluded" not in MUT:
         return ("refused", "follows_not_held")
     if followed[0] != "placed":
         return ("refused", "follows_unplaced")
