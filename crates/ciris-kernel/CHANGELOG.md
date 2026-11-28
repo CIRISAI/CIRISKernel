@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+**The audience reads persons and owner bindings through the seat model** (review-54's DRY audit). The persons are
+the seat model's one function: `audience::PersonsOf` (`voice`: `seat::Persons::voice`; `keys`: `seat::person_keys`),
+Python `audience.Persons` / `persons_over` (`seat.rep_of`, `seat.person_keys`); the self row's audience, the copy
+rule's same person (c.3) and narrower read it. **BREAKING** within the release: the audience functions take a
+`&PersonsOf` for `person`. An owner binding is recognised by `seat::owner_binding(family, purpose)`, beside `Seats`,
+which stays family-blind (a store's adapter presents the binding as an offer of scope `owner` over the key). No
+answer moves; a key of two persons counts as no person (cases `self_row_of_a_key_of_no_person`,
+`key_of_no_person_carries_nothing`).
+
 **The family model at `rc23-next` `d5d42bf`** (sha256 `94a6ac96`, provisional until `rc23`): all 189 placements are
 from the text: 143 on the default, 46 pinned, none undecided; custody, duty, ownership and stream:head carry
 `follows`. "Narrower" is over PERSONS (the Constitution's ruling): a row's audience is within the followed row's

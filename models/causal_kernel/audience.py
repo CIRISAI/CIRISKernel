@@ -54,7 +54,8 @@ The rules.
 Rows: `id`, `family`, `scope` (a cohort scope word, or "addressed"), `room` (the room or family a targeted row is
 in; None elsewhere), `signer`, `named` (the keys it names: attested, subjects, for_key_id), `kind`, `obj`, `to` (on
 a seat offer or unseat), `names` (the rows it names), `concluded` (bool), `history_on_join`. `roster(room)` and
-`person(key)` are the caller's: the room's roster as Seats.roster reads it, and the keys of the signer's person.
+`person` (a Persons) are the caller's: the room's roster as Seats.roster reads it, and the persons as the seat
+model's one persons function reads them (persons_over: seat.rep_of and seat.person_keys).
 """
 import json
 import os
@@ -209,6 +210,30 @@ def seats_of(row):
     return frozenset(row.get("to", ()))
 
 
+class Persons:
+    """A person reading for the audience, read through the seat model's ONE persons function (key-person): `voice(k)`,
+    the person key k counts as (seat.rep_of; None for a key of two persons, an agent's key, a key that revoked itself,
+    a key evicted from its roster), and `keys(p)`, that person's live keys (seat.person_keys). No separate notion of a
+    person is kept here."""
+
+    def __init__(self, voice, keys):
+        self.voice, self.keys = voice, keys
+
+    def same(self, k, of):
+        """k is a key of the person `of` counts as (both have one)."""
+        p = self.voice(of)
+        if "no_person_is_anyone" in MUT:                       # MUTATION: a key of no person counts as any person
+            return p is not None and self.voice(k) in (p, None)
+        return p is not None and self.voice(k) == p
+
+
+def persons_over(S):
+    """The Persons a concluded seat-model set S gives: seat.rep_of over its rows, seat.person_keys over it."""
+    import seat as ST
+    P = list(S.Cs)
+    return Persons(lambda k: ST.rep_of(P, k), lambda p: ST.person_keys(S, p))
+
+
 def place(row, roster, person, joins=NO_JOINS, families=None):
     """("placed", placement, audience) | ("refused", token) | ("undecided", family pattern) for one row, before
     the copy rule. An audience is a frozenset of keys or EVERYONE. `joins` is the caller's view of the room
@@ -236,7 +261,8 @@ def place(row, roster, person, joins=NO_JOINS, families=None):
     if placement == "commons":
         return ("placed", placement, EVERYONE)
     if placement == "self_collective":
-        return ("placed", placement, me | frozenset(person(row["signer"])) | named)
+        p = person.voice(row["signer"])
+        return ("placed", placement, me | (frozenset(person.keys(p)) if p is not None else frozenset()) | named)
     if placement == "addressed":
         return ("placed", placement, me | named)
     if row.get("room") is None:
@@ -290,9 +316,8 @@ def carried(r, a, d, ad, roster, person):
              accepted, a removed key);
         c.3  a self or an addressed row is carried only by a concluded row of its own signer (or that signer's
              person), into that row's audience (bounded by c.2 where the carrier is a room row). THE CONTRACT: the
-             caller's `person(key)` is the person's CURRENT, concluded key roster (seat.as_persons on the key-person
-             lane, once merged; no separate notion): an evicted or revoked key leaves the person and carries
-             nothing;
+             persons are the seat model's (Persons, persons_over: seat.rep_of and seat.person_keys): an evicted or
+             revoked key, a key of two persons or an agent's key is no key of the person and carries nothing;
     the gate of CC 5.2 kept: the carrier's signer is already in r's audience. A key grant is never carried: it
     is served per its placement (the content's scope) and opened only by the key it names. MUTATIONS copy_cross_room, copy_off_roster, copy_any_carrier, copy_any_signer,
     copy_unconcluded, key_grant_carried."""
@@ -309,7 +334,7 @@ def carried(r, a, d, ad, roster, person):
         if d.get("room") != r.get("room") and "copy_cross_room" not in MUT:
             return None
         return on_roster(ad[2], r["room"])
-    if d["signer"] != r["signer"] and d["signer"] not in person(r["signer"]) and "copy_any_carrier" not in MUT:
+    if d["signer"] != r["signer"] and not person.same(d["signer"], r["signer"]) and "copy_any_carrier" not in MUT:
         return None
     return on_roster(ad[2], d["room"]) if ad[1] in TARGETED else ad[2]
 
@@ -323,10 +348,11 @@ def _persons_within(a, b, person):
         return False
     if "narrower_by_keys" in MUT:
         return a <= b
-    return all(k in b or any(x in b for x in person(k)) for k in a)
+    held = {person.voice(x) for x in b} - {None}
+    return all(k in b or (person.voice(k) is not None and person.voice(k) in held) for k in a)
 
 
-def follow(r, own, followed, rule, person=lambda k: (k,), by=None):
+def follow(r, own, followed, rule, person=None, by=None):
     """A row of a `follows` family (FOLLOWS: custody, duty, ownership, stream:head) placed at the scope of the row it
     follows (followed_of: by its family's reference, the ruling G34): its own answer where that holds, else the
     refusal. rule "same": the
@@ -344,6 +370,7 @@ def follow(r, own, followed, rule, person=lambda k: (k,), by=None):
         return ("refused", "follows_unplaced")
     if rule == "same":
         return own if own[1] == followed[1] and own[2] == followed[2] else ("refused", "follows_mismatch")
+    person = person or Persons(lambda k: k, lambda p: (p,))
     return own if _persons_within(own[2], followed[2], person) else ("refused", "follows_wider")
 
 

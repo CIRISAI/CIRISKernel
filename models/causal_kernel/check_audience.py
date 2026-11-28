@@ -32,9 +32,24 @@ sys.path.insert(0, HERE)
 import audience as AU  # noqa: E402
 
 ROSTER = {"r1": ("a", "b", "c"), "r2": ("a", "e"), "r3": ("a", "b", "j")}
-PERSON = {"a": ("a", "a2"), "a2": ("a", "a2")}
 roster = lambda room: ROSTER.get(room, ())
-person = lambda k: PERSON.get(k, (k,))
+
+
+def _persons_world():
+    """The persons the cases read, as the seat model builds them (key-person's one persons function): a's self roster
+    seats a2 and seated a3, since evicted; t2 is a key of two persons (a's roster and x's)."""
+    import seat as ST
+    import check_key_person as KP
+    CK = ST.CK
+    rows = [KP.found("SA", "a"), KP.add("aa2", "SA", "a2", ("a",), ("SA",)),
+            KP.add("aa3", "SA", "a3", ("a", "a2"), ("aa2",)), KP.evict("ea3", "SA", "a3", ("a", "a2"), ("aa3",)),
+            KP.add("at2", "SA", "t2", ("a", "a2"), ("ea3",)),
+            KP.found("SX", "x"), KP.add("xt2", "SX", "t2", ("x",), ("SX",))]
+    return CK.concluded(CK.kept(rows), lambda r, P, past: ST.seat_rule(r, P, past))
+
+
+person = AU.persons_over(_persons_world())
+PERSON_KEYS = ("a", "a2", "a3", "t2", "x", "b", "c", "d", "e", "j", "k", "z", "M")
 # the cohort scope words a generated row takes, one per placement
 SCOPES = (("self", None), ("family", "r1"), ("community", "r1"), ("federation", None), ("addressed", None))
 
@@ -203,6 +218,15 @@ CASES = [
      "(a, a2), so a3's room row naming a's self row carries nothing",
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", signer="a3", room="r1", names=["s"])],
      {"s": P("self_collective", ["a", "a2"]), "m": P("targeted_room", ["a", "a3", "b", "c"])}),
+    # persons through the seat model's one persons function: t2 is a key of two persons (a's roster and x's), so it
+    # counts as no person (seat.rep_of)
+    ("self_row_of_a_key_of_no_person", "a self row by t2, a key of two persons: its own key, no person's keys",
+     [row("s", "chat:general", "self", signer="t2")], {"s": P("self_collective", ["t2"])}),
+    ("key_of_no_person_carries_nothing", "a's addressed row names t2; t2's concluded room row names it: t2 is no key "
+     "of a's person, so it does not carry the row (c.3)",
+     [row("x", "census:member:share", "addressed", room="r1", named=["t2"]),
+      row("m", "chat:general", "community", signer="t2", room="r1", names=["x"])],
+     {"x": P("addressed", ["a", "t2"]), "m": P("targeted_room", ["a", "b", "c", "t2"])}),
     ("copy_unconcluded", "a namer that does not conclude carries nobody",
      [row("s", "chat:general", "self"), row("m", "chat:general", "community", room="r1", names=["s"], concluded=False)],
      {"s": P("self_collective", ["a", "a2"]), "m": P("targeted_room", ROOM)}),
@@ -318,7 +342,8 @@ PLANTS = [(("undecided_defaulted",), "undecided"), (("pinned_unread",), "pinned_
           (("tie_first",), "ties"), (("follows_unread",), "follow"), (("narrower_by_keys",), "follow"),
           (("follows_any_ref",), "custody_by_cites_is_not_named"),
           (("cites_any_family",), "duty_cites_its_permission_and_more"),
-          (("binding_by_family",), "ownership_mirror_cites_a_non_binding")]
+          (("binding_by_family",), "ownership_mirror_cites_a_non_binding"),
+          (("no_person_is_anyone",), "key_of_no_person_carries_nothing")]
 
 
 def generated():
@@ -595,7 +620,8 @@ def fixture():
     return {"about": "the placement and the audience (keys) of a row, family by family: models/causal_kernel/"
                      "audience.py over data/family_placement.json; checked by check_audience.py",
             "source": AU.TABLE["_source"], "roster": {k: list(v) for k, v in ROSTER.items()},
-            "person": {k: list(v) for k, v in PERSON.items()},
+            "voice": {k: person.voice(k) for k in PERSON_KEYS},
+            "person_keys": {p: sorted(person.keys(p)) for p in sorted({person.voice(k) for k in PERSON_KEYS} - {None})},
             "ties": [{"families": f, "name": n, "answer": a} for f, n, a in TIES],
             "history": [{"row": rw, "record": rec, "answer": a} for rw, rec, a in HISTORY],
             "seats": [{"row": r, "seats": w} for r, w in SEATS],

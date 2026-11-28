@@ -5,7 +5,7 @@
 mod common;
 use ciris_kernel::audience::{
     audiences, family_in, family_of, follow, history_of, place, seats_of, Audience, AudienceRow, FamilyMatch,
-    FamilyPlacement, Follows, History, Joins, Placed, Placement, SeatAct, FAMILIES, FAMILY_MODEL_SHA256,
+    FamilyPlacement, Follows, History, Joins, PersonsOf, Placed, Placement, SeatAct, FAMILIES, FAMILY_MODEL_SHA256,
 };
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -124,9 +124,13 @@ fn enc(a: &Placed<String>) -> J {
     }
 }
 
-fn world(fx: &J) -> (BTreeMap<String, BTreeSet<String>>, BTreeMap<String, BTreeSet<String>>) {
+// the rosters, and the persons as the seat model's one persons function gave them (seat.rep_of: a key's person,
+// none for a key of two persons; seat.person_keys: a person's live keys)
+type Voices = BTreeMap<String, Option<String>>;
+fn world(fx: &J) -> (BTreeMap<String, BTreeSet<String>>, (Voices, BTreeMap<String, BTreeSet<String>>)) {
     let m = |k: &str| fx.at(k).obj().iter().map(|(a, v)| (a.clone(), v.str_set())).collect();
-    (m("roster"), m("person"))
+    let voice: Voices = fx.at("voice").obj().iter().map(|(k, v)| (k.clone(), v.opt_s())).collect();
+    (m("roster"), (voice, m("person_keys")))
 }
 
 /// The table the crate carries is the one the fixture was written from.
@@ -150,7 +154,11 @@ fn every_family_in_every_scope() {
     let fx = fixture("audience.json");
     let (roster, person) = world(&fx);
     let ro = |r: &String| roster.get(r).cloned().unwrap_or_default();
-    let pe = |k: &String| person.get(k).cloned().unwrap_or_else(|| [k.clone()].into());
+    let (vo, pk) = (
+        |k: &String| person.0.get(k).cloned().unwrap_or_else(|| Some(k.clone())),
+        |p: &String| person.1.get(p).cloned().unwrap_or_else(|| [p.clone()].into()),
+    );
+    let pe = PersonsOf { voice: &vo, keys: &pk };
     let (mut n, mut bad) = (0, 0);
     for g in fx.at("generated").arr() {
         let room = g.get("room").and_then(|v| v.opt_s());
@@ -190,7 +198,11 @@ fn case_table() {
     let fx = fixture("audience.json");
     let (roster, person) = world(&fx);
     let ro = |r: &String| roster.get(r).cloned().unwrap_or_default();
-    let pe = |k: &String| person.get(k).cloned().unwrap_or_else(|| [k.clone()].into());
+    let (vo, pk) = (
+        |k: &String| person.0.get(k).cloned().unwrap_or_else(|| Some(k.clone())),
+        |p: &String| person.1.get(p).cloned().unwrap_or_else(|| [p.clone()].into()),
+    );
+    let pe = PersonsOf { voice: &vo, keys: &pk };
     let (mut n, mut bad) = (0, 0);
     for c in fx.at("cases").arr() {
         let rows: Vec<ARow> = c.at("rows").arr().iter().map(arow).collect();
@@ -362,7 +374,11 @@ fn follows_rule() {
         let followed = c.get("followed").filter(|f| !f.is_null()).map(dec);
         let rule = if c.at("rule").s() == "same" { Follows::Same } else { Follows::Narrower };
         let (_, person) = world(&fx);
-        let pe = |k: &String| person.get(k).cloned().unwrap_or_else(|| [k.clone()].into());
+        let (vo, pk) = (
+            |k: &String| person.0.get(k).cloned().unwrap_or_else(|| Some(k.clone())),
+            |p: &String| person.1.get(p).cloned().unwrap_or_else(|| [p.clone()].into()),
+        );
+        let pe = PersonsOf { voice: &vo, keys: &pk };
         let named = if c.at("named").b() { Ok(()) } else { Err(ciris_kernel::audience::Refusal::FollowsNotNamed) };
         let got = enc(&follow(named, own, followed.as_ref(), rule, &pe));
         n += 1;
@@ -382,7 +398,11 @@ fn undecided_path() {
     let fx = fixture("audience.json");
     let (roster, person) = world(&fx);
     let ro = |r: &String| roster.get(r).cloned().unwrap_or_default();
-    let pe = |k: &String| person.get(k).cloned().unwrap_or_else(|| [k.clone()].into());
+    let (vo, pk) = (
+        |k: &String| person.0.get(k).cloned().unwrap_or_else(|| Some(k.clone())),
+        |p: &String| person.1.get(p).cloned().unwrap_or_else(|| [p.clone()].into()),
+    );
+    let pe = PersonsOf { voice: &vo, keys: &pk };
     let u = fx.at("undecided");
     // a table that lives as long as the test binary, as FAMILIES does
     let table: Vec<(&'static str, FamilyPlacement)> = u

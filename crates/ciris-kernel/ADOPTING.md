@@ -67,9 +67,9 @@ family's reference (the ruling G34, `audience::FOLLOWS_REF`): a custody report b
 (`AudienceRow::evidence`, the content row its blob address resolves to), a stream head by its `sub`
 (`AudienceRow::stream`), an ownership row and a duty by `refs.also.cites` (`AudienceRow::cites`): the one cited row of the right family
 (an owner binding, a permission), whose family the crate reads from the rows given; give the cited rows too.
-Resolving an address or a stream id to a row is the caller's; the row is placed at that row's scope. Give `audience`'s `person(key)` as the person's current, concluded key roster (the key-person lane's
-`seat::Persons`, once merged): an evicted or revoked key leaves the person, and its rows carry none of the
-person's self or addressed rows. Decode `history_on_join` with `audience::History::from_word`: a
+Resolving an address or a stream id to a row is the caller's; the row is placed at that row's scope. Give `audience` its persons as `audience::PersonsOf` over the seat model's one persons function: `voice` is
+`seat::Persons::voice` and `keys` is `seat::person_keys`. A key of two persons, an agent's key, a key that revoked
+itself or an evicted genesis key counts as no person: its rows carry none of a person's self or addressed rows. Decode `history_on_join` with `audience::History::from_word`: a
 word it does not know is absent. Served is not readable: the audience is who may be served a row, not who holds its key. A later
 joiner is served the room's older rows, and through the copy rule (`audience::carried`) a joiner may hold the
 room's whole named reply chain as ciphertext it cannot read; the tier gives it the current epoch's key only, and

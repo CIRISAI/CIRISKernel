@@ -101,6 +101,17 @@ pub enum FamilyPlacement {
     Undecided,
 }
 
+/// A person reading, through the seat model's ONE persons function (key-person): `voice`, the person a key counts as
+/// ([`crate::seat::Persons::voice`]; `None` for a key of two persons, an agent's key, a key that revoked itself, an
+/// evicted genesis key), and `keys`, a person's live keys ([`crate::seat::person_keys`]). No separate notion of a
+/// person is kept here.
+pub struct PersonsOf<'a, K> {
+    /// The person a key counts as.
+    pub voice: &'a dyn Fn(&K) -> Option<K>,
+    /// A person's live keys.
+    pub keys: &'a dyn Fn(&K) -> BTreeSet<K>,
+}
+
 /// Who a row is for.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Audience<K> {
@@ -390,7 +401,7 @@ pub fn seats_of<R: AudienceRow>(r: &R) -> &[R::Key] {
 pub fn place<R: AudienceRow>(
     r: &R,
     roster: &dyn Fn(&R::Id) -> BTreeSet<R::Key>,
-    person: &dyn Fn(&R::Key) -> BTreeSet<R::Key>,
+    person: &PersonsOf<'_, R::Key>,
     joins: &Joins<'_, R::Id, R::Key>,
 ) -> Placed<R::Key> {
     place_in(FAMILIES, r, roster, person, joins)
@@ -402,7 +413,7 @@ pub fn place_in<R: AudienceRow>(
     table: &'static [(&'static str, FamilyPlacement)],
     r: &R,
     roster: &dyn Fn(&R::Id) -> BTreeSet<R::Key>,
-    person: &dyn Fn(&R::Key) -> BTreeSet<R::Key>,
+    person: &PersonsOf<'_, R::Key>,
     joins: &Joins<'_, R::Id, R::Key>,
 ) -> Placed<R::Key> {
     let &(fam, cell) = match family_in(table, r.family()) {
@@ -422,7 +433,11 @@ pub fn place_in<R: AudienceRow>(
     keys.insert(r.signer().clone());
     match placement {
         Placement::Commons => return Placed::Placed(placement, Audience::Everyone),
-        Placement::SelfCollective => keys.extend(person(r.signer())),
+        Placement::SelfCollective => {
+            if let Some(p) = (person.voice)(r.signer()) {
+                keys.extend((person.keys)(&p));
+            }
+        }
         Placement::Addressed => {}
         Placement::TargetedFamily | Placement::TargetedRoom => {
             let Some(room) = r.room() else { return Placed::Refused(Refusal::NoRoom) };
@@ -456,8 +471,8 @@ pub fn history_of<R: AudienceRow>(r: &R, joins: &Joins<'_, R::Id, R::Key>) -> Hi
 }
 
 // a key of `k`'s person, `k` included
-fn same_person<K: Ord + Clone>(person: &dyn Fn(&K) -> BTreeSet<K>, k: &K, of: &K) -> bool {
-    k == of || person(of).contains(k)
+fn same_person<K: Ord + Clone>(person: &PersonsOf<'_, K>, k: &K, of: &K) -> bool {
+    k == of || (person.voice)(of).is_some_and(|p| (person.voice)(k) == Some(p))
 }
 
 /// The keys a concluded placed row `d` naming `r` carries `r` to, or `None`: the copy rule of CC 5.2 as the
@@ -480,7 +495,7 @@ pub fn carried<R: AudienceRow>(
     d: &R,
     ad: &Placed<R::Key>,
     roster: &dyn Fn(&R::Id) -> BTreeSet<R::Key>,
-    person: &dyn Fn(&R::Key) -> BTreeSet<R::Key>,
+    person: &PersonsOf<'_, R::Key>,
 ) -> Option<Audience<R::Key>> {
     let (Placed::Placed(pr, ar), Placed::Placed(pd, aud)) = (a, ad) else { return None };
     let key_grant = family_of(r.family()).is_some_and(|f| f.0 == KEY_GRANT);
@@ -508,12 +523,13 @@ pub fn carried<R: AudienceRow>(
 // audience a is within audience b
 // every PERSON audience a holds is one audience b holds (the ruling: "narrower" is over persons): a key of a is within
 // b where b holds it or another key of its person
-fn within<K: Ord>(a: &Audience<K>, b: &Audience<K>, person: &dyn Fn(&K) -> BTreeSet<K>) -> bool {
+fn within<K: Ord>(a: &Audience<K>, b: &Audience<K>, person: &PersonsOf<'_, K>) -> bool {
     match (a, b) {
         (_, Audience::Everyone) => true,
         (Audience::Everyone, Audience::Keys(_)) => false,
         (Audience::Keys(a), Audience::Keys(b)) => {
-            a.iter().all(|k| b.contains(k) || person(k).iter().any(|x| b.contains(x)))
+            let held: BTreeSet<K> = b.iter().filter_map(|x| (person.voice)(x)).collect();
+            a.iter().all(|k| b.contains(k) || (person.voice)(k).is_some_and(|p| held.contains(&p)))
         }
     }
 }
@@ -528,7 +544,7 @@ pub fn follow<K: Ord + Clone>(
     own: Placed<K>,
     followed: Option<&Placed<K>>,
     rule: Follows,
-    person: &dyn Fn(&K) -> BTreeSet<K>,
+    person: &PersonsOf<'_, K>,
 ) -> Placed<K> {
     let Placed::Placed(p, a) = &own else { return own };
     if let Err(why) = named {
@@ -612,7 +628,7 @@ fn follows_rule(family: &str) -> Option<Follows> {
 pub fn audiences<R: AudienceRow>(
     rows: &[&R],
     roster: &dyn Fn(&R::Id) -> BTreeSet<R::Key>,
-    person: &dyn Fn(&R::Key) -> BTreeSet<R::Key>,
+    person: &PersonsOf<'_, R::Key>,
     joins: &Joins<'_, R::Id, R::Key>,
 ) -> BTreeMap<R::Id, Placed<R::Key>> {
     let mut out: BTreeMap<R::Id, Placed<R::Key>> =
