@@ -519,7 +519,11 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
     // (E6: an election's growth voids A's lone conferral of B, A's concurrent lay-down cuts it, and B and C's
     // conferral built on it was then counted as C's alone)
     let void = voided_over(seats, &rows);
-    rows.retain(|j| !cut.contains(j) && !void.contains(j));
+    // and every row the seat model over the READER's held rows voids (the E6 ruling): a row voided for this reader by
+    // a row outside the judged rows (B10, B11: the signers' later acknowledgement or post makes their late row at g a
+    // self-fork) confers nothing here either
+    let held_void = seats.stale();
+    rows.retain(|j| !cut.contains(j) && !void.contains(j) && !held_void.contains(j));
     rows
 }
 

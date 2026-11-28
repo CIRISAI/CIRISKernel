@@ -71,6 +71,8 @@ Planted breaks, each of which must change a case's answer:
     growth_ends_unread       (seat.py) the grown body keeps the ends the reader holds (r97 V1, V2)
     ahead_unread             (seat.py) a row behind its signers' own later change is not re-counted against it (r97 B6, r99)
     stale_line_ahead         (seat.py) a change built on a row from behind the act counts as ahead of it (r99 k3)
+    reader_void_unread       the lane's cut keeps a row the seat model over the reader's held rows voids (B10, B11)
+    ahead_changes_only       (seat.py) only the signers' later counted changes put their old-head row behind (B10, B11)
     counted_recount_unread   (a) a counted seat conferral from an old past not re-counted against held growth (r95)
     still_holds_end_past     (d) whether the key still holds a standing is read over the end's past, not the judged rows
     growth_held_unread       (a), (b) an authority act concurrent with growth of its body the reader holds is not
@@ -735,6 +737,17 @@ CASES += [
      "reader holding c2; the walk reads it at a head it cannot count at, and X's licence is no one's (no crash)",
      [_R10L, _RDDE, _RC2, _RSYB, _GL0, GLA, A("e", "RD", "g"), _X], "RD", "l", None, NA),
 ]
+CASES += [
+    ("B10 at the licence: A's later acknowledgement of dde makes A and B's late row at g (syb) their self-fork for the "
+     "reader holding it, so glo, built on syb, confers nothing, and X's licence is no one's",
+     [_R10L, _RDDE, CK.row("ka", "ack", "A", ("dde",), room="g", head=("dde",)), _RSYB, _GL0, GLA, A("e", "RD", "g"),
+      _X], "RD", "l", None, NA),
+    ("B11 at the licence: and B's later post naming dde, the same",
+     [_R10L, _RDDE, CK.row("pb", "post", "B", ("dde",), room="g"), _RSYB, _GL0, GLA, A("e", "RD", "g"), _X], "RD",
+     "l", None, NA),
+    ("B12 control: with no later row by A or B, syb and dde are one batch (the residual) and glo's licence stands",
+     [_R10L, _RDDE, _RSYB, _GL0, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+]
 SEATED_R99 = [
     ("r99 k4 the signers' later row is a LICENSE conferral (c4, A, B and C at dde): their row at g is behind it all the "
      "same, and F to I are not seated", [_R10L, _RDDE, _RC4, _RSYB],
@@ -825,7 +838,7 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "edge_term_unread", "amendment_as_cut",
           "instant_over_reader", "scope_unread", "termless_edge_walked",
           "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
-          "one_end_at_a_time", "growth_ends_read", "counted_recount_unread", "behind_grows", "growth_ends_unread", "ahead_unread", "stale_line_ahead",
+          "one_end_at_a_time", "growth_ends_read", "counted_recount_unread", "behind_grows", "growth_ends_unread", "ahead_unread", "stale_line_ahead", "reader_void_unread", "ahead_changes_only",
           "end_cuts_counted_row", "own_licence_uncountersigned")
 
 

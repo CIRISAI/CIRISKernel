@@ -362,6 +362,18 @@ def recount_without(S, q, gone):
     return ST.still_met(q, P, lambda a, b: a in S.anc[b], gone)
 
 
+_READER_VOID = {}
+
+
+def reader_void(S, own):
+    """The rows the seat model over the reader's held rows voids (Seats.stale), once per state and reader."""
+    key = (id(S), own, len(S.rows), frozenset(MUT), frozenset(ST.MUT))
+    got = _READER_VOID.get(key)
+    if got is None or got[0] is not S:
+        got = _READER_VOID[key] = (S, ST.Seats(S, own=own).stale)
+    return got[1]
+
+
 def cut_state(S, rows, own=None):
     """The rows `rows` with every row an end among them cuts taken out, and every authority act behind the reader's
     line: an end cuts a row signed by a key whose seat over the row's object, of a scope whose standing the row rests
@@ -412,6 +424,12 @@ def cut_state(S, rows, own=None):
     # lay-down cuts it, and B and C's conferral built on it then counted as C's alone). MUTATION cut_keeps_voided.
     void = frozenset() if "cut_keeps_voided" in MUT else \
         ST.Seats(CK.State(rows, {q["id"]: S.C.get(q["id"]) for q in rows})).stale
+    # and every row the seat model over the READER's held rows voids (the E6 ruling: Seats' reading over the reader's
+    # rows is the answer): a row voided for this reader by a row outside the judged rows (B10, B11: the signers' later
+    # acknowledgement or post makes their late row at g a self-fork) confers nothing here either (MUTATION
+    # reader_void_unread)
+    if "reader_void_unread" not in MUT:
+        void = void | reader_void(S, own)
     kept = [q for q in rows if q["id"] not in cut and q["id"] not in void]
     return CK.State(kept, {q["id"]: S.C.get(q["id"]) for q in kept})
 

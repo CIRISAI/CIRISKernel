@@ -960,7 +960,7 @@ plant "a founding signer's own officer or license seat revives a group" src/seat
 plant "the ends the reader holds are not read"         src/trust_rows.rs '    if read {
         rows.extend(' '    if false {
         rows.extend('
-plant "an end cuts nothing concurrent with it"         src/trust_rows.rs 'rows.retain(|j| !cut.contains(j) && !void.contains(j));' 'rows.retain(|j| !void.contains(j));'
+plant "an end cuts nothing concurrent with it"         src/trust_rows.rs 'rows.retain(|j| !cut.contains(j) && !void.contains(j) && !held_void.contains(j));' 'rows.retain(|j| !void.contains(j) && !held_void.contains(j));'
 plant "a licence stating no instant meets a term"      src/seat.rs '.any(|r| r.k == *k && g.idx(&r.offer).is_some_and(|i| g.row(i).valid_until().is_none()));' '.any(|r| r.k == *k);'
 plant "any signer of an edge withdraws it"            src/trust_rows.rs '&& speaks_at(seats, j, &e.src, own)' ''
 plant "an edge is judged at issuance only"             src/trust_rows.rs '[false, true].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(seats, i, read, own), src))' '[false].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(seats, i, read, own), src))'
@@ -981,6 +981,7 @@ plant "growth_any_body: a counted conferral re-counted against any growth" src/s
 plant "behind_grows: a row from behind the act is growth against it (r97 A1, r98)" src/seat.rs '                && !behind_act(c, x, q)' ''
 plant "ahead_unread: a row behind its signers' own later row is not re-counted (r97 B6, r99)" src/seat.rs '            if signers(xr).iter().any(|k| mine.contains(k)) && !stale_line {' '            if false {'
 plant "ahead_changes_only: only the signers' later counted changes put their old-head row behind (B10, B11)" src/seat.rs '            let on_room = xr.obj().as_ref() == Some(o)' '            let on_room = change(law, xr, o, room.as_deref()) && xr.obj().as_ref() == Some(o)'
+plant "reader_void_unread: the lane's cut keeps a row the reader's Seats voids (B10, B11)" src/trust_rows.rs '&& !held_void.contains(j)' ''
 plant "stale_line_ahead: a change built on a row from behind the act counts as ahead of it (r99 k3)" src/seat.rs '.any(|k| mine.contains(k)) && !stale_line {' '.any(|k| mine.contains(k)) {'
 plant "growth_ends_unread: the grown body keeps the ends the reader holds (r97 V1, V2)" src/seat.rs 'with_growth_ends(c, q, o, void, with_growth(c, q, &growth))' 'with_growth(c, q, &growth)'
 plant "a record change re-counted on growth" src/seat.rs '!roster_word(s.as_ref()) && s.as_ref() != "record")' '!roster_word(s.as_ref()))'
