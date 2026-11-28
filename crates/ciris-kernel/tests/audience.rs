@@ -339,7 +339,9 @@ fn follows_rule() {
         let own = dec(c.at("own"));
         let followed = c.get("followed").filter(|f| !f.is_null()).map(dec);
         let rule = if c.at("rule").s() == "same" { Follows::Same } else { Follows::Narrower };
-        let got = enc(&follow(c.at("named").b(), own, followed.as_ref(), rule));
+        let (_, person) = world(&fx);
+        let pe = |k: &String| person.get(k).cloned().unwrap_or_else(|| [k.clone()].into());
+        let got = enc(&follow(c.at("named").b(), own, followed.as_ref(), rule, &pe));
         n += 1;
         if &got != c.at("answer") {
             bad += 1;
@@ -347,5 +349,60 @@ fn follows_rule() {
         }
     }
     report("the follows rule (audience.py)", n, bad);
+    assert_eq!(bad, 0);
+}
+
+/// The Undecided path, over a synthetic table (the pinned one has none since d5d42bf; `check_audience.py`'s
+/// UNDECIDED).
+#[test]
+fn undecided_path() {
+    let fx = fixture("audience.json");
+    let (roster, person) = world(&fx);
+    let ro = |r: &String| roster.get(r).cloned().unwrap_or_default();
+    let pe = |k: &String| person.get(k).cloned().unwrap_or_else(|| [k.clone()].into());
+    let u = fx.at("undecided");
+    // a table that lives as long as the test binary, as FAMILIES does
+    let table: Vec<(&'static str, FamilyPlacement)> = u
+        .at("families")
+        .arr()
+        .iter()
+        .map(|f| {
+            let name: &'static str = Box::leak(f.arr()[0].s().to_string().into_boxed_str());
+            let cell = if f.arr()[1].is_null() {
+                FamilyPlacement::Allowed(&[Placement::SelfCollective])
+            } else {
+                FamilyPlacement::Undecided
+            };
+            (name, cell)
+        })
+        .collect();
+    let table: &'static [(&'static str, FamilyPlacement)] = Box::leak(table.into_boxed_slice());
+    let joins = Joins { history: &|_| None, at_head: &|rm, _| ro(rm) };
+    let (mut n, mut bad) = (0, 0);
+    for c in u.at("cases").arr() {
+        let scope = c.at("scope").s().to_string();
+        let r = ARow {
+            id: "u".into(),
+            family: c.at("family").s().to_string(),
+            room: if scope == "community" { Some("r1".into()) } else { None },
+            scope,
+            signer: "a".into(),
+            named: vec![],
+            names: vec![],
+            concluded: true,
+            seat: None,
+            obj: None,
+            to: vec![],
+            history: None,
+            follows: None,
+        };
+        let got = enc(&place_in(table, &r, &ro, &pe, &joins));
+        n += 1;
+        if &got != c.at("answer") {
+            bad += 1;
+            eprintln!("{}: got {got:?}, want {:?}", r.family, c.at("answer"));
+        }
+    }
+    report("the Undecided path over a synthetic table (audience.py)", n, bad);
     assert_eq!(bad, 0);
 }

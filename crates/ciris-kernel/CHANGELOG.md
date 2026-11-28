@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**The family model at `rc23-next` `d5d42bf`** (sha256 `94a6ac96`, provisional until `rc23`): all 189 placements are
+from the text: 143 on the default, 46 pinned, none undecided; custody, duty, ownership and stream:head carry
+`follows`. "Narrower" is over PERSONS (the Constitution's ruling): a row's audience is within the followed row's
+where every person it holds is one the followed row holds (a duty at self by a member whose own device is off the
+roster is within). `audience::place_in` places over another table, so the Undecided path stays tested over a
+synthetic one.
+
 **`follows`, ready for the next family model** (both languages; inert at the pinned d103e60, which has no such
 cell): a placement cell's `follows` marker (custody, duty and stream:head at the Constitution's 42eaa3f) is read by
 the generator (`Same`, or `Narrower` where the cell says "or narrower"), and a row of such a family is placed at the

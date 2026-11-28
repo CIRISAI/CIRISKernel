@@ -162,16 +162,17 @@ def seats_of(row):
     return frozenset(row.get("to", ()))
 
 
-def place(row, roster, person, joins=NO_JOINS):
+def place(row, roster, person, joins=NO_JOINS, families=None):
     """("placed", placement, audience) | ("refused", token) | ("undecided", family pattern) for one row, before
     the copy rule. An audience is a frozenset of keys or EVERYONE. `joins` is the caller's view of the room
-    (NO_JOINS)."""
-    fam = family_of(row["family"])
+    (NO_JOINS). `families` is the table (the pinned FAMILIES; a synthetic one keeps the Undecided path tested)."""
+    table = FAMILIES if families is None else families
+    fam = family_of(row["family"], table)
     if fam is None:
         return ("refused", "family_unknown")
     if fam == AMBIGUOUS:
         return ("refused", "family_ambiguous")
-    cell = FAMILIES[fam]
+    cell = table[fam]
     placement = SCOPE_PLACEMENT.get(row["scope"])
     if placement is None:
         return ("refused", "scope_unknown")
@@ -266,15 +267,24 @@ def carried(r, a, d, ad, roster, person):
     return on_roster(ad[2], d["room"]) if ad[1] in TARGETED else ad[2]
 
 
-def _narrower(a, b):
-    """Audience a is within audience b."""
-    return b == EVERYONE or (a != EVERYONE and a <= b)
+def _persons_within(a, b, person):
+    """Every PERSON audience a holds is one audience b holds (the ruling: "narrower" is over persons): a key of a is
+    within b where b holds it or another key of its person. MUTATION narrower_by_keys: by keys."""
+    if b == EVERYONE:
+        return True
+    if a == EVERYONE:
+        return False
+    if "narrower_by_keys" in MUT:
+        return a <= b
+    return all(k in b or any(x in b for x in person(k)) for k in a)
 
 
-def follow(r, own, followed, rule):
-    """A row of a `follows` family (FOLLOWS: custody, duty, stream:head) placed at the scope of the row it follows
-    (`follows`, a row it names): its own answer where that holds, else the refusal. rule "same": the placement and
-    the room of the followed row; "narrower": an audience within the followed row's. MUTATION follows_unread."""
+def follow(r, own, followed, rule, person=lambda k: (k,)):
+    """A row of a `follows` family (FOLLOWS: custody, duty, ownership, stream:head) placed at the scope of the row it
+    follows (`follows`, a row it names): its own answer where that holds, else the refusal. rule "same": the
+    placement and the audience of the followed row; "narrower": every person of its audience is a person of the
+    followed row's (the Constitution's ruling: over persons, not keys and not the placement word; `person` is the
+    person contract, the person's current key roster). MUTATION follows_unread."""
     if own[0] != "placed" or "follows_unread" in MUT:
         return own
     if r.get("follows") is None:
@@ -285,7 +295,7 @@ def follow(r, own, followed, rule):
         return ("refused", "follows_unplaced")
     if rule == "same":
         return own if own[1] == followed[1] and own[2] == followed[2] else ("refused", "follows_mismatch")
-    return own if _narrower(own[2], followed[2]) else ("refused", "follows_wider")
+    return own if _persons_within(own[2], followed[2], person) else ("refused", "follows_wider")
 
 
 def audiences(rows, roster, person, joins=NO_JOINS):
@@ -301,7 +311,8 @@ def audiences(rows, roster, person, joins=NO_JOINS):
                 out[r["id"]] = ("refused", "follows_unplaced")
             break
         for r in ready:
-            out[r["id"]] = follow(r, out[r["id"]], out.get(r.get("follows")), FOLLOWS[family_of(r["family"])])
+            out[r["id"]] = follow(r, out[r["id"]], out.get(r.get("follows")), FOLLOWS[family_of(r["family"])],
+                                  person)
         followers = [r for r in followers if r not in ready]
     by = {r["id"]: r for r in rows}
     namers = {i: [] for i in by}

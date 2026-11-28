@@ -624,7 +624,8 @@ plant "a seat row of any family seats"                src/audience.rs 'if seat_f
 plant "a follows row unchecked"                       src/audience.rs '    if !named {
         return Placed::Refused(Refusal::FollowsNotNamed);' '    if true {
         return own;'
-plant "a follows row wider than its own"              src/audience.rs 'Follows::Narrower if within(a, fa) => own,' 'Follows::Narrower => own,'
+plant "a follows row wider than its own"              src/audience.rs 'Follows::Narrower if within(a, fa, person) => own,' 'Follows::Narrower => own,'
+plant "narrower read by keys, not persons"            src/audience.rs 'a.iter().all(|k| b.contains(k) || person(k).iter().any(|x| b.contains(x)))' '{ let _ = person; a.is_subset(b) }'
 plant "a tie takes the first pattern"                 src/audience.rs 'Some((b, _)) if k == b => tie = true,' 'Some((b, _)) if k == b => {}'
 plant "the first matching family pattern decides"       src/audience.rs 'Some((b, _)) if k < b => {}' 'Some(_) => {}'
 plant "a duty seat seats an outsider"                 src/audience.rs 'let duty = DUTY_SEAT_FAMILIES.contains(&fam);' 'let duty = false && DUTY_SEAT_FAMILIES.contains(&fam);'

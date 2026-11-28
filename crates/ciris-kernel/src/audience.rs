@@ -376,7 +376,19 @@ pub fn place<R: AudienceRow>(
     person: &dyn Fn(&R::Key) -> BTreeSet<R::Key>,
     joins: &Joins<'_, R::Id, R::Key>,
 ) -> Placed<R::Key> {
-    let &(fam, cell) = match family_in(FAMILIES, r.family()) {
+    place_in(FAMILIES, r, roster, person, joins)
+}
+
+/// [`place`] over another table of family patterns: the pinned [`FAMILIES`] in use, a synthetic table in a test
+/// (the pinned table has no undecided family since d5d42bf, so the Undecided path is tested this way).
+pub fn place_in<R: AudienceRow>(
+    table: &'static [(&'static str, FamilyPlacement)],
+    r: &R,
+    roster: &dyn Fn(&R::Id) -> BTreeSet<R::Key>,
+    person: &dyn Fn(&R::Key) -> BTreeSet<R::Key>,
+    joins: &Joins<'_, R::Id, R::Key>,
+) -> Placed<R::Key> {
+    let &(fam, cell) = match family_in(table, r.family()) {
         FamilyMatch::One(f) => f,
         FamilyMatch::None => return Placed::Refused(Refusal::FamilyUnknown),
         FamilyMatch::Tie => return Placed::Refused(Refusal::FamilyAmbiguous),
@@ -477,18 +489,29 @@ pub fn carried<R: AudienceRow>(
 }
 
 // audience a is within audience b
-fn within<K: Ord>(a: &Audience<K>, b: &Audience<K>) -> bool {
+// every PERSON audience a holds is one audience b holds (the ruling: "narrower" is over persons): a key of a is within
+// b where b holds it or another key of its person
+fn within<K: Ord>(a: &Audience<K>, b: &Audience<K>, person: &dyn Fn(&K) -> BTreeSet<K>) -> bool {
     match (a, b) {
         (_, Audience::Everyone) => true,
         (Audience::Everyone, Audience::Keys(_)) => false,
-        (Audience::Keys(a), Audience::Keys(b)) => a.is_subset(b),
+        (Audience::Keys(a), Audience::Keys(b)) => {
+            a.iter().all(|k| b.contains(k) || person(k).iter().any(|x| b.contains(x)))
+        }
     }
 }
 
 /// A row of a `follows` family placed at the scope of the row it follows: its own answer where `rule` holds against
-/// the followed row's answer, else the refusal. `named` is whether the row names a row it follows; `followed` that
+/// the followed row's answer, else the refusal. `Narrower` is over persons (the Constitution's ruling): every person
+/// of its audience is a person of the followed row's, by `person`, the person contract. `named` is whether the row names a row it follows; `followed` that
 /// row's answer, `None` where it is not held.
-pub fn follow<K: Ord + Clone>(named: bool, own: Placed<K>, followed: Option<&Placed<K>>, rule: Follows) -> Placed<K> {
+pub fn follow<K: Ord + Clone>(
+    named: bool,
+    own: Placed<K>,
+    followed: Option<&Placed<K>>,
+    rule: Follows,
+    person: &dyn Fn(&K) -> BTreeSet<K>,
+) -> Placed<K> {
     let Placed::Placed(p, a) = &own else { return own };
     if !named {
         return Placed::Refused(Refusal::FollowsNotNamed);
@@ -498,7 +521,7 @@ pub fn follow<K: Ord + Clone>(named: bool, own: Placed<K>, followed: Option<&Pla
     match rule {
         Follows::Same if p == fp && a == fa => own,
         Follows::Same => Placed::Refused(Refusal::FollowsMismatch),
-        Follows::Narrower if within(a, fa) => own,
+        Follows::Narrower if within(a, fa, person) => own,
         Follows::Narrower => Placed::Refused(Refusal::FollowsWider),
     }
 }
@@ -541,7 +564,7 @@ pub fn audiences<R: AudienceRow>(
         for (r, rule) in ready {
             let own = out.get(r.id()).cloned().expect("placed");
             let followed = r.follows().and_then(|f| out.get(f)).cloned();
-            out.insert(r.id().clone(), follow(r.follows().is_some(), own, followed.as_ref(), rule));
+            out.insert(r.id().clone(), follow(r.follows().is_some(), own, followed.as_ref(), rule, person));
         }
         waiting = rest;
     }

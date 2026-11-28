@@ -32,7 +32,7 @@ sys.path.insert(0, HERE)
 import audience as AU  # noqa: E402
 
 ROSTER = {"r1": ("a", "b", "c"), "r2": ("a", "e"), "r3": ("a", "b", "j")}
-PERSON = {"a": ("a", "a2")}
+PERSON = {"a": ("a", "a2"), "a2": ("a", "a2")}
 roster = lambda room: ROSTER.get(room, ())
 person = lambda k: PERSON.get(k, (k,))
 # the cohort scope words a generated row takes, one per placement
@@ -127,9 +127,10 @@ CASES = [
      [seat_row("o", "offer", "r1", ["z"], family=BALLOT)], {"o": REF("named_outside_audience")}),
     ("non_roster_row_names_outsider", "a row that seats no one names z, off the roster: still refused",
      [row("m", "partner_role:member", "community", room="r1", named=["z"])], {"m": REF("named_outside_audience")}),
-    ("roster_family_undecided", "group:roster and membership answer Undecided at this pin, their seats apart",
+    ("roster_families_placed", "group:roster and membership are placed at the room (stated at d5d42bf): an offer "
+     "of each seats j, who is in its audience",
      [seat_row("g", "offer", "r1", ["j"], family="group:roster"), seat_row("m", "offer", "r1", ["j"])],
-     {"g": UND("group:roster"), "m": UND("membership:{stage}")}),
+     {"g": P("targeted_room", ROOM + ["j"]), "m": P("targeted_room", ROOM + ["j"])}),
     ("seats_not_person_level", "an identity:occurrence row shaped as an offer over r1 to z: a person-level row "
      "seats no key into a room's audience, so z is held to named_within (review r83, case o)",
      [row("o", "identity:occurrence", "community", room="r1", named=["z"], kind="offer", obj="r1", to=["z"])],
@@ -162,11 +163,8 @@ CASES = [
      [row("m", "chat:general", "community", room="r2")], {"m": P("targeted_room", ["a", "e"])}),
     ("targeted_no_room", "a targeted row names its room",
      [row("m", "chat:general", "community")], {"m": REF("no_room")}),
-    ("undecided_family", "a family whose placement cell is not table data answers Undecided naming the family",
-     [row("k", "stream:head", "community", room="r1"), row("q", "preserve_request", "self")],
-     {"k": UND("stream:head"), "q": UND("preserve_request")}),
-    ("undecided_by_pattern", "an undecided family matched by a pattern names the pattern",
-     [row("k", "custody:blob", "community", room="r1")], {"k": UND("custody:{kind}")}),
+    ("held_shut_family_placed", "preserve_request, Undecided before d5d42bf, is placed by its scope",
+     [row("q", "preserve_request", "self")], {"q": P("self_collective", ["a", "a2"])}),
     # families the Constitution's placement lane stated (d103e60): undecided before it
     ("ack_placed", "an acknowledgement (act:ack) is placed by its scope: at the community, the roster",
      [row("k", "act:ack", "community", room="r1")], {"k": P("targeted_room", ROOM)}),
@@ -306,7 +304,7 @@ TIES = [
 
 # (planted breaks switched on together, the case that catches them). The copy rule's three gates are planted with
 # its bound lifted (copy_unbounded): under the bound they are not observable
-PLANTS = [(("undecided_defaulted",), "undecided_family"), (("pinned_unread",), "pinned_self"),
+PLANTS = [(("undecided_defaulted",), "undecided"), (("pinned_unread",), "pinned_self"),
           (("named_within_unread",), "named_outside_audience"),
           (("copy_any_carrier",), "copy_same_room"), (("copy_any_signer",), "copy_signer_outside"),
           (("copy_unconcluded",), "copy_unconcluded"), (("copy_off_roster",), "copy_not_off_roster"),
@@ -317,7 +315,7 @@ PLANTS = [(("undecided_defaulted",), "undecided_family"), (("pinned_unread",), "
           (("seats_person_level",), "seats_not_person_level"),
           (("named_within_current",), "named_at_own_head"),
           (("history_unread",), "history"), (("word_read",), "history"),
-          (("tie_first",), "ties"), (("follows_unread",), "follow")]
+          (("tie_first",), "ties"), (("follows_unread",), "follow"), (("narrower_by_keys",), "follow")]
 
 
 def generated():
@@ -394,6 +392,10 @@ FOLLOW = [
     (True, RM, ("placed", "commons", AU.EVERYONE), "narrower", RM),
     (True, RM, ("refused", "named_outside_audience"), "same", ("refused", "follows_unplaced")),
     (True, RM, None, "same", ("refused", "follows_not_held")),
+    # narrower is over persons: a's device a2 is off r1's roster, and a is on it, so a duty at self is within
+    (True, ("placed", "self_collective", frozenset({"a", "a2"})), RM, "narrower",
+     ("placed", "self_collective", frozenset({"a", "a2"}))),
+    (True, ("placed", "self_collective", frozenset({"d"})), RM, "narrower", ("refused", "follows_wider")),
     (False, RM, RM, "same", ("refused", "follows_not_named")),
     (True, ("refused", "no_room"), RM, "same", ("refused", "no_room")),
 ]
@@ -405,7 +407,7 @@ def check_follow():
         r = row("f", "custody:blob", "community", room="r1")
         if named:
             r["follows"] = "t"
-        got = AU.follow(r, own, fol, rule)
+        got = AU.follow(r, own, fol, rule, person)
         if got != want:
             problems.append("follow: %s %s against %s gives %s, want %s" % (rule, own, fol, got, want))
     return problems
@@ -427,10 +429,14 @@ FOLLOWS_CASES = [
      [row("p", "consent:scope:read", "community", room="r1"),
       dict(row("d", "duty:keep", "family", room="r1", names=["p"]), follows="p")],
      {"p": P("targeted_room", ROOM), "d": P("targeted_family", ROOM)}),
-    ("duty_at_self_wider_than_its_permission", "a duty at self on a permission in r1: a's own keys include a2, "
-     "off r1's roster, so it is not within the permission's audience: refused",
+    ("duty_at_self_within_its_permission", "a duty at self on a permission in r1, by a, whose device a2 is off r1's "
+     "roster: narrower is over persons, and a is on the roster, so it is within (the ruling)",
      [row("p", "consent:scope:read", "community", room="r1"),
       dict(row("d", "duty:keep", "self", names=["p"]), follows="p")],
+     {"p": P("targeted_room", ROOM), "d": P("self_collective", ["a", "a2"])}),
+    ("duty_at_self_of_an_outsider", "a duty at self by d, a person off r1's roster, on a permission in r1: refused",
+     [row("p", "consent:scope:read", "community", room="r1"),
+      dict(row("d", "duty:keep", "self", signer="d", names=["p"]), follows="p")],
      {"p": P("targeted_room", ROOM), "d": REF("follows_wider")}),
     ("duty_wider_than_its_permission", "a duty at the commons on a permission placed in r1: refused",
      [row("p", "consent:scope:read", "community", room="r1"),
@@ -439,6 +445,25 @@ FOLLOWS_CASES = [
     ("stream_head_names_no_stream", "a stream head that names no stream it heads: refused",
      [row("h", "stream:head", "community", room="r1")], {"h": REF("follows_not_named")}),
 ]
+
+
+# the Undecided path, over a synthetic table (the pinned one has no undecided family since d5d42bf): (row family,
+# scope, the answer)
+SYNTH = {"test:open": {"family": "test:open", "allowed": None, "undecided": "gap: no placement"},
+         "test:open:{kind}": {"family": "test:open:{kind}", "allowed": None, "undecided": "gap: no placement"},
+         "test:placed": {"family": "test:placed", "allowed": ["self_collective"], "undecided": None}}
+UNDECIDED = [("test:open", "community", UND("test:open")), ("test:open:x", "self", UND("test:open:{kind}")),
+             ("test:placed", "self", P("self_collective", ["a", "a2"])), ("test:none", "self", REF("family_unknown"))]
+
+
+def check_undecided():
+    problems = []
+    for fam, scope, want in UNDECIDED:
+        got = enc(AU.place(row("u", fam, scope, room="r1" if scope == "community" else None), roster, person,
+                           AU.NO_JOINS, SYNTH))
+        if got != want:
+            problems.append("undecided: %s at %s gives %s, want %s" % (fam, scope, got, want))
+    return problems
 
 
 # history_of: the word a caller reads for a kept stream (it changes no audience). (row's word, record's word, answer)
@@ -519,6 +544,8 @@ def fixture():
             "ties": [{"families": f, "name": n, "answer": a} for f, n, a in TIES],
             "history": [{"row": rw, "record": rec, "answer": a} for rw, rec, a in HISTORY],
             "seats": [{"row": r, "seats": w} for r, w in SEATS],
+            "undecided": {"families": [[f, c["undecided"]] for f, c in SYNTH.items()],
+                          "cases": [{"family": f, "scope": sc, "answer": w} for f, sc, w in UNDECIDED]},
             "follow": [{"named": n, "own": enc(o), "followed": enc(f) if f else None, "rule": ru, "answer": enc(w)}
                        for n, o, f, ru, w in FOLLOW],
             "generated": [{"family": p, "name": n, "scope": s, "room": r, "answer": a} for p, n, s, r, a in generated()],
@@ -529,11 +556,11 @@ def fixture():
 
 
 def main():
-    problems = check_table() + check_cases() + check_derivation() + check_ties() + check_history() + check_seats() + check_follow()
+    problems = check_table() + check_cases() + check_derivation() + check_ties() + check_history() + check_seats() + check_follow() + check_undecided()
     if REGARD not in AU.FAMILIES:
         print("  %s is not in the pinned table yet: its %d cases wait for the re-pin" % (REGARD, len(REGARD_CASES)))
     caught = 0
-    present = {c[0] for c in cases_now()} | {"table", "ties", "history", "seats", "follow"}
+    present = {c[0] for c in cases_now()} | {"table", "ties", "history", "seats", "follow", "undecided"}
     waiting = 0
     for muts, where in PLANTS:
         mut = "+".join(muts)
@@ -543,7 +570,7 @@ def main():
             continue
         AU.MUT.clear(); AU.MUT.update(muts)
         try:
-            got = check_table() + check_cases() + check_ties() + check_history() + check_seats() + check_follow()
+            got = check_table() + check_cases() + check_ties() + check_history() + check_seats() + check_follow() + check_undecided()
         finally:
             AU.MUT.clear()
         hit = any(g.startswith(where + ":") for g in got)

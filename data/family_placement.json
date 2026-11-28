@@ -2,14 +2,14 @@
  "_source": {
   "repository": "CIRISConstitution",
   "path": "manifests/family_model.json",
-  "branch": "rc23",
-  "commit": "d103e60f86da880a8ad3d0e0aac37c0cee655ca1",
-  "sha256": "f5a38b474a003e46be5254387836acb34b0356f0b18a65567f11a955a11907a9",
+  "branch": "rc23-next",
+  "commit": "d5d42bfb789f8ca62ba1e82a79cbac6f0bd01fc2",
+  "sha256": "94a6ac96a22338752716bce35caa44e50e471479fc01bae5f1a553076a31499f",
   "families": 189,
   "on_the_default": 143,
-  "pinned_by_the_table": 34,
-  "undecided": 12,
-  "provisional": false
+  "pinned_by_the_table": 46,
+  "undecided": 0,
+  "provisional": true
  },
  "placements": [
   "self_collective",
@@ -291,8 +291,13 @@
   },
   {
    "family": "archive_release:{basis}",
-   "allowed": null,
-   "undecided": "code-v61: none (held shut: never stored)",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null,
    "seat": false,
    "follows": null,
    "follows_text": null
@@ -708,8 +713,10 @@
   },
   {
    "family": "community:listing",
-   "allowed": null,
-   "undecided": "code-v61: commons (public_room.rs:229, listing_not_federation)",
+   "allowed": [
+    "commons"
+   ],
+   "undecided": null,
    "seat": false,
    "follows": null,
    "follows_text": null
@@ -986,11 +993,16 @@
   },
   {
    "family": "custody:{kind}",
-   "allowed": null,
-   "undecided": "prose: the blob's held claim scope (holding_claim::check_holding_claim_scope)",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null,
    "seat": false,
-   "follows": null,
-   "follows_text": null
+   "follows": "same",
+   "follows_text": "the content's scope"
   },
   {
    "family": "cw_class:{class}",
@@ -1185,11 +1197,16 @@
   },
   {
    "family": "duty:{kind}",
-   "allowed": null,
-   "undecided": "prose: never wider than the referenced permission's projection",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null,
    "seat": false,
-   "follows": null,
-   "follows_text": null
+   "follows": "narrower",
+   "follows_text": "the scope of the permission it attaches to, or narrower"
   },
   {
    "family": "encyclopedia:*",
@@ -1346,8 +1363,11 @@
   },
   {
    "family": "group:roster",
-   "allowed": null,
-   "undecided": "code-v61: ['targeted_family', 'targeted_room (cohort_scope family|community + group_kind)']",
+   "allowed": [
+    "targeted_family",
+    "targeted_room"
+   ],
+   "undecided": null,
    "seat": "roster",
    "follows": null,
    "follows_text": null
@@ -1569,8 +1589,13 @@
   },
   {
    "family": "lawful_order:release",
-   "allowed": null,
-   "undecided": "code-v61: none (held shut: never stored)",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null,
    "seat": false,
    "follows": null,
    "follows_text": null
@@ -1666,8 +1691,11 @@
   },
   {
    "family": "membership:{stage}",
-   "allowed": null,
-   "undecided": "code-v61: ['targeted_family', 'targeted_room (at the group)']",
+   "allowed": [
+    "targeted_family",
+    "targeted_room"
+   ],
+   "undecided": null,
    "seat": "roster",
    "follows": null,
    "follows_text": null
@@ -1838,11 +1866,16 @@
   },
   {
    "family": "ownership:{relation}:{target_kind}:{version}",
-   "allowed": null,
-   "undecided": "prose: affiliation named must admit the owner",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null,
    "seat": false,
-   "follows": null,
-   "follows_text": null
+   "follows": "same",
+   "follows_text": "the scope of the owner-binding it mirrors"
   },
   {
    "family": "partner_role:{role}",
@@ -1872,16 +1905,26 @@
   },
   {
    "family": "preserve_request",
-   "allowed": null,
-   "undecided": "code-v61: none (held shut: never stored)",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null,
    "seat": false,
    "follows": null,
    "follows_text": null
   },
   {
    "family": "preserve_response",
-   "allowed": null,
-   "undecided": "code-v61: none (held shut: never stored)",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null,
    "seat": false,
    "follows": null,
    "follows_text": null
@@ -2103,8 +2146,13 @@
   },
   {
    "family": "retirement:{state}",
-   "allowed": null,
-   "undecided": "code-v61: none (held shut: never stored)",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null,
    "seat": false,
    "follows": null,
    "follows_text": null
@@ -2215,11 +2263,16 @@
   },
   {
    "family": "stream:head",
-   "allowed": null,
-   "undecided": "gap: no placement",
+   "allowed": [
+    "self_collective",
+    "targeted_family",
+    "targeted_room",
+    "commons"
+   ],
+   "undecided": null,
    "seat": false,
-   "follows": null,
-   "follows_text": null
+   "follows": "same",
+   "follows_text": "the scope of the stream it heads"
   },
   {
    "family": "system:*",
