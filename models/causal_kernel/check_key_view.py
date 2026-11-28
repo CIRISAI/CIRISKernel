@@ -276,8 +276,9 @@ CUT = [
     ("k3.py's K3c as written (p2's revocation holds nothing): for a reader with no line, xm (p2's withdrawal of p1's "
      "moderate) and r2 are both cut, and x stays in force: AG removed", "window", RF.W + [RF.X, R2, RF.UND],
      LREC + [KE.revoke("v2", "p2", 0)], None, None, ("AG", "agent", "g"), False),
-    ("and for p3, which cosigned xm (taken up): xm stands and r2 (not on p3's line) is cut: x falls out of force, AG "
-     "is back", "window", RF.W + [RF.X, R2, RF.UND], LREC + [KE.revoke("v2", "p2", 0)], "p3", None, ("AG", "agent", "g"), True),
+    ("and for p3, which only cosigned xm (STRICT own_row, review-48 R2s: a cosignature listed on another's row is no "
+     "row of p3's line): p3 has no line, xm and r2 are cut as for a fresh reader, and x stays in force",
+     "window", RF.W + [RF.X, R2, RF.UND], LREC + [KE.revoke("v2", "p2", 0)], "p3", None, ("AG", "agent", "g"), False),
 ]
 
 
@@ -319,8 +320,8 @@ ROSTER_DIRECT = [
     ("own_row (iii), r101 R2: another key's note claiming the reader as a cosigner is no row of the reader's line",
      [], KR2, "aT", "T", "F", False),
     ("own_row (i): a row the reader signed takes the row up though it concluded nothing", [], KUN, "aT", "T", "F", True),
-    ("own_row (ii): a concluded offer the reader is a voice of through its cosign row (the cosign naming nothing) "
-     "takes the row up", [], KCO, "aT", "T", "F", True),
+    ("STRICT own_row (review-48 R2s): a concluded offer the reader is a voice of through its cosign row (the cosign "
+     "naming nothing) is no row of its line, and takes the row up for nothing", [], KCO, "aT", "T", "F", False),
     ("r97 K1: a thief holding the reader's key signs a note as the reader naming its own row, after the key's end: the "
      "note is no row of the reader's line, and the row counts nothing", [], KK, "aN", "N", "N", False),
     ("an honest note the reader signed before its own key's end still takes the row up", [], KH, "aT", "T", "F", True),
@@ -416,7 +417,7 @@ PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("win
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
           ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT),
           ("taken_up_unread", KE.MUT), ("reader_line_unchecked", KE.MUT), ("own_unconcluded_unread", KE.MUT),
-          ("own_voice_unread", KE.MUT), ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("registered_unconcluded_counted", KE.MUT), ("registered_by_past", KE.MUT), ("unconcluded_cosigner_counted", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
+          ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("registered_unconcluded_counted", KE.MUT), ("registered_by_past", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
           ("receipt_unclean_counts", ST.MUT), ("rotation_void_unread", KE.MUT), ("voided_successor_kept", KE.MUT),
           ("disputed_key_voices", ST.MUT), ("clean_signers_only", ST.MUT), ("roster_end_any_object", ST.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries

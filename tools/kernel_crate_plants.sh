@@ -379,19 +379,8 @@ plant "a family's founding read as a self roster's (r99 drift)" src/seat.rs '   
 }'
 plant "a landed self-roster window is no head of a later count" src/seat.rs '        (change(law, q, obj, room.as_deref()) || landed_change(p, q, obj))' '        change(law, q, obj, room.as_deref())'
 plant "the reader's line read out of order: a later row over the rival takes it up too (r100r)" src/seat.rs '.filter(|&a| !taking.iter().any(|&b| b != a && g.in_past(b, a)))' '.filter(|_| true)'
-plant "another signer's claimed cosigners seed the reader's line (r101 R2)" src/seat.rs '    let mine = r.signer() == own
-        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
-            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();' '    let mine = r.signer() == own || r.cosigners().contains(own)
-        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
-            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();'
-plant "a seat row that concluded nothing seeds the reader's line by its cosigners (r101 S5, S6)" src/seat.rs '        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
-            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();' '        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && {
-            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();'
-plant "the line reads a seat row's voices without its cosign rows (cosigners only)" src/seat.rs '            voices(r, &Past::new(g, a, &anc)).contains(own)
-        });
-    if !mine {' '            r.cosigners().contains(own) && !anc.is_empty()
-        });
-    if !mine {'
+plant "another signer's claimed cosigners seed the reader's line (r101 R2)" src/seat.rs '    let mine = r.signer() == own;' '    let mine = r.signer() == own || r.cosigners().contains(own);'
+plant "a forged cosigner on a concluded seat row seeds the reader's line (review-48 R2s)" src/seat.rs '    let mine = r.signer() == own;' '    let mine = r.signer() == own || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && r.cosigners().contains(own));'
 plant "the person line reads no key end: a thief's row with the reader's revoked key seeds its line (K1)" src/seat.rs '    let ends_ok = |a: usize| kv.is_none_or(|kv| kv.counts(c.g.row(a).id(), own));' '    let ends_ok = |_a: usize| kv.is_none_or(|_| true);'
 plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '            [g] if !self.revoked.contains(g) => Some(g.clone()),' '            [g] => Some(g.clone()),'
 plant "an agent's key of a person's roster speaks for that person" src/seat.rs '        if self.agents.contains(k) {
@@ -919,11 +908,7 @@ plant "seat: a lone removal's single-key receipt not read by the key view (recei
 plant "seat: a lone act not read by the key view (lone_key_view_unread)" src/seat.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer())) {' 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer()) && false) {'
 plant "key_end: a retired key's revocation an end (retired_key_revokes)" src/key_end.rs 'if rk == k && q.signer() == k && rots.is_empty() {' 'if rk == k && q.signer() == k {'
 plant "key_end: a reader's own row after its key's end on its line (reader_line_unchecked)" src/key_end.rs '    crate::seat::own_row(c, a, own, &|a| es.iter().all(|&(e, ra)| before(c, a, e, ra)))' '    crate::seat::own_row(c, a, own, &|_| es.is_empty() || true)'
-plant "key_end: own_row reads only concluded rows the reader signed (own_unconcluded_unread)" src/seat.rs '    let mine = r.signer() == own
-        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
-            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();' '    let mine = (r.signer() == own && c.concluded(a))
-        || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && {
-            let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();'
+plant "key_end: own_row reads only concluded rows the reader signed (own_unconcluded_unread)" src/seat.rs '    let mine = r.signer() == own;' '    let mine = r.signer() == own && c.concluded(a);'
 # folded into the one own_row (seat::own_row): key_end: own_row reads no voice of a concluded seat row (own_voice_unread), as the r101 plants on it
 # folded into the one own_row (seat::own_row): key_end: own_row reads any row claiming the reader as a cosigner (own_claimed_cosigner), as the r101 plants on it
 plant "seat: own_row reads a registered unseat by past only (registered_by_past)" src/seat.rs '    let registered = registered_ends(c, own).into_iter().all(|x| g.in_past(a, x));' '    let registered = registered_ends(c, own).into_iter().all(|x| !g.in_past(x, a));'
