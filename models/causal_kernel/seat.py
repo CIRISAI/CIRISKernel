@@ -1251,6 +1251,18 @@ def _seat(slots):
     return set(slots)
 
 
+_UNTAKEN = [frozenset()]      # the rows the reader's roster does not take: S'' roster_void for every reader, the reader's void
+
+
+def taken(rows):
+    """The rows the reader's roster TAKES (the ruling on r93 and r103: every `counted`, `end` and `holds` of the close is
+    as the roster takes it, never as concluded): rows less the roster's own S'' void (for every reader, None too), the
+    reader's line void and the seat ends behind its line. The one view the close reads (MUTATION close_reads_concluded)."""
+    if "close_reads_concluded" in MUT: return list(rows)
+    out = _UNTAKEN[-1] | _RVOID[-1] | _RENDS[-1]
+    return [q for q in rows if q["id"] not in out]
+
+
 def ended_dropped(P):
     """The counted ends over P the roster does not take: its lone removals out of force and its contested removals
     (Seats.dropped), read over P less the election's own seatings."""
@@ -1267,7 +1279,7 @@ def end_fork(e, P, past, obj):
     # only an end the roster TAKES forks (a counted removal it holds contested or out of force is none: rule 5's
     # reading, Seats.dropped over the rows held; MUTATION fork_untaken_end)
     dropped = frozenset() if "fork_untaken_end" in MUT else ended_dropped(P)
-    for f in P:
+    for f in taken(P):
         if f["id"] == e["id"] or past(f["id"], e["id"]) or past(e["id"], f["id"]): continue
         if f["id"] in dropped: continue
         if not (_seat(seat_end_slots(f, P, past, obj)) & mine): continue
@@ -1291,9 +1303,17 @@ def open_concludes(r, P, past):
             not seat_end_slots(e, P, past, obj) or end_fork(e, P, past, obj)): return False
     heads = tuple(r.get("head", ()))
     if "open_old_heads" not in MUT and newer_head_in_past(heads, None, P, past, obj): return False
+    return open_count(r, P, past)
+
+
+def open_count(r, P, past, no_say=frozenset()):
+    """The opening's count over P (its past): a strict majority of the members as persons at its heads, floor
+    min(2, members); the persons `no_say` (rule 6's double signers of rival openings) are no voices of it."""
+    obj, heads = r.get("obj"), tuple(r.get("head", ()))
     mem = members_at(P, past, obj, heads, "member") - members_at(P, past, obj, heads, AGENT)
     if "open_by_key" in MUT: base, yes = mem, voices(r, P) & mem
     else: base, yes = count_persons(P, obj, mem, voices(r, P))
+    yes = frozenset(yes) - frozenset(no_say)
     n = len(base)
     floor = 0 if "open_no_floor" in MUT else min(2, n)
     return n > 0 and 2 * len(yes) > n and len(yes) >= floor
@@ -1320,9 +1340,19 @@ def opening_in_force(op, rows, past):
     for one end (or for rival ends of one seat) neither in the other's past are contested, neither in force, until an
     opening with both in its past is counted, which is then the election (its id; every ballot and seating under
     either rival is void and the members vote again). MUTATION openings_both_stand."""
-    rs = openings_for(op, rows, past)
+    rows = taken(rows)
+    by = {q["id"]: q for q in rows}
+    if op.get("cites") and op["cites"][0] not in by and op["cites"][0] != op.get("obj"): return False   # its end not taken
+    rs = [o for o in openings_for(op, rows, past) if o["id"] in by or o is op]
     newest = [o for o in rs if not any(past(o["id"], x["id"]) for x in rs if x is not o)]
     if "openings_both_stand" in MUT: return op in newest
+    if len(newest) > 1 and "rival_double_signers_kept" not in MUT:
+        # rule 6: a person cosigning two rival openings has no say in either; a rival whose count fails without such
+        # persons is none (with two majorities of one base this leaves neither: the contest stands until resolved)
+        P_np = [q for q in rows if not is_election(q)]
+        sig = {o["id"]: {rep_of(P_np, k) or k for k in signers(o)} for o in newest}
+        dbl = {k for o in newest for k in sig[o["id"]] if sum(k in sig[x["id"]] for x in newest) > 1}
+        newest = [o for o in newest if open_count(o, [q for q in rows if past(q["id"], o["id"])], past, dbl)]
     return newest == [op] or (len(newest) == 1 and newest[0]["id"] == op["id"])
 
 
@@ -1499,7 +1529,7 @@ def closure(Ek, rows, past, obj):
     # seat, or a rival end of it (a fork of the end): the reader waits (MUTATION close_no_wait). A row the roster does
     # not take (behind the reader's line) blocks nothing.
     if op is not None and "close_no_wait" not in MUT:
-        held = [q for q in rows if q["id"] not in _RVOID[-1] and q["id"] not in _RENDS[-1]]
+        held = taken(rows)
         if not opening_in_force(op, held, past): return None
         e = by_rows.get(op.get("cites", (None,))[0])
         if e is not None and end_fork(e, held, past, obj): return None
@@ -1594,15 +1624,20 @@ def election_closed(S, sid, reader=None):
     a reader with no row over its held rows. The seating's own group must be the one closed."""
     if not S.C.get(sid): return False
     past = lambda a, b: a in S.anc[b]
-    V, RE = (reader_void(S, reader), reader_ends(S, reader)) if reader is not None else (frozenset(), frozenset())
-    _RVOID.append(frozenset(V)); _RENDS.append(frozenset(RE))
+    # the rows the reader's roster takes (taken): its own reading, Seats.stale (the roster's S'' void, for a reader with
+    # no row too, and the reader's line void), and the seat ends behind its line
+    Q = Seats(S, own=reader)
+    V = frozenset(Q.stale) if "close_reads_concluded" not in MUT else frozenset()
+    RE = reader_ends(S, reader) if reader is not None else frozenset()
+    _RVOID.append(frozenset(V)); _RENDS.append(frozenset(RE)); _UNTAKEN.append(V)
     try:
         rows = [q for q in S.Cs if q["id"] not in V]
         q = S.by[sid]
         v = seating_view(q, [x for x in rows if past(x["id"], sid)], past)
+        if sid in Q.beaten: return False
         return closure(v[0], rows, past, q["obj"]) == v[2]
     finally:
-        _RVOID.pop(); _RENDS.pop()
+        _RVOID.pop(); _RENDS.pop(); _UNTAKEN.pop()
 
 
 def forkers(Ek, rows, past, obj, by, ends0=frozenset()):
@@ -1724,14 +1759,21 @@ def election_beaten(rows, past, void=frozenset()):
     # rules 1 and 4 over the rows held: a seating whose opening is not in force there (a rival opening for its seat,
     # neither in the other's past) or cites an end the rows held fork does not stand (MUTATION rival_openings_read)
     by_h = {q["id"]: q for q in rows}
-    if "rival_openings_read" not in MUT:
-        for q in rows:
-            o = by_h.get(q.get("of")) if is_election(q) else None
-            if o is None or o["kind"] != "election_open": continue
-            e = by_h.get(o.get("cites", (None,))[0])
-            taken = [x for x in rows if x["id"] not in _RENDS[-1]]          # rows the reader's roster takes
-            if not opening_in_force(o, taken, past) or (e is not None and end_fork(e, taken, past, o.get("obj"))):
-                out.add(q["id"])
+    _UNTAKEN.append(frozenset(void))
+    try:
+        if "rival_openings_read" not in MUT:
+            for q in rows:
+                o = by_h.get(q.get("of")) if is_election(q) else None
+                if o is None or o["kind"] != "election_open": continue
+                e = by_h.get(o.get("cites", (None,))[0])
+                if not opening_in_force(o, rows, past) or (e is not None and end_fork(e, rows, past, o.get("obj"))):
+                    out.add(q["id"])
+        return _beaten_rest(rows, past, void, out)
+    finally:
+        _UNTAKEN.pop()
+
+
+def _beaten_rest(rows, past, void, out):
     groups = {}
     for q in rows:
         if is_election(q) and q["id"] not in void: groups.setdefault((q.get("obj"), _view(rows, past, q)[0]), []).append(q)
