@@ -164,8 +164,9 @@ into it from the count across signers is the intended movement.
 | a cell with a dropped word | 47 |
 
 One voice may order its own rows. The fold default (CC 3.5.1) evaluates each signer's chain on its own: between
-two acts of one kind by one signer on one named row, the later signed instant wins and the lower row id breaks
-a tie. A signer who back-dates changes only what the signer itself says, so the two rows for one signer's own rows
+two acts of one kind by one signer on one named row, one that has the other in its causal past wins whatever
+either states (causality beats the instant, as the Constitution ruled reading CC 3.3.7); between two concurrent
+ones the later signed instant wins and the lower row id breaks a tie. A signer who back-dates changes only what the signer itself says, so the two rows for one signer's own rows
 are allowed and are counted only to keep them in view. The two rows for different signers contradict
 section 2, since they order rows by a value one of the signers chose, and are held at zero. A cell counts as one signer's own only when its expression fixes the
 signer in the group it orders; any other cell counts as across signers. A session's key names the self, so

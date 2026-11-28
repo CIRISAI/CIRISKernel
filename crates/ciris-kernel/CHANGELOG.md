@@ -136,6 +136,82 @@ answer returns a "final" bit, so persist prunes nothing on its own judgement.
 and [`VECTORS.md`](VECTORS.md) states the neutral cases its vectors are minted from. Present real rows: nothing
 synthesised, no head the store made up, no stored verdict carried in as a row field. Where an answer is
 `Undecided`, re-ask once the row it names is held.
+**The consent peer set** (new module `consent`; CC 3.3.7, CC 5.2; for CIRISEdge's attestation-plane replication). A
+`consent:replication:v1` grant is one signer's directed row to one peer naming the classes it moves, and it moves
+those and nothing else. `consent::in_force`, `peer_set`, `may_send` and `replication_set`, read at a held row, over a
+new `ConsentRow` trait (kind, peer, classes, `asserted_at`, `valid_until`, the grant a withdrawal names, a key's own
+revocation, an announcement), with `consent::conclude_rule` for the door (a grant's classes a sorted set; at
+federation scope only with both parties announced in its past; a withdrawal by the grant's signer, the peer it
+names, or the signer's owner read at the withdrawal, which the caller gives). The fold is the default fold per
+(signer, peer), causal first; a withdrawn or lapsed latest grant revives no earlier one. `consent::bilateral`: both
+directions in force. A withdrawal is a cut: it ends the grant at every
+row not in its own past, so a concurrent one ends it too. The term is half-open at the caller's instant (the caller's `now`:
+nodes agree on a term only at the same `now`). A grant's voice is **the key view** (`key_end::KeyView`, the end rule
+every count reads, from key-end-retained): its signer's signature counts only where the grant is in the past of each
+of the key's ends, taken up on the reader's line, or under a final count, so no stated instant helps a grant
+concurrent with a revocation or rotation (review-48's A1 to A3); every reading takes `kv` (`None`: no key lane). An
+`at` that is not held reads nothing in both languages; a grant with no `asserted_at` ranks below one with one. The node's principals are the node
+and its one owner, which the caller reads with **the one owner reading**, new `seat::Seats::owner(node)` (both
+languages): `Seats::one` of scope `owner` with the re-binding rule of `standing::answers` (a binding that has an
+earlier one in its past ends it); two owners is none. Consent reads the owner only through it (review-54's DRY
+audit); `nodes_of` (key-person) is its inverse. The reference is
+`models/causal_kernel/consent.py`, its cases `check_consent.py` (57 cases, 130 answers, every order of up to six
+rows, 19 planted breaks), the fixture `tests/fixtures/consent.json` and the test `tests/consent.rs`.
+
+**The default fold is causal first** (the Constitution, reading CC 3.3.7 with CC 3.5.1). `derived::fold_default`:
+of one signer's rows of the top kind on one target, a row that has another in its causal past is later, whatever
+instant either states; the signed instant, then the lowest id, orders only rows concurrent with each other. **An
+answer changes** only where one row of a signer names (through any chain) another of the same kind on the same
+target and states an earlier instant: before, the earlier-named row won; now the row that names it does. No other
+caller of the fold is in the crate, and no fixture answer changes.
+
+**A key end is a cut** (the Constitution's ruling on r86 R1 and R2). `key_end::counts_for(c, i, k, reader, final_)`:
+a row of `k` stands against each of `k`'s ends where it is in the end's past, or on the reader's own line from before
+the reader held the end (taken up), or part of a count final by acknowledgement (`seat::final_by_ack`: n - t + 1
+clean receipts; a final act is not reopened by a later cut). `KeyReading` carries the reader and the final counts;
+`counts_by` is the reading with no reader. A revocation by a key of which any concluded rotation is held is no end;
+two rotations are a fork of the key (both ends, no successor). An eviction from the person's self roster ends the key
+as the person's, never its liveness (G33; read by the person map). The roster's counted removal of a rotated-to key
+citing the rotation voids it (r92 T3: no end, no successor, the rotated-to key's rows cut; the old key no voice of
+that count; `seat::self_roster_ends`, `SeatRow::rotates`, `KeyEndRow::roster_end` now the key a removal removes).
+Finality's clean test reads every voice of the count, cosign rows' signers too (r92 T2), and a withdrawal of the act. Finality
+counts only clean receipts (no end of a voice's key, no cut of the act in its past, its signer's key standing), and a
+final count protects only voices valid when cast (r89). A `declared` need is never final; a recall's t is read at
+its own base. Caller duty: an honest rotation
+or revocation names the key's last rows. The cost: a thief's vote a reader took up before holding the end stands for
+that reader, one in a final count for everyone; the remedy is a later count; readers may differ on a count not yet
+final. Cases in `check_key_view.py` (35); plants `retired_key_revokes`, `roster_end_unread`, `taken_up_unread`,
+`final_count_unread`, crate twins.
+
+**The key view: every seat count reads a key's end at its voices step.** `CutSpec::key_view` (defaulted None),
+`key_end::KeyView`, `key_end::KeyReading` and `key_end::counts_by` (new): `seat::voices_with`, the one place every
+seat count reads its voices, keeps the signer's and each cosigner's signature on the counted row, and each named
+cosign row's signer's, only where `counts_by` holds over one causal order of the key and seat lanes that the caller
+builds (`KeyEndRow::instant`, defaulted, a seat row's signed instant). A store with key records must supply it; with
+none every voice counts (a caller with no key lane). Cases in `check_key_view.py`, fixture `key_end_counts.json`
+(replayed by `tests/key_view.rs`); plants `key_view_unread`, `cosigner_key_unchecked`, crate twins. Every lane that
+counts a voter reads the same key view: a window's answers (`window`) and an election's ballots (`seat::election`) too
+(plants `window_key_view_unread`, `ballot_key_view_unread`). Merged with the key-person map at the voices step, the
+key view comes first (dead keys out), then persons (living keys mapped). The lift's objections, a lone removal's
+single-key receipts and the lone act itself read it too (r86: plants `lift_key_view_unread`,
+`receipt_key_view_unread`, `lone_key_view_unread`). A row stating no instant is judged by its past alone;
+`KeyEndRow::instant` defaults to a statement's instant only (the model reads every row's `at` through `key_end.instant`,
+as the test adapter does). The stub pin (K14): a stub keeping only its header, names, `at` and conclusion gives every
+`counts_by` answer.
+
+**An ended key's row counts by the end rule, never by a cite** (the Constitution's ruling: for counts, a removed or
+ended key's late vote cited by a friendly member stays cut; only content may be anchored by others' rows).
+`key_end::counts` (new): a statement of key `k` counts only where it is in the causal past of each of `k`'s own
+ends: a self-revocation (and its own instant before the `revoked_after` `k` stated) and a rotation naming `k`'s
+record (a rotated holder speaks under its new key). With no such end, a concluded statement counts: its instant
+inside its record is the holder's word, bounded below by its own past (the licence term's residual and caller
+duty). `retained` is for storage only and keeps every row a count reads, every rotation and revocation, and what a
+live row names; nothing counts by it. Before this, `retained` was the only reading the crate offered for an ended
+key's rows, and ADOPTING told persist to keep and so count a cited late row. The model's attestation score reads
+`counts` (K12: eight facts; plant `ended_vote_retained_by_cite`, crate twin). An expired key's in-time rows
+count, so their STUBS are kept for good (`retained`); their BYTES drop once settled (`bytes_retained`, new: what a
+live row names, rows of keys not ended, revocations and rotations), as the purge keeps a settled act's stub (K13;
+plant `stub_drops_counted`).
 
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.
@@ -262,6 +338,46 @@ with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
   remove that holder by an amend). **The residual, stated:** "a holder's statement over a sibling bundle is not ordered against its grant, so it is not read; a grant on one tip is judged by the rows in its own past". It can matter only where that holder's voice is the
   deciding one of an exact majority, and the statement over s2 and the grant on s1 are held evidence the other holders
   can cite when they name both tips.
+
+**Counts are over persons: one voice and one member per person** (ruled on CIRISConstitution#224: "one voice
+however many live keys sign"). New: `seat::Persons`, the persons a count reads over a counted row's past, and
+`seat::persons_of`. A person is named by its self roster's genesis key (the founding record's signer). A key of
+exactly one self roster counts as its person, a key of none as itself. In a base, a key counts as that member,
+so a person seated by two keys is one member. As a voice it counts for nobody where:
+- it is a key of two persons, two rosters with different genesis keys (two rosters founded by one genesis key name
+  one person);
+- it revoked itself (its member seat stands);
+- its person's genesis key revoked itself (its devices then speak for no one).
+An AI agent's key is out before the map (CC 4.5.13: "an agent has no vote"): never its owner's voice whatever roster
+lists it, and no voice of its own, since no count's base holds an agent (a clause one holder's act resolves still reads
+an agent holder's act). The edge: a person who seats one of their own device keys as an agent loses that key as a
+voting key. Agent registration is not modelled apart from the agent seat. The base and the voices map to persons
+everywhere: the denominator, the numerator, the electorate and the floor of two (two keys of one person never meet
+it).
+Every count reads its base and its voices through it: the seat rule's count (the policy count, quorum, floor, the duty
+count, the recall), the fold at tips, the lift (the remover's devices are the remover), the count's receipt of a lone
+removal, the election's ballots and set (one ballot a person; two rankings say nothing; a member's device signs for
+it), and a window's answers and bases (each answer read as its signer's person before the opener's withdrawal, a duty
+holder's act and the moot are read). Voices are mapped first and then held to the voting base, so a device of an
+excluded target or a voided member is no voice. A count over a self roster's own keys (or a key object) reads keys.
+`GroupCount`'s contract states that its `voices` are persons. No existing answer changes. The reference:
+`seat.rep_of`, `seat.as_persons`, `seat.persons_of`, `seat.person_for`; `check_key_person.py`, 42 cases (the review
+r74's rows among them: a person seated by two keys, a revoked key and its devices, an agent's key, the lift's
+author's device, a window over a self roster) and ten planted breaks; the window, ballot and r74 rows are in the seat
+fixture; seven crate plants for it, four retargeted.
+
+**A key's person at a row, with no instant** (0.5.0; the rule ruled on CIRISConstitution#224). New:
+`seat::person_at(c, at, law, spec, k)`, the person key `k` is at row `at` of a concluded set: the self roster (an
+object of kind `self`: a person's own key roster, or a voice's room keys in a private room) where, in the row's own
+past, `k` is the genesis key or was seated by a counted addition that landed (`self_roster_add`), no eviction of it
+has landed (`self_roster_evict`), an eviction concurrent with the row following rule 4 (it counts at its own head and
+is out of force from that head on); and the key's own revocation (an unseat of its `registered` seat by the key) is
+not in the row's past (`seat::key_record_ended`). `None` for none, or for several (two persons is none). The key
+record's stated end is the key's own instant on the key's own rows (`key_end`, the half-open end), not read here: no
+foreign clock. No existing answer changes. The reference: `seat.person_of`, `seat.evicted_from`,
+`seat.key_record_ended`; `check_key_person.py`, 18 cases in arrival orders, five planted breaks; fixture
+`key_person.json`, replayed as listed and reversed (`tests/key_person.rs`); five crate plants. `key_end::live(c, k,
+now)` is unchanged and still reads `now`; counts over persons do not read `person_at` yet.
 
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone

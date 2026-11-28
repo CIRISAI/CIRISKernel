@@ -29,7 +29,10 @@ fn roster_merge_replay() {
         for (id, want) in c.at("concluded").obj() {
             let got = cc.g.idx(id).is_some_and(|i| cc.cs().contains(&i));
             if got != want.b() {
-                wrong(&format!("{id} concluded {got} (merge refusal {})", ciris_kernel::seat::DBG_MERGE.load(std::sync::atomic::Ordering::Relaxed)));
+                wrong(&format!(
+                    "{id} concluded {got} (merge refusal {})",
+                    ciris_kernel::seat::DBG_MERGE.load(std::sync::atomic::Ordering::Relaxed)
+                ));
             }
         }
         let own = c.get("reader").and_then(|r| r.opt_s());

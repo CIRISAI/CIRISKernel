@@ -42,6 +42,7 @@ step "proofs/build.sh"                    lean      bash proofs/build.sh
 step "check_purge (checkpoint, purge)"    purge     python3 -I models/causal_kernel/check_purge.py
 step "check_time (two notions of time)"   time      python3 -I models/causal_kernel/check_time.py
 step "check_key_end (a key's own end)"    key_end   python3 -I models/causal_kernel/check_key_end.py
+step "check_key_view (the end rule at the voices step)"  keyview  python3 -I models/causal_kernel/check_key_view.py
 step "check_conferral_end (an end)"      conferral python3 -I models/causal_kernel/check_conferral_end.py
 step "check_conferral_content (tips)"    content   python3 -I models/causal_kernel/check_conferral_content.py
 step "check_conferral_two (two records)" two       python3 -I models/causal_kernel/check_conferral_two.py
@@ -59,9 +60,11 @@ step "check_agent_seat (no count)"         agentseat python3 -I models/causal_ke
 step "check_removal_in_force (an end)"     inforce   python3 -I models/causal_kernel/check_removal_in_force.py
 step "check_room_keys (a room key's end)"  roomkeys  python3 -I models/causal_kernel/check_room_keys.py
 step "room_key_vectors (a room row's door)" rkvec  python3 -I models/causal_kernel/room_key_vectors.py
+step "check_key_person (a key's person)"   keyperson python3 -I models/causal_kernel/check_key_person.py
 step "check_count_heads (newest heads)"    cheads    python3 -I models/causal_kernel/check_count_heads.py
 step "check_roster_merge (one roster)"   rmerge    python3 -I models/causal_kernel/check_roster_merge.py
 step "check_rosters (one roster)"         rosters   python3 -I models/causal_kernel/check_rosters.py
+step "check_consent (consent peer set)"   consent   python3 -I models/causal_kernel/check_consent.py
 step "check_attacks (35 attacks)"         attacks   python3 -I models/causal_kernel/check_attacks.py
 step "check (order-freeness)"             check     python3 -I models/causal_kernel/check.py
 step "check_cut (the cut)"                cut       python3 -I models/causal_kernel/check_cut.py

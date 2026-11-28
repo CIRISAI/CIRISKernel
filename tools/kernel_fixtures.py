@@ -32,6 +32,9 @@ Sources (all under models/):
               root grant), and a later bundle version: its case table, per act and owner, with why.
               tests/conferral_two.rs replays it through standing::answers; it is also for Verify's standing
               walk and an adopter's own code.
+    consent   causal_kernel/check_consent.py: the consent peer set (CC 3.3.7): each case's rows and every ask (a
+              grant in force, a principal's peer set, whether a node may send a peer a row of a class) with the
+              model's answer. tests/consent.rs replays it through consent::in_force, peer_set and may_send.
     root      trust_root/check_root.py: the trust root's lineage (the count, S'' and T, the fold, the bundles in
               force per reader, grants) and stalled recoveries judged against it. tests/root.rs replays both.
 """
@@ -410,6 +413,20 @@ def seat_cases():
     import check_room_keys as RKC
     for case in RKC.CASES + RKC.OPEN:
         record(case[2], A.WIN, [(k, sc, RKC.OBJ) for k, sc, _ in case[5]])
+    # counts over persons (CIRISConstitution#224): check_key_person.py's window and ballot cases, a device key answering
+    # a window and casting a ballot for its person (the window's outcome and the seating's conclusion are replayed)
+    import check_key_person as KPC
+    for _name, rows, _want in KPC.WINDOW_CASES:
+        record(rows, A.WIN)
+    for _name, rows, _rid, _want in KPC.BALLOT_CASES:
+        record(rows, A.SEAT)
+    # the review r74's rows: a person seated by two keys, a revoked key and its devices, an agent's key of a person's
+    # roster, the lift's author's device, a window over a self roster
+    for _name, rows, _rid, _want, rule in KPC.R74_CASES:
+        record(rows, A.WIN if rule is not KPC.RULE else A.SEAT)
+    # the review r78k's rows: the fold's lift and the count's receipt by person (seat.count_persons), the roster pinned
+    for _name, rows, _want in KPC.R78K_CASES:
+        record(rows, A.WIN)
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
@@ -680,7 +697,68 @@ def purge_cases():
     return out
 
 
+# ---- the key view: the end rule at the voices step (check_key_view.py) -------------------------------------------------
+def key_view_cases():
+    import check_key_view as KV
+    ST = KV.ST
+    cases = []
+    for c in KV.fixture():
+        refs = {}
+        cases.append(dict(c, rows=with_refs(c["rows"], refs), refs=refs))
+    law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "removal_floor": ST.REMOVAL_FLOOR,
+           "policy": {k: list(v) for k, v in ST.POLICY.items()},
+           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+    direct = []
+    for name, rows, rid, k, fin, want in KV.DIRECT:
+        refs = {}
+        direct.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "key": k,
+                       "final": sorted(fin), "want": want})
+    roster_direct = []
+    for name, sr, kr, rid, k, reader, want in KV.ROSTER_DIRECT:
+        refs = {}
+        roster_direct.append({"name": name, "seat": [r["id"] for r in sr], "rows": with_refs(list(sr) + list(kr), refs),
+                              "refs": refs, "row": rid, "key": k, "reader": reader, "want": want})
+    WN = KV.WN
+    windows = {k: dict(enc(v), secs=WN.secs(k)) for k, v in WN.WINDOWS.items()}
+    return {"about": "the key view (CutSpec::key_view): key_end::counts_by per (row, key), and the voices and conclusion of "
+                     "x with the key view (view true) or without it (false), under the seat or the window rule",
+            "law": law, "windows": windows, "cases": cases, "direct": direct, "roster_direct": roster_direct}
+
+
 # ---- key_end: every generated world at every instant ----------------------------------------------------------------
+def key_person_cases():
+    """check_key_person.py's cases: a key's person at a row (seat.person_of), each with the seat law it is read under."""
+    import seat as ST
+    import check_key_person as KP
+    out = []
+    for name, rows, k, person in KP.CASES:
+        refs = {}
+        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "key": k, "person": person})
+    counts = []
+    for name, rows, rid, concludes in KP.COUNT_CASES:
+        refs = {}
+        counts.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "concludes": concludes})
+    law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+           "removal_floor": ST.REMOVAL_FLOOR,
+           "policy": {k: list(v) for k, v in ST.POLICY.items()},
+           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+    # the opener's own withdrawal (r78k, latent): a table entry of the case's own, its rows and the outcome
+    import window as WN
+    WN.WINDOWS[KP.LATENT] = KP.LATENT_SPEC
+    try:
+        windows = {KP.LATENT: dict(enc(KP.LATENT_SPEC), secs=WN.secs(KP.LATENT))}
+    finally:
+        WN.WINDOWS.pop(KP.LATENT, None)
+    wcases = []
+    for name, rows, outcome in KP.LATENT_CASES:
+        refs = {}
+        assert KP.latent_outcome(rows) == outcome
+        wcases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "opener": "op", "outcome": outcome})
+    return {"law": law, "cases": out, "counts": counts, "windows": windows, "window_cases": wcases}
+
+
 def key_end_cases():
     import check_key_end as CKE
     KE = CKE.KE
@@ -701,12 +779,23 @@ def key_end_cases():
                         "succ": [[k, s] for k, s in a["succ"] if s is not None],
                         "reach": [[p, "".join(sorted(r))] for p, r in a["reach"]],
                         "score": [[x, "".join(sorted(v))] for x, v in a["score"]],
-                        "ret": sorted(i for i, _, _ in a["rows"])})
+                        "ret": sorted(i for i, _, _ in a["rows"]), "bytes": sorted(a["bytes"])})
         worlds.append({"rows": [ref(r) for r in rows], "kept": [r["id"] for r in S.rows],
                        "c": [S.C[r["id"]] for r in S.rows], "a": ans})
+    # the stub pin (K14): the counted statements as stubs keeping only id, signer, names and at (kind `stub`, which
+    # concludes as it did), and every counts_by answer over the full rows
+    rows = [CKE.pX, KE.rec("pK", "K", 0, 9), KE.rec("pF", "F", 0, 9), KE.att("a0", "K", 2, "pK", about="X"),
+            KE.att("a1", "K", 4, "pK", about="X"), KE.att("f1", "F", 5, "pF", about="Y", names=("a1",)),
+            KE.revoke("vK", "K", 3, names=("a0",)), KE.rec("qF", "F2", 6, 9, names=("pF",), succ_of="F", at_old=6, typ="node")]
+    S = KE.state(rows)
+    assert all(S.C.get(r["id"]) for r in rows if r["kind"] == "att")
+    stubs = [{"id": r["id"], "kind": "stub", "signer": r["signer"], "names": r["names"], "at": r["at"], "family": "stub"}
+             if r["kind"] == "att" else r for r in rows]
+    pin = {"rows": [row_enc(r) for r in rows], "stubs": [row_enc(r) for r in stubs],
+           "answers": [[r["id"], k, KE.counts_by(S, r["id"], k)] for r in rows for k in ("K", "F", "X")]}
     return {"ceil": KE.CEIL, "keys": list(CKE.KEYS), "parties": list(CKE.PARTIES), "subjects": list(CKE.SUBJECTS),
             "nows": list(CKE.NOWS), "required": sorted(KE.END_REQUIRED), "forbidden": sorted(KE.END_FORBIDDEN),
-            "pool": pool, "worlds": worlds}
+            "pool": pool, "worlds": worlds, "pin": pin}
 
 
 def undecided_cases(AC):
@@ -768,6 +857,8 @@ def main():
         dump("tables.json", table_cases(), out)
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
+    dump("key_person.json", key_person_cases(), out)
+    dump("key_end_counts.json", key_view_cases(), out)
     dump("acts.json", acts_cases(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
@@ -778,6 +869,8 @@ def main():
     dump("conferral_content_worlds.json", CK.worlds_fixture(), out)
     import check_conferral_two as C2
     dump("conferral_two.json", C2.fixture(), out)
+    import check_consent as CS
+    dump("consent.json", CS.fixture(), out)
     sys.path.insert(0, os.path.join(ROOT, "models", "trust_root"))
     import check_root as CR
     dump("root.json", CR.fixture(with_refs), out)

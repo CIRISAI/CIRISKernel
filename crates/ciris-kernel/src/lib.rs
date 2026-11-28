@@ -17,6 +17,7 @@
 //! | [`derived`] | 5, 6 | the order on kinds, the slot, removal by causal past, reach, tally |
 //! | [`cut`] | 6 | the cut, by the well-founded fixed point |
 //! | [`conferral`] | CC 2.4.1.1, CC 4.5.5 | the end of a conferral: an act counted at its head, and in force |
+//! | [`consent`] | CC 3.3.7, CC 5.2 | the consent peer set: grants in force, a principal's peers, may a node send |
 //! | [`content`] | CC 2.4.1.1 | room content after a member's seat ends: the rows the end holds good |
 //! | [`standing`] | CC 3.1.2.1 | one row under a root grant and an owner binding: the chain of names, per owner |
 //! | [`mod@line`] | 7, 8a | built on, and the reader's own acknowledged line |
@@ -36,6 +37,7 @@
 extern crate alloc;
 
 pub mod conferral;
+pub mod consent;
 pub mod content;
 pub mod cut;
 pub mod derived;
