@@ -4457,27 +4457,41 @@ pub fn own_row<R: SeatRow>(c: &Concluded<'_, R>, a: usize, own: &R::Key, ends_ok
 /// others in its past) fix what the line took up, the foundings they reach. A later row reaching another founding
 /// takes up nothing (acknowledging never un-voids). One founding is the reader's roster; two or none is a wait. The
 /// reference is `checkpoint.takes_up`; key_end's reader line is the same rule.
-pub fn takes_up<R: SeatRow>(c: &Concluded<'_, R>, own: &R::Key, fs: &[usize]) -> BTreeSet<usize> {
+pub fn takes_up<R: SeatRow>(
+    c: &Concluded<'_, R>,
+    own: &R::Key,
+    fs: &[usize],
+    ends_ok: &dyn Fn(usize) -> bool,
+) -> BTreeSet<usize> {
     let g = &c.g;
     let n = g.rows().len();
     let reach = |a: usize| -> BTreeSet<usize> { fs.iter().copied().filter(|&f| a == f || g.in_past(f, a)).collect() };
-    // the reader's own rows ([`own_row`], the one definition), its key's ends from a key lane not read here
-    let taking: Vec<usize> = (0..n).filter(|&a| own_row(c, a, own, &|_| true) && !reach(a).is_empty()).collect();
+    // the reader's own rows ([`own_row`], the one definition), each only where its key stands (`ends_ok`: the key
+    // lane's reading, K1 on the person lane too: a thief's row with the reader's stolen key seeds no line)
+    let taking: Vec<usize> = (0..n).filter(|&a| own_row(c, a, own, ends_ok) && !reach(a).is_empty()).collect();
     taking.iter().copied().filter(|&a| !taking.iter().any(|&b| b != a && g.in_past(b, a))).flat_map(reach).collect()
 }
 
 /// The rival self-roster foundings for reader `own`: of an identity's foundings held, the one the reader's line takes
 /// up ([`takes_up`]) is its roster and the others are rivals for it; where the line takes up neither or both, none is
 /// chosen and the reader waits. The reference is `seat.reader_rivals`.
-fn reader_rivals<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, own: Option<&R::Key>) -> BTreeSet<R::Id> {
+fn reader_rivals<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    own: Option<&R::Key>,
+) -> BTreeSet<R::Id> {
     let Some(own) = own else { return BTreeSet::new() };
+    // the reader key's ends, read by the key view the spec carries (none: no key lane)
+    let kv = spec.key_view();
+    let ends_ok = |a: usize| kv.is_none_or(|kv| kv.counts(c.g.row(a).id(), own));
     let mut mine: BTreeMap<&R::Key, Vec<usize>> = BTreeMap::new();
     for i in c.cs().iter().copied().filter(|&i| self_founding(law, c.g.row(i))) {
         mine.entry(c.g.row(i).signer()).or_default().push(i);
     }
     let mut out = BTreeSet::new();
     for fs in mine.values().filter(|fs| fs.len() > 1) {
-        let t = takes_up(c, own, fs);
+        let t = takes_up(c, own, fs, &ends_ok);
         if t.len() == 1 {
             out.extend(fs.iter().filter(|f| !t.contains(f)).map(|&f| c.g.row(f).id().clone()));
         }
@@ -5204,7 +5218,7 @@ pub fn for_reader<'a, R: SeatRow, S: CutSpec<R>>(
     let pairs = held_pairs(c);
     let ends = own.map(|k| reader_ends(c, law, spec, k, None)).unwrap_or_default();
     // the rival self-roster foundings for it: its line took up another of the identity's
-    let rivals = reader_rivals(c, law, own);
+    let rivals = reader_rivals(c, law, spec, own);
     if rv.is_empty() && pairs.is_empty() && ends.is_empty() && rivals.is_empty() {
         return (c.clone(), rv);
     }

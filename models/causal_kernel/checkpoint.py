@@ -122,7 +122,7 @@ def own_row(S, a, own, ends_ok=None, voices=None, mut=None):
     return ends_ok is None or ends_ok(a)
 
 
-def takes_up(S, own, fs, mut=None, voices=None):
+def takes_up(S, own, fs, mut=None, voices=None, ends_ok=None):
     """THE READER'S LINE taking up an identity's foundings `fs` (the ruling on one self roster per identity: a reader's
     roster for an identity is the founding its line takes up), MONOTONE, in the line's order: the reader's own rows
     (its voices as the counted layer reads them: every row it signed itself, concluded for everyone or not, and a
@@ -135,8 +135,8 @@ def takes_up(S, own, fs, mut=None, voices=None):
     mut = MUT if mut is None else mut                         # the caller's planted breaks (seat's)
     if own is None or "line_takes_nothing" in mut: return frozenset()
     fs = frozenset(fs)
-    # the reader's own rows (own_row, the one definition), its key's ends from a key lane not read here
-    mine = [a for a in S.rows if own_row(S, a, own, None, voices, mut)]
+    # the reader's own rows (own_row, the one definition), each only where its key stands (`ends_ok`, the key lane's)
+    mine = [a for a in S.rows if own_row(S, a, own, ends_ok, voices, mut)]
     reach = {a["id"]: {f for f in fs if a["id"] == f or f in S.anc.get(a["id"], ())} for a in mine}
     taking = [a for a in mine if reach[a["id"]]]
     if "line_order_unread" in mut:

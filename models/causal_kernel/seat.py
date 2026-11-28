@@ -3522,7 +3522,11 @@ def reader_rivals(S, own):
     out = set()
     for fs in mine.values():
         if len(fs) < 2: continue
-        t = CP.takes_up(S, own, [f["id"] for f in fs], MUT | CP.MUT, voices)
+        # each own row only where the reader's key stands by the key view (K1 on the person lane: a thief's row with
+        # the stolen key seeds no line; MUTATION line_key_end_unread)
+        kv = KEY_VIEW[-1] if "line_key_end_unread" not in MUT else None
+        ends_ok = (lambda a: kv(a["id"], own)) if kv is not None else None
+        t = CP.takes_up(S, own, [f["id"] for f in fs], MUT | CP.MUT, voices, ends_ok)
         if len(t) == 1: out |= {f["id"] for f in fs if f["id"] not in t}
     return frozenset(out)
 
