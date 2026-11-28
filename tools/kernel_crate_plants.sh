@@ -639,7 +639,9 @@ plant "self_release: a content's author reverses its takedown" src/seat.rs '    
 plant "target_any_room: a takedown of another room's content" src/seat.rs '            if r.family_param().is_none() || cr.room().or(cr.obj()).as_ref() != Some(&obj) {' '            if r.family_param().is_none() {'
 plant "target_any_room: a marker of a key not seated in the room" src/seat.rs '    if let Some(t) = key.as_ref().filter(|_| matches!(k, SeatKind::Quarantine | SeatKind::Slashing)) {' '    if let Some(t) = key.as_ref().filter(|_| false) {'
 plant "binding_on_carrier: a new binding revives an old conferral" src/seat.rs '                        g.idx(b).is_some_and(|bi| g.in_past(bi, oi))' '                        g.idx(b).is_some_and(|bi| carriers.iter().any(|&ci| g.in_past(bi, ci)))'
-plant "agent_by_seat_only: an agent admitted as a member needs no owner" src/seat.rs '                        && qr.agent_registration()' '                        && false'
+plant "agent_by_seat_only: an agent admitted as a member needs no owner" src/seat.rs '.filter(|&&(_, k, sc)| sc.s() == AGENT || registered.contains(k))' '.filter(|&&(_, _k, sc)| sc.s() == AGENT)'
+plant "a registered agent admitted as a member is counted in a count's base" src/seat.rs '    out.extend(registered_agents(p.rows()));' ''
+plant "the person map recognises an agent by its seat only (a registered agent admitted as a member speaks)" src/seat.rs '    agents.extend(registered_agents(rows.iter().copied()));' ''
 plant "overseer_end_unread: an ex-overseer countersigns" src/seat.rs '|| !body.as_ref().is_some_and(|b| overseer_cut(g, rows.iter().copied(), ui, b, k))' '|| true'
 plant "countersign_against_member_only: a one-officer body appoints an officer alone" src/seat.rs '    !admission
 }' '    !admission && affiliation_removal(law, get, r)

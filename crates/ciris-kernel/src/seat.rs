@@ -3194,21 +3194,13 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 // the duty seat stands while that binding does (two owners are none)
                 // an agent is recognised by its agent seat (over any room) or its agent registration, whatever scope
                 // it was admitted under (as ruled for KP5)
-                let mut agent_keys: BTreeSet<&R::Key> =
-                    at.keys().filter(|&&(_, _, sc)| sc.s() == AGENT).map(|&(_, k, _)| k).collect();
-                for &q in c.cs() {
-                    let qr = g.row(q);
-                    if qr.seat_kind() == SeatKind::Offer
-                        && qr.scope().is_some_and(|s| s.as_ref() == "registered")
-                        && qr.agent_registration()
-                    {
-                        if let Some(Obj::Key(k)) = qr.obj() {
-                            if let Some(&(_, kk, _)) = at.keys().find(|&&(_, x, _)| *x == k) {
-                                agent_keys.insert(kk);
-                            }
-                        }
-                    }
-                }
+                // the one agent recognition ([`registered_agents`] with the agent seats)
+                let registered = registered_agents(c.cs().iter().map(|&q| g.row(q)));
+                let agent_keys: BTreeSet<&R::Key> = at
+                    .keys()
+                    .filter(|&&(_, k, sc)| sc.s() == AGENT || registered.contains(k))
+                    .map(|&(_, k, _)| k)
+                    .collect();
                 let agents: BTreeSet<(ObjOf<R>, &R::Key)> = at
                     .keys()
                     .filter(|&&(_, k, _)| agent_keys.contains(k))
@@ -4504,6 +4496,24 @@ fn rival_row<R: SeatRow>(r: &R, by: &BTreeMap<&R::Id, &R>, rivals: &BTreeSet<R::
     [r.of(), r.target()].into_iter().flatten().any(|i| by.get(i).is_some_and(|q| hit(q)))
 }
 
+/// The keys an agent registration names among `rows`: a `registered` offer over a key whose
+/// [`SeatRow::agent_registration`] says so. With the agent seats, THE ONE agent recognition (an agent seat over any
+/// room, or an agent registration, whatever scope the key was admitted under): Seats' duty reading and the person map
+/// ([`Persons`]) both read it. The reference is `seat.registered_agents` / `seat.agent_keys`.
+fn registered_agents<'r, R: SeatRow + 'r>(rows: impl IntoIterator<Item = &'r R>) -> BTreeSet<R::Key> {
+    rows.into_iter()
+        .filter(|q| {
+            q.seat_kind() == SeatKind::Offer
+                && q.scope().is_some_and(|s| s.as_ref() == "registered")
+                && q.agent_registration()
+        })
+        .filter_map(|q| match q.obj() {
+            Some(Obj::Key(k)) => Some(k),
+            _ => None,
+        })
+        .collect()
+}
+
 /// `g` is the founding record of a self roster: its founding scope read through [`SeatLaw::kinds`] as
 /// [`CommunityKind::SelfRoster`].
 fn self_founding<R: SeatRow>(law: &SeatLaw, g: &R) -> bool {
@@ -4528,8 +4538,10 @@ fn rosters_by_key<'r, R: SeatRow + 'r, S: CutSpec<R>>(
     let get = |i: &R::Id| by.get(i).copied();
     let sc = concluded_over(rows.iter().copied());
     let seats = Seats::build(&sc, law, spec, None, None, None);
-    let agents: BTreeSet<R::Key> =
+    // the one agent recognition: an agent seat over any room, or an agent registration ([`registered_agents`])
+    let mut agents: BTreeSet<R::Key> =
         seats.recs().iter().filter(|x| x.scope.as_ref() == AGENT).map(|x| x.k.clone()).collect();
+    agents.extend(registered_agents(rows.iter().copied()));
     let mut out: BTreeMap<R::Key, Vec<&'r R>> = BTreeMap::new();
     // one self roster per identity (G1, as ruled): a reader's roster for an identity is the founding its LINE takes up
     // (the rivals, and every row over them, conclude nothing for that reader: [`reader_rivals`]). Two foundings by one
@@ -5831,6 +5843,8 @@ fn agents_at_with<R: SeatRow, S: CutSpec<R>>(
             out.extend(members_at_with(p, law, spec, obj, heads, sc, cache));
         }
     }
+    // an agent registered, whatever scope it was admitted under, is in no count either (the one recognition)
+    out.extend(registered_agents(p.rows()));
     out
 }
 

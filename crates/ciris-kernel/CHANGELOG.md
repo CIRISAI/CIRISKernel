@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**One agent recognition** (both languages). An AI agent's key is recognised by its agent seat over any room or by its
+agent registration (a `registered` offer whose `agent_registration` says so), whatever scope it was admitted under,
+through one reading (`seat.agent_keys` / `registered_agents`; Rust: `registered_agents`, read by Seats' duty reading,
+the person map's agents and every count's base). A registered agent admitted as a member is no voice and in no
+count's base. Cases in `check_key_person.py`; plants `agent_by_seat_only` (and two crate plants).
+
 **The r75 attack's fixes** (review-58 on e9672d8), each a case and a plant, in both languages:
 - An agent's owner: the owner seat is held only by the owner's own signature (the seat walk's live owner seat, as
   for a node's binding); the duty is TIED to the binding, which must be in the conferral's own past, so a new
