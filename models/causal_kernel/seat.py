@@ -633,7 +633,7 @@ def body_change(q, o):
         return False
     if q.get("conf") == "group":
         return bool(q.get("head"))
-    return q.get("conf") in ("self", "seat") and q.get("scope") not in ROSTER_SEATS
+    return q.get("conf") in ("self", "seat") and q.get("scope") not in ("member", AGENT)
 
 
 def growth_of(S, o):
@@ -2330,7 +2330,7 @@ class Seats:
         # with growth of its body the reader holds is re-counted over the grown body; one that fails seats nothing, and
         # every row built on it is void with it
         regrown = frozenset(q["id"] for q in Cs if C.counts(q) and q["id"] not in V and q["kind"] == "offer"
-                            and body_change(q, q.get("obj")) and q.get("scope") not in ROSTER_SEATS
+                            and body_change(q, q.get("obj")) and q.get("scope") not in ("member", AGENT)
                             and not recount_on_growth(S, q, None, V)) \
             if "lone_regrowth_unread" not in MUT else frozenset()
         if regrown:

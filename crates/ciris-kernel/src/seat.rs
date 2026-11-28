@@ -1860,63 +1860,158 @@ fn affiliation_act<'r, R: SeatRow + 'r>(law: &SeatLaw, get: &dyn Fn(&R::Id) -> O
     !admission
 }
 
-/// The r81 B2 rule, read over the concluded rows of `c` (the reader's): row `q`, a lone holder's own conferral of a
-/// duty over a room, concurrent with growth of the room's body (a counted act of `Conf::Group` over it, the acceptance
-/// completing one, or the countersign deciding one, neither in the other's past, none in `void`), fails where
-/// re-counted over its own past with that growth and their pasts (the body at the newest counted changes the reader
-/// holds): its signer is no more the lone holder there ([`authority_gate_at`]). A holder's own concurrent lone
-/// conferrals are one batch: an own conferral is no counted act of `Conf::Group`.
-fn regrown_fails<R: SeatRow, S: CutSpec<R>>(
+// ---- THE re-count on growth (the DRY item; r81 B2 generalised to every conferral, attack-r's r95 f2/f5) -----------
+
+/// A change of group `o`'s body: a counted act over it (`Conf::Group`, naming its head), or a single key's own or
+/// conferred offer of a seat over it other than a roster seat (a lone conferral of a duty, an officer or license seat).
+pub(crate) fn body_change<R: SeatRow>(q: &R, o: &ObjOf<R>) -> bool {
+    if !matches!(q.seat_kind(), SeatKind::Offer | SeatKind::Unseat) || q.obj().as_ref() != Some(o) || founding(q) {
+        return false;
+    }
+    match q.conf() {
+        Some(Conf::Group) => !q.head().is_empty(),
+        Some(Conf::Own) | Some(Conf::Seat) => q.scope().is_none_or(|s| !roster_word(s.as_ref())),
+        _ => false,
+    }
+}
+
+/// The standing a seat of scope `sc` over `o` gives: `duty` for any duty (a holder of any one duty is a duty holder),
+/// or the scope itself.
+pub(crate) fn scope_class<R: SeatRow>(
     c: &Concluded<'_, R>,
     law: &SeatLaw,
-    spec: &S,
-    by: &BTreeMap<&R::Id, &R>,
-    q: usize,
-    void: &BTreeSet<usize>,
-) -> bool {
-    let g = &c.g;
-    let r = g.row(q);
-    let Some(obj) = r.obj() else { return false };
-    if !community(by, &obj) {
-        return false;
-    }
-    let room = declared(by, &obj);
-    if !own_conferral(law, r, &obj, &room) {
-        return false;
-    }
-    let counted = |x: &R| {
-        x.conf() == Some(Conf::Group) && x.obj().as_ref() == Some(&obj) && change(law, x, &obj, Some(&room[..]))
+    o: &ObjOf<R>,
+    sc: Option<&str>,
+) -> Option<String> {
+    let sc = sc?;
+    let head = sc.split(':').next().unwrap_or(sc);
+    let declared = match o {
+        Obj::Row(i) => c.g.idx(i).is_some_and(|x| {
+            c.g.row(x).duties().iter().any(|d| d.as_ref() == head && d.as_ref() != "member" && d.as_ref() != AGENT)
+        }),
+        Obj::Key(_) => false,
     };
-    let qa = g.ancestors(q);
-    let growth: Vec<usize> = c
-        .cs()
+    let community = matches!(o, Obj::Row(i) if c.g.idx(i).is_some_and(|x| founding(c.g.row(x))));
+    if sc == "duty" || law.duties.iter().any(|d| d == head) || (community && head == "moderate") || declared {
+        return Some(String::from("duty"));
+    }
+    Some(String::from(sc))
+}
+
+/// The rows that GROW group `o`'s body among the concluded rows of `c`: its changes that seat ([`body_change`], an
+/// offer) and the acceptances completing them (a one-officer body's countersign is a voice on the act's own row, G15).
+/// An end is no growth: the end rule reads it.
+pub(crate) fn growth_of<R: SeatRow>(c: &Concluded<'_, R>, o: &ObjOf<R>) -> Vec<usize> {
+    let grows = |q: &R| q.seat_kind() == SeatKind::Offer && body_change(q, o);
+    c.cs()
         .iter()
         .copied()
         .filter(|&x| {
-            if x == q || void.contains(&x) || qa.has(x) || g.ancestors(x).has(q) {
-                return false;
-            }
-            let xr = g.row(x);
-            counted(xr)
-                || (xr.seat_kind() == SeatKind::Accept
-                    && xr.of().and_then(|i| g.idx(i)).is_some_and(|i| counted(g.row(i))))
+            let q = c.g.row(x);
+            grows(q)
+                || (q.seat_kind() == SeatKind::Accept
+                    && q.of().and_then(|i| c.g.idx(i)).is_some_and(|i| grows(c.g.row(i))))
         })
-        .collect();
+        .collect()
+}
+
+/// A holder's own concurrent lone duty conferrals are one batch, as the tips fold reads them: growth row `x` (or the
+/// offer it accepts) and act `q`, both a single key's own or conferred offer of a duty over `o` by the same key, are
+/// not growth against each other.
+pub(crate) fn one_batch<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, q: usize, x: usize, o: &ObjOf<R>) -> bool {
+    let xr = c.g.row(x);
+    let off = if xr.seat_kind() == SeatKind::Accept {
+        match xr.of().and_then(|i| c.g.idx(i)) {
+            Some(i) => c.g.row(i),
+            None => return false,
+        }
+    } else {
+        xr
+    };
+    let lone = |r: &R| {
+        r.seat_kind() == SeatKind::Offer
+            && matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat))
+            && scope_class(c, law, o, r.scope().map(|w| w.as_ref())).as_deref() == Some("duty")
+    };
+    let qr = c.g.row(q);
+    lone(qr) && lone(off) && off.signer() == qr.signer()
+}
+
+/// The growth of `o`'s body the reader holds concurrent with row `q` (neither in the other's past), none in `void`.
+pub(crate) fn concurrent_growth<R: SeatRow>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    q: usize,
+    o: &ObjOf<R>,
+    void: &BTreeSet<usize>,
+) -> Vec<usize> {
+    growth_of(c, o)
+        .into_iter()
+        .filter(|&x| {
+            x != q
+                && !void.contains(&x)
+                && !c.g.ancestors(q).has(x)
+                && !c.g.ancestors(x).has(q)
+                && !one_batch(c, law, q, x, o)
+        })
+        .collect()
+}
+
+/// The rows `q`'s authority over `o` is re-counted over: its own past, with the concurrent growth the reader holds
+/// and their pasts (the body at the newest counted changes the reader holds).
+pub(crate) fn with_growth<R: SeatRow>(c: &Concluded<'_, R>, q: usize, growth: &[usize]) -> Vec<usize> {
+    let qa = c.g.ancestors(q);
+    (0..c.g.len()).filter(|&j| qa.has(j) || growth.iter().any(|&x| x == j || c.g.ancestors(x).has(j))).collect()
+}
+
+/// THE re-count on growth (one reading for the seat walk and the trust walk): act `q` over group `o`, CONCURRENT with
+/// growth of `o`'s body the reader holds ([`concurrent_growth`]), still holds over the grown body: over its own past
+/// with that growth and their pasts ([`with_growth`]), at the newest counted changes there. `true` where no growth
+/// is concurrent with it (an act the growth has in its past stands as made).
+/// - a lone conferral (a single key's own or conferred offer): by the one gate ([`authority_gate_at`]);
+/// - a counted conferral (`Conf::Group`): its count met again at the newest counted changes among the grown rows. An
+///   election's seating (C1 to C5) and a lift are read by their own counts, not here;
+/// - any other act: `other` on the grown rows where the caller gives one (the trust walk's edge), else it stands.
+pub(crate) fn recount_on_growth<R: SeatRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    q: usize,
+    o: &ObjOf<R>,
+    void: &BTreeSet<usize>,
+    other: Option<&dyn Fn(&[usize]) -> bool>,
+) -> bool {
+    let growth = concurrent_growth(c, law, q, o, void);
     if growth.is_empty() {
-        return false;
+        return true;
     }
-    let mut idx: Vec<usize> = c
-        .cs()
-        .iter()
-        .copied()
-        .filter(|&j| j != q && (qa.has(j) || growth.iter().any(|&x| x == j || g.ancestors(x).has(j))))
-        .collect();
-    idx.push(q);
-    let sub = Graph::new(idx.iter().map(|&j| g.row(j)));
-    let with = Concluded::with(sub, Some(idx.iter().map(|&j| c.concluded(j)).collect()));
+    let g = &c.g;
+    let idx: Vec<usize> = with_growth(c, q, &growth).into_iter().filter(|&j| j != q && c.concluded(j)).collect();
+    let r = g.row(q);
+    let lone = r.seat_kind() == SeatKind::Offer && matches!(r.conf(), Some(Conf::Own) | Some(Conf::Seat));
+    let counted = r.seat_kind() == SeatKind::Offer && r.conf() == Some(Conf::Group) && !r.head().is_empty();
+    if !lone && !counted {
+        return other.is_none_or(|f| f(idx.as_slice()));
+    }
+    let get = |i: &R::Id| g.idx(i).map(|j| g.row(j));
+    if counted && (is_election(law, r) || matches!(act_of(law, &get, r), Some((Act::Lift, _, _)))) {
+        return true;
+    }
+    // the grown rows, with `q` read last over them
+    let mut rows = idx.clone();
+    rows.push(q);
+    let sub = Graph::new(rows.iter().map(|&j| g.row(j)));
+    let with = Concluded::with(sub, Some(rows.iter().map(|&j| c.concluded(j) || j == q).collect()));
     let last = with.g.len() - 1;
-    let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
-    !authority_gate_at(law, spec, &Past::new(&with.g, last, &p))
+    let pp: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
+    let past = Past::new(&with.g, last, &pp);
+    if lone {
+        return authority_gate_at(law, spec, &past);
+    }
+    // the count at the newest counted changes over `o` among the grown rows
+    let local = MembersAt::<R>::default();
+    *local.recount_heads.borrow_mut() = Some(act_heads_over(&past, law, o));
+    count_met(&past, law, spec, Some(&local))
 }
 
 /// The affiliation a counted act is of: its `obj`, or for an onward trust edge its [`SeatRow::edge_body`].
@@ -2888,12 +2983,21 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             .filter(|&i| g.row(i).seat_kind() == SeatKind::Offer && cut.counts(i) && !stale.contains(&i) && !decided(i))
             .collect();
         stale.extend(undecided);
-        // r81 B2: a lone holder's own duty conferral concurrent with a counted act of the grown body is re-counted
-        // against it ([`regrown_fails`]); one that fails seats nothing, and every row built on it is void with it
+        // the re-count on growth ([`recount_on_growth`]; r81 B2 generalised): a conferral of an authority seat
+        // concurrent with growth of its body the reader holds is re-counted over the grown body; one that fails seats
+        // nothing, and every row built on it is void with it
         let regrown: Vec<usize> = cs
             .iter()
             .copied()
-            .filter(|&i| cut.counts(i) && !stale.contains(&i) && regrown_fails(c, law, spec, &by, i, &stale))
+            .filter(|&i| {
+                let q = g.row(i);
+                cut.counts(i)
+                    && !stale.contains(&i)
+                    && q.seat_kind() == SeatKind::Offer
+                    && q.scope().is_none_or(|s| !roster_word(s.as_ref()))
+                    && q.obj()
+                        .is_some_and(|o| body_change(q, &o) && !recount_on_growth(c, law, spec, i, &o, &stale, None))
+            })
             .collect();
         if !regrown.is_empty() {
             let built: Vec<usize> =
@@ -6376,6 +6480,9 @@ struct MembersAt<R: SeatRow> {
     // a roster merge's count on one named tip: the tip it is counted at (its heads read as that tip alone, and it
     // seats no key of its own there: counted as an admission at the tip is)
     merge_tip: RefCell<Option<<R as Row>::Id>>,
+    // a re-count on growth ([`recount_on_growth`]): the heads the count is read at, the newest counted changes over
+    // the grown rows, in place of the row's own
+    recount_heads: RefCell<Option<Vec<<R as Row>::Id>>>,
     // the rival self-roster foundings for the reader ([`reader_rivals`]): they, and every row over them, conclude
     // nothing for it
     rrivals: RefCell<BTreeSet<<R as Row>::Id>>,
@@ -6409,6 +6516,7 @@ impl<R: SeatRow> Default for MembersAt<R> {
             rpairs: RefCell::default(),
             rends: RefCell::default(),
             merge_tip: RefCell::default(),
+            recount_heads: RefCell::default(),
             rrivals: RefCell::default(),
         }
     }
@@ -6535,9 +6643,11 @@ fn count_members_with<R: SeatRow, S: CutSpec<R>>(
     let over = obj; // H2: a counted row is counted over its own object
     let counted = r.counted().map(|c| c.as_ref()).unwrap_or("member");
     let tip: Option<R::Id> = cache.and_then(|c| c.merge_tip.borrow().clone());
-    let heads: &[R::Id] = match &tip {
-        Some(t) => core::slice::from_ref(t),
-        None => r.head(),
+    let recount: Option<Vec<R::Id>> = cache.and_then(|c| c.recount_heads.borrow().clone());
+    let heads: &[R::Id] = match (&tip, &recount) {
+        (Some(t), _) => core::slice::from_ref(t),
+        (None, Some(h)) => h.as_slice(),
+        (None, None) => r.head(),
     };
     let mut mem = persons_at_with(p, law, spec, &over, heads, counted, cache);
     if !mem.is_empty() {
