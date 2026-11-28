@@ -151,15 +151,13 @@ def follows_of(row):
 
 def cited_class(row):
     """What a row of the family is when another row cites it, for a follows row's `cites` (the ruling on cites):
-    "permission" (its confers cell is a permission), "owner_binding" (a seat of scope owner: the binding an
-    ownership row mirrors), or None."""
+    "permission" (its confers cell is a permission: a duty cites the one it attaches to), or None. An owner binding
+    is recognised by row type and purpose, not by family (CC 3.2; audience.is_owner_binding)."""
     c = row.get("confers")
     v = c.get("value") if isinstance(c, dict) else c
     if not isinstance(v, dict):
         return None
-    if "permission" in str(v.get("relation", "")).split("|"):
-        return "permission"
-    return "owner_binding" if v.get("scope") == "owner" else None
+    return "permission" if "permission" in str(v.get("relation", "")).split("|") else None
 
 
 def placement_of(row):
@@ -252,9 +250,7 @@ def rust(table):
     out += ["    (%s, Follows::%s)," % (json.dumps(f["family"]), "Narrower" if f["follows"] == "narrower" else "Same")
             for f in table["families"] if f.get("follows")]
     out.append("];")
-    for cls, name, what in (("permission", "PERMISSION_FAMILIES", "a permission (a duty cites the one it attaches to)"),
-                            ("owner_binding", "OWNER_BINDING_FAMILIES",
-                             "an owner binding (an ownership row cites the one it mirrors)")):
+    for cls, name, what in (("permission", "PERMISSION_FAMILIES", "a permission (a duty cites the one it attaches to)"),):
         out += ["", "/// The families whose rows are %s." % what, "pub const %s: &[&str] = &[" % name]
         out += ["    %s," % json.dumps(f["family"]) for f in table["families"] if f.get("cited_as") == cls]
         out.append("];")

@@ -81,6 +81,21 @@ FOLLOWS_REF = {"custody:{kind}": "evidence", "stream:head": "stream",
 # things; the followed row is the one cited row of the right family
 CITED_AS = {f["family"]: f["cited_as"] for f in TABLE["families"] if f.get("cited_as")}
 CITES_CLASS = {"ownership:{relation}:{target_kind}:{version}": "owner_binding", "duty:{kind}": "permission"}
+OWNER_BINDING_FAMILY = "self:delegates_to"
+
+
+def is_owner_binding(x):
+    """An owner binding (CC 3.2, "Who owns a key"), recognised by ROW TYPE and purpose, not by family: a
+    delegates_to (owner -> key) carrying delegation_purpose "owner_binding", signed by the owner. It is placed by
+    its own scope and follows nothing. MUTATION binding_by_family: any delegates_to."""
+    return family_of(x["family"]) == OWNER_BINDING_FAMILY and (
+        x.get("purpose") == "owner_binding" or "binding_by_family" in MUT)
+
+
+def cited_as(x):
+    """What a cited row is, for a follows row's cites: an owner binding (by row type and purpose), a permission (by
+    its family), or None."""
+    return "owner_binding" if is_owner_binding(x) else CITED_AS.get(family_of(x["family"]))
 
 
 def followed_of(r, by=None):
@@ -99,7 +114,7 @@ def followed_of(r, by=None):
     if role == "cites":
         want = CITES_CLASS.get(family_of(r["family"]))
         c = [x for x in r.get("cites") or ()
-             if "cites_any_family" in MUT or (x in by and CITED_AS.get(family_of(by[x]["family"])) == want)]
+             if "cites_any_family" in MUT or (x in by and cited_as(by[x]) == want)]
         if len(c) > 1:
             return None, "follows_ambiguous"
         return (c[0], None) if c else (None, "follows_not_named")

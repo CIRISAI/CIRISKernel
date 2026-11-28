@@ -43,8 +43,7 @@ use alloc::vec::Vec;
 #[path = "audience_table.rs"]
 mod table;
 pub use table::{
-    DUTY_SEAT_FAMILIES, FAMILIES, FAMILY_MODEL_SHA256, FOLLOWS, OWNER_BINDING_FAMILIES, PERMISSION_FAMILIES, SCOPES,
-    SEAT_FAMILIES,
+    DUTY_SEAT_FAMILIES, FAMILIES, FAMILY_MODEL_SHA256, FOLLOWS, PERMISSION_FAMILIES, SCOPES, SEAT_FAMILIES,
 };
 
 /// How a row of a `follows` family is placed against the row it follows ([`FOLLOWS`], [`follow`]).
@@ -286,6 +285,10 @@ pub trait AudienceRow {
     }
     /// On a stream head: the stream it heads (its `sub`, resolved by the caller to the stream's row).
     fn stream(&self) -> Option<&Self::Id> {
+        None
+    }
+    /// On a delegation: its `delegation_purpose`.
+    fn purpose(&self) -> Option<&str> {
         None
     }
     /// The rows it cites in `refs.also.cites`.
@@ -548,10 +551,12 @@ pub enum FollowsRef {
     Evidence,
     /// A stream head's `sub`: the stream it heads ([`AudienceRow::stream`]).
     Stream,
-    /// `refs.also.cites` ([`AudienceRow::cites`]): exactly one cited row of the given families (an ownership row's
-    /// owner binding, [`OWNER_BINDING_FAMILIES`]; a duty's permission, [`PERMISSION_FAMILIES`]); cited rows of other
-    /// families are not read.
+    /// `refs.also.cites` ([`AudienceRow::cites`]): exactly one cited row of the given families (a duty's permission,
+    /// [`PERMISSION_FAMILIES`]); cited rows of other families are not read.
     Cites(&'static [&'static str]),
+    /// `refs.also.cites`: exactly one cited owner binding ([`is_owner_binding`], by row type and purpose): an
+    /// ownership row, the binding's mirror.
+    OwnerBinding,
 }
 
 /// Each `follows` family's reference: the role the family already uses for the row it follows, where one exists,
@@ -559,9 +564,18 @@ pub enum FollowsRef {
 pub const FOLLOWS_REF: &[(&str, FollowsRef)] = &[
     ("custody:{kind}", FollowsRef::Evidence),
     ("stream:head", FollowsRef::Stream),
-    ("ownership:{relation}:{target_kind}:{version}", FollowsRef::Cites(OWNER_BINDING_FAMILIES)),
+    ("ownership:{relation}:{target_kind}:{version}", FollowsRef::OwnerBinding),
     ("duty:{kind}", FollowsRef::Cites(PERMISSION_FAMILIES)),
 ];
+
+/// The family of an owner binding's row type: a delegation.
+pub const OWNER_BINDING_FAMILY: &str = "self:delegates_to";
+
+/// An owner binding (CC 3.2, "Who owns a key"), recognised by ROW TYPE and purpose, not by family: a `delegates_to`
+/// (owner to key) carrying `delegation_purpose: "owner_binding"`. It is placed by its own scope and follows nothing.
+pub fn is_owner_binding<R: AudienceRow>(x: &R) -> bool {
+    family_of(x.family()).is_some_and(|f| f.0 == OWNER_BINDING_FAMILY) && x.purpose() == Some("owner_binding")
+}
 
 /// The row a row of a `follows` family follows, read by its family's reference ([`FOLLOWS_REF`]); the refusal where
 /// it names none. Under `cites`, the held cited rows (`by`) of the right family: exactly one; none gives
@@ -571,8 +585,13 @@ pub fn followed_of<'r, R: AudienceRow>(r: &'r R, by: &BTreeMap<&R::Id, &R>) -> R
     match role {
         Some(FollowsRef::Evidence) => r.evidence().ok_or(Refusal::FollowsNotNamed),
         Some(FollowsRef::Stream) => r.stream().ok_or(Refusal::FollowsNotNamed),
-        Some(FollowsRef::Cites(of)) => {
-            let right = |c: &&R::Id| by.get(*c).and_then(|x| family_of(x.family())).is_some_and(|f| of.contains(&f.0));
+        Some(rf @ (FollowsRef::Cites(_) | FollowsRef::OwnerBinding)) => {
+            let right = |c: &&R::Id| {
+                by.get(*c).is_some_and(|x| match rf {
+                    FollowsRef::Cites(of) => family_of(x.family()).is_some_and(|f| of.contains(&f.0)),
+                    _ => is_owner_binding(*x),
+                })
+            };
             let mut hits = r.cites().iter().filter(right);
             match (hits.next(), hits.next()) {
                 (Some(one), None) => Ok(one),

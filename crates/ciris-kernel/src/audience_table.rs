@@ -240,11 +240,6 @@ pub const PERMISSION_FAMILIES: &[&str] = &[
     "trust:{job}:{version}",
 ];
 
-/// The families whose rows are an owner binding (an ownership row cites the one it mirrors).
-pub const OWNER_BINDING_FAMILIES: &[&str] = &[
-    "ownership:{relation}:{target_kind}:{version}",
-];
-
 /// The room seat families that seat a DUTY over the room, not the roster itself: their offers seat a member at
 /// the row's own head, never an outsider, so only such keys are within the row's audience.
 pub const DUTY_SEAT_FAMILIES: &[&str] = &[

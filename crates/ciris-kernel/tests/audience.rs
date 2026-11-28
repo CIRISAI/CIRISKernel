@@ -26,6 +26,7 @@ struct ARow {
     evidence: Option<String>,
     stream: Option<String>,
     cites: Vec<String>,
+    purpose: Option<String>,
 }
 
 impl AudienceRow for ARow {
@@ -76,6 +77,9 @@ impl AudienceRow for ARow {
     fn cites(&self) -> &[String] {
         &self.cites
     }
+    fn purpose(&self) -> Option<&str> {
+        self.purpose.as_deref()
+    }
 }
 
 fn arow(j: &J) -> ARow {
@@ -100,6 +104,7 @@ fn arow(j: &J) -> ARow {
         evidence: j.get("evidence").and_then(|v| v.opt_s()),
         stream: j.get("stream").and_then(|v| v.opt_s()),
         cites: j.get("cites").map(|v| v.strs()).unwrap_or_default(),
+        purpose: j.get("purpose").and_then(|v| v.opt_s()),
     }
 }
 
@@ -165,6 +170,7 @@ fn every_family_in_every_scope() {
             evidence: None,
             stream: None,
             cites: vec![],
+            purpose: None,
         };
         n += 1;
         // the generated rows: no member changes, so the members at a row's head are the roster
@@ -269,6 +275,7 @@ fn history_on_join_words() {
             evidence: None,
             stream: None,
             cites: vec![],
+            purpose: None,
         };
         let hi = |_: &String| rec.as_deref().and_then(History::from_word);
         let got = history_of(&r, &Joins { history: &hi, at_head: &|_, _| BTreeSet::new() });
@@ -413,6 +420,7 @@ fn undecided_path() {
             evidence: None,
             stream: None,
             cites: vec![],
+            purpose: None,
         };
         let got = enc(&place_in(table, &r, &ro, &pe, &joins));
         n += 1;

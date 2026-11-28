@@ -2014,7 +2014,7 @@
    ],
    "undecided": null,
    "seat": false,
-   "cited_as": "owner_binding",
+   "cited_as": null,
    "follows": "same",
    "follows_text": "the scope of the owner-binding it mirrors"
   },

@@ -317,7 +317,8 @@ PLANTS = [(("undecided_defaulted",), "undecided"), (("pinned_unread",), "pinned_
           (("history_unread",), "history"), (("word_read",), "history"),
           (("tie_first",), "ties"), (("follows_unread",), "follow"), (("narrower_by_keys",), "follow"),
           (("follows_any_ref",), "custody_by_cites_is_not_named"),
-          (("cites_any_family",), "duty_cites_its_permission_and_more")]
+          (("cites_any_family",), "duty_cites_its_permission_and_more"),
+          (("binding_by_family",), "ownership_mirror_cites_a_non_binding")]
 
 
 def generated():
@@ -373,8 +374,10 @@ def check_derivation():
     if not FP.ties(["x:{a}", "{b}:y"]) or not FP.ties(["x:*", "x:{a}"]) or FP.ties(["x:*", "x:y"]):
         problems.append("derivation: the tie check")
     if set(AU.CITES_CLASS) != {f for f, r in AU.FOLLOWS_REF.items() if r == "cites"} or \
-            not all(any(c == k for c in AU.CITED_AS.values()) for k in AU.CITES_CLASS.values()):
+            not all(k == "owner_binding" or any(c == k for c in AU.CITED_AS.values()) for k in AU.CITES_CLASS.values()):
         problems.append("derivation: a cites class has no family in the table")
+    if AU.OWNER_BINDING_FAMILY not in AU.FAMILIES:
+        problems.append("derivation: the owner binding's family %s is not in the table" % AU.OWNER_BINDING_FAMILY)
     if set(AU.FOLLOWS) != set(AU.FOLLOWS_REF):
         problems.append("derivation: the follows families %s have references %s" % (sorted(AU.FOLLOWS), sorted(AU.FOLLOWS_REF)))
     if AU.KEY_GRANT not in AU.FAMILIES:
@@ -459,6 +462,26 @@ FOLLOWS_CASES = [
      [row("ob", "consent:scope:own", "community", room="r1"),
       dict(row("o", "ownership:owner:key:v1", "community", room="r1", names=["ob"]), cites=["ob"])],
      {"ob": P("targeted_room", ROOM), "o": REF("follows_not_named")}),
+    # ownership (CC 3.2): the owner binding is a delegates_to carrying delegation_purpose owner_binding, placed by
+    # its own scope and following nothing; an ownership row is its mirror and follows the one binding it cites
+    ("owner_binding_placed_at_self", "the owner binding, a delegates_to with purpose owner_binding, is placed by "
+     "its own scope and follows nothing",
+     [dict(row("ob", "self:delegates_to", "self", named=["k"]), purpose="owner_binding")],
+     {"ob": P("self_collective", ["a", "a2", "k"])}),
+    ("ownership_mirror_follows_its_binding", "an ownership row mirrors the binding it cites: placed at its scope",
+     [dict(row("ob", "self:delegates_to", "self", named=["k"]), purpose="owner_binding"),
+      dict(row("o", "ownership:owner:key:v1", "self", named=["k"], names=["ob"]), cites=["ob"])],
+     {"ob": P("self_collective", ["a", "a2", "k"]), "o": P("self_collective", ["a", "a2", "k"])}),
+    ("ownership_mirror_cites_a_non_binding", "the mirror cites a delegates_to with another purpose: no owner "
+     "binding is cited, refused",
+     [dict(row("dl", "self:delegates_to", "self", named=["k"]), purpose="delegation"),
+      dict(row("o", "ownership:owner:key:v1", "self", named=["k"], names=["dl"]), cites=["dl"])],
+     {"dl": P("self_collective", ["a", "a2", "k"]), "o": REF("follows_not_named")}),
+    ("ownership_mirror_cites_two_bindings", "the mirror cites two owner bindings: refused, ambiguous",
+     [dict(row("ob", "self:delegates_to", "self", named=["k"]), purpose="owner_binding"),
+      dict(row("ob2", "self:delegates_to", "federation", named=["k"]), purpose="owner_binding"),
+      dict(row("o", "ownership:owner:key:v1", "self", named=["k"], names=["ob", "ob2"]), cites=["ob", "ob2"])],
+     {"ob": P("self_collective", ["a", "a2", "k"]), "ob2": P("commons", AU.EVERYONE), "o": REF("follows_ambiguous")}),
     ("duty_cites_its_permission_and_more", "a duty cites its permission and an evidence row: the cited row of the "
      "right family is the followed row, the other is not read: placed",
      [row("p", "consent:scope:read", "community", room="r1"), row("ev", "chat:general", "community", room="r1"),

@@ -207,7 +207,29 @@ def cases():
          True, {}),
         ("two resign and the third is removed by a count signed before", [G, RESIGN["a"], RESIGN["b"], POOL[6]], set(),
          True, {}),
-    ]
+    ] + (two_tips() if SC == "member" else [])
+
+
+def two_tips():
+    """Wire-map's vector case 69: d is seated on TWO tips of the room (v1 and v2, concurrent admissions at g) by
+    different acceptances; d's resignation naming both tips, presented per the G9 bridge as a withdrawal of the
+    acceptance of the stay standing at each named tip, ends the stay on each."""
+    def adm(i, signers):
+        return ST.offer(i, signers[0], "d", SC, OBJ, "group", ("g",), head=("g",), policy=POL,
+                        cosigners=tuple(signers[1:]))
+    v1, v2 = adm("v1", ("a", "b")), adm("v2", ("b", "c"))
+    acc1 = ST.accept("acc1", "d", "v1", ("v1",), scope=SC, obj=OBJ)
+    acc2 = ST.accept("acc2", "d", "v2", ("v2",), scope=SC, obj=OBJ)
+    w1 = ST.withdraw("w1", "d", "acc1", ("acc1", "v1", "v2"))
+    w2 = ST.withdraw("w2", "d", "acc2", ("acc2", "v1", "v2"))
+    w1_only = ST.withdraw("w1", "d", "acc1", ("acc1", "v1"))           # names one tip only
+    base = [G, v1, v2, acc1, acc2]
+    return [("case 69: d seated on two tips by different acceptances", base, {"a", "b", "c", "d"}, False, {}),
+            ("case 69: d's resignation naming both tips ends the stay on each", base + [w1, w2], {"a", "b", "c"},
+             False, {}),
+            ("case 69 control: a resignation naming ONE tip ends d's stay at EVERY tip: a member's own end of its stay "
+             "is person-level in the room, and its own acceptance concurrent with that end (acc2) is no voice "
+             "(CIRISConstitution#224, F4: own_void)", base + [w1_only], {"a", "b", "c"}, False, {})]
 
 
 def main():
