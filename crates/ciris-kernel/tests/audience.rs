@@ -452,3 +452,69 @@ fn undecided_path() {
     report("the Undecided path over a synthetic table (audience.py)", n, bad);
     assert_eq!(bad, 0);
 }
+
+/// End to end: the crate's own persons, `seat::Persons::over(..).voice` and `seat::person_keys` over the seat-model
+/// rows the reference read (`persons_world`: a2 seated in a's self roster, a3 evicted, t2 a key of two persons),
+/// agree with the reference's tables, and the case table placed through that `PersonsOf` gives the reference's
+/// answers.
+#[test]
+fn persons_from_the_seat_model() {
+    use ciris_kernel::layers::{conclude, kept};
+    use ciris_kernel::seat::{person_keys, seat_rule, Persons};
+    let fx = fixture("audience.json");
+    let law = law_of(fixture("seat.json").at("law"));
+    let w = fx.at("persons_world");
+    let refs: BTreeMap<String, String> =
+        w.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+    let rows = rows_with_refs(w.at("rows").arr(), &refs);
+    let c = conclude(kept(&rows, |_| true), |p| seat_rule(p, &law, &DictCut, &|_| true), None);
+    let held: Vec<&TRow> = c.cs().iter().map(|&i| c.g.row(i)).collect();
+    let pp = Persons::over(&held, &law, &DictCut, None);
+    let vo = |k: &String| pp.voice(k);
+    let pk = |p: &String| person_keys(&c, &law, &DictCut, p);
+    let (mut n, mut bad) = (0, 0);
+    // the tables the reference read
+    for (k, v) in fx.at("voice").obj() {
+        n += 1;
+        if vo(k) != v.opt_s() {
+            bad += 1;
+            eprintln!("voice of {k}: got {:?}, want {:?}", vo(k), v.opt_s());
+        }
+    }
+    for (p, ks) in fx.at("person_keys").obj() {
+        n += 1;
+        if pk(p) != ks.str_set() {
+            bad += 1;
+            eprintln!("keys of {p}: got {:?}, want {:?}", pk(p), ks.str_set());
+        }
+    }
+    // the case table placed through the seat model's persons
+    let (roster, _) = world(&fx);
+    let ro = |r: &String| roster.get(r).cloned().unwrap_or_default();
+    let pe = PersonsOf { voice: &vo, keys: &pk };
+    for case in fx.at("cases").arr() {
+        let crows: Vec<ARow> = case.at("rows").arr().iter().map(arow).collect();
+        let list: Vec<&ARow> = crows.iter().collect();
+        let jw = case.at("joins");
+        let heads: BTreeMap<String, BTreeSet<String>> = jw
+            .get("at_head")
+            .map(|h| h.obj().iter().map(|(k, v)| (k.clone(), v.str_set())).collect())
+            .unwrap_or_default();
+        let history: BTreeMap<String, String> = jw
+            .get("history")
+            .map(|h| h.obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect())
+            .unwrap_or_default();
+        let hi = |room: &String| history.get(room).and_then(|v| History::from_word(v));
+        let ah = |rm: &String, i: &String| heads.get(i).cloned().unwrap_or_else(|| ro(rm));
+        let got = audiences(&list, &ro, &pe, &Joins { history: &hi, at_head: &ah });
+        for (i, want) in case.at("answers").obj() {
+            n += 1;
+            if got.get(i).map(enc).as_ref() != Some(want) {
+                bad += 1;
+                eprintln!("{}: {i} got {:?}, want {want:?}", case.at("name").s(), got.get(i).map(enc));
+            }
+        }
+    }
+    report("audience over the seat model's own persons (seat::Persons, person_keys)", n, bad);
+    assert_eq!(bad, 0);
+}

@@ -808,6 +808,16 @@ def resignation_cases():
     return {"obj": RS.OBJ, "cases": out}
 
 
+def audience_cases():
+    """check_audience.py's fixture, with the seat-model rows its persons are read over (`persons_world`), so the crate
+    builds its PersonsOf from seat::Persons::voice and seat::person_keys over the same rows."""
+    import check_audience as AUC
+    fx = AUC.fixture()
+    refs = {}
+    fx["persons_world"] = {"rows": with_refs(AUC.persons_rows(), refs), "refs": refs}
+    return fx
+
+
 def acts_cases():
     """check_acts.py: the act each counted row is (seat.act_of) and the policy rows each act may take (seat.policy_for),
     with the acts table and the kinds table they read."""
@@ -856,8 +866,7 @@ def main():
     dump("key_person.json", key_person_cases(), out)
     dump("acts.json", acts_cases(), out)
     dump("resignation.json", resignation_cases(), out)
-    import check_audience as AUC
-    dump("audience.json", AUC.fixture(), out)
+    dump("audience.json", audience_cases(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution

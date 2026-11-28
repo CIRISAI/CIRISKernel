@@ -35,17 +35,21 @@ ROSTER = {"r1": ("a", "b", "c"), "r2": ("a", "e"), "r3": ("a", "b", "j")}
 roster = lambda room: ROSTER.get(room, ())
 
 
-def _persons_world():
-    """The persons the cases read, as the seat model builds them (key-person's one persons function): a's self roster
-    seats a2 and seated a3, since evicted; t2 is a key of two persons (a's roster and x's)."""
-    import seat as ST
+def persons_rows():
+    """The seat-model rows the cases' persons are read over: a's self roster seats a2 and seated a3, since evicted;
+    t2 is a key of two persons (a's roster and x's). The crate builds its PersonsOf over the same rows."""
     import check_key_person as KP
-    CK = ST.CK
-    rows = [KP.found("SA", "a"), KP.add("aa2", "SA", "a2", ("a",), ("SA",)),
+    return [KP.found("SA", "a"), KP.add("aa2", "SA", "a2", ("a",), ("SA",)),
             KP.add("aa3", "SA", "a3", ("a", "a2"), ("aa2",)), KP.evict("ea3", "SA", "a3", ("a", "a2"), ("aa3",)),
             KP.add("at2", "SA", "t2", ("a", "a2"), ("ea3",)),
             KP.found("SX", "x"), KP.add("xt2", "SX", "t2", ("x",), ("SX",))]
-    return CK.concluded(CK.kept(rows), lambda r, P, past: ST.seat_rule(r, P, past))
+
+
+def _persons_world():
+    """The persons the cases read, as the seat model builds them (key-person's one persons function)."""
+    import seat as ST
+    CK = ST.CK
+    return CK.concluded(CK.kept(persons_rows()), lambda r, P, past: ST.seat_rule(r, P, past))
 
 
 person = AU.persons_over(_persons_world())

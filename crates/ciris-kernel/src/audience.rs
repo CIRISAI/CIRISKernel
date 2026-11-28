@@ -22,10 +22,8 @@
 //!   or admission, and names its room ([`Refusal::NoRoom`]). The keys a seat offer or unseat over the room seats or
 //!   removes ([`seats_of`], derived from the row, never stated) are always within its audience, ahead of that rule:
 //!   a pending admission names its joiner, a removal its removed key. The roster is the roster as it stands (CC 5.2:
-//!   a member removed later is owed nothing further), less the members admitted after the row unless its
-//!   `history_on_join` is full: the row's own ([`AudienceRow::history_on_join`]), else the room record's
-//!   ([`Joins::history`]), else from_join. Commons: everyone. Addressed:
-//!   the keys it names.
+//!   a member removed later is owed nothing further; one admitted later is owed the older rows too, sealed by keys
+//!   it lacks: see below). Commons: everyone. Addressed: the keys it names.
 //! * **Copy** ([`audiences`], [`carried`]: the Constitution's proposal c). Carriage is of rows: a room row is
 //!   carried by a concluded room row of its room to that row's audience on the room's current roster; nothing
 //!   reaches a key off the roster; a self or addressed row is carried only by a concluded row of its own signer or
@@ -481,9 +479,9 @@ fn same_person<K: Ord + Clone>(person: &PersonsOf<'_, K>, k: &K, of: &K) -> bool
 /// * c.2: only to keys on the room's current roster (an offered key that never accepted gets the offer alone, a
 ///   removed key its removal alone);
 /// * c.3: a self or an addressed row is carried only by a concluded row of its own signer or that signer's person,
-///   into that row's audience (bounded by c.2 where it is a room row). The contract: `person` is the person's
-///   CURRENT, concluded key roster (`seat::Persons` on the key-person lane, once merged; no separate notion), so an
-///   evicted or revoked key leaves the person and carries nothing.
+///   into that row's audience (bounded by c.2 where it is a room row). `person` is [`PersonsOf`] over the seat
+///   model's one persons function ([`crate::seat::Persons::voice`], [`crate::seat::person_keys`]), so an evicted
+///   or revoked key, a key of two persons or an agent's key is no key of the person and carries nothing.
 ///
 /// The carrier's signer is already in `r`'s audience (CC 5.2's gate). A key grant is never carried (CC 3.3.2): it is
 /// served per its placement, the content's scope (so it is purged, taken down and replicated with the content), and
