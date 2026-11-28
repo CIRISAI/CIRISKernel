@@ -39,8 +39,8 @@ use crate::cut::CutSpec;
 use crate::graph::Graph;
 use crate::layers::{Concluded, Past};
 use crate::seat::{
-    authority_gate_at, countersigned, declared_count, for_reader, kind_of, policy_for, Act, CommunityKind, Conf, Obj,
-    ScopeClass, SeatKind, SeatLaw, SeatRow, Seats, AGENT, OFFICER,
+    authority_gate_at, countersigned, declared_count, ended_seats, for_reader, kind_of, policy_for, still_met, voices,
+    Act, CommunityKind, Conf, Obj, ScopeClass, SeatKind, SeatLaw, SeatRow, Seats, AGENT, OFFICER,
 };
 use crate::trust::{reaches, Accepts, Charters, HOP_CAP};
 use crate::{Dated, Row};
@@ -107,10 +107,6 @@ fn is_community<R: SeatRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, o: &ObjO
     c.concluded_id(id) && kind_of(seats.law(), &get, o).is_some_and(|k| CHARTER_KINDS.contains(&k))
 }
 
-/// A row's signatures: its signer and its cosigners.
-fn signers<R: SeatRow>(r: &R) -> BTreeSet<&R::Key> {
-    core::iter::once(r.signer()).chain(r.cosigners()).collect()
-}
 
 /// A strict majority of `n`, never fewer than two where `n` is two or more; a lone holder alone (CC 4.5.4 (iv)).
 fn counted(yes: usize, n: usize) -> bool {
@@ -204,60 +200,24 @@ fn is_end<R: SeatRow>(q: &R) -> bool {
     }
 }
 
-/// The scopes offer `t` gives key `k`: a founding row's own scope (`member`) and each duty its map names `k` in; any
-/// other offer's own scope.
-fn seat_scopes_of<R: SeatRow>(t: &R, k: &R::Key) -> Vec<Option<R::Word>> {
-    if founding_row(t) && !t.duty_holders().is_empty() {
-        let mut out = alloc::vec![t.scope().cloned()];
-        out.extend(t.duty_holders().iter().filter(|(_, ks)| ks.contains(k)).map(|(d, _)| Some(d.clone())));
-        return out;
-    }
-    alloc::vec![t.scope().cloned()]
-}
-
 fn founding_row<R: SeatRow>(t: &R) -> bool {
     t.seat_kind() == SeatKind::Offer && t.obj().is_some_and(|o| o == Obj::Row(t.id().clone()))
 }
 
 /// One seat an end ends: its key, its object, its scope.
-type Ended<R> = (<R as Row>::Key, ObjOf<R>, Option<<R as SeatRow>::Word>);
+type Ended<R> = (<R as Row>::Key, ObjOf<R>, Option<String>);
 
-/// The (key, object, SCOPE) seats end `e` ends: an unseat's keys over its object in its scope; a withdrawal by a seated
-/// key of its own seat (the one scope it names, or every scope the row gives it), or by the conferrer of an offer's
-/// seats (a counted offer's conferrer is its count, and its signer ends nothing alone); a change of the record ends no
-/// seat.
-fn ends_keys<R: TrustRow>(c: &Concluded<'_, R>, e: &R) -> Vec<Ended<R>> {
-    match e.seat_kind() {
-        SeatKind::Unseat => {
-            let Some(o) = e.obj() else { return Vec::new() };
-            e.to().iter().map(|k| (k.clone(), o.clone(), e.scope().cloned())).collect()
-        }
-        SeatKind::Withdraw => {
-            let Some(t) = e.target().and_then(|i| c.g.idx(i)).map(|i| c.g.row(i)) else { return Vec::new() };
-            match t.seat_kind() {
-                SeatKind::Accept => {
-                    let sc = t.of().and_then(|i| c.g.idx(i)).and_then(|i| c.g.row(i).scope().cloned());
-                    object_of(c, t).map(|o| alloc::vec![(e.signer().clone(), o, sc)]).unwrap_or_default()
-                }
-                SeatKind::Offer => {
-                    let Some(o) = t.obj() else { return Vec::new() };
-                    if t.to().contains(e.signer()) {
-                        let scs = match e.scope() {
-                            Some(s) => alloc::vec![Some(s.clone())],
-                            None => seat_scopes_of(t, e.signer()),
-                        };
-                        scs.into_iter().map(|sc| (e.signer().clone(), o.clone(), sc)).collect()
-                    } else if signers(t).contains(e.signer()) && t.conf() != Some(Conf::Group) {
-                        t.to().iter().map(|k| (k.clone(), o.clone(), t.scope().cloned())).collect()
-                    } else {
-                        Vec::new()
-                    }
-                }
-                _ => Vec::new(),
-            }
-        }
-        _ => Vec::new(),
+/// The (key, object, scope) seats end `e` ends, read as the seat model reads ends ([`crate::seat::ended_seats`], the
+/// one read: an unseat's keys in its scope, a withdrawal's seat), and only where the end is in force for the reader: a
+/// removal the reader's seats hold out of force or contested ([`Seats::dropped`]: a lone removal lifted, rule 5) ends
+/// nothing. A change of the record ends no seat.
+fn ends_keys<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, e: &R) -> Vec<Ended<R>> {
+    if e.seat_kind() == SeatKind::Unseat && seats.dropped().contains(e.id()) {
+        return Vec::new();
     }
+    let c = seats.c();
+    let by: BTreeMap<&R::Id, &R> = c.g.rows().iter().map(|q| (q.id(), *q)).collect();
+    ended_seats(&by, e).into_iter().filter_map(|(k, sc, o)| o.map(|o| (k, o, sc))).collect()
 }
 
 /// The standing a seat of scope `sc` over `o` gives: `duty` for any duty (a holder of any one duty is a duty holder:
@@ -339,7 +299,7 @@ fn loses<R: TrustRow, S: CutSpec<R>>(
         .filter(|&x| {
             c.concluded(x)
                 && is_end(c.g.row(x))
-                && ends_keys(c, c.g.row(x)).iter().any(|(kk, ob, _)| kk == k && ob == o)
+                && ends_keys(seats, c.g.row(x)).iter().any(|(kk, ob, _)| kk == k && ob == o)
         })
         .collect();
     let after = |x: usize| mine.iter().any(|&m| c.g.ancestors(x).has(m));
@@ -528,7 +488,7 @@ fn recounted<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, q: usize, 
         return authority_gate_at(seats.law(), seats.spec(), &Past::new(&with.g, last, &p));
     }
     if r.is_delegates_to() {
-        return speaks_over(seats, q, &idx, &signers(r), &owner(r));
+        return speaks_over(seats, q, &idx, &owner(r));
     }
     true
 }
@@ -538,29 +498,14 @@ fn is_counted_row<R: SeatRow>(q: &R) -> bool {
     matches!(q.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && q.conf() == Some(Conf::Group) && !q.head().is_empty()
 }
 
-/// Counted row `q` still meets its count over its own past with the voices of `gone` taken out: over the duty holders
-/// for a duty count (CC 4.5.4 (iv), a strict majority, never fewer than two, or a lone holder; the holder a withdrawal
-/// names apart), and under the declared protocol over the protocol body otherwise.
+/// Counted row `q` still meets its count over its own past with the voices of `gone` taken out:
+/// [`crate::seat::still_met`], the seat model's one re-count (its voices path, the persons counted), as its contest
+/// reads a discounted voice.
 fn recount_without<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, q: usize, gone: &BTreeSet<R::Key>) -> bool {
     let c = seats.c();
-    let r = c.g.row(q);
-    let Some(o) = r.obj() else { return false };
     let anc = c.g.ancestors(q);
-    let idx: Vec<usize> = (0..c.g.len()).filter(|&j| anc.has(j)).collect();
-    let (sub, with) = judged(c, q, &idx);
-    let (rc, _) = for_reader(&sub, seats.law(), seats.spec(), None);
-    let at = Seats::new(&rc, seats.law(), seats.spec(), None);
-    let voices: BTreeSet<R::Key> = signers(r).into_iter().filter(|k| !gone.contains(*k)).cloned().collect();
-    if scope_class(c, seats.law(), &o, Some(r.counted().map_or("member", |w| w.as_ref()))).as_deref() == Some("duty") {
-        let mut held = at.holders("duty", &o, None);
-        if r.seat_kind() == SeatKind::Unseat {
-            held.retain(|k| !r.to().contains(k));
-        }
-        return counted(voices.iter().filter(|k| held.contains(*k)).count(), held.len());
-    }
-    let last = with.g.len() - 1;
-    let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
-    declared_count(&Past::new(&with.g, last, &p), at.law(), at.spec(), &o, &at.protocol_body(&o), &voices)
+    let p: Vec<usize> = c.cs().iter().copied().filter(|&j| anc.has(j)).collect();
+    still_met(&Past::new(&c.g, q, &p), seats.law(), seats.spec(), gone)
 }
 
 /// THE END RULE (the r73 attack), the one read of ends for every path (the emitter, the quorum, the seat, the edge):
@@ -625,7 +570,7 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
         .filter(|&j| rows.binary_search(&j).is_ok() || ends.iter().any(|&e| c.g.ancestors(e).has(j)))
         .collect();
     for &e in &ends {
-        let ks = ends_keys(c, c.g.row(e));
+        let ks = ends_keys(seats, c.g.row(e));
         if ks.is_empty() {
             continue;
         }
@@ -636,7 +581,9 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
             }
             let qr = c.g.row(q);
             let Some(o) = object_of(c, qr) else { continue };
-            let who = signers(qr);
+            let qa = c.g.ancestors(q);
+            let qp: Vec<usize> = c.cs().iter().copied().filter(|&j| qa.has(j)).collect();
+            let who = voices(qr, &Past::new(&c.g, q, &qp));
             let need = rests_on(c, seats.law(), qr, &o);
             // an end is keyed by every standing its key LOSES by it, whatever scope its target names
             for (k, ob, _) in &ks {
@@ -682,7 +629,6 @@ fn speaks_over<R: TrustRow, S: CutSpec<R>>(
     seats: &Seats<'_, '_, R, S>,
     i: usize,
     idx: &[usize],
-    who: &BTreeSet<&R::Key>,
     src: &ObjOf<R>,
 ) -> bool {
     let c = seats.c();
@@ -690,7 +636,11 @@ fn speaks_over<R: TrustRow, S: CutSpec<R>>(
     let (rc, _) = for_reader(&sub, seats.law(), seats.spec(), None);
     let last = with.g.len() - 1;
     let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
-    speaks_for(&Seats::new(&rc, seats.law(), seats.spec(), None), &Past::new(&with.g, last, &p), who, src)
+    let past = Past::new(&with.g, last, &p);
+    // the row's voices, read as the seat model reads them ([`voices`]: its signatures and the cosign rows it names)
+    let v = voices(c.g.row(i), &past);
+    let who: BTreeSet<&R::Key> = v.iter().collect();
+    speaks_for(&Seats::new(&rc, seats.law(), seats.spec(), None), &past, &who, src)
 }
 
 /// Whether the keys `who` are `src`'s authority set for row `i`: over its own past, and with every end the reader
@@ -698,11 +648,10 @@ fn speaks_over<R: TrustRow, S: CutSpec<R>>(
 fn speaks_at<R: TrustRow, S: CutSpec<R>>(
     seats: &Seats<'_, '_, R, S>,
     i: usize,
-    who: &BTreeSet<&R::Key>,
     src: &ObjOf<R>,
     own: Option<&R::Key>,
 ) -> bool {
-    [false, true].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(seats, i, read, own), who, src))
+    [false, true].iter().all(|&read| speaks_over(seats, i, &ended_for_reader(seats, i, read, own), src))
 }
 
 fn owner<R: TrustRow>(r: &R) -> ObjOf<R> {
@@ -765,7 +714,7 @@ pub fn edges_of<R: TrustRow + Dated, S: CutSpec<R>>(
         if matches!(e.src, Obj::Row(_)) && behind_line(c, own, i, &e.src) {
             continue;
         }
-        if !speaks_at(seats, i, &signers(r), &e.src, own) {
+        if !speaks_at(seats, i, &e.src, own) {
             continue;
         }
         // a one-officer affiliation's edge is a proposal: it stands only where countersigned (the item-8 ruling)
@@ -774,9 +723,7 @@ pub fn edges_of<R: TrustRow + Dated, S: CutSpec<R>>(
         }
         let ended = c.cs().iter().any(|&j| {
             let w = c.g.row(j);
-            w.seat_kind() == SeatKind::Withdraw
-                && w.target() == Some(r.id())
-                && speaks_at(seats, j, &signers(w), &e.src, own)
+            w.seat_kind() == SeatKind::Withdraw && w.target() == Some(r.id()) && speaks_at(seats, j, &e.src, own)
         });
         if !ended {
             out.push(e);
@@ -812,8 +759,8 @@ fn issuance<R: TrustRow + Dated, S: CutSpec<R>>(
         let last = with.g.len() - 1;
         let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
         let past = Past::new(&with.g, last, &p);
-        let voices: BTreeSet<R::Key> = signers(r).into_iter().cloned().collect();
-        if declared_count(&past, at.law(), at.spec(), &a, &at.protocol_body(&a), &voices) {
+        let v = voices(r, &past);
+        if declared_count(&past, at.law(), at.spec(), &a, &at.protocol_body(&a), &v) {
             if !locked(&at, &a) {
                 return None;
             }
@@ -843,8 +790,9 @@ fn own_licence<R: TrustRow + Dated, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, 
     }
     let last = with.g.len() - 1;
     let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
-    let voices: BTreeSet<R::Key> = signers(r).into_iter().cloned().collect();
-    declared_count(&Past::new(&with.g, last, &p), at.law(), at.spec(), &a, &at.protocol_body(&a), &voices)
+    let past = Past::new(&with.g, last, &p);
+    let v = voices(r, &past);
+    declared_count(&past, at.law(), at.spec(), &a, &at.protocol_body(&a), &v)
 }
 
 /// Whether licence row `i` is its authority's act in force for the reader holding the rows `seats` was built on:

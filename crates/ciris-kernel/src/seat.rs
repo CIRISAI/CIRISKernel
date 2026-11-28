@@ -3123,6 +3123,11 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
     pub fn c(&self) -> &'c Concluded<'a, R> {
         self.c
     }
+    /// The removals this reading holds out of force or contested (a moderator's lone removal the end rule takes out,
+    /// rule 5's contest): they end nothing here.
+    pub fn dropped(&self) -> &BTreeSet<R::Id> {
+        &self.dropped
+    }
     /// The law it was built under.
     pub fn law(&self) -> &'c SeatLaw {
         self.law
@@ -5417,6 +5422,18 @@ fn count_met<R: SeatRow, S: CutSpec<R>>(
     count_met_void(p, law, spec, cache, &BTreeSet::new())
 }
 
+/// Counted row `p.row()`'s count is still met over `p` with the voices `void` taken out: the one re-count for a voice
+/// a concurrent end or removal discounts ([`contested_out`] here; [`crate::trust_rows`]' discounted voice of an ended
+/// key). It reads the seat model's voices path ([`voices`], the persons counted, the agents apart).
+pub fn still_met<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    void: &BTreeSet<R::Key>,
+) -> bool {
+    count_met_void(p, law, spec, None, void)
+}
+
 /// [`count_met`] with the voices `void` taken out (a concurrent counted removal's: [`contested_out`]).
 fn count_met_void<R: SeatRow, S: CutSpec<R>>(
     p: &Past<'_, '_, R>,
@@ -5820,6 +5837,15 @@ fn ends_of<'a, R: SeatRow>(by: &BTreeMap<&R::Id, &'a R>, r: &'a R) -> Vec<EndedS
         }
         _ => Vec::new(),
     }
+}
+
+/// The seats (key, scope, object) row `r` ends, as the seat model reads ends ([`ends_of`]), owned: the one read of
+/// ends for [`crate::trust_rows`]. `by` looks a row up among those held.
+pub fn ended_seats<'a, R: SeatRow>(
+    by: &BTreeMap<&R::Id, &'a R>,
+    r: &'a R,
+) -> Vec<(R::Key, Option<String>, Option<ObjOf<R>>)> {
+    ends_of(by, r).into_iter().map(|(k, sc, o)| (k.clone(), sc.map(String::from), o)).collect()
 }
 
 /// (2): an end of a seat that has an end of that seat in its own past is no end, whoever signed either (a

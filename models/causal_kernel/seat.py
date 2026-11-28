@@ -2776,7 +2776,7 @@ def contested_out(S, unseats):
         if u["id"] not in threats: return True
         void = frozenset(k for i, ks in threats[u["id"]] if i in live for k in ks)
         key = (u["id"], void)
-        if key not in memo: memo[key] = count_met(dict(u, void_voices=void), pasts[u["id"]], past)
+        if key not in memo: memo[key] = still_met(u, pasts[u["id"]], past, void)
         return memo[key]
     d, pos = frozenset(), frozenset(u["id"] for u in grp_u)
     while True:
@@ -3562,6 +3562,13 @@ def duty_gate(r, by, table=None):
     if not (counted == "duty" or ("gate_counted_any_duty" in MUT and is_duty(counted, declared(by, r["obj"])))): return False
     # a law with the acts table refuses every other policy first (policy_in_force); with none, the gate does
     return r.get("policy") == "duty_confer"
+
+
+def still_met(r, P, past, voices_out):
+    """Counted row r's count is still met over P with the voices `voices_out` taken out: the one re-count for a voice
+    a concurrent end or removal discounts (contested_out here; trust_rows' discounted voice of an ended key). It reads
+    the seat model's voices path (voices, the persons counted, the agents apart)."""
+    return count_met(dict(r, void_voices=frozenset(voices_out)), P, past)
 
 
 def count_met(r, P, past, table=None):

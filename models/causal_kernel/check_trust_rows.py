@@ -50,6 +50,7 @@ Planted breaks, each of which must change a case's answer:
     end_scope_keyed          (d) an end cuts by the scope its target names, not by every standing its key loses
     one_end_at_a_time        (d) a key's loss is read with only the one end removed: a second end cancels the cut
     reseat_masks             (d) a re-seat after the end masks the cut of a vote concurrent with the end
+    ends_in_force_unread     (d) an end the seat model holds out of force (rule 5's contest) still ends a seat
     own_licence_uncountersigned  (b) a one-officer body's own licence stands without the countersign
     end_cuts_counted_row     (d) an end cuts a whole counted row its key signed, not only its voice
     (retired: built_on_cut_kept, a row built on a cut row kept. The seat model voids what rests on a cut row itself:
@@ -554,6 +555,26 @@ CASES += [
       glic("ly", "g", "Y") | {"names": ("gya",)}], "RD", "ly", None, LW),
 ]
 
+# ---- review-54's DRY audit: the seat model's voices path and its ends, read as Seats reads them ------------------
+_G4 = ST.found("g", "A", ("A", "B", "C", "D"), {"moderate": ("A", "B", "C", "D")}, cosigners=("B", "C", "D"),
+               licence_classes=((M, False),))
+_U_C = ST.unseat("u1", "A", "C", "moderate", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty",
+                 policy="duty_withdraw")                          # A and B remove C's duty
+_U_A = ST.unseat("u2", "C", "A", "moderate", "g", "group", ("g",), head=("g",), cosigners=("D",), counted="duty",
+                 policy="duty_withdraw")                          # C and D remove A's, concurrently: rule 5 contests both
+_GLO_CD = ST.offer("glo", "C", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("D",), counted="duty")
+_CB = CK.row("cb", "cosign", "B", ("g",), of="cx")                 # B's cosign row for the conferral's content
+_GLO_CS = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g", "cb"), head=("g",), counted="duty", content="cx")
+CASES += [
+    ("DRY a removal rule 5 holds contested out ends nothing: C's conferral beside it stands",
+     [_G4, _U_C, _U_A, _GLO_CD, GLA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("gla", "u1")}], "RD", "l",
+     None, OK),
+    ("DRY a voice given by a cosign row is a voice the end discounts: B resigns, A alone of three, cut",
+     [_G3, _CB, _GLO_CS, GLA, _RC_B, A("e", "RD", "g"), _X], "RD", "l", None, LW),
+    ("DRY and with no resignation the cosign row's voice makes A and B two of three",
+     [_G3, _CB, _GLO_CS, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+]
+
 NOW = {"an edge whose term has ended at the caller's instant (150)": 150,
        "r77 N8 a term-bearing edge read with no caller's instant: not walked (never at the licence's own instant)": None}
 
@@ -583,7 +604,8 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "instant_over_reader", "scope_unread", "termless_edge_walked",
           "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
           "one_end_at_a_time", "reseat_masks",
-          "end_cuts_counted_row", "own_licence_uncountersigned")
+          "end_cuts_counted_row", "own_licence_uncountersigned",
+          "ends_in_force_unread")
 
 
 @contextlib.contextmanager

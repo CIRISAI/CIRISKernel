@@ -213,37 +213,20 @@ def is_amendment(q):
     return q["kind"] == "offer" and q.get("conf") == "group" and q.get("scope") == "record"
 
 
-def seat_scopes_of(S, t, k):
-    """The scopes offer `t` gives key `k`: a founding row's `member` and each duty its map names `k` in; any other
-    offer's own scope."""
-    if t.get("obj") == t["id"] and t.get("duty_holders"):
-        return {t.get("scope", "member")} | {d for d, ks in t.get("duty_holders") if k in ks}
-    return {t.get("scope")}
-
-
 def ends_keys(S, e):
-    """The (key, object, SCOPE) seats end `e` ends: an unseat's keys over its object in its scope; a withdrawal by a
-    seated key of its own seat (the one scope it names, or every scope the row gives it), or by the conferrer of an
-    offer's seats (a counted offer's conferrer is its count, and its signer ends nothing alone); a change of the
-    record ends no seat."""
-    if e["kind"] == "unseat":
+    """The (key, object, scope) seats end `e` ends, read as the seat model reads ends (seat.ends_of, the one read: an
+    unseat's keys in its scope, a withdrawal's seat), and only where the end is in force for the reader: a removal the
+    seat model holds out of force or contested (Seats.dropped: a lone removal lifted, rule 5) ends nothing. A change of
+    the record ends no seat."""
+    if e["kind"] == "unseat" and "ends_in_force_unread" not in MUT:
+        dropped = S.__dict__.get("_dropped")
+        if dropped is None:
+            dropped = S.__dict__["_dropped"] = ST.Seats(S).dropped
+        if e["id"] in dropped:
+            return set()
+    if e["kind"] == "unseat" and "ends_in_force_unread" in MUT:
         return {(k, e.get("obj"), e.get("scope")) for k in e.get("to", ())}
-    if e["kind"] != "withdraw":
-        return set()
-    t = S.by.get(e.get("target"))
-    if t is None:
-        return set()
-    if t["kind"] == "accept":
-        o = S.by.get(t.get("of"))
-        return {(e["signer"], object_of(S, t), o.get("scope") if o else None)}
-    if t["kind"] != "offer":
-        return set()
-    if e["signer"] in t.get("to", ()):
-        scs = {e["scope"]} if e.get("scope") is not None else seat_scopes_of(S, t, e["signer"])
-        return {(e["signer"], t.get("obj"), sc) for sc in scs}
-    if e["signer"] in ST.signers(t) and t.get("conf") != "group":
-        return {(k, t.get("obj"), t.get("scope")) for k in t.get("to", ())}
-    return set()
+    return {(k, o, sc) for k, sc, o in ST.ends_of(e, S.by)}
 
 
 def scope_class(S, o, sc):
@@ -410,10 +393,10 @@ def recounted(S, q, o):
     if not concurrent_growth(S, q, o):
         return True
     T = with_growth(S, q, o)
-    if q["kind"] == "offer" and q.get("conf") in ("self", "seat"):
+    if q["kind"] == "offer" and q.get("conf") in ("self", "seat") and "seat_recount_unread" not in MUT:
         return ST.authority_gate(q, T.Cs, T.by)
     if q["kind"] == "delegates_to":
-        return speaks_for(T, ST.signers(q), owner(q))
+        return speaks_for(T, ST.voices(q, T.Cs), owner(q))
     return True
 
 
@@ -423,18 +406,10 @@ def is_counted_row(q):
 
 
 def recount_without(S, q, gone):
-    """Counted row `q` still meets its count over its own past with the voices of `gone` taken out: over the duty holders
-    for a duty count (CC 4.5.4 (iv), a strict majority, never fewer than two, or a lone holder; the holder a withdrawal
-    names apart), and under the declared protocol over the protocol body otherwise."""
-    T = past_state(S, q)
-    o = q.get("obj")
-    voices = ST.signers(q) - frozenset(gone)
-    if scope_class(S, o, q.get("counted", "member")) == "duty":
-        held = ST.Seats(T).holders("duty", o)
-        if q["kind"] == "unseat":
-            held = held - frozenset(q.get("to", ()))
-        return counted(len(voices & held), len(held))
-    return declared_count(T, voices, o)
+    """Counted row `q` still meets its count over its own past with the voices of `gone` taken out: seat.still_met, the
+    seat model's one re-count (its voices path, the persons counted), as contested_out reads a discounted voice."""
+    P = [x for x in S.Cs if x["id"] in S.anc[q["id"]]]
+    return ST.still_met(q, P, lambda a, b: a in S.anc[b], gone)
 
 
 def cut_state(S, rows, own=None):
@@ -458,7 +433,7 @@ def cut_state(S, rows, own=None):
                 o = object_of(S, q)
                 need = rests_on(S, q, o) if "scope_unread" not in MUT else None
                 for k, ob, sc in ks:
-                    if k not in ST.signers(q) or o != ob:
+                    if k not in ST.voices(q, S.Cs) or o != ob:
                         continue
                     if need is None:
                         lost.setdefault(q["id"], set()).add(k); break
@@ -539,7 +514,7 @@ def ended(S, r, own=None):
     if "withdrawn_unread" in MUT:
         return False
     return any(w["kind"] == "withdraw" and w.get("target") == r["id"] and S.C.get(w["id"])
-               and ("withdraw_by_anyone" in MUT or all(speaks_for(T, ST.signers(w), owner(r)) for T in (
+               and ("withdraw_by_anyone" in MUT or all(speaks_for(T, ST.voices(w, T.Cs), owner(r)) for T in (
                    ended_for_reader(S, w, False, own=own), ended_for_reader(S, w, own=own))))
                for w in S.rows)
 
@@ -581,7 +556,7 @@ def edges_of(S, now=None, own=None):
         if not ST.countersigned(S, r):
             continue
         # its owner's authority set over its own past, and with every end the reader holds (ended_for_reader)
-        if not all(speaks_for(T, ST.signers(r), owner(r))
+        if not all(speaks_for(T, ST.voices(r, T.Cs), owner(r))
                    for T in (ended_for_reader(S, r, False, own=own), ended_for_reader(S, r, own=own))):
             continue
         out.append(dict(CH.edge(owner(r), r["dst"], r.get("trust_classes"), depth_of(r)), row=r["id"]))
@@ -623,7 +598,7 @@ def issuance(T, r):
     if is_community(T, a) and "quorum_unread" not in MUT:
         # (2) a locked community issues no licence of its own: its quorum's licence is `licensure_authority_locked`
         # (a license seat conferred before the lock is read below, as any)
-        if declared_count(T, ST.signers(r), a):
+        if declared_count(T, ST.voices(r, T.Cs), a):
             if not locked(T, a):
                 return None
             if not ST.Seats(T).stands(k, "license", a):
@@ -660,7 +635,7 @@ def standing(S, lic, own=None):
         T = ended_for_reader(S, r, False, own=own)
         a = r["authority"]
         own_licence = is_community(T, a) and not is_the_authority(T, r["signer"], a) and \
-            declared_count(T, ST.signers(r), a)
+            declared_count(T, ST.voices(r, T.Cs), a)
         if own_licence and "own_licence_uncountersigned" not in MUT and not ST.countersigned(S, r):
             return "licensure_delegator_not_authority"
         return None

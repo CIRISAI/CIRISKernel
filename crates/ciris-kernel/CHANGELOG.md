@@ -136,6 +136,17 @@ role ends with any leaving. `false` for any other object and at the founding row
 `check_acts.py` (FOUNDERS), recorded in the `seat` fixture (`founder`); plants `founder_at_tips` and
 `founder_leavings_unread`, and a crate plant.
 
+**review-54's DRY audit on the trust walk** (both languages): the trust path reads the seat model's own functions where
+the copies disagreed on a verdict.
+- A counted row's discounted voice is re-counted by `seat::still_met` (new; `count_met` with voices voided, the read
+  `contested_out` already takes), so the count reads the seat model's voices path (`seat::voices`: its signatures and
+  the cosign rows it names, the persons counted, the agents apart). A licence's quorum and an edge's authority set read
+  `seat::voices` too.
+- Ends are read through `seat::ended_seats` (new; the owned form of the seat rule's `ends_of`), and an unseat the
+  reader's seats hold out of force or contested (`Seats::dropped`, new) ends nothing.
+- Answers that moved: a removal rule 5 holds contested out no longer cuts a conferral beside it; a voice given by a
+  cosign row is now a voice an end discounts.
+
 **The r87 attack on the trust walk** (both languages): for a COUNTED row an end discounts the ended key's voice and
 re-counts over the voices left, cutting the row only where the count then fails (as rule 5's contest drops voices); a
 single key's own row (its own offer, an edge, its licence) is cut as before. A backdated resignation no longer voids
