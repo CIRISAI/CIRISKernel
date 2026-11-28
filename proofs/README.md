@@ -211,7 +211,7 @@ over Lean definitions of the same shape, and are built by `build.sh` like the re
 |---|---|
 | `CutFix.lean` | the cut's well-founded fixed point: for any antitone step, what it reports as counting counts whatever the undecided cuts do; the cut's step is antitone |
 | `SeatWalk.lean` | the bounded walk of live seats is exactly the chains of at most `depth` links from a root; tips wait |
-| `SeatCount.lean` | no key admits itself; counts never fall; each policy's arithmetic, `unanimous` at two, `open:self_admit`, the duty floor, `weighted` |
+| `SeatCount.lean` | no key admits itself; counts never fall; each policy's arithmetic, `unanimous` at two, the duty floor, `weighted` |
 | `WindowTable.lean` | a window's table before and at its close |
 | `Retained.lean` | the rows that have not lapsed are closed downwards; revocations are kept |
 | `Versions.lean` | built on, for roster versions |
