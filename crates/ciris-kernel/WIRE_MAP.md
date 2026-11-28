@@ -7,7 +7,8 @@ exactly this map to present rows, and a minter reads it the other way, to turn a
 Sources read:
 
 - The Constitution at `origin/rc23-next` `d5d42bf`: `manifests/signed_object_v2.cddl` (the row and object CDDL, the
-  schema CC 2.6.1.4 names; `ietf/signed_object.cddl` is the Internet-Draft's copy), `manifests/family_payloads_v2.cddl`, `manifests/family_model.json`
+  working schema CC 2.6.1.4 names; `ietf/signed_object.cddl` is the frozen schema of the published
+  Internet-Draft -04, rebuilt byte for byte, so it lacks what came after, such as a join's `further_prev`), `manifests/family_payloads_v2.cddl`, `manifests/family_model.json`
   (columns `authorship`, `second_signers`, `count`, `names_head`, `standing_act`, `confers`, `body`), and the text
   of CC 2.4.1.1, CC 2.4.1.2, CC 2.6.1.1 to 2.6.1.11, CC 3.1.3.2, CC 3.1.4, CC 4.4.3.12, CC 4.5.4, CC 4.5.13.
 - The crate at `release-0.5.0-wip` `11804e1` (root-fold merged), and the row fields the unmerged lanes add:
@@ -372,7 +373,7 @@ person [G25].
 | `statement()` | `(asserted_at, the record that covers it)`; the cover is **D**: the key record of the statement's `kid` whose `asserted_at`..`valid_until` covers its `asserted_at`. No row names its cover [G26] | |
 | `revocation()` | `key:revocation:v1`: (`sub`, `revoked_after`) | |
 | `instant()` | payload `asserted_at` of any row, seat rows included | |
-| `roster_end()` (key-end-retained) | an end of a retired key by the person's key roster: a `key:revocation:v1` whose signer is the key's successor (the one key its rotations name): (`sub`, `revoked_after`) [G33] | |
+| `roster_end()` (key-end-retained) | an end of a key by the person's key roster: a CONCLUDED act of the person's self roster under that roster's own count rule (an eviction, `identity:occurrence_revocation`, counted for a user self), never a row signed by the successor: (the key, the instant from which its rows are ended) [G33] | |
 | `cosigned_by()` (key-end-retained) | the `kid` of every further verified statement over the row's payload (as `SeatRow::cosigners`) | |
 | `KeyView::counts` | **D** | |
 
@@ -405,7 +406,7 @@ person [G25].
 | `seat_act`, `obj`, `to` | as `SeatRow` (section 7.2) on a widening (`Offer`) or removal (`Unseat`) | |
 | `concluded` | **D** | |
 | `history_on_join` | payload `history_on_join` (`full`, `from_join`) | |
-| `follows` (audience) | on a row of a family with a `follows` rule: the row it follows, under the `refs` role that rule names [G34] | row id |
+| `follows` (audience) | on a row of a family with a `follows` rule: the row it follows. At `d5d42bf` (the audience lane's pin) four families follow: `custody:{kind}` (the content's scope, `Same`), `duty:{kind}` (the permission it attaches to, or narrower, `Narrower`), `ownership:{relation}:{target_kind}:{version}` (the owner-binding it mirrors, `Same`) and `stream:head` (the stream it heads, `Same`). The `refs` role naming the followed row is not stated; a `custody` row names its blob by `evidence_refs`, not a row [G34] | row id |
 
 ### 7.8 `conferral::ConferralRow`
 
@@ -493,6 +494,53 @@ and the `ReceipterEnd` kind, not a row accessor.
 `cut::CutSpec`, `held::HeldSpec`, `line::LineSpec`, `key_end::KeyView` (key-end-retained), `root::RootView`, the
 `seat::SeatLaw` and `window::WindowSpec` tables: **D** and **T**. They carry no row member and are not mapped.
 
+## 8. Rows to present, per function
+
+A function's answer is correct only over the right rows. The smallest correct set is **not** the judged row's causal
+past. It is, in general:
+
+1. every held row over the object the answer is about: concurrent cuts, contests, the tips and their fold, and held
+   growth (a row concluded after the judged row that completes an offer at a tip);
+2. the person and key rows of every signer and cosigner those rows carry: each key's `key:record` rows (renewals and
+   rotations), its `key:revocation` rows, and its self roster (`identity:occurrence`, `identity:occurrence_revocation`,
+   the genesis key's record; a voice's room keys);
+3. the reader's own rows over the object: every row it signed or cosigned there (each is an acknowledgement, H6);
+4. for a root answer, the lineage's bundles (every tip), the holder key revocations, and the root lane's rows
+   (grants, their later statements, acceptance edges, halts);
+5. for a licence, the acceptance edges the walk can reach and their ends, and the authority's record.
+
+Below, **beyond** marks what a function reads outside that set: a table, a closure, an instant, a view the store
+builds. A row left out of the set is not an error the crate can see: the answer is then the answer over fewer rows.
+
+| Function | Rows to present | Beyond |
+|---|---|---|
+| `layers::kept`, `layers::conclude` (and so every `Concluded` below) | every held row the answer's set needs; a row naming a row not given waits | the family's rule |
+| `seat::seat_rule` | the set above (1 to 3) for the row's object: it reads through `Past::graph`, not only the row's ancestors (rule 5 over concurrent removals, the S'' void of self-forked changes, a countersign's withdrawals) | `SeatLaw` (pinned tables); `CutSpec::key_view` at every voices step; `CutSpec::trust_root` for a recovery widening (`bundle()`) and a `Conf::Root` seat, which then needs (4) |
+| `seat::Seats::new`, `Seats::for_reader`, `seat::for_reader` | (1) to (3) for every object asked of the roster; `for_reader` with the reader's own key, `Seats::new` with `own` `None` for a reader with no row | as `seat_rule`; `Seats::for_reader` takes the void set `seat::for_reader` returned |
+| `Seats::holders`, `holders_at`, `roster`, `one`, `stands`, `tips`, `tips_fold`, `tips_common`, `dissolved` | the rows the `Seats` was built over | `holders_at`: the instant the row `at` states; `stands` with a delegation chain: every link's offer and acceptance; with a `Root`, (4) |
+| `seat::members_at` | the rows in the past of the heads named, with the acceptances in the counted row's own past that complete offers at those heads | `SeatLaw`; the scope asked. The one seat answer read from a past alone |
+| `seat::met` | none: numbers (`yes`, `n`, the policy, a declared threshold). The count itself (`count_met`) is internal to `seat_rule` | |
+| `seat::Persons`, `persons_of`, `person_at`; `person_keys` (key-person, being built) | (2) for every key a count reads, over the counted row's concluded past: the self roster's founding record, its counted additions and evictions (with their windows' rows), and each key's own revocation | `SeatLaw::kinds` (a law with no kinds names no person) |
+| the key view: `key_end::KeyReading`, `counts_by`, `counts_for`, `counts`, `live`, `ended`, `retained`, `bytes_retained` | each voice key's `key:record` rows (every renewal and rotation), its `key:revocation` rows, its roster ends, the seat rows whose signatures are judged, in one causal order with the key lane; for `counts_for`, the reader's own rows | the final counts (`final_`, from `seat::final_by_ack`: their receipts must be held); `live`, `ended`, `retained`, `bytes_retained` read `now` (a node-local reading, never a verdict) |
+| `root::Root::new`, `RootReading`, `Root::in_force`, `grant`, `grant_in_force`, `halt_in_force`, `reader_line`, `fold` | (4): every held bundle of the lineage (every tip and every join), the revocations of holder keys, every root lane row (grants, later statements over them, acceptance edges, halts) | the reader (`Reader`: its anchor, a bundle's object id or the holders' thumbprints, and its own acknowledgement rows in causal order) |
+| `trust_rows::edges_of`, `standing`, `read_licence` | (5) and (1) to (3) as the `Seats` is built: the licence row; the authority's record (a community's record versions and its duty holders' seats, or a key authority's self roster); the license-seat chain (offers, acceptances, withdrawals); every acceptance edge on the walk (the reader's own, then each authority's onward edges, to depth 5) with their withdrawals and ends | `now` (an edge's and a licence's term); the charters `supplied` from elsewhere (the trust root's scope) |
+| `audience::place`, `audiences` | the row (and, for `audiences`, every row of the room: the copy rule reads every concluded placed row naming a row, and a `follows` row reads the row it follows) | the `roster` closure (`Seats::roster` over the room's held rows, built as above); the `person` closure (the signer's person's keys); `Joins` (the members at each row's own head, and `history_on_join`) |
+| `content::answers` | the rows that bear on one member in one room: the roster heads (with their parents), the member's content rows, the ends of its seats, rows adding tips (`membership:keeps`), its key ends, the reader's acknowledgements | `Seat` (the member, what each version is to it); the `Past` oracle, asked only of these ids. An `Undecided` names the row to fetch |
+| `window::rule`, `window::outcome`, `unwithdrawn` | the opener; every answer naming it and every withdrawal of an answer; every receipt and landing and the rows each landing cites; the rows at the opener's head the counted bases read (roster heads, duty seats); any row of the target (a receipt with one in its past is no receipt) | `Tables` (the window specs); `SeatLaw`; for `outcome`, `cut_counts` (from `cut::Cut` over the same rows); the key view at the answers |
+| `seat::act_in_force` | (1) to (3) for the act's room: the act, the actor's standing rows (its seat, ends of it, the receipts of the act), lifts and their counts, reconsiderations, releases, countersigns and their withdrawals | `SeatLaw` (the affiliation acts) |
+| `seat::election_closed` | every concluded row of the election over the room: ballots, their withdrawals, declines, receipts, every seating, the ends of the last holder's seat it reads, the roster at those heads | `SeatLaw` |
+| `conferral::answers` | the rows that bear on one standing: its heads, the acts under it, its end if held, receipts, key removals, the grantee's re-acceptance, the receipter's end | `conferral::Standing` (who each key is to the standing, the reader's acknowledged heads, `deputy_depth`); the `Past` oracle over those ids |
+| `standing::answers` | the rows that bear on one node's duty under one root grant: the bundle versions, the node's bindings and re-bindings, the owners' acceptances of the grant, the node's acts and deputy edges, the grant's end if held, receipts, key removals | `conferral::Standing`; the `Past` oracle |
+| `head::purge`, `head::View` | the whole store as `head::Entry` rows (stubs included) | this node's own key, `now`, the `Reading` |
+
+**Caching.** Every answer is a pure function of what it is given, so a store may cache it. The key is the exact set
+of presented row ids (and, for the root and the walk, object ids), the reader, the key view's inputs (the key-lane
+rows and the final counts), `now` where the function reads one, and the table pins (`SeatLaw`, `Tables`, the family
+model's sha256). The entry is dropped when any new row is held that would enter that set (by the rules above: a row
+over the object, a signer's key or person row, a reader's row, a bundle or root-lane row, an edge on the walk). A
+cached answer is never written back as a row field or a stored verdict, and never read as one: it is the answer
+over that set, and only that set.
+
 ## NO WIRE FAMILY findings
 
 Each is a crate field a signed row should carry and that no family, member or `refs` role carries at
@@ -513,9 +561,6 @@ Each is a crate field a signed row should carry and that no family, member or `r
 
 Wire-side mismatches the map met, for the same list:
 
-- The two CDDL copies differ on `genesis-refs`: `manifests/signed_object_v2.cddl` carries `further_prev` (since
-  `12615bd`), and `ietf/signed_object.cddl`, the Internet-Draft's copy, still lists `prev` and `also` only. The map
-  reads the manifests copy, the schema CC 2.6.1.4 names.
 - `trust:accepts` names its bundle in `attached_head_digest`, outside `refs`; a reader gathering the named set from
   `refs` alone misses it.
 - `ballot:moderator` and `ballot:moderator_acceptance` name the election and its counted set by digests (CC 3.1.4),
@@ -564,5 +609,5 @@ row, not a reading of the text: they are settled here, and a store and a minter 
 | G30 | `RootBundle::recovery` | the second element is the commitment digest, compared by equality, not the recovery key | kernel's choice: the crate compares the recovery entry by equality only; the commitment is what the wire carries and compares the same way. |
 | G31 | `RootBundle::recovers` | the new key is the key of the holder's new signing-key record cited under `refs.also.cites` | open: a question for the text |
 | G32 | `RootGrant::scope` | the grant's placement `community_id`; `trust:confers` carries scope tokens and no room member | open: a question for the text |
-| G33 | `KeyEndRow::roster_end` | a `key:revocation:v1` signed by the revoked key's successor is the roster's end; the text names the roster's revocation ("the roster that seats it revokes it by its count") and no successor-signed form | open: a question for the text |
-| G34 | `AudienceRow::follows` | the `refs` role a family's `follows` rule names (inert at the pinned family model) | open: a question for the text |
+| G33 | `KeyEndRow::roster_end` | a roster end is a concluded act of the person's self roster under that roster's own count rule (an eviction of the key), never a row signed by the successor (the ruling after r89; the windows-rows lane rebuilds it); which family carries the instant from which the key's rows are ended is not stated (`identity:occurrence_revocation` carries `effective_at`) | open: a question for the text |
+| G34 | `AudienceRow::follows` | the row named by the family's own reference: the permission a `duty:{kind}` row attaches to, the owner-binding an `ownership` row mirrors, the stream a `stream:head` heads, under `refs` (`target` or `also.cites`); a `custody:{kind}` row names its blob by `evidence_refs`, so its followed content is found by digest | open: a question for the text |
