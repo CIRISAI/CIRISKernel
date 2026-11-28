@@ -2641,6 +2641,18 @@ fn roster_word(d: &str) -> bool {
     d == "member" || d == AGENT
 }
 
+/// The family of an owner binding's row type: a delegation.
+pub const OWNER_BINDING_FAMILY: &str = "self:delegates_to";
+
+/// The one recogniser of an owner binding on the wire (CC 3.2, "Who owns a key"): a `delegates_to` row (family
+/// `self:delegates_to`, the resolved pattern) carrying `delegation_purpose: "owner_binding"`, signed by the owner.
+/// [`Seats`] reads no family: a store's [`SeatRow`] adapter presents such a row as an offer of scope `owner` over
+/// the key, which [`Seats::one`]`("owner", key)` and `standing` read; `audience` calls this to tell the binding an
+/// ownership row mirrors.
+pub fn owner_binding(family: &str, purpose: Option<&str>) -> bool {
+    family == OWNER_BINDING_FAMILY && purpose == Some("owner_binding")
+}
+
 /// The live seats over a concluded set, for reader `own` (the reader's line), with the cut the caller's
 /// [`CutSpec`] states. An immutable snapshot: what it reads is fixed when built, and its answers are kept
 /// once asked, so its fields are read through methods.

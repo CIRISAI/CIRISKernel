@@ -684,6 +684,121 @@ now stands (`conferral_two.json`: "(d) reader at the later"; `conferral_end.json
 strictly-behind case is now `end_old_fork_for_reader` with a third head). The TLA spec's end line drops its
 acknowledgement clause (its two heads have no strictly-behind end). Plants `line_not_sibling_safe` (the reference)
 and one in the crate.
+**The audience reads persons and owner bindings through the seat model** (review-54's DRY audit). The persons are
+the seat model's one function: `audience::PersonsOf` (`voice`: `seat::Persons::voice`; `keys`: `seat::person_keys`),
+Python `audience.Persons` / `persons_over` (`seat.rep_of`, `seat.person_keys`); the self row's audience, the copy
+rule's same person (c.3) and narrower read it. **BREAKING** within the release: the audience functions take a
+`&PersonsOf` for `person`. An owner binding is recognised by `seat::owner_binding(family, purpose)`, beside `Seats`,
+which stays family-blind (a store's adapter presents the binding as an offer of scope `owner` over the key). No
+answer moves; a key of two persons counts as no person (cases `self_row_of_a_key_of_no_person`,
+`key_of_no_person_carries_nothing`).
+
+**The family model at `rc23-next` `d5d42bf`** (sha256 `94a6ac96`, provisional until `rc23`): all 189 placements are
+from the text: 143 on the default, 46 pinned, none undecided; custody, duty, ownership and stream:head carry
+`follows`. "Narrower" is over PERSONS (the Constitution's ruling): a row's audience is within the followed row's
+where every person it holds is one the followed row holds (a duty at self by a member whose own device is off the
+roster is within). `audience::place_in` places over another table, so the Undecided path stays tested over a
+synthetic one. A follows row names the row it follows by its family's reference (the ruling G34,
+`audience::FOLLOWS_REF`, `followed_of`): custody by `evidence_refs`, stream:head by its `sub`, ownership and duty by
+`refs.also.cites`: `cites` is the general role, so the followed row is the one cited row of the right family (an
+owner binding, `audience::OWNER_BINDING_FAMILIES`; a permission, `audience::PERMISSION_FAMILIES`, both derived from
+the confers cells), read from the row set; none gives `follows_not_named`, several of that family
+`follows_ambiguous`, and cited rows of other families are not read. **BREAKING** within the release:
+`AudienceRow::follows` is gone; `evidence`, `stream` and `cites` replace it, and `follow` takes why a row names
+none.
+
+**`follows`, ready for the next family model** (both languages; inert at the pinned d103e60, which has no such
+cell): a placement cell's `follows` marker (custody, duty and stream:head at the Constitution's 42eaa3f) is read by
+the generator (`Same`, or `Narrower` where the cell says "or narrower"), and a row of such a family is placed at the
+scope of the row it follows (`AudienceRow::follows`, a row it names): `audience::follow` keeps its own answer where
+its placement and audience are the followed row's (`Same`) or within its audience (`Narrower`), else refuses
+(`follows_not_named`, `follows_not_held`, `follows_unplaced`, `follows_mismatch`, `follows_wider`). Checked over
+answers stated directly at every pin (FOLLOW), and by cases that go live with the marker.
+
+**The audience after review r79** (both languages, cases from each finding, planted breaks and fixtures):
+- The copy rule is the Constitution's proposal c (`audience::carried`, the one place it is stated): carriage is of
+  rows; a room row is carried by a concluded room row of its room to that row's audience on the room's current
+  roster; nothing reaches a key off the roster (an offered key that never accepted gets the offer alone, a removed
+  key its removal alone); a self or addressed row is carried only by a concluded row of its own signer or person;
+  the carrier's signer is already in the row's audience; a key grant is never carried, and is served per its
+  placement, the content's scope, opened only by the key it names (CC 3.3.2): in a room the members see that a grant
+  exists and to which key, never the key.
+- `history_on_join` changes no audience: served is not readable. A later joiner is served the older room rows,
+  sealed by keys it lacks; `full` acts only on a kept stream, the caller's (`audience::history_of`). **BREAKING**:
+  `audience::Joins` keeps `history` and `at_head` only.
+- `named_within` is read against the members at the row's own head (`audience::Joins::at_head`), so a later
+  removal never unplaces an old row, and a row naming an outsider stays refused after the outsider joins. The
+  current roster is read only for who is owed.
+- The keys a seat row seats or removes are derived (`audience::seats_of`: an offer or unseat whose `obj` is its
+  room, its `to`). **BREAKING**: `AudienceRow::seats` is gone; `seat_act`, `obj` and `to` replace it.
+- Review r84: a key removal keeps every row in its past and every row of the member reachable along `prev` from
+  a row it names (`ContentRow::tips` on a key removal; the walk an end's tips take), so an honest revocation naming
+  its last trusted row keeps what lies behind it. A row any removal cuts stays cut, whatever a later removal names:
+  otherwise a thief still holding the key could revoke it again naming its forgeries and keep them (the monotone
+  choice). The walk stays in its room (a predecessor of another room is not read). Two residuals are stated, with
+  EDGE cases: a forgery the honest device had chained onto stands (name last trusted rows whose prev chains hold no
+  foreign row), and a removal that has another in its past inherits what that one names (never name, or build on,
+  the thief's revocation). A seat of a duty over the room
+  (`audience::DUTY_SEAT_FAMILIES`: the moderator's acceptance) seats only a member at the row's own head, never an
+  outsider.
+- Review r82, r83: only a ROOM seat family's offer or unseat seats keys within its audience
+  (`audience::SEAT_FAMILIES`: group:roster, membership, ballot:moderator_acceptance, derived by the generator from the
+  confers cells; the person-level families never do); the key grant exclusion reads the resolved family
+  (`audience::KEY_GRANT`); `person` is the person's current, concluded key roster (a contract, stated).
+- A key's own revocation that names nothing (the Constitution's ruling of review r82): the end rule stands, with
+  the caller duty (an honest revocation names the key's last trusted rows) and the residual (a thief can revoke
+  naming nothing and take the key's unnamed rows out for readers that had not taken them up). The only anchor is the
+  reader's own taken-up line. A content anchor by another key's reply was built and removed after review r83: it
+  cannot be told from a reply signed after the revocation, so one colluding or sock key revived every forged row,
+  a forged retraction included; its cases stay as regression cases (`anchor_*`), and a plant re-enables it.
+- An unknown `history_on_join` word is absent and falls through (the door refuses it), in `history_of`.
+- Family patterns that tie on a name refuse (`Refusal::FamilyAmbiguous`, `audience::family_in`); the generator
+  refuses to write a table with a tie.
+- A key removal (`content`) is read only where it is the key's own revocation or concludes under the person's own
+  key roster (`ContentRow::concludes`, the self-roster count), and it does not cut a row the reader took up before
+  it held the removal. A reader applies only the removals it holds: a caller places a key removal at commons, or in
+  every room the key sits in.
+
+**Audience and placement, family by family** (new module `audience`, both languages). The family model's placement
+cells (the Constitution's `manifests/family_model.json`, derived and pinned by `tools/family_placement.py` into
+`data/family_placement.json` and `audience::FAMILIES`; pinned at `rc23` `d103e60`, sha256 `f5a38b47`, final): 189 families, 143 on the default, 34 pinned by the CC table, 12 whose cell is not table data (the
+re-pin from `f73162c` added `regard:{subject_kind}` and stated ten families from the text: `act:ack`,
+`admission:unit`, `contribution`, `identity:occurrence`, `identity:occurrence_revocation`, `key:record`,
+`key:revocation`, `key_grant`, `location_proof`, `window`). `audience::place` gives a row's placement
+from the cohort scope it states and its audience as KEYS (the room's roster, the signer's own keys, the keys it
+names; everyone in the commons), or the refusal (`family_unknown`, `scope_unknown`, `placement_not_allowed`,
+`named_outside_audience`, `no_room`), or `Placed::Undecided` naming the family where its cell is not table data;
+`audience::audiences` applies the copy rule (CC 5.2). The keys a seat offer or unseat over the room seats or removes (`AudienceRow::seats`, its
+`to`) are always within its audience, ahead of `named_outside_audience`: a pending admission names its joiner, a
+removal its removed key; any other key off the roster is still refused. The roster is the roster as it stands (CC 5.2 as ruled: a member removed later is
+owed nothing further), less the members admitted after the row unless its `history_on_join` is `full`: the row's own
+(`AudienceRow::history_on_join`), else the room record's (`audience::Joins::history`), else `from_join` (CC 2.1, CC
+4.4.3.16); a member admitted concurrently with the row (neither in the other's past) is owed it. **BREAKING** within this release: `audience::place` and `audiences` take `&audience::Joins`. `check_audience.py` (945 generated answers, 43 cases, nine
+planted breaks), fixture `audience.json`, `tests/audience.rs`, seven crate plants.
+
+**Room content: receipts, the reader's line, key removals, rooms** (`content`, both languages, with cases, planted
+breaks and the run's `keys` histories). **BREAKING**: `content::Kind` has `Ack` and `KeyEnd`, and `content::Rule`
+has `KeyRemoved` (`"K.key_removed"`); an exhaustive match must add them.
+- A receipt of a content row is not read, the count's own included (`Kind::Other`): a choice, stated as one.
+- The reader's line is the head rules' line, monotone (`line::own_line_with`, sibling-safe as `line::behind`): the
+  roster versions, the ends and the rows adding tips are its counted acts; each acknowledgement (`Kind::Ack`)
+  takes up the acts in its past not void for the line its earlier ones drew, so acknowledging never un-voids. An
+  end behind the line ends nothing for that reader, a tips row behind it adds nothing. New:
+  `ContentRow::parents` (a head's own heads); `ContentRow::head` is read on a tips row.
+- A key removal (`Kind::KeyEnd`, `ContentRow::removes`) is the person's own key roster's act, signed by a key of
+  the member: it cuts the member's rows under that key outside its past, in every room, and voids no end. One the
+  room's count signs is not read: the room's count ends a seat in its room only.
+- `ContentRow::room`: each room is judged by its own rows. A content row naming a held row that is not a roster
+  version of its room has no seat (it was undecided).
+
+**The wrap set is replayed by the crate** (`tests/resignation.rs`, fixture `resignation.json`): who may read a room,
+`Seats::holders` over the fold of the tips less every member whose own end of its seat is held, with
+`Seats::roster` and `Seats::dissolved`, for `check_resignation.py`'s 8 cases and every one of its 152 sets of rows,
+in two rooms: a community whose members sit in scope `member` (the roster a store reads: there the roster is the
+wrap set and `Seats::dissolved` is the check's own reading, in every set) and an accord's holders (scope `holder`, no
+roster seat).
+Crate plant: a held withdrawal unread (the reference's `wrap_by_roster`: a resigner stays wrapped until a count cites
+it).
 
 **Counts are over persons: one voice and one member per person** (ruled on CIRISConstitution#224: "one voice
 however many live keys sign"). New: `seat::Persons`, the persons a count reads over a counted row's past, and

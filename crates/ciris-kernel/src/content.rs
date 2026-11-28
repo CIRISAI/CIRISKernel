@@ -57,7 +57,31 @@
 //! followed, and a retraction from another of its keys takes effect, across seats too. A co-member's row is
 //! never followed and a co-member's retraction is not read.
 //!
-//! Not covered: receipts together with tips, the reader's line on an end, key removals, more than one room.
+//! **Receipts.** No rule here reads a receipt of a content row: no co-member receipts content, and the count's
+//! own receipt keeps nothing, since the count's word is its tips. A caller gives a receipt as [`Kind::Other`],
+//! or leaves it out.
+//!
+//! **The reader's line** (CC 2.7.8, CC 2.7.9; `line::own_line_with`, sibling-safe as `line::behind`): the counted
+//! acts it reads are the roster versions, the ends and the rows adding tips. Each of the reader's acknowledgements
+//! ([`Kind::Ack`]: every row the reader signs in the room) takes up the counted acts in its past that are not void
+//! for the line its earlier acknowledgements drew. A counted act is behind a line act where every head it names is
+//! strictly in the past of one of the line act's own heads (a head's [`ContentRow::parents`], an end's or a tips
+//! row's head) and it is not in that act's past; a sibling at the line act's head is not behind it. An act behind
+//! the line, or built on a void one, is void for this reader: an end so void ends nothing, a tips row so void adds
+//! nothing. The line is monotone: acknowledgements accumulate in any order, an act behind any acknowledged act is
+//! void, an acknowledged one included, and acknowledging never un-voids. The line voids no content row.
+//!
+//! **Key removals** ([`Kind::KeyEnd`]) are the person's own key roster's acts, signed by a key of the member (its
+//! eviction of the key, or the key's own revocation). Key-level, each cuts every row of the member signed by the
+//! removed key that is not in the removal's past, in every room: a cut content row does not count
+//! ([`Rule::KeyRemoved`]), is not held good and is not followed; a cut retraction is not read. A key removal
+//! voids no end, since the member's eviction of the key it resigned under would undo the resignation. A row of
+//! that kind the room's count signs is not read: the room's count ends a seat, an end, in its room only, and cuts
+//! no row of the member in another room.
+//!
+//! **Rooms.** Each row but a key removal belongs to its [`ContentRow::room`], and each room is judged by its own
+//! rows alone: a tip, a predecessor, a retraction's target, an end, a head or an acknowledgement of another room
+//! is not read. A content row naming a held row that is not a roster version of its room has no seat.
 
 use crate::conferral::{self, any3, Past};
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -75,7 +99,14 @@ pub enum Kind {
     End,
     /// A later row naming further tips for the member.
     Tips,
-    /// Any other row. It is not read.
+    /// The reader's acknowledgement: what is in its past (heads and ends) is on the reader's line. Every row the
+    /// reader signs in the room acknowledges what is in its past; the caller gives each as an `Ack`, and only
+    /// the reader's own.
+    Ack,
+    /// A removal of one key of the member ([`ContentRow::removes`]) from the person's own key roster, signed by a
+    /// key of the member: key-level, read in every room.
+    KeyEnd,
+    /// Any other row, a receipt of a content row included. It is not read.
     Other,
 }
 
@@ -102,13 +133,14 @@ pub trait ContentRow {
     fn kind(&self) -> Kind;
     /// The key that signed it.
     fn signer(&self) -> &Self::Key;
-    /// The roster head a content row or an end names (`refs.head`).
+    /// The roster head a content row, an end or a row adding tips names (`refs.head`).
     fn head(&self) -> Option<&Self::Id>;
     /// A content row's predecessors: its author's rows it follows (`refs.prev` and any further ones).
     fn prev(&self) -> &[Self::Id] {
         &[]
     }
-    /// The tips an end or a tips row holds good (`refs.trusted_through`).
+    /// The tips an end or a tips row holds good (`refs.trusted_through`). On a key removal: the rows it names, the
+    /// key's last trusted rows; they and every row of the member behind them along predecessors stand.
     fn tips(&self) -> &[Self::Id] {
         &[]
     }
@@ -123,6 +155,24 @@ pub trait ContentRow {
     /// On a head: what this roster version is to the member.
     fn seat(&self) -> SeatAt {
         SeatAt::Sits
+    }
+    /// On a head: the roster versions it is counted over (its own heads), which the reader's line reads.
+    fn parents(&self) -> &[Self::Id] {
+        &[]
+    }
+    /// The room the row belongs to. `None` on every row: one room.
+    fn room(&self) -> Option<&Self::Id> {
+        None
+    }
+    /// On a key removal: the key it removes.
+    fn removes(&self) -> Option<&Self::Key> {
+        None
+    }
+    /// On a key removal signed by another key of the person: it concludes under the person's own key roster's own
+    /// rule (the self-roster count; a lone second key evicts the first only where the roster's policy says one key
+    /// suffices). The key's own revocation needs none. `false` where the caller does not say.
+    fn concludes(&self) -> bool {
+        false
     }
 }
 
@@ -140,6 +190,8 @@ pub struct Seat<'a, K> {
 pub enum Rule {
     /// The row names a head at which the member does not sit. Not counted.
     NoSeat,
+    /// A held key removal cuts the row: its key is removed and the row is not in the removal's past. Not counted.
+    KeyRemoved,
     /// E4: the row has a counting end in its past. Not counted.
     NamesEnd,
     /// E3: the row names a head that has a counting end's head in its past. Not counted.
@@ -159,6 +211,7 @@ impl Rule {
     pub fn as_str(self) -> &'static str {
         match self {
             Rule::NoSeat => "no_seat",
+            Rule::KeyRemoved => "K.key_removed",
             Rule::NamesEnd => "E4.names_end",
             Rule::LaterHead => "E3.later_head",
             Rule::Retracted => "W.retracted",
@@ -196,7 +249,21 @@ pub type Answers<I> = BTreeMap<I, Answer<I>>;
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Void {
     StaleHead,
+    Line,
     SeatEnded,
+}
+
+// the member's rows a key removal cuts
+struct Cuts<I> {
+    any: BTreeSet<I>,
+}
+
+// the heads a counted act of the line is counted over: a roster version's own, an end's or a tips row's head
+fn own_heads<R: ContentRow>(m: &R) -> &[R::Id] {
+    match m.kind() {
+        Kind::Head => m.parents(),
+        _ => m.head().map(core::slice::from_ref).unwrap_or(&[]),
+    }
 }
 
 struct Ctx<'a, R: ContentRow, P> {
@@ -204,6 +271,7 @@ struct Ctx<'a, R: ContentRow, P> {
     by: BTreeMap<&'a R::Id, &'a R>,
     seat: &'a Seat<'a, R::Key>,
     past: &'a P,
+    cuts: &'a Cuts<R::Id>,
 }
 
 impl<'a, R: ContentRow, P: Past<R::Id>> Ctx<'a, R, P> {
@@ -215,11 +283,96 @@ impl<'a, R: ContentRow, P: Past<R::Id>> Ctx<'a, R, P> {
         conferral::later(self.past, h, he)
     }
 
-    // Whether an end counts is decided by its own causal past alone: E1 (a head later than its own in its
-    // past), or a counting end of the seat in its past. No row signed later changes it.
+    // the counted acts the reader's line reads: the roster versions, the ends, the rows adding tips
+    fn line_acts(&self) -> impl Iterator<Item = &'a R> + '_ {
+        self.rows.iter().copied().filter(|r| matches!(r.kind(), Kind::Head | Kind::End | Kind::Tips))
+    }
+
+    // the sibling-safe line (`line::behind`, the ruling of 2026-11-27): counted act `e` is behind line act `m`
+    // where every head it names is strictly in the past of one of m's own heads and e is not in m's past
+    fn behind(&self, e: &R, m: &R) -> Result<bool, R::Id> {
+        let hs = own_heads(e);
+        if hs.is_empty() || e.id() == m.id() || self.past.in_past(e.id(), m.id())? {
+            return Ok(false);
+        }
+        for h in hs {
+            if !any3(own_heads(m).iter(), |t| self.past.in_past(h, t))? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    // the counted acts void for the line `ln`: behind one of its acts, or built on a void one; its own acts apart
+    fn void_for(&self, ln: &BTreeSet<&'a R::Id>) -> Result<BTreeSet<&'a R::Id>, R::Id> {
+        let mut out = BTreeSet::new();
+        for m in self.line_acts().filter(|m| !ln.contains(m.id())) {
+            if any3(ln.iter(), |c| self.by.get(c).map_or(Ok(false), |c| self.behind(m, c)))? {
+                out.insert(m.id());
+            }
+        }
+        loop {
+            let more: Vec<&'a R::Id> = self
+                .line_acts()
+                .filter(|m| !out.contains(m.id()) && !ln.contains(m.id()))
+                .filter(|m| own_heads(*m).iter().any(|h| out.contains(h)))
+                .map(|m| m.id())
+                .collect();
+            if more.is_empty() {
+                return Ok(out);
+            }
+            out.extend(more);
+        }
+    }
+
+    // The reader's line (CC 2.7.8, CC 2.7.9; `line::own_line_with`), and the counted acts void for it. Each of the
+    // reader's acknowledgements takes up the counted acts in its past that are not void for the line its earlier
+    // acknowledgements (those in its own past) drew: acknowledging never un-voids, an act behind any acknowledged
+    // act is void, an acknowledged one included, and the acknowledgements may be read in any order.
+    fn line_void(&self) -> Result<BTreeSet<&'a R::Id>, R::Id> {
+        let acks: Vec<&'a R> = self.of_kind(Kind::Ack).collect();
+        if acks.is_empty() {
+            return Ok(BTreeSet::new());
+        }
+        // each acknowledgement after those in its past: by how many of them are in its past
+        let mut order: Vec<(usize, &'a R)> = Vec::new();
+        for a in &acks {
+            let mut n = 0;
+            for b in &acks {
+                if self.past.in_past(b.id(), a.id())? {
+                    n += 1;
+                }
+            }
+            order.push((n, *a));
+        }
+        order.sort_by(|x, y| x.0.cmp(&y.0).then_with(|| x.1.id().cmp(y.1.id())));
+        let mut got: BTreeMap<&'a R::Id, BTreeSet<&'a R::Id>> = BTreeMap::new();
+        for (_, a) in &order {
+            let mut prior: BTreeSet<&'a R::Id> = BTreeSet::new();
+            for (b, g) in &got {
+                if self.past.in_past(b, a.id())? {
+                    prior.extend(g.iter().copied());
+                }
+            }
+            let held = self.void_for(&prior)?;
+            let mut cov = BTreeSet::new();
+            for m in self.line_acts() {
+                if !held.contains(m.id()) && self.past.in_past(m.id(), a.id())? {
+                    cov.insert(m.id());
+                }
+            }
+            got.insert(a.id(), cov);
+        }
+        let mine: BTreeSet<&'a R::Id> = got.values().flatten().copied().collect();
+        self.void_for(&mine)
+    }
+
+    // Whether an end counts: E1 (a head later than its own in its past), the reader's line, or a counting end of
+    // the seat in its own past. No row the member signs later changes it.
     fn void(
         &self,
         e: &'a R,
+        line: &BTreeSet<&'a R::Id>,
         memo: &mut BTreeMap<R::Id, Result<Option<Void>, R::Id>>,
         depth: usize,
     ) -> Result<Option<Void>, R::Id> {
@@ -231,13 +384,16 @@ impl<'a, R: ContentRow, P: Past<R::Id>> Ctx<'a, R, P> {
             if stale {
                 return Ok(Some(Void::StaleHead));
             }
+            if line.contains(e.id()) {
+                return Ok(Some(Void::Line));
+            }
             // ends in e's own past; a chain longer than the rows is a cycle of names, which ends nothing
             let earlier: Vec<&R> = self.of_kind(Kind::End).filter(|o| o.id() != e.id()).collect();
             let seated = any3(earlier.into_iter(), |o| {
                 if depth >= self.rows.len() || !self.past.in_past(o.id(), e.id())? {
                     return Ok(false);
                 }
-                Ok(self.void(o, memo, depth + 1)?.is_none())
+                Ok(self.void(o, line, memo, depth + 1)?.is_none())
             })?;
             Ok(seated.then_some(Void::SeatEnded))
         })();
@@ -246,12 +402,16 @@ impl<'a, R: ContentRow, P: Past<R::Id>> Ctx<'a, R, P> {
     }
 
     // the content rows a row's tips hold good: each held tip that is a content row of the member, and its
-    // ancestors along every predecessor that is a held row of the member
+    // ancestors along every predecessor that is a held row of the member; a row a key removal cuts is neither
+    // held good nor followed
     fn held_good(&self, r: &R, out: &mut BTreeSet<&'a R::Id>) {
         let mut todo: Vec<&R::Id> = r.tips().iter().collect();
         while let Some(t) = todo.pop() {
             let Some((id, x)) = self.by.get_key_value(t) else { continue };
-            if x.kind() != Kind::Content || !(self.seat.member)(x.signer()) || !out.insert(id) {
+            if x.kind() != Kind::Content || !(self.seat.member)(x.signer()) || self.cuts.any.contains(*id) {
+                continue;
+            }
+            if !out.insert(id) {
                 continue;
             }
             // a predecessor that is not held, or not the member's own, is dropped when it is taken up
@@ -260,13 +420,14 @@ impl<'a, R: ContentRow, P: Past<R::Id>> Ctx<'a, R, P> {
     }
 
     // the rows held good by the tips that are read, given why each end is void or not
-    fn kept(&self, void: &BTreeMap<&'a R::Id, Option<Void>>) -> BTreeSet<&'a R::Id> {
+    fn kept(&self, void: &BTreeMap<&'a R::Id, Option<Void>>, line: &BTreeSet<&'a R::Id>) -> BTreeSet<&'a R::Id> {
         let is_count = |r: &R| (self.seat.counted)(r.signer());
         let is_member = |r: &R| (self.seat.member)(r.signer());
         let ends: Vec<&R> = self.of_kind(Kind::End).collect();
         let counts = |e: &R| void[e.id()].is_none();
         let mut good = BTreeSet::new();
-        for t in self.of_kind(Kind::Tips).filter(|t| is_count(t)) {
+        // a tips row void for the reader's line adds nothing
+        for t in self.of_kind(Kind::Tips).filter(|t| is_count(t) && !line.contains(t.id())) {
             self.held_good(t, &mut good);
         }
         if ends.iter().any(|e| counts(e) && is_count(e)) {
@@ -290,10 +451,12 @@ impl<'a, R: ContentRow, P: Past<R::Id>> Ctx<'a, R, P> {
 }
 
 // the seat of the head `h`: the newest admitting heads in its past, itself included. None where the member
-// does not sit at it. Err where the head is not held, or the past cannot tell.
+// does not sit at it, or where it is a held row that is not a roster version of this room. Err where the head
+// is not held, or the past cannot tell.
 fn seat_of<R: ContentRow, P: Past<R::Id>>(
     heads: &[&R],
     ends: &[&R],
+    held: &BTreeSet<&R::Id>,
     h: Option<&R::Id>,
     past: &P,
 ) -> Result<Option<BTreeSet<R::Id>>, R::Id> {
@@ -301,7 +464,9 @@ fn seat_of<R: ContentRow, P: Past<R::Id>>(
     if ends.iter().any(|e| e.id() == h) {
         return Ok(None); // an end of the member's seat named as a head: the member is out at it
     }
-    let Some(at) = heads.iter().find(|r| r.id() == h) else { return Err(h.clone()) };
+    let Some(at) = heads.iter().find(|r| r.id() == h) else {
+        return if held.contains(h) { Ok(None) } else { Err(h.clone()) };
+    };
     if at.seat() == SeatAt::Out {
         return Ok(None);
     }
@@ -326,14 +491,100 @@ fn seat_of<R: ContentRow, P: Past<R::Id>>(
     Ok(Some(out))
 }
 
+// the member's rows the held key removals cut. A key removal is read where it is the key's own revocation, or a
+// concluded act of the person's own key roster ([`ContentRow::concludes`]); one the room's count signs is not read (a
+// room's count ends a seat, in its room). Key-level, in every room, it cuts every row of the member signed by the key
+// it removes that is not in its past, unless the reader took the row up already: a row in the past of one of the
+// reader's acknowledgements that does not have the removal in its past stands (the monotone line). Nothing else
+// anchors a row. The residual: a thief can revoke a key naming nothing and take out its unnamed rows for every reader
+// that had not taken them up.
+fn cuts<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Key>, past: &P) -> Result<Cuts<R::Id>, R::Id> {
+    let read = |q: &R| {
+        q.kind() == Kind::KeyEnd && (seat.member)(q.signer()) && (q.removes() == Some(q.signer()) || q.concludes())
+    };
+    let ends: Vec<&R> = rows.iter().copied().filter(|q| read(q)).collect();
+    let mut out = Cuts { any: BTreeSet::new() };
+    if ends.is_empty() {
+        return Ok(out);
+    }
+    let acks: Vec<&R> = rows.iter().copied().filter(|a| a.kind() == Kind::Ack).collect();
+    // what each removal keeps by what it names ([`ContentRow::tips`] on a key removal: the key's last trusted rows):
+    // each named row and every row of the member behind it along predecessors in its room, the walk an end's tips
+    // take
+    let by: BTreeMap<&R::Id, &R> = rows.iter().map(|r| (r.id(), *r)).collect();
+    let keeps: Vec<BTreeSet<&R::Id>> = ends
+        .iter()
+        .map(|q| {
+            // each entry: a row to take up, and the room of the row it is a predecessor of (none for a named row);
+            // a predecessor of another room is not read (rule 10)
+            type Step<'x, I> = (&'x I, Option<Option<&'x I>>);
+            let mut out: BTreeSet<&R::Id> = BTreeSet::new();
+            let mut todo: Vec<Step<'_, R::Id>> = q.tips().iter().map(|t| (t, None)).collect();
+            while let Some((t, from)) = todo.pop() {
+                let Some((id, x)) = by.get_key_value(t) else { continue };
+                if x.kind() != Kind::Content || !(seat.member)(x.signer()) {
+                    continue;
+                }
+                if from.is_some_and(|room| room != x.room()) || !out.insert(*id) {
+                    continue;
+                }
+                todo.extend(x.prev().iter().map(|p| (p, Some(x.room()))));
+            }
+            out
+        })
+        .collect();
+    for r in rows.iter().copied().filter(|r| r.kind() != Kind::KeyEnd && (seat.member)(r.signer())) {
+        for (q, kept) in ends.iter().zip(&keeps).filter(|(q, _)| q.removes() == Some(r.signer())) {
+            if kept.contains(r.id()) || past.in_past(r.id(), q.id())? {
+                continue;
+            }
+            // the reader took the row up before it held the removal
+            let taken = any3(acks.iter(), |a| Ok(past.in_past(r.id(), a.id())? && !past.in_past(q.id(), a.id())?))?;
+            // nothing else anchors a row: another key's row built on it cannot be told from one signed after the
+            // removal that leaves it unnamed (review r83)
+            if !taken {
+                out.any.insert(r.id().clone());
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// For every content row of the member among `rows`: whether it counts at its own head, whether it is in the
-/// room's content, and the rule that decides. `rows` are the rows the caller holds that bear on one member in
-/// one room: the roster heads, the member's content rows, the ends of its seats, rows adding tips.
+/// room's content, and the rule that decides. `rows` are the rows the caller holds that bear on one member:
+/// the roster heads, the member's content rows, the ends of its seats, rows adding tips, the reader's
+/// acknowledgements and the removals of the member's keys, in one room or several ([`ContentRow::room`]).
+/// Each room is judged by its own rows alone; a key removal is read in every room.
 ///
-/// `past` is asked whether an end or a head is in the past of a row; a predecessor and a tip are read from the
-/// rows themselves and never asked of it. Where it cannot tell, the rows that need the answer are
-/// [`Answer::Undecided`] with the row to fetch.
+/// `past` is asked whether an end, a head or a row a key removal may cut is in the past of a row; a
+/// predecessor and a tip are read from the rows themselves and never asked of it. Where it cannot tell, the
+/// rows that need the answer are [`Answer::Undecided`] with the row to fetch.
 pub fn answers<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Key>, past: &P) -> Answers<R::Id> {
+    let content = || rows.iter().copied().filter(|r| r.kind() == Kind::Content && (seat.member)(r.signer()));
+    let cuts = match cuts(rows, seat, past) {
+        Ok(c) => c,
+        Err(i) => return content().map(|x| (x.id().clone(), Answer::Undecided(i.clone()))).collect(),
+    };
+    let held: BTreeSet<&R::Id> = rows.iter().map(|r| r.id()).collect();
+    let mut by_room: BTreeMap<Option<&R::Id>, Vec<&R>> = BTreeMap::new();
+    for r in rows.iter().copied().filter(|r| r.kind() != Kind::KeyEnd) {
+        by_room.entry(r.room()).or_default().push(r);
+    }
+    let mut out = Answers::new();
+    for rr in by_room.values() {
+        out.extend(room_answers(rr, &held, seat, past, &cuts));
+    }
+    out
+}
+
+// the answers over one room's rows
+fn room_answers<R: ContentRow, P: Past<R::Id>>(
+    rows: &[&R],
+    held: &BTreeSet<&R::Id>,
+    seat: &Seat<'_, R::Key>,
+    past: &P,
+    cuts: &Cuts<R::Id>,
+) -> Answers<R::Id> {
     let heads: Vec<&R> = rows.iter().copied().filter(|r| r.kind() == Kind::Head).collect();
     let ends: Vec<&R> = rows.iter().copied().filter(|r| r.kind() == Kind::End).collect();
     let content: Vec<&R> =
@@ -343,7 +594,7 @@ pub fn answers<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Ke
     // each row's seat; an end or a tips row whose seat cannot be told leaves every row undecided
     let mut seats: BTreeMap<&R::Id, Option<BTreeSet<R::Id>>> = BTreeMap::new();
     for r in rows.iter().copied().filter(|r| matches!(r.kind(), Kind::Content | Kind::End)) {
-        match seat_of(&heads, &ends, r.head(), past) {
+        match seat_of(&heads, &ends, held, r.head(), past) {
             Ok(s) => {
                 seats.insert(r.id(), s);
             }
@@ -360,9 +611,11 @@ pub fn answers<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Ke
         seats.insert(t.id(), s);
     }
     let by: BTreeMap<&R::Id, &R> = rows.iter().map(|r| (r.id(), *r)).collect();
-    // a retraction is read over all the held rows, whatever seat it or its target belongs to
+    // a retraction is read over all the room's held rows, whatever seat it or its target belongs to; one a key
+    // removal cuts is not read
     let retracted: BTreeSet<&R::Id> = content
         .iter()
+        .filter(|w| !cuts.any.contains(w.id()))
         .filter_map(|w| w.retracts())
         .filter(|t| by.get(t).is_some_and(|x| (seat.member)(x.signer())))
         .collect();
@@ -377,35 +630,46 @@ pub fn answers<R: ContentRow, P: Past<R::Id>>(rows: &[&R], seat: &Seat<'_, R::Ke
         let sub: Vec<&R> = rows
             .iter()
             .copied()
-            .filter(|r| r.kind() == Kind::Head || seats.get(r.id()).is_some_and(|v| v.as_ref() == Some(s)))
+            .filter(|r| {
+                matches!(r.kind(), Kind::Head | Kind::Ack) || seats.get(r.id()).is_some_and(|v| v.as_ref() == Some(s))
+            })
             .collect();
-        out.extend(seat_answers(&sub, seat, past, &retracted));
+        out.extend(seat_answers(&sub, seat, past, &retracted, cuts));
     }
     out
 }
 
-// the answers over the rows of one seat, and the roster heads
+// the answers over the rows of one seat, the roster heads and the reader's acknowledgements
 fn seat_answers<R: ContentRow, P: Past<R::Id>>(
     rows: &[&R],
     seat: &Seat<'_, R::Key>,
     past: &P,
     retracted: &BTreeSet<&R::Id>,
+    cuts: &Cuts<R::Id>,
 ) -> Answers<R::Id> {
-    let cx = Ctx { rows, by: rows.iter().map(|r| (r.id(), *r)).collect(), seat, past };
+    let cx = Ctx { rows, by: rows.iter().map(|r| (r.id(), *r)).collect(), seat, past, cuts };
     let content: Vec<&R> = cx.of_kind(Kind::Content).filter(|r| (seat.member)(r.signer())).collect();
+    let undecided = |i: &R::Id| content.iter().map(|x| (x.id().clone(), Answer::Undecided(i.clone()))).collect();
+    let line = match cx.line_void() {
+        Ok(l) => l,
+        Err(i) => return undecided(&i),
+    };
     let mut memo = BTreeMap::new();
     let mut void = BTreeMap::new();
     for e in cx.of_kind(Kind::End) {
-        match cx.void(e, &mut memo, 0) {
+        match cx.void(e, &line, &mut memo, 0) {
             Ok(v) => void.insert(e.id(), v),
             // whether an end counts cannot be told: nothing about the seat's content can be
-            Err(i) => return content.iter().map(|x| (x.id().clone(), Answer::Undecided(i.clone()))).collect(),
+            Err(i) => return undecided(&i),
         };
     }
     let ends: Vec<&R> = cx.of_kind(Kind::End).filter(|e| void[e.id()].is_none()).collect();
-    let good = cx.kept(&void);
+    let good = cx.kept(&void, &line);
     let judge = |x: &R| -> Result<Judged, R::Id> {
         let j = |counted, in_force, rule| Ok(Judged { counted, in_force, rule });
+        if cuts.any.contains(x.id()) {
+            return j(false, false, Rule::KeyRemoved);
+        }
         if any3(ends.iter(), |e| cx.past.in_past(e.id(), x.id()))? {
             return j(false, false, Rule::NamesEnd);
         }

@@ -485,17 +485,19 @@ content: section E already says "an ender who acks an old tip keeps only what li
 
 **The reference and the run.** `models/causal_kernel/conferral_content.py` is the reference, and
 `check_conferral_content.py` (a `./check.sh` step) checks it:
-- 56 cases with a hand-written answer for every content row, each in every arrival order;
-- every history of up to four rows: 850,987 histories, 3,569,415 extensions compared, over three sets of
+- 85 cases with a hand-written answer for every content row, each in every arrival order;
+- every history of up to four rows: 863,504 histories, 3,606,927 extensions compared, over four sets of
   roster heads (the member seated throughout; admitted again at the second head, with a co-member also
-  signing; seated, not listed, admitted again, one row shallower).
+  signing; seated, not listed, admitted again, one row shallower; and `keys`, the first set one row
+  shallower, where a history may also hold a removal of the member's second key, the reader's
+  acknowledgement and a receipt: point 11).
   A history has up to three content rows on two keys of the member, each naming up to two earlier ones as
   predecessors, or retracting one; up to two ends (a removal or a resignation, at either head, with up to
   two tips, optionally stale or naming the earlier end); and one row adding tips. A tip or a predecessor is a
   row signed earlier, since an id fixes its row; it need not be held, and every history is also read with
   each one of its content rows not held. Run once by hand at five rows with one key: 4,244,169 histories,
   17,759,924 extensions, nothing found;
-- three plants, each caught.
+- three plants, each caught by the run, and eleven planted breaks in the reference, each caught by a case.
 
 **What the run found.**
 
@@ -532,7 +534,7 @@ content: section E already says "an ender who acks an old tip keeps only what li
    E3, not the tips:
    - a further counted end at an older head takes out rows at later heads, and nothing else (`further_end`);
    - the member's own backdated end at an older head takes its own kept rows at later heads out. Among
-     extensions by the member alone this happened 784 times, always by `E3.later_head`, and nothing else but the member's own
+     extensions by the member alone this happened 788 times, always by `E3.later_head`, and nothing else but the member's own
      retraction ever took out a row the count held good (`word_stands`). Section E lists this under backdating; the reader's
      line bounds it, and the line is not in this run.
 
@@ -583,8 +585,8 @@ content: section E already says "an ender who acks an old tip keeps only what li
 **The node-local fallback** (a row a reader held before it held the end stays shown to that reader) is not part
 of the proposal, and the reference keeps it apart (`shown_first_held`).
 - It is the spec's `arrival` plant: an answer latched on arrival, which `Inv_Fold` and `Inv_NodesAgree` exist
-  to catch. In 24 of the 56 cases two arrival orders of one set of rows show different rooms.
-- In 24 cases it shows a row the proposal keeps out. That includes a row the member signed after the removal
+  to catch. In 36 of the 85 cases two arrival orders of one set of rows show different rooms.
+- In 37 cases it shows a row the proposal keeps out. That includes a row the member signed after the removal
   that reached a node before the removal did, so it does not keep such rows out "everywhere": it keeps them
   out only at nodes the end reached first.
 - A node that folds again from its rows (a cold start, a checkpoint) loses the order unless it stores it.
@@ -621,8 +623,31 @@ of the proposal, and the reference keeps it apart (`shown_first_held`).
 - A resignation's tips are the member's own word about its own rows. That is harmless here, since those rows
   were signed at heads it sat at, and a second resignation can only remove.
 
-**Not modelled here:** receipts together with tips; the reader's line on an end; key removals; more than two
-seats; more than one room.
+11. **Receipts, the reader's line, key removals, rooms** (added for 0.5.0; cases and planted breaks in
+    `conferral_content.py` and `check_conferral_content.py`, and the `keys` histories of the run):
+    - no rule reads a receipt of content, the count's own included: the count's word is its tips
+      (`counted_receipt_keeps_nothing`, `counted_receipt_then_tips`); in the run a receipt changes no answer
+      (`receipt_inert`);
+    - the reader's line is the head rules' line, monotone: the roster versions, the ends and the rows adding
+      tips are its counted acts; each acknowledgement takes up the acts in its past not already void for the line
+      its earlier acknowledgements drew, so acknowledging never un-voids (`line_acknowledging_never_unvoids`), and
+      acknowledgements accumulate in any order (`line_concurrent_acknowledgements`). An act behind the line,
+      sibling-safe as `checkpoint.behind`, is void for that reader: an end ends nothing, a tips row adds nothing
+      (`line_holds_tips_row_void`, `line_tips_row_at_the_end_head`). It bounds finding 3's backdated resignation
+      (`line_voids_backdated_resignation`); a removal at the head a reader's acknowledged version is counted over
+      is a sibling and still ends the seat (`line_sibling_safe`). The line voids no content row
+      (`line_not_for_content`);
+    - a key removal is the person's own key roster's act (an eviction, or the key's own revocation): key-level,
+      it cuts every row of the member that key signs outside its past, in every room. A cut row does not count
+      (`K.key_removed`), is not held good or followed, and a cut retraction is not read. It voids no end, or the
+      member could undo its resignation by evicting the key it signed under
+      (`member_revokes_key_keeps_its_resignation`). The room's count ends a seat, in its room only: a row of the
+      key removal's shape it signs cuts nothing (`room_count_cannot_remove_a_key`), and its removal of the member
+      leaves the member's rows in another room standing (`room_removal_is_that_room_only`);
+    - each room is judged by its own rows (`end_in_another_room`, `tip_in_another_room`,
+      `head_of_another_room`, `retraction_from_another_room`, `ack_in_another_room`).
+
+**Not modelled here:** more than two seats.
 
 ## J. One row that needs two standings
 

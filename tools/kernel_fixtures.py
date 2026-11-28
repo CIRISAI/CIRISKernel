@@ -873,6 +873,42 @@ def dissolved_cases(AC):
     return out
 
 
+# ---- resignation: the wrap set over every set of check_resignation.py's rows ---------------------------------------
+def resignation_cases():
+    """check_resignation.py: who may read the room (the wrap set: Seats.holders over the fold, less the held ends of a
+    seat), the whole roster and the dissolution, for each hand-written case and every set of rows the check reads, in
+    its two rooms: `member` (a community; the roster) and `holder` (an accord's holders, no roster seat)."""
+    import seat as ST
+    import check_resignation as RS
+    out = []
+    for room in RS.ROOMS:
+        RS.use(room)
+
+        def one(name, rows):
+            S = RS.state(rows)
+            Q = ST.Seats(S)
+            refs = {}
+            out.append({"room": room, "scope": RS.SC, "name": name, "rows": with_refs(rows, refs), "refs": refs,
+                        "c": [S.C[r["id"]] for r in S.rows], "wrap": sorted(RS.wrap(S)),
+                        "roster": sorted(Q.roster(RS.OBJ)), "dissolved": Q.dissolved(RS.OBJ)})
+        for name, rows, *_ in RS.CASES:
+            one(name, rows)
+        for rows in RS.sets():
+            one("rows " + " ".join(r["id"] for r in rows), rows)
+    RS.use("member")
+    return {"obj": RS.OBJ, "cases": out}
+
+
+def audience_cases():
+    """check_audience.py's fixture, with the seat-model rows its persons are read over (`persons_world`), so the crate
+    builds its PersonsOf from seat::Persons::voice and seat::person_keys over the same rows."""
+    import check_audience as AUC
+    fx = AUC.fixture()
+    refs = {}
+    fx["persons_world"] = {"rows": with_refs(AUC.persons_rows(), refs), "refs": refs}
+    return fx
+
+
 def acts_cases():
     """check_acts.py: the act each counted row is (seat.act_of) and the policy rows each act may take (seat.policy_for),
     with the acts table and the kinds table they read."""
@@ -1045,6 +1081,8 @@ def main():
     dump("window_bound.json", window_bound_cases(), out)
     import check_policy_spec as PS
     dump("../vectors/policy_dump.json", PS.dump(), out)
+    dump("resignation.json", resignation_cases(), out)
+    dump("audience.json", audience_cases(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution

@@ -57,6 +57,8 @@ step "check_charter (licence classes)"   charter   python3 -I models/causal_kern
 step "check_lone_acts (quarantine, slash, takedown)" loneacts python3 -I models/causal_kernel/check_lone_acts.py
 step "check_trust_rows (the walk)"       trustrows python3 -I models/causal_kernel/check_trust_rows.py
 step "check_resignation (wrap, dissolved)" resign   python3 -I models/causal_kernel/check_resignation.py
+step "check_audience (placement)"         audience  python3 -I models/causal_kernel/check_audience.py
+step "family_placement (the pinned table)" famtable python3 -I tools/family_placement.py --check
 step "check_agent_removal (the lift)"     agent     python3 -I models/causal_kernel/check_agent_removal.py
 step "check_window_rows (#221 ballots)"  winrows   python3 -I models/causal_kernel/check_window_rows.py
 step "check_policy_spec (table to spec)" polspec   python3 -I models/causal_kernel/check_policy_spec.py

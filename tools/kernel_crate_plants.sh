@@ -304,6 +304,11 @@ plant "a key's own end voids another key's voices" src/seat.rs '                
                     && same_class(*w, o, os.as_ref())'
 plant "a key's resignation ends another key's seats in its past" src/seat.rs '*k2 == k && oo.as_ref() == Some(room) && g.in_past(oi, *w) && (duty ||' '(*k2 == k || !duty) && oo.as_ref() == Some(room) && g.in_past(oi, *w) && (duty ||'
 plant "a resignation ends the row it names only" src/seat.rs '&& (duty || same_class(*w, o, sc.s()))' '&& duty'
+plant "the wrap set reads no held withdrawal: a resigner is wrapped until a count cites it (wrap_by_roster)" src/seat.rs '                SeatKind::Withdraw => {
+                    if let Some(t) = r.target() {
+                        wd.entry(t).or_default().push(r);' '                SeatKind::Withdraw if false => {
+                    if let Some(t) = r.target() {
+                        wd.entry(t).or_default().push(r);'
 plant "seats compared by name, not by what they hold" src/seat.rs 'let holds_member = covers(sc, "member") || law.holds.get(sc).is_some_and(|h| h.iter().any(|x| x == "member"));' 'let holds_member = covers(sc, "member");'
 plant "a decline is an end of a stay" src/seat.rs '|| !t.to().contains(k) || !consented(by, t, k, before) {' '|| !t.to().contains(k) {'
 plant "a consent read from any row, not the withdrawal's concluded past" src/seat.rs '                && before(*a)
@@ -731,8 +736,8 @@ plant "a cited binding of another key than the grantee stands (N7)" src/standing
 plant "a re-binding does not end the binding before it" src/standing.rs 'Kind::Binding if row.on() == Some(bid) => (conferral::Kind::End, Some(bid)),' 'Kind::Binding if row.on() == Some(bid) => (conferral::Kind::Other, None),'
 plant "the member's own end adds tips beside a counted end" src/content.rs 'if ends.iter().any(|e| counts(e) && is_count(e)) {' 'if false {'
 plant "the member's own ends are joined, not met"       src/content.rs 'Some(o) => o.intersection(&g).copied().collect(),' 'Some(o) => o.union(&g).copied().collect(),'
-plant "a tips row signed by the member is read"         src/content.rs 'for t in self.of_kind(Kind::Tips).filter(|t| is_count(t)) {' 'for t in self.of_kind(Kind::Tips) {'
-plant "the walk passes through a co-member's row"       src/content.rs 'if x.kind() != Kind::Content || !(self.seat.member)(x.signer()) || !out.insert(id) {' 'if x.kind() != Kind::Content || !out.insert(id) {'
+plant "a tips row signed by the member is read"         src/content.rs 'for t in self.of_kind(Kind::Tips).filter(|t| is_count(t) && !line.contains(t.id())) {' 'for t in self.of_kind(Kind::Tips).filter(|t| !line.contains(t.id())) {'
+plant "the walk passes through a co-member's row"       src/content.rs 'if x.kind() != Kind::Content || !(self.seat.member)(x.signer()) || self.cuts.any.contains(*id) {' 'if x.kind() != Kind::Content || self.cuts.any.contains(*id) {'
 plant "a co-member's retraction takes a row out"        src/content.rs 'let content: Vec<&R> =
         rows.iter().copied().filter(|r| r.kind() == Kind::Content && (seat.member)(r.signer())).collect();
     let all' 'let content: Vec<&R> = rows.iter().copied().filter(|r| r.kind() == Kind::Content).collect();
@@ -740,7 +745,7 @@ plant "a co-member's retraction takes a row out"        src/content.rs 'let cont
 plant "a later seat's rows are judged by an earlier end" src/content.rs 'if a.id() == h || past.in_past(a.id(), h)? {' 'if false {'
 plant "a row between seats counts"                      src/content.rs 'if at.seat() == SeatAt::Out {' 'if false {'
 plant "a row naming the removal as its head waits on it" src/content.rs 'if ends.iter().any(|e| e.id() == h) {' 'if false {'
-plant "a retraction is read in its own seat only"       src/content.rs 'out.extend(seat_answers(&sub, seat, past, &retracted));' 'let sr: BTreeSet<&R::Id> = retracted.iter().copied().filter(|t| sub.iter().any(|w| w.retracts() == Some(*t))).collect(); out.extend(seat_answers(&sub, seat, past, &sr));'
+plant "a retraction is read in its own seat only"       src/content.rs 'out.extend(seat_answers(&sub, seat, past, &retracted, cuts));' 'let sr: BTreeSet<&R::Id> = retracted.iter().copied().filter(|t| sub.iter().any(|w| w.retracts() == Some(*t))).collect(); out.extend(seat_answers(&sub, seat, past, &sr, cuts));'
 plant "an end with an end in its past still ends"       src/content.rs 'Ok(seated.then_some(Void::SeatEnded))' 'Ok(seated.then_some(Void::SeatEnded).filter(|_| false))'
 plant "an affiliation's record is a plain community's"  src/seat.rs 'if kind == CommunityKind::Community && g.declared_cohort().is_some_and(|c| c.as_ref() == "affiliations") {' 'if false {'
 plant "a change of an affiliation's record is no act"   src/seat.rs 'CommunityKind::Affiliation => {' 'CommunityKind::Affiliation if false => {'
@@ -918,6 +923,67 @@ plant "an end cuts a whole counted row"                src/trust_rows.rs 'if !is
 plant "a full end cuts only its named scope"           src/trust_rows.rs '            for (k, ob, _) in &ks {
                 if *ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, k, ob, cls)) {' '            for (k, ob, sc) in &ks {
                 if *ob == o && who.contains(k) && need.iter().any(|cls| scope_class(c, seats.law(), ob, sc.as_ref().map(|w| w.as_ref())).as_deref() == Some(cls.as_str()) && loses(seats, &judged, k, ob, cls)) {'
+plant "the reader's line not read on an end"           src/content.rs 'if line.contains(e.id()) {' 'if false {'
+plant "a tips row behind the reader's line is read"    src/content.rs 'is_count(t) && !line.contains(t.id())' 'is_count(t)'
+plant "an acknowledgement un-voids (ack_unvoids)"      src/content.rs 'if !held.contains(m.id()) && self.past.in_past(m.id(), a.id())? {' 'if self.past.in_past(m.id(), a.id())? {'
+plant "the line not sibling-safe"                     src/content.rs 'if !any3(own_heads(m).iter(), |t| self.past.in_past(h, t))? {' 'if !self.past.in_past(h, m.id())? {'
+plant "a key removal cuts nothing"                      src/content.rs '    if ends.is_empty() {
+        return Ok(out);
+    }
+    let acks' '    if true {
+        return Ok(out);
+    }
+    let acks'
+plant "the walk passes through a cut row"               src/content.rs '|| self.cuts.any.contains(*id) {' '{'
+plant "a key removal voids the member's end"         src/content.rs '            if line.contains(e.id()) {' '            if self.cuts.any.contains(e.id()) || line.contains(e.id()) {'
+plant "the room's count removes a key"                 src/content.rs '(seat.member)(q.signer()) && (q.removes() == Some(q.signer()) || q.concludes())' '((seat.member)(q.signer()) || (seat.counted)(q.signer())) && (q.removes() == Some(q.signer()) || q.concludes() || (seat.counted)(q.signer()))'
+plant "an unconcluded eviction is read"               src/content.rs '&& (q.removes() == Some(q.signer()) || q.concludes())' '&& true'
+plant "a row the reader took up is cut"               src/content.rs '            if !taken {' '            if true || !taken {'
+plant "the content anchor back (review r83)"           src/content.rs '            if !taken {
+                out.any.insert(r.id().clone());
+            }' '            let built = r.kind() == Kind::Content
+                && any3(
+                    rows.iter().copied().filter(|b| {
+                        b.kind() == Kind::Content && !(seat.member)(b.signer()) && b.room() == r.room()
+                    }),
+                    |b| Ok(past.in_past(r.id(), b.id())? && !past.in_past(q.id(), b.id())?),
+                )?;
+            if !taken && !built {
+                out.any.insert(r.id().clone());
+            }'
+plant "a person-level seat row seats a room"           src/audience.rs 'pub fn seats_of<R: AudienceRow>(r: &R) -> &[R::Key] {
+    let seat_family = family_of(r.family()).is_some_and(|f| SEAT_FAMILIES.contains(&f.0));' 'pub fn seats_of<R: AudienceRow>(r: &R) -> &[R::Key] {
+    let seat_family = family_of(r.family())
+        .is_some_and(|f| SEAT_FAMILIES.contains(&f.0) || f.0 == "identity:occurrence" || f.0 == "self:delegates_to");'
+plant "a retraction a key removal cuts is read"         src/content.rs '.filter(|w| !cuts.any.contains(w.id()))' ''
+plant "the rooms read as one"                           src/content.rs 'by_room.entry(r.room()).or_default().push(r);' 'by_room.entry(None).or_default().push(r);'
+plant "a key removal's walk crosses rooms"            src/content.rs 'if from.is_some_and(|room| room != x.room()) || !out.insert(*id) {' 'if !out.insert(*id) {'
+plant "a key removal keeps its causal past only"      src/content.rs 'if kept.contains(r.id()) || past.in_past(r.id(), q.id())? {' 'if past.in_past(r.id(), q.id())? {'
+plant "an undecided family takes the default"           src/audience.rs 'FamilyPlacement::Undecided => return Placed::Undecided(fam),' 'FamilyPlacement::Undecided => &[Placement::SelfCollective, Placement::TargetedFamily, Placement::TargetedRoom, Placement::Commons][..],'
+plant "a pinned family takes any placement"             src/audience.rs 'if !allowed.contains(&placement) {' 'if false && !allowed.contains(&placement) {'
+plant "a targeted row names keys off the roster"        src/audience.rs 'if !r.named().iter().all(|k| within.contains(k) || seats.contains(&k)) {' 'if false {'
+plant "a seat row's own keys held to named_within"      src/audience.rs 'within.contains(k) || seats.contains(&k)' 'within.contains(k)'
+plant "named_within read on the current roster"       src/audience.rs 'let within = (joins.at_head)(room, r.id());' 'let within = members.clone();'
+plant "a seat row over another object seats"          src/audience.rs 'r.seat_act().is_some() && r.obj().is_some() && r.obj() == r.room()' 'r.seat_act().is_some()'
+plant "a self row carried by another's row (c.3)"      src/audience.rs '    if !same_person(person, d.signer(), r.signer()) {' '    if false && !same_person(person, d.signer(), r.signer()) {'
+plant "a key outside the row's audience carries"      src/audience.rs '|| !ar.holds(d.signer())' ''
+plant "a row that does not conclude carries"          src/audience.rs 'if !d.concluded() || key_grant' 'if key_grant'
+plant "carried to a key off the roster (c.2)"          src/audience.rs 'let on_roster = |room: &R::Id| aud.meet(&Audience::Keys(roster(room)));' 'let on_roster = |_: &R::Id| aud.clone();'
+plant "a key grant carried"                            src/audience.rs '|| key_grant ||' '||'
+plant "a seat row of any family seats"                src/audience.rs 'if seat_family && r.seat_act()' 'if r.seat_act()'
+plant "a follows row unchecked"                       src/audience.rs '    if let Err(why) = named {
+        return Placed::Refused(why);' '    if let Err(why) = named {
+        let _ = why;
+        return own;'
+plant "a follows row read by any reference"           src/audience.rs '        Some(FollowsRef::Evidence) => r.evidence().ok_or(Refusal::FollowsNotNamed),' '        Some(FollowsRef::Evidence) => r.evidence().or(r.cites().first()).ok_or(Refusal::FollowsNotNamed),'
+plant "a follows row wider than its own"              src/audience.rs 'Follows::Narrower if within(a, fa, person) => own,' 'Follows::Narrower => own,'
+plant "narrower read by keys, not persons"            src/audience.rs 'a.iter().all(|k| b.contains(k) || (person.voice)(k).is_some_and(|p| held.contains(&p)))' '{ let _ = &held; a.is_subset(b) }'
+plant "a cited row of any family is followed"         src/audience.rs 'FollowsRef::Cites(of) => family_of(x.family()).is_some_and(|f| of.contains(&f.0)),' 'FollowsRef::Cites(_) => true,'
+plant "an owner binding by family alone"              src/seat.rs 'family == OWNER_BINDING_FAMILY && purpose == Some("owner_binding")' 'family == OWNER_BINDING_FAMILY && purpose.is_some_and(|_| true) || family == OWNER_BINDING_FAMILY'
+plant "a key of no person read as its own person"    src/audience.rs 'k == of || (person.voice)(of).is_some_and(|p| (person.voice)(k) == Some(p))' 'k == of || (person.voice)(of).is_some_and(|p| (person.voice)(k).is_none_or(|q| q == p))'
+plant "a tie takes the first pattern"                 src/audience.rs 'Some((b, _)) if k == b => tie = true,' 'Some((b, _)) if k == b => {}'
+plant "the first matching family pattern decides"       src/audience.rs 'Some((b, _)) if k < b => {}' 'Some(_) => {}'
+plant "a duty seat seats an outsider"                 src/audience.rs 'let duty = DUTY_SEAT_FAMILIES.contains(&fam);' 'let duty = false && DUTY_SEAT_FAMILIES.contains(&fam);'
 plant_run "a conformance run that never reports"          tests/trust.rs 'report("trust walk, TrustSet.lean worked world", n, 0);' 'let _ = ("trust walk, TrustSet.lean worked world", n, 0);'
 if [ "$n" -eq 1 ]; then
   echo "ciris-kernel plants: $caught of $total caught"
