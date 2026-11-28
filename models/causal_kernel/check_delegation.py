@@ -121,7 +121,7 @@ GA = RT.grant("gA", "b0", "uA", "room", ("h1", "h2"))
 GROW = RT.bundle("b1", "fam", 1, ("h1", "h2", "h3", "h4", "h5"), prev=("b0",), charter=CSUB, seats=("n1",),
                  stmts=[("h1", 0), ("h2", 0), ("h3", 0)])                     # holders grow to five: gA's two lapse
 ANCHOR = RT.reader(anchor="b0")
-import check_root as CR  # noqa: E402
+import check_root as CR  # noqa: E402   (CR.resign: every later bundle signed by the holders it adds)
 AOW = CR.AO                                                      # root-fold's AO world: b0, b1, b2, and the sibling s0
 GS = RT.grant("gs", "s0", "uA", "room", ("h1", "h2", "X"))
 RSS = dict(RS, bundle="gs")
@@ -167,7 +167,7 @@ def root_answers(case, plant=None, order=None):
     saved = set(ST.MUT)
     if plant: ST.MUT.add(plant)
     try:
-        ctx = ST.root_view(RT.Root(bundles, (), grants), rd) if bundles is not None else None
+        ctx = ST.root_view(RT.Root(CR.resign(bundles), (), grants), rd) if bundles is not None else None
         if ctx: ctx.__enter__()
         try:
             S = CK.concluded(CK.kept(list(rows)), lambda r, P, past: ST.seat_rule(r, P, past))
@@ -194,9 +194,9 @@ def reread_answers(case, plant=None):
     saved = set(ST.MUT)
     if plant: ST.MUT.add(plant)
     try:
-        with ST.root_view(RT.Root(at[0], (), (GA,)), at[1]):
+        with ST.root_view(RT.Root(CR.resign(at[0]), (), (GA,)), at[1]):
             S = CK.concluded(CK.kept([ROOM, RS, RD1]), lambda r, P, past: ST.seat_rule(r, P, past))
-        with ST.root_view(RT.Root(now[0], (), (GA,)), now[1]):
+        with ST.root_view(RT.Root(CR.resign(now[0]), (), (GA,)), now[1]):
             Q = ST.Seats(S)
             return [Q.stands(k, sc, "room") for k, sc, _ in asks]
     finally:
