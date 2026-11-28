@@ -126,6 +126,11 @@ CASES = [
      W + [TD, CK.row("q2", "ack", "p2", ("td",), of="td"), LAY], {"td": T}, {"td": T}),
     ("the members lift it: p2, p3 and p4 object, three of the three at both heads (p1, the author, apart)",
      W + [TD, OB("o2", "p2"), OB("o3", "p3"), OB("o4", "p4"), LIFT(("o2", "o3", "o4"))], {"lf": T}, {"td": F}),
+    ("the re-count on growth beside a lift: p1 and p2 confer takedown on p3 at g beside it, held; the lift still lifts "
+     "(the lift is read by its own count, over the members at both heads; no plant can tell a re-count of it apart)", W + [TD, OB("o2", "p2"), OB("o3", "p3"), OB("o4", "p4"), LIFT(("o2", "o3", "o4")),
+                                       ST.offer("dt", "p1", "p3", "takedown", OBJ, "group", ("g",), head=("g",),
+                                                cosigners=("p2", "p3"), counted="duty", policy="duty_confer")],
+     {"lf": T, "dt": T}, {"td": F}),
     ("one objection is no lift (the floor of two): it stays in force", W + [TD, OB("o2", "p2"), LIFT(("o2",))],
      {"lf": F}, {"td": T}),
     ("the author's own objection is no voice", W + [TD, OB("o1", "p1"), OB("o2", "p2"), LIFT(("o1", "o2"))],

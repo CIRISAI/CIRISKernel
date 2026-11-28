@@ -746,6 +746,7 @@ def recount_on_growth(S, q, o=None, void=frozenset(), other=None):
     if q["kind"] == "offer" and q.get("conf") in ("self", "seat"):
         return "seat_recount_unread" in MUT or authority_gate(q, T, byT)
     if q["kind"] == "offer" and q.get("conf") == "group" and q.get("head") and "counted_recount_unread" not in MUT:
+        # an election's seating (C1 to C5) and a lift (the members at both heads) are read by their own counts
         if is_election(q) or (act_of(q, byT) or (None,))[0] == "lift": return True
         past = lambda a, b: a in S.anc[b]
         heads = newest_changes(T, past, o, byT)

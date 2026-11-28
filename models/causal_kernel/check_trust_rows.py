@@ -66,6 +66,9 @@ Planted breaks, each of which must change a case's answer:
     a counted act counts only if the counted acts among its heads count, and a regrown lone conferral seats nothing;
     the lane's own built-on cut, wider than that, is gone)
     growth_ends_read         (a), (d) an end read as growth: the re-count, not the end rule, decides a cut (r81 E3)
+    accept_of_past_grows     (seat.py) an acceptance of an offer in the act's own past is growth against it (r97 A1)
+    growth_ends_unread       (seat.py) the grown body keeps the ends the reader holds (r97 V1, V2)
+    batch_any_heads          (seat.py) the same voices' duty conferrals are one batch at any heads (r97 B6)
     counted_recount_unread   (a) a counted seat conferral from an old past not re-counted against held growth (r95)
     still_holds_end_past     (d) whether the key still holds a standing is read over the end's past, not the judged rows
     growth_held_unread       (a), (b) an authority act concurrent with growth of its body the reader holds is not
@@ -664,7 +667,7 @@ _DCDA = ST.accept("dca", "D", "dcc")
 _GLO_DC = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dcc",), head=("dcc",), cosigners=("B",),
                    counted="duty")                                # A and B at dcc: 2 of the 3 seated there
 _GLO_G6 = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty")
-_WDA = ST.withdraw("wd", "D", "dca", ("dca",))                    # D withdraws its acceptance: no longer seated
+_WDA = ST.withdraw("wd", "D", "dca", ("dca", "dcc"))             # D withdraws its acceptance (naming the newest head, H4)
 _L1C = ST.withdraw("l1", "C", "g", (), scope="moderate")          # C lays down moderate
 _G10 = ST.found("g", "A", tuple("ABCDEFGHIJ"), {"moderate": ("A", "B", "C")}, cosigners=tuple("BCDEFGHIJ"),
                 licence_classes=((M, False),))
@@ -763,7 +766,7 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "edge_term_unread", "amendment_as_cut",
           "instant_over_reader", "scope_unread", "termless_edge_walked",
           "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
-          "one_end_at_a_time", "growth_ends_read", "counted_recount_unread",
+          "one_end_at_a_time", "growth_ends_read", "counted_recount_unread", "accept_of_past_grows", "growth_ends_unread", "batch_any_heads",
           "end_cuts_counted_row", "own_licence_uncountersigned")
 
 
