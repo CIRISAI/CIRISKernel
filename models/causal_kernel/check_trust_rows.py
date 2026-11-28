@@ -672,6 +672,10 @@ _DDE2 = ST.offer("dde", "A", ("D", "E"), "moderate", "g", "group", ("g",), head=
                  counted="duty", policy="duty_confer")            # A and B seat D and E (2 of 3): five holders
 _SYB = ST.offer("syb", "A", ("F", "G", "H", "I"), "moderate", "g", "group", ("g",), head=("g",),
                 cosigners=("B", "F", "G", "H", "I"), counted="duty", policy="duty_confer")   # A and B again, from g
+_RV10 = ST.offer("rv", "A", "A", "review", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty",
+                 policy="duty_confer")                            # A and B: a counted change after g, a later head
+_DFF10 = ST.offer("dff", "A", "F", "moderate", "g", "group", ("g",), head=("g",), cosigners=("B", "F"), counted="duty",
+                  policy="duty_confer")                           # A and B seat F, at g
 _GL_SYB = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dde", "syb"), head=("dde", "syb"),
                    cosigners=("B", "F", "G", "H", "I"), counted="duty")
 CASES += [
@@ -688,16 +692,28 @@ CASES += [
      [_G6, _DCD, _DCDA, _WDA, _GLO_G6, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
     ("r97 V2 A and C seat D beside it while C lays down moderate, held: holders A, B, D, and A and B are 2 of 3",
      [_G6, dict(_DCD, cosigners=("C", "D")), _L1C, _GLO_G6, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
-    ("r97 B5 A and B seat D and E, and from g again F to I, then A, B and F to I confer X's license seat: the second "
-     "seating is re-counted against the five holders held (2 of 5), so 6 of 9 is not reached",
-     [_G10, _DDE2, _SYB, _GL_SYB, GLA, A("e", "RD", "g"), _X], "RD", "l", None, NA),
+    # B4/B5, as ruled: rows by the same voices at the SAME heads are one batch, not re-counted against each other. A and
+    # B, a majority at g, could seat D to I in one row at g, and a concurrent row at that head is causally the same:
+    # "packing" here is a majority's power at that head. A batch at different heads, or by different voices, is
+    # re-counted (B6)
+    ("r97 B5 A and B seat D and E, and at g again F to I (one batch at g, as ruled), then A, B and F to I confer X's "
+     "license seat: 6 of 9",
+     [_G10, _DDE2, _SYB, _GL_SYB, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
 ]
 
 # the same worlds read at the seat (Seats.holders): whether X holds the license seat the counted conferral gives,
 # (name, rows, [(key, scope, object, holds)])
 SEATED = [
-    ("r97 seat B4 A and B seat D and E, and from g again F to I beside it, held: the second is 2 of 5, F to I unseated",
-     [_G10, _DDE2, _SYB], [("E", "duty", "g", True), ("F", "duty", "g", False), ("I", "duty", "g", False)]),
+    ("r97 seat B4 A and B seat D and E, and at g again F to I beside it: one batch at one head (as ruled), all seated",
+     [_G10, _DDE2, _SYB], [("E", "duty", "g", True), ("F", "duty", "g", True), ("I", "duty", "g", True)]),
+    ("r97 seat B6 the same voices at a LATER head are no batch: A and B seat D and E at rv (after g), and F to I at g "
+     "beside it, held: each is re-counted against the other's growth (2 of 7, 2 of 5), neither seats",
+     [_G10, _RV10, dict(_DDE2, names=("rv",), head=("rv",)), _SYB],
+     [("E", "duty", "g", False), ("F", "duty", "g", False), ("I", "duty", "g", False)]),
+    ("r97 seat B7 and different voices at the same head are no batch: A, B and C seat D and E at g, A and B seat F at g "
+     "beside it, held: A, B and C are 3 of 4 against F, A and B 2 of 5 against D and E, so F is unseated",
+     [_G10, dict(_DDE2, cosigners=("B", "C", "D", "E")), _DFF10],
+     [("E", "duty", "g", True), ("F", "duty", "g", False)]),
     ("r97 seat V2 A and C seat D beside C's lay-down: holders A, B, D", [_G6, dict(_DCD, cosigners=("C", "D")), _L1C],
      [("D", "duty", "g", True), ("C", "duty", "g", False)]),
     ("r95 seat Q5c A alone seats X's license from g", [G1, _G1L, GLA], [("X", "license", "g", True)]),
