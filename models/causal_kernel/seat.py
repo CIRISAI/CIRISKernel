@@ -2786,7 +2786,8 @@ def rep_of(P, k, member=False):
     of two persons; a key that revoked itself (KP6); a key whose person's genesis key revoked itself (its devices
     then speak for no one); an agent's key (KP5: never for its owner). `member`: the member k counts as in a base,
     where none of those ends a seat: a key of one self roster is its person, any other key itself. Kept per (P, k)."""
-    key = (frozenset(id(q) for q in P), k, member, frozenset(MUT))
+    import key_end as _KE                                         # its revocations read key_end's planted breaks too
+    key = (frozenset(id(q) for q in P), k, member, frozenset(MUT), frozenset(_KE.MUT))
     if key not in _PERSON_IN:
         _PERSON_IN[key] = (tuple(P), _rep(P, k) if not member else _member_rep(P, k))
     return _PERSON_IN[key][1]
