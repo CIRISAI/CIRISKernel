@@ -147,8 +147,13 @@ ROOT_CASES = [
     ("the reader's line: a grant on a bundle the reader's line holds void (it acknowledged s0, then b2, which s0 is "
      "behind) seats nothing for that reader", AOW, RT.reader(anchor="b0", acks=("s0", "b2")), [ROOM, RSS],
      [("uA", "infra", F)], (GS,)),
-    ("and for a reader whose line holds it (it acknowledged only s0) the same rows seat uA",
-     AOW, RT.reader(anchor="b0", acks=("s0",)), [ROOM, RSS], [("uA", "infra", T)], (GS,)),
+    # root-fold's rule 6 (every count at the head): h1 and h2 signed s0 and b1, so a reader that acknowledged only s0
+    # is at b0, where they have no say (check_root's "capture ... closed"): the grant on s0 seats nothing there either
+    ("and a reader that acknowledged only s0, with b1 known: rule 6 holds it at b0, and the same rows seat nothing",
+     AOW, RT.reader(anchor="b0", acks=("s0",)), [ROOM, RSS], [("uA", "infra", F)], (GS,)),
+    ("and for a reader whose line holds s0 with no rival (b0 and s0 only, it acknowledged s0) the same rows seat uA",
+     [b for b in AOW if b["id"] in ("b0", "s0")], RT.reader(anchor="b0", acks=("s0",)), [ROOM, RSS],
+     [("uA", "infra", T)], (GS,)),
     ("a root seat signed by a key the grant does not name seats nothing",
      [dict(B0R, charter=CSUB)], ANCHOR, [ROOM, dict(RS, signer="X", to=("X",))], [("X", "infra", F)]),
 ]
