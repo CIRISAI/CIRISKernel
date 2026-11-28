@@ -23,7 +23,7 @@ right only for a store that does not carry the field. [`WIRE_MAP.md`](WIRE_MAP.m
 
 | Trait | Required | Defaulted, new since 0.2.2 |
 |---|---|---|
-| `seat::SeatRow` | `word(s: &'static str) -> Self::Word` | `consensus_protocol` (MUST be implemented: with `None` no room has a protocol), `cohort_subkind`, `group_kind`, `protocol_entrenched`, `admission_quorum_basis`, `dissolves`, `bundle`, `role`, `regime`, `lifts`, `duty_holders`, `signing_key`, `private_room`; roster-merge: `merge`, `merge_duties`, `merge_members`; charter: `official`, `overseen_by`, `family_param`, `outcome`, `agent_registration`, `target_key`, `licence_classes`, `declared_cohort`. **Removed:** `consent_one` (no flag waives an acceptance). |
+| `seat::SeatRow` | `word(s: &'static str) -> Self::Word` | `consensus_protocol` (MUST be implemented: with `None` no room has a protocol), `cohort_subkind`, `group_kind`, `protocol_entrenched`, `admission_quorum_basis`, `dissolves`, `bundle`, `role`, `regime`, `lifts`, `duty_holders`, `signing_key`, `private_room`; roster-merge: `merge`, `merge_duties`, `merge_members`; charter: `official`, `overseen_by`, `family_param`, `outcome`, `agent_registration`, `target_key`, `licence_classes`, `declared_cohort`. persist-gaps: `cites` (a reconsideration's notice, a lift's act: exactly one). **Removed:** `consent_one` (no flag waives an acceptance). |
 | `Dated` (new, `lib.rs`) | `type Instant`, `asserted_at` | `valid_until` |
 | `key_end::KeyEndRow` | | key-end-retained: `instant` (override it to give a seat row its signed instant), `roster_end`, `cosigned_by` |
 | `key_end::KeyView` (new, key-end-retained) | `counts` | |
@@ -45,7 +45,7 @@ right only for a store that does not carry the field. [`WIRE_MAP.md`](WIRE_MAP.m
 | Enum | Change |
 |---|---|
 | `seat::Policy` | `StrictFloor`, `Recall`, `Protocol`, `Lift` added; `SelfAdmit` removed (open admission is cut for 1.0) |
-| `seat::SeatKind` | `Decline`; charter: `Countersign`, `Quarantine`, `Slashing`, `TakedownNotice`, `Reconsideration` |
+| `seat::SeatKind` | `Decline`; charter: `Quarantine`, `Slashing`, `TakedownNotice`, `Reconsideration` (no `Countersign`: a countersign is a voice among the act row's cosigners) |
 | `seat::Conf` | charter: `Root` (the seat a root grant gives) |
 | `seat::RoomProtocol` (new) | `FounderOnly`, `Unanimous`, `Majority`, `Quorum`, `Weighted` (`SelfAdmit` removed) |
 | `seat::CommunityKind`, `seat::Act`, `seat::ScopeClass` (new) | `#[non_exhaustive]` words (`word()`, `from_word()`): a `match` needs a wildcard arm. `CommunityKind` names `Community`, `Infrastructure`, `Family`, `SelfRoster`, `Accord`, `Affiliation`, `Body`, `Custody`; charter adds `ScopeClass::TrustEdge`, `ScopeClass::License` and `Act::Accept` |
