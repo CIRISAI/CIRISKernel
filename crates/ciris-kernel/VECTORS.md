@@ -363,10 +363,10 @@ the vector is.
 With the Constitution's rulings (WIRE_MAP.md, the findings and the guessed mappings), cases 43, 58 and 59 can be
 minted: the recovery widening names its grant under `refs.also.stands_on` (N3), and a landing's outcome is derived
 from its leaf (N6). The election cases (23, 24) mint with the ballots naming their election by `row-ref` and the
-seating citing its set (G12, G13). Two rulings conflict with how the crate reads its rows, so the cases on them wait:
+seating citing its set (G12, G13). Two rulings meet how the crate reads its rows:
 - G9: a `membership:resignation` names no target, while the crate's `Withdraw` reads `target()`. Case 16 is
   unaffected: its founder leaves by a `withdraws` of the founding record, which has a target (N2). Cases 5 and 7
   model the leaver withdrawing the widening that seats it; on the wire that is a `membership:resignation` (no
   target) or a `withdraws` of the leaver's own acceptance, and which form the vector uses waits on the lead.
-- G15: a countersign is a voice on the act's own row, while the crate reads a separate `Countersign` row naming the
-  act. Case 50 waits.
+- G15 is bridged: case 50 mints the countersign as a further statement over the act's own payload, and the store
+  presents it as a `Countersign` row view (WIRE_MAP.md G15).
