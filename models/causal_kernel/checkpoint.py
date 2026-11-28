@@ -96,7 +96,8 @@ def own_row(S, a, own, ends_ok=None, voices=None, mut=None):
         (ii)  it is a CONCLUDED seat row (an offer or an unseat) of which own is a voice by `voices` (seat.voices: a
               cosigner, or the signer of a cosign row it names);
         (iii) and never because a row claims own as a cosigner on any other row (a note included: r101 R2);
-        (iv)  each only where own's key stands at it: the row in the PAST of each `registered` unseat of own by own, and
+        (iv)  each only where own's key stands at it: the row in the PAST of each concluded `registered` unseat of own by
+              own (seat.registered_self_unseat), and
               `ends_ok(a)`, the caller's reading of the key's own ends (key_end's, from its key lane; none: true).
     `mut`: the caller's planted breaks. MUTATIONS (takes_up's) claimed_cosigner_counted, unconcluded_cosigner_counted,
     line_voices_cosigners_only; (key_end's) own_unconcluded_unread, own_voice_unread, own_claimed_cosigner,
@@ -116,11 +117,15 @@ def own_row(S, a, own, ends_ok=None, voices=None, mut=None):
         P = [q for q in S.Cs if q["id"] in S.anc.get(a["id"], ())]
         mine = own in voices(a, P)
     if not mine or "reader_line_unchecked" in mut: return mine
-    # the key-end cut over both revocation forms (ruled): the row in the PAST of each `registered` unseat of own by own
-    # (a row concurrent with it, or after it, is none; MUTATION registered_by_past: only one with it in its past is out)
-    if any(x["kind"] == "unseat" and x.get("scope") == "registered" and x["signer"] == own and own in x.get("to", ())
+    # the key-end cut over both revocation forms (ruled): the row in the PAST of each CONCLUDED `registered` unseat of
+    # own by own (seat.registered_self_unseat, the predicate key_end.key_ends reads; one that concluded nothing ends
+    # nothing, r106 U2; a row concurrent with it, or after it, is none; MUTATIONS registered_by_past: only one with it in
+    # its past is out; registered_unconcluded_counted: an unconcluded one ends it too)
+    import seat as _ST
+    rows = S.rows if "registered_unconcluded_counted" in mut else S.Cs
+    if any(_ST.registered_self_unseat(x, own)
            and (a["id"] not in S.anc.get(x["id"], ()) if "registered_by_past" not in mut else x["id"] in S.anc.get(a["id"], ()))
-           for x in S.rows):
+           for x in rows):
         return False
     return ends_ok is None or ends_ok(a)
 

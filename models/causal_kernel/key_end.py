@@ -234,6 +234,31 @@ def ends_of(S, k, roster=frozenset()):
     return revs + rots + voids
 
 
+def key_ends(S, k, roster=frozenset()):
+    """THE ONE SET OF ENDS OF KEY k, for every reader of a key's ends (a count's voices and every signature the key
+    view reads: a grant's, an announcement's, a withdrawal's; the person map's 'a key of the person', through
+    revocations; a reader's own rows): the key lane's ends (ends_of: its self-revocations, its unvoided rotations, the
+    roster's void of a rotation to it) and each CONCLUDED unseat of k's `registered` seat by k itself
+    (seat.registered_self_unseat, the seat lane's revocation; one that concluded nothing ends nothing). r106 K1r,
+    PG1, U2. MUTATIONS registered_end_unread (the seat-lane form unread), registered_unconcluded_counted (an
+    unconcluded one ends the key)."""
+    import seat as _ST
+    out = list(ends_of(S, k, roster))
+    if "registered_end_unread" in MUT:
+        return out
+    rows = S.rows if "registered_unconcluded_counted" in MUT else S.Cs
+    return out + [q for q in rows if _ST.registered_self_unseat(q, k) and q not in out]
+
+
+def revocations(S, k, roster=frozenset()):
+    """The key's own revocations among its ends (key_ends), either lane's: a key-lane revoke row or a concluded
+    registered self-unseat. What the person map reads as 'the key's own end' (CC 2.4.1.1): rotations and the
+    roster's voids are the roster's to settle, and the person map is itself an input to the roster's count.
+    MUTATION person_key_lane_unread (the key lane's revocation unread)."""
+    kinds = ("unseat",) if "person_key_lane_unread" in MUT else ("revoke", "unseat")
+    return [e for e in key_ends(S, k, roster) if e["kind"] in kinds]
+
+
 def _before(S, rid, e):
     """THE PLAIN END RULE, limb (a): row rid is in end e's past (and, for an end stating an instant, its own instant
     before it)."""
@@ -268,7 +293,7 @@ def own_row(S, a, own, roster=frozenset(), voices=None):
     es = None
     def ends_ok(r):
         nonlocal es
-        if es is None: es = ends_of(S, own, roster)
+        if es is None: es = ends_of(S, own, roster)   # the key lane's half of key_ends; the body reads the seat lane's
         return all(_before(S, r["id"], e) for e in es)
     return _CP.own_row(S, a, own, ends_ok, no_key_view, MUT)
 
@@ -314,7 +339,7 @@ def counts(S, r):
     below by its own past: the licence term's residual and caller duty). Whether a live row cites it is never read:
     a count reads no anchor (the Constitution's ruling; only content may be anchored by others' rows)."""
     if not S.C.get(r["id"]) or r["kind"] not in ("att", "edge"): return bool(S.C.get(r["id"]))
-    return all(stands(S, r["id"], e) for e in ends_of(S, r["signer"]))
+    return all(stands(S, r["id"], e) for e in key_ends(S, r["signer"]))
 
 
 def counts_by(S, rid, k, reader=None, final=frozenset(), roster=frozenset()):
@@ -328,12 +353,12 @@ def counts_by(S, rid, k, reader=None, final=frozenset(), roster=frozenset()):
     revocation names the key's last rows."""
     r = S.by.get(rid)
     if r is None or not S.C.get(rid): return False
-    return all(stands(S, rid, e, reader, final, roster) for e in ends_of(S, k, roster))
+    return all(stands(S, rid, e, reader, final, roster) for e in key_ends(S, k, roster))
 
 
 def _wire_seat():
     import seat as _ST
-    _ST.KE_COUNTS[0], _ST.KE_ENDS[0] = counts_by, ends_of
+    _ST.KE_COUNTS[0], _ST.KE_ENDS[0] = counts_by, key_ends
 
 
 _wire_seat()

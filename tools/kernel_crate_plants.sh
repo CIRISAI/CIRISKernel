@@ -926,11 +926,11 @@ plant "key_end: own_row reads only concluded rows the reader signed (own_unconcl
             let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, a)).collect();'
 # folded into the one own_row (seat::own_row): key_end: own_row reads no voice of a concluded seat row (own_voice_unread), as the r101 plants on it
 # folded into the one own_row (seat::own_row): key_end: own_row reads any row claiming the reader as a cosigner (own_claimed_cosigner), as the r101 plants on it
-plant "seat: own_row reads a registered unseat by past only (registered_by_past)" src/seat.rs '            || g.in_past(a, x)
-    });
-    registered && ends_ok(a)' '            || !g.in_past(x, a)
-    });
-    registered && ends_ok(a)'
+plant "seat: own_row reads a registered unseat by past only (registered_by_past)" src/seat.rs '!registered_self_unseat(g.row(x), own) || g.in_past(a, x));' '!registered_self_unseat(g.row(x), own) || !g.in_past(x, a));'
+plant "seat: own_row reads an unconcluded registered unseat as an end (registered_unconcluded_counted)" src/seat.rs 'let registered = c.cs().iter().all(|&x| !registered_self_unseat' 'let registered = (0..g.len()).all(|x| !registered_self_unseat'
+plant "key_end: the seat-lane revocation no end of the key (registered_end_unread)" src/key_end.rs '        if crate::seat::registered_self_unseat(c.g.row(e), k) && !out.iter().any(|&(x, _)| x == e) {' '        if false && crate::seat::registered_self_unseat(c.g.row(e), k) && !out.iter().any(|&(x, _)| x == e) {'
+plant "key_end: an unconcluded registered self-unseat an end (registered_unconcluded_counted)" src/key_end.rs '    let held = c.cs().to_vec();' '    let held: Vec<usize> = (0..c.g.len()).collect();'
+plant "seat: the person map reads no key-lane revocation (person_key_lane_unread)" src/seat.rs '            revoked.extend(ks.into_iter().filter(|k| kv.revoked(k, &ids)));' '            let _ = (ks, ids, kv);'
 plant "key_end: a voided rotation names a successor (successor_roster_unread)" src/key_end.rs '        .filter(|&i| !voided(c, i, roster))' '        .filter(|&i| !voided(c, i, roster) || true)'
 plant "key_end: the reader's taken-up line unread (taken_up_unread)" src/key_end.rs '|| own.iter().any(|&a| (a == i || c.g.in_past(i, a)) && !c.g.in_past(e, a))' '|| own.is_empty() && false'
 plant "key_end: a count final by acknowledgement reopened (final_count_unread)" src/key_end.rs '|| finals.iter().any(|&fi| !c.g.in_past(e, fi))' '|| (finals.is_empty() && false)'

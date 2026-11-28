@@ -4475,6 +4475,16 @@ fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &s
     })
 }
 
+/// Whether row `q` is key `k`'s revocation in the seat lane: an unseat of `k`'s `registered` seat over `k`, by `k`
+/// itself. The one predicate: [`own_row`]'s cut, the person map and [`crate::key_end::key_ends`] read it.
+pub fn registered_self_unseat<R: SeatRow>(q: &R, k: &R::Key) -> bool {
+    q.seat_kind() == SeatKind::Unseat
+        && q.scope().is_some_and(|s| s.as_ref() == "registered")
+        && q.obj() == Some(Obj::Key(k.clone()))
+        && q.to().contains(k)
+        && q.signer() == k
+}
+
 /// THE READER'S OWN ROW, the one definition for every reader's line (`key_end`'s limb (b) and [`takes_up`]): row
 /// `a` is reader `own`'s where (i) `own` signed it itself, concluded or not; or (ii) it is a CONCLUDED seat row (an
 /// offer or an unseat) of which `own` is a voice by [`voices`] (a cosigner, or the signer of a cosign row it names);
@@ -4495,14 +4505,8 @@ pub fn own_row<R: SeatRow>(c: &Concluded<'_, R>, a: usize, own: &R::Key, ends_ok
     }
     // the key-end cut over both revocation forms (ruled): the row in the PAST of each `registered` unseat of `own` by
     // `own` (the seat lane's revocation; a row concurrent with it, or after it, is none), and `ends_ok`, the key lane's
-    let registered = (0..g.rows().len()).all(|x| {
-        let xr = g.row(x);
-        !(xr.seat_kind() == SeatKind::Unseat
-            && xr.scope().is_some_and(|s| s.as_ref() == "registered")
-            && xr.signer() == own
-            && xr.to().contains(own))
-            || g.in_past(a, x)
-    });
+    // (only a CONCLUDED one: one that concluded nothing ends nothing, r106 U2)
+    let registered = c.cs().iter().all(|&x| !registered_self_unseat(g.row(x), own) || g.in_past(a, x));
     registered && ends_ok(a)
 }
 
@@ -4768,16 +4772,16 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
                 && founding(g)
                 && is_self_kind(kind_of(law, &get, &Obj::Row(g.id().clone())))
         });
-        let revoked: BTreeSet<R::Key> = rows
-            .iter()
-            .filter(|q| {
-                q.seat_kind() == SeatKind::Unseat
-                    && q.scope().is_some_and(|s| s.as_ref() == "registered")
-                    && q.to().contains(q.signer())
-                    && q.obj() == Some(Obj::Key(q.signer().clone()))
-            })
-            .map(|q| q.signer().clone())
-            .collect();
+        let mut revoked: BTreeSet<R::Key> =
+            rows.iter().filter(|q| registered_self_unseat(*q, q.signer())).map(|q| q.signer().clone()).collect();
+        // a key's own revocation in the key lane too (the one set of a key's ends, through the key view:
+        // key_end::revoked_in, r106 PG1)
+        if let Some(kv) = spec.key_view() {
+            let ids: Vec<R::Id> = rows.iter().map(|q| q.id().clone()).collect();
+            let ks: BTreeSet<R::Key> =
+                rows.iter().flat_map(|q| core::iter::once(q.signer().clone()).chain(q.to().iter().cloned())).collect();
+            revoked.extend(ks.into_iter().filter(|k| kv.revoked(k, &ids)));
+        }
         if keys || (!any_self && revoked.is_empty()) {
             return Persons { revoked, ..none };
         }
@@ -5766,7 +5770,7 @@ pub fn final_by_ack<R: SeatRow + crate::key_end::KeyEndRow, S: CutSpec<R>>(
         if !crate::key_end::counts_for(kc, ki, qr.signer(), None, &BTreeSet::new(), roster) {
             return false;
         }
-        if voices.iter().any(|k| crate::key_end::ends(kc, k, roster).iter().any(|&(e, _)| kc.g.in_past(e, ki))) {
+        if voices.iter().any(|k| crate::key_end::key_ends(kc, k, roster).iter().any(|&(e, _)| kc.g.in_past(e, ki))) {
             return false;
         }
         // no cut of the act in its past: a row cutting its slots, or a withdrawal of it
