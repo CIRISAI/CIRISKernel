@@ -1650,6 +1650,10 @@ class Seats:
         contested = contested_out(S, unseats + dis)
         unseats = [u for u in unseats if u["id"] not in contested]
         self.dropped = drop | contested
+        # a self roster's lone-path eviction that LANDED (its `landed` landing concluded: the window's outcome, as every
+        # window) ends the target's seat as a counted eviction does: one ends reading (MUTATION landed_eviction_unread)
+        if "landed_eviction_unread" not in MUT:
+            unseats = unseats + landed_evictions(S, Cs, V)
 
         left = stay_ends(wd, S.by, lambda a, w: bool(S.C.get(a["id"])) and a["id"] in S.anc[w["id"]], holds)   # the holders' own ends of a stay as a member
         gone = {(k, g) for _, k, g in left}
@@ -1752,6 +1756,14 @@ class Seats:
             self.live = K.fix(step, frozenset(), depth + 1)
         self.recs = [{"id": "%s/%s/%s" % (oid, k, sc), "offer": oid, "k": k, "scope": sc, "obj": S.by[oid]["obj"],
                       "depth": d, "root": root} for oid, k, sc, d, root in self.live]
+        # a self roster's lone-path addition that LANDED seats its key, as a counted addition does, and the same ends
+        # reading ends it (a later counted or landed eviction, with the landing in its past) (MUTATION
+        # landed_add_unread)
+        if "landed_add_unread" not in MUT:
+            for L, k, sc, obj in landed_adds(S, Cs, V):
+                if unseated({"id": L["id"], "obj": obj, "scope": sc}, k, sc): continue
+                self.recs.append({"id": "%s/%s/%s" % (L["id"], k, sc), "offer": L["id"], "k": k, "scope": sc, "obj": obj,
+                                  "depth": 0, "root": ("group", obj), "landed": True})
 
     def may_confer(self, up, o):
         """May the holder of the seat offered by `up` confer the seat `o` offers?"""
@@ -1766,7 +1778,8 @@ class Seats:
 
     def _member(self, rec):
         """A duty seat follows the folded roster: with several tips, its holder is among the members the fold seats."""
-        if "duty_no_member" in MUT or "duty_fold_unread" in MUT or not duty_held(self.S.by, self.S.by[rec["offer"]], rec["scope"]): return True
+        if rec.get("landed") or "duty_no_member" in MUT or "duty_fold_unread" in MUT \
+                or not duty_held(self.S.by, self.S.by[rec["offer"]], rec["scope"]): return True
         fold = self.tips_fold("member", rec["obj"])
         return fold is None or rec["k"] in fold or rec["k"] in (self.tips_fold(AGENT, rec["obj"]) or ())
 
@@ -1959,6 +1972,19 @@ class Seats:
     def one(self, s, o):
         """The single holder, where the seat is single-valued (an owner): two live holders is none."""
         return K.group([r for r in K.sel(self.recs, obj=o) if self._has(r, s)], None, "one", "k")
+
+    def owner(self, node):
+        """THE ONE OWNER READING (CC 3.2), for every caller (consent, the node arm, audience; nodes_of is its inverse):
+        the one holder of the `owner` seat over key `node` (one(): two live owners is none), after the re-binding rule
+        of standing.answers: a concluded owner offer over the node that has an earlier binding's offer in its past
+        re-binds it and ends it (a stint, not a rival), whether or not the new owner has accepted yet. Read over the
+        rows the caller gives (a reading row's past). MUTATION rebinding_unread: one() alone."""
+        recs = [r for r in K.sel(self.recs, obj=node) if self._has(r, "owner")]
+        if "rebinding_unread" not in MUT:
+            S = self.S
+            rebinds = [q["id"] for q in S.Cs if q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == node]
+            recs = [r for r in recs if not any(q != r["offer"] and r["offer"] in S.anc[q] for q in rebinds)]
+        return K.group(recs, None, "one", "k")
 
     def snapshot(self):
         return frozenset((r["k"], r["scope"], r["obj"], r["depth"], r["root"]) for r in self.recs)
@@ -2299,6 +2325,7 @@ _VOID = [frozenset()]        # the changes void for the counting row being read
 _RVOID = [frozenset()]       # the changes void for the reader that row is read for
 _RPAIRS = [frozenset()]      # the concurrent founders' amendments the reader holds: (a, b, the keys the two seat)
 _RENDS = [frozenset()]       # the seat ends (lay-downs, leavings) behind the reader's line: no vacancy end for it
+_RRIVAL = [frozenset()]      # the rival self-roster foundings for the reader: its line took up another of the identity's
 
 
 def _built_closure(acts, void, stop=lambda q: False):
@@ -2524,6 +2551,32 @@ def held_pairs(S):
                      and not any(q["obj"] == a["obj"] and past(a["id"], q["id"]) and past(b["id"], q["id"]) for q in vs))
 
 
+def reader_rivals(S, own):
+    """The rival self-roster foundings for reader `own` (the ruling on one self roster per identity): of an identity's
+    foundings held, the one the reader's LINE takes up (checkpoint.takes_up) is its roster, and the others are rivals
+    for it. Where the line takes up neither or both, none is chosen: the reader waits (rosters_of). MUTATION
+    rival_line_unread: no reader's line is read."""
+    if own is None or "rival_line_unread" in MUT: return frozenset()
+    mine = {}
+    for g in S.Cs:
+        if is_self_founding(g): mine.setdefault(g["signer"], []).append(g)
+    out = set()
+    for fs in mine.values():
+        if len(fs) < 2: continue
+        t = CP.takes_up(S, own, [f["id"] for f in fs], MUT | CP.MUT, voices)
+        if len(t) == 1: out |= {f["id"] for f in fs if f["id"] not in t}
+    return frozenset(out)
+
+
+def rival_row(r, by, rivals):
+    """Row r is a rival founding, or built on one: a row over it, or the acceptance or withdrawal of a row over it."""
+    if r["id"] in rivals or r.get("obj") in rivals: return True
+    for f in ("of", "target"):
+        q = by.get(r.get(f))
+        if q is not None and (q["id"] in rivals or q.get("obj") in rivals): return True
+    return False
+
+
 def reader_state(S, own, rule=None):
     """The rows concluded again for reader `own`: the changes void for it by its line (over the rows as concluded for
     every reader) are left out of every counting row's fold and heads, so a count that stands for this reader and not
@@ -2538,14 +2591,16 @@ def reader_state(S, own, rule=None):
     PR = held_pairs(S) if "wait_reader_unread" not in MUT else frozenset()
     # the seat ends behind its line are no vacancy ends for it (H4, the election)
     RE = reader_ends(S, own)
-    if not RV and not PR and not RE:
+    # the rival self-roster foundings for it: its line took up another of the identity's
+    RR = reader_rivals(S, own)
+    if not RV and not PR and not RE and not RR:
         _READER_MEMO[key] = (tuple(S.rows), S)
         return S
-    _RVOID.append(frozenset(RV)); _RPAIRS.append(PR); _RENDS.append(RE)
+    _RVOID.append(frozenset(RV)); _RPAIRS.append(PR); _RENDS.append(RE); _RRIVAL.append(RR)
     try:
         R = CK.concluded(CK.kept(list(S.rows)), rule or (lambda r, P, past: seat_rule(r, P, past)))
     finally:
-        _RVOID.pop(); _RPAIRS.pop(); _RENDS.pop()
+        _RVOID.pop(); _RPAIRS.pop(); _RENDS.pop(); _RRIVAL.pop()
     R._reader, R._rvoid, R._paired = own, frozenset(RV), True
     _READER_MEMO[key] = (tuple(S.rows), R)
     return R
@@ -2642,7 +2697,8 @@ def evicted_from(S, rid, g, k):
     is out of force from that head on: the key is out for a row that has every head the eviction names in its past."""
     if "concurrent_eviction_unread" in MUT: return False          # MUTATION: a concurrent eviction is not read
     anc = S.anc[rid]
-    for e in S.Cs:
+    landed = landed_evictions(S, S.Cs) if "landed_eviction_unread" not in MUT else []
+    for e in list(S.Cs) + landed:
         if e["kind"] != "unseat" or e.get("obj") != g["id"] or e.get("scope") != g["scope"] or k not in e["to"]: continue
         if e["id"] in anc or rid in S.anc[e["id"]]: continue       # in the row's past (read by the walk), or after it
         heads = e.get("head", ())
@@ -2657,6 +2713,14 @@ def rosters_of(P, k, keep=lambda g: True):
     by = {q["id"]: q for q in P}
     selves = [g for g in P if g["kind"] == "offer" and g.get("obj") == g["id"]
               and (kind_of(by, g["id"]) == "self" or "person_any_kind" in MUT)]   # MUTATION person_any_kind: any group
+    # one self roster per identity (G1, as ruled): a reader's roster for an identity is the founding its LINE takes up
+    # (reader_rivals: the other foundings, and every row over them, conclude nothing for that reader, so they are not
+    # in P). Two foundings by one identity still in P are held by a reader whose line takes up neither (a fresh
+    # reader) or both: it waits and never picks, and neither is that identity's roster (MUTATION rival_roster_kept)
+    if "rival_roster_kept" not in MUT:
+        n = {}
+        for g in selves: n[g["signer"]] = n.get(g["signer"], 0) + 1
+        selves = [g for g in selves if n[g["signer"]] == 1]
     if "person_evict_unread" in MUT:                              # MUTATION: an admission in the past is enough
         return sorted({g["id"] for g in selves if any(q["kind"] == "offer" and q.get("obj") == g["id"] and k in q["to"]
                                                       for q in P)})
@@ -2723,6 +2787,12 @@ def rep_of(P, k, member=False):
     if key not in _PERSON_IN:
         _PERSON_IN[key] = (tuple(P), _rep(P, k) if not member else _member_rep(P, k))
     return _PERSON_IN[key][1]
+
+
+def is_self_founding(g):
+    """g is the founding record of a self roster (its founding scope read through KINDS as `self`)."""
+    return g["kind"] == "offer" and g.get("obj") == g["id"] and KINDS.get(g.get("scope")) == "self" \
+        and (g.get("group_kind") != "family" or "self_founding_family" in MUT)   # MUTATION: a family read as a self roster
 
 
 def founded_self(P, k):
@@ -2809,29 +2879,34 @@ def person_keys(S, person):
     selves = [g["id"] for g in P if g["kind"] == "offer" and g.get("obj") == g["id"] and g["signer"] == person
               and kind_of(by, g["id"]) == "self"]
     cand = {person} | {k for q in P if q["kind"] == "offer" and q.get("obj") in selves for k in q.get("to", ())}
+    Q = seats_of(P)
+    cand |= {k for g in selves for k in Q.holders(by[g]["scope"], g)}      # a landed lone-path addition seats no offer
     if "person_keys_by_offer" in MUT:                               # MUTATION: every key ever offered, no live read
         return frozenset(cand)
     return frozenset(k for k in cand if rep_of(P, k) == person)
 
 
 def nodes_of(S, owner):
-    """The node keys `owner` owns over the concluded set S, with no instant: the inverse of a node's owner-binding.
-    Every key object held in `owner` (Seats.holders: a key holds it only by its own signature or acceptance, two
-    consents, and the binding's withdrawal or the owner seat's unseat ends it) where the owner is its one live owner
-    (two live owners is none, as for the node's row), and neither the node key nor the owner revoked itself. Which
-    keys are nodes is the key records' (the caller's: identity_type `node`); the room's own reading of a node's row is
-    roomkey.node_row_check."""
+    """The node keys `owner` owns over the concluded set S, with no instant: the inverse of THE ONE OWNER READING,
+    Seats.owner (a key holds the owner seat only by its own signature or acceptance; the binding's withdrawal or the
+    owner seat's unseat ends it; two live owners is none; a re-binding ends the binding before it). Every key object
+    of an owner offer whose owner is `owner`, where neither the node key nor the owner revoked itself. Which keys are
+    nodes is the key records' (the caller's: identity_type `node`)."""
     P = list(S.Cs)
-    Q = seats_of(P)
     objs = {q["obj"] for q in P if q["kind"] == "offer" and q.get("scope") == "owner" and isinstance(q.get("obj"), str)
             and q["obj"] not in S.by}
     if key_record_ended(P, owner) and "nodes_revocation_unread" not in MUT: return frozenset()
+    Q = Seats(S)
     out = set()
     for n in objs:
-        held = Q.holders("owner", n) if "nodes_by_offer" not in MUT else \
-            frozenset(k for q in P if q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == n for k in q["to"])
-        if owner not in held: continue
-        if len(held) != 1 and "nodes_two_owners_kept" not in MUT: continue   # MUTATION: two owners read as each one's
+        if "nodes_by_offer" in MUT:                                       # MUTATION: the offers, not the owner seat
+            held = frozenset(k for q in P if q["kind"] == "offer" and q.get("scope") == "owner" and q.get("obj") == n
+                             for k in q["to"])
+            if owner not in held or len(held) != 1: continue
+        elif "nodes_two_owners_kept" in MUT:                              # MUTATION: each live holder an owner
+            if owner not in Q.holders("owner", n): continue
+        elif Q.owner(n) != owner:
+            continue
         if key_record_ended(P, n) and "nodes_revocation_unread" not in MUT: continue
         out.add(n)
     return frozenset(out)
@@ -2849,6 +2924,48 @@ def count_persons(P, obj, base, vs, voters=None, apart=None):
     if not keys_counted(P, obj) and "apart_by_key" not in MUT:   # MUTATION apart_by_key: only the key itself apart
         ks = ks | {rep_of(P, k) for k in ks} | {rep_of(P, k, member=True) for k in ks}
     return b - ks, v - ks
+
+
+def landed_windows(S, Cs, window, V=frozenset()):
+    """THE ONE READING of a self roster's lone-path window that LANDED (CC 3.3.6.4, 4.5.13; the `self_roster_evict` and
+    `self_roster_add` windows): each concluded landing that says `landed` of a concluded opener of `window`, with the
+    roster's own scope: (landing, opener, scope, roster)."""
+    out = []
+    for L in Cs:
+        if L["kind"] != "landing" or L.get("says") != "landed" or L["id"] in V: continue
+        p = S.by.get(L.get("of"))
+        if p is None or p.get("window") != window or not S.C.get(p["id"]): continue
+        g = S.by.get(p.get("obj"))
+        if g is None: continue
+        out.append((L, p, g.get("scope"), p["obj"]))
+    return out
+
+
+def landed_adds(S, Cs, V=frozenset()):
+    """The keys a landed self_roster_add seats: the opener's `to` (or its target), each that consented by its own
+    signature on the opener (a seat is two consents)."""
+    out = []
+    for L, p, sc, obj in landed_windows(S, Cs, "self_roster_add", V):
+        for k in tuple(p.get("to") or ()) or ((p["target"],) if p.get("target") else ()):
+            if k in signers(p): out.append((L, k, sc, obj))            # its own signature on the opener
+    return out
+
+
+def landed_evictions(S, Cs, V=frozenset()):
+    """The self rosters' lone-path evictions that landed (CC 3.3.6.4, 4.5.13: the `self_roster_evict` window): each
+    concluded landing that says `landed` of a concluded opener with a target, read as the counted eviction it is, an
+    unseat of the target's seat in the roster's own scope (its `cuts`), at the landing."""
+    ws = [(L, p, sc, obj) for L, p, sc, obj in landed_windows(S, Cs, "self_roster_evict", V) if p.get("target") is not None]
+    # two concurrent landed evictions of each other (each one's target the other's opener, over one roster) are
+    # contested (rule 4, CC 2.7.7 rule 5): neither lands, as where both object (MUTATION mutual_evictions_land)
+    def mutual(L, p, obj):
+        return "mutual_evictions_land" not in MUT and any(
+            L2["id"] != L["id"] and o2 == obj and p2["target"] == p["signer"] and p["target"] == p2["signer"]
+            and L["id"] not in S.anc.get(L2["id"], ()) and L2["id"] not in S.anc.get(L["id"], ())
+            for L2, p2, _, o2 in ws)
+    return [dict(L, kind="unseat", to=(p["target"],), scope=sc, obj=obj, head=tuple(L.get("names", ())),
+                 cuts=(("seat", p["target"], sc, obj),))
+            for L, p, sc, obj in ws if not mutual(L, p, obj)]
 
 
 def seats_of(rows):
@@ -2977,6 +3094,15 @@ def count_heads(heads, P, past):
     return newest(heads, past)
 
 
+def landed_change(q, obj, by):
+    """A self roster's landed lone-path window over obj is a counted change of it, as the counted eviction or addition
+    it is (a head a later count names, H1): a landing that says `landed` of a self_roster_evict or self_roster_add
+    opener over obj (MUTATION landed_eviction_unread)."""
+    if "landed_eviction_unread" in MUT or q["kind"] != "landing" or q.get("says") != "landed": return False
+    p = by.get(q.get("of"))
+    return p is not None and p.get("window") in ("self_roster_evict", "self_roster_add") and p.get("obj") == obj
+
+
 def change(q, obj, by=None):
     """A counted change of obj's roster, q concluded: a roster-changing row that concludes under the policy the room's
     record binds to its act, however many voices that policy needs (the ruling of 2026-11-26). The line's counted act
@@ -3041,11 +3167,13 @@ def newer_head_in_past(heads, of, P, past, obj, keys=frozenset()):
     hs = tuple(h for h in newest(heads, past) if h not in void)
     by = {q["id"]: q for q in P}
     # MUTATION head_any_row: a named head may be any row
-    if "head_any_row" not in MUT and any(h != obj and not (h in by and change(by[h], obj, by)) for h in hs):
+    if "head_any_row" not in MUT and any(h != obj and not (h in by and (change(by[h], obj, by) or landed_change(by[h], obj, by)))
+                                        for h in hs):
         return True
     # MUTATION changes_any_object: a counted change of any object moves the head; past_disjunct_off: a change behind a
     # named head moves it too
-    of_obj = (lambda q: CP.is_counted_act(q, q.get("obj"))) if "changes_any_object" in MUT else (lambda q: change(q, obj, by))
+    of_obj = (lambda q: CP.is_counted_act(q, q.get("obj"))) if "changes_any_object" in MUT else \
+        (lambda q: change(q, obj, by) or landed_change(q, obj, by))
     behind = (lambda q: False) if "past_disjunct_off" in MUT else (lambda q: any(past(q["id"], h) for h in hs))
     return any(of_obj(q) and (of is None or past(q["id"], of)) and q["id"] not in hs and not behind(q)
                and q["id"] not in void for q in P)
@@ -3336,6 +3464,9 @@ def end_of_ended(r, P, past, by):
 def seat_rule(r, P, past, table=None, other=None):
     """The conclusion rule. P: r's concluded ancestors."""
     k, by = r["kind"], {q["id"]: q for q in P}
+    # a rival founding concludes nothing for the reader whose line took up another of the identity's, and neither does
+    # everything built on it (a row over it, or accepting or withdrawing one over it) (reader_rivals)
+    if _RRIVAL[-1] and rival_row(r, by, _RRIVAL[-1]): return False
     if k in ("unseat", "withdraw") and end_of_ended(r, P, past, by): return False   # (2): no second end of a seat
     if k in ("offer", "unseat"):
         conf = r["conf"]
@@ -3361,7 +3492,13 @@ def seat_rule(r, P, past, table=None, other=None):
         if r["obj"] != r["id"] and not roster_placement(r, by): return False   # RK1, RK2: who places a roster seat
         if k == "offer" and conf == "group" and not duty_gate(r, by): return False   # CC 4.5.4: who places a duty
         if conf == "self":
-            if r["obj"] == r["id"]: return k == "offer"          # a founding row is its own object
+            if r["obj"] == r["id"]:                              # a founding row is its own object
+                # one self roster per identity (G1, ruled): a second founding of a self roster by an identity whose
+                # roster is in the row's past is a rival founding and concludes nothing; no key re-founds itself, or
+                # adds a device, by founding (MUTATION rival_roster_kept)
+                if k == "offer" and is_self_founding(r) and "rival_roster_kept" not in MUT and any(
+                        is_self_founding(q) and q["signer"] == r["signer"] for q in P): return False
+                return k == "offer"
             # over infrastructure a founder seat comes only by a founders' amendment: an own offer of one seats nothing
             if r.get("scope") == "founder" and kind_of(by, r["obj"]) == "infrastructure" and "role_on_own_offer" not in MUT:
                 return False

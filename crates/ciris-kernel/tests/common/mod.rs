@@ -574,6 +574,23 @@ impl SeatRow for TRow {
     fn private_room(&self) -> bool {
         self.fs("membership") == Some("private")
     }
+    fn landing(&self) -> Option<(&String, &String)> {
+        if self.kind == "landing" {
+            self.of.as_ref().zip(self.says.as_ref())
+        } else {
+            None
+        }
+    }
+    fn evicts(&self) -> Option<&String> {
+        if self.kind == "open" && self.window.as_deref() == Some("self_roster_evict") {
+            self.target.as_ref()
+        } else {
+            None
+        }
+    }
+    fn adds(&self) -> Option<&[String]> {
+        (self.kind == "open" && self.window.as_deref() == Some("self_roster_add")).then_some(self.to.as_slice())
+    }
 }
 
 impl WindowRow for TRow {

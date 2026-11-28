@@ -414,15 +414,49 @@ genesis key with several key records, or several rosters, is one person. Only ke
 (its own revocation, its records); who-signed rules read its person. A genesis key its roster evicted is no voice of the person
 the room seats under that identity: only the roster's live keys speak for it. An adopter must never treat kid == the identity's
 thumbprint as proof that the key speaks for the person; only a live key of the person's self roster does. The key a
-self roster evicts is no voice of its eviction, so a roster whose only live key is its genesis key cannot evict it. Ask at a row of the concluded set: the answer reads that row's own past, an eviction
+self roster evicts is no voice of its eviction, so a roster whose only live key is its genesis key cannot evict it. One
+self roster per identity (ruled): a second founding of a self roster by an identity whose roster the row's past holds
+concludes nothing. Of an identity's foundings a reader holds, the reader's roster is the founding its LINE takes up, in
+the line's order (`seat::takes_up`): of every row the reader signed or cosigned (concluded for everyone or not, each
+counting only where the reader's key stands) that is a founding of the identity or has one in its past, the earliest
+(none of the others in its past) fix the roster, and a later row over a rival takes up nothing (acknowledging never
+un-voids); first rows reaching two foundings are a wait; a rival founding concludes nothing for that reader, and neither does everything built
+on it; neither or both taken up is a wait (a fresh reader holding two waits). A thief cannot put its rival on an
+honest reader's line. The genesis key keeps its voice on the roster the reader takes up, as any key of that roster
+does, until that roster evicts it: no special rule for the first key either way. The restore case (a one-key identity
+restores its genesis key onto a fresh install and founds before fetching its roster): the re-founding concludes
+nothing for readers on the first roster; the genesis key's voice there is unchanged; a fresh reader holding both
+waits. ADOPTER DUTY: a client holding a genesis key and no roster rows FETCHES the identity's roster before it signs
+anything, and never founds where one may exist. A reader's line reads the reader's voices exactly as the counts do: the rows it
+signed itself (its cosign rows among them) and the seat rows it is a cosigner of that concluded; a claimed cosigner
+on a note or any other row the counts do not read, or on a seat row that concluded nothing, is never read. A reader's
+client names its own previous row in every row it signs, or two concurrent rows of its own can make it wait (P2).
+CALLER DUTY (for every count): `SeatRow::cosigners` lists only verified voices, keys whose own statement over the
+row's payload the store has verified (each voice is a further signed statement, the wire map's rule). Read for a reader through `seat::for_reader`. No key re-founds itself, or adds a device, by founding. The only way onto a self
+roster is that roster's own add (its count, or its lone path); an evicted genesis key is restored only by the
+roster's counted re-admission. A lone addition is weaker than a lone eviction, as the text has it (CC 3.3.6.4: "One
+objection of two others does not stop a lone addition... only a strict majority of the others refuses it"): a live
+genesis key in a three-key roster adds a key over one objection, a stated cost. A self roster's lone-path window that lands (its `landed` landing concluded) is the
+counted change it proposes, read through the same ends reading: a landed eviction ends the target's seat, a landed
+addition seats each proposed key that signed its opener, and the landing is a head a later count over the roster
+names. Present a landing's opener and outcome as `SeatRow::landing`, an eviction opener's target as
+`SeatRow::evicts`, an addition opener's keys as `SeatRow::adds`. (The community lone paths change seats by their
+own rows: a lone removal is the act, and the overturn's re-seating is a counted offer.) In a two-key roster the count cannot evict (the key evicted is no voice of
+it), but the lone path can (CC 4.5.13, the `self_roster_evict` window): one key proposes the other's eviction, and after the
+window it lands unless the other key, the whole of the other members and a voice there, objects within it; so a
+lost or dead device is put out. The residual: an active stolen key that objects blocks its own eviction, and two
+live keys can stalemate each other; with three or more keys the majority path breaks it. Where the owner still holds
+a copy of the stolen key, that key can also end by its own revocation (an unseat of its `registered` seat signed by
+it), at the key-end rule's cost. Ask at a row of the concluded set: the answer reads that row's own past, an eviction
 concurrent with the row by rule 4, and no instant.
 
 **The keys a row reaches** (persist). Over the concluded set, with no instant: `seat::person_keys(c, law, spec,
 person)` gives a person's live keys (named by its genesis key; the inverse of `persons_of`: a key of two persons,
 an agent's key and a key that revoked itself are none of its keys, and a person whose genesis key revoked itself
-has none), and `seat::nodes_of(c, law, spec, owner)` gives the node keys whose one live owner-binding names
-`owner` (the `owner` seat over the node's key, held by the owner's own signature or acceptance; a withdrawn or
-revoked binding, two live owners, or the node's own revocation, and it is none). Which keys are nodes is the key
+has none), and `seat::nodes_of(c, law, spec, owner)` gives the node keys whose owner is `owner`, the inverse of
+the one owner reading `Seats::owner` (the `owner` seat over the node's key, held by the owner's own signature or
+acceptance; a withdrawn or revoked binding, two live owners, or the node's own revocation, and it is none; a
+re-binding ends the binding before it). Which keys are nodes is the key
 records': filter by `identity_type` `node`. The node set = audiences ∘ person_keys ∘ nodes_of: for each key of a
 row's audience (`audience::audiences`), its person's live keys, and for each of those the nodes it owns.
 
@@ -513,11 +547,16 @@ chain of `Seats::stands` above.
 - Each bundle version: `Kind::Bundle`. The causal past must have an earlier version in a later one's past.
 - Each owner binding: `Kind::Binding`, `owner()` the owner. A re-binding has `on()` the binding it ends. Two
   re-bindings of one binding are refused (`Refused::SeveralEnds`).
-- Each owner's acceptance of the grant: `Kind::Acceptance`, signed by that owner, naming the owner's binding
-  among the rows it names (its past); it names no binding as such and its `on()` is not read (N7). It stands
-  while its author owns the node at it: the binding is derived (`standing::owner_of`), the signer's owner
-  binding in its past with no re-binding of it there. One by a key that owns nothing there (a former owner, or
-  any other key) is nobody's acceptance.
+- Each owner's acceptance of the grant: `Kind::Acceptance`, signed by that owner, `on()` the owner binding it is
+  made under, from its `refs.also.cites` (N7, CC Part 3 "The owner's acceptance"); present every cited row as
+  `cites()` where there may be several, and a binding's node as `node()`, filled from the owner binding's CWT
+  `sub` (the key owned). A cited binding MUST carry `node()`: one without it is refused (`acceptance_other_binding`),
+  never passed. `owner_of`
+  checks it: exactly one cited row (two is refused), an owner binding its signer owns, of the grantee's key, live at
+  the acceptance (no re-binding of it in its past). A cited binding not held waits, naming it. A re-binding of the
+  cited binding later ends the acceptance's standing: it does not follow the owner's newer binding; the owner
+  accepts again citing a live one. `owner_of` reads the bindings among the rows it is given: pass the rows of the
+  grant's own subject node only (or present each binding's `node()`).
 - Each act: `Kind::Act`, `head()` the bundle version it names, `on()` the acceptance it stands on. An act
   with `on()` a binding, or none, counts for nobody.
 - The grant's end: `Kind::GrantEnd`, `head()` its bundle version. A receipt: `Kind::Receipt`, `on()` the act.

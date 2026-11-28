@@ -3,9 +3,9 @@
 //!
 //! A node that is its owner's by an owner binding and holds a duty by a root grant signs an act. The act names
 //! the bundle version in force (its head) and the owner's acceptance of the grant it stands on. The acceptance
-//! names no binding (N7): it stands while its author owns the grant's subject, so the binding it stands on is
-//! derived, its signer's owner binding live in its past ([`owner_of`]). A re-binding names the binding before it
-//! and ends it, and the new owner's acts need a new acceptance.
+//! cites the owner binding it is made under (N7, CC Part 3: `refs.also.cites`, exactly one row, live; checked by
+//! [`owner_of`]). A re-binding names the binding before it and ends it, and the new owner's acts need a new
+//! acceptance.
 //!
 //! [`answers`] follows those names and judges each act twice with [`conferral::answers`]: once under the grant
 //! (the bundle versions as heads, the grant's end as the end) and once under the binding its acceptance stands on
@@ -80,9 +80,17 @@ pub trait StandingRow {
     /// The bundle version an act or the grant's end names. `None` on any other row.
     fn head(&self) -> Option<&Self::Id>;
     /// The one row this row is made on: for an act, the row it stands on (an acceptance, if it is to count);
-    /// for a binding, the binding it re-binds; for a receipt, the act. An acceptance names no binding (N7): the
-    /// binding it stands on is derived ([`owner_of`]), and its `on` is not read. Default `None`.
-    fn on(&self) -> Option<&Self::Id> {
+    /// for an acceptance, the owner binding it cites (N7, CC Part 3 "The owner's acceptance": `refs.also.cites`,
+    /// checked by [`owner_of`]); for a binding, the binding it re-binds; for a receipt, the act.
+    fn on(&self) -> Option<&Self::Id>;
+    /// On an acceptance: every row its `refs.also.cites` names, where the caller presents them; exactly one may stand
+    /// (two is refused, [`Nobody::AcceptanceOtherBinding`]). Default `None`: the acceptance cites [`StandingRow::on`] alone.
+    fn cites(&self) -> Option<&[Self::Id]> {
+        None
+    }
+    /// On a binding: the key it binds (the node), its CWT `sub`. A cited binding that names none, or a key that is not
+    /// the grant's grantee, stands for nothing (r99 A4). Default `None`.
+    fn node(&self) -> Option<&Self::Key> {
         None
     }
     /// On a binding: the owner it binds the node to.
@@ -118,12 +126,11 @@ pub enum Nobody {
     NamesBinding,
     /// The row it names is neither an acceptance nor a binding.
     NotAnAcceptance,
-    /// The acceptance it names names no binding. No longer given (N7: the binding is derived); kept for the
-    /// fixture's names.
-    AcceptanceNamesNoBinding,
-    /// The acceptance it names is by no owner of the node at it: its signer owns no binding live in its past (a
-    /// former owner, whose binding a re-binding ended, or never an owner).
-    NotTheOwnersAcceptance,
+    /// `acceptance_other_binding` (N7, the text's refusal): the acceptance it names cites no owner-binding of the
+    /// grantee's key, or cites two, or the one it cites is ended (a re-binding of it in the acceptance's past: it does
+    /// not follow the owner's newer binding) or is another owner's. A cited binding not held is no refusal: the act
+    /// waits naming it ([`Answer::Undecided`]).
+    AcceptanceOtherBinding,
     /// An act standing directly on an acceptance (a root edge) signed by a key that is not the grant's grantee
     /// ([`Role::Grantee`] under the grant's `role`): a deputy that names the acceptance itself.
     NotTheGrantee,
@@ -144,8 +151,7 @@ impl Nobody {
             Nobody::NoAcceptance => "no_acceptance",
             Nobody::NamesBinding => "names_binding",
             Nobody::NotAnAcceptance => "not_an_acceptance",
-            Nobody::AcceptanceNamesNoBinding => "acceptance_names_no_binding",
-            Nobody::NotTheOwnersAcceptance => "not_the_owners_acceptance",
+            Nobody::AcceptanceOtherBinding => "acceptance_other_binding",
             Nobody::NotTheGrantee => "not_the_grantee",
             Nobody::EdgeNotAnAct => "edge_not_an_act",
             Nobody::TooDeep => "too_deep",
@@ -229,42 +235,45 @@ impl<R: StandingRow> ConferralRow for As<'_, R> {
     }
 }
 
-/// The owner binding acceptance `a` stands on, derived (N7: an owner's acceptance of the grant names no binding; it
-/// stands while its author owns the grant's subject): a binding owned by `a`'s signer in `a`'s past, with no
-/// re-binding of it in `a`'s past; of several, the newest (none of the others has it in its past), the least id
-/// on a tie. `None`: its signer owns nothing there (a former owner, its binding ended; or never an owner). `Err`:
-/// the row `past` needs to tell. The reference is `owner_of` in `models/causal_kernel/check_conferral_two.py`.
-pub fn owner_of<'a, R: StandingRow, P: Past<R::Id>>(a: &R, rows: &[&'a R], past: &P) -> Result<Option<&'a R>, R::Id> {
-    let mut live: Vec<&'a R> = Vec::new();
-    for &b in rows.iter().filter(|b| b.kind() == Kind::Binding && b.owner() == Some(a.signer())) {
-        if !past.in_past(b.id(), a.id())? {
-            continue;
-        }
-        let mut ended = false;
-        for e in rows.iter().filter(|e| e.kind() == Kind::Binding && e.on() == Some(b.id())) {
-            if past.in_past(e.id(), a.id())? {
-                ended = true;
-                break;
-            }
-        }
-        if !ended {
-            live.push(b);
+/// The validator of the owner binding acceptance `a` cites (N7, CC Part 3 "The owner's acceptance": an owner's
+/// acceptance names the binding it is made under in `refs.also.cites`): exactly one cited row ([`StandingRow::cites`],
+/// else [`StandingRow::on`]), an owner binding whose owner signed `a`, of the grant's grantee's key where the binding
+/// names its key ([`StandingRow::node`]), and live at `a` (no re-binding of it in `a`'s past). `Ok(Ok(b))`: the
+/// binding; `Ok(Err(why))`: it stands for nothing; `Err(id)`: the row to fetch (a cited binding not held waits,
+/// naming it: never "no grant", never a pass). `index`: the held rows by id; `rows`: the held rows, for the
+/// re-bindings. A re-binding after `a` ends its stint under the binding record, and the acceptance does not follow
+/// the owner's newer binding. The reference is `owner_of` in `models/causal_kernel/check_conferral_two.py`.
+pub fn owner_of<'a, R: StandingRow, P: Past<R::Id>>(
+    a: &R,
+    index: &BTreeMap<&R::Id, &'a R>,
+    rows: &[&'a R],
+    past: &P,
+    grant: &conferral::Standing<'_, R::Id, R::Key>,
+) -> Result<Result<&'a R, Nobody>, R::Id> {
+    let one = a.on().map(core::slice::from_ref);
+    let cites: &[R::Id] = a.cites().or(one).unwrap_or(&[]);
+    let b = match cites {
+        [] => return Ok(Err(Nobody::AcceptanceOtherBinding)),
+        [b] => b,
+        _ => return Ok(Err(Nobody::AcceptanceOtherBinding)),
+    };
+    let b = index.get(b).copied().ok_or_else(|| b.clone())?;
+    if b.kind() != Kind::Binding {
+        return Ok(Err(Nobody::AcceptanceOtherBinding));
+    }
+    if b.owner() != Some(a.signer()) {
+        return Ok(Err(Nobody::AcceptanceOtherBinding));
+    }
+    // the binding names the key it binds (its CWT sub), and it is the grantee: one naming none is refused (r99 A4)
+    if !b.node().is_some_and(|n| (grant.role)(n) == Role::Grantee) {
+        return Ok(Err(Nobody::AcceptanceOtherBinding));
+    }
+    for e in rows.iter().filter(|e| e.kind() == Kind::Binding && e.on() == Some(b.id())) {
+        if past.in_past(e.id(), a.id())? {
+            return Ok(Err(Nobody::AcceptanceOtherBinding));
         }
     }
-    let mut top: Vec<&'a R> = Vec::new();
-    for &b in &live {
-        let mut older = false;
-        for &c in live.iter().filter(|c| c.id() != b.id()) {
-            if past.in_past(b.id(), c.id())? {
-                older = true;
-                break;
-            }
-        }
-        if !older {
-            top.push(b);
-        }
-    }
-    Ok(top.into_iter().min_by(|x, y| x.id().cmp(y.id())))
+    Ok(Ok(b))
 }
 
 // where an act stands: its root edge (itself, for the node's own act) and the binding that edge's acceptance
@@ -290,8 +299,11 @@ fn stands_on<'a, R: StandingRow, P: Past<R::Id>>(
         Kind::Binding => return Ok(Err(Nobody::NamesBinding)),
         _ => return Ok(Err(Nobody::NotAnAcceptance)),
     }
-    // N7: the binding it stands on is its signer's owner binding live at it, not a row it names
-    let Some(b) = owner_of(a, rows, past)? else { return Ok(Err(Nobody::NotTheOwnersAcceptance)) };
+    // N7: the binding it cites, checked
+    let b = match owner_of(a, index, rows, past, grant)? {
+        Ok(b) => b,
+        Err(why) => return Ok(Err(why)),
+    };
     // a root edge (an act standing directly on an acceptance) is the grantee's own act: any other key's
     // root-shaped act stands on nothing
     if (grant.role)(x.signer()) != Role::Grantee {

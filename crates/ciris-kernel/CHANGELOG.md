@@ -145,12 +145,14 @@ r74's rows among them: a person seated by two keys, a revoked key and its device
 author's device, a window over a self roster) and ten planted breaks; the window, ballot and r74 rows are in the seat
 fixture; seven crate plants for it, four retargeted.
 
-**N7: an owner's acceptance names no binding** (0.5.0; ruled). `standing::StandingRow::on` defaults to `None`
-and is not read on an acceptance: `standing::answers` derives the binding an acceptance stands on
-(`standing::owner_of`: its signer's owner binding in its past, not re-bound there). An acceptance by the current
-owner stands; one by a former owner (its binding ended in the acceptance's past) is nobody's. No existing answer
-changes. The reference: `owner_of` in `check_conferral_two.py`, four cases and a planted break; `conferral_two.json`
-gains them; two crate plants (one retargeted).
+**N7: an owner's acceptance cites its binding, checked** (0.5.0; ruled after the text was found, CC Part 3 "The
+owner's acceptance"). `standing::StandingRow::on` on an acceptance is the binding it cites (`refs.also.cites`); new
+`StandingRow::cites` (every cited row) and `StandingRow::node` (a binding's key), both defaulted. New
+`standing::owner_of`, the check: exactly one cited row, an owner binding its signer owns, of the grantee's key, live
+at the acceptance; not held, it waits naming it. One refusal, the text's `acceptance_other_binding`, replaces `acceptance_names_no_binding` and
+`not_the_owners_acceptance`. No
+existing answer changes. The reference: `owner_of` in `check_conferral_two.py`, seven cases and a planted break;
+`conferral_two.json` gains them; four crate plants (one retargeted).
 
 **Counts by person through one function; the keys a row reaches** (0.5.0; the review r78k, and persist). New:
 `seat::Persons::count`, the base and the voices by person with a named key set apart by person from both; every
@@ -163,7 +165,16 @@ opener is read, a key of no person as itself, with no voter needed. New: `seat::
 one live owner-binding names the owner), over the concluded set with no instant. Changed (r95, G33): a genesis key its own self roster evicted is no voice of its person (the person
 is its identity; only a live key of its roster speaks for it), and its own rows read as a bare key's; a live device
 still votes as the person. The key a self roster evicts is no voice of its own eviction (the one-key
-residual cannot evict). Changed: `seat::person_at`
+residual cannot evict). One self roster per identity (r96 G1, ruled): a second founding of a self roster by an
+identity whose roster is in the row's past concludes nothing, and two foundings neither in the other's past are
+rivals no person is read through (a reader waits); a two-key roster evicts by the lone path when the other key is
+silent through the window (CC 4.5.13), and an objection within it refuses; a landed lone-path eviction ends the target's seat as a
+counted eviction does, a landed lone-path addition seats its consenting keys, and a landed window is a head of a
+later count (new defaulted `SeatRow::landing`, `SeatRow::evicts`, `SeatRow::adds`); one self roster per identity is read by the READER'S LINE (ruled): a reader's roster for an identity is the founding
+its line takes up, in the line's order (`seat::takes_up`: the earliest of the reader's own rows reaching a founding fix
+it; a later row over a rival takes up nothing), a rival and everything built on it conclude nothing for that reader, and
+neither or both taken up is a wait (new: `seat::for_reader` reads the reader's rivals); two concurrent landed lone
+evictions of each other are contested (r99 M1); a cited binding must carry its node (r99 A4). Changed: `seat::person_at`
 answers the person's identity key (`Obj::Key` of the genesis key), not the roster row, so two rosters of one genesis
 key, or a genesis key with two key records, are one person (the text's ruling G5). Together: the node set = audiences ∘
 person_keys ∘ nodes_of (ADOPTING.md). The reference: `seat.count_persons`, `seat.person_keys`, `seat.nodes_of`;
