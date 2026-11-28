@@ -59,3 +59,8 @@ for obs in ((), ("p1b",), ("p1b", "p1c")):
     LH = lone_add("S1", "p1", "k9", ("a1c",), obs)
     show("L2 thief p1 lone-adds k9 to S1, objections %s: outcome" % (obs,), GW + LH, lambda S: WN.outcome(S, "op", "recount"), ("p4", None), RULE_W)
     show("L2' ... person_keys(p1)", GW + LH, lambda S: sorted(ST.person_keys(S, "p1")), ("p4", None), RULE_W)
+print("== claimed cosigners on seat rows (60b7a66 counts offers and unseats listing the reader)")
+OF = ST.offer("sdo", "p1", "zz", "member", "gc", "group", ("S1r",), head=("S1r",), policy="community_invite", cosigners=("p4", "zz"))
+show("S5 the thief's (non-concluding) offer lists p4 as cosigner, naming S1r", GW + [RX, OF, Z(("a1c", "S1r"))], C("az"), R3)
+UN = ST.unseat("sdu", "p1", "p2", "member", "gc", "group", ("S1r",), head=("S1r",), policy="community_remove", cosigners=("p4",))
+show("S6 the thief's (non-concluding) unseat lists p4 as cosigner, naming S1r", GW + [RX, UN, Z(("a1c", "S1r"))], C("az"), R3)
