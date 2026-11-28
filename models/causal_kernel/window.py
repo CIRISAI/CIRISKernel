@@ -140,21 +140,29 @@ WINDOWS = {
                             "silent": None, "at_close": (), "default": "stands"},
 }
 # default_content above k (CIRISConstitution#221; the ruling: the base `active` is the caller's stated count). The
-# self roster's lone path, read off the policy row: enact 2/3 at once, cancel 1/3 at the close, floor 1/3 at the close,
-# never fewer than two voices (min_count, community); default cancelled. Counted over ("stated", n): n = 20 here, the
-# census's figure for a room of thirteen members
+# self roster's lone path, read off the policy row: enact strictly more than 2/3 at once (the table's decider,
+# enact_votes = 2*base//3 + 1; the Constitution's ruling of 2026-11-27: six need five, three need three; this read
+# "at least 2/3" before), cancel 1/3 at the close, floor 1/3 at the close, never fewer than two voices (min_count,
+# community); default cancelled. Counted over ("stated", n): n = 20 here, the census's figure for a room of thirteen
+# members
 ACTIVE = 20
 WINDOWS["default_content@active"] = {
     "policy": "default_content", "counted": "member", "concluder": "member", "opener_says": "approve",
-    "at_once": (("approve", ("atleast", 2, 3, 2), ("stated", ACTIVE), "landed"),),
+    "at_once": (("approve", ("more", 2, 3, 2), ("stated", ACTIVE), "landed"),),
     "silent": None,
     "at_close": (("object", ("atleast", 1, 3, 2), ("stated", ACTIVE), "cancelled"),
                  ("approve", ("atleast", 1, 3, 2), ("stated", ACTIVE), "landed")),
     "default": "cancelled"}
 # the same with a stated count of five, fewer than the members a case seats: the size counted over is never smaller
 WINDOWS["default_content@active@5"] = dict(
-    WINDOWS["default_content@active"], at_once=(("approve", ("atleast", 2, 3, 2), ("stated", 5), "landed"),),
+    WINDOWS["default_content@active"], at_once=(("approve", ("more", 2, 3, 2), ("stated", 5), "landed"),),
     at_close=tuple((v, h, ("stated", 5), o) for v, h, _, o in WINDOWS["default_content@active"]["at_close"]))
+# stated counts of six and three, as many as the members: strictly more than 2/3, so six need five and three need three
+for _n in (6, 3):
+    WINDOWS["default_content@active@%d" % _n] = dict(
+        WINDOWS["default_content@active"],
+        at_once=tuple((v, h, ("stated", _n), o) for v, h, _, o in WINDOWS["default_content@active"]["at_once"]),
+        at_close=tuple((v, h, ("stated", _n), o) for v, h, _, o in WINDOWS["default_content@active"]["at_close"]))
 # stated counts past 32 bits: every target reads the same count (no cast truncates it)
 for _n in (2 ** 32, 2 ** 32 + 13):
     WINDOWS["default_content@active@%d" % _n] = dict(
@@ -969,6 +977,16 @@ def active_world():
     ] + [("a stated count of %d, nine of thirteen members approve: no landing" % n,
           [g, opener("p", ms[0], name + "@%d" % n, "g", ("g",))] + ok(9),
           A + ", read whole on every target (no 32-bit cast)", "open") for n in (2 ** 32, 2 ** 32 + 13)]
+    # strictly more than 2/3 of the stated count (the ruling of 2026-11-27): six need five, three need three
+    S = "the ruling of 2026-11-27: strictly more than 2/3 of the base"
+    for n, need in ((6, 5), (3, 3)):
+        mn = ms[:n]
+        gn = ST.offer("g", mn[0], mn, "member", "@", "self", cosigners=mn[1:])
+        pn = opener("p", mn[0], name + "@%d" % n, "g", ("g",))
+        cases += [("%d members over a stated %d: %d approve, no landing" % (n, n, need - 1), [gn, pn] + ok(need - 1),
+                   S + ": %d of %d is not enough" % (need - 1, n), "open"),
+                  ("%d members over a stated %d: %d approve, no landing" % (n, n, need), [gn, pn] + ok(need),
+                   S + ": %d need %d" % (n, need), "landed")]
     return "default content above k (the base active: a stated count of twenty)", cases
 
 

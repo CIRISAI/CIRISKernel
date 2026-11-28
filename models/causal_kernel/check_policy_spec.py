@@ -41,33 +41,35 @@ SELF = ("the enact is strictly more than 1/2 with min_count (self, one) voices, 
         "the lone path is the floor's one voice at the close (floor_rule one_of_n) and the default `refused` "
         "(at_window), where the reference's default is `landed`. They part where the proposer's own answer is not an "
         "approval: the proposer objects to its own proposal and lands it. The decider supports the row: voices 0 is "
-        "below floor_votes 1, so `cancelled` (the self roster's word `refused`)")
+        "below floor_votes 1, so `cancelled` (the self roster's word `refused`). RULED 2026-11-27: the reference is "
+        "right (the cancel over the other members, the proposer's own objection not counted, the default `landed`: a "
+        "proposer that changes its mind withdraws); the row is being corrected, and spec_from_policy reads the new cells "
+        "at the next pin")
 DIFFERS = {
     "moderation_fallback": "refused: moderation_action's voices cell is `unstated`, and a mirror row has no cell for its "
                            "answer words (`answered`, `for`, `against`) or outcome words (`answered`, `fallback`, `lapsed`; "
                            "at_window reads `tallied`). The reference's words are its own; the table states none",
     "moderation_overturn": "refused: count_set `member` has no `-proposer`, while standing_set reads `less the act's author` "
                            "(the reference counts over `others`, as CC 4.5.13's text and standing_set do); and the outcome "
-                           "words `lifted` and `stands` have no cell (at_window reads `lapsed`). The table's count_set "
-                           "supports counting the author; its standing_set and the text support the reference",
+                           "words `lifted` and `stands` have no cell (at_window reads `lapsed`). RULED 2026-11-27 (CC 4.5.13): the "
+                           "base is the members at the act's head less the author (count_set will say so); `landed` "
+                           "means lifted, `refused` the act stands; the default at the close `refused`; the concluder "
+                           "a member other than the author. The reference's words become the leaves at the next pin",
     "halt_fuse": "refused: accord_halt's counted_at is `unstated`, its voices are `scrubs` (cosignatures of one row, not "
                  "answers), and a mirror row has no cell for `confirm`, `confirmed` or `lapsed` (at_window `lapsed`)",
     "L:community_add:majority": "the row's enact is strictly more than 2/3 of the base with min_count voices (the decider: "
                                 "enact_votes = num*base//den + 1, voices >= min_count); the reference enacts by the room's "
                                 "declared protocol (CC 3.1.3.2, majority: a strict majority, no floor). The cancel and "
-                                "the default are `cancelled` (at_window) where the reference says `refused`. The table "
-                                "supports the row's reading: its enact_rule is a fraction, not `protocol`",
+                                "the default are `cancelled` (at_window) where the reference says `refused`. RULED 2026-11-27: "
+                                "two paths. The reference is the cosigned_act path (the declared protocol and the joiner's "
+                                "acceptance), 0.5.0's; the community_invite row is the window path (one proposer, the "
+                                "full roster, strictly more than 2/3 with its floor), post-tag, its default `refused` "
+                                "(`cancelled` is no state: the leaves are held, landed, refused)",
     "L:community_add:two_thirds": "as L:community_add:majority: the reference enacts at least 2/3 with no floor (the declared "
                                   "protocol), the row strictly more than 2/3 with two voices; `cancelled` for `refused`",
     "L:community_add:quorum:2": "as L:community_add:majority; and the reference's enact, the declared quorum read as "
                                 "(`atleast`, 0, 0), is no count a window can read (it divides by zero; no scenario reads "
                                 "the table). The row's is strictly more than 2/3 with two voices",
-    "default_content@active": "the enact: the reference reads at least 2/3 of the stated count, the row strictly more than "
-                              "2/3 (the decider's enact_votes); they part where 2/3 of the count is whole. The table supports "
-                              "the row",
-    "default_content@active@5": "as default_content@active",
-    "default_content@active@4294967296": "as default_content@active; no scenario parts them, as 2/3 of the count is not whole",
-    "default_content@active@4294967309": "as default_content@active; no scenario parts them, as 2/3 of the count is not whole",
     "self_roster_add": SELF,
     "self_roster_evict": SELF,
     "L:self_add": SELF,
@@ -207,18 +209,6 @@ def separating():
                     [m, WN.opener("p", "m1", name, "g", ("g",)), WN.answer("o2", "m2", "p", "object"),
                      WN.answer("o3", "m3", "p", "object"), WN.receipt("r", "m2", "p", 0),
                      WN.landing("L", "m2", "p", "r", "refused", W, ("o2", "o3"))], "refused", "open"))
-    # the base active, where 2/3 of the count is whole: thirteen members over a stated fifteen (a table built here, as
-    # window.py builds @5), and twelve members over a stated five (the members, never fewer); ten and eight approve
-    ref = WN.WINDOWS["default_content@active"]
-    WN.WINDOWS["default_content@active@15"] = dict(
-        ref, at_once=tuple((v, h, ("stated", 15), o) for v, h, _, o in ref["at_once"]),
-        at_close=tuple((v, h, ("stated", 15), o) for v, h, _, o in ref["at_close"]))
-    for name, n, yes in (("default_content@active@15", 13, 10), ("default_content@active@5", 12, 8)):
-        ms = tuple("c%02d" % i for i in range(1, n + 1))
-        room = ST.offer("g", ms[0], ms, "member", "@", "self", cosigners=ms[1:])
-        out.append((name, "%d members, %d approve at once" % (n, yes),
-                    [room, WN.opener("p", ms[0], name, "g", ("g",))] +
-                    [WN.answer("a%d" % i, ms[i], "p", "approve") for i in range(1, yes)], "landed", "open"))
     return out
 
 
@@ -469,7 +459,6 @@ def main():
         print("    %-34s %s: reference %s, row %s%s" % (name, case, got[0], got[1], "" if ok else "  (WANT %s, %s)" % (want_ref, want_row)))
         if not ok:
             problems.append("a separating scenario gives another answer: %s: %s" % (name, case))
-    WN.WINDOWS.pop("default_content@active@15", None)
     for name in sorted(set(differ) | set(DIFFERS)):
         if name in differ and name not in DIFFERS:
             problems.append("an unlisted difference: %s" % name)
