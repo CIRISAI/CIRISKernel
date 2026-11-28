@@ -514,6 +514,20 @@ chain of `Seats::stands` above.
 **A removal in a room's content**, for `content::answers`. Give a member's removal once, as `Kind::End`. A
 content row that names it as its head is read as naming a head at which the member is out.
 
+**The consent peer set**, for `consent::may_send`, `peer_set` and `replication_set` (Edge's attestation-plane
+replication; CC 3.3.7). Edge's replication set is the operator-addressed peers that are in `consent::peer_set` of a
+principal of the local node (`consent::replication_set`), and `consent::may_send` gates each row: it moves only under
+a `consent:replication:v1` grant in force from the node or its one owner to that peer whose classes cover the row's
+class. Present each grant as `Kind::Grant` (`attesting_key_id` the signer, `peer()` the one `subject_key_ids` entry,
+`classes()` the `attestation_prefixes` as signed, `at()` its `asserted_at`, `until()` its `valid_until`), each
+`withdraws` or `recants` of one as `Kind::Withdrawal` naming it, each key's own revocation as `Kind::Revocation`, and
+every other row (the node's own rows the reading is at among them) as `Kind::Other`; conclude them with
+`consent::conclude_rule` beside the families' own rules. Pass the owner from `seat::Seats::one("owner", node)` read
+over the past of the row the answer is at (`None` with none or two). Read at the row being sent, or the node's own
+latest row, never at a clock; `now` is the caller's instant for the term only. Not read here: the `cohorts` allow list
+of an owner's grant for its own node (CC 6.1.5.3), and whether the class itself is a grammar the namespace admits
+(persist's `consent_grammar::covers` also asks the matcher).
+
 **Windows.** A `WindowSpec` literal states `opener` (`None` unless the opener's signer holds another scope than
 the counted one). `window::outcome` answers a met at-once count with no landing row. A ballot (an answer a
 `How::MoreOfVoted` clause reads; the fallback's `ballot:moderation_action`, `for` or `against`) withdrawn by its

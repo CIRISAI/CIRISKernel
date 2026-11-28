@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+**The consent peer set** (new module `consent`; CC 3.3.7, CC 5.2; for CIRISEdge's attestation-plane replication). A
+`consent:replication:v1` grant is one signer's directed row to one peer naming the classes it moves, and it moves
+those and nothing else. `consent::in_force`, `peer_set`, `may_send` and `replication_set`, read at a held row, over a
+new `ConsentRow` trait (kind, peer, classes, `asserted_at`, `valid_until`, the grant a withdrawal names, a key's own
+revocation), with `consent::conclude_rule` for the door (a grant's classes a sorted set; a withdrawal only by the
+grant's own signer). The fold is CC 3.5.1's default per (signer, peer): the latest `asserted_at`, then the lowest
+id, and a withdrawn or lapsed latest grant revives no earlier one. A withdrawal is a cut: it ends the grant at every
+row not in its own past, so a concurrent one ends it too. The term is half-open at the caller's instant. A grant
+counts only against its signer's own revocations where it is before them (r86). The node's principals are the node
+and its one owner, which the caller reads with `Seats::one("owner", node)`; two owners is none. The reference is
+`models/causal_kernel/consent.py`, its cases `check_consent.py` (32 cases, 81 answers, every order of up to six
+rows, 14 planted breaks), the fixture `tests/fixtures/consent.json` and the test `tests/consent.rs`.
+
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.
 Several removals are several rows, each judged alone at its head. The same for a recall (one holder), a duty
