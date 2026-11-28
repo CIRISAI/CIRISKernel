@@ -338,6 +338,11 @@ pub trait SeatRow: Row {
     fn content(&self) -> Option<&Self::Id> {
         None
     }
+    /// The rows a row cites (the wire's `refs.also.cites`; the Constitution's G21, G23, G24): a quarantine release
+    /// its withhold, a reconsideration its takedown notice, a lift the act it lifts. Default none.
+    fn cites(&self) -> &[Self::Id] {
+        &[]
+    }
     /// The duties a founding row declares beside the four the law names.
     fn duties(&self) -> &[Self::Word] {
         &[]
@@ -818,6 +823,20 @@ pub fn kind_of<'r, R: SeatRow + 'r>(
 /// - Over a self roster: an offer or unseat of a key, or of the roster's own seat, admits or removes a key.
 ///
 /// A moderator's lone removal is a removal by its shape; whether it is counted at all is the seat rule's.
+/// The row `r` cites ([`SeatRow::cites`]) that `pick` takes, the first in its order, among the rows `get` holds.
+fn cited<'r, R: SeatRow + 'r>(
+    r: &R,
+    get: &dyn Fn(&R::Id) -> Option<&'r R>,
+    pick: &dyn Fn(&R) -> bool,
+) -> Option<&'r R> {
+    r.cites().iter().filter_map(get).find(|q| pick(*q))
+}
+
+/// The act a lift cites: a duty holder's lone act, or a lone removal (an unseat).
+fn lifted<'r, R: SeatRow + 'r>(r: &R, get: &dyn Fn(&R::Id) -> Option<&'r R>) -> Option<&'r R> {
+    cited(r, get, &|q: &R| lone_act_duty(q.seat_kind()).is_some() || q.seat_kind() == SeatKind::Unseat)
+}
+
 pub fn act_of<'r, R: SeatRow + 'r>(
     law: &SeatLaw,
     get: &dyn Fn(&R::Id) -> Option<&'r R>,
@@ -840,13 +859,12 @@ pub fn act_of<'r, R: SeatRow + 'r>(
                 // the lift of a duty holder's lone act (quarantine, slash, takedown): an offer of scope `act` naming it
                 if offer
                     && sc == Some("act")
-                    && r.content()
-                        .and_then(get)
+                    && lifted(r, get)
                         .is_some_and(|c| lone_act_duty(c.seat_kind()).is_some() && c.obj().as_ref() == Some(&obj))
                 {
                     return Some((Act::Lift, ScopeClass::Act, kind));
                 }
-                let lift = r.content().and_then(get).is_some_and(|c| {
+                let lift = lifted(r, get).is_some_and(|c| {
                     c.seat_kind() == SeatKind::Unseat
                         && c.obj().as_ref() == Some(&obj)
                         && c.scope().map(|s| s.as_ref()) == sc
@@ -1428,7 +1446,10 @@ fn lone_act_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, 
                 return false;
             }
             if is(r.family_param(), &["release"]) {
-                let Some(w) = r.of().and_then(|i| p.get(i)) else { return false };
+                let withhold = |q: &R| {
+                    q.seat_kind() == SeatKind::Quarantine && q.family_param().is_some_and(|s| s.as_ref() == "withhold")
+                };
+                let Some(w) = cited(r, &|i: &R::Id| p.get(i), &withhold) else { return false };
                 if w.seat_kind() != SeatKind::Quarantine
                     || !is(w.family_param(), &["withhold"])
                     || w.target_key() != r.target_key()
@@ -1481,7 +1502,8 @@ fn lone_act_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, 
 /// changes in its past, naming a takedown notice in its past (CC 4.5.5).
 fn reconsideration_rule<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &SeatLaw, spec: &S) -> bool {
     let r = p.row();
-    let Some(t) = r.of().and_then(|i| p.get(i)) else { return false };
+    let takedown = |q: &R| q.seat_kind() == SeatKind::TakedownNotice;
+    let Some(t) = cited(r, &|i: &R::Id| p.get(i), &takedown) else { return false };
     let Some(obj) = t.obj() else { return false };
     // no act is reversed by its own target: the content's author never reconsiders its takedown
     if act_targets(t, &|i: &R::Id| p.get(i)).contains(r.signer()) {
@@ -1566,7 +1588,7 @@ pub fn act_in_force<R: SeatRow, S: CutSpec<R>>(
         let lifted: Vec<usize> = held(&|x: &R| {
             x.seat_kind() == SeatKind::Offer
                 && x.scope().is_some_and(|s| s.as_ref() == "act")
-                && x.content() == Some(act)
+                && x.cites().contains(act)
                 && x.conf() == Some(Conf::Group)
         });
         if !lifted.is_empty() {
@@ -1575,7 +1597,7 @@ pub fn act_in_force<R: SeatRow, S: CutSpec<R>>(
         if r.seat_kind() == SeatKind::TakedownNotice {
             let reversed: Vec<usize> = held(&|x: &R| {
                 x.seat_kind() == SeatKind::Reconsideration
-                    && x.of() == Some(act)
+                    && x.cites().contains(act)
                     && x.outcome().is_some_and(|o| o.as_ref() == "reversed")
             });
             if !reversed.is_empty() {
@@ -1592,7 +1614,7 @@ pub fn act_in_force<R: SeatRow, S: CutSpec<R>>(
                 let x = g.row(j);
                 x.seat_kind() == SeatKind::Quarantine
                     && x.family_param().is_some_and(|s| s.as_ref() == "release")
-                    && x.of() == Some(act)
+                    && x.cites().contains(act)
             })
             .collect();
         if releases.iter().any(|&j| act_in_force(c, law, spec, g.row(j).id(), own)) {
@@ -4839,7 +4861,7 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
     cache: Option<&MembersAt<R>>,
 ) -> Option<(R::Key, BTreeSet<R::Key>)> {
     let r = p.row();
-    let rem = p.get(r.content()?)?;
+    let rem = lifted(r, &|i: &R::Id| p.get(i))?;
     // the lift of a duty holder's lone act (quarantine, slash, takedown): an offer of scope `act` naming it
     let act_lift = r.seat_kind() == SeatKind::Offer
         && r.scope().is_some_and(|s| s.as_ref() == "act")
@@ -4882,7 +4904,7 @@ fn lift_base<R: SeatRow, S: CutSpec<R>>(
 ) -> BTreeSet<R::Key> {
     let r = p.row();
     let mut mem = persons_at_with(p, law, spec, obj, r.head(), "member", cache);
-    if let Some(rem) = r.content().and_then(|c| p.get(c)) {
+    if let Some(rem) = lifted(r, &|i: &R::Id| p.get(i)) {
         let at_rem = persons_at_with(p, law, spec, obj, rem.head(), "member", cache);
         mem.retain(|k| at_rem.contains(k));
     }

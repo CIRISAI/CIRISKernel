@@ -128,8 +128,10 @@ GI = ST.offer("g", "f1", ("f1", "f2", "f3"), "founder", "@", "self", cosigners=(
 def grp(i, kind, k, scope, policy, heads=("g",), obj=OBJ, **kw):
     mk = ST.offer if kind == "offer" else ST.unseat
     signer = kw.pop("signer", "A")
-    return mk(i, signer, k, scope, obj, "group", tuple(heads) + tuple(kw.pop("cites", ())), head=tuple(heads), policy=policy,
-              **kw)
+    c = tuple(kw.pop("cites", ()))
+    if c:
+        kw["cites"] = c                               # named, and cited (the wire's refs.also.cites)
+    return mk(i, signer, k, scope, obj, "group", tuple(heads) + c, head=tuple(heads), policy=policy, **kw)
 
 
 # a family (CC 3.3.4, 3.1.3.2, 4.5.12.5): founders by the founding record's roles (its `founder` entry), keyless
@@ -158,10 +160,10 @@ CASES = [
      ("remove", "member", "community")),
     ("a removal of an agent (a lone removal by its shape)", [GM, REM], "xr", ("remove", "agent", "community")),
     ("the lift: an offer naming a removal of the same seat", [GM, REM, grp("r", "offer", "X", "agent", "moderation_overturn",
-                                                                          cites=("xr",), content="xr")],
+                                                                          cites=("xr",))],
      "r", ("lift", "agent", "community")),
     ("an offer naming a removal of another key's seat is an admission", [GM, REM, grp("r", "offer", "Y", "agent", "community_invite",
-                                                                                        cites=("xr",), content="xr")],
+                                                                                        cites=("xr",))],
      "r", ("admit", "agent", "community")),
     ("the duty holders' conferral of moderate", [FH, grp("r", "offer", "B", "moderate", "duty_confer", counted="duty")], "r",
      ("duty_confer", "duty", "community")),

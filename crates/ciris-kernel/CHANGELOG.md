@@ -19,6 +19,12 @@
 - The lift at both heads (ported from the lift lane, 2f9b46f): counted over the members at both the act's head and
   the lift's, so members admitted after the act cannot carry it.
 
+**The Constitution's G21, G23, G24: a release, a reconsideration and a lift cite.** A quarantine release names its
+withhold, a reconsideration its takedown notice, and a lift the act it lifts (a lone act, or a lone removal) by
+`SeatRow::cites()` (new, default none: the wire's `refs.also.cites`), replacing the provisional `of()` for the first
+two and `content()` for a lift. A takedown notice still names its content row by `of()`, and a reconsideration keeps
+its `outcome`.
+
 **r81 B2 at the roster (the r87 attack): a lone conferral concurrent with the grown body's counted act is re-counted
 in Seats.** A lone holder's own conferral of a duty, concurrent with a counted act of conf `group` over the room by the
 grown body (or the acceptance completing one, or the countersign deciding one), is re-counted over its own past with

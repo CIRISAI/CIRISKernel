@@ -72,14 +72,14 @@ def act(i, kind, signer, heads=("g",), names=(), obj=OBJ, **kw):
 TDK = "takedown_notice:legal_order"
 TD = act("td", TDK, "p1", names=("c1",), of="c1")
 QW = act("qw", "quarantine:withhold", "p1", target="p3")
-QR = act("qr", "quarantine:release", "p1", names=("qw",), target="p3", of="qw")
+QR = act("qr", "quarantine:release", "p1", names=("qw",), target="p3", cites=("qw",))
 SP = act("sp", "slashing:proven_rogue", "p1", target="p3")
 SN = act("sn", "slashing:not_proven", "p1", target="p3")
 LAY = ST.withdraw("ld", "p1", "g", ("td",), scope="takedown")          # p1 lays its takedown duty down after td
 OB = lambda i, k, a="td": WN.answer(i, k, a, "object")
 LIFT = lambda objs, a="td": ST.offer("lf", "p2", (), "act", OBJ, "group", (a,) + tuple(objs) + ("g",), head=("g",),
-                                     content=a, policy="moderation_overturn", cosigners=())
-RC = lambda k, outcome="reversed", grounds="new_evidence": act("rc", "reconsideration:" + grounds, k, names=("td",), of="td",
+                                     cites=(a,), policy="moderation_overturn", cosigners=())
+RC = lambda k, outcome="reversed", grounds="new_evidence": act("rc", "reconsideration:" + grounds, k, names=("td",), cites=("td",),
                                                               outcome=outcome)
 
 # a one-officer affiliation a1: A its officer, B appointed (a member), O its designated official; B posts b1
@@ -102,7 +102,7 @@ A5 = ST.offer("a5", "p1", "p5", "member", OBJ, "group", ("g",), head=("g",), pol
               cosigners=("p2", "p3", "p5"))
 A6 = ST.offer("a6", "p1", "p6", "member", OBJ, "group", ("a5",), head=("a5",), policy="community_invite",
               cosigners=("p2", "p3", "p5", "p6"))
-LIFT6 = ST.offer("lf", "p2", (), "act", OBJ, "group", ("td", "o2", "o5", "o6", "a6"), head=("a6",), content="td",
+LIFT6 = ST.offer("lf", "p2", (), "act", OBJ, "group", ("td", "o2", "o5", "o6", "a6"), head=("a6",), cites=("td",),
                  policy="moderation_overturn")
 # (name, rows, {row: concludes}, {act: in force})
 CASES = [
@@ -153,10 +153,10 @@ CASES = [
     # ---- r75 ---------------------------------------------------------------------------------------------------------
     ("r75: the key withheld never releases its own withhold: p2 withholds p1, p1's release concludes nothing",
      W + [act("qw1", "quarantine:withhold", "p2", target="p1"),
-          act("qr1", "quarantine:release", "p1", names=("qw1",), target="p1", of="qw1")], {"qr1": F}, {"qw1": T}),
+          act("qr1", "quarantine:release", "p1", names=("qw1",), target="p1", cites=("qw1",))], {"qr1": F}, {"qw1": T}),
     ("r75: the author of the content never reconsiders its own takedown: p4 (review) posts c4, p1 takes it down, p4's "
      "reversal concludes nothing", W + [C4, act("td", TDK, "p1", names=("c4",), of="c4"),
-                                       act("rc", "reconsideration:new_evidence", "p4", names=("td",), of="td",
+                                       act("rc", "reconsideration:new_evidence", "p4", names=("td",), cites=("td",),
                                            outcome="reversed")], {"rc": F}, {"td": T}),
     ("r75: a takedown's content is the room's: p1 takes down c2, a row of another room, and concludes nothing",
      W + [G2, C2, act("td", TDK, "p1", names=("c2",), of="c2")], {"td": F}, {"td": F}),

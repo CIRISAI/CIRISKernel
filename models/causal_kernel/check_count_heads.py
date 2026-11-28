@@ -117,7 +117,7 @@ WMD = ST.withdraw("wd", "MOD", "md", ("an",))                 # MOD lays its `mo
 O1 = CK.row("o1", "answer", "m1", ("xl",), of="xl", says="object")
 O2 = CK.row("o2", "answer", "m2", ("xl",), of="xl", says="object")
 LIFT = lambda heads: ST.offer("lf", "m1", "AG", "agent", OBJ, "group", ("xl", "o1", "o2") + tuple(heads), head=tuple(heads),
-                              content="xl", policy="moderation_overturn", cosigners=("m2", "AG"))
+                              cites=("xl",), policy="moderation_overturn", cosigners=("m2", "AG"))
 
 
 def elect(i, k, heads, vac=("lm",)):

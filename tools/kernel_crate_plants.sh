@@ -606,6 +606,10 @@ plant "countersign_at_heads_unread: an officer decided at the heads is not read 
 plant "edge_countersign_unread: a one-officer affiliation's edge needs no countersign" src/trust_rows.rs '        if !countersigned(seats, i) {' '        if false {'
 plant "an edge's countersign is no countersign" src/seat.rs '        return kind_of(law, get, &b) == Some(CommunityKind::Affiliation);' '        return false;'
 plant "lone_regrowth_unread: a lone conferral concurrent with the grown body's act stands (r81 B2)" src/seat.rs '        if !regrown.is_empty() {' '        if false {'
+plant "a reconsideration citing the takedown is not read (G23)" src/seat.rs '                x.seat_kind() == SeatKind::Reconsideration
+                    && x.cites().contains(act)' '                x.seat_kind() == SeatKind::Reconsideration
+                    && false'
+plant "a lift's cited act is not read (G24)" src/seat.rs '    cited(r, get, &|q: &R| lone_act_duty(q.seat_kind()).is_some() || q.seat_kind() == SeatKind::Unseat)' '    cited(r, get, &|_q: &R| false)'
 plant "root_seat_stored: a lapsed root seat held from its conclusion" src/seat.rs '            if o.conf() == Some(Conf::Root) && !o.obj().is_some_and(|ob| root_seat(spec, o, &ob)) {' '            if false && o.conf() == Some(Conf::Root) {'
 plant "founder_raw_head: is_founder read at the heads the row states" src/seat.rs '    let heads: Vec<R::Id> = {
         let room = room_in(&p, obj);' '    let heads: Vec<R::Id> = if !p.row().head().is_empty() {

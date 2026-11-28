@@ -322,6 +322,7 @@ pub struct TRow {
     pub of: Option<String>,
     pub target: Option<String>,
     pub content: Option<String>,
+    pub cites: Vec<String>,
     pub under: Option<String>,
     pub window: Option<String>,
     pub says: Option<String>,
@@ -442,6 +443,7 @@ impl TRow {
             of: opt(&m, "of"),
             target: if m.get("target").is_some_and(|t| matches!(t, J::Str(_))) { opt(&m, "target") } else { None },
             content: opt(&m, "content"),
+            cites: strs(&m, "cites"),
             under: opt(&m, "under"),
             window: opt(&m, "window"),
             says: if m.get("says").is_some_and(|t| matches!(t, J::Str(_))) { opt(&m, "says") } else { None },
@@ -622,6 +624,9 @@ impl SeatRow for TRow {
     }
     fn of(&self) -> Option<&String> {
         self.of.as_ref()
+    }
+    fn cites(&self) -> &[String] {
+        &self.cites
     }
     fn target(&self) -> Option<&String> {
         self.target.as_ref()
