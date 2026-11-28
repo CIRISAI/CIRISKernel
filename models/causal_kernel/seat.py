@@ -2799,6 +2799,22 @@ def reconsideration_rule(r, P, past):
     return r["signer"] in members_at(P, past, obj, heads, "review")
 
 
+def end_never_revived(S, r, scope, counts):
+    """THE end reading, as key ends and withdrawals read it: an end, once in a row's past, is never revived, and an
+    end concurrent with a row cuts it (rule 4). For an act that is itself an END (a release, its withhold's end):
+    whether an end of its author's `scope` seat over its room (ends_of: a lay-down, an unseat, the end of its stay)
+    that counts is concurrent with r, neither in the other's past, and so cuts it. An end in r's past left r's author
+    no standing to make it (the act's own rule refuses it); an end with r in its past cuts nothing (MUTATION
+    release_concurrent_kept: no concurrent end read)."""
+    if "release_concurrent_kept" in MUT: return False
+    obj, k = r.get("obj"), r["signer"]
+    for e in S.Cs:
+        if e["id"] == r["id"] or e["id"] in S.anc[r["id"]] or r["id"] in S.anc[e["id"]] or not counts(e): continue
+        if any(kk == k and ob == obj and (sc is None or sc == scope or sc in ROSTER_SEATS) for kk, sc, ob in ends_of(e, S.by)):
+            return True
+    return False
+
+
 def act_in_force(S, act, own=None):
     """Whether act `act` (a quarantine marker, a slashing verdict or a takedown notice; or any counted row) is in force
     for the reader holding S (`own`: its key, for its line). A lone act of a community: concluded, and in force by the
@@ -2824,12 +2840,16 @@ def act_in_force(S, act, own=None):
             return False
     else:
         unseats = [u for u in S.Cs if u["kind"] == "unseat" and Q.cut.counts(u) and u["id"] not in Q.stale]
-        # a release supersedes its withhold and is no standing act: it stays in force on its own head whatever becomes
-        # of its author's standing after (review-58 on da015c0: else the withhold comes back once its withholder, the
-        # only key that may release it, lays slash down). MUTATION release_end_read: the end rule reads the release too
+        # a release is an END of its withhold (it supersedes it), not a standing act: it is read by the one end reading
+        # (end_never_revived), not by the E rules a standing lone act is read by (live standing, or a receipt). So it
+        # stands where its author's end has it in its past, and an end concurrent with it cuts it (rule 4). MUTATION
+        # release_end_read: the E rules read the release too (review-58's n1: the withhold comes back)
         standing = r["kind"] != "quarantine:release" or "release_end_read" in MUT
         if standing and "lone_act_end_unread" not in MUT and not removal_in_force(
                 S, r, unseats, Seats(S, own=own, roster=False), scope=LONE_ACTS[family(r)]):
+            return False
+        counts = lambda e: Q.cut.counts(e) and e["id"] not in Q.stale
+        if not standing and end_never_revived(S, r, LONE_ACTS[family(r)], counts):
             return False
         lifted = held("offer", lambda q: q.get("scope") == "act" and the_cite(q) == act and q.get("conf") == "group")
         if lifted and "lone_act_lift_unread" not in MUT: return False

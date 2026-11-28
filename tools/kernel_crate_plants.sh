@@ -600,7 +600,7 @@ plant "affiliation_body_members: an affiliation's protocol counted over its memb
 plant "no_officer_locks: an affiliation with no officer keeps its seats" src/seat.rs '        if !ended.is_empty() {' '        if false && !ended.is_empty() {'
 plant "lone_act_counted: any member's lone act concludes" src/seat.rs '        && members_at_with(p, law, spec, &obj, heads, duty, None).contains(r.signer())' '        && members_at_with(p, law, spec, &obj, heads, "member", None).contains(r.signer())'
 plant "lone_act_cosigned: a cosigned lone act concludes" src/seat.rs '        && signers(r).len() == 1' '        && !signers(r).is_empty()'
-plant "lone_act_end_unread: a lone act outlives its signer's standing" src/seat.rs '            && !removal_in_force(c, i, law, spec, &by, &unseats, &now, &cache, &BTreeSet::new(), &BTreeSet::new(), duty)' '            && false'
+plant "lone_act_end_unread: a lone act outlives its signer's standing" src/seat.rs '        } else if !removal_in_force(' '        } else if false && !removal_in_force('
 plant "lone_act_lift_unread: the members' lift of a lone act not read" src/seat.rs '        if !lifted.is_empty() {' '        if false && !lifted.is_empty() {'
 plant "reconsideration_unread: a reversal keeps the takedown" src/seat.rs '            if !reversed.is_empty() {' '            if false && !reversed.is_empty() {'
 plant "release_unread: a release naming a withhold lifts nothing" src/seat.rs '        if releases.iter().any(|&j| act_in_force(c, law, spec, g.row(j).id(), own)) {' '        if false && releases.iter().any(|&j| act_in_force(c, law, spec, g.row(j).id(), own)) {'
@@ -652,8 +652,10 @@ plant "a lift's cited act is not read (G24)" src/seat.rs '    cited(r, get, &|q:
 plant "an outside voice on a one-officer act that is no countersigner is taken (G15)" src/seat.rs '        return vs.iter().all(|k| officer_key(&pp, &seats, k) || cs.contains(k));' '        return true;'
 plant "first_cite: a row citing several reads its first (r98)" src/seat.rs '        [one] => Some(one),' '        [one, ..] => Some(one),'
 plant "officers_by_key: two keys of one person are two officers" src/seat.rs '    officers(p, law, spec, &obj).base(&seats).len() == 1' '    seats.len() == 1'
-plant "release_end_read: a release falls with its author's standing" src/seat.rs '        if !release
-            && !removal_in_force' '        if !removal_in_force'
+plant "release_end_read: a release falls with its author's standing" src/seat.rs '        if release {
+            if end_never_revived(c, &by, i, duty, &counts) {' '        if false {
+            if end_never_revived(c, &by, i, duty, &counts) {'
+plant "release_concurrent_kept: an end concurrent with a release does not cut it" src/seat.rs 'k == r.signer() && ob == obj && sc.is_none_or(|s| s == scope || roster_word(s))' 'false && k == r.signer() && ob == obj && sc.is_none_or(|s| s == scope || roster_word(s))'
 plant "root_seat_stored: a lapsed root seat held from its conclusion" src/seat.rs '            if o.conf() == Some(Conf::Root) && !o.obj().is_some_and(|ob| root_seat(spec, o, &ob)) {' '            if false && o.conf() == Some(Conf::Root) {'
 plant "founder_raw_head: is_founder read at the heads the row states" src/seat.rs '    let heads: Vec<R::Id> = {
         let room = room_in(&p, obj);' '    let heads: Vec<R::Id> = if !p.row().head().is_empty() {

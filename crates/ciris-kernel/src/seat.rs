@@ -1432,6 +1432,31 @@ pub fn lone_act_duty(k: SeatKind) -> Option<&'static str> {
     }
 }
 
+/// THE end reading, as key ends and withdrawals read it: an end, once in a row's past, is never revived, and an end
+/// concurrent with a row cuts it (rule 4). For an act that is itself an END (a release, its withhold's end): whether
+/// an end of its author's `scope` seat over its room ([`ends_of`]: a lay-down, an unseat, the end of its stay) that
+/// `counts` is concurrent with row `i`, neither in the other's past, and so cuts it. An end in its past left its
+/// author no standing to make it (the act's own rule refuses it); an end with it in its past cuts nothing.
+fn end_never_revived<R: SeatRow>(
+    c: &Concluded<'_, R>,
+    by: &BTreeMap<&R::Id, &R>,
+    i: usize,
+    scope: &str,
+    counts: &dyn Fn(usize) -> bool,
+) -> bool {
+    let g = &c.g;
+    let r = g.row(i);
+    let obj = r.obj();
+    c.cs().iter().copied().any(|e| {
+        if e == i || g.in_past(e, i) || g.in_past(i, e) || !counts(e) {
+            return false;
+        }
+        ends_of(by, g.row(e))
+            .into_iter()
+            .any(|(k, sc, ob)| k == r.signer() && ob == obj && sc.is_none_or(|s| s == scope || roster_word(s)))
+    })
+}
+
 /// The key a quarantine marker or a slashing verdict is about ([`SeatRow::target_key`]); for a release, its
 /// withhold's (a release names its withhold by [`SeatRow::target`], not a key).
 fn marker_key<'r, R: SeatRow + 'r>(r: &R, get: &dyn Fn(&R::Id) -> Option<&'r R>) -> Option<R::Key> {
@@ -1600,13 +1625,28 @@ pub fn act_in_force<R: SeatRow, S: CutSpec<R>>(
             .collect();
         let cache = MembersAt::<R>::default();
         let now = Seats::build(c, law, spec, own, None, Some(&cache));
-        // a release supersedes its withhold and is no standing act: it stays in force on its own head whatever becomes
-        // of its author's standing after
+        // a release is an END of its withhold (it supersedes it), not a standing act: it is read by the one end
+        // reading ([`end_never_revived`]), not by the E rules a standing lone act is read by (live standing, or a
+        // receipt): it stands where its author's end has it in its past, and an end concurrent with it cuts it
         let release =
             r.seat_kind() == SeatKind::Quarantine && r.family_param().is_some_and(|s| s.as_ref() == "release");
-        if !release
-            && !removal_in_force(c, i, law, spec, &by, &unseats, &now, &cache, &BTreeSet::new(), &BTreeSet::new(), duty)
-        {
+        if release {
+            if end_never_revived(c, &by, i, duty, &counts) {
+                return false;
+            }
+        } else if !removal_in_force(
+            c,
+            i,
+            law,
+            spec,
+            &by,
+            &unseats,
+            &now,
+            &cache,
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+            duty,
+        ) {
             return false;
         }
         let lifted: Vec<usize> = held(&|x: &R| {
