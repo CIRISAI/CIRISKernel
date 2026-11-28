@@ -90,7 +90,7 @@ a signature is part of the row and is not withdrawn, so no member's later row lo
 **Kill.** A relation that stands while a voice it binds has signed nothing; a member removed by one key's rows
 where the count asks two or more; a reader whose conclusions change because of rows by keys not on its walk.
 Push on the gap between the proofs and the tables: the parent records that what a family confers is stated for
-161 of 184 families, and 23 confer nothing a sentence states (MEASURED, [`kernel/KERNEL.md`](kernel/KERNEL.md)
+163 of 189 families, and 26 confer nothing a sentence states (MEASURED, [`kernel/KERNEL.md`](kernel/KERNEL.md)
 section 5). The model's reading that an acceptance is spent once its key has left is the model's, not the text's.
 
 ## Move 3. Finality has three kinds, and the kernel says which

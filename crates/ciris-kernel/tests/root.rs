@@ -26,6 +26,7 @@ struct TB {
     recovery: Vec<(String, String)>,
     recovers: Option<(String, String)>,
     stmts: Vec<(String, u64)>,
+    settles: Option<String>,
 }
 
 impl RootBundle for TB {
@@ -65,6 +66,9 @@ impl RootBundle for TB {
     fn recovery(&self) -> &[(String, String)] {
         &self.recovery
     }
+    fn settles(&self) -> Option<&String> {
+        self.settles.as_ref()
+    }
     fn recovers(&self) -> Option<(&String, &String)> {
         self.recovers.as_ref().map(|(a, b)| (a, b))
     }
@@ -81,6 +85,7 @@ struct TG {
     id: String,
     names: Vec<String>,
     grant: bool,
+    halt: bool,
     head: Option<String>,
     of: Option<String>,
     bundles: Vec<String>,
@@ -109,6 +114,9 @@ impl RootGrant for TG {
     type Word = String;
     fn is_grant(&self) -> bool {
         self.grant
+    }
+    fn halts(&self) -> bool {
+        self.halt
     }
     fn attached_head(&self) -> Option<&String> {
         self.head.as_ref()
@@ -156,6 +164,7 @@ fn bundles(j: &J) -> Vec<TB> {
             recovery: b.at("recovery").arr().iter().map(pair).collect(),
             recovers: b.get("recovers").filter(|x| !x.is_null()).map(pair),
             stmts: b.at("stmts").arr().iter().map(|s| (s.arr()[0].s().to_string(), s.arr()[1].i() as u64)).collect(),
+            settles: b.get("settles").and_then(|x| x.opt_s()),
         })
         .collect()
 }
@@ -169,6 +178,7 @@ fn grants(j: &J) -> Vec<TG> {
             id: g.at("id").s().into(),
             names: ss(g, "names"),
             grant: g.at("kind").s() == "grant",
+            halt: g.at("kind").s() == "halt",
             head: g.get("head").and_then(|h| h.opt_s()),
             of: g.get("of").and_then(|h| h.opt_s()),
             bundles: ss(g, "bundles"),
@@ -186,6 +196,10 @@ fn reader(j: &J) -> Reader<String, String> {
         anchor: j.get("anchor").and_then(|a| a.opt_s()),
         thumbs: j.get("thumbs").filter(|t| !t.is_null()).map(|t| t.str_set()),
         acks: j.at("acks").strs(),
+        after: j
+            .get("after")
+            .filter(|a| !a.is_null())
+            .map(|a| a.arr().iter().map(|x| x.arr().iter().map(|i| i.i() as usize).collect()).collect()),
     }
 }
 
@@ -223,6 +237,13 @@ fn root_replay() {
         if sorted(root.void()) != c.at("void").strs() {
             fail("void", format!("{:?}", root.void()));
         }
+        if let Some(rs) = c.get("void_reasons") {
+            for (i, want) in rs.obj() {
+                if root.void_reason(i).map(String::from) != want.opt_s() {
+                    fail(&format!("void reason {i}"), format!("{:?}", root.void_reason(i)));
+                }
+            }
+        }
         let heads = root.heads(&rd);
         let want_heads = c.get("heads").filter(|h| !h.is_null()).map(|h| h.strs());
         if heads.clone().map(sorted) != want_heads {
@@ -242,6 +263,16 @@ fn root_replay() {
             let want: Result<(), String> = if w[0].b() { Ok(()) } else { Err(w[1].s().to_string()) };
             if got.map_err(String::from) != want {
                 fail(&format!("grant {g}"), format!("{got:?}"));
+            }
+        }
+        if let Some(hx) = c.get("halt") {
+            for (h, want) in hx.obj() {
+                let got = root.halt_in_force(h, &rd);
+                let w = want.arr();
+                let want: Result<(), String> = if w[0].b() { Ok(()) } else { Err(w[1].s().to_string()) };
+                if got.map_err(String::from) != want {
+                    fail(&format!("halt {h}"), format!("{got:?}"));
+                }
             }
         }
         for (g, want) in c.at("row").obj() {
@@ -336,6 +367,86 @@ fn stalled_recovery_replay() {
         }
     }
     report("stalled recovery against the trust root, against check_root.py", cases, bad);
+    assert_eq!(bad, 0);
+}
+
+/// Re-asking on the row a wait names (`check_root.py`'s WAITS, ADOPTING.md "Re-asking"): each case's fold rows and
+/// root rows arrive in the model's orders. After each arrival the row asked is not offered, or waits in a [`Held`]
+/// lacking exactly the ids [`Held::lacks`] names, or is kept and answered by `seat::seat_rule_why` against the root
+/// of the rows held: true, false, or a wait naming the row it needs. Every answer equals the model's.
+#[test]
+fn waits_replay() {
+    use ciris_kernel::held::{Held, Rules};
+    use ciris_kernel::seat::seat_rule_why;
+    use ciris_kernel::Wait;
+    let fx = fixture("root.json");
+    let law = law_of(fixture("seat.json").at("law"));
+    let (mut cases, mut bad) = (0, 0);
+    for c in fx.at("waits").arr() {
+        let refs: BTreeMap<String, String> =
+            c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rows = rows_with_refs(c.at("rows").arr(), &refs);
+        let items = c.at("items").arr();
+        let rid = c.at("row").s();
+        let rd = c.get("reader").filter(|r| !r.is_null()).map(reader);
+        for o in c.at("orders").arr() {
+            let order: Vec<usize> = o.at("order").arr().iter().map(|i| i.i() as usize).collect();
+            let trace = o.at("trace").arr();
+            let mut held = Held::empty(Rules { wf: |_: &TRow| true, rule: |_: &Past<'_, '_, TRow>| true });
+            for (k, want) in trace.iter().enumerate() {
+                let now: Vec<&J> = order[..=k].iter().map(|&i| &items[i]).collect();
+                if let Some(ix) = items[order[k]].get("row") {
+                    let _ = held.admit(&rows[ix.i() as usize]);
+                }
+                let fold: Vec<&TRow> =
+                    now.iter().filter_map(|it| it.get("row")).map(|ix| &rows[ix.i() as usize]).collect();
+                let got = if !fold.iter().any(|r| r.id == rid) {
+                    J::Null
+                } else if held.waits(&rid.to_string()) {
+                    let mut m = BTreeMap::new();
+                    m.insert(
+                        "lacks".to_string(),
+                        J::Arr(held.lacks(&rid.to_string()).into_iter().map(J::Str).collect()),
+                    );
+                    J::Obj(m)
+                } else {
+                    let bs: Vec<TB> = bundles(&J::Arr(now.iter().filter_map(|it| it.get("bundle")).cloned().collect()));
+                    let gs: Vec<TG> = grants(&J::Arr(now.iter().filter_map(|it| it.get("grant")).cloned().collect()));
+                    let revs: Vec<Revocation<String, String>> = Vec::new();
+                    let identity = |k: &String| {
+                        let ids: Vec<String> =
+                            gs.iter().find(|g| &g.to == k).map(|g| g.identity.clone()).unwrap_or_default();
+                        Identity { user: ids.iter().any(|i| i == "user"), node: ids.iter().any(|i| i == "node") }
+                    };
+                    let root = Root::new(&bs, &revs, &gs);
+                    let view = rd.clone().map(|reader| RootReading { root: &root, reader, identity: &identity });
+                    let on = c.at("root").b();
+                    let spec = RootCut(
+                        view.as_ref().filter(|_| on).map(|v| v as &dyn RootView<String, String, Obj<String, String>>),
+                    );
+                    let ks: Vec<&TRow> = held.concluded().g.rows().to_vec();
+                    let cc = conclude(ks, |p| seat_rule(p, &law, &spec, &|_| true), None);
+                    let i = cc.g.rows().iter().position(|r| r.id == rid).expect("the row asked is kept");
+                    let anc: Vec<usize> = cc.cs().iter().copied().filter(|&q| cc.g.in_past(q, i)).collect();
+                    match seat_rule_why(&Past::new(&cc.g, i, &anc), &law, &spec, &|_| true) {
+                        Ok(b) => J::Bool(b),
+                        Err(Wait(x)) => {
+                            let mut m = BTreeMap::new();
+                            m.insert("waits".to_string(), J::Str(x));
+                            J::Obj(m)
+                        }
+                    }
+                };
+                cases += 1;
+                if &got != want {
+                    bad += 1;
+                    eprintln!("waits {} order {order:?} after {}: got {got:?}, want {want:?}", c.at("name").s(), k + 1);
+                }
+            }
+        }
+    }
+    report("waits on a named row, in the model's arrival orders, against check_root.py", cases, bad);
+    assert!(cases > 0);
     assert_eq!(bad, 0);
 }
 

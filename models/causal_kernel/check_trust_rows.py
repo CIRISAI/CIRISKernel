@@ -569,9 +569,11 @@ _GLO_CD = ST.offer("glo", "C", ("X",), "license", "g", "group", ("g",), head=("g
 _CB = CK.row("cb", "cosign", "B", ("g",), of="cx")                 # B's cosign row for the conferral's content
 _GLO_CS = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g", "cb"), head=("g",), counted="duty", content="cx")
 CASES += [
+    # the licence names both removals: rule 5 is read over its own past too (with u1 alone there, A and B's removal
+    # of C is uncontested and concurrent with C's conferral, so C's voice is discounted at issuance)
     ("DRY a removal rule 5 holds contested out ends nothing: C's conferral beside it stands",
-     [_G4, _U_C, _U_A, _GLO_CD, GLA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("gla", "u1")}], "RD", "l",
-     None, OK),
+     [_G4, _U_C, _U_A, _GLO_CD, GLA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("gla", "u1", "u2")}],
+     "RD", "l", None, OK),
     ("DRY a voice given by a cosign row is a voice the end discounts: B resigns, A alone of three, cut",
      [_G3, _CB, _GLO_CS, GLA, _RC_B, A("e", "RD", "g"), _X], "RD", "l", None, LW),
     ("DRY and with no resignation the cosign row's voice makes A and B two of three",
@@ -583,9 +585,16 @@ _GLO_4 = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g"
 _U_AB = dict(ST.unseat("u12", "C", "A", "moderate", "g", "group", ("g",), head=("g",), cosigners=("D",),
                        counted="duty", policy="duty_withdraw"),
              to=("A", "B"), cuts=ST._slots(("A", "B"), "moderate", "g"))   # C and D remove A's and B's duty in one row
+_U_A1 = ST.unseat("u1", "C", "A", "moderate", "g", "group", ("g",), head=("g",), cosigners=("D",), counted="duty",
+                  policy="duty_withdraw")                          # C and D remove A's duty
+_U_B1 = ST.unseat("u2", "C", "B", "moderate", "g", "group", ("g",), head=("g",), cosigners=("D",), counted="duty",
+                  policy="duty_withdraw")                          # and B's, in a row of its own
 CASES += [
-    ("review-53 D1 one unseat removing two voices of a counted row discounts both: C and D are two of four, cut",
-     [_G4, _GLO_4, GLA, _U_AB, A("e", "RD", "g"), _X], "RD", "l", None, LW),
+    # one target per counted end (ruled): a removal naming two keys concludes nothing, so it ends neither
+    ("review-53 D1 one unseat naming two voices of a counted row is no counted end: it concludes nothing, the licence "
+     "stands", [_G4, _GLO_4, GLA, _U_AB, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("review-53 D1 two one-target removals of two voices of a counted row discount both: C and D are two of four, cut",
+     [_G4, _GLO_4, GLA, _U_A1, _U_B1, A("e", "RD", "g"), _X], "RD", "l", None, LW),
 ]
 
 NOW = {"an edge whose term has ended at the caller's instant (150)": 150,

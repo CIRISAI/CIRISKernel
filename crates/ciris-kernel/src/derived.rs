@@ -171,11 +171,13 @@ pub fn tally<R: Row, C: Ord>(
     by.values().filter(|rs| ops::one(rs.iter().map(|r| choice(r))).as_ref() == Some(want)).count()
 }
 
-/// The fold default of CC 3.5.1 (KERNEL.md section 4: one voice may order its own rows). Among the rows of
-/// `rows` that name a target, grouped by signer and target, the winner is the row of the highest kind
-/// (`recants` over `withdraws` over `supersedes`, as `rank` gives it), then the latest of that signer's own
-/// signed instants, then the lowest row id. Each signer's chain is read on its own: rows of different signers
-/// are never ranked against each other. Returns the winner for each (signer, target).
+/// The fold default of CC 3.5.1 (KERNEL.md section 4: one voice may order its own rows), **causal first** (the
+/// Constitution on CC 3.5.1, with CC 3.3.7: a row with an earlier row in its past is later, whatever either
+/// states). Among the rows of `rows` that name a target, grouped by signer and target, the winner is of the highest
+/// kind (`recants` over `withdraws` over `supersedes`, as `rank` gives it); of the rows of that kind, those no other
+/// of them has in its causal past; of those (concurrent), the latest of that signer's own signed instants, then
+/// the lowest row id. Each signer's chain is read on its own: rows of different signers are never ranked against
+/// each other. Returns the winner for each (signer, target).
 pub fn fold_default<R: Row, N: Ord + Clone, T: Ord>(
     c: &Concluded<'_, R>,
     rows: &[usize],
@@ -183,20 +185,23 @@ pub fn fold_default<R: Row, N: Ord + Clone, T: Ord>(
     rank: impl Fn(&R) -> u8,
     at: impl Fn(&R) -> T,
 ) -> BTreeMap<(R::Key, N), usize> {
-    let mut out: BTreeMap<(R::Key, N), usize> = BTreeMap::new();
+    let mut groups: BTreeMap<(R::Key, N), Vec<usize>> = BTreeMap::new();
     for &i in rows {
         let r = c.g.row(i);
         let Some(t) = target(r) else { continue };
         let key = (r.signer().clone(), t);
-        let better = match out.get(&key) {
-            None => true,
-            Some(&j) => {
-                let q = c.g.row(j);
-                (rank(r), at(r), core::cmp::Reverse(r.id())) > (rank(q), at(q), core::cmp::Reverse(q.id()))
-            }
-        };
-        if better {
-            out.insert(key, i);
+        groups.entry(key).or_default().push(i);
+    }
+    let mut out: BTreeMap<(R::Key, N), usize> = BTreeMap::new();
+    for (key, g) in groups {
+        let top = g.iter().map(|&i| rank(c.g.row(i))).max();
+        let g: Vec<usize> = g.into_iter().filter(|&i| Some(rank(c.g.row(i))) == top).collect();
+        let w = g.iter().copied().filter(|&i| !g.iter().any(|&j| j != i && c.g.in_past(i, j))).max_by(|&a, &b| {
+            let (x, y) = (c.g.row(a), c.g.row(b));
+            (at(x), core::cmp::Reverse(x.id())).cmp(&(at(y), core::cmp::Reverse(y.id())))
+        });
+        if let Some(w) = w {
+            out.insert(key, w);
         }
     }
     out

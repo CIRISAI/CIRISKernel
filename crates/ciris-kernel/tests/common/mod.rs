@@ -288,6 +288,10 @@ pub struct TRow {
     pub duties: Vec<String>,
     /// A founding record's `duty_holders`: (duty, keys) pairs.
     pub duty_holders: Vec<(String, Vec<String>)>,
+    /// A roster merge's `duty_seats`: (duty, keys) pairs.
+    pub merge_duties: Vec<(String, Vec<String>)>,
+    /// A roster merge's `members`.
+    pub merge_members: Vec<String>,
     /// A record's `weights` (a weighted protocol's): (key, whole-number weight) pairs.
     pub weights: Vec<(String, u64)>,
     /// A community's record: its `licence_classes`, (class, legal_weight) pairs, where the row states them.
@@ -316,6 +320,7 @@ pub struct TRow {
     pub authority: Option<Obj<String, String>>,
     pub licence_class: Option<String>,
     pub bundle: Option<String>,
+    pub group_id: Option<String>,
     pub role: Option<String>,
     pub admission_quorum_basis: Option<String>,
     pub counted: Option<String>,
@@ -402,6 +407,12 @@ impl TRow {
                 .get("duty_holders")
                 .map(|x| x.arr().iter().map(|e| (e.arr()[0].s().to_string(), e.arr()[1].strs())).collect())
                 .unwrap_or_default(),
+            merge_members: strs(&m, "members"),
+            merge_duties: m
+                .get("duty_seats")
+                .filter(|x| matches!(x, J::Arr(_)))
+                .map(|x| x.arr().iter().map(|e| (e.arr()[0].s().to_string(), e.arr()[1].strs())).collect())
+                .unwrap_or_default(),
             weights: m
                 .get("weights")
                 .filter(|x| matches!(x, J::Arr(_)))
@@ -437,6 +448,7 @@ impl TRow {
             authority: ol("authority"),
             licence_class: opt(&m, "licence_class"),
             bundle: opt(&m, "bundle"),
+            group_id: opt(&m, "group_id"),
             role: opt(&m, "role"),
             admission_quorum_basis: opt(&m, "admission_quorum_basis"),
             counted: opt(&m, "counted"),
@@ -544,6 +556,12 @@ impl SeatRow for TRow {
     fn under(&self) -> Option<&String> {
         self.under.as_ref()
     }
+    fn rotates(&self) -> Option<(&String, &String)> {
+        match (self.kind.as_str(), self.m.get("succ_of"), self.m.get("key")) {
+            ("rec", Some(J::Str(old)), Some(J::Str(new))) => Some((old, new)),
+            _ => None,
+        }
+    }
     fn cosigners(&self) -> &[String] {
         &self.cosigners
     }
@@ -599,6 +617,9 @@ impl SeatRow for TRow {
     fn bundle(&self) -> Option<&String> {
         self.bundle.as_ref()
     }
+    fn group_id(&self) -> Option<&String> {
+        self.group_id.as_ref()
+    }
     fn role(&self) -> Option<&String> {
         self.role.as_ref()
     }
@@ -643,6 +664,15 @@ impl SeatRow for TRow {
     }
     fn duty_holders(&self) -> &[(String, Vec<String>)] {
         &self.duty_holders
+    }
+    fn merge(&self) -> bool {
+        self.m.get("merge").is_some_and(|x| matches!(x, J::Bool(true)))
+    }
+    fn merge_duties(&self) -> &[(String, Vec<String>)] {
+        &self.merge_duties
+    }
+    fn merge_members(&self) -> &[String] {
+        &self.merge_members
     }
     fn options(&self) -> &[String] {
         &self.options
@@ -733,6 +763,8 @@ impl WindowRow for TRow {
             {
                 Some(WinKind::Open)
             }
+            // an offer that names a window opens it too (a stalled room's recovery widening, in the bound path's wait)
+            "offer" if self.window.is_some() => Some(WinKind::Open),
             "answer" => Some(WinKind::Answer),
             "receipt" => Some(WinKind::Receipt),
             "landing" => Some(WinKind::Landing),
@@ -748,6 +780,10 @@ impl WindowRow for TRow {
         } else {
             None
         }
+    }
+    fn proposes(&self) -> Option<(ciris_kernel::seat::Act, ciris_kernel::seat::ScopeClass)> {
+        let a = self.m.get("proposes")?.arr();
+        Some((ciris_kernel::seat::Act::from_word(a[0].s())?, ciris_kernel::seat::ScopeClass::from_word(a[1].s())?))
     }
     fn says(&self) -> Option<&String> {
         self.says.as_ref()
@@ -784,6 +820,15 @@ impl KeyEndRow for TRow {
             "att" | "edge" => Some((self.fi("at").unwrap(), self.cover())),
             _ => None,
         }
+    }
+    fn instant(&self) -> Option<i64> {
+        self.fi("at")
+    }
+    fn roster_end(&self) -> Option<&String> {
+        (self.kind == "unseat" && self.to.len() == 1).then(|| &self.to[0])
+    }
+    fn cosigned_by(&self) -> &[String] {
+        &self.cosigners
     }
     fn revocation(&self) -> Option<(&String, i64)> {
         if self.kind == "revoke" {
@@ -886,7 +931,6 @@ pub fn law_of(j: &J) -> SeatLaw {
         final_scopes: j.at("final").strs(),
         roster_seats: j.at("roster_seats").strs(),
         depth: j.at("depth").i() as usize,
-        community_floor: j.get("community_floor").map_or(0, |x| x.i() as usize),
         removal_floor: j.get("removal_floor").map_or(0, |x| x.i() as usize),
         ..Default::default()
     };
@@ -916,7 +960,6 @@ pub fn law_of(j: &J) -> SeatLaw {
             "duty" if k == "duty_confer" => Policy::DutyConfer,
             "duty" if k == "duty_withdraw" => Policy::DutyWithdraw,
             "lift" => Policy::Lift,
-            "self_admit" => Policy::SelfAdmit,
             _ => Policy::NotACount,
         };
         law.policy.insert(k.clone(), p);

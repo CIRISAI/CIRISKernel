@@ -198,7 +198,7 @@ PROPS = [
     ("P2 a key whose holder signs nothing more ends at most the ceiling after the last record it signed", "the door, read from the record alone", "no_ceiling", p_ceiling),
     ("P3a compacting the lapsed rows changes no answer at that instant or later (a record not yet begun is kept)", "retained = rows of keys not ended and their past", "seed_live_only", p_compact),
     ("P3b compacting keeps a dead key's row that a live row names", "the closure over what rows name", "drop_dead_signers", p_compact),
-    ("P3c a lapsed row counts in no derived answer, so dropping it moves none", "score over rows that have not lapsed", "score_reads_lapsed", p_compact),
+    ("P3c compacting to stubs moves no answer: a row a count reads keeps its stub for good (names, read fields, conclusion), and only its bytes may drop", "score by the end rule (counts); retained = stubs, bytes_retained = bytes", "score_reads_lapsed", p_compact),
     ("P4 a row's conclusion never reads now: signed while live, concluded for good", "the concluded layer", "conclude_reads_now", p_history),
     ("P5a two concurrent rotations of one key name no successor (both or neither)", "the frontier of rotations", "rank_successor", p_rotation_fork),
     ("P5b a rotation without the old key's signature is not kept", "the door", "rotation_one_sig", p_rotation_sigs),
@@ -433,8 +433,8 @@ def k6():
     f = lambda S: (KE.ended(S, "H", 1), frozenset(KE.retained(S, 1)))
     (e, ret), agree = every_order(rows, f)
     return ("HOLDS", "nobody",
-            "the end is read from the record against now, so every node holding the rows reads the harness ended at one instant (within the 5-minute skew of CC 2.6.7); its rows lapse alike, except a row a live row names, which is kept with its record",
-            [("the harness key ends at its stated end", e), ("its unnamed row lapses", "h2" not in ret),
+            "the end is read from the record against now, so every node holding the rows reads the harness ended at one instant (within the 5-minute skew of CC 2.6.7); a row it signed inside its record is the holder's word and counts by the end rule (key_end.counts), so its stub is kept for good, named or not, and its bytes drop unless a live row names it",
+            [("the harness key ends at its stated end", e), ("its unnamed row, signed inside its record, keeps its stub (a count reads it)", "h2" in ret),
              ("its row a live row names is kept, with its record", {"h1", "pH"} <= ret), ("every arrival order agrees", agree)])
 
 
@@ -498,6 +498,96 @@ def k11():
              ("a record whose end is its own instant is not kept", all(r["id"] != "pD" for r in eq.rows))])
 
 
+@attack("K12 an ended key's late vote, cited by a friendly member's live row (the count reads the end rule, never the cite)")
+def k12():
+    base = [pX, rec("pK", "K", 0, 9), rec("pF", "F", 0, 9)]
+    cite = lambda i, n, t=5: att(i, "F", t, "pF", about="Y", names=(n,))
+    sc = lambda rows, now=6: KE.score(KE.state(rows), "X", now)
+    rot = [pX, rec("pK", "K", 0, 9), rec("pF", "F", 0, 9)]
+    w = {
+        "late": base + [att("aK", "K", 4, "pK", about="X"), revoke("vK", "K", 3, names=("aK",))],
+        "late_cited": base + [att("aK", "K", 4, "pK", about="X"), revoke("vK", "K", 3), cite("aF", "aK")],
+        "in_time": base + [att("aK", "K", 2, "pK", about="X"), revoke("vK", "K", 3, names=("aK",))],
+        "concurrent_cited": base + [att("aK", "K", 2, "pK", about="X"), revoke("vK", "K", 3), cite("aF", "aK")],
+        "expired": [pX, rec("pK", "K", 0, 4), att("aK", "K", 3, "pK", about="X")],
+        "expired_late": [pX, rec("pK", "K", 0, 4), att("aK", "K", 4, "pK", about="X")],
+        "rot_cut": rot + [rec("qK", "K2", 3, 9, names=("pK",), succ_of="K", at_old=3), att("aK", "K", 5, "pK", about="X"),
+                          cite("aF", "aK", 6)],
+        "rot_past": rot + [att("aK", "K", 2, "pK", about="X"), rec("qK", "K2", 3, 9, names=("pK", "aK"), succ_of="K", at_old=3)],
+    }
+    S = KE.state(w["late_cited"])
+    return ("HOLDS", "a friendly member citing a removed or ended key's late vote",
+            "a count reads an ended key's row by the end rule (key_end.counts): in the causal past of each of the "
+            "key's own ends (a self-revocation, the instant before its revoked_after; a rotation), never because a "
+            "live row cites it; retained keeps a cited row for storage only (the Constitution's ruling: only content "
+            "may be anchored by others' rows)",
+            [("a revoked key's late vote (after its revoked_after), uncited, counts nothing", sc(w["late"]) == frozenset()),
+             ("the same vote cited by F's live row counts nothing", sc(w["late_cited"]) == frozenset()),
+             ("and it is retained for storage", "aK" in KE.retained(S, 6)),
+             ("an in-time vote in the revocation's past counts, cited or not", sc(w["in_time"]) == {"K"}),
+             ("an in-time vote concurrent with the revocation (not in its past), cited, counts nothing",
+              sc(w["concurrent_cited"]) == frozenset()),
+             ("an expired key's vote inside its record counts (the holder's word)", sc(w["expired"]) == {"K"}),
+             ("one at its record's end concludes nothing", sc(w["expired_late"]) == frozenset()),
+             ("a rotated key's vote not in the rotation's past, cited, counts nothing", sc(w["rot_cut"], 7) == frozenset()),
+             ("one in the rotation's past counts", sc(w["rot_past"], 7) == {"K"})])
+
+
+@attack("K13 an expired key's in-time vote, counted and settled, compacted to a stub")
+def k13():
+    rows = [pX, rec("pK", "K", 0, 4), att("aK", "K", 3, "pK", about="X"), rec("pF", "F", 0, 9)]
+    S = KE.state(rows)
+    C = KE.compact(rows, S, 6)
+    Cs = KE.state(C)
+    stubbed = {r["id"] for r in C if r.get("stub")}
+    return ("HOLDS", "nobody",
+            "a row a count reads is a settled act once its key has ended: its stub (names, the fields the count reads, "
+            "its conclusion) is kept for good and its bytes drop, as the purge keeps a settled act's stub "
+            "(pruned_view_answers)",
+            [("the vote counts", KE.score(S, "X", 6) == {"K"}),
+             ("compacted at 6, the vote and its record keep only their stubs", stubbed == {"aK", "pK"}),
+             ("the stubbed store gives the same answers at 6 and later", all(C_ans == S_ans for C_ans, S_ans in
+                                                                            ((ans(Cs, n), ans(S, n)) for n in NOWS if n >= 6))),
+             ("the stubbed vote still counts", KE.score(Cs, "X", 9) == {"K"})])
+
+
+@attack("K14 the stub pin: a stub keeping ONLY its header (id, kind, signer), names, at and conclusion gives the same counts")
+def k14():
+    rows = [pX, rec("pK", "K", 0, 9), rec("pF", "F", 0, 9), att("a0", "K", 2, "pK", about="X"),
+            att("a1", "K", 4, "pK", about="X"), att("f1", "F", 5, "pF", about="Y", names=("a1",)),
+            revoke("vK", "K", 3, names=("a0",)), rec("qF", "F2", 6, 9, names=("pF",), succ_of="F", at_old=6)]
+    S = KE.state(rows)
+    keep = ("id", "kind", "signer", "names", "at", "family")
+    pin = [dict({k: r[k] for k in keep if k in r}, stub=True, concl=bool(S.C.get(r["id"])))
+           if r["kind"] in ("att", "edge") else r for r in rows]
+    P = KE.state(pin)
+    same = all(KE.counts_by(S, r["id"], k) == KE.counts_by(P, r["id"], k) for r in rows for k in ("K", "F", "X"))
+    return ("HOLDS", "nobody",
+            "what a count reads of a row is its header, its names, its instant and its conclusion: a stub keeping only "
+            "those (the bytes, its cover and every other field dropped) gives every per-(row, key) answer of the end rule",
+            [("every counts_by answer over the pinned stubs equals the full rows'", same),
+             ("the in-time vote in the revocation's past counts, stubbed", KE.counts_by(P, "a0", "K")),
+             ("the late vote does not, stubbed", not KE.counts_by(P, "a1", "K")),
+             ("F's vote outside its rotation's past does not, stubbed", not KE.counts_by(P, "f1", "F"))])
+
+
+def stub_plant():
+    KE.MUT.add("stub_drops_counted")
+    try:
+        return any(not v for _, v in k13()[3])
+    finally:
+        KE.MUT.discard("stub_drops_counted")
+
+
+def cite_plant():
+    """The planted break ended_vote_retained_by_cite (a cited row counts) must change K12."""
+    KE.MUT.add("ended_vote_retained_by_cite")
+    try:
+        return any(not v for _, v in k12()[3])
+    finally:
+        KE.MUT.discard("ended_vote_retained_by_cite")
+
+
 def boundary_plant():
     """The planted break end_closed (the end read as inside the record) must change K11."""
     KE.MUT.add("end_closed")
@@ -520,7 +610,7 @@ def numbers():
             out.append((label, "%d rows, growing %d a day for ever" % (round(m * r * 365 * yrs), round(m * r))))
         else:
             out.append((label, "steady state m*e*r = %.0f rows (%.1f keys)" % (m * e * r, m * e)))
-    out.append(("per dead key after compaction", "nothing, unless a live row names its rows (then those rows and the record they name); no refusal digest is kept"))
+    out.append(("per dead key after compaction", "the STUBS of the rows a count reads (signed inside its record and in the past of its ends) and of the record they name; the BYTES only of the rows a live row names; nothing else; no refusal digest is kept"))
     out.append(("rows a key (shape only)", "r = 2 + 1650/230 = %.1f" % r))
     return out
 
@@ -571,6 +661,14 @@ def main():
     caught = boundary_plant()
     say("  plant end_closed %s" % ("caught" if caught else "NOT CAUGHT"))
     lines.append("plant\tend_closed\t%s" % ("caught" if caught else "not caught"))
+    ok = ok and caught
+    caught = stub_plant()
+    say("  plant stub_drops_counted %s" % ("caught" if caught else "NOT CAUGHT"))
+    lines.append("plant\tstub_drops_counted\t%s" % ("caught" if caught else "not caught"))
+    ok = ok and caught
+    caught = cite_plant()
+    say("  plant ended_vote_retained_by_cite %s" % ("caught" if caught else "NOT CAUGHT"))
+    lines.append("plant\tended_vote_retained_by_cite\t%s" % ("caught" if caught else "not caught"))
     ok = ok and caught
     say("NUMBERS (formulas over stated rates; the rates are shape, not measured here)")
     for label, v in numbers():

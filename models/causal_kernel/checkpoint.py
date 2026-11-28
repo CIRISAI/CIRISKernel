@@ -89,7 +89,43 @@ def acknowledgements(S, own, obj, rows=None):
     return [a for a in rows if (a["signer"] == own or own in a.get("cosigners", ())) and object_of(a, S.by) == obj]
 
 
-def takes_up(S, own, fs, mut=None, voices=None):
+def own_row(S, a, own, ends_ok=None, voices=None, mut=None):
+    """THE READER'S OWN ROW, the one definition for every reader's line (key_end's limb (b) and takes_up; the crate's
+    seat::own_row): row `a` is reader `own`'s where
+        (i)   own signed it itself, concluded or not; or
+        (ii)  it is a CONCLUDED seat row (an offer or an unseat) of which own is a voice by `voices` (seat.voices: a
+              cosigner, or the signer of a cosign row it names);
+        (iii) and never because a row claims own as a cosigner on any other row (a note included: r101 R2);
+        (iv)  each only where own's key stands at it: the row in the PAST of each `registered` unseat of own by own, and
+              `ends_ok(a)`, the caller's reading of the key's own ends (key_end's, from its key lane; none: true).
+    `mut`: the caller's planted breaks. MUTATIONS (takes_up's) claimed_cosigner_counted, unconcluded_cosigner_counted,
+    line_voices_cosigners_only; (key_end's) own_unconcluded_unread, own_voice_unread, own_claimed_cosigner,
+    reader_line_unchecked."""
+    mut = MUT if mut is None else mut
+    if a["signer"] == own:
+        mine = bool(S.C.get(a["id"])) or "own_unconcluded_unread" not in mut
+    elif "own_claimed_cosigner" in mut or "claimed_cosigner_counted" in mut:
+        mine = own in a.get("cosigners", ())
+    elif a["kind"] not in ("offer", "unseat") or "own_voice_unread" in mut:
+        mine = False
+    elif not S.C.get(a["id"]) and "unconcluded_cosigner_counted" not in mut:
+        mine = False
+    elif voices is None or "line_voices_cosigners_only" in mut:
+        mine = own in a.get("cosigners", ())
+    else:
+        P = [q for q in S.Cs if q["id"] in S.anc.get(a["id"], ())]
+        mine = own in voices(a, P)
+    if not mine or "reader_line_unchecked" in mut: return mine
+    # the key-end cut over both revocation forms (ruled): the row in the PAST of each `registered` unseat of own by own
+    # (a row concurrent with it, or after it, is none; MUTATION registered_by_past: only one with it in its past is out)
+    if any(x["kind"] == "unseat" and x.get("scope") == "registered" and x["signer"] == own and own in x.get("to", ())
+           and (a["id"] not in S.anc.get(x["id"], ()) if "registered_by_past" not in mut else x["id"] in S.anc.get(a["id"], ()))
+           for x in S.rows):
+        return False
+    return ends_ok is None or ends_ok(a)
+
+
+def takes_up(S, own, fs, mut=None, voices=None, ends_ok=None):
     """THE READER'S LINE taking up an identity's foundings `fs` (the ruling on one self roster per identity: a reader's
     roster for an identity is the founding its line takes up), MONOTONE, in the line's order: the reader's own rows
     (its voices as the counted layer reads them: every row it signed itself, concluded for everyone or not, and a
@@ -102,24 +138,8 @@ def takes_up(S, own, fs, mut=None, voices=None):
     mut = MUT if mut is None else mut                         # the caller's planted breaks (seat's)
     if own is None or "line_takes_nothing" in mut: return frozenset()
     fs = frozenset(fs)
-    def stands(a):
-        return not any(S.by[x]["kind"] == "unseat" and S.by[x].get("scope") == "registered" and S.by[x]["signer"] == own
-                       and own in S.by[x].get("to", ()) for x in S.anc.get(a["id"], ()) if x in S.by)
-    # the reader's own rows: its VOICES read exactly as the counted layer reads them (seat.voices, passed by the
-    # caller: one function): every row it signed itself, its cosign rows among them, and a seat row (an offer or an
-    # unseat) that CONCLUDED where it is one of the row's voices. A claimed cosigner on a note or any other row the
-    # counts do not read is never read, nor one on a seat row that concluded nothing (a forged voice on a concluded
-    # seat row breaks every count: the stated caller duty) (r101 R2; MUTATIONS claimed_cosigner_counted: every row
-    # listing it counts; unconcluded_cosigner_counted: a seat row listing it counts concluded or not)
-    def own_row(a):
-        if a["signer"] == own: return True
-        if "claimed_cosigner_counted" in mut: return own in a.get("cosigners", ())
-        if a["kind"] not in ("offer", "unseat"): return False
-        if not S.C.get(a["id"]) and "unconcluded_cosigner_counted" not in mut: return False
-        if voices is None or "line_voices_cosigners_only" in mut: return own in a.get("cosigners", ())   # MUTATION
-        P = [q for q in S.Cs if q["id"] in S.anc.get(a["id"], ())]
-        return own in voices(a, P)
-    mine = [a for a in S.rows if own_row(a) and stands(a)]
+    # the reader's own rows (own_row, the one definition), each only where its key stands (`ends_ok`, the key lane's)
+    mine = [a for a in S.rows if own_row(S, a, own, ends_ok, voices, mut)]
     reach = {a["id"]: {f for f in fs if a["id"] == f or f in S.anc.get(a["id"], ())} for a in mine}
     taking = [a for a in mine if reach[a["id"]]]
     if "line_order_unread" in mut:
@@ -159,7 +179,11 @@ def own_line(S, own, obj):
         return out
     got = {}
     for a in acks:
-        ex = ACK_VOID(S, a) if ACK_VOID and is_counted_act(a, obj) and "ack_reads_void" not in MUT else frozenset()
+        # one rule for bundles and rosters: an acknowledgement settles only if the acknowledged change counts over that
+        # acknowledgement row's own past, so an explicit `ack` reads S'' over its own past too (MUTATION
+        # ack_self_fork_unread: only a counted row does)
+        own_row = is_counted_act(a, obj) or (a["kind"] == "ack" and "ack_self_fork_unread" not in MUT)
+        ex = ACK_VOID(S, a) if ACK_VOID and own_row and "ack_reads_void" not in MUT else frozenset()
         cov = covered(a)
         if "ack_unvoids" in MUT:
             got[a["id"]] = {r for r in cov if r == a["id"] or r not in ex}
@@ -206,7 +230,9 @@ def settle(S, C, obj, own=None, group=False, never_behind=lambda r: False):
         line = [c for c in live if c["id"] in mine]
         out = set()
         for r in live:                                                  # ancestors first
-            if r["id"] in mine or (all(h in out for h in built[r["id"]]) and not any(line_behind(r, c) for c in line)
+            # a roster merge is judged on the line by its own heads: a head the reader holds void does not block it
+            heads_ok = all(h in out for h in built[r["id"]]) or (r.get("merge") and "merge_blocked_by_void" not in MUT)
+            if r["id"] in mine or (heads_ok and not any(line_behind(r, c) for c in line)
                                    and not any(group_behind(r, c) for c in marks)):
                 out.add(r["id"])
         return frozenset(out)

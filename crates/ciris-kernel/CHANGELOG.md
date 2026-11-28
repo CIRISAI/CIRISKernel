@@ -2,6 +2,334 @@
 
 ## Unreleased
 
+**Parity of `spec_from_policy` (review-53).** `window::Why` is ordered by its word and the cell it names
+(`Why::word`, `Why::other`), so the crate's refusals are in `window.py`'s order, and `tests/policy_spec.rs` compares
+them as returned. Both languages refuse a fraction with a number missing or a zero denominator, and a floor of
+voices with no count, as `Unknown` on the rule; a ballot's words are exactly two, `for` and `against`. New
+`window::rule_bound_why`, as `window::rule_why` for the bound path.
+
+**The rulings of 2026-11-28.** The accord's halt: a table whose concluder is `local` concludes no receipt and no
+landing (each node's own fuse); the halt fires and is no confirming voice. A counted row at the window stays open
+(`at_window` is read for nothing). `moderation_action`'s `role_at` enact: a moderator's ballot `for` lands and
+`against` refuses at once; **an answer changes:** two clauses one holder's act resolves over one named scope, met at
+once with different outcomes, resolve nothing (a contested pair of moderator ballots), and the window runs on to the
+members' count. The default rows' opener is `member` (policy pin 85750784, CIRISConstitution 0e80f21: `data/` re-copied,
+`governance_policy.json` sha256 8014d6cb, `family_model.json` 9d49c2a7). **An answer changes:**
+`accord_halt`'s seat count is a strict majority (`Policy::Strict(1, 2)`, its cancel cell: the act bound to it is the
+halt's confirmation), not one voice (`law_from_tables`, and the model's `seat.POLICY`); the checks that read it as a
+stand-in of one voice read `one_voice` (`seat.POLICY`, a stand-in no act takes).
+
+**Policy pin 8ec76cce** (CIRISConstitution 67f7ec2; `data/governance_policy.json` sha256 f1b3f4b4..., and
+`data/family_model.json`). **BREAKING**: `window::PolicyRow` carries the new cells (`concluder`, `opener`,
+`opener_says`, `outcome_words`, `answer_words` as `window::Words`, `default_at_close`, `landed_means`,
+`refused_means`, `comparison` as `window::Comparison`, `stated_census`); `spec_from_policy` takes a fourth argument,
+`seat` (the seat of a count set of several, `self+key`), reads every new cell, gives the leaves `landed`/`refused` and
+the answer words `assent`/`raised` (or a ballot's `for`/`against`), and returns its refusals sorted, once each; a new
+`Why::Local`. `window::Families` takes the founding row's scope as a third argument. Four rows give a table:
+`community_invite`, both self roster rows, and `moderation_overturn` (the members less the author, `landed` the lift,
+`refused` the act standing); the default rows are refused on their `unstated` opener. The reference builds the self
+roster's lone paths from the row (`roster.window_from_table`), which adds the proposer's withdrawal it left out.
+
+### Adopting 0.5.0 from 0.2.2
+
+For persist, which depends on `kernel-v0.2.2`. It covers every break from 0.2.2 to 0.5.0, the 0.3.0 and 0.4.0
+ones included, and the lanes merged for 0.5.0 (root-fold, roster-merge, audience, charter, persist-gaps,
+key-person, room-key-vectors, key-end-retained). A lane's name stands beside what it adds. The entries below it in
+this changelog give each change in full.
+
+**(1) The tag, the dependency and the MSRV.**
+
+```toml
+ciris-kernel = { git = "https://github.com/CIRISAI/CIRISKernel", tag = "kernel-v0.5.0", version = "0.5" }
+```
+
+`rust-version` stays 1.89 (persist pins 1.97.0). The crate stays `no_std`, `publish = false`, with no new
+dependency.
+
+**(2) Trait methods.** "Required" breaks the build until implemented; "defaulted" compiles, but the default is
+right only for a store that does not carry the field. [`WIRE_MAP.md`](WIRE_MAP.md) gives the wire source of each.
+
+| Trait | Required | Defaulted, new since 0.2.2 |
+|---|---|---|
+| `seat::SeatRow` | `word(s: &'static str) -> Self::Word` | `consensus_protocol` (MUST be implemented: with `None` no room has a protocol), `cohort_subkind`, `group_kind`, `protocol_entrenched`, `admission_quorum_basis`, `dissolves`, `bundle`, `role`, `regime`, `lifts`, `duty_holders`, `signing_key`, `private_room`; roster-merge: `merge`, `merge_duties`, `merge_members`; charter: `official`, `overseen_by`, `family_param`, `outcome`, `agent_registration`, `target_key`, `licence_classes`, `declared_cohort`. persist-gaps: `cites` (a reconsideration's notice, a lift's act: exactly one). **Removed:** `consent_one` (no flag waives an acceptance). |
+| `Dated` (new, `lib.rs`) | `type Instant`, `asserted_at` | `valid_until` |
+| `key_end::KeyEndRow` | | key-end-retained: `instant` (override it to give a seat row its signed instant), `roster_end`, `cosigned_by` |
+| `key_end::KeyView` (new, key-end-retained) | `counts` | |
+| `content::ContentRow` | | audience: `parents`, `room`, `removes`, `concludes` |
+| `audience::AudienceRow` (new, audience) | `type Id`, `type Key`, `id`, `family`, `scope`, `room`, `signer`, `named`, `names`, `concluded` | `seat_act`, `obj`, `to` (they replace the lane's earlier `seats`), `follows`, `history_on_join` |
+| `window::WindowRow` | | none new since 0.2.2 |
+| `trust_rows::TrustRow` (new, charter) | | `is_delegates_to`, `bears`, `accepts_dst`, `on_behalf`, `trust_classes`, `trust_depth`, `licence_authority`, `licence_class` |
+| `root::RootBundle` (new) | `type Id`, `type Key`, `type Word: AsRef<str>`, `id`, `family`, `version`, `prev`, `holders`, `seats`, `charter`, `duties`, `recovery`, `recovers`, `iat`, `statements` | `sub_delegation`, `names`, `settles` |
+| `root::RootGrant` (new) | `type Word: AsRef<str>`, `is_grant`, `bundles`, `to`, `scope`, `signers`, `duty` | `attached_head`, `cosigns`, `halts` |
+| `root::RootView` (new) | `recovery_grant` | `sub_delegation`; charter: `seat_grant` |
+| `standing::StandingRow` (new) | `type Id`, `type Key`, `id`, `kind`, `signer`, `head`, `on` | `owner`, `target`, `lifts`, `via`, `sub_delegation` |
+| `conferral::ConferralRow` | | `sub_delegation` |
+| `cut::CutSpec` | | `trust_root` (give one to judge a stalled recovery); key-end-retained: `key_view` (a store with key records MUST give one: with `None` every voice counts) |
+| `line::LineSpec` | | `acknowledges`; roster-merge: `own_heads_only` |
+| `held::HeldSpec`, `held_view::Encode` (new) | `well_formed`, `conclude`; `encode`, `decode` | `seeded`, `root`, `keys`, `can_carry` |
+
+**(3) Enum variants an exhaustive `match` must add.**
+
+| Enum | Change |
+|---|---|
+| `seat::Policy` | `StrictFloor`, `Recall`, `Protocol`, `Lift` added; `SelfAdmit` removed (open admission is cut for 1.0) |
+| `seat::SeatKind` | `Decline`; charter: `Quarantine`, `Slashing`, `TakedownNotice`, `Reconsideration` (no `Countersign`: a countersign is a voice among the act row's cosigners) |
+| `seat::Conf` | charter: `Root` (the seat a root grant gives) |
+| `seat::RoomProtocol` (new) | `FounderOnly`, `Unanimous`, `Majority`, `Quorum`, `Weighted` (`SelfAdmit` removed) |
+| `seat::CommunityKind`, `seat::Act`, `seat::ScopeClass` (new) | `#[non_exhaustive]` words (`word()`, `from_word()`): a `match` needs a wildcard arm. `CommunityKind` names `Community`, `Infrastructure`, `Family`, `SelfRoster`, `Accord`, `Affiliation`, `Body`, `Custody`; charter adds `ScopeClass::TrustEdge`, `ScopeClass::License` and `Act::Accept` |
+| `content::Kind` | audience: `Ack`, `KeyEnd` |
+| `content::Rule` | audience: `KeyRemoved` |
+| `conferral::Rule` | `Depth`, `NoSub` |
+| `standing::Nobody` (new module) | nine variants, `TwoOwners` among them |
+| `window::Base` | `Opener`, `Stated` |
+| `window::How` | `MoreAtLeast`, `MoreOfVoted` |
+| `audience::*`, `trust_rows::Unhonoured`, `held::Refused`, `held_view::{CheckpointError, DecodeError}`, `standing::{Answer, Kind}` | new enums |
+
+**(4) Struct literals.**
+
+| Struct | Change |
+|---|---|
+| `seat::SeatLaw` | new fields `acts: Option<Vec<ActRule>>` (the acts table; `None` binds no act to a policy), `kinds` (scope to `CommunityKind`), `removal_floor`. `community_floor` is removed (it existed only in 0.4.x and 0.5.0 drafts). Build with `..Default::default()` |
+| `window::WindowSpec` | new field `opener` (`None` unless the opener's signer holds another scope than the counted one). `opener_says` and `target_votes` are as in 0.2.2 |
+| `conferral::Standing` | new field `deputy_depth` (the cap, `conferral::DEPUTY_DEPTH`, 5) |
+| `trust::Accepts` | charter: `classes` is `Option<Vec<C>>` (`None`: `trust_classes` absent, every declared class) |
+| `head::Entry` | new field `at: Option<T>`; build with `Entry::new(..)` and `.with_at(t)` |
+| `layers::Past` | its fields are private |
+
+Removed functions (charter): `trust::honours`, `trust::EdgeIndex::honours` and `charter::read_licence` (with
+`Untrusted`). Whether a reader honours a licence is `trust_rows::read_licence`, read from rows; no caller supplies
+edges.
+
+**(5) Presentation rules that change answers.** An adapter that presents rows as 0.2.2 did gets other answers, with
+no error. Each rule has its entry below and its cases.
+
+- **Heads, H1 to H8** (the heads ruling of 2026-11-26). A count names exactly the newest counted changes over its
+  own object in its own past (H1); it is counted over its own object, and `over()` is not read (H2); every
+  roster-changing row names those heads, a lone removal, a resignation, a lift and an election's seating included
+  (H4); the line has no concurrency test (H5); a reader's own rows are its acknowledgements (H6); no head is
+  synthesised by the caller (H8). H3 is retired with open admission, H7 by the tips ruling.
+- **The reader's line and `for_reader`.** A reader's roster is built over the rows as they conclude for it:
+  `seat::for_reader` then `Seats::for_reader` (ADOPTING.md, "A reader's roster").
+- **The act binding.** `seat::act_of` and `seat::policy_for` give a counted row's act and the policies it may take
+  under `SeatLaw::acts`; a stated policy the act may not take concludes nothing.
+- **The closed protocol set.** `consensus_protocol` is a word of `seat::RoomProtocol::parse`; a word outside it,
+  `open:self_admit` included, names no protocol.
+- **Families.** A record with `group_kind` `family` is a family: founders in `duty_holders["founder"]`, no duty
+  seats, a demotion and a removal both counted as removals.
+- **Infrastructure communities, M of N.** Founded in scope `founder`, counted over the founders at the row's heads,
+  live while its active founders number at least M + 1; a founder joins only by a founders' amendment.
+- **Rule 5 on every counted act.** A voice of a key concurrent with a counted removal of that key is not in force
+  from the removal's head, on any counted act.
+- **Persons over keys** (key-person). Every count reads one voice and one member per person, through the self
+  rosters among its rows (`seat::Persons`). Present the signing key as signer, never a pre-collapsed person.
+- **The key view** (key-end-retained). Every count's voices step reads `CutSpec::key_view`: a voice counts by the
+  end rule (`key_end::counts_by`). The key view comes first (dead keys out), then persons (living keys mapped).
+- **Real rows only:** a seat is two consents (the joiner's own acceptance); a room key's seat is final in a private
+  room once ended; one target per counted end.
+
+**(6) What persist deletes, and the crate function that replaces it.**
+
+| Persist today | The crate |
+|---|---|
+| the door's gates that refuse for what another row says (KERNEL_SEAMS §2.2) | `layers::kept`, then `layers::conclude` with the family's rule: a row naming an unheld row waits |
+| `owner_of` | `seat::Seats::one("owner", key)`; a node's owner under a root grant: `standing::answers` |
+| `consensus::evaluate`, `eligible`, `counted` | `seat::members_at`, `seat::voices`, `seat::met`, `seat::persons_of`, `ranked::ranked` |
+| `trust_root_valid`, `check_federation` | `root::Root` (`in_force`, `grant`, `halt_in_force`), `trust_rows::read_licence`, `trust::reaches` |
+| `check_delegation_cycle_admission` | `trust::reaches` (a cycle visited once) and the seat walk's depth (`Seats::stands`) |
+| `is_roster_key_at`, `check_roster_act_fresh` | `seat::members_at` at the head the act names; `seat::person_at`; `window::rule`, `window::outcome` |
+| `self_roster::execute_due`, `cosign::execute_due`, the pending-row sweeps | `window::outcome` on this node's clock; `seat::voices` |
+| `held_head_verdict`'s fork refusal | `Seats::tips`, `tips_common`, `tips_fold`; `line::settle`, `line::void` |
+| the `withdraws_admission_rule` stamp, `stamp_entitles` | `seat::seat_rule` on the withdrawal, at every evaluation |
+| the roster-at-receipt reads | the members at the head a row names |
+| `purge_finalize`'s choice of rows | `head::purge` over `head::Entry` rows |
+| key liveness against `valid_until` | `key_end::counts_by` (counts), `key_end::live`, `ended`, `retained` (storage), `bytes_retained` (bytes) |
+| placement and audience checks | `audience::place`, `audience::audiences`, `audience::history_of` |
+| content after a member's end | `content::answers` |
+| a lone duty holder's act in force | `seat::act_in_force` |
+
+**(7) What stays persist's.** Bytes at rest, the codec and `RowId`, verification and the composite suite (the crate
+holds none), KEM and the key plane, replication and quotas, first-held stamping, the effect executor, SQL and
+paging, schema and migrations. Not in this tag, so the adopter holds these shut, or keeps only a causal fold; no
+fold decides a verdict from a stated instant or the host clock:
+- the fold default (CC 3.5.1, `precedence_winner`);
+- a proposal's stated end (`expires_at`) and a poll (CC 4.5.13, CC 6.1.9);
+- open admission (`open:self_admit`, cut for 1.0) and the `community_invite` window path;
+- `admission:unit` (CC 2.7.11);
+- classification of a raw row into a family, the table loader, transport and routing, effects and drafts.
+
+**(8) Finality.** Only `head::purge` over `head::Entry` rows says what may become a stub. No seat, content or window
+answer returns a "final" bit, so persist prunes nothing on its own judgement.
+
+**(9) The wire map, and how to call.** [`WIRE_MAP.md`](WIRE_MAP.md) maps each field to its `ceg-row/2` source,
+and [`VECTORS.md`](VECTORS.md) states the neutral cases its vectors are minted from. Present real rows: nothing
+synthesised, no head the store made up, no stored verdict carried in as a row field. Where an answer is
+`Undecided`, re-ask once the row it names is held.
+**The consent peer set** (new module `consent`; CC 3.3.7, CC 5.2; for CIRISEdge's attestation-plane replication). A
+`consent:replication:v1` grant is one signer's directed row to one peer naming the classes it moves, and it moves
+those and nothing else. `consent::in_force`, `peer_set`, `may_send` and `replication_set`, read at a held row, over a
+new `ConsentRow` trait (kind, peer, classes, `asserted_at`, `valid_until`, the grant a withdrawal names, a key's own
+revocation, an announcement), with `consent::conclude_rule` for the door (a grant's classes a sorted set; at
+federation scope only with both parties announced in its past; a withdrawal by the grant's signer, the peer it
+names, or the signer's owner read at the withdrawal, which the caller gives). The fold is the default fold per
+(signer, peer), causal first; a withdrawn or lapsed latest grant revives no earlier one. `consent::bilateral`: both
+directions in force. A withdrawal is a cut: it ends the grant at every
+row not in its own past, so a concurrent one ends it too. The term is half-open at the caller's instant (the caller's `now`:
+nodes agree on a term only at the same `now`). A grant's voice is **the key view** (`key_end::KeyView`, the end rule
+every count reads, from key-end-retained): its signer's signature counts only where the grant is in the past of each
+of the key's ends, taken up on the reader's line, or under a final count, so no stated instant helps a grant
+concurrent with a revocation or rotation (review-48's A1 to A3); every reading takes `kv` (`None`: no key lane). An
+`at` that is not held reads nothing in both languages; a grant with no `asserted_at` ranks below one with one. The node's principals are the node
+and its one owner, which the caller reads with **the one owner reading**, new `seat::Seats::owner(node)` (both
+languages): `Seats::one` of scope `owner` with the re-binding rule of `standing::answers` (a binding that has an
+earlier one in its past ends it); two owners is none. Consent reads the owner only through it (review-54's DRY
+audit); `nodes_of` (key-person) is its inverse. The reference is
+`models/causal_kernel/consent.py`, its cases `check_consent.py` (57 cases, 130 answers, every order of up to six
+rows, 19 planted breaks), the fixture `tests/fixtures/consent.json` and the test `tests/consent.rs`.
+
+**The default fold is causal first** (the Constitution, reading CC 3.3.7 with CC 3.5.1). `derived::fold_default`:
+of one signer's rows of the top kind on one target, a row that has another in its causal past is later, whatever
+instant either states; the signed instant, then the lowest id, orders only rows concurrent with each other. **An
+answer changes** only where one row of a signer names (through any chain) another of the same kind on the same
+target and states an earlier instant: before, the earlier-named row won; now the row that names it does. No other
+caller of the fold is in the crate, and no fixture answer changes.
+
+**A key end is a cut** (the Constitution's ruling on r86 R1 and R2). `key_end::counts_for(c, i, k, reader, final_)`:
+a row of `k` stands against each of `k`'s ends where it is in the end's past, or on the reader's own line from before
+the reader held the end (taken up), or part of a count final by acknowledgement (`seat::final_by_ack`: n - t + 1
+clean receipts; a final act is not reopened by a later cut). `KeyReading` carries the reader and the final counts;
+`counts_by` is the reading with no reader. A revocation by a key of which any concluded rotation is held is no end;
+two rotations are a fork of the key (both ends, no successor). An eviction from the person's self roster ends the key
+as the person's, never its liveness (G33; read by the person map). The roster's counted removal of a rotated-to key
+citing the rotation voids it (r92 T3: no end, no successor, the rotated-to key's rows cut; the old key no voice of
+that count; `seat::self_roster_ends`, `SeatRow::rotates`, `KeyEndRow::roster_end` now the key a removal removes).
+Finality's clean test reads every voice of the count, cosign rows' signers too (r92 T2), and a withdrawal of the act. Finality
+counts only clean receipts (no end of a voice's key, no cut of the act in its past, its signer's key standing), and a
+final count protects only voices valid when cast (r89). A `declared` need is never final; a recall's t is read at
+its own base. Caller duty: an honest rotation
+or revocation names the key's last rows. The cost: a thief's vote a reader took up before holding the end stands for
+that reader, one in a final count for everyone; the remedy is a later count; readers may differ on a count not yet
+final. Cases in `check_key_view.py` (35); plants `retired_key_revokes`, `roster_end_unread`, `taken_up_unread`,
+`final_count_unread`, crate twins.
+
+**The key view: every seat count reads a key's end at its voices step.** `CutSpec::key_view` (defaulted None),
+`key_end::KeyView`, `key_end::KeyReading` and `key_end::counts_by` (new): `seat::voices_with`, the one place every
+seat count reads its voices, keeps the signer's and each cosigner's signature on the counted row, and each named
+cosign row's signer's, only where `counts_by` holds over one causal order of the key and seat lanes that the caller
+builds (`KeyEndRow::instant`, defaulted, a seat row's signed instant). A store with key records must supply it; with
+none every voice counts (a caller with no key lane). Cases in `check_key_view.py`, fixture `key_end_counts.json`
+(replayed by `tests/key_view.rs`); plants `key_view_unread`, `cosigner_key_unchecked`, crate twins. Every lane that
+counts a voter reads the same key view: a window's answers (`window`) and an election's ballots (`seat::election`) too
+(plants `window_key_view_unread`, `ballot_key_view_unread`). Merged with the key-person map at the voices step, the
+key view comes first (dead keys out), then persons (living keys mapped). The lift's objections, a lone removal's
+single-key receipts and the lone act itself read it too (r86: plants `lift_key_view_unread`,
+`receipt_key_view_unread`, `lone_key_view_unread`). A row stating no instant is judged by its past alone;
+`KeyEndRow::instant` defaults to a statement's instant only (the model reads every row's `at` through `key_end.instant`,
+as the test adapter does). The stub pin (K14): a stub keeping only its header, names, `at` and conclusion gives every
+`counts_by` answer.
+
+**An ended key's row counts by the end rule, never by a cite** (the Constitution's ruling: for counts, a removed or
+ended key's late vote cited by a friendly member stays cut; only content may be anchored by others' rows).
+`key_end::counts` (new): a statement of key `k` counts only where it is in the causal past of each of `k`'s own
+ends: a self-revocation (and its own instant before the `revoked_after` `k` stated) and a rotation naming `k`'s
+record (a rotated holder speaks under its new key). With no such end, a concluded statement counts: its instant
+inside its record is the holder's word, bounded below by its own past (the licence term's residual and caller
+duty). `retained` is for storage only and keeps every row a count reads, every rotation and revocation, and what a
+live row names; nothing counts by it. Before this, `retained` was the only reading the crate offered for an ended
+key's rows, and ADOPTING told persist to keep and so count a cited late row. The model's attestation score reads
+`counts` (K12: eight facts; plant `ended_vote_retained_by_cite`, crate twin). An expired key's in-time rows
+count, so their STUBS are kept for good (`retained`); their BYTES drop once settled (`bytes_retained`, new: what a
+live row names, rows of keys not ended, revocations and rotations), as the purge keeps a settled act's stub (K13;
+plant `stub_drops_counted`).
+**Re-ask on the row a wait names.** Every answer persist asks tells "waits on row X" from "concludes nothing",
+so a store holds a row and re-asks only when the named row arrives (ADOPTING.md, "Re-asking"). New, the old
+functions kept as wrappers: `ciris_kernel::Wait<I>`; `seat::seat_rule_why` and `window::rule_why`
+(`Result<bool, Wait<Id>>`); `seat::stalled_recovery_waits` (the grant a stalled widening names);
+`root::Root::grant_waits` and `RootView::waits_on` (the grant, the reader's anchor, or a bundle the grant names,
+where the root does not hold it; default none); `held::Held::lacks` (the ids a waiting row still lacks); and
+`seat::infra_live` with `seat::Liveness` (`Live`, or `Stalled { active, m }`). A kept row's fold reads are final
+(a later row is no row's ancestor), so the seat and window rules wait only on the trust root's rows. No answer
+changes. Cases: `check_root.py` WAITS (five, each in up to twelve arrival orders, with the contract checked over
+every order: a wait names only rows not held and holds until one of them is held; a true or false stays) and
+`check_acts.py` INFRA_LIVE (nine, every arrival order); plants `waits_names_nothing`, `waits_on_grant`,
+`waits_anchor_unread`, `lacks_first_only`, `live_at_m`, `live_at_founding`; replayed by `tests/root.rs`
+(`waits_replay`, every answer after every arrival) and `tests/acts.rs` (`infra_live_replay`), with
+`tests/held.rs` (`lacks_names_what_a_row_waits_on`).
+**A group referenced by id alone never picks between founding rows** (the Constitution's ruling): `SeatRow::group_id`
+(default none), `seat::group_of(rows, id) -> Result<Option<Obj>, Rivals<Id>>` (two or more founding rows held
+under the id: `Rivals`, concluding nothing) and `seat::group_at` (a reference naming a row of one chain resolves
+to it). The crate resolves no such reference itself; the caller calls it (ADOPTING.md). Seven cases in
+`check_acts.py` GROUP_OF (two founding records under one id; a trust edge by that id concludes nothing; a row at
+the head of one concludes on that chain), plant `group_first_founding`, replayed by `tests/acts.rs`
+(`group_of_replay`).
+**A window's table from its policy row.** `window::spec_from_policy(row, table, active)` builds a `WindowSpec` from
+one row of the governance policy table, decoded by the caller unchanged into `window::PolicyRow` (with `RuleCell`,
+`Cell`, `CountedCells`, `Stated`, and `PolicyTable` for `min_count` and `window_classes`; `Active` for the base
+`active`). Every cell is read; where one stops the row the answer is each `PolicyRefusal { cell, why }`. Six
+`two_path` rows give a table; the mirror, cosigned, ranked and tally rows are refused. `Clause` and `WindowSpec` now
+derive `PartialEq` and `Eq`. ADOPTING.md lists each cell; `tests/policy_spec.rs` replays `window.py`'s
+`spec_from_policy` (fixture `policy_spec.json`), and `check_policy_spec.py` compares it with the reference's tables. **The act binding for windows:** `window::rule_bound` and `window::outcome_bound` take an opener's table through
+the acts table where the law binds acts (`WindowRow::proposes`, `window::bound_family`, a `Families` closure);
+`window::rule` and `window::outcome` read the window name as before (fixture `window_bound.json`). **default_content
+above k** (the Constitution's ruling of 2026-11-27): the reference's enact is strictly more than 2/3 of the base, as
+the table's decider; it read at least 2/3 (six need five, three need three). **The seat law's table cells:** new module
+`tables`, `law_from_tables(acts, families, protocols)` gives `SeatLaw`'s `policy`, `acts` and `removal_floor` from the
+acts table's rows (`ActsRow`) and the policy table (`PolicyRow`, `ProtocolRow`), or every `LawRefusal`; `seat.py`'s
+`law_from_tables` is the same reading (fixture `law_tables.json`). For the integrator: rc23-next's acts table has
+rows the crate's words do not read yet (scope `license`, `trust_edge`; act `accept`; `quarantine`, `slash`, `takedown`
+on `affiliation`), added by the charter and persist-gaps lanes; once those merge, re-vendor the acts table and re-run
+`tools/kernel_fixtures.py` and `tests/policy_spec.rs`, so `law_from_tables` is checked against it.
+
+**One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
+more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.
+Several removals are several rows, each judged alone at its head. The same for a recall (one holder), a duty
+withdrawal (one holder, one duty seat) and a demotion (one founder). Under `quorum:2/n` two voices remove any one
+member: that is the declared protocol.
+
+**Open admission cut** (Eric, for 1.0; the Constitution's rc23 at 76965eb, policy pin a304b485). **BREAKING**:
+`seat::Policy::SelfAdmit`, `seat::RoomProtocol::SelfAdmit`, `RoomProtocol::states` and `SeatLaw::community_floor` are
+removed. A public room is an ordinary invitation-only community anyone may read; membership comes only by
+`community_invite`, whose base is now `standing` (a vouch counts the full roster). A record declaring
+`open:self_admit` names no protocol (a word outside the set). With `unstated` gone from the sheet, the reading of
+`&` where a protocol states no rule has no user and is gone: a change of the record meets the protocol in force and
+`default_standing`, a family's under its founder_only part as before. A self-admission was the one head a single key
+wrote, so the heads rules' H3 (no read-through of an authored head) is retired with it. And no key admits itself under
+every count: a key an offer seats, a member re-seated in another role included, is no voice of it (both languages).
+**CC 2.7.7 rule 5 reads every counted act** (ruling B of the superseded-version read, persist's item 13 (b), R2:
+the Constitution reads rule 4 and the paragraph after it as about the removed key's rows, whatever the row does).
+A voice of a key concurrent with a counted removal of that key is not in force from the head the removal names, on
+any counted act over the group's voices (an admission, a conferral, a change of the record), not only on another
+removal. The removals are read first, as before (each needing a voice the other ends: contested, neither counts;
+one-sided: the dependent one falls); every other counted act is then read against the removals in force. Only a
+removal that counts, is not void for the reader (the cut, S'', the line) and is not itself contested takes a voice
+away; one that has the act in its past takes nothing (the voice counted before the end), nor does one at a newer
+head than the act's (the key stood at the act's head). An election's seating (C1 to C5) and a lift (its own base)
+are not read here. **An answer changes:** a counted act that needs the voice of a key removed concurrently, at or
+after the act's head, no longer stands. **The edge:** a counted act and a concurrent removal of a voice it needs do
+not both stand; the remedy is to sign the act again forward, by voices seated at the newer head. Cases in
+`check_count_heads.py` (rule 5, every act; among them the settled pair: a count naming both rows of a contested pair
+that removes one member judges an act counting on that member's voice like any removal, by its heads, and the
+contested rows never reach the act) and one in `check_duty_seats.py` (the fold's own case, now that rule 5
+reaches the old one); plants `contested_unseats_only` and `contested_takes_voice`, in both languages.
+
+**The lift's base: the persons at both heads** (the lift follow-up, after the head rules). A lift (a re-seating
+citing a moderator's lone removal of an agent's key) names the newest counted changes in its own past (H4, no
+exemption) and is counted over the persons seated at BOTH the removal's head and its own heads, the removal's
+author apart; the removed key still must have held its `agent` seat at the removal's head. **An answer changes:**
+a member admitted after the removal is no voice of the lift and not counted over, so a room that grows after a
+removal cannot pack its lift (a room of two that grew lifts nothing: its base is one person, under the floor of two;
+the room's own count can admit the key again); a member removed since is out of it, and one removed and re-admitted
+is in it. Seven cases in `check_agent_removal.py`; plants `lift_base_lift_head` and `lift_base_removal_head` in
+both languages.
+
+**One line across the models: the end of a conferral reads the sibling-safe line** (the ruling of 2026-11-27, ruling
+A of the superseded-bundle read, persist's item 13). `conferral::answers`'s `end_void.line` now voids an end for a
+reader only where the head the end names is strictly in the past of a head the acknowledged one extends, as the
+seat model's line does. An end at the head an acknowledged version directly extends is its sibling and stands.
+**An answer changes:** an end at G0, read by a reader that acknowledged G1 (G1 extending G0), was void for it and
+now stands (`conferral_two.json`: "(d) reader at the later"; `conferral_end.json`: `end_sibling_for_reader`; the
+strictly-behind case is now `end_old_fork_for_reader` with a third head). The TLA spec's end line drops its
+acknowledgement clause (its two heads have no strictly-behind end). Plants `line_not_sibling_safe` (the reference)
+and one in the crate.
 **One agent recognition** (both languages). An AI agent's key is recognised by its agent seat over any room or by its
 agent registration (a `registered` offer whose `agent_registration` says so), whatever scope it was admitted under,
 through one reading (`seat.agent_keys` / `registered_agents`; Rust: `registered_agents`, read by Seats' duty reading,
@@ -310,6 +638,44 @@ instant, `R: Dated`), `seat::affiliation_removal`, `SeatRow::licence_classes` ((
 
 **The trust root's fork fold** (persist's item 15; CC 3.2 T6, CC 2.7.8), both languages: `root` (`models/trust_root`),
 with cases and planted breaks, replayed by `tests/root.rs` from `root.json`.
+- Rule 6 reaches every count at the head (the ruling of 2026-11-27): a double signer at a head has no say there for a
+  reader, for a grant resolving (`Root::no_say`) or a rule-3 bundle settling it; a halt (`RootGrant::halts`,
+  `Root::halt_in_force`) still halts; at a later head it counts as any holder.
+  It follows that a double signer has no say in a halt's confirmation count either (a count at that head); the
+  halt's own path is the Constitution's model and is not built here.
+- A reader's acknowledgements are rows with their own pasts (r76 q4; BREAKING: `Reader::after`, None for one
+  chain): each is judged over its own causal past, two concurrent rows (a person's two devices) each without the
+  other, and the line is drawn over their union; a row closes nothing on the line a row concurrent with it
+  settled onto. Two devices that disagree stall at the fork point (rules 5, 6 and 3 decide over what is held),
+  never by depth.
+- Considered and rejected (r78 q4): union voiding, a bundle behind ANY of the person's settled acknowledgements
+  void whatever their concurrency (`models/trust_root/proto_union_voiding.py`, `root.UNION_VOIDING`, off). It
+  decides by depth: one device at b2 and the other at the attacker's t (t1, t, one bundle deeper) puts the reader
+  on t, the attacker's key in force.
+- The bounded settler (the ruling on the genesis stall, r76 ST1; `RootBundle::settles`, defaulted;
+  `Root::bounded_settler`): a settler at a head that names one contested sibling there as the one that stands, and
+  states nothing of its own (its holders, seats, charter and recovery commitments are that sibling's), is counted over
+  the head's holders who have a say there, rule 6's double signers out of the base for this one count, by strict
+  majority of them. Each sibling it can choose was already signed by a strict majority, so the reduced base only
+  decides which majority-signed bundle stands, and a holder cannot be made a double signer against its will. A
+  settler stating anything else is counted over the full base, as any bundle is. Edges: every holder double-signed,
+  an empty base, nothing settles and the reader re-roots; the holders with a say split evenly, nothing settles; a
+  lone holder with a say settles alone, choosing only between majority-signed bundles. A settler is no head of its
+  own: the reader is at the sibling it names.
+- Settler equivocation (rule 6 read over settlers): a holder that signs two settlers at one head naming different
+  siblings has no say in settling that head; both its settler signatures count for nothing.
+- The fork-point residual (r81), stated: "At a fork point the honest line's removals are not yet in force, so the
+  holders it removed keep a say there. With one turncoat (a double signer of the bare-majority step), they can force
+  a split among those with a say, and hold a reader whose devices saw both sides at the fork point, where it reads
+  them as holders and they can halt it. The exit is re-rooting, or one of them signing the honest settler." A
+  bounded settler is closed by the reader's line exactly when the sibling it names is one that line holds void:
+  it rescues a stalled reader (whose line holds both sides) and never overturns a reader that already settled past
+  the contest.
+- The per-device cost (r82), stated: "The settler's protection is per device, not per person: if one of a person's
+  devices settled past a contest while another concurrently acknowledged the other side, the person is stalled at
+  the fork point, and a say-majority there (which can include holders the honest line removed, plus one of its own
+  signers turning) can decide it the other way, overturning the settled device."
+- The halt residual, stated: holders a later line removed can halt a reader that has not yet settled onto that line.
 - A root is the lineage of a genesis bundle (`RootBundle`, a signed object the store presents with its statements
   checked). The first bundle is counted over every holder it lists, a later one over a strict majority of its
   predecessor's live holders, a join (two predecessors) over those common to them. An iat that disagrees is Invalid
@@ -364,6 +730,121 @@ now stands (`conferral_two.json`: "(d) reader at the later"; `conferral_end.json
 strictly-behind case is now `end_old_fork_for_reader` with a third head). The TLA spec's end line drops its
 acknowledgement clause (its two heads have no strictly-behind end). Plants `line_not_sibling_safe` (the reference)
 and one in the crate.
+**The audience reads persons and owner bindings through the seat model** (review-54's DRY audit). The persons are
+the seat model's one function: `audience::PersonsOf` (`voice`: `seat::Persons::voice`; `keys`: `seat::person_keys`),
+Python `audience.Persons` / `persons_over` (`seat.rep_of`, `seat.person_keys`); the self row's audience, the copy
+rule's same person (c.3) and narrower read it. **BREAKING** within the release: the audience functions take a
+`&PersonsOf` for `person`. An owner binding is recognised by `seat::owner_binding(family, purpose)`, beside `Seats`,
+which stays family-blind (a store's adapter presents the binding as an offer of scope `owner` over the key). No
+answer moves; a key of two persons counts as no person (cases `self_row_of_a_key_of_no_person`,
+`key_of_no_person_carries_nothing`).
+
+**The family model at `rc23-next` `d5d42bf`** (sha256 `94a6ac96`, provisional until `rc23`): all 189 placements are
+from the text: 143 on the default, 46 pinned, none undecided; custody, duty, ownership and stream:head carry
+`follows`. "Narrower" is over PERSONS (the Constitution's ruling): a row's audience is within the followed row's
+where every person it holds is one the followed row holds (a duty at self by a member whose own device is off the
+roster is within). `audience::place_in` places over another table, so the Undecided path stays tested over a
+synthetic one. A follows row names the row it follows by its family's reference (the ruling G34,
+`audience::FOLLOWS_REF`, `followed_of`): custody by `evidence_refs`, stream:head by its `sub`, ownership and duty by
+`refs.also.cites`: `cites` is the general role, so the followed row is the one cited row of the right family (an
+owner binding, `audience::OWNER_BINDING_FAMILIES`; a permission, `audience::PERMISSION_FAMILIES`, both derived from
+the confers cells), read from the row set; none gives `follows_not_named`, several of that family
+`follows_ambiguous`, and cited rows of other families are not read. **BREAKING** within the release:
+`AudienceRow::follows` is gone; `evidence`, `stream` and `cites` replace it, and `follow` takes why a row names
+none.
+
+**`follows`, ready for the next family model** (both languages; inert at the pinned d103e60, which has no such
+cell): a placement cell's `follows` marker (custody, duty and stream:head at the Constitution's 42eaa3f) is read by
+the generator (`Same`, or `Narrower` where the cell says "or narrower"), and a row of such a family is placed at the
+scope of the row it follows (`AudienceRow::follows`, a row it names): `audience::follow` keeps its own answer where
+its placement and audience are the followed row's (`Same`) or within its audience (`Narrower`), else refuses
+(`follows_not_named`, `follows_not_held`, `follows_unplaced`, `follows_mismatch`, `follows_wider`). Checked over
+answers stated directly at every pin (FOLLOW), and by cases that go live with the marker.
+
+**The audience after review r79** (both languages, cases from each finding, planted breaks and fixtures):
+- The copy rule is the Constitution's proposal c (`audience::carried`, the one place it is stated): carriage is of
+  rows; a room row is carried by a concluded room row of its room to that row's audience on the room's current
+  roster; nothing reaches a key off the roster (an offered key that never accepted gets the offer alone, a removed
+  key its removal alone); a self or addressed row is carried only by a concluded row of its own signer or person;
+  the carrier's signer is already in the row's audience; a key grant is never carried, and is served per its
+  placement, the content's scope, opened only by the key it names (CC 3.3.2): in a room the members see that a grant
+  exists and to which key, never the key.
+- `history_on_join` changes no audience: served is not readable. A later joiner is served the older room rows,
+  sealed by keys it lacks; `full` acts only on a kept stream, the caller's (`audience::history_of`). **BREAKING**:
+  `audience::Joins` keeps `history` and `at_head` only.
+- `named_within` is read against the members at the row's own head (`audience::Joins::at_head`), so a later
+  removal never unplaces an old row, and a row naming an outsider stays refused after the outsider joins. The
+  current roster is read only for who is owed.
+- The keys a seat row seats or removes are derived (`audience::seats_of`: an offer or unseat whose `obj` is its
+  room, its `to`). **BREAKING**: `AudienceRow::seats` is gone; `seat_act`, `obj` and `to` replace it.
+- Review r84: a key removal keeps every row in its past and every row of the member reachable along `prev` from
+  a row it names (`ContentRow::tips` on a key removal; the walk an end's tips take), so an honest revocation naming
+  its last trusted row keeps what lies behind it. A row any removal cuts stays cut, whatever a later removal names:
+  otherwise a thief still holding the key could revoke it again naming its forgeries and keep them (the monotone
+  choice). The walk stays in its room (a predecessor of another room is not read). Two residuals are stated, with
+  EDGE cases: a forgery the honest device had chained onto stands (name last trusted rows whose prev chains hold no
+  foreign row), and a removal that has another in its past inherits what that one names (never name, or build on,
+  the thief's revocation). A seat of a duty over the room
+  (`audience::DUTY_SEAT_FAMILIES`: the moderator's acceptance) seats only a member at the row's own head, never an
+  outsider.
+- Review r82, r83: only a ROOM seat family's offer or unseat seats keys within its audience
+  (`audience::SEAT_FAMILIES`: group:roster, membership, ballot:moderator_acceptance, derived by the generator from the
+  confers cells; the person-level families never do); the key grant exclusion reads the resolved family
+  (`audience::KEY_GRANT`); `person` is the person's current, concluded key roster (a contract, stated).
+- A key's own revocation that names nothing (the Constitution's ruling of review r82): the end rule stands, with
+  the caller duty (an honest revocation names the key's last trusted rows) and the residual (a thief can revoke
+  naming nothing and take the key's unnamed rows out for readers that had not taken them up). The only anchor is the
+  reader's own taken-up line. A content anchor by another key's reply was built and removed after review r83: it
+  cannot be told from a reply signed after the revocation, so one colluding or sock key revived every forged row,
+  a forged retraction included; its cases stay as regression cases (`anchor_*`), and a plant re-enables it.
+- An unknown `history_on_join` word is absent and falls through (the door refuses it), in `history_of`.
+- Family patterns that tie on a name refuse (`Refusal::FamilyAmbiguous`, `audience::family_in`); the generator
+  refuses to write a table with a tie.
+- A key removal (`content`) is read only where it is the key's own revocation or concludes under the person's own
+  key roster (`ContentRow::concludes`, the self-roster count), and it does not cut a row the reader took up before
+  it held the removal. A reader applies only the removals it holds: a caller places a key removal at commons, or in
+  every room the key sits in.
+
+**Audience and placement, family by family** (new module `audience`, both languages). The family model's placement
+cells (the Constitution's `manifests/family_model.json`, derived and pinned by `tools/family_placement.py` into
+`data/family_placement.json` and `audience::FAMILIES`; pinned at `rc23` `d103e60`, sha256 `f5a38b47`, final): 189 families, 143 on the default, 34 pinned by the CC table, 12 whose cell is not table data (the
+re-pin from `f73162c` added `regard:{subject_kind}` and stated ten families from the text: `act:ack`,
+`admission:unit`, `contribution`, `identity:occurrence`, `identity:occurrence_revocation`, `key:record`,
+`key:revocation`, `key_grant`, `location_proof`, `window`). `audience::place` gives a row's placement
+from the cohort scope it states and its audience as KEYS (the room's roster, the signer's own keys, the keys it
+names; everyone in the commons), or the refusal (`family_unknown`, `scope_unknown`, `placement_not_allowed`,
+`named_outside_audience`, `no_room`), or `Placed::Undecided` naming the family where its cell is not table data;
+`audience::audiences` applies the copy rule (CC 5.2). The keys a seat offer or unseat over the room seats or removes (`AudienceRow::seats`, its
+`to`) are always within its audience, ahead of `named_outside_audience`: a pending admission names its joiner, a
+removal its removed key; any other key off the roster is still refused. The roster is the roster as it stands (CC 5.2 as ruled: a member removed later is
+owed nothing further), less the members admitted after the row unless its `history_on_join` is `full`: the row's own
+(`AudienceRow::history_on_join`), else the room record's (`audience::Joins::history`), else `from_join` (CC 2.1, CC
+4.4.3.16); a member admitted concurrently with the row (neither in the other's past) is owed it. **BREAKING** within this release: `audience::place` and `audiences` take `&audience::Joins`. `check_audience.py` (945 generated answers, 43 cases, nine
+planted breaks), fixture `audience.json`, `tests/audience.rs`, seven crate plants.
+
+**Room content: receipts, the reader's line, key removals, rooms** (`content`, both languages, with cases, planted
+breaks and the run's `keys` histories). **BREAKING**: `content::Kind` has `Ack` and `KeyEnd`, and `content::Rule`
+has `KeyRemoved` (`"K.key_removed"`); an exhaustive match must add them.
+- A receipt of a content row is not read, the count's own included (`Kind::Other`): a choice, stated as one.
+- The reader's line is the head rules' line, monotone (`line::own_line_with`, sibling-safe as `line::behind`): the
+  roster versions, the ends and the rows adding tips are its counted acts; each acknowledgement (`Kind::Ack`)
+  takes up the acts in its past not void for the line its earlier ones drew, so acknowledging never un-voids. An
+  end behind the line ends nothing for that reader, a tips row behind it adds nothing. New:
+  `ContentRow::parents` (a head's own heads); `ContentRow::head` is read on a tips row.
+- A key removal (`Kind::KeyEnd`, `ContentRow::removes`) is the person's own key roster's act, signed by a key of
+  the member: it cuts the member's rows under that key outside its past, in every room, and voids no end. One the
+  room's count signs is not read: the room's count ends a seat in its room only.
+- `ContentRow::room`: each room is judged by its own rows. A content row naming a held row that is not a roster
+  version of its room has no seat (it was undecided).
+
+**The wrap set is replayed by the crate** (`tests/resignation.rs`, fixture `resignation.json`): who may read a room,
+`Seats::holders` over the fold of the tips less every member whose own end of its seat is held, with
+`Seats::roster` and `Seats::dissolved`, for `check_resignation.py`'s 8 cases and every one of its 152 sets of rows,
+in two rooms: a community whose members sit in scope `member` (the roster a store reads: there the roster is the
+wrap set and `Seats::dissolved` is the check's own reading, in every set) and an accord's holders (scope `holder`, no
+roster seat).
+Crate plant: a held withdrawal unread (the reference's `wrap_by_roster`: a resigner stays wrapped until a count cites
+it).
 
 **Counts are over persons: one voice and one member per person** (ruled on CIRISConstitution#224: "one voice
 however many live keys sign"). New: `seat::Persons`, the persons a count reads over a counted row's past, and
@@ -690,8 +1171,9 @@ follows #48. **Answers of 0.4.0 change.** **Breaking:** one required trait metho
   names itself (only `moderate`, for the one-founder room's seat). For a `String` word:
   `fn word(s: &'static str) -> String { s.into() }`; for a `&'a str` word: `fn word(s: &'static str) -> &'a str
   { s }`.
-- A counted row (offer or unseat, `Conf::Group`) whose heads are not each of its own object's line concludes
-  nothing: a head is of object `o`'s line where it is `o`'s founding row, a row whose `obj()` is `o`, a
+- **SUPERSEDED** by the heads ruling of 2026-11-26 (H1, H8, below): a version row is no head of a count, and a
+  count names the newest counted changes over its own object. The entry as it was: a counted row (offer or unseat,
+  `Conf::Group`) whose heads are not each of its own object's line concludes nothing: a head is of object `o`'s line where it is `o`'s founding row, a row whose `obj()` is `o`, a
   withdrawal (`target()`), acceptance or receipt (`of()`) of such a row, or a row of no object of its own that
   names one (a version of the roster, as persist's `consensus::ballot_rows` presents a ballot's head). A row
   whose `obj()` is another object is of that object's line. No answer of a case changes.

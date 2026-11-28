@@ -101,7 +101,7 @@ def concluded(kept_rows, rule, root=None, reads_concurrent=False):
 def arrive(order, rule, root=None, wf=WELL_FORMED, wait=True):
     """The same two layers run as a node runs them: rows come one at a time in `order`; a row whose named
     rows are not all held waits; a row is concluded once, at the moment it is kept, and never again.
-    Returns the State. `wait=False` drops a row that cannot be kept on arrival (a mutation for the check)."""
+    Returns the State, its `waiting` the rows offered and not kept, each with the ids it lacks (`lacks`). `wait=False` drops a row that cannot be kept on arrival (a mutation for the check)."""
     held, ids, waiting, C, anc = [], {}, [], {}, {}
     for r in order:
         if r["id"] in ids or any(w["id"] == r["id"] for w in waiting):
@@ -122,7 +122,19 @@ def arrive(order, rule, root=None, wf=WELL_FORMED, wait=True):
                     moved = True
         if not wait:
             waiting = []
-    return State(held, C)
+    S = State(held, C)
+    S.waiting = {w["id"]: lacks(ids, w) for w in waiting}
+    return S
+
+
+MUT = set()       # named mutations, switched on by a check (check_root.py's waits cases)
+
+
+def lacks(held_ids, r):
+    """The ids a waiting row still lacks: the ids it names that are not held, ascending and each once (the crate's
+    Held::lacks; MUTATION lacks_first_only: only the first of them)."""
+    out = sorted(set(n for n in r["names"] if n not in held_ids))
+    return out[:1] if "lacks_first_only" in MUT else out
 
 
 # ---- layer 3: derived ------------------------------------------------------------------------------------

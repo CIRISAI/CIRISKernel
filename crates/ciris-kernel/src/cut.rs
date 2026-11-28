@@ -48,6 +48,12 @@ pub trait CutSpec<R: Row> {
     fn trust_root(&self) -> Option<&dyn crate::root::RootView<R::Id, R::Key, crate::seat::Obj<R::Id, R::Key>>> {
         None
     }
+    /// The key lane a count reads at its voices step ([`crate::seat::voices_with`]): each voice by the end rule
+    /// ([`crate::key_end::counts_by`]). A store with key records MUST supply it; `None` (the default) lets every
+    /// voice count, which is only for a caller with no key lane.
+    fn key_view(&self) -> Option<&dyn crate::key_end::KeyView<R::Id, R::Key>> {
+        None
+    }
 }
 
 /// The status of a row under the cut.
