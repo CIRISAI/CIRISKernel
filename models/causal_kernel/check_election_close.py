@@ -99,6 +99,7 @@ _HB4 = [B("b" + k.lower(), k, "D", "op") for k in "DEFG"]
 H104 = EL.N1R + [_LM0, dict(OPEN("op", "lm0", ("D", "E", "F", "G"), ("aG",)), names=("lm0", "aG"))] + _HB4 + \
     [SEAT("ed", "D", tuple(b["id"] for b in _HB4), op="op", heads=("aG",))] + [ACK("k" + k.lower(), k, "ed") for k in "BEFG"]
 ACKD = R("akD", "ack", "R", ("ed",), room=OBJ, head=("ed",))
+OPG2 = OPEN("opg2", "lm0", ("B", "C"), ("g",))
 RECS = [KE.rec("k" + k, k, 0, None, typ="pseudonym") for k in "ABCDEFGX"]
 CASES = [
     ("rule 2: the honest election: the opening (A, B, C of five) at g, C three to two; closed by A, B and D", 
@@ -194,6 +195,11 @@ CASES = [
      {"ask": ("A", "moderate"), "reader": "R"}, (T, F)),
     ("and once that reader acknowledges D's seating (built on lm0): lm0 is on its line: D moderates, ed is closed",
      H104 + [ACKR, ACKD], "ed", {"ask": ("D", "moderate"), "reader": "R"}, (T, T)),
+    ("r106 (ii), the line between openings: after the honest close, B and C (two of three at g) write a stale opening "
+     "at g citing lm0: its heads are strictly in the past of the honest opening's: no rival: D keeps the seat",
+     H104 + [OPG2], "ed", {"ask": ("D", "moderate")}, (T, T)),
+    ("and for a reader that acknowledged ed", H104 + [ACKR, ACKD, OPG2], "ed", {"ask": ("D", "moderate"), "reader": "R"},
+     (T, T)),
     ("G3c plus C (r90-49): A's backdated lay-down forks the end; C's receipt of B's seating closes nothing, and B is "
      "not seated", EL.G3C + [ACK("jc", "C", "eb")], "eb", {"ask": ("B", "moderate")}, (F, F)),
 ]
@@ -225,7 +231,7 @@ PLANTS = ("end_fork_unread", "open_old_heads", "open_by_key", "openings_both_sta
           "close_no_wait", "close_key_view_unread", "close_receipt_unclean",
           "acceptance_key_view_unread", "inputs_key_view_unread", "rival_openings_read", "electorate_at_seating",
           "departures_raw", "fork_untaken_end", "close_reads_concluded", "open_key_view_unread",
-          "laydown_roster_unread", "laydown_ack_unread")
+          "laydown_roster_unread", "laydown_ack_unread", "openings_line_unread")
 
 
 def run():

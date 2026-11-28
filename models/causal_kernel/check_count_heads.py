@@ -500,10 +500,11 @@ CASES = [
     (EL, "the seating at the head before an admission built on a later one the reader acknowledged: its vacancy end, "
          "the lay-down at the same head, is behind that reader's line (a lay-down is a roster change, H4), so for that "
          "reader the seating seats nobody (its opening's end is not taken by that reader's roster: the seating stands "
-         "for no election there)",
+         "for no election there), and A keeps the seat for it (one view of the end, r104: the lay-down ends no seat "
+         "in its roster either)",
      ROOM + [admit("aH", "H", tuple(sorted(SEVEN)), ("aG",)), admit("aI", "I", tuple(sorted(SEVEN | {"H"})), ("aH",)),
              ack("ak", "R", "aI"), ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)), "R",
-     {"se": T}, {"moderate": set()}, set()),
+     {"se": T}, {"moderate": {"A"}}, set()),
     (EL, "a later admission at the newest admission, leaving the seating unnamed in its past (it names the ballots)",
      ROOM + [ST.withdraw("lm", "A", "g", ("g", "aG"), scope="moderate")] + elect("se", "D", ("aG",)) +
      [admit("ax", "X", FIVE, ("aG",), ("se",))], None, {"se": T, "ax": F}, {"moderate": {"D"}, "member": SEVEN}, set()),

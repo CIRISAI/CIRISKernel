@@ -1352,6 +1352,14 @@ def opening_in_force(op, rows, past):
     by = {q["id"]: q for q in rows}
     if op.get("cites") and op["cites"][0] not in by and op["cites"][0] != op.get("obj"): return False   # its end not taken
     rs = [o for o in openings_for(op, rows, past) if o["id"] in by or o is op]
+    # r106 (ii): the line between openings: an opening whose heads are all strictly in the past of a rival's own heads,
+    # and not in its past, is behind it and no rival; behind one, it is in force nowhere (sibling-safe, as
+    # checkpoint.behind; MUTATION openings_line_unread)
+    if "openings_line_unread" not in MUT:
+        older = lambda hs, than: bool(hs) and all(any(past(h, t) and h != t for t in than) for h in hs)
+        behind = lambda o, c: o is not c and not past(o["id"], c["id"]) and older(o.get("head", ()), c.get("head", ()))
+        rs = [o for o in rs if not any(behind(o, x) for x in rs)]
+        if op not in rs and not any(o["id"] == op["id"] for o in rs): return False
     newest = [o for o in rs if not any(past(o["id"], x["id"]) for x in rs if x is not o)]
     if "openings_both_stand" in MUT: return op in newest
     if len(newest) > 1 and "rival_double_signers_kept" not in MUT:
