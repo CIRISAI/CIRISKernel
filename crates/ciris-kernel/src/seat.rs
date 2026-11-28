@@ -1957,7 +1957,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         };
         dropped.extend(contested);
         let roster_scope = |q: &R| q.scope().is_some_and(|s| law.roster_seats.iter().any(|x| x == s.as_ref()));
-        let ended: Vec<(R::Key, usize, ObjOf<R>)> = unseats
+        let taken_ends: Vec<(R::Key, usize, ObjOf<R>)> = unseats
             .iter()
             .filter(|(u, _)| roster_scope(g.row(*u)))
             .flat_map(|(u, o)| {
@@ -2225,7 +2225,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             stale,
             beaten,
             dropped,
-            ended,
+            ended: taken_ends,
             recs,
             duty,
             tips_memo: RefCell::default(),
