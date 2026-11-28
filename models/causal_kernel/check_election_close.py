@@ -208,6 +208,12 @@ CASES = [
     ("one vacancy: A lays the seat down again at aG (lm), concurrent with lm0: the honest election citing lm seats D "
      "for a fresh reader (it waits on nothing)", H104L, "ed", {"ask": ("D", "moderate")}, (T, T)),
     ("and for a reader that acknowledged aG", H104L + [ACKR], "ed", {"ask": ("D", "moderate"), "reader": "R"}, (T, T)),
+    ("the stated residual beside H4 (r108-49 a'): A lays down again at aG (lm) and the honest election cites lm0: a "
+     "reader that acknowledged aG has lm on its line (A is out) and lm0 behind it (ed is not its election): an EMPTY "
+     "seat until it acknowledges ed",
+     H104 + [_LM, ACKR], "ed", {"ask": ("A", "moderate"), "reader": "R"}, (F, F)),
+    ("and once it acknowledges ed: D, closed", H104 + [_LM, ACKR, ACKD], "ed", {"ask": ("D", "moderate"), "reader": "R"},
+     (T, T)),
     ("one vacancy, bound (2): an opening citing lm0 (A, B, C, E at aG) concurrent with the one citing lm: rivals for the "
      "one vacancy, never two elections: contested, nothing is seated",
      H104L + [dict(OPEN("op2", "lm0", ("A", "B", "C", "E"), ("aG",)), names=("lm0", "aG"))], "ed",
