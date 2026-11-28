@@ -1,0 +1,9 @@
+honest holding opg, closed                         none   moderate {'A': False, 'B': False, 'D': True} closed {'ed': True}  orders: 0 of 8 differ
+honest holding opg, closed                         R@aG   moderate {'A': True, 'B': False, 'D': False} closed {'ed': False}  orders: 0 of 8 differ
+honest holding opg, closed                         R@ed   moderate {'A': False, 'B': False, 'D': True} closed {'ed': True}  orders: 0 of 8 differ
++ a second stale opening opg2 at g                 none   moderate {'A': False, 'B': False, 'D': True} closed {'ed': True}  orders: 0 of 8 differ
++ a second stale opening opg2 at g                 R@aG   moderate {'A': True, 'B': False, 'D': False} closed {'ed': False}  orders: 0 of 8 differ
++ a second stale opening opg2 at g                 R@ed   moderate {'A': False, 'B': False, 'D': True} closed {'ed': True}  orders: 0 of 8 differ
+lm0 only, honest closed, + a stale opening at g    none   moderate {'A': False, 'B': False, 'D': True} closed {'ed': True}  orders: 0 of 8 differ
+lm0 only, honest closed, + a stale opening at g    R@aG   moderate {'A': True, 'B': False, 'D': False} closed {'ed': False}  orders: 0 of 8 differ
+lm0 only, honest closed, + a stale opening at g    R@ed   moderate {'A': False, 'B': False, 'D': True} closed {'ed': True}  orders: 0 of 8 differ
