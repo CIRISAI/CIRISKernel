@@ -1,0 +1,77 @@
+A1 thief grant to A at=2 < ra=3, concurrent with N's revocation (names g1)
+    ('send', 'N', 'A', 'trace:complete:v1', None, None) -> None
+    ('peers', 'N', None, None) -> ['P']
+A2 thief grant to P at=2.5 over honest g1
+    ('send', 'N', 'P', 'trace:complete:v1', None, None) -> None
+    ('send', 'N', 'P', 'capacity:cpu:v1', None, None) -> g1
+A3 owner O revoked; thief's grant, N's row n names it (N had not held rv)
+    ('send', 'N', 'A', 'trace:complete:v1', 'n', None) -> None
+    ('send', 'N', 'A', 'trace:complete:v1', None, None) -> None
+A3 same, read for reader N (the sending node)   [reader N]
+    ('send', 'N', 'A', 'trace:complete:v1', 'n', None) -> gt
+    ('send', 'N', 'A', 'trace:complete:v1', None, None) -> gt
+A3 + N later holds rv and names it: still taken up on N's line   [reader N]
+    ('send', 'N', 'A', 'trace:complete:v1', 'n2', None) -> gt
+A3 + who can end gt: N's own withdrawal of O's grant   [reader N]
+    ('concl', 'wn') -> True
+    ('send', 'N', 'A', 'trace:complete:v1', 'n3', None) -> None
+A3 + the revoked O key withdraws gt (no key view on withdrawals)   [reader N]
+    ('concl', 'wo') -> True
+    ('send', 'N', 'A', 'trace:complete:v1', 'n3', None) -> None
+A5 g1 at=5 withdrawn, regrant g2 at=3 naming w
+    ('send', 'N', 'P', 'capacity:cpu:v1', 'n', None) -> g2
+A6 g9 at=10**18 withdrawn, regrant at=7 naming w
+    ('send', 'N', 'P', 'capacity:cpu:v1', 'n', None) -> g2
+A6b g9 at=10**18 concurrent with a regrant that does not name it (not withdrawn): g9 wins
+    ('send', 'N', 'P', 'capacity:cpu:v1', 'n', None) -> None
+    ('send', 'N', 'P', 'x:y', 'n', None) -> g9
+A7 O's grant made before the binding
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> go
+A8 N revoked; owner O withdraws N's grant
+    ('concl', 'wo') -> True
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> None
+D1 a grant with no asserted_at beside one with
+    ('send', 'N', 'P', 'capacity:cpu:v1', None, None) -> g2
+K1 thief grant + thief row as N naming it; no reader
+    ('send', 'N', 'A', 'trace:complete:v1', None, None) -> None
+K1 the same for reader N (the node whose key was stolen reads its own line)   [reader N]
+    ('send', 'N', 'A', 'trace:complete:v1', None, None) -> None
+K2 thief grant at=2.9 in the revocation's past (owner named its last held rows): stands
+    ('send', 'N', 'A', 'trace:complete:v1', None, None) -> gt
+F0 O gave up ownership (wb); N's grant gn
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> gn
+F1 former owner O withdraws gn from a past without wb
+    ('concl', 'wo') -> True
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> gn
+F2 the same withdrawal naming wb
+    ('concl', 'wo') -> True
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> gn
+F3 N's later grant gn2 (not naming wb) withdrawn by former owner O
+    ('concl', 'wo') -> True
+    ('send', 'N', 'Q', 'trace:complete:v1', 'n', None) -> gn2
+P1 P withdraws N's grant to Q (not its own)
+    ('concl', 'wp') -> True
+    ('send', 'N', 'Q', 'trace:complete:v1', 'n', None) -> gq
+P2 P withdraws owner O's grant to P: ends it for every node O owns
+    ('concl', 'wp') -> True
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> None
+    ('send', 'M', 'P', 'trace:complete:v1', 'n', None) -> None
+AN1 federation grant, P's 'announcement' signed by N
+    ('concl', 'g') -> True
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> None
+AN2 federation grant to a revoked peer P (its announcement still counts)
+    ('concl', 'g') -> True
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> g
+AN3 the same grant marked fed=False with no announcements at all
+    ('concl', 'g') -> True
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> g
+AN4 announcement by a thief of P's key after P's revocation (concurrent)
+    ('concl', 'g') -> True
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> None
+SW1 a later grant naming the first, with wider classes: moves the wider set
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> g2
+CF1 fork g3 (at 4, wide) | g2 (at 5, narrow); g2 withdrawn; regrant g4 at=3 names w only
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> None
+    ('send', 'N', 'P', 'capacity:cpu:v1', 'n', None) -> g4
+CF2 before the regrant: nothing (no revival)
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> None

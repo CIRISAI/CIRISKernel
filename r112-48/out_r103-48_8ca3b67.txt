@@ -1,0 +1,47 @@
+K1 thief grant + thief row as N, reader N   [reader N]
+    ('send', 'N', 'A', 'trace:complete:v1', None, None) -> None
+K1' the honest revocation names the thief's row (owner named every row it held of its key)   [reader N]
+    ('send', 'N', 'A', 'trace:complete:v1', None, None) -> gt
+A3 revoked owner's thief grant taken up by N   [reader N]
+    ('send', 'N', 'A', 'trace:complete:v1', 'n', None) -> gt
+A3 + N withdraws gt (a node the grant is for)   [reader N]
+    ('wd', 'wn', 'gt') -> True
+    ('send', 'N', 'A', 'trace:complete:v1', 'n3', None) -> None
+CF1 fork revival
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> None
+    ('send', 'N', 'P', 'capacity:cpu:v1', 'n', None) -> g4
+F1 former owner withdraws from a past without wb
+    ('wd', 'wo', 'gn') -> False
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> gn
+F3 a later grant not naming wb
+    ('wd', 'wo', 'gn2') -> False
+    ('send', 'N', 'Q', 'trace:complete:v1', 'n', None) -> gn2
+AN4 announcement by P's key concurrent with P's revocation
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> None
+A5 regrant after withdrawal, earlier instant
+    ('send', 'N', 'P', 'capacity:cpu:v1', 'n', None) -> g2
+FD1 two forks, each regranted at a lower instant: no winner
+    ('send', 'N', 'P', 'capacity:cpu:v1', 'n', None) -> None
+FD2 one fork only (g1, h1 concurrent; g2 names g1)
+    ('send', 'N', 'P', 'capacity:cpu:v1', 'n', None) -> g2
+PE0 the person's grant; O2 evicted
+    ('person', 'ev', 'O2') -> O2
+    ('send', 'O', 'P', 'trace:complete:v1', 'n', None) -> g
+PE1 evicted O2 withdraws O's grant from a past without its eviction
+    ('wd', 'w2', 'g') -> False
+    ('send', 'O', 'P', 'trace:complete:v1', 'n', None) -> g
+PE2 the same naming its eviction
+    ('wd', 'w2', 'g') -> False
+    ('send', 'O', 'P', 'trace:complete:v1', 'n', None) -> g
+PR1 O2's key revoked; a withdrawal by O2 concurrent with it
+    ('wd', 'w2', 'g') -> False
+    ('send', 'O', 'P', 'trace:complete:v1', 'n', None) -> g
+NF1 node M (owned by O) withdraws O's grant: N's rows stop too
+    ('wd', 'wm', 'go') -> True
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> None
+NF2 M unbinds itself (wc) and withdraws concurrently
+    ('wd', 'wm', 'go') -> False
+    ('send', 'N', 'P', 'trace:complete:v1', 'n', None) -> go
+NB1 X offers O ownership of X (not accepted), then withdraws O's grant
+    ('wd', 'wx', 'go') -> False
+    ('send', 'O', 'P', 'trace:complete:v1', 'n', None) -> go

@@ -1,0 +1,24 @@
+K1r
+    ('concl', 'ur') -> True
+    ('ends', 'N') -> ['ur']
+    ('counts', 'a0', 'N') -> True
+    ('counts', 'gt', 'N') -> False
+U2
+    ('concl', 'ux') -> False
+    ('ends', 'N') -> []
+    ('counts', 'gt', 'N') -> True
+PG1
+    ('rep', 'm', 'O2') -> O
+    ('rep', 'n', 'O2') -> None
+RK0 rotation names a1: a1 counts
+    ('ends', 'K') -> ['rot']
+    ('counts', 'a1', 'K') -> True
+RK1 + the retired key's key-lane self-revocation, not naming a1
+    ('ends', 'K') -> ['rot']
+    ('counts', 'a1', 'K') -> True
+RK2 + the retired key's registered self-unseat, not naming a1
+    ('concl', 'ur') -> True
+    ('ends', 'K') -> ['rot', 'ur']
+    ('counts', 'a1', 'K') -> False
+K1r over every order: {False}
+RK2 over every order: {False}

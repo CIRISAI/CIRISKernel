@@ -1,0 +1,11 @@
+RR0 registered, then self-unseat | concluded: {'rg': True, 'ur': True} | registered holders: [] | key_ends: ['ur']  
+RR1 + re-registered by itself after the unseat | concluded: {'rg': True, 'ur': True, 'rg2': False} | registered holders: [] | key_ends: ['ur']  
+RR2 + a grant after the re-registration | concluded: {'rg': True, 'ur': True, 'rg2': False, 'g2': True} | registered holders: [] | key_ends: ['ur'] | send g2: None
+RT1 O2 rotated to O2b concurrently with O2's withdrawal
+    ('wd', 'w2', 'g') -> False
+    ('send', 'O', 'P', 'trace:complete:v1', 'n', None) -> g
+RT0 control: the withdrawal in the rotation's past
+    ('wd', 'w2', 'g') -> True
+    ('send', 'O', 'P', 'trace:complete:v1', 'n', None) -> None
+K1r answers over orders: {None}
+PG1 answers over orders: {'g'}
