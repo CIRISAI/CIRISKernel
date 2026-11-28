@@ -1305,7 +1305,7 @@ fn policy_in_force<'a, R: SeatRow, S: CutSpec<R>>(
     let mut out: Vec<InForce<'a, R>> = Vec::new();
     for part in w.split('&') {
         match law.policy_of(Some(part)) {
-            Some(Policy::Protocol) => out.push(protocol_part(law, p, r)?),
+            Some(Policy::Protocol) => out.push(protocol_part(law, spec, p, r)?),
             pol => out.push(InForce::plain(pol, r.need())),
         }
     }
@@ -3927,7 +3927,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     // the removal's author apart by person (the key removed is an agent's: in no count)
                     let base = lift_base(&p, self.law, self.spec, &over, Some(&members));
                     mem.retain(|m| base.contains(m));
-                    (vec![author], v)
+                    (alloc::vec![author], v)
                 } else {
                     (Vec::new(), voices_with(r, &p, self.spec))
                 };
@@ -4919,7 +4919,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         };
         let any_self = rows.iter().any(|g| {
             g.seat_kind() == SeatKind::Offer
-                && founding(g)
+                && founding(*g)
                 && is_self_kind(kind_of(law, &get, &Obj::Row(g.id().clone())))
         });
         let revoked: BTreeSet<R::Key> = rows
@@ -4940,7 +4940,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
             .iter()
             .filter(|g| {
                 g.seat_kind() == SeatKind::Offer
-                    && founding(g)
+                    && founding(**g)
                     && kind_of(law, &get, &Obj::Row(g.id().clone())) == Some(CommunityKind::SelfRoster)
             })
             .map(|g| g.signer().clone())
@@ -5020,7 +5020,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         let mut b = self.base(base);
         let mut v = self.voices(voices, voters.unwrap_or(base));
         for k in apart {
-            let mut ks = vec![k.clone()];
+            let mut ks = alloc::vec![k.clone()];
             if !self.keys {
                 ks.push(self.member(k));
                 ks.extend(self.voice(k));
@@ -6293,7 +6293,10 @@ pub fn merge_concludes<R: SeatRow, S: CutSpec<R>>(p: &Past<'_, '_, R>, law: &Sea
     let word_at = |t: usize| -> Option<(usize, usize)> {
         let line: Vec<usize> = p.ancestors().iter().copied().filter(|&x| x == t || g.in_past(x, t)).collect();
         let pt = Past::new(g, t, &line);
-        match protocol_record(&pt, &obj)?.consensus_protocol().and_then(|w| RoomProtocol::parse_in(w.as_ref(), true)) {
+        match protocol_record(&pt, law, spec, &obj)?
+            .consensus_protocol()
+            .and_then(|w| RoomProtocol::parse_in(w.as_ref(), true))
+        {
             Some(RoomProtocol::Quorum(m, n)) => Some((usize::try_from(m).ok()?, usize::try_from(n).ok()?)),
             _ => None,
         }
@@ -6481,7 +6484,7 @@ pub fn infra_live<R: SeatRow, S: CutSpec<R>>(
     if kind_of(law, &get, obj) != Some(CommunityKind::Infrastructure) {
         return None;
     }
-    let rec = protocol_record(&p, obj)?;
+    let rec = protocol_record(&p, law, spec, obj)?;
     let Some(RoomProtocol::Quorum(m, _)) = RoomProtocol::parse_in(rec.consensus_protocol()?.as_ref(), true) else {
         return None;
     };
@@ -6721,17 +6724,16 @@ pub fn count_left<R: SeatRow>(p: &Past<'_, '_, R>, law: &SeatLaw, obj: &ObjOf<R>
     };
     // and a family's founder role ends with any leaving of the key (its member seat, or the founding row) in the
     // row's past, whatever head that row names
-    let role = match &over {
+    // (an affiliation's officer role stands on the member seat too: it ends with any leaving of it)
+    let role = match obj {
         Obj::Row(i) => p.get(i).is_some_and(|g| {
-            (counted == "founder" && g.group_kind().is_some_and(|k| k.as_ref() == "family"))
-                || (counted == OFFICER && g.declared_cohort().is_some_and(|c| c.as_ref() == "affiliations"))
+            (scope == "founder" && g.group_kind().is_some_and(|k| k.as_ref() == "family"))
+                || (scope == OFFICER && g.declared_cohort().is_some_and(|c| c.as_ref() == "affiliations"))
         }),
         Obj::Key(_) => false,
     };
-    if !mem.is_empty() && (law.is_duty(counted, &duties) || role) {
-        for k in stay_ended_in_past(p, law, &over) {
-            mem.remove(&k);
-        }
+    if law.is_duty(scope, &duties) || role {
+        out.extend(stay_ended_in_past(p, law, obj));
     }
     out
 }

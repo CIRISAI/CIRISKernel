@@ -641,7 +641,7 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         // a duty holder's lone act (quarantine, slash, takedown) opens the members' overturn window on its own duty:
         // the seat rule has read that duty
         if seat::lone_act_duty(r.seat_kind()).is_some() {
-            return Some(seat_rule(p, law, spec, &|_| true));
+            return Some(seat::seat_rule(p, law, spec, &|_| true));
         }
         // an opening names the newest counted changes over its object in its own past, and is counted there (H1)
         if !matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat)
@@ -691,7 +691,7 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
     if k == WinKind::Receipt {
         // a receipt puts no row of the target before the window: none in its past that the opener's past does
         // not hold
-        let Some(t) = o.target_key() else { return Some(Ok(true)) };
+        let Some(t) = WindowRow::target_key(o) else { return Some(Ok(true)) };
         return Some(Ok(!rows.iter().any(|q| q.signer() == t && q.id() != o.id() && !p.past(q.id(), o.id()))));
     }
     let Some(rec) = r.receipt().and_then(|x| p.get(x)) else { return Some(Ok(false)) };
@@ -713,7 +713,7 @@ fn rule_with<R: WindowRow, S: CutSpec<R>>(
         (Some(a), Some(b)) => a >= b && a - b >= w.secs,
         _ => false,
     };
-    let got = table_outcome(&x, o.target_key(), &answers, &inside, elapsed);
+    let got = table_outcome(&x, WindowRow::target_key(o), &answers, &inside, elapsed);
     Some(Ok(r.says().is_some_and(|s| s.as_ref() == got)))
 }
 
@@ -826,7 +826,7 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
     let mut voters = x.base(&Base::All);
     voters.extend(x.held(&Base::Scope("moderate".into())));
     if w.target_votes {
-        voters.extend(p.target_key().cloned());
+        voters.extend(WindowRow::target_key(p).cloned());
     }
     if ls.is_empty() {
         // no landing has concluded: a count that is met needs no clock and no concluder, so the table's at-once
@@ -840,7 +840,7 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
             .collect();
         let counted: Vec<&R> = c.cs().iter().copied().filter(|&r| !late(r)).map(|r| g.row(r)).collect();
         let held = unwithdrawn(held, &counted, &ballot_words(&w), says_of);
-        let got = table_outcome(&x, p.target_key(), &voices_of(held, p.signer(), &past), &[], false);
+        let got = table_outcome(&x, WindowRow::target_key(p), &voices_of(held, p.signer(), &past), &[], false);
         return if got == "open" { Outcome::Open } else { Outcome::Landed(got) };
     }
     let mut said: Vec<Option<String>> = Vec::new();
@@ -852,7 +852,7 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
             .map(|&r| g.row(r))
             .filter(|r| r.win_kind() == Some(WinKind::Answer) && r.of() == Some(p.id()) && voters.contains(r.signer()))
             .collect();
-        let tgt: Vec<&R> = match (&w.silent, p.target_key()) {
+        let tgt: Vec<&R> = match (&w.silent, WindowRow::target_key(p)) {
             (Some(_), Some(t)) => conc.iter().map(|&r| g.row(r)).filter(|r| r.signer() == t).collect(),
             _ => Vec::new(),
         };
@@ -877,7 +877,7 @@ fn outcome_with<R: WindowRow, S: CutSpec<R>>(
             (Some(a), Some(b)) => a >= b && a - b >= w.secs,
             _ => false,
         };
-        let again = table_outcome(&x, p.target_key(), &answers, &inside, elapsed);
+        let again = table_outcome(&x, WindowRow::target_key(p), &answers, &inside, elapsed);
         let says = lr.says().map(|s| String::from(s.as_ref()));
         said.push(if says.as_deref() == Some(again.as_str()) { says } else { None });
     }
