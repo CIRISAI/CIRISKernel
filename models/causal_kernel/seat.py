@@ -84,12 +84,13 @@ members may lift that act as they may any act of a moderator."
                   so signed is counted as any removal is.
     the lift      the removal opens a `moderation_overturn` window (window.py: `window` on the row). The lift's
                   effect is a row: a counted offer of policy `moderation_overturn` that seats the key again, cites
-                  the removal (`content`), names the head the removal names, and names objections (answers
-                  `object` to the removal). Its voices are the signers of those objections and no other key; the
-                  removal's author is no voice, and the key it seats is an agent's, so it is in no count. It
-                  concludes when those voices are a strict majority of the members (persons) at that head, the
-                  removal's author apart, never fewer than two: the overturn's count.
-                  It restores and does not admit: the key it seats held its `agent` seat at that head.
+                  the removal (`content`), names the newest counted changes in its own past (H4, no exemption), and
+                  names objections (answers `object` to the removal). Its voices are the signers of those objections
+                  and no other key; the removal's author is no voice, and the key it seats is an agent's, so it is
+                  in no count. It concludes when those voices are a strict majority of the persons seated at BOTH
+                  the removal's head and the lift's own heads (lift_base), the removal's author apart, never fewer
+                  than two: the overturn's count. It restores and does not admit: the key it seats held its `agent`
+                  seat at the removal's head.
                   No reading of the roster reads a window: until that row is written the key is out.
     in force      the removal is an act under the remover's `moderate` standing, and the seat walk counts it as a
                   live unseat only where the end rule (conferral_end.py, E2 to E8) gives it in force over the rows
@@ -1053,13 +1054,19 @@ def lone_removal(r, P, past):
     return r["signer"] in members_at(P, past, r["obj"], heads, "moderate")
 
 
+def reseats(r, by):
+    """r is a re-seating citing a removal (`content` an unseat): a lift's row, counted by the objections it names."""
+    c = by.get(r.get("content"))
+    return r["kind"] == "offer" and c is not None and c["kind"] == "unseat"
+
+
 def lift_voices(r, P, past, by):
     """The voices of a re-seating row, or None where it is none: the signers of the objections it names to the lone
     removal it cites, less that removal's author."""
     rem = by.get(r.get("content"))
     if r["kind"] != "offer" or rem is None or rem["kind"] != "unseat" or not lone_removal(rem, P, past): return None
     # the same seat. The re-seating names the newest counted changes in its own past, as every roster row does (H4),
-    # so it no longer names the removal's head (its base, the members at both heads, is roster-kinds' follow-up)
+    # so it no longer names the removal's head; its base is the members at both heads (lift_base)
     if (rem["obj"], rem["scope"], tuple(rem["to"])) != (r["obj"], r["scope"], tuple(r["to"])):
         return None
     v = frozenset(a["signer"] for a in P if a["kind"] == "answer" and a.get("of") == rem["id"] and a.get("says") == "object"
@@ -1074,18 +1081,30 @@ def room_count(yes, base):
     return 2 * len(yes) > len(base) and (len(yes) >= 2 or "lift_no_floor" in MUT)
 
 
+def lift_base(r, P, past, by):
+    """(over, voters) of a lift: the persons seated at BOTH the removal's head and the lift's own heads (the newest
+    counted changes in the lift's past, H4). A member removed, or that left, since the removal is out of it; one
+    admitted since is out of it too, so a room that grows after a removal cannot pack its lift; a member removed and
+    re-admitted is in it. The removal's author is taken apart by the caller. A lift restores: the key held its
+    `agent` seat at the removal's head (lone_removal), so a moderator's "removal" of a key never seated, and a strict
+    majority's objections, admit nothing past the room's own protocol. The members are persons: the key removed is an
+    agent's, no voice and not counted over. MUTATIONS lift_base_lift_head (the base read at the lift's heads alone)
+    and lift_base_removal_head (at the removal's head alone)."""
+    rem_heads = by[r["content"]].get("head", ())
+    if "lift_base_removal_head" in MUT: return counted_keys(P, past, r["obj"], rem_heads)
+    mem, vot = counted_keys(P, past, r["obj"], r.get("head", ()))
+    if "lift_base_lift_head" in MUT: return mem, vot
+    mr, vr = counted_keys(P, past, r["obj"], rem_heads)
+    return mem & mr, vot & vr
+
+
 def lift_count(r, P, past, by):
     """The overturn's count (window.py, moderation_overturn) over the objections a re-seating row names: a strict
     majority of the members at the head, the removal's author apart and the key seated apart (each no voice, and
     not counted over); never fewer than two."""
     v = lift_voices(r, P, past, by)
     if v is None: return False
-    heads = r.get("head", ())                             # the base is roster-kinds' follow-up; read at the lift's heads
-    # a lift restores: the key held its `agent` seat at the head the removal names, since the removal is a lone
-    # removal only of such a key (lone_removal). So a moderator's "removal" of a key never seated, and a strict
-    # majority's objections, admit nothing past the room's own protocol
-    # the members are persons: the key removed is an agent's, so it is no voice and is not counted over
-    mem, vot = counted_keys(P, past, r["obj"], heads)
+    mem, vot = lift_base(r, P, past, by)
     yes = v & vot
     if "lift_over_all" not in MUT: mem = mem - {by[r["content"]]["signer"]}    # MUTATION lift_over_all: the author counted over
     return room_count(yes, mem)
@@ -1576,7 +1595,13 @@ class Seats:
         # MUTATION dissolve_uncontested: a dissolution is read apart from rule 5)
         dis = [q for q in Cs if is_dissolve(q) and C.counts(q) and q["id"] not in V and q["id"] not in drop] \
             if "dissolve_uncontested" not in MUT else []
-        contested = contested_out(S, unseats + dis)
+        # every other counted act over the group's voices too (the ruling on the superseded version, (b)): an offer
+        # counted by voices, not an election's seating (its count is C1 to C5) and not a lift (its voices are the
+        # objections it names, counted over the persons at both heads)
+        acts = [o for o in Cs if o["kind"] == "offer" and o.get("conf") == "group" and C.counts(o) and o["id"] not in V
+                and o["id"] not in drop and o["id"] not in beaten and not is_election(o) and not reseats(o, S.by)
+                and not is_dissolve(o)]                       # (a dissolution is read as a cut, above)
+        contested = contested_out(S, unseats + dis, acts)
         unseats = [u for u in unseats if u["id"] not in contested]
         self.dropped = drop | contested
 
@@ -1645,6 +1670,7 @@ class Seats:
         gone = frozenset(q["obj"] for q in Cs if is_dissolve(q) and C.counts(q) and q["id"] not in self.dropped) \
             if "dissolve_leaves_seats" not in MUT else frozenset()
         base = [(o, k, sc) for o in K.sel(Cs, kind="offer") if C.counts(o) and o["id"] not in V and o["obj"] not in gone
+                and o["id"] not in self.dropped
                 and o["id"] not in beaten
                 for k in o["to"] if accepted(o, k) for sc in seat_scopes(o, k)
                 if not off_ended(o, k, sc) and not unseated(o, k, sc) and not resigned(o, k, sc)]
@@ -1863,8 +1889,10 @@ class Seats:
                         act_of(r, {q["id"]: q for q in P}, r.get("obj") not in {q["id"] for q in P}) if BOUND else None):
                     # a re-seating (its act the lift): its voices are the objections it names, over the members the fold seats
                     v = lift_voices(r, P, past, {q["id"]: q for q in P}) or frozenset()
+                    if v:                                   # the base: the persons at both heads (lift_base), the author apart
+                        mem = mem & lift_base(r, P, past, {q["id"]: q for q in P})[0]
+                        mem = mem - {S.by[r["content"]]["signer"]}   # (the key removed is an agent's: in no count)
                     yes = v & mem
-                    if v: mem = mem - {S.by[r["content"]]["signer"]}   # the author apart (the key removed is an agent's: in no count)
                     if not room_count(yes, mem): return False
                 elif not count_of(r.get("policy"), True, r.get("to", ()), mem, yes, r.get("need"), r.get("weights"),
                                   signed=voices(r, P)):
@@ -2101,37 +2129,48 @@ def removal_in_force(S, x, unseats, now, not_ends=frozenset(), lone_ids=frozense
     return True
 
 
-def contested_out(S, unseats):
-    """The counted removals among `unseats` that are out of force as contested (CC 2.7.7 rule 5: "Two cuts by keys of
-    equal standing that undo each other stay contested. A voice that the other cannot remove settles them"; CC 2.6.1.9,
-    2.6.1.11). A voice of a counted removal u is no voice where another counted removal over the same group, concurrent
-    with u (neither in the other's past) and in force, removes it; u is in force only if its count is still met
-    without those voices. Read as the well-founded fixed point: two removals that each need a voice the other
-    removes are both out of force (the roster stays as it was, and a later count that names both decides); one that
-    needs nothing the other removes stands, and the other falls (the one-sided case). Nothing here is special: it is
-    the end rule (a removed key's voice counts only where its removal is in that row's past) read for counted rows."""
+def contested_out(S, unseats, acts=()):
+    """The counted acts that are out of force as contested (CC 2.7.7 rule 5: "Two cuts by keys of equal standing that
+    undo each other stay contested. A voice that the other cannot remove settles them"; rule 4 and the paragraph after
+    it, on the removed key's rows; CC 2.6.1.9, 2.6.1.11), among the counted removals `unseats` and the other counted
+    acts `acts`. A voice of a counted act u is no voice where a counted removal over the same group, concurrent with u
+    (neither in the other's past) and in force, removes its key; u is in force only if its count is still met without
+    those voices. Only a removal threatens (it alone ends a key's voice), and only one that counts and is not void
+    for the reader (the caller passes those: the cut, S'', the line) and is in force here: a contested removal
+    takes nothing. A removal that has u in its own past takes nothing (the voice counted before the end), and nor
+    does one at a newer head than u's (the key stood there).
+    The removals are read as the well-founded fixed point: two that each need a voice the other removes are both out
+    of force (the roster stays as it was, and a later count that names both decides); one that needs nothing the
+    other removes stands, and the other falls (the one-sided case). Every other counted act ends no voice, so it is
+    read after them: it falls where its count fails without the voices the removals in force end. Nothing here is
+    special: it is the end rule (a removed key's voice counts only where its removal is in that row's past) read for
+    counted rows, whatever they do (the ruling on the superseded version, (b); MUTATION contested_unseats_only: only
+    removals are read, the rule until then). The edge: a counted act and a concurrent removal of a voice it needs do
+    not both stand; the remedy is to sign the act again forward, by voices seated at the newer head."""
     if "contested_both_out" in MUT: return frozenset()
     # every group (CC 2.7.7 is not scoped by kind; MUTATION contested_scoped_to_kinds: the old family/infrastructure scope)
     # a moderator's lone removal is judged by the end rule and its receipts (out_of_force), not here
     grp_u = [u for u in unseats if u.get("conf") == "group" and not lone_act(u, S) and (
         "contested_scoped_to_kinds" not in MUT or kind_of(S.by, u.get("obj")) in ("family", "infrastructure"))]
-    if len(grp_u) < 2: return frozenset()
+    grp_a = [] if "contested_unseats_only" in MUT else [a for a in acts if a.get("conf") == "group"]
+    if not grp_u or len(grp_u) + len(grp_a) < 2: return frozenset()
     conc = lambda a, b: a["id"] not in S.anc[b["id"]] and b["id"] not in S.anc[a["id"]]
     # a removed key's concurrent voice counts at its own head and is not in force from the removal's head on: u2's
     # removal voids a voice of u only where u counts from u2's heads on (each head of u2 is a head of u or in its past)
     at_or_after = lambda u, u2: "contested_voice_everywhere" in MUT or all(
         any(h2 == h or h2 in S.anc.get(h, ()) for h in u.get("head", ())) for h2 in u2.get("head", ()))
-    pasts = {u["id"]: [q for q in S.Cs if q["id"] in S.anc[u["id"]]] for u in grp_u}
+    pasts = {}
+    past_of = lambda u: pasts.setdefault(u["id"], [q for q in S.Cs if q["id"] in S.anc[u["id"]]])
     # the keys a cut removes: an unseat's `to`; a dissolution's, every key holding a seat over its group in its past
-    cut_keys = {u["id"]: (frozenset(x["k"] for x in seats_of(pasts[u["id"]]).recs if x["obj"] == u.get("obj"))
+    cut_keys = {u["id"]: (frozenset(x["k"] for x in seats_of(past_of(u)).recs if x["obj"] == u.get("obj"))
                           if is_dissolve(u) else frozenset(u["to"])) for u in grp_u}
-    threats = {}
-    for u in grp_u:
-        vs = voices(u, pasts[u["id"]])
-        t = [(u2["id"], cut_keys[u2["id"]] & vs) for u2 in grp_u
-             if u2 is not u and u2.get("obj") == u.get("obj") and conc(u, u2) and at_or_after(u, u2)
-             and cut_keys[u2["id"]] & vs]
-        if t: threats[u["id"]] = t
+
+    def threats_of(u):
+        cands = [u2 for u2 in grp_u if u2 is not u and u2.get("obj") == u.get("obj") and conc(u, u2) and at_or_after(u, u2)]
+        if not cands: return []
+        vs = voices(u, past_of(u))
+        return [(u2["id"], cut_keys[u2["id"]] & vs) for u2 in cands if cut_keys[u2["id"]] & vs]
+    threats = {u["id"]: t for u in grp_u + grp_a for t in [threats_of(u)] if t}
     if not threats: return frozenset()
     # MUTATION contested_one_sided: every cut in a threat, threatened or threatening, contested (rule 5 read too widely:
     # only mutual dependence is contested, and a one-sided cut stands, rule 4 from the head it names)
@@ -2144,7 +2183,7 @@ def contested_out(S, unseats):
         if u["id"] not in threats: return True
         void = frozenset(k for i, ks in threats[u["id"]] if i in live for k in ks)
         key = (u["id"], void)
-        if key not in memo: memo[key] = count_met(dict(u, void_voices=void), pasts[u["id"]], past)
+        if key not in memo: memo[key] = count_met(dict(u, void_voices=void), past_of(u), past)
         return memo[key]
     d, pos = frozenset(), frozenset(u["id"] for u in grp_u)
     while True:
@@ -2152,7 +2191,10 @@ def contested_out(S, unseats):
         p2 = frozenset(u["id"] for u in grp_u if holds(u, d))
         if (d2, p2) == (d, pos): break
         d, pos = d2, p2
-    return frozenset(u["id"] for u in grp_u if u["id"] not in d)
+    # d: the removals in force. Every other act is read against them alone: a contested removal takes nothing (MUTATION
+    # contested_takes_voice: an act read against every removal not yet out, the contested ones with them)
+    live = pos if "contested_takes_voice" in MUT else d
+    return frozenset(u["id"] for u in grp_u if u["id"] not in d) | frozenset(a["id"] for a in grp_a if not holds(a, live))
 
 
 def out_of_force(S, unseats, holds, confers, depth, own, checkpoint):

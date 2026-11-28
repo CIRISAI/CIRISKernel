@@ -106,9 +106,11 @@ KeyCutV(y, S, v) == "Rm" \in S /\ f[y].s = f["Rm"].tgt /\ y \notin AncV("Rm", v)
 \* cut under some reading (an exclusion the invariants use)
 KeyCut(y, S) == \E v \in Variants : KeyCutV(y, S, v)
 RmV(S) == "E" \in S /\ KeyCut("E", S)
-\* the end counts for this reader: held, not voided by a concurrent removal of its signer's key, and not an
-\* old fork of a roster head the reader acknowledged (it names H0, and H1 names nothing)
-EL0(S, a) == "E" \in S /\ ~RmV(S) /\ ~(a /\ EndHd = "H0")
+\* the end counts for this reader: held, and not voided by a concurrent removal of its signer's key. The line is
+\* sibling-safe (the ruling of 2026-11-27): an end at H0 is the sibling of H1, which extends H0, and is not behind
+\* it, so a reader's acknowledgement of H1 voids no end here (the reference's end_sibling_for_reader; the strictly
+\* behind end needs a third head, a case of the reference only)
+EL0(S, a) == "E" \in S /\ ~RmV(S)
 \* LINE = "tips": the proposal's guard (b): the reader acknowledged a tip rk of the series; an end whose acked
 \* tips all lie behind rk, and which rk does not have in its past, is void for that reader
 TipLine(S) == LINE = "tips" /\ rk # None /\ rk \in S /\ f["E"].ack # {} /\ "E" \notin Anc(rk)

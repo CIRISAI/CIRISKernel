@@ -413,10 +413,12 @@ CASES = [
      "force (E3, one say)",
      [], ["EG", "qg"], {"x1": "A0"}, {"x1": {"O1": (T, F), "O2": (F, F)}}, dict(G1, heads={"x1": "G1"})),
     ("later_bundle_end_at_the_earlier_version_reader_at_the_later", "(d) the same end for a reader that "
-     "acknowledged G1, which does not have the end in its past: the end is void for that reader (CC 2.7.8 on "
-     "the end), and both acts count and are in force",
+     "acknowledged G1, which does not have the end in its past. Flipped by the sibling-safe line (the ruling of "
+     "2026-11-27, one line across the models): G1 extends G0, the end's own head, so the end is G1's sibling and "
+     "not behind it; it stands for that reader as for one with no acknowledgement: the act at G0 counts and is not "
+     "in force (E2), the act at G1 does not count (E3). Until that ruling the end was void for this reader",
      [], ["EG"], {"x1": "A0", "x2": "A0"},
-     {"x1": {"O1": (T, T), "O2": (F, F)}, "x2": {"O1": (T, T), "O2": (F, F)}},
+     {"x1": {"O1": (T, F), "O2": (F, F)}, "x2": NOBODY},
      dict(G1, heads={"x2": "G1"}, acks=["G1"])),
     ("later_bundle_end_names_a_stale_version", "the grant's end names G0 and has G1 in its own past: it "
      "concludes nothing (E1), and both acts count and are in force",

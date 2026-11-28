@@ -316,6 +316,16 @@ CASES = [
       ST.offer("md", "C", "D", "member", OBJ, "group", ("g",), head=("g",), policy="cosigned_act", cosigners=("B", "D")),
       confer("cd", "D", "moderate", ("B",), ("md",))],
      [("D", "member", F), ("D", "moderate", F), ("C", "member", F)], None),
+    ("the same with C's removal at a newer head (A, E and F admitted at the founding head, C removed there): rule 5 "
+     "does not reach D's admission (C stood at its head), but the fold of the two tips still takes C out, D's "
+     "admission meets no count on the voices it seats, and D's duty seat falls with its member seat (since rule 5 "
+     "reads every counted act, the case above falls by rule 5 as well, and this one is the fold's)",
+     [ST.found("g", "A", ("A", "B", "C", "E"), {"moderate": ("B",)}, cosigners=("B", "C", "E"), consensus_protocol="quorum:2/4"),
+      ST.offer("af", "A", "F", "member", OBJ, "group", ("g",), head=("g",), policy="cosigned_act", cosigners=("E", "F")),
+      ST.unseat("xc", "A", "C", "member", OBJ, "group", ("af",), head=("af",), policy="community_remove", cosigners=("E",)),
+      ST.offer("md", "C", "D", "member", OBJ, "group", ("g",), head=("g",), policy="cosigned_act", cosigners=("B", "D")),
+      confer("cd", "D", "moderate", ("B",), ("md",))],
+     [("D", "member", F), ("D", "moderate", F), ("C", "member", F), ("F", "member", T)], None),
     # ---- what the rule does not reach -----------------------------------------------------------------------------
     # ---- CIRISConstitution#241: a duty is conferred by its holders, the founding record or an election -------------------
     (DG + "a member-only founding, handed one (the text refuses it at the door: founding_duty_holders_unnamed): the "

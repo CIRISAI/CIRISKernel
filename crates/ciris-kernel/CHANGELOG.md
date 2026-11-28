@@ -17,6 +17,42 @@ removed. A public room is an ordinary invitation-only community anyone may read;
 `default_standing`, a family's under its founder_only part as before. A self-admission was the one head a single key
 wrote, so the heads rules' H3 (no read-through of an authored head) is retired with it. And no key admits itself under
 every count: a key an offer seats, a member re-seated in another role included, is no voice of it (both languages).
+**CC 2.7.7 rule 5 reads every counted act** (ruling B of the superseded-version read, persist's item 13 (b), R2:
+the Constitution reads rule 4 and the paragraph after it as about the removed key's rows, whatever the row does).
+A voice of a key concurrent with a counted removal of that key is not in force from the head the removal names, on
+any counted act over the group's voices (an admission, a conferral, a change of the record), not only on another
+removal. The removals are read first, as before (each needing a voice the other ends: contested, neither counts;
+one-sided: the dependent one falls); every other counted act is then read against the removals in force. Only a
+removal that counts, is not void for the reader (the cut, S'', the line) and is not itself contested takes a voice
+away; one that has the act in its past takes nothing (the voice counted before the end), nor does one at a newer
+head than the act's (the key stood at the act's head). An election's seating (C1 to C5) and a lift (its own base)
+are not read here. **An answer changes:** a counted act that needs the voice of a key removed concurrently, at or
+after the act's head, no longer stands. **The edge:** a counted act and a concurrent removal of a voice it needs do
+not both stand; the remedy is to sign the act again forward, by voices seated at the newer head. Cases in
+`check_count_heads.py` (rule 5, every act; among them the settled pair: a count naming both rows of a contested pair
+that removes one member judges an act counting on that member's voice like any removal, by its heads, and the
+contested rows never reach the act) and one in `check_duty_seats.py` (the fold's own case, now that rule 5
+reaches the old one); plants `contested_unseats_only` and `contested_takes_voice`, in both languages.
+
+**The lift's base: the persons at both heads** (the lift follow-up, after the head rules). A lift (a re-seating
+citing a moderator's lone removal of an agent's key) names the newest counted changes in its own past (H4, no
+exemption) and is counted over the persons seated at BOTH the removal's head and its own heads, the removal's
+author apart; the removed key still must have held its `agent` seat at the removal's head. **An answer changes:**
+a member admitted after the removal is no voice of the lift and not counted over, so a room that grows after a
+removal cannot pack its lift (a room of two that grew lifts nothing: its base is one person, under the floor of two;
+the room's own count can admit the key again); a member removed since is out of it, and one removed and re-admitted
+is in it. Seven cases in `check_agent_removal.py`; plants `lift_base_lift_head` and `lift_base_removal_head` in
+both languages.
+
+**One line across the models: the end of a conferral reads the sibling-safe line** (the ruling of 2026-11-27, ruling
+A of the superseded-bundle read, persist's item 13). `conferral::answers`'s `end_void.line` now voids an end for a
+reader only where the head the end names is strictly in the past of a head the acknowledged one extends, as the
+seat model's line does. An end at the head an acknowledged version directly extends is its sibling and stands.
+**An answer changes:** an end at G0, read by a reader that acknowledged G1 (G1 extending G0), was void for it and
+now stands (`conferral_two.json`: "(d) reader at the later"; `conferral_end.json`: `end_sibling_for_reader`; the
+strictly-behind case is now `end_old_fork_for_reader` with a third head). The TLA spec's end line drops its
+acknowledgement clause (its two heads have no strictly-behind end). Plants `line_not_sibling_safe` (the reference)
+and one in the crate.
 
 **The batch merge's rulings (2026-11-27)**, both languages, with cases and planted breaks:
 - Rule (2), no second end of a seat, reads only ends IN FORCE: a removal rule 5 holds contested out (or a lone
