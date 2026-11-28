@@ -83,6 +83,11 @@ pub trait RootBundle {
     }
     /// For a holder's own key recovery: (the holder, its new key).
     fn recovers(&self) -> Option<(&Self::Key, &Self::Key)>;
+    /// For a holder's routine rotation by an ordinary counted bundle: (its old key, its new key). The old key is
+    /// LEFT: no later bundle seats a holder at it ([`Root::counted`], `holder_key_retired`). Default: none.
+    fn rotates(&self) -> Option<(&Self::Key, &Self::Key)> {
+        None
+    }
     /// The payload's iat.
     fn iat(&self) -> u64;
     /// The statements over the payload: (key, the iat it states), signatures checked by the store.
@@ -177,7 +182,11 @@ pub type Reason = &'static str;
 /// 2.6.1.11's table of a malformed bundle's details); None for a refusal name.
 pub fn detail_of(d: Reason) -> Option<Reason> {
     match d {
+        // further_prev_not_newest: a detail, as CIRISVerify returns it (the Constitution's commit after rc23-next
+        // 0e80f21; that table still lists it as a refusal of its own: re-pin the table at the tag)
         "version_prev_mismatch"
+        | "further_prev_not_newest"
+        | "holder_key_retired"
         | "family_key_id_changed"
         | "recovery_commitments_not_holders"
         | "recovery_changes_other_seat" => Some("genesis_bundle_malformed"),
@@ -233,19 +242,25 @@ where
             }
             k
         }
-        for b in bundles {
-            let Some((h, new)) = b.recovers() else { continue };
-            if b.prev().len() != 1 {
-                continue;
+        let union = |own: &mut BTreeMap<B::Key, B::Key>, a: &B::Key, b: &B::Key| {
+            let (ra, rb) = (find(own, a), find(own, b));
+            if ra != rb {
+                let (lo, hi) = if ra < rb { (ra, rb) } else { (rb, ra) };
+                own.insert(hi, lo);
             }
-            let Some(p) = by.get(&b.prev()[0]) else { continue };
-            let rk = Self::commitment(p, h);
-            for k in [Some(new.clone()), rk].into_iter().flatten() {
-                let (ra, rb) = (find(&own, h), find(&own, &k));
-                if ra != rb {
-                    let (lo, hi) = if ra < rb { (ra, rb) } else { (rb, ra) };
-                    own.insert(hi, lo);
+        };
+        for b in bundles {
+            if let Some((h, new)) = b.recovers() {
+                if let Some(p) = b.prev().first().filter(|_| b.prev().len() == 1).and_then(|x| by.get(x)) {
+                    let rk = Self::commitment(p, h);
+                    for k in [Some(new.clone()), rk].into_iter().flatten() {
+                        union(&mut own, h, &k);
+                    }
                 }
+            }
+            // a routine rotation: the same holder under its new key
+            if let Some((old, new)) = b.rotates() {
+                union(&mut own, old, new);
             }
         }
         own
@@ -316,7 +331,7 @@ where
     fn inconsistency(&self, b: &B) -> Option<Reason> {
         let ps: Vec<&B> = b.prev().iter().filter_map(|p| self.b(p)).collect();
         if ps.len() != b.prev().len() {
-            return Some("genesis_bundle_prev_not_valid"); // one not held: it waits
+            return Some("waiting"); // one not held: the verdict Waiting, no token ([`Root::waits_on`])
         }
         let rk: BTreeSet<&B::Key> = b.recovery().iter().map(|(h, _)| h).collect();
         let hk: BTreeSet<&B::Key> = b.holders().iter().collect();
@@ -344,6 +359,14 @@ where
                 return Some("further_prev_not_newest");
             }
         }
+        // a join inherits the union of its branches, and any later bundle reads its predecessors' lines: a key retired
+        // by a counted recovery or left by a routine rotation on any of them stays so; seating a holder at it is
+        // Invalid, holder_key_retired. The holder comes back only under a new key
+        let retired = self.retired(b.prev());
+        let left = self.left(b.prev());
+        if b.holders().iter().any(|k| retired.contains(k) || left.contains(k)) {
+            return Some("holder_key_retired");
+        }
         None
     }
 
@@ -355,6 +378,39 @@ where
             for x in self.line(p) {
                 if let Some((h, _)) = self.b(&x).and_then(|q| q.recovers()) {
                     out.insert(h.clone());
+                }
+            }
+        }
+        out
+    }
+
+    /// The recovery commitments spent across the branches of `prevs`: for each recovery in their lines, the
+    /// commitment its predecessor carried for the holder it recovers.
+    fn spent(&self, prevs: &[B::Id]) -> BTreeSet<B::Key> {
+        let mut out = BTreeSet::new();
+        for p in prevs {
+            for x in self.line(p) {
+                let Some(q) = self.b(&x) else { continue };
+                let Some((h, _)) = q.recovers() else { continue };
+                if q.prev().len() != 1 {
+                    continue;
+                }
+                if let Some(c) = self.b(&q.prev()[0]).and_then(|pq| Self::commitment(pq, h)) {
+                    out.insert(c);
+                }
+            }
+        }
+        out
+    }
+
+    /// The keys a routine rotation left across the branches of `prevs`: each key a bundle in their lines rotated a
+    /// holder away from ([`RootBundle::rotates`]).
+    fn left(&self, prevs: &[B::Id]) -> BTreeSet<B::Key> {
+        let mut out = BTreeSet::new();
+        for p in prevs {
+            for x in self.line(p) {
+                if let Some((old, _)) = self.b(&x).and_then(|q| q.rotates()) {
+                    out.insert(old.clone());
                 }
             }
         }
@@ -378,10 +434,12 @@ where
                 .filter(|k| !gone.contains(k) && within.is_none_or(|w| w.contains(k)))
                 .collect();
             2 * voices.intersection(&base).count() > base.len()
-        }) && (prevs.len() < 2 || self.join_signers(b).iter().all(|(_, ks)| ks.iter().any(|k| voices.contains(k))))
+        // each holder a later bundle adds signs it too, as does each holder whose recovery commitment it changes (CC
+        // 2.6.1.11, "How a bundle is counted"; a join reads it over each predecessor)
+        }) && self.join_signers(b).iter().all(|(_, ks)| ks.iter().any(|k| voices.contains(k)))
     }
 
-    /// The holders of join `b` that must sign it, each with the keys its statement may be under (CIRISVerify's
+    /// The holders of later bundle `b` (a join or not) that must sign it, each with the keys its statement may be under (CIRISVerify's
     /// per-bundle read, the Constitution's reading 1): a holder no named predecessor seats, under its own key; a
     /// holder whose recovery commitment in `b` differs from the one any named predecessor seating it carries, under
     /// a key some predecessor seats it at and no recovery in the join's branches retired. So after a recovery on one
@@ -498,10 +556,16 @@ where
         self.counted_raw(i).map_err(|why| detail_of(why).unwrap_or(why))
     }
 
+    /// The predecessors bundle `i` names that are not held: it is Waiting on them (CC 2.6.1.11, the order of
+    /// verification, step 3). Empty where it waits on none; [`Root::counted`] gives `waiting` (the verdict, no token).
+    pub fn waits_on(&self, i: &B::Id) -> Vec<B::Id> {
+        self.b(i).map(|b| b.prev().iter().filter(|p| self.b(p).is_none()).cloned().collect()).unwrap_or_default()
+    }
+
     /// None where bundle `i` counts; else its refusal name and its detail, the detail None where the refusal carries
     /// none: a malformed bundle's (`genesis_bundle_malformed`, `version_prev_mismatch`), a recovery's statement that
     /// does not count (`genesis_bundle_count_unmet`, `recovery_commitment_mismatch`), as the Constitution's token
-    /// table names them. `further_prev_not_newest` is a refusal of its own there.
+    /// table names them; `further_prev_not_newest` and `holder_key_retired` are details of the malformed bundle.
     pub fn refusal(&self, i: &B::Id) -> Option<(Reason, Option<Reason>)> {
         let why = self.counted_raw(i).err()?;
         Some(match detail_of(why) {
@@ -537,6 +601,12 @@ where
         }
         if let Some(r) = self.recovery_ok(b) {
             return r;
+        }
+        // a recovery commitment spent on any branch stays so: a later bundle (a join included) carrying it for a holder
+        // concludes nothing, genesis_bundle_count_unmet with the detail recovery_commitment_spent
+        let spent = self.spent(b.prev());
+        if b.recovery().iter().any(|(_, c)| spent.contains(c)) {
+            return Err("recovery_commitment_spent");
         }
         if self.bounded_settler(b) {
             // the bounded settler (the ruling on the genesis stall): counted over the head's holders who have a say

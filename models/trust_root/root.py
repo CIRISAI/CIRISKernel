@@ -22,7 +22,7 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
     the heads    `version` is prev's plus one (a join: the greater plus one) and `family` is prev's: a consistency
                  check, never ranked; a mismatch is Invalid, `genesis_bundle_malformed` with the detail `version_prev_mismatch`
                  (`family_key_id_changed` for the family); a join naming a predecessor in another's lineage past is
-                 Invalid, `further_prev_not_newest`, a refusal of its own (the token table); a recovery whose prev is in the
+                 Invalid, `genesis_bundle_malformed` with the detail `further_prev_not_newest`; a recovery whose prev is in the
                  lineage past of a bundle its holder signed concludes nothing (`recovery_behind_head`). A later bundle is a counted change of the holders'
                  roster: it names the newest bundle in its signers' own past, and S'' and T at the fork point
                  apply to it as to a roster change (MINE, the Constitution's derived reading).
@@ -76,11 +76,14 @@ MUT holds planted breaks, switched on by check_root.py.
 MUT = set()
 
 # The details and the refusal each is a detail of (the Constitution's token table, manifests/refusal_tokens.tsv at
-# rc23-next 0e80f21, and CC 2.6.1.11's table of a malformed bundle's details). further_prev_not_newest is a refusal
-# of its own there (CC 2.6.1.11, the order of verification, step 3), not a detail. MUTATION detail_as_name: counted()
+# rc23-next 0e80f21, and CC 2.6.1.11's table of a malformed bundle's details). further_prev_not_newest is a detail of
+# genesis_bundle_malformed, as CIRISVerify returns it: the Constitution's commit after 0e80f21 makes it one (0e80f21's
+# table still lists it as a refusal of its own; re-pin the table at the tag). MUTATION detail_as_name: counted()
 # and refusal() give the detail as the refusal name, with none.
 DETAIL_OF = {
     "version_prev_mismatch": "genesis_bundle_malformed",
+    "further_prev_not_newest": "genesis_bundle_malformed",
+    "holder_key_retired": "genesis_bundle_malformed",
     "family_key_id_changed": "genesis_bundle_malformed",
     "recovery_commitments_not_holders": "genesis_bundle_malformed",
     "recovery_changes_other_seat": "genesis_bundle_malformed",
@@ -102,14 +105,15 @@ C0 = {"name": "c0", "duties": ("infra",)}
 
 
 def bundle(id, family, version, holders, prev=(), charter=C0, seats=(), stmts=None, iat=0, recovery=None,
-           recovers=None, names=(), settles=None):
-    """A bundle. stmts defaults to every holder of the predecessor... callers name them. recovers: (holder, new key)."""
+           recovers=None, names=(), settles=None, rotates=None):
+    """A bundle. stmts defaults to every holder of the predecessor... callers name them. recovers: (holder, new key).
+    rotates: (old key, new key), a holder's routine rotation by an ordinary counted bundle (the old key is LEFT)."""
     holders = tuple(holders)
     rec = dict(recovery) if recovery is not None else {k: "r:" + k for k in holders}
     return {"id": id, "kind": "bundle", "family": family, "version": version, "holders": holders,
             "prev": tuple(prev), "charter": charter, "seats": tuple(seats), "iat": iat, "recovery": rec,
             "stmts": tuple(stmts if stmts is not None else ((k, iat) for k in holders)), "recovers": recovers,
-            "names": tuple(names), "settles": settles}
+            "names": tuple(names), "settles": settles, "rotates": tuple(rotates) if rotates else None}
 
 
 def revoke(key, bound=None):
@@ -196,6 +200,8 @@ class Root:
                 rk = self.by[b["prev"][0]]["recovery"].get(h)
                 for k in (new, rk):
                     if k is not None: self._union(h, k)
+            if b.get("rotates"):                       # a routine rotation: the same holder under its new key
+                self._union(*b["rotates"])
 
     def _find(self, k):
         while self._own.get(k, k) != k: k = self._own[k]
@@ -250,7 +256,7 @@ class Root:
         """Why b is Invalid or waits, by the text's tokens (CC 2.6.1.11, CC 3.2), or None: a refusal name, or a detail
         (DETAIL_OF), which counted() reports under its refusal name and refusal() gives apart."""
         ps = [self.by[p] for p in b["prev"] if p in self.by]
-        if len(ps) != len(b["prev"]): return "genesis_bundle_prev_not_valid"      # one not held: waits
+        if len(ps) != len(b["prev"]): return "waiting"      # one not held: the verdict Waiting (no token: waits_on)
         if set(b["recovery"]) != set(b["holders"]) and "commitments_unread" not in MUT: return "recovery_commitments_not_holders"
         if not ps: return None
         if "version_unread" not in MUT and b["version"] != max(p["version"] for p in ps) + 1: return "version_prev_mismatch"
@@ -261,6 +267,12 @@ class Root:
             if "join_prev_unread" not in MUT and b["prev"][0] != min(b["prev"], key=lambda i: (-self.by[i]["version"], i)):
                 return "version_prev_mismatch"
             if any(a in self.past(c) for a in b["prev"] for c in b["prev"]): return "further_prev_not_newest"
+        # a join inherits the union of its branches, and any later bundle reads its predecessors' lines: a key retired
+        # by a counted recovery or left by a routine rotation on any of them stays so; seating a holder at it is
+        # Invalid, holder_key_retired. The holder comes back only under a new key (MUTATION retired_reseat_allowed)
+        if "retired_reseat_allowed" not in MUT:
+            gone = self.retired(b["prev"]) | self.left(b["prev"])
+            if any(k in gone for k in b["holders"]): return "holder_key_retired"
         return None
 
     def retired(self, prevs):
@@ -273,6 +285,24 @@ class Root:
                 q = self.by[x]
                 if q.get("recovers") is not None: out.add(q["recovers"][0])
         return frozenset(out)
+
+    def spent(self, prevs):
+        """The recovery commitments spent across the branches of `prevs`: for each counted-or-not recovery in their
+        lines, the commitment its predecessor carried for the holder it recovers."""
+        out = set()
+        for p in prevs:
+            for x in self.line(p):
+                q = self.by[x]
+                if q.get("recovers") is not None and len(q["prev"]) == 1 and q["prev"][0] in self.by:
+                    c = self.by[q["prev"][0]]["recovery"].get(q["recovers"][0])
+                    if c is not None: out.add(c)
+        return frozenset(out)
+
+    def left(self, prevs):
+        """The keys a routine rotation left across the branches of `prevs`: each key a bundle in their lines rotated
+        a holder away from (`rotates`). Like a retired key, it stays so (MUTATION retired_unread)."""
+        if "retired_unread" in MUT: return frozenset()
+        return frozenset(self.by[x]["rotates"][0] for p in prevs for x in self.line(p) if self.by[x].get("rotates"))
 
     def meets(self, b, voices, within=None, prevs=None):
         """b's count on `voices`: one predecessor, a strict majority of its live holders; a JOIN, a strict majority
@@ -295,13 +325,16 @@ class Root:
         if not all(2 * len(frozenset(voices) & x) > len(x) for x in bases): return False
         # who else signs a join (CIRISVerify's per-bundle read, the Constitution's reading 1; MUTATION
         # join_signers_unread: nobody else)
-        if len(prevs) >= 2 and "count_over_own" not in MUT and "join_common_base" not in MUT and "join_union" not in MUT \
-                and "join_signers_unread" not in MUT:
+        # each holder a later bundle adds signs it too, as does each holder whose recovery commitment it changes (CC
+        # 2.6.1.11, "How a bundle is counted"; a join reads it over each predecessor). MUTATION join_signers_unread:
+        # nobody else; added_signers_join_only: only a join's
+        if prevs and "count_over_own" not in MUT and "join_common_base" not in MUT and "join_union" not in MUT \
+                and "join_signers_unread" not in MUT and ("added_signers_join_only" not in MUT or len(prevs) >= 2):
             return all(frozenset(voices) & ks for _, ks in self.join_signers(b, prevs))
         return True
 
     def join_signers(self, b, prevs=None):
-        """The holders of join b that must sign it, each with the keys its statement may be under (reading 1): (a) a
+        """The holders of later bundle b (a join or not) that must sign it, each with the keys its statement may be under (reading 1): (a) a
         holder no named predecessor seats, under its own key; (b) a holder whose recovery commitment in b differs from
         the one any named predecessor seating it carries, under a key some predecessor seats it at and no recovery in
         the join's branches retired. So after a recovery on one branch, the join carries the recovered holder's voice.
@@ -373,8 +406,14 @@ class Root:
         ok, why = self._counted_raw(i)
         return (ok, DETAIL_OF.get(why, why) if "detail_as_name" not in MUT else why)
 
+    def waits_on(self, i):
+        """The predecessors bundle i names that are not held: it is Waiting on them (CC 2.6.1.11, the order of
+        verification, step 3: Waiting where one is not held). Empty where it waits on none."""
+        return [p for p in self.by[i]["prev"] if p not in self.by]
+
     def refusal(self, i):
-        """None where bundle i counts; else (name, detail), the detail None where the refusal carries none: the
+        """None where bundle i counts; else (name, detail), the detail None where the refusal carries none (and
+        ("waiting", None) for the verdict Waiting, which has no token: waits_on names the rows): the
         malformed bundle's (genesis_bundle_malformed, version_prev_mismatch), a recovery's statement that does not
         count (genesis_bundle_count_unmet, recovery_commitment_mismatch), as manifests/refusal_tokens.tsv names them."""
         ok, why = self._counted_raw(i)
@@ -400,6 +439,11 @@ class Root:
             return (True, None) if bool(hs) and hs <= v else (False, "genesis_bundle_count_unmet")
         rec = self.recovery_ok(b)
         if rec is not None: return rec
+        # a recovery commitment spent on any branch stays so: a later bundle (a join included) carrying it for a holder
+        # concludes nothing, genesis_bundle_count_unmet with the detail recovery_commitment_spent (MUTATION
+        # spent_on_branch_unread)
+        if "spent_on_branch_unread" not in MUT and set(b["recovery"].values()) & self.spent(b["prev"]):
+            return (False, "recovery_commitment_spent")
         if self.bounded_settler(b):
             # THE BOUNDED SETTLER (the ruling on the genesis stall, ST1): counted over the head's holders who have a
             # say there, rule 6's double signers at that head (over the siblings it names) out of the base for this

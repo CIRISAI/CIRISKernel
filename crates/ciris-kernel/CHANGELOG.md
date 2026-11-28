@@ -320,8 +320,25 @@ at rc23-next 0e80f21, CC 2.6.1.11). **BREAKING** within 0.5.0: `Root::counted` g
 `genesis_bundle_malformed` with the detail `version_prev_mismatch`, `family_key_id_changed` (a family mismatch was
 `version_prev_mismatch`), `recovery_commitments_not_holders` or `recovery_changes_other_seat`; a recovery's
 statement that does not count is `genesis_bundle_count_unmet` with `recovery_commitment_mismatch` or
-`recovery_commitment_spent`. `further_prev_not_newest` stays a refusal of its own: the table lists it as one (step 3
-of the order of verification), not as a detail. `root.json` carries each bundle's refusal; plant `detail_as_name`.
+`recovery_commitment_spent`. `further_prev_not_newest` is a detail of the malformed bundle too, as CIRISVerify returns
+it (the Constitution's commit after rc23-next 0e80f21; re-pin the table at the tag). `root.json` carries each bundle's
+refusal; plant `detail_as_name`.
+
+**A join revives nothing** (the Constitution's N1 ruling, review-53's r115): a later bundle, a join included, that
+seats a holder at a key RETIRED by a counted recovery or LEFT by a routine rotation (`RootBundle::rotates`, default
+none) on any branch it names is Invalid, `genesis_bundle_malformed` with the detail `holder_key_retired`; the holder
+comes back only under a new key. One carrying a recovery commitment spent on any branch concludes nothing,
+`genesis_bundle_count_unmet` with `recovery_commitment_spent`. Plants `retired_reseat_allowed`,
+`spent_on_branch_unread`. `check_verify_join.py` replays CIRISVerify's `genesis_join_v1.json` (pinned by sha256) as a
+differential, in `check.sh`: 41 of 46 cases agree, the other five of the wire alone.
+
+**Every later bundle is signed by each holder it adds, and each holder whose recovery commitment it changes** (CC
+2.6.1.11, "How a bundle is counted"; CIRISVerify enforces it). **An answer changes:** a later bundle adding a holder,
+or changing a holder's commitment, without that holder's statement concludes nothing, `genesis_bundle_count_unmet`;
+before, only a join needed them. `check_root.py`'s cases are re-signed mechanically (`resign`: each such holder signs
+the bundle under the least key the rule allows; the cases about a holder that does not sign are left `bare`); plant
+`added_signers_join_only`. **A predecessor not held** is the verdict Waiting, no longer `genesis_bundle_prev_not_valid`:
+`Root::counted` gives `waiting` (no token in the table) and `Root::waits_on` names the predecessors.
 
 **Who else signs a join; behind exactly; a thumbprint anchor matching two** (CIRISVerify's per-bundle read, the
 Constitution's readings 1 and 3), both languages. A join is counted only where, besides each predecessor's

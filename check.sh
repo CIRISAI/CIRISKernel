@@ -79,6 +79,7 @@ step "fork_check (roster tips)"           fork      python3 -I models/roster_for
 step "fold_check (the fold at tips)"      fold      python3 -I models/roster_fork/fold_check.py
 step "check_root (the trust root's fold)"  root      python3 -I models/trust_root/check_root.py
 step "check_root under six hash seeds"   rootseed  python3 -I models/trust_root/check_root_seeds.py
+step "check_verify_join (Verify joins)"  verifyjoin python3 -I models/trust_root/check_verify_join.py
 step "key_plane_model (writer's keys)"    keyplane  python3 -I models/key_plane/key_plane_model.py --check
 step "divergence list (counts)"           diverge   python3 -I tools/divergence_counts.py
 step "kernel_fixtures (fixtures current)"   fixtures  python3 -I tools/kernel_fixtures.py --check
