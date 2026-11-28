@@ -1841,9 +1841,16 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let mut acc: BTreeMap<&R::Key, Vec<usize>> = BTreeMap::new();
         // the holders' own ends of a stay as a member: (withdrawal, key, community)
         let mut left: Vec<(usize, &R::Key, ObjOf<R>)> = Vec::new();
+        // one view of a seat end (r104): a lay-down behind the reader's line ends no seat in its roster, as it is no
+        // vacancy for its elections ([`reader_ends`], the one function both read); the holder keeps the seat for it
+        let re0: BTreeSet<R::Id> = match own {
+            Some(k) if roster => reader_ends(c, law, spec, k, reader),
+            _ => BTreeSet::new(),
+        };
         for &i in cs {
             let r = g.row(i);
             match r.seat_kind() {
+                SeatKind::Withdraw if re0.contains(r.id()) => {}
                 SeatKind::Withdraw => {
                     if let Some(t) = r.target() {
                         wd.entry(t).or_default().push(r);
@@ -1866,7 +1873,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
         let elections = cs.iter().any(|&i| election::is_election(law, g.row(i)));
         // for a reader, the seat ends behind its line are no vacancy ends ([`reader_ends`])
         if let (true, Some(k)) = (elections, own) {
-            *local_e.rends.borrow_mut() = reader_ends(c, law, spec, k, reader);
+            *local_e.rends.borrow_mut() = if roster { re0.clone() } else { reader_ends(c, law, spec, k, reader) };
         }
         let memo_e = if own.is_some() { &local_e } else { cache.unwrap_or(&local_e) };
         let ecx = election::Ctx { c, law, spec, memo: memo_e };
@@ -3933,7 +3940,10 @@ pub(crate) fn reader_ends<R: SeatRow, S: CutSpec<R>>(
                 && w != a
                 && hs.iter().all(|&h| g.row(a).head().iter().any(|ah| g.idx(ah).is_some_and(|ai| g.in_past(h, ai))))
         });
-        if behind {
+        // behind the line, and in the past of none of its acts: an act on the line built on it (an opening's seating
+        // the reader acknowledged) brings it onto the line (r104)
+        let on_line = line.iter().any(|&a| g.in_past(w, a));
+        if behind && !on_line {
             out.insert(wr.id().clone());
         }
     }
