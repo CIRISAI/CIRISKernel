@@ -896,6 +896,9 @@ def policy_spec_cases():
         out.append(case("%s, its opener as member, no active" % fam, base, pol, None, None))
     out.append(case("community_invite, an active stated", fams["community_invite"], pol, ("census", 20), None))
     out.append(case("community_invite, a seat", fams["community_invite"], pol, None, "member"))
+    for name, fam, cells, _ in PS.PARITY:
+        row = PS.parity_row(fam, cells)
+        out.append(case(name, row, pol, within(row), PS.seat_of(row)))
     for cell, fam, v, *act in PS.PLANTS:
         a = act[0] if act else None
         name = "plant %s = %s" % (cell, json.dumps(v))

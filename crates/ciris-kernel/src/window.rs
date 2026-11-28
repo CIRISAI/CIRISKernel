@@ -600,6 +600,19 @@ pub fn rule_bound<R: WindowRow, S: CutSpec<R>>(
     rule_with(p, windows, Some(families), law, spec, true).map(|v| v.unwrap_or(false))
 }
 
+/// [`rule_bound`], telling a window row that waits from one that concludes nothing, as [`rule_why`] does for
+/// [`rule`]: `None` for a row that is not a window row; `Some(Err(Wait(x)))` where it concludes nothing only for want
+/// of row `x`.
+pub fn rule_bound_why<R: WindowRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    families: &Families<'_, R>,
+    windows: &Tables<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+) -> Option<Result<bool, crate::Wait<R::Id>>> {
+    rule_with(p, windows, Some(families), law, spec, true)
+}
+
 /// [`rule`], with every scope the table reads walked at once (`prefill`) or each read when first asked (the
 /// two must agree; this module's tests compare them).
 fn rule_with<R: WindowRow, S: CutSpec<R>>(
@@ -1049,8 +1062,14 @@ pub enum Active {
     Census(u64),
 }
 
-/// Why a cell stops a row giving a window's table.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// A fraction cell with both its numbers, the denominator not zero.
+fn whole(rule: &RuleCell) -> bool {
+    rule.num.is_some() && rule.den.is_some_and(|d| d > 0)
+}
+
+/// Why a cell stops a row giving a window's table. Ordered by its word and then the cell it names ([`Why::word`],
+/// [`Why::other`]), as `window.py` orders its reasons, so the two lists of a row are the same list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Why {
     /// The cell reads `unstated`.
     Unstated,
@@ -1070,7 +1089,42 @@ pub enum Why {
     Caller(&'static str),
 }
 
-/// A cell that stops a row giving a window's table, and why.
+impl Why {
+    /// The reason's word, as `window.py` writes it.
+    pub fn word(&self) -> &'static str {
+        match self {
+            Why::Unstated => "unstated",
+            Why::Unknown => "unknown",
+            Why::Disagrees(_) => "disagrees",
+            Why::NoWindow => "no_window",
+            Why::NotAWindow => "not_a_window",
+            Why::Local => "local",
+            Why::NoCell(_) => "no_cell",
+            Why::Caller(_) => "caller",
+        }
+    }
+    /// The other cell or the thing it names, where it names one.
+    pub fn other(&self) -> Option<&'static str> {
+        match self {
+            Why::Disagrees(o) | Why::NoCell(o) | Why::Caller(o) => Some(o),
+            _ => None,
+        }
+    }
+}
+
+impl PartialOrd for Why {
+    fn partial_cmp(&self, o: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(o))
+    }
+}
+
+impl Ord for Why {
+    fn cmp(&self, o: &Self) -> core::cmp::Ordering {
+        (self.word(), self.other().unwrap_or("")).cmp(&(o.word(), o.other().unwrap_or("")))
+    }
+}
+
+/// A cell that stops a row giving a window's table, and why. Ordered by the cell, then the reason ([`Why`]'s order).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PolicyRefusal {
     /// The cell, as the table names it (`counted.voices`, `cancel_over`, ...).
@@ -1313,7 +1367,7 @@ pub fn spec_from_policy<T: TryFrom<u64>>(
     let mut unknown: Vec<&'static str> = Vec::new();
     let mut disagree: Vec<(&'static str, &'static str)> = Vec::new();
     if kind == "two_path" {
-        if er.kind != "fraction" {
+        if er.kind != "fraction" || !whole(er) {
             unknown.push("enact_rule");
         }
         let m = mc();
@@ -1327,6 +1381,10 @@ pub fn spec_from_policy<T: TryFrom<u64>>(
         }
         let co = row.cancel_over.as_str();
         let cancel = match cr.kind.as_str() {
+            "fraction" if !whole(cr) => {
+                unknown.push("cancel_rule");
+                None
+            }
             "fraction" => {
                 if co != "base" {
                     disagree.push(("cancel_over", "cancel_rule"));
@@ -1360,7 +1418,7 @@ pub fn spec_from_policy<T: TryFrom<u64>>(
         }
         if row.reverse_path {
             let floor = match fr.kind.as_str() {
-                "fraction" => Some(clause(
+                "fraction" if whole(fr) => Some(clause(
                     yes_w,
                     frac(fr.num.unwrap_or(0), fr.den.unwrap_or(0), &cmp.floor, m),
                     over.clone(),

@@ -252,8 +252,10 @@ The caller decodes the row into `window::PolicyRow` unchanged (the crate reads n
 the decoding), and the table's `min_count` and `window_classes` into `PolicyTable`. `active` is the base `active`
 where the row states no census: `Active::WithinK` (at most `base_law.k` members) or `Active::Census(n)`. `seat` is the
 seat the object counts where the count set names several (`self+key`: `self` for a person's keys, `key` for a voice's).
-Where a cell stops the row, the answer is every `PolicyRefusal { cell, why }`, sorted, once each (the manifest names
-its cells and does not order them); nothing is defaulted but what the text states. A `two_path` or `mirror` row gives
+Where a cell stops the row, the answer is every `PolicyRefusal { cell, why }`, once each, in one order: by the cell,
+then the reason's word (`Why::word`), then the cell it names (`Why::other`), the order `window.py` gives (the manifest
+names its cells and does not order them). A fraction with a number missing or a zero denominator, and a floor of
+voices with no count, are refused as `Unknown` on the rule (both languages); nothing is defaulted but what the text states. A `two_path` or `mirror` row gives
 a table. `window.py`'s `spec_from_policy` is the same reading; `models/causal_kernel/check_policy_spec.py` compares
 it with the reference's own tables.
 
@@ -277,7 +279,7 @@ it with the reference's own tables.
 | any cell `unstated` | refused, `Unstated` |
 | `base`, `stated_census` | a census: `Base::Stated(n)`; `standing`: `Base::All`; `active`: `Base::All` under `WithinK`, `Base::Stated(n)` under `Census(n)` |
 | `corridor` | the `min_count` key; `self` adds `withdraw`, `One` over `Base::Opener`, `refused`, at once (CC 3.3.6.4) |
-| `window_secs`, `window_class` | `secs`; the class must give the same length; `0` is refused, `NoWindow` |
+| `window_secs`, `window_class` | `secs`; the class must give the same length; `0` is refused, `NoWindow`. A length the caller's instant type `T` cannot hold is refused (`window_secs`, `Unknown`): a refusal of the crate alone, as `window.py` has no instant type |
 | `at_window`, `landed_means`, `refused_means`, `family`, `cc_ref`, `model`, `status`, `note` | carried; no spec cell (`at_window` is the text's description; the two `_means` say what a leaf means for the row) |
 
 At policy pin 85750784 (CIRISConstitution 0e80f21) eight rows give a table: `default_content`, `default_standing`,
@@ -298,8 +300,8 @@ a policy with no row is refused) and `removal_floor` (`community_remove`'s floor
 (duties, holds, confers, ends, final scopes, roster seats, depth, kinds) is the text's and stays the caller's. The
 acts table names the window acts (`moderation_fallback`, `halt_confirm`, `poll`), but in this tag nothing reads that
 binding for a window unless the caller asks: `window::rule` and `window::outcome` take the opener's `window()` name
-through the caller's lookup, as before. `window::rule_bound` and `window::outcome_bound` take the table through the
-binding where the law carries one (`law.acts`): the act the opener proposes (`WindowRow::proposes`, an act and its
+through the caller's lookup, as before. `window::rule_bound` and `window::outcome_bound` (and `window::rule_bound_why`, which tells a row that waits from
+one that concludes nothing, as `window::rule_why` does) take the table through the binding where the law carries one (`law.acts`): the act the opener proposes (`WindowRow::proposes`, an act and its
 scope class) over its object's kind gives the policy row (`window::bound_family`; a `fixed` row its one family, and
 an opener stating another concludes nothing; a `row` row the policy the opener states), and the caller's
 `Families` closure gives that family's table (built with `spec_from_policy`, `active` per room; its third argument

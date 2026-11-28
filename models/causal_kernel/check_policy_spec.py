@@ -463,6 +463,36 @@ def give(row, table=POL, active=None):
         return ("refused", e.reasons)
 
 
+# Parity with the crate (review-53): each (name, family, cells changed, the refusals in the order both languages give)
+PARITY = (
+    ("P1 two reasons of one cell, ordered by their words: disagrees before unknown", "community_invite",
+     {"counted.count_set.value": "member-target"},
+     [("counted.count_set", "disagrees", "standing_set"), ("counted.count_set", "unknown", None)]),
+    ("P2 a ballot's words twice the same", "moderation_action", {"answer_words": ["for", "for"]},
+     [("counted.voices", "disagrees", "answer_words")]),
+    ("P2 a ballot's words three", "moderation_action", {"answer_words": ["for", "against", "for"]},
+     [("counted.voices", "disagrees", "answer_words")]),
+    ("P3 an enact fraction with no denominator", "default_content", {"enact_rule": {"kind": "fraction", "num": 2}},
+     [("enact", "disagrees", "enact_rule"), ("enact_rule", "unknown", None)]),
+    ("P3 a cancel fraction with no numerator", "default_content", {"cancel_rule": {"kind": "fraction", "den": 3}},
+     [("cancel", "disagrees", "cancel_rule"), ("cancel_rule", "unknown", None)]),
+    ("P3 a floor fraction with a zero denominator", "default_content", {"floor_rule": {"kind": "fraction", "num": 1, "den": 0},
+                                                                         "floor": {"num": 1, "den": 0}},
+     [("floor_rule", "unknown", None)]),
+    ("P3 a mirror's strict majority with no floor count", "moderation_overturn", {"floor_rule": {"kind": "voices"}},
+     [("enact_rule", "unknown", None)]),
+    ("P3 a members' count with no floor count", "moderation_action", {"floor_rule": {"kind": "voted_majority"}},
+     [("floor_rule", "unknown", None)]),
+)
+
+
+def parity_row(fam, cells):
+    row = TABLE[fam]
+    for path, v in cells.items():
+        row = _set(row, path, v)
+    return row
+
+
 def plant_base(fam):
     row = TABLE[fam]
     return dict(row, opener="member") if row["opener"] == "unstated" else row
@@ -597,6 +627,13 @@ def main():
         problems.append("plant holders_disagree_unread not caught")
     if not hit:
         problems.append("plant local_lands not caught")
+    print("\nPart 6. parity with the crate (review-53)")
+    for name, fam, cells, want in PARITY:
+        got = give(parity_row(fam, cells))
+        ok = got == ("refused", want)
+        print("  %-70s %s" % (name, "ok" if ok else "GOT %s" % (got,)))
+        if not ok:
+            problems.append("parity: %s" % name)
     print("\nPart 3. plants")
     caught, out = run_plants()
     for cell, fam, v, hit in out:

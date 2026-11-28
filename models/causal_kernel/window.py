@@ -227,6 +227,12 @@ LEAVES = ("held", "landed", "refused")       # window:{state} (CC 3.1.3): the on
 NONE = "—"
 
 
+def whole(rule):
+    """A fraction cell with both its numbers, the denominator not zero (one missing is no fraction the spec reads)."""
+    n, d = rule.get("num"), rule.get("den")
+    return isinstance(n, int) and isinstance(d, int) and not isinstance(n, bool) and d > 0
+
+
 def spec_from_policy(row, table=None, active=None, seat=None):
     """The window table (WINDOWS' shape) one row of the policy table gives, every cell read and none defaulted
     but where the Constitution's text states it (cited below); or PolicyRefusal naming every cell that stops it.
@@ -275,7 +281,7 @@ def spec_from_policy(row, table=None, active=None, seat=None):
     for cell in ("enact", "cancel", "floor"):
         prose, rule = row[cell], row[cell + "_rule"]
         if (prose is None) != (rule["kind"] == "none"): no(cell, "disagrees", cell + "_rule")
-        elif isinstance(prose, dict) and (rule["kind"] != "fraction" or (prose["num"], prose["den"]) != (rule["num"], rule["den"])):
+        elif isinstance(prose, dict) and (rule["kind"] != "fraction" or (prose.get("num"), prose.get("den")) != (rule.get("num"), rule.get("den"))):
             no(cell, "disagrees", cell + "_rule")
     cmp = row["comparison"]
     for k in ("enact", "cancel", "floor"):
@@ -318,7 +324,7 @@ def spec_from_policy(row, table=None, active=None, seat=None):
     aw = aw if isinstance(aw, list) else []
     voices = val("voices")
     if voices == "objection" and aw and set(aw) <= {"assent", "raised"}: yes_w, no_w = "assent", "raised"
-    elif voices == "ballot" and set(aw) == {"for", "against"}: yes_w, no_w = "for", "against"
+    elif voices == "ballot" and len(aw) == 2 and set(aw) == {"for", "against"}: yes_w, no_w = "for", "against"   # two, distinct
     else:
         yes_w = no_w = None
         if voices != "unstated": no("counted.voices", "disagrees", "answer_words")
@@ -357,12 +363,14 @@ def spec_from_policy(row, table=None, active=None, seat=None):
     lone = row["corridor"] == "self"
     er, cr, fr = row["enact_rule"], row["cancel_rule"], row["floor_rule"]
     if kind == "two_path":
-        if er["kind"] != "fraction": no("enact_rule", "unknown")
+        if er["kind"] != "fraction" or not whole(er): no("enact_rule", "unknown")
         enact = (yes_w, frac(er, cmp["enact"]), over, leaf("landed"))
         if not row["irreversible"]: at_once.append(enact)
         if lone: at_once.append(("withdraw", "one", "opener", leaf("refused")))
         co = row["cancel_over"]
-        if cr["kind"] == "fraction":
+        if cr["kind"] == "fraction" and not whole(cr):
+            no("cancel_rule", "unknown")
+        elif cr["kind"] == "fraction":
             if co != "base": no("cancel_over", "disagrees", "cancel_rule")
             (at_once if lone else at_close).append((no_w, frac(cr, cmp["cancel"]), over, leaf("refused")))
         elif cr["kind"] == "strict_majority_of_others":
@@ -372,7 +380,7 @@ def spec_from_policy(row, table=None, active=None, seat=None):
         elif cr["kind"] != "none" or co != NONE: no("cancel_rule", "unknown")
         if row["irreversible"]: at_close.append(enact)
         if row["reverse_path"]:
-            if fr["kind"] == "fraction": floor = (yes_w, frac(fr, cmp["floor"]), over, leaf("landed"))
+            if fr["kind"] == "fraction" and whole(fr): floor = (yes_w, frac(fr, cmp["floor"]), over, leaf("landed"))
             elif fr["kind"] == "one_of_n": floor = (yes_w, "one", over, leaf("landed"))
             else:
                 floor = None
@@ -381,7 +389,7 @@ def spec_from_policy(row, table=None, active=None, seat=None):
     else:
         # a mirror: the act is in force and its window counts against it; the floor is the enact's least voices
         if cr["kind"] != "none": no("cancel_rule", "unknown")
-        if er["kind"] == "strict_majority" and fr["kind"] == "voices":
+        if er["kind"] == "strict_majority" and fr["kind"] == "voices" and isinstance(fr.get("count"), int):
             if len(aw) != 1: no("answer_words", "disagrees", "enact_rule")
             else: at_once.append((aw[0], ("more", 1, 2, fr["count"]) if cmp["enact"] == "more_than" else ("atleast", 1, 2, fr["count"]),
                                   over, leaf("landed")))
@@ -395,7 +403,7 @@ def spec_from_policy(row, table=None, active=None, seat=None):
             else:
                 at_once.append((yes_w, "one", roles[0], leaf("landed")))
                 at_once.append((no_w, "one", roles[0], leaf("refused")))
-            if fr["kind"] == "voted_majority" and voices == "ballot":
+            if fr["kind"] == "voted_majority" and voices == "ballot" and isinstance(fr.get("count"), int):
                 at_close.append((yes_w, ("voted", 1, 2, fr["count"], no_w), over, leaf("landed")))
             else: no("floor_rule", "unknown")
         else:

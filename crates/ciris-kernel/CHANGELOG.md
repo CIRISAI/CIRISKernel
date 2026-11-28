@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Parity of `spec_from_policy` (review-53).** `window::Why` is ordered by its word and the cell it names
+(`Why::word`, `Why::other`), so the crate's refusals are in `window.py`'s order, and `tests/policy_spec.rs` compares
+them as returned. Both languages refuse a fraction with a number missing or a zero denominator, and a floor of
+voices with no count, as `Unknown` on the rule; a ballot's words are exactly two, `for` and `against`. New
+`window::rule_bound_why`, as `window::rule_why` for the bound path.
+
 **The rulings of 2026-11-28.** The accord's halt: a table whose concluder is `local` concludes no receipt and no
 landing (each node's own fuse); the halt fires and is no confirming voice. A counted row at the window stays open
 (`at_window` is read for nothing). `moderation_action`'s `role_at` enact: a moderator's ballot `for` lands and

@@ -157,12 +157,8 @@ fn policy_rows_give_the_models_tables() {
                         (r[0].s().into(), r[1].s().into(), r[2].opt_s())
                     })
                     .collect();
-                // the table names its cells and does not order them: compared as sets
-                let mut mine: Vec<_> = rs.iter().map(refusal_word).collect();
-                let mut want = want;
-                mine.sort();
-                want.sort();
-                mine == want
+                // the order as returned: both languages sort by (cell, why's word, the cell it names)
+                rs.iter().map(refusal_word).collect::<Vec<_>>() == want
             }
             _ => false,
         };
@@ -337,7 +333,7 @@ fn in_words(mut d: WindowSpec<i64>, fam: &str) -> WindowSpec<i64> {
 fn bound_openers_take_the_models_tables() {
     use ciris_kernel::layers::{conclude, kept};
     use ciris_kernel::seat::seat_rule;
-    use ciris_kernel::window::{outcome_bound, rule_bound, Outcome};
+    use ciris_kernel::window::{outcome_bound, rule_bound, rule_bound_why, Outcome, WindowRow};
     let fx = fixture("window_bound.json");
     let law = law_of(fx.at("law"));
     let table = table_of(fx.at("table"));
@@ -354,15 +350,24 @@ fn bound_openers_take_the_models_tables() {
     let none = |_: &String| -> Option<WindowSpec<i64>> { None };
     let spec = DictCut;
     let (mut cases, mut bad) = (0usize, 0usize);
+    let why_ok = std::cell::Cell::new(0usize);
     for c in fx.at("cases").arr() {
         let refs: BTreeMap<String, String> =
             c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
         let rs = rows_with_refs(c.at("rows").arr(), &refs);
         let got = conclude(
             kept(&rs, |_| true),
-            |p| match rule_bound(p, &families, &none, &law, &spec) {
-                Some(v) => v,
-                None => seat_rule(p, &law, &spec, &|_| true),
+            |p| {
+                // rule_bound_why tells a wait from concluding nothing; read as rule_bound, it is rule_bound
+                let why = rule_bound_why(p, &families, &none, &law, &spec);
+                let plain = rule_bound(p, &families, &none, &law, &spec);
+                assert_eq!(why.map(|r| r.unwrap_or(false)), plain, "rule_bound_why and rule_bound differ");
+                assert_eq!(why.is_some(), p.row().win_kind().is_some(), "rule_bound_why answers a window row only");
+                why_ok.set(why_ok.get() + why.is_some_and(|r| r.is_ok()) as usize);
+                match plain {
+                    Some(v) => v,
+                    None => seat_rule(p, &law, &spec, &|_| true),
+                }
             },
             None,
         );
@@ -386,5 +391,6 @@ fn bound_openers_take_the_models_tables() {
     }
     report("window_bound", cases, bad);
     assert!(cases > 40, "{cases} cases");
+    assert!(why_ok.get() > 40, "rule_bound_why answered {} window rows", why_ok.get());
     assert_eq!(bad, 0, "{bad} of {cases} differ");
 }
