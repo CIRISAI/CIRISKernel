@@ -44,7 +44,7 @@ use crate::seat::{
 };
 use crate::trust::{reaches, Accepts, Charters, HOP_CAP};
 use crate::{Dated, Row};
-use alloc::collections::BTreeSet;
+use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
 use alloc::vec::Vec;
 
@@ -533,6 +533,36 @@ fn recounted<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, q: usize, 
     true
 }
 
+/// A counted row: an offer or unseat a group's count concludes (`Conf::Group`), naming its heads.
+fn is_counted_row<R: SeatRow>(q: &R) -> bool {
+    matches!(q.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && q.conf() == Some(Conf::Group) && !q.head().is_empty()
+}
+
+/// Counted row `q` still meets its count over its own past with the voices of `gone` taken out: over the duty holders
+/// for a duty count (CC 4.5.4 (iv), a strict majority, never fewer than two, or a lone holder; the holder a withdrawal
+/// names apart), and under the declared protocol over the protocol body otherwise.
+fn recount_without<R: TrustRow, S: CutSpec<R>>(seats: &Seats<'_, '_, R, S>, q: usize, gone: &BTreeSet<R::Key>) -> bool {
+    let c = seats.c();
+    let r = c.g.row(q);
+    let Some(o) = r.obj() else { return false };
+    let anc = c.g.ancestors(q);
+    let idx: Vec<usize> = (0..c.g.len()).filter(|&j| anc.has(j)).collect();
+    let (sub, with) = judged(c, q, &idx);
+    let (rc, _) = for_reader(&sub, seats.law(), seats.spec(), None);
+    let at = Seats::new(&rc, seats.law(), seats.spec(), None);
+    let voices: BTreeSet<R::Key> = signers(r).into_iter().filter(|k| !gone.contains(*k)).cloned().collect();
+    if scope_class(c, seats.law(), &o, Some(r.counted().map_or("member", |w| w.as_ref()))).as_deref() == Some("duty") {
+        let mut held = at.holders("duty", &o, None);
+        if r.seat_kind() == SeatKind::Unseat {
+            held.retain(|k| !r.to().contains(k));
+        }
+        return counted(voices.iter().filter(|k| held.contains(*k)).count(), held.len());
+    }
+    let last = with.g.len() - 1;
+    let p: Vec<usize> = with.cs().iter().copied().filter(|&j| j != last).collect();
+    declared_count(&Past::new(&with.g, last, &p), at.law(), at.spec(), &o, &at.protocol_body(&o), &voices)
+}
+
 /// THE END RULE (the r73 attack), the one read of ends for every path (the emitter, the quorum, the seat, the edge):
 /// an END cuts every row of what it ends that is not in the end's past. The rows (indices of `seats`' set) row `i`'s
 /// authority is judged over: its own past, with every end in it cutting the rows concurrent with it (`read` false: its
@@ -589,6 +619,7 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
     rows.sort_unstable();
     rows.dedup();
     let mut cut: BTreeSet<usize> = BTreeSet::new();
+    let mut lost: BTreeMap<usize, BTreeSet<R::Key>> = BTreeMap::new();
     let ends: Vec<usize> = rows.iter().copied().filter(|&e| c.concluded(e) && is_end(c.g.row(e))).collect();
     let judged: Vec<usize> = (0..c.g.len())
         .filter(|&j| rows.binary_search(&j).is_ok() || ends.iter().any(|&e| c.g.ancestors(e).has(j)))
@@ -608,12 +639,18 @@ fn ended_for_reader_with<R: TrustRow, S: CutSpec<R>>(
             let who = signers(qr);
             let need = rests_on(c, seats.law(), qr, &o);
             // an end is keyed by every standing its key LOSES by it, whatever scope its target names
-            let hit = ks.iter().any(|(k, ob, _)| {
-                *ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, k, ob, cls))
-            });
-            if hit {
-                cut.insert(q);
+            for (k, ob, _) in &ks {
+                if *ob == o && who.contains(k) && need.iter().any(|cls| loses(seats, &judged, k, ob, cls)) {
+                    lost.entry(q).or_default().insert(k.clone());
+                }
             }
+        }
+    }
+    // a COUNTED row loses only the ended keys' voices: it is re-counted over the voices left, and cut only where the
+    // count then fails (as contested_out drops voices); a single key's own row is cut
+    for (q, gone) in &lost {
+        if !is_counted_row(c.g.row(*q)) || !recount_without(seats, *q, gone) {
+            cut.insert(*q);
         }
     }
     for &q in &rows {

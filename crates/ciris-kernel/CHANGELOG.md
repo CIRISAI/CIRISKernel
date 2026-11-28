@@ -136,6 +136,11 @@ role ends with any leaving. `false` for any other object and at the founding row
 `check_acts.py` (FOUNDERS), recorded in the `seat` fixture (`founder`); plants `founder_at_tips` and
 `founder_leavings_unread`, and a crate plant.
 
+**The r87 attack on the trust walk** (both languages): for a COUNTED row an end discounts the ended key's voice and
+re-counts over the voices left, cutting the row only where the count then fails (as rule 5's contest drops voices); a
+single key's own row (its own offer, an edge, its licence) is cut as before. A backdated resignation no longer voids
+a counted act that holds without it.
+
 **The r81 attack on the trust walk, closed** (both languages; every attack a case, each fix a plant):
 - A key's loss of a standing is read over the judged rows with EVERY end of its seats over the object taken out, and
   every row that has one of them in its past: a second end of the same seat cannot cancel the first's cut, and a

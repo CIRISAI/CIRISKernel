@@ -417,13 +417,33 @@ def recounted(S, q, o):
     return True
 
 
+def is_counted_row(q):
+    """A counted row: an offer or unseat a group's count concludes (conf group), naming its heads."""
+    return q["kind"] in ("offer", "unseat") and q.get("conf") == "group" and bool(q.get("head"))
+
+
+def recount_without(S, q, gone):
+    """Counted row `q` still meets its count over its own past with the voices of `gone` taken out: over the duty holders
+    for a duty count (CC 4.5.4 (iv), a strict majority, never fewer than two, or a lone holder; the holder a withdrawal
+    names apart), and under the declared protocol over the protocol body otherwise."""
+    T = past_state(S, q)
+    o = q.get("obj")
+    voices = ST.signers(q) - frozenset(gone)
+    if scope_class(S, o, q.get("counted", "member")) == "duty":
+        held = ST.Seats(T).holders("duty", o)
+        if q["kind"] == "unseat":
+            held = held - frozenset(q.get("to", ()))
+        return counted(len(voices & held), len(held))
+    return declared_count(T, voices, o)
+
+
 def cut_state(S, rows, own=None):
     """The rows `rows` with every row an end among them cuts taken out, and every authority act behind the reader's
     line: an end cuts a row signed by a key whose seat over the row's object, of a scope whose standing the row rests
     on, the end ends (and the key holds that standing no more), concurrent with that end (neither in the other's past).
     Rows in an end's past stand (nothing reaches back); rows after it are judged at their own past."""
     ends = [e for e in rows if is_end(e) and S.C.get(e["id"])]
-    cut = set()
+    cut, lost = set(), {}
     judged = {q["id"] for q in rows}
     for e in ends:
         judged |= set(S.anc[e["id"]])
@@ -441,12 +461,19 @@ def cut_state(S, rows, own=None):
                     if k not in ST.signers(q) or o != ob:
                         continue
                     if need is None:
-                        cut.add(q["id"]); break
+                        lost.setdefault(q["id"], set()).add(k); break
                     # an end is keyed by every standing its key LOSES by it, whatever scope its target names (MUTATION
                     # end_scope_keyed: only the class the end's named scope gives)
                     classes = {scope_class(S, ob, sc)} & need if "end_scope_keyed" in MUT else need
                     if any(loses(S, judged, e, k, ob, cls) for cls in classes):
-                        cut.add(q["id"]); break
+                        lost.setdefault(q["id"], set()).add(k); break
+        # a COUNTED row loses only the ended keys' voices: it is re-counted over the voices left, and cut only where the
+        # count then fails (as contested_out drops voices); a single key's own row is cut (MUTATION
+        # end_cuts_counted_row: every row with an ended signer is cut)
+        for qid, ks in lost.items():
+            q = S.by[qid]
+            if "end_cuts_counted_row" in MUT or not is_counted_row(q) or not recount_without(S, q, ks):
+                cut.add(qid)
     for q in rows:
         o = authority_act_over(S, q)
         if o is not None and (behind_line(S, own, q, o) or (q["kind"] != "licensure" and not recounted(S, q, o))):
