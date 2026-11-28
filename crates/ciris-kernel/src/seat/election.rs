@@ -181,6 +181,16 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
                 if !matches!(fk, SeatKind::Withdraw | SeatKind::Unseat) || (counted && fk == SeatKind::Withdraw) {
                     return false;
                 }
+                // one vacancy: a holder's own lay-downs of ONE stay (the seat the row they withdraw gave), however many
+                // and at whatever heads, are one vacancy and no fork; openings citing different ones are rivals for it
+                let (er, fr) = (self.row(ei), self.row(f));
+                let one_stay = er.seat_kind() == SeatKind::Withdraw
+                    && fk == SeatKind::Withdraw
+                    && er.signer() == fr.signer()
+                    && er.target() == fr.target();
+                if one_stay {
+                    return false;
+                }
                 !self.end_slots(f, p, obj).is_disjoint(&mine)
             })
     }
@@ -231,6 +241,19 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             }
         }
         let rs = self.openings_for(oi, &rows);
+        // r106 (ii): the line between openings: an opening whose heads are all strictly in the past of a rival's own
+        // heads, and not in its past, is behind it and no rival; behind one, it is in force nowhere (sibling-safe)
+        let head_ix = |o: usize| -> Vec<usize> { self.row(o).head().iter().filter_map(|h| g.idx(h)).collect() };
+        let older = |hs: &[usize], than: &[usize]| {
+            !hs.is_empty() && hs.iter().all(|&h| than.iter().any(|&t| h != t && g.in_past(h, t)))
+        };
+        let line_read = true;
+        let behind = |o: usize, x: usize| o != x && !g.in_past(o, x) && older(&head_ix(o), &head_ix(x));
+        let rs: Vec<usize> =
+            if line_read { rs.iter().copied().filter(|&o| !rs.iter().any(|&x| behind(o, x))).collect() } else { rs };
+        if !rs.contains(&oi) {
+            return false;
+        }
         let mut newest: Vec<usize> =
             rs.iter().copied().filter(|&o| !rs.iter().any(|&x| x != o && g.in_past(o, x))).collect();
         if newest.len() > 1 {
