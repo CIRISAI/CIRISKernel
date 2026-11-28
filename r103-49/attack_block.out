@@ -1,0 +1,11 @@
+grace-sched: 211933-42c68a queued: CIRISKernel:review, peak 0.7 GB (learned (121 runs, below the declared 1)), cap 2.5 GB, low, small (half the floor)
+grace-sched: 211933-42c68a running (cap 2.5 GB): python3 -I attack_block.py ../src 20
+honest                                   reader None concluded {'op': True, 'ed': True}  D mod=True  election_closed(ed)=True  orders: 0 of 20 differ
+honest                                   reader R    concluded {'op': True, 'ed': True}  D mod=True  election_closed(ed)=True  orders: 0 of 20 differ
++ B, C recall A at g                     reader None concluded {'op': True, 'ed': True, 'rcg': True}  D mod=False  election_closed(ed)=False  orders: 0 of 20 differ
++ B, C recall A at g                     reader R    concluded {'op': True, 'ed': True, 'rcg': True}  D mod=False  election_closed(ed)=True  orders: 0 of 20 differ
++ and open citing it at g                reader None concluded {'op': True, 'ed': True, 'rcg': True, 'opg': True}  D mod=False  election_closed(ed)=False  orders: 0 of 20 differ
++ and open citing it at g                reader R    concluded {'op': True, 'ed': True, 'rcg': True, 'opg': True}  D mod=False  election_closed(ed)=True  orders: 0 of 20 differ
++ B, C open citing lm at g (no recall)   reader None concluded {'op': True, 'ed': True, 'opg': False}  D mod=True  election_closed(ed)=True  orders: 0 of 20 differ
++ B, C open citing lm at g (no recall)   reader R    concluded {'op': True, 'ed': True, 'opg': False}  D mod=True  election_closed(ed)=True  orders: 0 of 20 differ
+grace-sched: 211933-42c68a done: rc 0, 1 s, need 0.02 GB (memory.peak 0.02, estimate 0.7)

@@ -1,0 +1,22 @@
+grace-sched: 211952-ee05f2 queued: CIRISKernel:review, peak 0.7 GB (learned (122 runs, below the declared 1)), cap 2.5 GB, low, small (half the floor)
+grace-sched: 211952-ee05f2 running (cap 2.5 GB): python3 -I orders_cases.py ../src 20
+rule 2: the honest election: the opening (A, B, C of five) at g, C thr (True, True)  orders: 0 of 20 differ
+rule 2: an opening by two of five (A, B) concludes nothing, and nothin (False, False)  orders: 0 of 20 differ
+rule 2: a room of one opens and seats alone (floor min(2, members))    (True, True)  orders: 0 of 20 differ
+rule 2: an opening at an old head (it holds aX, X's admission after g, (False, False)  orders: 0 of 20 differ
+rule 3: the electorate is the roster at the opening's heads: X, admitt (True, False)  orders: 0 of 20 differ
+rule 1: two concurrent lay-downs of A's seat (lm and A's backdated lm0 (False, False)  orders: 0 of 20 differ
+rule 1: a holder's lay-down concurrent with a counted end (B, C, D rec (True, False)  orders: 0 of 20 differ
+rule 4: two openings for one end, neither in the other's past (A B C a (False, False)  orders: 0 of 20 differ
+rule 4: and an opening with both in its past resolves: it is the elect (True, False)  orders: 0 of 20 differ
+rule 6: a fresh reader (no acknowledgement) holding two rival openings (False, False)  orders: 0 of 20 differ
+rule 7: one person, one say in the close: P's two devices (P1 genesis, (True, True)  orders: 0 of 20 differ
+rule 7: an ended key's receipt is no say: D revoked itself after 0, ho (True, False)  orders: 0 of 20 differ
+rule 7: the winner's acceptance through the key view: C revoked itself (False, False)  orders: 0 of 20 differ
+rule 7: a ballot's withdrawal by an ended key is no withdrawal: D, rev (True, False)  orders: 0 of 20 differ
+rule 2: an opening citing no seat end (the founding row) concludes not (False, False)  orders: 0 of 20 differ
+rule 7: a decline by an ended key is no decline: E, revoked holding it (True, False)  orders: 0 of 20 differ
+rule 5: a removal the reader's roster does not take leaves the base un (True, True)  orders: 0 of 20 differ
+rule 2 by persons: the room seats A and both of person P's keys (P1 an (False, False)  orders: 0 of 20 differ
+G3c plus C (r90-49): A's backdated lay-down forks the end; C's receipt (False, False)  orders: 0 of 20 differ
+grace-sched: 211952-ee05f2 done: rc 0, 1 s, need 0.02 GB (memory.peak 0.02, estimate 0.7)

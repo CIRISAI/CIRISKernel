@@ -1,0 +1,10 @@
+grace-sched: 211428-1916f2 queued: CIRISKernel:review, peak 0.7 GB (learned (119 runs, below the declared 1)), cap 2.5 GB, low, small (half the floor)
+grace-sched: 211428-1916f2 waits: memory: needs 2.5 GB for its cap and 0.7 GB plus the 6 GB floor for its expected peak, 0.9 GB projected free once running jobs reach their peaks
+grace-sched: 211428-1916f2 running (cap 2.5 GB): python3 -I attack_stale.py ../src 40
+recall, open, ballots, seating, C's receipt      reader None concluded {'rcg': True, 'opg': True, 'xag': False, 'eb': True}  B mod=False A mod=True  election_closed(eb)=False  orders: 0 of 40 differ
+recall, open, ballots, seating, C's receipt      reader R    concluded {'rcg': True, 'opg': True, 'xag': False, 'eb': True}  B mod=False A mod=True  election_closed(eb)=False  orders: 0 of 40 differ
+the same and B, C remove A after the recall (at rcg) reader None concluded {'rcg': True, 'opg': True, 'xag': True, 'eb': True}  B mod=False A mod=True  election_closed(eb)=True  orders: 0 of 40 differ
+the same and B, C remove A after the recall (at rcg) reader R    concluded {'rcg': True, 'opg': True, 'xag': True, 'eb': True}  B mod=False A mod=True  election_closed(eb)=False  orders: 0 of 40 differ
+the same and B, C remove A at g (concurrent: a fork) reader None concluded {'rcg': True, 'opg': True, 'xag': True, 'eb': True}  B mod=False A mod=True  election_closed(eb)=False  orders: 0 of 40 differ
+the same and B, C remove A at g (concurrent: a fork) reader R    concluded {'rcg': True, 'opg': True, 'xag': True, 'eb': True}  B mod=False A mod=True  election_closed(eb)=False  orders: 0 of 40 differ
+grace-sched: 211428-1916f2 done: rc 0, 1 s, need 0.02 GB (memory.peak 0.02, estimate 0.7)
