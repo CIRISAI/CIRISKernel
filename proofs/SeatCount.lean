@@ -7,9 +7,8 @@
   removes where the policy's own text excludes it, as `unanimous` does). This file proves: no key admits itself
   (its own signature never moves the count); the count never falls when a signature is added, so a count once
   met stays met; each policy is met by more voices whenever it is met by fewer; under `unanimous` a two-member
-  group removes nobody (CC 4.5.13, "at two coincide only if the one removed consents"); under
-  `open:self_admit` one voice never removes; and a duty withdrawal never stands on one voice where there are
-  two holders or more (CC 4.5.4 (iv)). Core Lean 4.14, no Mathlib.
+  group removes nobody (CC 4.5.13, "at two coincide only if the one removed consents"); and a duty withdrawal
+  never stands on one voice where there are two holders or more (CC 4.5.4 (iv)). Core Lean 4.14, no Mathlib.
 -/
 namespace SeatCount
 
@@ -95,12 +94,6 @@ theorem unanimous_others_remove (n : Nat) (h : 3 ≤ n) : met (.unanimous (n - 1
 theorem strict_one_voice (n : Nat) (h : met (.strict 1 2) 1 n) : n ≤ 1 := by
   simp [met] at h; omega
 
-/-- `open:self_admit`: a removal takes two voices besides the member named, so one never removes. -/
-def selfAdmitRemoves (y : Nat) : Prop := 2 ≤ y
-
-theorem self_admit_one_never_removes : ¬ selfAdmitRemoves 1 := by
-  unfold selfAdmitRemoves; omega
-
 /-- CC 4.5.4 (iv), the duty withdrawal over `n` holders with `y` of the others signing: a strict majority of
     the others, and two voices where there are two holders or more. -/
 def dutyWithdraws (y n : Nat) : Prop := (n - 1) < 2 * y ∧ (2 ≤ y ∨ n < 2)
@@ -140,7 +133,6 @@ end SeatCount
 #print axioms SeatCount.unanimous_two_removes_nobody
 #print axioms SeatCount.unanimous_others_remove
 #print axioms SeatCount.strict_one_voice
-#print axioms SeatCount.self_admit_one_never_removes
 #print axioms SeatCount.duty_withdrawal_needs_two
 #print axioms SeatCount.wsum_mono
 #print axioms SeatCount.weighted_mono

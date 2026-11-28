@@ -15,7 +15,10 @@ rows already in the kernel, and this file holds them to cases and to every set o
     dissolved a group is dissolved at a node when the wrap set is empty: every member at the heads it holds
               has an end of its seat that the node holds.
 
-The room: three members a, b, c of g, a strict majority counting. Rows that may be held: each member's
+The room: three members a, b, c of g, in two forms (use()): `member`, a community whose founding row seats them in
+scope member, admissions under community_invite and the removal under community_remove (the roster a store reads);
+and `holder`, an accord's holders under accord_majority, a seat that is no roster seat (Seats.roster is empty there),
+kept to show the wrap set of a seat outside the roster. Rows that may be held: each member's
 resignation; a counted admission of d on g, signed by two members, citing or not citing a resignation; a
 counted removal of c; a second admission built on the first.
 
@@ -29,11 +32,16 @@ Properties, over every set of those rows closed under what they name:
     dissolved_by_rows     the group is dissolved exactly where every seated member's end is held; the answer
                           is the same in every arrival order (it reads the set)
     resignation_no_head   a resignation is never a tip of the lineage
+    roster_is_wrap        (member room) Seats.roster is the wrap set
+    seats_dissolved       (member room) Seats.dissolved is the check's own reading: the wrap set is empty
 
 Planted breaks:
     wrap_by_roster        the wrap set is the counted roster at the tips: a resigner is wrapped until cited
     leaving_unread        a count ignores a leaving in its row's past (seat.py's leaving_unread and ends_at_heads_unread)
     dissolved_by_roster   dissolution read from the counted roster: two concurrent resignations do not dissolve
+
+The crate replays the cases and every set of rows (tools/kernel_fixtures.py writes resignation.json; the crate's
+tests/resignation.rs reads Seats.holders, Seats.roster and Seats.dissolved over each).
 
     python3 -I check_resignation.py      exit 1 on any difference
 """
@@ -47,24 +55,42 @@ sys.path.insert(0, HERE)
 import seat as ST  # noqa: E402
 
 CK, K = ST.CK, ST.K
-OBJ, SC, POL = "g", "holder", "accord_majority"
+OBJ = "g"
 MEM = ("a", "b", "c")
-G = ST.offer("g", "a", MEM, SC, "@", "self", cosigners=("b", "c"))
-RESIGN = {m: ST.withdraw("w" + m, m, "g", ("g",)) for m in MEM}
+# Two rooms of the same three members, built by use(): `member`, a community whose founding row seats them in scope
+# member (the roster: what Seats.roster, the wrap set and dissolution read), with admissions under community_invite
+# and the removal under community_remove; and `holder`, an accord's holders (a seat that is no roster seat, under
+# accord_majority), kept because it shows a seat outside the roster: there Seats.roster is empty in every set.
+ROOMS = ("member", "holder")
+SC = POL = REMOVE = G = RESIGN = POOL = CASES = None
 
 
 def admit(i, who, signers, heads, cites=()):
+    kw = {"counted": SC} if SC == "holder" else {}
     return ST.offer(i, signers[0], who, SC, OBJ, "group", tuple(heads) + tuple(cites), head=tuple(heads), policy=POL,
-                    counted=SC, cosigners=tuple(signers[1:]) + (who,))
+                    cosigners=tuple(signers[1:]) + (who,), **kw)
 
 
-POOL = [RESIGN["a"], RESIGN["b"], RESIGN["c"],
-        admit("v1", "d", ("a", "b"), ("g",)),                      # admits d, cites nothing
-        admit("v1a", "d", ("b", "c"), ("g",), ("wa",)),            # admits d, cites a's resignation
-        admit("v1x", "e", ("a", "b"), ("g",), ("wa",)),            # cites a's resignation and needs a's voice
-        ST.unseat("x", "a", "c", SC, OBJ, "group", ("g",), head=("g",), policy="accord_majority", counted=SC, cosigners=("b",)),
-        admit("v2", "f", ("b", "d"), ("v1",)),                     # on v1, cites nothing
-        admit("v2a", "f", ("b", "d"), ("v1",), ("wa",))]           # on v1, cites a's resignation
+def use(room):
+    """Build the room's rows and its cases into the module's globals."""
+    global SC, POL, REMOVE, G, RESIGN, POOL, CASES
+    SC = room
+    if room == "member":
+        POL, REMOVE = "community_invite", "community_remove"
+        G = ST.found("g", "a", MEM, cosigners=("b", "c"))
+    else:
+        POL = REMOVE = "accord_majority"
+        G = ST.offer("g", "a", MEM, SC, "@", "self", cosigners=("b", "c"))
+    RESIGN = {m: ST.withdraw("w" + m, m, "g", ("g",)) for m in MEM}
+    kw = {"counted": SC} if SC == "holder" else {}
+    POOL = [RESIGN["a"], RESIGN["b"], RESIGN["c"],
+            admit("v1", "d", ("a", "b"), ("g",)),                      # admits d, cites nothing
+            admit("v1a", "d", ("b", "c"), ("g",), ("wa",)),            # admits d, cites a's resignation
+            admit("v1x", "e", ("a", "b"), ("g",), ("wa",)),            # cites a's resignation and needs a's voice
+            ST.unseat("x", "a", "c", SC, OBJ, "group", ("g",), head=("g",), policy=REMOVE, cosigners=("b",), **kw),
+            admit("v2", "f", ("b", "d"), ("v1",)),                     # on v1, cites nothing
+            admit("v2a", "f", ("b", "d"), ("v1",), ("wa",))]           # on v1, cites a's resignation
+    CASES = cases()
 
 
 def state(rows):
@@ -94,6 +120,19 @@ def counted_over(S, r):
     return ST.members_at(P, past, OBJ, r["head"], SC) - ST.left_in_past(P, OBJ, SC), ST.voices(r, P)
 
 
+def sets():
+    """Every set of the pool's rows closed under what they name, with at most two admissions on g, founding row
+    first."""
+    for k in range(len(POOL) + 1):
+        for pick in itertools.combinations(POOL, k):
+            ids = {r["id"] for r in pick} | {"g"}
+            if any(not set(r["names"]) <= ids for r in pick):
+                continue
+            if sum(r["id"].startswith("v1") for r in pick) > 2:
+                continue
+            yield [G] + list(pick)
+
+
 def check(plant=None):
     bad = {}
     n = 0
@@ -103,94 +142,127 @@ def check(plant=None):
         # withdrawal with its heads (members_at); the planted break turns off both
         ST.MUT.update({"leaving_unread", "ends_at_heads_unread"})
     try:
-        for k in range(len(POOL) + 1):
-            for pick in itertools.combinations(POOL, k):
-                ids = {r["id"] for r in pick} | {"g"}
-                if any(not set(r["names"]) <= ids for r in pick):
+        for rows in sets():
+            ids = {r["id"] for r in rows}
+            n += 1
+            S = state(rows)
+            held = {m for m in MEM if "w" + m in ids}
+            W = wrap(S, plant)
+            Q = ST.Seats(S)
+            if W & held:
+                bad.setdefault("no_resigner_wrapped", (sorted(ids), sorted(W & held)))
+            seated_somewhere = set(MEM) | {r["to"][0] for r in S.Cs if r["kind"] == "offer" and r["id"] != "g"}
+            if not W <= seated_somewhere:
+                bad.setdefault("wrap_within_members", (sorted(ids), sorted(W)))
+            for r in S.Cs:
+                if r.get("conf") != "group":
                     continue
-                if len({r["id"][:2] for r in pick if r["id"].startswith("v1")}) and sum(r["id"].startswith("v1") for r in pick) > 2:
-                    continue
-                n += 1
-                rows = [G] + list(pick)
-                S = state(rows)
-                held = {m for m in MEM if "w" + m in ids}
-                W = wrap(S, plant)
-                Q = ST.Seats(S)
-                if W & held:
-                    bad.setdefault("no_resigner_wrapped", (sorted(ids), sorted(W & held)))
-                seated_somewhere = set(MEM) | {r["to"][0] for r in S.Cs if r["kind"] == "offer" and r["id"] != "g"}
-                if not W <= seated_somewhere:
-                    bad.setdefault("wrap_within_members", (sorted(ids), sorted(W)))
-                for r in S.Cs:
-                    if r.get("conf") != "group":
-                        continue
-                    mem, v = counted_over(S, r)
-                    for m in MEM:
-                        if "w" + m in S.anc[r["id"]] and m in mem:
-                            bad.setdefault("cited_is_out", (sorted(ids), r["id"], m))
-                        if "w" + m not in S.anc[r["id"]] and m not in mem and r["head"] == ("g",):
-                            bad.setdefault("uncited_still_counts", (sorted(ids), r["id"], m))
-                # a row that needs a resigner's voice and cites the resignation does not conclude
-                if "v1x" in ids and S.C.get("v1x"):
-                    bad.setdefault("cited_is_out", (sorted(ids), "v1x", "a's voice counted"))
-                live = {r["k"] for r in Q.recs if r["obj"] == OBJ}
-                if dissolved(S, plant) != (not (wrap(S) if plant == "dissolved_by_roster" else W)):
-                    bad.setdefault("dissolved_by_rows", (sorted(ids), "dissolved differs from the wrap set"))
-                if (not live) != dissolved(S, plant):
-                    bad.setdefault("dissolved_by_rows", (sorted(ids), "live %s, dissolved %s" % (sorted(live), dissolved(S, plant))))
-                if any(t["kind"] == "withdraw" for t in Q.tips(OBJ)):
-                    bad.setdefault("resignation_no_head", (sorted(ids),))
-                if plant is None and len(rows) <= 6:
-                    want = (W, dissolved(S))
-                    for p in itertools.permutations(rows[1:]):
-                        T2 = CK.arrive([G] + list(p), lambda r, P, past: ST.seat_rule(r, P, past))
-                        if (wrap(T2), dissolved(T2)) != want:
-                            bad.setdefault("dissolved_by_rows", (sorted(ids), "an arrival order differs"))
-                            break
+                mem, v = counted_over(S, r)
+                for m in MEM:
+                    if "w" + m in S.anc[r["id"]] and m in mem:
+                        bad.setdefault("cited_is_out", (sorted(ids), r["id"], m))
+                    if "w" + m not in S.anc[r["id"]] and m not in mem and r["head"] == ("g",):
+                        bad.setdefault("uncited_still_counts", (sorted(ids), r["id"], m))
+            # a row that needs a resigner's voice and cites the resignation does not conclude
+            if "v1x" in ids and S.C.get("v1x"):
+                bad.setdefault("cited_is_out", (sorted(ids), "v1x", "a's voice counted"))
+            live = {r["k"] for r in Q.recs if r["obj"] == OBJ}
+            if dissolved(S, plant) != (not (wrap(S) if plant == "dissolved_by_roster" else W)):
+                bad.setdefault("dissolved_by_rows", (sorted(ids), "dissolved differs from the wrap set"))
+            if (not live) != dissolved(S, plant):
+                bad.setdefault("dissolved_by_rows", (sorted(ids), "live %s, dissolved %s" % (sorted(live), dissolved(S, plant))))
+            if SC == "member" and plant is None:
+                # the roster is the wrap set, and Seats.dissolved is the check's own reading, in every set
+                if Q.roster(OBJ) != W:
+                    bad.setdefault("roster_is_wrap", (sorted(ids), sorted(Q.roster(OBJ)), sorted(W)))
+                if Q.dissolved(OBJ) != dissolved(S):
+                    bad.setdefault("seats_dissolved", (sorted(ids), Q.dissolved(OBJ)))
+            if any(t["kind"] == "withdraw" for t in Q.tips(OBJ)):
+                bad.setdefault("resignation_no_head", (sorted(ids),))
+            if plant is None and len(rows) <= 6:
+                want = (W, dissolved(S))
+                for p in itertools.permutations(rows[1:]):
+                    T2 = CK.arrive([G] + list(p), lambda r, P, past: ST.seat_rule(r, P, past))
+                    if (wrap(T2), dissolved(T2)) != want:
+                        bad.setdefault("dissolved_by_rows", (sorted(ids), "an arrival order differs"))
+                        break
     finally:
         ST.MUT.clear(); ST.MUT |= saved
     return n, bad
 
 
-# hand-written cases: (name, rows, wrap set, dissolved, {counted row: the members it is counted over})
-CASES = [
-    ("nobody has resigned", [G], {"a", "b", "c"}, False, {}),
-    ("a resigns: not wrapped at once, with no counted row", [G, RESIGN["a"]], {"b", "c"}, False, {}),
-    ("a resigns; an admission that does not cite it is still counted over a", [G, RESIGN["a"], POOL[3]], {"b", "c", "d"}, False,
-     {"v1": {"a", "b", "c"}}),
-    ("an admission citing a's resignation is counted over b and c", [G, RESIGN["a"], POOL[4]], {"b", "c", "d"}, False,
-     {"v1a": {"b", "c"}}),
-    ("the citation one row late: v1 counts a, v2a on it does not", [G, RESIGN["a"], POOL[3], POOL[8]], {"b", "c", "d", "f"}, False,
-     {"v1": {"a", "b", "c"}, "v2a": {"b", "c", "d"}}),
-    ("two members resign concurrently at one head", [G, RESIGN["a"], RESIGN["b"]], {"c"}, False, {}),
-    ("all three resign: dissolved at a node holding all three", [G, RESIGN["a"], RESIGN["b"], RESIGN["c"]], set(), True, {}),
-    ("two resign and the third is removed by a count signed before", [G, RESIGN["a"], RESIGN["b"], POOL[6]], set(), True, {}),
-]
+def cases():
+    """The hand-written cases: (name, rows, wrap set, dissolved, {counted row: the members it is counted over})."""
+    return [
+        ("nobody has resigned", [G], {"a", "b", "c"}, False, {}),
+        ("a resigns: not wrapped at once, with no counted row", [G, RESIGN["a"]], {"b", "c"}, False, {}),
+        ("a resigns; an admission that does not cite it is still counted over a", [G, RESIGN["a"], POOL[3]],
+         {"b", "c", "d"}, False, {"v1": {"a", "b", "c"}}),
+        ("an admission citing a's resignation is counted over b and c", [G, RESIGN["a"], POOL[4]], {"b", "c", "d"},
+         False, {"v1a": {"b", "c"}}),
+        ("the citation one row late: v1 counts a, v2a on it does not", [G, RESIGN["a"], POOL[3], POOL[8]],
+         {"b", "c", "d", "f"}, False, {"v1": {"a", "b", "c"}, "v2a": {"b", "c", "d"}}),
+        ("two members resign concurrently at one head", [G, RESIGN["a"], RESIGN["b"]], {"c"}, False, {}),
+        ("all three resign: dissolved at a node holding all three", [G, RESIGN["a"], RESIGN["b"], RESIGN["c"]], set(),
+         True, {}),
+        ("two resign and the third is removed by a count signed before", [G, RESIGN["a"], RESIGN["b"], POOL[6]], set(),
+         True, {}),
+    ] + (two_tips() if SC == "member" else [])
+
+
+def two_tips():
+    """Wire-map's vector case 69: d is seated on TWO tips of the room (v1 and v2, concurrent admissions at g) by
+    different acceptances; d's resignation naming both tips, presented per the G9 bridge as a withdrawal of the
+    acceptance of the stay standing at each named tip, ends the stay on each."""
+    def adm(i, signers):
+        return ST.offer(i, signers[0], "d", SC, OBJ, "group", ("g",), head=("g",), policy=POL,
+                        cosigners=tuple(signers[1:]))
+    v1, v2 = adm("v1", ("a", "b")), adm("v2", ("b", "c"))
+    acc1 = ST.accept("acc1", "d", "v1", ("v1",), scope=SC, obj=OBJ)
+    acc2 = ST.accept("acc2", "d", "v2", ("v2",), scope=SC, obj=OBJ)
+    w1 = ST.withdraw("w1", "d", "acc1", ("acc1", "v1", "v2"))
+    w2 = ST.withdraw("w2", "d", "acc2", ("acc2", "v1", "v2"))
+    w1_only = ST.withdraw("w1", "d", "acc1", ("acc1", "v1"))           # names one tip only
+    base = [G, v1, v2, acc1, acc2]
+    return [("case 69: d seated on two tips by different acceptances", base, {"a", "b", "c", "d"}, False, {}),
+            ("case 69: d's resignation naming both tips ends the stay on each", base + [w1, w2], {"a", "b", "c"},
+             False, {}),
+            ("case 69 control: a resignation naming ONE tip ends d's stay at EVERY tip: a member's own end of its stay "
+             "is person-level in the room, and its own acceptance concurrent with that end (acc2) is no voice "
+             "(CIRISConstitution#224, F4: own_void)", base + [w1_only], {"a", "b", "c"}, False, {})]
 
 
 def main():
-    problems = []
-    for name, rows, w, d, counts in CASES:
-        S = state(rows)
-        got = (set(wrap(S)), dissolved(S), {i: set(counted_over(S, S.by[i])[0]) for i in counts})
-        if got != (w, d, counts):
-            problems.append("case %s: got %s" % (name, got))
-    n, bad = check()
-    for p, where in bad.items():
-        problems.append("%s: %s" % (p, where))
-    caught = 0
-    for plant, prop in (("wrap_by_roster", "no_resigner_wrapped"), ("leaving_unread", "cited_is_out"), ("dissolved_by_roster", "dissolved_by_rows")):
-        _, b = check(plant)
-        ok = prop in b
-        caught += ok
-        print("  plant %-20s %s (%s)" % (plant, "caught" if ok else "NOT CAUGHT", prop))
-        if not ok:
-            problems.append("plant %s not caught" % plant)
+    problems, total, sets_n, caught_n = [], 0, 0, 0
+    for room in ROOMS:
+        use(room)
+        for name, rows, w, d, counts in CASES:
+            S = state(rows)
+            got = (set(wrap(S)), dissolved(S), {i: set(counted_over(S, S.by[i])[0]) for i in counts})
+            if got != (w, d, counts):
+                problems.append("%s room, case %s: got %s" % (room, name, got))
+        n, bad = check()
+        total += len(CASES); sets_n += n
+        for p, where in bad.items():
+            problems.append("%s room, %s: %s" % (room, p, where))
+        for plant, prop in (("wrap_by_roster", "no_resigner_wrapped"), ("leaving_unread", "cited_is_out"),
+                            ("dissolved_by_roster", "dissolved_by_rows")):
+            _, b = check(plant)
+            ok = prop in b
+            caught_n += ok
+            print("  %-6s room: plant %-20s %s (%s)" % (room, plant, "caught" if ok else "NOT CAUGHT", prop))
+            if not ok:
+                problems.append("%s room: plant %s not caught" % (room, plant))
+    use("member")
     for p in problems:
         print(p)
-    print("RESULT: %s: %d cases, %d sets of rows, 6 properties, %d of 3 planted breaks caught"
-          % ("ok" if not problems else "%d problems" % len(problems), len(CASES), n, caught))
+    print("RESULT: %s: %d cases, %d sets of rows over two rooms (member, holder), 6 properties and, in the member "
+          "room, roster_is_wrap and seats_dissolved; %d of 6 planted breaks caught"
+          % ("ok" if not problems else "%d problems" % len(problems), total, sets_n, caught_n))
     return 1 if problems else 0
+
+
+use("member")
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ pub trait RootBundle {
     /// A key: a holder, a seat, a recovery key.
     type Key: Ord + Clone;
     /// A charter, compared as one value, and a duty it carries.
-    type Word: Ord + Clone;
+    type Word: Ord + Clone + AsRef<str>;
     /// The bundle's id.
     fn id(&self) -> &Self::Id;
     /// The family key id: the lineage's name.
@@ -76,6 +76,11 @@ pub trait RootBundle {
     }
     /// The recovery commitments: (holder, its recovery key), keys exactly the holders.
     fn recovery(&self) -> &[(Self::Key, Self::Key)];
+    /// For a settler at a head: the one contested sibling there it names as the one that stands
+    /// ([`Root::bounded_settler`]). Default: none.
+    fn settles(&self) -> Option<&Self::Id> {
+        None
+    }
     /// For a holder's own key recovery: (the holder, its new key).
     fn recovers(&self) -> Option<(&Self::Key, &Self::Key)>;
     /// The payload's iat.
@@ -102,6 +107,11 @@ pub trait RootGrant: crate::Row {
     /// cosigns. Its signer ([`crate::Row::signer`]) is the voice it adds.
     fn cosigns(&self) -> Option<&Self::Id> {
         None
+    }
+    /// The row is a holder's halt (CC 4.2.1): one holder's row that counts nobody, its signer
+    /// ([`crate::Row::signer`]) the holder. Default: not a halt.
+    fn halts(&self) -> bool {
+        false
     }
     /// The bundles a grant names, and is counted over: one, or several.
     fn bundles(&self) -> &[Self::Id];
@@ -132,8 +142,32 @@ pub struct Reader<I: Ord, K: Ord> {
     pub anchor: Option<I>,
     /// The holders' thumbprints.
     pub thumbs: Option<BTreeSet<K>>,
-    /// The bundles it acknowledged (they accumulate: its own line).
+    /// The bundle each of its acknowledgement rows acknowledges, in a causal order (no row before one in its past).
     pub acks: Vec<I>,
+    /// Per acknowledgement row, the positions in `acks` of the reader's earlier rows its own causal past names (a
+    /// person's devices sign concurrently: two rows neither naming the other). None: one chain, each row with every
+    /// earlier one in its past.
+    pub after: Option<Vec<Vec<usize>>>,
+}
+
+impl<I: Ord, K: Ord> Reader<I, K> {
+    /// Per acknowledgement row, the positions of the reader's rows in its own causal past (closed).
+    pub fn ack_pasts(&self) -> Vec<BTreeSet<usize>> {
+        let mut out: Vec<BTreeSet<usize>> = Vec::new();
+        for i in 0..self.acks.len() {
+            let direct: Vec<usize> = match &self.after {
+                None => (0..i).collect(),
+                Some(a) => a.get(i).cloned().unwrap_or_default(),
+            };
+            let mut got = BTreeSet::new();
+            for j in direct.into_iter().filter(|&j| j < i) {
+                got.insert(j);
+                got.extend(out[j].iter().copied());
+            }
+            out.push(got);
+        }
+        out
+    }
 }
 
 /// Why a bundle or a grant does not stand.
@@ -264,38 +298,39 @@ where
         out
     }
 
-    fn consistent(&self, b: &B) -> bool {
+    /// Why b is Invalid or waits, by the text's names (CC 2.6.1.11, CC 3.2), or None.
+    fn inconsistency(&self, b: &B) -> Option<Reason> {
         let ps: Vec<&B> = b.prev().iter().filter_map(|p| self.b(p)).collect();
         if ps.len() != b.prev().len() {
-            return false;
+            return Some("genesis_bundle_prev_not_valid"); // one not held: it waits
         }
         let rk: BTreeSet<&B::Key> = b.recovery().iter().map(|(h, _)| h).collect();
         let hk: BTreeSet<&B::Key> = b.holders().iter().collect();
         if rk != hk {
-            return false; // recovery_commitments are keys exactly the holders
+            return Some("genesis_bundle_malformed"); // recovery_commitments are keys exactly the holders
         }
         if ps.is_empty() {
-            return true;
+            return None;
         }
         let top = ps.iter().map(|p| p.version()).max().unwrap_or(0);
         if b.version() != top + 1 {
-            return false;
+            return Some("version_prev_mismatch");
         }
         if !ps.iter().all(|p| p.family() == b.family()) {
-            return false;
+            return Some("version_prev_mismatch");
         }
         if ps.len() >= 2 {
             // the join's wire: refs.prev is the greatest version, least id among equals; refs.further_prev the
-            // rest; a named predecessor in the past of another concludes nothing
+            // rest; a named predecessor in the lineage past of another is Invalid
             let first = ps.iter().min_by(|x, y| (y.version(), x.id()).cmp(&(x.version(), y.id())));
             if first.map(|q| q.id()) != Some(&b.prev()[0]) {
-                return false;
+                return Some("version_prev_mismatch");
             }
             if b.prev().iter().any(|a| b.prev().iter().any(|c| self.in_past(a, c))) {
-                return false;
+                return Some("further_prev_not_newest");
             }
         }
-        true
+        None
     }
 
     /// The keys retired across the branches of `prevs`: every key a recovery in their lines rotated out. A join
@@ -380,9 +415,21 @@ where
             return Some(Err("recovery_changes_other_seat"));
         }
         let p = self.b(&b.prev()[0])?;
-        let Some(rk) = Self::commitment(p, h) else { return Some(Err("recovery_not_signed")) };
+        let Some(rk) = Self::commitment(p, h) else { return Some(Err("recovery_commitment_mismatch")) };
         if !b.statements().iter().any(|(k, iat)| *k == rk && *iat == b.iat()) {
-            return Some(Err("recovery_not_signed"));
+            return Some(Err("recovery_commitment_mismatch"));
+        }
+        // a recovery whose prev is in the lineage past of a bundle its holder signed (as a holder, under either key)
+        // concludes nothing
+        let behind_head = self.by.values().any(|x| {
+            x.id() != b.id()
+                && !self.in_past(b.id(), x.id())
+                && x.recovers().is_none()
+                && self.in_past(&b.prev()[0], x.id())
+                && x.statements().iter().any(|(k, _)| self.owner(k) == self.owner(h))
+        });
+        if behind_head {
+            return Some(Err("recovery_behind_head"));
         }
         let want: Vec<B::Key> = p.holders().iter().map(|k| if k == h { new.clone() } else { k.clone() }).collect();
         let others = |r: &[(B::Key, B::Key)], skip: &B::Key| -> BTreeSet<(B::Key, B::Key)> {
@@ -421,25 +468,93 @@ where
     }
 
     fn counted_of(&self, b: &B) -> Result<(), Reason> {
-        if !self.consistent(b) {
-            return Err("invalid");
+        if let Some(why) = self.inconsistency(b) {
+            return Err(why);
         }
         if b.prev().iter().any(|p| self.counted(p).is_err()) {
-            return Err("prev_not_concluded");
+            return Err("genesis_bundle_prev_not_valid");
         }
         let v = self.voices(b);
         if b.prev().is_empty() {
             let all = !b.holders().is_empty() && b.holders().iter().all(|k| v.contains(k));
-            return if all { Ok(()) } else { Err("count_short") };
+            return if all { Ok(()) } else { Err("genesis_bundle_count_unmet") };
         }
         if let Some(r) = self.recovery_ok(b) {
             return r;
         }
+        if self.bounded_settler(b) {
+            // the bounded settler (the ruling on the genesis stall): counted over the head's holders who have a say
+            // there, rule 6's double signers at that head (over the siblings it names) out of the base for this one
+            // count, by strict majority of them. Each sibling it can choose was already signed by a strict
+            // majority, so the reduced base only decides which majority-signed bundle stands, and a holder cannot be
+            // made a double signer against its will. Every holder double-signed: an empty base, nothing settles.
+            // Its target must be one of the CONTESTED siblings at that head that concluded on its own count, else it
+            // concludes nothing (a target that did not conclude would wipe the head).
+            let kids = self.head_successors(b.prev());
+            let target = b.settles().and_then(|x| kids.iter().copied().find(|k| k.id() == x));
+            let Some(x) = target else { return Err("genesis_bundle_count_unmet") };
+            if !kids.iter().any(|c| self.siblings(x, c) && (self.cuts_kept(x, c) || self.cuts_kept(c, x))) {
+                return Err("genesis_bundle_count_unmet");
+            }
+            // the double signers at that head, over every successor there that concluded (one base per head: two
+            // settlers toward different siblings cannot both conclude, whatever order they are read in)
+            let ds = self.double_signers(&kids);
+            let p: BTreeSet<B::Id> = b.prev().iter().cloned().collect();
+            let none = BTreeSet::new();
+            let mut d: BTreeSet<B::Key> = ds.get(&p).unwrap_or(&none).clone();
+            d.extend(self.settler_double_signers(b.prev()));
+            let head = self.b(&b.prev()[0]).map(|h| h.holders().to_vec()).unwrap_or_default();
+            let base: BTreeSet<B::Key> = self.live(head).into_iter().filter(|k| !d.contains(&self.owner(k))).collect();
+            return if !base.is_empty() && self.meets(b, &v, Some(&base)) {
+                Ok(())
+            } else {
+                Err("genesis_bundle_count_unmet")
+            };
+        }
         if self.meets(b, &v, None) {
             Ok(())
         } else {
-            Err("count_short")
+            Err("genesis_bundle_count_unmet")
         }
+    }
+
+    /// Rule 6 read over settlers: the holders (owner classes) that signed two bounded settlers at head `prev` naming
+    /// different siblings. Such a holder has no say in settling that head: both its settler signatures count for
+    /// nothing.
+    /// The successors at head `prev` that concluded on their own count, settlers apart, in id order.
+    fn head_successors(&self, prev: &[B::Id]) -> Vec<&'a B> {
+        self.by
+            .values()
+            .copied()
+            .filter(|x| x.prev() == prev && !self.bounded_settler(x) && self.counted(x.id()).is_ok())
+            .collect()
+    }
+
+    fn settler_double_signers(&self, prev: &[B::Id]) -> BTreeSet<B::Key> {
+        let ss: Vec<&B> = self.by.values().copied().filter(|x| x.prev() == prev && self.bounded_settler(x)).collect();
+        let mut out = BTreeSet::new();
+        for a in &ss {
+            for c in &ss {
+                if a.settles() != c.settles() {
+                    let oc: BTreeSet<B::Key> = self.voices(c).iter().map(|k| self.owner(k)).collect();
+                    out.extend(self.voices(a).iter().map(|k| self.owner(k)).filter(|k| oc.contains(k)));
+                }
+            }
+        }
+        out
+    }
+
+    /// A settler at a head that names one contested sibling there ([`RootBundle::settles`]) as the one that stands
+    /// and states nothing of its own: its holders, seats, charter and recovery commitments are that sibling's. One
+    /// stating anything else is counted over the full base, as any bundle is.
+    pub fn bounded_settler(&self, b: &B) -> bool {
+        let Some(x) = b.settles().and_then(|x| self.b(x)) else { return false };
+        // it states something of its own: holders, seats, charter or recovery commitments not the sibling's
+        let states = x.holders() != b.holders()
+            || x.seats() != b.seats()
+            || x.charter() != b.charter()
+            || x.recovery() != b.recovery();
+        b.prev().len() == 1 && x.prev() == b.prev() && b.names().contains(x.id()) && !states
     }
 
     fn concluded(&self) -> Vec<&'a B> {
@@ -488,6 +603,15 @@ where
         self.owners(self.voices(b).intersection(&base))
     }
 
+    /// Why bundle `i` is void, where it is: `genesis_join_contested` for a join a rival under another charter
+    /// contests (the text's report token, CC 3.2), `void` otherwise; None where it is not void.
+    pub fn void_reason(&self, i: &B::Id) -> Option<Reason> {
+        if !self.void().contains(i) {
+            return None;
+        }
+        Some(if self.contested_join(i) { "genesis_join_contested" } else { "void" })
+    }
+
     /// S'' and T: the bundles void (and contested recoveries).
     pub fn void(&self) -> BTreeSet<B::Id> {
         self.void_and_contested().0
@@ -531,7 +655,8 @@ where
         let cs = self.concluded();
         let forked = |b: &B| {
             let first = b.prev().is_empty(); // a recovery is no exemption
-            if first {
+                                             // a bounded settler states nothing of its own: it decides its head, and is no fork of the lines on it
+            if first || self.bounded_settler(b) {
                 return false;
             }
             let v = self.voices_of(b);
@@ -698,24 +823,86 @@ where
             .cloned()
     }
 
-    /// The reader's own line: every bundle it acknowledged (they accumulate, in any order), and the bundles void
-    /// for the reader by it: every bundle behind ANY acknowledged bundle, an acknowledged one included, and every
-    /// bundle built on one but a join (a join is behind an acknowledged c only where every predecessor it names is
+    /// The reader's own line, and the bundles void for the reader by it. Its acknowledgements are its own rows, each
+    /// later one with the earlier ones in its past ([`Reader::acks`], in that causal order); an acknowledgement
+    /// settles only if the acknowledged bundle counts over that acknowledgement row's OWN PAST (the bundle's past, the
+    /// reader's earlier acknowledgement rows and the line they drew). The void: every bundle behind ANY settled
+    /// bundle, a settled one included, and every bundle built on one but a join (a join is behind an acknowledged c only where every predecessor it names is
     /// strictly in the past of c's heads; a void predecessor it names does not stop it). Acknowledging never
     /// revives.
     pub fn reader_line(&self, rd: &Reader<B::Id, B::Key>) -> (Vec<B::Id>, BTreeSet<B::Id>) {
-        let valid: Vec<&'a B> = self.valid();
-        let acked: Vec<B::Id> = rd.acks.iter().filter(|a| valid.iter().any(|b| b.id() == *a)).cloned().collect();
-        let mut out: BTreeSet<B::Id> = valid
+        let valid: BTreeSet<B::Id> = self.valid().into_iter().map(|b| b.id().clone()).collect();
+        // each row judged over its OWN causal past; two concurrent rows (a person's two devices) each without the
+        // other, and the reader's line drawn over their union
+        let pasts = rd.ack_pasts();
+        let mut won: BTreeMap<usize, B::Id> = BTreeMap::new();
+        // what the bundles settled at `rows` close among `ids`: each closes what is behind it, a bundle settled by a
+        // row not in its own row's past apart (a row closes nothing a row concurrent with it settled, so depth between
+        // a person's two devices decides nothing)
+        let closes = |won: &BTreeMap<usize, B::Id>, rows: &mut dyn Iterator<Item = usize>, ids: &BTreeSet<B::Id>| {
+            let mut out = BTreeSet::new();
+            for j in rows {
+                let Some(a) = won.get(&j) else { continue };
+                // a concurrent row's settled bundle and its whole line: the line it settled onto
+                let keep: BTreeSet<B::Id> = won
+                    .iter()
+                    .filter(|(m, _)| **m != j && !pasts[j].contains(*m))
+                    .flat_map(|(_, x)| self.line(x))
+                    .collect();
+                out.extend(self.rv_of(core::slice::from_ref(a), ids, &keep));
+            }
+            out
+        };
+        for (i, a) in rd.acks.iter().enumerate() {
+            if !valid.contains(a) {
+                continue;
+            }
+            let mut seen: BTreeSet<B::Id> = self.line(a).into_iter().collect();
+            for &j in &pasts[i] {
+                if valid.contains(&rd.acks[j]) {
+                    seen.extend(self.line(&rd.acks[j]));
+                }
+            }
+            let pool: BTreeSet<B::Id> = seen.intersection(&valid).cloned().collect();
+            let rv = closes(&won, &mut pasts[i].iter().copied(), &pool);
+            let rest: Vec<B::Id> = pool.iter().filter(|x| !rv.contains(*x)).cloned().collect();
+            if !rv.contains(a) && !self.contested(&rest).contains(a) {
+                won.insert(i, a.clone()); // it counts over its own acknowledgement row's past: it settles
+            }
+        }
+        let settled: Vec<B::Id> = won.values().cloned().collect();
+        let out = closes(&won, &mut won.keys().copied(), &valid);
+        (settled, out)
+    }
+
+    /// The bundles of `ids` behind any of the bundles `settled`, and every bundle built on one but a join; `keep`
+    /// (bundles a concurrent row of the reader settled) apart.
+    fn rv_of(&self, settled: &[B::Id], ids: &BTreeSet<B::Id>, keep: &BTreeSet<B::Id>) -> BTreeSet<B::Id> {
+        // A bounded settler states nothing of its own and decides its head: a line closes it exactly when the sibling
+        // it names is one that line holds void. So it rescues a stalled reader and never overturns a reader that
+        // already settled past the contest.
+        let st: BTreeSet<B::Id> =
+            ids.iter().filter(|i| self.b(i).is_some_and(|b| self.bounded_settler(b))).cloned().collect();
+        let mut rest: BTreeSet<B::Id> = ids.difference(&st).cloned().collect();
+        rest.extend(st.iter().filter_map(|i| self.b(i).and_then(|b| b.settles()).cloned()));
+        let mut out: BTreeSet<B::Id> = rest
             .iter()
-            .filter(|b| acked.iter().any(|a| self.b(a).is_some_and(|ba| self.behind(b, ba))))
-            .map(|b| b.id().clone())
+            .filter(|i| {
+                !keep.contains(*i)
+                    && self
+                        .b(i)
+                        .is_some_and(|bi| settled.iter().any(|a| self.b(a).is_some_and(|ba| self.behind(bi, ba))))
+            })
+            .cloned()
             .collect();
         loop {
             let mut changed = false;
-            for b in &valid {
-                if !out.contains(b.id()) && b.prev().len() < 2 && b.prev().iter().any(|p| out.contains(p)) {
-                    out.insert(b.id().clone());
+            for i in &rest {
+                if out.contains(i) || keep.contains(i) {
+                    continue;
+                }
+                if self.b(i).is_some_and(|b| b.prev().len() < 2 && b.prev().iter().any(|p| out.contains(p))) {
+                    out.insert(i.clone());
                     changed = true;
                 }
             }
@@ -723,7 +910,12 @@ where
                 break;
             }
         }
-        (acked, out)
+        for i in &st {
+            if self.b(i).and_then(|b| b.settles()).is_some_and(|x| out.contains(x)) {
+                out.insert(i.clone());
+            }
+        }
+        out.intersection(ids).cloned().collect()
     }
 
     /// The bundles in force for the reader: the newest it acknowledged, read by its line; none, its anchor.
@@ -731,12 +923,7 @@ where
     pub fn heads(&self, rd: &Reader<B::Id, B::Key>) -> Option<Vec<B::Id>> {
         let f = self.first(rd)?;
         let (accepted, rv) = self.reader_line(rd);
-        let base: Vec<B::Id> = self
-            .valid()
-            .into_iter()
-            .map(|b| b.id().clone())
-            .filter(|i| (*i == f || self.in_past(&f, i)) && !rv.contains(i))
-            .collect();
+        let base = self.lineage_base(rd)?;
         // rules 5 and 6 over what the reader's line leaves (a row void by the line is no input to them)
         let ct = self.contested(&base);
         let held: BTreeSet<B::Id> = base.into_iter().filter(|i| !ct.contains(i)).collect();
@@ -756,10 +943,60 @@ where
                 }
             }
         }
+        // a bounded settler is no head of its own: the reader is at the sibling it names
+        let acked: BTreeSet<B::Id> = acked
+            .into_iter()
+            .map(|i| match self.b(&i) {
+                Some(b) if self.bounded_settler(b) => b.settles().cloned().unwrap_or(i),
+                _ => i,
+            })
+            .collect();
         if acked.is_empty() {
             return Some(Vec::from([f]));
         }
         Some(acked.iter().filter(|i| !acked.iter().any(|j| self.in_past(i, j))).cloned().collect())
+    }
+
+    /// The bundles of the reader's anchored lineage its line does not hold void: the input to rules 5 and 6.
+    fn lineage_base(&self, rd: &Reader<B::Id, B::Key>) -> Option<Vec<B::Id>> {
+        let f = self.first(rd)?;
+        let (_, rv) = self.reader_line(rd);
+        Some(
+            self.valid()
+                .into_iter()
+                .map(|b| b.id().clone())
+                .filter(|i| (*i == f || self.in_past(&f, i)) && !rv.contains(i))
+                .collect(),
+        )
+    }
+
+    /// RULE 6's double signers, per head: the head (a successor's prev, as a set) to the holders (owner classes, so
+    /// under either key) that signed two successors of it, one cutting a holder the other keeps, neither naming the
+    /// other; over the bundles `bs` a reader holds.
+    fn double_signers(&self, bs: &[&B]) -> BTreeMap<BTreeSet<B::Id>, BTreeSet<B::Key>> {
+        let mut out: BTreeMap<BTreeSet<B::Id>, BTreeSet<B::Key>> = BTreeMap::new();
+        for b in bs {
+            for c in bs {
+                if self.siblings(b, c) && (self.cuts_kept(b, c) || self.cuts_kept(c, b)) {
+                    // the holder is the voice, under its key or its recovery key
+                    let oc: BTreeSet<B::Key> = self.voices(c).iter().map(|k| self.owner(k)).collect();
+                    let ks: Vec<B::Key> =
+                        self.voices(b).iter().map(|k| self.owner(k)).filter(|k| oc.contains(k)).collect();
+                    out.entry(b.prev().iter().cloned().collect()).or_default().extend(ks);
+                }
+            }
+        }
+        out
+    }
+
+    /// The holders (owner classes) with no say in any count at the reader's heads in force: rule 6's double signers
+    /// at those heads, over what the reader holds. Only at that head: at a later head where the signer did not
+    /// double-sign, it counts as any holder (nothing is carried forward as a mark on the key).
+    pub fn no_say(&self, rd: &Reader<B::Id, B::Key>) -> BTreeSet<B::Key> {
+        let (Some(hs), Some(base)) = (self.heads(rd), self.lineage_base(rd)) else { return BTreeSet::new() };
+        let hs: BTreeSet<B::Id> = hs.into_iter().collect();
+        let bs: Vec<&B> = base.iter().filter_map(|i| self.b(i)).collect();
+        self.double_signers(&bs).into_iter().filter(|(p, _)| p.is_subset(&hs)).flat_map(|(_, ks)| ks).collect()
     }
 
     /// b and c extend the same bundles, neither in the other's past, and neither names the other.
@@ -788,27 +1025,35 @@ where
     /// siblings that each remove a holder whose voice the other needs are contested; one-sided, the dependent one
     /// falls. And every bundle built on one but a join. RULE 3: a bundle at that head naming both decides.
     pub fn contested(&self, ids: &[B::Id]) -> BTreeSet<B::Id> {
+        // a total order: nothing may depend on the order the caller lists the bundles in
+        let ids: Vec<B::Id> = ids.iter().cloned().collect::<BTreeSet<_>>().into_iter().collect();
+        let ids = &ids[..];
         let bs: Vec<&'a B> = ids.iter().filter_map(|i| self.b(i)).filter(|b| !b.prev().is_empty()).collect();
         let mut out: BTreeSet<B::Id> = BTreeSet::new();
         let mut no: BTreeMap<B::Id, BTreeSet<B::Key>> = BTreeMap::new();
+        // rule 6: a double signer at a head has no say in ANY count at that head: the two successors it signed, a
+        // third, and a rule-3 bundle naming both
+        let ds = self.double_signers(&bs);
+        let none = BTreeSet::new();
         for b in &bs {
-            let mut ks: BTreeSet<B::Key> = BTreeSet::new();
-            for c in &bs {
-                if self.siblings(b, c) && (self.cuts_kept(b, c) || self.cuts_kept(c, b)) {
-                    ks.extend(self.voices(b).intersection(&self.voices(c)).cloned());
-                    // rule 6
-                }
+            if self.bounded_settler(b) {
+                no.insert(b.id().clone(), BTreeSet::new()); // counted by its own rule
+                continue;
             }
-            if !ks.is_empty() && b.recovers().is_none() {
+            let p: BTreeSet<B::Id> = b.prev().iter().cloned().collect();
+            let d = ds.get(&p).unwrap_or(&none);
+            let ks: BTreeSet<B::Key> = self.voices(b).into_iter().filter(|k| d.contains(&self.owner(k))).collect();
+            if !ks.is_empty() {
                 let v: BTreeSet<B::Key> = self.voices(b).difference(&ks).cloned().collect();
-                if !self.meets(b, &v, None) {
+                if b.recovers().is_some() || !self.meets(b, &v, None) {
                     out.insert(b.id().clone());
                 }
             }
             no.insert(b.id().clone(), ks);
         }
         // rule 5
-        let live: Vec<&'a B> = bs.iter().copied().filter(|b| !out.contains(b.id())).collect();
+        let live: Vec<&'a B> =
+            bs.iter().copied().filter(|b| !out.contains(b.id()) && !self.bounded_settler(b)).collect();
         let needs = |y: &B, k: &B::Key| {
             let v: BTreeSet<B::Key> = self.voices(y).difference(&no[y.id()]).cloned().collect();
             let mut less = v.clone();
@@ -828,6 +1073,20 @@ where
             }
         }
         out.extend(dep);
+        // a bounded settler held (it concluded) decides its head: the sibling it names stands, the others at that head
+        // fall (and what is built on them)
+        for b in &bs {
+            if !self.bounded_settler(b) || out.contains(b.id()) {
+                continue;
+            }
+            let Some(x) = b.settles().and_then(|x| self.b(x)) else { continue };
+            out.remove(x.id());
+            for c in &bs {
+                if c.id() != x.id() && c.id() != b.id() && self.siblings(x, c) && !self.bounded_settler(c) {
+                    out.insert(c.id().clone());
+                }
+            }
+        }
         loop {
             let mut changed = false;
             for i in ids {
@@ -1082,8 +1341,11 @@ where
         }
         // (i) its voices (its issuance and every cosignature since) are a strict majority of ALL the holders in force
         // at this reader (live, under the same key)
+        // rule 6: a double signer at the reader's head has no say in a count there, under either key
         let held = self.live(self.fold(&hs).0);
-        let voices = self.grant_voices(gid).into_iter().filter(|k| held.contains(k)).count();
+        let ns = self.no_say(rd);
+        let voices =
+            self.grant_voices(gid).into_iter().filter(|k| held.contains(k) && !ns.contains(&self.owner(k))).count();
         if 2 * voices <= held.len() {
             return Err("grant_voices_not_in_force");
         }
@@ -1091,6 +1353,37 @@ where
             return Err("grant_scope_not_in_force");
         }
         Ok(())
+    }
+
+    /// A halt halts for the reader where its signer is a holder in force there (live, under the same key). A halt
+    /// counts nobody, so a double signer's halt at that head still halts: losing a say never removes the stop.
+    pub fn halt_in_force(&self, hid: &B::Id, rd: &Reader<B::Id, B::Key>) -> Result<(), Reason> {
+        let h = self.lane.idx(hid).map(|i| self.lane.row(i)).filter(|r| r.halts()).ok_or("halt_unknown")?;
+        let hs = self.heads(rd).ok_or("genesis_bundle_not_anchored")?;
+        if !self.live(self.fold(&hs).0).contains(h.signer()) {
+            return Err("halt_signer_not_in_force");
+        }
+        Ok(())
+    }
+
+    /// The row [`grant_in_force`](Root::grant_in_force) waits on for the reader, where it refuses the grant for a
+    /// row not held: the grant itself (`grant_unknown`, and no row of that id in the lane), the reader's anchor
+    /// (`genesis_bundle_not_anchored`, and no bundle of that id), or the first bundle the grant names that is not
+    /// held (`grant_bundle_void`). None where the grant is in force, or refused with every row it reads held (a
+    /// row held and void, a count short): that refusal stands until a held row changes, not on an arrival it names.
+    /// In the order `grant_in_force` reads them, so the row named is the one its own refusal is about.
+    pub fn grant_waits(&self, gid: &B::Id, rd: &Reader<B::Id, B::Key>) -> Option<B::Id> {
+        let Some(g) = self.grants.get(gid) else {
+            return self.lane.idx(gid).is_none().then(|| gid.clone());
+        };
+        if self.heads(rd).is_none() {
+            return rd.anchor.as_ref().filter(|a| self.b(a).is_none()).cloned();
+        }
+        let valid: BTreeSet<&B::Id> = self.valid().into_iter().map(|b| b.id()).collect();
+        match g.bundles().iter().find(|n| !valid.contains(n)) {
+            Some(n) if self.b(n).is_none() => Some(n.clone()),
+            _ => None,
+        }
     }
 
     /// The grant of this id, whether or not it stands.
@@ -1150,6 +1443,10 @@ where
         self.root.sub_delegation(grant, &self.reader)
     }
 
+    fn waits_on(&self, grant: &B::Id) -> Option<B::Id> {
+        self.root.grant_waits(grant, &self.reader)
+    }
+
     fn seat_grant(&self, grant: &B::Id, room: &crate::seat::Obj<B::Id, B::Key>, duty: &str) -> Result<B::Key, Reason> {
         self.root.grant_in_force(grant, &self.reader)?;
         let g = self.root.grant(grant).ok_or("grant_unknown")?;
@@ -1172,6 +1469,12 @@ pub trait RootView<I, K, O> {
     /// `genesis_bundle_not_anchored`, `grant_bundle_void`, `grant_count_short`, `grant_voices_not_in_force`,
     /// `grant_scope_not_in_force`, `grant_scope_not_this_room`, `grant_identity_not_user`.
     fn recovery_grant(&self, grant: &I, room: &O) -> Result<K, Reason>;
+    /// The row a refusal of grant `grant` waits on: one this reading reads and does not hold (the grant, the
+    /// reader's anchor, a bundle the grant names; [`Root::grant_waits`]). None: the refusal, if any, is about rows
+    /// held. Default: none.
+    fn waits_on(&self, _grant: &I) -> Option<I> {
+        None
+    }
     /// Whether the charter in force at this node carries sub_delegation for the grant's duty (the delegation
     /// gate's question for a chain from a root grant); None: the grant does not resolve here, or no root is read.
     fn sub_delegation(&self, _grant: &I) -> Option<bool> {

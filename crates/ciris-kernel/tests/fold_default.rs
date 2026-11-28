@@ -81,6 +81,16 @@ fn cc_3_5_1_rules() {
         &[("A", "E", "a"), ("B", "E", "b")],
         "rule 4",
     );
+    // causal first: a row with an earlier one of its kind in its past wins, whatever instant either states; the
+    // instant orders only rows concurrent with each other (s3 concurrent with s2, s1 in s2's past)
+    let mut s2 = c("s2", "A", "supersedes", "E", 1);
+    s2.names = vec!["s1".into()];
+    t(winners(&[c("s1", "A", "supersedes", "E", 9), s2.clone()]), &[("A", "E", "s2")], "causal first");
+    t(
+        winners(&[c("s1", "A", "supersedes", "E", 9), s2, c("s3", "A", "supersedes", "E", 3)]),
+        &[("A", "E", "s3")],
+        "causal first, then the instant among the concurrent",
+    );
     // every order of a mixed set gives one answer
     let rows = vec![
         c("1", "A", "supersedes", "E", 4),

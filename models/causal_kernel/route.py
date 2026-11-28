@@ -20,6 +20,12 @@ named row's audience, or a row that concludes nothing, carries nobody: knowing a
 Carriage stays inside one room: a row that names another from a different room carries it only when the same key
 signed both (formal/causal_order/Carry.lean). `any_member` is the rule without that clause, kept for comparison.
 Both are run and the difference is reported.
+
+A DEPARTURE from the text as ruled (CC 5.2): `own` reads the members at the row's own head. The ruling reads the
+roster as it stands when the node replicates: a member removed later is owed nothing further, and one admitted
+later receives older rows only as the room's `history_on_join` says (CC 2.1). audience.py (and the crate's
+`audience`) reads it so. This model keeps the head reading because attacks.py states facts over its audience;
+moving it to the ruling is a change to those facts too.
 """
 import os
 import sys

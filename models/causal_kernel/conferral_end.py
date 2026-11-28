@@ -30,7 +30,10 @@ Rules, in the order they decide (the name a failing test reports):
     no_end               no end is held: counted and in force
     end_void.stale_head  E1: the end names a head older than one in its own past: it concludes nothing
     end_void.key_removed the end's signer's key is removed by a removal that does not have the end in its past
-    end_void.line        CC 2.7.8: the reader acknowledged a newer head that does not have the end in its past
+    end_void.line        CC 2.7.8: the reader acknowledged a newer head that does not have the end in its past,
+                         and the head the end names is strictly in the past of a head that one extends (the line
+                         is sibling-safe, the ruling of 2026-11-27: an end at the head an acknowledged version
+                         directly extends is its sibling, not behind it)
     E7.other_standing    another live standing of the grantee authorises the act (a second grant, or the
                          grantee's own re-acceptance after its own withdrawal)
     E4.names_end         the act has the end in its past: not counted
@@ -50,6 +53,7 @@ Rules, in the order they decide (the name a failing test reports):
 """
 
 GRANTEE, CONFERRER, CO_HOLDER, RECEIPTER = "B", "A", "D", "R"
+MUT = set()            # planted breaks, switched on by a check
 
 
 def _past(rows):
@@ -95,7 +99,13 @@ def answers(rows, reader_acks=(), other_standing=False, who="all", deputy_depth=
             return "end_void.stale_head"
         if key_cut(E):
             return "end_void.key_removed"
-        if any(later(h, E["head"]) and E["id"] not in anc(h) for h in reader_acks if h in by):
+        # the line is sibling-safe (the ruling of 2026-11-27, as checkpoint.behind): the end is behind an acknowledged
+        # head only where the head it names is strictly in the past of a head that one extends; an end at the head
+        # an acknowledged version directly extends is its sibling and is not behind it (MUTATION line_not_sibling_safe)
+        heads = [g for g in by if by[g]["kind"] == "head"]
+        behind = (lambda h: later(h, E["head"])) if "line_not_sibling_safe" in MUT else \
+            (lambda h: any(later(g, E["head"]) and later(h, g) for g in heads))
+        if any(behind(h) and E["id"] not in anc(h) for h in reader_acks if h in by):
             return "end_void.line"
         return None
 
@@ -406,9 +416,13 @@ CASES = [
       "e2": (T, F, "E6.upstream")}),
     ("end_stale_head", "E1: an end naming H0 with H1 in its own past concludes nothing",
      [H0, H1, act("b1", "H1"), end("H0", names=["b1"])], {}, {"b1": (T, T, "end_void.stale_head")}),
-    ("end_old_fork_for_reader", "the reader acknowledged H1; an end naming H0, not in H1's past, is void for that "
-     "reader (CC 2.7.8 on the end, a counted cut)",
-     [H0, H1, end("H0"), act("b1", "H1")], {"reader_acks": ["H1"]}, {"b1": (T, T, "end_void.line")}),
+    ("end_old_fork_for_reader", "the reader acknowledged H2; an end naming H0, not in H2's past, is void for that "
+     "reader: H0 is strictly in the past of H1, the head H2 extends (CC 2.7.8 on the end, a counted cut)",
+     [H0, H1, H2, end("H0"), act("b1", "H2")], {"reader_acks": ["H2"]}, {"b1": (T, T, "end_void.line")}),
+    ("end_sibling_for_reader", "the reader acknowledged H1; an end naming H0, not in H1's past: H0 is the head H1 "
+     "extends, so the end is H1's sibling and is not behind it (the line is sibling-safe, the ruling of "
+     "2026-11-27); the act at H1 finds the grant ended (E3)",
+     [H0, H1, end("H0"), act("b1", "H1")], {"reader_acks": ["H1"]}, {"b1": (F, F, "E3.later_head")}),
     ("grantee_key_removed", "the grantee resigns and its key is removed; its acts not in the removal's past do not "
      "count", [H0, H1, end("H1", GRANTEE), removal("rm", GRANTEE, ["E"]), act("b1", "H0")], {},
      {"b1": (F, F, "key_removed")}),
@@ -452,7 +466,20 @@ def check_cases():
         for o in orders(rows, 200):
             if answers([by[i] for i in o], **params) != got:
                 problems.append("%s: order %s differs" % (name, o))
+    # each planted break must change a case's answer
+    for plant in PLANTS:
+        MUT.add(plant)
+        try:
+            hit = [c[0] for c in CASES if any(answers(c[2], **dict(c[3])).get(x) != {"counted": a, "in_force": b, "rule": r}
+                                              for x, (a, b, r) in c[4].items())]
+        finally:
+            MUT.discard(plant)
+        if not hit:
+            problems.append("plant %s not caught by a case" % plant)
     return len(CASES), problems
+
+
+PLANTS = ("line_not_sibling_safe",)
 
 
 def refused(rows):

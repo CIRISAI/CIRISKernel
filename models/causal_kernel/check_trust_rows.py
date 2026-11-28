@@ -49,9 +49,17 @@ Planted breaks, each of which must change a case's answer:
     lone_batch_unread        (a), (b) a holder's own concurrent lone duty conferrals are re-counted against each other
     end_scope_keyed          (d) an end cuts by the scope its target names, not by every standing its key loses
     one_end_at_a_time        (d) a key's loss is read with only the one end removed: a second end cancels the cut
-    reseat_masks             (d) a re-seat after the end masks the cut of a vote concurrent with the end
-    first_lost_only          (d) one end removing several voices of a counted row discounts only the first
-    ends_in_force_unread     (d) an end the seat model holds out of force (rule 5's contest) still ends a seat
+    (retired at the one-target merge, each with no case the model can build that tells it apart:
+    reseat_masks, a re-seat after the end masking the cut of a vote concurrent with the end: the seat model reads the
+    concurrent end of a voice itself, so the vote is discounted there whatever the lane's cut reads (traced on the r81
+    re-seat cases, with the re-seat brought into the judged rows: the lane's loss reads False and the licence is still
+    cut);
+    first_lost_only, one end removing several voices discounting only the first: no end ends two voices (a counted end
+    has one target, as ruled; a withdrawal or lay-down ends its signer's own seat; a conferrer's withdrawal of an
+    accepted conferral ends no seat), so every lost voice is still discounted, by its own end;
+    ends_in_force_unread, an end the seat model holds out of force still ending a seat: the loss is read through the
+    seat model's holders, which already drop a contested end, and a lone removal is of an agent's seat, which the seat
+    model's ends name as no seat; the lane's own skip is kept as a shortcut)
     own_licence_uncountersigned  (b) a one-officer body's own licence stands without the countersign
     end_cuts_counted_row     (d) an end cuts a whole counted row its key signed, not only its voice
     (retired: built_on_cut_kept, a row built on a cut row kept. The seat model voids what rests on a cut row itself:
@@ -76,8 +84,6 @@ import trust_rows as TR  # noqa: E402
 CH, ST, CK = TR.CH, TR.ST, TR.CK
 ORDER_CAP = 24
 M, L = "medical", "legal"
-PENDING_EDGE = ("pending the Constitution: pin 8ec76cce has no accept / trust_edge / affiliation row, so an "
-                "affiliation's onward edge concludes nothing")
 TERM = {"asserted_at": 0, "expires_at": 10 ** 6}     # every edge carries a term (CC 4.4.3.12); the cases read at NOW_AT
 
 
@@ -92,8 +98,7 @@ AF = ST.found("af", "A", ("A", "B", "C"), cosigners=("B", "C"), declared_cohort=
               licence_classes=((M, True), (L, False)))           # no officer: an affiliation DISSOLVED (CC 4.4.3.12)
 AFD = ST.found("af", "A", ("A", "B", "C"), {ST.OFFICER: ("A", "B", "C")}, cosigners=("B", "C"),
                declared_cohort="affiliations", licence_classes=((M, True), (L, False)))   # three officers: majority declared
-ECS = ST.R("ecs", "countersign", "O", ("f",), of="f")          # the official's countersign of edge f
-EWD = ST.withdraw("ewd", "A", "f", ("f",))                     # the officer's withdrawal of f, concurrent with ECS
+EWD = ST.withdraw("ewd", "A", "f", ("f",))                     # the officer's withdrawal of edge f
 AFD1 = ST.found("af", "A", ("A", "B", "C"), {ST.OFFICER: ("A",)}, cosigners=("B", "C"), declared_cohort="affiliations",
                 licence_classes=((M, True), (L, False)))         # one officer: its authority (the body is its officers)
 AFD1O = dict(AFD1, official="O")                               # the same, its designated official O
@@ -196,18 +201,18 @@ CASES = [
     ("item 8: a one-officer affiliation's edge by its officer alone is a proposal: not walked",
      [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH,
      NR),
-    ("and countersigned by its designated official O: walked once the row exists; " + PENDING_EDGE,
-     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), ECS, klic("l")], "RD", "l",
-     KCH, NR),
-    ("and the officer withdraws the edge concurrently with the countersign (rule 4): not walked",
-     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)), ECS, EWD, klic("l")], "RD",
-     "l", KCH, NR),
-    ("a countersign by the one officer itself decides nothing: not walked",
-     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",)),
-      ST.R("ecs", "countersign", "A", ("f",), of="f"), klic("l")], "RD", "l", KCH, NR),
-    ("(a) an affiliation's edge, two of three officers: walked once the row exists; " + PENDING_EDGE,
-     [AFD, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B",)), klic("l")],
+    ("and with its designated official O's voice on the edge's own row (G15): walked",
+     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("O",)), klic("l")],
+     "RD", "l", KCH, OK),
+    ("and the officer withdraws the countersigned edge: ended, not walked",
+     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("O",)), EWD,
+      klic("l")], "RD", "l", KCH, NR),
+    ("an outside voice that is no countersigner (X) decides nothing: not walked",
+     [AFD1O, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("X",)), klic("l")],
      "RD", "l", KCH, NR),
+    ("(a) an affiliation's edge is its officers' act under its declared protocol: two of three officers",
+     [AFD, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B",)), klic("l")],
+     "RD", "l", KCH, OK),
     ("(a) under a declared unanimous protocol two of three officers sign no edge",
      [AFU, A("e", "RD", "af", depth=1), A("f", "A", "K", on_behalf="af", names=("af",), cosigners=("B",)), klic("l")],
      "RD", "l", KCH, NR),
@@ -381,7 +386,7 @@ R_DC, R_DCA = ST.offer("dc", "A", "C", "moderate", "g", "self", ("g",)), ST.acce
 R_LS, R_LSA = ST.offer("ls", "A", "X", "license", "g", "self", ("g",)), ST.accept("lsa", "X", "ls")   # A alone, at g
 R_AOB = ST.offer("aob", "A", ("B",), "member", "af", "group", ("af",), head=("af",), cosigners=("B",),
                  counted=ST.OFFICER, role=ST.OFFICER)                                              # A appoints B
-R_ACS = ST.R("acs", "countersign", "O", ("aob",), of="aob")   # the one officer's appointment needs its official's countersign
+R_AOBO = dict(R_AOB, cosigners=("B", "O"))       # with its official's voice on the row: the countersign (item 8, G15)
 AFD1O = dict(AFD1, official="O")                               # AFD1 with its designated official O (item 8)
 R_G2 = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A", "B"), "review": ("A",)}, cosigners=("B", "C"),
                 licence_classes=((M, False),))
@@ -412,12 +417,12 @@ CASES += [
     ("r77 N2 holding none of the growth: the residual",
      [G1, R_LS, R_LSA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("lsa",)}], "RD", "l", None, OK),
     ("r77 N4c the outsider holding aob and its countersign: A's own licence counted over officers A and B",
-     [AFD1O, R_AOB, R_ACS, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
-    ("r77 N4c' holding aob uncountersigned (item 8): B is no officer, A's countersigned licence stands",
-     [AFD1O, R_AOB, A("e", "RD", "af"), glic("l", "af", "A"), ST.R("cs", "countersign", "O", ("l",), of="l")], "RD", "l", None, OK),
-    ("r77 N4c holding none: the residual (A's licence countersigned, as item 8 asks of a one-officer body)",
-     [AFD1O, A("e", "RD", "af"), glic("l", "af", "A"), ST.R("cs", "countersign", "O", ("l",), of="l")], "RD", "l", None, OK),
-    ("r77 N4e the outsider holding aob: A's edge for af", [AFD1O, R_AOB, R_ACS, A("e", "RD", "af", depth=1),
+     [AFD1O, R_AOBO, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
+    ("r77 N4c' holding aob uncountersigned (item 8): B is no officer, A's licence with O's voice on it stands",
+     [AFD1O, R_AOB, A("e", "RD", "af"), glic("l", "af", "A", cosigners=("O",))], "RD", "l", None, OK),
+    ("r77 N4c holding none: the residual (O's voice on A's licence, as item 8 asks of a one-officer body)",
+     [AFD1O, A("e", "RD", "af"), glic("l", "af", "A", cosigners=("O",))], "RD", "l", None, OK),
+    ("r77 N4e the outsider holding aob: A's edge for af", [AFD1O, R_AOBO, A("e", "RD", "af", depth=1),
                                                           A("f", "A", "K", on_behalf="af", names=("af",)),
                                                           klic("l")], "RD", "l", KCH, NR),
     ("r77 N4e holding none: under item 8 the lone officer's edge is a proposal, and with no official and no overseer "
@@ -432,9 +437,9 @@ CASES += [
      [G1, R_DC, R_DCA, R_LS, R_LSA, ACK("ak", "g", "dca"), A("e", "RD", "g"),
       glic("l", "g", "X") | {"names": ("lsa", "dca")}], "RD", "l", None, NA),
     ("r77 N4c A alone, lone officer before B's appointment, licenses naming only af, behind the line",
-     [AFD1O, R_AOB, R_ACS, ACK("ak", "af", "acs"), A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
+     [AFD1O, R_AOBO, ACK("ak", "af", "aob"), A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
     ("r77 N4e and an edge for af naming only af, behind the line",
-     [AFD1O, R_AOB, R_ACS, ACK("ak", "af", "acs"), A("e", "RD", "af", depth=1),
+     [AFD1O, R_AOBO, ACK("ak", "af", "aob"), A("e", "RD", "af", depth=1),
       A("f", "A", "K", on_behalf="af", names=("af",)), klic("l")], "RD", "l", KCH, NR),
     ("r77 N5b a grown community: A and B's quorum licence naming only g, behind the line (it took up aG)",
      GROWN + [ACK("ak", "g", "aG"), A("e", "RD", "g"), glic("l", "g", cosigners=("B",))], "RD", "l", None, NA),
@@ -456,7 +461,7 @@ _DC2, _DA2 = ST.offer("dc2", "A", "B", "moderate", "g", "self", ("g",)), ST.acce
 _GLO_C = ST.offer("glo", "A", ("X",), "license", "g", "group", ("dca",), head=("dc",), cosigners=("C",), counted="duty")
 _AOB = ST.offer("aob", "A", ("B",), "member", "af", "group", ("af",), head=("af",), cosigners=("B",),
                 counted=ST.OFFICER, role=ST.OFFICER)
-_LSO = ST.offer("lso", "A", ("X",), "license", "af", "group", ("aob", "acs"), head=("aob",), cosigners=("B",),
+_LSO = ST.offer("lso", "A", ("X",), "license", "af", "group", ("aob",), head=("aob",), cosigners=("B",),
                 policy="cosigned_act",
                 counted=ST.OFFICER)                    # names the appointment's countersign: B an officer at its head
 _RV = ST.offer("rv", "A", "A", "review", "g", "group", ("g",), head=("g",), cosigners=("B",), counted="duty",
@@ -471,9 +476,9 @@ CASES += [
      [G1, R_DC, R_DCA, ST.withdraw("wc", "C", "g", ("dca",)), _GLO_C, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
     ("r80 F1c with no resignation", [G1, R_DC, R_DCA, _GLO_C, GLA, A("e", "RD", "g"), _X], "RD", "l", None, OK),
     ("r80 F2 an appointed officer withdraws its appointment, concurrent with the officers' license conferral: cut",
-     [AFD1O, _AOB, R_ACS, ST.withdraw("wb", "B", "aob", ("aob",)), _LSO, ST.accept("lsa", "X", "lso"), A("e", "RD", "af"),
+     [AFD1O, dict(_AOB, cosigners=("B", "O")), ST.withdraw("wb", "B", "aob", ("aob",)), _LSO, ST.accept("lsa", "X", "lso"), A("e", "RD", "af"),
       glic("l", "af", "X") | {"names": ("lsa",)}], "RD", "l", None, LW),
-    ("r80 F2c with no withdrawal", [AFD1O, _AOB, R_ACS, _LSO, ST.accept("lsa", "X", "lso"), A("e", "RD", "af"),
+    ("r80 F2c with no withdrawal", [AFD1O, dict(_AOB, cosigners=("B", "O")), _LSO, ST.accept("lsa", "X", "lso"), A("e", "RD", "af"),
                                     glic("l", "af", "X") | {"names": ("lsa",)}], "RD", "l", None, OK),
     ("r80 F3 A lays down moderate concurrent with its counted review seat and the conferral: A still a holder",
      [GD, _RV, ST.withdraw("ldm", "A", "g", (), scope="moderate"), _GLO_RV, GLA, A("e", "RD", "g"), _X], "RD", "l",
@@ -551,11 +556,10 @@ CASES += [
     ("r87 C2c a one-officer affiliation's own licence, uncountersigned: a proposal, testimony",
      [AFD1O, A("e", "RD", "af"), glic("l", "af", "A")], "RD", "l", None, NA),
     ("r87 C2c with its official's countersign: honoured",
-     [AFD1O, A("e", "RD", "af"), glic("l", "af", "A"), ST.R("cs", "countersign", "O", ("l",), of="l")], "RD", "l",
+     [AFD1O, A("e", "RD", "af"), glic("l", "af", "A", cosigners=("O",))], "RD", "l",
      None, OK),
-    ("r87 C2c' countersigned by the one officer itself: no countersign, testimony",
-     [AFD1O, A("e", "RD", "af"), glic("l", "af", "A"), ST.R("cs", "countersign", "A", ("l",), of="l")], "RD", "l",
-     None, NA),
+    ("r87 C2c' a voice on it from a key that is neither the official nor an overseer: no countersign, testimony",
+     [AFD1O, A("e", "RD", "af"), glic("l", "af", "A", cosigners=("Z",))], "RD", "l", None, NA),
     ("a row built on a conferral an END cuts is cut with it: B and C's seat for Y on A and B's, A laying down",
      [_G3, _GLO_AB, GLA, _GY_BC, ST.accept("gya", "Y", "gy"), _L1, A("e", "RD", "g"),
       glic("ly", "g", "Y") | {"names": ("gya",)}], "RD", "ly", None, LW),
@@ -573,9 +577,11 @@ _GLO_CD = ST.offer("glo", "C", ("X",), "license", "g", "group", ("g",), head=("g
 _CB = CK.row("cb", "cosign", "B", ("g",), of="cx")                 # B's cosign row for the conferral's content
 _GLO_CS = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g", "cb"), head=("g",), counted="duty", content="cx")
 CASES += [
+    # the licence names both removals: rule 5 is read over its own past too (with u1 alone there, A and B's removal
+    # of C is uncontested and concurrent with C's conferral, so C's voice is discounted at issuance)
     ("DRY a removal rule 5 holds contested out ends nothing: C's conferral beside it stands",
-     [_G4, _U_C, _U_A, _GLO_CD, GLA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("gla", "u1")}], "RD", "l",
-     None, OK),
+     [_G4, _U_C, _U_A, _GLO_CD, GLA, A("e", "RD", "g"), glic("l", "g", "X") | {"names": ("gla", "u1", "u2")}],
+     "RD", "l", None, OK),
     ("DRY a voice given by a cosign row is a voice the end discounts: B resigns, A alone of three, cut",
      [_G3, _CB, _GLO_CS, GLA, _RC_B, A("e", "RD", "g"), _X], "RD", "l", None, LW),
     ("DRY and with no resignation the cosign row's voice makes A and B two of three",
@@ -584,11 +590,19 @@ CASES += [
 
 _GLO_4 = ST.offer("glo", "A", ("X",), "license", "g", "group", ("g",), head=("g",), cosigners=("B", "C", "D"),
                   counted="duty")                                 # all four duty holders
-_U_AB = ST.unseat("u12", "C", ("A", "B"), "moderate", "g", "group", ("g",), head=("g",), cosigners=("D",),
-                  counted="duty", policy="duty_withdraw")         # C and D remove A's and B's duty in one row
+_U_AB = dict(ST.unseat("u12", "C", "A", "moderate", "g", "group", ("g",), head=("g",), cosigners=("D",),
+                       counted="duty", policy="duty_withdraw"),
+             to=("A", "B"), cuts=ST._slots(("A", "B"), "moderate", "g"))   # C and D remove A's and B's duty in one row
+_U_A1 = ST.unseat("u1", "C", "A", "moderate", "g", "group", ("g",), head=("g",), cosigners=("D",), counted="duty",
+                  policy="duty_withdraw")                          # C and D remove A's duty
+_U_B1 = ST.unseat("u2", "C", "B", "moderate", "g", "group", ("g",), head=("g",), cosigners=("D",), counted="duty",
+                  policy="duty_withdraw")                          # and B's, in a row of its own
 CASES += [
-    ("review-53 D1 one unseat removing two voices of a counted row discounts both: C and D are two of four, cut",
-     [_G4, _GLO_4, GLA, _U_AB, A("e", "RD", "g"), _X], "RD", "l", None, LW),
+    # one target per counted end (ruled): a removal naming two keys concludes nothing, so it ends neither
+    ("review-53 D1 one unseat naming two voices of a counted row is no counted end: it concludes nothing, the licence "
+     "stands", [_G4, _GLO_4, GLA, _U_AB, A("e", "RD", "g"), _X], "RD", "l", None, OK),
+    ("review-53 D1 two one-target removals of two voices of a counted row discount both: C and D are two of four, cut",
+     [_G4, _GLO_4, GLA, _U_A1, _U_B1, A("e", "RD", "g"), _X], "RD", "l", None, LW),
 ]
 
 NOW = {"an edge whose term has ended at the caller's instant (150)": 150,
@@ -619,9 +633,8 @@ PLANTS = ("edge_any_signer", "roster_unread", "duty_unread", "lock_unread", "quo
           "edge_term_unread", "amendment_as_cut",
           "instant_over_reader", "scope_unread", "termless_edge_walked",
           "growth_held_unread", "lone_batch_unread", "end_scope_keyed", "still_holds_end_past",
-          "one_end_at_a_time", "reseat_masks",
-          "end_cuts_counted_row", "own_licence_uncountersigned",
-          "ends_in_force_unread", "first_lost_only")
+          "one_end_at_a_time",
+          "end_cuts_counted_row", "own_licence_uncountersigned")
 
 
 @contextlib.contextmanager

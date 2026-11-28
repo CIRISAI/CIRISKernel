@@ -6,11 +6,11 @@ check_count_heads.py: the heads of a count, and the reader's line (the heads rul
         counted change over the row's own object or its founding row, and they must be exactly the newest counted
         changes over that object in the row's own past (seat.newer_head_in_past). Concurrent tips are intersected.
     H2  No `over`: a counted row is counted over its own object, and one stating another concludes nothing.
-    H3  No read-through of an authored head: a self-admission (one key's row) is no head a count may name, and no
-        counted change a count must name.
+    H3  (retired with the open:self_admit cut, Eric for 1.0: a self-admission, the one head a single key wrote, is no
+        row any room may make, so H3 has nothing left to read)
     H4  No exemption: every row that changes a roster names the newest counted changes over its object in its own
         past or concludes nothing: a moderator's lone removal (whose signer holds `moderate` at those heads, less a
-        laying down of it in the removal's past), a self-admission, a resignation (a withdrawal of a seat over a
+        laying down of it in the removal's past), a resignation (a withdrawal of a seat over a
         room, among the rows it names), a lift (counted at the head its act names).
     H5  The text's reader's line: no test of concurrency (checkpoint.settle, checkpoint.versions); the line is read
         before the cut (seat.Seats).
@@ -19,6 +19,10 @@ check_count_heads.py: the heads of a count, and the reader's line (the heads rul
     H7  Retired (the tips ruling of 2026-11-27): the self-fork void (SF, below) subsumes it; its cases now read under
         that rule.
     H8  No caller-synthesised heads: a row of no object, a note, a cosignature naming itself is no head of a count.
+    R5  CC 2.7.7 rule 5 for every counted act (item 13 (b), ruled R2): a voice of a key concurrent with a counted
+        removal of that key is not in force from the head the removal names, on any counted act (seat.contested_out):
+        contested where each needs a voice the other ends, the dependent one falling where one-sided; only a removal
+        in force and not void takes a voice, and none that has the act in its past or sits at a newer head.
     An election's seating (seat.is_election: an offer, conf group, policy ranked) is a roster change: it names the
     newest counted changes as its heads (H4) and sits on the line by them; only its count is not read at its heads
     (election2: its election fixes the electorate).
@@ -99,8 +103,6 @@ DC = lambda i, to, heads, cites=(): ST.offer(i, "A", to, "moderate", OBJ, "group
                                              policy="duty_confer", counted="duty", cosigners=(to,))
 RC = lambda heads, by, cites=(): ST.unseat("rc", by[0], "A", "moderate", OBJ, "group", tuple(heads) + tuple(cites), head=heads,
                                            policy="moderator_recall", cosigners=tuple(by[1:]))
-SA = lambda i, k, heads, cites=(): ST.offer(i, k, k, "member", OBJ, "group", tuple(heads) + tuple(cites), head=tuple(heads),
-                                            policy="open:self_admit")
 
 # world M: m1 and m2 found the room (m1 its moderator), admit an agent's key AG and MOD; m1, the lone holder, confers
 # `moderate` on MOD (md); the three admit N (an)
@@ -129,6 +131,7 @@ def elect(i, k, heads, vac=("lm",)):
                           head=tuple(heads), policy="moderator_election", of="g")]
 
 
+R5 = "rule 5, every act"
 H1, H2, H3, H4, H5, H6, H7, H8, EL, AC, LO, SF, EDGE = ("H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "election",
                                                        "acceptance", "lone offer", "self-fork", "EDGE")
 SFB = "self-fork (binding off: the removal states `majority`)"
@@ -279,6 +282,24 @@ GBN = ST.found("g", "A", ("A", "B", "C"), {"moderate": ("A",), "review": ("B",)}
 BN = [GBN, admit("aD", "D", ("A", "B"), ("g",)), admit("aE", "E", ("A", "B", "D"), ("aD",)), conf("cf", "B", ("g",))]
 
 
+# item 13: a room of four (A, B, C, and D admitted), the takedown at aD, and two later versions
+SV = [G, admit("aD", "D", ("A", "B", "C"), ("g",)),
+      ST.unseat("tk", "B", "A", "moderate", OBJ, "group", ("aD",), head=("aD",), policy="moderator_recall",
+                cosigners=("C", "D")),
+      admit("v1", "Y", ("A", "B", "D"), ("aD",)), admit("v2", "X", ("A", "B", "D", "Y"), ("v1",))]
+
+
+# item 13 (b): a room of four (A, B, C, and D admitted); tk the admission of Z by B, C and D at aD; V1B C's removal at aD
+TB = [G, admit("aD", "D", ("A", "B", "C"), ("g",))]
+TKB = admit("tk", "Z", ("B", "C", "D"), ("aD",))
+V1B = remove("v1", "C", ("A", "B", "D"), ("aD",))
+# the room of five with a contested pair (v1 removes C, v2 removes D, each needing a voice the other ends), and the
+# count naming both that settles it by removing C
+TP5 = TB + [admit("aE", "E", ("A", "B", "C", "D"), ("aD",)), remove("v1", "C", ("A", "B", "D"), ("aE",)),
+            remove("v2", "D", ("A", "B", "C"), ("aE",))]
+SP5 = remove("s", "C", ("A", "B", "D", "E"), ("v1", "v2"))
+
+
 def invite(i, k, signers, heads, cites=()):
     """A counted invitation of k that k does not sign: a seat when k's own acceptance completes it."""
     return ST.offer(i, signers[0], k, "member", OBJ, "group", tuple(heads) + tuple(cites), head=tuple(heads),
@@ -345,18 +366,6 @@ CASES = [
      ROOM + [ST.found("h", "A", ("A",), {}),
              ST.offer("ox", "A", "X", "member", "h", "group", ("h", "aG"), head=("h",), over="g", policy="community_invite",
                       cosigners=("X",))], None, {"ox": F}, {}, set()),
-    (H2, "a row counted over another object it writes itself (i3): an outsider's self-admission over its own note",
-     ROOM + [ack("x", "Z", "g"), dict(SA("y", "Z", ("x",), ("aG",)), over="x")], None, {"y": F}, {"member": SEVEN}, set()),
-    # ---- H3 ---------------------------------------------------------------------------------------------------------
-    (H3, "an outsider admits itself at the newest head; a removal by five names that self-admission as its head",
-     ROOM + [SA("sa", "Z", ("aG",)), remove("xg", "G", FIVE, ("sa",))], None, {"sa": T, "xg": F}, {"member": SEVEN | {"Z"}}, set()),
-    (H3, "the same removal names the fourth member's admission and the self-admission together",
-     ROOM + [SA("sa", "Z", ("aG",)), remove("xg", "G", FIVE, ("aD", "sa"))], None, {"sa": T, "xg": F}, {"member": SEVEN | {"Z"}}, set()),
-    (H3, "the same removal at the newest admission, the self-admission in its past: the self-admitted key is no voice of it",
-     ROOM + [SA("sa", "Z", ("aG",)), remove("xg", "G", FIVE, ("aG",), ("sa",))], None, {"sa": T, "xg": T},
-     {"member": (SEVEN | {"Z"}) - {"G"}}, set()),
-    (H3, "a founder's own 'self-admission' at the founding head (i1) is no head for a removal by two",
-     ROOM + [SA("y", "A", ("g",), ("aG",)), remove("xg", "G", ("A", "B"), ("y",))], None, {"y": F, "xg": F}, {"member": SEVEN}, set()),
     # ---- H4 ---------------------------------------------------------------------------------------------------------
     (H4, "a moderator's lone removal of an agent's key at its seat's head, with a later admission in its own past",
      WM + [LONE("xl", ("md",), ("an",))], None, {"xl": F}, {"member": {"m1", "m2", "MOD", "N"}, "agent": {"AG"}}, set()),
@@ -366,8 +375,6 @@ CASES = [
      WM + [WMD, LONE("xl", ("an",), ("wd",))], None, {"wd": T, "xl": F}, {"moderate": {"m1"}, "agent": {"AG"}}, set()),
     (H4, "the same removal concurrent with the moderator's laying down: it concludes",
      WM + [WMD, LONE("xl", ("an",))], None, {"wd": T, "xl": T}, {"moderate": {"m1"}}, set()),
-    (H4, "an outsider's self-admission at the founding head, with the newest admission in its own past",
-     ROOM + [SA("sa", "Z", ("g",), ("aG",))], None, {"sa": F}, {"member": SEVEN}, set()),
     (H4, "a member resigns, its withdrawal naming its admission and a note with a later admission in its past",
      ROOM + [admit("aH", "H", tuple(sorted(SEVEN)), ("aG",)), CK.row("k", "note", "D", ("aH",)),
              ST.withdraw("wg", "G", "aG", ("aG", "k"))], None, {"wg": F}, {"member": SEVEN | {"H"}}, set()),
@@ -392,6 +399,60 @@ CASES = [
          "the other is no change behind it, and both stand",
      ROOM + [admit("ax", "X", FIVE, ("aG",)), admit("ay", "Y", FIVE, ("aG",)), ack("ak", "R", "ax")], "R",
      {"ax": T, "ay": T}, {"member": SEVEN | {"X", "Y"}}, set()),
+    # ---- H5, the superseded version (persist's item 13 (a)): the room's roster versions play the bundle versions, and
+    # a counted takedown (B, C and D's recall of A's `moderate`, three of four) is at version aD; v1 (Y admitted at aD)
+    # and v2 (X admitted at v1) are later versions. No voice of the takedown is dropped (that is (b), held for a ruling)
+    (H5, "item 13 (a): a counted takedown at an older version, two versions behind the one a reader acknowledged "
+         "(v2, built on v1, built on the takedown's own head): void for that reader, and A keeps the seat",
+     SV + [ack("ak", "R", "v2")], "R", {"tk": T, "v1": T, "v2": T}, {"moderate": {"A"}}, {"tk"}),
+    (H5, "item 13 (a): the same rows for a reader with no row: the takedown stands, and the seat is ended",
+     SV, None, {"tk": T, "v1": T, "v2": T}, {"moderate": set()}, set()),
+    (H5, "item 13 (a): the same rows for Y, which signed v2 (its own rows are its acknowledgements, H6): void for it",
+     SV, "Y", {"tk": T, "v1": T, "v2": T}, {"moderate": {"A"}}, {"tk"}),
+    (H5, "item 13 (a), the sibling: a reader acknowledged v1, the version right after the takedown's own head. The "
+         "takedown is v1's sibling, not behind it (the line is sibling-safe, the ruling of 2026-11-27): it stands for "
+         "that reader, and the seat is ended",
+     SV + [ack("ak", "R", "v1")], "R", {"tk": T, "v1": T, "v2": T}, {"moderate": set()}, set()),
+    # ---- rule 5 for every counted act (item 13 (b), ruled R2): a voice of a key concurrent with a counted removal of
+    # that key is not in force from the head the removal names. tk, standing in for the takedown notice, is a counted
+    # act that is no removal: the admission of Z at aD by B, C and D (three of four, C's voice needed)
+    (R5, "item 13 (b): v1, the version that drops C, is C's counted removal at aD, concurrent with tk: C's voice on tk "
+         "is not in force from aD on, so tk falls (two of four) and v1 stands: Z is not seated, C is out",
+     TB + [V1B, TKB], None, {"tk": T, "v1": T}, {"member": {"A", "B", "D"}}, set()),
+    (R5, "item 13 (b), mutual: in a room of five, v1 removes C (A, B and D) and tk is itself a removal, of D (A, B and "
+         "C): each needs a voice the other ends, so they are contested and neither counts: nobody is removed",
+     TB + [admit("aE", "E", ("A", "B", "C", "D"), ("aD",)), remove("v1", "C", ("A", "B", "D"), ("aE",)),
+           remove("tk", "D", ("A", "B", "C"), ("aE",))], None, {"tk": T, "v1": T}, {"member": set("ABCDE")}, set()),
+    (R5, "item 13 (b): a contested removal takes nothing: in the room of five, the two removals contest each other, "
+         "and tk (Z admitted by A, C, D and E at aE, four of five, needing both C and D) stands: Z is seated",
+     TB + [admit("aE", "E", ("A", "B", "C", "D"), ("aD",)), remove("v1", "C", ("A", "B", "D"), ("aE",)),
+           remove("v2", "D", ("A", "B", "C"), ("aE",)), admit("tk", "Z", ("A", "C", "D", "E"), ("aE",))], None,
+     {"tk": T, "v1": T, "v2": T}, {"member": set("ABCDEZ")}, set()),
+    (R5, "item 13 (b), the settled pair: the two contested removals of the room of five, and an act at their two "
+         "heads (Z admitted by A, B, C and E, four of five, C's voice needed): the contested rows never reach it, and "
+         "it stands", TP5 + [admit("tk", "Z", ("A", "B", "C", "E"), ("v1", "v2"))], None,
+     {"tk": T, "v1": T, "v2": T}, {"member": set("ABCDEZ")}, set()),
+    (R5, "item 13 (b), the settled pair: a count naming both (s, by A, B, D and E) settles it by removing C; the same "
+         "act, concurrent with s and at s's own heads, is judged by s like any other act: C's voice is not in force "
+         "from those heads on, and the act falls: C is out, Z is not seated",
+     TP5 + [SP5, admit("tk", "Z", ("A", "B", "C", "E"), ("v1", "v2"))], None,
+     {"tk": T, "v1": T, "v2": T, "s": T}, {"member": set("ABDE")}, set()),
+    (R5, "item 13 (b), the settled pair: an act with the settling removal in its past (Z admitted by A, B, D and E at "
+         "s): it stands", TP5 + [SP5, admit("tk", "Z", ("A", "B", "D", "E"), ("s",))], None,
+     {"tk": T, "v1": T, "v2": T, "s": T}, {"member": set("ABDEZ")}, set()),
+    (R5, "item 13 (b): the removal at a newer head than the act (E admitted at aD, C removed at aE): C stood at tk's "
+         "own head, so its voice counts there and tk stands: Z is seated, C is out",
+     TB + [admit("aE", "E", ("A", "B", "D"), ("aD",)), remove("v1", "C", ("A", "B", "D", "E"), ("aE",)), TKB], None,
+     {"tk": T, "v1": T, "aE": T}, {"member": set("ABDEZ")}, set()),
+    (R5, "item 13 (b): the removal with the act in its own past (v1 at tk): the voice counted before the end, and tk "
+         "stands", TB + [TKB, remove("v1", "C", ("A", "B", "D"), ("tk",))], None, {"tk": T, "v1": T},
+     {"member": set("ABDZ")}, set()),
+    (R5, "item 13 (b): a void removal takes nothing: v1 removes C at the founding head (A and B, two of three), "
+         "concurrent with aD and tk; for a reader that acknowledged tk it is behind the line, so tk stands for it and C "
+         "stays", TB + [remove("v1", "C", ("A", "B"), ("g",)), TKB, ack("ak", "R", "tk")], "R",
+     {"tk": T, "v1": T}, {"member": set("ABCDZ")}, {"v1"}),
+    (R5, "item 13 (b): the same removal for a reader with no row: it counts and is not void, so tk falls by it",
+     TB + [remove("v1", "C", ("A", "B"), ("g",)), TKB], None, {"tk": T, "v1": T}, {"member": {"A", "B", "D"}}, set()),
     # ---- H6 ---------------------------------------------------------------------------------------------------------
     (H6, "the same removal, for a founder that signed every admission and wrote no acknowledgement row",
      ROOM + [remove("xg", "G", ("A", "B"), ("g",))], "C", {"xg": T}, {"member": SEVEN}, {"xg"}),
@@ -740,6 +801,11 @@ CASES = [
     (SF, "BN: B, who holds review at g, takes moderate at g by its own yes with A; A and B then admit D and E without "
          "it: the beneficiary is no evidence for its side, so A alone against A and B: void, and only A holds moderate",
      BN, None, {"cf": T, "aE": T}, {"member": frozenset("ABCDE"), "moderate": frozenset("A")}, {"cf"}),
+    (SF, "one rule for bundles and rosters: an explicit acknowledgement settles only what counts over its own past. "
+         "R's ack names the cheap tip's xd as its head and aG beside it: over that past dc is self-forked, so xd is no "
+         "part of R's line (R acknowledges the honest line only)",
+     ROOM + [DC("dc", "B", ("g",)), admit("xd", "X", ("A", "B"), ("dc",)), CK.row("k", "ack", "R", ("xd", "aG"), room=OBJ, head=("xd",))],
+     "R", {"xd": T}, {"member": SEVEN}, {"dc"}),
     # the lone holder's window, stated: closed for a reader by any later counted change that reader has acknowledged,
     # and for every reader once the lone holder itself signs a later change; each sibling is a row by one key that said
     # two things at one head, and the two rows are the evidence a recall cites (the members recall any duty holder,
@@ -823,16 +889,16 @@ def line_answer():
 
 
 PLANTS = (("count_heads_unread", ST.MUT), ("all_heads_read", ST.MUT), ("head_any_row", ST.MUT), ("past_disjunct_off", ST.MUT),
-          ("changes_any_object", ST.MUT), ("over_allowed", ST.MUT), ("authored_heads", ST.MUT), ("lone_exempt", ST.MUT),
+          ("changes_any_object", ST.MUT), ("over_allowed", ST.MUT), ("lone_exempt", ST.MUT),
           ("ends_at_heads_unread", ST.MUT), ("resign_exempt", ST.MUT), ("line_concurrent", CP.MUT), ("versions_concurrent", CP.MUT),
           ("cut_before_line", ST.MUT), ("line_void_unlisted", ST.MUT), ("acks_only", CP.MUT),
-          ("line_not_sibling_safe", CP.MUT), ("election_exempt", ST.MUT),
+          ("line_not_sibling_safe", CP.MUT), ("election_exempt", ST.MUT), ("contested_unseats_only", ST.MUT), ("contested_takes_voice", ST.MUT),
           ("acceptance_unread", ST.MUT), ("acceptance_ends_unread", ST.MUT),
           ("lone_offer_unread", ST.MUT), ("lone_offer_same_scope", ST.MUT), ("fold_acceptance_unread", ST.MUT),
           ("heads_not_antichain", ST.MUT), ("window_opener_old_head", ST.MUT), ("lone_offer_self_path", ST.MUT),
           ("self_fork_unread", ST.MUT), ("t_unread", ST.MUT), ("fork_by_depth", ST.MUT), ("meet_tips", ST.MUT),
           ("regime_before_change", ST.MUT), ("reader_exclusion_unread", ST.MUT),           ("ack_unvoids", CP.MUT), ("void_cuts_in_roster", ST.MUT),
-          ("t_counts_beneficiary", ST.MUT), ("t_counts_posts", ST.MUT), ("t_counts_sided_seat", ST.MUT),
+          ("t_counts_beneficiary", ST.MUT), ("ack_self_fork_unread", CP.MUT), ("t_counts_posts", ST.MUT), ("t_counts_sided_seat", ST.MUT),
           ("t_strict_standing", ST.MUT), ("regime_protocol_only", ST.MUT))
 # retired with T at the fork point (the third attack): rescue_unread, tie_unread and rescuer_signed_both (S' 's rescue
 # and tie, which T replaces; fork_by_depth plants the S' form whole)
@@ -847,10 +913,8 @@ import contextlib  # noqa: E402
 
 @contextlib.contextmanager
 def setting(rule):
-    """H3's cases run with the act-to-policy binding off: the binding has no act for a self-admission (the acts
-    table names none), so in the reference with it on a self-admission concludes nothing at all and H3 has nothing
-    to read. The crate's own cases (tests/fold.rs) read H3 under the self-admit policy."""
-    on = rule in (H3, SFB) and "binding_off" not in ST.MUT
+    """SFB's cases run with the act-to-policy binding off (their removal states `majority`)."""
+    on = rule == SFB and "binding_off" not in ST.MUT
     if on: ST.MUT.add("binding_off")
     try:
         yield

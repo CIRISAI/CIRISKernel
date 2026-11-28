@@ -42,6 +42,7 @@ step "proofs/build.sh"                    lean      bash proofs/build.sh
 step "check_purge (checkpoint, purge)"    purge     python3 -I models/causal_kernel/check_purge.py
 step "check_time (two notions of time)"   time      python3 -I models/causal_kernel/check_time.py
 step "check_key_end (a key's own end)"    key_end   python3 -I models/causal_kernel/check_key_end.py
+step "check_key_view (the end rule at the voices step)"  keyview  python3 -I models/causal_kernel/check_key_view.py
 step "check_conferral_end (an end)"      conferral python3 -I models/causal_kernel/check_conferral_end.py
 step "check_conferral_content (tips)"    content   python3 -I models/causal_kernel/check_conferral_content.py
 step "check_conferral_two (two records)" two       python3 -I models/causal_kernel/check_conferral_two.py
@@ -56,13 +57,20 @@ step "check_charter (licence classes)"   charter   python3 -I models/causal_kern
 step "check_lone_acts (quarantine, slash, takedown)" loneacts python3 -I models/causal_kernel/check_lone_acts.py
 step "check_trust_rows (the walk)"       trustrows python3 -I models/causal_kernel/check_trust_rows.py
 step "check_resignation (wrap, dissolved)" resign   python3 -I models/causal_kernel/check_resignation.py
+step "check_audience (placement)"         audience  python3 -I models/causal_kernel/check_audience.py
+step "family_placement (the pinned table)" famtable python3 -I tools/family_placement.py --check
 step "check_agent_removal (the lift)"     agent     python3 -I models/causal_kernel/check_agent_removal.py
 step "check_window_rows (#221 ballots)"  winrows   python3 -I models/causal_kernel/check_window_rows.py
+step "check_policy_spec (table to spec)" polspec   python3 -I models/causal_kernel/check_policy_spec.py
 step "check_agent_seat (no count)"         agentseat python3 -I models/causal_kernel/check_agent_seat.py
 step "check_removal_in_force (an end)"     inforce   python3 -I models/causal_kernel/check_removal_in_force.py
 step "check_room_keys (a room key's end)"  roomkeys  python3 -I models/causal_kernel/check_room_keys.py
+step "room_key_vectors (a room row's door)" rkvec  python3 -I models/causal_kernel/room_key_vectors.py
+step "check_key_person (a key's person)"   keyperson python3 -I models/causal_kernel/check_key_person.py
 step "check_count_heads (newest heads)"    cheads    python3 -I models/causal_kernel/check_count_heads.py
+step "check_roster_merge (one roster)"   rmerge    python3 -I models/causal_kernel/check_roster_merge.py
 step "check_rosters (one roster)"         rosters   python3 -I models/causal_kernel/check_rosters.py
+step "check_consent (consent peer set)"   consent   python3 -I models/causal_kernel/check_consent.py
 step "check_attacks (35 attacks)"         attacks   python3 -I models/causal_kernel/check_attacks.py
 step "check (order-freeness)"             check     python3 -I models/causal_kernel/check.py
 step "check_cut (the cut)"                cut       python3 -I models/causal_kernel/check_cut.py
@@ -70,6 +78,7 @@ step "check_roomkey (private rooms)"      roomkey   python3 -I models/causal_ker
 step "fork_check (roster tips)"           fork      python3 -I models/roster_fork/fork_check.py --check
 step "fold_check (the fold at tips)"      fold      python3 -I models/roster_fork/fold_check.py
 step "check_root (the trust root's fold)"  root      python3 -I models/trust_root/check_root.py
+step "check_root under six hash seeds"   rootseed  python3 -I models/trust_root/check_root_seeds.py
 step "key_plane_model (writer's keys)"    keyplane  python3 -I models/key_plane/key_plane_model.py --check
 step "divergence list (counts)"           diverge   python3 -I tools/divergence_counts.py
 step "kernel_fixtures (fixtures current)"   fixtures  python3 -I tools/kernel_fixtures.py --check

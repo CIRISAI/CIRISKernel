@@ -34,6 +34,12 @@ pub trait LineSpec<R: Row> {
         let _ = (r, own, get);
         None
     }
+    /// A counted act judged on the line by its own heads alone: a head the reader holds void does not keep it from
+    /// counting (a roster merge). By default none.
+    fn own_heads_only(&self, r: &R) -> bool {
+        let _ = r;
+        false
+    }
 }
 
 fn older<R: Row>(c: &Concluded<'_, R>, heads: &[R::Id], than: &[R::Id]) -> bool {
@@ -185,7 +191,8 @@ pub fn settle_except<R: Row, L: LineSpec<R>>(
     let mut out: BTreeSet<usize> = BTreeSet::new();
     let mut out_ids: BTreeSet<&R::Id> = BTreeSet::new();
     for &r in &live {
-        let built_ok = heads(r).iter().filter(|h| line.contains(h)).all(|h| out_ids.contains(h));
+        let built_ok = spec.own_heads_only(c.g.row(r))
+            || heads(r).iter().filter(|h| line.contains(h)).all(|h| out_ids.contains(h));
         if mine.contains(&r) || (built_ok && !mine.iter().any(|&m| behind(r, m))) {
             out.insert(r);
             out_ids.insert(c.g.row(r).id());

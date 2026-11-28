@@ -220,14 +220,12 @@ def ends_keys(S, e):
     unseat's keys in its scope, a withdrawal's seat), and only where the end is in force for the reader: a removal the
     seat model holds out of force or contested (Seats.dropped: a lone removal lifted, rule 5) ends nothing. A change of
     the record ends no seat."""
-    if e["kind"] == "unseat" and "ends_in_force_unread" not in MUT:
+    if e["kind"] == "unseat":
         dropped = S.__dict__.get("_dropped")
         if dropped is None:
             dropped = S.__dict__["_dropped"] = ST.Seats(S).dropped
         if e["id"] in dropped:
             return set()
-    if e["kind"] == "unseat" and "ends_in_force_unread" in MUT:
-        return {(k, e.get("obj"), e.get("scope")) for k in e.get("to", ())}
     return {(k, o, sc) for k, sc, o in ST.ends_of(e, S.by)}
 
 
@@ -283,8 +281,6 @@ def loses(S, judged, e, k, o, cls):
         mine = {x for x in judged if S.C.get(x) and is_end(S.by[x]) and any(
             kk == k and ob == o for kk, ob, _ in ends_keys(S, S.by[x]))}
     after = {x for x in judged if any(m in S.anc[x] for m in mine)}
-    if "reseat_masks" in MUT:
-        after = set()
     return holds_over(S, judged - mine - after, k, o, cls) and not holds_over(S, judged - after, k, o, cls)
 
 
@@ -346,14 +342,14 @@ def authority_act_over(S, q):
 
 # ---- body growth over the rows the reader HOLDS (the tips fold's rule, which a lone duty conferral already reads) ---
 def growth_of(S, o):
-    """The rows that grow group `o`'s body, among the concluded rows S holds: its changes (body_change), the
-    acceptances completing them, and the countersigns deciding a one-officer body's (CC 4.4.3.12, item 8)."""
+    """The rows that grow group `o`'s body, among the concluded rows S holds: its changes (body_change) and the
+    acceptances completing them (a one-officer body's countersign is a voice on the act's own row, G15)."""
     out = []
     for q in S.Cs:
         if body_change(q, o):
             out.append(q)
-        elif q["kind"] in ("accept", "countersign") and q.get("of") in S.by and body_change(S.by[q["of"]], o):
-            out.append(q)          # the acceptance completing it, or the countersign deciding a one-officer body's act
+        elif q["kind"] == "accept" and q.get("of") in S.by and body_change(S.by[q["of"]], o):
+            out.append(q)          # the acceptance completing it (a one-officer body's countersign is on the act's row)
     return out
 
 
@@ -445,8 +441,6 @@ def cut_state(S, rows, own=None):
                     classes = {scope_class(S, ob, sc)} & need if "end_scope_keyed" in MUT else need
                     if any(loses(S, judged, e, k, ob, cls) for cls in classes):
                         lost.setdefault(q["id"], set()).add(k)     # every key it ends loses its voice, not the first
-                        if "first_lost_only" in MUT:
-                            break
         # a COUNTED row loses only the ended keys' voices: it is re-counted over the voices left, and cut only where the
         # count then fails (as contested_out drops voices); a single key's own row is cut (MUTATION
         # end_cuts_counted_row: every row with an ended signer is cut)

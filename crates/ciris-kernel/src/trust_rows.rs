@@ -416,8 +416,8 @@ fn sub_of<'a, R: Row>(c: &Concluded<'a, R>, idx: &[usize]) -> Concluded<'a, R> {
 
 // ---- body growth over the rows the reader HOLDS (the tips fold's rule, which a lone duty conferral already reads) ---
 
-/// The rows that grow group `o`'s body among the concluded rows: its changes ([`body_change`]), the acceptances
-/// completing them, and the countersigns deciding a one-officer body's (CC 4.4.3.12, item 8).
+/// The rows that grow group `o`'s body among the concluded rows: its changes ([`body_change`]) and the acceptances
+/// completing them (a one-officer body's countersign is a voice on the act's own row, G15).
 fn growth_of<R: SeatRow>(c: &Concluded<'_, R>, o: &ObjOf<R>) -> Vec<usize> {
     c.cs()
         .iter()
@@ -425,7 +425,7 @@ fn growth_of<R: SeatRow>(c: &Concluded<'_, R>, o: &ObjOf<R>) -> Vec<usize> {
         .filter(|&x| {
             let q = c.g.row(x);
             body_change(q, o)
-                || (matches!(q.seat_kind(), SeatKind::Accept | SeatKind::Countersign)
+                || (q.seat_kind() == SeatKind::Accept
                     && q.of().and_then(|i| c.g.idx(i)).is_some_and(|i| body_change(c.g.row(i), o)))
         })
         .collect()

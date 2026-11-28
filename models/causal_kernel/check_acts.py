@@ -54,8 +54,8 @@ Planted breaks, each of which must change a case's answer:
     record_change_either_policy   a record change meets one of its joined policies, not both (Q1)
     one_voice_community_protocol  a community may declare a protocol under which one voice decides (Q1)
     founder_only_community        a community may declare founder_only (Q3)
-    unstated_cosigned_blocks      the cosigned_act half of an `&` is a condition where the protocol states no rule
-    unstated_floor_unread         the policy governing alone there takes no floor of two voices
+    (unstated_cosigned_blocks and unstated_floor_unread, retired with the open:self_admit cut: the sheet at pin a304b485
+    has no `unstated` cell, so the reading of `&` where a protocol states no rule has no user and is gone)
     founders_all_signers          an infrastructure founding row's founders are all its signers, not those it seats (H5)
     family_founders_fixed         a family's founders are its founding roles alone, not the role standing at the heads (F1)
     family_floor_two              a family takes the community's closed set (no one-voice protocol)
@@ -91,12 +91,15 @@ Planted breaks, each of which must change a case's answer:
     wait_reader_unread            the founders' amendment wait is read over a row's own past only, not the reader's (C2)
     contested_one_sided           a one-sided cut is contested too: rule 5 read beyond mutual dependence
     self_voice_on_offer           a key an offer seats is a voice of it (a member re-seated by its own signature)
+    multi_target_removal          a counted removal may name several members (the one-target ruling)
+    multi_target_recall           a recall may name several holders
+    multi_target_duty_withdraw    a duty withdrawal may name several holders
+    multi_target_demotion         a demotion may name several founders
     weights_twice_at_change       a change to a weighted record weighing one key twice concludes (W1)
     infra_record_frozen an infrastructure community's record does not change: its record_change is no act (P1)
     infra_record_simple_majority  its record change is counted as a community's, over the members (P1)
-    record_change_as_admission    under open:self_admit an offer of another seat (an agent's, the record) is counted as an
-                                  admission (N1)
-    self_admit_removal_counted    a removal under open:self_admit takes two voices (the set states none) (N1)
+    (record_change_as_admission and self_admit_removal_counted, retired with the open:self_admit cut: Eric cut open
+    admission for 1.0, so no room declares it and its branch is gone)
     body_from_row       the body an act counts is the one the row states (`counted`, `over`), not the act's (N2)
 
     python3 -I check_acts.py      exit 1 on any difference
@@ -315,6 +318,7 @@ QUERIES = [
 ]
 
 # The refusal (step 3): (name, rows, the row asked, concludes with the acts table, concludes with none)
+GA3 = ST.offer("g", "h1", ("h1", "h2", "h3"), "holder", "@", "self", cosigners=("h2", "h3"))  # the accord's holders
 GM4 = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"))      # majority (default)
 GMJ = ST.offer("g", "A", ("A", "B", "C", "D"), "member", "@", "self", cosigners=("B", "C", "D"), consensus_protocol="majority")
 FH4 = ST.found("g", "A", ("A", "B", "C", "D"), {"moderate": ("A",)}, cosigners=("B", "C", "D"))     # A holds moderate
@@ -330,12 +334,10 @@ GQ = dict(GM4, consensus_protocol="quorum:3/4")                                 
 GU = dict(GM4, consensus_protocol="unanimous")
 GF = ST.offer("g", "A", ("A", "B", "C"), "founder", "@", "self", cosigners=("B", "C"), consensus_protocol="founder_only")
 GW = dict(GM4, consensus_protocol="weighted:stake", need=5, weights=(("A", 3), ("B", 2), ("C", 1), ("D", 1)))
+# a record still declaring the cut open:self_admit: a word outside the set, so no protocol is in force
 GO = dict(GM4, consensus_protocol="open:self_admit")
 GWE = dict(GW, consensus_protocol_entrenched=True)
 W_NEW = (("A", 3), ("B", 1), ("C", 1), ("D", 1))
-GO3 = ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", "C"), consensus_protocol="open:self_admit")
-GO2 = ST.offer("g", "A", ("A", "B"), "member", "@", "self", cosigners=("B",), consensus_protocol="open:self_admit")
-GO1 = ST.offer("g", "A", ("A",), "member", "@", "self", consensus_protocol="open:self_admit")
 AG = grp("ag", "offer", ("X", "Y", "Z"), "agent", "cosigned_act", cosigners=("B", "C", "X", "Y", "Z"))   # three agents
 G6 = ST.found("g", "A", ("A", "B", "C", "D", "E", "F"), {"moderate": ("A", "B", "F"), "review": ("C", "D", "E")},
               cosigners=("B", "C", "D", "E", "F"))
@@ -384,8 +386,16 @@ AMU = REC("am", "quorum:2/4", cosigners=("B", "C", "D"))                        
 RM_A = lambda heads: grp("x", "unseat", "D", "member", "community_remove", heads=heads, cosigners=("B",))   # A and B
 CONTESTED = (True, True)          # the contested pair: neither removal in force, both stay (CC 2.7.7 rule 5)
 CONCLUDE = [
-    ("an admission stating accord_halt (one voice) is no admission's policy: with the table it concludes nothing",
-     [GM4, grp("r", "offer", "E", "member", "accord_halt", cosigners=("E",))], "r", False, True),
+    ("an admission stating one_voice (a stand-in of one voice) is no admission's policy: with the table it concludes "
+     "nothing", [GM4, grp("r", "offer", "E", "member", "one_voice", cosigners=("E",))], "r", False, True),
+    # the ruling of 2026-11-28: accord_halt counts the halt's confirmation, a strict majority of the standing holders.
+    # No act_of arm gives halt_confirm until its row's shape is stated, so the count is read without the table, on a
+    # counted row of the accord stating accord_halt (h4's seating: h4's own signature is no voice of it)
+    ("a counted row of the accord under accord_halt: one holder of three (h1) is no strict majority (CC 4.2.1.1)",
+     [GA3, grp("r", "offer", "h4", "holder", "accord_halt", signer="h1", cosigners=("h4",), counted="holder")], "r",
+     False, False),
+    ("and two of three (h1 and h2) are", [GA3, grp("r", "offer", "h4", "holder", "accord_halt", signer="h1",
+                                                    cosigners=("h2", "h4"), counted="holder")], "r", False, True),
     # the halt's confirmation (the ruling of 2026-11-28): a strict majority of the standing holders, by one cosigned
     # accord:lifecycle:confirmed row naming the halt; the halting holder signs it as anyone
     ("a confirmation signed by the halting holder alone: one of three does not confirm",
@@ -431,9 +441,9 @@ CONCLUDE = [
     ("an admission under community_invite (the two-path) is its own count: two thirds, three of four",
      [GMJ, grp("r", "offer", "E", "member", "community_invite", cosigners=("B", "C", "E"))], "r", True, True),
     ("a counted row of a scope that is no act over a community concludes nothing with the table",
-     [FH, grp("r", "offer", "N", "verify2", "accord_halt")], "r", False, True),
-    ("a detector seat's conferral stating accord_halt is refused (its policy is fixed: duty_confer)",
-     [FH, grp("r", "offer", "N", "detect:list1", "accord_halt", counted="duty")], "r", False, True),
+     [FH, grp("r", "offer", "N", "verify2", "one_voice")], "r", False, True),
+    ("a detector seat's conferral stating one_voice is refused (its policy is fixed: duty_confer)",
+     [FH, grp("r", "offer", "N", "detect:list1", "one_voice", counted="duty")], "r", False, True),
     ("a duty conferral stating no policy is counted under duty_confer, its act's fixed row (step 4: the duty gate "
      "reads the policy in force); with no table the gate wants duty_confer stated",
      [FH, grp("r", "offer", "B", "review", None, counted="duty", cosigners=("B",))], "r", True, False),
@@ -513,6 +523,12 @@ CONCLUDE = [
     ("no weakening: an amendment moving admission_quorum_basis away from founders concludes nothing",
      [GI, IAM("quorum:2/3", admission_quorum_basis="members")], "am", False, False),
     ("live at three of three (M = 2): f1 and f2 seat a node", [GI, INODE(("f1", "f2"))], "r", True, False),
+    # a late voice (ADOPTING.md, "Re-asking"): a later statement on the same row id is the same row re-presented with a
+    # longer cosigners(); the store concludes it again, and its descendants
+    ("a late voice: row r with f1's statement alone is short by one of M = 2, and concludes nothing",
+     [GI, INODE(("f1",))], "r", False, False),
+    ("the same row r re-presented with f2's later statement on it: it concludes", [GI, INODE(("f1", "f2"))], "r", True,
+     False),
     ("one founder leaves, and the room is stalled: f1 and f2 seat no node", [GI, W3, INODE(("f1", "f2"), heads=("g",), cites=("w3",))],
      "r", False, False),
     ("nor remove one", [GI, IN1, dict(W3, names=("na",)), FRMN(("f1", "f2"), heads=("na",), cites=("w3",))], "xn", False, False),
@@ -648,10 +664,12 @@ CONCLUDE = [
     ("a weighted record that weighs one key twice states no weights: A and B admit nobody",
      [dict(GW, weights=(("A", 3), ("A", 2), ("B", 2), ("C", 1), ("D", 1))),
       grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "E"))], "r", False, False),
-    ("open:self_admit: E's own signature admits E", [GO, grp("r", "offer", "E", "member", "cosigned_act", signer="E")], "r",
-     True, True),
-    ("and an admission E did not sign does not", [GO, grp("r", "offer", "E", "member", "cosigned_act", cosigners=("B", "C"))],
-     "r", False, False),
+    # open:self_admit is cut (Eric, for 1.0; the sheet at a304b485): a record declaring it names no protocol, so a row
+    # counted under the room's protocol concludes nothing, the outsider's own signature included
+    ("a record declaring the cut open:self_admit names no protocol: E's own signature admits nobody",
+     [GO, grp("r", "offer", "E", "member", "cosigned_act", signer="E")], "r", False, False),
+    ("nor does an admission every member signs", [GO, grp("r", "offer", "E", "member", "cosigned_act",
+                                                           cosigners=("B", "C", "D", "E"))], "r", False, False),
     # ---- a family (CC 3.3.4, 3.1.3.2, 4.5.12.5; the Constitution's family rulings and F1 to F5) -------------------
     ("under founder_only one active founder admits, with the joiner's own acceptance", [FAM, FADM("r", "D")], "r", True, False),
     ("a member who is no founder does not", [FAM, FADM("r", "D", signer="B")], "r", False, False),
@@ -718,26 +736,10 @@ CONCLUDE = [
      "r", False, False),
     ("two of the five other duty holders do not withdraw B's moderate by counting the moderators alone",
      [G6, grp("r", "unseat", "B", "moderate", None, signer="A", cosigners=("F",), counted="moderate")], "r", False, False),
-    # ---- N1: open:self_admit and founder_only govern admissions alone ----------------------------------------------
-    ("in an open room (open:self_admit) a key's own change of the record is no admission: X alone changes nothing",
-     [GO, REC("am", "quorum:2/4", signer="X", cosigners=(), to=("X",))], "am", False, False),
-    # the reading of `&`: where the protocol states no rule for the act (the sheet), the other policy governs alone,
-    # with the community floor of two voices
-    ("an open room changes its record under default_standing alone (open:self_admit states no rule for it): two of "
-     "three", [GO3, REC("am", "majority", cosigners=("B",))], "am", True, False),
-    ("and one of three does not", [GO3, REC("am", "majority", cosigners=())], "am", False, False),
-    ("a two-member open room needs both", [GO2, REC("am", "majority", cosigners=())], "am", False, False),
-    ("and both change it", [GO2, REC("am", "majority", cosigners=("B",))], "am", True, False),
-    ("an open room's protocol admits to the member seat alone: X's own offer of an agent's seat concludes nothing",
-     [GO, grp("r", "offer", "X", "agent", "cosigned_act", signer="X")], "r", False, False),
-    ("a one-member open room's one member does not: the community floor of two voices",
-     [GO1, REC("am", "majority", cosigners=())], "am", False, False),
-    ("open:self_admit states no removal: A and B do not remove D",
-     [GO, grp("r", "unseat", "D", "member", None, cosigners=("B",))], "r", False, False),
+    # ---- N1: founder_only governs a family's acts alone, and no community may declare it --------------------------
     ("nor in a room naming founder_only (no community protocol)", [GF, REC("am", "majority")], "am", False, False),
     ("in an infrastructure community no key admits itself: X's own founder admission concludes nothing",
-     [dict(GI, consensus_protocol="open:self_admit"), grp("r", "offer", "X", "founder", "cosigned_act", signer="X",
-                                                         counted="founder")], "r", False, False),
+     [GI, grp("r", "offer", "X", "founder", "cosigned_act", signer="X", counted="founder")], "r", False, False),
     # ---- N2: the body an act counts is the act's own ---------------------------------------------------------------
     ("A, the one moderator, does not admit X by counting over `moderate`: an admission counts the members",
      [FH4, grp("r", "offer", "X", "member", "community_invite", cosigners=("X",), counted="moderate")], "r", False, True),
@@ -826,7 +828,7 @@ TIPS = [
 # The protocol set (data/consensus_protocols.tsv): (word, what seat.protocol_rule reads it as, or None)
 PROTOCOL_WORDS = [
     ("founder_only", ("founder_only", None, None)), ("unanimous", ("unanimous", None, None)), ("majority", ("majority", None, None)),
-    ("open:self_admit", ("open:self_admit", None, None)), ("quorum:2/3", ("quorum", 2, 3)), ("quorum:3/3", ("quorum", 3, 3)),
+    ("open:self_admit", None), ("quorum:2/3", ("quorum", 2, 3)), ("quorum:3/3", ("quorum", 3, 3)),
     ("quorum:999999999/999999999", ("quorum", 999999999, 999999999)), ("weighted:stake", ("weighted", None, None)),
     ("quorum:4/3", None), ("quorum:0/3", None), ("quorum:03/4", None), ("quorum:1000000000/1000000000", None),
     ("quorum:2", None), ("quorum:2/3/4", None), ("quorum:+2/3", None), ("quorum: 2/3", None), ("quorum", None),
@@ -834,12 +836,6 @@ PROTOCOL_WORDS = [
     ("accord_halt", None), ("cosigned_act", None), ("", None), ("quorum:２/3", None),
     ("quorum:2/4", ("quorum", 2, 4)), ("quorum:3/5", ("quorum", 3, 5)), ("quorum:1/1", ("quorum", 1, 1)),
 ]
-# What the sheet says each protocol states a rule for (seat.protocol_states): (word, act, states)
-SHEET_ANSWERS = [(w, act, ST.protocol_states(ST.protocol_rule(w)[0], act))
-                 for w in ("founder_only", "unanimous", "majority", "quorum:2/3", "weighted:stake", "open:self_admit")
-                 for act in ("admit", "remove", "other")]
-EXPECT_SHEET = {("founder_only", "other"): False, ("open:self_admit", "remove"): False,
-                ("open:self_admit", "other"): False}
 # The protocol of an infrastructure community (P1): a quorum of its founders' strict majority, N // 2 + 1 of N
 INFRA_WORDS = [("quorum:2/3", ("quorum", 2, 3)), ("quorum:3/4", ("quorum", 3, 4)), ("quorum:3/5", ("quorum", 3, 5)),
                ("quorum:2/2", ("quorum", 2, 2)), ("quorum:4/7", ("quorum", 4, 7)), ("quorum:1/1", None), ("quorum:1/2", None),
@@ -851,6 +847,71 @@ UNDECIDED = [
      "stalled_recovery_needs_bundle"),
     ("live: the same row is no recovery", [GI, RECOVER()], "rv", None),
 ]
+
+# An infrastructure room's liveness at a held row (CC 3.2, seat.infra_live): "live" at M + 1 active founders or more,
+# ("stalled", active, M) below, None for no infrastructure room. Each case is read in every arrival order of its rows
+# (causal_kernel.arrive), which must give the same answer. (name, rows, obj, at, answer)
+INFRA_LIVE = [
+    ("three founders of three (M = 2): live at the founding row", [GI], "g", "g", "live"),
+    ("f3 leaves: stalled at its leaving, two active of M = 2", [GI, W3], "g", "w3", ("stalled", 2, 2)),
+    ("the leaving is not in the founding row's past: still live there", [GI, W3], "g", "g", "live"),
+    ("four founders (M = 3), f4 leaves: three active is not M + 1, stalled", [GI4, W4], "g", "w4", ("stalled", 3, 3)),
+    ("f3 and f4 leave too: two active", [GI4, W4, dict(W3, names=("w4",))], "g", "w3", ("stalled", 2, 3)),
+    ("a founders' amendment seats f4 under quorum:3/4: four active of M = 3, live at it", GROW[:2], "g", "a4", "live"),
+    ("then f4 leaves: three active of M = 3, stalled", GROW[:2] + [ST.withdraw("w4", "f4", "a4", ("a4",))], "g", "w4",
+     ("stalled", 3, 3)),
+    ("an ordinary community is no infrastructure room: no answer",
+     [ST.offer("g", "A", ("A", "B", "C"), "member", "@", "self", cosigners=("B", "C"))], "g", "g", None),
+    ("a row not held: no answer", [GI], "g", "w3", None),
+]
+
+
+def infra_live(rows, obj, at, plant=None, order=None):
+    with planted(plant):
+        S = CK.arrive(list(order if order is not None else rows), lambda r, P, past: ST.seat_rule(r, P, past))
+        return ST.infra_live(S, obj, at)
+
+
+def infra_live_problems(plant=None):
+    import itertools
+    out = []
+    for name, rows, obj, at, want in INFRA_LIVE:
+        for o in itertools.permutations(rows):
+            got = infra_live(rows, obj, at, plant, o)
+            if got != want:
+                out.append("infra_live %s, order %s: got %s, expected %s" % (name, [r["id"] for r in o], got, want))
+                break
+    return out
+
+
+# A reference naming a group by id alone (the Constitution's ruling): it never picks between two founding rows held
+# under the id (seat.group_of); a reference naming a row of one chain resolves to that chain (seat.group_at). A trust
+# edge to a community by id is such a reference: with two founding records under its id it reaches nothing. (name,
+# rows, the reference: ("id", gid) or ("head", row id), answer: the group's founding row, ("rivals", ids), or None)
+GA = ST.offer("ga", "A", ("A", "B"), "member", "@", "self", cosigners=("B",), group_id="G")
+GB = ST.offer("gb", "C", ("C", "D"), "member", "@", "self", cosigners=("D",), group_id="G")
+XA = grp("xa", "offer", "E", "member", "cosigned_act", heads=("ga",), signer="A", cosigners=("B", "E"), obj="ga")
+EDGE = CK.row("e1", "trust_edge", "R", (), group="G")
+GROUP_OF = [
+    ("one founding record declares G: a reference by G names it", [GA], ("id", "G"), "ga"),
+    ("two founding records under G: a reference by G concludes nothing, naming both", [GA, GB], ("id", "G"),
+     ("rivals", ("ga", "gb"))),
+    ("a trust edge to the community by id G, two founding records held under it: the edge concludes nothing",
+     [GA, GB, EDGE], ("edge", "e1"), ("rivals", ("ga", "gb"))),
+    ("the same edge with one founding record held: it names that one", [GA, EDGE], ("edge", "e1"), "ga"),
+    ("a row naming the head of one of them (an admission at ga) concludes on that chain", [GA, GB, XA], ("head", "xa"),
+     "ga"),
+    ("a reference by the founding row's own digest names it, whatever else shares its id", [GA, GB], ("id", "gb"), "gb"),
+    ("no founding record held under the id: nothing", [GA], ("id", "H"), None),
+]
+
+
+def group_answer(rows, ref, plant=None):
+    with planted(plant):
+        by = {r["id"]: r for r in rows}
+        if ref[0] == "head": return ST.group_at(by, ref[1])
+        return ST.group_of(rows, by[ref[1]]["group"] if ref[0] == "edge" else ref[1])
+
 
 # The review's A1 and A3 (rows of r56/tools/b2.py and b4.py): the head rules' job and room-keys-fix's (RK2). They hold
 # once `heads` and `room-keys-fix` are merged; until then main() reports them and does not fail on them.
@@ -938,6 +999,15 @@ PENDING += [
 # (2) reads only ends in force), FA6 (a dissolution contested as a cut), T5 (restated to the sibling-safe line) and C2
 # (the amendment wait read through reader_state)
 HELD = ("A1:", "A3:", "K2:", "T5b:", "C1:", "the settling count (S4)", "FA6", "T5:", "C2:")
+# rule 5 as built for one-target removals at one head whose targets are each other's voices: mutual dependence is
+# contested and neither counts (one-sided, the dependent one falls: the one-sided sibling below)
+TIPS += [
+    ("one target, mutual: A, B, C and D remove E while E, F, G and B remove A, both at g: each needs a voice the other "
+     "removes, so both are contested and A and E stay", [G7_ := ST.offer("g", "A", tuple("ABCDEFG"), "member", "@",
+                                                                         "self", cosigners=tuple("BCDEFG")),
+                                                         _krem("x1", "E", "ABCD", ("g",)), _krem("x2", "A", "EFGB", ("g",))],
+     [("A", "member", True), ("E", "member", True)]),
+]
 # the guard on the restatement (the Constitution's ruling, 2026-11-27): only MUTUAL dependence is contested. A lawful
 # removal at head h of a voice a sibling change at h needed, the sibling touching no voice of the remover, stands, and
 # the sibling falls (rule 4, from the head the cut names)
@@ -964,6 +1034,36 @@ CONCLUDE_Q4 = [
 CONCLUDE_Q4 += [
     ("no key admits itself: B's own signature is no voice of B's re-seating; A alone of three is short of a majority",
      [G3, grp("rb", "offer", "B", "member", "cosigned_act", signer="B", cosigners=("A",))], "rb", False),
+]
+# One target per counted end (the Constitution's ruling on review-54's multi-target hole, r69 m1 and m2): a counted
+# removal naming more than one target concludes nothing; the target is not counted over and is no voice, the floor of
+# two stands; several removals are several rows, each judged alone at its head. The same for a recall (one holder), a
+# duty withdrawal (one holder, one duty seat) and a demotion (one founder)
+def several(r, keys):
+    """An unseat row naming several targets (seat.unseat names one)."""
+    return dict(r, to=tuple(keys), cuts=tuple(c for k in keys for c in ST._slots(k, r["scope"], r["obj"])))
+
+
+G7 = ST.offer("g", "A", tuple("ABCDEFG"), "member", "@", "self", cosigners=tuple("BCDEFG"))       # seven, majority
+G7Q = dict(G7, consensus_protocol="quorum:2/7")
+FAM3 = ST.found("g", "A", ("A", "B", "C"), {"founder": ("A", "B", "C")}, cosigners=("B", "C"), group_kind="family",
+                family_key_id="FK", consensus_protocol="founder_only")
+CONCLUDE_Q4 += [
+    ("one target: A and B remove C, D, E, F and G in one row of a room of seven: it concludes nothing",
+     [G7, several(grp("x", "unseat", "C", "member", None, cosigners=("B",)), "CDEFG")], "x", False),
+    ("a minority one at a time: A and B remove C, two of the six others, short of a majority: the first step never "
+     "starts", [G7, grp("x", "unseat", "C", "member", None, cosigners=("B",))], "x", False),
+    ("under quorum:2/7, the room's declared protocol, two voices remove any one member", [G7Q, grp(
+        "x", "unseat", "C", "member", None, cosigners=("B",))], "x", True),
+    ("and under it a removal of two in one row concludes nothing", [G7Q, several(grp(
+        "x", "unseat", "C", "member", None, cosigners=("B",)), "CD")], "x", False),
+    ("a recall names one holder: C, D, E and F recall A and B together: nothing",
+     [G6, several(grp("r", "unseat", "A", "moderate", None, signer="C", cosigners=("D", "E", "F")), "AB")], "r", False),
+    ("a duty withdrawal names one holder: the holders withdraw A's and B's moderate together: nothing",
+     [G6, several(grp("r", "unseat", "A", "moderate", None, signer="C", cosigners=("D", "E", "F"), counted="duty"), "AB")],
+     "r", False),
+    ("a demotion names one founder: A demotes B and C together: nothing",
+     [FAM3, several(FREM("x", "B", scope="founder"), "BC")], "x", False),
 ]
 PENDING_CONCLUDE = []
 
@@ -1015,16 +1115,17 @@ PLANTS = ("confirmation_one_voice", "confirmation_no_act", "purge_unread", "lift
           "record_by_founding", "body_free", "kind_partial", "election_any_duty", "node_consent_asked",
           "consent_one_waives", "infra_any_quorum", "infra_body_members", "infra_m_recomputed", "infra_stalled_admits",
           "infra_m_lowered", "infra_word_n_free", "infra_unentrenched", "infra_record_frozen",
-          "infra_record_simple_majority", "record_change_as_admission", "self_admit_removal_counted", "body_from_row",
+          "infra_record_simple_majority", "body_from_row",
           "record_change_either_policy", "one_voice_community_protocol", "founder_only_community",
-          "unstated_cosigned_blocks", "unstated_floor_unread", "founders_all_signers", "weights_twice_at_change",
+          "founders_all_signers", "weights_twice_at_change",
           "family_founders_fixed", "family_floor_two", "family_last_founder_refused", "entrenched_amendable",
           "entrenched_whole_record", "dissolve_leaves_seats", "dissolve_unread", "role_unread",
           "contested_both_out", "role_on_own_offer", "entrenched_weights_free",
           "concurrent_amendments_free", "infra_word_restated_always", "contested_scoped_to_kinds",
           "contested_voice_everywhere", "negative_weight", "removal_counts_target", "removal_floor_unread",
           "end_of_contested_end", "dissolve_uncontested", "wait_reader_unread", "contested_one_sided",
-          "self_voice_on_offer")
+          "self_voice_on_offer", "multi_target_removal", "multi_target_recall", "multi_target_duty_withdraw",
+          "multi_target_demotion", "live_at_m", "live_at_founding", "group_first_founding")
 
 
 @contextlib.contextmanager
@@ -1111,15 +1212,15 @@ def main():
         got = dissolved(rows)
         if got != want:
             problems.append("dissolved %s: got %s, expected %s" % (name, got, want))
-    for w, act, got in SHEET_ANSWERS:
-        if got != EXPECT_SHEET.get((w, act), True):
-            problems.append("the sheet: %s states a rule for %s: got %s" % (w, act, got))
     for w, want in INFRA_WORDS:
         if ST.infrastructure_rule(w) != want:
             problems.append("an infrastructure protocol word %r: got %s, expected %s" % (w, ST.infrastructure_rule(w), want))
     for name, rows, rid, want in UNDECIDED:
         if undecided(rows, rid) != want:
             problems.append("undecided %s: got %s, expected %s" % (name, undecided(rows, rid), want))
+    problems += infra_live_problems()
+    problems += ["group_of %s: got %s, expected %s" % (c[0], group_answer(c[1], c[2]), c[3]) for c in GROUP_OF
+                 if group_answer(c[1], c[2]) != c[3]]
     for name, rows, rid, want in CONCLUDE_Q4:
         if concludes(rows, rid, True) != want:
             problems.append("%s: got %s, expected %s" % (name, concludes(rows, rid, True), want))
@@ -1139,6 +1240,8 @@ def main():
         hit += ["tips: " + c[0] for c, got in zip(TIPS, tip_answers(plant)) if got != [w for _, _, w in c[2]]]
         hit += ["dissolved: " + c[0] for c in DISSOLVED if dissolved(c[1], plant) != c[2]]
         hit += ["undecided: " + c[0] for c in UNDECIDED if undecided(c[1], c[2], plant) != c[3]]
+        hit += infra_live_problems(plant)
+        hit += ["group_of: " + c[0] for c in GROUP_OF if group_answer(c[1], c[2], plant) != c[3]]
         caught += bool(hit)
         print("  plant %-16s %s" % (plant, "caught by %d cases, first: %s" % (len(hit), hit[0]) if hit else "NOT CAUGHT"))
         if not hit:

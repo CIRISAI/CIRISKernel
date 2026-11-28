@@ -20,7 +20,9 @@ fold at two tips, the bundle in force for one reader, and the root grants counte
                  recovery in the bundle's past used) concludes nothing. A recovery takes S'' like any bundle, the
                  holder (either key) its voice; recoveries of one seat are settled by T between them.
     the heads    `version` is prev's plus one (a join: the greater plus one) and `family` is prev's: a consistency
-                 check, never ranked; a mismatch is Invalid. A later bundle is a counted change of the holders'
+                 check, never ranked; a mismatch is Invalid (`version_prev_mismatch`); a join naming a predecessor in
+                 another's lineage past is Invalid (`further_prev_not_newest`); a recovery whose prev is in the
+                 lineage past of a bundle its holder signed concludes nothing (`recovery_behind_head`). A later bundle is a counted change of the holders'
                  roster: it names the newest bundle in its signers' own past, and S'' and T at the fork point
                  apply to it as to a roster change (MINE, the Constitution's derived reading).
     the fold     two later bundles on one bundle are both tips, and no rule picks one. The holders and seats at
@@ -72,6 +74,13 @@ MUT holds planted breaks, switched on by check_root.py.
 
 MUT = set()
 
+# PROTOTYPE (r78 q4, pending the Constitution): UNION VOIDING. A bundle behind ANY of the reader's settled
+# acknowledgements is void, whatever their concurrency (the monotone line over the union of the person's
+# acknowledgement rows); each acknowledgement still settles only over its own past. Off: a row closes nothing a row
+# concurrent with it settled.
+UNION_VOIDING = [False]
+
+
 INVALID, VOID, CONCLUDED, REFUSED = "invalid", "void", "concluded", "refused"
 
 
@@ -79,14 +88,14 @@ C0 = {"name": "c0", "duties": ("infra",)}
 
 
 def bundle(id, family, version, holders, prev=(), charter=C0, seats=(), stmts=None, iat=0, recovery=None,
-           recovers=None, names=()):
+           recovers=None, names=(), settles=None):
     """A bundle. stmts defaults to every holder of the predecessor... callers name them. recovers: (holder, new key)."""
     holders = tuple(holders)
     rec = dict(recovery) if recovery is not None else {k: "r:" + k for k in holders}
     return {"id": id, "kind": "bundle", "family": family, "version": version, "holders": holders,
             "prev": tuple(prev), "charter": charter, "seats": tuple(seats), "iat": iat, "recovery": rec,
             "stmts": tuple(stmts if stmts is not None else ((k, iat) for k in holders)), "recovers": recovers,
-            "names": tuple(names)}
+            "names": tuple(names), "settles": settles}
 
 
 def revoke(key, bound=None):
@@ -103,6 +112,12 @@ def cosign(id, of, signer, names=()):
     """A row of the root's lane: a later cosignature of grant `of` by `signer` (under the grant's own family and row
     id, as a cosigned row short of its count is held, CC 3.3.4): a voice added to the grant."""
     return {"id": id, "kind": "cosign", "of": of, "signer": signer, "names": tuple(names)}
+
+
+def halt(id, signer, names=()):
+    """A row of the root's lane: a holder's halt (CC 4.2.1), one holder's row that counts nobody: it halts for a
+    reader where its signer is a holder in force there."""
+    return {"id": id, "kind": "halt", "signer": signer, "names": tuple(names)}
 
 
 def grant(id, bundle_id, to, scope, signers, identity=("user",), duty="infra", names=()):
@@ -126,9 +141,27 @@ def duties(charter):
     return frozenset(charter.get("duties", ())) if isinstance(charter, dict) else frozenset()
 
 
-def reader(anchor=None, thumbs=None, acks=()):
-    """A reader: its anchor (a first bundle's id, or the holders' thumbprints), and the bundles it acknowledged."""
-    return {"anchor": anchor, "thumbs": frozenset(thumbs) if thumbs is not None else None, "acks": tuple(acks)}
+def reader(anchor=None, thumbs=None, acks=(), after=None):
+    """A reader: its anchor (a first bundle's id, or the holders' thumbprints), and its acknowledgement rows: `acks`
+    the bundle each acknowledges, and `after`, per row, the positions of the reader's earlier rows its own causal past
+    names (a person's devices sign concurrently: two rows neither naming the other). None: one chain, each row with
+    every earlier one in its past."""
+    if after is not None: after = tuple(tuple(a) for a in after)
+    return {"anchor": anchor, "thumbs": frozenset(thumbs) if thumbs is not None else None, "acks": tuple(acks),
+            "after": after}
+
+
+def ack_pasts(rd):
+    """Per acknowledgement row (by position), the positions of the reader's rows in its own causal past (closed)."""
+    n, after = len(rd["acks"]), rd.get("after")
+    out = []
+    for i in range(n):
+        direct = range(i) if after is None else after[i]
+        got = set()
+        for j in direct:
+            if j < i: got |= {j} | out[j]
+        out.append(got)
+    return out
 
 
 
@@ -197,19 +230,23 @@ class Root:
         return frozenset(out)
 
     def consistent(self, b):
+        return self.inconsistency(b) is None
+
+    def inconsistency(self, b):
+        """Why b is Invalid or waits, by the text's names (CC 2.6.1.11, CC 3.2), or None."""
         ps = [self.by[p] for p in b["prev"] if p in self.by]
-        if len(ps) != len(b["prev"]): return False
-        if set(b["recovery"]) != set(b["holders"]) and "commitments_unread" not in MUT: return False
-        if not ps: return True
-        if "version_unread" not in MUT and b["version"] != max(p["version"] for p in ps) + 1: return False
-        if "family_unread" not in MUT and any(p["family"] != b["family"] for p in ps): return False
+        if len(ps) != len(b["prev"]): return "genesis_bundle_prev_not_valid"      # one not held: waits
+        if set(b["recovery"]) != set(b["holders"]) and "commitments_unread" not in MUT: return "genesis_bundle_malformed"
+        if not ps: return None
+        if "version_unread" not in MUT and b["version"] != max(p["version"] for p in ps) + 1: return "version_prev_mismatch"
+        if "family_unread" not in MUT and any(p["family"] != b["family"] for p in ps): return "version_prev_mismatch"
         if len(ps) >= 2:
             # the join's wire: refs.prev is the greatest version, least id among equals; refs.further_prev the rest;
-            # a named predecessor in the past of another concludes nothing
+            # a named predecessor in the lineage past of another is Invalid
             if "join_prev_unread" not in MUT and b["prev"][0] != min(b["prev"], key=lambda i: (-self.by[i]["version"], i)):
-                return False
-            if any(a in self.past(c) for a in b["prev"] for c in b["prev"]): return False
-        return True
+                return "version_prev_mismatch"
+            if any(a in self.past(c) for a in b["prev"] for c in b["prev"]): return "further_prev_not_newest"
+        return None
 
     def retired(self, prevs):
         """The keys retired across the branches of `prevs`: every key a recovery in their lines rotated out. A join
@@ -270,7 +307,14 @@ class Root:
         if len(b["prev"]) != 1: return (False, "recovery_changes_other_seat")
         p = self.by[b["prev"][0]]
         rk = p["recovery"].get(h)
-        if rk is None or not any(k == rk and iat == b["iat"] for k, iat in b["stmts"]): return (False, "recovery_not_signed")
+        if rk is None or not any(k == rk and iat == b["iat"] for k, iat in b["stmts"]): return (False, "recovery_commitment_mismatch")
+        # a recovery whose prev is in the lineage past of a bundle its holder signed concludes nothing (the holder is
+        # the voice under its key or its recovery key; MUTATION recovery_head_unread)
+        if "recovery_head_unread" not in MUT and any(
+                b["prev"][0] in self.past(x["id"]) and any(self.owner(k) == self.owner(h) for k, _ in x["stmts"])
+                for x in self.by.values() if x["id"] != b["id"] and b["id"] not in self.past(x["id"])
+                and x.get("recovers") is None):   # a bundle it signed as a holder, not another recovery
+            return (False, "recovery_behind_head")
         want = tuple(new if k == h else k for k in p["holders"])
         others = {k: v for k, v in b["recovery"].items() if k != new}
         same = (b["holders"] == want and b["seats"] == p["seats"] and b["charter"] == p["charter"]
@@ -293,16 +337,75 @@ class Root:
         return out
 
     def _counted(self, b):
-        if not self.consistent(b): return (False, INVALID)
-        if any(not self.counted(p)[0] for p in b["prev"]): return (False, "prev_not_concluded")
+        why = self.inconsistency(b)
+        if why is not None: return (False, why)
+        if any(not self.counted(p)[0] for p in b["prev"]): return (False, "genesis_bundle_prev_not_valid")
         v = self.voices(b)
         if not b["prev"]:
             hs = frozenset(b["holders"])
             if "first_majority" in MUT: return (2 * len(v & hs) > len(hs), None)
-            return (bool(hs) and hs <= v, None)
+            return (True, None) if bool(hs) and hs <= v else (False, "genesis_bundle_count_unmet")
         rec = self.recovery_ok(b)
         if rec is not None: return rec
-        return (self.meets(b, v), None)
+        if self.bounded_settler(b):
+            # THE BOUNDED SETTLER (the ruling on the genesis stall, ST1): counted over the head's holders who have a
+            # say there, rule 6's double signers at that head (over the siblings it names) out of the base for this
+            # one count, by strict majority of them (MUTATION settler_double_signers_in_base: they stay in). Each
+            # sibling it can choose was already signed by a strict majority, so the reduced base only decides which
+            # majority-signed bundle stands, and a holder cannot be made a double signer against its will. Every
+            # holder double-signed: an empty base, nothing settles (the reader re-roots); those with a say split
+            # evenly: nothing settles; a lone holder with a say settles alone, choosing only between majority-signed
+            # bundles.
+            # its `settles` must be one of the CONTESTED siblings at that head that concluded on its own count, else it
+            # concludes nothing (a target that did not conclude would wipe the head; MUTATION settler_target_unchecked)
+            kids = self.head_successors(b["prev"])
+            x = self.by[b["settles"]]
+            if "settler_target_unchecked" not in MUT and not (
+                    x in kids and any(self._cut(x, c) or self._cut(c, x) for c in kids)):
+                return (False, "genesis_bundle_count_unmet")
+            # the double signers at that head, over every successor there that concluded (not only those it names:
+            # every settler at a head is counted over one base, so two settlers toward different siblings cannot both
+            # conclude, and none depends on the order they are read in)
+            # (MUTATION settler_base_from_names: over the siblings it names only)
+            over = [self.by[n] for n in b["names"] if n in self.by and self.counted(n)[0]] \
+                if "settler_base_from_names" in MUT else kids
+            D = {} if "settler_double_signers_in_base" in MUT else self.double_signers(over)
+            d = set(D.get(frozenset(b["prev"]), set())) | self.settler_double_signers(b["prev"])
+            base = frozenset(k for k in self.live(self.by[b["prev"][0]]["holders"]) if self.owner(k) not in d)
+            ok = bool(base) and self.meets(b, v, within=base)
+            return (True, None) if ok else (False, "genesis_bundle_count_unmet")
+        return (True, None) if self.meets(b, v) else (False, "genesis_bundle_count_unmet")
+
+    def head_successors(self, prev):
+        """The successors at head `prev` that concluded on their own count, settlers apart, in id order."""
+        return [self.by[i] for i in sorted(self.by) if tuple(self.by[i]["prev"]) == tuple(prev)
+                and not self.bounded_settler(self.by[i]) and self.counted(i)[0]]
+
+    def settler_double_signers(self, prev):
+        """Rule 6 read over settlers: the holders (owner classes) that signed two bounded settlers at head `prev`
+        naming different siblings. Such a holder has no say in settling that head: both its settler signatures count
+        for nothing (MUTATION settler_double_sign_counted: they count)."""
+        if "settler_double_sign_counted" in MUT: return set()
+        ss = [self.by[i] for i in sorted(self.by) if tuple(self.by[i]["prev"]) == tuple(prev) and self.bounded_settler(self.by[i])]
+        out = set()
+        for a in ss:
+            for c in ss:
+                if a["settles"] != c["settles"]:
+                    oc = {self.owner(k) for k in self.voices(c)}
+                    out |= {self.owner(k) for k in self.voices(a) if self.owner(k) in oc}
+        return out
+
+    def bounded_settler(self, b):
+        """A settler at a head that names one contested sibling there (`settles`) as the one that stands and states
+        nothing of its own: its holders, seats, charter and recovery commitments are that sibling's. One stating
+        anything else is counted over the full base, as any bundle is (MUTATION settler_states_counted_reduced: it is
+        counted over the reduced base too)."""
+        x = self.by.get(b.get("settles"))
+        if x is None or len(b["prev"]) != 1 or tuple(x["prev"]) != tuple(b["prev"]) or x["id"] not in b["names"]:
+            return False
+        if "settler_states_counted_reduced" in MUT: return True
+        return (x["holders"] == b["holders"] and x["seats"] == b["seats"] and x["charter"] == b["charter"]
+                and x["recovery"] == b["recovery"])
 
     def concluded(self):
         return [i for i in self.by if self.counted(i)[0]]
@@ -335,6 +438,8 @@ class Root:
         def forked(b):
             if not b["prev"]: return False
             if b.get("recovers") is not None and "recovery_exempt" in MUT: return False
+            # a bounded settler states nothing of its own: it decides its head, and is no fork of the lines on it
+            if self.bounded_settler(b): return False
             v = voices_of(b)
             rv = rivals(b)
             return bool(v) and all(any(k in own(self.voices(c)) for c in rv) for k in v)
@@ -436,24 +541,72 @@ class Root:
                 return i
         return None
 
+    def _rv(self, settled, ids, keep=frozenset()):
+        """The bundles of `ids` behind any of the bundles `settled`, and every bundle built on one but a join; `keep`
+        (bundles a concurrent row of the reader settled) apart."""
+        # A bounded settler states nothing of its own and decides its head: a line closes it EXACTLY WHEN the sibling
+        # it names is one that line holds void. So it rescues a stalled reader (whose line holds both sides) and never
+        # overturns a reader that already settled past the contest (MUTATION settler_overturns_settled: no line closes
+        # it; settler_closed_by_line: it is closed as any bundle behind a settled one).
+        ids = set(ids)
+        st = {i for i in ids if self.bounded_settler(self.by[i])}
+        if "settler_closed_by_line" in MUT: st = set()
+        rest = (ids - st) | {self.by[i]["settles"] for i in st}       # its target read even where not held here
+        out = {i for i in rest if i not in keep and any(self.behind(self.by[i], self.by[a]) for a in settled)}
+        def close():
+            changed = True
+            while changed:
+                changed = False
+                for i in rest:
+                    if i not in out and i not in keep and any(p in out for p in self.by[i]["prev"]) \
+                            and (len(self.by[i]["prev"]) < 2 or "join_void_prev_blocks" in MUT):
+                        out.add(i); changed = True
+        close()
+        if "settler_overturns_settled" not in MUT:
+            out |= {i for i in st if self.by[i]["settles"] in out}
+        return out & ids
+
     def reader_line(self, rd):
-        """The reader's own line: every bundle it acknowledged (they accumulate, in any order), and the bundles void
-        for the reader by it: every bundle behind ANY acknowledged bundle, an acknowledged one included, and every
-        bundle built on one but a join: a join is behind an acknowledged c only where every predecessor it names is
-        strictly in the past of c's heads, and a void predecessor it names does not stop it (it heals the fork, and
-        revives nothing). Acknowledging never revives (MUTATION reader_line_unread: nothing is void by the line)."""
+        """The reader's own line, and the bundles void for the reader by it. Its acknowledgements are its own rows,
+        each later one with the earlier ones in its past (rd["acks"], in that causal order). An acknowledgement
+        settles only if the acknowledged bundle counts over that acknowledgement row's OWN PAST: the bundle's past,
+        the reader's earlier acknowledgement rows and the line they drew (the Constitution's ruling; MUTATION
+        ack_settles_over_all: over every bundle held). The void: every bundle behind ANY settled bundle, a settled
+        one included, and every bundle built on one but a join (a join is behind only where every predecessor it
+        names is strictly in the past of the settled bundle's heads, and a void predecessor does not stop it).
+        Acknowledging never revives (MUTATION reader_line_unread: nothing is void by the line)."""
         valid = self.valid()
-        acked = [a for a in rd["acks"] if a in valid]
-        if "reader_line_unread" in MUT: return acked, frozenset()
-        out = {i for i in valid if any(self.behind(self.by[i], self.by[a]) for a in acked)}
-        changed = True
-        while changed:
-            changed = False
-            for i in valid:
-                if i not in out and any(p in out for p in self.by[i]["prev"]) \
-                        and (len(self.by[i]["prev"]) < 2 or "join_void_prev_blocks" in MUT):
-                    out.add(i); changed = True
-        return acked, frozenset(out)
+        vs = set(valid)
+        if "reader_line_unread" in MUT: return [a for a in rd["acks"] if a in vs], frozenset()
+        # each row judged over its OWN causal past: the bundles its earlier rows (those it names, transitively) and
+        # it acknowledged, and what those rows settled; two concurrent rows (a person's two devices) are each judged
+        # without the other, and the reader's line is drawn over their union (MUTATION concurrent_acks_chained: every
+        # earlier row read as in its past)
+        pasts = ack_pasts(dict(rd, after=None) if "concurrent_acks_chained" in MUT else rd)
+        acks = rd["acks"]
+        won = {}                                      # position: the bundle it settled
+        def closes(rows, ids):
+            # what the bundles settled at `rows` close among `ids`: each closes what is behind it, a bundle settled by
+            # a row not in its own row's past apart (acknowledging closes older heads; a row closes nothing a row
+            # concurrent with it settled, so depth between a person's two devices decides nothing)
+            out = set()
+            for j in rows:
+                if j not in won: continue
+                # (a concurrent row's settled bundle and its whole line: the line it settled onto)
+                keep = frozenset() if UNION_VOIDING[-1] else frozenset().union(
+                    *[self.line(won[m]) if "concurrent_keep_bundle_only" not in MUT else {won[m]}
+                      for m in won if m != j and m not in pasts[j]])
+                out |= self._rv([won[j]], ids, keep=keep)
+            return out
+        for i, a in enumerate(acks):
+            if a not in vs: continue
+            seen = set(self.line(a)).union(*[self.line(acks[j]) for j in pasts[i] if acks[j] in vs])
+            pool = vs if "ack_settles_over_all" in MUT else (seen & vs)
+            rv = closes(sorted(pasts[i]), pool)
+            rest = [x for x in pool if x not in rv]
+            if a not in rv and a not in self.contested(rest): won[i] = a
+        settled = [won[i] for i in sorted(won)]
+        return settled, frozenset(closes(sorted(won), vs))
 
     def reader_void(self, rd):
         return self.reader_line(rd)[1]
@@ -469,6 +622,43 @@ class Root:
         """b removes holder k: a predecessor seats k, and b does not."""
         return k not in b["holders"] and any(k in self.by[p]["holders"] for p in b["prev"])
 
+    def void_reason(self, i):
+        """Why bundle i is void, where it is: `genesis_join_contested` for a join a rival under another charter
+        contests (the text's report token, CC 3.2), `void` otherwise; None where it is not void."""
+        if i not in self.void(): return None
+        return "genesis_join_contested" if self.contested_join(i) else "void"
+
+    def _cut(self, b, c):
+        """Siblings b and c, one cutting a holder the other keeps."""
+        return self._siblings(b, c) and (
+            any(self._removes(b, k) and k in c["holders"] for k in self.by[b["prev"][0]]["holders"]) or
+            any(self._removes(c, k) and k in b["holders"] for k in self.by[c["prev"][0]]["holders"]))
+
+    def double_signers(self, bs):
+        """RULE 6's double signers, per head: {the head (a successor's prev, as a set): the holders (owner classes,
+        so under either key) that signed two successors of it, one cutting a holder the other keeps, neither naming
+        the other}, over the bundles `bs` (dicts) a reader holds (MUTATION double_signer_voices: none)."""
+        out = {}
+        if "double_signer_voices" in MUT: return out
+        for b in bs:
+            for c in bs:
+                if not self._cut(b, c): continue
+                oc = {self.owner(k) for k in self.voices(c)}
+                out.setdefault(frozenset(b["prev"]), set()).update(
+                    self.owner(k) for k in self.voices(b) if self.owner(k) in oc)
+        return out
+
+    def no_say(self, rd):
+        """The holders (owner classes) with no say in any count at the reader's heads in force: rule 6's double
+        signers at those heads, over what the reader holds. Only AT THAT HEAD: at a later head where the signer did
+        not double-sign, it counts as any holder (MUTATION double_signer_mark_carried: the mark is carried, every
+        head of the reader's lineage)."""
+        hs = self.heads(rd)
+        if hs is None: return frozenset()
+        D = self.double_signers([self.by[i] for i in self._base(rd)])
+        if "double_signer_mark_carried" in MUT: return frozenset().union(*D.values()) if D else frozenset()
+        return frozenset().union(*[v for p, v in D.items() if p <= set(hs)])
+
     def contested(self, ids):
         """Of the bundles `ids` (those counting for a reader before these rules), the ones that do not count:
             RULE 6  on one slot at one head, a voice that acknowledged an act and voted to cut it, in two rows neither
@@ -479,24 +669,25 @@ class Root:
                     counts; one-sided, the dependent one falls (MUTATION rule5_unread)
         and every bundle built on one but a join (judged by its own count). RULE 3: a bundle at that head naming both
         decides, counted over that head's holders (it names them, so rule 6 does not reach its voices)."""
-        ids = set(ids)
+        ids = sorted(set(ids))                   # a total order: nothing may depend on set iteration order
         bs = [self.by[i] for i in ids if self.by[i]["prev"]]
         out = set()
-        # rule 6
+        # rule 6: a double signer at a head has no say in ANY count at that head: the two successors it signed, a
+        # third, and a rule-3 bundle naming both (MUTATION double_signer_settles: only on the successors it signed,
+        # so a settler counts it)
+        D = self.double_signers(bs)
         no = {}
         for b in bs:
-            ks = set()
-            for c in bs:
-                if not self._siblings(b, c): continue
-                cut = any(self._removes(b, k) and k in c["holders"] for k in self.by[b["prev"][0]]["holders"]) or \
-                    any(self._removes(c, k) and k in b["holders"] for k in self.by[c["prev"][0]]["holders"])
-                if cut and "double_signer_voices" not in MUT:
-                    ks |= self.voices(b) & self.voices(c)
+            if self.bounded_settler(b):
+                no[b["id"]] = set(); continue           # counted by its own rule
+            d = D.get(frozenset(b["prev"]), set())
+            if "double_signer_settles" in MUT and not any(self._cut(b, c) for c in bs): d = set()
+            ks = {k for k in self.voices(b) if self.owner(k) in d}
             no[b["id"]] = ks
-            if ks and b.get("recovers") is None and not self.meets(b, self.voices(b) - ks): out.add(b["id"])
+            if ks and (b.get("recovers") is not None or not self.meets(b, self.voices(b) - ks)): out.add(b["id"])
         # rule 5
         if "rule5_unread" not in MUT:
-            live = [b for b in bs if b["id"] not in out]
+            live = [b for b in bs if b["id"] not in out and not self.bounded_settler(b)]
             def needs(y, k):
                 v = self.voices(y) - no[y["id"]]
                 return k in v and self.meets(y, v) and not self.meets(y, v - {k})
@@ -506,6 +697,14 @@ class Root:
                     if self._siblings(x, y) and any(self._removes(x, k) and needs(y, k) for k in self.by[x["prev"][0]]["holders"]):
                         dep.add(y["id"])            # y needs a voice x removes
             out |= dep
+        # a bounded settler held (it concluded) decides its head: the sibling it names stands, the others at that head
+        # fall (and what is built on them)
+        for b in bs:
+            if self.bounded_settler(b) and b["id"] not in out:
+                x = self.by[b["settles"]]
+                out.discard(x["id"])
+                out |= {c["id"] for c in bs if c["id"] not in (x["id"], b["id"]) and self._siblings(x, c)
+                        and not self.bounded_settler(c)}
         changed = True
         while changed:
             changed = False
@@ -520,11 +719,16 @@ class Root:
         rules 5 and 6 over the rest (a row void by the line is no input to them)."""
         return self._held(rd)[0]
 
-    def _held(self, rd):
+    def _base(self, rd):
+        """The bundles of the reader's anchored lineage its line does not hold void: the input to rules 5 and 6."""
         f = self.first(rd)
-        if f is None: return [], frozenset()
+        if f is None: return []
         rv = self.reader_void(rd)
-        base = [i for i in self.valid() if (i == f or f in self.past(i)) and i not in rv]
+        return [i for i in self.valid() if (i == f or f in self.past(i)) and i not in rv]
+
+    def _held(self, rd):
+        if self.first(rd) is None: return [], frozenset()
+        base = self._base(rd)
         ct = self.contested(base)
         return [i for i in base if i not in ct], ct
 
@@ -549,6 +753,8 @@ class Root:
             for p in self.by[x]["prev"]:
                 if p in held: acked.add(p)
                 elif p in down: todo.append(p)
+        # a bounded settler is no head of its own: the reader is at the sibling it names
+        acked = {self.by[i]["settles"] if self.bounded_settler(self.by[i]) else i for i in acked}
         if not acked: return (self.first(rd),)
         return tuple(sorted(i for i in acked if not any(i in self.past(j) for j in acked)))
 
@@ -706,6 +912,35 @@ class Root:
         if hs is None: return frozenset()
         return frozenset.intersection(*[duties(self.by[h]["charter"]) for h in hs])
 
+    def halt_in_force(self, hid, rd):
+        """(True|False, reason): a halt halts for the reader where its signer is a holder in force there (live,
+        under the same key). A halt counts nobody, so a double signer's halt at that head still halts: losing a say
+        never removes the stop (MUTATION double_signer_halt_suppressed: it does not)."""
+        h = self.rows.get(hid)
+        if h is None or h["kind"] != "halt": return (False, "halt_unknown")
+        hs = self.heads(rd)
+        if hs is None: return (False, "genesis_bundle_not_anchored")
+        if h["signer"] not in self.live(self.fold(hs)[0]): return (False, "halt_signer_not_in_force")
+        if "double_signer_halt_suppressed" in MUT and self.owner(h["signer"]) in self.no_say(rd):
+            return (False, "halt_signer_not_in_force")
+        return (True, None)
+
+    def grant_waits(self, gid, rd):
+        """The row grant_in_force waits on for reader rd, where it refuses the grant for a row not held: the grant itself
+        (grant_unknown, and no lane row of that id), the reader's anchor (genesis_bundle_not_anchored, and no bundle of
+        that id), or the first bundle the grant names that is not held (grant_bundle_void). None where the grant is in
+        force, or refused with every row it reads held: that refusal is re-read when a held row changes, not on an
+        arrival it names. In the order grant_in_force reads them (MUTATION waits_on_grant: always the grant;
+        waits_anchor_unread: never the anchor)."""
+        if "waits_on_grant" in MUT: return None if self.grant_in_force(gid, rd)[0] else gid
+        g = self.grants.get(gid)
+        if g is None: return gid if gid not in self.rows else None
+        if self.heads(rd) is None:
+            a = rd.get("anchor")
+            return a if a is not None and a not in self.by and "waits_anchor_unread" not in MUT else None
+        n = next((n for n in g["bundles"] if n not in self.valid()), None)
+        return n if n is not None and n not in self.by else None
+
     def grant_in_force(self, gid, rd):
         """(True|False, reason): the grant exists and RESOLVES for the reader only while (i) its voices (every voice
         it holds: its own signers and later cosignatures, grant_voices) are a strict majority of ALL the holders IN
@@ -722,7 +957,13 @@ class Root:
         if not self.antichain(g["bundles"]): return (False, "grant_bundles_not_antichain")
         if not self.grant_row(gid): return (False, "grant_count_short")
         H = self.live(self.fold(hs)[0])
-        if not 2 * len(self.grant_voices(gid) & H) > len(H) and "grant_count_unread" not in MUT:
+        # rule 6: a double signer at the reader's head has no say in a count there, under either key (MUTATION
+        # double_signer_grant_voices: it is a voice)
+        gv = self.grant_voices(gid)
+        if "double_signer_grant_voices" not in MUT:
+            ns = self.no_say(rd)
+            gv = frozenset(k for k in gv if self.owner(k) not in ns)
+        if not 2 * len(gv & H) > len(H) and "grant_count_unread" not in MUT:
             return (False, "grant_voices_not_in_force")
         if g["duty"] not in self.scope_in_force(rd) and "grant_scope_unread" not in MUT:
             return (False, "grant_scope_not_in_force")

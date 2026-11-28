@@ -246,7 +246,6 @@ fn law() -> SeatLaw {
         depth: 1,
         policy: [
             ("founder_only", Policy::One),
-            ("open:self_admit", Policy::SelfAdmit),
             ("unanimous", Policy::Unanimous),
             ("majority", Policy::Strict(1, 2)),
             ("quorum", Policy::Declared),

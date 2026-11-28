@@ -32,6 +32,12 @@ Sources (all under models/):
               root grant), and a later bundle version: its case table, per act and owner, with why.
               tests/conferral_two.rs replays it through standing::answers; it is also for Verify's standing
               walk and an adopter's own code.
+    consent   causal_kernel/check_consent.py: the consent peer set (CC 3.3.7): each case's rows and every ask (a
+              grant in force, a principal's peer set, whether a node may send a peer a row of a class) with the
+              model's answer. tests/consent.rs replays it through consent::in_force, peer_set and may_send.
+    policy_spec causal_kernel/window.py spec_from_policy: every row of the governance policy table, read under each
+              `active`, and every plant of check_policy_spec.py (one cell changed), with the window table each gives
+              or the cells it refuses on. tests/policy_spec.rs replays it through window::spec_from_policy.
     charter   causal_kernel/check_charter.py: an affiliation's charter (the licence classes its record in force
               declares) and whether a reader honours a licence. tests/charter.rs replays it through
               charter::declared and charter::read_licence.
@@ -237,7 +243,8 @@ def check_rows(rows, problems, where):
         for f in KEYFIELDS:
             v = r.get(f)
             vs = [v] if isinstance(v, str) else list(v) if isinstance(v, (tuple, list)) else []
-            if r["kind"] == "withdraw" and f == "target":
+            # a withdrawal's target is a row, and so is a quarantine release's (its withhold, G21 as re-ruled)
+            if r["kind"] in ("withdraw", "quarantine:release") and f == "target":
                 continue
             for x in vs:
                 if x in ids:
@@ -428,6 +435,23 @@ def seat_cases():
     import check_room_keys as RKC
     for case in RKC.CASES + RKC.OPEN:
         record(case[2], A.WIN, [(k, sc, RKC.OBJ) for k, sc, _ in case[5]])
+    # counts over persons (CIRISConstitution#224): check_key_person.py's window and ballot cases, a device key answering
+    # a window and casting a ballot for its person (the window's outcome and the seating's conclusion are replayed)
+    import check_key_person as KPC
+    for _name, rows, _want in KPC.WINDOW_CASES:
+        record(rows, A.WIN)
+    for _name, rows, _rid, _want in KPC.BALLOT_CASES:
+        record(rows, A.SEAT)
+    # the review r74's rows: a person seated by two keys, a revoked key and its devices, an agent's key of a person's
+    # roster, the lift's author's device, a window over a self roster
+    for _name, rows, _rid, _want, rule in KPC.R74_CASES:
+        record(rows, A.WIN if rule is not KPC.RULE else A.SEAT)
+    # the review r78k's rows: the fold's lift and the count's receipt by person (seat.count_persons), the roster pinned
+    for _name, rows, _want in KPC.R78K_CASES:
+        record(rows, A.WIN)
+    # the reader's line (one self roster per identity, ruled): each case's rows read for its reader (a fresh reader: none)
+    for _name, rows, rd, _rid, _want in KPC.LINE_CASES:
+        record(rows, A.SEAT, readers=(rd,) if rd is not None else ())
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
@@ -467,7 +491,7 @@ def seat_cases():
                 e["in_force"] = [[a, ST.act_in_force(S, a)] for a in in_force]
         out.append(e)
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
-           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "community_floor": ST.COMMUNITY_FLOOR, "removal_floor": ST.REMOVAL_FLOOR,
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "removal_floor": ST.REMOVAL_FLOOR,
            "policy": {k: list(v) for k, v in ST.POLICY.items()},
            "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
     windows = {k: dict(enc(v), secs=WN.secs(k)) for k, v in WN.WINDOWS.items()}
@@ -606,7 +630,7 @@ def table_cases():
                                "c": [S.C[r["id"]] for r in S.rows], "c_settled": [P.C[r["id"]] for r in P.rows],
                                "arrivals": arr, "d": enc(derived_of(P, ST, WN, CUT))})
     out["law"] = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
-                  "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "community_floor": ST.COMMUNITY_FLOOR,
+                  "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
                   "policy": {k: list(v) for k, v in ST.POLICY.items()}}
     out["windows"] = windows_now(WN)
     return out
@@ -702,7 +726,93 @@ def purge_cases():
     return out
 
 
+# ---- the key view: the end rule at the voices step (check_key_view.py) -------------------------------------------------
+def key_view_cases():
+    import check_key_view as KV
+    ST = KV.ST
+    cases = []
+    for c in KV.fixture():
+        refs = {}
+        cases.append(dict(c, rows=with_refs(c["rows"], refs), refs=refs))
+    law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "removal_floor": ST.REMOVAL_FLOOR,
+           "policy": {k: list(v) for k, v in ST.POLICY.items()},
+           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+    direct = []
+    for name, rows, rid, k, fin, want in KV.DIRECT:
+        refs = {}
+        direct.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "key": k,
+                       "final": sorted(fin), "want": want})
+    roster_direct = []
+    for name, sr, kr, rid, k, reader, want in KV.ROSTER_DIRECT:
+        refs = {}
+        roster_direct.append({"name": name, "seat": [r["id"] for r in sr], "rows": with_refs(list(sr) + list(kr), refs),
+                              "refs": refs, "row": rid, "key": k, "reader": reader, "want": want})
+    successor = []
+    for name, sr, kr, k, want in KV.SUCCESSOR:
+        refs = {}
+        successor.append({"name": name, "seat": [r["id"] for r in sr], "rows": with_refs(list(sr) + list(kr), refs),
+                          "refs": refs, "key": k, "want": want})
+    WN = KV.WN
+    windows = {k: dict(enc(v), secs=WN.secs(k)) for k, v in WN.WINDOWS.items()}
+    return {"about": "the key view (CutSpec::key_view): key_end::counts_by per (row, key), and the voices and conclusion of "
+                     "x with the key view (view true) or without it (false), under the seat or the window rule",
+            "law": law, "windows": windows, "cases": cases, "direct": direct, "roster_direct": roster_direct,
+            "successor": successor}
+
+
 # ---- key_end: every generated world at every instant ----------------------------------------------------------------
+def key_person_cases():
+    """check_key_person.py's cases: a key's person at a row (seat.person_of), each with the seat law it is read under."""
+    import seat as ST
+    import check_key_person as KP
+    out = []
+    for name, rows, k, person in KP.CASES:
+        refs = {}
+        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "key": k, "person": person})
+    counts = []
+    for name, rows, rid, concludes in KP.COUNT_CASES:
+        refs = {}
+        counts.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "concludes": concludes})
+    law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+           "removal_floor": ST.REMOVAL_FLOOR,
+           "policy": {k: list(v) for k, v in ST.POLICY.items()},
+           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+    # the opener's own withdrawal (r78k, latent): a table entry of the case's own, its rows and the outcome
+    import window as WN
+    WN.WINDOWS[KP.LATENT] = KP.LATENT_SPEC
+    try:
+        windows = {KP.LATENT: dict(enc(KP.LATENT_SPEC), secs=WN.secs(KP.LATENT))}
+    finally:
+        WN.WINDOWS.pop(KP.LATENT, None)
+    wcases = []
+    for name, rows, outcome in KP.LATENT_CASES:
+        refs = {}
+        assert KP.latent_outcome(rows) == outcome
+        wcases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "opener": "op", "outcome": outcome})
+    # the keys a row reaches (persist): a person's live keys and an owner's nodes, over the concluded set
+    pkeys = []
+    for name, rows, k, keys in KP.PERSON_KEYS_CASES:
+        refs = {}
+        pkeys.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "person": k, "keys": keys})
+    nodes = []
+    for name, rows, k, ns in KP.NODES_CASES:
+        refs = {}
+        nodes.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "owner": k, "nodes": ns})
+    # K1 on the person line: each case's rows, its reader, and the key view as a table of the (row, key) signatures it
+    # does not count (null: no key view passed)
+    kv_line = []
+    for name, rows, rd, rid, want, kv in KP.KV_LINE_CASES:
+        refs = {}
+        kv_line.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "reader": rd, "row": rid,
+                        "concludes": want,
+                        "uncounted": None if kv is None else [list(x) for x in KP._KV_UNCOUNTED]})
+    return {"law": law, "cases": out, "counts": counts, "windows": windows, "window_cases": wcases,
+            "line_key_view": kv_line,
+            "person_keys": pkeys, "nodes_of": nodes}
+
+
 def key_end_cases():
     import check_key_end as CKE
     KE = CKE.KE
@@ -723,12 +833,23 @@ def key_end_cases():
                         "succ": [[k, s] for k, s in a["succ"] if s is not None],
                         "reach": [[p, "".join(sorted(r))] for p, r in a["reach"]],
                         "score": [[x, "".join(sorted(v))] for x, v in a["score"]],
-                        "ret": sorted(i for i, _, _ in a["rows"])})
+                        "ret": sorted(i for i, _, _ in a["rows"]), "bytes": sorted(a["bytes"])})
         worlds.append({"rows": [ref(r) for r in rows], "kept": [r["id"] for r in S.rows],
                        "c": [S.C[r["id"]] for r in S.rows], "a": ans})
+    # the stub pin (K14): the counted statements as stubs keeping only id, signer, names and at (kind `stub`, which
+    # concludes as it did), and every counts_by answer over the full rows
+    rows = [CKE.pX, KE.rec("pK", "K", 0, 9), KE.rec("pF", "F", 0, 9), KE.att("a0", "K", 2, "pK", about="X"),
+            KE.att("a1", "K", 4, "pK", about="X"), KE.att("f1", "F", 5, "pF", about="Y", names=("a1",)),
+            KE.revoke("vK", "K", 3, names=("a0",)), KE.rec("qF", "F2", 6, 9, names=("pF",), succ_of="F", at_old=6, typ="node")]
+    S = KE.state(rows)
+    assert all(S.C.get(r["id"]) for r in rows if r["kind"] == "att")
+    stubs = [{"id": r["id"], "kind": "stub", "signer": r["signer"], "names": r["names"], "at": r["at"], "family": "stub"}
+             if r["kind"] == "att" else r for r in rows]
+    pin = {"rows": [row_enc(r) for r in rows], "stubs": [row_enc(r) for r in stubs],
+           "answers": [[r["id"], k, KE.counts_by(S, r["id"], k)] for r in rows for k in ("K", "F", "X")]}
     return {"ceil": KE.CEIL, "keys": list(CKE.KEYS), "parties": list(CKE.PARTIES), "subjects": list(CKE.SUBJECTS),
             "nows": list(CKE.NOWS), "required": sorted(KE.END_REQUIRED), "forbidden": sorted(KE.END_FORBIDDEN),
-            "pool": pool, "worlds": worlds}
+            "pool": pool, "worlds": worlds, "pin": pin}
 
 
 def undecided_cases(AC):
@@ -739,12 +860,68 @@ def undecided_cases(AC):
     return out
 
 
+def infra_live_cases(AC):
+    out = []
+    for name, rows, obj, at, want in AC.INFRA_LIVE:
+        refs = {}
+        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "obj": obj, "at": at,
+                    "live": want if want is None or want == "live" else {"active": want[1], "m": want[2]}})
+    return out
+
+
+def group_of_cases(AC):
+    out = []
+    for name, rows, ref, want in AC.GROUP_OF:
+        refs = {}
+        gid = ref[1] if ref[0] == "id" else next((r.get("group") for r in rows if r["id"] == ref[1]), None)
+        out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "ref": ref[0],
+                    "id": gid if ref[0] != "head" else ref[1],
+                    "group": {"rivals": list(want[1])} if isinstance(want, tuple) else want})
+    return out
+
+
 def dissolved_cases(AC):
     out = []
     for name, rows, want in AC.DISSOLVED:
         refs = {}
         out.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "obj": AC.OBJ, "dissolved": want})
     return out
+
+
+# ---- resignation: the wrap set over every set of check_resignation.py's rows ---------------------------------------
+def resignation_cases():
+    """check_resignation.py: who may read the room (the wrap set: Seats.holders over the fold, less the held ends of a
+    seat), the whole roster and the dissolution, for each hand-written case and every set of rows the check reads, in
+    its two rooms: `member` (a community; the roster) and `holder` (an accord's holders, no roster seat)."""
+    import seat as ST
+    import check_resignation as RS
+    out = []
+    for room in RS.ROOMS:
+        RS.use(room)
+
+        def one(name, rows):
+            S = RS.state(rows)
+            Q = ST.Seats(S)
+            refs = {}
+            out.append({"room": room, "scope": RS.SC, "name": name, "rows": with_refs(rows, refs), "refs": refs,
+                        "c": [S.C[r["id"]] for r in S.rows], "wrap": sorted(RS.wrap(S)),
+                        "roster": sorted(Q.roster(RS.OBJ)), "dissolved": Q.dissolved(RS.OBJ)})
+        for name, rows, *_ in RS.CASES:
+            one(name, rows)
+        for rows in RS.sets():
+            one("rows " + " ".join(r["id"] for r in rows), rows)
+    RS.use("member")
+    return {"obj": RS.OBJ, "cases": out}
+
+
+def audience_cases():
+    """check_audience.py's fixture, with the seat-model rows its persons are read over (`persons_world`), so the crate
+    builds its PersonsOf from seat::Persons::voice and seat::person_keys over the same rows."""
+    import check_audience as AUC
+    fx = AUC.fixture()
+    refs = {}
+    fx["persons_world"] = {"rows": with_refs(AUC.persons_rows(), refs), "refs": refs}
+    return fx
 
 
 def acts_cases():
@@ -769,9 +946,152 @@ def acts_cases():
             "infrastructure_words": [[w, list(ST.infrastructure_rule(w)) if ST.infrastructure_rule(w) else None]
                                      for w, _ in AC.INFRA_WORDS],
             "undecided": undecided_cases(AC),
-            "protocol_states": [[w, act, got] for w, act, got in AC.SHEET_ANSWERS],
-            "dissolved": dissolved_cases(AC),
-            "community_floor": ST.COMMUNITY_FLOOR}
+            "infra_live": infra_live_cases(AC),
+            "group_of": group_of_cases(AC),
+            "dissolved": dissolved_cases(AC)}
+
+
+# ---- policy_spec: a window's table from its policy row ------------------------------------------------------------
+def policy_spec_cases():
+    import window as WN
+    import check_policy_spec as PS
+    pol = WN.policy_table()
+    fams = {f["family"]: f for f in pol["families"]}
+    cut = lambda t: {"min_count": t["min_count"], "window_classes": t["window_classes"]}
+    within = lambda f: "within_k" if f["base"] == "active" and f["stated_census"] is None else None
+
+    def case(name, row, table, active, seat):
+        e = {"name": name, "row": row, "table": cut(table), "active": enc(active), "seat": seat, "spec": None,
+             "refusals": None}
+        try:
+            e["spec"] = enc(WN.spec_from_policy(row, table, active, seat))
+        except WN.PolicyRefusal as x:
+            e["refusals"] = [list(r) for r in x.reasons]
+        return e
+    out = []
+    for f in pol["families"]:
+        out.append(case(f["family"], f, pol, within(f), PS.seat_of(f)))
+    for fam in ("self_roster_add", "self_roster_evict"):
+        out.append(case("%s, the seat key" % fam, fams[fam], pol, None, "key"))
+        out.append(case("%s, no seat" % fam, fams[fam], pol, None, None))
+        out.append(case("%s, a seat outside the count set" % fam, fams[fam], pol, None, "member"))
+    for fam in ("default_content", "default_standing", "default_irreversible"):
+        base = PS.plant_base(fam)
+        out.append(case("%s, its opener as member" % fam, base, pol, "within_k", None))
+        for n in (20, 5, 2 ** 32 + 13):
+            out.append(case("%s, its opener as member, census %d" % (fam, n), base, pol, ("census", n), None))
+        out.append(case("%s, its opener as member, no active" % fam, base, pol, None, None))
+    out.append(case("community_invite, an active stated", fams["community_invite"], pol, ("census", 20), None))
+    out.append(case("community_invite, a seat", fams["community_invite"], pol, None, "member"))
+    for name, fam, cells, _ in PS.PARITY:
+        row = PS.parity_row(fam, cells)
+        out.append(case(name, row, pol, within(row), PS.seat_of(row)))
+    for cell, fam, v, *act in PS.PLANTS:
+        a = act[0] if act else None
+        name = "plant %s = %s" % (cell, json.dumps(v))
+        if fam is None:
+            t = PS._set(pol, cell, v)
+            for f in pol["families"]:
+                out.append(case("%s: %s" % (name, f["family"]), f, t, within(f), PS.seat_of(f)))
+        else:
+            row = PS._set(PS.plant_base(fam), cell, v)
+            out.append(case("%s: %s" % (name, fam), row, pol, a if a is not None else within(row), PS.seat_of(row)))
+    return {"source": "data/governance_policy.json (CIRISConstitution manifests/governance_policy.json)",
+            "policy_sha256": pol["_meta"]["policy_sha256"], "cases": out}
+
+
+# ---- law_tables: the seat law's table cells from the acts and policy tables -----------------------------------------
+LAW_PLANTS = (
+    # (table, row match, cell, new value): what the tables give must change
+    ("acts", 0, "act", "admitt"),
+    ("acts", 0, "scope", "membership"),
+    ("acts", 0, "community_kind", "room"),
+    ("acts", 0, "choice", "chosen"),
+    ("acts", 0, "policy", "cosigned_act|community_invitation"),
+    ("acts", 0, "policy", "community_invite"),
+    ("acts", "dup", None, None),
+    ("policy", "self_roster_add", "enact_rule", {"kind": "fraction", "num": 2, "den": 3}),
+    ("policy", "community_invite", "enact_rule", {"kind": "fraction", "num": 1, "den": 2}),
+    ("policy", "accord_majority", "enact_rule", {"kind": "one_of_n"}),
+    ("policy", "accord_halt", "cancel_rule", {"kind": "none"}),
+    ("policy", "cosigned_act", "enact_rule", {"kind": "ranked_irv", "choices": 3}),
+    ("policy", "moderator_election", "enact_rule", {"kind": "strict_majority"}),
+    ("policy", "moderator_recall", "floor_rule", {"kind": "voices", "count": 3}),
+    ("policy", "moderator_recall", "floor_rule", {"kind": "none"}),
+    ("policy", "moderator_recall", "enact_rule", {"kind": "fraction", "num": 3, "den": 4}),
+    ("policy", "community_remove", "floor_rule", {"kind": "voices", "count": 3}),
+    ("policy", "community_remove", "floor_rule", {"kind": "none"}),
+    ("policy", "duty_confer", "family", "duty_conferral"),
+    ("protocols", "majority", "rule", "more_than_half"),
+    ("protocols", "unanimous", "rule", "strict_majority"),
+    ("protocols", "quorum:{m}/{n}", "kind", "threshold:{m}/{n}"),
+)
+
+
+def law_tables_cases():
+    import copy
+    import seat as ST
+    pol = json.load(open(os.path.join(ROOT, "data", "governance_policy.json"), encoding="utf-8"))
+    acts = ST.acts_rows(os.path.join(ROOT, "data", "governance_policy_acts.tsv"))
+    protos = lambda p: [{"kind": k["kind"], "rule": k["rule"]} for k in p["protocols"]["kinds"]]
+
+    def case(name, acts, pol):
+        e = {"name": name, "acts": acts, "families": pol["families"], "protocols": protos(pol), "law": None, "refusals": None}
+        try:
+            L = ST.law_from_tables(acts, pol)
+            e["law"] = {"policy": {k: list(v) for k, v in L["policy"].items()},
+                        "acts": [[a, sc, kd, list(ps), ch] for a, sc, kd, ps, ch in L["acts"]],
+                        "removal_floor": L["removal_floor"]}
+        except ST.LawRefusal as x:
+            e["refusals"] = [list(r) for r in x.reasons]
+        return e
+    out = [case("data/ (the vendored tables)", acts, pol)]
+    for table, at, cell, v in LAW_PLANTS:
+        a, p = copy.deepcopy(acts), copy.deepcopy(pol)
+        if table == "acts" and at == "dup":
+            a.append(dict(a[0]))
+        elif table == "acts":
+            a[at][cell] = v
+        elif table == "policy":
+            next(f for f in p["families"] if f["family"] == at)[cell] = v
+        else:
+            next(k for k in p["protocols"]["kinds"] if k["kind"] == at)[cell] = v
+        e = case("plant %s %s %s = %s" % (table, at, cell, json.dumps(v)), a, p)
+        if (e["law"], e["refusals"]) == (out[0]["law"], out[0]["refusals"]):
+            raise SystemExit("law plant not caught: %s" % e["name"])
+        out.append(e)
+    return {"source": "data/governance_policy_acts.tsv and data/governance_policy.json", "cases": out}
+
+
+# ---- window_bound: an opener's table through the act binding ------------------------------------------------------
+def window_bound_cases():
+    import seat as ST
+    import check_policy_spec as PS
+    with ST.binding(True):
+        law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+               "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
+               "removal_floor": ST.REMOVAL_FLOOR, "policy": {k: list(v) for k, v in ST.POLICY.items()},
+               "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+        cases = []
+        for name, rows, _, _ in PS.bound_cases():
+            c, o = PS.run_bound(rows)
+            refs = {}
+            cases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "c": [c[r["id"]] for r in rows if r["id"] in c],
+                          "kept": [i for i in c], "outcome": o})
+        # a wait on the bound path: a stalled infrastructure room's recovery widening (an offer) that opens a window,
+        # under a law that binds no act (its table by name): the seat rule waits on the grant it names (B1), with no
+        # trust root read, and the window rule passes the wait on (check_acts: undecided, stalled_recovery_needs_bundle)
+        import check_acts as AC
+        wrows = [AC.GI, AC.W3, dict(AC.RECOVER(heads=("g",), cites=("w3",)), window="stall")]
+        S = CK.concluded(CK.kept(list(wrows)), ST.seat_rule)
+        refs = {}
+        wait = {"rows": with_refs(wrows, refs), "refs": refs, "row": "rv", "wait_on": "B1", "concluded": bool(S.C["rv"]),
+                "window": "stall", "spec": {"counted": "founder", "concluder": "founder", "opener_says": None, "at_once": [],
+                                            "silent": None, "at_close": [], "default": "refused", "target_votes": False,
+                                            "secs": 1}}
+    return {"law": law, "families": PS.POL["families"],
+            "table": {"min_count": PS.POL["min_count"], "window_classes": PS.POL["window_classes"]}, "cases": cases,
+            "wait": wait}
 
 
 def main():
@@ -792,7 +1112,16 @@ def main():
         dump("tables.json", table_cases(), out)
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
+    dump("key_person.json", key_person_cases(), out)
+    dump("key_end_counts.json", key_view_cases(), out)
     dump("acts.json", acts_cases(), out)
+    dump("policy_spec.json", policy_spec_cases(), out)
+    dump("law_tables.json", law_tables_cases(), out)
+    dump("window_bound.json", window_bound_cases(), out)
+    import check_policy_spec as PS
+    dump("../vectors/policy_dump.json", PS.dump(), out)
+    dump("resignation.json", resignation_cases(), out)
+    dump("audience.json", audience_cases(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)
     out["conferral_end.tsv"] = CE.table()          # the same cases as a plain table, for the Constitution
@@ -802,6 +1131,8 @@ def main():
     dump("conferral_content_worlds.json", CK.worlds_fixture(), out)
     import check_conferral_two as C2
     dump("conferral_two.json", C2.fixture(), out)
+    import check_consent as CS
+    dump("consent.json", CS.fixture(), out)
     import check_charter as CHC
     dump("charter.json", CHC.fixture(with_refs), out)
     import check_trust_rows as CTR
@@ -810,6 +1141,12 @@ def main():
     import check_root as CR
     dump("root.json", CR.fixture(with_refs), out)
     dump("root_reader.json", CR.reader_vectors(), out)
+    import check_roster_merge as RM
+    dump("roster_merge.json", RM.fixture(with_refs), out)
+    # a private room's row door for a verifier (CIRISConstitution#224): the cases of room_key_vectors.py, each with its
+    # row, the key records, the voice's roster view the kernel folds and the verdict
+    import room_key_vectors as RKV
+    dump("room_keys.json", enc(RKV.fixture()), out)
     # a delegation chain from a root grant (check_delegation.py's ROOT_CASES): the seats under a root view
     import check_delegation as CD
     chains = []
@@ -845,6 +1182,7 @@ def main():
         print("kernel_fixtures: %d fixtures, %d out of date" % (len(out), bad))
         return 1 if bad else 0
     os.makedirs(OUT, exist_ok=True)
+    os.makedirs(os.path.join(OUT, "..", "vectors"), exist_ok=True)
     for name, text in out.items():
         with open(os.path.join(OUT, name), "w", encoding="utf-8", newline="\n") as f:
             f.write(text)

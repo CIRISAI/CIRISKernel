@@ -105,21 +105,6 @@ fn protocol_set_replay() {
             }
         }
     }
-    // what the protocol sheet says each protocol states a rule for (seat.protocol_states)
-    for w in fx.at("protocol_states").arr() {
-        let a = w.arr();
-        let p = RoomProtocol::parse(a[0].s()).expect("a protocol of the set");
-        let act = match a[1].s() {
-            "admit" => ciris_kernel::seat::Act::Admit,
-            "remove" => ciris_kernel::seat::Act::Remove,
-            _ => ciris_kernel::seat::Act::RecordChange,
-        };
-        cases += 1;
-        if p.states(act) != a[2].b() {
-            bad += 1;
-            eprintln!("protocol_states {} {}: got {}, want {}", a[0].s(), a[1].s(), p.states(act), a[2].b());
-        }
-    }
     report("the protocol set against check_acts.py", cases, bad);
     assert_eq!(bad, 0);
 }
@@ -143,7 +128,6 @@ fn proto_words(p: ciris_kernel::seat::RoomProtocol) -> Words {
         RoomProtocol::Majority => ("majority".to_string(), None, None),
         RoomProtocol::Quorum(m, n) => ("quorum".to_string(), Some(m), Some(n)),
         RoomProtocol::Weighted => ("weighted".to_string(), None, None),
-        RoomProtocol::SelfAdmit => ("open:self_admit".to_string(), None, None),
         _ => ("?".to_string(), None, None),
     }
 }
@@ -242,6 +226,73 @@ fn undecided_replay() {
         }
     }
     report("an infrastructure room's recovery widening against check_acts.py", cases, bad);
+    assert_eq!(bad, 0);
+}
+
+/// An infrastructure room's liveness at a held row (`seat::infra_live`, `check_acts.py`'s INFRA_LIVE).
+#[test]
+fn infra_live_replay() {
+    use ciris_kernel::layers::{conclude, kept};
+    use ciris_kernel::seat::{infra_live, seat_rule, Liveness, Obj};
+    use common::{DictCut, J};
+    let fx = fixture("acts.json");
+    let law = law_of(fixture("seat.json").at("law"));
+    let (mut cases, mut bad) = (0, 0);
+    for c in fx.at("infra_live").arr() {
+        let refs: BTreeMap<String, String> =
+            c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rows = rows_with_refs(c.at("rows").arr(), &refs);
+        let k = kept(&rows, |_| true);
+        let cc = conclude(k, |p| seat_rule(p, &law, &DictCut, &|_| true), None);
+        let got = infra_live(&cc, &law, &DictCut, &Obj::Row(c.at("obj").s().to_string()), &c.at("at").s().to_string());
+        let want = match c.at("live") {
+            J::Null => None,
+            J::Str(s) if s == "live" => Some(Liveness::Live),
+            w => Some(Liveness::Stalled { active: w.at("active").i() as usize, m: w.at("m").i() as u64 }),
+        };
+        cases += 1;
+        if got != want {
+            bad += 1;
+            eprintln!("infra_live {}: got {got:?}, want {want:?}", c.at("name").s());
+        }
+    }
+    report("an infrastructure room's liveness against check_acts.py", cases, bad);
+    assert!(cases > 0);
+    assert_eq!(bad, 0);
+}
+
+/// A reference naming a group by id alone never picks between two founding rows; one naming a row of a chain
+/// resolves to it (`seat::group_of`, `seat::group_at`, `check_acts.py`'s GROUP_OF).
+#[test]
+fn group_of_replay() {
+    use ciris_kernel::seat::{group_at, group_of, Obj, Rivals};
+    use common::{TRow, J};
+    let fx = fixture("acts.json");
+    let (mut cases, mut bad) = (0, 0);
+    for c in fx.at("group_of").arr() {
+        let refs: BTreeMap<String, String> =
+            c.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let rows = rows_with_refs(c.at("rows").arr(), &refs);
+        let id = c.at("id").s().to_string();
+        let got: Result<Option<Obj<String, String>>, Rivals<String>> = if c.at("ref").s() == "head" {
+            let get = |i: &String| rows.iter().find(|r: &&TRow| &r.id == i);
+            Ok(group_at(&get, &id))
+        } else {
+            group_of(rows.iter(), &id)
+        };
+        let want = match c.at("group") {
+            J::Null => Ok(None),
+            J::Str(s) => Ok(Some(Obj::Row(s.clone()))),
+            w => Err(Rivals(w.at("rivals").strs())),
+        };
+        cases += 1;
+        if got != want {
+            bad += 1;
+            eprintln!("group_of {}: got {got:?}, want {want:?}", c.at("name").s());
+        }
+    }
+    report("a group referenced by id against check_acts.py", cases, bad);
+    assert!(cases > 0);
     assert_eq!(bad, 0);
 }
 

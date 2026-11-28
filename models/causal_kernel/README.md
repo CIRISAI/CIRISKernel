@@ -49,7 +49,10 @@ checked by `check_lock.py`).
   The fallback's vote is a ballot of `ballot:moderation_action` (`for` or `against`, one a person, a ballot its signer
   withdrew no ballot) and both moderation windows land by a signed row (CIRISConstitution#221): `check_window_rows.py`.
 - **Copying as need.** A party given only its routed rows concludes the same as one given everything; a
-  stranger is routed nothing.
+  stranger is routed nothing. A departure, kept: `route.py` reads a row's audience as the members at the row's own head,
+  where CC 5.2 as ruled reads the roster as it stands when the node replicates (a member removed later is owed
+  nothing further; one admitted later receives older rows only as `history_on_join` says). `audience.py` reads it
+  so; `route.py` is not changed, since `attacks.py` states facts over its audience.
 - **A writer's keys.** The key plane re-read from rows on the writer's own chain agrees with
   `formal/key_plane` on 402,950 comparisons.
 
