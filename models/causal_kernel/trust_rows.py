@@ -47,7 +47,7 @@ A licence is honoured iff the walk reaches its authority for its class, the auth
     edges_of(S)                   the admitted, live edges, each with its owner as `src`
     reaches(edges, frm, c, b, a)  the breadth-first walk
     standing(S, lic)              None, or why licence `lic` is not its authority's act in force
-    read_licence(S, reader, lic, own, supplied, now)  -> (honoured, reason)
+    read_licence(S, reader, lic, supplied, now)  -> (honoured, reason)
 """
 import collections
 import os
@@ -253,7 +253,7 @@ def rests_on(S, q, o):
             return {body}
         return set()
     if q["kind"] == "delegates_to":
-        return {body} if o in S.by else {"key"}
+        return {body} if ST.founding_row(S.by, o) else {"key"}
     if q["kind"] == "licensure":
         return {"license", "member", ST.OFFICER}
     return set()
@@ -436,12 +436,15 @@ def cut_state(S, rows, own=None):
                     if k not in ST.voices(q, S.Cs) or o != ob:
                         continue
                     if need is None:
-                        lost.setdefault(q["id"], set()).add(k); break
+                        lost.setdefault(q["id"], set()).add(k)
+                        continue
                     # an end is keyed by every standing its key LOSES by it, whatever scope its target names (MUTATION
                     # end_scope_keyed: only the class the end's named scope gives)
                     classes = {scope_class(S, ob, sc)} & need if "end_scope_keyed" in MUT else need
                     if any(loses(S, judged, e, k, ob, cls) for cls in classes):
-                        lost.setdefault(q["id"], set()).add(k); break
+                        lost.setdefault(q["id"], set()).add(k)     # every key it ends loses its voice, not the first
+                        if "first_lost_only" in MUT:
+                            break
         # a COUNTED row loses only the ended keys' voices: it is re-counted over the voices left, and cut only where the
         # count then fails (as contested_out drops voices); a single key's own row is cut (MUTATION
         # end_cuts_counted_row: every row with an ended signer is cut)
@@ -648,7 +651,7 @@ def standing(S, lic, own=None):
     return "licensure_link_withdrawn"
 
 
-def read_licence(S, reader, lic, own=None, supplied=None, now=None):
+def read_licence(S, reader, lic, supplied=None, now=None):
     """(honoured, reason) for licence row `lic` held in S, read by `reader` over the rows S holds:
     `lapsed` (its authority is dissolved: a licence that stood at issuance, its class declared and its standing
     held over its own past, stands and reads lapsed for every later use), `licence_class_not_trusted` (the authority's record does not declare the class), the standing's reason
@@ -657,7 +660,7 @@ def read_licence(S, reader, lic, own=None, supplied=None, now=None):
     if r is None:
         return False, "not_held"
     a, c = r["authority"], r["licence_class"]
-    line = own if own is not None else reader          # the reader's line is the reader's own (the r77 attack)
+    line = reader                                      # the reader's line is the reader's own key's (the r77 attack)
     # a dissolved authority (CC 4.4.3.12, "What stands after dissolution"): an issued licence stands, its authority
     # judged at issuance, and reads `lapsed` for every later use; one with no standing over its own past is testimony
     # (the issuance judgement first, over the licence's own past: its standing, then its class; only a licence that
@@ -667,10 +670,10 @@ def read_licence(S, reader, lic, own=None, supplied=None, now=None):
         if why is not None:
             return False, why
         if "lapsed_class_unread" not in MUT and \
-                c not in CH.charters(past_state(S, r), own, supplied, now).get(a, frozenset()):
+                c not in CH.charters(past_state(S, r), None, supplied, now).get(a, frozenset()):
             return False, "licence_class_not_trusted"
         return False, "lapsed"
-    if c not in CH.charters(S, own, supplied, now).get(a, frozenset()):
+    if c not in CH.charters(S, None, supplied, now).get(a, frozenset()):
         return False, "licence_class_not_trusted"
     why = standing(S, lic, line)
     if why is not None:
