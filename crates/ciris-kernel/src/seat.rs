@@ -2507,14 +2507,14 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 let pol = f.pol;
                 // a re-seating's voices (its act the lift) are the objections it names, counted over the members
                 // the fold seats
-                let v = if is_lift(self.law, &|i| p.get(i), r, pol) {
+                let (apart, v) = if is_lift(self.law, &|i| p.get(i), r, pol) {
                     let Some((author, v)) = lift_voices_with(&p, self.law, self.spec, Some(&members)) else {
                         return false;
                     };
-                    mem.remove(&author); // the removal's author apart (the key removed is an agent's: in no count)
-                    v
+                    // the removal's author apart by person (the key removed is an agent's: in no count)
+                    (vec![author], v)
                 } else {
-                    voices(r, &p)
+                    (Vec::new(), voices(r, &p))
                 };
                 if pol == Some(Policy::DutyConfer) && mem.len() < 2 && lone_offer_stands(self.law, &p, r, &mem) {
                     return false;
@@ -2526,8 +2526,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                         let wr: &R = f.weights.unwrap_or(r);
                         let rows: Vec<&R> = p.rows().collect();
                         let pp = Persons::over(&rows, self.law, self.spec, r.obj().as_ref());
-                        let v = pp.voices(&v, &mem);
-                        let mem = pp.base(&mem);
+                        let (mem, v) = pp.count(&mem, &v, None, &apart);
                         count_of(pol, true, r.to(), &mem, &v, f.need, |x| {
                             wr.weights().iter().find(|(w, _)| w == x).map_or(0, |(_, n)| *n)
                         })
@@ -2673,14 +2672,11 @@ fn count_receipt<R: SeatRow, S: CutSpec<R>>(
     for k in left_in_past(&p, &obj, "member") {
         mem.remove(&k);
     }
-    // the room less the remover, in the base as in the voices (R5: one rule for a count that judges one member's
-    // act, as the overturn and the lift)
-    mem.remove(xr.signer());
+    // the room less the remover by person, in the base as in the voices (R5: one rule for a count that judges one
+    // member's act, as the overturn and the lift)
     let rows: Vec<&R> = p.rows().collect();
     let pp = Persons::over(&rows, law, spec, Some(&obj));
-    let mut v = pp.voices(&voices(qr, &p), &mem);
-    v.remove(&pp.member(xr.signer()));
-    let mem = pp.base(&mem);
+    let (mem, v) = pp.count(&mem, &voices(qr, &p), None, &[xr.signer().clone()]);
     let yes = v.iter().filter(|k| mem.contains(*k)).count();
     // the members' check of one member's act, whatever policy or need the row states
     room_count(yes, mem.len())
@@ -3342,6 +3338,34 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
     /// The persons a base counts as, one member each.
     pub fn base(&self, keys: &BTreeSet<R::Key>) -> BTreeSet<R::Key> {
         keys.iter().map(|k| self.member(k)).collect()
+    }
+
+    /// The one reading of a count by person (ruled on CIRISConstitution#224): `(the base, the voices)`, the base
+    /// counted by member ([`Persons::base`]), the voices mapped to persons and held to the voting base (`voters`,
+    /// else the base), and the named keys `apart` (a lift's author, a receipt's remover, a recall's holder) set
+    /// apart BY PERSON from both, so their own devices are them. Every count reads it: the seat rule's count and
+    /// lift, the fold and its lift, the count's receipt.
+    pub fn count(
+        &self,
+        base: &BTreeSet<R::Key>,
+        voices: &BTreeSet<R::Key>,
+        voters: Option<&BTreeSet<R::Key>>,
+        apart: &[R::Key],
+    ) -> (BTreeSet<R::Key>, BTreeSet<R::Key>) {
+        let mut b = self.base(base);
+        let mut v = self.voices(voices, voters.unwrap_or(base));
+        for k in apart {
+            let mut ks = vec![k.clone()];
+            if !self.keys {
+                ks.push(self.member(k));
+                ks.extend(self.voice(k));
+            }
+            for x in &ks {
+                b.remove(x);
+                v.remove(x);
+            }
+        }
+        (b, v)
     }
 
     /// The persons of `base` the keys `voices` speak for, one voice each.
@@ -4582,14 +4606,12 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         let Some((author, v)) = lift_voices_with(p, law, spec, cache) else { return false };
         // the members are persons: the key removed is an agent's, no voice and not counted over (the base, the
         // members at both heads, is roster-kinds' follow-up)
-        let mut mem = persons_at_with(p, law, spec, &obj, r.head(), "member", cache);
-        mem.remove(&author); // the author is not among the members the majority is taken of
-                             // the author's own keys are the author: the objections mapped to persons over the members less the author
+        let mem = persons_at_with(p, law, spec, &obj, r.head(), "member", cache);
+        // the author is not among the members the majority is taken of, and its own keys are the author: the
+        // objections and the members by person, the author apart by person
         let rows: Vec<&R> = p.rows().collect();
         let pp = Persons::over(&rows, law, spec, Some(&obj));
-        let v = pp.voices(&v, &mem);
-        let mut mem = pp.base(&mem);
-        mem.remove(&pp.member(&author));
+        let (mem, v) = pp.count(&mem, &v, None, &[author]);
         return count_of(pol, is_offer, r.to(), &mem, &v, None, |_| 0);
     }
     if pol == Some(Policy::Ranked) {
@@ -4650,7 +4672,11 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
             if !new_r.iter().all(|k| v.contains(*k)) {
                 return false;
             }
-            return v.iter().filter(|k| common.contains(*k) && !void.contains(*k)).count() >= m;
+            // one voice per person, as every count ([`Persons::count`])
+            let rows: Vec<&R> = p.rows().collect();
+            let pp = Persons::over(&rows, law, spec, Some(&obj));
+            let vot: BTreeSet<R::Key> = common.iter().filter(|k| !void.contains(*k)).cloned().collect();
+            return pp.count(&common, &v, Some(&vot), &[]).1.len() >= m;
         }
         // C2 (the ruling on reader_state): for a reader holding two concurrent founders' amendments, a founders' count
         // whose own past holds only one of them reads the founders common to the two
@@ -4722,8 +4748,8 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     let pp = Persons::over(&rows, law, spec, Some(&obj));
     let vot: BTreeSet<R::Key> =
         mem.iter().filter(|k| !void.contains(*k) && !(drop_to && r.to().contains(*k))).cloned().collect();
-    let v = pp.voices(&voices(r, p), &vot);
-    let mem = pp.base(&mem);
+    let key_mem = mem;
+    let (mem, v) = pp.count(&key_mem, &voices(r, p), Some(&vot), &[]);
     // a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
     if f.no_self_removal && v.iter().all(|k| r.to().contains(k)) {
         return false;
@@ -4739,6 +4765,12 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         (Some((Act::Recall, _, _)), Some(Policy::StrictFloor(n, d, l))) => Some(Policy::Recall(n, d, l)),
         (Some((a, _, _)), Some(Policy::Recall(n, d, l))) if a != Act::Recall => Some(Policy::StrictFloor(n, d, l)),
         (_, pol) => pol,
+    };
+    // the recall judges one holder: the holder apart by person, from the base and the voices
+    let (mem, v) = if !is_offer && matches!(pol, Some(Policy::Recall(..))) {
+        pp.count(&key_mem, &voices(r, p), Some(&vot), r.to())
+    } else {
+        (mem, v)
     };
     if pol == Some(Policy::DutyConfer) && mem.len() < 2 && lone_offer_stands(law, p, r, &mem) {
         return false; // a lone holder with a duty offer of its own standing confers no other alone

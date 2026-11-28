@@ -1134,11 +1134,14 @@ def lift_count(r, P, past, by):
     # the members are persons: the key removed is an agent's, so it is no voice and is not counted over
     mem, vot = counted_keys(P, past, r["obj"], heads)
     author = by[r["content"]]["signer"]
-    # the author's own keys are the author (KP1): the objections mapped to persons, then the author apart
-    apart = frozenset() if MUT & {"author_voice", "lift_author_device"} else {rep_of(P, author)}
-    yes = persons_of(v, vot, P, r["obj"]) - apart              # (MUTATION lift_author_device: only the author's own key)
-    mem = as_persons(mem, P, r["obj"])
-    if "lift_over_all" not in MUT: mem = mem - {rep_of(P, author), author}    # MUTATION lift_over_all: the author counted over
+    # the author's own keys are the author (KP1): base and objections by person, the author apart by person
+    # (MUTATION lift_author_device, author_voice: the author's keys voices of it; lift_over_all: the author counted over)
+    odd = MUT & {"author_voice", "lift_over_all", "lift_author_device"}
+    mem, yes = count_persons(P, r["obj"], mem, v, vot, apart=None if odd else author)
+    if odd:
+        a = {author, rep_of(P, author), rep_of(P, author, member=True)}
+        if "lift_over_all" not in MUT: mem = mem - a
+        if not MUT & {"author_voice", "lift_author_device"}: yes = yes - a
     return room_count(yes, mem)
 
 
@@ -1894,8 +1897,8 @@ class Seats:
                 else: ok = self.tips_fold(counted, over)                 # another scope's own fold; None: one tip there
                 mem = counted_keys(P, past, over, r.get("head", ()), counted)[0] - count_left(P, past, over, counted)
                 if ok is not None: mem = mem & ok
-                yes = persons_of(voices(r, P), mem, P, over)
-                mem = as_persons(mem, P, over)
+                key_mem = mem
+                mem, yes = count_persons(P, over, key_mem, voices(r, P))
                 if is_election(r) and "fold_ranked_counted" not in MUT:
                     continue                    # an election's seating is read by C1 to C5 alone (beaten, the seat rule)
                 if r.get("policy") in DUTY_POLICY:
@@ -1904,8 +1907,16 @@ class Seats:
                         act_of(r, {q["id"]: q for q in P}, r.get("obj") not in {q["id"] for q in P}) if BOUND else None):
                     # a re-seating (its act the lift): its voices are the objections it names, over the members the fold seats
                     v = lift_voices(r, P, past, {q["id"]: q for q in P}) or frozenset()
-                    yes = v & mem
-                    if v: mem = mem - {S.by[r["content"]]["signer"]}   # the author apart (the key removed is an agent's: in no count)
+                    # its objections and the members by person, the author apart by person (KP-A; MUTATION
+                    # fold_lift_by_key: the objections and the author read by key over the persons;
+                    # fold_author_by_key: the author taken out by key before the base is read by person)
+                    if "fold_lift_by_key" in MUT:
+                        yes = v & mem
+                        if v: mem = mem - {S.by[r["content"]]["signer"]}
+                    elif "fold_author_by_key" in MUT:
+                        mem, yes = count_persons(P, over, key_mem - ({S.by[r["content"]]["signer"]} if v else set()), v)
+                    else:
+                        mem, yes = count_persons(P, over, key_mem, v, apart=S.by[r["content"]]["signer"] if v else None)
                     if not room_count(yes, mem): return False
                 elif not count_of(r.get("policy"), True, r.get("to", ()), mem, yes, r.get("need"), r.get("weights"),
                                   signed=voices(r, P)):
@@ -2032,12 +2043,15 @@ def count_receipt(S, q, x):
     mem, vot = counted_keys(P, past, over, tuple(q.get("head", ())), scope)
     left = left_in_past(P, over, scope)
     mem, vot = mem - left, vot - left
-    yes = persons_of(voices(q, P), vot, P, over)
-    if "count_receipt_unchecked" not in MUT: yes = yes - {x["signer"], rep_of(P, x["signer"])}
+    if "count_receipt_unchecked" in MUT: yes = persons_of(voices(q, P), vot, P, over)
     # the room less the remover, in the base as in the voices (R5: one rule for a count that judges one member's act,
     # as the overturn and the lift; MUTATION remover_counted_over)
-    mem = as_persons(mem, P, over)
-    if "remover_counted_over" not in MUT: mem = mem - {x["signer"], rep_of(P, x["signer"])}
+    if "count_receipt_unchecked" in MUT: mem = as_persons(mem, P, over)
+    elif "remover_counted_over" in MUT:
+        mem, yes = as_persons(mem, P, over), count_persons(P, over, mem, voices(q, P), vot, apart=x["signer"])[1]
+    else:
+        # the room less the remover, by person, in the base as in the voices (KP-C)
+        mem, yes = count_persons(P, over, mem, voices(q, P), vot, apart=x["signer"])
     if "receipt_row_policy" in MUT: return met(q.get("policy"), len(yes), len(mem), q.get("need"))
     return room_count(yes, mem)
 
@@ -2754,6 +2768,20 @@ def persons_of(vs, base, P, obj=None):
     return frozenset(x for x in (rep_of(P, v) for v in vs) if x is not None and x in b)
 
 
+def count_persons(P, obj, base, vs, voters=None, apart=None):
+    """The one reading of a count by person (ruled on CIRISConstitution#224): (the base, the voices), the base
+    counted by member (as_persons), the voices mapped to persons and held to the voting base (`voters`, else the
+    base), and a named key set apart BY PERSON from both (`apart`: a lift's author, a receipt's remover), so its own
+    devices are it. Every count reads it: the seat rule's count and lift, the fold, the count's receipt."""
+    b = as_persons(base, P, obj)
+    v = persons_of(vs, base if voters is None else voters, P, obj)
+    if apart is None: return b, v
+    ks = frozenset({apart}) if isinstance(apart, str) else frozenset(apart)
+    if not keys_counted(P, obj) and "apart_by_key" not in MUT:   # MUTATION apart_by_key: only the key itself apart
+        ks = ks | {rep_of(P, k) for k in ks} | {rep_of(P, k, member=True) for k in ks}
+    return b - ks, v - ks
+
+
 def seats_of(rows):
     """The seats over a set of rows, each taken as concluded, kept once built: a head's past is read again by every
     row that names it, and a chain of lone removals reads every earlier one's (the run is polynomial in the chain,
@@ -3128,7 +3156,8 @@ def _count_under(r, P, past, by, table=None):
             new_r = frozenset(r.get("to", ())) - union if k == "offer" else frozenset()
             if pr is None or pr[2] != len(union) + len(new_r) or pr[1] < m: return False
             if not new_r <= voices(r, P): return False
-            return met("P:quorum", len(persons_of(voices(r, P), vot, P, obj)), len(mem), m)
+            b, y = count_persons(P, obj, mem, voices(r, P), vot)
+            return met("P:quorum", len(y), len(b), m)
         # C2 (the ruling on reader_state): for a reader holding two concurrent founders' amendments, a founders' count
         # whose own past holds only one of them reads the founders common to the two: neither line's later count is
         # counted over the keys one line alone seated (MUTATION wait_reader_unread: read over its own past only)
@@ -3167,16 +3196,17 @@ def _count_under(r, P, past, by, table=None):
     if r.get("base_excludes_target"):
         mem, vot = mem - frozenset(r.get("to", ())), vot - frozenset(r.get("to", ()))
     # one member per person, as one voice (ruled on CIRISConstitution#224): the base counted by person (as_persons)
-    mem = as_persons(mem, P, obj)
+    key_mem = mem
+    mem, yes = count_persons(P, obj, key_mem, voices(r, P), vot)
     # a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
     if r.get("no_self_removal") and voices(r, P) - r.get("void_voices", frozenset()) <= frozenset(r.get("to", ())):
         return False
     # the community floor, where a policy row governs alone in place of a protocol that states no rule (the `&` reading)
-    if r.get("floor") is not None and len(persons_of(voices(r, P), vot, P, obj) - frozenset(r.get("to", ()))) < r["floor"]: return False
+    if r.get("floor") is not None and len(yes - frozenset(r.get("to", ()))) < r["floor"]: return False
     if K.rule(table or POLICY, r.get("policy"), ("unknown",))[0] == "ranked":
         # the election's seating (C1 to C5): its electorate read at its election's vacancy, not at a head
         return election_count(r, P, past, by)
-    if r.get("policy") in DUTY_POLICY: return duty_count(r, P, persons_of(voices(r, P), vot, P, obj), mem)
+    if r.get("policy") in DUTY_POLICY: return duty_count(r, P, yes, mem)
     # the recall is told by its act where the binding reads one (act_of: an unseat of a duty counted over the
     # members), by its policy otherwise; Policy::Recall is only the threshold its fixed row maps to
     is_recall = (a[0] == "recall") if a is not None else \
@@ -3185,10 +3215,12 @@ def _count_under(r, P, past, by, table=None):
         # the recall judges one holder: counted over the members less the holder it recalls, and that holder no voice
         # of it, as the lift is counted over the room less the one it judges
         judged = frozenset(r["to"])
-        base = mem if "recall_holder_in_base" in MUT else mem - as_persons(judged, P, obj)
-        yes = persons_of(voices(r, P), vot, P, obj) - (frozenset() if "recall_holder_voice" in MUT else judged)
+        base, yes_j = count_persons(P, obj, key_mem, voices(r, P), vot, apart=judged)
+        if "recall_holder_in_base" in MUT: base = mem
+        if "recall_holder_voice" in MUT: yes_j = yes
+        yes = yes_j
         return met(r.get("policy"), len(yes), len(base), r.get("need"), table)
-    return count_of(r.get("policy"), k == "offer", r.get("to", ()), mem, persons_of(voices(r, P), vot, P, obj), r.get("need"),
+    return count_of(r.get("policy"), k == "offer", r.get("to", ()), mem, yes, r.get("need"),
                     r.get("weights"), table, signed=voices(r, P))
 
 

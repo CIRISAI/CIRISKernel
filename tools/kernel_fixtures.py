@@ -419,6 +419,9 @@ def seat_cases():
     # roster, the lift's author's device, a window over a self roster
     for _name, rows, _rid, _want, rule in KPC.R74_CASES:
         record(rows, A.WIN if rule is not KPC.RULE else A.SEAT)
+    # the review r78k's rows: the fold's lift and the count's receipt by person (seat.count_persons), the roster pinned
+    for _name, rows, _want in KPC.R78K_CASES:
+        record(rows, A.WIN)
     # a key's revocation by its owner (CC 2.4.1.1): the owner's row ends the owner-binding's standing and nothing of
     # the key's. The worlds of check_rosters.py's key instance, under the seat rule, so the crate's `ender` is run.
     rec = ST.offer("rec", "KY", "KY", "registered", "KY", "self")
@@ -707,7 +710,19 @@ def key_person_cases():
            "community_floor": ST.COMMUNITY_FLOOR, "removal_floor": ST.REMOVAL_FLOOR,
            "policy": {k: list(v) for k, v in ST.POLICY.items()},
            "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
-    return {"law": law, "cases": out, "counts": counts}
+    # the opener's own withdrawal (r78k, latent): a table entry of the case's own, its rows and the outcome
+    import window as WN
+    WN.WINDOWS[KP.LATENT] = KP.LATENT_SPEC
+    try:
+        windows = {KP.LATENT: dict(enc(KP.LATENT_SPEC), secs=WN.secs(KP.LATENT))}
+    finally:
+        WN.WINDOWS.pop(KP.LATENT, None)
+    wcases = []
+    for name, rows, outcome in KP.LATENT_CASES:
+        refs = {}
+        assert KP.latent_outcome(rows) == outcome
+        wcases.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "opener": "op", "outcome": outcome})
+    return {"law": law, "cases": out, "counts": counts, "windows": windows, "window_cases": wcases}
 
 
 def key_end_cases():

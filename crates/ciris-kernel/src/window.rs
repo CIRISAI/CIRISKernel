@@ -309,8 +309,12 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
     voters.extend(tv.iter().cloned());
     let opener = pp.voice(&x.opener_signer).unwrap_or_else(|| x.opener_signer.clone());
     let person = |a: &R| -> Option<R::Key> { pp.voice(a.signer()).filter(|p| voters.contains(p)) };
-    // the proposer's withdrawal is its own voice on the opener's clause, and never replaces what it said by opening
-    let is_wd = |a: &&R| person(a).as_ref() == Some(&opener) && a.says().is_some_and(|w| w.as_ref() == "withdraw");
+    // the proposer's withdrawal is its own voice on the opener's clause, and never replaces what it said by opening.
+    // It is the opener's own: its signer read as the opener is (its person, or, a key of no person, the key itself
+    // as no person), whether or not that person is a voter
+    let own = |k: &R::Key| -> Result<R::Key, R::Key> { pp.voice(k).ok_or_else(|| k.clone()) };
+    let opener_own = own(&x.opener_signer);
+    let is_wd = |a: &&R| own(a.signer()) == opener_own && a.says().is_some_and(|w| w.as_ref() == "withdraw");
     let withdrawn = answers.iter().any(is_wd);
     // a duty holder's single-signature answer (a value an at-once clause reads as one voice over a named scope,
     // said by a holder of that scope) is what that key said: a vote the same key also cast is moot

@@ -23,6 +23,14 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     agent_speaks          an agent's key that is also a key of a person's roster speaks for that person (KP5)
     lift_author_device    the lift leaves out only the remover's own key, not its devices (KP1)
     genesis_unread        each roster a person: two rosters of one genesis key make a key of two persons (K7)
+    fold_lift_by_key      the fold's lift reads its objections by key over the persons: a device's objection lost (KP-A)
+    fold_author_by_key    the fold's lift takes the author out by key before the person map: the author's member
+                          device brings the author back into the base (KP-B)
+    remover_counted_over  the count's receipt keeps the remover's person in its base (KP-C)
+    opener_withdrawal_voter  the opener's own withdrawal needs a person: a revoked opener withdraws nothing (r78k)
+    apart_by_key          a named key set apart by key only: a device-held duty's person votes on its recall (r78k)
+Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
+the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
     python3 -I check_key_person.py      exit 1 on any difference
 """
@@ -123,6 +131,13 @@ def admit_z(signers, extra=()):
 
 
 # (name, rows, row asked, concludes)
+# the recall's holder apart by person (r78k: one reading of every count): A's device a2 holds moderate; A, B and C
+# recall it; A is the holder, no voice of its own recall, so B and C are two of the three others: no recall
+SA, AA2 = found("SA", "A"), add("aa2", "SA", "a2", ("A",), ("SA",))
+FHD = ST.found("g", "A", ("A", "B", "C", "D", "a2"), {"moderate": ("a2",)}, cosigners=("B", "C", "D", "a2"), names=("aa2",))
+def recall_a2(signers):
+    return ST.unseat("r", signers[0], "a2", "moderate", "g", "group", ("g",), head=("g",), policy="moderator_recall",
+                     cosigners=tuple(signers[1:]))
 COUNT_CASES = [
     ("three persons sign the admission: met", BASE + [admit_z(("p1", "p2", "p3"))], "az", True),
     ("two keys of one person and one other: two voices, not met", BASE + [admit_z(("p1", "p1b", "p2"))], "az", False),
@@ -131,6 +146,9 @@ COUNT_CASES = [
     ("a key seated in two rosters of two different genesis keys (p1's and p2's) has no person and is no voice: not met", BASE + [X1B, admit_z(("p1b", "p2", "p3"), ("x1b",))],
      "az", False),
     ("a self roster's own count stays a count of keys: two keys of S1 add a third", BASE + [P1C], "a1c", True),
+    ("the recall's holder apart by person: A's device a2 holds moderate, and A, B and C recall it; A is no voice, two "
+     "of three others", [SA, AA2, FHD, recall_a2(("A", "B", "C"))], "r", False),
+    ("and B, C and D recall it: three of three others", [SA, AA2, FHD, recall_a2(("B", "C", "D"))], "r", True),
 ]
 
 
@@ -236,8 +254,79 @@ R74_CASES += [
 ]
 
 
+# the review r78k: one reading of a count by person (seat.count_persons) at every count. The world: six founding
+# members m1 to m4 (moderators), q and q2; m1's device m1b admitted as a member too; m2's device m2b no member; the
+# agent's key AG; m1's lone removal x of AG; the members' lift rs on objections. A counted admission az concurrent
+# with rs makes two tips over g, so the roster is the fold's (Seats.tips_fold), and the fold reads the lift.
+import check_room_keys as CRK
+import check_removal_in_force as CRF
+G6 = ST.found("g", "m1", ("m1", "m2", "m3", "m4", "q", "q2"), {"moderate": ("m1", "m2", "m3", "m4")},
+              cosigners=("m2", "m3", "m4", "q", "q2"))
+SM1, SM2 = found("Sm1", "m1"), found("Sm2", "m2")
+AM2B = add("am2b", "Sm2", "m2b", ("m2",), ("Sm2",))
+LW = [G6, SM1, AM1B, SM2, AM2B, dict(CRK.admit("ab", "m1b", ("m1", "m2", "m3", "m4"), ("g",)), names=("g", "am1b")),
+      CRK.admit("ag", "AG", ("m1", "m2", "m3", "m4"), ("ab",), "agent"), CRK.lone("x", "m1", "AG", ("ag",))]
+AZ = CRK.admit("az", "z", ("m1", "m2", "m3", "m4"), ("x",))
+def lifted(objectors, tip=True):
+    os_ = [WN.answer("o_" + k, k, "x", "object", ("x", "am2b")) for k in objectors]
+    return LW + os_ + [CRK.lift("rs", "m2", "AG", "x", ("x",), tuple(o["id"] for o in os_))] + ([AZ] if tip else [])
+# the count's receipt (CRF's R5): four persons p1 to p4, p1 the one moderator; p1's device p1b admitted as a member;
+# p1 removes AG alone and lays moderate down, so the removal stays in force only by the count's receipt
+G4 = ST.found("g", "p1", ("p1", "p2", "p3", "p4"), {"moderate": ("p1",)}, cosigners=("p2", "p3", "p4"))
+R5D = [G4, SP[1], P1B, dict(CRF.admit("ab", "p1b", ("p1", "p2", "p3"), ("g",)), names=("g", "a1b")),
+       CRF.admit("ag", "AG", ("p1", "p2", "p3", "p4"), ("ab",), "agent"), CRF.lone("x", "p1", "AG", ("ag",))]
+def receipted(signers):
+    return R5D + [CRF.counted_receipt("qc", signers, "x", ("x",)), ST.withdraw("wm", "p1", "g", ("x",), scope="moderate")]
+# (name, rows, whether AG holds its agent seat over g)
+R78K_CASES = [
+    ("KP-A: the fold's lift maps its objections first: m2's device m2b objects for m2; three of the five others, AG re-seated",
+     lifted(("m2b", "m3", "m4")), True),
+    ("KP-B: the fold's lift takes the author out by person: m1's device m1b, a member, is m1; three of five, AG re-seated",
+     lifted(("m2", "m3", "m4")), True),
+    ("the seat rule's lift, one tip: the same three of five", lifted(("m2", "m3", "m4"), False), True),
+    ("the author's device is the author: m1b's objection is no voice; two of five, AG stays removed",
+     lifted(("m1b", "m3", "m4")), False),
+    ("KP-C: the count's receipt takes the remover out by person: p1b, a member, is p1; p2 and p3 are two of three, "
+     "the removal stands", receipted(("p2", "p3")), False),
+    ("KP-C: the remover's device is no voice of the receipt: p1b and p2 are one of three, AG back",
+     receipted(("p1b", "p2")), True),
+]
+
+
+def ag_held(rows):
+    return "AG" in ST.Seats(CK.concluded(CK.kept(list(rows)), RULE_W)).holders("agent", "g")
+
+
+# the opener's own withdrawal (r78k, latent: no window of the table reads it over persons): a table that reads the
+# opener's withdrawal over a member count, with its own entry. A key of no person (one that revoked itself) that
+# opened the window withdraws it as itself, with no voter needed.
+LATENT = "kp:opener_withdraws"
+LATENT_SPEC = {"policy": "moderation_action", "counted": "member", "concluder": "member", "opener_says": None,
+               "at_once": (("withdraw", "one", "opener", "refused"), ("object", ("more", 1, 2, 2), "others", "refused")),
+               "silent": None, "at_close": (), "default": "landed"}
+LWB = [r for r in WBASE if r["id"] != "op"] + [WN.opener("op", "p1", LATENT, "gc", ("gc",))]
+LREC = ST.offer("rec", "p1", "p1", "registered", "p1", "self", ("op",))
+LRV = ST.unseat("rv", "p1", "p1", "registered", "p1", "self", ("rec",))
+LATENT_CASES = [
+    ("the opener withdraws its own proposal: refused", LWB + [WN.answer("w", "p1", "op", "withdraw", ("op",))], "refused"),
+    ("the opener revoked its key, a key of no person, and withdraws: still the opener's own, refused",
+     LWB + [LREC, LRV, WN.answer("w", "p1", "op", "withdraw", ("op", "rv"))], "refused"),
+    ("another member's withdrawal is none", LWB + [WN.answer("w", "p2", "op", "withdraw", ("op",))], "open"),
+]
+
+
+def latent_outcome(rows):
+    WN.WINDOWS[LATENT] = LATENT_SPEC
+    try:
+        return window_outcome(rows)
+    finally:
+        WN.WINDOWS.pop(LATENT, None)
+
+
 PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_unread", "concurrent_eviction_unread",
-          "persons_unread", "base_by_key", "revoked_voice_kept", "agent_speaks", "lift_author_device", "genesis_unread")
+          "persons_unread", "base_by_key", "revoked_voice_kept", "agent_speaks", "lift_author_device", "genesis_unread",
+          "fold_lift_by_key", "fold_author_by_key", "remover_counted_over", "opener_withdrawal_voter",
+          "apart_by_key")
 
 
 def answer(rows, k):
@@ -292,6 +381,19 @@ def main():
         got = concludes(rows, rid)
         if got != want:
             problems.append("%s: got %r, expected %r" % (name, got, want))
+    for name, rows, want in R78K_CASES:
+        got = ag_held(rows)
+        if got != want:
+            problems.append("%s: got %r, expected %r" % (name, got, want))
+        for o in orders(rows)[:21]:
+            n += 1
+            if ("AG" in ST.Seats(CK.arrive(o, RULE_W)).holders("agent", "g")) != got:
+                problems.append("%s: order %s differs" % (name, [r["id"] for r in o]))
+                break
+    for name, rows, want in LATENT_CASES:
+        got = latent_outcome(rows)
+        if got != want:
+            problems.append("%s: got %r, expected %r" % (name, got, want))
     caught = 0
     for plant in PLANTS:
         ST.MUT.add(plant)
@@ -300,7 +402,9 @@ def main():
                   [c[0] for c in COUNT_CASES if concludes(c[1], c[2]) != c[3]] + \
                   [c[0] for c in WINDOW_CASES if window_outcome(c[1]) != c[2]] + \
                   [c[0] for c in BALLOT_CASES if concludes(c[1], c[2]) != c[3]] + \
-                  [c[0] for c in R74_CASES if bool(CK.concluded(CK.kept(list(c[1])), c[4]).C.get(c[2])) != c[3]]
+                  [c[0] for c in R74_CASES if bool(CK.concluded(CK.kept(list(c[1])), c[4]).C.get(c[2])) != c[3]] + \
+                  [c[0] for c in R78K_CASES if ag_held(c[1]) != c[2]] + \
+                  [c[0] for c in LATENT_CASES if latent_outcome(c[1]) != c[2]]
         finally:
             ST.MUT.discard(plant)
         caught += bool(hit)
@@ -310,10 +414,12 @@ def main():
     for p in problems:
         print(p)
     print("RESULT: %s: %d cases (%d of a key's person, %d of a count over persons, %d of a window's answers, %d of "
-          "ballots, %d of the review r74), %d arrival orders, %d of %d planted breaks caught"
+          "ballots, %d of the review r74, %d of the review r78k, %d of the opener's withdrawal), %d arrival orders, "
+          "%d of %d planted breaks caught"
           % ("ok" if not problems else "%d problems" % len(problems),
-             len(CASES) + len(COUNT_CASES) + len(WINDOW_CASES) + len(BALLOT_CASES) + len(R74_CASES), len(CASES),
-             len(COUNT_CASES), len(WINDOW_CASES), len(BALLOT_CASES), len(R74_CASES), n, caught, len(PLANTS)))
+             len(CASES) + len(COUNT_CASES) + len(WINDOW_CASES) + len(BALLOT_CASES) + len(R74_CASES) + len(R78K_CASES)
+             + len(LATENT_CASES), len(CASES), len(COUNT_CASES), len(WINDOW_CASES), len(BALLOT_CASES), len(R74_CASES),
+             len(R78K_CASES), len(LATENT_CASES), n, caught, len(PLANTS)))
     return 1 if problems else 0
 
 

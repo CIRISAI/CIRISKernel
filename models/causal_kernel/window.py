@@ -229,7 +229,11 @@ def table_outcome(spec, p, answers, inside, base, elapsed):
         answers = [dict(a, signer=rep(a["signer"])) for a in answers]
         p = dict(p, signer=rep(p["signer"]))
         tv = {rep(t) for t in tv}
-    withdrawn = any(a["signer"] == p["signer"] and a["says"] == "withdraw" for a in answers)
+    # the opener's own withdrawal: its signer read as the opener is, a key of no person as itself (no voter needed;
+    # MUTATION opener_withdrawal_voter: a key of no person withdraws nothing)
+    own = (lambda k: not (isinstance(k, tuple) and k[:1] == (("no person",),))) if "opener_withdrawal_voter" in ST.MUT \
+        else (lambda k: True)
+    withdrawn = any(a["signer"] == p["signer"] and own(a["signer"]) and a["says"] == "withdraw" for a in answers)
     heard = [a for a in answers if a["signer"] in base("all") | base.raw("moderate") | tv
              and not (a["signer"] == p["signer"] and a["says"] == "withdraw")]
     # a duty holder's single-signature answer is what that key said: its vote is moot
