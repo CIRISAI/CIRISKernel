@@ -62,7 +62,8 @@ on, the thief's revocation: a removal that has another removal in its past inher
 nothing and take its unnamed rows out for every reader that had not taken them up; rows the reader acknowledged
 stand for it, and nothing else anchors a row: another key's reply or cite cannot be told from one signed after the
 revocation that leaves it unnamed (review r83), so it keeps nothing.
-Give `audience`'s `person(key)` as the person's current, concluded key roster (the key-person lane's
+A row of a `follows` family (custody, duty, stream:head, once the table states it) gives the row it
+follows through `AudienceRow::follows`, a row it names, and is placed at that row's scope. Give `audience`'s `person(key)` as the person's current, concluded key roster (the key-person lane's
 `seat::Persons`, once merged): an evicted or revoked key leaves the person, and its rows carry none of the
 person's self or addressed rows. Decode `history_on_join` with `audience::History::from_word`: a
 word it does not know is absent. Served is not readable: the audience is who may be served a row, not who holds its key. A later

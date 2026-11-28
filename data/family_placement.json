@@ -116,7 +116,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "accord:human_dignity",
@@ -127,7 +129,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "accord:invoke:constitutional:{halt_id}",
@@ -138,7 +142,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "accord:invoke:drill:{drill_id}",
@@ -149,7 +155,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "accord:invoke:notify:{notify_id}",
@@ -160,7 +168,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "accord:lifecycle",
@@ -171,7 +181,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "accord:lifecycle:{kind}",
@@ -182,7 +194,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "act:ack",
@@ -193,7 +207,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "activity_tier:{period}",
@@ -204,7 +220,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "admission:unit",
@@ -215,7 +233,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "age_assurance:{level}:{band}:{version}",
@@ -226,7 +246,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "age_self_declared:band:{band}:{version}",
@@ -237,7 +259,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "agent_files:{kind}:{platform_or_target}",
@@ -248,7 +272,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "approach:{goal_id}",
@@ -259,13 +285,17 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "archive_release:{basis}",
    "allowed": null,
    "undecided": "code-v61: none (held shut: never stored)",
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "attestation:agent_integrity",
@@ -276,7 +306,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "attestation:hardware_rooted",
@@ -287,7 +319,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "attestation:license_validity",
@@ -298,7 +332,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "attestation:registry_consensus",
@@ -306,7 +342,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "attestation:self_verify",
@@ -317,7 +355,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "audio:*",
@@ -328,7 +368,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "audit_chain:hash_continuity",
@@ -339,7 +381,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "autonomy:{aspect}",
@@ -350,7 +394,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ballot:moderation_action",
@@ -358,7 +404,9 @@
     "targeted_room"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ballot:moderator",
@@ -366,7 +414,9 @@
     "targeted_room"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ballot:moderator_acceptance",
@@ -374,7 +424,9 @@
     "targeted_room"
    ],
    "undecided": null,
-   "seat": "duty"
+   "seat": "duty",
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ballot:tally:{poll_id}",
@@ -382,7 +434,9 @@
     "targeted_room"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "benchmark:he300:{category}:{version}",
@@ -393,7 +447,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "beneficence:{aspect}",
@@ -404,7 +460,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "blog:*",
@@ -415,7 +473,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "bond_posted:{currency}",
@@ -426,7 +486,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "build:registered:{target}",
@@ -437,7 +499,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "capacity:composite",
@@ -448,7 +512,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "capacity:relay_delivery",
@@ -459,7 +525,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "capacity:{factor}",
@@ -470,7 +538,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "capacity_assurance:reversible_excluded:{domain}:{version}",
@@ -481,7 +551,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "capacity_assurance:reversible_pending:{domain}:{version}",
@@ -492,7 +564,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "capacity_assurance:{level}:{domain}:{band}:{version}",
@@ -503,7 +577,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "census:composite:{class}",
@@ -511,7 +587,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "census:expected_active",
@@ -519,7 +597,9 @@
     "targeted_room"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "census:member:partial",
@@ -527,7 +607,9 @@
     "targeted_room"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "census:member:share",
@@ -535,7 +617,9 @@
     "addressed"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "census:partial:{class}",
@@ -543,7 +627,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "census:share:{class}",
@@ -551,7 +637,9 @@
     "addressed"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "cert_validity:{authority}",
@@ -562,7 +650,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "chat:*",
@@ -573,7 +663,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "coherence_standing:{cohort}",
@@ -584,7 +676,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "collection:{kind}",
@@ -595,7 +689,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "commitment_fulfillment:{prior_contribution_id}",
@@ -606,13 +702,17 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "community:listing",
    "allowed": null,
    "undecided": "code-v61: commons (public_room.rs:229, listing_not_federation)",
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "config:{scope}",
@@ -623,7 +723,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "conscience:coherence",
@@ -634,7 +736,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "conscience:entropy",
@@ -645,7 +749,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "conscience:epistemic_humility",
@@ -656,7 +762,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "conscience:optimization_veto",
@@ -667,7 +775,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "consent:community_trust",
@@ -678,7 +788,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "consent:decay:{stage}",
@@ -689,7 +801,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "consent:deletion_complete",
@@ -700,7 +814,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "consent:deletion_sla:{days}",
@@ -711,7 +827,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "consent:partnership_accept",
@@ -722,7 +840,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "consent:partnership_grant",
@@ -733,7 +853,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "consent:replication:{version}",
@@ -744,7 +866,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "consent:scope:{kind}",
@@ -755,7 +879,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "consent:state:{stance}",
@@ -766,7 +892,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "consent:stream:{kind}",
@@ -777,7 +905,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "consent:{kind}",
@@ -788,7 +918,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "content_class:{class}",
@@ -799,7 +931,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "content_rating:{scheme}:{rating}",
@@ -810,7 +944,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "contribution:{subject_kind}",
@@ -818,7 +954,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "corpus_health:n_eff_measurable",
@@ -829,7 +967,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "credits:{domain}:{language}:{subject}",
@@ -840,13 +980,17 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "custody:{kind}",
    "allowed": null,
    "undecided": "prose: the blob's held claim scope (holding_claim::check_holding_claim_scope)",
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "cw_class:{class}",
@@ -857,7 +1001,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "deferral:request",
@@ -867,7 +1013,9 @@
     "targeted_room"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "deferral:response:{outcome}",
@@ -878,7 +1026,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "delivery:{class}",
@@ -889,7 +1039,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "delivery_ack:{stream_id}",
@@ -900,7 +1052,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "detection:correlated_action:{axis}",
@@ -911,7 +1065,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "detection:distributive:access:{resource_type}",
@@ -922,7 +1078,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "detection:hash_chain_integrity",
@@ -933,7 +1091,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "detection:intra_agent_consistency",
@@ -944,7 +1104,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "detection:{detector}",
@@ -955,7 +1117,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "device:label",
@@ -963,7 +1127,9 @@
     "self_collective"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "dma:csdma:*",
@@ -974,7 +1140,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "dma:dsdma:{domain}:*",
@@ -985,7 +1153,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "dma:idma:*",
@@ -996,7 +1166,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "dma:pdma:*",
@@ -1007,13 +1179,17 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "duty:{kind}",
    "allowed": null,
    "undecided": "prose: never wider than the referenced permission's projection",
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "encyclopedia:*",
@@ -1024,7 +1200,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "event:attendance",
@@ -1035,7 +1213,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "event:lifecycle:{state}",
@@ -1046,7 +1226,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "event:rsvp_count",
@@ -1057,7 +1239,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "evidence:{suite}:{kind}:{cell}:{prefix}",
@@ -1065,7 +1249,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "expertise:{domain}:{language}",
@@ -1076,7 +1262,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "federation_directory:replication_lag",
@@ -1087,7 +1275,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "fidelity:explainability_sla:{tier}",
@@ -1098,7 +1288,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "fidelity:{aspect}",
@@ -1109,7 +1301,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "file:{version}",
@@ -1120,7 +1314,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "film:*",
@@ -1131,7 +1327,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "goal:{scale}",
@@ -1142,13 +1340,17 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "group:roster",
    "allowed": null,
    "undecided": "code-v61: ['targeted_family', 'targeted_room (cohort_scope family|community + group_kind)']",
-   "seat": "roster"
+   "seat": "roster",
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "hard_case:{kind}",
@@ -1159,7 +1361,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "hardware_custody:{platform}",
@@ -1170,7 +1374,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "health:liveness:{version}",
@@ -1181,7 +1387,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "holon:claim",
@@ -1189,7 +1397,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "identity:canonical_binding:{canonical_hash}",
@@ -1200,7 +1410,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "identity:occurrence",
@@ -1212,7 +1424,9 @@
     "addressed"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "identity:occurrence_revocation",
@@ -1224,7 +1438,9 @@
     "addressed"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "identity_amendment",
@@ -1235,7 +1451,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "identity_continuity:relational_anchor",
@@ -1246,7 +1464,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "image:*",
@@ -1257,7 +1477,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "integrity:{aspect}",
@@ -1268,7 +1490,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "judge_model:verdict:{model_id}",
@@ -1279,7 +1503,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "justice:{aspect}",
@@ -1290,7 +1516,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "key:record",
@@ -1299,7 +1527,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "key:revocation",
@@ -1308,7 +1538,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "key_boundary:{scope}",
@@ -1319,7 +1551,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "key_grant:{axis}",
@@ -1329,13 +1563,17 @@
     "targeted_room"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "lawful_order:release",
    "allowed": null,
    "undecided": "code-v61: none (held shut: never stored)",
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ledger:checkpoint:{unit}:{version}",
@@ -1346,7 +1584,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ledger:head:{unit}:{version}",
@@ -1357,7 +1597,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ledger:promotion:{version}",
@@ -1368,7 +1610,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "licensure:{authority_id}",
@@ -1379,7 +1623,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "locality:decision:{scale}",
@@ -1390,7 +1636,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "location_proof:{version}",
@@ -1399,7 +1647,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "manifold_conformity:{cohort}",
@@ -1410,13 +1660,17 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "membership:{stage}",
    "allowed": null,
    "undecided": "code-v61: ['targeted_family', 'targeted_room (at the group)']",
-   "seat": "roster"
+   "seat": "roster",
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "mesh_config:{key}",
@@ -1427,7 +1681,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "method:{approach_id}:{substrate_rung}",
@@ -1438,7 +1694,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "mls:leaf_vouch",
@@ -1447,7 +1705,9 @@
     "targeted_room"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "model_3d:*",
@@ -1458,7 +1718,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "moderation:{allegation_type}",
@@ -1469,7 +1731,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "moderation_track_record:{community_key_id}",
@@ -1480,7 +1744,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "multilateral_participation:{forum}:{kind}",
@@ -1491,7 +1757,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "need:{domain}:{kind}",
@@ -1499,7 +1767,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "news:*",
@@ -1510,7 +1780,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "non_maleficence:{aspect}",
@@ -1521,7 +1793,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "objection:{state}",
@@ -1532,7 +1806,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "observation:access_assumption",
@@ -1543,7 +1819,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "observation:reachability",
@@ -1554,13 +1832,17 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ownership:{relation}:{target_kind}:{version}",
    "allowed": null,
    "undecided": "prose: affiliation named must admit the owner",
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "partner_role:{role}",
@@ -1571,7 +1853,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "peer_reachability:{network}",
@@ -1582,19 +1866,25 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "preserve_request",
    "allowed": null,
    "undecided": "code-v61: none (held shut: never stored)",
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "preserve_response",
    "allowed": null,
    "undecided": "code-v61: none (held shut: never stored)",
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "progress_measure:{method_id}",
@@ -1605,7 +1895,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "prohibited:{category}",
@@ -1616,7 +1908,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "provenance:build_manifest:{target}",
@@ -1624,7 +1918,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "provenance:build_manifest:{target}:locale:{lang_code}",
@@ -1635,7 +1931,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "provenance:skill_import:{source}",
@@ -1646,7 +1944,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "provenance:slsa:{level}",
@@ -1657,7 +1957,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "quarantine:{state}",
@@ -1668,7 +1970,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ratchet:flag:coordinated_voting_cluster",
@@ -1679,7 +1983,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ratchet:flag:counter_rii:{layer}",
@@ -1690,7 +1996,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ratchet:flag:density_anomaly",
@@ -1701,7 +2009,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ratchet:flag:expertise_attestation_anomaly",
@@ -1712,7 +2022,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ratchet:flag:harassment_pattern",
@@ -1723,7 +2035,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "ratchet:flag:out_of_distribution_voting",
@@ -1734,7 +2048,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "reconsideration:{grounds}",
@@ -1745,7 +2061,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "regard:{subject_kind}",
@@ -1756,7 +2074,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "regime:{artifact}:{version}",
@@ -1767,7 +2087,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "rendezvous:route",
@@ -1775,13 +2097,17 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "retirement:{state}",
    "allowed": null,
    "undecided": "code-v61: none (held shut: never stored)",
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "revocation:{entity_type}:{reason}",
@@ -1792,7 +2118,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "rollback_detected:{revision_field}",
@@ -1803,7 +2131,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "seed_holder_voting_alignment:{cell}",
@@ -1814,7 +2144,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "self:delegates_to",
@@ -1825,7 +2157,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "self:delegates_to:agent_occurrence",
@@ -1836,7 +2170,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "session:{kind}",
@@ -1847,7 +2183,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "settlement:*",
@@ -1858,7 +2196,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "slashing:{outcome}",
@@ -1869,13 +2209,17 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "stream:head",
    "allowed": null,
    "undecided": "gap: no placement",
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "system:*",
@@ -1886,7 +2230,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "takedown_notice:{basis}",
@@ -1897,7 +2243,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "testimonial_witness:{kind}",
@@ -1905,7 +2253,9 @@
     "self_collective"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "topical_relation:{kind}",
@@ -1916,7 +2266,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "trace:{form}:{version}",
@@ -1927,7 +2279,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "trace_summary:{kind}",
@@ -1938,7 +2292,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "transport:canonical_rebind",
@@ -1949,7 +2305,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "transport:{kind}",
@@ -1960,7 +2318,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "trust:{job}:{version}",
@@ -1971,7 +2331,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "truth_grounding:{subject}",
@@ -1982,7 +2344,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "video:*",
@@ -1993,7 +2357,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "vote:{contribution_id}",
@@ -2004,7 +2370,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "wa_adjudication:{state}",
@@ -2015,7 +2383,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "watchlist:{id}",
@@ -2023,7 +2393,9 @@
     "targeted_room"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "weighted_aggregate:{contribution_id}",
@@ -2034,7 +2406,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "window:{state}",
@@ -2044,7 +2418,9 @@
     "targeted_room"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   },
   {
    "family": "witness_diversity:{contribution_id}",
@@ -2055,7 +2431,9 @@
     "commons"
    ],
    "undecided": null,
-   "seat": false
+   "seat": false,
+   "follows": null,
+   "follows_text": null
   }
  ]
 }

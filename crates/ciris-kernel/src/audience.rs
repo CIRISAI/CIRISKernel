@@ -42,7 +42,17 @@ use alloc::vec::Vec;
 #[rustfmt::skip]
 #[path = "audience_table.rs"]
 mod table;
-pub use table::{DUTY_SEAT_FAMILIES, FAMILIES, FAMILY_MODEL_SHA256, SCOPES, SEAT_FAMILIES};
+pub use table::{DUTY_SEAT_FAMILIES, FAMILIES, FAMILY_MODEL_SHA256, FOLLOWS, SCOPES, SEAT_FAMILIES};
+
+/// How a row of a `follows` family is placed against the row it follows ([`FOLLOWS`], [`follow`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Follows {
+    /// At the followed row's own scope: its placement and audience (the content a custody row holds, the stream a
+    /// head heads).
+    Same,
+    /// At that scope or narrower: an audience within the followed row's (a duty on the permission it attaches to).
+    Narrower,
+}
 
 /// The key grant family's pattern: a row that resolves to it is never carried.
 pub const KEY_GRANT: &str = "key_grant:{axis}";
@@ -149,6 +159,16 @@ pub enum Refusal {
     NoRoom,
     /// Two family patterns tie on the row's family.
     FamilyAmbiguous,
+    /// A row of a `follows` family names no row it follows.
+    FollowsNotNamed,
+    /// The row it follows is not held.
+    FollowsNotHeld,
+    /// The row it follows is refused or undecided.
+    FollowsUnplaced,
+    /// It is not at the scope of the row it follows.
+    FollowsMismatch,
+    /// Its audience is wider than the row it follows.
+    FollowsWider,
 }
 
 impl Refusal {
@@ -161,6 +181,11 @@ impl Refusal {
             Refusal::NamedOutsideAudience => "named_outside_audience",
             Refusal::NoRoom => "no_room",
             Refusal::FamilyAmbiguous => "family_ambiguous",
+            Refusal::FollowsNotNamed => "follows_not_named",
+            Refusal::FollowsNotHeld => "follows_not_held",
+            Refusal::FollowsUnplaced => "follows_unplaced",
+            Refusal::FollowsMismatch => "follows_mismatch",
+            Refusal::FollowsWider => "follows_wider",
         }
     }
 }
@@ -249,6 +274,10 @@ pub trait AudienceRow {
     }
     /// The row concludes.
     fn concluded(&self) -> bool;
+    /// On a row of a `follows` family: the row it follows (a row it names).
+    fn follows(&self) -> Option<&Self::Id> {
+        None
+    }
     /// The row's own `history_on_join` (set per stream by its producer, CC 2.1), where it states one. A word the
     /// caller does not know ([`History::from_word`] gives none) is absent: the door refuses it.
     fn history_on_join(&self) -> Option<History> {
@@ -447,7 +476,40 @@ pub fn carried<R: AudienceRow>(
     }
 }
 
-/// Every row's answer, the copy rule applied ([`carried`]): a placed row's audience grows by the keys every
+// audience a is within audience b
+fn within<K: Ord>(a: &Audience<K>, b: &Audience<K>) -> bool {
+    match (a, b) {
+        (_, Audience::Everyone) => true,
+        (Audience::Everyone, Audience::Keys(_)) => false,
+        (Audience::Keys(a), Audience::Keys(b)) => a.is_subset(b),
+    }
+}
+
+/// A row of a `follows` family placed at the scope of the row it follows: its own answer where `rule` holds against
+/// the followed row's answer, else the refusal. `named` is whether the row names a row it follows; `followed` that
+/// row's answer, `None` where it is not held.
+pub fn follow<K: Ord + Clone>(named: bool, own: Placed<K>, followed: Option<&Placed<K>>, rule: Follows) -> Placed<K> {
+    let Placed::Placed(p, a) = &own else { return own };
+    if !named {
+        return Placed::Refused(Refusal::FollowsNotNamed);
+    }
+    let Some(f) = followed else { return Placed::Refused(Refusal::FollowsNotHeld) };
+    let Placed::Placed(fp, fa) = f else { return Placed::Refused(Refusal::FollowsUnplaced) };
+    match rule {
+        Follows::Same if p == fp && a == fa => own,
+        Follows::Same => Placed::Refused(Refusal::FollowsMismatch),
+        Follows::Narrower if within(a, fa) => own,
+        Follows::Narrower => Placed::Refused(Refusal::FollowsWider),
+    }
+}
+
+// the follows rule of the row's family, where it has one
+fn follows_rule(family: &str) -> Option<Follows> {
+    let f = family_of(family)?;
+    FOLLOWS.iter().find(|(p, _)| *p == f.0).map(|(_, r)| *r)
+}
+
+/// Every row's answer, the follows rule ([`follow`]) and then the copy rule applied ([`carried`]): a placed row's audience grows by the keys every
 /// concluded placed row naming it carries it to; the least fixed point, which only grows. The consequence: a
 /// joiner may hold the room's whole named reply chain, as ciphertext it cannot read.
 pub fn audiences<R: AudienceRow>(
@@ -459,6 +521,30 @@ pub fn audiences<R: AudienceRow>(
     let mut out: BTreeMap<R::Id, Placed<R::Key>> =
         rows.iter().map(|r| (r.id().clone(), place(*r, roster, person, joins))).collect();
     let by: BTreeMap<&R::Id, &R> = rows.iter().map(|r| (r.id(), *r)).collect();
+    // follows, along chains of followers: each against its followed row's answer once that one is settled; a cycle
+    // of followers places none
+    let mut waiting: Vec<(&R, Follows)> = rows
+        .iter()
+        .filter(|r| matches!(out.get(r.id()), Some(Placed::Placed(..))))
+        .filter_map(|r| follows_rule(r.family()).map(|f| (*r, f)))
+        .collect();
+    while !waiting.is_empty() {
+        let pending: BTreeSet<&R::Id> = waiting.iter().map(|(r, _)| r.id()).collect();
+        let (ready, rest): (Vec<_>, Vec<_>) =
+            waiting.into_iter().partition(|(r, _)| r.follows().is_none_or(|f| !pending.contains(f)));
+        if ready.is_empty() {
+            for (r, _) in &rest {
+                out.insert(r.id().clone(), Placed::Refused(Refusal::FollowsUnplaced));
+            }
+            break;
+        }
+        for (r, rule) in ready {
+            let own = out.get(r.id()).cloned().expect("placed");
+            let followed = r.follows().and_then(|f| out.get(f)).cloned();
+            out.insert(r.id().clone(), follow(r.follows().is_some(), own, followed.as_ref(), rule));
+        }
+        waiting = rest;
+    }
     loop {
         let mut changed = false;
         for d in rows.iter() {

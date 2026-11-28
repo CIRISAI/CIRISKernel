@@ -317,7 +317,7 @@ PLANTS = [(("undecided_defaulted",), "undecided_family"), (("pinned_unread",), "
           (("seats_person_level",), "seats_not_person_level"),
           (("named_within_current",), "named_at_own_head"),
           (("history_unread",), "history"), (("word_read",), "history"),
-          (("tie_first",), "ties")]
+          (("tie_first",), "ties"), (("follows_unread",), "follow")]
 
 
 def generated():
@@ -381,6 +381,66 @@ def check_derivation():
     return problems
 
 
+# follow, the rule of a `follows` family, over answers stated directly (it reads no table, so it runs at every pin):
+# (does the row name the row it follows, the row's own answer, the followed row's answer or None, rule, the result)
+RM = ("placed", "targeted_room", frozenset("abc"))
+FOLLOW = [
+    (True, RM, RM, "same", RM),
+    (True, RM, ("placed", "targeted_family", frozenset("abc")), "same", ("refused", "follows_mismatch")),
+    (True, RM, ("placed", "targeted_room", frozenset("ae")), "same", ("refused", "follows_mismatch")),
+    (True, ("placed", "self_collective", frozenset({"a", "a2"})), ("placed", "targeted_room", frozenset({"a", "a2", "b", "c"})),
+     "narrower", ("placed", "self_collective", frozenset({"a", "a2"}))),
+    (True, ("placed", "commons", AU.EVERYONE), RM, "narrower", ("refused", "follows_wider")),
+    (True, RM, ("placed", "commons", AU.EVERYONE), "narrower", RM),
+    (True, RM, ("refused", "named_outside_audience"), "same", ("refused", "follows_unplaced")),
+    (True, RM, None, "same", ("refused", "follows_not_held")),
+    (False, RM, RM, "same", ("refused", "follows_not_named")),
+    (True, ("refused", "no_room"), RM, "same", ("refused", "no_room")),
+]
+
+
+def check_follow():
+    problems = []
+    for named, own, fol, rule, want in FOLLOW:
+        r = row("f", "custody:blob", "community", room="r1")
+        if named:
+            r["follows"] = "t"
+        got = AU.follow(r, own, fol, rule)
+        if got != want:
+            problems.append("follow: %s %s against %s gives %s, want %s" % (rule, own, fol, got, want))
+    return problems
+
+
+# a follows family placed at the scope of the row it follows (the next table states custody, duty and stream:head
+# with `follows`): these run once the pinned table carries the marker
+FOLLOWS_CASES = [
+    ("custody_follows_its_content", "a custody row of a blob in r1 follows the blob's own scope: placed with it",
+     [row("b", "file:blob", "community", room="r1"),
+      dict(row("c", "custody:blob", "community", room="r1", names=["b"]), follows="b")],
+     {"b": P("targeted_room", ROOM), "c": P("targeted_room", ROOM)}),
+    ("custody_wider_than_its_content", "a custody row at the commons of a blob placed in r1: refused",
+     [row("b", "file:blob", "community", room="r1"),
+      dict(row("c", "custody:blob", "federation", names=["b"]), follows="b")],
+     {"b": P("targeted_room", ROOM), "c": REF("follows_mismatch")}),
+    ("duty_within_its_permission", "a duty at the family r1 on a permission placed in room r1: its audience is "
+     "within the permission's, placed",
+     [row("p", "consent:scope:read", "community", room="r1"),
+      dict(row("d", "duty:keep", "family", room="r1", names=["p"]), follows="p")],
+     {"p": P("targeted_room", ROOM), "d": P("targeted_family", ROOM)}),
+    ("duty_at_self_wider_than_its_permission", "a duty at self on a permission in r1: a's own keys include a2, "
+     "off r1's roster, so it is not within the permission's audience: refused",
+     [row("p", "consent:scope:read", "community", room="r1"),
+      dict(row("d", "duty:keep", "self", names=["p"]), follows="p")],
+     {"p": P("targeted_room", ROOM), "d": REF("follows_wider")}),
+    ("duty_wider_than_its_permission", "a duty at the commons on a permission placed in r1: refused",
+     [row("p", "consent:scope:read", "community", room="r1"),
+      dict(row("d", "duty:keep", "federation", names=["p"]), follows="p")],
+     {"p": P("targeted_room", ROOM), "d": REF("follows_wider")}),
+    ("stream_head_names_no_stream", "a stream head that names no stream it heads: refused",
+     [row("h", "stream:head", "community", room="r1")], {"h": REF("follows_not_named")}),
+]
+
+
 # history_of: the word a caller reads for a kept stream (it changes no audience). (row's word, record's word, answer)
 HISTORY = [(None, None, "from_join"), ("full", None, "full"), (None, "full", "full"), ("from_join", "full", "from_join"),
            ("always", "full", "full"), ("always", None, "from_join"), (None, "sometimes", "from_join")]
@@ -431,10 +491,12 @@ def check_table():
 
 
 def cases_now():
-    """The case table, with the regard cases once the pinned table holds that family, and the roster seat cases once
-    its cell is stated."""
+    """The case table, with the regard cases once the pinned table holds that family, the roster seat cases once
+    its cell is stated, and the follows cases once the table carries the marker."""
     roster_seats = AU.FAMILIES.get(ROSTER_SEAT_FAMILY, {}).get("undecided") is None and ROSTER_SEAT_FAMILY in AU.FAMILIES
-    return CASES + (REGARD_CASES if REGARD in AU.FAMILIES else []) + (ROSTER_SEAT_CASES if roster_seats else [])
+    follows = "custody:{kind}" in AU.FOLLOWS
+    return CASES + (REGARD_CASES if REGARD in AU.FAMILIES else []) + (ROSTER_SEAT_CASES if roster_seats else []) \
+        + (FOLLOWS_CASES if follows else [])
 
 
 def check_cases():
@@ -457,6 +519,8 @@ def fixture():
             "ties": [{"families": f, "name": n, "answer": a} for f, n, a in TIES],
             "history": [{"row": rw, "record": rec, "answer": a} for rw, rec, a in HISTORY],
             "seats": [{"row": r, "seats": w} for r, w in SEATS],
+            "follow": [{"named": n, "own": enc(o), "followed": enc(f) if f else None, "rule": ru, "answer": enc(w)}
+                       for n, o, f, ru, w in FOLLOW],
             "generated": [{"family": p, "name": n, "scope": s, "room": r, "answer": a} for p, n, s, r, a in generated()],
             "cases": [{"name": n, "about": ab, "rows": rows, "joins": w[0] if w else {},
                        "answers": {i: enc(a) for i, a in
@@ -465,11 +529,11 @@ def fixture():
 
 
 def main():
-    problems = check_table() + check_cases() + check_derivation() + check_ties() + check_history() + check_seats()
+    problems = check_table() + check_cases() + check_derivation() + check_ties() + check_history() + check_seats() + check_follow()
     if REGARD not in AU.FAMILIES:
         print("  %s is not in the pinned table yet: its %d cases wait for the re-pin" % (REGARD, len(REGARD_CASES)))
     caught = 0
-    present = {c[0] for c in cases_now()} | {"table", "ties", "history", "seats"}
+    present = {c[0] for c in cases_now()} | {"table", "ties", "history", "seats", "follow"}
     waiting = 0
     for muts, where in PLANTS:
         mut = "+".join(muts)
@@ -479,7 +543,7 @@ def main():
             continue
         AU.MUT.clear(); AU.MUT.update(muts)
         try:
-            got = check_table() + check_cases() + check_ties() + check_history() + check_seats()
+            got = check_table() + check_cases() + check_ties() + check_history() + check_seats() + check_follow()
         finally:
             AU.MUT.clear()
         hit = any(g.startswith(where + ":") for g in got)

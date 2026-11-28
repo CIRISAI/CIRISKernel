@@ -139,6 +139,16 @@ def seat_family(row):
     return "roster" if v.get("roster") else "duty"
 
 
+def follows_of(row):
+    """The placement cell's `follows` marker, read: a row of the family is placed at the scope of the row it follows
+    (the content a custody row holds, the stream a head heads): "same"; or at that scope or narrower (a duty, the
+    permission it attaches to): "narrower". None where the cell carries none."""
+    f = row["placement"].get("follows")
+    if not f:
+        return None
+    return "narrower" if "narrower" in f else "same"
+
+
 def placement_of(row):
     """(allowed placements, None) or (None, why it is undecided)."""
     p = row["placement"]
@@ -158,7 +168,9 @@ def derive(path):
     fams = []
     for row in model["rows"]:
         allowed, why = placement_of(row)
-        fams.append({"family": row["family"], "allowed": allowed, "undecided": why, "seat": seat_family(row)})
+        fams.append({"family": row["family"], "allowed": allowed, "undecided": why, "seat": seat_family(row),
+                     "follows": follows_of(row) if allowed is not None else None,
+                     "follows_text": row["placement"].get("follows") if allowed is not None else None})
     fams.sort(key=lambda f: f["family"])
     tied = ties([f["family"] for f in fams])
     if tied:
@@ -193,7 +205,7 @@ def rust(table):
            "// (branch %s, commit %s, sha256 %s%s). Do not edit: re-pin with that script."
            % (s["branch"], s["commit"], s["sha256"], ", provisional" if s.get("provisional") else ""),
            "",
-           "use super::{FamilyPlacement, Placement};",
+           "use super::{FamilyPlacement, Follows, Placement};",
            "",
            "/// The family model's sha256, the pin of [`FAMILIES`].",
            "pub const FAMILY_MODEL_SHA256: &str = \"%s\";" % s["sha256"],
@@ -219,6 +231,12 @@ def rust(table):
             "/// row's audience ([`super::seats_of`]). Person-level families (a person's own key roster) never do.",
             "pub const SEAT_FAMILIES: &[&str] = &["]
     out += ["    %s," % json.dumps(f["family"]) for f in table["families"] if f.get("seat")]
+    out.append("];")
+    out += ["", "/// The families whose rows are placed at the scope of the row they follow ([`super::follow`]): `Same` (the",
+            "/// content's or the stream's scope) or `Narrower` (a permission's scope, or narrower).",
+            "pub const FOLLOWS: &[(&str, Follows)] = &["]
+    out += ["    (%s, Follows::%s)," % (json.dumps(f["family"]), "Narrower" if f["follows"] == "narrower" else "Same")
+            for f in table["families"] if f.get("follows")]
     out.append("];")
     out += ["", "/// The room seat families that seat a DUTY over the room, not the roster itself: their offers seat a member at",
             "/// the row's own head, never an outsider, so only such keys are within the row's audience.",

@@ -70,6 +70,7 @@ for _s in TABLE["scopes"]:
 SCOPE_PLACEMENT["addressed"] = "addressed"
 FAMILIES = {f["family"]: f for f in TABLE["families"]}
 SEAT_FAMILIES = frozenset(f["family"] for f in TABLE["families"] if f.get("seat"))
+FOLLOWS = {f["family"]: f["follows"] for f in TABLE["families"] if f.get("follows")}
 DUTY_SEAT_FAMILIES = frozenset(f["family"] for f in TABLE["families"] if f.get("seat") == "duty")
 KEY_GRANT = "key_grant:{axis}"            # the key grant family's pattern, read as the resolved family
 EVERYONE = "everyone"
@@ -265,10 +266,43 @@ def carried(r, a, d, ad, roster, person):
     return on_roster(ad[2], d["room"]) if ad[1] in TARGETED else ad[2]
 
 
+def _narrower(a, b):
+    """Audience a is within audience b."""
+    return b == EVERYONE or (a != EVERYONE and a <= b)
+
+
+def follow(r, own, followed, rule):
+    """A row of a `follows` family (FOLLOWS: custody, duty, stream:head) placed at the scope of the row it follows
+    (`follows`, a row it names): its own answer where that holds, else the refusal. rule "same": the placement and
+    the room of the followed row; "narrower": an audience within the followed row's. MUTATION follows_unread."""
+    if own[0] != "placed" or "follows_unread" in MUT:
+        return own
+    if r.get("follows") is None:
+        return ("refused", "follows_not_named")
+    if followed is None:
+        return ("refused", "follows_not_held")
+    if followed[0] != "placed":
+        return ("refused", "follows_unplaced")
+    if rule == "same":
+        return own if own[1] == followed[1] and own[2] == followed[2] else ("refused", "follows_mismatch")
+    return own if _narrower(own[2], followed[2]) else ("refused", "follows_wider")
+
+
 def audiences(rows, roster, person, joins=NO_JOINS):
-    """{row id: its answer}, the copy rule applied (carried): a placed row's audience grows by the keys every
-    concluded placed row naming it carries it to; the least fixed point, which only grows."""
+    """{row id: its answer}, the follows rule and then the copy rule applied (carried): a placed row's audience grows
+    by the keys every concluded placed row naming it carries it to; the least fixed point, which only grows."""
     out = {r["id"]: place(r, roster, person, joins) for r in rows}
+    # follows, along chains of followers: each against its followed row's answer, once that one is settled
+    followers = [r for r in rows if out[r["id"]][0] == "placed" and family_of(r["family"]) in FOLLOWS]
+    while followers:
+        ready = [r for r in followers if r.get("follows") not in {f["id"] for f in followers}]
+        if not ready:                                          # a cycle of followers: none is placed
+            for r in followers:
+                out[r["id"]] = ("refused", "follows_unplaced")
+            break
+        for r in ready:
+            out[r["id"]] = follow(r, out[r["id"]], out.get(r.get("follows")), FOLLOWS[family_of(r["family"])])
+        followers = [r for r in followers if r not in ready]
     by = {r["id"]: r for r in rows}
     namers = {i: [] for i in by}
     for d in rows:

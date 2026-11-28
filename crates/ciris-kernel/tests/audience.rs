@@ -4,8 +4,8 @@
 
 mod common;
 use ciris_kernel::audience::{
-    audiences, family_in, family_of, history_of, place, seats_of, Audience, AudienceRow, FamilyMatch, FamilyPlacement,
-    History, Joins, Placed, Placement, SeatAct, FAMILIES, FAMILY_MODEL_SHA256,
+    audiences, family_in, family_of, follow, history_of, place, seats_of, Audience, AudienceRow, FamilyMatch,
+    FamilyPlacement, Follows, History, Joins, Placed, Placement, SeatAct, FAMILIES, FAMILY_MODEL_SHA256,
 };
 use common::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -23,6 +23,7 @@ struct ARow {
     obj: Option<String>,
     to: Vec<String>,
     history: Option<History>,
+    follows: Option<String>,
 }
 
 impl AudienceRow for ARow {
@@ -64,6 +65,9 @@ impl AudienceRow for ARow {
     fn history_on_join(&self) -> Option<History> {
         self.history
     }
+    fn follows(&self) -> Option<&String> {
+        self.follows.as_ref()
+    }
 }
 
 fn arow(j: &J) -> ARow {
@@ -85,6 +89,7 @@ fn arow(j: &J) -> ARow {
         to: j.get("to").map(|v| v.strs()).unwrap_or_default(),
         // a word the door would refuse is absent
         history: j.get("history_on_join").and_then(|v| History::from_word(v.s())),
+        follows: j.get("follows").and_then(|v| v.opt_s()),
     }
 }
 
@@ -147,6 +152,7 @@ fn every_family_in_every_scope() {
             obj: None,
             to: vec![],
             history: None,
+            follows: None,
         };
         n += 1;
         // the generated rows: no member changes, so the members at a row's head are the roster
@@ -248,6 +254,7 @@ fn history_on_join_words() {
             obj: None,
             to: vec![],
             history: h.get("row").and_then(|v| v.opt_s()).and_then(|w| History::from_word(&w)),
+            follows: None,
         };
         let hi = |_: &String| rec.as_deref().and_then(History::from_word);
         let got = history_of(&r, &Joins { history: &hi, at_head: &|_, _| BTreeSet::new() });
@@ -278,5 +285,67 @@ fn seats_derived() {
         }
     }
     report("seats derived from the seat row (audience.py)", n, bad);
+    assert_eq!(bad, 0);
+}
+
+// an answer from the fixture's form
+fn dec(j: &J) -> Placed<String> {
+    let a = j.arr();
+    match a[0].s() {
+        "placed" => {
+            let p = [
+                Placement::SelfCollective,
+                Placement::TargetedFamily,
+                Placement::TargetedRoom,
+                Placement::Commons,
+                Placement::Addressed,
+            ]
+            .into_iter()
+            .find(|p| p.word() == a[1].s())
+            .expect("a placement");
+            let aud = match &a[2] {
+                J::Str(s) if s == "everyone" => Audience::Everyone,
+                k => Audience::Keys(k.str_set()),
+            };
+            Placed::Placed(p, aud)
+        }
+        "refused" => {
+            use ciris_kernel::audience::Refusal::*;
+            let all = [
+                FamilyUnknown,
+                ScopeUnknown,
+                PlacementNotAllowed,
+                NamedOutsideAudience,
+                NoRoom,
+                FamilyAmbiguous,
+                FollowsNotNamed,
+                FollowsNotHeld,
+                FollowsUnplaced,
+                FollowsMismatch,
+                FollowsWider,
+            ];
+            Placed::Refused(all.into_iter().find(|r| r.as_str() == a[1].s()).expect("a refusal"))
+        }
+        _ => panic!("not an answer this test decodes: {j:?}"),
+    }
+}
+
+/// The rule of a `follows` family over answers stated directly (`check_audience.py`'s FOLLOW).
+#[test]
+fn follows_rule() {
+    let fx = fixture("audience.json");
+    let (mut n, mut bad) = (0, 0);
+    for c in fx.at("follow").arr() {
+        let own = dec(c.at("own"));
+        let followed = c.get("followed").filter(|f| !f.is_null()).map(dec);
+        let rule = if c.at("rule").s() == "same" { Follows::Same } else { Follows::Narrower };
+        let got = enc(&follow(c.at("named").b(), own, followed.as_ref(), rule));
+        n += 1;
+        if &got != c.at("answer") {
+            bad += 1;
+            eprintln!("{:?}: got {got:?}, want {:?}", c.at("own"), c.at("answer"));
+        }
+    }
+    report("the follows rule (audience.py)", n, bad);
     assert_eq!(bad, 0);
 }

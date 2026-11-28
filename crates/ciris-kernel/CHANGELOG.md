@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**`follows`, ready for the next family model** (both languages; inert at the pinned d103e60, which has no such
+cell): a placement cell's `follows` marker (custody, duty and stream:head at the Constitution's 42eaa3f) is read by
+the generator (`Same`, or `Narrower` where the cell says "or narrower"), and a row of such a family is placed at the
+scope of the row it follows (`AudienceRow::follows`, a row it names): `audience::follow` keeps its own answer where
+its placement and audience are the followed row's (`Same`) or within its audience (`Narrower`), else refuses
+(`follows_not_named`, `follows_not_held`, `follows_unplaced`, `follows_mismatch`, `follows_wider`). Checked over
+answers stated directly at every pin (FOLLOW), and by cases that go live with the marker.
+
 **The audience after review r79** (both languages, cases from each finding, planted breaks and fixtures):
 - The copy rule is the Constitution's proposal c (`audience::carried`, the one place it is stated): carriage is of
   rows; a room row is carried by a concluded room row of its room to that row's audience on the room's current
