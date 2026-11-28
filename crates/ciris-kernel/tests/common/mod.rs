@@ -635,6 +635,18 @@ impl KeyEndRow for TRow {
             _ => None,
         }
     }
+    fn instant(&self) -> Option<i64> {
+        self.fi("at")
+    }
+    fn roster_end(&self) -> Option<(&String, i64)> {
+        match self.m.get("rend_of") {
+            Some(J::Str(k)) => Some((k, self.fi("ra").unwrap())),
+            _ => None,
+        }
+    }
+    fn cosigned_by(&self) -> &[String] {
+        &self.cosigners
+    }
     fn revocation(&self) -> Option<(&String, i64)> {
         if self.kind == "revoke" {
             Some((self.m_key(), self.fi("ra").unwrap()))

@@ -2,6 +2,51 @@
 
 ## Unreleased
 
+**A key end is a cut** (the Constitution's ruling on r86 R1 and R2). `key_end::counts_for(c, i, k, reader, final_)`:
+a row of `k` stands against each of `k`'s ends where it is in the end's past, or on the reader's own line from before
+the reader held the end (taken up), or part of a count final by acknowledgement (`seat::final_by_ack`: n - t + 1
+clean receipts; a final act is not reopened by a later cut). `KeyReading` carries the reader and the final counts;
+`counts_by` is the reading with no reader. A revocation by a key of which any concluded rotation is held is no end;
+two rotations are a fork of the key (both ends, no successor); an end by the person's self roster
+(`KeyEndRow::roster_end`) is one only where that roster's own count concluded it (`KeyReading::roster`). Finality
+counts only clean receipts (no end of a voice's key, no cut of the act in its past, its signer's key standing), and a
+final count protects only voices valid when cast (r89). A `declared` need is never final; a recall's t is read at
+its own base. Caller duty: an honest rotation
+or revocation names the key's last rows. The cost: a thief's vote a reader took up before holding the end stands for
+that reader, one in a final count for everyone; the remedy is a later count; readers may differ on a count not yet
+final. Cases in `check_key_view.py` (35); plants `retired_key_revokes`, `roster_end_unread`, `taken_up_unread`,
+`final_count_unread`, crate twins.
+
+**The key view: every seat count reads a key's end at its voices step.** `CutSpec::key_view` (defaulted None),
+`key_end::KeyView`, `key_end::KeyReading` and `key_end::counts_by` (new): `seat::voices_with`, the one place every
+seat count reads its voices, keeps the signer's and each cosigner's signature on the counted row, and each named
+cosign row's signer's, only where `counts_by` holds over one causal order of the key and seat lanes that the caller
+builds (`KeyEndRow::instant`, defaulted, a seat row's signed instant). A store with key records must supply it; with
+none every voice counts (a caller with no key lane). Cases in `check_key_view.py`, fixture `key_end_counts.json`
+(replayed by `tests/key_view.rs`); plants `key_view_unread`, `cosigner_key_unchecked`, crate twins. Every lane that
+counts a voter reads the same key view: a window's answers (`window`) and an election's ballots (`seat::election`) too
+(plants `window_key_view_unread`, `ballot_key_view_unread`). Merged with the key-person map at the voices step, the
+key view comes first (dead keys out), then persons (living keys mapped). The lift's objections, a lone removal's
+single-key receipts and the lone act itself read it too (r86: plants `lift_key_view_unread`,
+`receipt_key_view_unread`, `lone_key_view_unread`). A row stating no instant is judged by its past alone;
+`KeyEndRow::instant` defaults to a statement's instant only (the model reads every row's `at` through `key_end.instant`,
+as the test adapter does). The stub pin (K14): a stub keeping only its header, names, `at` and conclusion gives every
+`counts_by` answer.
+
+**An ended key's row counts by the end rule, never by a cite** (the Constitution's ruling: for counts, a removed or
+ended key's late vote cited by a friendly member stays cut; only content may be anchored by others' rows).
+`key_end::counts` (new): a statement of key `k` counts only where it is in the causal past of each of `k`'s own
+ends: a self-revocation (and its own instant before the `revoked_after` `k` stated) and a rotation naming `k`'s
+record (a rotated holder speaks under its new key). With no such end, a concluded statement counts: its instant
+inside its record is the holder's word, bounded below by its own past (the licence term's residual and caller
+duty). `retained` is for storage only and keeps every row a count reads, every rotation and revocation, and what a
+live row names; nothing counts by it. Before this, `retained` was the only reading the crate offered for an ended
+key's rows, and ADOPTING told persist to keep and so count a cited late row. The model's attestation score reads
+`counts` (K12: eight facts; plant `ended_vote_retained_by_cite`, crate twin). An expired key's in-time rows
+count, so their STUBS are kept for good (`retained`); their BYTES drop once settled (`bytes_retained`, new: what a
+live row names, rows of keys not ended, revocations and rotations), as the purge keeps a settled act's stub (K13;
+plant `stub_drops_counted`).
+
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.
 Several removals are several rows, each judged alone at its head. The same for a recall (one holder), a duty

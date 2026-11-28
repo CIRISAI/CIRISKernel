@@ -2525,7 +2525,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                     mem.retain(|m| base.contains(m));
                     (vec![author], v)
                 } else {
-                    (Vec::new(), voices(r, &p))
+                    (Vec::new(), voices_with(r, &p, self.spec))
                 };
                 if pol == Some(Policy::DutyConfer) && mem.len() < 2 && lone_offer_stands(self.law, &p, r, &mem) {
                     return false;
@@ -2687,7 +2687,7 @@ fn count_receipt<R: SeatRow, S: CutSpec<R>>(
     // member's act, as the overturn and the lift)
     let rows: Vec<&R> = p.rows().collect();
     let pp = Persons::over(&rows, law, spec, Some(&obj));
-    let (mem, v) = pp.count(&mem, &voices(qr, &p), None, &[xr.signer().clone()]);
+    let (mem, v) = pp.count(&mem, &voices_with(qr, &p, spec), None, &[xr.signer().clone()]);
     let yes = v.iter().filter(|k| mem.contains(*k)).count();
     // the members' check of one member's act, whatever policy or need the row states
     room_count(yes, mem.len())
@@ -2939,6 +2939,10 @@ fn removal_in_force<R: SeatRow, S: CutSpec<R>>(
                 return count_receipt(c, q, x, law, spec, cache).then_some((q, true));
             }
             if !duty.contains(qr.signer()) {
+                return None;
+            }
+            // a single key's receipt by the end rule, through the key view
+            if spec.key_view().is_some_and(|kv| !kv.counts(qr.id(), qr.signer())) {
                 return None;
             }
             let cut = unseats.iter().any(|(u, uo)| {
@@ -3560,7 +3564,7 @@ fn void_changes_in<R: SeatRow, S: CutSpec<R>>(
         let pq = Past::new(g, q, &qa);
         let qr = g.row(q);
         let mem = members_at_with(&pq, law, spec, obj, qr.head(), "member", cache);
-        let v: BTreeSet<R::Key> = voices(qr, &pq).into_iter().filter(|k| mem.contains(k)).collect();
+        let v: BTreeSet<R::Key> = voices_with(qr, &pq, spec).into_iter().filter(|k| mem.contains(k)).collect();
         info.insert(q, (v, mem));
     }
     // heads strictly in the past of a held row's (a head not held is in no row's past here)
@@ -4026,6 +4030,28 @@ pub fn voices<R: SeatRow>(r: &R, p: &Past<'_, '_, R>) -> BTreeSet<R::Key> {
     v
 }
 
+/// [`voices`] as a count reads them: each voice by the end rule through the cut's key view
+/// ([`CutSpec::key_view`]): the signer's and each cosigner's signature on the counted row, and each named cosign
+/// row's signer's on that row, counts only where [`crate::key_end::counts_by`] holds. With no key view, every voice
+/// counts. The one place every seat count reads a key's end.
+pub fn voices_with<R: SeatRow, S: CutSpec<R>>(r: &R, p: &Past<'_, '_, R>, spec: &S) -> BTreeSet<R::Key> {
+    let Some(kv) = spec.key_view() else { return voices(r, p) };
+    let heads: BTreeSet<&R::Id> = r.head().iter().collect();
+    let content = r.content().unwrap_or(r.id());
+    let mut v: BTreeSet<R::Key> = signers(r).into_iter().filter(|k| kv.counts(r.id(), k)).collect();
+    for n in r.names() {
+        let Some(c) = p.get(n) else { continue };
+        if c.seat_kind() == SeatKind::Cosign
+            && c.of() == Some(content)
+            && heads.iter().all(|h| c.names().contains(*h))
+            && kv.counts(c.id(), c.signer())
+        {
+            v.insert(c.signer().clone());
+        }
+    }
+    v
+}
+
 /// CC 4.5.13: a moderator of the room removes an AI agent's key alone. `r` (the row of `p`, or a row in its
 /// past) is a counted unseat of one key's [`AGENT`] seat (the seat's scope says whose key it is), and its
 /// signer holds `moderate` over the object at the head it names.
@@ -4050,6 +4076,11 @@ fn lone_removal<R: SeatRow, S: CutSpec<R>>(
     // removed so, whatever scope the row states. This is also what makes a lift restore and not admit.
     let agent = scope.as_ref() == AGENT;
     if !agent || !members_at_with(p, law, spec, &obj, r.head(), AGENT, cache).contains(&r.to()[0]) {
+        return false;
+    }
+    // a lone act by a key is read through the same end rule: a revoked moderator key's late lone removal does not
+    // stand (the key view)
+    if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer())) {
         return false;
     }
     // the signer holds `moderate` at the newest heads it names, read with the withdrawals in the row's own past (its
@@ -4094,7 +4125,11 @@ fn lift_voices_with<R: SeatRow, S: CutSpec<R>>(
     let mut v = BTreeSet::new();
     for n in r.names() {
         let Some(c) = p.get(n) else { continue };
-        if c.seat_kind() == SeatKind::Cosign && c.of() == Some(rem.id()) {
+        // each objection by the end rule, through the key view
+        if c.seat_kind() == SeatKind::Cosign
+            && c.of() == Some(rem.id())
+            && spec.key_view().is_none_or(|kv| kv.counts(c.id(), c.signer()))
+        {
             v.insert(c.signer().clone());
         }
     }
@@ -4123,6 +4158,76 @@ fn lift_base<R: SeatRow, S: CutSpec<R>>(
         mem.retain(|k| at_rem.contains(k));
     }
     mem
+}
+
+/// Counted act `i` of `c` is FINAL BY ACKNOWLEDGEMENT: it concluded as a count (its own count met: not a lone act,
+/// whose receipts are E8's), and CLEAN receipts (an [`SeatKind::Ack`] whose `of` is it) from n - t + 1 of the n
+/// members at its heads are held, t the least yes its policy meets at n. Read `c` as the rows concluded with NO key
+/// view: the finality spec carries none, and a final act is not reopened by a later cut. A receipt is clean only
+/// where (`keys`: the key lane with these rows in one causal order, and the self roster's concluded acts) its
+/// signer's key stands at it by the plain end rule, and neither an end of a key that is a voice of the count nor a
+/// cut of the act is in its past. A `declared` need is never final by acknowledgement; a recall's t is read at its
+/// own base, less the holder it recalls. The ids it holds for go in [`crate::key_end::KeyReading::final_`].
+pub fn final_by_ack<R: SeatRow + crate::key_end::KeyEndRow, S: CutSpec<R>>(
+    c: &Concluded<'_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    i: usize,
+    keys: Option<(&Concluded<'_, R>, &BTreeSet<R::Id>)>,
+) -> bool {
+    if !c.concluded(i) {
+        return false;
+    }
+    let g = &c.g;
+    let r = g.row(i);
+    if !matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) || r.conf() != Some(Conf::Group) {
+        return false;
+    }
+    let Some(obj) = r.obj() else { return false };
+    let anc: Vec<usize> = c.cs().iter().copied().filter(|&q| g.in_past(q, i)).collect();
+    let p = Past::new(g, i, &anc);
+    if !count_met(&p, law, spec, None) {
+        return false;
+    }
+    let policy = law.policy_of(r.policy().map(|w| w.as_ref()));
+    if matches!(policy, Some(Policy::Declared)) {
+        return false;
+    }
+    let m = members_at(&p, law, spec, &obj, r.head(), "member");
+    let base: BTreeSet<&R::Key> = match policy {
+        Some(Policy::Recall(..)) => m.iter().filter(|k| !r.to().contains(*k)).collect(),
+        _ => m.iter().collect(),
+    };
+    let n = base.len();
+    let Some(t) = (0..=n).find(|&y| met(policy, y, n, None)) else { return false };
+    if n == 0 {
+        return false;
+    }
+    let voices = signers(r);
+    let on = spec.on_slots(r);
+    let clean = |q: usize| -> bool {
+        let Some((kc, roster)) = keys else { return true };
+        let qr = g.row(q);
+        let Some(ki) = kc.g.idx(qr.id()) else { return false };
+        if !crate::key_end::counts_for(kc, ki, qr.signer(), None, &BTreeSet::new(), roster) {
+            return false;
+        }
+        if voices.iter().any(|k| crate::key_end::ends(kc, k, roster).iter().any(|&(e, _)| kc.g.in_past(e, ki))) {
+            return false;
+        }
+        !c.cs().iter().any(|&x| x != i && g.in_past(x, q) && !spec.cuts_of(g.row(x)).is_disjoint(&on))
+    };
+    let rec: BTreeSet<&R::Key> = c
+        .cs()
+        .iter()
+        .copied()
+        .filter(|&q| {
+            let qr = g.row(q);
+            qr.seat_kind() == SeatKind::Ack && qr.of() == Some(r.id()) && m.contains(qr.signer()) && clean(q)
+        })
+        .map(|q| g.row(q).signer())
+        .collect();
+    rec.len() >= core::cmp::max(1, n - t + 1)
 }
 
 /// Whether a count is met: `yes` voices of `n`, under `policy`.
@@ -4227,7 +4332,7 @@ fn contested_out<'a, R: SeatRow, S: CutSpec<R>>(
             continue;
         }
         let anc = past_of(u);
-        let vs = voices(ur, &Past::new(g, u, &anc));
+        let vs = voices_with(ur, &Past::new(g, u, &anc), spec);
         let t: Vec<(usize, BTreeSet<R::Key>)> = cands
             .into_iter()
             .map(|u2| (u2, cut_keys[&u2].iter().filter(|k| vs.contains(*k)).cloned().collect::<BTreeSet<_>>()))
@@ -4715,7 +4820,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
             if !r.scope().is_some_and(|s| s.as_ref() == "record") {
                 return false;
             }
-            let v = voices(r, p);
+            let v = voices_with(r, p, spec);
             if !pair_keys.iter().all(|k| v.contains(k)) {
                 return false;
             }
@@ -4764,7 +4869,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
             // count, so a stalled room makes none
             let new: Vec<&R::Key> =
                 if is_offer { r.to().iter().filter(|k| !mem.contains(*k)).collect() } else { Vec::new() };
-            let v = voices(r, p);
+            let v = voices_with(r, p, spec);
             if !new.iter().all(|k| v.contains(*k)) {
                 return false;
             }
@@ -4811,7 +4916,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     let vot: BTreeSet<R::Key> =
         mem.iter().filter(|k| !void.contains(*k) && !(drop_to && r.to().contains(*k))).cloned().collect();
     let key_mem = mem;
-    let (mem, v) = pp.count(&key_mem, &voices(r, p), Some(&vot), &[]);
+    let (mem, v) = pp.count(&key_mem, &voices_with(r, p, spec), Some(&vot), &[]);
     // a family's removal naming only its own signer, on that signature alone, concludes nothing (F3)
     if f.no_self_removal && v.iter().all(|k| r.to().contains(k)) {
         return false;
@@ -4830,7 +4935,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     };
     // the recall judges one holder: the holder apart by person, from the base and the voices
     let (mem, v) = if !is_offer && matches!(pol, Some(Policy::Recall(..))) {
-        pp.count(&key_mem, &voices(r, p), Some(&vot), r.to())
+        pp.count(&key_mem, &voices_with(r, p, spec), Some(&vot), r.to())
     } else {
         (mem, v)
     };

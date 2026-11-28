@@ -694,6 +694,30 @@ def purge_cases():
     return out
 
 
+# ---- the key view: the end rule at the voices step (check_key_view.py) -------------------------------------------------
+def key_view_cases():
+    import check_key_view as KV
+    ST = KV.ST
+    cases = []
+    for c in KV.fixture():
+        refs = {}
+        cases.append(dict(c, rows=with_refs(c["rows"], refs), refs=refs))
+    law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
+           "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH, "removal_floor": ST.REMOVAL_FLOOR,
+           "policy": {k: list(v) for k, v in ST.POLICY.items()},
+           "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
+    direct = []
+    for name, rows, rid, k, fin, want in KV.DIRECT:
+        refs = {}
+        direct.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "key": k,
+                       "final": sorted(fin), "want": want})
+    WN = KV.WN
+    windows = {k: dict(enc(v), secs=WN.secs(k)) for k, v in WN.WINDOWS.items()}
+    return {"about": "the key view (CutSpec::key_view): key_end::counts_by per (row, key), and the voices and conclusion of "
+                     "x with the key view (view true) or without it (false), under the seat or the window rule",
+            "law": law, "windows": windows, "cases": cases, "direct": direct}
+
+
 # ---- key_end: every generated world at every instant ----------------------------------------------------------------
 def key_person_cases():
     """check_key_person.py's cases: a key's person at a row (seat.person_of), each with the seat law it is read under."""
@@ -709,7 +733,7 @@ def key_person_cases():
         counts.append({"name": name, "rows": with_refs(rows, refs), "refs": refs, "row": rid, "concludes": concludes})
     law = {"duties": list(ST.DUTIES), "holds": enc(ST.HOLDS), "confers": enc(ST.CONFERS), "ends": enc(ST.ENDS),
            "final": list(ST.FINAL), "roster_seats": list(ST.ROSTER_SEATS), "depth": ST.DEPTH,
-           "community_floor": ST.COMMUNITY_FLOOR, "removal_floor": ST.REMOVAL_FLOOR,
+           "removal_floor": ST.REMOVAL_FLOOR,
            "policy": {k: list(v) for k, v in ST.POLICY.items()},
            "acts": [[a, sc, kd, list(pol), ch] for a, sc, kd, pol, ch in ST.ACTS], "kinds": dict(ST.KINDS)}
     # the opener's own withdrawal (r78k, latent): a table entry of the case's own, its rows and the outcome
@@ -747,12 +771,23 @@ def key_end_cases():
                         "succ": [[k, s] for k, s in a["succ"] if s is not None],
                         "reach": [[p, "".join(sorted(r))] for p, r in a["reach"]],
                         "score": [[x, "".join(sorted(v))] for x, v in a["score"]],
-                        "ret": sorted(i for i, _, _ in a["rows"])})
+                        "ret": sorted(i for i, _, _ in a["rows"]), "bytes": sorted(a["bytes"])})
         worlds.append({"rows": [ref(r) for r in rows], "kept": [r["id"] for r in S.rows],
                        "c": [S.C[r["id"]] for r in S.rows], "a": ans})
+    # the stub pin (K14): the counted statements as stubs keeping only id, signer, names and at (kind `stub`, which
+    # concludes as it did), and every counts_by answer over the full rows
+    rows = [CKE.pX, KE.rec("pK", "K", 0, 9), KE.rec("pF", "F", 0, 9), KE.att("a0", "K", 2, "pK", about="X"),
+            KE.att("a1", "K", 4, "pK", about="X"), KE.att("f1", "F", 5, "pF", about="Y", names=("a1",)),
+            KE.revoke("vK", "K", 3, names=("a0",)), KE.rec("qF", "F2", 6, 9, names=("pF",), succ_of="F", at_old=6, typ="node")]
+    S = KE.state(rows)
+    assert all(S.C.get(r["id"]) for r in rows if r["kind"] == "att")
+    stubs = [{"id": r["id"], "kind": "stub", "signer": r["signer"], "names": r["names"], "at": r["at"], "family": "stub"}
+             if r["kind"] == "att" else r for r in rows]
+    pin = {"rows": [row_enc(r) for r in rows], "stubs": [row_enc(r) for r in stubs],
+           "answers": [[r["id"], k, KE.counts_by(S, r["id"], k)] for r in rows for k in ("K", "F", "X")]}
     return {"ceil": KE.CEIL, "keys": list(CKE.KEYS), "parties": list(CKE.PARTIES), "subjects": list(CKE.SUBJECTS),
             "nows": list(CKE.NOWS), "required": sorted(KE.END_REQUIRED), "forbidden": sorted(KE.END_FORBIDDEN),
-            "pool": pool, "worlds": worlds}
+            "pool": pool, "worlds": worlds, "pin": pin}
 
 
 def undecided_cases(AC):
@@ -815,6 +850,7 @@ def main():
     dump("versions.json", versions_cases(), out)
     dump("key_end.json", key_end_cases(), out)
     dump("key_person.json", key_person_cases(), out)
+    dump("key_end_counts.json", key_view_cases(), out)
     dump("acts.json", acts_cases(), out)
     import conferral_end as CE
     dump("conferral_end.json", CE.fixture(), out)

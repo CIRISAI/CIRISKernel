@@ -296,6 +296,16 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
     elapsed: bool,
 ) -> String {
     let w = x.w;
+    // the key view: an answer counts only where its signer's signature on it counts by the end rule
+    // (`CutSpec::key_view`; none: every answer counts)
+    let kept: Vec<&R>;
+    let answers: &[&R] = match x.spec.key_view() {
+        Some(kv) => {
+            kept = answers.iter().copied().filter(|a| kv.counts(a.id(), a.signer())).collect();
+            &kept
+        }
+        None => answers,
+    };
     // one member and one voice per person (ruled on CIRISConstitution#224): every base counted by person, each answer
     // read as its signer's person BEFORE the opener's withdrawal, a duty holder's act and the moot are read; a key
     // that counts as no person answers for nobody. A window over a self roster reads keys ([`seat::Persons`]).

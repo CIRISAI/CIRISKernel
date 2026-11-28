@@ -1104,6 +1104,10 @@ def lone_removal(r, P, past):
     # restores_unseated, the same break seen from the lift)
     if not MUT & {"lone_any_key", "restores_unseated"} and r["to"][0] not in members_at(P, past, r["obj"], heads, AGENT):
         return False
+    # a lone act by a key is read through the same end rule: a revoked moderator key's late lone removal does not
+    # stand (the key view; MUTATION lone_key_view_unread)
+    kv = KEY_VIEW[-1] if "lone_key_view_unread" not in MUT else None
+    if kv is not None and not kv(r["id"], r["signer"]): return False
     # the signer holds `moderate` at the newest heads it names, read with the withdrawals in the row's own past (its
     # laying down of the seat there: members_at, MUTATION ends_at_heads_unread)
     return r["signer"] in members_at(P, past, r["obj"], heads, "moderate")
@@ -1124,8 +1128,10 @@ def lift_voices(r, P, past, by):
     # so it no longer names the removal's head; its base is the members at both heads (lift_base)
     if (rem["obj"], rem["scope"], tuple(rem["to"])) != (r["obj"], r["scope"], tuple(r["to"])):
         return None
+    # each objection by the end rule, through the key view (MUTATION lift_key_view_unread: every objection counts)
+    kv = KEY_VIEW[-1] if "lift_key_view_unread" not in MUT else None
     v = frozenset(a["signer"] for a in P if a["kind"] == "answer" and a.get("of") == rem["id"] and a.get("says") == "object"
-                  and a["id"] in r["names"])
+                  and a["id"] in r["names"] and (kv is None or kv(a["id"], a["signer"])))
     return v if "author_voice" in MUT else v - {rem["signer"]}      # MUTATION author_voice: the author's objection counts
 
 
@@ -1227,7 +1233,7 @@ def is_election(o, table=None):
 
 def _memo(tag, row, f, rows=()):
     # keyed by the row and the rows it is read over (one row object may stand in two sets of rows)
-    key = (tag, id(row), frozenset(MUT), frozenset(id(x) for x in rows), _RENDS[-1])
+    key = (tag, id(row), frozenset(MUT), id(KEY_VIEW[-1]), frozenset(id(x) for x in rows), _RENDS[-1])
     got = _EMEMO.get(key)
     if got is None or got[0] is not row:
         got = _EMEMO[key] = (row, f())
@@ -1580,11 +1586,15 @@ def election_count(r, P, past, by):
     gone = {w["target"] for w in named if w["kind"] == "withdraw" and w["target"] in by
             and by[w["target"]]["kind"] == "ballot" and w["signer"] == by[w["target"]]["signer"]}
     declined = {d["signer"] for d in K.sel(P, kind="decline") if d["id"] in mine and d["signer"] in el}
+    # the key view: a ballot counts only where its signer's signature on it counts by the end rule (MUTATION
+    # ballot_key_view_unread: every ballot counts), before its key is read as its person's
+    kv = KEY_VIEW[-1] if "ballot_key_view_unread" not in MUT else None
     # one ballot per person (ruled on CIRISConstitution#224): a ballot counts for the voter its key speaks for; the
     # tally takes one ranking a voter, and a voter whose keys cast two says nothing (MUTATION persons_unread: the key)
     who = lambda b: b["signer"] if "persons_unread" in MUT else person_for(b["signer"], voters, P, by)
     ballots = [(who(b), b["ranking"]) for b in K.sel(P, kind="ballot")
                if b["id"] in mine and who(b) is not None and b["id"] not in gone
+               and (kv is None or kv(b["id"], b["signer"]))
                and (set(b["ranking"]) <= voters or "ballot_nonmember_ranked" in MUT)
                and (len(b["ranking"]) <= ELECTION_RANKS or "ballot_ranks_unbounded" in MUT)]
     if not ballots: return False                    # (the ranked tally groups the ballots by voter: one says two, nothing)
@@ -2124,6 +2134,9 @@ def receipts_of(S, x, duty, unseats, not_ends):
             elif "failed_count_is_signers" in MUT and q["signer"] in duty: out.append((q, False))   # MUTATION
             continue
         if q["signer"] not in duty: continue
+        # a single key's receipt by the end rule, through the key view (MUTATION receipt_key_view_unread)
+        kv = KEY_VIEW[-1] if "receipt_key_view_unread" not in MUT else None
+        if kv is not None and not kv(q["id"], q["signer"]): continue
         cut = any(q["signer"] in u["to"] and u.get("obj") == x["obj"] and u["id"] not in not_ends
                   and q["id"] not in S.anc[u["id"]] and ("receipt_before_kept" not in MUT or u["id"] not in S.anc[q["id"]])
                   and holds_roster(S, u, q["signer"], x["obj"], u["scope"])
@@ -2380,7 +2393,7 @@ def void_changes(r, P):
                      self-forked too
         built on     a counted change naming a void head is void, but a merge of both lines."""
     if not P or "self_fork_unread" in MUT: return frozenset()
-    key = (r["id"], r.get("obj"), frozenset(id(q) for q in P), frozenset(MUT) | frozenset(CP.MUT), _RVOID[-1])
+    key = (r["id"], r.get("obj"), frozenset(id(q) for q in P), frozenset(MUT) | frozenset(CP.MUT), id(KEY_VIEW[-1]), _RVOID[-1])
     got = _VOID_MEMO.get(key)
     if got is None:
         got = _VOID_MEMO[key] = (tuple(P), _void_changes(r, P))
@@ -2588,7 +2601,7 @@ def reader_state(S, own, rule=None):
     for a reader with no row is in its roster, and one refused for it is not (CC 2.7.9: "A reader's own acknowledged
     head closes older heads for that reader only"). MUTATION reader_exclusion_unread: the rows as for every reader."""
     if "reader_exclusion_unread" in MUT: return S
-    key = (frozenset(id(q) for q in S.rows), frozenset(S.C.items()), own, frozenset(MUT) | frozenset(CP.MUT))
+    key = (frozenset(id(q) for q in S.rows), frozenset(S.C.items()), own, frozenset(MUT) | frozenset(CP.MUT), id(KEY_VIEW[-1]))
     got = _READER_MEMO.get(key)
     if got is not None: return got[1]
     RV = reader_void(S, own) if own is not None else frozenset()
@@ -2857,7 +2870,7 @@ def seats_of(rows):
     row that names it, and a chain of lone removals reads every earlier one's (the run is polynomial in the chain,
     not exponential). The key is the rows themselves (by identity, held in the value so none is reused), the planted
     breaks switched on, and the tables a check may change (what a seat holds, the policies, the enders)."""
-    key = (frozenset(id(q) for q in rows), frozenset(MUT) | frozenset(CP.MUT), repr(sorted(HOLDS.items())), repr(sorted(POLICY.items())),
+    key = (frozenset(id(q) for q in rows), frozenset(MUT) | frozenset(CP.MUT), id(KEY_VIEW[-1]), repr(sorted(HOLDS.items())), repr(sorted(POLICY.items())),
            repr(sorted(ENDS.items())))
     got = _SEATS_OF.get(key)
     if got is None:
@@ -2952,9 +2965,59 @@ def voices(r, P, past=None):
     a cosign whose past holds a newer counted head than r names leaves r itself with that head in its past, and r then
     concludes nothing by newer_head_in_past. No separate reading of the cosign's past is needed.)"""
     heads = set(r.get("head", ()))
-    v = signers(r) | frozenset(c["signer"] for c in K.sel(P, kind="cosign", of=r.get("content", r["id"]))
-                               if c["id"] in r["names"] and heads <= set(c["names"]))
+    kv = KEY_VIEW[-1] if "key_view_unread" not in MUT else None
+    # the key view (key_end.counts_by over one causal order of the seat and key lanes): each voice by the end rule,
+    # its signature on the row it signed (MUTATION cosigner_key_unchecked: only the counted row's own signer is read)
+    ok = (lambda row, k: True) if kv is None else kv
+    own = lambda k: ok(r["id"], k) or ("cosigner_key_unchecked" in MUT and k != r["signer"])
+    v = frozenset(k for k in signers(r) if own(k)) | frozenset(
+        c["signer"] for c in K.sel(P, kind="cosign", of=r.get("content", r["id"]))
+        if c["id"] in r["names"] and heads <= set(c["names"])
+        and (ok(c["id"], c["signer"]) or "cosigner_key_unchecked" in MUT))
     return v
+
+
+def final_by_ack(S, fid, KS=None, roster=frozenset()):
+    """Counted act fid is FINAL BY ACKNOWLEDGEMENT in S: it concluded as a count (its own count met: not a lone act,
+    whose receipts are E8's), and CLEAN receipts (`ack` rows of it, `of`) from n - t + 1 of the n members at its
+    heads are held, t the least yes its policy meets at n (purge.py's settled, `ack_blocking_quorum`). S is the rows
+    as they concluded with NO key view (the finality spec carries none: a final act is not reopened by a later cut).
+    A receipt is clean only where (KS, the key lane with the seat rows in one causal order) its signer's key stands
+    at it by the plain end rule, and no end of a key the count's voices are and no cut of the act are in its past
+    (MUTATION receipt_unclean_counts). A `declared` need is never final by acknowledgement (no t is read from the
+    row's own word); a recall's t is read at its own base, less the holder it recalls."""
+    f = S.by.get(fid)
+    if f is None or not S.C.get(fid) or f["kind"] not in ("offer", "unseat") or f.get("conf") != "group": return False
+    P = [q for q in S.Cs if q["id"] in S.anc[fid]]
+    past = lambda a, b: a in S.anc[b]
+    if not count_met(f, P, past): return False
+    kind = K.rule(POLICY, f.get("policy"), ("unknown", 0, 0))[0]
+    if kind == "declared": return False
+    M = members_at(P, past, f["obj"], f.get("head", ()), "member")
+    base = M - set(f["to"]) if kind == "recall" else M
+    n = len(base)
+    t = next((y for y in range(n + 1) if met(f.get("policy"), y, n)), None)
+    if t is None or not n: return False
+    voices = signers(f)
+    def clean(a):
+        if KS is None or "receipt_unclean_counts" in MUT: return True
+        if a["id"] not in KS.by or not KE_COUNTS[0](KS, a["id"], a["signer"], None, frozenset(), roster): return False
+        past_a = KS.anc[a["id"]]
+        if any(e["id"] in past_a for k in voices for e in KE_ENDS[0](KS, k, roster)): return False
+        on = set(f.get("on", ()))
+        return not any(q["id"] != fid and (q.get("target") == fid or on & set(q.get("cuts", ())))
+                       for q in KS.Cs if q["id"] in past_a)
+    rec = {a["signer"] for a in S.Cs if a["kind"] == "ack" and a.get("of") == fid and a["signer"] in M and clean(a)}
+    return len(rec) >= max(1, n - t + 1)
+
+
+# key_end's end rule, for final_by_ack's clean receipts (set by key_end on import: seat does not import key_end)
+KE_COUNTS, KE_ENDS = [None], [None]
+
+
+# The key view (CutSpec::key_view): a callable (row id, key) -> whether key's signature on that row counts by the end
+# rule (key_end.counts_by), or None: no key lane read, every voice counts (only for a caller with no key lane).
+KEY_VIEW = [None]
 
 
 def newest(heads, past):

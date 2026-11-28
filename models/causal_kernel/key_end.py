@@ -60,8 +60,9 @@ def edge(id, signer, to, at, cover, names=()):
     return CK.row(id, "edge", signer, (cover,) + tuple(names), at=at, cover=cover, to=to)
 
 
-def revoke(id, key, ra):
-    return CK.row(id, "revoke", key, (), key=key, ra=ra)
+def revoke(id, key, ra, names=()):
+    """A revocation of `key` by itself after its own instant `ra`; `names`: the key's rows it has in its past."""
+    return CK.row(id, "revoke", key, tuple(names), key=key, ra=ra)
 
 
 # ---- the door: the row alone -----------------------------------------------------------------------------
@@ -106,6 +107,7 @@ CLOCK = [0]
 
 
 def RULE(r, P, past):
+    if r.get("stub"): return r["concl"]                          # a stub keeps its conclusion; its bytes are gone
     by = {q["id"]: q for q in P}
     if r["kind"] == "rec":
         prev = [by[n] for n in r["names"] if n in by and by[n]["kind"] == "rec"]
@@ -190,9 +192,102 @@ def successor(S, k, ret=None):
     return keys[0] if len(keys) == 1 else None
 
 
-def seeds(S, now):
-    """Concluded rows whose key has not ended at now, and every revocation (never withdrawn, never dropped)."""
-    out = set()
+def ends_of(S, k, roster=frozenset()):
+    """Key k's ends, as rows:
+        its self-revocations, but NONE where a concluded rotation of k is held at all (a retired key's revocation is
+            no end, whoever signed it and whatever its past holds; MUTATION retired_key_revokes: only one with a
+            rotation in its own past is none);
+        every concluded rotation of k (a rotated holder speaks under its new key). Two rotations of one key are a
+            FORK of the key: both are ends of the old key, and neither successor stands (successor) until the self
+            roster's count settles which;
+        an end by the person's self roster: a row of `roster` (the ids of the roster's acts CONCLUDED under that
+            roster's own count rule, read by the seat over the roster) whose `rend_of` is k, from its `ra` on
+            (MUTATION roster_end_unread). A thief holding one key cannot make one where the roster needs more.
+    The residual, stated: a person with ONE key (a self roster of one), whose key is stolen, cannot be told from the
+    thief: the thief can rotate or revoke it as the owner could."""
+    rots = [r for r in S.Cs if r["kind"] == "rec" and r["succ_of"] == k]
+    if "retired_key_revokes" in MUT:
+        revs = [r for r in S.Cs if r["kind"] == "revoke" and r["key"] == k and r["signer"] == k
+                and not any(x["id"] in S.anc[r["id"]] for x in rots)]
+    else:
+        revs = [] if rots else [r for r in S.Cs if r["kind"] == "revoke" and r["key"] == k and r["signer"] == k]
+    rends = [] if "roster_end_unread" in MUT else [r for r in S.Cs if r.get("rend_of") == k and r["id"] in roster]
+    return revs + rots + rends
+
+
+def _own_rows(S, reader):
+    """A reader's own rows: those it signed or cosigned."""
+    return [r for r in S.Cs if r["signer"] == reader or reader in r.get("cosigners", ())]
+
+
+def stands(S, rid, e, reader=None, final=frozenset()):
+    """Row `rid` stands against end `e` (A KEY END IS A CUT, the Constitution's ruling): (a) it is in e's past (and,
+    for an end stating an instant, its own instant before it); or (b) it is on the reader's own line from before the
+    reader held e: a row the reader signed or cosigned is it, or has it in its past, without e there (taken up;
+    MUTATION taken_up_unread); or (c) it is part of a count FINAL BY ACKNOWLEDGEMENT (final: the counts with n - t + 1
+    clean receipts, seat.final_by_ack): that count, or a row it names (MUTATION final_count_unread). A final act is
+    not reopened by a later cut."""
+    r = S.by[rid]
+    if rid in S.anc[e["id"]] and not (e.get("ra") is not None and instant(r) is not None and not instant(r) < e["ra"]):
+        return True
+    if reader is not None and "taken_up_unread" not in MUT and any(
+            (a["id"] == rid or rid in S.anc[a["id"]]) and e["id"] not in S.anc[a["id"]] for a in _own_rows(S, reader)):
+        return True
+    # (c) protects only a voice valid when cast: never one whose end is in the final count's own past (MUTATION
+    # final_protects_late)
+    if "final_count_unread" not in MUT and any(
+            f in S.by and (rid == f or rid in S.by[f]["names"])
+            and ("final_protects_late" in MUT or e["id"] not in S.anc[f]) for f in final):
+        return True
+    return False
+
+
+def instant(r):
+    """A row's own signed instant, where it states one: the ONE accessor counts and counts_by read (the crate's
+    KeyEndRow::instant; the fixtures' rows give every row its `at`, as tests/common's adapter does). A row stating no
+    instant is judged by its past alone: a revocation's revoked_after reaches only rows that state an instant."""
+    return r.get("at")
+
+
+def counts(S, r):
+    """THE END RULE, for every count: a concluded statement of key k counts only where it is in the causal past of
+    each of k's own ends (and, for a self-revocation, its own instant before the revoked_after k stated); with no
+    such end, a concluded statement counts (its instant inside the record it names is the holder's word, bounded
+    below by its own past: the licence term's residual and caller duty). Whether a live row cites it is never read:
+    a count reads no anchor (the Constitution's ruling; only content may be anchored by others' rows)."""
+    if not S.C.get(r["id"]) or r["kind"] not in ("att", "edge"): return bool(S.C.get(r["id"]))
+    return all(stands(S, r["id"], e) for e in ends_of(S, r["signer"]))
+
+
+def counts_by(S, rid, k, reader=None, final=frozenset(), roster=frozenset()):
+    """THE END RULE for key k's signature on row `rid` (a statement, or a seat row k signed or cosigned, held in one
+    causal order with k's key lane), for `reader` (None: no reader's line), the counts `final` final by
+    acknowledgement: the row concluded, and standing against each of k's ends (stands). No cite is read.
+    The cost, stated: nobody can tell the thief from the owner, so a thief's vote a reader took up before holding the
+    end stands for that reader, and one in a final count stands for everyone; the remedy is the members' later count
+    reversing the act. Readers can differ on a count not yet final until receipts or a later count settle it. A
+    newcomer (a reader with no row) reads the plain cut and the final counts. Caller duty: an honest rotation or
+    revocation names the key's last rows."""
+    r = S.by.get(rid)
+    if r is None or not S.C.get(rid): return False
+    return all(stands(S, rid, e, reader, final) for e in ends_of(S, k, roster))
+
+
+def _wire_seat():
+    import seat as _ST
+    _ST.KE_COUNTS[0], _ST.KE_ENDS[0] = counts_by, ends_of
+
+
+_wire_seat()
+
+
+def seeds(S, now, stubs=True):
+    """Concluded rows whose key has not ended at now, every revocation and rotation (never withdrawn, never
+    dropped), and (stubs) every row a count reads (counts: a compaction drops no stub a count reads)."""
+    out = {r["id"] for r in S.Cs if r["kind"] in ("att", "edge") and counts(S, r)} if stubs else set()
+    # and every end a count reads (a rotation, like a revocation, is never dropped: dropping it would revive the old
+    # key's cut rows)
+    out |= {r["id"] for r in S.Cs if r["kind"] == "rec" and r["succ_of"] is not None}
     for r in S.Cs:
         if r["kind"] == "revoke":
             out.add(r["id"]); continue
@@ -205,8 +300,18 @@ def seeds(S, now):
     return out
 
 
+def bytes_retained(S, now):
+    """The rows whose BYTES are kept at now: rows of keys not ended, every revocation and rotation, and everything in
+    their past (what a live row names). A row a count reads that is not among them (an expired key's in-time vote, its
+    count settled) keeps its STUB for good (retained) and its bytes may drop."""
+    s = seeds(S, now, stubs=False)
+    return frozenset(s) | frozenset(a for i in s for a in S.anc[i] if a in S.by)
+
+
 def retained(S, now):
-    """The rows that have not lapsed: rows of keys not ended, and everything in their past."""
+    """The rows whose STUB is kept for good at now (digest, names, the fields a count reads, the conclusion): every
+    row a count reads (counts), every row whose bytes are kept (bytes_retained), and everything in their past.
+    Storage only: nothing counts by it."""
     if "drop_dead_signers" in MUT:        # PLANT: drop every row of an ended key, named or not
         return frozenset(seeds(S, now))
     s = seeds(S, now)
@@ -221,8 +326,11 @@ def reach(S, own, now, keys, ret=None):
 
 def score(S, subject, now, ret=None):
     ret = retained(S, now) if ret is None else ret
+    # a count: by the end rule (counts), never by what is retained (MUTATION ended_vote_retained_by_cite: a row a
+    # live row cites counts too; score_reads_lapsed: every concluded row counts)
     return frozenset(a["signer"] for a in K.sel(S.Cs, kind="att") if a.get("about") == subject
-                     and (a["id"] in ret or "score_reads_lapsed" in MUT))
+                     and (counts(S, a) or "score_reads_lapsed" in MUT
+                          or ("ended_vote_retained_by_cite" in MUT and a["id"] in ret)))
 
 
 def answers(S, now, keys, parties, subjects):
@@ -234,9 +342,23 @@ def answers(S, now, keys, parties, subjects):
         "reach": tuple((p, reach(S, p, now, keys, ret)) for p in parties),
         "score": tuple((s, score(S, s, now, ret)) for s in subjects),
         "rows": frozenset((i, bool(S.C.get(i)), i in ret) for i in ret),
+        "bytes": bytes_retained(S, now),
     }
 
 
+def stub(r, concl):
+    """A row's stub: its id, kind, signer, names, the fields a count reads, and its conclusion; its bytes dropped."""
+    return dict(r, stub=True, concl=concl)
+
+
 def compact(rows, S, now):
-    keep = retained(S, now)
-    return [r for r in rows if r["id"] in keep]
+    """Drop the lapsed rows, and the bytes of a row whose stub alone is kept (MUTATION stub_drops_counted: a counted
+    row whose bytes may drop is dropped whole)."""
+    keep, byt = retained(S, now), bytes_retained(S, now)
+    out = []
+    for r in rows:
+        if r["id"] not in keep: continue
+        if r["id"] in byt: out.append(r); continue
+        if "stub_drops_counted" in MUT: continue
+        out.append(stub(r, bool(S.C.get(r["id"]))))
+    return out

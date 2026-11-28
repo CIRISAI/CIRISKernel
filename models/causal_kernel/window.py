@@ -213,6 +213,11 @@ def landing(id, signer, p, rec, says, at, names=()):
 def table_outcome(spec, p, answers, inside, base, elapsed):
     """The outcome the table gives. answers: rows answering p; inside: rows read for the target's silence;
     base(name) -> the keys counted; elapsed: whether the concluder's two instants span the window."""
+    # the key view (seat.KEY_VIEW): an answer counts only where its signer's signature on it counts by the end rule
+    # (MUTATION window_key_view_unread: every answer counts)
+    kv = ST.KEY_VIEW[-1]
+    if kv is not None and "window_key_view_unread" not in ST.MUT:
+        answers = [a for a in answers if kv(a["id"], a["signer"])]
     tv = {p.get("target")} if spec.get("target_votes") else set()   # the joiner's own yes is a voice of the floor (CC 3.1.3.2)
     # an answer is its person's (ruled on CIRISConstitution#224: one voice however many live keys sign): a key that is
     # no member answers for the member it is a live key of (seat.person_for); a key with no person stays as it signed,
