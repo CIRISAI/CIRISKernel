@@ -25,8 +25,8 @@ the payload (the schema rule comes later):
 |---|---|---|
 | `id`, `signer` | row id; `attesting_key_id` (G, the granting node or its owner) | `witness_relation` must be `self`; a grant otherwise is not conformant and is not presented |
 | `names` | the digests the row names (`references_attestation_id` on a `withdraws`/`recants`/`supersedes`) | |
-| `kind` | `Grant`: dimension `consent:replication:v1`. `Withdrawal`: a `withdraws` or `recants` whose `references_attestation_id` is a grant, signed by the grant's signer, its peer or the signer's owner. `Announcement`: a node's own announcement (CC 5.4.6). `Other`: any other row | **D** |
-| `federation` | `cohort_scope == "federation"` | a grant at federation scope concludes only where its signer and its peer have announced in its past |
+| `kind` | `Grant`: dimension `consent:replication:v1`. `Withdrawal`: a `withdraws` or `recants` whose `references_attestation_id` is a grant (who may withdraw is derived: the grant's signer as a person, a named party, or the signer's owner, `consent::may_withdraw`). `Announcement`: a node's own announcement (CC 5.4.6). `Other`: any other row | **D** |
+| `federation` | `cohort_scope == "federation"` | a grant at federation scope is placed only where its signer and its peer have announced in its past, each announcement counting by the key view; a grant held between the two is Edge's to place |
 | `peer` | the one entry of `subject_key_ids` | a grant naming none or several is not conformant (CC 3.3.7, "the **single** recipient peer"): present `peer()` as `None` and it concludes nothing |
 | `classes` | payload `attestation_prefixes`, as signed | `conclude_rule` refuses a list that is not sorted ascending and deduplicated; an entry ending in `:` is a namespace prefix, any other a corpus `subject_kind` class name |
 | `at` | `asserted_at` | the fold's instant, compared only among one signer's grants to one peer |

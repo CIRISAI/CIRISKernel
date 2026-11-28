@@ -367,7 +367,8 @@ fn table_outcome<R: WindowRow, S: CutSpec<R>>(
     // one member and one voice per person (ruled on CIRISConstitution#224): every base counted by person, each answer
     // read as its signer's person BEFORE the opener's withdrawal, a duty holder's act and the moot are read; a key
     // that counts as no person answers for nobody. A window over a self roster reads keys ([`seat::Persons`]).
-    let pp = seat::Persons::over(x.rows, x.law, x.spec, Some(&x.obj));
+    let pp =
+        seat::Persons::over(x.rows, x.law, x.spec, Some(&x.obj), x.spec.key_view().unwrap_or(crate::key_end::none()));
     let base = |b: &Base| pp.base(&x.base(b));
     let held = |b: &Base| pp.base(&x.held(b));
     let tv: BTreeSet<R::Key> =

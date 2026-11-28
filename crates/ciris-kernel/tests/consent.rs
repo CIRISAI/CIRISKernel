@@ -1,15 +1,20 @@
 //! Differential: the consent peer set, against the case table of `models/causal_kernel/check_consent.py`
-//! (fixture `consent.json`): for every ask, whether a grant is in force, a principal's peer set, and the grant a
-//! node may send a peer a row of a class under, read at a held row, with the rows concluded as listed and in
-//! reverse and admitted one at a time in both orders. The owner of a send ask is the one the model's seat walk
-//! gives at the reading row (the crate takes it from the caller).
+//! (fixture `consent.json`): for every ask, whether a grant is in force, a principal's peer set, a bilateral peering,
+//! and the grant a node may send a peer a row of a class under, read at a held row.
+//!
+//! Twice: (1) with the model's readings (the key view's verdicts, the person map, the one owner reading), the rows
+//! concluded as listed and in reverse and admitted one at a time in both orders; (2) END TO END, with the crate's
+//! own readings over the model's rows: `key_end::KeyReading` over the key lane, `seat::Persons::voice` and
+//! `seat::Seats::owner` over the seat rows, each over the past the call names.
 
 mod common;
-use ciris_kernel::consent::{self, ConsentRow, Kind};
-use ciris_kernel::key_end::KeyView;
-use ciris_kernel::layers::{arrive, conclude, kept, Concluded, Past};
+use ciris_kernel::consent::{self, ConsentRow, Kind, Reading};
+use ciris_kernel::graph::Graph;
+use ciris_kernel::key_end::{self, KeyReading, KeyView};
+use ciris_kernel::layers::{arrive, conclude, kept, Concluded};
+use ciris_kernel::seat::{seat_rule, Persons, SeatLaw, Seats};
 use common::*;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug)]
 struct CRow {
@@ -23,8 +28,6 @@ struct CRow {
     until: Option<i64>,
     of: Option<String>,
     federation: bool,
-    // on a withdrawal: the owner of the withdrawn grant's signer over the withdrawal's past, as the model reads it
-    owner_of_signer: Option<String>,
 }
 
 impl ciris_kernel::Row for CRow {
@@ -71,70 +74,132 @@ fn opt_i(j: &J, k: &str) -> Option<i64> {
     j.get(k).filter(|v| !v.is_null()).map(|v| v.i())
 }
 
+// a row as the consent view reads it: `kind` is the view's word (rows) or the model's (model_rows)
 fn row(j: &J) -> CRow {
     let kind = match j.at("kind").s() {
         "grant" => Kind::Grant,
-        "withdrawal" => Kind::Withdrawal,
-        "announcement" => Kind::Announcement,
-        "other" => Kind::Other,
-        k => panic!("kind {k}"),
+        "withdrawal" | "withdraws" | "recants" => Kind::Withdrawal,
+        "announcement" | "announce" => Kind::Announcement,
+        _ => Kind::Other,
     };
+    let grant = kind == Kind::Grant;
     CRow {
         id: j.at("id").s().to_string(),
         kind,
         signer: j.at("signer").s().to_string(),
         names: j.at("names").strs(),
-        peer: j.get("peer").and_then(|v| v.opt_s()),
-        classes: j.get("classes").map(|v| v.strs()).unwrap_or_default(),
-        at: opt_i(j, "at"),
-        until: opt_i(j, "until"),
-        of: j.get("of").and_then(|v| v.opt_s()),
-        federation: j.get("federation").is_some_and(|v| v.b()),
-        owner_of_signer: j.get("owner_of_signer").and_then(|v| v.opt_s()),
+        peer: if grant { j.get("peer").and_then(|v| v.opt_s()) } else { None },
+        classes: if grant { j.get("classes").map(|v| v.strs()).unwrap_or_default() } else { vec![] },
+        at: if grant { opt_i(j, "at") } else { None },
+        until: if grant { opt_i(j, "until") } else { None },
+        of: if kind == Kind::Withdrawal { j.get("of").and_then(|v| v.opt_s()) } else { None },
+        federation: j.get("federation").or_else(|| j.get("fed")).is_none_or(|v| v.b()),
     }
 }
 
-// the caller's owner reading at a withdrawal: here, the model's, carried on the withdrawal row
-fn rule(p: &Past<'_, '_, CRow>) -> bool {
-    consent::conclude_rule(p, |_, p| p.row().owner_of_signer.clone())
+fn rule(p: &ciris_kernel::layers::Past<'_, '_, CRow>) -> bool {
+    consent::conclude_rule(p)
 }
 
-// the key view as the model reads it (key_end.counts_by for the case's reader): the (grant, key) pairs that count
-struct Voiced(BTreeSet<(String, String)>);
-impl KeyView<String, String> for Voiced {
+// (1) the model's readings, carried in the fixture
+struct Tables {
+    voiced: BTreeSet<(String, String)>,
+    persons: BTreeMap<String, String>,
+    owners: BTreeMap<String, String>,
+}
+
+impl Tables {
+    fn of(case: &J) -> Tables {
+        let pairs = |p: &J| (p.arr()[0].s().to_string(), p.arr()[1].s().to_string());
+        let map = |k: &str| -> BTreeMap<String, String> {
+            case.at(k).obj().iter().map(|(a, b)| (a.clone(), b.s().to_string())).collect()
+        };
+        Tables {
+            voiced: case.at("voiced").arr().iter().map(pairs).collect(),
+            persons: map("persons"),
+            owners: map("owners"),
+        }
+    }
+}
+
+impl Reading<String, String> for Tables {
     fn counts(&self, row: &String, key: &String) -> bool {
-        self.0.contains(&(row.clone(), key.clone()))
+        self.voiced.contains(&(row.clone(), key.clone()))
+    }
+    fn person(&self, key: &String, row: &String, inclusive: bool) -> Option<String> {
+        self.persons.get(&format!("{key}|{row}|{}", if inclusive { 1 } else { 0 })).cloned()
+    }
+    fn owner(&self, node: &String, row: Option<&String>, inclusive: bool) -> Option<String> {
+        let at = row.map_or(String::new(), |r| r.clone());
+        self.owners.get(&format!("{node}|{at}|{}", if inclusive { 1 } else { 0 })).cloned()
     }
 }
 
-fn ask(c: &Concluded<'_, CRow>, a: &J, kv: &Voiced) -> J {
-    let kv: Option<&dyn KeyView<String, String>> = Some(kv);
+// (2) the crate's own readings over the model's rows: the key lane concluded by key_end's rule, the seat rows by the
+// seat rule, each read over the past a call names
+struct Crate<'c, 'a> {
+    key: KeyReading<'c, 'a, TRow>,
+    seats: &'c Concluded<'a, TRow>,
+    law: &'c SeatLaw,
+}
+
+impl<'a> Crate<'_, 'a> {
+    // the concluded seat rows in `row`'s past (with `row` where `inclusive`); every concluded row with no row
+    fn past(&self, row: Option<&String>, inclusive: bool) -> Vec<&'a TRow> {
+        let c = self.seats;
+        match row.map(|r| c.g.idx(r)) {
+            None => c.cs().iter().map(|&q| c.g.row(q)).collect(),
+            Some(None) => vec![],
+            Some(Some(i)) => c
+                .cs()
+                .iter()
+                .copied()
+                .filter(|&q| c.g.in_past(q, i) || (inclusive && q == i))
+                .map(|q| c.g.row(q))
+                .collect(),
+        }
+    }
+}
+
+impl Reading<String, String> for Crate<'_, '_> {
+    fn counts(&self, row: &String, key: &String) -> bool {
+        self.key.counts(row, key)
+    }
+    fn person(&self, key: &String, row: &String, inclusive: bool) -> Option<String> {
+        let rows = self.past(Some(row), inclusive);
+        Persons::over(&rows, self.law, &DictCut, None, &self.key).voice(key)
+    }
+    fn owner(&self, node: &String, row: Option<&String>, inclusive: bool) -> Option<String> {
+        let rows = self.past(row, inclusive);
+        let c = Concluded::with(Graph::new(rows.iter().copied()), None);
+        Seats::new(&c, self.law, &DictCut, None).owner(node)
+    }
+}
+
+fn ask(c: &Concluded<'_, CRow>, a: &J, rd: &dyn Reading<String, String>) -> J {
     let at = a.get("at").and_then(|v| v.opt_s());
     let now = opt_i(a, "now");
+    let s = |k: &str| a.at(k).s().to_string();
     match a.at("ask").s() {
-        "send" => {
-            let owner = a.get("owner").and_then(|v| v.opt_s());
-            let g = consent::may_send(
-                c,
-                &a.at("node").s().to_string(),
-                owner.as_ref(),
-                &a.at("peer").s().to_string(),
-                a.at("class").s(),
-                at.as_ref(),
-                now,
-                kv,
-            );
-            g.map_or(J::Null, |g| J::Str(g.clone()))
-        }
+        "send" => consent::may_send(c, &s("node"), &s("peer"), a.at("class").s(), at.as_ref(), now, rd)
+            .map_or(J::Null, |g| J::Str(g.clone())),
         "peers" => {
-            let ps = consent::peer_set(c, &a.at("principal").s().to_string(), at.as_ref(), now, kv);
-            J::Arr(ps.into_iter().map(J::Str).collect())
+            J::Arr(consent::peer_set(c, &s("principal"), at.as_ref(), now, rd).into_iter().map(J::Str).collect())
         }
-        "bilateral" => {
-            J::Bool(consent::bilateral(c, &a.at("a").s().to_string(), &a.at("b").s().to_string(), at.as_ref(), now, kv))
-        }
-        "force" => J::Bool(consent::in_force(c, &a.at("grant").s().to_string(), at.as_ref(), now, kv)),
+        "bilateral" => J::Bool(consent::bilateral(c, &s("a"), &s("b"), at.as_ref(), now, rd)),
+        "force" => J::Bool(consent::in_force(c, &s("grant"), at.as_ref(), now, rd)),
         k => panic!("ask {k}"),
+    }
+}
+
+fn run(case: &J, c: &Concluded<'_, CRow>, rd: &dyn Reading<String, String>, n: &mut usize, bad: &mut usize, how: &str) {
+    for a in case.at("asks").arr() {
+        *n += 1;
+        let got = ask(c, a, rd);
+        if &got != a.at("want") {
+            *bad += 1;
+            eprintln!("{} ({how}): {a:?}: got {got:?}", case.at("name").s());
+        }
     }
 }
 
@@ -145,9 +210,7 @@ fn case_table() {
     for case in fx.at("cases").arr() {
         let rows: Vec<CRow> = case.at("rows").arr().iter().map(row).collect();
         let rev: Vec<CRow> = rows.iter().rev().cloned().collect();
-        let kv = Voiced(
-            case.at("voiced").arr().iter().map(|p| (p.arr()[0].s().to_string(), p.arr()[1].s().to_string())).collect(),
-        );
+        let rd = Tables::of(case);
         let held = [
             conclude(kept(&rows, |_| true), rule, None),
             conclude(kept(&rev, |_| true), rule, None),
@@ -155,17 +218,53 @@ fn case_table() {
             arrive(&rev, rule, None, |_| true),
         ];
         for c in &held {
-            for a in case.at("asks").arr() {
-                n += 1;
-                let got = ask(c, a, &kv);
-                if &got != a.at("want") {
-                    bad += 1;
-                    eprintln!("{}: {a:?}: got {got:?}", case.at("name").s());
-                }
-            }
+            run(case, c, &rd, &mut n, &mut bad, "the model's readings");
         }
     }
     report("the consent peer set (check_consent.py case table)", n, bad);
+    assert_eq!(bad, 0);
+}
+
+#[test]
+fn end_to_end() {
+    let fx = fixture("consent.json");
+    let law: SeatLaw = law_of(fx.at("law"));
+    let (mut n, mut bad) = (0, 0);
+    for case in fx.at("cases").arr() {
+        let refs: BTreeMap<String, String> =
+            case.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
+        let model = case.at("model_rows").arr();
+        let trows = rows_with_refs(model, &refs);
+        let rows: Vec<CRow> = model.iter().map(row).collect();
+        let c = conclude(kept(&rows, |_| true), rule, None);
+        // ONE conclusion of every lane, as the model's one state concludes them: the key lane by key_end's rule, the
+        // consent rows by consent's (the view above: a row's conclusion reads only its past), every other row by the
+        // seat rule
+        let tc = conclude(
+            kept(&trows, |_| true),
+            |p| match p.row().kind.as_str() {
+                "rec" | "att" | "edge" | "revoke" => key_end::conclude_rule(p),
+                "grant" | "withdraws" | "recants" => c.concluded_id(&p.row().id),
+                _ => seat_rule(p, &law, &DictCut, &|_| true),
+            },
+            None,
+        );
+        for (i, r) in rows.iter().enumerate() {
+            let same = tc.g.idx(&r.id).map(|t| tc.concluded(t)) == c.g.idx(&r.id).map(|q| c.concluded(q));
+            if r.kind != Kind::Other && !same {
+                bad += 1;
+                eprintln!("{}: row {i} {} concludes differently in the two views", case.at("name").s(), r.id);
+            }
+        }
+        let reader = case.get("reader").and_then(|r| r.opt_s());
+        let rd = Crate {
+            key: KeyReading { c: &tc, reader, final_: BTreeSet::new(), roster: BTreeSet::new() },
+            seats: &tc,
+            law: &law,
+        };
+        run(case, &c, &rd, &mut n, &mut bad, "end to end");
+    }
+    report("the consent peer set end to end (KeyReading, Persons, Seats::owner)", n, bad);
     assert_eq!(bad, 0);
 }
 
@@ -189,13 +288,17 @@ fn classes_and_fan_out() {
         until: None,
         of: None,
         federation: false,
-        owner_of_signer: None,
     };
     let rows = vec![g("g1", "N", "P"), g("g2", "O", "Q"), g("g3", "X", "R")];
     let c = conclude(kept(&rows, |_| true), rule, None);
+    let owned = |o: Option<&str>| Tables {
+        voiced: rows.iter().map(|r| (r.id.clone(), r.signer.clone())).collect(),
+        persons: BTreeMap::new(),
+        owners: o.map(|o| [("N||1".to_string(), o.to_string())].into_iter().collect()).unwrap_or_default(),
+    };
     let addressed: BTreeSet<String> = ["P", "Q", "R", "S"].iter().map(|s| s.to_string()).collect();
-    let set = consent::replication_set(&c, &"N".into(), Some(&"O".into()), &addressed, None, None, None);
+    let set = consent::replication_set(&c, &"N".into(), &addressed, None, None, &owned(Some("O")));
     assert_eq!(set, ["P", "Q"].iter().map(|s| s.to_string()).collect());
-    let set = consent::replication_set(&c, &"N".into(), None, &addressed, None, None, None);
+    let set = consent::replication_set(&c, &"N".into(), &addressed, None, None, &owned(None));
     assert_eq!(set, ["P"].iter().map(|s| s.to_string()).collect());
 }
