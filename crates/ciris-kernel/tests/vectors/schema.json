@@ -790,7 +790,7 @@
             "ceg-genesis-bundle/2",
             "ceg-revocation-snapshot/2"
           ],
-          "description": "A genesis bundle's statements carry iss, sub (equal to the payload's family_key_id, written by the minter: the case states none), the edition and iat (ruled; object-claims is being amended)."
+          "description": "Every object's CWT claims are a closed set: iss, -70003 = 2, optional iat, optional sub (Verify v23.7.0). A genesis bundle's sub equals its payload's family_key_id, written by the minter (ruled)."
         },
         "author": {
           "oneOf": [
@@ -824,8 +824,46 @@
         },
         "refs": {
           "$ref": "#/$defs/refs"
+        },
+        "sub": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "required": [
+                "$identity"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "$identity": {
+                  "$ref": "#/$defs/name"
+                }
+              }
+            }
+          ],
+          "description": "A snapshot's or boot manifest's sub, written only where stated; never for a genesis bundle."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "typ": {
+                "const": "ceg-genesis-bundle/2"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "sub"
+              ]
+            }
+          }
+        }
+      ]
     },
     "fault": {
       "oneOf": [
