@@ -1311,8 +1311,16 @@ def open_count(r, P, past, no_say=frozenset()):
     min(2, members); the persons `no_say` (rule 6's double signers of rival openings) are no voices of it."""
     obj, heads = r.get("obj"), tuple(r.get("head", ()))
     mem = members_at(P, past, obj, heads, "member") - members_at(P, past, obj, heads, AGENT)
-    if "open_by_key" in MUT: base, yes = mem, voices(r, P) & mem
-    else: base, yes = count_persons(P, obj, mem, voices(r, P))
+    # its voices through persons and the key view (rule 7: every close input; seat.voices reads KEY_VIEW; MUTATION
+    # open_key_view_unread: its voices read with no key view)
+    if "open_key_view_unread" in MUT:
+        KEY_VIEW.append(None)
+        try: vs = voices(r, P)
+        finally: KEY_VIEW.pop()
+    else:
+        vs = voices(r, P)
+    if "open_by_key" in MUT: base, yes = mem, vs & mem
+    else: base, yes = count_persons(P, obj, mem, vs)
     yes = frozenset(yes) - frozenset(no_say)
     n = len(base)
     floor = 0 if "open_no_floor" in MUT else min(2, n)
@@ -1389,7 +1397,7 @@ def vacancy(E, P, past, named=None):
     if E["kind"] == "election_open":
         # the vacancy is the seat end the opening cites (rule 1), as the rows held take it
         e = E.get("cites", (None,))[0]
-        return (e,) if any(q["id"] == e for q in P) and e not in _RENDS[-1] else None
+        return (e,) if any(q["id"] == e for q in taken(P)) else None
     seats = id_seats(E)
     if not seats or "vacancy_founding" in MUT: return (E["id"],)
     live = lambda rows: {(r["offer"], r["k"], r["scope"]) for r in seats_of(rows).recs}
@@ -1813,7 +1821,7 @@ def election_count(r, P, past, by):
     if kv0 is not None and not kv0(r["id"], r["signer"]): return False
     if not valid_id(E, r, P, past, by) or superseded(E, r, P, past, by): return False
     # C2: no person holds a duty over the room in the seats over the whole past
-    Q = seats_of(P)
+    Q = seats_of(taken(P))
     if "c2_holder_unread" not in MUT and Q.holders("duty", obj) - Q.holders(AGENT, obj): return False
     Ek, el, mine, mine_ends = seating_view(r, P, past)
     # C2: no row of a later election (one named by a seating of this election) in the past
