@@ -381,7 +381,7 @@ plant "a landed self-roster window is no head of a later count" src/seat.rs '   
 plant "the reader's line read out of order: a later row over the rival takes it up too (r100r)" src/seat.rs '.filter(|&a| !taking.iter().any(|&b| b != a && g.in_past(b, a)))' '.filter(|_| true)'
 plant "another signer's claimed cosigners seed the reader's line (r101 R2)" src/seat.rs '    let mine = r.signer() == own;' '    let mine = r.signer() == own || r.cosigners().contains(own);'
 plant "a forged cosigner on a concluded seat row seeds the reader's line (review-48 R2s)" src/seat.rs '    let mine = r.signer() == own;' '    let mine = r.signer() == own || (matches!(r.seat_kind(), SeatKind::Offer | SeatKind::Unseat) && c.concluded(a) && r.cosigners().contains(own));'
-plant "the person line reads no key end: a thief's row with the reader's revoked key seeds its line (K1)" src/seat.rs '    let ends_ok = |a: usize| kv.is_none_or(|kv| kv.counts(c.g.row(a).id(), own));' '    let ends_ok = |_a: usize| kv.is_none_or(|_| true);'
+plant "the person line reads no key end: a thief's row with the reader's revoked key seeds its line (K1)" src/seat.rs '        Some(kv) => kv.counts(c.g.row(a).id(), own),' '        Some(_) => true,'
 plant "a revoked key keeps its voice and its devices speak for it" src/seat.rs '            [g] if !self.revoked.contains(g) => Some(g.clone()),' '            [g] => Some(g.clone()),'
 plant "an agent's key of a person's roster speaks for that person" src/seat.rs '        if self.agents.contains(k) {
             return Some(k.clone());
@@ -911,7 +911,12 @@ plant "key_end: a reader's own row after its key's end on its line (reader_line_
 plant "key_end: own_row reads only concluded rows the reader signed (own_unconcluded_unread)" src/seat.rs '    let mine = r.signer() == own;' '    let mine = r.signer() == own && c.concluded(a);'
 # folded into the one own_row (seat::own_row): key_end: own_row reads no voice of a concluded seat row (own_voice_unread), as the r101 plants on it
 # folded into the one own_row (seat::own_row): key_end: own_row reads any row claiming the reader as a cosigner (own_claimed_cosigner), as the r101 plants on it
-plant "seat: own_row reads a registered unseat by past only (registered_by_past)" src/seat.rs '    let registered = registered_ends(c, own).into_iter().all(|x| g.in_past(a, x));' '    let registered = registered_ends(c, own).into_iter().all(|x| !g.in_past(x, a));'
+plant "seat: with no key view, a registered self-unseat read by past only (registered_by_past)" src/seat.rs '    move |a| rs.iter().all(|&x| c.g.in_past(a, x))' '    move |a| rs.iter().all(|&x| !c.g.in_past(x, a))'
+plant "seat: a retired key's registered self-unseat an end (retired_registered_ends, r110 RK2)" src/seat.rs '    if rotated {
+        return Vec::new();
+    }' '    if rotated && false {
+        return Vec::new();
+    }'
 plant "seat: the seat-lane revocation no end of the key (registered_end_unread)" src/seat.rs '    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k)).collect()' '    c.cs().iter().copied().filter(|&e| false && registered_self_unseat(c.g.row(e), k)).collect()'
 plant "seat: an unconcluded registered self-unseat an end (registered_unconcluded_counted)" src/seat.rs '    c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k)).collect()' '    (0..c.g.len()).filter(|&e| registered_self_unseat(c.g.row(e), k)).collect()'
 plant "seat: the person map reads no key-lane revocation (person_key_lane_unread)" src/seat.rs '            revoked.extend(ks.into_iter().filter(|k| kv.revoked(k, &ids)));' '            let _ = (ks, ids, kv);'

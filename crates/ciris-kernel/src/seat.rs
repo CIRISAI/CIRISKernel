@@ -4478,10 +4478,10 @@ fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &s
 /// THE READER'S OWN ROW, the one definition for every reader's line (`key_end`'s limb (b) and [`takes_up`]): row
 /// `a` is reader `own`'s where (i) `own` signed it itself, concluded or not (its cosign rows among them); (ii) never
 /// because another signer's row lists `own` as a cosigner, a seat row included (STRICT, review-48 R2s; r101 R2);
-/// (iii) each only where `own`'s key
-/// stands at it: the row in the PAST of each of `own`'s [`registered_ends`], and `ends_ok(a)`, the caller's reading of the
-/// key's own ends (a key lane's revocations, rotations and roster voids, which `key_end` reads and passes; `|_| true`
-/// where the caller holds no key lane). The reference is `checkpoint.own_row`.
+/// (iii) each only where `own`'s key stands at it: `ends_ok(a)`, the caller's reading of the key's ONE set of ends
+/// (`key_end` passes [`crate::key_end::key_ends`]: both revocation forms, a retired key's none; a caller with a key
+/// view passes its counts; one with neither passes [`seat_lane_ends_ok`], the seat lane's revocations alone, which
+/// cannot see a rotation). The reference is `checkpoint.own_row`.
 pub fn own_row<R: SeatRow>(c: &Concluded<'_, R>, a: usize, own: &R::Key, ends_ok: &dyn Fn(usize) -> bool) -> bool {
     let g = &c.g;
     let r = g.row(a);
@@ -4492,10 +4492,17 @@ pub fn own_row<R: SeatRow>(c: &Concluded<'_, R>, a: usize, own: &R::Key, ends_ok
     if !mine {
         return false;
     }
-    // the key-end cut over both revocation forms (ruled): the row in the PAST of each of `own`'s [`registered_ends`]
-    // (the seat lane's revocations; a row concurrent with one, or after it, is none), and `ends_ok`, the key lane's
-    let registered = registered_ends(c, own).into_iter().all(|x| g.in_past(a, x));
-    registered && ends_ok(a)
+    // the key-end cut over the key's one set of ends, as the caller reads them (RK2: the body adds no registered scan
+    // of its own, which would count a retired key's self-unseat)
+    ends_ok(a)
+}
+
+/// The key-end cut with no key lane: row `a` is in the PAST of each of `own`'s [`registered_ends`] (a row concurrent
+/// with one, or after it, is none). For a caller that holds no key view; it cannot see a rotation, so a retired key's
+/// self-unseat is read as an end here (a reader with no key lane holds no K1 either). `checkpoint.seat_lane_ends_ok`.
+pub fn seat_lane_ends_ok<'c, R: SeatRow>(c: &'c Concluded<'_, R>, own: &R::Key) -> impl Fn(usize) -> bool + 'c {
+    let rs = registered_ends(c, own, false);
+    move |a| rs.iter().all(|&x| c.g.in_past(a, x))
 }
 
 /// Row `q` is key `k`'s revocation in the seat lane: an unseat of `k`'s `registered` seat over `k`, by `k` itself.
@@ -4509,9 +4516,13 @@ pub fn registered_self_unseat<R: SeatRow>(q: &R, k: &R::Key) -> bool {
 }
 
 /// Key `k`'s seat-lane revocations: each CONCLUDED [`registered_self_unseat`] of `k` (one that concluded nothing ends
-/// nothing, r106 U2). The half of [`crate::key_end::key_ends`] the seat lane reads; [`own_row`]'s (iv) reads it, and
-/// with the key lane's ends as `ends_ok` the two are `key_ends`. `checkpoint.registered_ends`.
-pub fn registered_ends<R: SeatRow>(c: &Concluded<'_, R>, k: &R::Key) -> Vec<usize> {
+/// nothing, r106 U2), and NONE where `rotated` (a concluded rotation of `k` is held: a retired key's revocation is no
+/// end, whoever signed it, r110 RK2, as [`crate::key_end::ends`] reads the key lane's). The half of
+/// [`crate::key_end::key_ends`] the seat lane reads. `checkpoint.registered_ends`.
+pub fn registered_ends<R: SeatRow>(c: &Concluded<'_, R>, k: &R::Key, rotated: bool) -> Vec<usize> {
+    if rotated {
+        return Vec::new();
+    }
     c.cs().iter().copied().filter(|&e| registered_self_unseat(c.g.row(e), k)).collect()
 }
 
@@ -4549,7 +4560,11 @@ fn reader_rivals<R: SeatRow, S: CutSpec<R>>(
     let Some(own) = own else { return BTreeSet::new() };
     // the reader key's ends, read by the key view the spec carries (none: no key lane)
     let kv = spec.key_view();
-    let ends_ok = |a: usize| kv.is_none_or(|kv| kv.counts(c.g.row(a).id(), own));
+    let lane = seat_lane_ends_ok(c, own);
+    let ends_ok = |a: usize| match kv {
+        Some(kv) => kv.counts(c.g.row(a).id(), own),
+        None => lane(a),
+    };
     let mut mine: BTreeMap<&R::Key, Vec<usize>> = BTreeMap::new();
     for i in c.cs().iter().copied().filter(|&i| self_founding(law, c.g.row(i))) {
         mine.entry(c.g.row(i).signer()).or_default().push(i);

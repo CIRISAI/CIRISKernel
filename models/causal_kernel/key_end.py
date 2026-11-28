@@ -267,7 +267,7 @@ def own_row(S, a, own, roster=frozenset(), voices=None):
     es = None
     def ends_ok(r):
         nonlocal es
-        if es is None: es = ends_of(S, own, roster)   # the key lane's; the registered half is the one body's (key_ends)
+        if es is None: es = key_ends(S, own, roster)   # the key's ONE set of ends: both forms, a retired key's none
         return all(_before(S, r["id"], e) for e in es)
     return _CP.own_row(S, a, own, ends_ok, no_key_view, MUT)
 
@@ -287,7 +287,9 @@ def key_ends(S, k, roster=frozenset()):
     unread), registered_unconcluded_counted (an unconcluded one ends the key)."""
     out = list(ends_of(S, k, roster))
     import checkpoint as _CP
-    return out + [q for q in _CP.registered_ends(S, k, MUT) if q not in out]
+    # a retired key's seat-lane revocation is no end (r110 RK2): none where a concluded rotation of k is held
+    rotated = any(e["kind"] == "rec" and e.get("succ_of") == k for e in out)
+    return out + [q for q in _CP.registered_ends(S, k, MUT, rotated) if q not in out]
 
 
 def revocations(S, k, roster=frozenset()):

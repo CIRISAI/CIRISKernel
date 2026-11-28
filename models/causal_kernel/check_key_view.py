@@ -310,6 +310,10 @@ KRG = lambda names: [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "
                      ST.unseat("uF", "F", "F", "registered", "F", "self", names)]    # F's own seat-lane revocation
 KUR = [KE.rec("kN", "N", 0, None, typ="pseudonym"), KE.att("a1", "N", 1, "kN"),
        ST.unseat("ur", "N", "N", "registered", "N", "self", ("a1",)), KE.att("gt", "N", 2, "kN")]   # K1r
+# r110 RK0-RK2 (review-48): a RETIRED key K (rotated to K2, the rotation naming K's attestation a1). Neither of its
+# revocations is an end: a thief of the retired key cuts nothing the rotation kept, by either lane
+RKR = [KE.rec("r0", "K", 0, 100), KE.att("a1", "K", 3, "r0"),
+       KE.rec("rot", "K2", 0, 100, names=("r0", "a1"), succ_of="K", at_old=4)]
 ROSTER_DIRECT = [
     ("r106 K1r: a key's row concurrent with its registered self-unseat (the seat lane's revocation) counts nothing",
      [], KUR, "gt", "N", None, False),
@@ -399,6 +403,11 @@ def combined(rows):
 KUC = lambda cos: [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)),
                    ST.offer("x", "Z", "F", "member", "Q", "self", ("aT",), cosigners=cos)]   # Z's offer over Q's key: no
 OWN_DIRECT = [
+    ("r110 RK0: K rotated to K2, the rotation naming a1: a1 counts", RKR, "a1", "K", None, True),
+    ("r110 RK1: and the retired key's key-lane self-revocation, not naming a1, is no end: a1 still counts",
+     RKR + [KE.revoke("rv", "K", 1, ("r0",))], "a1", "K", None, True),
+    ("r110 RK2: and the retired key's registered self-unseat, not naming a1, is no end either: a1 still counts",
+     RKR + [ST.unseat("ur", "K", "K", "registered", "K", "self", ("r0",))], "a1", "K", None, True),
     ("r106 U2: a registered self-unseat that concluded nothing is no end: the reader's concurrent row still takes up",
      [KE.rec("kT", "T", 0, None, typ="pseudonym"), KE.att("aT", "T", 2, "kT"), KREV("rvT", "T", 3, ("kT",)),
       CK.row("rF", "note", "F", ("aT",)), ST.unseat("uF", "F", "F", "registered", "F", "group", ())],
@@ -417,7 +426,7 @@ PLANTS = (("key_view_unread", ST.MUT), ("cosigner_key_unchecked", ST.MUT), ("win
           ("ballot_key_view_unread", ST.MUT), ("lift_key_view_unread", ST.MUT), ("receipt_key_view_unread", ST.MUT),
           ("lone_key_view_unread", ST.MUT), ("retired_key_revokes", KE.MUT),
           ("taken_up_unread", KE.MUT), ("reader_line_unchecked", KE.MUT), ("own_unconcluded_unread", KE.MUT),
-          ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("registered_unconcluded_counted", KE.MUT), ("registered_by_past", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
+          ("own_claimed_cosigner", KE.MUT), ("registered_end_unread", KE.MUT), ("registered_unconcluded_counted", KE.MUT), ("retired_registered_ends", KE.MUT), ("final_count_unread", KE.MUT), ("final_protects_late", KE.MUT),
           ("receipt_unclean_counts", ST.MUT), ("rotation_void_unread", KE.MUT), ("voided_successor_kept", KE.MUT),
           ("disputed_key_voices", ST.MUT), ("clean_signers_only", ST.MUT), ("roster_end_any_object", ST.MUT))
 SIGNED = ("x", "cC", "c2", "be", "o2", "r2")                                   # the rows whose per-key answers the fixture carries

@@ -271,7 +271,9 @@ pub fn key_ends<R: KeyEndRow + SeatRow>(
     roster: &BTreeSet<R::Id>,
 ) -> Vec<(usize, Option<R::T>)> {
     let mut out = ends(c, k, roster);
-    for e in crate::seat::registered_ends(c, k) {
+    // a retired key's seat-lane revocation is no end (r110 RK2): none where a concluded rotation of k is held
+    let rotated = out.iter().any(|&(e, _)| c.g.row(e).record().is_some_and(|x| x.succ_of == Some(k)));
+    for e in crate::seat::registered_ends(c, k, rotated) {
         if !out.iter().any(|&(x, _)| x == e) {
             out.push((e, None));
         }
@@ -340,7 +342,7 @@ fn before<R: KeyEndRow>(c: &Concluded<'_, R>, x: usize, e: usize, ra: Option<R::
 /// `key_end.own_row`.
 pub fn own_row<R: KeyEndRow + SeatRow>(c: &Concluded<'_, R>, a: usize, own: &R::Key, roster: &BTreeSet<R::Id>) -> bool {
     // the one definition is seat's ([`crate::seat::own_row`]); the key's own ends are this lane's to read
-    let es = ends(c, own, roster); // the key lane's; the registered half is the one body's: together, [`key_ends`]
+    let es = key_ends(c, own, roster); // the key's ONE set of ends: both revocation forms, a retired key's none
     crate::seat::own_row(c, a, own, &|a| es.iter().all(|&(e, ra)| before(c, a, e, ra)))
 }
 

@@ -45,6 +45,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     line_order_unread     the line read out of order: a later row over the rival takes it up too, and the reader waits (P1)
     line_key_end_unread   the line reads no key end: a thief's row with the reader's revoked key seeds it (K1)
     person_key_lane_unread  the person map reads no key-lane revocation (key_end.MUT; r106 PG1)
+    registered_by_past    with no key view, only a row with the reader's registered self-unseat in its past is cut
     claimed_cosigner_counted  another signer's claimed cosigners on a note seed the reader's line (r101 R2)
     seat_voice_counted    a concluded seat row listing the reader as a cosigner seeds its line (review-48 R2s)
     agent_by_seat_only    an agent recognised by its agent seat only: a registered agent admitted as a member speaks
@@ -778,6 +779,11 @@ KV_LINE_CASES = [
      with_reader(LWORLD["P1"], "p4") + [_TN], "p4", "az", True, _KV_THIEF),
     ("K1 on the line: the same rows with no key view: the thief's row seeds the line, p4 waits",
      with_reader(LWORLD["P1"], "p4") + [_TN], "p4", "az", False, None),
+    # the seat lane alone (no key view: seat_lane_ends_ok): the thief's row is concurrent with p4's own registered
+    # self-unseat, which names only p4's honest row: the row is no row of p4's line, and p4's line takes up S1
+    ("K1 on the line with no key view: p4's registered self-unseat names p4n; the thief's concurrent row is cut",
+     with_reader(LWORLD["P1"], "p4") + [_TN, ST.unseat("up4", "p4", "p4", "registered", "p4", "self", ("p4n",))],
+     "p4", "az", True, None),
 ]
 
 # THE ONE agent recognition (seat.agent_keys / registered_agents): an agent is recognised by its agent seat over any
@@ -805,7 +811,8 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
           "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept",
           "rebinding_unread", "landed_eviction_unread", "landed_add_unread",
           "self_founding_family", "mutual_evictions_land", "rival_line_unread", "line_order_unread",
-          "claimed_cosigner_counted", "seat_voice_counted", "line_key_end_unread", "agent_by_seat_only", "person_key_lane_unread")
+          "claimed_cosigner_counted", "seat_voice_counted", "line_key_end_unread", "agent_by_seat_only", "person_key_lane_unread",
+          "registered_by_past")
 KE_PLANTS = ("person_key_lane_unread",)   # planted in key_end: a key's one set of ends
 
 

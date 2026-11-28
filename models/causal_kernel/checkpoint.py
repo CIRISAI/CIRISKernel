@@ -96,12 +96,15 @@ def registered_self_unseat(q, k):
             and q["signer"] == k)
 
 
-def registered_ends(S, k, mut=None):
+def registered_ends(S, k, mut=None, rotated=False):
     """Key k's seat-lane revocations: each CONCLUDED registered self-unseat of k (one that concluded nothing ends
-    nothing, r106 U2), the half of key_end.key_ends the seat lane reads (the crate's seat::registered_ends).
-    MUTATIONS registered_end_unread (none read), registered_unconcluded_counted (an unconcluded one read)."""
+    nothing, r106 U2), and NONE where `rotated` (a concluded rotation of k is held: a retired key's revocation is no
+    end, whoever signed it, r110 RK2, as key_end.ends_of reads the key lane's). The half of key_end.key_ends the seat
+    lane reads (the crate's seat::registered_ends). MUTATIONS registered_end_unread (none read),
+    registered_unconcluded_counted (an unconcluded one read), retired_registered_ends (read though rotated)."""
     mut = MUT if mut is None else mut
     if "registered_end_unread" in mut: return []
+    if rotated and "retired_registered_ends" not in mut: return []
     rows = S.rows if "registered_unconcluded_counted" in mut else S.Cs
     return [q for q in rows if registered_self_unseat(q, k)]
 
@@ -113,8 +116,9 @@ def own_row(S, a, own, ends_ok=None, voices=None, mut=None):
         (ii)  and never because another signer's row lists own as a cosigner, a seat row included: an offer over the
               signer's own object concludes on the signer's word alone, so a forged cosigner there breaks no count (r101
               R2, review-48 R2s);
-        (iii) each only where own's key stands at it: the row in the PAST of each of own's registered_ends, and
-              `ends_ok(a)`, the caller's reading of the key's own ends (key_end's, from its key lane; none: true).
+        (iii) each only where own's key stands at it: `ends_ok(a)`, the caller's reading of the key's ONE set of
+              ends (key_end: key_ends, both revocation forms and a retired key's none; a key view: its counts;
+              None: seat_lane_ends_ok, the seat lane's revocations alone).
     `voices` is unread here (kept for the callers). `mut`: the caller's planted breaks. MUTATIONS (takes_up's)
     claimed_cosigner_counted (any row listing own), seat_voice_counted (a concluded seat row own is a voice of);
     (key_end's) own_unconcluded_unread, own_claimed_cosigner, reader_line_unchecked."""
@@ -129,13 +133,21 @@ def own_row(S, a, own, ends_ok=None, voices=None, mut=None):
     else:
         mine = False
     if not mine or "reader_line_unchecked" in mut: return mine
-    # the key-end cut over both revocation forms (ruled): the row in the PAST of each of own's seat-lane revocations
-    # (registered_ends: concluded registered self-unseats; a row concurrent with one, or after it, is none; MUTATION
-    # registered_by_past: only one with it in its past is out). With ends_ok the key lane's ends, this is key_ends.
-    if any((a["id"] not in S.anc.get(x["id"], ()) if "registered_by_past" not in mut else x["id"] in S.anc.get(a["id"], ()))
-           for x in registered_ends(S, own, mut)):
-        return False
-    return ends_ok is None or ends_ok(a)
+    # the key-end cut over the key's one set of ends, as the caller reads them (key_end: key_ends; a key view: its
+    # counts; neither: seat_lane_ends_ok). The body adds no registered scan of its own (RK2: it would count a retired
+    # key's self-unseat)
+    return (ends_ok or seat_lane_ends_ok(S, own, mut))(a)
+
+
+def seat_lane_ends_ok(S, own, mut=None):
+    """The key-end cut with no key lane: row a is in the PAST of each of own's registered_ends (a row concurrent with
+    one, or after it, is none; MUTATION registered_by_past: only one with it in its past is out). It cannot see a
+    rotation (the crate's seat::seat_lane_ends_ok has no key lane), so a retired key's self-unseat is read as an end
+    here: a reader with no key lane holds no K1 either."""
+    mut = MUT if mut is None else mut
+    rs = registered_ends(S, own, mut)
+    return lambda a: not any((a["id"] not in S.anc.get(x["id"], ()) if "registered_by_past" not in mut
+                              else x["id"] in S.anc.get(a["id"], ())) for x in rs)
 
 
 def takes_up(S, own, fs, mut=None, voices=None, ends_ok=None):
