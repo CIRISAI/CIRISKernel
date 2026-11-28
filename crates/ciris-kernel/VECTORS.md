@@ -354,6 +354,7 @@ follows the merge of the lanes this map reads.
 | 67 | `standing::answers` | a backdated act after an act under the new owner | `tests/fixtures/conferral_two.json`: `backdated_after_an_act_under_the_new_owner` |
 | 68 | `seat::seat_rule`, `Seats::holders` (the G9 bridge) | left and returned: two stays by two acceptances; a resignation naming the newest head ends only the current stay, and one naming a head where no stay stands concludes nothing | `check_readmit.py`: "a leaving after the re-admission puts the key out again: C leaves, is re-admitted, leaves; X by A and B is seated", restated with each stay seated by its own acceptance |
 | 69 | `seat::seat_rule`, `Seats::tips_fold` (the G9 bridge) | seated on two tips by different acceptances; a resignation naming both tips ends the stay on each | new: no model case yet; to be added to `check_resignation.py` with the bridge |
+| 70 | `seat::group_of` (undecided-ids), `trust_rows::edges_of`, `seat::seat_rule` (the G4 bridge) | two founding records under one group id: a trust edge naming the group by id alone concludes nothing (`Undecided`, naming the rival founding row); a row naming one record's head concludes | new: no model case yet; to be added with `seat::group_of` in the undecided-ids lane |
 
 Four of these also carry a deliberate fault, so the minted set exercises each fault kind against a known
 answer: case 15 with one voice `bad_signature_half` (the count is then short), case 46 (`unsorted_set`, as the
