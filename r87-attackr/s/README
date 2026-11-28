@@ -1,0 +1,3 @@
+r87-attackr: re-attack of origin/charter 48b44ad.
+Extract: git archive 48b44ad | tar -x -C r87-attackr/tree ; run: python3 -I r87-attackr/s/<x>.py
+lib.py: every edge termed, now=1000. a*/n*/m*/b* re-run r73-r81 (n2/m1 now with the official O and countersigns); c1 (one voter voids a counted act), c2 (one-officer countersign, licence side), c3 (self re-seat).
