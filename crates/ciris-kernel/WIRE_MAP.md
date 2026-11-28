@@ -41,8 +41,8 @@ A row is one `COSE_Sign1` statement, or several over one payload (CC 2.6.1.1, 2.
 |---|---|---|
 | `alg` | protected label 1 | Nothing. The constant `-70100`, the composite ML-DSA-65 with Ed25519. This is the only signature suite of a row; there is no other suite member on a row. (`suite` in an `mls:leaf_vouch` payload is the MLS ciphersuite, the constant 77, and no crate view reads it.) |
 | `cty` | protected label 3 | Nothing. The constant `application/vnd.ciris.row+cbor`. |
-| `kid` | protected label 4 | The signing key: a 32-byte RFC 9679 thumbprint. Presented as the key's identity reference (`urn:ietf:params:oauth:ckt:sha-256:` + base64url of the 32 bytes) where a view asks for the signing key (`SeatRow::signing_key`, the key end views). |
-| `iss` | CWT label 1 | The signer's stable identity: its genesis key's identity reference; under a room key, the voice (the identity reference of the voice's first room key). This is `Row::signer`. [G1] |
+| `kid` | protected label 4 | The signing key: a 32-byte RFC 9679 thumbprint. Presented as the key's identity reference (`urn:ietf:params:oauth:ckt:sha-256:` + base64url of the 32 bytes). This is `Row::signer` on every view except the root lane [G1]. |
+| `iss` | CWT label 1 | The signer's stable identity: its genesis key's identity reference; under a room key, the voice (the identity reference of the voice's first room key). Not `Row::signer` [G1]: it MUST name the person the persons map gives for `kid` (`seat::Persons`, from the self roster), and a statement whose `iss` disagrees is refused at the door. The root lane's views (`RootBundle::statements`, `RootGrant::signers`) read `iss`, because a bundle names its holders by identity. |
 | `sub` | CWT label 2 | What the row is about: an identity reference (a key subject), a group id `group-…`, a lineage name, or other text. Read per family below. |
 | `iat` | CWT label 6 | `floor(asserted_at / 1000)`, seconds. A verifier refuses disagreement, so the crate reads the payload's `asserted_at` (ms), never `iat`, except `RootBundle::iat` and `RootBundle::statements`. |
 | `nbf`, `exp` | CWT labels 5, 4 | Derived from `valid_from`, `valid_until`. Not read. |
@@ -96,9 +96,9 @@ wire row is of a counted arm: several statements over one payload, no `author`, 
 | Accessor | Counted wire row |
 |---|---|
 | `Row::id` | the row id |
-| `Row::signer` | the `iss` of one verified statement, the one with the least statement id bytewise [G2] |
-| `SeatRow::cosigners` | the `iss` of every other verified statement over the payload, a set |
-| `SeatRow::signing_key` | `None` for a counted row read by `iss`; where the room key matters, the `kid` (as an identity reference) of the statement `signer()` is taken from |
+| `Row::signer` | the `kid` (as an identity reference) of one verified statement, the one with the least statement id bytewise [G2] |
+| `SeatRow::cosigners` | the `kid` (as an identity reference) of every other verified statement over the payload, a set |
+| `SeatRow::signing_key` | `None`: the signer is already the key that signed |
 | `Row::names` | the payload's `refs`, the same for every voice |
 
 When a later voice arrives the store presents the same crate row again with a longer `cosigners()`; its id does
@@ -114,7 +114,7 @@ statement over the same payload, counted; never a payload member"). A store does
 | the leaf and version | payload `dimension`: the full scored dimension, leaf and `:vN`, e.g. `membership:widening:v1`. The `{name}` segments of the family pattern take the leaf's segments; the last segment is the version. A row with no `dimension` (`group:roster`, `key:record`, a `withdraws`, a `recants`) has no leaf. |
 | family parameter (`quarantine:{state}`, `slashing:{outcome}`, `takedown_notice:{basis}`, `reconsideration:{grounds}`, `licensure:{authority_id}`) | the `dimension` segment at the `{name}` position. A segment naming a key carries the bare thumbprint (the identity reference less its prefix, CC 2.6.1.1). |
 | `sub` | CWT label 2 |
-| the signer | CWT `iss` (label 1); for a voice in a private room, the voice [G1] |
+| the signer | protected `kid` (label 4), as an identity reference; its person (`iss`, the voice in a private room) is derived by the persons map [G1] |
 | the signing key | protected `kid` (label 4) |
 | the suite | protected `alg` (label 1), the constant -70100; no row chooses a suite |
 | the scope word of a seat | per family (section 7.2, `SeatRow::scope`): `"member"` on a widening or removal, the payload `scope[]` token on a `delegates_to`, `"record"` on a later `group:roster` version, `"registered"` on a `key:record`, `"owner"` on an owner-binding |
@@ -272,7 +272,7 @@ and the shape of `refs`. One wire row can be read by several views; each view's 
 |---|---|---|
 | `Row::id` | computed | row id (statement id for a statement-level root-lane row) |
 | `Row::names` | every `row-ref` in payload `refs`, flattened (section 3), plus `attached_head_digest` | row ids and object ids |
-| `Row::signer` | CWT `iss` [G1] | |
+| `Row::signer` | `kid`, as an identity reference [G1] | |
 | `Dated::asserted_at` | payload `asserted_at` (ms) | |
 | `Dated::valid_until` | payload `valid_until`, or `expires_at` where the family states that | |
 
@@ -287,7 +287,7 @@ and the shape of `refs`. One wire row can be read by several views; each view's 
 | `obj` | widening, removal, acceptance, keeps: payload `group`. `self:delegates_to` over a room: payload `community_id` (or `family_id`). Founding version: its own row id. Owner-binding, `key:record`: `Obj::Key(sub)` | a group id resolves to the founding version's row id [G4] |
 | `conf` | **D**: `Own` for a founding version and for a row over the signer's own key; `Seat` for an authored `delegates_to` under a seat (`refs.also.under` present, or the signer's own live seat); `Group` for every counted arm | |
 | `under` | `refs.also.under`, its one element | row id |
-| `cosigners` | the `iss` of every further verified statement over the payload (section 1); on an authored row, the second-consent roles | identity references |
+| `cosigners` | the `kid` of every further verified statement over the payload (section 1); on an authored row, the second-consent roles | identity references |
 | `subjects` | payload `subject_key_ids` | identity references (or `canonical:{hashalg}:{hex}` text) |
 | `sub` | `"sub_delegation"` is a token of the `delegates_to` payload `scope[]` (CC 4.4.3.19) | |
 | `head` | `refs.head` then `refs.further_heads` | row ids |
@@ -357,8 +357,8 @@ A window row's opener is `refs.target` on `window:held` and `window:landed`; a l
 
 ### 7.5 `key_end::KeyEndRow`, `key_end::Record`, `key_end::KeyView` (key-end-retained)
 
-Every row this view reads is presented with `Row::signer` the **signing key** (`kid`, as an identity
-reference), not `iss`: a key ends, not a person [G25].
+Every row this view reads has `Row::signer` the signing key (`kid`), as every view does [G1]: a key ends, not a
+person [G25].
 
 | Accessor | Wire source | Notes |
 |---|---|---|
@@ -378,7 +378,7 @@ reference), not `iss`: a key ends, not a person [G25].
 
 | Accessor | Wire source | Notes |
 |---|---|---|
-| `id`, `signer` | row id, `iss` | |
+| `id`, `signer` | row id, `kid` [G1] | |
 | `kind` | section 6.1 | **D** |
 | `head` | `refs.head` | row id |
 | `prev` | `refs.prev` then `refs.further_prev` | row ids of the author's own content rows in the same room |
@@ -395,7 +395,7 @@ reference), not `iss`: a key ends, not a person [G25].
 
 | Accessor | Wire source | Notes |
 |---|---|---|
-| `id`, `signer`, `names` | row id, `iss`, `refs` | |
+| `id`, `signer`, `names` | row id, `kid` [G1], `refs` | |
 | `family` | the family name matched against `audience_table.rs` patterns: the `dimension` less its `:vN`; for a row with no `dimension`, the family id respelled as its pattern [G27] | |
 | `scope` | payload `cohort_scope`, or `addressed` [G3] | |
 | `room` | payload `community_id` or `family_id` [G4] | founding row id |
@@ -408,7 +408,7 @@ reference), not `iss`: a key ends, not a person [G25].
 
 | Accessor | Wire source | Notes |
 |---|---|---|
-| `id`, `signer` | row id, `iss` | one crate row per act an `act:ack` names, each under the wire row's own id (ADOPTING, Receipts) |
+| `id`, `signer` | row id, `kid` [G1] | one crate row per act an `act:ack` names, each under the wire row's own id (ADOPTING, Receipts) |
 | `kind` | section 6.2 | **D** |
 | `head` | `refs.head` | row id |
 | `of` | one element of `refs.also.ack` | row id |
@@ -424,7 +424,7 @@ and the `ReceipterEnd` kind, not a row accessor.
 
 | Accessor | Wire source | Notes |
 |---|---|---|
-| `id`, `signer` | row id (object id for a bundle), `iss` | |
+| `id`, `signer` | row id (object id for a bundle), `kid` [G1] | |
 | `kind` | section 6.2 | **D** |
 | `head` | an act's `refs.head` (the bundle in force, an object id); a grant end's `refs.head` | object id |
 | `on` | an act: `refs.also.stands_on`. A receipt: its act under `refs.also.ack`. An acceptance: its binding: **NO WIRE FAMILY** [N7] (the reply names the grant under `refs.answers`, never the binding). A re-binding: the binding it ends [G28] | |
@@ -458,7 +458,7 @@ and the `ReceipterEnd` kind, not a row accessor.
 
 | Accessor | Wire source | Notes |
 |---|---|---|
-| `id`, `names`, `signer` | row id (statement id for a `cosigns` row), `refs` plus `attached_head_digest`, `iss` | |
+| `id`, `names`, `signer` | row id (statement id for a `cosigns` row), `refs` plus `attached_head_digest`, `iss` (the root lane counts holders by identity) | |
 | `is_grant` | family `trust:.job:.version`, dimension `trust:confers:v1`, row type `delegates_to` | |
 | `attached_head` | `trust:accepts` `attached_head_digest` | object id |
 | `cosigns` | the grant's row id, on a later statement over its payload | |
@@ -473,13 +473,13 @@ and the `ReceipterEnd` kind, not a row accessor.
 
 | Field | Wire source |
 |---|---|
-| `id`, `names`, `signer` | row id, `refs`, `iss` |
+| `id`, `names`, `signer` | row id, `refs`, `kid` [G1] |
 | `kind` | section 6.1 (**D**) |
 | `head` | `refs.head` |
 | `of` | a receipt's act (`refs.also.ack`); a cut's `refs.target` |
 | `members` | a roster version's `members[].key` |
 | `q` | **T** / **D**: the count the version's `consensus_protocol` asks |
-| `sigs` | a cut's statements' `iss` |
+| `sigs` | a cut's statements' `kid` |
 | `length` | **T** (the window spec) |
 | `receipt` | **L**: first-held instant |
 | `duty`, `delete`, `stub`, `concl`, `final_counts`, `settled_stub`, `ackers`, `acks`, `dropped` | **L**: purge state |
@@ -527,8 +527,8 @@ row, not a reading of the text: they are settled here, and a store and a minter 
 
 | # | Field | The reading taken | Status |
 |---|---|---|---|
-| G1 | `Row::signer` | `iss` (the stable identity; the voice in a private room), not `kid`. The key-person lane reads persons from self rosters over device keys; with `iss` the wire has already named the person. `SeatRow::signing_key` carries `kid`. | kernel's choice: how the crate counts a voice: by its stable identity, as CC 2.6.1.9 counts statements by person; `kid` stays available as `signing_key`. |
-| G2 | `Row::signer` of a counted row | the `iss` of the verified statement with the least statement id; the other voices are `cosigners()`. Rules that set one signer apart (a window table over `others`, `author_apart`) read whichever voice is chosen. | kernel's choice: the crate reads a counted row's voices as one set (signer with cosigners); one must be named signer, and the least statement id is fixed by the bytes, not by arrival. |
+| G1 | `Row::signer` | `kid`, the key that signed, as an identity reference; `cosigners()` likewise. The person is derived by the persons map (`seat::Persons`, from the self roster: a device key to its genesis key, a room key to its voice). `iss` MUST name the person the persons map gives; a mismatch is a door refusal. Required by the key view (`seat::voices_with` calls `key_end::counts_by(row, signer)`, keyed by `kid`) and by key-person's persons map, which reads the signer as the device key. The root lane is the exception: `RootGrant::signers` and `RootBundle::statements` read `iss`, since a bundle names its holders by identity. ADOPTING.md's private-room sentence ("the signer of every row is the voice, not the room key that signed") is then read through the persons map, which gives the voice. | open: the Constitution to confirm that `iss` is checked against the persons map at the door |
+| G2 | `Row::signer` of a counted row | the `kid` of the verified statement with the least statement id; the other voices' `kid`s are `cosigners()`. Rules that set one signer apart (a window table over `others`, `author_apart`) read whichever voice is chosen. | kernel's choice: the crate reads a counted row's voices as one set (signer with cosigners); one must be named signer, and the least statement id is fixed by the bytes, not by arrival. Consistent with G1: each voice is its signing key. |
 | G3 | `AudienceRow::scope` `addressed` | a row with no `cohort_scope` that names keys for delivery | open: a question for the text |
 | G4 | a group id | resolved to the row id of the group's first `group:roster` version; `Obj::from_reference` does not type a `group-…` reference | kernel's choice: the crate's object for a group is its founding row (`seat::Obj`); the group id is derived from that version, so the resolution is one-to-one. |
 | G5 | the self roster | its object is the genesis key's `key:record` row; an `identity:occurrence` is an offer of scope `key` to the `occurrence_key_id`; its revocation an unseat | kernel's choice: `SeatLaw::kinds` types a self roster by its founding row; the genesis key's record is the row the first bind names in `refs.head`. |
@@ -543,7 +543,7 @@ row, not a reading of the text: they are settled here, and a store and a minter 
 | G14 | `window:refused:v1` | a landing stating refused | open: a question for the text |
 | G15 | `SeatKind::Countersign` | a countersign key's further statement over the act's payload, presented as its own row (`Row::id` its statement id, `of()` the act's row id). The text says "countersigned by a key outside the officers" and names no row form. | kernel's choice: the crate reads a countersign as a row with `of()` the act; a further statement presented as its own row (id its statement id) fits whatever row form the text gives. |
 | G16 | `standing::Kind::Removal` | a `membership:removal` whose `sub` is the key | kernel's choice: the crate's `Removal` is a removal of a key; `membership:removal` is that row. |
-| G17 | scope `agent` | read from the seated key's `key:record` `identity_type` (contains `agent`); the widening itself carries no scope | kernel's choice: the crate reads an agent's seat by scope `agent`; the key record's `identity_type` is the one place the wire says a key is an agent's. |
+| G17 | scope `agent` | read from the seated key's `key:record` `identity_type` (contains `agent`); the widening itself carries no scope | kernel's choice: the crate reads an agent's seat by scope `agent`; the key record's `identity_type` is the one place the wire says a key is an agent's. Consistent with G1: the record read is the seated key's own (an agent's key is itself, never its owner, CC 4.5.13). |
 | G18 | a `scope[]` with several tokens | one crate row per token, all under the one row id | kernel's choice: the crate reads one scope per seat row; a set of tokens is presented as one crate row per token under the one row id. |
 | G19 | `official`, `overseen_by` | members of the affiliation's record named in prose (CC 4.4.3.12); `official`'s member name is not stated | open: a question for the text |
 | G20 | `weights`, `need` of a weighted record | members of the record's `policy` map; the member names are not stated | open: a question for the text |
@@ -551,7 +551,7 @@ row, not a reading of the text: they are settled here, and a store and a minter 
 | G22 | a takedown's `of()` | the content row whose bytes hash to `content_sha256`; the notice names no row | open: a question for the text |
 | G23 | a reconsideration's `of()` | the notice, under `refs.answers` | open: a question for the text |
 | G24 | a lift's `content()` | the removal, under `refs.also.cites` | open: a question for the text |
-| G25 | the key end views' signer | the `kid` of the statement, as an identity reference | kernel's choice: a key ends, not an identity: the key end views read the key that signed. |
+| G25 | the key end views' signer | the `kid` of the statement, as an identity reference: the same as every view under G1 | kernel's choice: a key ends, not an identity; G1 makes this the general rule, so the key view and the seat views see one signer. |
 | G26 | `KeyEndRow::statement().1` | the key record of the `kid` whose window covers the statement's `asserted_at`, found by the store | kernel's choice: no row names its cover; the store finds the record of the signing key whose window covers the instant, as `key_end` reads it. |
 | G27 | `AudienceRow::family` | the `dimension` less its version, else the family id respelled as its pattern | kernel's choice: the audience table is matched by family name; the dimension less its version is that name. |
 | G28 | a re-binding's `on()` | the binding it ends, under `refs.target` | open: a question for the text |
