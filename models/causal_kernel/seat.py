@@ -2326,11 +2326,12 @@ class Seats:
         undecided = frozenset(q["id"] for q in Cs if q["kind"] == "offer" and C.counts(q) and q["id"] not in V
                               and not decided(q))
         self.stale = V = V | undecided
-        # the re-count on growth (recount_on_growth; r81 B2 generalised): a conferral of an authority seat concurrent
-        # with growth of its body the reader holds is re-counted over the grown body; one that fails seats nothing, and
-        # every row built on it is void with it
+        # the re-count on growth (recount_on_growth; r81 B2 generalised): a conferral of an authority seat (no roster
+        # seat, and no change of the record: that is the record's own reading) concurrent with growth of its body the
+        # reader holds is re-counted over the grown body; one that fails seats nothing, and every row built on it is void
+        # with it
         regrown = frozenset(q["id"] for q in Cs if C.counts(q) and q["id"] not in V and q["kind"] == "offer"
-                            and body_change(q, q.get("obj")) and q.get("scope") not in ("member", AGENT)
+                            and body_change(q, q.get("obj")) and q.get("scope") not in ("member", AGENT, "record")
                             and not recount_on_growth(S, q, None, V)) \
             if "lone_regrowth_unread" not in MUT else frozenset()
         if regrown:

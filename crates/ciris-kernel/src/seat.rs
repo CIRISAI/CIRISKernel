@@ -2983,9 +2983,9 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
             .filter(|&i| g.row(i).seat_kind() == SeatKind::Offer && cut.counts(i) && !stale.contains(&i) && !decided(i))
             .collect();
         stale.extend(undecided);
-        // the re-count on growth ([`recount_on_growth`]; r81 B2 generalised): a conferral of an authority seat
-        // concurrent with growth of its body the reader holds is re-counted over the grown body; one that fails seats
-        // nothing, and every row built on it is void with it
+        // the re-count on growth ([`recount_on_growth`]; r81 B2 generalised): a conferral of an authority seat (no
+        // roster seat, and no change of the record) concurrent with growth of its body the reader holds is re-counted
+        // over the grown body; one that fails seats nothing, and every row built on it is void with it
         let regrown: Vec<usize> = cs
             .iter()
             .copied()
@@ -2994,7 +2994,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                 cut.counts(i)
                     && !stale.contains(&i)
                     && q.seat_kind() == SeatKind::Offer
-                    && q.scope().is_none_or(|s| !roster_word(s.as_ref()))
+                    && q.scope().is_none_or(|s| !roster_word(s.as_ref()) && s.as_ref() != "record")
                     && q.obj()
                         .is_some_and(|o| body_change(q, &o) && !recount_on_growth(c, law, spec, i, &o, &stale, None))
             })
