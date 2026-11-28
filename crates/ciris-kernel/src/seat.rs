@@ -1956,7 +1956,7 @@ fn officers<'r, R: SeatRow + 'r, S: CutSpec<R>>(
     obj: &ObjOf<R>,
 ) -> Persons<'r, R> {
     let rows: Vec<&'r R> = p.rows().collect();
-    Persons::over(&rows, law, spec, Some(obj))
+    Persons::over(&rows, law, spec, Some(obj), kv_of::<R, _>(spec))
 }
 
 /// Key `k` is one of the officers' keys, by person: a key of the deciding `seats`, or another live key of an
@@ -3786,7 +3786,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Seats<'c, 'a, R, S> {
                         // the threshold and the weights in force (the record's under the room's protocol)
                         let wr: &R = f.weights.unwrap_or(r);
                         let rows: Vec<&R> = p.rows().collect();
-                        let pp = Persons::over(&rows, self.law, self.spec, r.obj().as_ref());
+                        let pp = Persons::over(&rows, self.law, self.spec, r.obj().as_ref(), kv_of::<R, _>(self.spec));
                         let (mem, v) = pp.count(&mem, &v, None, &apart);
                         count_of(pol, true, r.to(), &mem, &v, f.need, |x| {
                             wr.weights().iter().find(|(w, _)| w == x).map_or(0, |(_, n)| *n)
@@ -3972,7 +3972,7 @@ fn count_receipt<R: SeatRow, S: CutSpec<R>>(
     // the room less the remover by person, in the base as in the voices (R5: one rule for a count that judges one
     // member's act, as the overturn and the lift)
     let rows: Vec<&R> = p.rows().collect();
-    let pp = Persons::over(&rows, law, spec, Some(&obj));
+    let pp = Persons::over(&rows, law, spec, Some(&obj), kv_of::<R, _>(spec));
     let (mem, v) = pp.count(&mem, &voices_with(qr, &p, spec), None, &[xr.signer().clone()]);
     let yes = v.iter().filter(|k| mem.contains(*k)).count();
     // the members' check of one member's act, whatever policy or need the row states
@@ -4717,7 +4717,7 @@ pub fn person_keys<R: SeatRow, S: CutSpec<R>>(
     person: &R::Key,
 ) -> BTreeSet<R::Key> {
     let rows: Vec<&R> = c.cs().iter().map(|&q| c.g.row(q)).collect();
-    let pp = Persons::over(&rows, law, spec, None);
+    let pp = Persons::over(&rows, law, spec, None, kv_of::<R, _>(spec));
     let mut cand: BTreeSet<R::Key> =
         pp.rosters.iter().filter(|(_, gs)| gs.iter().any(|g| g.signer() == person)).map(|(k, _)| k.clone()).collect();
     cand.insert(person.clone());
@@ -4757,6 +4757,12 @@ pub fn nodes_of<R: SeatRow, S: CutSpec<R>>(
         .collect()
 }
 
+/// The key view a seat count passes the person map: its cut's ([`CutSpec::key_view`]), and where the cut carries
+/// none, [`crate::key_end::none`] (no key lane: key-lane revocations given up), named at each call (r108).
+fn kv_of<R: SeatRow, S: CutSpec<R>>(spec: &S) -> &dyn crate::key_end::KeyView<R::Id, R::Key> {
+    spec.key_view().unwrap_or(crate::key_end::none())
+}
+
 /// The persons a count reads over `rows` (a counted row's concluded past), ruled on CIRISConstitution#224: one voice
 /// and one member per person, however many of its keys sign or are seated. A person is named by its self roster's
 /// genesis key, the founding record's signer ("a voice is named by the identity reference of its first room key",
@@ -4773,7 +4779,13 @@ pub struct Persons<'r, R: SeatRow> {
 
 impl<'r, R: SeatRow + 'r> Persons<'r, R> {
     /// The persons over `rows` for a count over `obj` (`None`: no object read).
-    pub fn over<S: CutSpec<R>>(rows: &[&'r R], law: &SeatLaw, spec: &S, obj: Option<&ObjOf<R>>) -> Self {
+    pub fn over<S: CutSpec<R>>(
+        rows: &[&'r R],
+        law: &SeatLaw,
+        spec: &S,
+        obj: Option<&ObjOf<R>>,
+        kv: &dyn crate::key_end::KeyView<R::Id, R::Key>,
+    ) -> Self {
         let by: BTreeMap<&R::Id, &R> = rows.iter().map(|q| (q.id(), *q)).collect();
         let get = |i: &R::Id| by.get(i).copied();
         let keys = obj.is_some_and(|o| match o {
@@ -4802,9 +4814,9 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
             })
             .map(|q| q.signer().clone())
             .collect();
-        // a key's own revocation in the key lane too (the one set of a key's ends, through the key view:
-        // key_end::revoked_in, r106 PG1)
-        if let Some(kv) = spec.key_view() {
+        // a key's own revocation in the key lane too (the one set of a key's ends, through the key view the caller
+        // MUST pass: key_end::revoked_in, r106 PG1; key_end::none() gives up key-lane revocations, r108)
+        {
             let ids: Vec<R::Id> = rows.iter().map(|q| q.id().clone()).collect();
             let ks: BTreeSet<R::Key> =
                 rows.iter().flat_map(|q| core::iter::once(q.signer().clone()).chain(q.to().iter().cloned())).collect();
@@ -4927,7 +4939,7 @@ pub fn persons_of<'r, R: SeatRow + 'r, S: CutSpec<R>>(
     voices: &BTreeSet<R::Key>,
     base: &BTreeSet<R::Key>,
 ) -> BTreeSet<R::Key> {
-    Persons::over(rows, law, spec, None).voices(voices, base)
+    Persons::over(rows, law, spec, None, kv_of::<R, _>(spec)).voices(voices, base)
 }
 
 /// The live `scope` seats over `obj`, read from the rows in the past of the heads only (`p`: a row's
@@ -6866,7 +6878,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
         // the author is not among the members the majority is taken of, and its own keys are the author: the
         // objections and the members by person, the author apart by person
         let rows: Vec<&R> = p.rows().collect();
-        let pp = Persons::over(&rows, law, spec, Some(&obj));
+        let pp = Persons::over(&rows, law, spec, Some(&obj), kv_of::<R, _>(spec));
         let (mem, v) = pp.count(&mem, &v, None, &[author]);
         return count_of(pol, is_offer, to, &mem, &v, None, |_| 0);
     }
@@ -6930,7 +6942,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
             }
             // one voice per person, as every count ([`Persons::count`])
             let rows: Vec<&R> = p.rows().collect();
-            let pp = Persons::over(&rows, law, spec, Some(&obj));
+            let pp = Persons::over(&rows, law, spec, Some(&obj), kv_of::<R, _>(spec));
             let vot: BTreeSet<R::Key> = common.iter().filter(|k| !void.contains(*k)).cloned().collect();
             return pp.count(&common, &v, Some(&vot), &[]).1.len() >= m;
         }
@@ -7004,7 +7016,7 @@ fn count_under<R: SeatRow, S: CutSpec<R>>(
     // mapped to persons first and then held to the voting base (the members less the voided and the excluded
     // target), so a device of the target or of a voided member is no voice; the base is counted by person
     let rows: Vec<&R> = p.rows().collect();
-    let pp = Persons::over(&rows, law, spec, Some(&obj));
+    let pp = Persons::over(&rows, law, spec, Some(&obj), kv_of::<R, _>(spec));
     let vot: BTreeSet<R::Key> =
         mem.iter().filter(|k| !void.contains(*k) && !(drop_to && to.contains(*k))).cloned().collect();
     let key_mem = mem;
