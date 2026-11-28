@@ -7,7 +7,8 @@ landing (each node's own fuse); the halt fires and is no confirming voice. A cou
 (`at_window` is read for nothing). `moderation_action`'s `role_at` enact: a moderator's ballot `for` lands and
 `against` refuses at once; **an answer changes:** two clauses one holder's act resolves over one named scope, met at
 once with different outcomes, resolve nothing (a contested pair of moderator ballots), and the window runs on to the
-members' count. The default rows' opener is `member` (filled in the model's table for the next pin). **An answer changes:**
+members' count. The default rows' opener is `member` (policy pin 85750784, CIRISConstitution 0e80f21: `data/` re-copied,
+`governance_policy.json` sha256 8014d6cb, `family_model.json` 9d49c2a7). **An answer changes:**
 `accord_halt`'s seat count is a strict majority (`Policy::Strict(1, 2)`, its cancel cell: the act bound to it is the
 halt's confirmation), not one voice (`law_from_tables`, and the model's `seat.POLICY`); the checks that read it as a
 stand-in of one voice read `one_voice` (`seat.POLICY`, a stand-in no act takes).

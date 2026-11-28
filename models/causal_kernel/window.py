@@ -79,7 +79,7 @@ The fallback's is signed by any member at the opener's head. The overturn's is s
 act's author (W2): a key no clause counts is no concluder of the window, so where every counted clause is over
 `others` (author_apart) the opener's signer signs no receipt and no landing of it.
 
-`halt_fuse` is the accord's halt as the Constitution rules it (2026-11-28, policy pin 8ec76cce): its concluder is
+`halt_fuse` is the accord's halt as the Constitution rules it (2026-11-28, policy pin 85750784): its concluder is
 `local`, each node's own fuse (halt_fuse_secs after its receipt) with no landing, so no receipt and no landing of it
 concludes here; its opener `fires`, the act in force and no confirming voice. The confirmation is a strict majority of
 the standing holders (the halting holder may confirm as anyone), read here as answers that say `confirm`: met at
@@ -197,30 +197,11 @@ MUT = set()            # planted breaks, switched on by a check
 BASES = ("all", "others", "opener")
 
 
-# Cells the Constitution has ruled (2026-11-28) that its NEXT pin carries: each fills a cell the vendored table reads
-# `unstated`, and only such a cell (policy_table refuses a ruled cell the table states otherwise). Drop each once the
-# pin carries it; policy_table then finds the table already stating it and the patch fills nothing.
-RULED_CELLS = {
-    # the opener of a content change is a member of the standing set the proposal names; opener_says approve (CC 3.1.9.2)
-    "default_content": {"opener": "member"},
-    "default_standing": {"opener": "member"},
-    "default_irreversible": {"opener": "member"},
-}
-
-
-def policy_table(ruled=True):
-    """The governance policy table (data/governance_policy.json, the Constitution's manifests/governance_policy.json),
-    with RULED_CELLS filled (ruled=False: the table as vendored)."""
+def policy_table():
+    """The governance policy table (data/governance_policy.json, the Constitution's manifests/governance_policy.json;
+    policy pin 85750784)."""
     import json
-    t = json.load(open(os.path.join(ROOT, "data", "governance_policy.json"), encoding="utf-8"))
-    if ruled:
-        for f in t["families"]:
-            for cell, v in RULED_CELLS.get(f["family"], {}).items():
-                if f[cell] not in ("unstated", v):
-                    raise ValueError("%s.%s: the table states %r, the ruling %r" % (f["family"], cell, f[cell], v))
-                f[cell] = v
-    return t
-
+    return json.load(open(os.path.join(ROOT, "data", "governance_policy.json"), encoding="utf-8"))
 
 # ---- a window's table from its policy row --------------------------------------------------------------
 class PolicyRefusal(Exception):

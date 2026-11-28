@@ -906,9 +906,8 @@ def policy_spec_cases():
         else:
             row = PS._set(PS.plant_base(fam), cell, v)
             out.append(case("%s: %s" % (name, fam), row, pol, a if a is not None else within(row), PS.seat_of(row)))
-    return {"source": "data/governance_policy.json (CIRISConstitution manifests/governance_policy.json), with the cells "
-                      "ruled for the next pin filled (window.RULED_CELLS)",
-            "ruled_cells": WN.RULED_CELLS, "policy_sha256": pol["_meta"]["policy_sha256"], "cases": out}
+    return {"source": "data/governance_policy.json (CIRISConstitution manifests/governance_policy.json)",
+            "policy_sha256": pol["_meta"]["policy_sha256"], "cases": out}
 
 
 # ---- law_tables: the seat law's table cells from the acts and policy tables -----------------------------------------

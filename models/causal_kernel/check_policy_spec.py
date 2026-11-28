@@ -36,8 +36,8 @@ TABLE = {f["family"]: f for f in POL["families"]}
 BUILT = {"ballot@once", "proposal@others", "holders@count"}
 
 # Each reference table that differs from its row's (in a clause, or in an outcome over a scenario), with what differs
-# and the side the table supports. The rows of policy pin 8ec76cce (CIRISConstitution 67f7ec2), after the rulings of
-# 2026-11-27 and 2026-11-28; the cells ruled for the next pin are filled (window.RULED_CELLS).
+# and the side the table supports. The rows of policy pin 85750784 (CIRISConstitution 0e80f21), after the rulings of
+# 2026-11-27 and 2026-11-28 (policy pin 85750784, CIRISConstitution 0e80f21, carries them).
 DIFFERS = {
     "moderation_fallback": "the table before the ruling of 2026-11-28 (a moderator's `answered`, the members' `fallback`, "
                            "the default `lapsed`); the row's table is moderation_action, a moderator's ballot `for` "
@@ -350,7 +350,7 @@ def bound_cases():
     a = lambda i, who: WN.answer(i, who, "p", "approve")
     W = TABLE["default_content"]["window_secs"]
     out += [
-        # default_content's opener: a member (ruled 2026-11-28, window.RULED_CELLS)
+        # default_content's opener: a member (ruled 2026-11-28; pin 85750784)
         ("a room's content change, two of three approve: strictly more than 2/3 needs three",
          [m, bind(op, "change", "content"), a("a2", "m2")], None, "open"),
         ("a room's content change, three of three approve", [m, bind(op, "change", "content"), a("a2", "m2"), a("a3", "m3")],

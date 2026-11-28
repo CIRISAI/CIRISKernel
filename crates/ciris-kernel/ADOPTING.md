@@ -247,7 +247,7 @@ that waits on X, X arrives and it concludes; and rows that conclude nothing with
 ## A window's table from its policy row
 
 `window::spec_from_policy(row, table, active, seat)` builds a `WindowSpec` from one row of the Constitution's
-`manifests/governance_policy.json` (`families`; policy pin 8ec76cce), so a store never writes a window's table itself.
+`manifests/governance_policy.json` (`families`; policy pin 85750784), so a store never writes a window's table itself.
 The caller decodes the row into `window::PolicyRow` unchanged (the crate reads no JSON; `tests/policy_spec.rs` shows
 the decoding), and the table's `min_count` and `window_classes` into `PolicyTable`. `active` is the base `active`
 where the row states no census: `Active::WithinK` (at most `base_law.k` members) or `Active::Census(n)`. `seat` is the
@@ -280,11 +280,9 @@ it with the reference's own tables.
 | `window_secs`, `window_class` | `secs`; the class must give the same length; `0` is refused, `NoWindow` |
 | `at_window`, `landed_means`, `refused_means`, `family`, `cc_ref`, `model`, `status`, `note` | carried; no spec cell (`at_window` is the text's description; the two `_means` say what a leaf means for the row) |
 
-At pin 8ec76cce, with the cells ruled for the next pin filled (`window.RULED_CELLS`: the default rows' opener is
-`member`), eight rows give a table: `default_content`, `default_standing`, `default_irreversible`, `community_invite`,
-`self_roster_add`, `self_roster_evict`, `moderation_action` and `moderation_overturn`. `accord_halt` is refused on its
-`local` concluder. As vendored, the three default rows read their opener `unstated` and are refused on it; a caller
-reading the pin as it stands gets that refusal until the next pin states the cell.
+At policy pin 85750784 (CIRISConstitution 0e80f21) eight rows give a table: `default_content`, `default_standing`,
+`default_irreversible`, `community_invite`, `self_roster_add`, `self_roster_evict`, `moderation_action` and
+`moderation_overturn`. `accord_halt` is refused on its `local` concluder.
 
 Ruled 2026-11-28: `accord_halt`'s concluder is `local` (each node's own fuse, no landing; `window::rule` concludes
 no receipt and no landing of a table whose concluder is `local`), its opener_says `fires` (the halt is no confirming
