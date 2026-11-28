@@ -28,6 +28,14 @@ the bundle under the least key the rule allows; the cases about a holder that do
 `added_signers_join_only`. **A predecessor not held** is the verdict Waiting, no longer `genesis_bundle_prev_not_valid`:
 `Root::counted` gives `waiting` (no token in the table) and `Root::waits_on` names the predecessors.
 
+**Owners from concluded rows only** (review-53's r116 K2, severe): a holder's keys are one voice only through a
+CONCLUDED recovery or a CONCLUDED rotation its old key signs, read over a bundle's own past while it is counted (and
+its own rotation where the old key signs it); afterwards, over every concluded bundle. A row that concludes nothing
+(a junk `rotates` or `recovers`) merges no keys, so it cannot make one holder's signature satisfy another's
+re-commitment and capture its seat. Cases K1, K2, K2', K2'' and K4 in `check_root.py`; plant `owner_any_row`, and a
+crate plant. A bounded settler gets no exemption from the added-holder rule (the lead's ruling): a settler toward
+s0 without X's statement concludes nothing.
+
 **Who else signs a join; behind exactly; a thumbprint anchor matching two** (CIRISVerify's per-bundle read, the
 Constitution's readings 1 and 3), both languages. A join is counted only where, besides each predecessor's
 majority, a holder no named predecessor seats signs it under its own key, and a holder whose recovery commitment in
