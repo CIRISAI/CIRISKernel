@@ -5,6 +5,8 @@ This note is for the persist refactor onto the kernel. It was written from a rea
 `file:line` in that tree under `src/`. Nothing in persist was changed or run. Persist's own design for the seam
 is `FSD/KERNEL_SEAMS.md` (§5); this crate is meant to sit under that interface, not to replace it.
 
+The field-by-field map from a signed `ceg-row/2` statement to each row view is [`WIRE_MAP.md`](WIRE_MAP.md).
+
 ## What persist implements
 
 One trait, [`Row`](src/lib.rs), and for each answer persist asks, the spec trait of that answer.
