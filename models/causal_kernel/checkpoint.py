@@ -89,6 +89,19 @@ def acknowledgements(S, own, obj, rows=None):
     return [a for a in rows if (a["signer"] == own or own in a.get("cosigners", ())) and object_of(a, S.by) == obj]
 
 
+def takes_up(S, own, f):
+    """THE READER'S LINE taking up row f (the ruling on one self roster per identity: a reader's roster for an identity
+    is the founding its line takes up): a concluded row `own` signed or cosigned is f or has f in its past, the row
+    counting only where own's key stands there (its own revocation, a `registered` unseat by it, not in that row's
+    past: the K1 rule). A reader with no rows takes up nothing. MUTATION line_takes_nothing."""
+    if own is None or "line_takes_nothing" in MUT: return False
+    def stands(a):
+        return not any(S.by[x]["kind"] == "unseat" and S.by[x].get("scope") == "registered" and S.by[x]["signer"] == own
+                       and own in S.by[x].get("to", ()) for x in S.anc[a["id"]] if x in S.by)
+    return any((a["signer"] == own or own in a.get("cosigners", ())) and (a["id"] == f or f in S.anc[a["id"]]) and stands(a)
+               for a in S.Cs)
+
+
 def own_line(S, own, obj):
     """The counted acts on obj this reader has acknowledged, with the counted acts in their past: those in the past of
     (or equal to) any of its acknowledgements, and any head an explicit `ack` names.

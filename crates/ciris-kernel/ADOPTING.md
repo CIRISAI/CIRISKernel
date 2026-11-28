@@ -390,17 +390,17 @@ genesis key with several key records, or several rosters, is one person. Only ke
 the room seats under that identity: only the roster's live keys speak for it. An adopter must never treat kid == the identity's
 thumbprint as proof that the key speaks for the person; only a live key of the person's self roster does. The key a
 self roster evicts is no voice of its eviction, so a roster whose only live key is its genesis key cannot evict it. One
-self roster per identity: a second founding of a self roster by an identity whose roster the row's past holds is a
-rival and concludes nothing. Two foundings neither in the other's past are judged in the judged row's own past: the
-one taken up there, counted over (an addition, an eviction, a landed window) by a live voice of the identity, is
-its roster. A row only naming a founding takes up nothing, and an evicted key is no live voice anywhere, so a
-thief's rival founding, or its rows, silence no one; the honest devices' eviction of a stolen genesis key ends the
-rival's claim. A founding seating only its genesis key is no rival. The reader waits only where two rosters both have
-live counted history (or a rival seats other keys). A genesis key that founds a second roster while its own rows on
-a held roster of its identity are not in that founding's past has self-forked (S''): it is no voice of the identity
-anywhere at once, its rows read as a bare key's, and each roster continues with its other live keys; where no
-roster is then taken up by a live voice, the one another key's row acknowledges is the identity's. A fresh reader
-holding only the rival sees no fork: the residual; so no key re-founds itself, or adds a device, by founding. The only way onto a self
+self roster per identity (ruled): a second founding of a self roster by an identity whose roster the row's past holds
+concludes nothing. Of an identity's foundings a reader holds, the reader's roster is the founding its LINE takes up (a
+row the reader signed or cosigned is that founding or has it in its past, the row counting only where the reader's
+key stands: `seat::takes_up`); a rival founding concludes nothing for that reader, and neither does everything built
+on it; neither or both taken up is a wait (a fresh reader holding two waits). A thief cannot put its rival on an
+honest reader's line. The genesis key keeps its voice on the roster the reader takes up, as any key of that roster
+does, until that roster evicts it: no special rule for the first key either way. The restore case (a one-key identity
+restores its genesis key onto a fresh install and founds before fetching its roster): the re-founding concludes
+nothing for readers on the first roster; the genesis key's voice there is unchanged; a fresh reader holding both
+waits. ADOPTER DUTY: a client holding a genesis key and no roster rows FETCHES the identity's roster before it signs
+anything, and never founds where one may exist. Read for a reader through `seat::for_reader`. No key re-founds itself, or adds a device, by founding. The only way onto a self
 roster is that roster's own add (its count, or its lone path); an evicted genesis key is restored only by the
 roster's counted re-admission. A self roster's lone-path window that lands (its `landed` landing concluded) is the
 counted change it proposes, read through the same ends reading: a landed eviction ends the target's seat, a landed

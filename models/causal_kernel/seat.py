@@ -2313,6 +2313,7 @@ _VOID = [frozenset()]        # the changes void for the counting row being read
 _RVOID = [frozenset()]       # the changes void for the reader that row is read for
 _RPAIRS = [frozenset()]      # the concurrent founders' amendments the reader holds: (a, b, the keys the two seat)
 _RENDS = [frozenset()]       # the seat ends (lay-downs, leavings) behind the reader's line: no vacancy end for it
+_RRIVAL = [frozenset()]      # the rival self-roster foundings for the reader: its line took up another of the identity's
 
 
 def _built_closure(acts, void, stop=lambda q: False):
@@ -2538,6 +2539,32 @@ def held_pairs(S):
                      and not any(q["obj"] == a["obj"] and past(a["id"], q["id"]) and past(b["id"], q["id"]) for q in vs))
 
 
+def reader_rivals(S, own):
+    """The rival self-roster foundings for reader `own` (the ruling on one self roster per identity): of an identity's
+    foundings held, the one the reader's LINE takes up (checkpoint.takes_up) is its roster, and the others are rivals
+    for it. Where the line takes up neither or both, none is chosen: the reader waits (rosters_of). MUTATION
+    rival_line_unread: no reader's line is read."""
+    if own is None or "rival_line_unread" in MUT: return frozenset()
+    mine = {}
+    for g in S.Cs:
+        if is_self_founding(g): mine.setdefault(g["signer"], []).append(g)
+    out = set()
+    for fs in mine.values():
+        if len(fs) < 2: continue
+        t = [f for f in fs if CP.takes_up(S, own, f["id"])]
+        if len(t) == 1: out |= {f["id"] for f in fs if f["id"] != t[0]["id"]}
+    return frozenset(out)
+
+
+def rival_row(r, by, rivals):
+    """Row r is a rival founding, or built on one: a row over it, or the acceptance or withdrawal of a row over it."""
+    if r["id"] in rivals or r.get("obj") in rivals: return True
+    for f in ("of", "target"):
+        q = by.get(r.get(f))
+        if q is not None and (q["id"] in rivals or q.get("obj") in rivals): return True
+    return False
+
+
 def reader_state(S, own, rule=None):
     """The rows concluded again for reader `own`: the changes void for it by its line (over the rows as concluded for
     every reader) are left out of every counting row's fold and heads, so a count that stands for this reader and not
@@ -2552,14 +2579,16 @@ def reader_state(S, own, rule=None):
     PR = held_pairs(S) if "wait_reader_unread" not in MUT else frozenset()
     # the seat ends behind its line are no vacancy ends for it (H4, the election)
     RE = reader_ends(S, own)
-    if not RV and not PR and not RE:
+    # the rival self-roster foundings for it: its line took up another of the identity's
+    RR = reader_rivals(S, own)
+    if not RV and not PR and not RE and not RR:
         _READER_MEMO[key] = (tuple(S.rows), S)
         return S
-    _RVOID.append(frozenset(RV)); _RPAIRS.append(PR); _RENDS.append(RE)
+    _RVOID.append(frozenset(RV)); _RPAIRS.append(PR); _RENDS.append(RE); _RRIVAL.append(RR)
     try:
         R = CK.concluded(CK.kept(list(S.rows)), rule or (lambda r, P, past: seat_rule(r, P, past)))
     finally:
-        _RVOID.pop(); _RPAIRS.pop(); _RENDS.pop()
+        _RVOID.pop(); _RPAIRS.pop(); _RENDS.pop(); _RRIVAL.pop()
     R._reader, R._rvoid, R._paired = own, frozenset(RV), True
     _READER_MEMO[key] = (tuple(S.rows), R)
     return R
@@ -2672,60 +2701,14 @@ def rosters_of(P, k, keep=lambda g: True):
     by = {q["id"]: q for q in P}
     selves = [g for g in P if g["kind"] == "offer" and g.get("obj") == g["id"]
               and (kind_of(by, g["id"]) == "self" or "person_any_kind" in MUT)]   # MUTATION person_any_kind: any group
-    # one self roster per identity (G1), judged in the row's own past P (r99 D1, the "read at the row" rule): of an
-    # identity's foundings there, the one TAKEN UP (named, or counted over, by a row of P other than itself) is its
-    # roster; a rival founding nothing in P takes up is no part of it (a stolen genesis key's bare founding silences
-    # no one); where several are taken up, or none of several, the reader waits and never picks, and none is
-    # (MUTATION rival_roster_kept: every founding kept; rival_untaken_counted: an untaken rival makes the reader wait)
+    # one self roster per identity (G1, as ruled): a reader's roster for an identity is the founding its LINE takes up
+    # (reader_rivals: the other foundings, and every row over them, conclude nothing for that reader, so they are not
+    # in P). Two foundings by one identity still in P are held by a reader whose line takes up neither (a fresh
+    # reader) or both: it waits and never picks, and neither is that identity's roster (MUTATION rival_roster_kept)
     if "rival_roster_kept" not in MUT:
-        mine = {}
-        for g in selves: mine.setdefault(g["signer"], []).append(g)
-        # TAKEN UP means COUNTED (r99 D8 to D10): a counted row over the founding (an addition, an eviction, or a
-        # landed self-roster window) signed by a LIVE voice of the identity: a key no counted or landed eviction from
-        # any of the identity's rosters has ended (an evicted genesis key is no voice anywhere). A founding only
-        # named, or counted over only by such keys, takes up nothing (MUTATION rival_named_taken: naming takes it up)
-        def evicted(p):
-            ids = {g["id"] for g in mine.get(p, ())}
-            out = {k for q in P if q["kind"] == "unseat" and q.get("obj") in ids for k in q.get("to", ())}
-            if self_forked(P, p): out.add(p)                       # a self-forked genesis key is no live voice
-            out |= {p_["target"] for L in P if L["kind"] == "landing" and L.get("says") == "landed"
-                    for p_ in [by.get(L.get("of"))] if p_ is not None and p_.get("window") == "self_roster_evict"
-                    and p_.get("obj") in ids and p_.get("target")}
-            return out
-        def taken(g):
-            if "rival_named_taken" in MUT:
-                return any(q["id"] != g["id"] and (g["id"] in q.get("names", ()) or q.get("obj") == g["id"]) for q in P)
-            gone = evicted(g["signer"])
-            def counted(q):
-                if q["kind"] in ("offer", "unseat") and q.get("conf") == "group" and q.get("obj") == g["id"]:
-                    return signers(q) - frozenset(q.get("to", ()))         # a key's own consent to its seat is no voice
-                if q["kind"] == "landing" and q.get("says") == "landed":
-                    p_ = by.get(q.get("of"))
-                    if p_ is not None and p_.get("window") in ("self_roster_evict", "self_roster_add") \
-                            and p_.get("obj") == g["id"]:
-                        return signers(p_)
-                return frozenset()
-            return any(q["id"] != g["id"] and counted(q) - gone for q in P)
-        # a founding that seats only its genesis key adds no device: untaken, it is no rival (K7)
-        bare = lambda g: frozenset(g.get("to", ())) <= {g["signer"]} or signers(g) <= {g["signer"]}
-        one = []
-        for gs in mine.values():
-            if len(gs) == 1: one += gs; continue
-            t = gs if "rival_untaken_counted" in MUT else [g for g in gs if taken(g) or not bare(g)]
-            if not t and "rival_ack_unread" not in MUT:
-                # none taken by a live voice (the genesis key self-forked, and its devices were added by it alone): the
-                # roster another key's row acknowledges (names it, or a row over it; a key of no roster of it) is the
-                # identity's (r99c T3: the room
-                # whose founding names the honest roster's addition); a rival only its own genesis key builds on is none
-                Qa = seats_of(P)
-                ack = lambda f: any(q["id"] != f["id"] and signers(q) - {f["signer"]} - Qa.holders(f["scope"], f["id"]) - (
-                    set(q.get("to", ())) if q.get("obj") == f["id"] else set()) and any(
-                    n == f["id"] or (n in by and by[n].get("obj") == f["id"]) for n in q.get("names", ())) for q in P)
-                t = [g for g in gs if ack(g)]
-                if len(t) != 1: t = []
-            if len(t) == 1: one += t
-            elif not t: one += gs                                  # bare foundings alone: each seats only the identity
-        selves = one
+        n = {}
+        for g in selves: n[g["signer"]] = n.get(g["signer"], 0) + 1
+        selves = [g for g in selves if n[g["signer"]] == 1]
     if "person_evict_unread" in MUT:                              # MUTATION: an admission in the past is enough
         return sorted({g["id"] for g in selves if any(q["kind"] == "offer" and q.get("obj") == g["id"] and k in q["to"]
                                                       for q in P)})
@@ -2738,7 +2721,6 @@ def person_in(P, k, keep=lambda g: True):
     row's past only; a concurrent eviction is no part of it). `keep(g)`: a self roster g still in play (person_of's
     rule 4). The person is named by its identity key (person_key: the genesis key that signed its rosters' founding
     records). None for no person or two."""
-    if founded_self(P, k) and self_forked(P, k): return None      # a self-forked genesis key: a bare key (r99c)
     hit = rosters_of(P, k, keep)
     # a person is its IDENTITY key (the self roster's object is the identity key, never one roster row or one key
     # record): two rosters founded by one genesis key are one person (MUTATION genesis_unread: each roster a person)
@@ -2801,28 +2783,6 @@ def is_self_founding(g):
         and (g.get("group_kind") != "family" or "self_founding_family" in MUT)   # MUTATION: a family read as a self roster
 
 
-def self_forked(P, g):
-    """g, an identity's genesis key, self-forked its own roster over P (a row's concluded past; the S'' self-fork read
-    for a person, r99c): P holds two self-roster foundings by g, and g signed a row on one of them (a row over it,
-    not its founding) that is not in the other's past. The genesis key is then no voice of the identity anywhere; each
-    roster continues with its other live keys (MUTATION self_refounding_unread)."""
-    if "self_refounding_unread" in MUT: return False
-    fs = [q for q in P if is_self_founding(q) and q["signer"] == g]
-    if len(fs) < 2: return False
-    by = {q["id"]: q for q in P}
-    memo = {}
-    def anc(i):
-        if i not in memo:
-            memo[i] = set()
-            out = set()
-            for n in by[i].get("names", ()):
-                if n in by: out |= {n} | anc(n)
-            memo[i] = out
-        return memo[i]
-    return any(F["id"] != R["id"] and q.get("obj") == R["id"] and q["id"] != R["id"] and g in signers(q)
-               and q["id"] not in anc(F["id"]) for F in fs for R in fs for q in P)
-
-
 def founded_self(P, k):
     """k signed the founding record of a self roster over P: it is a person's genesis key (its identity)."""
     by = {q["id"]: q for q in P}
@@ -2855,7 +2815,6 @@ def _rep(P, k):
     # the person is its identity, and only a live key of its roster speaks for it). Its own rows read as a bare key's,
     # and the identity the room seats is no voice of it (MUTATION evicted_genesis_speaks)
     if not names: return None if founded_self(P, k) and "evicted_genesis_speaks" not in MUT else k
-    if founded_self(P, k) and self_forked(P, k): return None         # a self-forked genesis key: no voice anywhere
     if len(names) > 1 and "person_first" not in MUT: return None   # a key of two persons (two genesis keys)
     g = names[0] if "genesis_unread" not in MUT else person_key(P, names[0])
     if key_record_ended(P, g) and "revoked_voice_kept" not in MUT: return None
@@ -3493,6 +3452,9 @@ def end_of_ended(r, P, past, by):
 def seat_rule(r, P, past, table=None, other=None):
     """The conclusion rule. P: r's concluded ancestors."""
     k, by = r["kind"], {q["id"]: q for q in P}
+    # a rival founding concludes nothing for the reader whose line took up another of the identity's, and neither does
+    # everything built on it (a row over it, or accepting or withdrawing one over it) (reader_rivals)
+    if _RRIVAL[-1] and rival_row(r, by, _RRIVAL[-1]): return False
     if k in ("unseat", "withdraw") and end_of_ended(r, P, past, by): return False   # (2): no second end of a seat
     if k in ("offer", "unseat"):
         conf = r["conf"]

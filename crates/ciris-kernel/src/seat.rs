@@ -3299,57 +3299,53 @@ fn evicted_from<R: SeatRow>(c: &Concluded<'_, R>, at: usize, g: &ObjOf<R>, s: &s
     })
 }
 
-/// The genesis keys over `rows` (a row's concluded past) that self-forked their own roster (the S'' self-fork read for
-/// a person, r99c): `rows` hold two self-roster foundings by the key, and it signed a row on one of them (a row over
-/// it, not its founding) that is not in the other's past. Such a key is no voice of its identity anywhere, and each
-/// roster continues with its other live keys. The reference is `seat.self_forked`.
-fn self_forkers<R: SeatRow>(rows: &[&R], law: &SeatLaw) -> BTreeSet<R::Key> {
-    let by: BTreeMap<&R::Id, &R> = rows.iter().map(|q| (q.id(), *q)).collect();
-    let mut memo: BTreeMap<&R::Id, BTreeSet<&R::Id>> = BTreeMap::new();
-    fn anc<'r, R: SeatRow>(
-        i: &'r R::Id,
-        by: &BTreeMap<&'r R::Id, &'r R>,
-        memo: &mut BTreeMap<&'r R::Id, BTreeSet<&'r R::Id>>,
-    ) -> BTreeSet<&'r R::Id> {
-        if let Some(a) = memo.get(i) {
-            return a.clone();
-        }
-        memo.insert(i, BTreeSet::new());
-        let mut out = BTreeSet::new();
-        if let Some(r) = by.get(i) {
-            for n in r.names() {
-                if let Some((k, _)) = by.get_key_value(n) {
-                    out.insert(*k);
-                    out.extend(anc(*k, by, memo));
-                }
-            }
-        }
-        memo.insert(i, out.clone());
-        out
-    }
-    let mut founded: BTreeMap<&R::Key, Vec<&R>> = BTreeMap::new();
-    for g in rows.iter().copied().filter(|g| self_founding(law, *g)) {
-        founded.entry(g.signer()).or_default().push(g);
+/// THE READER'S LINE taking up row `f` (the ruling on one self roster per identity): a concluded row `own` signed or
+/// cosigned is `f` or has it in its past, counting only where `own`'s key stands there (its own revocation, an unseat
+/// of its `registered` seat, not in that row's past: the K1 rule). A reader with no rows takes up nothing. The
+/// reference is `checkpoint.takes_up`.
+pub fn takes_up<R: SeatRow>(c: &Concluded<'_, R>, own: &R::Key, f: usize) -> bool {
+    let g = &c.g;
+    c.cs().iter().copied().any(|a| {
+        let ar = g.row(a);
+        (ar.signer() == own || ar.cosigners().contains(own))
+            && (a == f || g.in_past(f, a))
+            && !c.cs().iter().copied().any(|x| {
+                let xr = g.row(x);
+                xr.seat_kind() == SeatKind::Unseat
+                    && xr.scope().is_some_and(|s| s.as_ref() == "registered")
+                    && xr.signer() == own
+                    && xr.to().contains(own)
+                    && g.in_past(x, a)
+            })
+    })
+}
+
+/// The rival self-roster foundings for reader `own`: of an identity's foundings held, the one the reader's line takes
+/// up ([`takes_up`]) is its roster and the others are rivals for it; where the line takes up neither or both, none is
+/// chosen and the reader waits. The reference is `seat.reader_rivals`.
+fn reader_rivals<R: SeatRow>(c: &Concluded<'_, R>, law: &SeatLaw, own: Option<&R::Key>) -> BTreeSet<R::Id> {
+    let Some(own) = own else { return BTreeSet::new() };
+    let mut mine: BTreeMap<&R::Key, Vec<usize>> = BTreeMap::new();
+    for i in c.cs().iter().copied().filter(|&i| self_founding(law, c.g.row(i))) {
+        mine.entry(c.g.row(i).signer()).or_default().push(i);
     }
     let mut out = BTreeSet::new();
-    for (k, fs) in founded.iter().filter(|(_, fs)| fs.len() > 1) {
-        let forked = fs.iter().any(|f| {
-            let past = anc(f.id(), &by, &mut memo);
-            fs.iter().filter(|r| r.id() != f.id()).any(|r| {
-                let at = Some(Obj::Row(r.id().clone()));
-                rows.iter().any(|q| {
-                    q.id() != r.id()
-                        && q.obj() == at
-                        && (q.signer() == *k || q.cosigners().contains(*k))
-                        && !past.contains(q.id())
-                })
-            })
-        });
-        if forked {
-            out.insert((*k).clone());
+    for fs in mine.values().filter(|fs| fs.len() > 1) {
+        let t: Vec<usize> = fs.iter().copied().filter(|&f| takes_up(c, own, f)).collect();
+        if let [one] = t.as_slice() {
+            out.extend(fs.iter().filter(|&&f| f != *one).map(|&f| c.g.row(f).id().clone()));
         }
     }
     out
+}
+
+/// Row `r` is a rival founding, or built on one: a row over it, or the acceptance or withdrawal of a row over it.
+fn rival_row<R: SeatRow>(r: &R, by: &BTreeMap<&R::Id, &R>, rivals: &BTreeSet<R::Id>) -> bool {
+    let hit = |q: &R| rivals.contains(q.id()) || matches!(q.obj(), Some(Obj::Row(o)) if rivals.contains(&o));
+    if hit(r) {
+        return true;
+    }
+    [r.of(), r.target()].into_iter().flatten().any(|i| by.get(i).is_some_and(|q| hit(q)))
 }
 
 /// `g` is the founding record of a self roster: its founding scope read through [`SeatLaw::kinds`] as
@@ -3379,109 +3375,18 @@ fn rosters_by_key<'r, R: SeatRow + 'r, S: CutSpec<R>>(
     let agents: BTreeSet<R::Key> =
         seats.recs().iter().filter(|x| x.scope.as_ref() == AGENT).map(|x| x.k.clone()).collect();
     let mut out: BTreeMap<R::Key, Vec<&'r R>> = BTreeMap::new();
-    // one self roster per identity (G1), judged in the row's own past `rows` (r99 D1): of an identity's foundings
-    // there, the one TAKEN UP (named, or counted over, by another row of `rows`) is its roster; a rival nothing takes
-    // up is no part of it (a stolen genesis key's bare founding silences no one); where several are taken up, or none
-    // of several, the reader waits and never picks, and none is
-    let mut founded: BTreeMap<&R::Key, Vec<&R>> = BTreeMap::new();
+    // one self roster per identity (G1, as ruled): a reader's roster for an identity is the founding its LINE takes up
+    // (the rivals, and every row over them, conclude nothing for that reader: [`reader_rivals`]). Two foundings by one
+    // identity still among `rows` are held by a reader whose line takes up neither or both: it waits and never picks
+    let mut founded: BTreeMap<&R::Key, usize> = BTreeMap::new();
     for g in rows.iter().copied().filter(|g| self_founding(law, *g)) {
-        founded.entry(g.signer()).or_default().push(g);
-    }
-    // TAKEN UP means COUNTED (r99 D8 to D10): a counted row over the founding (an addition, an eviction, or a landed
-    // self-roster window) signed by a LIVE voice of the identity, a key no counted or landed eviction from any of the
-    // identity's rosters has ended (an evicted genesis key is no voice anywhere); a key's own consent to its seat is
-    // no voice. A founding only named, or counted over only by such keys, takes up nothing
-    let by_id: BTreeMap<&R::Id, &R> = rows.iter().map(|q| (q.id(), *q)).collect();
-    let in_rosters = |q: &R, ids: &BTreeSet<&R::Id>| matches!(q.obj(), Some(Obj::Row(o)) if ids.contains(&o));
-    let forkers = self_forkers(rows, law);
-    let evicted = |gs: &[&R]| -> BTreeSet<R::Key> {
-        let ids: BTreeSet<&R::Id> = gs.iter().map(|g| g.id()).collect();
-        let mut out: BTreeSet<R::Key> = BTreeSet::new();
-        // a self-forked genesis key is no live voice
-        out.extend(gs.iter().map(|g| g.signer()).filter(|k| forkers.contains(*k)).cloned());
-        for q in rows.iter().copied() {
-            if q.seat_kind() == SeatKind::Unseat && in_rosters(q, &ids) {
-                out.extend(q.to().iter().cloned());
-            }
-            if let Some((op, says)) = q.landing() {
-                if let Some(o) = by_id.get(op).filter(|_| says.as_ref() == "landed") {
-                    if let Some(t) = o.evicts().filter(|_| in_rosters(o, &ids)) {
-                        out.insert(t.clone());
-                    }
-                }
-            }
-        }
-        out
-    };
-    let taken = |g: &R, gone: &BTreeSet<R::Key>| {
-        let at = Some(Obj::Row(g.id().clone()));
-        rows.iter().copied().filter(|q| q.id() != g.id()).any(|q| {
-            let voices: Vec<&R::Key> = if matches!(q.seat_kind(), SeatKind::Offer | SeatKind::Unseat)
-                && q.conf() == Some(Conf::Group)
-                && q.obj() == at
-            {
-                core::iter::once(q.signer()).chain(q.cosigners().iter()).filter(|k| !q.to().contains(k)).collect()
-            } else if let Some((op, says)) = q.landing() {
-                match by_id.get(op) {
-                    Some(o)
-                        if says.as_ref() == "landed"
-                            && (o.evicts().is_some() || o.adds().is_some())
-                            && o.obj() == at =>
-                    {
-                        core::iter::once(o.signer()).chain(o.cosigners().iter()).collect()
-                    }
-                    _ => Vec::new(),
-                }
-            } else {
-                Vec::new()
-            };
-            voices.iter().any(|k| !gone.contains(*k))
-        })
-    };
-    // a founding that seats only its genesis key adds no device: untaken, it is no rival (K7)
-    let bare = |g: &R| g.to().iter().all(|k| k == g.signer()) || g.cosigners().iter().all(|k| k == g.signer());
-    let mut rosters: BTreeSet<&R::Id> = BTreeSet::new();
-    for gs in founded.values() {
-        if gs.len() == 1 {
-            rosters.insert(gs[0].id());
-            continue;
-        }
-        let gone = evicted(gs);
-        let mut t: Vec<&R> = gs.iter().copied().filter(|g| taken(g, &gone) || !bare(g)).collect();
-        if t.is_empty() {
-            // none taken by a live voice (the genesis key self-forked, its devices added by it alone): the roster
-            // another key's row acknowledges (names it, or a row over it; a key of no roster of it, and no key's own
-            // consent to its seat) is the identity's (r99c T3); a rival only its own genesis key builds on is none
-            let ack = |f: &R| {
-                let at = Some(Obj::Row(f.id().clone()));
-                let own: BTreeSet<R::Key> =
-                    f.scope().map(|s| seats.holders(s.as_ref(), &Obj::Row(f.id().clone()), None)).unwrap_or_default();
-                rows.iter().copied().filter(|q| q.id() != f.id()).any(|q| {
-                    let over = q.obj() == at;
-                    let others = core::iter::once(q.signer())
-                        .chain(q.cosigners().iter())
-                        .any(|k| k != f.signer() && !own.contains(k) && !(over && q.to().contains(k)));
-                    others && q.names().iter().any(|n| n == f.id() || by_id.get(n).is_some_and(|r| r.obj() == at))
-                })
-            };
-            t = gs.iter().copied().filter(|g| ack(g)).collect();
-            if t.len() != 1 {
-                t.clear();
-            }
-        }
-        match t.as_slice() {
-            [g] => {
-                rosters.insert(g.id());
-            }
-            [] => rosters.extend(gs.iter().map(|g| g.id())),
-            _ => {}
-        }
+        *founded.entry(g.signer()).or_default() += 1;
     }
     for g in rows.iter().copied() {
         if g.seat_kind() != SeatKind::Offer || !founding(g) {
             continue;
         }
-        if self_founding(law, g) && !rosters.contains(g.id()) {
+        if self_founding(law, g) && founded.get(g.signer()).is_some_and(|&n| n > 1) {
             continue;
         }
         let o = Obj::Row(g.id().clone());
@@ -3524,10 +3429,6 @@ pub fn person_at<R: SeatRow, S: CutSpec<R>>(
     }
     let rows: Vec<&R> = c.cs().iter().copied().filter(|&q| c.g.in_past(q, at)).map(|q| c.g.row(q)).collect();
     let keep = |g: &ObjOf<R>, s: &str, key: &R::Key| key != k || !evicted_from(c, at, g, s, k);
-    // a self-forked genesis key is a bare key (r99c)
-    if self_forkers(&rows, law).contains(k) {
-        return None;
-    }
     let hit = rosters_by_key(&rows, law, spec, &keep).0.remove(k).unwrap_or_default();
     // the person is its IDENTITY key, the genesis key that signed its rosters' founding records (the self roster's
     // object is the identity key, never one roster row or one key record): two rosters of one genesis key are one
@@ -3603,8 +3504,6 @@ pub struct Persons<'r, R: SeatRow> {
     agents: BTreeSet<R::Key>,
     // the genesis keys: the signers of the self rosters' founding records
     founders: BTreeSet<R::Key>,
-    // the genesis keys that self-forked their own roster (r99c)
-    forkers: BTreeSet<R::Key>,
     keys: bool,
 }
 
@@ -3622,7 +3521,6 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
             revoked: BTreeSet::new(),
             agents: BTreeSet::new(),
             founders: BTreeSet::new(),
-            forkers: BTreeSet::new(),
             keys,
         };
         let any_self = rows.iter().any(|g| {
@@ -3653,8 +3551,7 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
             })
             .map(|g| g.signer().clone())
             .collect();
-        let forkers = self_forkers(rows, law);
-        Persons { rosters, revoked, agents, founders, forkers, keys }
+        Persons { rosters, revoked, agents, founders, keys }
     }
 
     /// Whether this count reads keys, not persons (a self roster's own count).
@@ -3677,10 +3574,6 @@ impl<'r, R: SeatRow + 'r> Persons<'r, R> {
         // key, which no count's base holds (CC 4.5.13: "an agent has no vote")
         if self.agents.contains(k) {
             return Some(k.clone());
-        }
-        // a self-forked genesis key is no voice of its identity anywhere (r99c)
-        if self.forkers.contains(k) {
-            return None;
         }
         let names = self.named(k);
         match names.as_slice() {
@@ -4155,13 +4048,16 @@ pub fn for_reader<'a, R: SeatRow, S: CutSpec<R>>(
     };
     let pairs = held_pairs(c);
     let ends = own.map(|k| reader_ends(c, law, spec, k, None)).unwrap_or_default();
-    if rv.is_empty() && pairs.is_empty() && ends.is_empty() {
+    // the rival self-roster foundings for it: its line took up another of the identity's
+    let rivals = reader_rivals(c, law, own);
+    if rv.is_empty() && pairs.is_empty() && ends.is_empty() && rivals.is_empty() {
         return (c.clone(), rv);
     }
     let cache = MembersAt::<R>::default();
     *cache.rvoid.borrow_mut() = rv.clone();
     *cache.rpairs.borrow_mut() = pairs;
     *cache.rends.borrow_mut() = ends;
+    *cache.rrivals.borrow_mut() = rivals;
     let rows: Vec<&'a R> = c.g.rows().to_vec();
     let rc = crate::layers::conclude(rows, |p| seat_rule_with(p, law, spec, &|_| true, Some(&cache)), None);
     (rc, rv)
@@ -4641,6 +4537,9 @@ struct MembersAt<R: SeatRow> {
     rpairs: RefCell<Vec<HeldPair<R>>>,
     // the seat ends behind the reader's line ([`reader_ends`]): no vacancy end for it (H4, the election)
     pub(crate) rends: RefCell<BTreeSet<<R as Row>::Id>>,
+    // the rival self-roster foundings for the reader ([`reader_rivals`]): they, and every row over them, conclude
+    // nothing for it
+    rrivals: RefCell<BTreeSet<<R as Row>::Id>>,
 }
 
 /// Two concurrent founders' amendments a reader holds: their ids, the keys the two seat, and the room.
@@ -4670,6 +4569,7 @@ impl<R: SeatRow> Default for MembersAt<R> {
             views: RefCell::default(),
             rpairs: RefCell::default(),
             rends: RefCell::default(),
+            rrivals: RefCell::default(),
         }
     }
 }
@@ -5182,6 +5082,14 @@ fn seat_rule_with<R: SeatRow, S: CutSpec<R>>(
 ) -> bool {
     let r = p.row();
     let by: BTreeMap<&R::Id, &R> = p.rows().map(|q| (q.id(), q)).collect();
+    // a rival founding concludes nothing for the reader whose line took up another of the identity's, and neither
+    // does everything built on it ([`reader_rivals`])
+    if let Some(cache) = cache {
+        let rivals = cache.rrivals.borrow();
+        if !rivals.is_empty() && rival_row(r, &by, &rivals) {
+            return false;
+        }
+    }
     if end_of_ended(p, law, spec, &by, r) {
         return false; // (2): no second end of a seat
     }
