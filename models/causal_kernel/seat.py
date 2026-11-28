@@ -390,7 +390,7 @@ def stalled_recovery(r, P, past):
     """The one row an infrastructure room admits without its founders' count while stalled (CC 3.2): a widening whose
     only change is one added founder seat, for a key named by a row (`bundle`) counted at a strict majority over the
     holders of the bundle in force of the root the room stands under, whose `scope` names this room, signed by the
-    named key. With no trust root read (ROOT), the kernel holds no bundle holders, so such a row is UNDECIDED: the
+    named key. With no trust root read (TRUST_ROOT), the kernel holds no bundle holders, so such a row is UNDECIDED: the
     reason `stalled_recovery_needs_bundle`
     (the seat rule concludes nothing for it), or None for a row of another shape. The checks for when the trust root's
     fold is in the kernel: the counted row names the bundle in force; its `scope` names this room; the key's identity
@@ -408,14 +408,14 @@ def stalled_recovery(r, P, past):
 
 # the trust root this node reads (models/trust_root/root.py): (Root, reader), or None. With none, a stalled recovery is
 # undecided; with one, it is judged (recovery_verdict)
-ROOT = [None]
+TRUST_ROOT = [None]   # not ROOT: that name is the repository's path, which the table readers above take by default
 
 
 class root_view:
     """`with root_view(R, rd):` the seat rule judges a stalled recovery against root R as reader rd reads it."""
     def __init__(self, R, rd): self.v = (R, rd)
-    def __enter__(self): ROOT.append(self.v)
-    def __exit__(self, *a): ROOT.pop()
+    def __enter__(self): TRUST_ROOT.append(self.v)
+    def __exit__(self, *a): TRUST_ROOT.pop()
 
 
 def recovery_verdict(r, P, past):
@@ -430,7 +430,7 @@ def recovery_verdict(r, P, past):
         4  the widening is signed by the key the grant names (MUTATION recovery_signer_unread);
         5  only while stalled: fewer than M + 1 founders at its heads (MUTATION recovery_stalled_unread);
         6  one founder seat, and nothing else changed (MUTATION recovery_more_unread)."""
-    view = ROOT[-1]
+    view = TRUST_ROOT[-1]
     if view is None: return (False, "stalled_recovery_needs_bundle")
     Rt, rd = view
     by = {q["id"]: q for q in P}
@@ -3171,7 +3171,7 @@ def seat_rule(r, P, past, table=None, other=None):
             # an infrastructure room's recovery widening while stalled: judged against the trust root this node reads
             # (recovery_verdict); with none read, undecided (stalled_recovery), and it concludes nothing
             if r.get("bundle") is not None:
-                return ROOT[-1] is not None and recovery_verdict(r, P, past)[0]
+                return TRUST_ROOT[-1] is not None and recovery_verdict(r, P, past)[0]
             # one target per counted end (the Constitution's ruling on review-54's multi-target hole): a removal, a
             # recall, a duty withdrawal or a demotion naming more than one key concludes nothing; several are several
             # rows, each judged alone at its head (MUTATIONS multi_target_removal, multi_target_recall,

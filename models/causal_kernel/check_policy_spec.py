@@ -409,6 +409,14 @@ def run_plants():
 
 def main():
     problems = []
+    # seat.py's table readers, called after import with no path, read the repository's data/ (ROOT is the path)
+    ST = WN.ST
+    try:
+        if ST.policy_table() != ST.policy_table(os.path.join(ST.ROOT, "data", "governance_policy.json")) \
+                or ST.removal_floor() != ST.REMOVAL_FLOOR or ST.acts_table() != ST.ACTS:
+            problems.append("seat.py's table readers read another table with no path")
+    except TypeError as e:
+        problems.append("seat.py's table readers fail with no path: %s" % e)
     print("Part 1. the families of the policy table")
     for f in POL["families"]:
         g = give(f)
