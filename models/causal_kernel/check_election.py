@@ -47,8 +47,6 @@ Planted breaks (seat.MUT), each of which must change a case's answer:
     leaver_voice            a member whose leaving is in the seating's set is a voice
     electorate_reads_past   the electorate read with every withdrawal in the seating's past, named or not (C1, F1, F2:
                             a leaving the seating does not name strikes nobody)
-    laydown_off_line        a lay-down behind a reader's line is still a vacancy end for it (H4, the Constitution's
-                            ruling: a lay-down is a roster change and sits on the reader's line)
     c2_holder_unread        a seating concludes beside a live duty holder (C2)
     c2_later_unread         a seating concludes with a later election's row in its past (C2)
     contains_unread         every concluded seating stands (C4)
@@ -726,12 +724,11 @@ G3B = elect("eb", "B", G3I + ("xb", "xc", "wbb", "wbc"), vac=("lm2", "lm1"))
 G3ED = elect("ed", "D", G3I, vac=("lm2",))
 G3C = N1R + [N1L2] + G3H + [G3ED] + [ack("k" + k.lower(), k, "ed") for k in "EFG"] + [N1L1] + G3X + [G3B]
 CASES += [
-    ("G3c, the stated residual (a reader with no acknowledgement): E, F and G receipt D's seating before holding B's; "
-     "A's backdated lay-down shrinks the close's base to the founders, the newcomers' receipts fall outside it, and the "
-     "honest close fails: nobody (a backdated lay-down can shrink the close's base for a reader with no "
-     "acknowledgement, and that reaches an honest close made before the attack)", G3C, NOMOD("D", "B"), "G3, the residual"),
-    ("G3d (held): the same receipts made after B's seating: not nested, nobody", N1R + [N1L2] + G3H + [G3ED, N1L1] + G3X
-     + [G3B] + [ack("k" + k.lower(), k, "ed", ("eb",)) for k in "EFG"], NOMOD("B", "D"), "G3"),
+    ("G3c (a reader with no acknowledgement): E, F and G receipt D's seating before holding B's; A's backdated "
+     "lay-down is the same vacancy (one holder's lay-downs of one stay, the Constitution, 2026-11-28), so it forks "
+     "nothing and B's election fails at its opening: the honest close holds: D", G3C, MOD("D") + NOMOD("B"), "G3"),
+    ("G3d (held): the same receipts made after B's seating: D", N1R + [N1L2] + G3H + [G3ED, N1L1] + G3X
+     + [G3B] + [ack("k" + k.lower(), k, "ed", ("eb",)) for k in "EFG"], MOD("D") + NOMOD("B"), "G3"),
 ]
 # The sixth read. H1: an honest leaving after the close does not reopen it: a receipt counts, and its signer stays in
 # the base, where the key's leaving (or a counted removal of it) has that receipt in its past
@@ -937,7 +934,7 @@ def planted(plant):
 # (retired with the readings the ruling of 2026-11-28 withdrew: vacancy_founding, vacancy_first_end, electorate_folded,
 # electorate_reads_past, vacancy_unnamed, base_per_seating_electorate, close_base_union; leaver_voice and
 # counted_end_forks_signer have no case left under the opening; electorate_at_seating moved to check_election_close.py)
-PLANTS = ("laydown_off_line", "c2_holder_unread",
+PLANTS = ("c2_holder_unread",
           "c2_later_unread", "contains_unread", "twin_withdrawal_unread", "close_unread", "receipt_standing_unread",
           "say_any_receipt", "close_leavers_kept", "closed_rivals_count", "election_id_any", "set_any_signer",
           "ballot_nonmember_ranked", "ballot_ranks_unbounded", "seating_any_signer", "twin_ids_apart",
@@ -995,23 +992,21 @@ def orders(rows, n=200):
 # These cases were written for the withdrawn readings: the vacancy read from the ends a seating names (F2), the base
 # as the intersection of the members at every end (C1, G3), a second lay-down read as a vacancy (N1, J1), a leaving
 # struck only where the set names it (F1). Their worlds are kept; their answers are the ruled ones:
-#   two concurrent lay-downs of one seat are a FORK and open nothing (rule 1), so no seating stands where both are
-#   taken (F2 (3), N1, H2b for a reader with no acknowledgement: the stated residual, it waits);
-#   a lay-down with an end of the seat in its past is no end, so the election is at the first (J1, b6: F, admitted
-#   after it, neither votes nor stands);
+#   a holder's own lay-downs of one stay are ONE vacancy and no fork (the Constitution, 2026-11-28): F2 (3), N1,
+#   H2b, J1, b6, G3c and G3d keep their honest answers, and the backdated second lay-down seats nobody; the honest
+#   concurrent ends of F2 (3) are one vacancy, and the electorate at the opening's heads votes F in, three of five;
+#   a lay-down with an end of the seat in its past is no end (J1 (2));
 #   the electorate is the roster at the opening's heads, so a key admitted before a counted end the opening cites
 #   votes (C1, X);
 #   a seating names its opening and cites its ballots: no end is named, and a leaving the reader's roster takes
 #   strikes the leaver whatever the set names (F2, F1).
 RESTATED = {
     "C1, concurrent ends: X, admitted in the recall's past": [F],
-    "F2, (3) (b2 re-checked)": [F, F], "F2, (3): a seating naming both ends": [F, F],
-    "F2, (3): honest concurrent ends": [F, F], "F2: a seating that names no end": [T],
-    "N1, (3): A backdates a second end": [F, F], "N1, (1): B forks a ballot naming lm1": [F, F],
-    "H2 (H2b), the stated residual": [F, F], "J1 (J1b): A's second lay-down": [F, F],
+    "F2, (3): honest concurrent ends": [F, T], "F2: a seating that names no end": [T],
+    "H2 (H2b), the stated residual": [F, T],
     "F1: a leaving the seating does not name": [F, F],
 }
-RESTATED_CLOSE = {"b6 (regression)": F, "b6: the same asked of the other twin": F}
+RESTATED_CLOSE = {}
 for i, (name, rows, asks, item) in enumerate(CASES):
     for pre, want in RESTATED.items():
         if name.startswith(pre):

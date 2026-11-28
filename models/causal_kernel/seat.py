@@ -1284,6 +1284,12 @@ def end_fork(e, P, past, obj):
         if f["id"] in dropped: continue
         if not (_seat(seat_end_slots(f, P, past, obj)) & mine): continue
         if e["kind"] == "unseat" and f["kind"] == "withdraw": continue      # the counted end is the end
+        # one vacancy (the Constitution, 2026-11-28): a holder's own lay-downs of ONE stay (the seat the row they
+        # withdraw gave), however many and at whatever heads, are one vacancy and no fork; openings citing different
+        # ones are rivals for it (openings_for). A lay-down of an earlier stay ends nothing of a later one (its target).
+        # MUTATION holder_laydowns_fork
+        if (e["kind"] == f["kind"] == "withdraw" and e["signer"] == f["signer"]
+                and e.get("target") == f.get("target") and "holder_laydowns_fork" not in MUT): continue
         return True
     return False
 

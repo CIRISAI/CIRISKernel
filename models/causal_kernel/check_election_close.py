@@ -100,6 +100,11 @@ H104 = EL.N1R + [_LM0, dict(OPEN("op", "lm0", ("D", "E", "F", "G"), ("aG",)), na
     [SEAT("ed", "D", tuple(b["id"] for b in _HB4), op="op", heads=("aG",))] + [ACK("k" + k.lower(), k, "ed") for k in "BEFG"]
 ACKD = R("akD", "ack", "R", ("ed",), room=OBJ, head=("ed",))
 OPG2 = OPEN("opg2", "lm0", ("B", "C"), ("g",))
+_LM = ST.withdraw("lm", "A", "g", ("aG",), scope="moderate")
+H104L = EL.N1R + [_LM0, _LM, dict(OPEN("op", "lm", ("D", "E", "F", "G"), ("aG",)), names=("lm", "aG"))] + _HB4 + \
+    [SEAT("ed", "D", tuple(b["id"] for b in _HB4), op="op", heads=("aG",))] + [ACK("k" + k.lower(), k, "ed") for k in "BEFG"]
+_HA5 = [B("x" + k.lower(), k, "A") for k in "ABCDE"]
+TWO_STAYS = [G5, LM, OP5] + _HA5 + [SEAT("ea", "A", tuple(b["id"] for b in _HA5))]
 RECS = [KE.rec("k" + k, k, 0, None, typ="pseudonym") for k in "ABCDEFGX"]
 CASES = [
     ("rule 2: the honest election: the opening (A, B, C of five) at g, C three to two; closed by A, B and D", 
@@ -118,11 +123,11 @@ CASES = [
      [G5, LM, OP5, EL.admit("ax", "X", tuple("ABCDE"), ("g",)), B("bx", "X", "B"), B("bx2", "D", "B")] +
      [B("ba", "A", "B"), B("bc", "C", "C"), B("be", "E", "C"), B("bb", "B", "C")] +
      [SEAT("ec", "C", ("bx", "bx2", "ba", "bc", "be", "bb"), heads=("ax",))], "ec", {}, (T, F)),
-    ("rule 1: two concurrent lay-downs of A's seat (lm and A's backdated lm0) are a fork: an opening citing either "
-     "concludes nothing where it holds both, and nothing is seated",
+    ("rule 1, one vacancy (the Constitution, 2026-11-28): two concurrent lay-downs of A's seat (lm and A's backdated "
+     "lm0) are one vacancy and no fork: the opening citing lm, holding both, seats C (no receipt: not closed)",
      [G5, LM, ST.withdraw("lm0", "A", "g", ("g",), scope="moderate"), dict(OPEN("op", "lm", ("A", "B", "C")),
                                                                           names=("lm", "lm0", "g"))] + H5 + [SEAT("ec", "C", IDS)],
-     "ec", {}, (F, F)),
+     "ec", {}, (T, F)),
     ("rule 1: a holder's lay-down concurrent with a counted end (B, C, D recall A) is no fork: the recall is the end, "
      "and the opening citing it seats C",
      [G5, LM, ST.unseat("rc", "B", "A", "moderate", OBJ, "group", ("g",), head=("g",), policy="moderator_recall",
@@ -200,6 +205,24 @@ CASES = [
      H104 + [OPG2], "ed", {"ask": ("D", "moderate")}, (T, T)),
     ("and for a reader that acknowledged ed", H104 + [ACKR, ACKD, OPG2], "ed", {"ask": ("D", "moderate"), "reader": "R"},
      (T, T)),
+    ("one vacancy: A lays the seat down again at aG (lm), concurrent with lm0: the honest election citing lm seats D "
+     "for a fresh reader (it waits on nothing)", H104L, "ed", {"ask": ("D", "moderate")}, (T, T)),
+    ("and for a reader that acknowledged aG", H104L + [ACKR], "ed", {"ask": ("D", "moderate"), "reader": "R"}, (T, T)),
+    ("one vacancy, bound (2): an opening citing lm0 (A, B, C, E at aG) concurrent with the one citing lm: rivals for the "
+     "one vacancy, never two elections: contested, nothing is seated",
+     H104L + [dict(OPEN("op2", "lm0", ("A", "B", "C", "E"), ("aG",)), names=("lm0", "aG"))], "ed",
+     {"ask": ("D", "moderate")}, (F, F)),
+    ("one vacancy, bound (1): A, seated again by the election (ea), signs a lay-down of its first stay (the founding "
+     "row's seat) with ea in its past: it adds to the first vacancy and ends nothing of the second stay: A moderates",
+     TWO_STAYS + [ST.withdraw("lm2", "A", "g", ("ea",), scope="moderate")], "ea", {"ask": ("A", "moderate")}, (T, F)),
+    ("one vacancy, bound (3): two concurrent counted recalls of A (B, C, D and C, D, E) are a fork: an opening citing "
+     "one, holding both, concludes nothing, and nothing is seated",
+     [G5, ST.unseat("rc1", "B", "A", "moderate", OBJ, "group", ("g",), head=("g",), policy="moderator_recall",
+                    cosigners=("C", "D")),
+      ST.unseat("rc2", "C", "A", "moderate", OBJ, "group", ("g",), head=("g",), policy="moderator_recall",
+                cosigners=("D", "E")),
+      dict(OPEN("op", "rc1", ("B", "C", "D"), ("rc1", "rc2")), names=("rc1", "rc2"))] + H5 + [SEAT("ec", "C", IDS, heads=("rc1", "rc2"))],
+     "ec", {}, (F, F)),
     ("G3c plus C (r90-49): A's backdated lay-down forks the end; C's receipt of B's seating closes nothing, and B is "
      "not seated", EL.G3C + [ACK("jc", "C", "eb")], "eb", {"ask": ("B", "moderate")}, (F, F)),
 ]
@@ -231,7 +254,8 @@ PLANTS = ("end_fork_unread", "open_old_heads", "open_by_key", "openings_both_sta
           "close_no_wait", "close_key_view_unread", "close_receipt_unclean",
           "acceptance_key_view_unread", "inputs_key_view_unread", "rival_openings_read", "electorate_at_seating",
           "departures_raw", "fork_untaken_end", "close_reads_concluded", "open_key_view_unread",
-          "laydown_roster_unread", "laydown_ack_unread", "openings_line_unread")
+          "laydown_roster_unread", "laydown_ack_unread", "openings_line_unread",
+          "holder_laydowns_fork", "laydown_off_line")
 
 
 def run():
