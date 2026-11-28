@@ -4507,6 +4507,9 @@ struct MembersAt<R: SeatRow> {
     rpairs: RefCell<Vec<HeldPair<R>>>,
     // the seat ends behind the reader's line ([`reader_ends`]): no vacancy end for it (H4, the election)
     pub(crate) rends: RefCell<BTreeSet<<R as Row>::Id>>,
+    // the rows the roster does not take for the reading in hand (the roster's own S'' void, for every reader, and the
+    // reader's line): with `rvoid` and `rends`, what the election's close leaves out ([`election`]'s `taken`)
+    untaken: RefCell<BTreeSet<<R as Row>::Id>>,
 }
 
 /// Two concurrent founders' amendments a reader holds: their ids, the keys the two seat, and the room.
@@ -4536,6 +4539,7 @@ impl<R: SeatRow> Default for MembersAt<R> {
             views: RefCell::default(),
             rpairs: RefCell::default(),
             rends: RefCell::default(),
+            untaken: RefCell::default(),
         }
     }
 }

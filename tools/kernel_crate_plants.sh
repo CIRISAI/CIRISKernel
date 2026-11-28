@@ -673,8 +673,8 @@ plant "window: the key view not read for answers (window_key_view_unread)" src/w
 plant "election: the key view not read for ballots (ballot_key_view_unread)" src/seat/election.rs '&& spec.key_view().is_none_or(|kv| kv.counts(b.id(), b.signer()))' '&& spec.key_view().is_none_or(|kv| kv.counts(b.id(), b.signer()) || true)'
 # the ruled election close (check_election_close.py, the Constitution's ruling of 2026-11-28)
 plant "close: a fork of the seat end read as a vacancy (end_fork_unread)" src/seat/election.rs '        !mine.is_empty()
-            && p.iter().copied().any(|f| {' '        false
-            && p.iter().copied().any(|f| {'
+            && self.taken(p).into_iter().any(|f| {' '        false
+            && self.taken(p).into_iter().any(|f| {'
 plant "close: an opening at old heads concludes (open_old_heads)" src/seat/election.rs 'let stale_heads = newer_head_in_past_v(p, law, &obj, r.head(), &signers(r), &void);' 'let stale_heads = false && newer_head_in_past_v(p, law, &obj, r.head(), &signers(r), &void);'
 plant "close: an opening counted by key (open_by_key)" src/seat/election.rs 'let (base, yes) = Persons::over(&rows, law, spec, Some(&obj)).count(&mem, &voices_with(r, p, spec), None, &[]);' 'let _ = &rows;
     let (base, yes) = (mem.clone(), voices_with(r, p, spec).intersection(&mem).cloned().collect::<BTreeSet<R::Key>>());'
@@ -684,7 +684,7 @@ plant "close: the key view not read for receipts (close_key_view_unread)" src/se
 plant "close: an unclean receipt counts (close_receipt_unclean)" src/seat/election.rs 'seat_of(a).is_some_and(|s| clean(a, s))' 'seat_of(a).is_some_and(|s| clean(a, s) || true)'
 plant "close: the winner's acceptance not read through the key view (acceptance_key_view_unread)" src/seat/election.rs 'if spec.key_view().is_some_and(|kv| !kv.counts(r.id(), r.signer())) {' 'if false {'
 plant "close: ballot withdrawals and declines not read through the key view (inputs_key_view_unread)" src/seat/election.rs 'let kvi = spec.key_view();' 'let kvi = spec.key_view().filter(|_| false);'
-plant "close: a seating under a rival opening stands (rival_openings_read)" src/seat/election.rs 'let rival = !self.opening_in_force(o, &taken) || forked;' 'let rival = false && forked;'
+plant "close: a seating under a rival opening stands (rival_openings_read)" src/seat/election.rs 'let rival = !self.opening_in_force(o, &rows) || forked;' 'let rival = false && forked;'
 plant "close: departures read raw, not as the roster takes them (departures_raw)" src/seat/election.rs '        let taken = self.roster_ends(p).0;' '        let taken: Vec<(R::Key, usize, ObjOf<R>)> = p
             .iter()
             .copied()
@@ -696,8 +696,9 @@ plant "close: departures read raw, not as the roster takes them (departures_raw)
             })
             .flat_map(|u| self.row(u).to().iter().map(move |k| (k.clone(), u, self.row(u).obj().unwrap_or_else(|| obj.clone()))))
             .collect();'
+plant "close: the close reads the rows as concluded, not as the roster takes them (close_reads_concluded)" src/seat/election.rs '                !u.contains(id) && !v.contains(id) && !e.contains(id)' '                true || (u.contains(id) && v.contains(id) && e.contains(id))'
 plant "close: an end the roster does not take forks (fork_untaken_end)" src/seat/election.rs '        let dropped = self.roster_ends(p).1;' '        let dropped: BTreeSet<usize> = BTreeSet::new();'
-plant "close: the opening's electorate read over the whole past (electorate_at_seating)" src/seat/election.rs 'let mem = persons_at_with(&past, self.law, self.spec, &obj, e.head(), "member", Some(self.memo));' 'let mem = {
+plant "close: the opening's electorate read over the whole past (electorate_at_seating)" src/seat/election.rs 'let mem = open_members(&past, self.law, self.spec, &obj, e.head(), Some(self.memo));' 'let mem = {
                 let sub = concluded_over(p.iter().map(|&q| self.row(q)));
                 let s = Seats::build(&sub, self.law, self.spec, None, None, Some(self.memo));
                 super::persons(s.holders("member", &obj, None), &s.holders(AGENT, &obj, None))

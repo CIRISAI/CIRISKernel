@@ -34,13 +34,12 @@
 //!   receipt's signer, no cut of the seating in its past) and one say per person; the winner, the departed and the
 //!   forkers read as persons.
 use super::{
-    ack_void, concluded_over, founding, newer_head_in_past_v, persons_at_with, persons_of, reader_ends, roster_offer,
-    roster_word, seat_scopes, signed_by, signers, stay_end, voices_with, Conf, MembersAt, Obj, ObjOf, Persons, Policy,
-    SeatKind, SeatLaw, SeatLine, SeatRow, Seats, AGENT,
+    concluded_over, for_reader, founding, members_at_with, newer_head_in_past_v, persons_at_with, persons_of,
+    reader_ends, roster_offer, roster_word, seat_scopes, signed_by, signers, stay_end, voices_with, Conf, MembersAt,
+    Obj, ObjOf, Persons, Policy, SeatKind, SeatLaw, SeatRow, Seats, AGENT,
 };
 use crate::cut::CutSpec;
 use crate::layers::{Concluded, Past};
-use crate::line;
 use crate::ranked::ranked;
 use crate::Row;
 use alloc::boxed::Box;
@@ -144,6 +143,20 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         before.difference(&after).cloned().collect()
     }
 
+    /// The rows of `rows` the reader's roster TAKES (the ruling on r93 and r103: every count, end and hold of the close
+    /// is as the roster takes it, never as concluded): less the roster's own S'' void (for every reader, one with no
+    /// row too), the reader's line void and the seat ends behind its line. The one view the close reads.
+    fn taken(&self, rows: &[usize]) -> Vec<usize> {
+        let (u, v, e) = (self.memo.untaken.borrow(), self.memo.rvoid.borrow(), self.memo.rends.borrow());
+        rows.iter()
+            .copied()
+            .filter(|&q| {
+                let id = self.row(q).id();
+                !u.contains(id) && !v.contains(id) && !e.contains(id)
+            })
+            .collect()
+    }
+
     /// Rule 1 (b): end `ei` of a seat is no vacancy where another end of the same seat among `p` is concurrent with
     /// it (a FORK of the end), unless `ei` is a counted end and the other the holder's own lay-down (the counted end
     /// is the end). A counted end with both concurrent ends in its past resolves the fork: it is then the vacancy.
@@ -157,7 +170,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         // only an end the roster TAKES forks: a counted removal it holds contested or out of force is none (rule 5)
         let dropped = self.roster_ends(p).1;
         !mine.is_empty()
-            && p.iter().copied().any(|f| {
+            && self.taken(p).into_iter().any(|f| {
                 if f == ei || g.in_past(f, ei) || g.in_past(ei, f) || dropped.contains(&f) {
                     return false;
                 }
@@ -201,11 +214,38 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
     /// Rule 4: opening `oi` is in force for `rows` (ascending) where it is the one newest opening for its seat: two
     /// openings for one end (or for rival ends of one seat), neither in the other's past, are contested, neither in
     /// force, until an opening with both in its past is counted, which is then the election.
+    /// Read over the rows the roster takes ([`Ctx::taken`]): an opening whose cited end is not taken (and is not the
+    /// founding row) is in force nowhere. Rule 6 among rivals: a person signing two of the newest rival openings is no
+    /// voice of either, and a rival whose count fails without such persons is none.
     fn opening_in_force(&self, oi: usize, rows: &[usize]) -> bool {
         let g = &self.c.g;
-        let rs = self.openings_for(oi, rows);
-        let newest: Vec<usize> =
+        let rows = self.taken(rows);
+        let op = self.row(oi);
+        if let Some(e) = op.cites().first() {
+            let held = self.idx(e).is_some_and(|i| rows.binary_search(&i).is_ok());
+            if !held && op.obj() != Some(Obj::Row(e.clone())) {
+                return false; // its end not taken
+            }
+        }
+        let rs = self.openings_for(oi, &rows);
+        let mut newest: Vec<usize> =
             rs.iter().copied().filter(|&o| !rs.iter().any(|&x| x != o && g.in_past(o, x))).collect();
+        if newest.len() > 1 {
+            // rule 6: a person cosigning two rival openings has no say in either; a rival whose count fails without
+            // such persons is none (with two majorities of one base this leaves neither: the contest stands)
+            let rows_np: Vec<&R> = rows.iter().map(|&q| self.row(q)).filter(|q| !is_election(self.law, *q)).collect();
+            let pp = Persons::over(&rows_np, self.law, self.spec, None);
+            let sig: Vec<BTreeSet<R::Key>> = newest
+                .iter()
+                .map(|&o| signers(self.row(o)).iter().map(|k| pp.voice(k).unwrap_or_else(|| k.clone())).collect())
+                .collect();
+            let dbl: BTreeSet<R::Key> =
+                sig.iter().flatten().filter(|k| sig.iter().filter(|s| s.contains(*k)).count() > 1).cloned().collect();
+            newest.retain(|&o| {
+                let past: Vec<usize> = rows.iter().copied().filter(|&q| g.in_past(q, o)).collect();
+                open_count(&Past::new(g, o, &past), self.law, self.spec, Some(self.memo), &dbl)
+            });
+        }
         newest.as_slice() == [oi]
     }
 
@@ -286,7 +326,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             // rule 3: the electorate is the roster at the OPENING's heads, as persons (the agents apart)
             let Some(obj) = self.row(si).obj() else { return BTreeSet::new() };
             let past = Past::new(&self.c.g, si, p);
-            let mem = persons_at_with(&past, self.law, self.spec, &obj, e.head(), "member", Some(self.memo));
+            let mem = open_members(&past, self.law, self.spec, &obj, e.head(), Some(self.memo));
             let rows: Vec<&R> = p.iter().map(|&q| self.row(q)).collect();
             return Persons::over(&rows, self.law, self.spec, Some(&obj)).base(&mem);
         }
@@ -487,7 +527,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             _ => None,
         };
         // the rows the reader's roster takes: its void changes and the seat ends behind its line out
-        let taken = |q: usize| {
+        let reader_takes = |q: usize| {
             let id = self.row(q).id();
             !self.memo.rvoid.borrow().contains(id) && !self.memo.rends.borrow().contains(id)
         };
@@ -496,7 +536,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         // blocks nothing
         let wait = op;
         if let Some(o) = wait {
-            let held: Vec<usize> = rows.iter().copied().filter(|&q| taken(q)).collect();
+            let held = self.taken(rows);
             if !self.opening_in_force(o, &held) {
                 return None;
             }
@@ -588,7 +628,8 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         // receipts count for nothing. H1: unless the key's leaving (or removal) holds its receipt, which then counts,
         // the key staying in the base. Rule 5: departures as the reader's roster takes them (a leaving or removal
         // behind the reader's line, or void for it, is none)
-        let deps: Vec<(R::Key, usize)> = self.departures(rows, obj).into_iter().filter(|&(_, d)| taken(d)).collect();
+        let deps: Vec<(R::Key, usize)> =
+            self.departures(rows, obj).into_iter().filter(|&(_, d)| reader_takes(d)).collect();
         let held = |k: &R::Key, d: usize| by_p.get(k).is_some_and(|rs| rs.iter().any(|&a| g.in_past(a, d)));
         let gone: BTreeSet<R::Key> = deps
             .iter()
@@ -768,12 +809,11 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
         let mut groups: Groups<R> = BTreeMap::new();
         let mut out: BTreeSet<usize> =
             rows.iter().copied().filter(|&q| void.contains(&q) && is_election(self.law, self.row(q))).collect();
+        // the acts behind the reader's line and the roster's own void are untaken for the whole reading
+        let void_ids: BTreeSet<R::Id> = void.iter().map(|&i| self.row(i).id().clone()).collect();
+        let saved = core::mem::replace(&mut *self.memo.untaken.borrow_mut(), void_ids);
         // rules 1 and 4 over the rows held: a seating whose opening is not in force there (a rival opening for its
         // seat, neither in the other's past) or cites an end the rows held fork does not stand
-        let taken: Vec<usize> = {
-            let re = self.memo.rends.borrow();
-            rows.iter().copied().filter(|&x| !re.contains(self.row(x).id())).collect()
-        };
         for &q in &rows {
             if !is_election(self.law, self.row(q)) {
                 continue;
@@ -785,10 +825,10 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             }
             let e = or.cites().first().and_then(|x| self.idx(x));
             let forked = match (e, or.obj()) {
-                (Some(e), Some(ob)) => self.end_fork(e, &taken, &ob),
+                (Some(e), Some(ob)) => self.end_fork(e, &rows, &ob),
                 _ => false,
             };
-            let rival = !self.opening_in_force(o, &taken) || forked;
+            let rival = !self.opening_in_force(o, &rows) || forked;
             if rival {
                 out.insert(q);
             }
@@ -842,6 +882,7 @@ impl<'c, 'a, R: SeatRow, S: CutSpec<R>> Ctx<'c, 'a, R, S> {
             }
             out.extend(add);
         }
+        *self.memo.untaken.borrow_mut() = saved;
         out
     }
 
@@ -996,24 +1037,11 @@ pub(super) fn count<R: SeatRow, S: CutSpec<R>>(
     won.as_ref() == Some(winner) && r.signer() == winner
 }
 
-/// The counted changes void for reader `own` by its line (every row taken as counting): the reference's
-/// `reader_void`, as [`super::for_reader`] reads it.
-fn reader_void<R: SeatRow, S: CutSpec<R>>(
-    c: &Concluded<'_, R>,
-    law: &SeatLaw,
-    spec: &S,
-    own: &R::Key,
-) -> BTreeSet<R::Id> {
-    line::void_except(c, &SeatLine, Some(own), |_| true, |_| false, &|a: usize| ack_void(c, law, spec, a, None))
-        .into_iter()
-        .map(|i| c.g.row(i).id().clone())
-        .collect()
-}
-
 /// Whether the election of seating `seating` (by id, a concluded row of `c`) is closed for `reader` by the seatings
 /// over `seating`'s own set (C5, rule 8: the close is reader-relative): the causal close read over the rows the
-/// reader's roster takes (the counted acts void for it out, and the seat ends behind its line no ends); with `reader`
-/// `None`, for a reader with no row, over every concluded row.
+/// reader's roster takes: less its own reading's void ([`Seats::stale`]: the roster's S'' void, for a reader with no
+/// row too, and the reader's line void), the seat ends behind its line no ends. A seating the reader's roster beats is
+/// not closed for it.
 pub fn election_closed<R: SeatRow, S: CutSpec<R>>(
     c: &Concluded<'_, R>,
     law: &SeatLaw,
@@ -1022,15 +1050,25 @@ pub fn election_closed<R: SeatRow, S: CutSpec<R>>(
     reader: Option<&R::Key>,
 ) -> bool {
     let Some(si) = c.g.idx(seating).filter(|&i| c.concluded(i)) else { return false };
-    let (void, ends) = match reader {
-        Some(k) => (reader_void(c, law, spec, k), reader_ends(c, law, spec, k, None)),
-        None => (BTreeSet::new(), BTreeSet::new()),
+    let (rc, rv) = for_reader(c, law, spec, reader);
+    let (void, beaten) = {
+        let q = match reader {
+            Some(k) => Seats::for_reader(&rc, law, spec, k, &rv),
+            None => Seats::new(&rc, law, spec, None),
+        };
+        let void: BTreeSet<R::Id> = q.stale().iter().map(|&i| rc.g.row(i).id().clone()).collect();
+        (void, q.beaten.iter().any(|&i| rc.g.row(i).id() == seating))
     };
+    if beaten {
+        return false;
+    }
+    let ends = reader.map(|k| reader_ends(c, law, spec, k, None)).unwrap_or_default();
     // the rows held for the reader: its void changes left out
     let mask: Vec<bool> = (0..c.g.len()).map(|i| c.concluded(i) && !void.contains(c.g.row(i).id())).collect();
     let held = Concluded::with(c.g.clone(), Some(mask));
     let memo = MembersAt::<R>::default();
-    *memo.rvoid.borrow_mut() = void;
+    *memo.rvoid.borrow_mut() = void.clone();
+    *memo.untaken.borrow_mut() = void;
     *memo.rends.borrow_mut() = ends;
     let cx = Ctx { c: &held, law, spec, memo: &memo };
     let r = cx.row(si);
@@ -1038,6 +1076,43 @@ pub fn election_closed<R: SeatRow, S: CutSpec<R>>(
     let (ek, _, set, _) = cx.view(si);
     let Some(ek) = ek else { return false };
     cx.closure(&ek, held.cs(), &obj).as_ref() == Some(&set)
+}
+
+/// The opening's members at its heads: the member seats less the agents' (the model's `members_at(.., member) -
+/// members_at(.., agent)`).
+fn open_members<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    obj: &ObjOf<R>,
+    heads: &[R::Id],
+    cache: Option<&MembersAt<R>>,
+) -> BTreeSet<R::Key> {
+    let mut mem = members_at_with(p, law, spec, obj, heads, "member", cache);
+    if !mem.is_empty() {
+        let agents = members_at_with(p, law, spec, obj, heads, AGENT, cache);
+        mem.retain(|k| !agents.contains(k));
+    }
+    mem
+}
+
+/// The opening's count over its past `p`: a strict majority of the members as persons at its heads, floor
+/// min(2, members); the persons `no_say` (rule 6's double signers of rival openings) are no voices of it.
+fn open_count<R: SeatRow, S: CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &SeatLaw,
+    spec: &S,
+    cache: Option<&MembersAt<R>>,
+    no_say: &BTreeSet<R::Key>,
+) -> bool {
+    let r = p.row();
+    let Some(obj) = r.obj() else { return false };
+    let mem = open_members(p, law, spec, &obj, r.head(), cache);
+    let rows: Vec<&R> = p.rows().collect();
+    let (base, yes) = Persons::over(&rows, law, spec, Some(&obj)).count(&mem, &voices_with(r, p, spec), None, &[]);
+    let yes: BTreeSet<R::Key> = yes.into_iter().filter(|k| !no_say.contains(k)).collect();
+    let n = base.len();
+    n > 0 && 2 * yes.len() > n && yes.len() >= n.min(2)
 }
 
 /// An election's opening concludes (rule 2): the seat end it cites is in its past, ends a duty seat over its room
@@ -1060,14 +1135,20 @@ pub(super) fn open_concludes<R: SeatRow, S: CutSpec<R>>(
     if !room || p.get(end).is_none() {
         return false;
     }
-    // the row and its concluded past, as a set of their own
-    let sub = concluded_over(p.rows().chain(core::iter::once(r)));
+    // the row and its whole concluded past, over the graph it was read in (its ancestry through every row kept)
+    let mut mask = alloc::vec![false; p.graph().len()];
+    for &a in p.ancestors() {
+        mask[a] = true;
+    }
+    mask[p.index()] = true;
+    let full = Concluded::with(p.graph().clone(), Some(mask));
     let local = MembersAt::<R>::default();
-    let cx = Ctx { c: &sub, law, spec, memo: cache.unwrap_or(&local) };
-    let (Some(ri), Some(ei)) = (sub.g.idx(r.id()), sub.g.idx(end)) else { return false };
+    let cx = Ctx { c: &full, law, spec, memo: cache.unwrap_or(&local) };
+    let ri = p.index();
+    let Some(ei) = cx.idx(end) else { return false };
     let past = cx.past(ri);
     // the first election of a room whose founding row gives no duty seat: its vacancy is the founding row itself (C1)
-    let er = sub.g.row(ei);
+    let er = full.g.row(ei);
     let founding_vacancy = Obj::Row(er.id().clone()) == obj && cx.id_seats(er).is_empty();
     if !founding_vacancy && (cx.end_slots(ei, &past, &obj).is_empty() || cx.end_fork(ei, &past, &obj)) {
         return false;
@@ -1079,9 +1160,5 @@ pub(super) fn open_concludes<R: SeatRow, S: CutSpec<R>>(
         return false;
     }
     // a strict majority of the members as persons at those heads, floor min(2, members)
-    let mem = persons_at_with(p, law, spec, &obj, r.head(), "member", cache);
-    let rows: Vec<&R> = p.rows().collect();
-    let (base, yes) = Persons::over(&rows, law, spec, Some(&obj)).count(&mem, &voices_with(r, p, spec), None, &[]);
-    let n = base.len();
-    n > 0 && 2 * yes.len() > n && yes.len() >= n.min(2)
+    open_count(p, law, spec, cache, &BTreeSet::new())
 }
