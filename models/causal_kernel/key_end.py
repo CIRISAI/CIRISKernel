@@ -60,8 +60,9 @@ def edge(id, signer, to, at, cover, names=()):
     return CK.row(id, "edge", signer, (cover,) + tuple(names), at=at, cover=cover, to=to)
 
 
-def revoke(id, key, ra):
-    return CK.row(id, "revoke", key, (), key=key, ra=ra)
+def revoke(id, key, ra, names=()):
+    """A revocation of `key` by itself after its own instant `ra`; `names`: the key's rows it has in its past."""
+    return CK.row(id, "revoke", key, tuple(names), key=key, ra=ra)
 
 
 # ---- the door: the row alone -----------------------------------------------------------------------------
@@ -190,9 +191,33 @@ def successor(S, k, ret=None):
     return keys[0] if len(keys) == 1 else None
 
 
+def ends_of(S, k):
+    """Key k's own ends, as rows: its self-revocations, and the rotations naming its record (a rotated holder speaks
+    under its new key; the root ruling: a retired key is no voice)."""
+    return [r for r in S.Cs if (r["kind"] == "revoke" and r["key"] == k and r["signer"] == k)
+            or (r["kind"] == "rec" and r["succ_of"] == k)]
+
+
+def counts(S, r):
+    """THE END RULE, for every count: a concluded statement of key k counts only where it is in the causal past of
+    each of k's own ends (and, for a self-revocation, its own instant before the revoked_after k stated); with no
+    such end, a concluded statement counts (its instant inside the record it names is the holder's word, bounded
+    below by its own past: the licence term's residual and caller duty). Whether a live row cites it is never read:
+    a count reads no anchor (the Constitution's ruling; only content may be anchored by others' rows)."""
+    if not S.C.get(r["id"]) or r["kind"] not in ("att", "edge"): return bool(S.C.get(r["id"]))
+    for e in ends_of(S, r["signer"]):
+        if r["id"] not in S.anc[e["id"]]: return False
+        if e["kind"] == "revoke" and not r["at"] < e["ra"]: return False
+    return True
+
+
 def seeds(S, now):
-    """Concluded rows whose key has not ended at now, and every revocation (never withdrawn, never dropped)."""
-    out = set()
+    """Concluded rows whose key has not ended at now, every revocation and rotation (never withdrawn, never
+    dropped), and every row a count reads (counts: a compaction drops nothing a count reads)."""
+    out = {r["id"] for r in S.Cs if r["kind"] in ("att", "edge") and counts(S, r)}
+    # and every end a count reads (a rotation, like a revocation, is never dropped: dropping it would revive the old
+    # key's cut rows)
+    out |= {r["id"] for r in S.Cs if r["kind"] == "rec" and r["succ_of"] is not None}
     for r in S.Cs:
         if r["kind"] == "revoke":
             out.add(r["id"]); continue
@@ -221,8 +246,11 @@ def reach(S, own, now, keys, ret=None):
 
 def score(S, subject, now, ret=None):
     ret = retained(S, now) if ret is None else ret
+    # a count: by the end rule (counts), never by what is retained (MUTATION ended_vote_retained_by_cite: a row a
+    # live row cites counts too; score_reads_lapsed: every concluded row counts)
     return frozenset(a["signer"] for a in K.sel(S.Cs, kind="att") if a.get("about") == subject
-                     and (a["id"] in ret or "score_reads_lapsed" in MUT))
+                     and (counts(S, a) or "score_reads_lapsed" in MUT
+                          or ("ended_vote_retained_by_cite" in MUT and a["id"] in ret)))
 
 
 def answers(S, now, keys, parties, subjects):

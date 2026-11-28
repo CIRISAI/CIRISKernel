@@ -198,7 +198,7 @@ PROPS = [
     ("P2 a key whose holder signs nothing more ends at most the ceiling after the last record it signed", "the door, read from the record alone", "no_ceiling", p_ceiling),
     ("P3a compacting the lapsed rows changes no answer at that instant or later (a record not yet begun is kept)", "retained = rows of keys not ended and their past", "seed_live_only", p_compact),
     ("P3b compacting keeps a dead key's row that a live row names", "the closure over what rows name", "drop_dead_signers", p_compact),
-    ("P3c a lapsed row counts in no derived answer, so dropping it moves none", "score over rows that have not lapsed", "score_reads_lapsed", p_compact),
+    ("P3c compacting drops no row a count reads: the score reads the end rule, and what it reads is retained", "score by the end rule (counts)", "score_reads_lapsed", p_compact),
     ("P4 a row's conclusion never reads now: signed while live, concluded for good", "the concluded layer", "conclude_reads_now", p_history),
     ("P5a two concurrent rotations of one key name no successor (both or neither)", "the frontier of rotations", "rank_successor", p_rotation_fork),
     ("P5b a rotation without the old key's signature is not kept", "the door", "rotation_one_sig", p_rotation_sigs),
@@ -433,8 +433,8 @@ def k6():
     f = lambda S: (KE.ended(S, "H", 1), frozenset(KE.retained(S, 1)))
     (e, ret), agree = every_order(rows, f)
     return ("HOLDS", "nobody",
-            "the end is read from the record against now, so every node holding the rows reads the harness ended at one instant (within the 5-minute skew of CC 2.6.7); its rows lapse alike, except a row a live row names, which is kept with its record",
-            [("the harness key ends at its stated end", e), ("its unnamed row lapses", "h2" not in ret),
+            "the end is read from the record against now, so every node holding the rows reads the harness ended at one instant (within the 5-minute skew of CC 2.6.7); a row it signed inside its record is the holder's word and counts by the end rule (key_end.counts), so it is kept, named or not",
+            [("the harness key ends at its stated end", e), ("its unnamed row, signed inside its record, is kept (a count reads it)", "h2" in ret),
              ("its row a live row names is kept, with its record", {"h1", "pH"} <= ret), ("every arrival order agrees", agree)])
 
 
@@ -498,6 +498,50 @@ def k11():
              ("a record whose end is its own instant is not kept", all(r["id"] != "pD" for r in eq.rows))])
 
 
+@attack("K12 an ended key's late vote, cited by a friendly member's live row (the count reads the end rule, never the cite)")
+def k12():
+    base = [pX, rec("pK", "K", 0, 9), rec("pF", "F", 0, 9)]
+    cite = lambda i, n, t=5: att(i, "F", t, "pF", about="Y", names=(n,))
+    sc = lambda rows, now=6: KE.score(KE.state(rows), "X", now)
+    rot = [pX, rec("pK", "K", 0, 9), rec("pF", "F", 0, 9)]
+    w = {
+        "late": base + [att("aK", "K", 4, "pK", about="X"), revoke("vK", "K", 3, names=("aK",))],
+        "late_cited": base + [att("aK", "K", 4, "pK", about="X"), revoke("vK", "K", 3), cite("aF", "aK")],
+        "in_time": base + [att("aK", "K", 2, "pK", about="X"), revoke("vK", "K", 3, names=("aK",))],
+        "concurrent_cited": base + [att("aK", "K", 2, "pK", about="X"), revoke("vK", "K", 3), cite("aF", "aK")],
+        "expired": [pX, rec("pK", "K", 0, 4), att("aK", "K", 3, "pK", about="X")],
+        "expired_late": [pX, rec("pK", "K", 0, 4), att("aK", "K", 4, "pK", about="X")],
+        "rot_cut": rot + [rec("qK", "K2", 3, 9, names=("pK",), succ_of="K", at_old=3), att("aK", "K", 5, "pK", about="X"),
+                          cite("aF", "aK", 6)],
+        "rot_past": rot + [att("aK", "K", 2, "pK", about="X"), rec("qK", "K2", 3, 9, names=("pK", "aK"), succ_of="K", at_old=3)],
+    }
+    S = KE.state(w["late_cited"])
+    return ("HOLDS", "a friendly member citing a removed or ended key's late vote",
+            "a count reads an ended key's row by the end rule (key_end.counts): in the causal past of each of the "
+            "key's own ends (a self-revocation, the instant before its revoked_after; a rotation), never because a "
+            "live row cites it; retained keeps a cited row for storage only (the Constitution's ruling: only content "
+            "may be anchored by others' rows)",
+            [("a revoked key's late vote (after its revoked_after), uncited, counts nothing", sc(w["late"]) == frozenset()),
+             ("the same vote cited by F's live row counts nothing", sc(w["late_cited"]) == frozenset()),
+             ("and it is retained for storage", "aK" in KE.retained(S, 6)),
+             ("an in-time vote in the revocation's past counts, cited or not", sc(w["in_time"]) == {"K"}),
+             ("an in-time vote concurrent with the revocation (not in its past), cited, counts nothing",
+              sc(w["concurrent_cited"]) == frozenset()),
+             ("an expired key's vote inside its record counts (the holder's word)", sc(w["expired"]) == {"K"}),
+             ("one at its record's end concludes nothing", sc(w["expired_late"]) == frozenset()),
+             ("a rotated key's vote not in the rotation's past, cited, counts nothing", sc(w["rot_cut"], 7) == frozenset()),
+             ("one in the rotation's past counts", sc(w["rot_past"], 7) == {"K"})])
+
+
+def cite_plant():
+    """The planted break ended_vote_retained_by_cite (a cited row counts) must change K12."""
+    KE.MUT.add("ended_vote_retained_by_cite")
+    try:
+        return any(not v for _, v in k12()[3])
+    finally:
+        KE.MUT.discard("ended_vote_retained_by_cite")
+
+
 def boundary_plant():
     """The planted break end_closed (the end read as inside the record) must change K11."""
     KE.MUT.add("end_closed")
@@ -520,7 +564,7 @@ def numbers():
             out.append((label, "%d rows, growing %d a day for ever" % (round(m * r * 365 * yrs), round(m * r))))
         else:
             out.append((label, "steady state m*e*r = %.0f rows (%.1f keys)" % (m * e * r, m * e)))
-    out.append(("per dead key after compaction", "nothing, unless a live row names its rows (then those rows and the record they name); no refusal digest is kept"))
+    out.append(("per dead key after compaction", "the rows a count reads (signed inside its record and in the past of its ends) with the record they name, and the rows a live row names; nothing else; no refusal digest is kept"))
     out.append(("rows a key (shape only)", "r = 2 + 1650/230 = %.1f" % r))
     return out
 
@@ -571,6 +615,10 @@ def main():
     caught = boundary_plant()
     say("  plant end_closed %s" % ("caught" if caught else "NOT CAUGHT"))
     lines.append("plant\tend_closed\t%s" % ("caught" if caught else "not caught"))
+    ok = ok and caught
+    caught = cite_plant()
+    say("  plant ended_vote_retained_by_cite %s" % ("caught" if caught else "NOT CAUGHT"))
+    lines.append("plant\tended_vote_retained_by_cite\t%s" % ("caught" if caught else "not caught"))
     ok = ok and caught
     say("NUMBERS (formulas over stated rates; the rates are shape, not measured here)")
     for label, v in numbers():

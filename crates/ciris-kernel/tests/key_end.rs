@@ -3,7 +3,7 @@
 
 mod common;
 use ciris_kernel::derived;
-use ciris_kernel::key_end::{conclude_rule, ended, live, retained, successor, well_formed, EndRule};
+use ciris_kernel::key_end::{conclude_rule, counts, ended, live, retained, successor, well_formed, EndRule};
 use ciris_kernel::layers::{conclude, kept};
 use common::*;
 
@@ -77,7 +77,7 @@ fn key_end_worlds() {
                     .cs()
                     .iter()
                     .copied()
-                    .filter(|i| ret.contains(i))
+                    .filter(|&i| counts(&c, i)) // a count reads the end rule, never what is retained
                     .map(|i| c.g.row(i))
                     .filter(|r| r.kind == "att" && r.fs("about") == Some(s.as_str()))
                     .map(|r| r.signer.clone())

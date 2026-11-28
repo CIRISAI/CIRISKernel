@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**An ended key's row counts by the end rule, never by a cite** (the Constitution's ruling: for counts, a removed or
+ended key's late vote cited by a friendly member stays cut; only content may be anchored by others' rows).
+`key_end::counts` (new): a statement of key `k` counts only where it is in the causal past of each of `k`'s own
+ends: a self-revocation (and its own instant before the `revoked_after` `k` stated) and a rotation naming `k`'s
+record (a rotated holder speaks under its new key). With no such end, a concluded statement counts: its instant
+inside its record is the holder's word, bounded below by its own past (the licence term's residual and caller
+duty). `retained` is for storage only and keeps every row a count reads, every rotation and revocation, and what a
+live row names; nothing counts by it. Before this, `retained` was the only reading the crate offered for an ended
+key's rows, and ADOPTING told persist to keep and so count a cited late row. The model's attestation score reads
+`counts` (K12: eight facts; plant `ended_vote_retained_by_cite`, crate twin). Consequence: an expired key's
+in-time rows no longer lapse (they count), so compaction keeps them.
+
 **One target per counted end** (the Constitution's ruling on review-54's multi-target hole). A counted removal naming
 more than one target concludes nothing; the target is not counted over and is no voice, and the floor of two stands.
 Several removals are several rows, each judged alone at its head. The same for a recall (one holder), a duty

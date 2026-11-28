@@ -151,8 +151,38 @@ pub fn ended<R: KeyEndRow>(c: &Concluded<'_, R>, k: &R::Key, now: R::T) -> bool 
     records(c, k).all(|x| x.until.is_some_and(|u| u <= now))
 }
 
-/// The rows that have not lapsed at `now`: every concluded row of a key that has not ended, every
-/// revocation, and everything in their past.
+/// Whether concluded row `i` counts, by THE END RULE every count reads: a statement of key `k` counts only where it
+/// is in the causal past of each of `k`'s own ends (its self-revocations, where also its own instant is before the
+/// `revoked_after` `k` stated; and each rotation naming `k`'s record: a rotated holder speaks under its new key).
+/// With no such end, a concluded statement counts: its instant inside the record it names is the holder's word,
+/// bounded below by its own past (the licence term's residual and caller duty). Whether a live row cites it is
+/// never read: a count reads no anchor (only content may be anchored by others' rows). A row that is no statement
+/// counts where it concluded.
+pub fn counts<R: KeyEndRow>(c: &Concluded<'_, R>, i: usize) -> bool {
+    if !c.all().get(i).copied().unwrap_or(false) {
+        return false;
+    }
+    let r = c.g.row(i);
+    let Some((at, _)) = r.statement() else { return true };
+    let k = r.signer();
+    c.cs().iter().all(|&e| {
+        let q = c.g.row(e);
+        if let Some((rk, ra)) = q.revocation() {
+            if rk == k && q.signer() == k {
+                return c.g.in_past(i, e) && at < ra;
+            }
+        }
+        if q.record().is_some_and(|x| x.succ_of == Some(k)) {
+            return c.g.in_past(i, e);
+        }
+        true
+    })
+}
+
+/// The rows that have not lapsed at `now`: every concluded row of a key that has not ended, every revocation and
+/// rotation, every row a count reads ([`counts`]: a compaction drops nothing a count reads), and everything in
+/// their past. It is for storage only: a count reads [`counts`], never this (a row kept because a live row names it
+/// counts nothing it would not count by the end rule).
 pub fn retained<R: KeyEndRow>(c: &Concluded<'_, R>, now: R::T) -> BTreeSet<usize> {
     // `ended` for every key at once: its earliest self-revocation, and whether every record of it ends by now
     let mut rev: BTreeMap<&R::Key, R::T> = BTreeMap::new();
@@ -176,7 +206,10 @@ pub fn retained<R: KeyEndRow>(c: &Concluded<'_, R>, now: R::T) -> BTreeSet<usize
     let mut todo: Vec<usize> = Vec::new();
     for &i in c.cs() {
         let r = c.g.row(i);
-        let seed = r.revocation().is_some() || !ended(r.record().map(|x| x.key).unwrap_or(r.signer()));
+        let seed = r.revocation().is_some()
+            || r.record().is_some_and(|x| x.succ_of.is_some())
+            || (r.statement().is_some() && counts(c, i))
+            || !ended(r.record().map(|x| x.key).unwrap_or(r.signer()));
         if seed && !b.has(i) {
             b.set(i);
             todo.push(i);
