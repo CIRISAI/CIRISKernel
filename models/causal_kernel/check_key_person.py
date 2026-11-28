@@ -45,6 +45,7 @@ Part 2. Planted breaks (seat.MUT), each of which must change a case's answer:
     line_order_unread     the line read out of order: a later row over the rival takes it up too, and the reader waits (P1)
     claimed_cosigner_counted  another signer's claimed cosigners on a note seed the reader's line (r101 R2)
     unconcluded_cosigner_counted  a seat row that concluded nothing seeds the reader's line by its cosigners (S5, S6)
+    line_voices_cosigners_only  the line reads a seat row's cosigners, not its voices (a cosign row's voice lost)
 Every count reads one function, seat.count_persons: the base and the voices by person, a named key (the lift's author,
 the receipt's remover, the recall's holder) set apart by person from both (the review r78k).
 
@@ -582,6 +583,8 @@ AW = WN.secs("self_roster_add")
 AOP = dict(WN.opener("opa", "k1", "self_roster_add", "S", ("d1",)), to=("k2",), cosigners=("k2",))   # k2 signs it
 AOP_NC = dict(WN.opener("opa", "k1", "self_roster_add", "S", ("d1",)), to=("k2",))                   # k2 does not
 ADDED = [GS, GD1, AOP, WN.receipt("ra", "k1", "opa", 0), WN.landing("La", "k1", "opa", "ra", "landed", AW)]
+ADDED_T = [GS, GD1, dict(WN.opener("opa", "k1", "self_roster_add", "S", ("d1",), target="k2"), cosigners=("k2",)),
+           WN.receipt("ra", "k1", "opa", 0), WN.landing("La", "k1", "opa", "ra", "landed", AW)]
 ADDED_NC = [GS, GD1, AOP_NC, WN.receipt("ra", "k1", "opa", 0), WN.landing("La", "k1", "opa", "ra", "landed", AW)]
 def R3ADD(objectors):
     rows = [dict(WN.opener("op", "p1", "self_roster_add", "S1", ("a1c",), target="k9"), to=("k9",), cosigners=("k9",))]
@@ -619,13 +622,16 @@ LANDED_CASES = [
      lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
     # R3, the text (CC 3.3.6.4, a stated cost: "One objection of two others does not stop a lone addition... only a
     # strict majority of the others refuses it. That is weaker than the eviction"): a live thief genesis key lone-adds
-    # its own key k9 to the honest roster S1
+    # its own key k9 to the honest roster S1. The residual, stated (the Constitution, for 0.5.0; to the steward after
+    # the tag): "a holder of one key of three that adds a key while one other is silent holds half the roster, and no count or lone path removes it"
     ("R3 (CC 3.3.6.4, a stated cost): the live thief p1 lone-adds k9 to S1, no objection: k9 is a key of p1",
      GW + R3ADD(()), lambda S: sorted(ST.person_keys(S, "p1")), ["k9", "p1", "p1b", "p1c"]),
     ("R3: one objection of the two others does not stop it", GW + R3ADD(("p1b",)),
      lambda S: sorted(ST.person_keys(S, "p1")), ["k9", "p1", "p1b", "p1c"]),
     ("R3: a strict majority of the others (both) refuses it", GW + R3ADD(("p1b", "p1c")),
      lambda S: sorted(ST.person_keys(S, "p1")), ["p1", "p1b", "p1c"]),
+    ("one shape: an addition opener naming its key by `target` alone, with no `to`, seats nothing",
+     ADDED_T, lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
     ("a landed addition without the new key's own consent seats nothing", ADDED_NC,
      lambda S: sorted(ST.Seats(S).holders("self", "S")), ["g1", "k1"]),
 ]
@@ -699,6 +705,15 @@ LWANT += [("P1", "p4", True), ("P1'", "p4", True), ("P2", "p4", False), ("P3", "
           ("R2", "p4", True),
           # S5, S6: a thief's seat row that concludes nothing, listing p4 as a cosigner, seeds nothing
           ("S5", "p4", True), ("S6", "p4", True)]
+# a seat row's voice through a cosign row (seat.voices): q4, a member of a second room G2 only, cosigns its counted
+# admission ra2 by a cosign row naming G2's head; the cosign row reaches no founding of p1, the seat row (naming a1c)
+# reaches S1: q4's line takes up S1 through its voice on the concluded seat row
+LG2 = ST.offer("G2", "p2", ("p2", "p3", "q4"), "member", "@", "self", cosigners=("p3", "q4"))
+LCQ = ST.cosign("cq4", "q4", "ra2", ("G2",))
+LRA2 = ST.offer("ra2", "p2", "w", "member", "G2", "group", ("G2", "cq4", "a1c"), head=("G2",), policy="community_invite",
+                cosigners=("p3", "w"))
+LWORLD["V"] = GW + [LRX, LG2, LCQ, LRA2, admit_z(LH, ("a1c", "S1r"))]
+LWANT += [("V", "q4", True)]
 LWORLD["S5"] = GW + [LRX, ST.offer("sdo", "p1", "zz", "member", "gc", "group", ("S1r",), head=("S1r",),
                                    policy="community_invite", cosigners=("p4", "zz")), admit_z(LH, ("a1c", "S1r"))]
 LWORLD["S6"] = GW + [LRX, ST.unseat("sdu", "p1", "p2", "member", "gc", "group", ("S1r",), head=("S1r",),
@@ -739,7 +754,8 @@ PLANTS = ("person_evict_unread", "person_first", "person_any_kind", "person_end_
           "evicted_genesis_speaks", "evicted_key_votes", "rival_roster_kept",
           "rebinding_unread", "landed_eviction_unread", "landed_add_unread",
           "self_founding_family", "mutual_evictions_land", "rival_line_unread", "line_order_unread",
-          "claimed_cosigner_counted", "unconcluded_cosigner_counted")
+          "claimed_cosigner_counted", "unconcluded_cosigner_counted",
+          "line_voices_cosigners_only")
 
 
 def answer(rows, k):
