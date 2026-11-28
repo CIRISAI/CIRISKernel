@@ -42,7 +42,10 @@ use alloc::vec::Vec;
 #[rustfmt::skip]
 #[path = "audience_table.rs"]
 mod table;
-pub use table::{DUTY_SEAT_FAMILIES, FAMILIES, FAMILY_MODEL_SHA256, FOLLOWS, SCOPES, SEAT_FAMILIES};
+pub use table::{
+    DUTY_SEAT_FAMILIES, FAMILIES, FAMILY_MODEL_SHA256, FOLLOWS, OWNER_BINDING_FAMILIES, PERMISSION_FAMILIES, SCOPES,
+    SEAT_FAMILIES,
+};
 
 /// How a row of a `follows` family is placed against the row it follows ([`FOLLOWS`], [`follow`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -545,8 +548,10 @@ pub enum FollowsRef {
     Evidence,
     /// A stream head's `sub`: the stream it heads ([`AudienceRow::stream`]).
     Stream,
-    /// `refs.also.cites`, exactly one row ([`AudienceRow::cites`]): an ownership row's binding, a duty's permission.
-    Cites,
+    /// `refs.also.cites` ([`AudienceRow::cites`]): exactly one cited row of the given families (an ownership row's
+    /// owner binding, [`OWNER_BINDING_FAMILIES`]; a duty's permission, [`PERMISSION_FAMILIES`]); cited rows of other
+    /// families are not read.
+    Cites(&'static [&'static str]),
 }
 
 /// Each `follows` family's reference: the role the family already uses for the row it follows, where one exists,
@@ -554,22 +559,27 @@ pub enum FollowsRef {
 pub const FOLLOWS_REF: &[(&str, FollowsRef)] = &[
     ("custody:{kind}", FollowsRef::Evidence),
     ("stream:head", FollowsRef::Stream),
-    ("ownership:{relation}:{target_kind}:{version}", FollowsRef::Cites),
-    ("duty:{kind}", FollowsRef::Cites),
+    ("ownership:{relation}:{target_kind}:{version}", FollowsRef::Cites(OWNER_BINDING_FAMILIES)),
+    ("duty:{kind}", FollowsRef::Cites(PERMISSION_FAMILIES)),
 ];
 
 /// The row a row of a `follows` family follows, read by its family's reference ([`FOLLOWS_REF`]); the refusal where
-/// it names none (`cites` holding none, or several).
-pub fn followed_of<R: AudienceRow>(r: &R) -> Result<&R::Id, Refusal> {
+/// it names none. Under `cites`, the held cited rows (`by`) of the right family: exactly one; none gives
+/// [`Refusal::FollowsNotNamed`], several of that family [`Refusal::FollowsAmbiguous`].
+pub fn followed_of<'r, R: AudienceRow>(r: &'r R, by: &BTreeMap<&R::Id, &R>) -> Result<&'r R::Id, Refusal> {
     let role = family_of(r.family()).and_then(|f| FOLLOWS_REF.iter().find(|(p, _)| *p == f.0)).map(|(_, x)| *x);
     match role {
         Some(FollowsRef::Evidence) => r.evidence().ok_or(Refusal::FollowsNotNamed),
         Some(FollowsRef::Stream) => r.stream().ok_or(Refusal::FollowsNotNamed),
-        Some(FollowsRef::Cites) => match r.cites() {
-            [one] => Ok(one),
-            [] => Err(Refusal::FollowsNotNamed),
-            _ => Err(Refusal::FollowsAmbiguous),
-        },
+        Some(FollowsRef::Cites(of)) => {
+            let right = |c: &&R::Id| by.get(*c).and_then(|x| family_of(x.family())).is_some_and(|f| of.contains(&f.0));
+            let mut hits = r.cites().iter().filter(right);
+            match (hits.next(), hits.next()) {
+                (Some(one), None) => Ok(one),
+                (None, _) => Err(Refusal::FollowsNotNamed),
+                (Some(_), Some(_)) => Err(Refusal::FollowsAmbiguous),
+            }
+        }
         None => Err(Refusal::FollowsNotNamed),
     }
 }
@@ -602,7 +612,7 @@ pub fn audiences<R: AudienceRow>(
     while !waiting.is_empty() {
         let pending: BTreeSet<&R::Id> = waiting.iter().map(|(r, _)| r.id()).collect();
         let (ready, rest): (Vec<_>, Vec<_>) =
-            waiting.into_iter().partition(|(r, _)| followed_of(*r).map_or(true, |f| !pending.contains(f)));
+            waiting.into_iter().partition(|(r, _)| followed_of(*r, &by).map_or(true, |f| !pending.contains(f)));
         if ready.is_empty() {
             for (r, _) in &rest {
                 out.insert(r.id().clone(), Placed::Refused(Refusal::FollowsUnplaced));
@@ -611,7 +621,7 @@ pub fn audiences<R: AudienceRow>(
         }
         for (r, rule) in ready {
             let own = out.get(r.id()).cloned().expect("placed");
-            let target = followed_of(r);
+            let target = followed_of(r, &by);
             let followed = target.ok().and_then(|f| out.get(f)).cloned();
             out.insert(r.id().clone(), follow(target.map(|_| ()), own, followed.as_ref(), rule, person));
         }

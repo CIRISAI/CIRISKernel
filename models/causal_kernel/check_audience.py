@@ -316,7 +316,8 @@ PLANTS = [(("undecided_defaulted",), "undecided"), (("pinned_unread",), "pinned_
           (("named_within_current",), "named_at_own_head"),
           (("history_unread",), "history"), (("word_read",), "history"),
           (("tie_first",), "ties"), (("follows_unread",), "follow"), (("narrower_by_keys",), "follow"),
-          (("follows_any_ref",), "custody_by_cites_is_not_named")]
+          (("follows_any_ref",), "custody_by_cites_is_not_named"),
+          (("cites_any_family",), "duty_cites_its_permission_and_more")]
 
 
 def generated():
@@ -371,6 +372,9 @@ def check_derivation():
     # the generator refuses a table whose patterns tie on a name, and finds no tie in the pinned one
     if not FP.ties(["x:{a}", "{b}:y"]) or not FP.ties(["x:*", "x:{a}"]) or FP.ties(["x:*", "x:y"]):
         problems.append("derivation: the tie check")
+    if set(AU.CITES_CLASS) != {f for f, r in AU.FOLLOWS_REF.items() if r == "cites"} or \
+            not all(any(c == k for c in AU.CITED_AS.values()) for k in AU.CITES_CLASS.values()):
+        problems.append("derivation: a cites class has no family in the table")
     if set(AU.FOLLOWS) != set(AU.FOLLOWS_REF):
         problems.append("derivation: the follows families %s have references %s" % (sorted(AU.FOLLOWS), sorted(AU.FOLLOWS_REF)))
     if AU.KEY_GRANT not in AU.FAMILIES:
@@ -450,10 +454,16 @@ FOLLOWS_CASES = [
      [row("st", "chat:general", "community", room="r1"),
       dict(row("h", "stream:head", "community", room="r1", names=["st"]), stream="st")],
      {"st": P("targeted_room", ROOM), "h": P("targeted_room", ROOM)}),
-    ("ownership_follows_its_binding", "an ownership row cites the owner binding it mirrors: placed with it",
+    ("ownership_cites_a_permission", "an ownership row cites a permission, not an owner binding: no cited row of "
+     "the right family, refused",
      [row("ob", "consent:scope:own", "community", room="r1"),
       dict(row("o", "ownership:owner:key:v1", "community", room="r1", names=["ob"]), cites=["ob"])],
-     {"ob": P("targeted_room", ROOM), "o": P("targeted_room", ROOM)}),
+     {"ob": P("targeted_room", ROOM), "o": REF("follows_not_named")}),
+    ("duty_cites_its_permission_and_more", "a duty cites its permission and an evidence row: the cited row of the "
+     "right family is the followed row, the other is not read: placed",
+     [row("p", "consent:scope:read", "community", room="r1"), row("ev", "chat:general", "community", room="r1"),
+      dict(row("d", "duty:keep", "family", room="r1", names=["p", "ev"]), cites=["p", "ev"])],
+     {"p": P("targeted_room", ROOM), "ev": P("targeted_room", ROOM), "d": P("targeted_family", ROOM)}),
     ("custody_by_cites_is_not_named", "a custody row names its content by evidence_refs; a cite of the blob row is "
      "not its reference: refused",
      [row("b", "file:blob", "community", room="r1"),

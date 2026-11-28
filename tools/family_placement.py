@@ -149,6 +149,19 @@ def follows_of(row):
     return "narrower" if "narrower" in f else "same"
 
 
+def cited_class(row):
+    """What a row of the family is when another row cites it, for a follows row's `cites` (the ruling on cites):
+    "permission" (its confers cell is a permission), "owner_binding" (a seat of scope owner: the binding an
+    ownership row mirrors), or None."""
+    c = row.get("confers")
+    v = c.get("value") if isinstance(c, dict) else c
+    if not isinstance(v, dict):
+        return None
+    if "permission" in str(v.get("relation", "")).split("|"):
+        return "permission"
+    return "owner_binding" if v.get("scope") == "owner" else None
+
+
 def placement_of(row):
     """(allowed placements, None) or (None, why it is undecided)."""
     p = row["placement"]
@@ -169,6 +182,7 @@ def derive(path):
     for row in model["rows"]:
         allowed, why = placement_of(row)
         fams.append({"family": row["family"], "allowed": allowed, "undecided": why, "seat": seat_family(row),
+                     "cited_as": cited_class(row),
                      "follows": follows_of(row) if allowed is not None else None,
                      "follows_text": row["placement"].get("follows") if allowed is not None else None})
     fams.sort(key=lambda f: f["family"])
@@ -238,6 +252,12 @@ def rust(table):
     out += ["    (%s, Follows::%s)," % (json.dumps(f["family"]), "Narrower" if f["follows"] == "narrower" else "Same")
             for f in table["families"] if f.get("follows")]
     out.append("];")
+    for cls, name, what in (("permission", "PERMISSION_FAMILIES", "a permission (a duty cites the one it attaches to)"),
+                            ("owner_binding", "OWNER_BINDING_FAMILIES",
+                             "an owner binding (an ownership row cites the one it mirrors)")):
+        out += ["", "/// The families whose rows are %s." % what, "pub const %s: &[&str] = &[" % name]
+        out += ["    %s," % json.dumps(f["family"]) for f in table["families"] if f.get("cited_as") == cls]
+        out.append("];")
     out += ["", "/// The room seat families that seat a DUTY over the room, not the roster itself: their offers seat a member at",
             "/// the row's own head, never an outsider, so only such keys are within the row's audience.",
             "pub const DUTY_SEAT_FAMILIES: &[&str] = &["]

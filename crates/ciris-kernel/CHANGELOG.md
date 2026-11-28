@@ -9,7 +9,10 @@ where every person it holds is one the followed row holds (a duty at self by a m
 roster is within). `audience::place_in` places over another table, so the Undecided path stays tested over a
 synthetic one. A follows row names the row it follows by its family's reference (the ruling G34,
 `audience::FOLLOWS_REF`, `followed_of`): custody by `evidence_refs`, stream:head by its `sub`, ownership and duty by
-`refs.also.cites` (exactly one; several refuse, `follows_ambiguous`). **BREAKING** within the release:
+`refs.also.cites`: `cites` is the general role, so the followed row is the one cited row of the right family (an
+owner binding, `audience::OWNER_BINDING_FAMILIES`; a permission, `audience::PERMISSION_FAMILIES`, both derived from
+the confers cells), read from the row set; none gives `follows_not_named`, several of that family
+`follows_ambiguous`, and cited rows of other families are not read. **BREAKING** within the release:
 `AudienceRow::follows` is gone; `evidence`, `stream` and `cites` replace it, and `follow` takes why a row names
 none.
 

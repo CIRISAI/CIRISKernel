@@ -628,6 +628,7 @@ plant "a follows row unchecked"                       src/audience.rs '    if le
 plant "a follows row read by any reference"           src/audience.rs '        Some(FollowsRef::Evidence) => r.evidence().ok_or(Refusal::FollowsNotNamed),' '        Some(FollowsRef::Evidence) => r.evidence().or(r.cites().first()).ok_or(Refusal::FollowsNotNamed),'
 plant "a follows row wider than its own"              src/audience.rs 'Follows::Narrower if within(a, fa, person) => own,' 'Follows::Narrower => own,'
 plant "narrower read by keys, not persons"            src/audience.rs 'a.iter().all(|k| b.contains(k) || person(k).iter().any(|x| b.contains(x)))' '{ let _ = person; a.is_subset(b) }'
+plant "a cited row of any family is followed"         src/audience.rs '.is_some_and(|f| of.contains(&f.0))' '.is_some_and(|_| true)'
 plant "a tie takes the first pattern"                 src/audience.rs 'Some((b, _)) if k == b => tie = true,' 'Some((b, _)) if k == b => {}'
 plant "the first matching family pattern decides"       src/audience.rs 'Some((b, _)) if k < b => {}' 'Some(_) => {}'
 plant "a duty seat seats an outsider"                 src/audience.rs 'let duty = DUTY_SEAT_FAMILIES.contains(&fam);' 'let duty = false && DUTY_SEAT_FAMILIES.contains(&fam);'

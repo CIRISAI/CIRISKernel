@@ -77,12 +77,19 @@ FOLLOWS = {f["family"]: f["follows"] for f in TABLE["families"] if f.get("follow
 # permission it attaches to). The caller resolves a reference to the row id
 FOLLOWS_REF = {"custody:{kind}": "evidence", "stream:head": "stream",
                "ownership:{relation}:{target_kind}:{version}": "cites", "duty:{kind}": "cites"}
+# for a `cites` reference, the family a cited row must be of: `cites` is the general role and a row may cite other
+# things; the followed row is the one cited row of the right family
+CITED_AS = {f["family"]: f["cited_as"] for f in TABLE["families"] if f.get("cited_as")}
+CITES_CLASS = {"ownership:{relation}:{target_kind}:{version}": "owner_binding", "duty:{kind}": "permission"}
 
 
-def followed_of(r):
-    """The row a row of a follows family follows, by its family's reference (FOLLOWS_REF): (id or None, why).
-    `cites` must name exactly one row; none or several name none. MUTATION follows_any_ref: any of the references."""
+def followed_of(r, by=None):
+    """The row a row of a follows family follows, by its family's reference (FOLLOWS_REF): (id or None, why). Under
+    `cites`, the cited rows of the right family (CITES_CLASS: an owner binding, a permission), read from the held
+    rows `by`: exactly one is the followed row; none names none, several of that family are ambiguous, and cited
+    rows of other families are not read. MUTATIONS follows_any_ref: any of the references; cites_any_family."""
     role = FOLLOWS_REF.get(family_of(r["family"]))
+    by = by or {}
     if "follows_any_ref" in MUT:
         for k in ("evidence", "stream"):
             if r.get(k):
@@ -90,7 +97,9 @@ def followed_of(r):
         c = r.get("cites") or []
         return (c[0], None) if c else (None, "follows_not_named")
     if role == "cites":
-        c = r.get("cites") or []
+        want = CITES_CLASS.get(family_of(r["family"]))
+        c = [x for x in r.get("cites") or ()
+             if "cites_any_family" in MUT or (x in by and CITED_AS.get(family_of(by[x]["family"])) == want)]
         if len(c) > 1:
             return None, "follows_ambiguous"
         return (c[0], None) if c else (None, "follows_not_named")
@@ -303,7 +312,7 @@ def _persons_within(a, b, person):
     return all(k in b or any(x in b for x in person(k)) for k in a)
 
 
-def follow(r, own, followed, rule, person=lambda k: (k,)):
+def follow(r, own, followed, rule, person=lambda k: (k,), by=None):
     """A row of a `follows` family (FOLLOWS: custody, duty, ownership, stream:head) placed at the scope of the row it
     follows (followed_of: by its family's reference, the ruling G34): its own answer where that holds, else the
     refusal. rule "same": the
@@ -312,7 +321,7 @@ def follow(r, own, followed, rule, person=lambda k: (k,)):
     person contract, the person's current key roster). MUTATION follows_unread."""
     if own[0] != "placed" or "follows_unread" in MUT:
         return own
-    fid, why = followed_of(r)
+    fid, why = followed_of(r, by)
     if fid is None:
         return ("refused", why)
     if followed is None:
@@ -327,18 +336,19 @@ def follow(r, own, followed, rule, person=lambda k: (k,)):
 def audiences(rows, roster, person, joins=NO_JOINS):
     """{row id: its answer}, the follows rule and then the copy rule applied (carried): a placed row's audience grows
     by the keys every concluded placed row naming it carries it to; the least fixed point, which only grows."""
+    by = {r["id"]: r for r in rows}
     out = {r["id"]: place(r, roster, person, joins) for r in rows}
     # follows, along chains of followers: each against its followed row's answer, once that one is settled
     followers = [r for r in rows if out[r["id"]][0] == "placed" and family_of(r["family"]) in FOLLOWS]
     while followers:
-        ready = [r for r in followers if followed_of(r)[0] not in {f["id"] for f in followers}]
+        ready = [r for r in followers if followed_of(r, by)[0] not in {f["id"] for f in followers}]
         if not ready:                                          # a cycle of followers: none is placed
             for r in followers:
                 out[r["id"]] = ("refused", "follows_unplaced")
             break
         for r in ready:
-            out[r["id"]] = follow(r, out[r["id"]], out.get(followed_of(r)[0]), FOLLOWS[family_of(r["family"])],
-                                  person)
+            out[r["id"]] = follow(r, out[r["id"]], out.get(followed_of(r, by)[0]), FOLLOWS[family_of(r["family"])],
+                                  person, by)
         followers = [r for r in followers if r not in ready]
     by = {r["id"]: r for r in rows}
     namers = {i: [] for i in by}
