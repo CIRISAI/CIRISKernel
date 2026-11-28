@@ -926,6 +926,7 @@ plant "key_end: a revoked key's rotation concludes (revoked_key_rotates, r114 TR
                     && prev' '                true
                     && prev'
 plant "key_end: a rotation over its key's registered self-unseat concludes (r114 TR2, the seat lane's form)" src/key_end.rs 'if p.ancestors().iter().any(|&i| crate::seat::registered_self_unseat(g.row(i), old)) {' 'if false && p.ancestors().iter().any(|&i| crate::seat::registered_self_unseat(g.row(i), old)) {'
+plant "key_end: the key lane's conclusion concludes a seat row (key_rule_concludes_seat_rows, the K2 class)" src/key_end.rs '        return crate::seat::seat_rule(p, law, spec, &|_| true);' '        return true;'
 plant "key_end: after the roster's void a later rotation retires the key again (void_reopens, r118 TR1v2)" src/key_end.rs '    rots.retain(|&r| closing.iter().all(|&v| c.g.in_past(v, r)));' '    let _ = &closing;'
 plant "key_end: after the roster's void a later rotation names a successor (r118 TR1v2)" src/key_end.rs '        .filter(|&i| closing.iter().all(|&v| c.g.in_past(v, i)))' '        .filter(|&i| closing.is_empty() || i < usize::MAX)'
 plant "key_end: a revocation an end while a rotation stands (retired_key_revokes, r114 ruled (1))" src/key_end.rs 'pub fn revocation_stands(rots: &[usize]) -> bool {

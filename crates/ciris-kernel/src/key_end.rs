@@ -147,11 +147,23 @@ pub fn conclude_rule<R: KeyEndRow>(p: &Past<'_, '_, R>) -> bool {
     }
 }
 
-/// [`conclude_rule`] for a store that holds the seat lane too: a rotation of `k` with `k`'s registered self-unseat
-/// ([`crate::seat::registered_self_unseat`], the seat lane's revocation) in its past concludes nothing either (r114
-/// TR2). A caller concluding both lanes in one state uses this for the key lane's rows. `key_end.RULE`.
-pub fn conclude_rule_with_seat<R: KeyEndRow + SeatRow>(p: &Past<'_, '_, R>) -> bool {
-    if let Some(old) = p.row().record().and_then(|x| x.succ_of) {
+/// THE conclusion of a store that holds both lanes in one state (every row, key and seat): a key row by
+/// [`conclude_rule`], a rotation with its key's registered self-unseat ([`crate::seat::registered_self_unseat`]) in
+/// its past concluding nothing either (r114 TR2), and every other row by [`crate::seat::seat_rule`] under `law` and
+/// `spec`. [`conclude_rule`] alone concludes every non-key row, so it is for a store of the key lane only.
+/// `key_end.RULE`.
+pub fn conclude_rule_with_seat<R: KeyEndRow + SeatRow, S: crate::cut::CutSpec<R>>(
+    p: &Past<'_, '_, R>,
+    law: &crate::seat::SeatLaw,
+    spec: &S,
+) -> bool {
+    let r = p.row();
+    if r.record().is_none() && r.statement().is_none() && r.revocation().is_none() {
+        // any other row is the seat lane's, concluded by the seat rule, never by this lane (the K2 class: a key-only
+        // conclusion concluded every seat row, so an unconcluded registered self-unseat ended its key)
+        return crate::seat::seat_rule(p, law, spec, &|_| true);
+    }
+    if let Some(old) = r.record().and_then(|x| x.succ_of) {
         let g = p.graph();
         if p.ancestors().iter().any(|&i| crate::seat::registered_self_unseat(g.row(i), old)) {
             return false;

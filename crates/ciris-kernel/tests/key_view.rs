@@ -5,9 +5,7 @@
 
 mod common;
 use ciris_kernel::cut::CutSpec;
-use ciris_kernel::key_end::{
-    conclude_rule, conclude_rule_with_seat, counts_by, counts_for, successor, KeyReading, KeyView,
-};
+use ciris_kernel::key_end::{conclude_rule_with_seat, counts_by, counts_for, successor, KeyReading, KeyView};
 use ciris_kernel::layers::{conclude, kept, Concluded, Past};
 use ciris_kernel::seat::{final_by_ack, seat_rule, self_roster_ends, voices_with, Obj, SeatLaw, Seats};
 use ciris_kernel::window::{self, WindowSpec};
@@ -84,7 +82,7 @@ fn key_view_cases() {
         let seat_ids: BTreeSet<String> = c.at("seat").strs().into_iter().collect();
         let seat_rows: Vec<TRow> = all.iter().filter(|r| seat_ids.contains(&r.id)).cloned().collect();
         // the key lane and the seat rows, in one causal order
-        let kc = conclude(kept(&all, |_| true), conclude_rule, None);
+        let kc = conclude(kept(&all, |_| true), |p| conclude_rule_with_seat(p, &law, &DictCut), None);
         let mut cmp = |ok: bool, what: String| {
             cases += 1;
             if !ok {
@@ -141,7 +139,7 @@ fn key_view_cases() {
         let refs: BTreeMap<String, String> =
             d.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
         let rows = rows_with_refs(d.at("rows").arr(), &refs);
-        let kc = conclude(kept(&rows, |_| true), conclude_rule, None);
+        let kc = conclude(kept(&rows, |_| true), |p| conclude_rule_with_seat(p, &law, &DictCut), None);
         let final_: BTreeSet<String> = d.at("final").strs().into_iter().collect();
         let (row, key) = (d.at("row").s().to_string(), d.at("key").s().to_string());
         let got = kc.g.idx(&row).is_some_and(|i| counts_for(&kc, i, &key, None, &final_, &BTreeSet::new()));
@@ -157,14 +155,7 @@ fn key_view_cases() {
         let refs: BTreeMap<String, String> =
             d.at("refs").obj().iter().map(|(k, v)| (k.clone(), v.s().to_string())).collect();
         let all = rows_with_refs(d.at("rows").arr(), &refs);
-        let cs = conclude(
-            kept(&all, |_| true),
-            |p| match p.row().kind.as_str() {
-                "rec" | "att" | "edge" | "revoke" => conclude_rule_with_seat(p),
-                _ => seat_rule(p, &law, &DictCut, &|_| true),
-            },
-            None,
-        );
+        let cs = conclude(kept(&all, |_| true), |p| conclude_rule_with_seat(p, &law, &DictCut), None);
         let reader = d.get("reader").and_then(|r| r.opt_s());
         let (row, key) = (d.at("row").s().to_string(), d.at("key").s().to_string());
         let got =
@@ -183,7 +174,7 @@ fn key_view_cases() {
         let all = rows_with_refs(d.at("rows").arr(), &refs);
         let seat_ids: BTreeSet<String> = d.at("seat").strs().into_iter().collect();
         let seat_rows: Vec<TRow> = all.iter().filter(|r| seat_ids.contains(&r.id)).cloned().collect();
-        let kc = conclude(kept(&all, |_| true), conclude_rule, None);
+        let kc = conclude(kept(&all, |_| true), |p| conclude_rule_with_seat(p, &law, &DictCut), None);
         let plain = KeyCut { kv: None };
         let c0 = conclude_rows(&seat_rows, false, &windows, &law, &plain);
         let roster = self_roster_ends(&c0, &law, &plain);
@@ -200,7 +191,7 @@ fn key_view_cases() {
         let all = rows_with_refs(d.at("rows").arr(), &refs);
         let seat_ids: BTreeSet<String> = d.at("seat").strs().into_iter().collect();
         let seat_rows: Vec<TRow> = all.iter().filter(|r| seat_ids.contains(&r.id)).cloned().collect();
-        let kc = conclude(kept(&all, |_| true), conclude_rule, None);
+        let kc = conclude(kept(&all, |_| true), |p| conclude_rule_with_seat(p, &law, &DictCut), None);
         let plain = KeyCut { kv: None };
         let c0 = conclude_rows(&seat_rows, false, &windows, &law, &plain);
         let roster = self_roster_ends(&c0, &law, &plain);
