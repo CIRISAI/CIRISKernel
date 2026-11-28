@@ -352,6 +352,8 @@ follows the merge of the lanes this map reads.
 | 65 | `conferral::answers` | an act at the end's head | `tests/fixtures/conferral_end.json`: `forward_at_end_head` |
 | 66 | `standing::answers` | an act naming its bundle and its acceptance | `tests/fixtures/conferral_two.json`: `names_bundle_and_acceptance` |
 | 67 | `standing::answers` | a backdated act after an act under the new owner | `tests/fixtures/conferral_two.json`: `backdated_after_an_act_under_the_new_owner` |
+| 68 | `seat::seat_rule`, `Seats::holders` (the G9 bridge) | left and returned: two stays by two acceptances; a resignation naming the newest head ends only the current stay, and one naming a head where no stay stands concludes nothing | `check_readmit.py`: "a leaving after the re-admission puts the key out again: C leaves, is re-admitted, leaves; X by A and B is seated", restated with each stay seated by its own acceptance |
+| 69 | `seat::seat_rule`, `Seats::tips_fold` (the G9 bridge) | seated on two tips by different acceptances; a resignation naming both tips ends the stay on each | new: no model case yet; to be added to `check_resignation.py` with the bridge |
 
 Four of these also carry a deliberate fault, so the minted set exercises each fault kind against a known
 answer: case 15 with one voice `bad_signature_half` (the count is then short), case 46 (`unsorted_set`, as the
@@ -364,9 +366,8 @@ With the Constitution's rulings (WIRE_MAP.md, the findings and the guessed mappi
 minted: the recovery widening names its grant under `refs.also.stands_on` (N3), and a landing's outcome is derived
 from its leaf (N6). The election cases (23, 24) mint with the ballots naming their election by `row-ref` and the
 seating citing its set (G12, G13). Two rulings meet how the crate reads its rows:
-- G9: a `membership:resignation` names no target, while the crate's `Withdraw` reads `target()`. Case 16 is
-  unaffected: its founder leaves by a `withdraws` of the founding record, which has a target (N2). Cases 5 and 7
-  model the leaver withdrawing the widening that seats it; on the wire that is a `membership:resignation` (no
-  target) or a `withdraws` of the leaver's own acceptance, and which form the vector uses waits on the lead.
+- G9 is bridged: a resignation is minted as `membership:resignation` with no target, and the store presents it as a
+  withdrawal of the member's own acceptance of the stay standing at the head it names (WIRE_MAP.md G9). Cases 5 and 7
+  then mint; case 16 is a founder's withdrawal of the founding record (N2). Cases 68 and 69 pin the bridge.
 - G15 is bridged: case 50 mints the countersign as a further statement over the act's own payload, and the store
   presents it as a `Countersign` row view (WIRE_MAP.md G15).
